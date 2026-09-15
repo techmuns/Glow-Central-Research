@@ -152,7 +152,25 @@ function mergeStoredIntents(baseRaw, localRaw, diskRaw) {
   return next.length ? JSON.stringify(next) : null;
 }
 
-function persistValue(key) {
+function mergeStoredCompanies(baseRaw, localRaw, diskRaw) {
+  const base = new Set(read(parseArray(baseRaw)).map(entry => entry.ticker));
+  const local = new Map(read(parseArray(localRaw)).map(entry => [entry.ticker, entry]));
+  const merged = new Map(read(parseArray(diskRaw)).map(entry => [entry.ticker, entry]));
+  for (const intent of outbox()) {
+    const ticker = normTicker(intent.ticker);
+    if (intent.op === 'remove') merged.delete(ticker);
+    else if (!merged.has(ticker) && (intent.op === 'add' || (local.has(ticker) && !base.has(ticker)))) {
+      // Preserve new local additions, including unnamed contributions sent as
+      // seeds. An old migration seed cannot override a newer sibling removal.
+      merged.set(ticker, local.get(ticker) || {
+        ticker, name: companyName(intent.name), addedAt: intent.at || null, addedBy: personName(intent.by),
+      });
+    }
+  }
+  return JSON.stringify([...merged.values()]);
+}
+
+function persistValue(key, authoritative = false) {
   if (unreadStorage.has(key) || (key === SEEDED_KEY && unreadStorage.has(STORAGE_KEY))) return;
   try {
     let value = sessionValues.get(key);
@@ -162,6 +180,16 @@ function persistValue(key) {
       sessionValues.set(key, value);
       // If this write fails again, disk entries adopted by the merge are now the
       // base, so a later sibling acknowledgement cannot resurrect them.
+      pendingStorageBases.set(key, disk);
+    } else if (key === STORAGE_KEY) {
+      const disk = localStorage.getItem(key);
+      if (!authoritative && disk !== pendingStorageBases.get(key)) {
+        // A sibling has advanced the mirror since this tab's last readable copy.
+        // Reconcile pending clicks over it instead of replacing it with an older
+        // failed write. A fresh server adoption can replace the mirror directly.
+        value = mergeStoredCompanies(pendingStorageBases.get(key), value, disk);
+        sessionValues.set(key, value);
+      }
       pendingStorageBases.set(key, disk);
     }
     if (value == null) localStorage.removeItem(key);
@@ -174,12 +202,12 @@ function persistValue(key) {
   }
 }
 
-function saveValue(key, value) {
+function saveValue(key, value, authoritative = false) {
   if (!pendingStorage.has(key)) pendingStorageBases.set(key, sessionValues.get(key) ?? null);
   sessionValues.set(key, value);
   pendingStorage.add(key);
   // Never persist "migration complete" ahead of the edits carrying the old list.
-  if (key !== SEEDED_KEY || !pendingStorage.has(OUTBOX_KEY)) persistValue(key);
+  if (key !== SEEDED_KEY || !pendingStorage.has(OUTBOX_KEY)) persistValue(key, authoritative);
 }
 
 function retryStorage() {
@@ -216,6 +244,8 @@ function retryStorage() {
           }
           saveValue(key, JSON.stringify([...retained.values()]));
         }
+        // The recovery above already reconciled these previously unread bytes.
+        if (pendingStorage.has(key)) pendingStorageBases.set(key, raw);
       }
       if (!pendingStorage.has(key)) sessionValues.set(key, raw);
       unreadStorage.delete(key);
@@ -224,7 +254,10 @@ function retryStorage() {
       // Still inaccessible; keep the session copy and leave the old bytes untouched.
     }
   }
-  for (const key of pendingStorage) if (key !== SEEDED_KEY) persistValue(key);
+  // Resolve any sibling acknowledgements before overlaying pending edits on its mirror.
+  for (const key of new Set([OUTBOX_KEY, REJECTED_KEY, ...pendingStorage])) {
+    if (key !== SEEDED_KEY && pendingStorage.has(key)) persistValue(key);
+  }
   if (pendingStorage.has(SEEDED_KEY) && !pendingStorage.has(OUTBOX_KEY)) persistValue(SEEDED_KEY);
 }
 
@@ -266,8 +299,8 @@ function read(parsed = readRaw(STORAGE_KEY, [])) {
   return out;
 }
 
-function write(entries) {
-  saveValue(STORAGE_KEY, JSON.stringify(entries));
+function write(entries, authoritative = false) {
+  saveValue(STORAGE_KEY, JSON.stringify(entries), authoritative);
   saveValue(MIGRATED_KEY, '3');
 }
 
@@ -284,7 +317,9 @@ migrateOnce();
 // The outbox — edits this device has made and the shared list has not accepted yet.
 // It is persisted because the alternative is losing somebody's star to a closed tab or a tunnel.
 
-const outbox = () => readRaw(OUTBOX_KEY, []).filter((i) => i && SYMBOL_RE.test(normTicker(i.ticker)));
+function outbox() {
+  return readRaw(OUTBOX_KEY, []).filter((i) => i && SYMBOL_RE.test(normTicker(i.ticker)));
+}
 
 function writeOutbox(list) {
   saveValue(OUTBOX_KEY, list.length ? JSON.stringify(list) : null);
@@ -410,8 +445,8 @@ export function add(ticker, name = null, by = null) {
     return true;
   }
   entries.push({ ticker: t, name: companyName(name), addedAt: new Date().toISOString(), addedBy: contributor || null });
-  write(entries);
   queue(contributor ? { op: 'add', ticker: t, name: companyName(name), by: contributor } : { op: 'seed', ticker: t, name: companyName(name) });
+  write(entries);
   if (contributor) people.remember(contributor);
   emit();
   scheduleWrite();
@@ -424,8 +459,8 @@ export function remove(ticker, by = null) {
   const next = entries.filter((e) => e.ticker !== t);
   if (next.length === entries.length) return false;
   const contributor = personName(by) || people.me();
-  write(next);
   queue({ op: 'remove', ticker: t, by: contributor || null });
+  write(next);
   if (contributor) people.remember(contributor);
   emit();
   scheduleWrite();
@@ -500,7 +535,7 @@ function adopt(snapshot) {
   }
   shared = { revision: snapshot.revision ?? null, updatedAt: snapshot.updatedAt || null };
   people.ingest(snapshot.people);
-  write([...byTicker.values()]);
+  write([...byTicker.values()], true);
   return true;
 }
 
@@ -555,12 +590,18 @@ export function syncNow({ force = false } = {}) {
   writeTimer = null;
   if (syncing) return syncing;
   if (!force && Date.now() < retryAt) return Promise.resolve(meta());
-  syncing = (async () => {
+  // Assign the in-flight promise before any early return can clear it in finally.
+  syncing = Promise.resolve().then(async () => {
     try {
       retryStorage();
       // A queued edit can be left by an interrupted first visit. Preserve the old
       // device list BEFORE its acknowledgement adopts the server's smaller list.
-      if (outbox().length) seedOnce({ companies: [] });
+      if (outbox().length && !seedOnce({ companies: [] })) {
+        confirmed = false;
+        lastError = null;
+        retryAt = 0;
+        return meta();
+      }
       await flush();
       const read0 = await conditionalJson(ROUTE, { key: KEYS.sharedWatchlist, optional: true });
       if (!read0 || !read0.value) {
@@ -581,7 +622,12 @@ export function syncNow({ force = false } = {}) {
       // Carrying this device's old list across happens BEFORE the adopt, and anything it queues is
       // sent in the same pass — otherwise a seeded company would wait a whole cycle to be decided
       // on, and `meta()` would report a pending edit nobody had made.
-      seedOnce(read0.value);
+      if (!seedOnce(read0.value)) {
+        confirmed = false;
+        lastError = null;
+        retryAt = 0;
+        return meta();
+      }
       if (outbox().length) await flush();
       adopt(read0.value);
       checkedAt = read0.checkedAt || Date.now();
@@ -600,7 +646,7 @@ export function syncNow({ force = false } = {}) {
       syncing = null;
       emit();
     }
-  })();
+  });
   return syncing;
 }
 
@@ -613,8 +659,14 @@ export function syncNow({ force = false } = {}) {
  * which is the one way a well-meaning migration could quietly undo a deliberate edit.
  */
 function seedOnce(snapshot) {
-  if (unreadStorage.has(STORAGE_KEY) || unreadStorage.has(SEEDED_KEY)) return;
-  if (storedValue(SEEDED_KEY) === '1') return;
+  // An unread list is protected from persistence until retryStorage recovers it,
+  // so the tab can still work online. A readable legacy list needs its migration
+  // status established before any server response can replace those saved rows.
+  if (unreadStorage.has(STORAGE_KEY)) return true;
+  if (unreadStorage.has(SEEDED_KEY)) return false;
+  const seeded = storedValue(SEEDED_KEY);
+  if (failedStorageReads.has(SEEDED_KEY)) return false;
+  if (seeded === '1') return true;
   const remote = new Set((snapshot.companies || []).map((c) => normTicker(c.ticker)));
   const queued = new Set(outbox().map((i) => normTicker(i.ticker)));
   for (const entry of read()) {
@@ -622,6 +674,7 @@ function seedOnce(snapshot) {
     queue({ op: 'seed', ticker: entry.ticker, name: entry.name });
   }
   saveValue(SEEDED_KEY, '1');
+  return true;
 }
 
 let stopPoll = null;

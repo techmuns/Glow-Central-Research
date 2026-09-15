@@ -536,6 +536,88 @@ try {
   ok('storage recovery never replays an already-acknowledged edit from stale disk bytes',
     !store.watchlistSnapshot().companies.some(c => c.ticker === 'RECOVERACK'));
 
+  console.log('\n— recovered device mirrors and migration markers —');
+  for (const withPending of [false, true]) {
+    const oldTicker = withPending ? 'MIRROROLDPENDING' : 'MIRROROLD';
+    const newTicker = withPending ? 'MIRRORNEWPENDING' : 'MIRRORNEW';
+    store.watchlistApply([{ op: 'add', ticker: oldTicker, name: 'Older snapshot', by: 'Tester' }]);
+    const mirror = await fixture({ 'sattva:watchlist:seeded': '1' });
+    await sync(mirror);
+    const sibling = await mirror.context().newPage();
+    await sibling.goto(`${origin}/watchlist-fixture`);
+    await sync(sibling);
+    await mirror.evaluate(() => {
+      window.originalSet = Storage.prototype.setItem;
+      Storage.prototype.setItem = function(key, value) {
+        if (key === 'sattva:watchlist') throw new DOMException('Full', 'QuotaExceededError');
+        return originalSet.call(this, key, value);
+      };
+    });
+    await sync(mirror); // A server-confirmed list whose mirror could not be saved.
+    store.watchlistApply([{ op: 'remove', ticker: oldTicker, by: 'Another device' },
+      { op: 'add', ticker: newTicker, name: 'Newer snapshot', by: 'Another device' }]);
+    await sync(sibling);
+    offline = true;
+    if (withPending) await mirror.evaluate(async () => { wl.add('MIRRORLOCAL', 'Pending local addition', 'Tester'); await wl.syncNow({ force: true }); });
+    await mirror.evaluate(() => { Storage.prototype.setItem = originalSet; });
+    await sync(mirror);
+    const recovered = await listOn(mirror);
+    ok(`recovery keeps the newer sibling mirror and outstanding edits while offline (pending: ${withPending})`,
+      !recovered.companies.some(c => c.ticker === oldTicker) && recovered.companies.some(c => c.ticker === newTicker) &&
+      (!withPending || recovered.companies.some(c => c.ticker === 'MIRRORLOCAL')));
+    await mirror.reload();
+    const reopened = await listOn(mirror);
+    ok(`reopening retains the newer mirror after recovery (pending: ${withPending})`,
+      !reopened.companies.some(c => c.ticker === oldTicker) && reopened.companies.some(c => c.ticker === newTicker) &&
+      (!withPending || reopened.companies.some(c => c.ticker === 'MIRRORLOCAL')));
+    offline = false;
+    await sync(mirror);
+  }
+
+  // An absent server row is also the state of a removal whose tombstone expired.
+  const seededMarker = await fixture({ 'sattva:watchlist:seeded': '1',
+    'sattva:watchlist': JSON.stringify([{ ticker: 'SEEDEDMARKEROLD', name: 'Already migrated long ago' }]) });
+  await seededMarker.evaluate(() => {
+    window.originalGet = Storage.prototype.getItem;
+    Storage.prototype.getItem = function(key) {
+      if (key === 'sattva:watchlist:seeded') throw new DOMException('Denied', 'SecurityError');
+      return originalGet.call(this, key);
+    };
+  });
+  await sync(seededMarker);
+  ok('a failed migration-marker read cannot seed an established stale mirror again',
+    !store.watchlistSnapshot().companies.some(c => c.ticker === 'SEEDEDMARKEROLD'));
+  await seededMarker.evaluate(() => { Storage.prototype.getItem = originalGet; });
+  await sync(seededMarker);
+  ok('recovering the established migration marker leaves the old company removed',
+    !store.watchlistSnapshot().companies.some(c => c.ticker === 'SEEDEDMARKEROLD') && !(await listOn(seededMarker)).meta.error);
+
+  for (const withPending of [false, true]) {
+    const ticker = withPending ? 'UNKNOWNSEEDPENDING' : 'UNKNOWNSEEDOLD';
+    const initial = { 'sattva:watchlist': JSON.stringify([{ ticker, name: 'Never migrated' }]) };
+    if (withPending) initial['sattva:watchlist:outbox'] = JSON.stringify([{ op: 'add', ticker: 'UNKNOWNSEEDNEW', by: 'Tester' }]);
+    const unknownMarker = await fixture(initial);
+    await unknownMarker.evaluate(() => {
+      window.originalGet = Storage.prototype.getItem;
+      Storage.prototype.getItem = function(key) {
+        if (key === 'sattva:watchlist:seeded') throw new DOMException('Denied', 'SecurityError');
+        return originalGet.call(this, key);
+      };
+    });
+    await sync(unknownMarker);
+    const retained = await unknownMarker.evaluate(ticker => ({
+      visible: wl.has(ticker), saved: JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').some(c => c.ticker === ticker),
+      meta: wl.meta(),
+    }), ticker);
+    ok(`an unreadable migration marker preserves an unmigrated list before adoption (pending: ${withPending})`,
+      retained.visible && retained.saved && !retained.meta.shared && !!retained.meta.error);
+    await unknownMarker.evaluate(() => { Storage.prototype.getItem = originalGet; });
+    await sync(unknownMarker);
+    ok(`the unmigrated list and pending clicks are recovered after the marker becomes readable (pending: ${withPending})`,
+      store.watchlistSnapshot().companies.some(c => c.ticker === ticker) &&
+      (!withPending || store.watchlistSnapshot().companies.some(c => c.ticker === 'UNKNOWNSEEDNEW' && c.addedBy === 'Tester')));
+  }
+
   console.log('\n— capacity refusals stay visible —');
   const capacity = await fixture({ 'sattva:watchlist:seeded': '1' });
   const room = 600 - store.watchlistSnapshot().count;

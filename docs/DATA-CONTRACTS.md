@@ -4303,6 +4303,8 @@ the same distinction the X handle list draws between `adding` and `active`.
   changes, all older device entries are queued as seeds before the first server reply replaces
   the device copy. Pending explicit edits keep their attribution and take precedence over seeds.
   The migration-complete marker cannot be persisted before the old entries' outbox.
+  An unreadable migration marker defers migration and replacement of a readable legacy list;
+  it is never interpreted as a missing marker or used to report that list as confirmed.
 - **Storage failure has a session fallback.** The open tab retains both the list and pending edits
   in memory and exposes `meta().storageAvailable = false` with a reader-facing warning. Reconnection
   can still send those edits. Failed local writes are retried; storage that was unreadable at
@@ -4311,6 +4313,8 @@ the same distinction the X handle list draws between `adding` and `active`.
   outbox writes still fail; reopening can retry migration from that retained list. A recovered
   outbox write merges the current disk queue with this tab's changes since its last known disk
   value. Intent IDs preserve sibling edits without replaying already-acknowledged entries.
+  Recovered mirror writes keep a sibling's newer saved snapshot and overlay outstanding edits;
+  only a fresh server adoption may replace it directly.
   Same-device edits to one company keep the newer local click; the server still orders accepted
   operations with its own clock. Closing a tab
   before an unpersisted edit reaches the server can lose that edit, and the warning says to keep
