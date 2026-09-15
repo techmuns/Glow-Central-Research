@@ -769,23 +769,26 @@ function assemble({ day, scope, holdings, includeHistory, settledFeeds, requeste
 
   const feeds = dedupePublisherAlertFeeds(scopedFeeds, { day, entities: portfolioEntities });
 
-  const currentRevisions = feeds.map(f => f.revision).join(',');
   const inputMatches = lastAssembleInput && lastAssembleInput.scope === scope && lastAssembleInput.day === day &&
-      lastAssembleInput.revisions === currentRevisions;
+      lastAssembleInput.includeHistory === includeHistory && feeds.every((feed, i) => {
+        const previous = lastAssembleInput.eventGroups[i];
+        return previous?.length === feed.events.length && feed.events.every((event, j) => event === previous[j]);
+      });
 
   const done = feeds.filter((f) => f.status !== 'pending');
 
-  if (inputMatches) {
-    return { ...lastAssembleOutput, feeds, pending: feeds.filter((f) => f.status === 'pending').length };
+  // A capture timestamp cannot identify a scoped result: membership, private access and
+  // same-count corrections can change without advancing it. Reuse only identical records;
+  // still recompute source-health metadata on status-only arrivals.
+  const events = inputMatches ? lastAssembleOutput.events : [];
+  if (!inputMatches) {
+    for (const f of feeds) for (const ev of f.events) events.push(ev);
+    events.sort(byNewestFirst);
+    ensureUniqueIds(events);
   }
-
-  const events = [];
-  for (const f of feeds) for (const ev of f.events) events.push(ev);
-  events.sort(byNewestFirst);
-  ensureUniqueIds(events);
   const eventDays = [...new Set(events.map((event) => event.day).filter(Boolean))].sort();
 
-  lastAssembleInput = { scope, day, revisions: currentRevisions };
+  lastAssembleInput = { scope, day, includeHistory, eventGroups: feeds.map(feed => feed.events) };
   lastAssembleOutput = {
     day,
     scope,

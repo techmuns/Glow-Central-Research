@@ -1,5 +1,36 @@
 # Dashboard-wide performance, 6 September 2026
 
+## Release audit, 15 September 2026
+
+The September 12–14 caching, iframe, scrolling and live-update improvements are on main.
+The follow-up release closes correctness gaps found while reviewing PR #201:
+
+- The All Alerts assembly cache compares the actual eligible records. A Watchlist addition,
+  same-size membership replacement, explicit research issuer, private logout or source correction
+  cannot reuse an unrelated result merely because capture timestamps are unchanged. Source-health
+  metadata is recalculated even when sorted event objects can be reused.
+- The preserved source picker has one current handler, consistent selected-source descriptions,
+  and stable native open/closed state. Its status-chip layout retains its flex container during
+  updates. Compact header spacing lives in the Tailwind input and regenerated output.
+- Company deep links reset the active table's filters. Scope and IST-day changes recreate the
+  table's date/export context. Ordinary arrivals continue updating the current table in place.
+- Replacement rows invalidate cached markup even when the source supplies no revision field.
+- The release marker advances. The browser regression starts with a previous cached release,
+  reopens offline, then verifies automatic adoption of the current module graph and preservation
+  of the reader's saved theme.
+
+Regression coverage includes 100,715 retained alert records, Watchlist/Portfolio/Universe parity,
+private-record removal, full-history search, independent calendar presets, repeat source selection,
+embedded desktop/laptop/mobile layout, full-data exports and same-ID row corrections. The complete
+local interaction sweep covers 24 route/view visits plus native wheel/deep scrolling, off-screen
+search, resizing and disposal. CI repeats the browser and data contracts before merging.
+
+These fixes do not establish uniformly instant cold starts. The full-Universe sweep still shows
+multi-second initial AI/All Alerts preparation and background work delaying later navigation.
+That remains a profiling opportunity; these local fixtures do not establish production field INP
+or complete upstream data coverage. No collection cadence, source coverage or retained history
+is reduced for this release.
+
 ## Diagnosis and changes
 
 The bottleneck was not the number of retained records alone. It was rendering all of them and

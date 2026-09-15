@@ -157,7 +157,17 @@ assert(afterSharedWrite > previousCalls, 'starring a company writes to the share
 const watched = await alerts.collect({ ...options, scope: 'watchlist', load: false });
 assert.deepEqual(watched.events.map((e) => e.id).sort(), universe.events.filter((e) => e.ticker === 'STLTECH').map((e) => e.id).sort());
 assert.equal(watched.events.filter(event => event.url === crossRoutePublisher.url).length, 1, 'Watchlist also receives just one company/article alert');
+watchlist.remove('STLTECH');
+watchlist.add('RELIANCE', 'Reliance Industries', 'Fixture reader');
+const replacedWatchlist = await alerts.collect({ ...options, scope: 'watchlist', load: false });
+assert.deepEqual(replacedWatchlist.events.map(event => event.id).sort(), universe.events.filter(event => event.ticker === 'RELIANCE').map(event => event.id).sort(),
+  'same-size Watchlist membership changes invalidate the assembled result without a new source revision');
+watchlist.remove('RELIANCE');
+watchlist.add('STLTECH', 'Sterlite Technologies', 'Fixture reader');
+const restoredWatchlist = await alerts.collect({ ...options, scope: 'watchlist', load: false });
+assert.deepEqual(restoredWatchlist.events.map(event => event.id).sort(), watched.events.map(event => event.id).sort());
 assert.equal(calls.length, afterSharedWrite, 'scope/filter changes require no extra fetch');
+await watchlist.syncNow({ force: true }).catch(() => {});
 assert.equal(portfolio.feeds.find((f) => f.id === 'twitter').scopable, true, 'reviewed company mentions can now be scoped; unresolved posts still stay in Universe');
 assert(portfolio.feeds.find((f) => f.id === 'nse-filings').unresolvedCount > 0, 'unresolved omissions are counted');
 
@@ -185,6 +195,13 @@ records.recordDocuments('company-documents', { rows: [privateRow, privateRow] },
 const privateReport = await alerts.collect({ ...options, scope: 'portfolio', load: false });
 assert.equal(privateReport.events.filter((e) => e.private).length, 1);
 assert.equal(privateReport.events.find((e) => e.private).sourceRecord.isRead, true);
+records.clearPrivateRecords();
+const loggedOutReport = await alerts.collect({ ...options, scope: 'portfolio', load: false });
+assert(!loggedOutReport.events.some(event => event.private), 'logout clears private events while staying in the same scope and source revision');
+records.recordDocuments('company-documents', { rows: [{ ...privateRow, title: 'Corrected private annual report' }] }, { ticker: 'STLTECH', name: 'Sterlite Technologies' });
+const correctedPrivateReport = await alerts.collect({ ...options, scope: 'portfolio', load: false });
+assert.equal(correctedPrivateReport.events.find(event => event.private).headline, 'Corrected private annual report',
+  'a same-ID correction reaches the current report');
 assert([...storage.values()].every((value) => !String(value).includes('Private annual report')), 'private data never persists');
 const durableWindow = alerts.materializePublicAlertWindow({
   day: options.day,

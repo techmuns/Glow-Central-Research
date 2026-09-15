@@ -208,17 +208,29 @@ try {
   });
   await page.locator('[data-table-search]').fill('Date window fixture');
   await page.waitForFunction(() => document.querySelectorAll('tbody tr[data-row-key]').length === 12);
+  await period.selectOption('today');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 12, 'active search includes retained matches outside the date preset');
+  // Isolate the fixture using its source so calendar boundaries are tested without the
+  // deliberately history-wide text search introduced in #187.
+  await page.locator('[data-sources-summary]').click();
+  await page.locator('[data-feed-toggle="company-documents"]').click();
+  await page.locator('[data-sources-close]').click();
+  await page.locator('[data-table-search]').fill('');
   for (const [value,count] of [['today',1],['3d',3],['7d',5],['14d',7],['30d',9],
     ['month',dateFixture.dates.filter(day => day >= dateFixture.day.slice(0,7) + '-01').length],['older',2],['undated',1],['all',12]]) {
     await period.selectOption(value);
     assert.equal(await page.locator('tbody tr[data-row-key]').count(), count, `All Alerts exact period membership: ${value}`);
   }
   await period.selectOption('7d');
+  await page.locator('[data-table-search]').fill('Date window fixture');
   await page.evaluate(() => window.show('portfolio'));
   await settled();
   assert.equal(await period.inputValue(), '7d', 'chosen period survives a source revalidation');
   assert.equal((await page.locator('[data-table-search]').inputValue()).toLowerCase(), 'date window fixture');
-  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 5);
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 12, 'retained search still spans history after revalidation');
+  await page.locator('[data-sources-summary]').click();
+  await page.locator('[data-feed-toggle="__all"]').click();
+  await page.locator('[data-sources-close]').click();
   await period.selectOption('today');
   await page.evaluate(() => window.show('portfolio', { company: 'STLTECH' }));
   await settled();

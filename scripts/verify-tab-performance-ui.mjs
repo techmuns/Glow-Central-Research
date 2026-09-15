@@ -189,6 +189,15 @@ try {
   await frame.evaluate(() => { records[2999].title = 'Updated live title'; fixtureTable.updateRows(['2999']); });
   await search.fill('Updated live title');
   assert.equal(await frame.locator('tr[data-row-key]').count(), 1, 'live patches invalidate search text');
+  await frame.evaluate(() => {
+    records = records.map(row => row.id === '2999' ? { ...row, title: 'Replacement live title' } : row);
+    fixtureTable.updateData(records);
+  });
+  assert.equal(await frame.locator('tr[data-row-key]').count(), 0, 'replacing same-ID records invalidates the old search match');
+  await search.fill('Replacement live title');
+  assert.equal(await frame.locator('tr[data-row-key]').count(), 1);
+  assert((await frame.locator('tr[data-row-key]').innerText()).includes('Replacement live title'),
+    'a correction without an optional revision field replaces the mounted row markup');
   await search.fill('does-not-exist');
   assert.equal(await frame.locator('tr[data-row-key]').count(), 0, 'empty filtered lists are safe');
   await search.fill('');

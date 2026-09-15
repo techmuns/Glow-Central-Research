@@ -1316,7 +1316,7 @@ export function scoreTable(config) {
     for (const row of rows) {
       const k = String(key(row));
       const old = oldRowsByKey.get(k);
-      if (!old || old.revision !== row.revision) {
+      if (!old || old !== row || old.revision !== row.revision) {
         rowHtmlCache.delete(k);
         staleKeys.add(k);
       }

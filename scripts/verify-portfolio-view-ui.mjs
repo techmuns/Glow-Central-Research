@@ -235,6 +235,7 @@ try {
       await page.evaluate(date => { location.hash = `#/research/earnings-hub?scope=watchlist&view=calendar&date=${date}`; }, todayIst);
       await page.waitForFunction(async () => (await import('/js/core/state.js')).state.scope === 'watchlist');
       await page.getByText('Watchlist ·', { exact:false }).waitFor();
+      await page.getByText('OnEMI scheduled result', { exact:true }).waitFor();
       const watchlistCalendar = await page.locator('#content-host').innerText();
       assert.doesNotMatch(watchlistCalendar, /New holding scheduled call|Outside scheduled call|Unresolved scheduled call/);
       
@@ -331,6 +332,20 @@ try {
     assert.deepEqual(pickerState, { afterOpenRepaint: true, afterCloseRepaint: false }, 'repaints preserve native source-menu state before the queued toggle event');
     await frame.locator('[data-sources-summary]').click();
     await frame.locator('[data-alerts-coverage]').waitFor({ state: 'visible' });
+    // Repeated source arrivals must not stack handlers on the preserved panel. A single
+    // source selection and its description must agree after every repaint.
+    for (let repaint = 0; repaint < 3; repaint++) {
+      await frame.locator('[data-feed-toggle="__all"]').click();
+      const source = frame.locator('[data-feed-toggle]:not([data-feed-toggle="__all"])').first();
+      const id = await source.getAttribute('data-feed-toggle');
+      await source.click();
+      assert.equal(await frame.locator('[data-source-selection]').innerText(), '1 selected');
+      assert.equal(await frame.locator(`[data-feed-toggle="${id}"]`).getAttribute('aria-checked'), 'true');
+      const selectedName = await frame.locator('[data-sources-summary]').getAttribute('title');
+      assert.notEqual(selectedName, 'Every available source');
+      assert((await frame.locator('.alerts-source-heading p').innerText()).startsWith(selectedName));
+    }
+    await frame.locator('[data-feed-toggle="__all"]').click();
     const expanded = await measure();
     assert.equal(expanded.height, normal.height, 'filters overlay, rather than consume, the reading space');
     const panel = await frame.locator('[data-alerts-coverage]').boundingBox();
