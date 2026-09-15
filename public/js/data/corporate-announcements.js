@@ -89,7 +89,12 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
       cachedHeld.identity = identity;
       cachedHeld.output = held.map(identity.row);
     }
-    held = mergeAnnouncements(cachedHeld.output, cachedBase.output, cachedNse.output);
+    const next = mergeAnnouncements(cachedHeld.output, cachedBase.output, cachedNse.output);
+    // A successful response can replace objects without changing any filing.
+    // Compare once per source arrival; ordinary rows/meta reads keep the fast
+    // reference path above and unchanged responses keep the reader's controls.
+    const nextText = JSON.stringify(next);
+    if (nextText !== heldText) { held = next; heldText = nextText; }
     rowInputs = { base: baseRows, nse: nseRows, identity };
     return held;
   };

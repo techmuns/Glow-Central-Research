@@ -17,6 +17,9 @@ The follow-up release closes correctness gaps found while reviewing PR #201:
 - Replacement rows invalidate cached markup even when the source supplies no revision field.
   Measured lists keep one scroll listener and retain the visible record/offset when new records
   arrive before it or source refreshes replace row objects.
+- Corporate Announcements preserves row identity when a fresh response repeats identical
+  filings, keeping its search field and reading position mounted. Unchanged in-memory reads
+  continue using the fast reference cache.
 - The release marker advances. The browser regression starts with a previous cached release,
   reopens offline, then verifies automatic adoption of the current module graph and preservation
   of the reader's saved theme.
