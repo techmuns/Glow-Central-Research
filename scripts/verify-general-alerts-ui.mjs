@@ -491,8 +491,8 @@ try {
   await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('DMart reports'));
   await page.evaluate(() => window.disposeNews());
 
-  // Exercise the actual tab inside a short host iframe, with real wheel input. Checking DOM
-  // bounds alone misses a virtual stride smaller than the rendered news-attribution rows.
+  // Exercise the actual tab inside a short host iframe, with real wheel input. Measured rows
+  // may have different natural heights; verify contiguous geometry across window replacements.
   await page.goto(`${origin}/embed`);
   const embedded = await (await page.locator('iframe').elementHandle()).contentFrame();
   await settled(embedded);
@@ -523,18 +523,17 @@ try {
         await new Promise(requestAnimationFrame);
         const el = document.querySelector('[data-table-scroll]');
         const rows = [...el.querySelectorAll('tr[data-row-key]')];
-        const stride = parseFloat(rows[0].style.height);
-        const origin = el.querySelector('tbody').getBoundingClientRect().top;
+        const boxes = rows.map(row => row.getBoundingClientRect());
         const boundary = el.getBoundingClientRect().top + el.querySelector('thead').offsetHeight;
         const visible = rows.find(r => r.getBoundingClientRect().bottom > boundary);
         return { top: el.scrollTop, start: el.closest('[data-score-table]').dataset.virtualStart,
-          count: rows.length, stride, heights: rows.map(r => r.getBoundingClientRect().height),
-          drift: rows.map(r => Math.abs(r.getBoundingClientRect().top - origin - (Number(r.getAttribute('aria-rowindex')) - 2) * stride)),
+          count: rows.length, heights: boxes.map(box => box.height),
+          gaps: boxes.slice(1).map((box, i) => Math.abs(box.top - boxes[i].bottom)),
           visible: !!visible && visible.getBoundingClientRect().top < el.getBoundingClientRect().bottom };
       });
       assert(sample.top > previous && sample.visible, `wheel advances through visible records inside ${size.width}px iframe (step ${step}, previous ${previous}): ${JSON.stringify(sample)}`);
-      assert(sample.count <= 64 && sample.heights.every(h => Math.abs(h - sample.stride) <= 1), 'rendered heights match the virtual scroll stride');
-      assert(Math.max(...sample.drift) <= 2, `window replacement must not jump rows: ${Math.max(...sample.drift)}px drift`);
+      assert(sample.count <= 64 && sample.heights.every(height => height > 0), 'natural-height rows remain visible and bounded');
+      assert(Math.max(0, ...sample.gaps) <= 2, `window replacement keeps rows contiguous: ${Math.max(0, ...sample.gaps)}px gap/overlap`);
       previous = sample.top;
       starts.add(sample.start);
     }

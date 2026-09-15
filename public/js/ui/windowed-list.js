@@ -122,12 +122,21 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, s
   observer.observe(scroller); observer.observe(content);
   return {
     update(next, { resetScroll = false } = {}) {
+      const held = !resetScroll && scroller.scrollTop > 0 ? anchor() : null;
+      const heldKey = held && rows[held.index] ? String(key(rows[held.index])) : null;
       rows = next;
       const keys = new Set(rows.map(row => String(key(row))));
       for (const k of measured.keys()) if (!keys.has(k)) measured.delete(k);
       resetGeometry();
       if (resetScroll) scroller.scrollTop = 0;
-      paint(geometry.indexAt(rowTop()), true);
+      const nextIndex = heldKey == null ? -1 : rows.findIndex(row => String(key(row)) === heldKey);
+      if (nextIndex >= 0) {
+        // Source updates can insert rows or replace their objects without changing the record
+        // being read. Preserve that record and its within-row offset across new measurements.
+        const top = head() + geometry.offset(nextIndex) + held.inside;
+        paint(nextIndex, true);
+        scroller.scrollTop = top;
+      } else paint(geometry.indexAt(rowTop()), true);
     },
     refresh() { paint(geometry.indexAt(rowTop()), true); },
     destroy() {

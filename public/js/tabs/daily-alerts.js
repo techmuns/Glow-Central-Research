@@ -1181,7 +1181,9 @@ function dateRangeOptions(events, day, mode) {
   const options = [{ value: 'all', label: 'All history through today' },
     ...NEWS_PERIODS.map(option => ({ ...option,
       value: /^\d+$/.test(option.value) ? `${option.value}d` : option.value }))];
-  if (events.some((event) => event.day < shiftDay(day, -29))) options.push({ value: 'older', label: 'Older than 30 days' });
+  // Keep this choice available while older sources are still loading. The live table retains
+  // its controls, so a later archive arrival must not require remounting to expose its period.
+  options.push({ value: 'older', label: 'Older than 30 days' });
   return options;
 }
 

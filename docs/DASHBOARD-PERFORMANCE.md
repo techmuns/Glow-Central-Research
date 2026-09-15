@@ -15,6 +15,8 @@ The follow-up release closes correctness gaps found while reviewing PR #201:
 - Company deep links reset the active table's filters. Scope and IST-day changes recreate the
   table's date/export context. Ordinary arrivals continue updating the current table in place.
 - Replacement rows invalidate cached markup even when the source supplies no revision field.
+  Measured lists keep one scroll listener and retain the visible record/offset when new records
+  arrive before it or source refreshes replace row objects.
 - The release marker advances. The browser regression starts with a previous cached release,
   reopens offline, then verifies automatic adoption of the current module graph and preservation
   of the reader's saved theme.

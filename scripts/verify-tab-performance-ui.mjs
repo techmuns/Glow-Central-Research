@@ -201,6 +201,24 @@ try {
   await search.fill('does-not-exist');
   assert.equal(await frame.locator('tr[data-row-key]').count(), 0, 'empty filtered lists are safe');
   await search.fill('');
+  await scroller.evaluate(el => { el.scrollTop = 30000; });
+  await frame.evaluate(async () => { for (let i = 0; i < 5; i++) await new Promise(requestAnimationFrame); });
+  const readAnchor = () => scroller.evaluate(el => {
+    const boundary = el.getBoundingClientRect().top + el.querySelector('thead').offsetHeight;
+    const row = [...el.querySelectorAll('tr[data-row-key]')].find(row => row.getBoundingClientRect().bottom > boundary);
+    return { key: row.dataset.rowKey, offset: row.getBoundingClientRect().top - boundary };
+  });
+  const beforeArrival = await readAnchor();
+  await frame.evaluate(() => {
+    records = [...records.map(row => ({ ...row })), ...Array.from({ length: 50 }, (_, i) => ({
+      id: String(3000 + i), title: 'New arrival ' + i, value: 3000 + i, detail: 'Arrived while reading',
+    }))];
+    fixtureTable.updateData(records);
+  });
+  await frame.evaluate(async () => { for (let i = 0; i < 5; i++) await new Promise(requestAnimationFrame); });
+  const afterArrival = await readAnchor();
+  assert.equal(afterArrival.key, beforeArrival.key, 'arrivals before the viewport preserve the record being read');
+  assert(Math.abs(afterArrival.offset - beforeArrival.offset) <= 2, 'replaced row objects retain their reading offset');
   await page.setViewportSize({ width: 680, height: 800 });
   await frame.evaluate(async () => { for (let i=0;i<5;i++) await new Promise(requestAnimationFrame); });
   assert(await frame.locator('tr[data-row-key]').count() <= 100, 'resizing keeps the DOM bounded');

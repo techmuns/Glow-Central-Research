@@ -945,7 +945,7 @@ export function scoreTable(config) {
       stopFill();
       if (isVirtual) {
         markPending(0);
-        attachScroll();
+        if (!isWindowed) attachScroll(); // measured lists own their one scroll listener
         return;
       }
       if (filled >= current.length) {
