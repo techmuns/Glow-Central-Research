@@ -1240,7 +1240,7 @@
       "error": "search-unavailable"
     },
     "isin:INE142M01025|Tata Technologies": {
-      "lastAttemptAt": "2026-09-10T13:53:14+00:00",
+      "lastAttemptAt": "2026-09-15T01:35:55+00:00",
       "error": "search-unavailable"
     },
     "isin:INE142M01025|TATATECH": {
@@ -1368,6 +1368,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-15T01:04:47.351069+00:00"
+    "checkedAt": "2026-09-15T01:35:55.917578+00:00"
   }
 }
