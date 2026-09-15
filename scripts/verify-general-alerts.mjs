@@ -4,6 +4,40 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createAlertArrivals } from '../public/js/core/alert-arrivals.js';
+
+// Receipt identity is separate from publication date, coverage success and collection size.
+{
+  const arrivals = createAlertArrivals();
+  const event = (id, extra = {}) => ({ id, day: '2020-01-01', ...extra });
+  const feed = (id, events, status = 'ok') => ({ id, events, status });
+  const observe = (feeds, at = 1000, extra = {}) => arrivals.observe({ feeds, ...extra }, 'portfolio', at);
+  observe([feed('a', [event('cached')])], 1000, { cacheSavedAt: 500 });
+  observe([feed('a', [event('history')]), feed('slow', [], 'pending')]);
+  assert.equal(arrivals.time('history'), 0, 'full history after a cache is a baseline');
+  observe([feed('a', [event('history'), event('new')]), feed('slow', [event('late-history')])], 2000);
+  assert.equal(arrivals.time('new'), 2000, 'a new identity receives a browser receipt time');
+  assert.equal(arrivals.time('late-history'), 0, 'delayed initial source is still baseline history');
+  observe([feed('a', [event('new', { headline: 'correction' })])], 3000);
+  observe([feed('a', [event('history'), event('new')])], 4000);
+  assert.equal(arrivals.time('new'), 2000, 'corrections and repeated reports do not reannounce');
+  assert.equal(arrivals.time('history'), 0, 'temporary omissions and date rollover do not invent arrivals');
+  observe([feed('a', [event('partial-arrival')], 'failed')], 4500);
+  observe([feed('a', [event('partial-arrival')])], 4800);
+  assert.equal(arrivals.time('partial-arrival'), 4500, 'real rows in a later partial read are received once, not reannounced on recovery');
+  observe([feed('bad', [event('partial')], 'failed')]);
+  observe([feed('bad', [event('partial'), event('recovered-history')])]);
+  assert.equal(arrivals.time('recovered-history'), 0, 'failed first read cannot establish a baseline');
+  observe([feed('a', [event('private', { private: true })])], 5000);
+  assert.equal(arrivals.time('private'), 5000);
+  arrivals.clearPrivate();
+  assert.equal(arrivals.time('private'), 0, 'private receipts disappear on access invalidation');
+  arrivals.observe({ feeds: [feed('a', [event('new'), event('different-scope')])] }, 'universe', 6000);
+  assert.equal(arrivals.time('new'), 0);
+  assert.equal(arrivals.time('different-scope'), 0, 'scope additions are baseline history');
+  arrivals.reset();
+  assert.equal(arrivals.time('new'), 0, 'receipts are limited to this visit');
+}
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const read = (path) => JSON.parse(readFileSync(resolve(root, path)));
 const storage = new Map();
@@ -143,11 +177,31 @@ const poolSubset = universe.events.filter((e) => ['STLTECH', 'RELIANCE'].include
 assert.deepEqual(portfolio.events.filter((e) => !e.portfolioOnly).map((e) => e.id).sort(), poolSubset.map((e) => e.id).sort(), 'Portfolio is an exact view of every market-wide source');
 assert.equal(portfolio.events.filter((e) => e.feed === 'screener-portfolio-upcoming').length, 2, 'the exact S Screen calendar includes tickered and BSE-only portfolio companies');
 assert.equal(portfolio.feeds.find((f) => f.id === 'screener-portfolio-upcoming').scopable, true);
+// THE WATCHLIST IS SHARED, so starring a company is a WRITE and legitimately costs a request —
+// where every scope and filter change above it costs nothing. Both halves are asserted rather than
+// folded into one baseline: taking the count only after the write would stop covering the collects
+// before it, which is the half this check was originally written for.
+assert.equal(calls.length, previousCalls, 'scope and filter changes up to here require no fetch');
 watchlist.toggle('STLTECH', 'Sterlite Technologies');
+// Awaiting syncNow() settles the write AND cancels the batching timer behind it, so nothing can
+// land after the count is taken and turn this into a test that passes on timing.
+await watchlist.syncNow({ force: true }).catch(() => {});
+const afterSharedWrite = calls.length;
+assert(afterSharedWrite > previousCalls, 'starring a company writes to the shared watchlist');
 const watched = await alerts.collect({ ...options, scope: 'watchlist', load: false });
 assert.deepEqual(watched.events.map((e) => e.id).sort(), universe.events.filter((e) => e.ticker === 'STLTECH').map((e) => e.id).sort());
 assert.equal(watched.events.filter(event => event.url === crossRoutePublisher.url).length, 1, 'Watchlist also receives just one company/article alert');
-assert.equal(calls.length, previousCalls, 'scope/filter changes require no extra fetch');
+watchlist.remove('STLTECH');
+watchlist.add('RELIANCE', 'Reliance Industries', 'Fixture reader');
+const replacedWatchlist = await alerts.collect({ ...options, scope: 'watchlist', load: false });
+assert.deepEqual(replacedWatchlist.events.map(event => event.id).sort(), universe.events.filter(event => event.ticker === 'RELIANCE').map(event => event.id).sort(),
+  'same-size Watchlist membership changes invalidate the assembled result without a new source revision');
+watchlist.remove('RELIANCE');
+watchlist.add('STLTECH', 'Sterlite Technologies', 'Fixture reader');
+const restoredWatchlist = await alerts.collect({ ...options, scope: 'watchlist', load: false });
+assert.deepEqual(restoredWatchlist.events.map(event => event.id).sort(), watched.events.map(event => event.id).sort());
+assert.equal(calls.length, afterSharedWrite, 'scope/filter changes require no extra fetch');
+await watchlist.syncNow({ force: true }).catch(() => {});
 assert.equal(portfolio.feeds.find((f) => f.id === 'twitter').scopable, true, 'reviewed company mentions can now be scoped; unresolved posts still stay in Universe');
 assert(portfolio.feeds.find((f) => f.id === 'nse-filings').unresolvedCount > 0, 'unresolved omissions are counted');
 
@@ -175,6 +229,13 @@ records.recordDocuments('company-documents', { rows: [privateRow, privateRow] },
 const privateReport = await alerts.collect({ ...options, scope: 'portfolio', load: false });
 assert.equal(privateReport.events.filter((e) => e.private).length, 1);
 assert.equal(privateReport.events.find((e) => e.private).sourceRecord.isRead, true);
+records.clearPrivateRecords();
+const loggedOutReport = await alerts.collect({ ...options, scope: 'portfolio', load: false });
+assert(!loggedOutReport.events.some(event => event.private), 'logout clears private events while staying in the same scope and source revision');
+records.recordDocuments('company-documents', { rows: [{ ...privateRow, title: 'Corrected private annual report' }] }, { ticker: 'STLTECH', name: 'Sterlite Technologies' });
+const correctedPrivateReport = await alerts.collect({ ...options, scope: 'portfolio', load: false });
+assert.equal(correctedPrivateReport.events.find(event => event.private).headline, 'Corrected private annual report',
+  'a same-ID correction reaches the current report');
 assert([...storage.values()].every((value) => !String(value).includes('Private annual report')), 'private data never persists');
 const durableWindow = alerts.materializePublicAlertWindow({
   day: options.day,

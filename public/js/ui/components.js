@@ -8,6 +8,7 @@ import { formatNumber, formatRelativeTime, toneForValue } from '../core/format.j
 import { scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 import { resultLabel } from '../core/refresh.js';
+import { loadingGrid } from './loading.js';
 
 // Semantic tones (positive/negative/caution) describe a data outcome; brand/accent are the
 // indigo→purple chrome colours. Never use a semantic tone to mean "branded".
@@ -286,7 +287,7 @@ export function dataTable({ columns, rows, sortable = true, initialSort = null, 
   const html = `
     <div class="table-scroll-surface overflow-x-auto rounded-2xl ring-1 ring-slate-100" data-table-wrap tabindex="0" role="region" aria-label="${escapeHtml(scrollLabel)}">
       <table class="w-full min-w-max border-collapse text-sm">
-        <thead class="sticky top-0 z-10 bg-slate-50/95 backdrop-blur">
+        <thead class="sticky top-0 z-10 bg-slate-50 ">
           <tr>
             ${columns
               .map(
@@ -523,9 +524,7 @@ export function skeleton({ rows = 4, variant = 'rows' } = {}) {
       .map(() => '<div class="skeleton-shimmer h-20 rounded-2xl bg-slate-100"></div>')
       .join('')}</div>`;
   }
-  return `<div class="flex flex-col gap-2">${Array.from({ length: rows })
-    .map(() => '<div class="skeleton-shimmer h-9 rounded-lg bg-slate-100"></div>')
-    .join('')}</div>`;
+  return loadingGrid({ rows, columns: 3 });
 }
 
 /**

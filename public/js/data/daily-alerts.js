@@ -38,6 +38,9 @@
 // The data layer owns no poller. Its tab subscribes to changes and revalidates every 90 seconds
 // while visible; cached reassembly never fetches.
 
+let lastAssembleInput = null;
+let lastAssembleOutput = null;
+
 import * as technicals from './technicals.js';
 import * as marketNews from './market-news.js';
 import * as earnings from './earnings-live.js';
@@ -506,6 +509,10 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
     if (performance.now() - batchStarted >= 8) { await yieldForInput(); batchStarted = performance.now(); }
   }
   const build = () => assemble({ day, scope, holdings: book, includeHistory, settledFeeds, requestedCompanies });
+  // Publish the in-memory seed snapshot before any network requests start.
+  if (load && onPartial) {
+    try { onPartial(build()); } catch (err) { console.error('[daily-alerts] onPartial threw', err); }
+  }
   // Feed promises often finish in one burst. Building/sorting the entire history after every
   // promise made one cached refresh rebuild a 60k-row pool twenty times before yielding to input.
   // Coalesce progress at the data boundary; throttling only the eventual DOM paint is too late.
@@ -558,7 +565,8 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
     // Materialize from the already-settled source records; this starts no second
     // read. Universe is used so the same public snapshot can be narrowed against
     // the current Portfolio or Watchlist after a reload without persisting either.
-    const allPublic = assemble({ day, scope: 'universe', holdings: book, includeHistory, settledFeeds });
+    const allPublic = scope === 'universe' && !requestedCompanies.length ? completed
+      : assemble({ day, scope: 'universe', holdings: book, includeHistory, settledFeeds });
     void alertWindowCache.write(materializePublicAlertWindow(allPublic));
   }
   return completed;
@@ -619,21 +627,33 @@ const COLLECTORS = {
 };
 
 function toFeedRow(feed, out, day) {
-  const seen = new Set();
+  const seen = new Map();
   const events = (out.events || []).filter((event) => {
     // Deduplicate exact records within a source, not independent exchange/publisher evidence.
-    const key = `${event.id}:${JSON.stringify(event.sourceRecord || event)}`;
-    if (seen.has(key)) return false;
-    seen.add(key); return true;
-  }).map((event) => ({ ...event, day: eventDay(event) }));
-  const days = events.map((event) => event.day).filter(Boolean).sort();
+    // Most IDs occur once. Only serialize source records when an ID actually collides.
+    const id = String(event.id);
+    const prior = seen.get(id);
+    if (!prior) { seen.set(id, { first: event, signatures: null }); return true; }
+    prior.signatures ||= new Set([JSON.stringify(prior.first.sourceRecord || prior.first)]);
+    const signature = JSON.stringify(event.sourceRecord || event);
+    if (prior.signatures.has(signature)) return false;
+    prior.signatures.add(signature); return true;
+  }).map((event) => ({ ...event, day: eventDay(event), feed: feed.id, feedLabel: feed.label, tab: feed.tab }));
+  let oldestDay = null, newestDay = null, todayCount = 0;
+  for (const event of events) {
+    if (event.day === day) todayCount++;
+    if (!event.day) continue;
+    if (oldestDay === null || event.day < oldestDay) oldestDay = event.day;
+    if (newestDay === null || event.day > newestDay) newestDay = event.day;
+  }
   return {
     ...feed,
     status: out.status || 'ok',
+    revision: out.revision || out.snapshotUpdatedAt || out.capturedAt || out.checkedAt || out.asOf || String(events.length),
     count: events.length,
-    todayCount: events.filter((event) => event.day === day).length,
-    oldestDay: days[0] || null,
-    newestDay: days.at(-1) || null,
+    todayCount,
+    oldestDay,
+    newestDay,
     events,
     // Whether this feed's data actually extends to today. `null` where the feed cannot know.
     reachesToday: out.reachesToday ?? null,
@@ -761,14 +781,28 @@ function assemble({ day, scope, holdings, includeHistory, settledFeeds, requeste
   });
 
   const feeds = dedupePublisherAlertFeeds(scopedFeeds, { day, entities: portfolioEntities });
-  const events = [];
-  for (const f of feeds) for (const ev of f.events) events.push({ ...ev, feed: f.id, feedLabel: f.label, tab: f.tab });
-  events.sort(byNewestFirst);
-  ensureUniqueIds(events);
-  const eventDays = [...new Set(events.map((event) => event.day).filter(Boolean))].sort();
+
+  const inputMatches = lastAssembleInput && lastAssembleInput.scope === scope && lastAssembleInput.day === day &&
+      lastAssembleInput.includeHistory === includeHistory && feeds.every((feed, i) => {
+        const previous = lastAssembleInput.eventGroups[i];
+        return previous?.length === feed.events.length && feed.events.every((event, j) => event === previous[j]);
+      });
 
   const done = feeds.filter((f) => f.status !== 'pending');
-  return {
+
+  // A capture timestamp cannot identify a scoped result: membership, private access and
+  // same-count corrections can change without advancing it. Reuse only identical records;
+  // still recompute source-health metadata on status-only arrivals.
+  const events = inputMatches ? lastAssembleOutput.events : [];
+  if (!inputMatches) {
+    for (const f of feeds) for (const ev of f.events) events.push(ev);
+    events.sort(byNewestFirst);
+    ensureUniqueIds(events);
+  }
+  const eventDays = [...new Set(events.map((event) => event.day).filter(Boolean))].sort();
+
+  lastAssembleInput = { scope, day, includeHistory, eventGroups: feeds.map(feed => feed.events) };
+  lastAssembleOutput = {
     day,
     scope,
     includeHistory,
@@ -801,6 +835,7 @@ function assemble({ day, scope, holdings, includeHistory, settledFeeds, requeste
       moveThreshold: MOVE_PCT,
     },
   };
+  return lastAssembleOutput;
 }
 
 /** Match stable company identity OR ticker, exactly as Portfolio News does. A discovered BSE
@@ -834,10 +869,11 @@ export function matchesAlertScope(event, { scope, wanted, entityIds, requestedEn
  */
 function ensureUniqueIds(events) {
   const seen = new Map();
-  for (const ev of events) {
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i];
     const n = seen.get(ev.id) || 0;
     seen.set(ev.id, n + 1);
-    if (n) ev.id = `${ev.id}#${n}`;
+    if (n) events[i] = { ...ev, id: `${ev.id}#${n}` };
   }
   return events;
 }
@@ -1060,12 +1096,14 @@ function fromChatter({ day, wanted, includeHistory }) {
   });
   return {
     events,
-    status: m.ok === false ? 'failed' : 'ok',
-    reachesToday: m.ok === false ? false : generatedDay === day,
-    asOf: latestConfirmation(m.checkedAt, m.generatedAt),
+    status: m.ok === false ? 'failed' : m.health?.state === 'updated' ? 'ok' : 'partial',
+    reachesToday: m.health?.state === 'updated' && istDay(m.health.checkedAt) === day,
+    asOf: m.health?.checkedAt ? new Date(m.health.checkedAt).toISOString() : null,
     note: m.ok === false
       ? `Public Chatter could not be confirmed (${m.reason || 'upstream'}).${events.length ? ' Retained rows remain visible.' : ''}`
-      : generatedDay === day
+      : m.health?.state !== 'updated'
+        ? `${m.health?.label || 'Source checks unconfirmed'}. Captured discussion remains visible; company coverage is not exhaustive.`
+        : generatedDay === day
         ? null
         : `Public Chatter is a rolling snapshot last generated on ${generatedDay || 'an unknown date'}; it is not a post-by-post event log.`,
   };
@@ -1079,9 +1117,15 @@ const investorTicker = (move) => {
 /** The complete/incomplete rule for the investor feed, exported so an outage is testable. */
 export function investorCoverageState(m = {}) {
   const listFailed = m.ok === false;
+  // MISSING EVIDENCE AND UNCONFIRMED EVIDENCE ARE BOTH INCOMPLETE, AND THEY ARE NOT THE SAME
+  // CLAIM. A book with no copy at all contributes no rows and its absence can hide a real move;
+  // a retained book whose latest re-check did not answer contributes every one of its rows and is
+  // simply of a known age. Counting the second as missing is what let this feed report "90 of 90
+  // books available" and "90 could not be included" out of the same metadata.
   const missingBooks = Number(m.pending || 0) + Number(m.failedBooks || 0);
+  const uncheckedBooks = Number(m.uncheckedBooks || 0);
   const staleBooks = Number(m.staleBooks || 0);
-  const incomplete = listFailed || missingBooks > 0 || m.stale === true || staleBooks > 0;
+  const incomplete = listFailed || missingBooks > 0 || m.stale === true || staleBooks > 0 || uncheckedBooks > 0;
   const problems = [
     listFailed
       ? `the investor list could not be read${m.reason || m.message ? ` (${m.reason || m.message})` : ''}`
@@ -1092,8 +1136,11 @@ export function investorCoverageState(m = {}) {
       : m.stale === true
         ? `the investor list is last-good fallback data${m.staleReason ? ` (${m.staleReason})` : ''}`
         : null,
+    uncheckedBooks > 0
+      ? `${uncheckedBooks} investor book${uncheckedBooks === 1 ? ' is' : 's are'} retained from the last good read and could not be re-checked${m.staleReason ? ` (${m.staleReason})` : ''}`
+      : null,
   ].filter(Boolean);
-  return { incomplete, missingBooks, staleBooks, problems };
+  return { incomplete, missingBooks, staleBooks, uncheckedBooks, problems };
 }
 
 /** Quarterly disclosed holding changes. A disappearance is labelled, not overstated as a sale. */
