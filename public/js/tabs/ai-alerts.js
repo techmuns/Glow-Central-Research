@@ -82,7 +82,8 @@ onPortfolioInvalidation((version) => {
     sizesLoading = collecting = false;
     awaitingBook = null;
     sizeError = 'Unlock your portfolio to refresh your alerts.';
-    if (ctxRef.scope !== 'portfolio') { void recollect(ctxRef); return; }
+    void recollect(ctxRef);
+    return;
   } else {
     if (ctxRef?.scope !== 'portfolio') return;
     // A positions read already in flight will return the checked book. Otherwise
@@ -100,9 +101,13 @@ function portfolioUnavailable() {
   collecting = false;
   awaitingBook = null;
   sizeError = 'Family Office is temporarily unavailable.';
-  if (report) report = alerts.rankReport({ scope: report.scope, day: report.day,
-    feeds: report.feeds, events: report.allCards.flatMap(card => card.events) }, { holdings: coverage.holdings() });
-  paint(ctxRef);
+  if (report) {
+    report = alerts.rankReport({ scope: report.scope, day: report.day,
+      feeds: report.feeds, events: report.allCards.flatMap(card => card.events) }, { holdings: coverage.holdings() });
+    paint(ctxRef);
+  } else {
+    void recollect(ctxRef);
+  }
 }
 
 export function render(ctx) {
@@ -156,8 +161,10 @@ export function render(ctx) {
       holdings: coverage.holdings(),
       positionSizes: cachedPositionSizes(),
     }).then((cached) => {
-      if (token !== cacheToken || ctxRef !== ctx || report || !cached) return;
-      report = cached;
+      if (token !== cacheToken || ctxRef !== ctx || !cached || report?.pending === 0) return;
+      // An empty partial is still an unfinished source read. Merge the retained window beneath
+      // any newer live evidence instead of letting that partial suppress a slow cache restore.
+      report = alerts.withPositionSnapshot(report ? alerts.mergePartialReport(cached, report) : cached, cachedPositionSizes());
       paint(ctxRef);
     });
   }
@@ -205,8 +212,11 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
   // A slow or unavailable size reader must not hold the first alert hostage.
   // An explicit Refresh must really check Family again. Navigation, calendar
   // ageing and a quick tab return are the paths allowed to reuse the snapshot.
-  const heldSizes = forceRefresh && !reusePositions ? null : cachedPositionSizes();
-  let checkedSnapshot = heldSizes;
+  const previousSnapshot = cachedPositionSizes();
+  const heldSizes = forceRefresh && !reusePositions ? null : previousSnapshot;
+  // Keep the still-valid, dated snapshot on partial cards while an explicit
+  // refresh checks it again. Failure handling removes unverified sizes below.
+  let checkedSnapshot = previousSnapshot;
   let positions = Promise.resolve(heldSizes);
   if (ctx.scope === 'portfolio' && privatePortfolioContext()) {
     if (!heldSizes) {
@@ -238,7 +248,7 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
         refresh: forceRefresh,
         load,
         onPartial: (partial) => {
-          if (!current() || !partial.cards.length) return;
+          if (!current()) return;
           report = alerts.withPositionSnapshot(alerts.mergePartialReport(report, partial), checkedSnapshot);
           paint(ctxRef);
         },
@@ -342,7 +352,7 @@ function watchCalendar() {
   let day = currentDay();
   let timer;
   const check = () => {
-    if (!ctxRef || document.hidden || currentDay() === day) return;
+    if (!ctxRef || (document.hidden || innerWidth === 0) || currentDay() === day) return;
     day = currentDay();
     for (const el of ctxRef.root.querySelectorAll('[data-ai-age]')) {
       el.textContent = relativeAge(el.dataset.day, day);
@@ -368,7 +378,7 @@ function watchCalendar() {
  * This checks published captures only; it does not dispatch production collection jobs. */
 function watchFreshness() {
   const check = () => {
-    if (!ctxRef || document.hidden || collecting || Date.now() - lastSourceCheck < RECHECK_MS) return;
+    if (!ctxRef || (document.hidden || innerWidth === 0) || collecting || Date.now() - lastSourceCheck < RECHECK_MS) return;
     void recollect(ctxRef, { refresh: true, reusePositions: true });
   };
   const timer = setInterval(check, RECHECK_MS);
@@ -559,7 +569,8 @@ function cardMarkup(card, scope, day, archived = false) {
   const signal = latestAlertSignal(card);
   return `
     <article data-ai-card data-ticker="${escapeHtml(card.ticker || '')}" data-entity-id="${escapeHtml(card.entityId || '')}" data-priority="${escapeHtml(card.priority)}" data-score="${card.score}"${archived ? ' data-ai-archived' : ''}
-      class="flex h-full flex-col overflow-hidden rounded-2xl border-l-4 ${archived ? 'border-l-slate-200' : tone.edge} bg-white shadow-sm ring-1 ring-slate-100">
+      class="flex h-full flex-col overflow-hidden rounded-2xl border-l-4 ${archived ? 'border-l-slate-200' : tone.edge} bg-white shadow-sm ring-1 ring-slate-100"
+      style="content-visibility: auto; contain-intrinsic-size: auto none auto 320px;">
       <div class="flex-1 p-5">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">

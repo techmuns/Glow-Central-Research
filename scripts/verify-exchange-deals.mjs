@@ -44,6 +44,14 @@ const mapping = securityMap('SYMBOL,ISIN NUMBER\nCORRECT,INE000000001\nCOLLISION
 assert.equal(mapping['500001'].ticker, 'CORRECT', 'cross-exchange security joins use ISIN, not similar symbols');
 assert.equal(exchangeRows({ ...before, securityMap: mapping }).find((r) => r.sourceId === bse.id).ticker, 'CORRECT');
 assert.equal(exchangeRows(before).find((r) => r.sourceId === bse.id).ticker, '500001', 'unmapped BSE securities keep their code');
+<<<<<<< HEAD
+=======
+for (const value of [0, 0.004, 0.005, 1234.567, 12345678.9, Number.MAX_SAFE_INTEGER]) {
+  const row = exchangeRows({ records: [[nse.id, '2026-09-08', 'EXAMPLE', 'Example', 'Fund', 'Buy', 1, value]] })[0];
+  assert.equal(row.cells['Trade Value'], `≈ ₹${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+    'shared formatting preserves Indian grouping, zero, fractional rounding and large trade values');
+}
+>>>>>>> sattva/main
 const partial = await captureExchanges(before, { now: new Date('2026-09-10T12:00:00Z'), fetchText: async (url) => {
   if (url.includes('optionType=bulk_deals')) return csv;
   throw new Error('test source outage');
@@ -84,13 +92,21 @@ assert.equal(live.status, 200); assert.deepEqual(JSON.parse(gunzipSync(Buffer.fr
 const unchanged = await handleExchangeDeals(new Request(request.url, { headers: { 'if-none-match': live.headers.get('etag') } }), env, ctx, { fetchImpl: () => { throw new Error('cache missed'); }, cache });
 assert.equal(unchanged.status, 304);
 const fallback = await handleExchangeDeals(request, env, ctx, { fetchImpl: async () => { throw new Error('archive offline'); }, cache: { ...cache, match: async () => null } });
+<<<<<<< HEAD
 assert.equal(fallback.headers.get('x-glow-exchange-fallback'), '1');
+=======
+assert.equal(fallback.headers.get('x-sattva-exchange-fallback'), '1');
+>>>>>>> sattva/main
 assert.deepEqual((await fallback.json()).records, before.records);
 assert.equal((await handleExchangeDeals(new Request(request.url, { method: 'POST' }), env, ctx, { cache })).status, 405);
 
 const shipped = validateExchangeSnapshot(JSON.parse(readFileSync(new URL('../public/data/exchange-deals.json', import.meta.url))));
 assert.equal(new Set(shipped.records.map(exchangeDealKey)).size, shipped.records.length);
+<<<<<<< HEAD
 assert(shipped.records.length > 40000 && shipped.sources.every((s) => s.ok && s.coverage[0].from <= '2025-09-09'));
+=======
+assert(shipped.records.length > 40000 && shipped.sources.every((s) => s.coverage[0].from <= '2025-09-09'));
+>>>>>>> sattva/main
 console.log(`PASS exchanges: complete exports, ${shipped.records.length} distinct shipped reports, corrections, venue/side separation, coverage gaps, ISIN joins, partial failures, artifact transport, credential isolation and conditional delivery`);
 
 // Delivery callbacks may rerender a view and replace themselves. The new subscription must

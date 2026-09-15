@@ -37,6 +37,7 @@ import { scopeLabel } from '../data/scope.js';
 import * as records from '../data/alert-records.js';
 import { attributionLabel } from '../data/company-news-attribution.js';
 import { NEWS_PERIODS, newsPeriodBounds } from '../data/news-window.js';
+import { isXbrlFilingUrl, openFilingReader } from '../ui/xbrl-filing.js';
 
 export const meta = {
   id: 'daily-alerts',
@@ -66,6 +67,8 @@ let unsubs = [];
 const HORIZON = { THROUGH: 'through', UPCOMING: 'upcoming' };
 let horizon = HORIZON.THROUGH;
 let renderedHorizon = HORIZON.THROUGH;
+let renderedDay = null;
+let renderedScope = null;
 let tableViews = { [HORIZON.THROUGH]: null, [HORIZON.UPCOMING]: null }; // one view per time horizon
 let routeCompany = null; // a company deep-link supplied by an AI Alert card
 // WHICH FEEDS ARE TICKED. `null` means All — deliberately not "a Set holding every id", because
@@ -77,6 +80,7 @@ let collecting = 0;
 let sourceTimer = null;
 let sourceDirty = false;
 let tableDispose = null;
+let tableInstance = null;
 let workspaceDispose = null;
 let sourcesOpen = false;
 let focusMode = false;
@@ -114,6 +118,11 @@ export function render(ctx) {
       [HORIZON.UPCOMING]: { ...(tableViews[HORIZON.UPCOMING] || {}), q: '' },
     };
   }
+  if ((requestedCompany || null) !== routeCompany) {
+    tableDispose?.();
+    tableDispose = null;
+    tableInstance = null;
+  }
   routeCompany = requestedCompany || null;
 
   if (!unsubs.length) {
@@ -124,7 +133,7 @@ export function render(ctx) {
       sourceChanged();
     }));
     const checkVisible = () => {
-      if (ctxRef && !collecting && !document.hidden && Date.now() - lastRevalidatedAt >= RECHECK_MS)
+      if (ctxRef && !collecting && !(document.hidden || innerWidth === 0) && Date.now() - lastRevalidatedAt >= RECHECK_MS)
         void recollect(ctxRef, { refresh: true });
     };
     const timer = setInterval(checkVisible, RECHECK_MS);
@@ -163,6 +172,18 @@ export function render(ctx) {
   // Paint immediately with whatever is already collected, then collect. A tab that renders nothing
   // until every feed has answered is a blank timeline.
   paint(ctx);
+  if (!report) {
+    const token = ++loadToken;
+    void alerts.readCachedAlertWindow({
+      scope: ctx.scope,
+      holdings: coverage.holdings(),
+      day: alerts.today()
+    }).then((cached) => {
+      if (token !== loadToken || ctxRef !== ctx || report || !cached) return;
+      report = cached;
+      paint(ctxRef);
+    });
+  }
   // A short return reuses retained snapshots; reopening after inactivity checks the source
   // readers immediately instead of waiting another full polling interval. No capture dispatch.
   recollect(ctx, { refresh: Date.now() - lastRevalidatedAt >= RECHECK_MS });
@@ -176,6 +197,7 @@ export function destroy() {
   cancelDeferredPaint();
   if (tableDispose) tableDispose();
   tableDispose = null;
+  tableInstance = null;
   workspaceDispose?.();
   workspaceDispose = null;
   sourcesOpen = false;
@@ -250,7 +272,7 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true } = {
 }
 
 // ---- the trailing throttle ------------------------------------------------------------
-const PAINT_COALESCE_MS = 250;
+const PAINT_COALESCE_MS = 1000;
 let paintTimer = null;
 let paintedAt = 0;
 
@@ -271,9 +293,9 @@ function cancelThrottledPaint() {
 }
 
 // Live feeds are allowed to update while the reader scrolls; replacing the table during the
-// gesture is not. Keep coalescing data in memory and perform one trailing paint after 180ms of
+// gesture is not. Keep coalescing data in memory and perform one trailing paint after 400ms of
 // quiet. Explicit controls (scope, horizon, feed selection) still paint immediately.
-const SCROLL_SETTLE_MS = 180;
+const SCROLL_SETTLE_MS = 400;
 function noteTableScroll() {
   scrollQuietUntil = performance.now() + SCROLL_SETTLE_MS;
 }
@@ -349,25 +371,64 @@ function paint(ctx) {
   // Preserve the visible row across live repaints inside one horizon, but never carry a deep
   // history scroll offset into the much shorter forward calendar (or vice versa).
   const tablePosition = renderedHorizon === horizon ? captureTablePosition(ctx.root) : null;
-  const table = eventsTable(ctx, visible, day, horizon, tableViews[horizon], tablePosition, report?.pending === 0);
-  tableViews[horizon] = table.view;
 
   // NO DESCRIPTION AND NO STAT STRIP. The four cards were the loudest version of
   // the problem: three of them counted rows the table beneath them already lists, and the fourth
   // printed a date the pill now carries. The pill is deliberately passive; full provenance stays
   // in the source registry and export — see the stat-strip opt-out rule in CLAUDE.md.
-  // scoreTable owns passive scroll handlers and a closure over its data. Dispose that instance
-  // before replacing its nodes; otherwise each partial feed repaint retains one more detached
-  // table and one more global scroll listener.
+  if (tableInstance && renderedHorizon === horizon && renderedDay === day && renderedScope === ctx.scope) {
+    const metaDiv = ctx.root.querySelector('[data-alerts-meta]');
+    if (metaDiv) metaDiv.innerHTML = `${livePill(report, day)}${pendingPill(report)}${scopeSummary({
+        scope: ctx.scope, count: m.companies || 0, noun: 'companies in loaded history', book: coverage.meta(),
+    })}${horizon === HORIZON.UPCOMING ? calendarPill(allUpcoming) : historyPill(m)}`;
+    
+    const horizonToggleContainer = ctx.root.querySelector('.alerts-horizon-control');
+    if (horizonToggleContainer) horizonToggleContainer.outerHTML = horizonToggle(allThrough.length, allUpcoming.length, day, !!report);
+    
+    const coveragePanelContainer = ctx.root.querySelector('.alerts-source-picker');
+    if (coveragePanelContainer) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = coveragePanel(displayFeeds, horizon === HORIZON.UPCOMING ? allUpcoming.length : allThrough.length);
+      const newPicker = tmp.firstElementChild;
+      const summary = coveragePanelContainer.querySelector('[data-sources-summary]');
+      const newSummary = newPicker.querySelector('[data-sources-summary]');
+      if (summary && newSummary) {
+        summary.innerHTML = newSummary.innerHTML;
+        summary.title = newSummary.title;
+      }
+      const heading = coveragePanelContainer.querySelector('.alerts-source-heading p');
+      const newHeading = newPicker.querySelector('.alerts-source-heading p');
+      if (heading && newHeading) heading.textContent = newHeading.textContent;
+      const grid = coveragePanelContainer.querySelector('[data-alerts-coverage] > div:nth-child(2)');
+      const newGrid = newPicker.querySelector('[data-alerts-coverage] > div:nth-child(2)');
+      if (grid && newGrid) grid.innerHTML = newGrid.innerHTML;
+    }
+    
+    wireHorizon(ctx);
+    wireFeedFilter(ctx, available);
+    if (sourcesOpen) {
+      const cov = ctx.root.querySelector('[data-alerts-coverage]');
+      if (cov) cov.scrollTop = sourceScrollTop;
+    }
+    
+    tableInstance.updateData(visible);
+    return;
+  }
+
   if (tableDispose) tableDispose();
   tableDispose = null;
+  tableInstance = null;
   workspaceDispose?.();
   workspaceDispose = null;
+  
+  const table = eventsTable(ctx, visible, day, horizon, tableViews[horizon], tablePosition, report?.pending === 0);
+  tableViews[horizon] = table.view;
+
   ctx.root.innerHTML = `
-    <div class="alerts-workspace" data-alerts-workspace>
+    <div class="alerts-workspace" data-alerts-workspace data-fullscreen-workspace>
     ${sectionHead({
       title: 'All Alerts',
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(report, day)}${pendingPill(report)}${scopeSummary({
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2" data-alerts-meta>${livePill(report, day)}${pendingPill(report)}${scopeSummary({
         scope: ctx.scope,
         count: m.companies || 0,
         noun: 'companies in loaded history',
@@ -390,6 +451,7 @@ function paint(ctx) {
     </div>`;
 
   tableDispose = table.wire(ctx.root);
+  tableInstance = table;
   // Wire the shared controls first, then move their existing nodes beside the view controls.
   // Search and the three filters now get a full row even on a narrower laptop. The kit still
   // owns count updates and exports over its complete filtered model, never the mounted rows.
@@ -403,6 +465,8 @@ function paint(ctx) {
   fitStreamToViewport(ctx.root);
   restoreTablePosition(ctx.root, tablePosition);
   renderedHorizon = horizon;
+  renderedDay = day;
+  renderedScope = ctx.scope;
   restoreFocus(ctx.root, focus);
 }
 
@@ -811,7 +875,9 @@ function wireHorizon(ctx) {
 function wireFeedFilter(ctx, available) {
   const root = ctx.root.querySelector('[data-alerts-coverage]');
   if (!root) return;
-  root.addEventListener('click', (e) => {
+  // The panel survives same-horizon repaints. Replace its handler so each click applies once,
+  // using the latest available feeds rather than accumulating closures from earlier paints.
+  root.onclick = (e) => {
     const btn = e.target.closest('[data-feed-toggle]');
     if (!btn) return;
     const id = btn.dataset.feedToggle;
@@ -827,7 +893,7 @@ function wireFeedFilter(ctx, available) {
       picked = next.size && next.size < available.length ? next : null;
     }
     paint(ctx);
-  });
+  };
 }
 
 /**
@@ -982,41 +1048,7 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
         eventColumn,
         { label: 'Feed', get: (e) => e.feedLabel },
       ];
-  const filters = mode === HORIZON.UPCOMING
-    ? [{ label: 'Date range', options: dateRangeOptions(events, day, mode), match: (e, v) => matchesDate(e.day, v) }]
-    : [
-        {
-          label: 'Importance',
-          options: [
-            { value: 'all', label: 'All priorities' },
-            { value: 'high', label: 'High priority only' },
-            { value: 'low', label: 'Low priority only' },
-          ],
-          match: (e, v) => e.importance === v,
-        },
-        {
-          label: 'Direction',
-          options: [
-            { value: 'all', label: 'Every direction' },
-            { value: 'positive', label: 'Positive only' },
-            { value: 'negative', label: 'Negative only' },
-            { value: 'neutral', label: 'Neutral only' },
-          ],
-          match: (e, v) => e.direction === v,
-        },
-        { label: 'Date range', value: '3d', options: dateRangeOptions(events, day, mode), match: (e, v) => matchesDate(e.day, v) },
-        {
-          label: 'Company relationship',
-          options: [
-            { value: 'all', label: 'All retained records' },
-            { value: 'confirmed', label: 'Matched companies / filings' },
-            { value: 'related', label: 'Related-entity news' },
-            { value: 'uncertain', label: 'Possible news matches' },
-            { value: 'unrelated', label: 'Reviewed unrelated news' },
-          ],
-          match: matchesCompanyRelationship,
-        },
-      ];
+  const filters = buildTableFilters(events, day, mode, matchesDate);
   return scoreTable({
     rows: events,
     key: (e) => e.id,
@@ -1039,7 +1071,7 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     // filters, counts and export, while mounting only a bounded viewport window. Historical rows
     // News carries five lines including attribution. Its 115px natural height exceeded the old
     // 96px virtual stride, causing a visible jump whenever a window replaced those taller rows.
-    fillMode: 'virtual',
+    fillMode: 'windowed',
     virtualRowHeight: mode === HORIZON.UPCOMING ? 72 : 120,
     preindexSearch: warmSearch,
     onScrollActivity: noteTableScroll,
@@ -1056,6 +1088,14 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     // article, which is the rule that actually matters (see the con-call link rule in CLAUDE.md).
     onRowClick: (e) => {
       if (e.url) {
+        // AN NSE XBRL FILING IS A DOCUMENT, NOT A PAGE. Opening one in a tab shows the reader SEBI's
+        // namespaces; `openFilingReader` lays out the same filing's own fields. Every other URL is
+        // somebody's page and still opens as one. The Link column's anchor is intercepted centrally
+        // (see js/ui/xbrl-filing.js); a row click never becomes an anchor, so it asks here.
+        if (isXbrlFilingUrl(e.url)) {
+          void openFilingReader(e.url, { company: e.company, ticker: e.ticker, subject: e.headline });
+          return;
+        }
         window.open(e.url, '_blank', 'noopener,noreferrer');
         return;
       }
@@ -1084,6 +1124,45 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
   });
 }
 
+function buildTableFilters(events, day, mode, matchesDate) {
+  if (mode === HORIZON.UPCOMING) {
+    return [{ label: 'Date range', options: dateRangeOptions(events, day, mode), match: (e, v, view) => (view && view.q) ? true : matchesDate(e.day, v) }];
+  }
+  return [
+    {
+      label: 'Importance',
+      options: [
+        { value: 'all', label: 'All priorities' },
+        { value: 'high', label: 'High priority only' },
+        { value: 'low', label: 'Low priority only' },
+      ],
+      match: (e, v) => e.importance === v,
+    },
+    {
+      label: 'Direction',
+      options: [
+        { value: 'all', label: 'Every direction' },
+        { value: 'positive', label: 'Positive only' },
+        { value: 'negative', label: 'Negative only' },
+        { value: 'neutral', label: 'Neutral only' },
+      ],
+      match: (e, v) => e.direction === v,
+    },
+    { label: 'Date range', value: '3d', options: dateRangeOptions(events, day, mode), match: (e, v, view) => (view && view.q) ? true : matchesDate(e.day, v) },
+    {
+      label: 'Company relationship',
+      options: [
+        { value: 'all', label: 'All retained records' },
+        { value: 'confirmed', label: 'Matched companies / filings' },
+        { value: 'related', label: 'Related-entity news' },
+        { value: 'uncertain', label: 'Possible news matches' },
+        { value: 'unrelated', label: 'Reviewed unrelated news' },
+      ],
+      match: matchesCompanyRelationship,
+    },
+  ];
+}
+
 function shiftDay(day, amount) {
   const d = new Date(`${day}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return day;
@@ -1102,7 +1181,9 @@ function dateRangeOptions(events, day, mode) {
   const options = [{ value: 'all', label: 'All history through today' },
     ...NEWS_PERIODS.map(option => ({ ...option,
       value: /^\d+$/.test(option.value) ? `${option.value}d` : option.value }))];
-  if (events.some((event) => event.day < shiftDay(day, -29))) options.push({ value: 'older', label: 'Older than 30 days' });
+  // Keep this choice available while older sources are still loading. The live table retains
+  // its controls, so a later archive arrival must not require remounting to expose its period.
+  options.push({ value: 'older', label: 'Older than 30 days' });
   return options;
 }
 

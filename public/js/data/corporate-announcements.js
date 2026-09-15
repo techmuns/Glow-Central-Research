@@ -56,13 +56,43 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
     if (nextKey !== identityKey) { identity = createAnnouncementIdentity(entries); identityKey = nextKey; }
   }
   const listeners = new Set();
+  let cachedBase = { input: null, output: null, identity: null };
+  let cachedNse = { input: null, output: null, identity: null };
+  let cachedHeld = { input: null, output: null, identity: null };
+
   const rows = () => {
     const baseRows = base.rows(), nseRows = nse.retainedRows();
-    const same = (a, b) => a === b || a.length === b.length && a.every((row, i) => row === b[i]);
-    if (rowInputs?.identity === identity && same(rowInputs.base, baseRows) && same(rowInputs.nse, nseRows)) return held;
-    const next = mergeAnnouncements(held.map(identity.row), baseRows.map(identity.row), nseRows.map(nseAnnouncement).map(identity.row));
-    // A successful poll can return new objects containing exactly the same documents. Compare
-    // once on source arrival, not once per UI/meta read, and preserve row identity when unchanged.
+    if (rowInputs?.identity === identity && rowInputs.base === baseRows && rowInputs.nse === nseRows) return held;
+
+    if (cachedBase.input !== baseRows || cachedBase.identity !== identity) {
+      cachedBase.input = baseRows;
+      cachedBase.identity = identity;
+      cachedBase.output = baseRows.map(identity.row);
+    }
+    if (cachedNse.input !== nseRows || cachedNse.identity !== identity) {
+      cachedNse.input = nseRows;
+      cachedNse.identity = identity;
+      cachedNse.output = nseRows.map(nseAnnouncement).map(identity.row);
+    }
+
+    // In a partial-feed loop, a newly-built nseRows array can contain the same objects as before.
+    // If neither base nor NSE changed their actual object references, the merge is identical.
+    if (rowInputs?.base && rowInputs?.base.length === baseRows.length && rowInputs?.base.every((r, i) => r === baseRows[i]) &&
+        rowInputs?.nse && rowInputs?.nse.length === nseRows.length && rowInputs?.nse.every((r, i) => r === nseRows[i]) &&
+        rowInputs?.identity === identity) {
+      rowInputs = { base: baseRows, nse: nseRows, identity };
+      return held;
+    }
+
+    if (cachedHeld.input !== held || cachedHeld.identity !== identity) {
+      cachedHeld.input = held;
+      cachedHeld.identity = identity;
+      cachedHeld.output = held.map(identity.row);
+    }
+    const next = mergeAnnouncements(cachedHeld.output, cachedBase.output, cachedNse.output);
+    // A successful response can replace objects without changing any filing.
+    // Compare once per source arrival; ordinary rows/meta reads keep the fast
+    // reference path above and unchanged responses keep the reader's controls.
     const nextText = JSON.stringify(next);
     if (nextText !== heldText) { held = next; heldText = nextText; }
     rowInputs = { base: baseRows, nse: nseRows, identity };
