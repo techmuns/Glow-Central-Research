@@ -249,8 +249,13 @@ export function createFeed(kind) {
     const coreFresh = Number.isFinite(stamp) && stamp <= Date.now() + 600000 && Date.now() - stamp <= 4 * 3600000;
     return {
       kind,
+<<<<<<< HEAD
       bulkDeals: state.bulkDeals,
       exchanges: kind === 'insider' ? exchangeDeals.meta() : null,
+=======
+      exchanges: kind === 'insider' ? exchangeDeals.meta() : null,
+      disclosuresStatus: kind === 'insider' ? exchangeDeals.disclosuresStatus(state.wanted) : null,
+>>>>>>> sattva/main
       ok: covered > 0 || state.failures.size === 0,
       loaded: state.loaded,
       reason: state.reason,
@@ -649,7 +654,11 @@ export function createFeed(kind) {
    * overwritten by an older file.
    */
   async function seedFromSnapshot({ replace = false } = {}) {
+<<<<<<< HEAD
     if (kind === 'insider') await exchangeDeals.refresh();
+=======
+    if (kind === 'insider') void exchangeDeals.refresh();
+>>>>>>> sattva/main
     let res;
     state.snapshotPending = true;
     try {
