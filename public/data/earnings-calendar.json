@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-09-15T06:22:14.168Z",
+  "capturedAt": "2026-09-15T06:45:38.063Z",
   "from": "2026-09-12",
   "to": "2026-10-06",
   "pageSize": 20,
@@ -143,16 +143,16 @@
           "displayDate": "21 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 1099,
-          "changePct": -3.04,
-          "marketCap": 7061.75,
+          "ltp": 1103.95,
+          "changePct": -2.6,
+          "marketCap": 7093.55,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/pharmaceuticals-drugs/symbiotecpharmalab/SPL14",
           "ticker": "SYMBIOTEC",
           "fullName": "Symbiotec Pharm",
           "industry": "Pharmaceuticals & Drugs",
           "shares": 64256112,
-          "mktCapAtBuild": 7061.75
+          "mktCapAtBuild": 7093.55
         },
         {
           "scId": "KJA",
@@ -213,16 +213,16 @@
           "displayDate": "17 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 113.78,
-          "changePct": -1.92,
-          "marketCap": 1653.72,
+          "ltp": 113.73,
+          "changePct": -1.97,
+          "marketCap": 1652.99,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/logistics/skywaysairservices/S28",
           "ticker": "SKYWAYS",
           "fullName": "Skyways Air Ser",
           "industry": "Logistics",
           "shares": 145343544,
-          "mktCapAtBuild": 1653.72
+          "mktCapAtBuild": 1652.99
         }
       ],
       "scheduledCount": 1,
@@ -241,16 +241,16 @@
           "displayDate": "16 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 554.1,
-          "changePct": -5.25,
-          "marketCap": 4645.17,
+          "ltp": 551.4,
+          "changePct": -5.71,
+          "marketCap": 4622.53,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/engineering-industrial-equipments/tempsensinstrumentsindia/TII02",
           "ticker": "TEMPSENS",
           "fullName": "Tempsens Instru",
           "industry": "Engineering - Industrial Equipments",
           "shares": 83832691,
-          "mktCapAtBuild": 4645.17
+          "mktCapAtBuild": 4622.53
         },
         {
           "scId": "CMI",
@@ -288,16 +288,16 @@
           "displayDate": "15 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 382.15,
-          "changePct": -6.29,
-          "marketCap": 1190.35,
+          "ltp": 376.2,
+          "changePct": -7.75,
+          "marketCap": 1171.82,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/film-production-distribution-entertainment/sunshinepictures/SPL13",
           "ticker": "SUNSHINE",
           "fullName": "Sunshine Pict",
           "industry": "Film Production, Distribution & Entertainment",
           "shares": 31148784,
-          "mktCapAtBuild": 1190.35
+          "mktCapAtBuild": 1171.82
         },
         {
           "scId": "CMI",
