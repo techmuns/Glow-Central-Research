@@ -1356,7 +1356,7 @@
       "error": "search-unavailable"
     },
     "isin:INE049B01025|Wockhardt": {
-      "lastAttemptAt": "2026-09-11T05:29:07+00:00",
+      "lastAttemptAt": "2026-09-15T18:46:42+00:00",
       "error": "search-unavailable"
     },
     "isin:INE049B01025|WOCKPHARMA": {
@@ -1372,6 +1372,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-15T18:16:10.521866+00:00"
+    "checkedAt": "2026-09-15T18:46:42.991954+00:00"
   }
 }
