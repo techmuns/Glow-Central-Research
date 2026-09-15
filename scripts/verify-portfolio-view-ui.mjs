@@ -291,6 +291,22 @@ try {
     // A cached first row can appear while the remaining sources are still being read. Measure
     // the completed reading layout, not whichever partial-feed status wrapped on that tick.
     await frame.waitForFunction(() => !/Reading \d+ more feeds?/.test(document.querySelector('[data-section-head]')?.textContent || ''), null, { timeout: 60000 });
+    const settleLayout = () => frame.evaluate(async () => {
+      await document.fonts.ready;
+      await document.querySelector('[data-brand-mark] img').decode();
+      let previous = null, stableAt = performance.now();
+      const deadline = stableAt + 10000;
+      for (;;) {
+        await new Promise(requestAnimationFrame);
+        const stamp = JSON.stringify(['[data-app-header]', '[data-section-head]', '[data-alerts-controls]', '[data-table-scroll]']
+          .map(selector => document.querySelector(selector).getBoundingClientRect().toJSON()));
+        if (stamp !== previous) stableAt = performance.now();
+        else if (performance.now() - stableAt >= 400) return;
+        if (performance.now() > deadline) throw Error('Embedded reading layout did not stabilize');
+        previous = stamp;
+      }
+    });
+    await settleLayout();
     const measure = () => frame.evaluate(() => {
       const table = document.querySelector('[data-table-scroll]').getBoundingClientRect();
       return { top: table.top, height: table.height, bottom: table.bottom, viewport: innerHeight,
@@ -330,8 +346,12 @@ try {
       return { afterOpenRepaint, afterCloseRepaint: document.querySelector('[data-alerts-sources]').open };
     });
     assert.deepEqual(pickerState, { afterOpenRepaint: true, afterCloseRepaint: false }, 'repaints preserve native source-menu state before the queued toggle event');
+    await settleLayout();
+    const beforePicker = await measure();
     await frame.locator('[data-sources-summary]').click();
     await frame.locator('[data-alerts-coverage]').waitFor({ state: 'visible' });
+    const expanded = await measure();
+    assert.equal(expanded.height, beforePicker.height, 'filters overlay, rather than consume, the reading space');
     // Repeated source arrivals must not stack handlers on the preserved panel. A single
     // source selection and its description must agree after every repaint.
     for (let repaint = 0; repaint < 3; repaint++) {
@@ -346,8 +366,6 @@ try {
       assert((await frame.locator('.alerts-source-heading p').innerText()).startsWith(selectedName));
     }
     await frame.locator('[data-feed-toggle="__all"]').click();
-    const expanded = await measure();
-    assert.equal(expanded.height, normal.height, 'filters overlay, rather than consume, the reading space');
     const panel = await frame.locator('[data-alerts-coverage]').boundingBox();
     assert(panel.width <= normal.width, 'source picker stays within the host frame');
     await frame.locator('[data-sources-close]').click();
