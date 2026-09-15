@@ -1276,7 +1276,7 @@
       "error": "search-unavailable"
     },
     "isin:INE0CAZ01013|URBANCO": {
-      "lastAttemptAt": "2026-09-10T18:38:39+00:00",
+      "lastAttemptAt": "2026-09-15T06:55:27+00:00",
       "error": "search-unavailable"
     },
     "isin:INE879I01012|Valor Estate": {
@@ -1368,6 +1368,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-15T06:18:53.644715+00:00"
+    "checkedAt": "2026-09-15T06:55:27.123062+00:00"
   }
 }
