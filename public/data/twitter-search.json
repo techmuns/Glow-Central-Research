@@ -1312,7 +1312,7 @@
       "error": "search-unavailable"
     },
     "isin:INE205A01025|VEDL": {
-      "lastAttemptAt": "2026-09-10T23:17:28+00:00",
+      "lastAttemptAt": "2026-09-15T12:27:10+00:00",
       "error": "search-unavailable"
     },
     "isin:INE704J01044|Vedanta Oil and Gas": {
@@ -1372,6 +1372,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-15T11:56:38.524309+00:00"
+    "checkedAt": "2026-09-15T12:27:10.659013+00:00"
   }
 }
