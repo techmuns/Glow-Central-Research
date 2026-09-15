@@ -1268,7 +1268,7 @@
       "error": "search-unavailable"
     },
     "isin:INE0OC301013|TURTLEMINT": {
-      "lastAttemptAt": "2026-09-10T17:46:15+00:00",
+      "lastAttemptAt": "2026-09-15T05:56:26+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0CAZ01013|Urban Company": {
@@ -1368,6 +1368,6 @@
     "planned": 231,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-15T05:23:02.844325+00:00"
+    "checkedAt": "2026-09-15T05:56:26.916458+00:00"
   }
 }
