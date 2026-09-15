@@ -20,6 +20,10 @@ The follow-up release closes correctness gaps found while reviewing PR #201:
 - The release marker advances. The browser regression starts with a previous cached release,
   reopens offline, then verifies automatic adoption of the current module graph and preservation
   of the reader's saved theme.
+- Cache partitions account for their JSON brackets after every flush. Cleanup is serialized
+  with writes, protects active readers and reused hashes, and waits for a successful durable
+  commit before removing old parts. An aborted IndexedDB transaction reports session-only
+  storage and leaves the preceding complete disk window readable after reload.
 
 Regression coverage includes 100,715 retained alert records, Watchlist/Portfolio/Universe parity,
 private-record removal, full-history search, independent calendar presets, repeat source selection,

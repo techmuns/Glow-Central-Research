@@ -132,7 +132,8 @@ html[data-theme="dark"] body {
 @media (min-width: 960px) and (max-width: 1199px) {
   /* Preserve All Alerts' reading area inside a short laptop host frame. */
   [data-reading-layout="table"] [data-app-header] > div { flex-wrap: nowrap; gap: 12px; }
-  [data-reading-layout="table"] [data-app-header] > div > div:first-child { flex-shrink: 1; }
+  [data-reading-layout="table"] [data-app-header] > div > div:first-child { flex-shrink: 1; min-width: 180px; }
+  [data-reading-layout="table"] [data-app-header] > div > div:last-child { gap: 6px; }
   [data-reading-layout="table"] [data-scope-label],
   [data-reading-layout="table"] .theme-toggle span { display: none; }
   [data-reading-layout="table"] .theme-toggle { width: 32px; min-height: 32px; padding: 0; }

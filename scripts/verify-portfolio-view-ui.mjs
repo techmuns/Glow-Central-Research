@@ -311,7 +311,7 @@ try {
     assert.deepEqual(clipped, [], 'layout controls stay reachable, not merely hidden by page overflow clipping');
     if (size.width >= 1024) {
       const brand = await frame.locator('[data-brand-mark] img').evaluate(async image => { await image.decode(); return image.getBoundingClientRect().width; });
-      assert(brand >= 180, 'the full wordmark remains legible in the compact table header');
+      assert(brand >= 180, `the full wordmark remains legible in the compact table header (${brand}px at ${size.width}px)`);
       assert(normal.controls <= 52, `desktop view controls fit on one row: ${JSON.stringify(normal)}`);
       assert.equal(await frame.locator('[data-table-filter]').count(), 4, 'the compact layout retains all four independent filters');
       assert(await frame.getByRole('combobox', { name: 'Company relationship' }).isVisible(), 'company relationship remains directly available');
