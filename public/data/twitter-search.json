@@ -1362,12 +1362,16 @@
     "isin:INE049B01025|WOCKPHARMA": {
       "lastAttemptAt": "2026-09-11T06:01:31+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE685T01010|HORIZONIND": {
+      "lastAttemptAt": "2026-09-15T07:35:22+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
-    "planned": 231,
+    "planned": 232,
     "attempted": 1,
-    "incomplete": 219,
-    "checkedAt": "2026-09-15T06:55:27.123062+00:00"
+    "incomplete": 220,
+    "checkedAt": "2026-09-15T07:35:22.590642+00:00"
   }
 }
