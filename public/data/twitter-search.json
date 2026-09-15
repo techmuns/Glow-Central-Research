@@ -5,47 +5,119 @@
       "error": "search-unavailable"
     },
     "isin:INE423A01024|ADANIENT": {
-      "lastAttemptAt": "2026-09-11T06:47:56+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-15T20:36:48+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 105,
+      "targetThrough": "2026-09-15T20:36:48+00:00",
+      "pending": [
+        {
+          "from": "2026-09-06T20:36:48.830627+00:00",
+          "to": "2026-09-11T08:36:48.415313+00:00"
+        },
+        {
+          "from": "2026-09-11T08:36:48.415313+00:00",
+          "to": "2026-09-15T20:36:48+00:00"
+        }
+      ]
     },
     "isin:INE674K01013|Aditya Birla Capital": {
-      "lastAttemptAt": "2026-09-11T07:30:43+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-15T20:36:48+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 103,
+      "targetThrough": "2026-09-15T20:36:48+00:00",
+      "pending": [
+        {
+          "from": "2026-09-06T20:36:48.830627+00:00",
+          "to": "2026-09-11T08:36:48.415313+00:00"
+        },
+        {
+          "from": "2026-09-11T08:36:48.415313+00:00",
+          "to": "2026-09-15T20:36:48+00:00"
+        }
+      ]
     },
     "isin:INE674K01013|ABCAPITAL": {
-      "lastAttemptAt": "2026-09-11T08:13:44+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-15T20:36:48+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 101,
+      "targetThrough": "2026-09-15T20:36:48+00:00",
+      "pending": [
+        {
+          "from": "2026-09-06T20:36:48.830627+00:00",
+          "to": "2026-09-11T08:36:48.415313+00:00"
+        },
+        {
+          "from": "2026-09-11T08:36:48.415313+00:00",
+          "to": "2026-09-15T20:36:48+00:00"
+        }
+      ]
     },
     "isin:INE679V01027|Aditya Vision": {
-      "lastAttemptAt": "2026-09-11T08:45:36+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-15T20:36:48+00:00",
+      "error": null,
+      "lastResultCount": 50,
+      "lastSuccessAt": "2026-09-15T20:36:48+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE0ALI01010|Advait Energy Transitions": {
-      "lastAttemptAt": "2026-09-11T09:21:52+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-15T20:36:48+00:00",
+      "error": null,
+      "lastResultCount": 29,
+      "lastSuccessAt": "2026-09-15T20:36:48+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE0ALI01010|ADVAIT": {
-      "lastAttemptAt": "2026-09-11T09:57:21+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-15T20:36:48+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 104,
+      "targetThrough": "2026-09-15T20:36:48+00:00",
+      "pending": [
+        {
+          "from": "2026-09-06T20:36:48.830627+00:00",
+          "to": "2026-09-11T08:36:48.415313+00:00"
+        },
+        {
+          "from": "2026-09-11T08:36:48.415313+00:00",
+          "to": "2026-09-15T20:36:48+00:00"
+        }
+      ]
     },
     "isin:INE914E01040|Alankit": {
-      "lastAttemptAt": "2026-09-11T10:32:06+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-15T20:36:48+00:00",
+      "error": null,
+      "lastResultCount": 21,
+      "lastSuccessAt": "2026-09-15T20:36:48+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE914E01040|ALANKIT": {
-      "lastAttemptAt": "2026-09-11T11:09:45+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-15T20:36:48+00:00",
+      "error": null,
+      "lastResultCount": 21,
+      "lastSuccessAt": "2026-09-15T20:36:48+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE1YPB01014|Allcargo Global": {
-      "lastAttemptAt": "2026-09-11T11:37:11+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-15T20:36:48+00:00",
+      "error": null,
+      "lastResultCount": 8,
+      "lastSuccessAt": "2026-09-15T20:36:48+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE0R4701017|Alpex Solar": {
-      "lastAttemptAt": "2026-09-11T12:12:02+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-15T20:36:48+00:00",
+      "error": null,
+      "lastResultCount": 35,
+      "lastSuccessAt": "2026-09-15T20:36:48+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE0R4701017|ALPEXSOLAR-SM": {
-      "lastAttemptAt": "2026-09-11T12:57:58+00:00",
+      "lastAttemptAt": "2026-09-15T20:36:48+00:00",
       "error": "search-unavailable"
     },
     "isin:INE094B01013|Ashika Global Securities": {
@@ -1370,8 +1442,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 226,
-    "checkedAt": "2026-09-15T19:35:59.483744+00:00"
+    "attempted": 11,
+    "incomplete": 220,
+    "checkedAt": "2026-09-15T20:36:48.830627+00:00"
   }
 }
