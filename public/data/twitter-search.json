@@ -1,7 +1,7 @@
 {
   "queries": {
     "isin:INE423A01024|Adani Enterprises": {
-      "lastAttemptAt": "2026-09-11T06:14:53+00:00",
+      "lastAttemptAt": "2026-09-15T19:35:59+00:00",
       "error": "search-unavailable"
     },
     "isin:INE423A01024|ADANIENT": {
@@ -1372,6 +1372,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-15T19:17:30.217688+00:00"
+    "checkedAt": "2026-09-15T19:35:59.483744+00:00"
   }
 }
