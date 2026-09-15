@@ -14,7 +14,7 @@
 // the kit supplies the look. Score and Signals columns are opt-in, so tabs without a scoring
 // model (all of them until prompt 3) render a clean table with no empty score furniture.
 
-import { escapeHtml } from '../core/dom.js';
+import { escapeHtml, syncListDOM } from '../core/dom.js';
 import * as store from '../core/watchlist.js';
 import { avatarFor, scoreTier, scoreBadgeClass, tierLabel, tierColor, statusPill, signalDots } from './visual.js';
 import { mountWindowedList } from './windowed-list.js';
@@ -379,7 +379,7 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  * re-renders its own tbody without the tab getting involved.
  */
 export function scoreTable(config) {
-  const {
+  let {
     rows = [],
     key = (r) => r.ticker,
     // WHICH COMPANY THE STAR MARKS, which is not always which row it sits on.
@@ -503,7 +503,7 @@ export function scoreTable(config) {
   // `filters` takes one config or several. Several render as several <select>s and AND together,
   // which is what lets "PAT grew" and "Consolidated only" be asked at the same time — folding both
   // into one dropdown would make them mutually exclusive for no reason.
-  const filterDefs = filters ? (Array.isArray(filters) ? filters : [filters]) : [];
+  let filterDefs = filters ? (Array.isArray(filters) ? filters : [filters]) : [];
 
   // Internal view state — search text, one value per filter, watchlist-only, sort.
   const view = {
@@ -526,10 +526,14 @@ export function scoreTable(config) {
   }
   if (!showWatchFilter) view.watchOnly = false;
 
-  const totalCount = rows.length;
+  let totalCount = rows.length;
   // Array lookup is materially cheaper than recomputing 50k searchable strings on every
   // keystroke. This per-instance index is filled in idle slices once the final feed paint mounts.
-  const searchTextIndex = searchable ? new Array(rows.length) : null;
+  let searchTextIndex = searchable ? new Array(rows.length) : null;
+  
+  let activeRepaint = null;
+  let isDisposed = false;
+
   const countText = (visible) => {
     const custom = countLabel?.(visible, rows);
     return custom == null || custom === ''
@@ -571,7 +575,7 @@ export function scoreTable(config) {
         if (!wk || !watched.has(wk)) return false;
       }
       for (let i = 0; i < filterDefs.length; i++) {
-        if (view.filters[i] !== 'all' && !filterDefs[i].match(row, view.filters[i])) return false;
+        if (view.filters[i] !== 'all' && !filterDefs[i].match(row, view.filters[i], view)) return false;
       }
       return true;
     });
@@ -657,11 +661,11 @@ export function scoreTable(config) {
       // A virtual row carries aria-rowindex, which is position-dependent. Only a screenful is
       // generated at once, so bypassing the position-independent cache here is both correct and
       // bounded. Other modes retain the cache that makes large sorts cheap.
-      let html = isVirtual ? undefined : rowHtmlCache.get(slug);
+      let html = rowHtmlCache.get(slug);
       if (html === undefined) {
         const wk = watchKeyOf(row);
         html = rowHtml(row, slug, wk ? watched.has(wk) : false, wk, watchNameOf(row), isVirtual ? i : null);
-        if (!isVirtual) rowHtmlCache.set(slug, html);
+        rowHtmlCache.set(slug, html);
       }
       out.push(html);
     }
@@ -694,7 +698,7 @@ export function scoreTable(config) {
         if (redFlag) styles.push('box-shadow: inset 3px 0 0 #f43f5e');
         if (isFixed) styles.push(`height:${VIRTUAL_ROW_HEIGHT}px`);
         return `
-          <tr data-row-key="${escapeHtml(slug)}" class="row-line border-b border-slate-100 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${redFlag ? 'bg-rose-50/40 hover:bg-rose-50' : `${extraClass} hover:bg-slate-50`}"
+          <tr data-row-key="${escapeHtml(slug)}" ${row.revision ? `data-revision="${escapeHtml(row.revision)}"` : ''} class="row-line border-b border-slate-100 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${redFlag ? 'bg-rose-50/40 hover:bg-rose-50' : `${extraClass} hover:bg-slate-50`}"
             ${rowIndex === null ? '' : `aria-rowindex="${rowIndex + 2}"`} ${styles.length ? `style="${styles.join(';')}"` : ''}>
             ${
               showRank
@@ -843,7 +847,7 @@ export function scoreTable(config) {
 
       <div class="table-scroll-surface scrollbar-thin overflow-x-auto" data-table-scroll tabindex="0" role="region" aria-label="${escapeHtml(scrollLabel)}" ${stickyHead ? `style="max-height:${stickyHead};overflow-y:auto${isVirtual ? ';overflow-anchor:none' : ''}"` : ''}>
         <table class="w-full text-sm"${isVirtual ? ` aria-rowcount="${initialList.length + 1}"` : ''}>
-          <thead data-table-head class="sticky top-0 z-10 ${stickyHead ? 'bg-slate-50 table-sticky-head' : 'bg-slate-50/70'}">${headHtml()}</thead>
+          <thead data-table-head class="sticky top-0 z-10 ${stickyHead ? 'bg-white shadow-sm' : 'bg-slate-50/70'}">${headHtml()}</thead>
           <tbody data-table-body>${isVirtual ? virtualBodyHtml(initialList, initialVirtualStart) : bodyHtml(initialList, 0, FIRST_PAINT_ROWS)}</tbody>
         </table>
       </div>
@@ -1000,11 +1004,10 @@ export function scoreTable(config) {
       const nextStart = Math.max(0, Math.min(Math.max(0, current.length - VIRTUAL_WINDOW_ROWS), Math.round(start) || 0));
       if (nextStart === virtualStart && body.querySelector('tr[data-row-key]')) return;
       virtualStart = nextStart;
-      // Do not retain markup for rows that have left the viewport. The data array remains complete;
-      // this cache is only a rendering optimisation and must be bounded just like the DOM.
-      rowHtmlCache.clear();
+      // Do not clear the complete row cache at every boundary.
+      // rowHtmlCache.clear();
       staleKeys.clear();
-      body.innerHTML = virtualBodyHtml(current, virtualStart);
+      syncListDOM(body, virtualBodyHtml(current, virtualStart), virtualStart);
       host.setAttribute('data-virtual-start', String(virtualStart));
       host.setAttribute('data-virtual-total', String(current.length));
       tableEl?.setAttribute('aria-rowcount', String(current.length + 1));
@@ -1121,7 +1124,7 @@ export function scoreTable(config) {
       } else {
         // Rebuilt from source, so nothing is stale any more — including the rows the fill has
         // yet to append, which are generated from the same cache this clears against.
-        body.innerHTML = bodyHtml(current, 0, FIRST_PAINT_ROWS);
+        syncListDOM(body, bodyHtml(current, 0, FIRST_PAINT_ROWS));
         staleKeys.clear();
         filled = Math.min(FIRST_PAINT_ROWS, current.length);
         startFill();
@@ -1195,24 +1198,53 @@ export function scoreTable(config) {
       repaint();
     });
 
+    // ONE COMPANY CAN BE SEVERAL ROWS. Three announcements from one filer share a watch key
+    // and each carries its own star, so invalidating only the row that was clicked would leave
+    // the other two showing the opposite of what is stored — the same disagreement between a
+    // control and its state that `staleKeys` exists to close, arrived at from the other side.
+    function restainWatched(company) {
+      // The prompt below is asynchronous, so this can run after the reader has navigated away and
+      // the table has been torn down. Painting into a detached host would be silent and wrong;
+      // the state is already written either way.
+      if (!host.isConnected) return;
+      for (const r of rows) {
+        if (watchKeyOf(r) !== company) continue;
+        const slug = String(key(r));
+        rowHtmlCache.delete(slug); // its star changed — rebuild just that row next paint
+        staleKeys.add(slug); //      ...including on the fast path, which re-parses nothing
+      }
+      repaint({ resetScroll: false });
+    }
+
+    // THE STAR WRITES TO A LIST EVERYBODY READS, so adding asks whose add it is.
+    //
+    // Unstarring does not ask. It is the undo for a mis-click and has to stay one click, and the
+    // contract lets a removal be unattributed rather than inventing a name for it — see
+    // `watchlistIntent` in js/data/watchlist-shared.js. The name this device last used still rides
+    // along when there is one, so a removal is usually attributed anyway.
+    //
+    // The dialog is imported on demand: it imports `openModal` from this very file, and a static
+    // import would be a cycle. Lazy also means the modal costs nothing until somebody stars a row.
+    async function toggleWatched(company, label) {
+      if (watchlist.has(company)) {
+        watchlist.remove(company);
+        restainWatched(company);
+        return;
+      }
+      const { askContributor } = await import('./watchlist-attribution.js');
+      const by = await askContributor({ ticker: company, company: label || company });
+      // Backing out of the prompt is an answer: nothing is added, and nothing is added anonymously.
+      if (!by) return;
+      watchlist.add(company, label, by);
+      restainWatched(company);
+    }
+
     // Delegated: watchlist star, external link, row click — in that priority order.
     body.addEventListener('click', (e) => {
       const star = e.target.closest('[data-watch]');
       if (star) {
         e.stopPropagation();
-        const company = star.dataset.watch;
-        watchlist.toggle(company, star.dataset.watchName || null);
-        // ONE COMPANY CAN BE SEVERAL ROWS. Three announcements from one filer share a watch key
-        // and each carries its own star, so invalidating only the row that was clicked would leave
-        // the other two showing the opposite of what is stored — the same disagreement between a
-        // control and its state that `staleKeys` exists to close, arrived at from the other side.
-        for (const r of rows) {
-          if (watchKeyOf(r) !== company) continue;
-          const slug = String(key(r));
-          rowHtmlCache.delete(slug); // its star changed — rebuild just that row next paint
-          staleKeys.add(slug); //      ...including on the fast path, which re-parses nothing
-        }
-        repaint({ resetScroll: false });
+        void toggleWatched(star.dataset.watch, star.dataset.watchName || null);
         return;
       }
       if (e.target.closest('[data-stop]')) {
@@ -1267,8 +1299,15 @@ export function scoreTable(config) {
     startFill();
     startSearchWarm();
 
+    activeRepaint = repaint;
+
     return () => {
+<<<<<<< HEAD
       releaseSearch?.();
+=======
+      isDisposed = true;
+      activeRepaint = null;
+>>>>>>> sattva/main
       offBookmarks(); offBookmarkCache();
       windowed?.destroy();
       stopFill();
@@ -1280,7 +1319,39 @@ export function scoreTable(config) {
     };
   }
 
-  return { html, wire, view, updateRows: (keys) => updateRows(keys) };
+  function updateData(newRows, newFilters = undefined) {
+    if (isDisposed) return;
+    if (!newRows) return;
+    
+    const oldRowsByKey = new Map(rows.map(r => [String(key(r)), r]));
+    rows = newRows;
+    for (const row of rows) {
+      const k = String(key(row));
+      const old = oldRowsByKey.get(k);
+      if (!old || old.revision !== row.revision) {
+        rowHtmlCache.delete(k);
+        staleKeys.add(k);
+      }
+    }
+
+    if (newFilters !== undefined) {
+      filterDefs = newFilters;
+      view.filters = filterDefs.map((f, i) => {
+        const existing = view.filters[i];
+        if (existing && existing !== 'all' && f.options.some(o => o.value === existing)) return existing;
+        return f.value || 'all';
+      });
+    }
+    
+    totalCount = rows.length;
+    searchTextIndex = searchable ? new Array(rows.length) : null;
+    
+    if (activeRepaint) {
+      activeRepaint({ resetScroll: false });
+    }
+  }
+
+  return { html, wire, view, updateRows: (keys) => updateRows(keys), updateData };
 }
 
 // ---------------------------------------------------------------------------------------
@@ -1317,7 +1388,7 @@ export function openDrill({ name = '', sub = '', link = null, linkLabel = 'Open 
   };
 
   content.innerHTML = `
-    <div class="sticky top-0 z-10 border-b border-slate-100 bg-white/95 p-5 backdrop-blur-sm">
+    <div class="sticky top-0 z-10 border-b border-slate-100 bg-white p-5 ">
       <button data-drill-close class="absolute right-4 top-4 text-2xl leading-none text-slate-400 hover:text-slate-700" aria-label="Close">×</button>
       <div class="flex items-center gap-4 pr-8">
         <div class="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-lg font-bold text-white shadow-md">${escapeHtml(initials)}</div>
@@ -1497,7 +1568,7 @@ export function openWorkspace({
   const activeId = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0].id;
 
   content.innerHTML = `
-    <div class="sticky top-0 z-10 border-b border-slate-200 bg-white/97 backdrop-blur">
+    <div class="sticky top-0 z-10 border-b border-slate-200 bg-white ">
       <div class="flex items-start gap-4 px-6 pt-5">
         <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-base font-bold text-white shadow-md">${escapeHtml(initials)}</div>
         <div class="min-w-0 flex-1">
