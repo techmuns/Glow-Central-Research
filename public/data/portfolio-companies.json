@@ -12,10 +12,10 @@
   "storage": "shared",
   "syncedAt": "2026-09-11T05:03:34.590Z",
   "count": 118,
-  "resolved": 106,
+  "resolved": 107,
   "unlisted": 3,
   "bseOnly": 4,
-  "unresolved": 5,
+  "unresolved": 4,
   "holdings": [
     {
       "isin": "INE423A01024",
@@ -391,9 +391,10 @@
       "name": "Horizon Industrial Parks Ltd",
       "bookName": "Horizon Industrial Parks Ltd",
       "sector": "Unclassified",
-      "ticker": null,
+      "ticker": "HORIZONIND",
       "listed": true,
-      "reason": "no NSE symbol found in the data on disk"
+      "matchedName": "Horizon Industrial Parks Ltd",
+      "matchedBy": "exact:stockscans"
     },
     {
       "isin": "INE530B01024",
