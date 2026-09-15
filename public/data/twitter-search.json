@@ -1332,7 +1332,7 @@
       "error": "search-unavailable"
     },
     "isin:INE564S01019|Vikram Kamats Hospitality": {
-      "lastAttemptAt": "2026-09-11T02:13:56+00:00",
+      "lastAttemptAt": "2026-09-15T15:27:20+00:00",
       "error": "search-unavailable"
     },
     "isin:INE18UN01038|GAJA": {
@@ -1372,6 +1372,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-15T14:54:13.753585+00:00"
+    "checkedAt": "2026-09-15T15:27:20.690074+00:00"
   }
 }
