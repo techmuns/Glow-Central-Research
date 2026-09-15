@@ -190,14 +190,31 @@ function retryStorage() {
     try {
       const raw = localStorage.getItem(key);
       if (key === OUTBOX_KEY || key === REJECTED_KEY) {
-        const disk = parseArray(raw);
-        const current = parseArray(sessionValues.get(key));
-        const merged = new Map([...disk, ...current].map(entry => [normTicker(entry?.ticker), entry]));
-        saveValue(key, JSON.stringify([...merged.values()]));
-      } else if (key === STORAGE_KEY && localStorage.getItem(SEEDED_KEY) !== '1') {
-        const queued = new Set(outbox().map(intent => normTicker(intent.ticker)));
-        for (const entry of read(parseArray(raw))) {
-          if (!queued.has(entry.ticker)) queue({ op: 'seed', ticker: entry.ticker, name: entry.name });
+        saveValue(key, mergeStoredIntents(null, sessionValues.get(key), raw));
+      } else if (key === STORAGE_KEY) {
+        const needsSeed = localStorage.getItem(SEEDED_KEY) !== '1';
+        const recovered = read(parseArray(raw));
+        if (needsSeed) {
+          const queued = new Set(outbox().map(intent => normTicker(intent.ticker)));
+          for (const entry of recovered) {
+            if (!queued.has(entry.ticker)) queue({ op: 'seed', ticker: entry.ticker, name: entry.name });
+          }
+        }
+        if (needsSeed || !confirmed) {
+          // These are actual saved rows, not a server acknowledgement. Keep them
+          // visible and durable until migration can run, even if saving its outbox
+          // is still blocked. Otherwise the empty startup fallback destroys the
+          // only recoverable copy when storage returns before the connection does.
+          const retained = new Map([...recovered, ...read(parseArray(sessionValues.get(key)))]
+            .map(entry => [entry.ticker, entry]));
+          for (const intent of outbox()) {
+            const ticker = normTicker(intent.ticker);
+            if (intent.op === 'remove') retained.delete(ticker);
+            else if (intent.op === 'add' && !retained.has(ticker)) {
+              retained.set(ticker, { ticker, name: companyName(intent.name), addedAt: intent.at || null, addedBy: personName(intent.by) });
+            }
+          }
+          saveValue(key, JSON.stringify([...retained.values()]));
         }
       }
       if (!pendingStorage.has(key)) sessionValues.set(key, raw);

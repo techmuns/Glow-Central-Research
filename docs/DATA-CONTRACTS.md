@@ -4306,7 +4306,9 @@ the same distinction the X handle list draws between `adding` and `active`.
 - **Storage failure has a session fallback.** The open tab retains both the list and pending edits
   in memory and exposes `meta().storageAvailable = false` with a reader-facing warning. Reconnection
   can still send those edits. Failed local writes are retried; storage that was unreadable at
-  startup is recovered before temporary values overwrite its old list or queue. A recovered
+  startup is recovered before temporary values overwrite its old list or queue. Recovered older
+  companies remain visible and saved while migration is waiting for the server, including when
+  outbox writes still fail; reopening can retry migration from that retained list. A recovered
   outbox write merges the current disk queue with this tab's changes since its last known disk
   value. Intent IDs preserve sibling edits without replaying already-acknowledged entries.
   Same-device edits to one company keep the newer local click; the server still orders accepted

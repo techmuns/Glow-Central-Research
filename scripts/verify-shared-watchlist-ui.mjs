@@ -136,6 +136,8 @@ const sync = async (page) => {
 const starAt = async (page, index) => {
   const star = page.locator('[data-watch]').nth(index);
   const ticker = await star.getAttribute('data-watch');
+  // Keep the row clear of the fixed source-status launcher at the viewport edge.
+  await star.evaluate(button => button.scrollIntoView({ block: 'center' }));
   await star.click();
   return ticker;
 };
@@ -397,6 +399,64 @@ try {
   ok('restoring storage preserves unread legacy companies, old queued edits and new session edits',
     ['DENIEDOLD', 'DENIEDQUEUED', 'DENIEDNEW'].every(ticker => store.watchlistSnapshot().companies.some(c => c.ticker === ticker)));
   ok('restored storage clears the temporary-copy warning', !(await listOn(deniedPage)).meta.error);
+
+  const unreadFixture = async initial => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    fixtures.push(context);
+    page.on('pageerror', error => fixtureErrors.push(error.message));
+    await page.route('**/*', route => route.request().url().startsWith(`${origin}/`) ? route.continue() : route.abort());
+    await page.goto(`${origin}/watchlist-fixture`);
+    await page.evaluate(async entries => {
+      for (const [key, value] of Object.entries(entries)) localStorage.setItem(key, value);
+      window.denyAll = true;
+      window.denyOutbox = false;
+      const original = Object.fromEntries(['getItem', 'setItem', 'removeItem'].map(key => [key, Storage.prototype[key]]));
+      for (const method of Object.keys(original)) Storage.prototype[method] = function(key, ...args) {
+        if (key.startsWith('sattva:watchlist') && (denyAll || (denyOutbox && method === 'setItem' && key === 'sattva:watchlist:outbox'))) throw new DOMException('Denied', 'SecurityError');
+        return original[method].call(this, key, ...args);
+      };
+      window.wl = await import('/js/core/watchlist.js');
+    }, initial);
+    return page;
+  };
+
+  store.watchlistApply([{ op: 'add', ticker: 'UNREADCONFLICT', name: 'Original company', by: 'Tester' }]);
+  const unread = await unreadFixture({ 'sattva:watchlist:seeded': '1', 'sattva:watchlist': JSON.stringify([{ ticker: 'UNREADCONFLICT', name: 'Original company' }]) });
+  const unreadSibling = await unread.context().newPage();
+  await unreadSibling.goto(`${origin}/watchlist-fixture`);
+  await unreadSibling.evaluate(async () => { window.wl = await import('/js/core/watchlist.js'); });
+  offline = true;
+  await unread.evaluate(async () => { wl.add('UNREADCONFLICT', 'Older add', 'Tester'); await wl.syncNow({ force: true }); });
+  await unreadSibling.evaluate(async () => { wl.remove('UNREADCONFLICT', 'Tester'); await wl.syncNow({ force: true }); });
+  await unread.evaluate(() => { window.denyAll = false; });
+  offline = false;
+  await sync(unread);
+  await sync(unreadSibling);
+  ok('an initially unread outbox preserves the newer sibling action on the same ticker',
+    !store.watchlistSnapshot().companies.some(c => c.ticker === 'UNREADCONFLICT'));
+
+  for (const quotaBlocked of [false, true]) {
+    const ticker = quotaBlocked ? 'RECOVERQUOTAOLD' : 'RECOVEROFFLINEOLD';
+    const recoveredOld = await unreadFixture({ 'sattva:watchlist': JSON.stringify([{ ticker, name: 'Older saved company' }]) });
+    offline = true;
+    await sync(recoveredOld);
+    await recoveredOld.evaluate(blocked => { window.denyAll = false; window.denyOutbox = blocked; }, quotaBlocked);
+    await sync(recoveredOld);
+    const retained = await recoveredOld.evaluate(ticker => ({
+      visible: wl.has(ticker), saved: JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').some(c => c.ticker === ticker),
+      seeded: localStorage.getItem('sattva:watchlist:seeded'),
+    }), ticker);
+    ok(`storage recovery keeps the older list visible and saved while the server is offline (quota blocked: ${quotaBlocked})`,
+      retained.visible && retained.saved && (!quotaBlocked || retained.seeded !== '1'));
+    await recoveredOld.reload();
+    ok(`the recovered older list survives reopening before migration can reach the server (quota blocked: ${quotaBlocked})`,
+      (await listOn(recoveredOld)).companies.some(c => c.ticker === ticker));
+    offline = false;
+    await sync(recoveredOld);
+    ok(`the preserved older company migrates on reconnection (quota blocked: ${quotaBlocked})`,
+      store.watchlistSnapshot().companies.some(c => c.ticker === ticker));
+  }
 
   console.log('\n— storage recovery across tabs —');
   const storageRace = await fixture({ 'sattva:watchlist:seeded': '1' });
