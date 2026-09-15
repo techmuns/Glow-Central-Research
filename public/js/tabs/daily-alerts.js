@@ -67,6 +67,8 @@ let unsubs = [];
 const HORIZON = { THROUGH: 'through', UPCOMING: 'upcoming' };
 let horizon = HORIZON.THROUGH;
 let renderedHorizon = HORIZON.THROUGH;
+let renderedDay = null;
+let renderedScope = null;
 let tableViews = { [HORIZON.THROUGH]: null, [HORIZON.UPCOMING]: null }; // one view per time horizon
 let routeCompany = null; // a company deep-link supplied by an AI Alert card
 // WHICH FEEDS ARE TICKED. `null` means All — deliberately not "a Set holding every id", because
@@ -115,6 +117,11 @@ export function render(ctx) {
       [HORIZON.THROUGH]: { ...(tableViews[HORIZON.THROUGH] || {}), q: '' },
       [HORIZON.UPCOMING]: { ...(tableViews[HORIZON.UPCOMING] || {}), q: '' },
     };
+  }
+  if ((requestedCompany || null) !== routeCompany) {
+    tableDispose?.();
+    tableDispose = null;
+    tableInstance = null;
   }
   routeCompany = requestedCompany || null;
 
@@ -369,8 +376,8 @@ function paint(ctx) {
   // the problem: three of them counted rows the table beneath them already lists, and the fourth
   // printed a date the pill now carries. The pill is deliberately passive; full provenance stays
   // in the source registry and export — see the stat-strip opt-out rule in CLAUDE.md.
-  if (tableInstance && renderedHorizon === horizon) {
-    const metaDiv = ctx.root.querySelector('[data-section-head] .flex > div:nth-child(2)');
+  if (tableInstance && renderedHorizon === horizon && renderedDay === day && renderedScope === ctx.scope) {
+    const metaDiv = ctx.root.querySelector('[data-alerts-meta]');
     if (metaDiv) metaDiv.innerHTML = `${livePill(report, day)}${pendingPill(report)}${scopeSummary({
         scope: ctx.scope, count: m.companies || 0, noun: 'companies in loaded history', book: coverage.meta(),
     })}${horizon === HORIZON.UPCOMING ? calendarPill(allUpcoming) : historyPill(m)}`;
@@ -379,7 +386,23 @@ function paint(ctx) {
     if (horizonToggleContainer) horizonToggleContainer.outerHTML = horizonToggle(allThrough.length, allUpcoming.length, day, !!report);
     
     const coveragePanelContainer = ctx.root.querySelector('.alerts-source-picker');
-    if (coveragePanelContainer) coveragePanelContainer.outerHTML = coveragePanel(displayFeeds, horizon === HORIZON.UPCOMING ? allUpcoming.length : allThrough.length);
+    if (coveragePanelContainer) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = coveragePanel(displayFeeds, horizon === HORIZON.UPCOMING ? allUpcoming.length : allThrough.length);
+      const newPicker = tmp.firstElementChild;
+      const summary = coveragePanelContainer.querySelector('[data-sources-summary]');
+      const newSummary = newPicker.querySelector('[data-sources-summary]');
+      if (summary && newSummary) {
+        summary.innerHTML = newSummary.innerHTML;
+        summary.title = newSummary.title;
+      }
+      const heading = coveragePanelContainer.querySelector('.alerts-source-heading p');
+      const newHeading = newPicker.querySelector('.alerts-source-heading p');
+      if (heading && newHeading) heading.textContent = newHeading.textContent;
+      const grid = coveragePanelContainer.querySelector('[data-alerts-coverage] > div:nth-child(2)');
+      const newGrid = newPicker.querySelector('[data-alerts-coverage] > div:nth-child(2)');
+      if (grid && newGrid) grid.innerHTML = newGrid.innerHTML;
+    }
     
     wireHorizon(ctx);
     wireFeedFilter(ctx, available);
@@ -405,7 +428,7 @@ function paint(ctx) {
     <div class="alerts-workspace" data-alerts-workspace data-fullscreen-workspace>
     ${sectionHead({
       title: 'All Alerts',
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(report, day)}${pendingPill(report)}${scopeSummary({
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2" data-alerts-meta>${livePill(report, day)}${pendingPill(report)}${scopeSummary({
         scope: ctx.scope,
         count: m.companies || 0,
         noun: 'companies in loaded history',
@@ -442,6 +465,8 @@ function paint(ctx) {
   fitStreamToViewport(ctx.root);
   restoreTablePosition(ctx.root, tablePosition);
   renderedHorizon = horizon;
+  renderedDay = day;
+  renderedScope = ctx.scope;
   restoreFocus(ctx.root, focus);
 }
 
@@ -850,7 +875,9 @@ function wireHorizon(ctx) {
 function wireFeedFilter(ctx, available) {
   const root = ctx.root.querySelector('[data-alerts-coverage]');
   if (!root) return;
-  root.addEventListener('click', (e) => {
+  // The panel survives same-horizon repaints. Replace its handler so each click applies once,
+  // using the latest available feeds rather than accumulating closures from earlier paints.
+  root.onclick = (e) => {
     const btn = e.target.closest('[data-feed-toggle]');
     if (!btn) return;
     const id = btn.dataset.feedToggle;
@@ -866,7 +893,7 @@ function wireFeedFilter(ctx, available) {
       picked = next.size && next.size < available.length ? next : null;
     }
     paint(ctx);
-  });
+  };
 }
 
 /**
@@ -1154,7 +1181,9 @@ function dateRangeOptions(events, day, mode) {
   const options = [{ value: 'all', label: 'All history through today' },
     ...NEWS_PERIODS.map(option => ({ ...option,
       value: /^\d+$/.test(option.value) ? `${option.value}d` : option.value }))];
-  if (events.some((event) => event.day < shiftDay(day, -29))) options.push({ value: 'older', label: 'Older than 30 days' });
+  // Keep this choice available while older sources are still loading. The live table retains
+  // its controls, so a later archive arrival must not require remounting to expose its period.
+  options.push({ value: 'older', label: 'Older than 30 days' });
   return options;
 }
 

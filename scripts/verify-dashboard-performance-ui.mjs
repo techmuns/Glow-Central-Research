@@ -15,6 +15,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const TAB_INTERACTION_LIMIT_MS = 1000;
 const POPUP_INTERACTION_LIMIT_MS = 600;
 let offline = false;
+let previousRelease = true;
 const requests = [];
 const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
@@ -33,7 +34,12 @@ const server = createServer((req, res) => {
       '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png',
     }[extname(path)] || 'application/octet-stream');
     res.setHeader('cache-control', 'public, max-age=0, must-revalidate');
-    res.end(readFileSync(path));
+    if (pathname === '/sw.js') {
+      const source = readFileSync(path, 'utf8');
+      res.end(previousRelease ? source.replace(/const CACHE_NAME = ([^;\n]+);/, 'const CACHE_NAME = $1 + "-previous-fixture";') : source);
+    } else if (pathname === '/js/core/app-updates.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__performanceRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else res.end(readFileSync(path));
   } catch { res.writeHead(404); res.end(); }
 });
 
@@ -134,8 +140,16 @@ try {
     return window.__perfPolls;
   });
   assert.equal(restartHits, 1, 'tab re-entry resumes the cadence instead of duplicating a fresh request');
+  assert.equal(await page.evaluate(() => globalThis.__performanceRelease), 'previous', 'the returning reader is running the older cached module graph');
+  offline = false;
+  previousRelease = false;
+  await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update(); });
+  await page.waitForFunction(() => globalThis.__performanceRelease === 'current', null, { timeout: 30000 });
+  const upgradedCaches = await page.evaluate(() => caches.keys());
+  assert(!upgradedCaches.some(name => name.includes('previous-fixture')), 'activation removes the superseded app cache');
+  assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'automatic upgrade retains reader preferences');
   assert.deepEqual(errors, []);
-  console.log('PASS: app-shell cache, offline repeat paint, immediate tab/popup actions, private-cache boundary and freshness-aware poll restart.');
+  console.log('PASS: app-shell cache, offline repeat paint, immediate tab/popup actions, private-cache boundary, freshness-aware poll restart and automatic warm-session release upgrade.');
 } finally {
   await browser.close();
   await new Promise((done) => server.close(done));

@@ -945,7 +945,7 @@ export function scoreTable(config) {
       stopFill();
       if (isVirtual) {
         markPending(0);
-        attachScroll();
+        if (!isWindowed) attachScroll(); // measured lists own their one scroll listener
         return;
       }
       if (filled >= current.length) {
@@ -1316,7 +1316,7 @@ export function scoreTable(config) {
     for (const row of rows) {
       const k = String(key(row));
       const old = oldRowsByKey.get(k);
-      if (!old || old.revision !== row.revision) {
+      if (!old || old !== row || old.revision !== row.revision) {
         rowHtmlCache.delete(k);
         staleKeys.add(k);
       }

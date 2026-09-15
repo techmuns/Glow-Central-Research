@@ -161,8 +161,10 @@ export function render(ctx) {
       holdings: coverage.holdings(),
       positionSizes: cachedPositionSizes(),
     }).then((cached) => {
-      if (token !== cacheToken || ctxRef !== ctx || report || !cached) return;
-      report = cached;
+      if (token !== cacheToken || ctxRef !== ctx || !cached || report?.pending === 0) return;
+      // An empty partial is still an unfinished source read. Merge the retained window beneath
+      // any newer live evidence instead of letting that partial suppress a slow cache restore.
+      report = alerts.withPositionSnapshot(report ? alerts.mergePartialReport(cached, report) : cached, cachedPositionSizes());
       paint(ctxRef);
     });
   }
@@ -210,8 +212,11 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
   // A slow or unavailable size reader must not hold the first alert hostage.
   // An explicit Refresh must really check Family again. Navigation, calendar
   // ageing and a quick tab return are the paths allowed to reuse the snapshot.
-  const heldSizes = forceRefresh && !reusePositions ? null : cachedPositionSizes();
-  let checkedSnapshot = heldSizes;
+  const previousSnapshot = cachedPositionSizes();
+  const heldSizes = forceRefresh && !reusePositions ? null : previousSnapshot;
+  // Keep the still-valid, dated snapshot on partial cards while an explicit
+  // refresh checks it again. Failure handling removes unverified sizes below.
+  let checkedSnapshot = previousSnapshot;
   let positions = Promise.resolve(heldSizes);
   if (ctx.scope === 'portfolio' && privatePortfolioContext()) {
     if (!heldSizes) {

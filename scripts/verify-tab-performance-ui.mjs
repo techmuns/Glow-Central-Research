@@ -189,9 +189,36 @@ try {
   await frame.evaluate(() => { records[2999].title = 'Updated live title'; fixtureTable.updateRows(['2999']); });
   await search.fill('Updated live title');
   assert.equal(await frame.locator('tr[data-row-key]').count(), 1, 'live patches invalidate search text');
+  await frame.evaluate(() => {
+    records = records.map(row => row.id === '2999' ? { ...row, title: 'Replacement live title' } : row);
+    fixtureTable.updateData(records);
+  });
+  assert.equal(await frame.locator('tr[data-row-key]').count(), 0, 'replacing same-ID records invalidates the old search match');
+  await search.fill('Replacement live title');
+  assert.equal(await frame.locator('tr[data-row-key]').count(), 1);
+  assert((await frame.locator('tr[data-row-key]').innerText()).includes('Replacement live title'),
+    'a correction without an optional revision field replaces the mounted row markup');
   await search.fill('does-not-exist');
   assert.equal(await frame.locator('tr[data-row-key]').count(), 0, 'empty filtered lists are safe');
   await search.fill('');
+  await scroller.evaluate(el => { el.scrollTop = 30000; });
+  await frame.evaluate(async () => { for (let i = 0; i < 5; i++) await new Promise(requestAnimationFrame); });
+  const readAnchor = () => scroller.evaluate(el => {
+    const boundary = el.getBoundingClientRect().top + el.querySelector('thead').offsetHeight;
+    const row = [...el.querySelectorAll('tr[data-row-key]')].find(row => row.getBoundingClientRect().bottom > boundary);
+    return { key: row.dataset.rowKey, offset: row.getBoundingClientRect().top - boundary };
+  });
+  const beforeArrival = await readAnchor();
+  await frame.evaluate(() => {
+    records = [...records.map(row => ({ ...row })), ...Array.from({ length: 50 }, (_, i) => ({
+      id: String(3000 + i), title: 'New arrival ' + i, value: 3000 + i, detail: 'Arrived while reading',
+    }))];
+    fixtureTable.updateData(records);
+  });
+  await frame.evaluate(async () => { for (let i = 0; i < 5; i++) await new Promise(requestAnimationFrame); });
+  const afterArrival = await readAnchor();
+  assert.equal(afterArrival.key, beforeArrival.key, 'arrivals before the viewport preserve the record being read');
+  assert(Math.abs(afterArrival.offset - beforeArrival.offset) <= 2, 'replaced row objects retain their reading offset');
   await page.setViewportSize({ width: 680, height: 800 });
   await frame.evaluate(async () => { for (let i=0;i<5;i++) await new Promise(requestAnimationFrame); });
   assert(await frame.locator('tr[data-row-key]').count() <= 100, 'resizing keeps the DOM bounded');

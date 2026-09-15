@@ -208,17 +208,29 @@ try {
   });
   await page.locator('[data-table-search]').fill('Date window fixture');
   await page.waitForFunction(() => document.querySelectorAll('tbody tr[data-row-key]').length === 12);
+  await period.selectOption('today');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 12, 'active search includes retained matches outside the date preset');
+  // Isolate the fixture using its source so calendar boundaries are tested without the
+  // deliberately history-wide text search introduced in #187.
+  await page.locator('[data-sources-summary]').click();
+  await page.locator('[data-feed-toggle="company-documents"]').click();
+  await page.locator('[data-sources-close]').click();
+  await page.locator('[data-table-search]').fill('');
   for (const [value,count] of [['today',1],['3d',3],['7d',5],['14d',7],['30d',9],
     ['month',dateFixture.dates.filter(day => day >= dateFixture.day.slice(0,7) + '-01').length],['older',2],['undated',1],['all',12]]) {
     await period.selectOption(value);
     assert.equal(await page.locator('tbody tr[data-row-key]').count(), count, `All Alerts exact period membership: ${value}`);
   }
   await period.selectOption('7d');
+  await page.locator('[data-table-search]').fill('Date window fixture');
   await page.evaluate(() => window.show('portfolio'));
   await settled();
   assert.equal(await period.inputValue(), '7d', 'chosen period survives a source revalidation');
   assert.equal((await page.locator('[data-table-search]').inputValue()).toLowerCase(), 'date window fixture');
-  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 5);
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 12, 'retained search still spans history after revalidation');
+  await page.locator('[data-sources-summary]').click();
+  await page.locator('[data-feed-toggle="__all"]').click();
+  await page.locator('[data-sources-close]').click();
   await period.selectOption('today');
   await page.evaluate(() => window.show('portfolio', { company: 'STLTECH' }));
   await settled();
@@ -479,8 +491,8 @@ try {
   await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('DMart reports'));
   await page.evaluate(() => window.disposeNews());
 
-  // Exercise the actual tab inside a short host iframe, with real wheel input. Checking DOM
-  // bounds alone misses a virtual stride smaller than the rendered news-attribution rows.
+  // Exercise the actual tab inside a short host iframe, with real wheel input. Measured rows
+  // may have different natural heights; verify contiguous geometry across window replacements.
   await page.goto(`${origin}/embed`);
   const embedded = await (await page.locator('iframe').elementHandle()).contentFrame();
   await settled(embedded);
@@ -511,18 +523,17 @@ try {
         await new Promise(requestAnimationFrame);
         const el = document.querySelector('[data-table-scroll]');
         const rows = [...el.querySelectorAll('tr[data-row-key]')];
-        const stride = parseFloat(rows[0].style.height);
-        const origin = el.querySelector('tbody').getBoundingClientRect().top;
+        const boxes = rows.map(row => row.getBoundingClientRect());
         const boundary = el.getBoundingClientRect().top + el.querySelector('thead').offsetHeight;
         const visible = rows.find(r => r.getBoundingClientRect().bottom > boundary);
         return { top: el.scrollTop, start: el.closest('[data-score-table]').dataset.virtualStart,
-          count: rows.length, stride, heights: rows.map(r => r.getBoundingClientRect().height),
-          drift: rows.map(r => Math.abs(r.getBoundingClientRect().top - origin - (Number(r.getAttribute('aria-rowindex')) - 2) * stride)),
+          count: rows.length, heights: boxes.map(box => box.height),
+          gaps: boxes.slice(1).map((box, i) => Math.abs(box.top - boxes[i].bottom)),
           visible: !!visible && visible.getBoundingClientRect().top < el.getBoundingClientRect().bottom };
       });
       assert(sample.top > previous && sample.visible, `wheel advances through visible records inside ${size.width}px iframe (step ${step}, previous ${previous}): ${JSON.stringify(sample)}`);
-      assert(sample.count <= 64 && sample.heights.every(h => Math.abs(h - sample.stride) <= 1), 'rendered heights match the virtual scroll stride');
-      assert(Math.max(...sample.drift) <= 2, `window replacement must not jump rows: ${Math.max(...sample.drift)}px drift`);
+      assert(sample.count <= 64 && sample.heights.every(height => height > 0), 'natural-height rows remain visible and bounded');
+      assert(Math.max(0, ...sample.gaps) <= 2, `window replacement keeps rows contiguous: ${Math.max(0, ...sample.gaps)}px gap/overlap`);
       previous = sample.top;
       starts.add(sample.start);
     }
