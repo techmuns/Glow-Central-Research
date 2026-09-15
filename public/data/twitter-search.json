@@ -1324,7 +1324,7 @@
       "error": "search-unavailable"
     },
     "isin:INE694L01019|Vedanta Power": {
-      "lastAttemptAt": "2026-09-11T01:07:58+00:00",
+      "lastAttemptAt": "2026-09-15T14:15:41+00:00",
       "error": "search-unavailable"
     },
     "isin:INE694L01019|VEDPOWER": {
@@ -1372,6 +1372,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-15T13:45:19.187234+00:00"
+    "checkedAt": "2026-09-15T14:15:41.337300+00:00"
   }
 }
