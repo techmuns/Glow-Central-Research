@@ -24,6 +24,10 @@ The follow-up release closes correctness gaps found while reviewing PR #201:
   with writes, protects active readers and reused hashes, and waits for a successful durable
   commit before removing old parts. An aborted IndexedDB transaction reports session-only
   storage and leaves the preceding complete disk window readable after reload.
+- AI Alerts adopts a delayed saved window beneath unfinished live evidence, including an empty
+  early partial. Completed live results and portfolio invalidation still prevent stale adoption.
+  A still-valid dated position snapshot remains on partial cards during a fresh check, preventing
+  avoidable redraws; failed checks continue removing unverified sizes.
 
 Regression coverage includes 100,715 retained alert records, Watchlist/Portfolio/Universe parity,
 private-record removal, full-history search, independent calendar presets, repeat source selection,
