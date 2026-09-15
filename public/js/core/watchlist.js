@@ -110,6 +110,7 @@ function scheduleWrite() {
 // write must never make the next read fall back to stale disk bytes (or an empty list).
 const sessionValues = new Map();
 const pendingStorage = new Set();
+const pendingStorageBases = new Map();
 const failedStorageReads = new Set();
 const unreadStorage = new Set();
 
@@ -127,13 +128,46 @@ function storedValue(key) {
   }
 }
 
+const intentKey = intent => intent.id || JSON.stringify([intent.op, intent.ticker, intent.name, intent.by, intent.at]);
+
+function mergeStoredIntents(baseRaw, localRaw, diskRaw) {
+  const base = new Set(parseArray(baseRaw).map(intentKey));
+  const local = parseArray(localRaw);
+  const localKeys = new Set(local.map(intentKey));
+  const removed = new Set([...base].filter(key => !localKeys.has(key)));
+  const merged = new Map(parseArray(diskRaw)
+    .filter(intent => !removed.has(intentKey(intent)))
+    .map(intent => [normTicker(intent.ticker), intent]));
+  for (const intent of local) {
+    // An unchanged base entry removed by a sibling is already acknowledged. Only
+    // this tab's new edits may be re-applied over the current disk queue.
+    if (base.has(intentKey(intent))) continue;
+    const ticker = normTicker(intent.ticker);
+    const sibling = merged.get(ticker);
+    // Both tabs use this device's clock. Keep the newer local click when they edit
+    // the same company; these times never determine ordering on the shared server.
+    if (!sibling || (Date.parse(intent.at) || 0) >= (Date.parse(sibling.at) || 0)) merged.set(ticker, intent);
+  }
+  const next = [...merged.values()];
+  return next.length ? JSON.stringify(next) : null;
+}
+
 function persistValue(key) {
   if (unreadStorage.has(key) || (key === SEEDED_KEY && unreadStorage.has(STORAGE_KEY))) return;
   try {
-    const value = sessionValues.get(key);
+    let value = sessionValues.get(key);
+    if (key === OUTBOX_KEY || key === REJECTED_KEY) {
+      const disk = localStorage.getItem(key);
+      value = mergeStoredIntents(pendingStorageBases.get(key), value, disk);
+      sessionValues.set(key, value);
+      // If this write fails again, disk entries adopted by the merge are now the
+      // base, so a later sibling acknowledgement cannot resurrect them.
+      pendingStorageBases.set(key, disk);
+    }
     if (value == null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
     pendingStorage.delete(key);
+    pendingStorageBases.delete(key);
     failedStorageReads.delete(key);
   } catch {
     // Retain both the value and the outstanding write for the next sync.
@@ -141,6 +175,7 @@ function persistValue(key) {
 }
 
 function saveValue(key, value) {
+  if (!pendingStorage.has(key)) pendingStorageBases.set(key, sessionValues.get(key) ?? null);
   sessionValues.set(key, value);
   pendingStorage.add(key);
   // Never persist "migration complete" ahead of the edits carrying the old list.

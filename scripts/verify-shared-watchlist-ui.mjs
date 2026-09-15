@@ -398,6 +398,84 @@ try {
     ['DENIEDOLD', 'DENIEDQUEUED', 'DENIEDNEW'].every(ticker => store.watchlistSnapshot().companies.some(c => c.ticker === ticker)));
   ok('restored storage clears the temporary-copy warning', !(await listOn(deniedPage)).meta.error);
 
+  console.log('\n— storage recovery across tabs —');
+  const storageRace = await fixture({ 'sattva:watchlist:seeded': '1' });
+  const storageSibling = await storageRace.context().newPage();
+  await storageSibling.goto(`${origin}/watchlist-fixture`);
+  await storageSibling.evaluate(async () => { window.wl = await import('/js/core/watchlist.js'); });
+  await sync(storageRace);
+  await storageRace.evaluate(() => {
+    window.originalSet = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key, value) {
+      if (key === 'sattva:watchlist:outbox') throw new DOMException('Full', 'QuotaExceededError');
+      return originalSet.call(this, key, value);
+    };
+  });
+  offline = true;
+  await storageRace.evaluate(async () => { wl.add('RECOVERLOCAL', 'Temporary edit', 'Tester'); await wl.syncNow({ force: true }); });
+  await storageSibling.evaluate(async () => { wl.add('RECOVERSIBLING', 'Sibling edit', 'Tester'); await wl.syncNow({ force: true }); });
+  await storageRace.evaluate(() => { Storage.prototype.setItem = originalSet; });
+  offline = false;
+  await sync(storageRace);
+  await sync(storageSibling);
+  ok('a recovered outbox write merges edits added by a sibling during the storage failure',
+    ['RECOVERLOCAL', 'RECOVERSIBLING'].every(ticker => store.watchlistSnapshot().companies.some(c => c.ticker === ticker)));
+
+  await storageRace.evaluate(() => {
+    Storage.prototype.setItem = function(key, value) {
+      if (key === 'sattva:watchlist:outbox') throw new DOMException('Full', 'QuotaExceededError');
+      return originalSet.call(this, key, value);
+    };
+  });
+  offline = true;
+  await storageRace.evaluate(async () => { wl.add('RECOVERCONFLICT', 'Older add', 'Tester'); await wl.syncNow({ force: true }); });
+  await storageSibling.evaluate(async () => { wl.remove('RECOVERCONFLICT', 'Tester'); await wl.syncNow({ force: true }); });
+  await storageRace.evaluate(() => { Storage.prototype.setItem = originalSet; });
+  offline = false;
+  await sync(storageRace);
+  await sync(storageSibling);
+  ok('a newer sibling unstar wins over an older unsaved add to the same company',
+    !store.watchlistSnapshot().companies.some(c => c.ticker === 'RECOVERCONFLICT'));
+
+  await storageRace.evaluate(() => {
+    Storage.prototype.setItem = function(key, value) {
+      if (key === 'sattva:watchlist:outbox') throw new DOMException('Full', 'QuotaExceededError');
+      return originalSet.call(this, key, value);
+    };
+  });
+  offline = true;
+  await storageRace.evaluate(async () => { wl.add('RECOVERREPEAT', 'Still unsaved', 'Tester'); await wl.syncNow({ force: true }); });
+  await storageSibling.evaluate(async () => { wl.add('RECOVERFINISHED', 'Sibling saves first', 'Tester'); await wl.syncNow({ force: true }); });
+  await sync(storageRace); // Merge the sibling once, while persistence still fails.
+  offline = false;
+  await sync(storageSibling);
+  store.watchlistApply([{ op: 'remove', ticker: 'RECOVERFINISHED', by: 'Another device' }]);
+  await storageRace.evaluate(() => { Storage.prototype.setItem = originalSet; });
+  await sync(storageRace);
+  ok('repeated persistence failures do not replay a sibling edit already acknowledged elsewhere',
+    store.watchlistSnapshot().companies.some(c => c.ticker === 'RECOVERREPEAT') &&
+    !store.watchlistSnapshot().companies.some(c => c.ticker === 'RECOVERFINISHED'));
+
+  await storageRace.evaluate(() => {
+    window.originalRemove = Storage.prototype.removeItem;
+    Storage.prototype.removeItem = function(key) {
+      if (key === 'sattva:watchlist:outbox') throw new DOMException('Denied', 'SecurityError');
+      return originalRemove.call(this, key);
+    };
+  });
+  await storageRace.evaluate(async () => { wl.add('RECOVERACK', 'Already acknowledged', 'Tester'); await wl.syncNow({ force: true }); });
+  store.watchlistApply([{ op: 'remove', ticker: 'RECOVERACK', by: 'Another device' }]);
+  offline = true;
+  await storageSibling.evaluate(async () => { wl.add('RECOVERKEEP', 'Keep sibling edit', 'Tester'); await wl.syncNow({ force: true }); });
+  await storageRace.evaluate(() => { Storage.prototype.removeItem = originalRemove; });
+  offline = false;
+  await sync(storageRace);
+  await sync(storageSibling);
+  ok('recovering an acknowledged outbox removal retains newer sibling edits',
+    store.watchlistSnapshot().companies.some(c => c.ticker === 'RECOVERKEEP'));
+  ok('storage recovery never replays an already-acknowledged edit from stale disk bytes',
+    !store.watchlistSnapshot().companies.some(c => c.ticker === 'RECOVERACK'));
+
   console.log('\n— capacity refusals stay visible —');
   const capacity = await fixture({ 'sattva:watchlist:seeded': '1' });
   const room = 600 - store.watchlistSnapshot().count;

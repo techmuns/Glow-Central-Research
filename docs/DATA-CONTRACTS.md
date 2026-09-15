@@ -4306,7 +4306,11 @@ the same distinction the X handle list draws between `adding` and `active`.
 - **Storage failure has a session fallback.** The open tab retains both the list and pending edits
   in memory and exposes `meta().storageAvailable = false` with a reader-facing warning. Reconnection
   can still send those edits. Failed local writes are retried; storage that was unreadable at
-  startup is recovered before temporary values overwrite its old list or queue. Closing a tab
+  startup is recovered before temporary values overwrite its old list or queue. A recovered
+  outbox write merges the current disk queue with this tab's changes since its last known disk
+  value. Intent IDs preserve sibling edits without replaying already-acknowledged entries.
+  Same-device edits to one company keep the newer local click; the server still orders accepted
+  operations with its own clock. Closing a tab
   before an unpersisted edit reaches the server can lose that edit, and the warning says to keep
   the tab open while changes are pending.
 - **Capacity refusals remain visible.** `sattva:watchlist:rejected` retains rejected intents,
