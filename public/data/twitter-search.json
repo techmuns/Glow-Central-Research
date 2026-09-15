@@ -129,7 +129,7 @@
       "error": "search-unavailable"
     },
     "isin:INE094B01013|ASHIKA": {
-      "lastAttemptAt": "2026-09-11T14:34:57+00:00",
+      "lastAttemptAt": "2026-09-15T22:16:02+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0Z4F01028|Atlanta Electricals": {
@@ -1444,6 +1444,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-09-15T21:44:02.577315+00:00"
+    "checkedAt": "2026-09-15T22:16:02.354411+00:00"
   }
 }
