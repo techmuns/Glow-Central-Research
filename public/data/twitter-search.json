@@ -233,7 +233,7 @@
       "pending": []
     },
     "isin:INE067A01029|CGPOWER": {
-      "lastAttemptAt": "2026-09-12T01:11:07+00:00",
+      "lastAttemptAt": "2026-09-16T09:10:00+00:00",
       "lastResultCount": 87,
       "error": "search-unavailable",
       "lastSuccessAt": "2026-09-06T22:10:33+00:00",
@@ -1444,6 +1444,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-16T08:36:51.472793+00:00"
+    "checkedAt": "2026-09-16T09:10:00.662437+00:00"
   }
 }
