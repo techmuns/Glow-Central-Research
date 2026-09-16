@@ -43,6 +43,7 @@ try {
   for (const row of report.slice(0, 3)) {
     assert(row.chars <= 18000);
     assert.deepEqual(row.companies.map(c => c.ticker), ['STLTECH']);
+<<<<<<< HEAD
     // ASK WHETHER THE COMPARISON FOUND THE COMPANY, NOT WHETHER ITS EXCERPTS SURVIVED THE TRIM.
     // These read `row.context.candidates` - the list AFTER the fit - so they asserted where a byte
     // boundary happened to fall on the day the suite ran. Measured: the comparison found 24
@@ -71,15 +72,34 @@ try {
     assert(row.context.candidates.every(c => c.weightPct === null));
     assert(row.sources.some(s => s.id === 'portfolio'), 'the shared sources include Glow Family Book');
     assert(!row.sources.some(s => s.id === 'earnings-surprise'), 'the retired estimates view is not a research source');
+=======
+    assert(row.context.candidates.some(c => c.ticker === 'HFCL'), `${row.question}: HFCL evidence missing`);
+    if (book.holdings.some(c => c.ticker === 'TEJASNET')) {
+      assert(row.context.candidates.some(c => c.ticker === 'TEJASNET'), `${row.question}: Tejas evidence missing`);
+    }
+    assert(!row.context.candidates.some(c => c.ticker === 'HDFCBANK'), 'emoji round-up must not invent a bank telecom business');
+    assert(row.context.candidates.every(c => c.ticker !== 'STLTECH'));
+    assert.equal(row.context.candidates[0].ticker, 'HFCL', 'fibre product overlap should lead broad AI activity');
+    assert.equal(row.context.holdingsExamined, book.holdings.length);
+    assert.match(row.context.holdingsBasis, /ownership and weights not established/);
+    assert(row.context.candidates.every(c => c.weightPct === null));
+    assert.equal(row.sources.length, 20);
+>>>>>>> sattva/main
     assert(row.sources.reduce((n, s) => n + s.rows, 0) >= 3, 'comparison cannot crowd out all original feed rows');
     // The preview quotes literal excerpts and is capped at three, so naming a SECOND company in it
     // is the same byte-boundary bet as the candidates were. What must hold is that it previews
     // only companies whose evidence is in the fitted packet - never one the fit dropped.
     assert(row.preview.items.some(p => p.ticker === 'HFCL'));
+<<<<<<< HEAD
     const evidenced = row.context.candidates.map(c => c.ticker);
     const droppedByFit = row.found.filter(t => !evidenced.includes(t));
     assert(row.preview.items.every(p => !droppedByFit.includes(p.ticker)),
       'a company the fit dropped has no excerpt in the packet and must not be previewed');
+=======
+    if (book.holdings.some(c => c.ticker === 'TEJASNET')) {
+      assert(row.preview.items.some(p => p.ticker === 'TEJASNET'));
+    }
+>>>>>>> sattva/main
     assert(row.context.candidates.every(c => c.evidence.length && c.evidence.every(e => e.tab && e.text && e.sourceStatus)));
   }
   assert(!report[3].context, 'ordinary single-company research is unchanged');

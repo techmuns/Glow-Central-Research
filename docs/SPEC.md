@@ -67,6 +67,14 @@ spans the full 1400px on every tab.
 
 Only Breakouts and Super Investors have sub-views; every other tab hides the picker entirely.
 
+Corporate Announcements has an **Announcement period (IST)** selector: Today, Last 3 days,
+Last 7 days, This month and All time (the default). Recent windows include today and exclude
+undated or invalid publication dates; All time includes every retained record. The selector
+combines with company search and scope and narrows counts and exports. Source refreshes preserve
+the choice; the existing automatic poll reapplies relative windows after midnight in IST even
+when the source rows are unchanged. Collection and historical retention are independent of this
+display filter, and All time does not claim an exhaustive exchange archive.
+
 **Ask Research is first, and first is the default.** The shell falls back to `ws.tabs[0]` for an
 unknown or absent tab, so the order of the `WORKSPACES` array *is* the landing page — there is no
 second place recording it that could disagree with the array.
@@ -424,6 +432,7 @@ muted and prints the age.
 
 Sub-views: **Strong Breakouts** (6-week base breakouts, URL-reflected filter chips) — first in the
 picker and so the view the tab opens on — then **Technical Scanner** (the full scored universe),
+<<<<<<< HEAD
 **FII Accumulation** (shareholding changes joined to the score). Earnings Surprise is removed
 until a real data feed is available; its mock corpus is excluded from startup and Ask Research.
 
@@ -433,6 +442,10 @@ proximity includes the exact 5%, 10% and 20% boundaries. Chip counts reflect the
 and the other chip selections, including FII's institutional-side and holding-change filters.
 Scanner cards, table rows, exports and price-refresh candidates follow the selected chips.
 Search, score filters and sort survive a chip change; chip selections remain in the URL.
+=======
+**FII Accumulation** (shareholding changes joined to the score). Earnings Surprise was removed
+because analyst consensus estimates are not connected; old links resolve to Strong Breakouts.
+>>>>>>> sattva/main
 
 Every Strong Breakouts filter group leads with **All** and defaults to it, so the sub-view opens on
 the widest answer it can give. The trend filter used to ship on *Above 200 DMA only*, which meant a
@@ -440,6 +453,14 @@ breakout below the primary trend line was absent from a table that gave no sign 
 anything; it is now one click away instead of the default. **All** under Breakout strength is every
 breakout grade — a company whose base has not broken out is not a fourth grade, and the line under
 the chips prints the matched count over every company with a detectable base.
+
+Volume Confirm, 52W Proximity and Trend Filter are shared across all three views and default to
+All. Their URL parameters are `vol`, `near` and `dma`; they combine with the view's existing filters.
+Volume Confirm uses the latest volume divided by the prior 30-session average, consistently with
+Strong Breakouts. Proximity thresholds include the exact 5%, 10% and 20% boundaries. Missing
+measurements remain visible under All and do not qualify for a selected threshold. Chip counts
+hold the other chip selections fixed; table search and score choices further narrow the results.
+Scanner top cards, exports and quote targets follow the market-filtered set.
 
 Still to come — this list is now the only place the gap is recorded, since the dashed *Wiring
 roadmap* card that used to close each tab has been removed from the UI:

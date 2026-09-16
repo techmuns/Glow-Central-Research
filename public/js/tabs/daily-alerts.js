@@ -35,14 +35,20 @@ import * as alerts from '../data/daily-alerts.js';
 import * as coverage from '../data/coverage.js';
 import { scopeLabel } from '../data/scope.js';
 import * as records from '../data/alert-records.js';
+import * as watchlist from '../core/watchlist.js';
+import * as scopeLists from '../core/scope-lists.js';
 import { attributionLabel } from '../data/company-news-attribution.js';
 import { NEWS_PERIODS, newsPeriodBounds } from '../data/news-window.js';
+import { isXbrlFilingUrl, openFilingReader } from '../ui/xbrl-filing.js';
+import { createAlertArrivals } from '../core/alert-arrivals.js';
+import { arrivalsHtml, createArrivalsUI } from '../ui/alert-arrivals.js';
+import { alertWindowKey } from '../data/all-alerts-cache.js';
 
 export const meta = {
   id: 'daily-alerts',
   title: 'All Alerts',
   layout: 'table',
-  subtitle: 'Opens on the last 3 days (IST); older retained alerts and upcoming schedules remain available.',
+  subtitle: 'Opens on Today (IST); older retained alerts and upcoming schedules remain available.',
   // No rail. This is one stream and splitting it by feed would rebuild the tabs it exists to
   // collapse — the feed filter in the toolbar does that job without costing a navigation.
   subviews: [],
@@ -50,6 +56,8 @@ export const meta = {
 
 const REFRESH_ID = 'daily-alerts';
 const RECHECK_MS = 90_000;
+const arrivals = createAlertArrivals();
+const arrivalsUI = createArrivalsUI(arrivals, () => tableInstance?.refreshPresentation());
 
 // ---------------------------------------------------------------------------------------
 // Module state
@@ -62,10 +70,16 @@ const RECHECK_MS = 90_000;
 let ctxRef = null;
 let report = null; // the last collected report
 let loadToken = 0;
+let cacheToken = 0;
+let cacheReady = Promise.resolve();
+let cachedRead = null;
+let cachedReadKey = null;
 let unsubs = [];
 const HORIZON = { THROUGH: 'through', UPCOMING: 'upcoming' };
 let horizon = HORIZON.THROUGH;
 let renderedHorizon = HORIZON.THROUGH;
+let renderedDay = null;
+let renderedScope = null;
 let tableViews = { [HORIZON.THROUGH]: null, [HORIZON.UPCOMING]: null }; // one view per time horizon
 let routeCompany = null; // a company deep-link supplied by an AI Alert card
 // WHICH FEEDS ARE TICKED. `null` means All — deliberately not "a Set holding every id", because
@@ -77,6 +91,8 @@ let collecting = 0;
 let sourceTimer = null;
 let sourceDirty = false;
 let tableDispose = null;
+let tableInstance = null;
+let tableRows = null;
 let workspaceDispose = null;
 let sourcesOpen = false;
 let focusMode = false;
@@ -93,8 +109,25 @@ function sourceChanged() {
   }, 250);
 }
 
+function currentContext() {
+  const day = alerts.today();
+  const period = tableViews[HORIZON.THROUGH]?.filters?.[2] || 'today';
+  const queryWindow = horizon === HORIZON.THROUGH && ['today', '3d', '7d', '14d', '30d', 'month'].includes(period)
+    ? newsPeriodBounds(period.replace(/d$/, ''), `${day}T12:00:00+05:30`) : null;
+  return { scope: ctxRef.scope, holdings: coverage.holdings(), day, queryWindow };
+}
+
+function membershipChanged() {
+  if (ctxRef && report?.contextKey !== alerts.alertContextKey(ctxRef.scope)) render(ctxRef);
+}
+
 export function render(ctx) {
+  // A scope/membership change or a return visit starts a fresh baseline, including warm history.
+  arrivals.reset(ctx.scope);
+  arrivalsUI.reset();
   ctxRef = ctx;
+  const restoreToken = ++cacheToken;
+  cancelThrottledPaint();
   cancelDeferredPaint();
   scrollQuietUntil = 0;
 
@@ -114,17 +147,33 @@ export function render(ctx) {
       [HORIZON.UPCOMING]: { ...(tableViews[HORIZON.UPCOMING] || {}), q: '' },
     };
   }
+  if ((requestedCompany || null) !== routeCompany) {
+    tableDispose?.();
+    tableDispose = null;
+    tableInstance = null;
+  }
   routeCompany = requestedCompany || null;
+  const context = currentContext();
+  const queryChanged = !!report && alertWindowKey(report.queryWindow) !== alertWindowKey(context.queryWindow);
+  const readKey = alertWindowKey(context.queryWindow);
+  if (cachedReadKey !== readKey) { cachedRead = null; cachedReadKey = readKey; }
 
   if (!unsubs.length) {
     unsubs.push(alerts.onChange(sourceChanged));
+    unsubs.push(coverage.onChange(({ changed }) => { if (changed) membershipChanged(); }));
+    unsubs.push(watchlist.onChange(membershipChanged));
+    unsubs.push(scopeLists.onChange(membershipChanged));
     unsubs.push(records.onChange(() => {
+      arrivals.clearPrivate();
       // Remove private rows synchronously, even while another public source is still loading.
-      if (report) { report = { ...report, events: report.events.filter((r) => !r.private) }; if (ctxRef) paint(ctxRef); }
+      if (report && ctxRef) {
+        report = alerts.adoptAllAlertsReport(report, null, currentContext());
+        paint(ctxRef);
+      }
       sourceChanged();
     }));
     const checkVisible = () => {
-      if (ctxRef && !collecting && !document.hidden && Date.now() - lastRevalidatedAt >= RECHECK_MS)
+      if (ctxRef && !collecting && !(document.hidden || innerWidth === 0) && Date.now() - lastRevalidatedAt >= RECHECK_MS)
         void recollect(ctxRef, { refresh: true });
     };
     const timer = setInterval(checkVisible, RECHECK_MS);
@@ -158,24 +207,46 @@ export function render(ctx) {
   // on every scope change and the module keeps its last report so a return visit paints instantly
   // — but that report was collected FOR a scope, and painting Universe's rows under a Portfolio
   // pill for the second before the new collect lands is the page stating something untrue.
-  if (report && report.scope !== ctx.scope) report = null;
+  if (report) {
+    report = alerts.adoptAllAlertsReport(report, null, currentContext());
+    // The ready in-memory view is this visit's baseline. A refresh can begin before the
+    // first background check finishes; its new rows must not be mistaken for initial history.
+    arrivals.observe(report, ctx.scope);
+  }
 
   // Paint immediately with whatever is already collected, then collect. A tab that renders nothing
   // until every feed has answered is a blank timeline.
   paint(ctx);
+  if (!report || queryChanged || cachedRead) {
+    // A route can render again after the empty seed but before disk answers. Reuse that read
+    // and attach the new owner; cancelling its old callback must not lose restoration entirely.
+    const reading = cachedRead ||= alerts.readCachedAllAlerts(context);
+    cacheReady = reading.then((cached) => {
+      if (restoreToken !== cacheToken || ctxRef !== ctx || !cached) return;
+      // Disk and live reads share a mount, not a request token. Even an empty live seed can
+      // arrive first; completed live sources still win if the saved copy arrives later.
+      report = alerts.adoptAllAlertsReport(report || cached, cached, currentContext());
+      paint(ctxRef);
+    }).catch(() => { /* Source reads remain independent of optional device storage. */ })
+      .finally(() => { if (cachedRead === reading) cachedRead = null; });
+  }
   // A short return reuses retained snapshots; reopening after inactivity checks the source
   // readers immediately instead of waiting another full polling interval. No capture dispatch.
   recollect(ctx, { refresh: Date.now() - lastRevalidatedAt >= RECHECK_MS });
 }
 
 export function destroy() {
+  arrivalsUI.detach();
+  arrivals.reset();
   ctxRef = null;
   loadToken++;
+  cacheToken++;
   clearTimeout(sourceTimer); sourceTimer = null; sourceDirty = false;
   cancelThrottledPaint();
   cancelDeferredPaint();
   if (tableDispose) tableDispose();
   tableDispose = null;
+  tableInstance = null;
   workspaceDispose?.();
   workspaceDispose = null;
   sourcesOpen = false;
@@ -201,18 +272,22 @@ export function destroy() {
  * counter, not against a captured ctx, for the same reason the subscriptions are.
  */
 async function recollect(ctx, { refresh: forceRefresh = false, load = true } = {}) {
+  if (!ctx || !ctxRef) return;
   // NO "already collecting" EARLY RETURN. `render()` runs again on every scope change, so bailing
   // out because a collect was in flight would leave the new scope showing the old scope's rows for
   // ever — the guard has to be about which result is allowed to PAINT, not about which reads are
   // allowed to start. Every read below is a conditional GET against a file or a cached route, so
   // an overlapping one costs a revalidation, not a download.
   const token = ++loadToken;
+  const context = currentContext();
+  const contextKey = alerts.alertContextKey(context.scope, context.holdings, context.day);
+  const current = () => token === loadToken && ctxRef && contextKey === alerts.alertContextKey(ctxRef.scope) &&
+    alertWindowKey(context.queryWindow) === alertWindowKey(currentContext().queryWindow);
   collecting++;
   if (load && forceRefresh) lastRevalidatedAt = Date.now();
   try {
     const next = await alerts.collect({
-      scope: ctx.scope,
-      holdings: coverage.holdings(),
+      ...context,
       // The source snapshots already retain history. The old tab threw those rows away with
       // `date === today`; the timeline keeps them and lets the table reveal older days as its
       // internal scroller advances. No request per company and no new route are introduced.
@@ -225,18 +300,23 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true } = {
       // page would sit still until the slowest of them finished, which is the thing this exists to
       // stop. The final report below paints immediately, so the settled state never waits on a timer.
       onPartial: (partial) => {
-        if (token !== loadToken || !ctxRef) return;
-        report = partial;
+        if (!current()) return;
+        report = alerts.adoptAllAlertsReport(partial, report, context);
+        arrivals.observe(report, ctx.scope);
         throttledPaint();
       },
     });
-    if (token !== loadToken || !ctxRef) return;
+    if (!current()) return;
     cancelThrottledPaint();
-    report = next;
+    report = alerts.adoptAllAlertsReport(next, report, context);
+    arrivals.observe(report, ctx.scope);
     paintAfterScroll();
+    // A late device read may fill a failed source. Never overwrite its durable copy before
+    // that read had a chance to contribute. Persist only complete collection publications.
+    if (load) void cacheReady.then(() => { if (current() && report) return alerts.saveAllAlerts(report); });
   } catch (err) {
     console.error('[daily-alerts] collect failed', err);
-    if (token === loadToken && ctxRef) {
+    if (current()) {
       // An unexpected assembly failure is not a completed empty check. Retain the last report,
       // including the current search/scroll position, and make the failed refresh visible.
       report = { ...(report || { day: alerts.today(), scope: ctx.scope, events: [], feeds: [] }),
@@ -245,12 +325,16 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true } = {
     }
   } finally {
     collecting--;
-    if (sourceDirty) sourceChanged();
+    // A period switch can still be reading when the visible recheck becomes due. Complete
+    // that check as soon as the read settles instead of missing a whole polling interval.
+    if (!collecting && ctxRef && !(document.hidden || innerWidth === 0) && Date.now() - lastRevalidatedAt >= RECHECK_MS)
+      void recollect(ctxRef, { refresh: true });
+    else if (sourceDirty) sourceChanged();
   }
 }
 
 // ---- the trailing throttle ------------------------------------------------------------
-const PAINT_COALESCE_MS = 250;
+const PAINT_COALESCE_MS = 1000;
 let paintTimer = null;
 let paintedAt = 0;
 
@@ -271,9 +355,9 @@ function cancelThrottledPaint() {
 }
 
 // Live feeds are allowed to update while the reader scrolls; replacing the table during the
-// gesture is not. Keep coalescing data in memory and perform one trailing paint after 180ms of
+// gesture is not. Keep coalescing data in memory and perform one trailing paint after 400ms of
 // quiet. Explicit controls (scope, horizon, feed selection) still paint immediately.
-const SCROLL_SETTLE_MS = 180;
+const SCROLL_SETTLE_MS = 400;
 function noteTableScroll() {
   scrollQuietUntil = performance.now() + SCROLL_SETTLE_MS;
 }
@@ -303,10 +387,27 @@ function cancelDeferredPaint() {
 // Paint
 // ---------------------------------------------------------------------------------------
 
+const horizonPartitions = new WeakMap();
+const EMPTY_EVENTS = [];
+let lastVisible = null;
+function partitionEvents(events, day) {
+  let saved = horizonPartitions.get(events);
+  if (saved?.day === day) return saved;
+  const through = [], upcoming = [];
+  let todayThrough = 0, todayUpcoming = 0;
+  for (const event of events) {
+    if (isUpcomingEvent(event, day)) { upcoming.push(event); if (event.day === day) todayUpcoming++; }
+    else { through.push(event); if (event.day === day) todayThrough++; }
+  }
+  saved = { day, through, upcoming, todayThrough, todayUpcoming, calendar: collapseUpcoming(upcoming) };
+  horizonPartitions.set(events, saved);
+  return saved;
+}
+
 function paint(ctx) {
   cancelDeferredPaint();
   const day = report?.day || alerts.today();
-  const events = report?.events || [];
+  const events = report?.events || EMPTY_EVENTS;
   const feeds = report?.feeds || [];
   const m = report?.meta || {};
 
@@ -318,7 +419,7 @@ function paint(ctx) {
   // actually schedule something. A historical news or insider checkbox with no possible row is
   // clutter, not transparency; the complete source account returns under Till Today.
   const shown = horizon === HORIZON.UPCOMING
-    ? scopedFeeds.filter((f) => ['earnings-calendar', 'scheduled-concalls', 'screener-portfolio-upcoming'].includes(f.id) || f.events.some((event) => isUpcomingEvent(event, day)))
+    ? scopedFeeds.filter((f) => ['earnings-calendar', 'scheduled-concalls', 'screener-portfolio-upcoming'].includes(f.id) || partitionEvents(f.events, day).upcoming.length)
     : scopedFeeds;
   const available = shown.map((f) => f.id);
   // A SELECTION THAT SURVIVES A REPAINT BUT NOT A VANISHED FEED. Rows land while feeds settle and
@@ -329,16 +430,20 @@ function paint(ctx) {
     picked = new Set([...picked].filter((id) => available.includes(id)));
     if (!picked.size || picked.size === available.length) picked = null;
   }
-  const feedVisible = picked ? events.filter((e) => picked.has(e.feed)) : events;
-  const periodEvents = feedVisible.filter((event) => horizon === HORIZON.UPCOMING ? isUpcomingEvent(event, day) : !isUpcomingEvent(event, day));
-  const visible = horizon === HORIZON.UPCOMING ? collapseUpcoming(periodEvents) : periodEvents;
-  const allUpcoming = collapseUpcoming(events.filter((event) => isUpcomingEvent(event, day)));
-  const allThrough = events.filter((event) => !isUpcomingEvent(event, day));
-  const displayFeeds = shown.map((feed) => ({
-    ...feed,
-    count: feed.events.filter((event) => horizon === HORIZON.UPCOMING ? isUpcomingEvent(event, day) : !isUpcomingEvent(event, day)).length,
-    todayCount: feed.events.filter((event) => event.day === day && (horizon === HORIZON.UPCOMING ? isUpcomingEvent(event, day) : !isUpcomingEvent(event, day))).length,
-  }));
+  const partition = partitionEvents(events, day);
+  const allUpcoming = partition.calendar, allThrough = partition.through;
+  const selection = JSON.stringify([day, horizon, picked && [...picked].sort()]);
+  if (lastVisible?.events !== events || lastVisible.selection !== selection) {
+    const period = horizon === HORIZON.UPCOMING ? partition.upcoming : allThrough;
+    const selected = picked ? period.filter(event => picked.has(event.feed)) : period;
+    lastVisible = { events, selection, rows: horizon === HORIZON.UPCOMING ? collapseUpcoming(selected) : selected };
+  }
+  const visible = lastVisible.rows;
+  const displayFeeds = shown.map(feed => {
+    const parts = partitionEvents(feed.events, day);
+    return { ...feed, count: horizon === HORIZON.UPCOMING ? parts.upcoming.length : parts.through.length,
+      todayCount: horizon === HORIZON.UPCOMING ? parts.todayUpcoming : parts.todayThrough };
+  });
 
   const focus = captureFocus(ctx.root);
   // Native details changes `open` synchronously but dispatches `toggle` later.
@@ -349,35 +454,78 @@ function paint(ctx) {
   // Preserve the visible row across live repaints inside one horizon, but never carry a deep
   // history scroll offset into the much shorter forward calendar (or vice versa).
   const tablePosition = renderedHorizon === horizon ? captureTablePosition(ctx.root) : null;
+
+  // Keep the reading header focused on scope and history. Source-check details belong
+  // inside Sources; the selected date remains visible in the timeline controls and export.
+  if (tableInstance && renderedHorizon === horizon && renderedDay === day && renderedScope === ctx.scope) {
+    const metaDiv = ctx.root.querySelector('[data-alerts-meta]');
+    if (metaDiv) metaDiv.innerHTML = `${scopeSummary({
+        scope: ctx.scope, count: m.companies || 0, noun: report?.queryWindow ? 'companies in selected period' : 'companies in loaded history', book: coverage.meta(),
+    })}${horizon === HORIZON.UPCOMING ? calendarPill(allUpcoming) : historyPill(m)}`;
+    
+    const horizonToggleContainer = ctx.root.querySelector('.alerts-horizon-control');
+    if (horizonToggleContainer) horizonToggleContainer.outerHTML = horizonToggle(allThrough.length, allUpcoming.length, day, !!report);
+    
+    const coveragePanelContainer = ctx.root.querySelector('.alerts-source-picker');
+    if (coveragePanelContainer) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = coveragePanel(displayFeeds, horizon === HORIZON.UPCOMING ? allUpcoming.length : allThrough.length, report, day);
+      const newPicker = tmp.firstElementChild;
+      const summary = coveragePanelContainer.querySelector('[data-sources-summary]');
+      const newSummary = newPicker.querySelector('[data-sources-summary]');
+      if (summary && newSummary) {
+        summary.innerHTML = newSummary.innerHTML;
+        summary.title = newSummary.title;
+      }
+      const heading = coveragePanelContainer.querySelector('[data-alerts-source-description]');
+      const newHeading = newPicker.querySelector('[data-alerts-source-description]');
+      if (heading && newHeading) heading.textContent = newHeading.textContent;
+      const status = coveragePanelContainer.querySelector('[data-alerts-source-status]');
+      const newStatus = newPicker.querySelector('[data-alerts-source-status]');
+      if (status && newStatus) status.innerHTML = newStatus.innerHTML;
+      const grid = coveragePanelContainer.querySelector('[data-alerts-coverage] > div:nth-child(2)');
+      const newGrid = newPicker.querySelector('[data-alerts-coverage] > div:nth-child(2)');
+      if (grid && newGrid) grid.innerHTML = newGrid.innerHTML;
+    }
+    
+    wireHorizon(ctx);
+    wireFeedFilter(ctx, available);
+    if (sourcesOpen) {
+      const cov = ctx.root.querySelector('[data-alerts-coverage]');
+      if (cov) cov.scrollTop = sourceScrollTop;
+    }
+    
+    const status = { loading: !report || report.pending > 0 };
+    if (tableRows === visible) tableInstance.updateStatus(status);
+    else { tableInstance.updateData(visible, undefined, status); tableRows = visible; }
+    return;
+  }
+
+  if (tableDispose) tableDispose();
+  arrivalsUI.detach();
+  tableDispose = null;
+  tableInstance = null;
+  workspaceDispose?.();
+  workspaceDispose = null;
+  
   const table = eventsTable(ctx, visible, day, horizon, tableViews[horizon], tablePosition, report?.pending === 0);
   tableViews[horizon] = table.view;
 
-  // NO DESCRIPTION AND NO STAT STRIP. The four cards were the loudest version of
-  // the problem: three of them counted rows the table beneath them already lists, and the fourth
-  // printed a date the pill now carries. The pill is deliberately passive; full provenance stays
-  // in the source registry and export — see the stat-strip opt-out rule in CLAUDE.md.
-  // scoreTable owns passive scroll handlers and a closure over its data. Dispose that instance
-  // before replacing its nodes; otherwise each partial feed repaint retains one more detached
-  // table and one more global scroll listener.
-  if (tableDispose) tableDispose();
-  tableDispose = null;
-  workspaceDispose?.();
-  workspaceDispose = null;
   ctx.root.innerHTML = `
-    <div class="alerts-workspace" data-alerts-workspace>
+    <div class="alerts-workspace" data-alerts-workspace data-fullscreen-workspace>
     ${sectionHead({
       title: 'All Alerts',
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(report, day)}${pendingPill(report)}${scopeSummary({
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2" data-alerts-meta>${scopeSummary({
         scope: ctx.scope,
         count: m.companies || 0,
-        noun: 'companies in loaded history',
+        noun: report?.queryWindow ? 'companies in selected period' : 'companies in loaded history',
         book: coverage.meta(),
       })}${horizon === HORIZON.UPCOMING ? calendarPill(allUpcoming) : historyPill(m)}</div>`,
     })}
     <div class="alerts-controls" data-alerts-controls>
       ${horizonToggle(allThrough.length, allUpcoming.length, day, !!report)}
       <div class="alerts-view-controls">
-        ${coveragePanel(displayFeeds, horizon === HORIZON.UPCOMING ? allUpcoming.length : allThrough.length)}
+        ${coveragePanel(displayFeeds, horizon === HORIZON.UPCOMING ? allUpcoming.length : allThrough.length, report, day)}
         <button type="button" class="alerts-layout-button" data-alerts-focus aria-pressed="${focusMode}"
           title="${focusMode ? 'Restore the app header and navigation (Escape)' : 'Hide the app header and navigation for more table space'}">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -386,10 +534,14 @@ function paint(ctx) {
         <div data-alerts-table-actions></div>
       </div>
     </div>
+    ${horizon === HORIZON.THROUGH ? arrivalsHtml : ''}
     ${table.html}
     </div>`;
 
   tableDispose = table.wire(ctx.root);
+  tableInstance = table;
+  tableRows = visible;
+  arrivalsUI.attach(ctx.root);
   // Wire the shared controls first, then move their existing nodes beside the view controls.
   // Search and the three filters now get a full row even on a narrower laptop. The kit still
   // owns count updates and exports over its complete filtered model, never the mounted rows.
@@ -403,6 +555,8 @@ function paint(ctx) {
   fitStreamToViewport(ctx.root);
   restoreTablePosition(ctx.root, tablePosition);
   renderedHorizon = horizon;
+  renderedDay = day;
+  renderedScope = ctx.scope;
   restoreFocus(ctx.root, focus);
 }
 
@@ -506,19 +660,7 @@ function restoreFocus(root, focus) {
   }
 }
 
-/**
- * The one always-visible statement of what this page is and where it came from.
- *
- * IT CARRIES THE DATE ON ITS FACE, and that is not decoration: this is the one tab defined by a
- * DAY, the date is in IST rather than UTC (a UTC date names yesterday for five and a half hours
- * every evening), and a screenshot travels without the source registry. Detailed provenance stays
- * in that registry and the export.
- *
- * IT IS GREEN ONLY WHEN THE DATA EARNS IT. Every feed reaching today is the claim; one behind is
- * amber and says so, because a chip that reads Live over a feed that has not looked at today is
- * the same false freshness claim as the header chip that tracked a heartbeat and asked no server
- * anything.
- */
+/** Source-check details for the Sources panel and empty-state explanations. */
 export function alertCoverageState(rep) {
   const feeds = (rep?.feeds || []).filter(feed => feed.scopable !== false);
   const failed = feeds.filter(feed => feed.status === 'failed').length;
@@ -536,50 +678,26 @@ export function alertCoverageState(rep) {
     title: 'The loaded source readers have checked the selected Indian date. Collection follows each source’s cadence; this is not a real-time or exhaustive-coverage guarantee.' };
 }
 
-function livePill(rep, day) {
+function sourceCoverageSummary(rep, day) {
   const state = alertCoverageState(rep);
   const label = `${state.label} · ${fmtDay(day)}`;
-  if (state.status !== 'checked') {
-    return `<span data-alerts-info
-       data-alerts-coverage-state="${state.status}"
-       class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-300"
-       title="${escapeHtml(state.title)}">
-       <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span> ${escapeHtml(label)}
-     </span>`;
-  }
   return `<span data-alerts-info
      data-alerts-coverage-state="${state.status}"
-     class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
-     title="${escapeHtml(state.title)}">
-     <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> ${escapeHtml(label)}
-   </span>`;
+     title="${escapeHtml(state.title)}">${escapeHtml(label)}</span>`;
 }
 
-/** `2026-09-01` -> `01 Sept 2026`, so the chip reads as a date rather than as an id. */
+/** `2026-09-01` -> `01 Sept 2026`. */
 function fmtDay(day) {
   const d = new Date(`${day}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return day;
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
-/**
- * How many feeds have not answered yet — a statement about US, not about the day.
- *
- * It names the count rather than saying "loading", because a partial page that looks finished is
- * the failure this whole tab is built to avoid: a reader who sees four rows and no pill has no way
- * to know that four more feeds are still being read.
- */
-function pendingPill(rep) {
-  const n = rep?.pending ?? 0;
-  if (!n) return '';
-  return pill({ label: `Reading ${n} more ${n === 1 ? 'feed' : 'feeds'}…`, tone: 'neutral' });
-}
-
 /** The retained range currently represented in the scrollable stream. */
 function historyPill(historyMeta) {
   if (!historyMeta?.oldestEventDay || !historyMeta?.newestEventDay) return '';
   const dates = historyMeta.days || 1;
   return pill({
-    label: `History · ${dates} ${dates === 1 ? 'date' : 'dates'}`,
+    label: `${report?.queryWindow ? 'Selected period' : 'History'} · ${dates} ${dates === 1 ? 'date' : 'dates'}`,
     tone: 'neutral',
     title: `${fmtDay(historyMeta.oldestEventDay)} through ${fmtDay(historyMeta.newestEventDay)}, newest first.`,
   });
@@ -598,13 +716,14 @@ function calendarPill(events) {
 function horizonToggle(throughCount, upcomingCount, day, ready = true) {
   const tab = (value, label, count) => {
     const active = horizon === value;
+    const known = ready && !(report?.queryWindow && value === HORIZON.UPCOMING);
     return `<button type="button" role="tab" data-horizon-toggle="${value}" aria-selected="${active}" tabindex="${active ? '0' : '-1'}"
       class="inline-flex min-h-10 items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${
         active ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
       }">
       ${escapeHtml(label)}
       <span class="rounded-full px-1 py-0.5 text-[11px] font-bold tabular-nums ${active ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-200/70 text-slate-500'}"
-        title="${ready ? escapeHtml(formatNumber(count)) : 'Still loading'} alerts">${ready ? escapeHtml(formatCompact(count)) : '…'}</span>
+        title="${known ? `${escapeHtml(formatNumber(count))} alerts${report?.queryWindow ? ' in selected period' : ''}` : 'Open to load'}">${known ? escapeHtml(formatCompact(count)) : '…'}</span>
     </button>`;
   };
   return `<div class="alerts-horizon-control">
@@ -614,6 +733,7 @@ function horizonToggle(throughCount, upcomingCount, day, ready = true) {
     </div>
     <p class="alerts-horizon-caption text-xs text-slate-500">${horizon === HORIZON.UPCOMING
       ? `Scheduled events from ${fmtDay(day)} onward, nearest first.`
+      : report?.queryWindow ? 'Showing the selected period. Choose All history to read older alerts.'
       : `Retained events through ${fmtDay(day)}, newest first.`}</p>
   </div>`;
 }
@@ -622,7 +742,7 @@ function horizonToggle(throughCount, upcomingCount, day, ready = true) {
 // The coverage panel — one row per feed
 // ---------------------------------------------------------------------------------------
 
-function coveragePanel(feeds, visibleCount) {
+function coveragePanel(feeds, visibleCount, rep, day) {
   const box = (on) => `
     <span class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border transition-all ${
       on ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm' : 'border-slate-300 bg-white text-transparent group-hover:border-indigo-300'
@@ -668,7 +788,8 @@ function coveragePanel(feeds, visibleCount) {
     <section id="alerts-source-panel" class="alerts-source-panel" data-alerts-coverage aria-label="Alert source filters">
       <div class="alerts-source-heading">
         <div><h3 class="font-semibold text-slate-800">Filter by source</h3>
-          <p class="mt-1 text-xs text-slate-500">${escapeHtml(selectedNames)}. Select one or more feeds.</p></div>
+          <p class="mt-1 text-xs text-slate-500" data-alerts-source-description>${escapeHtml(selectedNames)}. Select one or more feeds.</p>
+          <p class="mt-1 text-xs text-slate-500" data-alerts-source-status>${sourceCoverageSummary(rep, day)}</p></div>
         <button type="button" class="alerts-layout-button" data-sources-close>Done</button>
       </div>
       <div class="flex flex-wrap items-center gap-2 text-xs">${feeds.length ? chips.join('') : 'Reading the feeds…'}</div>
@@ -788,7 +909,7 @@ function wireHorizon(ctx) {
     // A source selection is meaningful inside the horizon where it was made. Carrying an
     // historical-only source into Upcoming would make the calendar look empty on arrival.
     picked = null;
-    paint(ctx);
+    render(ctx);
   };
   root.addEventListener('click', (event) => select(event.target.closest('[data-horizon-toggle]')?.dataset.horizonToggle));
   root.addEventListener('keydown', (event) => {
@@ -811,7 +932,9 @@ function wireHorizon(ctx) {
 function wireFeedFilter(ctx, available) {
   const root = ctx.root.querySelector('[data-alerts-coverage]');
   if (!root) return;
-  root.addEventListener('click', (e) => {
+  // The panel survives same-horizon repaints. Replace its handler so each click applies once,
+  // using the latest available feeds rather than accumulating closures from earlier paints.
+  root.onclick = (e) => {
     const btn = e.target.closest('[data-feed-toggle]');
     if (!btn) return;
     const id = btn.dataset.feedToggle;
@@ -827,7 +950,7 @@ function wireFeedFilter(ctx, available) {
       picked = next.size && next.size < available.length ? next : null;
     }
     paint(ctx);
-  });
+  };
 }
 
 /**
@@ -982,43 +1105,10 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
         eventColumn,
         { label: 'Feed', get: (e) => e.feedLabel },
       ];
-  const filters = mode === HORIZON.UPCOMING
-    ? [{ label: 'Date range', options: dateRangeOptions(events, day, mode), match: (e, v) => matchesDate(e.day, v) }]
-    : [
-        {
-          label: 'Importance',
-          options: [
-            { value: 'all', label: 'All priorities' },
-            { value: 'high', label: 'High priority only' },
-            { value: 'low', label: 'Low priority only' },
-          ],
-          match: (e, v) => e.importance === v,
-        },
-        {
-          label: 'Direction',
-          options: [
-            { value: 'all', label: 'Every direction' },
-            { value: 'positive', label: 'Positive only' },
-            { value: 'negative', label: 'Negative only' },
-            { value: 'neutral', label: 'Neutral only' },
-          ],
-          match: (e, v) => e.direction === v,
-        },
-        { label: 'Date range', value: '3d', options: dateRangeOptions(events, day, mode), match: (e, v) => matchesDate(e.day, v) },
-        {
-          label: 'Company relationship',
-          options: [
-            { value: 'all', label: 'All retained records' },
-            { value: 'confirmed', label: 'Matched companies / filings' },
-            { value: 'related', label: 'Related-entity news' },
-            { value: 'uncertain', label: 'Possible news matches' },
-            { value: 'unrelated', label: 'Reviewed unrelated news' },
-          ],
-          match: matchesCompanyRelationship,
-        },
-      ];
+  const filters = buildTableFilters(events, day, mode, matchesDate);
   return scoreTable({
     rows: events,
+    loading: !report || report.pending > 0,
     key: (e) => e.id,
     watchKey: (e) => e.ticker || null,
     watchName: (e) => e.company,
@@ -1039,10 +1129,15 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     // filters, counts and export, while mounting only a bounded viewport window. Historical rows
     // News carries five lines including attribution. Its 115px natural height exceeded the old
     // 96px virtual stride, causing a visible jump whenever a window replaced those taller rows.
-    fillMode: 'virtual',
+    fillMode: 'windowed',
     virtualRowHeight: mode === HORIZON.UPCOMING ? 72 : 120,
     preindexSearch: warmSearch,
     onScrollActivity: noteTableScroll,
+    onVisibleRowsChange: mode === HORIZON.THROUGH ? rows => arrivalsUI.setRows(rows) : null,
+    onFilterChange: mode === HORIZON.THROUGH ? (_view, index) => {
+      if (index === 2 && ctxRef && alertWindowKey(report?.queryWindow) !== alertWindowKey(currentContext().queryWindow)) render(ctxRef);
+    } : null,
+    presentRows: mode === HORIZON.THROUGH ? (rows, options) => arrivalsUI.presentRows(rows, options) : null,
     rowClass: mode === HORIZON.UPCOMING ? null : alertRowClass,
     initialRowCount: tablePosition?.rendered || 24,
     initialRowKey: tablePosition?.key || null,
@@ -1056,6 +1151,14 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     // article, which is the rule that actually matters (see the con-call link rule in CLAUDE.md).
     onRowClick: (e) => {
       if (e.url) {
+        // AN NSE XBRL FILING IS A DOCUMENT, NOT A PAGE. Opening one in a tab shows the reader SEBI's
+        // namespaces; `openFilingReader` lays out the same filing's own fields. Every other URL is
+        // somebody's page and still opens as one. The Link column's anchor is intercepted centrally
+        // (see js/ui/xbrl-filing.js); a row click never becomes an anchor, so it asks here.
+        if (isXbrlFilingUrl(e.url)) {
+          void openFilingReader(e.url, { company: e.company, ticker: e.ticker, subject: e.headline });
+          return;
+        }
         window.open(e.url, '_blank', 'noopener,noreferrer');
         return;
       }
@@ -1078,10 +1181,49 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     filters,
     initialSort: { key: 'Date / time', dir: mode === HORIZON.UPCOMING ? 'asc' : 'desc' },
     initialView,
-    emptyMessage: emptyMessageFor(ctx.scope, day, mode),
+    emptyMessage: () => emptyMessageFor(ctx.scope, day, mode),
     exportName: `sattva-all-alerts-${mode === HORIZON.UPCOMING ? 'upcoming-from' : 'through'}-${day}`,
     onExport: (visible) => exportStream(visible, day, ctx.scope, mode),
   });
+}
+
+function buildTableFilters(events, day, mode, matchesDate) {
+  if (mode === HORIZON.UPCOMING) {
+    return [{ label: 'Date range', options: dateRangeOptions(events, day, mode), match: (e, v) => matchesDate(e.day, v) }];
+  }
+  return [
+    {
+      label: 'Importance',
+      options: [
+        { value: 'all', label: 'All priorities' },
+        { value: 'high', label: 'High priority only' },
+        { value: 'low', label: 'Low priority only' },
+      ],
+      match: (e, v) => e.importance === v,
+    },
+    {
+      label: 'Direction',
+      options: [
+        { value: 'all', label: 'Every direction' },
+        { value: 'positive', label: 'Positive only' },
+        { value: 'negative', label: 'Negative only' },
+        { value: 'neutral', label: 'Neutral only' },
+      ],
+      match: (e, v) => e.direction === v,
+    },
+    { label: 'Date range', value: 'today', options: dateRangeOptions(events, day, mode), match: (e, v) => matchesDate(e.day, v) },
+    {
+      label: 'Company relationship',
+      options: [
+        { value: 'all', label: 'All retained records' },
+        { value: 'confirmed', label: 'Matched companies / filings' },
+        { value: 'related', label: 'Related-entity news' },
+        { value: 'uncertain', label: 'Possible news matches' },
+        { value: 'unrelated', label: 'Reviewed unrelated news' },
+      ],
+      match: matchesCompanyRelationship,
+    },
+  ];
 }
 
 function shiftDay(day, amount) {
@@ -1102,7 +1244,9 @@ function dateRangeOptions(events, day, mode) {
   const options = [{ value: 'all', label: 'All history through today' },
     ...NEWS_PERIODS.map(option => ({ ...option,
       value: /^\d+$/.test(option.value) ? `${option.value}d` : option.value }))];
-  if (events.some((event) => event.day < shiftDay(day, -29))) options.push({ value: 'older', label: 'Older than 30 days' });
+  // Keep this choice available while older sources are still loading. The live table retains
+  // its controls, so a later archive arrival must not require remounting to expose its period.
+  options.push({ value: 'older', label: 'Older than 30 days' });
   return options;
 }
 

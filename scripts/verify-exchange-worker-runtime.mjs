@@ -35,7 +35,11 @@ const mf = new Miniflare({ workers: [{ name: 'exchange-delivery-test', modules: 
 try {
   const url = new URL('/api/bulk-block-deals', await mf.ready);
   const response = await fetch(url);
+<<<<<<< HEAD
   assert.equal(response.headers.get('x-glow-exchange-fallback'), null);
+=======
+  assert.equal(response.headers.get('x-sattva-exchange-fallback'), null);
+>>>>>>> sattva/main
   assert.deepEqual(await response.json(), payload, 'gzip must be decoded exactly once by HTTP clients');
   let next, cached = false;
   for (let i = 0; i < 10 && !cached; i++) {
