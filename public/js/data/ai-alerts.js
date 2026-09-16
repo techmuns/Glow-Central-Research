@@ -507,9 +507,15 @@ export function topEvidence(card, limit = 3) {
   const rest = [];
   const seen = new Set();
   for (const event of events) {
-    if (seen.has(event.feed)) rest.push(event);
+    // BY FAMILY, NOT BY FEED — the same question the `Sources` figure beside it answers. Dedupe on
+    // `event.feed` and the two exchange-filing routes each claim a "first of feed" slot, so a card
+    // reading "Sources 3" spent two of its three rows on one of them and never showed the third.
+    // Measured: PVRINOX, 3 sources, rows covering announcements and technicals only. Same rule as
+    // `feedCount`; two notions of "feed" on one card is what let the rows contradict the count.
+    const family = feedFamily(event);
+    if (seen.has(family)) rest.push(event);
     else {
-      seen.add(event.feed);
+      seen.add(family);
       firstOfFeed.push(event);
     }
   }
