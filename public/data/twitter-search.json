@@ -373,91 +373,105 @@
       ]
     },
     "isin:INE758T01015|Eternal": {
-      "lastAttemptAt": "2026-09-12T07:47:49+00:00",
+      "lastAttemptAt": "2026-09-16T18:13:23+00:00",
       "error": "result-cap-incomplete",
-      "lastResultCount": 107,
+      "lastResultCount": 112,
       "targetThrough": "2026-09-12T07:47:49+00:00",
       "pending": [
         {
-          "from": "2026-09-03T07:47:49.222749+00:00",
-          "to": "2026-09-07T19:47:49.111375+00:00"
-        },
-        {
           "from": "2026-09-07T19:47:49.111375+00:00",
           "to": "2026-09-12T07:47:49+00:00"
+        },
+        {
+          "from": "2026-09-03T07:47:49.222749+00:00",
+          "to": "2026-09-05T13:47:49.167062+00:00"
+        },
+        {
+          "from": "2026-09-05T13:47:49.167062+00:00",
+          "to": "2026-09-07T19:47:49.111375+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-09-16T18:13:23+00:00"
     },
     "isin:INE758T01015|ETERNAL": {
-      "lastAttemptAt": "2026-09-12T07:47:49+00:00",
+      "lastAttemptAt": "2026-09-16T18:13:23+00:00",
       "error": "result-cap-incomplete",
-      "lastResultCount": 107,
+      "lastResultCount": 112,
       "targetThrough": "2026-09-12T07:47:49+00:00",
       "pending": [
         {
-          "from": "2026-09-03T07:47:49.222749+00:00",
-          "to": "2026-09-07T19:47:49.111375+00:00"
-        },
-        {
           "from": "2026-09-07T19:47:49.111375+00:00",
           "to": "2026-09-12T07:47:49+00:00"
+        },
+        {
+          "from": "2026-09-03T07:47:49.222749+00:00",
+          "to": "2026-09-05T13:47:49.167062+00:00"
+        },
+        {
+          "from": "2026-09-05T13:47:49.167062+00:00",
+          "to": "2026-09-07T19:47:49.111375+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-09-16T18:13:23+00:00"
     },
     "isin:INE0EDU01014|Finbud Financial Services": {
-      "lastAttemptAt": "2026-09-12T07:47:49+00:00",
+      "lastAttemptAt": "2026-09-16T18:13:23+00:00",
       "error": null,
-      "lastResultCount": 2,
-      "lastSuccessAt": "2026-09-12T07:47:49+00:00",
+      "lastResultCount": 1,
+      "lastSuccessAt": "2026-09-16T18:13:23+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE220J01025|Future Consumer": {
-      "lastAttemptAt": "2026-09-12T07:47:49+00:00",
+      "lastAttemptAt": "2026-09-16T18:13:23+00:00",
       "error": null,
-      "lastResultCount": 24,
-      "lastSuccessAt": "2026-09-12T07:47:49+00:00",
+      "lastResultCount": 19,
+      "lastSuccessAt": "2026-09-16T18:13:23+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE220J01025|FCONSUMER": {
-      "lastAttemptAt": "2026-09-12T07:47:49+00:00",
+      "lastAttemptAt": "2026-09-16T18:13:23+00:00",
       "error": null,
-      "lastResultCount": 0,
-      "lastSuccessAt": "2026-09-12T07:47:49+00:00",
+      "lastResultCount": 1,
+      "lastSuccessAt": "2026-09-16T18:13:23+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE935Q01015|Future Supply Chain Solutions": {
-      "lastAttemptAt": "2026-09-12T07:47:49+00:00",
+      "lastAttemptAt": "2026-09-16T18:13:23+00:00",
       "error": null,
       "lastResultCount": 0,
-      "lastSuccessAt": "2026-09-12T07:47:49+00:00",
+      "lastSuccessAt": "2026-09-16T18:13:23+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE18UN01038|Gaja Alternative Asset Management": {
-      "lastAttemptAt": "2026-09-12T07:47:49+00:00",
+      "lastAttemptAt": "2026-09-16T18:13:23+00:00",
       "error": null,
-      "lastResultCount": 65,
-      "lastSuccessAt": "2026-09-12T07:47:49+00:00",
+      "lastResultCount": 37,
+      "lastSuccessAt": "2026-09-16T18:13:23+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE291A01017|Garware Hi-Tech Film": {
-      "lastAttemptAt": "2026-09-12T07:47:49+00:00",
+      "lastAttemptAt": "2026-09-16T18:13:23+00:00",
       "error": null,
       "lastResultCount": 0,
-      "lastSuccessAt": "2026-09-12T07:47:49+00:00",
+      "lastSuccessAt": "2026-09-16T18:13:23+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE291A01017|GRWRHITECH": {
-      "lastAttemptAt": "2026-09-12T07:47:49+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-16T18:13:23+00:00",
+      "error": null,
+      "lastResultCount": 3,
+      "lastSuccessAt": "2026-09-16T18:13:23+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE741B01027|Glittke Granites": {
-      "lastAttemptAt": "2026-09-12T08:21:05+00:00",
+      "lastAttemptAt": "2026-09-16T18:13:23+00:00",
       "error": "search-unavailable"
     },
     "isin:INE077F01035|GOCL Corporation": {
@@ -1442,8 +1456,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 226,
-    "checkedAt": "2026-09-16T17:31:52.473213+00:00"
+    "attempted": 10,
+    "incomplete": 219,
+    "checkedAt": "2026-09-16T18:13:23.200662+00:00"
   }
 }

@@ -42,4 +42,10 @@ for (const days of (process.env.NEWS_QUERY_DAYS || '1,3,14,30').split(',').map(N
   }
   console.log(`PASS ${days}-day query: ${expected.length} exact complete events`);
 }
-console.log('PASS bounded raw reading preserves canonical history, corrections and provenance.');
+// Research owns its prepared shared source records independently of a mounted alert tab.
+await alerts.prepareSources({ feedIds: ['news'] });
+const { news } = await import('../public/js/data/filings.js');
+const preparedNews = news.rows();
+const off = alerts.onChange(() => {}); off();
+assert.equal(news.rows(), preparedNews, 'leaving alerts must not invalidate a prepared research estate');
+console.log('PASS bounded raw reading preserves canonical history, corrections, provenance and independent research ownership.');

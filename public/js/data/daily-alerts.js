@@ -517,6 +517,7 @@ function releaseInactiveMemory() {
   if (!releaseRequested || listeners.size || activeCollections || loadingFeeds.size) return;
   for (const entry of queryNewsReaders.values()) { entry.off(); entry.reader.release(); }
   queryNewsReaders.clear();
+  lastAllAlertsSave = null;
   // Research keeps a prepared estate between questions. Its source owner is independent of
   // alert navigation; clearing that store would make a cached research preparation incomplete.
   if (!researchOwnsSources) { news.invalidate(); loadedFeeds.delete('news'); loadErrors.delete('news'); }
