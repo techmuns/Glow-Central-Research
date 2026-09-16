@@ -66,6 +66,12 @@ try {
   const before = calls.length; await working.read('data/news.json');
   assert.equal(calls.length, before, 'unchanged verified parts are reused');
   working.release();
+  writeFileSync(path, JSON.stringify({...manifest,archive:{index:'../invalid-index.json'}}));
+  const partial = make();
+  await partial.prepare();
+  assert.deepEqual((await partial.read('data/news.json')).value.byTicker.ALPHA, selected,
+    'malformed optional archive metadata cannot prevent independent head records from painting');
+  partial.release(); writeFileSync(path, JSON.stringify(manifest));
 
   for (const failure of ['missing', 'corrupt']) {
     disk.clear();

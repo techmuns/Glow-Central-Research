@@ -78,13 +78,13 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
       for (const headValue of [head?.entry.value, trading?.entry.value].filter(Boolean)) {
         const indexPath = headValue.archive?.index;
         if (!indexPath) continue;
-        if (!/^(company-news|tradingview-news)\/index\.json$/.test(indexPath)) throw Error('Invalid news archive index');
+        if (!/^(company-news|tradingview-news)\/index\.json$/.test(indexPath)) continue; // Owning archive reader reports this family's failure.
         let index;
         try { index = await load(`data/${indexPath}`); } catch { continue; }
         const family = indexPath.split('/')[0];
-        if (!Array.isArray(index.entry.value.archive)) throw Error('News archive index unavailable');
+        if (!Array.isArray(index.entry.value.archive)) continue;
         for (const part of index.entry.value.archive) {
-          if (!new RegExp(`^${family}/(\\d{4}-\\d{2}|undated)\\.json$`).test(part.file || '')) throw Error('Invalid news archive month');
+          if (!new RegExp(`^${family}/(\\d{4}-\\d{2}|undated)\\.json$`).test(part.file || '')) continue;
           let descriptor;
           try { descriptor = await load(`data/${part.file}`); } catch { continue; }
           const count = descriptor.spec?.rows ?? descriptor.entry.value.articles?.length;
