@@ -491,7 +491,7 @@
       "error": "search-unavailable"
     },
     "isin:INE036B01030|Gujarat Ambuja Exports": {
-      "lastAttemptAt": "2026-09-12T11:00:50+00:00",
+      "lastAttemptAt": "2026-09-16T20:44:10+00:00",
       "error": "search-unavailable"
     },
     "isin:INE036B01030|GAEL": {
@@ -1458,6 +1458,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-16T20:11:18.911039+00:00"
+    "checkedAt": "2026-09-16T20:44:10.927228+00:00"
   }
 }
