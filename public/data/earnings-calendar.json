@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-09-16T02:38:20.909Z",
+  "capturedAt": "2026-09-16T06:32:28.491Z",
   "from": "2026-09-13",
   "to": "2026-10-07",
   "pageSize": 20,
@@ -114,17 +114,17 @@
     {
       "date": "2026-09-16",
       "displayDate": "16 Sep",
-      "count": 2
+      "count": 1
     },
     {
       "date": "2026-09-15",
       "displayDate": "15 Sep",
-      "count": 2
+      "count": 1
     },
     {
       "date": "2026-09-14",
       "displayDate": "14 Sep",
-      "count": 1
+      "count": 0
     },
     {
       "date": "2026-09-13",
@@ -143,16 +143,16 @@
           "displayDate": "21 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 1080.1,
-          "changePct": -4.71,
-          "marketCap": 6940.3,
+          "ltp": 1058.4,
+          "changePct": -2.01,
+          "marketCap": 6800.87,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/pharmaceuticals-drugs/symbiotecpharmalab/SPL14",
           "ticker": "SYMBIOTEC",
           "fullName": "Symbiotec Pharm",
           "industry": "Pharmaceuticals & Drugs",
           "shares": 64256112,
-          "mktCapAtBuild": 6940.3
+          "mktCapAtBuild": 6800.87
         },
         {
           "scId": "KJA",
@@ -162,9 +162,9 @@
           "displayDate": "21 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 8.58,
-          "changePct": 4.76,
-          "marketCap": 1371.51,
+          "ltp": 8.16,
+          "changePct": -4.9,
+          "marketCap": 1304.38,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cigarettes-tobacco/eliteconinternational/KJA"
         }
@@ -185,16 +185,16 @@
           "displayDate": "18 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 0.68,
-          "changePct": 3.03,
-          "marketCap": 39.29,
+          "ltp": 0.71,
+          "changePct": 4.41,
+          "marketCap": 41.02,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/finance-general/toyamsports/OAR",
           "ticker": "TOYAMSL",
           "fullName": "TOYAM SPORTS",
           "industry": "Finance - Stock Broking",
           "shares": 577815000,
-          "mktCapAtBuild": 39.29
+          "mktCapAtBuild": 41.02
         }
       ],
       "scheduledCount": 1,
@@ -213,16 +213,16 @@
           "displayDate": "17 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 111.29,
-          "changePct": -4.07,
-          "marketCap": 1617.53,
+          "ltp": 110.6,
+          "changePct": -0.62,
+          "marketCap": 1607.5,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/logistics/skywaysairservices/S28",
           "ticker": "SKYWAYS",
           "fullName": "Skyways Air Ser",
           "industry": "Logistics",
           "shares": 145343544,
-          "mktCapAtBuild": 1617.53
+          "mktCapAtBuild": 1607.5
         }
       ],
       "scheduledCount": 1,
@@ -241,38 +241,19 @@
           "displayDate": "16 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 523.65,
-          "changePct": -10.46,
-          "marketCap": 4389.9,
+          "ltp": 530.55,
+          "changePct": 1.32,
+          "marketCap": 4447.74,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/engineering-industrial-equipments/tempsensinstrumentsindia/TII02",
           "ticker": "TEMPSENS",
           "fullName": "Tempsens Instru",
           "industry": "Engineering - Industrial Equipments",
           "shares": 83832691,
-          "mktCapAtBuild": 4389.9
-        },
-        {
-          "scId": "CMI",
-          "name": "CMI",
-          "shortName": null,
-          "resultDate": "2026-09-16",
-          "displayDate": "16 Sep",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 2.62,
-          "changePct": 4.38,
-          "marketCap": 4.2,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cables-telephone/cmi/CMI",
-          "ticker": "CMICABLES",
-          "fullName": "CMI",
-          "industry": "Cables",
-          "shares": 16027457,
-          "mktCapAtBuild": 4.2
+          "mktCapAtBuild": 4447.74
         }
       ],
-      "scheduledCount": 2,
+      "scheduledCount": 1,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
@@ -288,63 +269,16 @@
           "displayDate": "15 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 333.95,
-          "changePct": -18.11,
-          "marketCap": 1040.21,
+          "ltp": 363.15,
+          "changePct": 8.74,
+          "marketCap": 1131.17,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/film-production-distribution-entertainment/sunshinepictures/SPL13",
           "ticker": "SUNSHINE",
           "fullName": "Sunshine Pict",
           "industry": "Film Production, Distribution & Entertainment",
           "shares": 31148784,
-          "mktCapAtBuild": 1040.21
-        },
-        {
-          "scId": "CMI",
-          "name": "CMI",
-          "shortName": null,
-          "resultDate": "2026-09-15",
-          "displayDate": "15 Sep",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 2.62,
-          "changePct": 4.38,
-          "marketCap": 4.2,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cables-telephone/cmi/CMI",
-          "ticker": "CMICABLES",
-          "fullName": "CMI",
-          "industry": "Cables",
-          "shares": 16027457,
-          "mktCapAtBuild": 4.2
-        }
-      ],
-      "scheduledCount": 2,
-      "pageSize": 20,
-      "pagesFetched": 1,
-      "complete": true,
-      "asOnDate": "16/09/2026"
-    },
-    "2026-09-14": {
-      "rows": [
-        {
-          "scId": "CMI",
-          "name": "CMI",
-          "shortName": null,
-          "resultDate": "2026-09-14",
-          "displayDate": "14 Sep",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 2.62,
-          "changePct": 4.38,
-          "marketCap": 4.2,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cables-telephone/cmi/CMI",
-          "ticker": "CMICABLES",
-          "fullName": "CMI",
-          "industry": "Cables",
-          "shares": 16027457,
-          "mktCapAtBuild": 4.2
+          "mktCapAtBuild": 1131.17
         }
       ],
       "scheduledCount": 1,
