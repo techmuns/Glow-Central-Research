@@ -329,7 +329,7 @@
       "error": "search-unavailable"
     },
     "isin:INE532F01054|Edelweiss Alternative Asset Advisors": {
-      "lastAttemptAt": "2026-09-12T07:12:30+00:00",
+      "lastAttemptAt": "2026-09-16T15:36:19+00:00",
       "error": "search-unavailable"
     },
     "isin:INE532F01054|EDELWEISS": {
@@ -1444,6 +1444,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-16T15:05:49.524121+00:00"
+    "checkedAt": "2026-09-16T15:36:19.305750+00:00"
   }
 }
