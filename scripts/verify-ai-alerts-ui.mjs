@@ -121,6 +121,12 @@ const waitFor = async (target, condition) => {
 };
 const settled = () => waitFor(page, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');
 const card = (ticker) => page.locator(`[data-ai-card][data-ticker="${ticker}"]`);
+// content-visibility skips offscreen text layout. Inspect each claimed preview
+// as a reader would, after scrolling it into view.
+const renderedText = async locator => {
+  await locator.scrollIntoViewIfNeeded();
+  return locator.innerText();
+};
 try {
   // Empty sources often settle before a useful feed. Neither that early empty
   // report nor a slow context/positions request may hold useful cards offscreen.
@@ -213,20 +219,20 @@ try {
   const readsBeforeSort = await page.evaluate(() => window.reads);
   await sortControl.selectOption('holdings');
   assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A09');
-  assert.match(await card('A09').locator('[data-ai-holding-size]').innerText(), /60%/);
+  assert.match(await renderedText(card('A09').locator('[data-ai-holding-size]')), /60%/);
   await sortControl.selectOption('priority');
   await sortControl.selectOption('newest');
   assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A00');
   assert.equal(await page.evaluate(() => window.reads), readsBeforeSort, 'sort changes are instant local views with no network reads');
   assert.equal(await page.evaluate(() => localStorage.getItem('sattva:ai-alerts:sort:v1')), 'newest');
-  assert.match(await card('A00').locator('[data-ai-context]').innerText(), /Related context/);
+  assert.match(await renderedText(card('A00').locator('[data-ai-context]')), /Related context/);
   assert.equal(await card('A00').locator('[data-ai-context]').getAttribute('title'), 'Context only; it does not add alert priority.');
   assert.equal(await card('A10').count(), 0, 'target starts beyond the first page');
   const search = page.getByRole('searchbox', { name: 'Search AI Alerts' });
   await search.fill('lithium supply');
   assert.equal(await page.locator('[data-ai-card]').count(), 1);
   assert.equal(await card('A10').count(), 1, 'search finds hidden evidence beyond page one');
-  assert(!(await card('A10').locator('[data-ai-evidence]').innerText()).includes('Lithium'), 'match is outside the evidence preview');
+  assert(!(await renderedText(card('A10').locator('[data-ai-evidence]'))).includes('Lithium'), 'match is outside the evidence preview');
   assert(await search.evaluate((el) => el === document.activeElement));
   await search.fill('ZENITH MANUFACTURING');
   assert.equal(await card('A10').count(), 1, 'case-insensitive company search');
@@ -270,7 +276,7 @@ try {
   });
   await waitFor(page, () => !!window.releaseRead);
   assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A09', 'newest material event reaches the top before a slow feed finishes');
-  assert.match(await card('A09').locator('[data-ai-evidence] li').first().innerText(), /A09 new material disclosure/, 'the new event is visible in the preview');
+  assert.match(await renderedText(card('A09').locator('[data-ai-evidence] li').first()), /A09 new material disclosure/, 'the new event is visible in the preview');
   assert.equal(await card('A00').count(), 1, 'new live evidence does not erase the previous card');
   await page.evaluate(() => { window.holdRead = false; window.releaseRead(); });
   await settled();
@@ -299,7 +305,7 @@ try {
   });
   await page.clock.runFor(120);
   await settled();
-  assert.match(await card('A00').locator('[data-ai-evidence]').innerText(), /Newly captured company announcement/);
+  assert.match(await renderedText(card('A00').locator('[data-ai-evidence]')), /Newly captured company announcement/);
   assert.equal(await page.evaluate(() => window.reads), sourceReads, 'a landed source updates AI Alerts without re-reading every feed');
   assert.equal(await search.inputValue(), 'A00', 'source arrival preserves the active search');
   await page.evaluate(() => {
@@ -308,12 +314,12 @@ try {
   });
   await page.clock.runFor(120);
   await settled();
-  assert.match(await card('A00').locator('[data-ai-evidence]').innerText(), /Live source company announcement/);
+  assert.match(await renderedText(card('A00').locator('[data-ai-evidence]')), /Live source company announcement/);
   assert.equal(await page.evaluate(() => window.reads), sourceReads, 'active source notifications use already loaded evidence');
-  assert((await card('A00').locator('[data-ai-date]').innerText()).includes('04 Sept 2026 · 14:42 IST'));
+  assert((await renderedText(card('A00').locator('[data-ai-date]'))).includes('04 Sept 2026 · 14:42 IST'));
   assert.equal(await card('A00').locator('[data-ai-date] time').getAttribute('datetime'), '2026-09-04T14:42:00+05:30');
   await search.fill('A01');
-  assert(!(await card('A01').locator('[data-ai-date]').innerText()).includes('IST'), 'mixed day precision does not invent a latest clock');
+  assert(!(await renderedText(card('A01').locator('[data-ai-date]'))).includes('IST'), 'mixed day precision does not invent a latest clock');
   assert.equal(await card('A01').locator('[data-ai-date] time').getAttribute('datetime'), '2026-09-04');
   await page.locator('[data-ai-clear]').click();
   await page.locator('[data-ai-more]').click();
@@ -325,7 +331,7 @@ try {
   await page.clock.runFor(2100);
   await settled();
   assert.equal(await peer.evaluate(() => !!window.releasePositions), false, 'midnight re-age does not duplicate a fresh position read');
-  assert.equal((await card('A00').locator('[data-ai-date] [data-ai-age]').innerText()).toLowerCase(), '1d');
+  assert.equal((await renderedText(card('A00').locator('[data-ai-date] [data-ai-age]'))).toLowerCase(), '1d');
   assert.deepEqual(await card('A00').locator('[data-ai-evidence] [data-ai-age]').allTextContents(), ['1d', '1d', '1d']);
   assert.equal(await search.inputValue(), 'A00');
   await search.fill('OLD');
@@ -335,7 +341,7 @@ try {
   await page.clock.setSystemTime('2026-09-05T18:31:00Z');
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await settled();
-  assert.equal((await card('A00').locator('[data-ai-date] [data-ai-age]').innerText()).toLowerCase(), '2d');
+  assert.equal((await renderedText(card('A00').locator('[data-ai-date] [data-ai-age]'))).toLowerCase(), '2d');
   console.log('PASS: stable input during feed updates, source time precision, midnight rollover, stale window expiry and resume after sleep.');
 
   await page.locator('[data-ai-clear]').click();
@@ -404,11 +410,11 @@ try {
   await search.fill('A00');
   await page.evaluate(() => window.show('universe'));
   await settled();
-  assert(!/in portfolio/i.test(await card('A00').innerText()), 'the active private book excludes the exited company');
+  assert(!/in portfolio/i.test(await renderedText(card('A00'))), 'the active private book excludes the exited company');
   await peer.evaluate(() => window.lock());
   await waitFor(page, async () => (await import('/js/research/portfolio-bridge.js')).portfolioConnectionState() === 'locked');
   await settled();
-  assert(/in portfolio/i.test(await card('A00').innerText()), 'sign-out recomputes Universe membership from the public book');
+  assert(/in portfolio/i.test(await renderedText(card('A00'))), 'sign-out recomputes Universe membership from the public book');
   await page.evaluate(() => window.show());
   await settled();
   await page.evaluate(() => { window.dispose(); document.querySelector('#root').innerHTML = ''; });
@@ -465,7 +471,7 @@ try {
   assert.equal(await card('QUIET').count(), 0, 'low-ranking cards do not enter the default briefing');
   await search.fill('Quiet Signals');
   assert.equal(await card('QUIET').count(), 1, 'company search reaches eligible below-threshold cards');
-  assert.match(await card('QUIET').innerText(), /Company update/i);
+  assert.match(await renderedText(card('QUIET')), /Company update/i);
   assert.match(await page.locator('[data-ai-filter="important"]').innerText(), /0/, 'below-threshold search results do not inflate the Important count');
   await search.fill('Private Robotics');
   const privateCard = page.locator('[data-ai-card][data-entity-id="isin:INE000009999"]');

@@ -58,7 +58,11 @@ function coverageUnion(windows) {
 export function applyExchangeSlice(snapshot, source, rows, { from, to, checkedAt, error = null }) {
   if (!validDay(from) || !validDay(to) || from > to) throw new Error('Invalid capture interval');
   const prior = snapshot.sources.find((s) => s.id === source.id) || { ...source, coverage: [] };
+<<<<<<< HEAD
   const next = { ...snapshot, checkedAt, sources: snapshot.sources.filter((s) => s.id !== source.id), records: snapshot.records };
+=======
+  const next = { ...snapshot, checkedAt, updatedAt: checkedAt, sources: snapshot.sources.filter((s) => s.id !== source.id), records: snapshot.records };
+>>>>>>> sattva/main
   if (error) next.sources.push({ ...prior, checkedAt, ok: false, error });
   else {
     if (rows.some((r) => r[0] !== source.id || r[1] < from || r[1] > to)) throw new Error('Exchange returned records outside the requested interval');

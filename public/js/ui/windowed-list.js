@@ -1,5 +1,6 @@
 // Bounded DOM with natural row heights. Data, search and exports stay owned by the caller.
 // A prefix-sum tree makes offset lookup/height correction logarithmic, even for a long archive.
+import { syncListDOM } from '../core/dom.js';
 export function rowGeometry(count, estimate = 72) {
   const heights = new Float64Array(count).fill(estimate);
   const tree = new Float64Array(count + 1);
@@ -82,8 +83,9 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, s
     const activeIndex = activeRow ? [...content.querySelectorAll(rowSelector)].indexOf(activeRow) : -1;
     const activeKey = activeIndex >= 0 ? activeRow.dataset.rowKey || activeRow.dataset.newsKey : null;
     const focusIndex = activeRow ? [...activeRow.querySelectorAll('a,button,input,[tabindex]')].indexOf(active) : -1;
-    content.innerHTML = spacerHtml(geometry.offset(start), 'top') + renderRows(rows, start, end) +
+    const html = spacerHtml(geometry.offset(start), 'top') + renderRows(rows, start, end) +
       spacerHtml(geometry.offset(rows.length) - geometry.offset(end), 'bottom');
+    syncListDOM(content, html, start);
     if (active) {
       const replacement = [...content.querySelectorAll(rowSelector)].find(el => (el.dataset.rowKey || el.dataset.newsKey) === activeKey);
       (replacement?.querySelectorAll('a,button,input,[tabindex]')[focusIndex] || scroller).focus({ preventScroll: true });
@@ -120,12 +122,21 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, s
   observer.observe(scroller); observer.observe(content);
   return {
     update(next, { resetScroll = false } = {}) {
+      const held = !resetScroll && scroller.scrollTop > 0 ? anchor() : null;
+      const heldKey = held && rows[held.index] ? String(key(rows[held.index])) : null;
       rows = next;
       const keys = new Set(rows.map(row => String(key(row))));
       for (const k of measured.keys()) if (!keys.has(k)) measured.delete(k);
       resetGeometry();
       if (resetScroll) scroller.scrollTop = 0;
-      paint(geometry.indexAt(rowTop()), true);
+      const nextIndex = heldKey == null ? -1 : rows.findIndex(row => String(key(row)) === heldKey);
+      if (nextIndex >= 0) {
+        // Source updates can insert rows or replace their objects without changing the record
+        // being read. Preserve that record and its within-row offset across new measurements.
+        const top = head() + geometry.offset(nextIndex) + held.inside;
+        paint(nextIndex, true);
+        scroller.scrollTop = top;
+      } else paint(geometry.indexAt(rowTop()), true);
     },
     refresh() { paint(geometry.indexAt(rowTop()), true); },
     destroy() {

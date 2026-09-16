@@ -16,7 +16,11 @@
 // happened to the Telegram section, whose new module is reachable from app.js but would never have
 // been requested. Nothing fails and nothing looks wrong; the feature simply is not there.
 const CACHE_PREFIX = 'sattva-dashboard-';
+<<<<<<< HEAD
 const CACHE_NAME = `${CACHE_PREFIX}2026-09-12-glow-ask-research-muns`;
+=======
+const CACHE_NAME = `${CACHE_PREFIX}2026-09-15-chatter-reliability-v1`;
+>>>>>>> sattva/main
 const APP_ENTRY = '/js/app.js';
 const CORE = ['/', '/index.html', '/css/tailwind.css', '/css/theme.css', '/css/glow.css', '/glow-bridge.html', '/data/portfolio-companies.json',
   '/assets/brand/glow-ventures-wordmark.svg', '/assets/brand/favicon.svg'];
@@ -24,10 +28,17 @@ const MUNSHOT_SDK = 'https://munshot.s3.ap-south-1.amazonaws.com/SDK+script/muns
 const WARM_CONCURRENCY = 8;
 const MODULE_ENTRIES = [APP_ENTRY, '/js/research/glow-bridge.js'];
 
+<<<<<<< HEAD
 // Keep reader/content revisions separate from the shared marker: concurrent dashboard
 // releases can advance it without conflicting with these fixes. Every install,
 // read and eviction uses the same combined key, retaining atomic upgrades.
 const CACHE_KEY = `${CACHE_NAME}-glow-alert-filters-v1-glow-portfolio-reader-v3-telegram-content-v1`;
+=======
+// Keep content revisions separate from the shared marker: concurrent dashboard
+// releases can update that marker without conflicting with these fixes. Every
+// install, read and eviction uses the same combined key, retaining atomic upgrades.
+const CACHE_KEY = `${CACHE_NAME}-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v1-all-alerts-restore-v2`;
+>>>>>>> sattva/main
 
 function moduleSpecifiers(source) {
   const found = new Set();
@@ -205,7 +216,7 @@ self.addEventListener('fetch', (event) => {
     // Explicit data revalidation must reach the server in THIS request. Returning
     // the held body while updating it behind the scenes made Refresh one capture
     // late and hid outages as successful checks. The feed owns its last-good rows.
-    if (url.pathname.startsWith('/data/') && !request.headers.has('x-sattva-bootstrap') && ['no-cache', 'reload'].includes(request.cache)) {
+    if (url.pathname.startsWith('/data/') && !request.headers.has('x-sattva-bootstrap') && (request.cache === 'reload' || request.headers.has('x-sattva-refresh'))) {
       return (await fetchAndCache(cache, request, key)) || Response.error();
     }
     const held = await cache.match(key);

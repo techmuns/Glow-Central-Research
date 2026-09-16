@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 // GLOW-owned read-only delivery of scheduled captures. Uses the existing Actions-read secret.
+=======
+// Sattva-owned read-only delivery of scheduled captures. Uses the existing Actions-read secret.
+>>>>>>> sattva/main
 export const EXCHANGE_WORKFLOW = 'bulk-block-refresh.yml';
 export const ARTIFACT_NAME = 'exchange-deals';
 export const ARTIFACT_FILE = 'exchange-deals.json.gz';
@@ -47,7 +51,11 @@ export async function latestExchangeArtifact({ repo, token, fetchImpl = fetch, c
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo || '') || !token) throw new Error('Exchange archive delivery is not configured');
   const base = `https://api.github.com/repos/${repo}`;
   const signal = AbortSignal.timeout(25000);
+<<<<<<< HEAD
   const headers = { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'user-agent': 'Glow-exchange-capture', 'x-github-api-version': '2022-11-28' };
+=======
+  const headers = { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'user-agent': 'Sattva-exchange-capture', 'x-github-api-version': '2022-11-28' };
+>>>>>>> sattva/main
   // Workers supports manual/follow only. readLimited rejects unexpected redirect responses.
   const get = async (path) => JSON.parse(new TextDecoder().decode(await readLimited(await fetchImpl(base + path, { headers, signal, redirect: 'manual' }), 1024 * 1024)));
   const runs = await get(`/actions/workflows/${EXCHANGE_WORKFLOW}/runs?branch=main&status=completed&per_page=5`);

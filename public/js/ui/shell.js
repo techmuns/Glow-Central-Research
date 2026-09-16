@@ -9,6 +9,7 @@ import * as live from '../core/live.js';
 import * as watch from '../core/watch.js';
 import * as refreshRegistry from '../core/refresh.js';
 import { tabBar, segmentedToggle, statusControl, emptyState } from './components.js';
+import { coverTableResults } from './loading.js';
 import { closeDrill, closeModal, closeWorkspace, openModal, watchlistEmptyPanel } from './screener.js';
 import { SCOPES, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
@@ -22,6 +23,7 @@ import { mountHostTicker } from './host-ticker.js';
 import { mountThemeToggle } from './theme-toggle.js';
 import { BOOKMARK_ICON } from './bookmark-button.js';
 import * as sourceBeacon from './source-beacon.js';
+import * as notifications from './notifications.js';
 
 import * as aiAlerts from '../tabs/ai-alerts.js';
 import * as askResearch from '../tabs/ask-research.js';
@@ -75,8 +77,11 @@ let currentTabModule = null;
 let chromeDisposers = [];
 let headerDisposer = null;
 let topTabs = null;
+let shellRenderRequest = 0;
+let releaseRouteLoading = null;
 
 export function mount(root) {
+  releaseRouteLoading?.(); releaseRouteLoading = null;
   topTabs?.dispose();
   topTabs = null;
   root.innerHTML = shellTemplate();
@@ -175,6 +180,7 @@ function shellTemplate() {
           <div class="header-personal-controls">
             <button type="button" data-theme-toggle class="theme-toggle" aria-label="Dark mode" aria-pressed="false"></button>
             <a data-header-bookmarks class="header-bookmarks" href="#/research/bookmarks">${BOOKMARK_ICON}<span>Bookmarks</span></a>
+            ${notifications.bellHtml}
           </div>
         </div>
       </div>
@@ -234,6 +240,7 @@ function shellTemplate() {
 function wireStaticHeader(root) {
   headerDisposer?.();
   const offTheme = mountThemeToggle(root.querySelector('[data-theme-toggle]'));
+  const offNotifications = notifications.mountBell(root.querySelector('[data-notification-bell]'));
   const status = statusControl({
     getTimestamp: () => live.getLastDataTick(),
     subscribeTick: live.onGlobalTick,
@@ -265,6 +272,7 @@ function wireStaticHeader(root) {
 
   headerDisposer = () => {
     offTheme();
+    offNotifications();
     offStatus?.();
     offHostTicker?.();
     sourcesBtn?.removeEventListener('click', onSources);
@@ -310,7 +318,7 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   if (tabModule === bookmarks) bookmarksLink.setAttribute('aria-current', 'page');
   else bookmarksLink.removeAttribute('aria-current');
   // Table-first is an opt-in layout, not a redesign of the other research views.
-  root.dataset.readingLayout = tabModule.meta.layout === 'table' ? 'table' : 'standard';
+  
 
   const subtitleEl = $('#brand-subtitle', root);
   if (subtitleEl) subtitleEl.textContent = `${ws.label} · Indian equities`;
@@ -424,6 +432,9 @@ function disposeChrome() {
 }
 
 function mountTab(root, tabModule, resolved) {
+  shellRenderRequest++;
+  const reqId = shellRenderRequest;
+  releaseRouteLoading?.(); releaseRouteLoading = null;
   // A drill panel, modal or workspace opened on the previous view must never survive a route
   // change — it would be showing a row that is no longer on screen. `silent` because the URL
   // is already being rewritten by the navigation that triggered this; letting the overlay run
@@ -482,6 +493,7 @@ function mountTab(root, tabModule, resolved) {
     live,
     data: state.data,
     params: resolved.params || {},
+    get isCancelled() { return shellRenderRequest !== reqId; },
     // Tabs call this to push their own filter state into the URL without touching routing.
     // history.replaceState does NOT fire hashchange, so the router would never see the new
     // params — we re-mount the tab body explicitly. Chrome doesn't depend on params, so only
@@ -503,11 +515,31 @@ function mountTab(root, tabModule, resolved) {
       ctx.params = next;
     },
   };
-  try {
-    tabModule.render(ctx);
-  } catch (err) {
-    console.error(`[shell] render() failed for "${tabModule.meta?.id}"`, err);
-    contentHost.innerHTML = emptyState({ title: 'This panel hit a snag', message: String(err?.message || err), icon: '⚠️' });
+
+  // The route chrome (including the newly active tab's visual state) is now in the DOM.
+  // Yield to the browser so the reader gets instant visual feedback of their click, then run the
+  // heavy data parsing and DOM rendering of the tab content itself.
+  // Keep old controls out of reach during that yield: otherwise a fast follow-up search can
+  // edit a table that the queued render is about to replace. The current tab still owns its DOM
+  // and view state; only the temporary cover is removed before the latest render runs.
+  if (contentHost.children.length) releaseRouteLoading = coverTableResults(contentHost.parentElement, contentHost);
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => setTimeout(runRender, 0));
+  } else {
+    setTimeout(runRender, 16);
+  }
+
+  function runRender() {
+    if (shellRenderRequest !== reqId) return; // Reader clicked away before this frame
+    releaseRouteLoading?.(); releaseRouteLoading = null;
+    root.dataset.readingLayout = tabModule.meta.layout === 'table' ? 'table' : 'standard';
+    contentHost.setAttribute('data-active-tab', tabModule.meta.id);
+    try {
+      tabModule.render(ctx);
+    } catch (err) {
+      console.error(`[shell] render() failed for "${tabModule.meta?.id}"`, err);
+      contentHost.innerHTML = emptyState({ title: 'This panel hit a snag', message: String(err?.message || err), icon: '⚠️' });
+    }
   }
 }
 
