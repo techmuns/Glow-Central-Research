@@ -109,8 +109,15 @@ try {
   const search = page.locator('[data-ai-search]');
   await search.fill('Indian Bank');
   assert.equal(await page.locator('[data-ai-card]').count(), 1);
-  assert.match(await page.locator('[data-ai-card]').innerText(), /Financial Services/i);
-  assert(!/Unclassified/i.test(await page.locator('[data-ai-card]').innerText()));
+  // `textContent`, NOT `innerText`, BECAUSE A CARD OFF THE FOLD IS DELIBERATELY NOT RENDERED.
+  // Every card carries `content-visibility: auto` for the embedded frame, so a card the
+  // reader has not scrolled to skips its own layout and `innerText` — which reads what is
+  // rendered — answers with an empty string over a card whose markup holds the sector all
+  // along. What is asserted here is what the card SAYS, so the reader has to be the one
+  // that does not depend on where the page happens to be scrolled.
+  const card = () => page.locator('[data-ai-card]').textContent();
+  assert.match(await card(), /Financial Services/i);
+  assert(!/Unclassified/i.test(await card()));
   await search.fill('');
   await sort.selectOption('priority');
   const scores = await page.locator('[data-ai-card]').evaluateAll(cards => cards.map(card => +card.dataset.score));
