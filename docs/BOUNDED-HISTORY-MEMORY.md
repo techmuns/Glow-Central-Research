@@ -26,8 +26,10 @@ public transport, not collection scope, retention, company matching, or AI evide
   is independent; the underlying request stops only when its final consumer leaves. Response
   allocation is bounded by the declared part size.
 - Inactive alert query readers, complete-history alert reports and AI ranking intermediates release
-  their extra references. Research's prepared shared sources retain independent ownership. AI's
-  existing 180-day historical context and 45-day upcoming context are unchanged. Publisher history
+  their extra references. Research's prepared shared sources retain independent ownership. The alert
+  tabs' existing 90-second/resume checks own their cached periods, which do not start additional
+  independent pollers. AI's existing 180-day historical context and 45-day upcoming context are
+  unchanged. Publisher history
   remains shared for cross-route reconciliation; this is not a claim that every source is bounded.
 
 ## Compatibility and data protection
@@ -41,7 +43,10 @@ and retain the existing per-company durable cache. Releasing a window cannot dis
 A reading operation uses one stable period. Failed widening keeps overlapping last-good stories visible.
 Publisher date corrections invalidate projections even when the company capture timestamp is unchanged. The latest picker wins the next operation, and Today
 is reevaluated by the visible/resume poller at IST midnight, with the next recheck rearmed. An empty selected day does not dispatch unsolicited company walks.
-Source check times and partial/failed coverage remain source facts, not conclusions from row counts.
+Verified bucket counts preserve checked companies when all their stories fall outside the selected period;
+legacy parts are verified directly if this optional summary is absent. Empty-period wording names the
+selected period, while unchecked buckets and source failures remain distinct. Source check times and
+partial/failed coverage remain source facts, not conclusions from row counts.
 
 The service-worker release advances with the module graph. Old clients reject transport version 2
 until upgraded and retain their last-good data. Verify a returning controlled session actually

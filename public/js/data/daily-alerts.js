@@ -530,7 +530,9 @@ function queryNewsReader(queryWindow) {
   const key = alertWindowKey(queryWindow);
   let entry = queryNewsReaders.get(key);
   if (!entry) {
-    const reader = createQueryNews(queryWindow, { extraRows: () => marketNews.rows() });
+    // The visible alert tabs own their 90-second/focus refresh. Cached periods must not each
+    // add a second independent poller that keeps revisiting old history after a period switch.
+    const reader = createQueryNews(queryWindow, { extraRows: () => marketNews.rows(), autoRefresh: false });
     const off = reader.onChange(() => {
       normalizedFeeds.delete('news'); newsCandidates = null; lastNewsSourceQuery = null;
       if (normalizedFeeds.get('market-news')?.windowKey !== 'null') normalizedFeeds.delete('market-news');

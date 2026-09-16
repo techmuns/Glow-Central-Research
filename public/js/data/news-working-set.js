@@ -68,6 +68,20 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
         const entry = await raw(path), spec = shardSpec(entry.value);
         if (!entry.value || typeof entry.value !== 'object') throw Error('News capture unavailable');
         const descriptor = { path, entry, spec };
+        if (entry.value.byTicker) {
+          let counts = spec?.bucketRows;
+          if (spec && !counts) {
+            // Older publications have no bucket summary. Verify their original parts one at a
+            // time; an empty manifest bucket alone cannot establish that a company was checked.
+            counts = Object.fromEntries(Object.keys(entry.value.byTicker).map(key => [key, 0]));
+            for (const part of spec.parts) {
+              const items = await readVerifiedShard(shardPath(path, part.file), part, { fetcher });
+              for (const item of items) { unwrap(item, descriptor); counts[item[0]]++; }
+            }
+          }
+          descriptor.sourceTickers = Object.keys(entry.value.byTicker)
+            .filter(key => counts ? counts[key] > 0 : entry.value.byTicker[key].length > 0);
+        }
         next.set(path, descriptor); return descriptor;
       };
       let head = null;
@@ -170,6 +184,12 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
       selectedItems.sort((a,b)=>a.order-b.order).forEach(({item})=>add(item));
     } else if (field === 'articles') value.articles.forEach(add);
     else for (const [key, rows] of Object.entries(value.byTicker)) for (const row of rows) add([key, row]);
+    if (field === 'byTicker') {
+      // A checked company whose saved articles fall outside this period is not an unchecked
+      // company. Keep source failures separate, and do not rewrite the source's own empty list.
+      const failed = new Set(Object.keys(value.failed || {}).map(key => key.toUpperCase()));
+      out.queryEmpty = descriptor.sourceTickers.filter(key => !out.byTicker[key].length && !failed.has(key.toUpperCase()));
+    }
     // Count validation describes the complete source; query rows describe only this working set.
     if (field === 'articles') out.querySourceCount = descriptor.spec?.rows ?? descriptor.inlineCount ?? value.articles.length;
     return { ...descriptor.entry, value: out };

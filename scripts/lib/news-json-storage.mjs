@@ -110,12 +110,13 @@ export function writeNewsJson(path, value, { maxBytes = JSON_SHARD_BYTES, dateIn
   for (const { item, position } of layout) add(item, position);
   flush();
   const manifest = { ...value, [field]: field === 'articles' ? [] : Object.fromEntries(Object.keys(value.byTicker).map(key => [key, []])),
-    _jsonShards: { version: dateIndexed ? 2 : 1, field, rows: parts.reduce((n, p) => n + p.rows, 0), parts } };
+    _jsonShards: { version: dateIndexed ? 2 : 1, field, ...(field === 'byTicker' ? { bucketRows: Object.fromEntries(Object.entries(value.byTicker).map(([key, rows]) => [key, rows.length])) } : {}), rows: parts.reduce((n, p) => n + p.rows, 0), parts } };
   let manifestText = `${JSON.stringify(manifest)}\n`;
   if (Buffer.byteLength(manifestText) > maxBytes) {
     // Tiny fixture/transport budgets may have room for the source manifest only. Accelerators
     // are optional; they cannot make a previously valid lossless capture fail publication.
     for (const part of parts) delete part.queryIndex;
+    delete manifest._jsonShards.bucketRows;
     manifestText = `${JSON.stringify(manifest)}\n`;
   }
   if (Buffer.byteLength(manifestText) > maxBytes) {

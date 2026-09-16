@@ -39,6 +39,7 @@ try {
   let deniedAttempts = 0;
   const single = { ...manifest, _jsonShards: { ...manifest._jsonShards, version: 1,
     parts: [manifest._jsonShards.parts[0]], rows: manifest._jsonShards.parts[0].rows } };
+  delete single._jsonShards.bucketRows; // This request-failure fixture intentionally keeps only one source part.
   await assert.rejects(hydrateJsonShards(single, 'news.json', { fetcher: async () => {
     deniedAttempts++; return new Response('', { status: 403 });
   } }), /unavailable/);

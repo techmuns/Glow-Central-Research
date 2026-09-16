@@ -21,7 +21,7 @@ try {
   rows[3].tradingViewId = 'same-story';
   rows[4].tradingViewId = 'same-story';
   rows[1] = { ...rows[1], url: rows[0].url, lastSeenAt: '2026-09-16T17:00:00Z', title: 'Corrected publication day' };
-  const value = { capturedAt: '2026-09-16T17:00:00Z', byTicker: { ALPHA: rows, EMPTY: [] }, failed: {}, empty: [] };
+  const value = { capturedAt: '2026-09-16T17:00:00Z', byTicker: { ALPHA: rows, EMPTY: [], FAILED: [{ ...rows[2], ticker: 'FAILED', url: 'https://example.test/failed' }], CHECKED: [] }, failed: { FAILED: { reason: 'source-down' } }, empty: ['CHECKED'] };
   const path = join(dir, 'news.json');
   writeNewsJson(path, value, { maxBytes: 32768 });
   const manifest = JSON.parse(readFileSync(path)), spec = shardSpec(manifest);
@@ -58,11 +58,19 @@ try {
   const working = make();
   await working.prepare();
   const projected = (await working.read('data/news.json')).value;
+  assert.deepEqual(projected.empty, ['CHECKED'], 'the original source empty list remains unchanged');
+  assert.deepEqual(projected.queryEmpty, [], 'failed or never-checked companies are not certified empty');
   const selected = rows.filter(row => row.date === '2026-09-16' || row.url === rows[0].url || row.tradingViewId === 'same-story');
   assert.deepEqual(projected.byTicker.ALPHA, selected, 'selected date includes corrected companions in their original order');
   const sourcePaths = new Set(spec.parts.map(part => 'data/'+part.file));
   assert(calls.filter(path => sourcePaths.has(path)).length < spec.parts.length, 'Today skips old source text');
   assert.equal(projected.byTicker.EMPTY.length, 0);
+  const wrongCounts = structuredClone(manifest);
+  wrongCounts._jsonShards.bucketRows.ALPHA--;
+  wrongCounts._jsonShards.bucketRows.EMPTY++;
+  writeFileSync(path, JSON.stringify(wrongCounts));
+  assert.throws(() => readNewsJson(path), /bucket count mismatch/, 'bucket summaries must match verified original records');
+  writeFileSync(path, JSON.stringify(manifest));
   const before = calls.length; await working.read('data/news.json');
   assert.equal(calls.length, before, 'unchanged verified parts are reused');
   working.release();
@@ -83,6 +91,22 @@ try {
     assert.deepEqual((await fallback.read('data/news.json')).value.byTicker.ALPHA, selected, `${failure} optional index falls back without missing records`);
     fallback.release();
   }
+  const emptyPeriod = { from: '2026-09-17', to: '2026-09-17', includeUndated: false };
+  for (const representation of ['indexed', 'legacy', 'inline']) {
+    const source = structuredClone(representation === 'inline' ? value : manifest);
+    if (representation === 'legacy') delete source._jsonShards.bucketRows;
+    writeFileSync(path, JSON.stringify(source));
+    const emptyQuery = createNewsWorkingSet({ window: () => emptyPeriod, read, fetcher,
+      diskRead: key => disk.get(key), diskWrite: (key, value) => { disk.set(key, value); } });
+    await emptyQuery.prepare();
+    const result = (await emptyQuery.read('data/news.json')).value;
+    assert.deepEqual(result.queryEmpty, ['ALPHA'], `${representation}: checked companies survive an empty period`);
+    assert.deepEqual(result.empty, ['CHECKED']);
+    assert.deepEqual(result.failed, value.failed, 'source failure status survives projection');
+    assert.equal(result.capturedAt, value.capturedAt, 'a date projection does not advance source checks');
+    emptyQuery.release();
+  }
+  writeFileSync(path, JSON.stringify(manifest));
   let open;
   gate = new Promise(resolve => { open = resolve; });
   const switching = make();
@@ -120,6 +144,11 @@ try {
     if (ms >= 120000) { poll = fn; scheduled++; return 123456789; }
     return originalTimeout(fn, ms, ...args);
   };
+  const cachedPeriod = createQueryNews(() => newsPeriodBounds('today'), { autoRefresh: false });
+  const offCached = cachedPeriod.onChange(() => {});
+  await cachedPeriod.load(['ALPHA']);
+  assert.equal(scheduled, 0, "cached alert periods rely on their owning tab's recheck, without extra pollers");
+  offCached(); cachedPeriod.release();
   const current = createQueryNews(() => newsPeriodBounds('today'));
   const offCurrent = current.onChange(() => {});
   await current.load(['ALPHA']);
@@ -150,6 +179,13 @@ try {
   assert.equal(current.rows().length, 0, 'the new empty day cannot retain yesterday in its working set');
   assert.equal(upstreamCalls, 0, 'an empty bounded date never starts unsolicited per-company requests');
   assert.equal((await current.refreshSnapshot()).available, true, 'a verified empty day is a successful read');
+  await current.load(['ALPHA', 'EMPTY', 'FAILED', 'CHECKED']);
+  assert(current.wasAskedEmpty('ALPHA'), 'checked history outside Today is a verified empty period');
+  assert(current.wasAskedEmpty('CHECKED'), "the source's original empty answer remains covered");
+  assert(!current.wasAskedEmpty('EMPTY'), 'an unaccounted empty bucket remains unchecked');
+  assert(!current.wasAskedEmpty('FAILED') && current.failureFor('FAILED'), 'failed checks remain failures');
+  assert.equal(current.meta().outstanding, 2, 'only the unchecked and failed companies remain outstanding');
+  assert.equal(current.meta().queryWindow.from, '2026-09-17', 'coverage wording has the actual reading period');
   const live = createFeed('news');
   await live.loadOne('ALPHA', { force: true });
   assert.equal(upstreamCalls, 1);

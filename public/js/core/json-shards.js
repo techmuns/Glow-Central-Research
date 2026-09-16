@@ -91,6 +91,14 @@ export function shardSpec(value) {
   if (spec.field === 'articles' ? !Array.isArray(empty) || empty.length :
     !empty || typeof empty !== 'object' || Array.isArray(empty) || Object.values(empty).some(x => !Array.isArray(x) || x.length))
     throw Error('News manifest contains unaccounted records');
+  if (spec.bucketRows != null) {
+    const counts = spec.bucketRows;
+    if (spec.field !== 'byTicker' || !counts || typeof counts !== 'object' || Array.isArray(counts) ||
+        Object.keys(counts).length !== Object.keys(empty).length ||
+        Object.entries(counts).some(([key, count]) => !Object.hasOwn(empty, key) || !Number.isSafeInteger(count) || count < 0) ||
+        Object.values(counts).reduce((sum, count) => sum + count, 0) !== spec.rows)
+      throw Error('Invalid news bucket counts');
+  }
   return spec;
 }
 
@@ -140,6 +148,8 @@ export function assembleShards(value, chunks) {
     else items.forEach(append);
   });
   ordered?.forEach(append);
+  if (spec.bucketRows && Object.entries(spec.bucketRows).some(([key, count]) => out.byTicker[key].length !== count))
+    throw Error('News bucket count mismatch');
   return out;
 }
 

@@ -9,7 +9,7 @@ import { holdsTicker } from './row-ticker-index.js';
 export const NEWS_SNAPSHOT_POLL_MS = 120000;
 
 export function withTradingViewNews(base, { read = conditionalJson, doc = globalThis.document,
-  view = doc?.defaultView || globalThis.window, now = Date.now, schedule = setTimeout, cancel = clearTimeout, revalidate = null } = {}) {
+  view = doc?.defaultView || globalThis.window, now = Date.now, schedule = setTimeout, cancel = clearTimeout, revalidate = null, autoRefresh = true } = {}) {
   let snapshot = null, pending = null, loaded = false, readError = null, readerCheckedAt = null;
   let timer = null, listening = false, lastAttempt = null, failures = 0, generation = 0;
   let combined = null;
@@ -104,7 +104,7 @@ export function withTradingViewNews(base, { read = conditionalJson, doc = global
   function pause() { if (timer !== null) cancel(timer); timer = null; }
   function arm() {
     pause();
-    if (!doc || doc.hidden || !loaded || !subscribers.size) return;
+    if (!autoRefresh || !doc || doc.hidden || !loaded || !subscribers.size) return;
     const delay = Math.min(NEWS_SNAPSHOT_POLL_MS * 2 ** failures, 600000);
     timer = schedule(async () => {
       timer = null;
@@ -116,7 +116,7 @@ export function withTradingViewNews(base, { read = conditionalJson, doc = global
   }
   const visibility = () => doc.hidden ? pause() : arm();
   function watch() {
-    if (!doc || listening || !loaded || !subscribers.size) return;
+    if (!autoRefresh || !doc || listening || !loaded || !subscribers.size) return;
     listening = true;
     doc.addEventListener('visibilitychange', visibility);
     view?.addEventListener('focus', visibility);

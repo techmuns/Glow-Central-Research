@@ -202,6 +202,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
       tradingViewCoverage: null,
       snapshotUpdatedAt: null,
       queryRevision: null,
+      queryWindow: null,
       snapshotReadError: null,
       snapshotPending: false,
       snapshotChecked: false,
@@ -306,6 +307,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
       tickerlessPortfolioLines: state.tickerlessPortfolioLines,
       tickerlessPortfolioEntities: state.tickerlessPortfolioEntities,
       queryCoverage: state.queryCoverage,
+      queryWindow: state.queryWindow,
       ...(kind === 'news' ? { newsDelivery: { core: {
         status: !state.snapshotChecked ? 'pending' : state.snapshotReadError || !coreFresh || !queryComplete
           ? (covered ? 'partial' : 'unavailable') : 'ok',
@@ -732,6 +734,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     state.portfolioEntities = Number.isFinite(body.portfolioEntities) ? body.portfolioEntities : null;
     state.tickerlessPortfolioLines = Number.isFinite(body.tickerlessPortfolioLines) ? body.tickerlessPortfolioLines : null;
     state.tickerlessPortfolioEntities = Number.isFinite(body.tickerlessPortfolioEntities) ? body.tickerlessPortfolioEntities : null;
+    state.queryWindow = kind === 'news' ? body.queryWindow || null : null;
     state.queryCoverage = body.queryCoverage && typeof body.queryCoverage === 'object' ? body.queryCoverage : null;
     state.enrichmentCoverage = body.enrichmentCoverage || null;
     if (!replace || newer || nextCaptured === heldCaptured) state.tradingViewCoverage = body.tradingViewCoverage || null;
@@ -783,7 +786,9 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     }
     // Companies the capture ASKED and that answered nothing. They get no rows — there are none —
     // but they are covered, so they must not be reported as waiting to be asked about.
-    for (const t of Array.isArray(body.empty) ? body.empty : []) {
+    const emptyCompanies = [...(Array.isArray(body.empty) ? body.empty : []),
+      ...(kind === 'news' && body.queryWindow && Array.isArray(body.queryEmpty) ? body.queryEmpty : [])];
+    for (const t of new Set(emptyCompanies)) {
       if (typeof t !== 'string' || !t) continue;
       const ticker = t.toUpperCase();
       // Empty latest search results are not a retraction of previously captured news/disclosures.
@@ -943,12 +948,12 @@ export const recentNews = createQueryNews(() => newsPeriodBounds('today'));
 // Each bounded query owns its projections; it cannot narrow the full-history/research reader.
 // It uses the same canonicalizers and coverage metadata, after the working-set reader has
 // located all date-correction / cross-route URL companions in the retained source archive.
-export function createQueryNews(window, { extraRows = () => marketNews.rows() } = {}) {
+export function createQueryNews(window, { extraRows = () => marketNews.rows(), autoRefresh = true } = {}) {
   const readWindow = () => typeof window === 'function' ? window() : window;
   let activeWindow = readWindow(), wanted = [], initializedWindow = null, disposed = false, pending = Promise.resolve();
   const working = createNewsWorkingSet({ window: () => activeWindow, extraRows });
   const core = createFeed('news', { read: working.read, allowColdStart: false });
-  const feed = withNewsHistory(withTradingViewNews(withPortfolioPublisherNews(core, { include: working.includes }), { read: working.read, revalidate: () => run(() => feed.refreshSnapshot(), true) }), { read: working.read });
+  const feed = withNewsHistory(withTradingViewNews(withPortfolioPublisherNews(core, { include: working.includes }), { read: working.read, autoRefresh, revalidate: () => run(() => feed.refreshSnapshot(), true) }), { read: working.read });
   let retainedRows = null, combined = null;
   const rows = () => {
     const current = feed.rows();

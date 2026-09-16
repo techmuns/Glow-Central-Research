@@ -640,7 +640,8 @@ function coverageSentence(m, cov) {
       ${co(asked, 'was', 'were')} searched`);
   }
   if (cov.askedEmpty) {
-    parts.push(`${n(cov.askedEmpty)} of them had no ${escapeHtml(cov.noun)} in the last ${n(m.windowDays)} days`);
+    const period = m.queryWindow ? 'in the selected period' : `in the last ${n(m.windowDays)} days`;
+    parts.push(`${n(cov.askedEmpty)} of them had no ${escapeHtml(cov.noun)} ${period}`);
   }
   // TRIED AND FAILED IS NOT NEVER REACHED, and saying both about the same company says nothing
   // twice. The strip used to print "3 companies have not been checked since" and then "3 could not

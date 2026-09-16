@@ -23,11 +23,16 @@ const plan = [];
 for (const path of files) {
   const value = JSON.parse(readFileSync(path)), spec = shardSpec(value);
   if (!spec) continue;
+  const bucketRows = spec.field === 'byTicker' ? Object.fromEntries(Object.keys(value.byTicker).map(key => [key, 0])) : null;
   const indexes = [], previous = spec.parts.flatMap(part => part.queryIndex ? [shardPath(path, part.queryIndex.file)] : []);
   for (const part of spec.parts) {
     const original = readFileSync(shardPath(path, part.file));
     if (original.byteLength !== part.bytes || digest(original) !== part.sha256) throw Error(`Unverified source part: ${path}`);
     const rows = parseShard(original.toString(), part);
+    if (bucketRows) for (const row of rows) {
+      if (!Array.isArray(row) || row.length !== 2 || !Object.hasOwn(bucketRows, row[0])) throw Error('Unknown news bucket');
+      bucketRows[row[0]]++;
+    }
     const body = `${JSON.stringify({ items: rows.map(row => newsQueryIndexRow(spec.field === 'byTicker' ? row[1] : row)) })}\n`;
     const sha256 = digest(body), file = `${dirname(part.file)}/${sha256}.json`;
     if (Buffer.byteLength(body) > 4 * 1024 * 1024) continue;
@@ -35,6 +40,8 @@ for (const path of files) {
       file, sha256, bytes: Buffer.byteLength(body), rows: rows.length };
     indexes.push({ path: shardPath(path, file), body });
   }
+  if (bucketRows) spec.bucketRows = bucketRows;
+  shardSpec(value);
   plan.push({ path, value, indexes, previous });
 }
 if (process.argv.includes('--write')) for (const { path, value, indexes, previous } of plan) {
