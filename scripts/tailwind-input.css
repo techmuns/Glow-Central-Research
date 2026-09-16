@@ -58,6 +58,14 @@
    retain their existing framing. No row typography, virtual stride or data policy changes. */
 [data-reading-layout="table"] [data-app-header] { padding-top: 12px; padding-bottom: 4px; }
 [data-reading-layout="table"] [data-app-content] { max-width: 1800px; padding-left: 24px; padding-right: 24px; padding-top: 12px; padding-bottom: 0; }
+/* The brand block is compacted and the strapline hidden in this layout, and that is not decoration:
+   it is the difference between the table owning most of an embedded frame and owning under half of
+   it. `verify-portfolio-view-ui.mjs` measures the ratio at 1440x900 inside the host iframe, and a
+   template merge that dropped these three rules put it at 375.5px of a 688px viewport — 54.6%
+   against a 55% floor, which reads as "chrome grew back" because that is exactly what happened. */
+[data-reading-layout="table"] [data-brand-mark] { flex: 0 1 auto; width: 14rem; height: 36px; display: flex; flex-direction: column; justify-content: center; }
+[data-reading-layout="table"] [data-app-header] h1 { margin: 0; }
+[data-reading-layout="table"] #brand-subtitle { display: none; }
 .alerts-workspace [data-section-head] { margin-bottom: 8px; }
 .alerts-workspace [data-section-head] > div { align-items: center; gap: 8px; }
 .alerts-workspace [data-section-head] h2 { font-size: 20px; }

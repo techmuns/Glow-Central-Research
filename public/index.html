@@ -1205,20 +1205,15 @@
     </div>
 
     <!-- "Data flowing in" — the lower-left source beacon, owned by ui/source-beacon.js, which
-         creates this node if it is absent. Declared BEFORE the alert stack so that on a narrow
-         screen, where the two corners meet, a toast paints over the beacon rather than under it:
-         an alert is a fact that just arrived and this is a reference panel. -->
+         creates this node if it is absent. -->
     <div id="source-beacon-root" class="beacon-root"></div>
 
-    <!-- Live alert stack, owned by ui/notifications.js, which creates this node if it is absent.
-         z-30 is deliberate and sits BELOW every overlay above: a toast announcing a result must
-         never land on top of a drill panel or a workspace the reader opened on purpose. -->
-    <div
-      id="notification-root"
-      role="status"
-      aria-live="polite"
-      class="pointer-events-none fixed bottom-4 right-4 z-30 flex w-[min(22rem,calc(100vw-2rem))] flex-col-reverse gap-2"
-    ></div>
+    <!-- THE LOWER-RIGHT TOAST STACK IS GONE, and its empty container went with it. Arrivals mark
+         the header bell instead; `ui/notifications.js` creates the panel it opens and gives that
+         panel `id="notification-root"`. Leaving the retired div here left TWO elements carrying
+         that id in one document — `getElementById` answered with the empty one, a Playwright
+         `#notification-root` locator raised a strict-mode violation, and every check reading the
+         panel through that id was reading a node nothing renders into. -->
 
     <script type="module" src="js/app.js"></script>
   </body>
