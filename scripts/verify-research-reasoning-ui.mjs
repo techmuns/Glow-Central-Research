@@ -16,6 +16,14 @@ try {
       'If crude oil prices fall, which portfolio companies could benefit or be hurt?',
       'If interest rates fall, which of my portfolio companies have upside and what could offset it?',
       'Which portfolio companies are exposed to a weaker rupee, positively or negatively?',
+      // AN ANCHOR THE BOOK DOES NOT HOLD HAS NOTHING TO COMPARE AGAINST, SO BOTH READINGS
+      // ARE ASKED FOR HERE. The comparison branch learns what the named business IS from
+      // that company's own source rows; a company outside this book has none, so the
+      // question is answered as a portfolio-wide reading instead — the honest answer, not
+      // a miss. The template anchors this on a company its own book carries; Glow's book
+      // is a different list, so the held anchor is one of Glow's and the unheld one stays
+      // beside it, which is what keeps the fallback asserted rather than assumed.
+      'Which portfolio companies have businesses similar to Tejas Networks?',
       'Which portfolio companies have businesses similar to Supreme Industries?',
       'Which portfolio companies depend on the same customer demand and could disappoint together?',
       'Which portfolio companies have improving earnings but conflicting risks in public chatter?',
@@ -38,7 +46,8 @@ try {
     return cases;
   });
   for (const r of report) {
-    const expectedKind = r.question.includes('similar to') ? 'source-backed-business-comparison' : 'portfolio-reasoning';
+    const anchor = r.question.match(/similar to ([^?]+)\?/)?.[1];
+    const expectedKind = anchor && book.holdings.some(h => h.name === anchor) ? 'source-backed-business-comparison' : 'portfolio-reasoning';
     assert.equal(r.context.kind, expectedKind, r.question);
     if (r.context.kind === 'portfolio-reasoning') {
       assert.equal(r.context.businessProfiles.total, book.holdings.length);
@@ -71,7 +80,14 @@ try {
   assert(!report[0].context.candidates.some(c => c.ticker === 'HDFCBANK'), 'a market-wrap co-mention is not oil exposure');
   assert(report[0].context.candidates.every(c => report[0].found.includes(c.ticker)), 'the fit adds no company');
   assert(report[1].context.businessProfiles.analyses.rows.some(p => p[0] === 'SAMMAANCAP' && p[2]), 'the model must see funding analysis beyond lexical leaders');
-  assert(report[3].context.references.some(r => r.ticker === 'SUPREMEIND' && r.evidence.some(e => /piping|plastic|Industrial Products/i.test(e.text))), 'arbitrary peer anchor needs business evidence instead of broker boilerplate');
+  // BY QUESTION, NEVER BY POSITION. Two peer questions sit in the list now — one anchor this
+  // book holds and one it does not — so an index would silently move the claim onto the
+  // other case the next time a question is added.
+  const caseFor = text => report.find(r => r.question.includes(text));
+  assert(caseFor('Supreme Industries').context.references.some(r => r.ticker === 'SUPREMEIND' && r.evidence.some(e => /piping|plastic|Industrial Products/i.test(e.text))), 'arbitrary peer anchor needs business evidence instead of broker boilerplate');
+  const held = caseFor('Tejas Networks').context;
+  assert(held.references.some(r => r.ticker === 'TEJASNET' && r.primaryActivities.length), 'a held anchor states its own activity from its own source rows');
+  assert(held.candidates.some(c => c.evidence.some(e => e.basis !== 'industry label only')), 'at least one peer is matched on company-linked text, not on a shared sector label');
   if (process.env.RESEARCH_EVAL_EXPORT) {
     const checkedAt = new Date().toISOString();
     const tests = report.map((r, i) => {
@@ -80,7 +96,7 @@ try {
         answer: 'Saved public identity snapshot for evaluation. Current ownership, actual weights and quotes are unavailable.' };
       evidence.portfolioPositions = { sizes: { basis: 'listed-market-value', complete: false, checkedAt, archiveVersion: 1, bookAsOf: book.asOf,
         quotes: { asOf: null, status: 'unavailable', priced: 0, notLive: book.holdings.length } }, holdings: book.holdings.map(h => ({ isin: h.isin, ticker: h.ticker, name: h.name, sector: h.sector, weightPct: null })) };
-      return { id: ['oil', 'rates', 'currency', 'peers', 'demand', 'conflicts'][i], question: r.question,
+      return { id: ['oil', 'rates', 'currency', 'peers-held', 'peers-unheld', 'demand', 'conflicts'][i], question: r.question,
         must: [], forbidden: ['public-snapshot-fixture', 'industrySourceIndex'],
         body: { question: r.question, requirePortfolio: true, scope: 'portfolio', history: [], evidence },
         review: 'Check relevance, dates, exact source citations, opposing mechanisms, conditional vs realised benefits, missing inputs, legal-entity attribution, and unknown actual ownership. Keyword checks are not a quality pass.' };
