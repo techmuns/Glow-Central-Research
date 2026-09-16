@@ -487,7 +487,7 @@
       "error": "search-unavailable"
     },
     "isin:INE850D01014|GODREJAGRO": {
-      "lastAttemptAt": "2026-09-12T10:58:51+00:00",
+      "lastAttemptAt": "2026-09-16T20:11:18+00:00",
       "error": "search-unavailable"
     },
     "isin:INE036B01030|Gujarat Ambuja Exports": {
@@ -1458,6 +1458,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-16T19:38:13.404665+00:00"
+    "checkedAt": "2026-09-16T20:11:18.911039+00:00"
   }
 }
