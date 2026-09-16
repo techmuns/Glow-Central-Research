@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Add optional query accelerators to existing immutable captures. Original source parts, source
-// timestamps, archive counts and record ordering are untouched. Run locally or in normal capture.
+// Add optional query accelerators locally. Index-only mode keeps existing source part bytes;
+// --repartition can regroup their transport. Both preserve source values, timestamps and order.
 import { readFileSync, writeFileSync, readdirSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';

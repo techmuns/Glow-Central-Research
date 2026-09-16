@@ -5,7 +5,11 @@ import { resolve } from 'node:path';
 const root = resolve('public');
 const storage = new Map();
 globalThis.localStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
-Date.now = () => Date.parse('2026-09-17T08:00:00Z');
+// Freeze one real run instant, and query the last completed IST day. This remains a
+// meaningful news test as daily captures advance, rather than rejecting them as future data.
+const now = Date.now();
+Date.now = () => now;
+const completedDay = new Date(now + 5.5 * 3600000 - 86400000).toISOString().slice(0, 10);
 globalThis.fetch = async input => {
   const path = String(input).split('?')[0];
   if (/^https?:/.test(path)) return new Response('{}', { status: 503 });
@@ -18,9 +22,10 @@ globalThis.fetch = async input => {
 const coverage = await import('../public/js/data/coverage.js');
 coverage.prime(JSON.parse(readFileSync(resolve(root, 'data/portfolio-companies.json'))));
 const alerts = await import('../public/js/data/daily-alerts.js');
-const options = { scope: 'universe', day: '2026-09-16', includeHistory: true };
+const options = { scope: 'universe', day: completedDay, includeHistory: true };
 const full = await alerts.collect(options);
-console.log(JSON.stringify({ full: full.events.length, news: full.feeds.find(f => f.id === 'news').count }));
+assert(full.feeds.find(f => f.id === 'news').count > 0, 'the full-history oracle must actually load retained news');
+console.log(JSON.stringify({ day: completedDay, full: full.events.length, news: full.feeds.find(f => f.id === 'news').count }));
 const { inAlertQuery } = alerts;
 for (const days of (process.env.NEWS_QUERY_DAYS || '1,3,14,30').split(',').map(Number)) {
   const queryWindow = { from: new Date(Date.parse(options.day) - (days-1)*86400000).toISOString().slice(0,10), to: options.day, includeUndated: false };
