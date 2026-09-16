@@ -20,7 +20,7 @@ export function directoryTable(rows, view) {
     filters: [options('status', 'Statuses'), options('board', 'Boards')],
     searchable: (r) => `${r.company} ${r.ticker || ''} ${r.isin || ''} ${r.sector || ''}`,
     initialSort: { key: 'Listing date', dir: 'desc' }, initialView: view, link: (r) => r.url,
-    countNoun: 'issuers', exportName: 'sattva-ipo-directory',
+    countNoun: 'issuers', exportName: 'glow-ipo-directory',
     emptyMessage: 'No captured issuers match. The first scheduled collection may not be available yet; check the Data flowing in panel.',
     onExport: (visible, filename) => exportSheets({ filename: `${filename}-${todayStamp()}`, banner: 'Secondary IPOPlatform catalogue, not an exchange confirmation or complete IPO universe. Status and dates are publisher-reported as of each observation.', sheets: [{ name: 'IPO directory', rows: visible, columns: [
       { header: 'Company', key: 'company', get: (r) => r.company, width: 40 },

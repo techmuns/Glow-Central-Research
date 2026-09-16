@@ -14,10 +14,11 @@
 // the kit supplies the look. Score and Signals columns are opt-in, so tabs without a scoring
 // model (all of them until prompt 3) render a clean table with no empty score furniture.
 
-import { escapeHtml } from '../core/dom.js';
+import { escapeHtml, syncListDOM } from '../core/dom.js';
 import * as store from '../core/watchlist.js';
 import { avatarFor, scoreTier, scoreBadgeClass, tierLabel, tierColor, statusPill, signalDots } from './visual.js';
 import { mountWindowedList } from './windowed-list.js';
+import { coverTableResults } from './loading.js';
 import { state } from '../core/state.js';
 import * as notebook from '../core/bookmarks.js';
 import { snapshotForRow, SECTION_LABELS } from '../core/bookmark-record.js';
@@ -379,7 +380,7 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  * re-renders its own tbody without the tab getting involved.
  */
 export function scoreTable(config) {
-  const {
+  let {
     rows = [],
     key = (r) => r.ticker,
     // WHICH COMPANY THE STAR MARKS, which is not always which row it sits on.
@@ -417,7 +418,7 @@ export function scoreTable(config) {
     emptyMessage = 'No companies match your filters.',
     countNoun = '',
     countLabel = null,
-    exportName = 'sattva-export',
+    exportName = 'glow-export',
     onExport = null, // (visibleRows, exportName) => void — see ui/export.js
     // Drop the leading rank column. The watchlist star does NOT go with it — the watchlist filter
     // needs a per-row control — it moves inside the identity cell, ahead of the avatar. That frees
@@ -440,6 +441,12 @@ export function scoreTable(config) {
     // Optional per-row tint, e.g. flagging a risk level. Returns Tailwind classes or ''.
     // Kept separate from the built-in red-flag tint, which belongs to the scoring models.
     rowClass = null,
+    // Observe the complete filtered model, including rows outside the mounted window.
+    onVisibleRowsChange = null,
+    onFilterChange = null,
+    // Optional bounded entrance sequence for a windowed table. Only presentation is paced;
+    // the complete filtered model remains available for counts, search and export.
+    presentRows = null,
     // Seed the search box, filters, watchlist-only and sort from a previous instance's `view`.
     // A tab that rebuilds its table when live data lands would otherwise throw away whatever the
     // reader had typed, filtered and sorted — every time a company reports.
@@ -464,6 +471,8 @@ export function scoreTable(config) {
     preindexSearch = true,
     onScrollActivity = null,
     scrollLabel = `${nameLabel} data table`,
+    // Show placeholders only when no matching rows have arrived and a read is still active.
+    loading = false,
   } = config;
 
   // `watchKey` defaults to the row key, which is correct wherever a row is a company. `watchName`
@@ -476,7 +485,7 @@ export function scoreTable(config) {
 
   function bookmarkEntry(row, full = false) {
     if (bookmark) return bookmark(row);
-    const section = bookmarkSection || exportName.replace(/^sattva-/, '');
+    const section = bookmarkSection || exportName.replace(/^glow-/, '');
     const context = { section, company: row.company || (['Company', 'Stock', 'Instrument'].includes(nameLabel) || watchKeyOf(row) ? watchNameOf(row) : ''),
       title: `${name(row)} · ${SECTION_LABELS[section] || section}${sub(row) ? ` · ${sub(row)}` : ''}`,
       ticker: watchKeyOf(row), eventDate: bookmarkDate?.(row), source: bookmarkSource?.(row),
@@ -503,7 +512,7 @@ export function scoreTable(config) {
   // `filters` takes one config or several. Several render as several <select>s and AND together,
   // which is what lets "PAT grew" and "Consolidated only" be asked at the same time — folding both
   // into one dropdown would make them mutually exclusive for no reason.
-  const filterDefs = filters ? (Array.isArray(filters) ? filters : [filters]) : [];
+  let filterDefs = filters ? (Array.isArray(filters) ? filters : [filters]) : [];
 
   // Internal view state — search text, one value per filter, watchlist-only, sort.
   const view = {
@@ -526,10 +535,16 @@ export function scoreTable(config) {
   }
   if (!showWatchFilter) view.watchOnly = false;
 
-  const totalCount = rows.length;
+  let totalCount = rows.length;
   // Array lookup is materially cheaper than recomputing 50k searchable strings on every
   // keystroke. This per-instance index is filled in idle slices once the final feed paint mounts.
-  const searchTextIndex = searchable ? new Array(rows.length) : null;
+  let searchTextIndex = searchable ? new Array(rows.length) : null;
+  
+  let activeRepaint = null;
+  let activePresentation = null;
+  let activeLoading = null;
+  let isDisposed = false;
+
   const countText = (visible) => {
     const custom = countLabel?.(visible, rows);
     return custom == null || custom === ''
@@ -571,7 +586,7 @@ export function scoreTable(config) {
         if (!wk || !watched.has(wk)) return false;
       }
       for (let i = 0; i < filterDefs.length; i++) {
-        if (view.filters[i] !== 'all' && !filterDefs[i].match(row, view.filters[i])) return false;
+        if (view.filters[i] !== 'all' && !filterDefs[i].match(row, view.filters[i], view)) return false;
       }
       return true;
     });
@@ -644,9 +659,10 @@ export function scoreTable(config) {
   const isVirtual = isFixed || isWindowed;
   const VIRTUAL_ROW_HEIGHT = Math.max(48, Math.round(Number(virtualRowHeight) || 72));
 
-  function bodyHtml(list, from = 0, to = list.length) {
+  function bodyParts(list, from = 0, to = list.length) {
     if (!list.length) {
-      return `<tr><td colspan="${colCount}" class="px-4 py-12 text-center text-slate-400">${escapeHtml(emptyMessage)}</td></tr>`;
+      const message = typeof emptyMessage === 'function' ? emptyMessage() : emptyMessage;
+      return [`<tr><td colspan="${colCount}" class="px-4 py-12 text-center text-slate-400">${escapeHtml(message)}</td></tr>`];
     }
     const watched = loadWatchlist();
     const end = Math.min(to, list.length);
@@ -654,19 +670,19 @@ export function scoreTable(config) {
     for (let i = from; i < end; i++) {
       const row = list[i];
       const slug = String(key(row));
-      // A virtual row carries aria-rowindex, which is position-dependent. Only a screenful is
-      // generated at once, so bypassing the position-independent cache here is both correct and
-      // bounded. Other modes retain the cache that makes large sorts cheap.
-      let html = isVirtual ? undefined : rowHtmlCache.get(slug);
+      // Content is cached by stable identity. The measured window sets aria-rowindex after
+      // moving nodes, so unchanged cells need no serialization just to update their position.
+      let html = rowHtmlCache.get(slug);
       if (html === undefined) {
         const wk = watchKeyOf(row);
         html = rowHtml(row, slug, wk ? watched.has(wk) : false, wk, watchNameOf(row), isVirtual ? i : null);
-        if (!isVirtual) rowHtmlCache.set(slug, html);
+        rowHtmlCache.set(slug, html);
       }
       out.push(html);
     }
-    return out.join('');
+    return out;
   }
+  const bodyHtml = (list, from = 0, to = list.length) => bodyParts(list, from, to).join('');
 
   function rowHtml(row, slug, isWatched, watchSlug = null, watchLabel = null, rowIndex = null) {
         const label = String(name(row));
@@ -694,7 +710,7 @@ export function scoreTable(config) {
         if (redFlag) styles.push('box-shadow: inset 3px 0 0 #f43f5e');
         if (isFixed) styles.push(`height:${VIRTUAL_ROW_HEIGHT}px`);
         return `
-          <tr data-row-key="${escapeHtml(slug)}" class="row-line border-b border-slate-100 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${redFlag ? 'bg-rose-50/40 hover:bg-rose-50' : `${extraClass} hover:bg-slate-50`}"
+          <tr data-row-key="${escapeHtml(slug)}" ${row.revision ? `data-revision="${escapeHtml(row.revision)}"` : ''} class="row-line border-b border-slate-100 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${redFlag ? 'bg-rose-50/40 hover:bg-rose-50' : `${extraClass} hover:bg-slate-50`}"
             ${rowIndex === null ? '' : `aria-rowindex="${rowIndex + 2}"`} ${styles.length ? `style="${styles.join(';')}"` : ''}>
             ${
               showRank
@@ -861,6 +877,7 @@ export function scoreTable(config) {
     const watchIcon = host.querySelector('[data-watch-icon]');
     const watchCount = host.querySelector('[data-watch-count]');
     const tableEl = host.querySelector('table');
+    const exportBtn = host.querySelector('[data-export]');
     const offBookmarkCache = notebook.onChange(() => rowHtmlCache.clear());
     const offBookmarks = wireBookmarks(host, button => {
       const slug = button.closest('[data-row-key]')?.dataset.rowKey;
@@ -869,6 +886,7 @@ export function scoreTable(config) {
     });
 
     let current = initialList;
+    onVisibleRowsChange?.(current);
     let virtualStart = initialVirtualStart;
 
     // ---- the background fill ----------------------------------------------------------
@@ -945,7 +963,7 @@ export function scoreTable(config) {
       stopFill();
       if (isVirtual) {
         markPending(0);
-        attachScroll();
+        if (!isWindowed) attachScroll(); // measured lists own their one scroll listener
         return;
       }
       if (filled >= current.length) {
@@ -982,17 +1000,64 @@ export function scoreTable(config) {
     // still leaks nothing. Which scroller matters depends on `stickyHead`: with it the tbody is
     // its own scroll container, without it the page scrolls. Both, then.
     const scroller = host.querySelector('[data-table-scroll]');
+    let filterFrame = 0;
+    let filterTask = 0;
+    let filterGeneration = 0;
+    let releaseLoading = null;
+    let exportWasDisabled = false;
+    const filterPending = () => !!(filterFrame || filterTask);
+
+    function syncLoadingState() {
+      const busy = filterPending() || (loading && current.length === 0);
+      if (busy && !releaseLoading) {
+        releaseLoading = coverTableResults(host, scroller, { columns: colCount });
+        exportWasDisabled = exportBtn.disabled;
+        exportBtn.disabled = true;
+      } else if (!busy && releaseLoading) {
+        releaseLoading(); releaseLoading = null;
+        exportBtn.disabled = exportWasDisabled;
+      }
+      countEl.textContent = busy ? 'Loading results…' : countText(current);
+    }
+    activeLoading = syncLoadingState;
+
+    // Large retained tables need a paint before filtering, so the dropdown closes and the
+    // reader sees feedback. Read the latest view/data in one queued task: rapid changes cannot
+    // allow an older selection to overwrite the newest one. Small local tables stay immediate.
+    function requestFilterPaint() {
+      if (rows.length < 1000 && !filterPending()) { repaint(); return; }
+      if (filterPending()) return;
+      stopFill();
+      const generation = ++filterGeneration;
+      filterFrame = requestAnimationFrame(() => {
+        if (generation !== filterGeneration) return;
+        filterFrame = 0;
+        filterTask = setTimeout(() => {
+          if (generation !== filterGeneration) return;
+          filterTask = 0;
+          if (isDisposed || !host.isConnected) { releaseLoading?.(); releaseLoading = null; return; }
+          repaint();
+        }, 0);
+      });
+      syncLoadingState();
+    }
     const windowed = isWindowed ? mountWindowedList({
       scroller, content: body, items: current, key, rowSelector: 'tr[data-row-key]',
-      renderRows: bodyHtml, estimateHeight: VIRTUAL_ROW_HEIGHT, initialKey: initialRowKey,
+      renderRows: bodyHtml, renderParts: bodyParts, estimateHeight: VIRTUAL_ROW_HEIGHT, initialKey: initialRowKey,
       spacerHtml: (height, edge) => `<tr aria-hidden="true"><td data-window-spacer="${edge}" colspan="${colCount}" style="height:${height}px;padding:0;border:0"></td></tr>`,
       onScrollActivity,
       onWindow: (start, total) => {
         host.dataset.virtualStart = start; host.dataset.virtualTotal = total;
         tableEl?.setAttribute('aria-rowcount', String(total + 1));
-        rowHtmlCache.clear(); staleKeys.clear();
+        // Keep a small reusable window; scrolling does not invalidate unchanged row content.
+        while (rowHtmlCache.size > 160) rowHtmlCache.delete(rowHtmlCache.keys().next().value);
+        staleKeys.clear();
       },
     }) : null;
+    activePresentation = windowed && presentRows ? () => {
+      rowHtmlCache.clear(); // NEW highlights and entrance state are presentation revisions.
+      if (!filterPending()) windowed.update(presentRows(current, { resetScroll: false }));
+    } : null;
     let scrollAttached = false;
     let scrollFrame = 0;
 
@@ -1000,11 +1065,10 @@ export function scoreTable(config) {
       const nextStart = Math.max(0, Math.min(Math.max(0, current.length - VIRTUAL_WINDOW_ROWS), Math.round(start) || 0));
       if (nextStart === virtualStart && body.querySelector('tr[data-row-key]')) return;
       virtualStart = nextStart;
-      // Do not retain markup for rows that have left the viewport. The data array remains complete;
-      // this cache is only a rendering optimisation and must be bounded just like the DOM.
-      rowHtmlCache.clear();
+      // Do not clear the complete row cache at every boundary.
+      // rowHtmlCache.clear();
       staleKeys.clear();
-      body.innerHTML = virtualBodyHtml(current, virtualStart);
+      syncListDOM(body, virtualBodyHtml(current, virtualStart), virtualStart);
       host.setAttribute('data-virtual-start', String(virtualStart));
       host.setAttribute('data-virtual-total', String(current.length));
       tableEl?.setAttribute('aria-rowcount', String(current.length + 1));
@@ -1068,18 +1132,25 @@ export function scoreTable(config) {
     // The reorder path needs every next row already in the DOM, which is only true once the fill
     // has finished. Mid-fill it falls through to the rebuild — which is now the cheap path, since
     // a rebuild is a screenful plus a fresh fill rather than 1,722 rows.
-    function repaint({ resetScroll = true } = {}) {
+    function repaint(options) {
+      try { paintRows(options); }
+      finally { syncLoadingState(); }
+    }
+
+    function paintRows({ resetScroll = true } = {}) {
       stopFill();
       current = visibleRows();
+      onVisibleRowsChange?.(current);
       head.innerHTML = headHtml();
 
       if (isVirtual) {
         if (windowed) {
-          windowed.update(current, { resetScroll });
+          windowed.update(presentRows ? presentRows(current, { resetScroll }) : current, { resetScroll });
           markPending(0); countEl.textContent = countText(current);
           if (watchCount) watchCount.textContent = String(watchlist.size());
           return;
         }
+        if (resetScroll && scroller) scroller.scrollTop = 0;
         const visibleIndex = scroller ? Math.floor(scroller.scrollTop / VIRTUAL_ROW_HEIGHT) : 0;
         virtualStart = -1; // the filtered/sorted row identities changed; force a bounded rebuild
         paintVirtualWindow(visibleIndex - VIRTUAL_OVERSCAN_ROWS);
@@ -1121,7 +1192,7 @@ export function scoreTable(config) {
       } else {
         // Rebuilt from source, so nothing is stale any more — including the rows the fill has
         // yet to append, which are generated from the same cache this clears against.
-        body.innerHTML = bodyHtml(current, 0, FIRST_PAINT_ROWS);
+        syncListDOM(body, bodyHtml(current, 0, FIRST_PAINT_ROWS));
         staleKeys.clear();
         filled = Math.min(FIRST_PAINT_ROWS, current.length);
         startFill();
@@ -1129,6 +1200,7 @@ export function scoreTable(config) {
 
       countEl.textContent = countText(current);
       if (watchCount) watchCount.textContent = String(watchlist.size());
+      if (resetScroll && scroller) scroller.scrollTop = 0;
     }
 
     // Rebuild named rows in place, leaving the row SET — and so the reader's search, filters,
@@ -1142,6 +1214,7 @@ export function scoreTable(config) {
     updateRows = (keys) => {
       const wanted = new Set([...keys].map(String));
       if (!wanted.size) return 0;
+      for (const k of wanted) rowHtmlCache.delete(k);
       rows.forEach((row, i) => { if (wanted.has(String(key(row))) && searchTextIndex) searchTextIndex[i] = undefined; });
       if (windowed) {
         const touched = [...body.querySelectorAll('tr[data-row-key]')].filter(tr => wanted.has(tr.dataset.rowKey)).length;
@@ -1192,27 +1265,56 @@ export function scoreTable(config) {
       const k = th.dataset.sort;
       if (view.sort && view.sort.key === k) view.sort.dir = view.sort.dir === 'asc' ? 'desc' : 'asc';
       else view.sort = { key: k, dir: 'desc' };
-      repaint();
+      requestFilterPaint();
     });
+
+    // ONE COMPANY CAN BE SEVERAL ROWS. Three announcements from one filer share a watch key
+    // and each carries its own star, so invalidating only the row that was clicked would leave
+    // the other two showing the opposite of what is stored — the same disagreement between a
+    // control and its state that `staleKeys` exists to close, arrived at from the other side.
+    function restainWatched(company) {
+      // The prompt below is asynchronous, so this can run after the reader has navigated away and
+      // the table has been torn down. Painting into a detached host would be silent and wrong;
+      // the state is already written either way.
+      if (!host.isConnected) return;
+      for (const r of rows) {
+        if (watchKeyOf(r) !== company) continue;
+        const slug = String(key(r));
+        rowHtmlCache.delete(slug); // its star changed — rebuild just that row next paint
+        staleKeys.add(slug); //      ...including on the fast path, which re-parses nothing
+      }
+      repaint({ resetScroll: false });
+    }
+
+    // THE STAR WRITES TO A LIST EVERYBODY READS, so adding asks whose add it is.
+    //
+    // Unstarring does not ask. It is the undo for a mis-click and has to stay one click, and the
+    // contract lets a removal be unattributed rather than inventing a name for it — see
+    // `watchlistIntent` in js/data/watchlist-shared.js. The name this device last used still rides
+    // along when there is one, so a removal is usually attributed anyway.
+    //
+    // The dialog is imported on demand: it imports `openModal` from this very file, and a static
+    // import would be a cycle. Lazy also means the modal costs nothing until somebody stars a row.
+    async function toggleWatched(company, label) {
+      if (watchlist.has(company)) {
+        watchlist.remove(company);
+        restainWatched(company);
+        return;
+      }
+      const { askContributor } = await import('./watchlist-attribution.js');
+      const by = await askContributor({ ticker: company, company: label || company });
+      // Backing out of the prompt is an answer: nothing is added, and nothing is added anonymously.
+      if (!by) return;
+      watchlist.add(company, label, by);
+      restainWatched(company);
+    }
 
     // Delegated: watchlist star, external link, row click — in that priority order.
     body.addEventListener('click', (e) => {
       const star = e.target.closest('[data-watch]');
       if (star) {
         e.stopPropagation();
-        const company = star.dataset.watch;
-        watchlist.toggle(company, star.dataset.watchName || null);
-        // ONE COMPANY CAN BE SEVERAL ROWS. Three announcements from one filer share a watch key
-        // and each carries its own star, so invalidating only the row that was clicked would leave
-        // the other two showing the opposite of what is stored — the same disagreement between a
-        // control and its state that `staleKeys` exists to close, arrived at from the other side.
-        for (const r of rows) {
-          if (watchKeyOf(r) !== company) continue;
-          const slug = String(key(r));
-          rowHtmlCache.delete(slug); // its star changed — rebuild just that row next paint
-          staleKeys.add(slug); //      ...including on the fast path, which re-parses nothing
-        }
-        repaint({ resetScroll: false });
+        void toggleWatched(star.dataset.watch, star.dataset.watchName || null);
         return;
       }
       if (e.target.closest('[data-stop]')) {
@@ -1235,13 +1337,14 @@ export function scoreTable(config) {
     }) : null;
     if (!searchControl) searchEl.addEventListener('input', () => {
       view.q = searchEl.value.trim().toLowerCase();
-      repaint();
+      requestFilterPaint();
     });
 
     filterEls.forEach((el, i) =>
       el.addEventListener('change', () => {
         view.filters[i] = el.value;
-        repaint();
+        requestFilterPaint();
+        onFilterChange?.(view, i);
       })
     );
 
@@ -1252,14 +1355,15 @@ export function scoreTable(config) {
       watchBtn.classList.toggle('bg-amber-100', view.watchOnly);
       watchBtn.classList.toggle('border-amber-300', view.watchOnly);
       watchBtn.classList.toggle('text-amber-800', view.watchOnly);
-      repaint();
+      requestFilterPaint();
     });
 
     // Export: `onExport` receives the currently visible rows. Tabs that haven't adopted the
     // real exporter yet fall back to logging intent rather than silently doing nothing.
     // It reads `current` — the row DATA — not the DOM, so a fill still in flight cannot truncate
     // a workbook. That is the whole reason the visible set is tracked as an array.
-    host.querySelector('[data-export]').addEventListener('click', () => {
+    exportBtn.addEventListener('click', () => {
+      if (filterPending() || (loading && current.length === 0)) return;
       if (onExport) onExport(current, exportName);
       else console.info(`[stub] Export Excel → "${exportName}" (${current.length} rows).`);
     });
@@ -1267,8 +1371,32 @@ export function scoreTable(config) {
     startFill();
     startSearchWarm();
 
+    syncLoadingState();
+    activeRepaint = options => {
+      // Live removals (including revoked private records) must leave the DOM immediately.
+      // Finish the latest selection with the new rows and retire its deferred callback.
+      const pending = filterPending();
+      if (pending) {
+        filterGeneration++;
+        if (filterFrame) cancelAnimationFrame(filterFrame);
+        clearTimeout(filterTask);
+        filterFrame = 0; filterTask = 0;
+      }
+      repaint(pending ? { resetScroll: true } : options);
+    };
+
     return () => {
       releaseSearch?.();
+      isDisposed = true;
+      rowHtmlCache.clear(); staleKeys.clear();
+      activeRepaint = null;
+      activePresentation = null;
+      activeLoading = null;
+      filterGeneration++;
+      if (filterFrame) cancelAnimationFrame(filterFrame);
+      clearTimeout(filterTask);
+      filterFrame = 0; filterTask = 0;
+      releaseLoading?.(); releaseLoading = null;
       offBookmarks(); offBookmarkCache();
       windowed?.destroy();
       stopFill();
@@ -1280,7 +1408,51 @@ export function scoreTable(config) {
     };
   }
 
-  return { html, wire, view, updateRows: (keys) => updateRows(keys) };
+  function updateData(newRows, newFilters = undefined, options = {}) {
+    if (isDisposed) return;
+    if (!newRows) return;
+    if (typeof options.loading === 'boolean') loading = options.loading;
+    
+    const oldRowsByKey = new Map(rows.map(r => [String(key(r)), r]));
+    const removedMarkup = new Set(rowHtmlCache.keys());
+    rows = newRows;
+    for (const row of rows) {
+      const k = String(key(row));
+      removedMarkup.delete(k);
+      const old = oldRowsByKey.get(k);
+      if (!old || old !== row || old.revision !== row.revision) {
+        rowHtmlCache.delete(k);
+        staleKeys.add(k);
+      }
+    }
+    // Drop removed evidence immediately, including private rows revoked during a live read.
+    for (const k of removedMarkup) rowHtmlCache.delete(k);
+
+    if (newFilters !== undefined) {
+      filterDefs = newFilters;
+      view.filters = filterDefs.map((f, i) => {
+        const existing = view.filters[i];
+        if (f.options.some(o => o.value === existing)) return existing;
+        return f.value || 'all';
+      });
+    }
+    
+    totalCount = rows.length;
+    searchTextIndex = searchable ? new Array(rows.length) : null;
+    
+    if (activeRepaint) {
+      activeRepaint({ resetScroll: false });
+    }
+  }
+
+  // Source status may change while the immutable row model stays identical. Callers that know
+  // that can update the existing loading state without discarding search, sorting or row caches.
+  function updateStatus(options = {}) {
+    if (isDisposed) return;
+    if (typeof options.loading === 'boolean') loading = options.loading;
+    activeLoading?.();
+  }
+  return { html, wire, view, updateRows: (keys) => updateRows(keys), updateData, updateStatus, refreshPresentation: () => activePresentation?.() };
 }
 
 // ---------------------------------------------------------------------------------------
@@ -1289,6 +1461,7 @@ export function scoreTable(config) {
 
 let drillKeyHandler = null;
 let releaseDrillFocus = null;
+let drillOnClose = null;
 
 /**
  * openDrill({ name, sub, link, linkLabel, headerStats, groups, banner })
@@ -1302,12 +1475,15 @@ let releaseDrillFocus = null;
  *  banner       optional { tone: 'rose'|'amber'|'slate', title, body } strip under the header
  *  beforeGroupsHtml  trusted markup rendered above the rule groups (series tables, charts)
  */
-export function openDrill({ name = '', sub = '', link = null, linkLabel = 'Open source ↗', headerStats = [], groups = [], banner = null, beforeGroupsHtml = '' }) {
+export function openDrill({ name = '', sub = '', link = null, linkLabel = 'Open source ↗', headerStats = [], groups = [], banner = null, beforeGroupsHtml = '', onClose = null }) {
   const panel = document.getElementById('drill-panel');
   const overlay = document.getElementById('drill-overlay');
   const content = document.getElementById('drill-content');
   if (!panel || !overlay || !content) return;
 
+  drillOnClose?.();
+  drillOnClose = typeof onClose === 'function' ? onClose : null;
+  if (drillKeyHandler) document.removeEventListener('keydown', drillKeyHandler);
   const { color, initials } = avatarFor(name);
 
   const bannerTone = {
@@ -1317,7 +1493,7 @@ export function openDrill({ name = '', sub = '', link = null, linkLabel = 'Open 
   };
 
   content.innerHTML = `
-    <div class="sticky top-0 z-10 border-b border-slate-100 bg-white/95 p-5 backdrop-blur-sm">
+    <div class="sticky top-0 z-10 border-b border-slate-100 bg-white p-5 ">
       <button data-drill-close class="absolute right-4 top-4 text-2xl leading-none text-slate-400 hover:text-slate-700" aria-label="Close">×</button>
       <div class="flex items-center gap-4 pr-8">
         <div class="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-lg font-bold text-white shadow-md">${escapeHtml(initials)}</div>
@@ -1333,10 +1509,10 @@ export function openDrill({ name = '', sub = '', link = null, linkLabel = 'Open 
                ${headerStats
                  .map(
                    (hs) => `
-                 <div class="rounded-lg bg-slate-50 p-3">
+                 <div class="rounded-lg bg-slate-50 p-3"${hs.id ? ` data-stat="${escapeHtml(hs.id)}"` : ''}>
                    <div class="text-xs font-medium text-slate-500">${escapeHtml(hs.label)}</div>
                    <div class="text-2xl font-bold tabular-nums ${METRIC_TONE[hs.tone] || 'text-slate-900'}">${escapeHtml(hs.value)}</div>
-                   ${hs.caption ? `<div class="truncate text-xs text-slate-500">${escapeHtml(hs.caption)}</div>` : ''}
+                   ${hs.caption ? `<div class="${hs.captionWrap ? '' : 'truncate'} text-xs text-slate-500">${escapeHtml(hs.caption)}</div>` : ''}
                  </div>`
                  )
                  .join('')}
@@ -1411,6 +1587,7 @@ export function closeDrill() {
   }
   releaseDrillFocus?.();
   releaseDrillFocus = null;
+  const closed = drillOnClose; drillOnClose = null; closed?.();
 }
 
 let modalKeyHandler = null;
@@ -1497,7 +1674,7 @@ export function openWorkspace({
   const activeId = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0].id;
 
   content.innerHTML = `
-    <div class="sticky top-0 z-10 border-b border-slate-200 bg-white/97 backdrop-blur">
+    <div class="sticky top-0 z-10 border-b border-slate-200 bg-white ">
       <div class="flex items-start gap-4 px-6 pt-5">
         <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-base font-bold text-white shadow-md">${escapeHtml(initials)}</div>
         <div class="min-w-0 flex-1">

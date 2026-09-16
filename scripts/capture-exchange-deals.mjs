@@ -1,15 +1,18 @@
 // Lightweight scheduled feed: captures public reports, stores an artifact, never writes a branch.
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { EXCHANGE_SOURCES, validateExchangeSnapshot } from '../public/js/data/exchange-deals-shared.js';
-import { indiaDay } from '../public/js/data/investor-changes.js';
+import { newsDay as indiaDay } from '../public/js/data/news-window.js';
 import { parseExchange, exchangeUrl, shiftDay, applyExchangeSlice, SECURITY_URLS, securityMap } from './lib/exchange-deals.mjs';
 import { latestExchangeArtifact, readLimited, MAX_CAPTURE_BYTES } from '../worker/exchange-artifact.mjs';
+import { captureMunsInsiders, insiderCaptureCompanies } from './lib/muns-insider-capture.mjs';
+import { captureCompanies } from './lib/company-capture.mjs';
+import { loadActivePortfolio } from './lib/active-portfolio.mjs';
 
-export async function captureExchanges(previous, { now = new Date(), fetchText } = {}) {
+export async function captureExchanges(previous, { now = new Date(), fetchText, checkpoint = () => {} } = {}) {
   let snapshot = structuredClone(validateExchangeSnapshot(previous));
-  const checkedAt = now.toISOString(), today = indiaDay(now);
+  const checkedAt = now.toISOString(), today = indiaDay(now.getTime());
   fetchText ||= async (url) => new TextDecoder().decode(await readLimited(await fetch(url, {
     headers: { 'user-agent': 'Mozilla/5.0', accept: '*/*', referer: url.includes('bseindia') ? 'https://www.bseindia.com/' : 'https://www.nseindia.com/' }, signal: AbortSignal.timeout(30000),
   })));
@@ -33,8 +36,10 @@ export async function captureExchanges(previous, { now = new Date(), fetchText }
         console.log(`${source.id}: ${rows.length} rows, ${from} – ${to}`);
       } catch (error) {
         snapshot = applyExchangeSlice(snapshot, source, [], { from, to, checkedAt, error: error.message });
+        checkpoint(snapshot);
         console.error(`${source.id}: ${error.message}; retained prior reports`); break;
       }
+      checkpoint(snapshot);
       from = shiftDay(to, 1);
     }
   }
@@ -47,14 +52,39 @@ async function main() {
     const archive = await latestExchangeArtifact({ repo: process.env.GITHUB_REPOSITORY, token: process.env.GH_TOKEN });
     if (archive) {
       const retained = validateExchangeSnapshot(JSON.parse(archive.text));
-      if (Date.parse(retained.checkedAt) >= Date.parse(previous.checkedAt)) previous = retained;
+      if (Date.parse(retained.updatedAt || retained.checkedAt) >= Date.parse(previous.updatedAt || previous.checkedAt)) previous = retained;
     }
   }
-  const snapshot = await captureExchanges(previous);
-  const text = JSON.stringify(snapshot);
-  if (Buffer.byteLength(text) > MAX_CAPTURE_BYTES) throw new Error('Capture exceeds delivery limit; previous archive retained');
-  mkdirSync('tmp/exchange-capture', { recursive: true });
-  writeFileSync('tmp/exchange-capture/exchange-deals.json.gz', gzipSync(text));
+  const save = (snapshot) => {
+    const text = JSON.stringify(snapshot);
+    if (Buffer.byteLength(text) > MAX_CAPTURE_BYTES) throw new Error('Capture exceeds delivery limit; previous archive retained');
+    mkdirSync('tmp/exchange-capture', { recursive: true });
+    const file = 'tmp/exchange-capture/exchange-deals.json.gz';
+    writeFileSync(`${file}.tmp`, gzipSync(text));
+    renameSync(`${file}.tmp`, file);
+  };
+  const snapshot = await captureExchanges(previous, { checkpoint: save });
+  try {
+    const book = await loadActivePortfolio(fileURLToPath(new URL('../public/data/portfolio-companies.json', import.meta.url)));
+    const { companies } = captureCompanies(fileURLToPath(new URL('../public/data/', import.meta.url)), {
+      holdings: book.holdings.map(c => ({ ...c, priority: true })),
+    });
+    const retained = JSON.parse(readFileSync(new URL('../public/data/insider-trades.json', import.meta.url), 'utf8'));
+    snapshot.insiders = await captureMunsInsiders(snapshot.insiders, insiderCaptureCompanies(companies, retained, snapshot), {
+      request: async (ticker, from, to) => {
+        const response = await fetch(`https://glow-central-research.tech-441.workers.dev/api/insider-trades/${encodeURIComponent(ticker)}?from=${from}&to=${to}`, {
+          headers: { accept: 'application/json' }, signal: AbortSignal.timeout(45000),
+        });
+        return JSON.parse(new TextDecoder().decode(await readLimited(response, 2 * 1024 * 1024)));
+      },
+      checkpoint: insiders => { snapshot.insiders = insiders; snapshot.updatedAt = insiders.checkedAt; save(snapshot); },
+    });
+  } catch (error) {
+    snapshot.insiders = { targetTickers: [], byTicker: {}, ...snapshot.insiders, error: error.message };
+  }
+  snapshot.updatedAt = new Date().toISOString();
+  save(snapshot);
   if (snapshot.sources.some((s) => !s.ok)) process.exitCode = 1;
+  if (snapshot.insiders?.error || Object.values(snapshot.insiders?.byTicker || {}).some(c => c.error)) process.exitCode = 1;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

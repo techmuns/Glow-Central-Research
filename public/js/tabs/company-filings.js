@@ -82,6 +82,7 @@ export function renderCompanyFilings(ctx, { controls = '', wireControls = () => 
         rows: result.documents, key: (r) => `${r.form}|${r.url}`, name: (r) => r.title, nameLabel: 'Document',
         watchKey: (r) => r.ticker, watchName: (r) => companies.find((c) => c.ticker === r.ticker)?.name || r.ticker,
         sub: (r) => r.ticker, link: (r) => r.url, showScore: false, showRank: false,
+        onRowClick: (r) => window.open(r.url, '_blank', 'noopener,noreferrer'),
         searchable: (r) => `${r.title} ${r.date || ''} ${DOMESTIC_FORMS[r.form] || ''}`,
         columns: [
           { label: 'Type', get: (r) => DOMESTIC_FORMS[r.form] || 'Not specified' },
@@ -89,7 +90,7 @@ export function renderCompanyFilings(ctx, { controls = '', wireControls = () => 
           { label: 'Source', get: () => 'Screener.in via Muns' },
         ],
         emptyMessage: `The source returned no ${DOMESTIC_FORMS[type].toLowerCase()} for ${ticker}.`,
-        exportName: `sattva-filings-${ticker}`,
+        exportName: `glow-filings-${ticker}`,
         onExport: (rows, filename) => exportRows({ filename, sheetName: 'Company filings', rows, columns: [
           { header: 'Ticker', key: 'ticker', get: (r) => r.ticker },
           { header: 'Document', key: 'title', width: 45, get: (r) => r.title },

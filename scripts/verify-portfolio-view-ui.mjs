@@ -198,7 +198,7 @@ try {
   assert.equal(await page.getByText('EDELWEISS announces dividend', { exact:true }).count(), 0);
   // Every tab shares the same identity set, including direct links and empty feeds.
   for (const tab of ['daily-alerts','earnings-hub','concall','public-chatter','breakouts','super-investors','ipos','corp-announcements','nse-filings','insider-trades','ai-alerts','ask-research']) {
-    await page.evaluate(tab => { location.hash = `#/research/${tab}?scope=portfolio`; }, tab);
+    await page.evaluate(tab => { location.hash = `#/research/${tab}?scope=portfolio${tab === 'ask-research' ? '&test_stream=1' : ''}`; }, tab);
     await page.waitForFunction(async tab => (await import('/js/core/state.js')).state.tab === tab, tab);
     await page.getByRole('button', { name:'View Portfolio',exact:true }).click();
     assert.equal(await page.locator('[data-scope-count]').innerText(), '3', tab);
@@ -234,12 +234,15 @@ try {
       await page.evaluate(async () => { (await import('/js/core/watchlist.js')).add('KISSHT', 'OnEMI scheduled result'); });
       await page.evaluate(date => { location.hash = `#/research/earnings-hub?scope=watchlist&view=calendar&date=${date}`; }, todayIst);
       await page.waitForFunction(async () => (await import('/js/core/state.js')).state.scope === 'watchlist');
+      await page.getByText('Watchlist ·', { exact:false }).waitFor();
       await page.getByText('OnEMI scheduled result', { exact:true }).waitFor();
       const watchlistCalendar = await page.locator('#content-host').innerText();
       assert.doesNotMatch(watchlistCalendar, /New holding scheduled call|Outside scheduled call|Unresolved scheduled call/);
+      
       await page.evaluate(date => { location.hash = `#/research/earnings-hub?scope=universe&view=calendar&date=${date}`; }, todayIst);
       await page.waitForFunction(async () => (await import('/js/core/state.js')).state.scope === 'universe');
-      await page.getByText('Unresolved scheduled call', { exact:true }).waitFor();
+      // Universe scope has no scope summary pill, so wait for something unique to Universe
+      await page.getByText('Outside scheduled call', { exact:true }).waitFor();
       const universeCalendar = await page.locator('#content-host').innerText();
       assert.match(universeCalendar, /Outside scheduled call/);
       assert.match(universeCalendar, /Unresolved scheduled call/);
@@ -288,6 +291,22 @@ try {
     // A cached first row can appear while the remaining sources are still being read. Measure
     // the completed reading layout, not whichever partial-feed status wrapped on that tick.
     await frame.waitForFunction(() => !/Reading \d+ more feeds?/.test(document.querySelector('[data-section-head]')?.textContent || ''), null, { timeout: 60000 });
+    const settleLayout = () => frame.evaluate(async () => {
+      await document.fonts.ready;
+      await document.querySelector('[data-brand-mark] img').decode();
+      let previous = null, stableAt = performance.now();
+      const deadline = stableAt + 10000;
+      for (;;) {
+        await new Promise(requestAnimationFrame);
+        const stamp = JSON.stringify(['[data-app-header]', '[data-section-head]', '[data-alerts-controls]', '[data-table-scroll]']
+          .map(selector => document.querySelector(selector).getBoundingClientRect().toJSON()));
+        if (stamp !== previous) stableAt = performance.now();
+        else if (performance.now() - stableAt >= 400) return;
+        if (performance.now() > deadline) throw Error('Embedded reading layout did not stabilize');
+        previous = stamp;
+      }
+    });
+    await settleLayout();
     const measure = () => frame.evaluate(() => {
       const table = document.querySelector('[data-table-scroll]').getBoundingClientRect();
       return { top: table.top, height: table.height, bottom: table.bottom, viewport: innerHeight,
@@ -298,6 +317,7 @@ try {
         headerVisible: getComputedStyle(document.querySelector('[data-app-header]')).display !== 'none' };
     });
     const normal = await measure();
+    assert.equal(await frame.locator('[data-alert-arrivals]').count(), 0, 'rows stream directly without a separate live banner');
     assert(normal.pageWidth <= normal.width + 2, `no horizontal page clipping at ${size.width}px`);
     assert(normal.toolbar <= (size.width >= 1024 ? 66 : 165), `search, watchlist and all filters retain a compact row budget: ${JSON.stringify(normal)}`);
     // Source arrivals can replace the field between waitFor and boundingBox. Read atomically.
@@ -309,7 +329,7 @@ try {
     assert.deepEqual(clipped, [], 'layout controls stay reachable, not merely hidden by page overflow clipping');
     if (size.width >= 1024) {
       const brand = await frame.locator('[data-brand-mark] img').evaluate(async image => { await image.decode(); return image.getBoundingClientRect().width; });
-      assert(brand >= 180, 'the full wordmark remains legible in the compact table header');
+      assert(brand >= 180, `the full wordmark remains legible in the compact table header (${brand}px at ${size.width}px)`);
       assert(normal.controls <= 52, `desktop view controls fit on one row: ${JSON.stringify(normal)}`);
       assert.equal(await frame.locator('[data-table-filter]').count(), 4, 'the compact layout retains all four independent filters');
       assert(await frame.getByRole('combobox', { name: 'Company relationship' }).isVisible(), 'company relationship remains directly available');
@@ -328,16 +348,28 @@ try {
       return { afterOpenRepaint, afterCloseRepaint: document.querySelector('[data-alerts-sources]').open };
     });
     assert.deepEqual(pickerState, { afterOpenRepaint: true, afterCloseRepaint: false }, 'repaints preserve native source-menu state before the queued toggle event');
+    await settleLayout();
+    const beforePicker = await measure();
     await frame.locator('[data-sources-summary]').click();
     await frame.locator('[data-alerts-coverage]').waitFor({ state: 'visible' });
     const expanded = await measure();
-    assert.equal(expanded.height, normal.height, 'filters overlay, rather than consume, the reading space');
-    const panel = await frame.waitForFunction(() => {
-      const box = document.querySelector('[data-alerts-coverage]')?.getBoundingClientRect();
-      return box?.width > 0 && box.height > 0 ? { width: box.width } : false;
-    });
-    assert((await panel.jsonValue()).width <= normal.width, 'source picker stays within the host frame');
-    await panel.dispose();
+    assert.equal(expanded.height, beforePicker.height, 'filters overlay, rather than consume, the reading space');
+    // Repeated source arrivals must not stack handlers on the preserved panel. A single
+    // source selection and its description must agree after every repaint.
+    for (let repaint = 0; repaint < 3; repaint++) {
+      await frame.locator('[data-feed-toggle="__all"]').click();
+      const source = frame.locator('[data-feed-toggle]:not([data-feed-toggle="__all"])').first();
+      const id = await source.getAttribute('data-feed-toggle');
+      await source.click();
+      assert.equal(await frame.locator('[data-source-selection]').innerText(), '1 selected');
+      assert.equal(await frame.locator(`[data-feed-toggle="${id}"]`).getAttribute('aria-checked'), 'true');
+      const selectedName = await frame.locator('[data-sources-summary]').getAttribute('title');
+      assert.notEqual(selectedName, 'Every available source');
+      assert((await frame.locator('[data-alerts-source-description]').innerText()).startsWith(selectedName));
+    }
+    await frame.locator('[data-feed-toggle="__all"]').click();
+    const panel = await frame.locator('[data-alerts-coverage]').boundingBox();
+    assert(panel.width <= normal.width, 'source picker stays within the host frame');
     await frame.locator('[data-sources-close]').click();
     await frame.locator('[data-table-search]').fill('KISSHT');
     await frame.locator('[data-alerts-focus]').click();

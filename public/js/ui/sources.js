@@ -18,6 +18,8 @@ import * as familyManagers from '../data/managers.js';
 // `readState` is separate: only a recent successful check can produce a Connected indicator.
 // Roadmap-only entries and credential plumbing are not customer-facing data sources.
 
+import * as exchangeDeals from '../data/exchange-deals.js';
+import { EXCHANGE_SOURCES } from '../data/exchange-deals-shared.js';
 import { companyCaptureStatus } from '../data/company-captures.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatRelativeTime, formatNumber } from '../core/format.js';
@@ -30,6 +32,7 @@ import * as telegramPosts from '../data/telegram-posts.js';
 import { telegramReadHealth } from '../data/telegram-health.js';
 import * as institutions from '../data/institution-holdings.js';
 import * as technicals from '../data/technicals.js';
+import * as breakoutLive from '../data/breakout-live.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
 import * as nseFeed from '../data/nse-filings.js';
@@ -223,6 +226,9 @@ export function sourceGroups() {
   const mfCats = num(() => mfWeekly.meta()?.categoryCount);
   const mfSchemes = num(() => mfWeekly.meta()?.fundCount);
   const mfIndices = num(() => mfWeekly.meta()?.benchmarkCount);
+  const breakoutCapture = breakoutLive.snapshot();
+  const breakoutHealth = breakoutLive.coverageFor(breakoutCapture?.targets || []);
+  const breakoutState = breakoutLive.unavailable() ? 'unavailable' : !breakoutHealth.total ? 'unchecked' : breakoutHealth.partial ? 'partial' : 'read';
   const uni = num(() => technicals.all().length);
   const reported = num(() => earningsLive.all().length);
   const calls = num(() => concalls.all().length);
@@ -306,12 +312,12 @@ export function sourceGroups() {
           file: 'public/data/atr-history.json',
         },
         {
-          name: 'Munshot quote API — live prices',
-          url: 'https://muns.io',
-          feeds: 'On-demand intraday quotes behind the Breakouts tab\'s "Refresh prices" button, proxied server-side by the Worker so no token reaches the browser. Session-only; nothing is written to the repo. It moves the CMP column ONLY — the 16-rule technicals score stays as computed from the EOD series, and a live cell is marked with an indigo dot saying so. The upstream is cache-backed, so a cold name can overrun the request budget: the response names what did not land and whether another click would fetch it.',
-          cadence: 'On demand · quotes held 45s at the edge · needs the Cloudflare Worker',
-          status: 'live',
-          file: 'worker/index.js · POST /api/live-prices',
+          name: 'Saved price and volume capture — Yahoo Finance / optional Upstox',
+          url: 'https://upstox.com/developer/api-documentation/analytics-token/',
+          feeds: 'One background capture covers the universe, live portfolio and shared watchlist. Yahoo Finance supplies the primary observations; Upstox is an optional credentialed backup. Saved price and cumulative session volume drive breakout checks, while the 16-rule score retains its daily close date. Every price carries its source time. Failures keep dated observations, and available historical candles can recover gaps.',
+          cadence: `15-minute schedule in market hours; GitHub delays and source failures remain visible. ${breakoutHealth.total ? `${breakoutHealth.checked} of ${breakoutHealth.total} companies have current usable observations.` : 'No shared capture has been read yet.'} Last completed source check: ${breakoutCapture?.completedAt ? breakoutLive.stamp(breakoutCapture.completedAt) : 'not available'}.`,
+          status: 'live', readState: breakoutState,
+          file: 'GET /api/breakouts · durable saved history',
         },
         {
           name: 'NSE 500 constituent list (Screener export)',
@@ -455,9 +461,9 @@ export function sourceGroups() {
             'Mentions of companies and topics across <strong>ValuePickr</strong>, <strong>TradingQnA</strong> and <strong>Google News</strong> over a rolling 30 days, with a keyword-scored sentiment split per entry. ' +
             'The counts and the sentiment are <strong>theirs</strong> and are reproduced unchanged, never re-banded. Called <strong>directly from your browser</strong>, not through this site\'s Worker &mdash; Cloudflare refuses a Worker-to-Worker request inside one account, so a proxy here returned 404 while the API was healthy. Their ETag and a 304 keep it cheap. ' +
             '<strong>"Mentions Δ" is a change in mention volume, not a price move</strong> — there is no price anywhere in this feed.',
-          cadence: 'Re-scraped twice daily, 01:30 and 13:30 UTC · this page polls hourly',
+          cadence: 'Source checks requested every two hours · page checks every five minutes while visible and on return · saved data paints immediately',
           status: 'live',
-          file: 'public/js/data/chatter-live.js · window.SATTVA_CHATTER_URL in index.html',
+          file: 'public/js/data/chatter-live.js · public/js/data/chatter-health.js',
         },
         {
           name: 'Telegram — a public research channel',
@@ -572,6 +578,15 @@ export function sourceGroups() {
           status: 'live',
           file: 'scripts/lib/screener-actions.mjs · scripts/scrape-corporate-actions.mjs · .github/workflows/corporate-actions-refresh.yml',
         },
+        ...EXCHANGE_SOURCES.map(source => {
+          const meta = exchangeDeals.meta();
+          const check = meta?.sources?.find(s => s.id === source.id);
+          return { id: source.id, name: `${source.exchange} — ${source.category} reports`, url: source.url,
+            feeds: 'Complete public exchange reports, retaining the client, date, venue, side, quantity and price. Successfully covered exchange intervals take precedence over secondary listings. Portfolio and Watchlist use Sattva company membership.',
+            cadence: 'Scheduled every 30 minutes on weekday days/evenings, with weekend catch-up; checked every minute while visible. Retained history survives failed reads.',
+            status: 'live', readState: sourceReadState({ at: check?.lastSuccessAt, failed: !!meta?.deliveryError || check?.ok === false, maxAgeMs: 3 * 3600000 }),
+            file: 'scripts/capture-exchange-deals.mjs · worker/exchange-deals.mjs · .github/workflows/bulk-block-refresh.yml' };
+        }),
         {
           name: 'Screener.in — Bulk, Block, SAST and Insider trades',
           url: 'https://www.screener.in/trades/',
@@ -585,8 +600,8 @@ export function sourceGroups() {
           name: 'Muns filings API — company insider-trade detail',
           url: 'https://devde.muns.io',
           feeds:
-            '<strong>Supplemental company detail.</strong> A reader-initiated refresh can add promoter, director and designated-person dealing from <code class="rounded bg-slate-100 px-1">POST /filings/data/insider_trades</code>, routing to NSE, BSE and Trendlyne. Its source-defined markdown columns are retained and combined with the market-wide lists without duplicating matching economic events.',
-          cadence: 'On demand for the selected companies; additive within the same rolling 365-day history. It does not own scheduled market-wide coverage.',
+            '<strong>Supplemental company detail.</strong> An independent scheduled company walk adds promoter, director and designated-person dealing from <code class="rounded bg-slate-100 px-1">POST /filings/data/insider_trades</code>, routing to NSE, BSE and Trendlyne. Its source-defined markdown columns are retained and combined with the market-wide lists without duplicating matching economic events.',
+          cadence: 'A rotating scheduled walk checks due Sattva portfolio companies first and then the retained universe, with a week of overlap after each successful read. Every company retains its own check time and failures; older disclosures stay available. Manual refresh can supplement the selected companies.',
           status: 'live',
           file: 'worker/index.js → /api/insider-trades/{ticker} · worker/muns.mjs · public/js/data/filings-shared.js',
         },
@@ -820,7 +835,6 @@ export function sourceGroups() {
     ['Yahoo Finance — EOD OHLCV', technicals.meta(), 96 * 3600000],
     ['Live published-results feed', earningsLive.meta(), 10 * 60000],
     ['Con-call scans — third-party research provider', concalls.meta(), 10 * 60000],
-    ['SentimentDash — mention counts and sentiment', chatter.meta(), 26 * 3600000],
     ['BSE — corporate announcements, indexed by date', annFeed.meta(), 4 * 3600000],
     ['NSE — live exchange announcements', nseFeed.meta(), 15 * 60000],
   ];
@@ -832,6 +846,9 @@ export function sourceGroups() {
       partial: Number(meta?.failed) > 0 || (Array.isArray(meta?.failures) ? meta.failures.length > 0 : Number(meta?.failures) > 0), maxAgeMs });
   }
   const telegramSource = groups.flatMap(g => g.items).find(i => i.name === 'Telegram — a public research channel');
+  const chatterSource = groups.flatMap(g => g.items).find(i => i.name === 'SentimentDash — mention counts and sentiment');
+  if (chatterSource) chatterSource.readState = ({ updated: 'read', checking: 'unconfirmed', failed: 'unavailable',
+    unavailable: 'unavailable', unconfirmed: 'unchecked', delayed: 'dated', partial: 'partial' })[chatter.meta()?.health?.state] || 'unchecked';
   if (telegramSource) telegramSource.readState = sourceReadState(telegramReadHealth(tgMeta || {}));
   // Keep roadmap and credential implementation details in the code/docs, outside the source
   // count. Configured sources with a failed read remain listed with their actual read state.

@@ -114,7 +114,10 @@ try {
   assert.equal(cachedDocuments.redirected, false, 'revalidated redirects remain safe for later navigation');
   assert(cachedDocuments.readerModule, 'the independent reader module graph is warmed');
 
-  await page.goto(`${origin}/#/research/ask-research?scope=portfolio`);
+  // Ask Research is stood down by default on this deployment (`isComingSoon` in the tab), so a
+  // check that drives the real composer asks for it explicitly. Without this the layout is inert
+  // and the connection chip never reaches `connected` — a pass/fail about a switch, not the bridge.
+  await page.goto(`${origin}/#/research/ask-research?scope=portfolio&enable_research=1`);
   await page.locator('[data-portfolio-connection][data-state="connected"]').waitFor();
   const before = bookReads;
   await page.getByRole('textbox', { name: 'Ask about the dashboard' }).fill('what needs attention for my largest portfolio?');

@@ -77,6 +77,29 @@ limits only: company/event search evaluates all eligible cards and their evidenc
 remains the broader retained-record view. Routine/unverified records do not gain priority merely
 because they were collected.
 
+AI Alerts keeps keyed company cards and their controls mounted during background updates and
+pagination. Corrections patch the affected content while preserving unchanged nodes, focus and the
+reading position. Bookmark actions resolve from the complete current result pool, including
+below-threshold search results and tickerless entities; the default score threshold is unchanged.
+An asynchronous save rechecks its owning view, account/access identity and canonical record before
+writing the personal notebook. Saved snapshots retain their existing provenance and privacy rules.
+
+Ranking reuse compares immutable event publications and Insights records plus the full membership,
+positions, Indian calendar day, scope, relevant source health and account/access identity. Same-count
+corrections and failed-source transitions must invalidate it; counts or capture timestamps alone
+are insufficient. The bounded cache stays in memory and is cleared on portfolio invalidation.
+Cumulative partials reuse their ranking; unfinished sources still merge missing older evidence.
+Leaving the view stops its ranking work without cancelling shared collection or retained history.
+Failed Insights projections keep stable identities until the content/status changes. Existing source
+notification coalescing must still deliver the final meaningful update.
+
+Local Chrome measurement on 16 September 2026: five rank/partial-merge cycles with 33,568 synthetic
+records, 1,500 in-window events and 125 companies took 1,243 ms before these changes and 291 ms after.
+The first after-change derivation took 281 ms; subsequent unchanged cycles took 2–3 ms. These are
+unthrottled local JavaScript measurements, not production load times. They justify removing repeat
+work, but do not establish that cold-load computation or every navigation is fast on slower devices.
+Worker/chunking changes remain a separate decision requiring cold-load measurements.
+
 Company-news capture rejects empty provider rows containing only discovery bookkeeping. Legacy
 anonymous observations use a stable, full-content fallback identity, retaining distinct unlinked
 snippets and source links, first/last observation times and query provenance. Repeated seeding
@@ -133,14 +156,14 @@ recovery boundaries and local interruption/reload acceptance tests.
 
 ### News delivery integrity (7 September 2026)
 
-**Recent reading defaults (8 September 2026):** at the customer's request, News defaults to Today
-and All Alerts defaults to Last 3 days. Today, Last 3 days, Last 7 days, Last 14 days, Last 30 days
+**Recent reading defaults (updated 15 September 2026):** at the customer's request, News and
+All Alerts default to Today. Today, Last 3 days, Last 7 days, Last 14 days, Last 30 days
 and This month are IST calendar filters; each
 rolling period includes today, and This month can include 31 days. Date not supplied is a separate
 choice: observation timestamps never make undated articles appear current. Portfolio, Watchlist
 and Universe use these same boundaries. All Alerts also retains All history through today,
 Older than 30 days and its unchanged Upcoming horizon. Explicit company "See all" links select
-All history rather than silently applying the 3-day default. Capture cadence, permanent storage,
+All history rather than silently applying the Today default. Capture cadence, permanent storage,
 AI Alerts and research history are unchanged; these are reading windows, not deletion policies.
 
 The recent reader loads only overlapping archive months, including the boundary month needed for
@@ -305,3 +328,25 @@ Catalogue/portfolio timestamps and pending counts must stay distinct from saved-
 health. Initial backfill is quota-limited; same-ID source corrections are not automatically checked.
 See `CONCALL-SUMMARIES.md` for retention limits, activation gates and the unverified live source
 parser. Offline tests do not certify production capture or complete portfolio summary coverage.
+
+## Performance vs. Data Integrity
+**DATA INTEGRITY IS A RELEASE-BLOCKING REQUIREMENT.**
+
+Performance improvements must preserve incoming data, historical records, and existing freshness guarantees.
+
+* Do not reduce collection frequency, source coverage, pagination, retries, backfills, or retention to improve performance.
+* Switching tabs may cancel obsolete rendering work, but must not discard incoming records or interrupt shared collection/storage. Unfinished view calculations must remain reproducible from retained data.
+* Rendering limits apply only to mounted DOM rows. Search, filters, sorting, and export must operate on the complete eligible dataset.
+* Coalescing updates must preserve every distinct record and correction. Any deferred update must eventually appear automatically.
+* Keep the last good data during failures. Clearly distinguish loading, partial, stale, failed, and genuinely empty results.
+
+Before release, verify:
+1. Identical source fixtures produce the same eligible record IDs and field values before and after the change.
+2. New records, corrections, and late arrivals appear while scrolling, switching tabs, and returning after inactivity.
+3. Partial failures and interrupted requests do not erase existing records.
+4. Old and offscreen records remain searchable and exportable.
+5. Scope changes neither hide eligible records nor expose unauthorized records.
+
+If any data-integrity check fails, block release even if performance improves. Rollbacks must preserve collected history.
+
+**The customer should receive the same complete data, with smoother interaction and honest freshness status. Fewer visible DOM rows must never mean fewer available records.**

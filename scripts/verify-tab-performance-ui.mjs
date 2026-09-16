@@ -66,7 +66,7 @@ try {
     'earnings-hub?scope=universe&view=calendar', 'earnings-hub?scope=universe&view=filings', 'concall?scope=universe',
     'public-chatter?scope=universe', 'public-chatter?scope=universe|Not in coverage', 'public-chatter?scope=universe|Telegram',
     'breakouts/strong-breakouts?scope=universe', 'breakouts/technical-scanner?scope=universe',
-    'breakouts/fii-accumulation?scope=universe', 'breakouts/earnings-surprise?scope=universe',
+    'breakouts/fii-accumulation?scope=universe',
     'super-investors/superstar-investors?scope=universe', 'super-investors/institutions?scope=universe',
     'ipos?scope=universe', 'ipos?scope=universe|directory', 'corp-announcements?scope=universe', 'corporate-actions?scope=universe',
     'nse-filings?scope=universe', 'insider-trades?scope=universe', 'news?scope=universe',
@@ -79,7 +79,7 @@ try {
     await frame.waitForFunction(id => document.querySelector(`[data-tab-id="${id}"]`)?.getAttribute('aria-selected') === 'true', route.split(/[/?]/)[0]);
     await frame.waitForFunction(() => {
       const panel = document.querySelector('#content-host');
-      return panel?.textContent.trim() && !panel.querySelector('.skeleton-shimmer');
+      return panel?.textContent.trim() && !panel.inert && !panel.querySelector('.skeleton-shimmer');
     }, null, { timeout: 60000 });
     if (section === 'directory') await frame.locator('[data-ipo-view]').selectOption('directory');
     else if (section) await frame.locator('[data-chatter-section-tabs]').getByRole('tab', { name: section, exact: true }).click();
@@ -117,7 +117,15 @@ try {
     });
     if (searchMs != null) result.searchMs = searchMs;
     const sort = frame.locator('th[data-sort]').first();
-    if (await sort.count()) result.sortMs = await sort.evaluate(async el => { const start=performance.now(); el.click(); await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); return performance.now()-start; });
+    if (await sort.count()) result.sortMs = await sort.evaluate(async el => { 
+      const start = performance.now(); 
+      el.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, cancelable: true }));
+      el.click(); 
+      await new Promise(requestAnimationFrame); 
+      await new Promise(requestAnimationFrame); 
+      return performance.now() - start; 
+    });
     results.push({ route, readyMs: Math.round(readyMs), ...result });
     console.log(JSON.stringify(results.at(-1)));
     if (profiler) {
@@ -160,26 +168,62 @@ try {
     if (fraction === 1) assert(state.last != null, 'last retained record is reachable');
   }
   const beforeStar = await scroller.evaluate(el => el.scrollTop);
-  await frame.locator('tbody [data-watch]').first().evaluate(el => el.click());
+  await frame.locator('tbody [data-watch]').first().evaluate(el => {
+    el.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
+    el.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, cancelable: true }));
+    el.click();
+  });
   await frame.evaluate(async () => { await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); });
   assert(Math.abs(await scroller.evaluate(el => el.scrollTop) - beforeStar) < 2, 'watchlist actions keep the reading position');
   await frame.locator('[data-export]').click();
   assert.deepEqual(await frame.evaluate(() => exportedIds), Array.from({ length: 3000 }, (_, i) => String(i)), 'export receives every record in exact order, not just mounted rows');
   const search = frame.locator('[data-table-search]');
-  await search.fill('Record 2999');
+  const applySearch = async value => {
+    await search.fill(value);
+    await frame.waitForFunction(() => !document.querySelector('[data-table-loading]'));
+  };
+  await applySearch('Record 2999');
   assert.equal(await frame.locator('tr[data-row-key]').count(), 1, 'search finds the final off-screen record');
   assert.equal(await frame.locator('tr[data-row-key]').getAttribute('data-row-key'), '2999');
   await frame.locator('[data-export]').click();
   assert.deepEqual(await frame.evaluate(() => exportedIds), ['2999'], 'filtered export uses the full matching model');
-  await search.fill('');
+  await applySearch('');
   await frame.locator('th[data-sort="Value"]').click();
+  await frame.waitForFunction(() => !document.querySelector('[data-table-loading]'));
   assert.equal(await frame.locator('tr[data-row-key]').first().getAttribute('data-row-key'), '2999', 'sorting is global');
   await frame.evaluate(() => { records[2999].title = 'Updated live title'; fixtureTable.updateRows(['2999']); });
-  await search.fill('Updated live title');
+  await applySearch('Updated live title');
   assert.equal(await frame.locator('tr[data-row-key]').count(), 1, 'live patches invalidate search text');
-  await search.fill('does-not-exist');
+  await frame.evaluate(() => {
+    records = records.map(row => row.id === '2999' ? { ...row, title: 'Replacement live title' } : row);
+    fixtureTable.updateData(records);
+  });
+  assert.equal(await frame.locator('tr[data-row-key]').count(), 0, 'replacing same-ID records invalidates the old search match');
+  await applySearch('Replacement live title');
+  assert.equal(await frame.locator('tr[data-row-key]').count(), 1);
+  assert((await frame.locator('tr[data-row-key]').innerText()).includes('Replacement live title'),
+    'a correction without an optional revision field replaces the mounted row markup');
+  await applySearch('does-not-exist');
   assert.equal(await frame.locator('tr[data-row-key]').count(), 0, 'empty filtered lists are safe');
-  await search.fill('');
+  await applySearch('');
+  await scroller.evaluate(el => { el.scrollTop = 30000; });
+  await frame.evaluate(async () => { for (let i = 0; i < 5; i++) await new Promise(requestAnimationFrame); });
+  const readAnchor = () => scroller.evaluate(el => {
+    const boundary = el.getBoundingClientRect().top + el.querySelector('thead').offsetHeight;
+    const row = [...el.querySelectorAll('tr[data-row-key]')].find(row => row.getBoundingClientRect().bottom > boundary);
+    return { key: row.dataset.rowKey, offset: row.getBoundingClientRect().top - boundary };
+  });
+  const beforeArrival = await readAnchor();
+  await frame.evaluate(() => {
+    records = [...records.map(row => ({ ...row })), ...Array.from({ length: 50 }, (_, i) => ({
+      id: String(3000 + i), title: 'New arrival ' + i, value: 3000 + i, detail: 'Arrived while reading',
+    }))];
+    fixtureTable.updateData(records);
+  });
+  await frame.evaluate(async () => { for (let i = 0; i < 5; i++) await new Promise(requestAnimationFrame); });
+  const afterArrival = await readAnchor();
+  assert.equal(afterArrival.key, beforeArrival.key, 'arrivals before the viewport preserve the record being read');
+  assert(Math.abs(afterArrival.offset - beforeArrival.offset) <= 2, 'replaced row objects retain their reading offset');
   await page.setViewportSize({ width: 680, height: 800 });
   await frame.evaluate(async () => { for (let i=0;i<5;i++) await new Promise(requestAnimationFrame); });
   assert(await frame.locator('tr[data-row-key]').count() <= 100, 'resizing keeps the DOM bounded');

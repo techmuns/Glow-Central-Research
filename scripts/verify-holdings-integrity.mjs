@@ -83,9 +83,13 @@ try {
   await cacheFeed.refreshSnapshot();
   assert(cacheFeed.book('example'), 'partial snapshot must not erase a cached portfolio');
   assert.equal(cacheFeed.book('example').fetchedAt, fetchedAt);
-  assert.equal(cacheFeed.failureFor('example').reason, 'test-outage');
+  // A retained book whose latest check failed is a FRESHNESS condition, not a gap: `failureFor`
+  // answers "there is nothing to show" and would report a book being drawn as unreadable, so the
+  // failure stays visible through `uncheckedFor` and the coverage audit reads both.
+  assert.equal(cacheFeed.uncheckedFor('example').reason, 'test-outage');
+  assert.equal(cacheFeed.failureFor('example'), null, 'a book on screen is never reported as a gap');
   await cacheFeed.loadBook('example', { force: true });
   assert(cacheFeed.book('example'), 'a live outage must not erase a cached portfolio');
-  assert(cacheFeed.failureFor('example'), 'a failed revalidation of a retained book remains visible');
+  assert(cacheFeed.uncheckedFor('example'), 'a failed revalidation of a retained book remains visible');
 } finally { globalThis.fetch = realFetch; }
 console.log('PASS holdings integrity: partial months, source states, unknown gaps, zero valuations, completed adjacent quarters, retained failures/history, source age, managers and strict legal-entity attribution');

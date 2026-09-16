@@ -1,7 +1,8 @@
 # Glow deployment and Sattva template sync
 
-Audited on 9 September 2026. Template baseline: `techmuns/Sattva-Central-Research` commit
-`542081ef` (includes merged PR #160, with PR #159 calendar/checkpoint fixes).
+Audited on 9 September 2026; template baseline advanced on 16 September 2026 to
+`techmuns/Sattva-Central-Research` commit `cf7eb444` — see *Sync of 16 September 2026* below.
+The original audit baseline was `542081ef` (merged PR #160, with PR #159 calendar/checkpoint fixes).
 
 ## What is shared
 
@@ -153,6 +154,62 @@ repository workflow. A quota notice is never approval. Captures stay in their re
 (and the company-news workflow's uploaded artifact) while publication is pending. Repository
 Actions must permit PR creation; no extra publication PAT is required because CI is explicitly
 dispatched with `GITHUB_TOKEN`.
+
+## Sync of 16 September 2026
+
+Template baseline advanced from `542081ef` to `cf7eb444` — the first sync since 9 September, and
+79 upstream commits across 185 files. It is overwhelmingly performance and reliability work:
+memoised alert assembly, a sharded repeat-visit alert cache, virtualised list geometry, bounded
+Earnings ownership, a snapshot floor under the investor route, and the split of `failureFor` into
+`failureFor` / `uncheckedFor`. Six decisions in it are Glow's and a later sync must not reverse
+them by taking the template side again:
+
+1. **`scripts/fixtures/family-book.json` stays Glow's retained copy.** It is Sattva's family book
+   and is kept only so the template's resolver regression still runs. `worker/portfolio-resolver.mjs`
+   is byte-identical on both sides, so the older input loses no coverage, while the template's newer
+   book carries per-line tickers that change every `matchedBy` in Glow's own paired expectation
+   fixture — which four research checks also read as their stand-in book.
+2. **The investor card reports a gap, and the coverage audit reports both.** The template's
+   `failureFor` split is adopted whole: the card shows a book or says none is published, and never
+   an amber failure over holdings it is drawing. Glow's `js/investors/integrity.js` reads
+   `failureFor(slug) || uncheckedFor(slug)`, because a retained book whose latest check failed is
+   exactly what its "Refresh failed; last successful book retained" line exists to report.
+3. **`verify-technical-filters-ui.mjs` and `verify-technical-filters-context.mjs` are two files.**
+   The template's standalone check serves itself and CI invokes it; Glow's exported one runs inside
+   `verify-glow-parity-ui.mjs`'s origin against the real book. Merging them drops the call.
+4. **Deployment identity in `verify-*` scripts is hand-checked.** `adapt-glow-template.mjs` skips
+   those files deliberately, so `verify-glow-parity.mjs` now scans `scripts/` for foreign repository
+   names, Worker hosts and repository ids, with the four deliberate exceptions named in it.
+5. **A settled loader makes a feed cacheable, not a successful one.** Glow's insider capture carries
+   failed companies, so its loader legitimately rejects on every collection; gating the normalised
+   feed cache on success alone left All Alerts re-sorting the whole retained pool on every scope
+   change. See the note above `settledLoads` in `js/data/daily-alerts.js`.
+6. **Ask Research keeps its stand-down, through ONE switch.** It was already off here, by hard-coded
+   `opacity-30 select-none pointer-events-none` on `.research-layout` — invisible, unnamed and
+   unrevivable. The template's flag now owns that decision alone: `isComingSoon()` in
+   `js/tabs/ask-research.js`, with `enable_research=1` or `__ENABLE_RESEARCH__` turning the real tab
+   on, which is how the checks that drive the live composer ask for it. What a reader sees is
+   unchanged. Turning the tab back on for customers is a deployment decision, not a code change.
+7. **The per-tab live-quote button is gone with the template's own change**, replaced by the Refresh
+   registry over one collected `/api/breakouts` capture. Glow's filter check asserted that a price
+   refresh named exactly the chip selection; there is no per-row request left to narrow, so it
+   asserts the button's absence and that nothing asks for quotes per row. `readChipState` now folds
+   an unrecognised chip id back to its group's default, because such an id reached the predicates
+   and emptied the table while the chip bar highlighted nothing.
+8. **Every download is named for this deployment.** `adaptGlowTemplate` rewrote only the
+   single-quoted `filename:` form, so Breakouts, All Alerts, Super Investors, Public Chatter,
+   Telegram and the notebook all exported `sattva-*.xlsx` from here. The rule now covers the
+   templated forms, the notebook's `download =`, and the `^sattva-` strip that derives a bookmark
+   section from an export name. The postMessage channel, the IndexedDB/BroadcastChannel names and
+   the `sattva-*` CSS classes are deliberately untouched — protocol, durable storage and invisible.
+9. **A modal taller than the window caps its own body.** `#modal-content` in `public/index.html`
+   carries `max-height` and its own scroller, because the centred overlay put a long panel's close
+   button above the scrollable area where no click could reach it.
+
+Two upstream checks needed their budgets widened for this deployment's data volume rather than their
+claims changed: the All Alerts arrival highlight expires at ~24s here against a 25s budget, and the
+repeat-visit window is written off the collection's path, so `whenAlertWindowSaved()` is the signal
+to wait on instead of a sleep.
 
 ## Future upgrades
 

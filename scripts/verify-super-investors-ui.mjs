@@ -80,11 +80,47 @@ try {
   fail = true;
   await page.evaluate(() => testSI.feed.refresh());
   assert.equal(await page.evaluate(async () => (await (await import('/js/core/store.js')).readEntry('investor:one')).value.ok), true, 'failed response cannot poison the device cache');
-  assert.equal(await page.evaluate(() => testSI.feed.meta().failedBooks), 4);
   assert.equal(await page.evaluate(() => testSI.feed.books().length), 3, 'failed refresh retains evidence');
+
+  // A FAILED RE-CHECK MUST NOT BE PAINTED OVER THE BOOK IT FAILED TO RE-CHECK.
+  //
+  // Three books are retained and one investor genuinely has none. The counts must split the same
+  // way, and the cards must show the figures they hold: the shipped bug printed "This book could
+  // not be read" on all ninety cards, directly under each card's own "as of Jun 2026" line, while
+  // every book sat in memory. Counting rows would never have caught it — compare what is DRAWN
+  // against what the feed HOLDS.
+  assert.equal(await page.evaluate(() => testSI.feed.meta().failedBooks), 1, 'only a book with no copy at all counts as failed');
+  assert.equal(await page.evaluate(() => testSI.feed.meta().uncheckedBooks), 3, 'retained books whose re-check failed are counted apart');
+  assert.deepEqual(await page.evaluate(() => testSI.feed.list().filter((i) => testSI.feed.failureFor(i.slug)).map((i) => i.slug)), ['missing'],
+    'failureFor reports a gap, never a retained book');
+  await page.evaluate(() => paint('universe', 'investors'));
+  assert.equal(await page.locator('[data-open-investor]:has-text("could not be read")').count(), 0, 'no failure notice over a retained book');
+  // The stat is labelled "quarter disclosures" here, not "holdings": a >1% pattern is what the
+  // company filed for that quarter, and this deployment says so wherever the figure is printed.
+  assert.equal(await page.locator('[data-open-investor]:has-text("quarter disclosures")').count(), 3, 'every retained book still shows its figures during an outage');
+  assert.equal(await page.locator('[data-open-investor]:has-text("No book published")').count(), 1, 'an investor with no book still says so');
+
+  // The amber block and the raw upstream error string are out of the chrome — and NOT deleted:
+  // the age is on the page and the mechanism is behind the panel's own provenance door.
+  // Scoped past the coverage audit, which is this deployment's own surface and is SUPPOSED to be
+  // amber: it reports freshness exceptions across every investor and manager and is the one place
+  // a retained-but-unchecked book is named. What may not exist is an amber caveat over the
+  // holdings themselves, which is what the cards and the prose assertion below are about.
+  assert.equal(await page.locator('#test-root .bg-amber-50:not([data-holdings-integrity] *)').count(), 0,
+    'no amber caveat block over real filed holdings');
+  assert.doesNotMatch(await page.locator('#test-root').innerText(), /Showing the last good read|fixture outage|book reads failed/,
+    'internal retry states stay out of customer chrome');
+  await page.evaluate(() => paint('universe', 'quarterly-changes'));
+  assert.match(await page.locator('[data-si-freshness]').first().innerText(), /Ticker Finology · (up to date|read )/, 'one quiet freshness label states the age');
+  await page.locator('[data-summary-help]').click();
+  assert.match(await page.locator('#modal-content').innerText(), /could not be re-checked just now/, 'the provenance modal still carries what the chrome stopped printing');
+  await page.keyboard.press('Escape');
+
   fail = false;
   await page.evaluate(() => testSI.feed.refresh());
   assert.equal(await page.evaluate(() => testSI.feed.meta().failedBooks), 1, 'successful retry clears retained-book failures');
+  assert.equal(await page.evaluate(() => testSI.feed.meta().uncheckedBooks), 0, 'a successful re-check clears the retained mark');
+  await page.evaluate(() => paint('portfolio', 'quarterly-changes'));
   await page.reload();
   await page.waitForFunction(() => !!window.testSI);
   assert.equal(await page.evaluate(() => testSI.feed.books().length), 3, 'repeat visit restores validated device books');
