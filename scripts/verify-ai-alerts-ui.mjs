@@ -121,6 +121,12 @@ const waitFor = async (target, condition) => {
 };
 const settled = () => waitFor(page, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');
 const card = (ticker) => page.locator(`[data-ai-card][data-ticker="${ticker}"]`);
+// content-visibility skips offscreen text layout. Inspect each claimed preview
+// as a reader would, after scrolling it into view.
+const renderedText = async locator => {
+  await locator.scrollIntoViewIfNeeded();
+  return locator.innerText();
+};
 try {
   // Empty sources often settle before a useful feed. Neither that early empty
   // report nor a slow context/positions request may hold useful cards offscreen.
@@ -199,6 +205,19 @@ try {
   await settled();
   assert.equal(await page.locator('[data-ai-card]').count(), 8);
   assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A00', 'weights arriving cannot silently change newest-first order');
+  await page.evaluate(() => {
+    window.stableNodes = ['[data-ai-card][data-ticker="A00"]', '[data-ai-card][data-ticker="A02"]',
+      '[data-ai-cards]', '[data-ai-sort]', '[data-ai-heading] h2', '[data-ai-more]'].map(selector => [selector, document.querySelector(selector)]);
+    window.stableButton = document.querySelector('[data-ai-card][data-ticker="A00"] [data-ai-mute]');
+    window.stableButton.focus({preventScroll:true});
+    window.fixtureEvents = window.fixtureEvents.map(event => event.id === 'A02-announcements'
+      ? {...event, headline:'Corrected A02 material risk disclosure'} : event);
+  });
+  await page.evaluate(() => window.refreshAlerts()); await settled();
+  assert(await page.evaluate(() => window.stableNodes.every(([selector,node]) => node && node === document.querySelector(selector))),
+    'one-card correction preserves unchanged cards, changed-card wrapper, heading, sort, grid and pagination nodes');
+  assert(await page.evaluate(() => document.activeElement === window.stableButton), 'a different card correction preserves the focused action');
+  assert.match(await card('A02').textContent(), /Corrected A02 material risk disclosure/);
   await page.locator('[data-ai-notebook-event] [data-bookmark-key]').first().click();
   await waitFor(page, async () => (await import('/js/core/bookmarks.js')).all().length === 1);
   const savedEvidence = await page.evaluate(async () => (await import('/js/core/bookmarks.js')).all()[0]);
@@ -213,20 +232,20 @@ try {
   const readsBeforeSort = await page.evaluate(() => window.reads);
   await sortControl.selectOption('holdings');
   assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A09');
-  assert.match(await card('A09').locator('[data-ai-holding-size]').innerText(), /60%/);
+  assert.match(await renderedText(card('A09').locator('[data-ai-holding-size]')), /60%/);
   await sortControl.selectOption('priority');
   await sortControl.selectOption('newest');
   assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A00');
   assert.equal(await page.evaluate(() => window.reads), readsBeforeSort, 'sort changes are instant local views with no network reads');
   assert.equal(await page.evaluate(() => localStorage.getItem('sattva:ai-alerts:sort:v1')), 'newest');
-  assert.match(await card('A00').locator('[data-ai-context]').innerText(), /Related context/);
+  assert.match(await renderedText(card('A00').locator('[data-ai-context]')), /Related context/);
   assert.equal(await card('A00').locator('[data-ai-context]').getAttribute('title'), 'Context only; it does not add alert priority.');
   assert.equal(await card('A10').count(), 0, 'target starts beyond the first page');
   const search = page.getByRole('searchbox', { name: 'Search AI Alerts' });
   await search.fill('lithium supply');
   assert.equal(await page.locator('[data-ai-card]').count(), 1);
   assert.equal(await card('A10').count(), 1, 'search finds hidden evidence beyond page one');
-  assert(!(await card('A10').locator('[data-ai-evidence]').innerText()).includes('Lithium'), 'match is outside the evidence preview');
+  assert(!(await renderedText(card('A10').locator('[data-ai-evidence]'))).includes('Lithium'), 'match is outside the evidence preview');
   assert(await search.evaluate((el) => el === document.activeElement));
   await search.fill('ZENITH MANUFACTURING');
   assert.equal(await card('A10').count(), 1, 'case-insensitive company search');
@@ -270,7 +289,7 @@ try {
   });
   await waitFor(page, () => !!window.releaseRead);
   assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A09', 'newest material event reaches the top before a slow feed finishes');
-  assert.match(await card('A09').locator('[data-ai-evidence] li').first().innerText(), /A09 new material disclosure/, 'the new event is visible in the preview');
+  assert.match(await renderedText(card('A09').locator('[data-ai-evidence] li').first()), /A09 new material disclosure/, 'the new event is visible in the preview');
   assert.equal(await card('A00').count(), 1, 'new live evidence does not erase the previous card');
   await page.evaluate(() => { window.holdRead = false; window.releaseRead(); });
   await settled();
@@ -299,7 +318,7 @@ try {
   });
   await page.clock.runFor(120);
   await settled();
-  assert.match(await card('A00').locator('[data-ai-evidence]').innerText(), /Newly captured company announcement/);
+  assert.match(await renderedText(card('A00').locator('[data-ai-evidence]')), /Newly captured company announcement/);
   assert.equal(await page.evaluate(() => window.reads), sourceReads, 'a landed source updates AI Alerts without re-reading every feed');
   assert.equal(await search.inputValue(), 'A00', 'source arrival preserves the active search');
   await page.evaluate(() => {
@@ -308,15 +327,18 @@ try {
   });
   await page.clock.runFor(120);
   await settled();
-  assert.match(await card('A00').locator('[data-ai-evidence]').innerText(), /Live source company announcement/);
+  assert.match(await renderedText(card('A00').locator('[data-ai-evidence]')), /Live source company announcement/);
   assert.equal(await page.evaluate(() => window.reads), sourceReads, 'active source notifications use already loaded evidence');
-  assert((await card('A00').locator('[data-ai-date]').innerText()).includes('04 Sept 2026 · 14:42 IST'));
+  assert((await renderedText(card('A00').locator('[data-ai-date]'))).includes('04 Sept 2026 · 14:42 IST'));
   assert.equal(await card('A00').locator('[data-ai-date] time').getAttribute('datetime'), '2026-09-04T14:42:00+05:30');
   await search.fill('A01');
-  assert(!(await card('A01').locator('[data-ai-date]').innerText()).includes('IST'), 'mixed day precision does not invent a latest clock');
+  assert(!(await renderedText(card('A01').locator('[data-ai-date]'))).includes('IST'), 'mixed day precision does not invent a latest clock');
   assert.equal(await card('A01').locator('[data-ai-date] time').getAttribute('datetime'), '2026-09-04');
   await page.locator('[data-ai-clear]').click();
+  await page.evaluate(() => { window.firstPageCards = [...document.querySelectorAll('[data-ai-card]')]; });
   await page.locator('[data-ai-more]').click();
+  assert(await page.evaluate(() => window.firstPageCards.every(node => node.isConnected &&
+    document.querySelector(`[data-ai-key="${node.dataset.aiKey}"]`) === node)), 'Show more appends without replacing existing card nodes');
   assert.equal(await card('OLD').count(), 1, 'day-14 evidence remains available before midnight');
   assert.match(await page.locator('#root').innerText(), /14-day window/);
   await search.fill('A00');
@@ -325,7 +347,7 @@ try {
   await page.clock.runFor(2100);
   await settled();
   assert.equal(await peer.evaluate(() => !!window.releasePositions), false, 'midnight re-age does not duplicate a fresh position read');
-  assert.equal((await card('A00').locator('[data-ai-date] [data-ai-age]').innerText()).toLowerCase(), '1d');
+  assert.equal((await renderedText(card('A00').locator('[data-ai-date] [data-ai-age]'))).toLowerCase(), '1d');
   assert.deepEqual(await card('A00').locator('[data-ai-evidence] [data-ai-age]').allTextContents(), ['1d', '1d', '1d']);
   assert.equal(await search.inputValue(), 'A00');
   await search.fill('OLD');
@@ -335,7 +357,7 @@ try {
   await page.clock.setSystemTime('2026-09-05T18:31:00Z');
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await settled();
-  assert.equal((await card('A00').locator('[data-ai-date] [data-ai-age]').innerText()).toLowerCase(), '2d');
+  assert.equal((await renderedText(card('A00').locator('[data-ai-date] [data-ai-age]'))).toLowerCase(), '2d');
   console.log('PASS: stable input during feed updates, source time precision, midnight rollover, stale window expiry and resume after sleep.');
 
   await page.locator('[data-ai-clear]').click();
@@ -404,11 +426,11 @@ try {
   await search.fill('A00');
   await page.evaluate(() => window.show('universe'));
   await settled();
-  assert(!/in portfolio/i.test(await card('A00').innerText()), 'the active private book excludes the exited company');
+  assert(!/in portfolio/i.test(await renderedText(card('A00'))), 'the active private book excludes the exited company');
   await peer.evaluate(() => window.lock());
   await waitFor(page, async () => (await import('/js/research/portfolio-bridge.js')).portfolioConnectionState() === 'locked');
   await settled();
-  assert(/in portfolio/i.test(await card('A00').innerText()), 'sign-out recomputes Universe membership from the public book');
+  assert(/in portfolio/i.test(await renderedText(card('A00'))), 'sign-out recomputes Universe membership from the public book');
   await page.evaluate(() => window.show());
   await settled();
   await page.evaluate(() => { window.dispose(); document.querySelector('#root').innerHTML = ''; });
@@ -465,18 +487,43 @@ try {
   assert.equal(await card('QUIET').count(), 0, 'low-ranking cards do not enter the default briefing');
   await search.fill('Quiet Signals');
   assert.equal(await card('QUIET').count(), 1, 'company search reaches eligible below-threshold cards');
-  assert.match(await card('QUIET').innerText(), /Company update/i);
+  assert.match(await renderedText(card('QUIET')), /Company update/i);
   assert.match(await page.locator('[data-ai-filter="important"]').innerText(), /0/, 'below-threshold search results do not inflate the Important count');
+  await card('QUIET').locator('[data-ai-notebook-card] [data-bookmark-key]').click();
+  await waitFor(page, async () => (await import('/js/core/bookmarks.js')).all().some(entry => entry.ticker === 'QUIET' && entry.kind === 'AI Alerts'));
+  await card('QUIET').locator('[data-ai-notebook-event] [data-bookmark-key]').click();
+  await waitFor(page, async () => (await import('/js/core/bookmarks.js')).all().filter(entry => entry.ticker === 'QUIET').length === 2);
+  assert.equal(await page.evaluate(async () => (await import('/js/core/bookmarks.js')).all().find(entry => entry.ticker === 'QUIET' && entry.kind === 'Earnings').title),
+    'Routine quarterly reading', 'search-only evidence saves its canonical source snapshot');
   await search.fill('Private Robotics');
   const privateCard = page.locator('[data-ai-card][data-entity-id="isin:INE000009999"]');
   assert.equal(await privateCard.count(), 1);
   assert.equal(await privateCard.getAttribute('data-ticker'), '');
   assert.equal(await privateCard.locator('[data-open-general]').last().getAttribute('data-ticker'), 'Private Robotics');
+  await privateCard.locator('[data-ai-notebook-card] [data-bookmark-key]').click();
+  await waitFor(page, async () => (await import('/js/core/bookmarks.js')).all().some(entry => entry.entityId === 'isin:INE000009999' && entry.kind === 'AI Alerts'));
   await privateCard.locator('[data-ai-mute]').click();
   assert.equal(await privateCard.count(), 0);
   await page.locator('[data-ai-filter="archived"]').click();
   assert.equal(await privateCard.count(), 1, 'tickerless dismissal uses its own stable entity identity');
   await privateCard.locator('[data-ai-unmute]').click();
+  await page.evaluate(async () => {
+    window.dispose();
+    document.body.insertAdjacentHTML('beforeend','<div id="modal-overlay" class="hidden"><div id="modal-container"><div id="modal-content"></div></div></div>');
+    const notebook = await import('/js/tabs/bookmarks.js');
+    notebook.render({root:document.querySelector('#root'),scope:'universe',params:{}});
+  });
+  await page.locator('[data-notebook-search]').fill('Quiet Signals');
+  await waitFor(page, () => document.querySelectorAll('[data-notebook-entry]').length === 2);
+  assert.match(await page.locator('[data-notebook-results]').innerText(), /Routine quarterly reading/);
+  for (const entry of await page.locator('[data-notebook-entry]').all()) {
+    await entry.locator('[data-notebook-open]').first().click();
+    assert.match(await page.locator('#modal-content').textContent(), /Quiet Signals|QUIET/);
+    await page.evaluate(async () => (await import('/js/ui/screener.js')).closeModal());
+    await page.clock.runFor(220);
+  }
+  await page.evaluate(async () => { (await import('/js/tabs/bookmarks.js')).destroy(); window.show('universe'); });
+  await settled();
   console.log('PASS: below-threshold company search and tickerless cards, links and dismissal.');
   const capacityContext = await browser.newContext();
   const capacityPage = await capacityContext.newPage();
@@ -532,6 +579,43 @@ try {
   assert.equal(await capacityPage.evaluate(() => window.reads), disposedReads, 'destroy removes freshness intervals and wake listeners');
   await capacityContext.close();
   console.log('PASS: 100,005-event UI, bounded pagination, tail search, same-company partial/failure arrivals, 90-second visible rechecks, inactivity resume and cleanup.');
+  const obsolete = await page.evaluate(async () => {
+    const ai = await import('/js/data/ai-alerts.js');
+    const saved = window.fixtureEvents;
+    let derivationReads = 0, partials = 0;
+    window.fixtureEvents = [{ ...saved[0], get headline() { derivationReads++; return 'Obsolete view evidence'; } }];
+    try {
+      const result = await ai.collect({scope:'universe',load:false,isCurrent:()=>false,onPartial:()=>partials++});
+      return {result,derivationReads,partials};
+    } finally { window.fixtureEvents = saved; }
+  });
+  assert.deepEqual(obsolete, {result:null,derivationReads:0,partials:0}, 'obsolete views skip both partial and final ranking');
+  await page.locator('[data-ai-filter="all"]').click();
+  await search.fill('Quiet Signals');
+  const beforeCancelledSave = await page.evaluate(async () => (await import('/js/core/bookmarks.js')).all().length);
+  await page.evaluate(() => {
+    // Invalidate the owner after the save starts but before its asynchronous key read finishes.
+    const original = IDBObjectStore.prototype.get;
+    IDBObjectStore.prototype.get = function(...args) {
+      const request = original.apply(this, args);
+      if (this.name === 'bookmarks' && this.transaction.mode === 'readwrite') {
+        IDBObjectStore.prototype.get = original;
+        window.dispose(); window.cancelledAtKeyRead = true;
+      }
+      return request;
+    };
+    window.fixtureEvents = window.fixtureEvents.map(event => event.ticker === 'QUIET'
+      ? {...event,id:'quiet-guarded-save',headline:'Another routine quarterly reading'} : event);
+    window.feedChanged();
+  });
+  await page.clock.runFor(300);
+  await waitFor(page, () => document.querySelector('[data-ai-card][data-ticker="QUIET"]')?.textContent.includes('Another routine quarterly reading'));
+  await card('QUIET').locator('[data-ai-notebook-event] [data-bookmark-key]').click();
+  await waitFor(page, () => window.cancelledAtKeyRead && document.body.textContent.includes('This event has changed'));
+  assert.equal(await page.evaluate(async () => {
+    const notebook = await import('/js/core/bookmarks.js'); await notebook.load({force:true}); return notebook.all().length;
+  }), beforeCancelledSave, 'changing the owning view during the save cannot commit the old model');
+  console.log('PASS: obsolete view computations stop and in-flight bookmark saves recheck their owning view before committing.');
   assert.deepEqual(errors, []);
   console.log('PASS: responsive search/cards at 320–1440px, calendar cleanup and zero application errors.');
 } catch (error) {

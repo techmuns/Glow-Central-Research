@@ -8,7 +8,10 @@ const sourceUrl = row => {
 
 export function matchesCapturedNews(row, captured) {
   if (row?.attribution !== 'confirmed' || row.date !== captured?.date) return false;
-  if (captured.ticker ? row.ticker !== captured.ticker : captured.isin ? row.isin !== captured.isin :
+  // Articles captured before listing may carry only the stable ISIN even after
+  // the current portfolio acquires a ticker. Prefer that shared identity, and
+  // never let a ticker match override conflicting ISINs.
+  if (captured.isin && row.isin ? row.isin !== captured.isin : captured.ticker ? row.ticker !== captured.ticker : captured.isin ? row.isin !== captured.isin :
     !captured.company || titleText(row.company) !== titleText(captured.company)) return false;
   const expectedUrl = sourceUrl(captured);
   if (expectedUrl && sourceUrl(row) !== expectedUrl) return false;

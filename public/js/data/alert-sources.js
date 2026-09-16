@@ -164,7 +164,7 @@ export const ADDITIONAL_SOURCES = [
       detail: `${b.quarters?.[0] || 'Period not supplied'}: ${r.quarterlyHoldings?.[b.quarters?.[0]] == null ? 'Filing due / percentage not disclosed; not an exit or sale.' : `${r.quarterlyHoldings[b.quarters[0]]}% disclosed. Not a trade timestamp.`}`,
       url: r.companySlug ? `https://ticker.finology.in/company/${encodeURIComponent(r.companySlug)}` : null, kind: 'snapshot',
     }))), ...confirmed(investors.meta()?.checkedAt || investors.meta()?.capturedAt, day,
-      investors.meta()?.ok === false || !!(investors.meta()?.failedBooks || investors.meta()?.stale || investors.meta()?.pending),
+      investors.meta()?.ok === false || !!(investors.meta()?.failedBooks || investors.meta()?.uncheckedBooks || investors.meta()?.stale || investors.meta()?.pending),
       'Quarterly disclosures dated to source observation, not trades. Every reported period is retained in the source record.') }) },
   { id: 'institutions', label: 'Institutional disclosures', tab: 'super-investors', what: 'All captured institutional holdings and former holdings. Company ownership and fund NAV remain distinct.',
     load: async (refresh) => { await (refresh ? institutions.refresh() : institutions.load()); if (!institutions.isLoaded()) throw Error('Institutional capture unavailable'); },
@@ -182,7 +182,7 @@ export const ADDITIONAL_SOURCES = [
       return group.posts.map((r) => record({ id: `chatter-post:${r.source}:${r.id}:${group.slug}`, row: r, at: r.at,
         ticker: company?.ticker, company: company?.name || group.name || group.slug,
         headline: r.text, detail: [r.sourceLabel, r.author || r.handle].filter(Boolean).join(' · '), url: r.url, kind: 'post' }));
-    }), ...confirmed(chatter.meta()?.generatedAt, day), status: 'on-demand',
+    }), asOf: chatter.meta()?.health?.checkedAt ? new Date(chatter.meta().health.checkedAt).toISOString() : null, reachesToday: false, status: 'on-demand',
       note: 'Only detail pages already requested in Public Chatter are loaded. Company summaries are bulk-loaded separately; individual-post coverage is not complete.' }) },
   { id: 'company-documents', label: 'Company documents', tab: 'corp-announcements', what: 'All successful combined-filings lookup results from this session, before tab-specific filters.',
     load: null, read: ({ day }) => privateDocuments('company-documents', day) },

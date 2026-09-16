@@ -8,9 +8,10 @@ const { writeEntry } = await import('../public/js/core/store.js');
 const { rankReport } = await import('../public/js/data/ai-alerts.js');
 const disk = new Map();
 let unavailable = false;
-const cache = createAlertWindowCache({ read: key => disk.get(key), write: async entries => {
+const cache = createAlertWindowCache({ read: key => disk.get(key), write: async (entries, deletes = []) => {
   if (unavailable) throw Error('QuotaExceededError');
-  disk.clear(); for (const [key, entry] of entries) disk.set(key, entry);
+  for (const key of deletes) disk.delete(key);
+  for (const [key, entry] of entries) disk.set(key, entry);
   return { persistent: true };
 } });
 const events = Array.from({ length: 100_005 }, (_, i) => ({ id: `filing:${i}`, ticker: `CO${i % 600}`,
@@ -49,12 +50,40 @@ const replacement = { ...value, events: [largeEvent] };
 await cache.write(replacement);
 assert.deepEqual((await cache.read()).value, replacement, 'one oversized event gets its own part and is never shortened');
 assert.equal(disk.size, 2, 'replaced cache fragments do not accumulate indefinitely');
-const session = createAlertWindowCache({ read: key => disk.get(key), write: async entries => {
-  disk.clear(); for (const [key, entry] of entries) disk.set(key, entry);
+const session = createAlertWindowCache({ read: key => disk.get(key), write: async (entries, deletes = []) => {
+  for (const key of deletes) disk.delete(key);
+  for (const [key, entry] of entries) disk.set(key, entry);
   return { persistent: false };
 } });
 await session.write(value);
 assert.equal(session.status().status, 'session-only');
 assert.match(session.status().message, /reopening requires a source check/);
 assert.equal((await session.read()).value.events.length, events.length, 'unavailable disk storage cannot discard this session evidence');
+// Hold a reader on the old manifest while two replacements reuse its content hashes.
+// A later cleanup must retain both the active reader's parts and the current committed parts.
+const concurrentDisk = new Map();
+let releasePart, enteredPart, gatePart = false;
+const partEntered = new Promise(resolve => { enteredPart = resolve; });
+const partGate = new Promise(resolve => { releasePart = resolve; });
+const concurrent = createAlertWindowCache({ partBytes: 1024, read: async key => {
+  if (gatePart && key.includes(':part:')) { gatePart = false; enteredPart(); await partGate; }
+  return concurrentDisk.get(key);
+}, write: async (entries, deletes = []) => {
+  for (const key of deletes) concurrentDisk.delete(key);
+  for (const [key, entry] of entries) concurrentDisk.set(key, entry);
+  return { persistent: true };
+} });
+const firstWindow = { ...value, events: events.slice(0, 30) };
+const secondWindow = { ...value, events: events.slice(30, 60) };
+await concurrent.write(firstWindow);
+gatePart = true;
+const readingOld = concurrent.read();
+await partEntered;
+await concurrent.write(secondWindow);
+await concurrent.write(firstWindow);
+releasePart();
+assert.deepEqual((await readingOld).value, firstWindow, 'a reader retains its complete manifest while newer windows commit');
+assert.deepEqual((await concurrent.read()).value, firstWindow, 'cleanup never deletes a hash reused by the current manifest');
+await concurrent.write(firstWindow);
+assert.equal(concurrentDisk.size, concurrentDisk.get(KEY).value.parts.length + 1, 'obsolete versions are reclaimed after readers finish');
 console.log(`PASS: ${events.length} events across ${manifest.parts.length} cache parts; all 600 AI cards, tail evidence, corruption, quota failure, legacy migration and recovery.`);

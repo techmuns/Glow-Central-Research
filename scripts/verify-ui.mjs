@@ -1090,9 +1090,27 @@ await go('/#/research/breakouts?scope=universe', 2500);
 
   const before = await glyph();
   await star().click();
-  await page.waitForTimeout(400);
+  // THE WATCHLIST IS SHARED NOW, so adding asks whose add it is before anything is stored. The
+  // suite drives that the way a person does rather than seeding the name behind it: the prompt is
+  // part of the control, and a check that skipped it would keep passing after the control broke.
+  await page.waitForSelector('[data-watch-attribution]', { timeout: 5000 });
+  ok('adding to the shared watchlist asks who is adding it',
+    await page.locator('[data-attribution-confirm]').isVisible());
+  const firstRun = await page.locator('[data-attribution-input]').isVisible();
+  if (firstRun) await page.fill('[data-attribution-input]', 'Verification Runner');
+  else await page.selectOption('[data-attribution-select]', { label: 'Verification Runner' });
+  await page.click('[data-attribution-confirm]');
+  await page.waitForTimeout(500);
   const after = await glyph();
   ok('clicking the watchlist star fills it', before === '☆' && after === '★', `${before} → ${after}`);
+  ok('...and the entry records who added it',
+    await page.evaluate((k) => JSON.parse(localStorage.getItem('sattva:watchlist') || '[]')
+      .find((e) => e.ticker === k)?.addedBy === 'Verification Runner', key0));
+  // The name is kept so the next add is a selection rather than typing — that is the whole point
+  // of recording it, and a roster that did not grow would send the reader back to the keyboard.
+  ok('...and the name joins the roster for next time',
+    await page.evaluate(() => JSON.parse(localStorage.getItem('sattva:watchlist:people') || '[]')
+      .some((p) => p.name === 'Verification Runner')));
   // THE STORED ENTRY IS A COMPANY, NOT A ROW. On Breakouts the row key IS the ticker, so the two
   // coincide here — but the shape does not: entries are `{ ticker, name, addedAt }`, because the
   // Watchlist scope has to be able to name a company on a feed that does not carry it.
@@ -1123,6 +1141,9 @@ await go('/#/research/breakouts?scope=universe', 2500);
   await star().click();
   await page.waitForTimeout(400);
   ok('...and clicking it again empties it', (await glyph()) === '☆', await glyph());
+  // Unstarring is the undo for a mis-click and must stay ONE click. The contract allows an
+  // unattributed removal precisely so this never grows a dialog; see watchlistIntent().
+  ok('...without asking who removed it', (await page.locator('[data-watch-attribution]').count()) === 0);
   ok('...and empties the stored watchlist with it',
     await page.evaluate((k) => !JSON.parse(localStorage.getItem('sattva:watchlist') || '[]').some((e) => e.ticker === k), key0));
 }
@@ -1597,19 +1618,17 @@ console.log('\n— AI alerts —');
   await page.waitForTimeout(600);
   ok('leaving Ask Research mid-answer really does unmount it', awaySession && !(await page.locator('[data-research-input]').count()));
   const landedAway = await page
-    .waitForFunction(() => {
-      return document.querySelectorAll('[data-notification="research"]').length > 0;
+    .waitForFunction(async () => {
+      return (await import('/js/ui/notifications.js')).items().some(row => row.kind === 'research');
     }, null, { timeout: 20000 })
     .then(() => true)
     .catch(() => false);
   ok('...and the answer still arrives while another tab is on screen', landedAway);
   ok('...without persisting private portfolio conversations to device storage',
     await page.evaluate(() => !/OFF_TAB_ANSWER|Dashboard evidence remains traceable/.test(localStorage.getItem('sattva:ask-research:v1') || '')));
-  // Keeping it running silently would be a feature nobody can see, so it announces itself in the
-  // alert stack — the same place a filed result does, under the tab it belongs to.
-  ok('...and says so in the alert stack rather than finishing invisibly',
-    (await page.locator('[data-notification="research"]').count()) > 0,
-    `${await page.locator('#notification-root > *').count()} alert card(s) on screen`);
+  // Off-tab completion marks the same quiet header inbox as a newly filed result.
+  ok('...and marks the header bell without opening a popup',
+    await page.locator('[data-notification-dot]').isVisible() && !(await page.locator('#notification-root').isVisible()));
   await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio'; });
   await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 15000 });
   const backText = await page.locator('[data-research-transcript]').innerText();
@@ -1758,8 +1777,8 @@ console.log('\n— AI alerts —');
     const m = document.getElementById('subview-mount');
     return !m || m.classList.contains('hidden') || !m.innerText.trim();
   }));
-  // The date is IST, and it is on the FACE of the pill: this is the one tab defined by a day, and
-  // a screenshot travels without the modal behind it.
+  // Source-check details and their Indian date remain inside the open Sources panel.
+  ok('source-check badges stay out of the reading header', (await page.locator('[data-alerts-meta] [data-alerts-info]').count()) === 0);
   const dayPillText = await page.locator('[data-alerts-info]').first().innerText();
   ok('it states the Indian trading date rather than a UTC one',
     /\d{2} \w{3,4} \d{4}/.test(dayPillText), dayPillText.replace(/\s+/g, ' '));
@@ -1821,6 +1840,7 @@ console.log('\n— AI alerts —');
   ok('...while all five states remain distinguishable internally',
     new Set([states.behind.label, states.failed.label, states.pending.label, states.unscoped.label, states.nothing.label]).size === 5);
   // The status label must not bring back the long explainer overlay.
+  if (!(await page.locator('[data-alerts-sources]').evaluate(node => node.open))) await page.locator('[data-sources-summary]').click();
   await page.locator('[data-alerts-info]').first().click();
   await page.waitForTimeout(200);
   ok('the All Alerts status opens no explainer popup',
@@ -2051,6 +2071,7 @@ console.log('\n— AI alerts —');
   // The feed is not offered as a filter here, and the status remains passive.
   const scopedFeeds = await page.$$eval('[data-alerts-coverage] [data-feed]', (els) => els.map((e) => e.dataset.feed));
   ok('market-wide news is not offered as a filter on a narrowed scope', !scopedFeeds.includes('market-news'), scopedFeeds.join(', '));
+  if (!(await page.locator('[data-alerts-sources]').evaluate(node => node.open))) await page.locator('[data-sources-summary]').click();
   await page.locator('[data-alerts-info]').first().click();
   await page.waitForTimeout(200);
   ok('the narrowed-scope status opens no explainer popup',
@@ -2312,6 +2333,7 @@ console.log('\n— AI alerts —');
       opened.length === 1 && opened[0] === rowHref && page.url() === hashBefore,
       `${opened.length} open(s): ${(opened[0] || '(none)').slice(0, 58)} · hash unchanged=${page.url() === hashBefore}`);
   }
+  if (!(await page.locator('[data-alerts-sources]').evaluate(node => node.open))) await page.locator('[data-sources-summary]').click();
   await page.locator('[data-alerts-info]').first().click();
   await page.waitForTimeout(200);
   ok('the alert-stream status remains popup-free after table interaction',
@@ -2773,6 +2795,7 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
     seen.filter(([, mock]) => !mock).every(([, , m]) => m.green && m.dot && m.face === 'Up to date'),
     seen.filter(([, mock]) => !mock).map(([l, , m]) => `${l}:"${m.face}"`).join(' · '));
 
+<<<<<<< HEAD
   // Retired mock views must disappear from navigation and saved links alike.
   await go('/#/research/breakouts/earnings-surprise?scope=universe', 2600);
   await waitForPanel();
@@ -2784,6 +2807,8 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
     !/mock earnings|mixed provenance/i.test(await hostText()) &&
     !(await page.locator('#content-host th').allTextContents()).some((text) => /surprise/i.test(text)));
 
+=======
+>>>>>>> sattva/main
   // The compact status stays on the page without opening a verbose explainer.
   await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
   await waitForPanel();
@@ -4834,13 +4859,23 @@ if (siProbe.state === 'no-route') {
   ok('the derived change equals their latest minus their prior, independently recomputed', moveCheck.length === 0, moveCheck.slice(0, 3).join('; ') || 'all agree');
   ok('...and an appearance or disappearance carries no percentage-point figure', !moveCheck.some((b) => /carries a pp/.test(b)));
 
-  // A book that failed to load must not read as an investor holding nothing.
-  const failed = await page.evaluate(async () => {
+  // A book that failed to load must not read as an investor holding nothing — AND a book that is
+  // merely of a known age must not be reported as one that failed to load. `failureFor` answers
+  // only the first question now, which is what stopped ninety retained books being painted over
+  // with a failure notice while every one of them sat in memory.
+  const investorState = await page.evaluate(async () => {
     const f = await import('/js/data/super-investors.js');
-    return f.list().filter((i) => f.failureFor(i.slug)).map((i) => i.slug);
+    return {
+      gaps: f.list().filter((i) => f.failureFor(i.slug)).map((i) => i.slug),
+      unchecked: f.list().filter((i) => f.uncheckedFor(i.slug)).map((i) => i.slug),
+      drawn: [...document.querySelectorAll('#content-host [data-open-investor]')].filter((el) => /holdings/.test(el.textContent)).length,
+    };
   });
-  if (failed.length) ok('a book that could not be read says so rather than showing as empty', /could not be read/i.test(await hostText()), `${failed.length} failed`);
-  else skip('a book that could not be read says so rather than showing as empty', 'every book loaded in this run');
+  if (investorState.gaps.length) ok('a book with no copy at all says so rather than showing as empty', /not shown as empty/i.test(await hostText()), `${investorState.gaps.length} with no book`);
+  else skip('a book with no copy at all says so rather than showing as empty', 'every investor has a book in this run');
+  ok('a retained book whose re-check failed is never reported as a book that could not be read',
+    investorState.unchecked.every((slug) => !investorState.gaps.includes(slug)),
+    `${investorState.unchecked.length} retained, ${investorState.gaps.length} genuinely missing`);
 
   // The workspace: three panels, every API field reachable.
   await page.locator('#content-host [data-live-section-tabs] [data-tab-id="investors"]').click();
@@ -5521,7 +5556,7 @@ console.log('\n— header status and live alerts —');
   ok('refresh reports a result rather than just spinning', /Latest available|\d+ new|Partly refreshed|Couldn|Still updating/i.test(label), label);
   ok('...keeps pending work disabled and allows retry after completion', (await page.locator('[data-header-refresh]').isDisabled()) === /Still updating/.test(label));
 
-  // The alert stack.
+  // The header notification inbox.
   const alerts = await evalSafe(async () => {
     const n = await import('/js/ui/notifications.js');
     n.clear();
@@ -5530,15 +5565,15 @@ console.log('\n— header status and live alerts —');
     n.push({ key: 'v2', kind: 'concall', title: 'Other Co', detail: 'Analysis ready' });
     for (let i = 0; i < 5; i++) n.push({ key: `f${i}`, kind: 'system', title: `Filler ${i}` });
     const root = document.getElementById('notification-root');
-    const r = root.getBoundingClientRect();
     return {
       accepted: first, dupeRejected: dupe === false,
-      cards: root.children.length,
+      cards: n.items().length,
+      quiet: root.hidden && !document.querySelector('[data-notification-dot]').hidden,
       z: Number(getComputedStyle(root).zIndex),
-      bottomRight: window.innerHeight - r.bottom < 40 && window.innerWidth - r.right < 40,
     };
   });
-  ok('an alert renders in the lower-right corner', alerts.accepted && alerts.cards > 0 && alerts.bottomRight, `${alerts.cards} card(s)`);
+  ok('an alert stays in the header bell without a pop-up', alerts.accepted && alerts.cards === 7 && alerts.quiet, `${alerts.cards} retained items`);
+  await page.locator('[data-notification-bell]').click();
   // It has to be VISIBLE, not merely present. The first version used the shared `.fade-in` class —
   // `animation: … both`, which pins the element at the keyframe's opacity-0 start state until the
   // animation actually runs. Anything that stops it running left a correctly-positioned, fully
@@ -5547,7 +5582,7 @@ console.log('\n— header status and live alerts —');
   await page.waitForTimeout(500);
   const visible = await evalSafe(() => {
     const root = document.getElementById('notification-root');
-    const card = root.lastElementChild;
+    const card = root.querySelector('[data-notification]');
     if (!card) return { ok: false, why: 'no card' };
     const r = card.getBoundingClientRect();
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
@@ -5567,7 +5602,7 @@ console.log('\n— header status and live alerts —');
     skip('...and is actually painted, not just present at opacity 0', 'compiled stylesheet unavailable — the card has no background to hit-test');
   }
   ok('...the same event never announces twice', alerts.dupeRejected);
-  ok('...and the stack is capped rather than unbounded', alerts.cards <= 4, `${alerts.cards} visible after 7 pushes`);
+  ok('...and all arrivals remain available to read', alerts.cards === 7, `${alerts.cards} retained after 7 pushes`);
 
   // Stacking: a toast must never cover something the reader opened on purpose.
   const drillZ = await evalSafe(() => Number(getComputedStyle(document.getElementById('drill-panel')).zIndex));
@@ -6282,7 +6317,7 @@ console.log('\n— news, announcements and insider trades —');
     await mod.load();
     // The first paint announces NOTHING, whatever it contains. Everything in a capture predates
     // the reader's arrival, and replaying it would make every later alert worth less.
-    return { rows: mod.rows().length, arrivals: mod.newArrivals().length, cards: document.getElementById('notification-root')?.children.length ?? -1 };
+    return { rows: mod.rows().length, arrivals: mod.newArrivals().length, cards: (await import('/js/ui/notifications.js')).items().length };
   });
   ok('the market-news capture announces nothing on the paint that first loads it',
     seeded && seeded.rows > 0 && seeded.arrivals === 0 && seeded.cards === 0,
@@ -6294,7 +6329,8 @@ console.log('\n— news, announcements and insider trades —');
     const out = await mod.refresh();
     await new Promise((r) => setTimeout(r, 900));
     const root = document.getElementById('notification-root');
-    const cards = [...(root?.children || [])];
+    if (root.hidden) document.querySelector('[data-notification-bell]').click();
+    const cards = [...root.querySelectorAll('[data-notification]')];
     const arrivals = mod.newArrivals();
     const first = arrivals[0];
     const text = cards.map((c) => c.innerText.replace(/\s+/g, ' ')).join(' ~ ');
@@ -6320,7 +6356,7 @@ console.log('\n— news, announcements and insider trades —');
       // Re-emitting must not re-announce: the feed re-hands its whole arrival list every change.
     };
   });
-  ok('a story arriving while the reader is here pops an alert', alerted && alerted.added > 0 && alerted.cards > 0,
+  ok('a story arriving while the reader is here enters the notification inbox', alerted && alerted.added > 0 && alerted.cards > 0,
     `${alerted?.added} new, ${alerted?.arrivals} on the arrival list, ${alerted?.cards} card(s)`);
   ok('...labelled as market news and carrying the publisher\'s own headline',
     alerted && alerted.labelled && alerted.verbatim, alerted?.text);
@@ -6328,11 +6364,11 @@ console.log('\n— news, announcements and insider trades —');
     alerted && alerted.withImage > 0 && alerted.thumbs === alerted.withImage,
     `${alerted?.thumbs} of ${alerted?.withImage} card(s) carry their own story's image`);
   const reAnnounced = await evalSafe(async () => {
-    const before = document.getElementById('notification-root')?.children.length ?? 0;
+    const before = (await import('/js/ui/notifications.js')).items().length;
     const mod = await import('/js/data/market-news.js');
     await mod.refresh();
     await new Promise((r) => setTimeout(r, 700));
-    return { before, after: document.getElementById('notification-root')?.children.length ?? 0 };
+    return { before, after: (await import('/js/ui/notifications.js')).items().length };
   });
   ok('...and the same story never announces itself twice', reAnnounced && reAnnounced.after <= reAnnounced.before,
     `${reAnnounced?.before} card(s) before a second check, ${reAnnounced?.after} after`);
