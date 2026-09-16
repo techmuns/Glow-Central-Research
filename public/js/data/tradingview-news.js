@@ -15,7 +15,7 @@ export function withTradingViewNews(base, { read = conditionalJson, doc = global
   let combined = null;
   const subscribers = new Set();
   const emit = () => subscribers.forEach(fn => fn());
-  base.onChange(emit);
+  const offBase = base.onChange(emit);
 
   function readSnapshot() {
     if (pending) return pending;
@@ -157,5 +157,6 @@ export function withTradingViewNews(base, { read = conditionalJson, doc = global
       subscribers.add(fn); watch();
       return () => { subscribers.delete(fn); if (!subscribers.size) unwatch(); };
     },
+    dispose() { generation++; unwatch(); offBase(); subscribers.clear(); snapshot = null; combined = null; base.dispose?.(); },
   };
 }

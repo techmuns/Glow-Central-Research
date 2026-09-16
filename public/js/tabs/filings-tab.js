@@ -133,6 +133,7 @@ export function makeFilingsTab(cfg) {
     const seeded = companySeededView(ctx, routeCompany, view);
     routeCompany = seeded.company;
     view = cfg.prepareView?.(ctx, seeded.view) ?? seeded.view;
+    cfg.prepareReading?.(view);
 
     // SUBSCRIBE BEFORE THE EARLY RETURN, not after it.
     //
@@ -331,6 +332,9 @@ export function makeFilingsTab(cfg) {
       link: cfg.link === false ? null : cfg.link || ((r) => r.url || null),
       initialSort: cfg.initialSort || { key: 'Date', dir: 'desc' },
       initialView: view,
+      onFilterChange(next, index) {
+        if (cfg.prepareReading?.(next, index)) { view = next; render(ctx); }
+      },
       // TWO UNITS, BOTH NAMED. Insider Trades can carry many disclosures for one portfolio
       // company, so a bare "1,295 of 1,295 shown" was understandably read as 1,295 companies.
       // Recompute both figures from the visible row DATA whenever search or a filter changes.

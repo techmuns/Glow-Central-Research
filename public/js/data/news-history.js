@@ -71,7 +71,7 @@ export function withNewsHistory(base, { read = conditionalJson, window: readingW
             if (coveredByHead || !newsShardInWindow(shard, window)) continue;
             const part = await read(`data/${shard.file}`, { key: `news-history:${shard.file}` });
             if (generation !== epoch) return false;
-            if (!Array.isArray(part.value?.articles) || part.value.articles.length !== shard.count) throw Error('News archive month incomplete');
+            if (!Array.isArray(part.value?.articles) || (part.value.querySourceCount ?? part.value.articles.length) !== shard.count) throw Error('News archive month incomplete');
             next.set(shard.file, part.value.articles);
           }
           for (const [path, records] of next) held.set(path, records);
@@ -119,5 +119,6 @@ export function withNewsHistory(base, { read = conditionalJson, window: readingW
     },
     invalidate() { epoch++; base.invalidate(); held = new Map(); identities = new Map(); indexes.clear();
       revision++; combined = null; pending = null; error = null; loaded = false; initialized = false; },
+    dispose() { epoch++; base.dispose?.(); held.clear(); identities.clear(); indexes.clear(); listeners.clear(); combined = null; },
   };
 }

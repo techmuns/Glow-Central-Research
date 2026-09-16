@@ -1,0 +1,45 @@
+// Exact full-history / selected-view equivalence using the shipped source captures. No egress.
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const root = resolve('public');
+const storage = new Map();
+globalThis.localStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
+Date.now = () => Date.parse('2026-09-17T08:00:00Z');
+globalThis.fetch = async input => {
+  const path = String(input).split('?')[0];
+  if (/^https?:/.test(path)) return new Response('{}', { status: 503 });
+  const mapped = { 'api/earnings': 'data/earnings-live.json', 'api/concalls': 'data/concall-scans.json',
+    'api/nse-announcements': 'data/nse-announcements.json', 'api/ipo-filings': 'data/ipo-filings.json' }[path] || path;
+  assert(resolve(root, mapped).startsWith(root + '/'));
+  try { return new Response(readFileSync(resolve(root, mapped)), { headers: { 'content-type': 'application/json' } }); }
+  catch { return new Response('{}', { status: 404 }); }
+};
+const coverage = await import('../public/js/data/coverage.js');
+coverage.prime(JSON.parse(readFileSync(resolve(root, 'data/portfolio-companies.json'))));
+const alerts = await import('../public/js/data/daily-alerts.js');
+const options = { scope: 'universe', day: '2026-09-16', includeHistory: true };
+const full = await alerts.collect(options);
+console.log(JSON.stringify({ full: full.events.length, news: full.feeds.find(f => f.id === 'news').count }));
+const { inAlertQuery } = alerts;
+for (const days of (process.env.NEWS_QUERY_DAYS || '1,3,14,30').split(',').map(Number)) {
+  const queryWindow = { from: new Date(Date.parse(options.day) - (days-1)*86400000).toISOString().slice(0,10), to: options.day, includeUndated: false };
+  const bounded = await alerts.collect({ ...options, queryWindow });
+  const expected = full.events.filter(event => inAlertQuery(event, queryWindow));
+  const actual = new Map(bounded.events.map(event => [event.id, event]));
+  const missing = expected.filter(event => !actual.has(event.id));
+  const ids = new Set(expected.map(event => event.id));
+  const extra = bounded.events.filter(event => !ids.has(event.id));
+  assert.deepEqual({ missing: missing.map(e=>({id:e.id,headline:e.headline,feed:e.feed})), extra: extra.map(e=>({id:e.id,headline:e.headline,feed:e.feed})) }, { missing: [], extra: [] }, `${days}-day identities`);
+  for (const event of expected) {
+    try { assert.deepEqual(actual.get(event.id), event, `${days}-day original fields/provenance: ${event.id}`); }
+    catch(error) {
+      console.log(JSON.stringify({queryWindow,feedCounts:bounded.feeds.map(f=>({id:f.id,count:f.count,status:f.status,note:f.note})),
+        companions:bounded.sourceFeeds.flatMap(f=>f.events.filter(e=>e.url===event.url).map(e=>({feed:f.id,id:e.id,day:e.day,at:e.at}))),
+        rawPublisher:(await import('../public/js/data/market-news.js')).rows().filter(r=>r.url===event.url).map(r=>({id:r.id,publishedAt:r.publishedAt}))}));
+      throw error;
+    }
+  }
+  console.log(`PASS ${days}-day query: ${expected.length} exact complete events`);
+}
+console.log('PASS bounded raw reading preserves canonical history, corrections and provenance.');

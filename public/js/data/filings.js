@@ -57,7 +57,9 @@ import { attributeNewsRow } from './company-news-attribution.js';
 import { withTradingViewNews } from './tradingview-news.js';
 import { withNewsHistory } from './news-history.js';
 import { withPortfolioPublisherNews } from './portfolio-publisher-news.js';
-import { recentNewsWindow } from './news-window.js';
+import { newsPeriodBounds } from './news-window.js';
+import * as marketNews from './market-news.js';
+import { createNewsWorkingSet } from './news-working-set.js';
 import * as exchangeDeals from './exchange-deals.js';
 
 // How many companies a live walk will ask about before it stops and says so. The upstreams allow
@@ -109,6 +111,9 @@ export const WINDOW_DAYS = { news: 30, announcements: 365, insider: 365 };
 
 const iso = (d) => new Date(d).toISOString().slice(0, 10);
 const daysAgo = (n) => iso(Date.now() - n * 86400000);
+// Explicit public news searches are shared across reading windows. These observations may be
+// newer than the next scheduled capture, so a query-reader lifetime must never own their only copy.
+const liveNews = new Map(), liveNewsSubscribers = new Set();
 
 /**
  * One story at two addresses is one story.
@@ -128,12 +133,23 @@ const daysAgo = (n) => iso(Date.now() - n * 86400000);
  *     is what the provenance modal says — and dropping one would hide it from whichever reader was
  *     looking at that company. Hence: within a company, never across.
  */
-export function createFeed(kind) {
+export function createFeed(kind, { read = conditionalJson, allowColdStart = true } = {}) {
   let state = fresh();
   let loading = null;
   let seeding = null;
   const subscribers = new Set();
   const emit = () => [...subscribers].forEach((fn) => fn());
+  function adoptLiveNews(ticker, saved, notify = true) {
+    const newer = saved.at > (Date.parse(state.snapshotUpdatedAt || state.capturedAt || '') || 0);
+    const previous = state.rows.get(ticker) || [];
+    state.rows.set(ticker, dedupeArticles(newer ? [...saved.rows, ...previous] : [...previous, ...saved.rows]));
+    if (newer) {
+      state.confirmedAt.set(ticker, saved.at); state.confirmedHere.add(ticker);
+      state.fromSnapshot.delete(ticker); state.failures.delete(ticker);
+    }
+    if (notify) emit();
+  }
+  if (kind === 'news') liveNewsSubscribers.add(adoptLiveNews);
 
   function fresh() {
     return {
@@ -391,6 +407,7 @@ export function createFeed(kind) {
     seeding = (async () => {
       await seedFromSnapshot();
       await seedFromDevice(state.wanted);
+      if (kind === 'news') for (const [ticker, saved] of liveNews) adoptLiveNews(ticker, saved, false);
       state.loaded = true;
       emit();
     })();
@@ -467,6 +484,7 @@ export function createFeed(kind) {
       if (seeding) await seeding;
       else await seedFromSnapshot();
       await seedFromDevice(wanted);
+      if (kind === 'news') for (const [ticker, saved] of liveNews) adoptLiveNews(ticker, saved, false);
       state.loaded = true;
       emit();
 
@@ -489,7 +507,7 @@ export function createFeed(kind) {
       // picker committed a selection and fetched nothing, which is the worst of both designs.
       if (walkWanted && !state.coversUniverse) {
         walkMissing();
-      } else if (!state.rows.size && !state.coversUniverse) {
+      } else if (allowColdStart && !state.rows.size && !state.coversUniverse) {
         // Nothing to show. Walk once rather than render an empty table over a working feed.
         state.coldStart = true;
         walkMissing();
@@ -652,7 +670,7 @@ export function createFeed(kind) {
     let res;
     state.snapshotPending = true;
     try {
-      res = await conditionalJson(SNAPSHOT[kind], { key: KEYS.filings(kind), optional: true });
+      res = await read(SNAPSHOT[kind], { key: KEYS.filings(kind), optional: true });
     } catch {
       res = null;
     }
@@ -722,7 +740,7 @@ export function createFeed(kind) {
         if (entity.name) state.names.set(key, entity.name);
       }
     }
-    if (replace && !newer) return state.rows.size > 0;
+    if (replace && !newer) return state.rows.size > 0 || !!body.queryWindow;
 
     if (newer) {
       // Announcement snapshots replace rows. Companies that aged out
@@ -874,6 +892,11 @@ export function createFeed(kind) {
     state.failures.delete(t);
     state.confirmedAt.set(t, res?.checkedAt || Date.now());
     state.confirmedHere.add(t);
+    if (kind === 'news') {
+      const saved = { rows: dedupeArticles([...incoming, ...(liveNews.get(t)?.rows || [])]), at: res?.checkedAt || Date.now() };
+      liveNews.set(t, saved);
+      for (const notify of liveNewsSubscribers) notify(t, saved);
+    }
     if (!state.capturedAt && body.fetchedAt) state.checkedAt = Date.parse(body.fetchedAt) || state.checkedAt;
     return list;
   }
@@ -891,6 +914,7 @@ export function createFeed(kind) {
     failureFor,
     meta,
     isLoaded: () => state.loaded,
+    dispose() { state = fresh(); rowSnapshot = null; subscribers.clear(); liveNewsSubscribers.delete(adoptLiveNews); },
     invalidate() {
       state = fresh();
       loading = null;
@@ -910,9 +934,51 @@ const companyNewsFeed = createFeed('news');
 export const news = withNewsHistory(withTradingViewNews(withPortfolioPublisherNews(companyNewsFeed)));
 // Separate reading state: a fast News visit never narrows the history used by All Alerts,
 // AI Alerts, Ask Research or saved bookmarks. Network/cache bytes remain shared by URL.
-// Share captured/head and explicit live-search observations, not archive-loading state. A manual
-// News refresh must also reach All Alerts immediately; it cannot be marooned in a second cache.
-export const recentNews = withNewsHistory(withTradingViewNews(withPortfolioPublisherNews(companyNewsFeed,
-  { window: recentNewsWindow })), { window: recentNewsWindow });
+// Explicit live-search observations reach all readers through the shared public ledger above.
+// Each reading window owns only its selected captured records and correction companions.
+export const recentNews = createQueryNews(() => newsPeriodBounds('today'));
+// Each bounded query owns its projections; it cannot narrow the full-history/research reader.
+// It uses the same canonicalizers and coverage metadata, after the working-set reader has
+// located all date-correction / cross-route URL companions in the retained source archive.
+export function createQueryNews(window, { extraRows = () => marketNews.rows() } = {}) {
+  const readWindow = () => typeof window === 'function' ? window() : window;
+  let activeWindow = readWindow(), wanted = [], initializedWindow = null, disposed = false, pending = Promise.resolve();
+  const working = createNewsWorkingSet({ window: () => activeWindow, extraRows });
+  const core = createFeed('news', { read: working.read, allowColdStart: false });
+  const feed = withNewsHistory(withTradingViewNews(withPortfolioPublisherNews(core, { include: working.includes }), { read: working.read }), { read: working.read });
+  const prepare = async () => {
+    if (disposed) throw Error('News reader released');
+    activeWindow = readWindow();
+    try {
+      await marketNews.load();
+      while (marketNews.archiveMeta().remaining) {
+        const before = marketNews.archiveMeta().remaining, result = await marketNews.loadMore();
+        if (result.failed || marketNews.archiveMeta().remaining >= before) break;
+      }
+    } catch { /* Company captures can still paint while publisher health reports failure. */ }
+    await working.prepare();
+    if (disposed) throw Error('News reader released');
+    if (initializedWindow !== JSON.stringify(activeWindow)) {
+      feed.invalidate(); feed.setWanted(wanted); initializedWindow = JSON.stringify(activeWindow);
+    }
+  };
+  // A changing picker must not replace the window halfway through a head/archive read. Each
+  // operation uses one stable window, then the next operation takes the latest requested scope.
+  const run = operation => {
+    const result = pending.then(async () => { await prepare(); return operation(); });
+    pending = result.catch(() => {});
+    return result;
+  };
+  return { ...feed,
+    setWanted(items) { wanted = items; return feed.setWanted(items); },
+    setWindow(next) { const before = JSON.stringify(readWindow()); window = next; return before !== JSON.stringify(readWindow()); },
+    isLoaded: () => initializedWindow === JSON.stringify(readWindow()) && feed.isLoaded(),
+    seed: (...args) => run(() => feed.seed(...args)),
+    load(items = [], ...args) { wanted = items; return run(() => feed.load(wanted, ...args)); },
+    refresh: (...args) => run(() => feed.refresh(...args)),
+    refreshSnapshot: (...args) => run(() => feed.refreshSnapshot(...args)),
+    release() { disposed = true; feed.dispose(); working.release(); },
+  };
+}
 export const announcements = withAnnouncementLookups(withFilingArchive(createFeed('announcements'), 'announcements'));
 export const insider = withFilingArchive(createFeed('insider'), 'insider');

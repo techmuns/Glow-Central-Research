@@ -236,6 +236,9 @@ export function render(ctx) {
 }
 
 export function destroy() {
+  // All-history restores from its complete device snapshot. Retain only bounded period views
+  // as a fast RAM return path; leaving this tab must release its full-history source graph.
+  if (report && !report.queryWindow) report = null;
   arrivalsUI.detach();
   arrivals.reset();
   ctxRef = null;

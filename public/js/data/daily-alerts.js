@@ -52,7 +52,7 @@ import * as screenerInsights from './screener-insights.js';
 // (`action !== 'held'`) admitted every future state by default, which is how an outstanding
 // filing would have become a negative alert about a named investor.
 import { isMove } from './finology-shared.js';
-import { announcements, insider, news } from './filings.js';
+import { announcements, insider, news, createQueryNews } from './filings.js';
 import { insiderTradeSourceUrl, canonicalArticleUrl } from './filings-shared.js';
 import { classifyStory } from './news-keywords.js';
 import { announcementSignal } from './filing-signals.js';
@@ -504,9 +504,48 @@ function queryEvents(events, queryWindow) {
 // matching URL before choosing the canonical company/article and preserving its provenance.
 // Raw history remains the authority; only the expensive alert interpretation is narrowed.
 let newsCandidates = null;
-function newsQueryRows(reader, queryWindow) {
+const queryNewsReaders = new Map();
+let activeCollections = 0, releaseRequested = false, researchOwnsSources = false;
+function trimQueryReaders() {
+  for (const [key, entry] of queryNewsReaders) {
+    if (queryNewsReaders.size <= 2) break;
+    if (entry.active) continue;
+    queryNewsReaders.delete(key); entry.off(); entry.reader.release();
+  }
+}
+function releaseInactiveMemory() {
+  if (!releaseRequested || listeners.size || activeCollections || loadingFeeds.size) return;
+  for (const entry of queryNewsReaders.values()) { entry.off(); entry.reader.release(); }
+  queryNewsReaders.clear();
+  // Research keeps a prepared estate between questions. Its source owner is independent of
+  // alert navigation; clearing that store would make a cached research preparation incomplete.
+  if (!researchOwnsSources) { news.invalidate(); loadedFeeds.delete('news'); loadErrors.delete('news'); }
+  normalizedFeeds.delete('news'); normalizedFeeds.delete('market-news');
+  newsCandidates = null; lastNewsSourceQuery = null; lastAssembleInput = null; lastAssembleOutput = null;
+  releaseRequested = false;
+}
+function queryNewsReader(queryWindow) {
+  if (!queryWindow) return news;
+  const key = alertWindowKey(queryWindow);
+  let entry = queryNewsReaders.get(key);
+  if (!entry) {
+    const reader = createQueryNews(queryWindow, { extraRows: () => marketNews.rows() });
+    const off = reader.onChange(() => {
+      normalizedFeeds.delete('news'); newsCandidates = null; lastNewsSourceQuery = null;
+      if (normalizedFeeds.get('market-news')?.windowKey !== 'null') normalizedFeeds.delete('market-news');
+      listeners.forEach(fn => fn());
+    });
+    entry = { reader, off, active: 0 };
+  }
+  queryNewsReaders.delete(key); queryNewsReaders.set(key, entry);
+  // Keep at most two inactive reading periods; active overlapping readers stay pinned.
+  entry.active++;
+  trimQueryReaders();
+  return entry.reader;
+}
+function newsQueryRows(reader, queryWindow, companyReader = news) {
   if (!queryWindow) { newsCandidates = null; return reader.rows(); }
-  const companyRows = news.rows(), marketRows = marketNews.rows();
+  const companyRows = companyReader.rows(), marketRows = marketNews.rows();
   const key = alertWindowKey(queryWindow);
   if (newsCandidates?.companyRows !== companyRows || newsCandidates.marketRows !== marketRows || newsCandidates.key !== key) {
     const selected = row => inAlertQuery({ at: row.publishedAt || row.date }, queryWindow);
@@ -514,20 +553,20 @@ function newsQueryRows(reader, queryWindow) {
     const matches = row => selected(row) || row.url && urls.has(canonicalArticleUrl(row.url));
     newsCandidates = { companyRows, marketRows, key, company: companyRows.filter(matches), market: marketRows.filter(matches) };
   }
-  return reader === news ? newsCandidates.company : newsCandidates.market;
+  return reader === companyReader ? newsCandidates.company : newsCandidates.market;
 }
-function readFeed(feed, { day, includeHistory, queryWindow = null }) {
+function readFeed(feed, { day, includeHistory, queryWindow = null, newsReader = news }) {
   const newsFeed = ['news', 'market-news'].includes(feed.id);
   const windowKey = alertWindowKey(newsFeed ? queryWindow : null);
   const cached = normalizedFeeds.get(feed.id);
-  if (cached?.day === day && cached.includeHistory === includeHistory && cached.windowKey === windowKey) {
+  if (cached?.day === day && cached.includeHistory === includeHistory && cached.windowKey === windowKey && (!newsFeed || cached.newsReader === newsReader)) {
     // Re-age the wall-clock discovery note without reclassifying thousands of unchanged stories.
-    return feed.id === 'news' ? { ...cached.row, ...companyNewsState(day) } : cached.row;
+    return feed.id === 'news' ? { ...cached.row, ...companyNewsState(day, newsReader.meta()) } : cached.row;
   }
-  const out = COLLECTORS[feed.id]({ day, includeHistory, queryWindow, scope: 'universe', wanted: null }) || {};
+  const out = COLLECTORS[feed.id]({ day, includeHistory, queryWindow, newsReader, scope: 'universe', wanted: null }) || {};
   const row = toFeedRow(feed, { ...out,
     events: (out.events || []).filter((e) => includeHistory || eventDay(e) === day) }, day);
-  if (loadedFeeds.has(feed.id) && !PRIVATE_FEEDS.has(feed.id)) normalizedFeeds.set(feed.id, { day, includeHistory, windowKey, row });
+  if (loadedFeeds.has(feed.id) && !PRIVATE_FEEDS.has(feed.id)) normalizedFeeds.set(feed.id, { day, includeHistory, windowKey, newsReader: newsFeed ? newsReader : null, row });
   return row;
 }
 
@@ -544,6 +583,7 @@ function loadFeed(id, refresh) {
     // The bulk calendar adapter owns a capture outside earnings-calendar's event store.
     if (id === 'earnings-calendar') normalizedFeeds.delete(id);
     loadingFeeds.delete(id); listeners.forEach((fn) => fn());
+    releaseInactiveMemory();
   });
   loadingFeeds.set(id, pending);
   return pending;
@@ -552,6 +592,7 @@ function loadFeed(id, refresh) {
 /** Revalidate the evidence stores without building a large alerts report.
  * Ask Research needs fresh inputs for the next question, not a discarded timeline. */
 export async function refreshSources() {
+  researchOwnsSources = true;
   observeSources();
   const context = screenerInsights.load({ refresh: true }).then(() => {
     if (screenerInsights.meta()?.latestReadFailed) throw Error('Company insights could not be refreshed.');
@@ -563,6 +604,7 @@ export async function refreshSources() {
 
 /** Load the shared feed stores without assembling or sorting any timeline. */
 export async function prepareSources({ refresh = false, feedIds = null } = {}) {
+  researchOwnsSources = true;
   observeSources();
   const wanted = feedIds == null ? null : new Set(feedIds);
   const selected = wanted ? FEEDS.filter(feed => wanted.has(feed.id)) : FEEDS;
@@ -583,6 +625,10 @@ export async function prepareSources({ refresh = false, feedIds = null } = {}) {
  */
 export async function collect({ scope = 'universe', day = today(), holdings = null, includeHistory = false, refresh = false, load = true, onPartial = null, requestedCompanies = [], queryWindow = null } = {}) {
   observeSources();
+  // Pure reassembly of explicitly preloaded source fixtures keeps using those same records.
+  const newsReader = queryWindow && (load || queryNewsReaders.has(alertWindowKey(queryWindow))) ? queryNewsReader(queryWindow) : news;
+  activeCollections++;
+  try {
   const book = holdings || coverage.holdings();
   const settledFeeds = new Map(); // feed id -> the finished feed row
   // A warm estate can still require cold normalization. Do not make a tab click synchronously
@@ -597,7 +643,7 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   // status still says these records have not been rechecked by this collection.
   for (const feed of load ? FEEDS : []) {
     try {
-      settledFeeds.set(feed.id, { ...readFeed(feed, { day, includeHistory, queryWindow }), status: 'pending' });
+      settledFeeds.set(feed.id, { ...readFeed(feed, { day, includeHistory, queryWindow, newsReader }), status: 'pending' });
     } catch { /* A source with no readable snapshot starts empty. */ }
     if (performance.now() - batchStarted >= 8) { await yieldForInput(); batchStarted = performance.now(); }
   }
@@ -607,7 +653,7 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
     if (queryWindow) for (const id of ['news', 'market-news']) {
       const previous = settledFeeds.get(id);
       if (previous) {
-        try { settledFeeds.set(id, { ...previous, events: readFeed(feedById.get(id), { day, includeHistory, queryWindow }).events }); }
+        try { settledFeeds.set(id, { ...previous, events: readFeed(feedById.get(id), { day, includeHistory, queryWindow, newsReader }).events }); }
         catch { settledFeeds.set(id, { ...previous, status: 'failed', reachesToday: false,
           note: 'This news view could not be rebuilt. Previously read evidence remains visible.' }); }
       }
@@ -647,9 +693,15 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
       let out;
       // Collect once without company narrowing. Scope is a view over the same source records,
       // never an ingestion filter. Unresolved rows survive in Universe.
-      const args = { day, scope: 'universe', wanted: null, includeHistory, queryWindow };
+      const args = { day, scope: 'universe', wanted: null, includeHistory, queryWindow, newsReader };
       try {
-        if (load) await loadFeed(feed.id, refresh);
+        if (load && feed.id === 'news' && newsReader !== news) {
+          // The publisher route can correct dates at the same URL. Its complete original pool
+          // supplies companions before the company working set is selected.
+          try { await loadFeed('market-news', refresh); } catch { /* Company capture remains useful. */ }
+          await refreshFilings(newsReader, refresh);
+          loadedFeeds.add('news'); normalizedFeeds.delete('news');
+        } else if (load) await loadFeed(feed.id, refresh);
         await yieldForInput();
         out = readFeed(feed, args);
         if (!load && loadErrors.has(feed.id)) out = { ...out, status: 'failed', reachesToday: false, note: `Last read failed: ${loadErrors.get(feed.id)}. Retained records remain visible.` };
@@ -675,6 +727,12 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
     void alertWindowCache.write(materializePublicAlertWindow(allPublic));
   }
   return completed;
+  } finally {
+    activeCollections--;
+    const entry = queryNewsReaders.get(alertWindowKey(queryWindow));
+    if (newsReader !== news && entry?.reader === newsReader) entry.active--;
+    trimQueryReaders(); releaseInactiveMemory();
+  }
 }
 
 const LOADERS = {
@@ -714,8 +772,12 @@ async function refreshFilings(feed, refresh) {
 // Read-only source notifications; the tab reassembles loaded records without triggering fetches.
 export function onChange(fn) {
   observeSources();
+  releaseRequested = false;
   listeners.add(fn);
-  return () => listeners.delete(fn);
+  return () => {
+    listeners.delete(fn);
+    if (!listeners.size) { releaseRequested = true; releaseInactiveMemory(); }
+  };
 }
 
 const COLLECTORS = {
@@ -1572,8 +1634,8 @@ function fromTechnicals({ day, wanted, includeHistory }) {
 }
 
 /** Company news published today. An editorial headline is not sentiment data, so it stays neutral. */
-function fromCompanyNews({ day, wanted, includeHistory, queryWindow }) {
-  const rows = newsQueryRows(news, queryWindow).filter((r) => inRequestedWindow(r.publishedAt || r.date, day, includeHistory) && inScope(wanted, r.ticker));
+function fromCompanyNews({ day, wanted, includeHistory, queryWindow, newsReader = news }) {
+  const rows = newsQueryRows(newsReader, queryWindow, newsReader).filter((r) => inRequestedWindow(r.publishedAt || r.date, day, includeHistory) && inScope(wanted, r.ticker));
 
   const events = rows.map((r) => ({
     // THE TICKER IS PART OF THE IDENTITY. One story is returned by several companies' searches,
@@ -1600,7 +1662,7 @@ function fromCompanyNews({ day, wanted, includeHistory, queryWindow }) {
     url: r.url || null,
   }));
 
-  return { events, ...companyNewsState(day) };
+  return { events, ...companyNewsState(day, newsReader.meta()) };
 }
 
 export function companyNewsState(day, m = news.meta(), now = Date.now()) {
@@ -1636,13 +1698,13 @@ export function companyNewsState(day, m = news.meta(), now = Date.now()) {
  * the same rule the chatter tab follows for its unresolved half. They appear under Universe and the
  * feed row says why they do not appear under the other two.
  */
-function fromMarketNews({ day, scope, includeHistory, queryWindow }) {
+function fromMarketNews({ day, scope, includeHistory, queryWindow, newsReader = news }) {
   const m = marketNews.meta();
   const capturedDay = istDay(m.capturedAt);
   const scopable = true; // Reviewed portfolio matches are resolved centrally before scope filtering.
 
   const events = scopable
-    ? newsQueryRows(marketNews, queryWindow)
+    ? newsQueryRows(marketNews, queryWindow, newsReader)
         .filter((a) => inRequestedWindow(a.publishedAt, day, includeHistory))
         .map((a) => ({
           id: `mcnews:${a.id}`,
