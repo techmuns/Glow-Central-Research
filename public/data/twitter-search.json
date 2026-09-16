@@ -181,7 +181,7 @@
       "error": "search-unavailable"
     },
     "isin:INE482D01024|Carysil": {
-      "lastAttemptAt": "2026-09-11T22:09:11+00:00",
+      "lastAttemptAt": "2026-09-16T05:29:45+00:00",
       "error": "search-unavailable"
     },
     "isin:INE482D01024|CARYSIL": {
@@ -1444,6 +1444,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-16T05:16:13.283647+00:00"
+    "checkedAt": "2026-09-16T05:29:45.322410+00:00"
   }
 }
