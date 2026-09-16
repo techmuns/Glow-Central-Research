@@ -511,7 +511,7 @@
       ]
     },
     "isin:INE330T01021|Happy Forgings": {
-      "lastAttemptAt": "2026-09-12T12:05:12+00:00",
+      "lastAttemptAt": "2026-09-16T21:49:50+00:00",
       "lastResultCount": 41,
       "error": "search-unavailable",
       "lastSuccessAt": "2026-09-07T15:18:18+00:00",
@@ -1458,6 +1458,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-16T21:17:34.725002+00:00"
+    "checkedAt": "2026-09-16T21:49:50.610595+00:00"
   }
 }
