@@ -205,6 +205,20 @@ them by taking the template side again:
 9. **A modal taller than the window caps its own body.** `#modal-content` in `public/index.html`
    carries `max-height` and its own scroller, because the centred overlay put a long panel's close
    button above the scrollable area where no click could reach it.
+10. **A peer question's anchor has to be a company THIS book holds.** The template's reasoning check
+   now expects a "businesses similar to X" question to reach the source-backed comparison, and reads
+   its own live book; Glow's copy injects the frozen `template-portfolio-companies.json` fixture, and
+   the two lists differ by 43 companies. The comparison branch learns what the named business is from
+   that company's own source rows, so an anchor the book does not hold has none, and the question is
+   answered as a portfolio-wide reading instead — the honest answer, not a miss, and identical on both
+   sides of this merge. The held anchor here is Tejas Networks; the template's Supreme Industries stays
+   beside it as the unheld case, and `expectedKind` derives from whether the book holds the anchor
+   rather than from the words "similar to".
+11. **A card carrying `content-visibility: auto` is read with `textContent`, never `innerText`.** The
+   template's embedded-frame optimisation lets an AI Alerts card off the fold skip its own layout, so
+   `innerText` — which reads what is rendered — answers with an empty string over a card whose markup
+   holds the text. What a check asserts is what the card says, which must not depend on where the page
+   is scrolled.
 
 Two upstream checks needed their budgets widened for this deployment's data volume rather than their
 claims changed: the All Alerts arrival highlight expires at ~24s here against a 25s budget, and the
