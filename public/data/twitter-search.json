@@ -559,9 +559,9 @@
       ]
     },
     "isin:INE267A01025|HINDZINC": {
-      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
+      "lastAttemptAt": "2026-09-16T23:58:56+00:00",
       "lastResultCount": 25,
-      "error": null,
+      "error": "search-unavailable",
       "targetThrough": "2026-09-07T15:18:18+00:00",
       "pending": [
         {
@@ -1458,6 +1458,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-16T23:46:19.130534+00:00"
+    "checkedAt": "2026-09-16T23:58:56.763555+00:00"
   }
 }
