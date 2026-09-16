@@ -57,3 +57,15 @@ assert.deepEqual(jsonShardCacheState(fetcher).decodes,1);
 const bad = {...part,sha256:'a'.repeat(64),file:`news.parts/${'a'.repeat(64)}.json`};
 await assert.rejects(hydrateJsonShards({...manifest,_jsonShards:{...manifest._jsonShards,parts:[bad]}},'news.json',{fetcher:async()=>new Response(bytes)}),/integrity/);
 console.log('PASS durable-before-eviction, bounded snapshot backlog, every arrival/correction, cancellation isolation and immutable part reuse.');
+
+const { conditionalJson, clearAll } = await import('../public/js/core/store.js');
+const originalFetch = globalThis.fetch;
+try {
+  let revision = 1;
+  globalThis.fetch = async () => Response.json({ meta: { contentTag: 'same-logical-data' }, representation: revision });
+  const options = { key: 'news-query:manifest:representation-test', rawManifest: true };
+  assert.equal((await conditionalJson('data/news.json', options)).value.representation, 1);
+  revision++;
+  assert.equal((await conditionalJson('data/news.json', options)).value.representation, 2,
+    'a logical content tag cannot pin obsolete raw part addresses after lossless republishing');
+} finally { globalThis.fetch = originalFetch; await clearAll(); }

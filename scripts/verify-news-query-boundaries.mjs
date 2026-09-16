@@ -10,7 +10,7 @@ import { createNewsWorkingSet } from '../public/js/data/news-working-set.js';
 import { newsQueryIndexRow, newsQueryIdentity } from '../public/js/data/news-query-index.js';
 import { newsPeriodBounds } from '../public/js/data/news-window.js';
 const dir = mkdtempSync(join(tmpdir(), 'sattva-query-boundaries-'));
-const originalFetch = globalThis.fetch, originalNow = Date.now;
+const originalFetch = globalThis.fetch, originalNow = Date.now, originalDocument = globalThis.document, originalTimeout = globalThis.setTimeout;
 const digest = data => createHash('sha256').update(data).digest('hex');
 let now = Date.parse('2026-09-16T18:29:00Z');
 Date.now = () => now;
@@ -18,6 +18,8 @@ try {
   const rows = Array.from({ length: 120 }, (_, i) => ({ title: `Alpha update ${i}`, ticker: 'ALPHA',
     company: 'Alpha Limited', date: i % 3 === 0 ? '2026-09-16' : '2026-08-01',
     url: `https://example.test/story/${i}`, description: 'Original detail. '.repeat(150) }));
+  rows[3].tradingViewId = 'same-story';
+  rows[4].tradingViewId = 'same-story';
   rows[1] = { ...rows[1], url: rows[0].url, lastSeenAt: '2026-09-16T17:00:00Z', title: 'Corrected publication day' };
   const value = { capturedAt: '2026-09-16T17:00:00Z', byTicker: { ALPHA: rows, EMPTY: [] }, failed: {}, empty: [] };
   const path = join(dir, 'news.json');
@@ -56,7 +58,7 @@ try {
   const working = make();
   await working.prepare();
   const projected = (await working.read('data/news.json')).value;
-  const selected = rows.filter(row => row.date === '2026-09-16' || row.url === rows[0].url);
+  const selected = rows.filter(row => row.date === '2026-09-16' || row.url === rows[0].url || row.tradingViewId === 'same-story');
   assert.deepEqual(projected.byTicker.ALPHA, selected, 'selected date includes corrected companions in their original order');
   const sourcePaths = new Set(spec.parts.map(part => 'data/'+part.file));
   assert(calls.filter(path => sourcePaths.has(path)).length < spec.parts.length, 'Today skips old source text');
@@ -84,7 +86,7 @@ try {
   open(); await old;
   const newValue = (await latest).value;
   assert.equal(newValue.queryWindow.from, window.from, 'in-flight old preparation cannot certify a new period');
-  assert.deepEqual(newValue.byTicker.ALPHA, rows.filter(row => row.date === '2026-08-01' || row.url === rows[0].url));
+  assert.deepEqual(newValue.byTicker.ALPHA, rows.filter(row => row.date === '2026-08-01' || row.url === rows[0].url || row.tradingViewId === 'same-story'));
   switching.release(); gate = null;
 
   // Exercise the real facade and explicit live searches in separate windows. Empty Today
@@ -92,9 +94,12 @@ try {
   mkdirSync(join(dir, 'tradingview-news'), { recursive: true });
   writeFileSync(join(dir,'tradingview-news/latest.json'), JSON.stringify({capturedAt:value.capturedAt,byTicker:{}}));
   writeFileSync(join(dir,'market-news.json'), JSON.stringify({capturedAt:value.capturedAt,articles:[],sources:[]}));
-  let upstreamCalls = 0;
+  for (const row of rows) delete row.tradingViewId;
+  writeNewsJson(path, value, {maxBytes:32768});
+  let upstreamCalls = 0, failSourceParts = false;
   globalThis.fetch = async input => {
     const p = String(input);
+    if (failSourceParts && p.startsWith('data/news.parts/')) return new Response('', {status:403});
     if (p.startsWith('data/')) {
       try { return new Response(readFileSync(join(dir,p.slice(5))), {headers:{'content-type':'application/json'}}); }
       catch { return new Response('{}',{status:404}); }
@@ -103,12 +108,39 @@ try {
     return Response.json({ articles: [{ title:'Manual arrival',date:'2026-09-17',url:'https://example.test/manual' }], fetchedAt:new Date(now).toISOString() });
   };
   const { createQueryNews, createFeed } = await import('../public/js/data/filings.js');
+  let poll = null, scheduled = 0;
+  globalThis.document = Object.assign(new EventTarget(), { hidden: false, defaultView: new EventTarget() });
+  globalThis.setTimeout = (fn, ms, ...args) => {
+    if (ms >= 120000) { poll = fn; scheduled++; return 123456789; }
+    return originalTimeout(fn, ms, ...args);
+  };
   const current = createQueryNews(() => newsPeriodBounds('today'));
+  const offCurrent = current.onChange(() => {});
   await current.load(['ALPHA']);
   assert(current.rows().some(row=>row.title==='Alpha update 3'));
+  assert(!current.rows().some(row=>row.url===rows[2].url));
+  writeFileSync(join(dir,'market-news.json'), JSON.stringify({capturedAt:'2026-09-16T18:00:00Z',sources:[],articles:[{
+    id:'publisher:date-correction',title:'Publisher correction',url:rows[2].url,publishedAt:'2026-09-16T17:30:00Z'
+  }]}));
+  await current.refreshSnapshot();
+  assert(current.rows().some(row=>row.url===rows[2].url), 'a new publisher date adds an older companion even when the company head timestamp is unchanged');
+  failSourceParts = true;
+  current.setWindow({from:'2026-08-01',to:'2026-09-16',includeUndated:false});
+  await current.load(['ALPHA']);
+  assert(current.rows().some(row=>row.title==='Alpha update 3'), 'a failed wider read keeps overlapping last-good stories visible');
+  assert(current.meta().newsDelivery.core.error, 'failed widening is not reported as complete');
+  failSourceParts = false;
+  await current.refreshSnapshot();
+  assert(current.rows().some(row=>row.url===rows[119].url), 'recovery reads the newly requested older records');
+  current.setWindow(() => newsPeriodBounds('today'));
+  await current.load(['ALPHA']);
   now = Date.parse('2026-09-16T18:31:00Z');
   assert.equal(current.isLoaded(), false, 'midnight invalidates the previous day without a manual filter change');
-  await current.load(['ALPHA']);
+  assert.equal(typeof poll, 'function', 'visible query reader owns an automatic recheck');
+  const priorScheduled = scheduled;
+  await poll();
+  assert(scheduled > priorScheduled, 'midnight replacement rearms the next automatic refresh');
+  assert(current.isLoaded(), 'automatic rollover initializes the new reading period');
   assert.equal(current.rows().length, 0, 'the new empty day cannot retain yesterday in its working set');
   assert.equal(upstreamCalls, 0, 'an empty bounded date never starts unsolicited per-company requests');
   assert.equal((await current.refreshSnapshot()).available, true, 'a verified empty day is a successful read');
@@ -116,13 +148,14 @@ try {
   await live.loadOne('ALPHA', { force: true });
   assert.equal(upstreamCalls, 1);
   assert(current.rows().some(row=>row.url==='https://example.test/manual'), 'manual arrival reaches another active window');
-  current.release();
+  offCurrent(); current.release();
+  globalThis.setTimeout = originalTimeout; globalThis.document = originalDocument;
   const reopened = createQueryNews(() => newsPeriodBounds('today'));
   await reopened.load(['ALPHA']);
   assert(reopened.rows().some(row=>row.url==='https://example.test/manual'), 'releasing a reading window cannot lose an uncheckpointed manual arrival');
   reopened.release(); live.dispose();
   console.log('PASS date-part skipping, source order, correction companions, optional-index recovery, rapid switching, midnight and manual-arrival retention.');
 } finally {
-  Date.now = originalNow; globalThis.fetch = originalFetch;
+  Date.now = originalNow; globalThis.fetch = originalFetch; globalThis.document = originalDocument; globalThis.setTimeout = originalTimeout;
   rmSync(dir, {recursive:true,force:true});
 }

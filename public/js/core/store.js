@@ -409,7 +409,9 @@ async function readConditionalJson(path, { key, optional = false, signal, valida
     throw err;
   }
 
-  const tag = headerTag || value?.meta?.contentTag || null;
+  // A logical-content tag can survive a lossless representation/index rewrite. Raw readers
+  // must adopt the new part addresses even when that body tag is unchanged.
+  const tag = headerTag || (!rawManifest && value?.meta?.contentTag) || null;
   // Same short-circuit, for the case where the ETag header was unreadable and the tag had to come
   // out of the body. The parse is already paid for, but the caller still learns nothing changed.
   if (tag && stored?.tag === tag && stored.value && (rawManifest || !Object.hasOwn(stored.value, '_jsonShards'))) {

@@ -128,8 +128,6 @@ export function makeFilingsTab(cfg) {
     const t = ++token;
     ctxRef = ctx;
     renderedRows = null;
-    disposers.forEach((d) => d && d());
-    disposers = [];
     const seeded = companySeededView(ctx, routeCompany, view);
     routeCompany = seeded.company;
     view = cfg.prepareView?.(ctx, seeded.view) ?? seeded.view;
@@ -182,7 +180,13 @@ export function makeFilingsTab(cfg) {
     cfg.feed.setWanted(items);
 
     if (!cfg.feed.isLoaded()) {
-      ctx.root.innerHTML = `${sectionHead({ title: cfg.title, description: cfg.subtitle })}${loadingHtml()}`;
+      // Keep the reading controls and overlapping last-good rows usable while a new period
+      // loads. Replacing an already-painted table with a splash loses the user's next choice.
+      if (cfg.preserveReadingPosition && ctx.root.querySelector('[data-filings-info]')) paint(ctx);
+      else {
+        disposers.forEach(dispose => dispose && dispose()); disposers = [];
+        ctx.root.innerHTML = `${sectionHead({ title: cfg.title, description: cfg.subtitle })}${loadingHtml()}`;
+      }
       cfg.feed.load(items).then(() => {
         if (t === token) paint(ctx);
       });

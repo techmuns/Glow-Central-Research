@@ -6,7 +6,7 @@ public transport, not collection scope, retention, company matching, or AI evide
 ## What changes
 
 - News and selected-period All Alerts locate dates using compact, integrity-checked part indexes.
-  They load matching raw parts and every matching URL's correction/provenance companions before
+  They load matching raw parts and every connected URL/TradingView identity's correction/provenance companions before
   applying the existing canonicalizers. A fingerprint collision can only overfetch; record
   identity continues to use the original full URL and company identity.
 - Large captures use transport version 2: records are grouped by date, with a validated complete
@@ -38,8 +38,9 @@ ownership. This change preserves those contracts and their existing tests. Recen
 no longer share one projected head, so explicit live-news arrivals have a separate shared ledger
 and retain the existing per-company durable cache. Releasing a window cannot discard its only copy.
 
-A reading operation uses one stable period. The latest picker wins the next operation, and Today
-is reevaluated at IST midnight. An empty selected day does not dispatch unsolicited company walks.
+A reading operation uses one stable period. Failed widening keeps overlapping last-good stories visible.
+Publisher date corrections invalidate projections even when the company capture timestamp is unchanged. The latest picker wins the next operation, and Today
+is reevaluated by the visible/resume poller at IST midnight, with the next recheck rearmed. An empty selected day does not dispatch unsolicited company walks.
 Source check times and partial/failed coverage remain source facts, not conclusions from row counts.
 
 The service-worker release advances with the module graph. Old clients reject transport version 2
@@ -54,7 +55,8 @@ activates the new worker and reloads, rather than checking only a fresh asset UR
   normal capture updates; equivalence is the assertion.
 - `verify-news-query-boundaries.mjs`: real date grouping and skipped old text, original order,
   index semantic corruption and missing/corrupt-index fallback, date-correction companions, rapid
-  switching, IST midnight, valid empty dates and explicit manual-arrival retention.
+  switching, automatic IST-midnight rechecks, failed wider reads, stable-timestamp publisher corrections,
+  valid empty dates and explicit manual-arrival retention.
 - `verify-memory-primitives.mjs`: durable-before-eviction, pinned unsaved data, bounded write backlog,
   every arrival/correction, cancellation isolation and one decode for unchanged shared parts.
 - Existing publication, capacity/quota/corruption, recent-window, publisher delivery, alert restore,

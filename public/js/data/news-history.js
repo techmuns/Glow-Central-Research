@@ -50,14 +50,14 @@ export function withNewsHistory(base, { read = conditionalJson, window: readingW
       for (const indexPath of paths) {
         try {
           if (!/^(company-news|tradingview-news)\/index\.json$/.test(indexPath)) throw Error('Invalid news archive index');
-          const { value, tag } = await read(`data/${indexPath}`, { key: `news-history:${indexPath}` });
+          const { value, tag, queryRevision = null } = await read(`data/${indexPath}`, { key: `news-history:${indexPath}` });
           if (generation !== epoch) return false;
           if (!Array.isArray(value?.archive)) throw Error('News archive index unavailable');
           const stamp = tag || value.updatedAt;
           const previous = indexes.get(indexPath);
           if (previous?.updatedAt && Date.parse(value.updatedAt) < Date.parse(previous.updatedAt)) throw Error('News archive index regressed');
           const coveredByHead = indexPath === 'company-news/index.json' && newsHeadCoversArchive(meta, value, window);
-          if (stamp && previous?.stamp === stamp && previous.windowKey === windowKey && previous.coveredByHead === coveredByHead) continue;
+          if (stamp && previous?.stamp === stamp && previous.windowKey === windowKey && previous.coveredByHead === coveredByHead && previous.queryRevision === queryRevision) continue;
           const family = indexPath.split('/')[0];
           const next = new Map(), nextIdentities = new Map();
           for (const entity of value.entities || []) {
@@ -76,7 +76,7 @@ export function withNewsHistory(base, { read = conditionalJson, window: readingW
           }
           for (const [path, records] of next) held.set(path, records);
           for (const [key, identity] of nextIdentities) identities.set(key, identity);
-          if (stamp) indexes.set(indexPath, { stamp, updatedAt: value.updatedAt, windowKey, coveredByHead });
+          if (stamp) indexes.set(indexPath, { stamp, updatedAt: value.updatedAt, windowKey, coveredByHead, queryRevision });
           revision++;
         } catch { failed = true; }
       }

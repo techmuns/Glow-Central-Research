@@ -60,6 +60,7 @@ import { withPortfolioPublisherNews } from './portfolio-publisher-news.js';
 import { newsPeriodBounds } from './news-window.js';
 import * as marketNews from './market-news.js';
 import { createNewsWorkingSet } from './news-working-set.js';
+import { holdsTicker } from './row-ticker-index.js';
 import * as exchangeDeals from './exchange-deals.js';
 
 // How many companies a live walk will ask about before it stops and says so. The upstreams allow
@@ -200,6 +201,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
       enrichmentCoverage: null,
       tradingViewCoverage: null,
       snapshotUpdatedAt: null,
+      queryRevision: null,
       snapshotReadError: null,
       snapshotPending: false,
       snapshotChecked: false,
@@ -704,8 +706,9 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     }
     // "Newer" is chronological, not merely different. A rollback or stale edge response must not
     // replace rows this browser has already proved came from a later capture.
-    const newer = replace && Number.isFinite(nextCaptured) && (!Number.isFinite(heldCaptured) || nextCaptured > heldCaptured);
-    if (!replace || newer) { state.capturedAt = capturedAt; state.snapshotUpdatedAt = revisionAt; }
+    const projectionChanged = kind === 'news' && body.queryRevision != null && body.queryRevision !== state.queryRevision;
+    const newer = replace && Number.isFinite(nextCaptured) && (!Number.isFinite(heldCaptured) || nextCaptured > heldCaptured || projectionChanged);
+    if (!replace || newer) { state.capturedAt = capturedAt; state.snapshotUpdatedAt = revisionAt; state.queryRevision = body.queryRevision ?? null; }
     if (!replace || newer) {
       state.oldestDataAt = body.oldestDataAt || capturedAt;
       state.fallbackCount = Number.isFinite(body.fallbackCount) ? body.fallbackCount : 0;
@@ -805,7 +808,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
       if (t && unresolved && !state.failures.has(t)) state.failures.set(t, { ...info, fromSnapshot: true });
     }
     state.snapshotCount = state.fromSnapshot.size;
-    return state.rows.size > 0 || state.askedEmpty.size > 0;
+    return state.rows.size > 0 || state.askedEmpty.size > 0 || !!body.queryWindow;
   }
 
   /** The rows out of one company's payload, deduplicated where duplication is meaningless. */
@@ -945,12 +948,29 @@ export function createQueryNews(window, { extraRows = () => marketNews.rows() } 
   let activeWindow = readWindow(), wanted = [], initializedWindow = null, disposed = false, pending = Promise.resolve();
   const working = createNewsWorkingSet({ window: () => activeWindow, extraRows });
   const core = createFeed('news', { read: working.read, allowColdStart: false });
-  const feed = withNewsHistory(withTradingViewNews(withPortfolioPublisherNews(core, { include: working.includes }), { read: working.read }), { read: working.read });
-  const prepare = async () => {
+  const feed = withNewsHistory(withTradingViewNews(withPortfolioPublisherNews(core, { include: working.includes }), { read: working.read, revalidate: () => run(() => feed.refreshSnapshot(), true) }), { read: working.read });
+  let retainedRows = null, combined = null;
+  const rows = () => {
+    const current = feed.rows();
+    if (!retainedRows?.length) return current;
+    if (combined?.current === current && combined.retained === retainedRows) return combined.rows;
+    const buckets = new Map();
+    for (const row of [...current, ...retainedRows]) {
+      const key = row.ticker || row.entityId || row.company;
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(row);
+    }
+    const value = [...buckets.values()].flatMap(dedupeArticles)
+      .sort((a,b) => String(b.publishedAt || b.date || '').localeCompare(String(a.publishedAt || a.date || '')));
+    combined = { current, retained: retainedRows, rows: value };
+    return value;
+  };
+  const prepare = async (refreshPublishers = false) => {
     if (disposed) throw Error('News reader released');
     activeWindow = readWindow();
     try {
-      await marketNews.load();
+      if (refreshPublishers && marketNews.isLoaded()) await marketNews.refresh();
+      else await marketNews.load();
       while (marketNews.archiveMeta().remaining) {
         const before = marketNews.archiveMeta().remaining, result = await marketNews.loadMore();
         if (result.failed || marketNews.archiveMeta().remaining >= before) break;
@@ -959,25 +979,39 @@ export function createQueryNews(window, { extraRows = () => marketNews.rows() } 
     await working.prepare();
     if (disposed) throw Error('News reader released');
     if (initializedWindow !== JSON.stringify(activeWindow)) {
+      // Keep only useful previously verified rows while a different period is being read.
+      // A missing newly-needed part must not erase overlapping last-good evidence.
+      retainedRows = initializedWindow === null ? null : rows().filter(working.includes); combined = null;
       feed.invalidate(); feed.setWanted(wanted); initializedWindow = JSON.stringify(activeWindow);
     }
   };
   // A changing picker must not replace the window halfway through a head/archive read. Each
   // operation uses one stable window, then the next operation takes the latest requested scope.
-  const run = operation => {
-    const result = pending.then(async () => { await prepare(); return operation(); });
+  const run = (operation, refreshPublishers = false) => {
+    const result = pending.then(async () => { await prepare(refreshPublishers);
+      // Window replacement also replaces the supplemental poller's lifetime. Initialize it
+      // before a refresh, so the midnight rollover cannot stop subsequent automatic checks.
+      if (!feed.isLoaded()) await feed.seed();
+      const result = await operation();
+      const m = feed.meta();
+      if (!m.newsDelivery?.core?.error && !m.tradingViewReadError && !m.newsHistory?.error &&
+          !m.newsDelivery?.publishers?.error) { retainedRows = null; combined = null; }
+      return result; });
     pending = result.catch(() => {});
     return result;
   };
-  return { ...feed,
+  return { ...feed, rows,
+    meta() { return { ...feed.meta(), loaded: initializedWindow === JSON.stringify(readWindow()) && feed.isLoaded(), rowCount: rows().length }; },
+    forTicker: ticker => rows().filter(row => String(row.ticker || row.entityId || '').toUpperCase() === String(ticker).toUpperCase()),
+    wasAskedEmpty: ticker => !holdsTicker(rows(), ticker) && feed.wasAskedEmpty(ticker),
     setWanted(items) { wanted = items; return feed.setWanted(items); },
     setWindow(next) { const before = JSON.stringify(readWindow()); window = next; return before !== JSON.stringify(readWindow()); },
     isLoaded: () => initializedWindow === JSON.stringify(readWindow()) && feed.isLoaded(),
     seed: (...args) => run(() => feed.seed(...args)),
     load(items = [], ...args) { wanted = items; return run(() => feed.load(wanted, ...args)); },
-    refresh: (...args) => run(() => feed.refresh(...args)),
-    refreshSnapshot: (...args) => run(() => feed.refreshSnapshot(...args)),
-    release() { disposed = true; feed.dispose(); working.release(); },
+    refresh: (...args) => run(() => feed.refresh(...args), true),
+    refreshSnapshot: (...args) => run(() => feed.refreshSnapshot(...args), true),
+    release() { disposed = true; feed.dispose(); working.release(); retainedRows = null; combined = null; },
   };
 }
 export const announcements = withAnnouncementLookups(withFilingArchive(createFeed('announcements'), 'announcements'));

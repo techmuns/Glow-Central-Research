@@ -3,7 +3,7 @@
 // they locate selected dates and EVERY companion URL before existing canonicalization runs.
 import { conditionalJson, readEntry, writeEntry } from '../core/store.js';
 import { shardSpec, shardPath, readVerifiedShard } from '../core/json-shards.js';
-import { newsQueryIdentity as identity, newsQueryIndexRow as summary, validNewsQueryIndex, NEWS_QUERY_INDEX_VERSION } from './news-query-index.js';
+import { newsQueryIdentities as identities, newsQueryIndexRow as summary, validNewsQueryIndex, NEWS_QUERY_INDEX_VERSION } from './news-query-index.js';
 
 const encoder = new TextEncoder();
 const fetchPart = (...args) => fetch(...args);
@@ -24,7 +24,7 @@ function unwrap(item, descriptor) {
 
 export function createNewsWorkingSet({ window: readingWindow, extraRows = () => [], read = conditionalJson,
   diskRead = readEntry, diskWrite = writeEntry, fetcher = fetchPart } = {}) {
-  let pending = null, descriptors = new Map(), urls = new Set(), preparedWindow = null, lastPrepared = 0, epoch = 0;
+  let pending = null, descriptors = new Map(), urls = new Set(), preparedWindow = null, lastPrepared = 0, epoch = 0, selectionRevision = 0;
   const raw = path => read(path, { key: `news-query:manifest:${path}`, rawManifest: true });
   async function partIndex(descriptor, part) {
     const index = part.queryIndex;
@@ -53,7 +53,16 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
     if (pending) return pending;
     const generation = epoch, window = readingWindow();
     pending = (async () => {
-      const next = new Map(), selectedUrls = new Set();
+      const next = new Map(), selectedUrls = new Set(), edges = new Map();
+      const indexRow = item => {
+        if (selected(item, window)) for (const id of item[2]) selectedUrls.add(id);
+        // The same TradingView story can change URLs. Close over both identities, including
+        // cross-route URL companions, before any of the existing deduplicators run.
+        if (item[2].length > 1) for (const id of item[2]) {
+          if (!edges.has(id)) edges.set(id, new Set());
+          for (const other of item[2]) edges.get(id).add(other);
+        }
+      };
       const load = async path => {
         if (next.has(path)) return next.get(path);
         const entry = await raw(path), spec = shardSpec(entry.value);
@@ -82,7 +91,7 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
           if (count !== part.count) { next.delete(descriptor.path); continue; }
         }
       }
-      for (const row of extraRows()) if (selected(summary(row), window) && identity(row)) selectedUrls.add(identity(row));
+      for (const row of extraRows()) indexRow(summary(row));
       // Index one bounded part at a time. Keep only its selected IDs / selected row positions;
       // the complete text and full index need no additional module-lifetime owner.
       for (const descriptor of next.values()) {
@@ -91,14 +100,15 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
             let index;
             try { index = await partIndex(descriptor, part); }
             catch { next.delete(descriptor.path); break; }
-            for (const item of index) if (selected(item, window) && item[2]) selectedUrls.add(item[2]);
+            for (const item of index) indexRow(item);
           }
         } else {
           const value = descriptor.entry.value;
           const rows = value.articles || Object.values(value.byTicker || {}).flat();
-          for (const row of rows) if (selected(summary(row), window) && identity(row)) selectedUrls.add(identity(row));
+          for (const row of rows) indexRow(summary(row));
           if (Array.isArray(value.articles) || value.byTicker) {
-            descriptor.inlineDigest = await hash(JSON.stringify(value));
+            descriptor.inlineField = value.byTicker ? 'byTicker' : 'articles';
+            descriptor.inlineDigest = await hash(JSON.stringify(value[descriptor.inlineField]));
             descriptor.inlineCount = rows.length;
             descriptor.inlineIndex = rows.map(summary);
             // The raw inline body stays on disk / HTTP cache, not in the working-set owner.
@@ -110,28 +120,34 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
         }
         await yieldInput();
       }
+      const queue = [...selectedUrls];
+      for (let i = 0; i < queue.length; i++) for (const id of edges.get(queue[i]) || []) if (!selectedUrls.has(id)) {
+        selectedUrls.add(id); queue.push(id);
+      }
       // All families and date-correction companions have been considered before exposing a view.
       if (generation !== epoch) throw Error('Obsolete news view');
       for (const descriptor of next.values()) if (descriptor.inlineIndex) {
-        descriptor.inlineNeeded = descriptor.inlineIndex.some(item => selected(item, window) || item[2] && selectedUrls.has(item[2]));
+        descriptor.inlineNeeded = descriptor.inlineIndex.some(item => selected(item, window) || item[2].some(id => selectedUrls.has(id)));
         delete descriptor.inlineIndex;
       }
+      if (JSON.stringify(preparedWindow) !== JSON.stringify(window) || urls.size !== selectedUrls.size ||
+          [...selectedUrls].some(url => !urls.has(url))) selectionRevision++;
       descriptors = next; urls = selectedUrls; preparedWindow = window; lastPrepared = Date.now();
     })().finally(() => { if (generation === epoch) pending = null; });
     return pending;
   }
   async function project(descriptor) {
-    const window = preparedWindow, selectedUrls = urls;
+    const window = preparedWindow, selectedUrls = urls, queryRevision = selectionRevision;
     let value = descriptor.entry.value;
-    if (!descriptor.spec && !value.byTicker && !Array.isArray(value.articles)) return descriptor.entry;
+    if (!descriptor.spec && !value.byTicker && !Array.isArray(value.articles)) return { ...descriptor.entry, queryRevision };
     const field = descriptor.spec?.field || (value.byTicker ? 'byTicker' : 'articles');
     const { _jsonShards, ...out } = value;
-    out.queryWindow = window;
+    out.queryWindow = window; out.queryRevision = queryRevision;
     out[field] = field === 'byTicker' ? Object.fromEntries(Object.keys(value.byTicker).map(key => [key, []])) : [];
-    const matches = item => selected(item, window) || item[2] && selectedUrls.has(item[2]);
+    const matches = item => selected(item, window) || item[2].some(id => selectedUrls.has(id));
     if (descriptor.inlineDigest && descriptor.inlineNeeded) {
       const entry = await raw(descriptor.path);
-      if (await hash(JSON.stringify(entry.value)) !== descriptor.inlineDigest) throw Error('News capture changed during this query');
+      if (await hash(JSON.stringify(entry.value?.[descriptor.inlineField])) !== descriptor.inlineDigest) throw Error('News capture changed during this query');
       value = entry.value;
     }
     const add = item => {
@@ -160,7 +176,7 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
   }
   return {
     prepare,
-    includes: row => selected(summary(row), readingWindow()) || !!identity(row) && urls.has(identity(row)),
+    includes: row => selected(summary(row), readingWindow()) || identities(row).some(id => urls.has(id)),
     async read(path, options) {
       if (!path.startsWith('data/')) return read(path, options);
       if (!lastPrepared || JSON.stringify(preparedWindow) !== JSON.stringify(readingWindow()) ||
