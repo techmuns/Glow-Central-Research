@@ -5237,6 +5237,26 @@ filters by comparison end date. It does not attribute those net changes to indiv
 the period. PMS weights and company stakes are different units and labelled accordingly. A missing
 public stake is no longer reported, not proof of a sale. New/missing positions carry no derived pp.
 
+**Every comparison row prints the two dates it was measured on** (17 September 2026). A public
+investor's row carries `from` and `date` as the quarter-end dates of the two shareholding patterns
+(`dateKind: 'pattern'`, with `priorLabel` / `latestLabel` keeping the source's own column labels);
+a manager's row carries the two statement dates (`dateKind: 'statement'`). Neither is a trade
+date: a pattern carries none, so the row says *Not in a pattern*, and a manager's row prints the
+dated trades the transaction statement lists inside the window (`trades.first` / `trades.last`,
+via `tradeWindow()`) or says there is none. `sourceCheckedAt` is the separate date the source was
+last read (the book's `fetchedAt`; `managers.json`'s `syncedAt`). The Superstar Investors Data
+Table, the quarterly roll-up rows, each investor's Quarterly comparison panel, the cross-investor
+company modal and every export print the same pairs — pattern date and source-read date are two
+columns, never merged — and My Managers' *This period* rows and roll-up subtitles print the
+statement dates and the trades' own dates from `scripts/build-managers.mjs`'s `trades.first` /
+`trades.last`. A move never borrows a day it was not given.
+
+The coverage audit (`js/investors/integrity.js`) is no longer a block on the Superstar Investors
+page. It opens from the *How this is derived* button beside the freshness chip, inside the same
+provenance modal, with every investor and manager row, the public-source review queue and the link
+to the refresh runs. `ensureHoldingsFresh()` still revalidates its sources on mount, whether or
+not the audit is opened.
+
 `sync-bulk-deals.mjs` reads the public Sattva `insider-trades.json` capture and admits only rows whose
 Trade Category is Bulk deal or Block deal. It merges them into Glow's existing file and records a
 separate `bulkDeals` source/date/retained-range/count/error object. Both upstream category checks must

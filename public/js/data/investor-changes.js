@@ -102,6 +102,13 @@ const quarterEnd = (label) => {
   const order = quarterOrder(label), year = Math.floor(order / 100), month = order % 100;
   return order && [3, 6, 9, 12].includes(month) ? iso(new Date(Date.UTC(year, month, 0))) : null;
 };
+// EVERY COMPARISON ROW CARRIES BOTH DATES IT WAS MEASURED ON, and says which kind of date each is.
+// A public investor's row compares two shareholding patterns, so `from` and `date` are the two
+// QUARTER-END dates the patterns state the holding on; a manager's row compares two statements, so
+// they are the two STATEMENT dates. Neither is a trade date: a pattern never carries one, and a
+// manager's dated trades ride beside the row in `trades.first` / `trades.last` from the statement
+// itself. `sourceCheckedAt` is the separate fact of when the source was last read.
+export const quarterEndDate = quarterEnd;
 export function investorHoldings(books, investors, today = indiaDay()) {
   const names = new Map(investors.map((i) => [i.slug, i.name])), events = [];
   for (const book of books) {
@@ -113,16 +120,26 @@ export function investorHoldings(books, investors, today = indiaDay()) {
         if (['held', 'unknown', 'awaiting'].includes(move.action)) continue;
         events.push({ ...move, id: `holding|${book.slug}|${move.companySlug}|${latest}`,
           date: quarterEnd(latest), from: quarterEnd(prior), period: `${prior} → ${latest}`,
+          priorLabel: prior, latestLabel: latest, dateKind: 'pattern',
+          sourceCheckedAt: book.sourceCheckedAt || book.fetchedAt || null,
           person: names.get(book.slug) || book.name, personId: book.slug, source: 'Quarterly disclosure', unit: '% of company' });
       }
     }
   }
   return events;
 }
-export function managerHoldings(managers) {
+export function managerHoldings(managers, { syncedAt = null } = {}) {
   return managers.flatMap((m) => (m.moves || []).filter((move) => move.action !== 'held').map((move) => ({
     ...move, id: `holding|${m.id}|${move.securityKey}`, date: m.window?.to, from: m.window?.from,
-    period: `${m.window?.from || '—'} → ${m.window?.to || '—'}`, company: move.security, ticker: move.symbol,
+    period: `${m.window?.from || '—'} → ${m.window?.to || '—'}`, dateKind: 'statement',
+    priorLabel: m.window?.from || null, latestLabel: m.window?.to || null, sourceCheckedAt: syncedAt,
+    company: move.security, ticker: move.symbol,
     person: m.name, personId: m.id, source: 'PMS statements', before: move.weightBefore, now: move.weightNow, unit: '% of mandate',
   })));
+}
+/** The dated trades a manager's statement carries inside a comparison window, or null where it carries none. */
+export function tradeWindow(row) {
+  const t = row?.trades;
+  if (!t || !t.first) return null;
+  return { first: t.first, last: t.last || t.first, buys: t.buys || 0, sells: t.sells || 0 };
 }
