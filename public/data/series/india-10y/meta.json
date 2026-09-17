@@ -17,8 +17,8 @@
  "note": "MONTHLY, not daily — the OECD long-term government bond yield for India (10-year benchmark) as republished by FRED. The daily benchmark yield is on the RBI's own site and still needs a reader; this is the monthly figure, and the frequency travels with the series so no 1-day or 1-week return is ever computed from it.",
  "accumulating": false,
  "first": "2011-12-01",
- "last": "2026-06-01",
- "count": 175,
- "retrievedAt": "2026-08-18T02:55:00.181Z",
- "staleSince": "2026-06-01"
+ "last": "2026-07-01",
+ "count": 176,
+ "retrievedAt": "2026-09-16T07:17:18.060Z",
+ "staleSince": "2026-07-01"
 }
