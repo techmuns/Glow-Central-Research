@@ -102,7 +102,22 @@ export const KEYWORDS = [
     test: /\b(?:order|contract)s?\s+(?:worth|valued|of|for|from)\b|\b(?:(?:bags?|bagged|bagging|wins?|won|winning|secures?|secured|securing|receives?|received|receiving|lands|landed|gets|got)\b|(?:rs\.?|₹|inr)\s?[\d,.]+)[^.!?]{0,40}?\b(?<!\b(?:court|interim|adjudicat\w{0,3}|final|sebi|tribunal|nclt|restraining|stay|penalty in a?|against the)\s)(?:order|contract)s?\b|\b(?:order|contract)s?\s+(?:win|wins|award\w*|inflow\w*)\b|\bletter of (?:intent|award)\b|\bloa\b/,
     note: 'The bare word is not enough: "in order to" is not business won, and a court, interim or SEBI order is a different event that shares the word. A commercial verb or a stated value has to sit beside it.',
   },
-  { id: 'orderbook', label: 'Orderbook', group: 'growth', test: /\border[\s-]?book\b|\border\s+backlog\b|\bunexecuted order\w*\b/ },
+  {
+    id: 'orderbook',
+    label: 'Orderbook',
+    group: 'growth',
+    // THE PIPELINE OF WORK WON BUT NOT EXECUTED HAS FOUR NAMES AND THIS ONLY KNEW TWO.
+    // `\border[\s-]?book\b` requires a word boundary after "book", so "order bookings" —
+    // how a results note writes the same figure — did not match it, and "order intake" and
+    // "order pipeline" shared no word with the pattern at all. Measured over the 112,659
+    // captured stories: 217 headlines say order book and 24 say order backlog, and both were
+    // already caught; 11 say order intake, 12 say order pipeline and 3 say order booking, of
+    // which 21 matched no tracked keyword at all. Every one of the 21 is a real order-pipeline
+    // story — GRSE, Cochin Shipyard, Praj, GMM Pfaudler, Triveni Turbine, Thermax, CG Power —
+    // so this is a feed the desk tracks going unread, not a pattern that was being careful.
+    test: /\border[\s-]?book\b|\border\s+backlog\b|\bunexecuted order\w*\b|\border\s+(?:intakes?|bookings?|pipelines?)\b/,
+    note: 'Counts the other names the same figure is published under — order intake, order bookings and order pipeline — because the order book is one thing however a results note spells it. "Order inflow" sits under Order, beside the other ways an order win is written.',
+  },
   {
     id: 'receipt-of-order',
     label: 'Receipt of Order',
