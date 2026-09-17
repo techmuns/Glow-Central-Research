@@ -964,6 +964,25 @@ dropdowns to its left so the path reads left to right. The four categories the o
 leads with still come first within their heading, and nothing is merged. The workbook sub-view uses
 the same toolbar without the Category and Strategy slots, because there the category is the row.
 
+**AND THE LAST STATE OF SELECTION IS RETAINED.** The owner's ask (17 September 2026): leaving the tab
+reset every control, and so did a reload, so a reader who had narrowed 1,850 schemes to the dozen
+they follow rebuilt that selection on every visit. `js/data/mf-filter-memory.js` keeps the whole of
+it on this device under `sattva:mf-filters:v1` — the Active / Passive cut, asset class, group,
+category, strategy, the Show toggle, each table's search text and sort, the search box's category
+chips and the reader's benchmark choices — written on every change and again on the way out
+(`destroy()`, `pagehide`, a hidden page), because the kit mutates a table's sort and search in
+place and reports neither. `destroy()` therefore resets only what belongs to one visit: the drill,
+its table view and the mount. Three rules keep it honest, and the offline test and the browser
+suite assert each: **a saved value is re-checked against the loaded feed before it is applied**
+(`reconcileHierarchy` keeps a group only under its class and a category only under its group, and
+a chip only while the feed carries that label — a stale value would narrow the table to nothing
+under a toolbar reading *All*, the control-disagrees-with-its-state failure); **the shape is
+validated field by field**, so a private window, a cleared site or an older build's value resolves
+to the defaults rather than throwing; and **it is a display preference, not data** — capture,
+counts and the export's disclosure line read none of it, exactly as the remembered filing-type
+selection on Corp Announcements. Clear is remembered too: it writes the defaults, it does not
+delete the key.
+
 **THE CLASSIFICATION TREE GOES THREE LEVELS DEEP ON ALL SCHEMES AND TWO ON CATEGORY PERFORMANCE**,
 because there the third level **is** the row: a category control above a table of categories is the
 same control twice. All Schemes offers the **Category** dropdown immediately, without requiring a
