@@ -14,7 +14,17 @@ export function dataReviewDecision({ pr, files, checks, runs, reviews, inline, c
       !/^codex\/data-\d+-\d+(?:-news-\d+)?$/.test(pr.headRefName || '') ||
       files.length !== pr.changedFiles || !files.length || files.some(f => !dataPath(f.filename))) return 'scope';
   if (pr.mergeable !== 'MERGEABLE' || pr.isDraft) return 'merge-gate';
-  const current = runs.filter(r => r.headSha === pr.headRefOid).sort((a, b) => b.databaseId - a.databaseId)[0];
+  // TWO VERIFY RUNS SHARE EVERY CAPTURE COMMIT, AND ONLY ONE OF THEM RAN. A PR opened with the
+  // Actions token gets a `pull_request` run that GitHub creates and never executes — it sits at
+  // `action_required`, awaiting an approval nobody gives — beside the dispatched run that did the
+  // work (see openPreparedDataPr). Both carry the head SHA, and the never-run one usually has the
+  // higher id, so "the newest run for this commit" picked a run that measured nothing and every
+  // capture read as unverified. Measured on 17 September 2026: 483 open capture PRs, three green
+  // jobs on each, and this gate answering `verification` to all of them — including one a person
+  // had approved. A run that never executed is not evidence either way; only runs that ran count,
+  // and the newest of those decides, so an executed failure still blocks.
+  const executed = runs.filter(r => r.headSha === pr.headRefOid && !['action_required', 'skipped'].includes(r.conclusion));
+  const current = executed.sort((a, b) => b.databaseId - a.databaseId)[0];
   if (!current || current.status !== 'completed' || current.conclusion !== 'success') return 'verification';
   const latest = new Map();
   for (const check of checks.slice().sort((a, b) => String(a.started_at).localeCompare(String(b.started_at)))) latest.set(check.name, check);
@@ -38,8 +48,17 @@ export function dataReviewDecision({ pr, files, checks, runs, reviews, inline, c
   // stop: a spent quota is answered tomorrow, an unreviewable author never is. Neither state
   // merges, but the run must be able to say which one it is, or the whole dashboard's data quietly
   // stops advancing with nothing on the repository saying why.
-  if (!completed && !approved) return comments.some(c => reviewer(c.user?.login) && /to use codex here/i.test(c.body))
-    ? 'review-unavailable' : 'review-pending-or-unavailable';
+  if (!completed && !approved) {
+    // SILENCE IS THE SAME ANSWER AS THE NOTICE. This branch is reached only once Verify has run
+    // to completion — twenty minutes and more after the review was requested — and the connector
+    // answers a PR it will review within a couple of minutes. Measured on 17 September 2026: 483
+    // capture PRs over four days and not one comment from it on any of them, while the same app
+    // answered every person-authored PR with its quota notice. A reviewer that has said nothing
+    // by then is not one that has not answered yet; the run has to say so, or the data stops
+    // advancing with every gate quietly reading "pending".
+    const heard = comments.filter(c => reviewer(c.user?.login));
+    return !heard.length || heard.some(c => /to use codex here/i.test(c.body)) ? 'review-unavailable' : 'review-pending-or-unavailable';
+  }
   if (inline.length || reviews.some(r => ['CHANGES_REQUESTED', 'COMMENTED'].includes(r.state))) return 'review-feedback';
   // An app saying it cannot review here is not review feedback to address; it is the reason a
   // person's approval is standing in for it.

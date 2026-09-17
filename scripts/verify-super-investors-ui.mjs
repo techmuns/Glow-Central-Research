@@ -21,7 +21,8 @@ const investors = [...Object.keys(books), 'missing'].map(slug => ({ slug, name: 
 const snapshot = { capturedAt: at, investors, books };
 const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css">
 <body class="bg-slate-50"><main id="test-root" class="mx-auto max-w-7xl p-4"></main>
-<div id="modal-overlay" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/30 p-4"><div id="modal-container"><div id="modal-content"></div></div></div>
+<div id="modal-overlay" class="hidden fixed inset-0 z-[60] overflow-y-auto bg-slate-900/30 p-4"><div id="modal-container"><div id="modal-content"></div></div></div>
+<div id="workspace-overlay" class="fixed inset-0 z-[55] hidden items-start justify-center overflow-y-auto bg-slate-900/70 p-0 sm:p-6"><div id="workspace-container" class="relative w-full max-w-[1200px] bg-white"><div id="workspace-content"></div></div></div>
 <script type="module">
 import * as feed from '/js/data/super-investors.js';
 import * as coverage from '/js/data/coverage.js';
@@ -63,6 +64,15 @@ try {
   await page.goto(origin + '/#/research/super-investors?scope=portfolio');
   await page.waitForFunction(() => window.testSI && !window.testSI.feed.meta().confirming);
   assert.match(await page.locator('#test-root').innerText(), /All disclosed positions/i);
+  // EVERY ROW IS DATED. The fixture compares the Jun 2026 pattern with the Mar 2026 one, so every
+  // change cell prints the two quarter ends those patterns state the holding on, and the read date
+  // of the book beside it — never a day inside the quarter, which no pattern carries.
+  await page.waitForSelector('[data-pattern-dates]');
+  assert(await page.locator('[data-pattern-dates]:has-text("31 Mar 2026 → 30 Jun 2026")').count() > 0, 'the Data Table dates every comparison on its two pattern dates');
+  assert.equal(await page.locator('[data-pattern-dates]:has-text("—")').count(), 0, 'no compared row is left undated');
+  // Chromium's en-IN locale spells September "Sept"; Node's spells it "Sep". Match either.
+  assert.match(await page.locator('[data-source-read]').first().innerText(), /read 06 Sept? 2026/, 'every row says when its book was read');
+  assert.equal(await page.locator('[data-source-read]').count(), await page.locator('[data-pattern-dates]').count(), 'the read date accompanies every dated comparison');
   assert.equal(await page.evaluate(() => testSI.feed.quarterSummary({ include: (company) => company === 'Portfolio Only Ltd.' }).counts.added), 1);
   assert.equal(await page.evaluate(() => testSI.feed.meta().failedBooks), 1, 'missing books remain visible in feed health');
   await page.evaluate(() => paint('universe', 'data-table'));
@@ -112,8 +122,30 @@ try {
     'internal retry states stay out of customer chrome');
   await page.evaluate(() => paint('universe', 'quarterly-changes'));
   assert.match(await page.locator('[data-si-freshness]').first().innerText(), /Ticker Finology · (up to date|read )/, 'one quiet freshness label states the age');
-  await page.locator('[data-summary-help]').click();
+  // THE COVERAGE AUDIT IS BEHIND THE PROVENANCE DOOR, NOT ON THE PAGE. Nothing on the page reads
+  // "need attention" or lists source checks; the same audit, every row of it, opens from the button.
+  assert.equal(await page.locator('#test-root [data-holdings-integrity]').count(), 0, 'no coverage audit block on the page');
+  assert.doesNotMatch(await page.locator('#test-root').innerText(), /need attention|Unresolved coverage/, 'the audit wording stays off the customer page');
+  await page.locator('[data-summary-help]').first().click();
   assert.match(await page.locator('#modal-content').innerText(), /could not be re-checked just now/, 'the provenance modal still carries what the chrome stopped printing');
+  await page.waitForSelector('#modal-content [data-holdings-integrity] [data-integrity-person]');
+  // Four fixture investors plus every manager in the served managers.json — the audit covers both.
+  const profiles = await page.evaluate(async () => testSI.feed.list().length + (await import('/js/data/managers.js')).all().length);
+  assert.match(await page.locator('#modal-content [data-holdings-integrity]').innerText(), new RegExp(`Coverage & source checks · \\d+ of ${profiles} profiles have an open item`), 'the audit is reachable from the provenance modal, every profile in it');
+  assert.equal(await page.locator('#modal-content [data-integrity-person]').count(), profiles, 'every investor and manager is audited behind the door');
+  assert.match(await page.locator('#modal-content').innerText(), /31 Mar 2026 → 30 Jun 2026/, 'the modal states the pattern dates every row is measured on');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#modal-overlay.is-open').count(), 0);
+  // Inside an investor's workspace every compared row carries the two pattern dates, and the
+  // panel says when the book was read — two different dates, both printed.
+  await page.evaluate(() => paint('universe', 'investors'));
+  assert.match(await page.locator('[data-open-investor="one"]').innerText(), /Jun 2026 disclosures · as of 30 Jun 2026/, 'the card dates its latest pattern');
+  await page.locator('[data-open-investor="one"]').click();
+  await page.waitForSelector('#workspace-panel');
+  await page.locator('[data-ws-tab=moves]').click();
+  await page.waitForSelector('#workspace-panel [data-pattern-dates]');
+  assert.equal(await page.locator('#workspace-panel [data-pattern-dates]').first().innerText(), '31 Mar 2026 → 30 Jun 2026');
+  assert.match(await page.locator('#workspace-panel').innerText(), /Source read 06 Sept? 2026/);
   await page.keyboard.press('Escape');
 
   fail = false;
@@ -150,5 +182,5 @@ try {
   await page.clock.setSystemTime(new Date('2026-10-01T00:00:00Z'));
   assert.equal(await page.evaluate(() => testSI.feed.allMoves().find(m => m.companySlug === 'ONLY').latest), 'Sep 2026', 'quarter rollover invalidates derived cache');
   assert.deepEqual(errors, []);
-  console.log('PASS investor scope, disclosure notes, missing books, retained evidence, credential failures/recovery, late corrections and mobile table layout');
+  console.log('PASS investor scope, dated rows, coverage behind the provenance door, disclosure notes, missing books, retained evidence, credential failures/recovery, late corrections and mobile table layout');
 } finally { await browser.close(); await new Promise(done => server.close(done)); }

@@ -410,11 +410,26 @@ function movesNote(m) {
     A security gone from the statement was sold or restructured — the trades and corporate actions in the same window say which.`;
 }
 
+/**
+ * THE DATE OF THE TRADE, AS THE TRANSACTION STATEMENT PRINTS IT. One trade prints its day; several
+ * print the span from the first to the last, because a move is the sum of every dated trade in the
+ * window and no single day can stand for all of them. Nothing here is inferred from the statement
+ * dates — a move with no trade in the window says so rather than borrowing a date.
+ */
+export function tradeDates(t) {
+  if (!t?.first) return '';
+  const last = t.last || t.first;
+  return t.first === last ? `on ${formatDate(t.first)}` : `${formatDate(t.first)} – ${formatDate(last)}`;
+}
+/** Both statement dates a move is measured on, for the row that shows the move. */
+export const statementSpan = (window) => (window?.from && window?.to ? `${formatDate(window.from)} → ${formatDate(window.to)}` : '');
+
 function tradesCell(mv) {
   const t = mv.trades || {};
   const bits = [];
   if (t.buys) bits.push(`bought ${qty(t.qtyBought)} in ${t.buys} trade${t.buys === 1 ? '' : 's'}${t.bought != null ? ` for ${money(t.bought)}` : ''}`);
   if (t.sells) bits.push(`sold ${qty(t.qtySold)} in ${t.sells} trade${t.sells === 1 ? '' : 's'}${t.sold != null ? ` for ${money(t.sold)}` : ''}`);
+  if (bits.length && tradeDates(t)) bits.push(tradeDates(t));
   if (mv.via?.length) bits.push(`corporate action: ${mv.via.join(', ')}`);
   if (!bits.length && mv.action !== 'held') bits.push('no trade in this window on the statements');
   return bits.join(' · ');
@@ -442,7 +457,7 @@ function pmsMovesPanel() {
                     <span class="flex-shrink-0 text-xs tabular-nums text-slate-500">${escapeHtml(qty(mv.qtyBefore))} → ${escapeHtml(qty(mv.qtyNow))}${mv.deltaPp != null ? ` <span class="${tone(mv.deltaPp)}">(${escapeHtml(pp(mv.deltaPp))})</span>` : ''}</span>
                   </div>
                   <div class="mt-0.5 flex items-baseline justify-between gap-3 text-[11px] text-slate-500">
-                    <span class="min-w-0 truncate">${escapeHtml(tradesCell(mv))}</span>
+                    <span class="min-w-0 leading-snug" title="${escapeHtml(`Statements of ${statementSpan(m.window)}. ${tradesCell(mv) || 'No trade in this window on the statements.'}`)}"><span class="tabular-nums text-slate-400">${escapeHtml(statementSpan(m.window))}</span>${tradesCell(mv) ? ` · ${escapeHtml(tradesCell(mv))}` : ''}</span>
                     <span class="flex-shrink-0 tabular-nums">${mv.action === 'exited' ? `was ${escapeHtml(pct(mv.weightBefore, 1))}` : `${escapeHtml(pct(mv.weightNow, 1))} of the mandate`}</span>
                   </div>
                 </div>`
@@ -775,6 +790,10 @@ async function exportManager(m) {
           { header: 'Weight before %', width: 14, get: (r) => r.weightBefore ?? '' },
           { header: 'Weight now %', width: 14, get: (r) => r.weightNow ?? '' },
           { header: 'Change pp (derived)', width: 16, get: (r) => r.deltaPp ?? '' },
+          { header: 'Statement from', width: 14, get: () => m.window?.from ?? '' },
+          { header: 'Statement to', width: 14, get: () => m.window?.to ?? '' },
+          { header: 'First trade in window', width: 16, get: (r) => r.trades?.first ?? '' },
+          { header: 'Last trade in window', width: 16, get: (r) => r.trades?.last ?? '' },
           { header: 'Buys in window', width: 12, get: (r) => r.trades?.buys ?? '' },
           { header: 'Sells in window', width: 12, get: (r) => r.trades?.sells ?? '' },
           { header: 'Bought (settled)', width: 16, get: (r) => r.trades?.bought ?? '' },
@@ -829,6 +848,15 @@ export function managerSummaryBlock(ctx) {
   return buildSummary(ctx);
 }
 
+/** The dated trades behind a consensus row where every mandate has one, else the statement windows. */
+function consensusDates(c) {
+  const dated = c.managers.map((i) => i.trades?.first).filter(Boolean).sort();
+  const lasts = c.managers.map((i) => i.trades?.last || i.trades?.first).filter(Boolean).sort();
+  if (dated.length === c.managers.length) return dated[0] === lasts.at(-1) ? `trades on ${formatDate(dated[0])}` : `trades ${formatDate(dated[0])} – ${formatDate(lasts.at(-1))}`;
+  const windows = [...new Set(c.managers.map((i) => statementSpan(i.window)).filter(Boolean))];
+  return windows.length === 1 ? `statements ${windows[0]}` : `${windows.length} statement windows`;
+}
+
 function buildSummary(ctx) {
   const m = managers.meta();
   if (!m) {
@@ -837,7 +865,9 @@ function buildSummary(ctx) {
   const include = scopeInclude(ctx);
   const q = managers.periodSummary({ include, limit: 5 });
   const openCompany = (item) => openCompanyDetail(item.securityKey);
-  const sub = (mv) => `${mv.manager}${mv.trades?.buys || mv.trades?.sells ? ` · ${[mv.trades.buys ? `${mv.trades.buys} buy${mv.trades.buys === 1 ? '' : 's'}` : null, mv.trades.sells ? `${mv.trades.sells} sell${mv.trades.sells === 1 ? '' : 's'}` : null].filter(Boolean).join(', ')}` : mv.via?.length ? ` · ${mv.via.join(', ')}` : ''}`;
+  // Every row names its date: the trades' own dates where the statement carries any, otherwise
+  // the two statement dates the move was measured on. A move never borrows a day it was not given.
+  const sub = (mv) => `${mv.manager}${mv.trades?.buys || mv.trades?.sells ? ` · ${[mv.trades.buys ? `${mv.trades.buys} buy${mv.trades.buys === 1 ? '' : 's'}` : null, mv.trades.sells ? `${mv.trades.sells} sell${mv.trades.sells === 1 ? '' : 's'}` : null].filter(Boolean).join(', ')} ${tradeDates(mv.trades)}` : mv.via?.length ? ` · ${mv.via.join(', ')} · statements ${statementSpan(mv.window)}` : ` · statements ${statementSpan(mv.window)}`}`;
   const andOthers = (names) => (names.length <= 2 ? names.join(' & ') : `${names[0]}, ${names[1]} +${names.length - 2}`);
 
   const panels = [
@@ -845,7 +875,7 @@ function buildSummary(ctx) {
       key: 'mm-consensus-buys',
       title: 'Bought by more than one of your managers',
       note: 'Newly on the statement, or added to, by two or more of the family’s mandates.',
-      items: q.consensusBuys.map((c) => ({ name: c.security, securityKey: c.securityKey, sub: andOthers(c.managers.map((i) => i.manager)), value: `${c.count} managers`, badge: c.sized ? pp(c.sumPp) : null, tone: 'pos' })),
+      items: q.consensusBuys.map((c) => ({ name: c.security, securityKey: c.securityKey, sub: `${andOthers(c.managers.map((i) => i.manager))} · ${consensusDates(c)}`, value: `${c.count} managers`, badge: c.sized ? pp(c.sumPp) : null, tone: 'pos' })),
       empty: 'No company was bought by more than one of your managers this period.',
       onSelect: openCompany,
     }),
@@ -869,7 +899,7 @@ function buildSummary(ctx) {
       key: 'mm-consensus-sells',
       title: 'Sold by more than one of your managers',
       note: 'Trimmed, or no longer on the statement, at two or more of the family’s mandates.',
-      items: q.consensusSells.map((c) => ({ name: c.security, securityKey: c.securityKey, sub: andOthers(c.managers.map((i) => i.manager)), value: `${c.count} managers`, badge: c.sized ? pp(c.sumPp) : null, tone: 'neg' })),
+      items: q.consensusSells.map((c) => ({ name: c.security, securityKey: c.securityKey, sub: `${andOthers(c.managers.map((i) => i.manager))} · ${consensusDates(c)}`, value: `${c.count} managers`, badge: c.sized ? pp(c.sumPp) : null, tone: 'neg' })),
       empty: 'No company was sold down by more than one of your managers this period.',
       onSelect: openCompany,
     }),

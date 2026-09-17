@@ -128,6 +128,11 @@ jobs:
         id: holdings-audit
         if: env.SRC_SHA != ''
         continue-on-error: true
+        # This run answers for the managers' statement archive it just copied. The Finology books
+        # and exchange filings are investor-refresh.yml's captures and are reported as warnings
+        # naming that workflow, never as this run's failure.
+        env:
+          HOLDINGS_AUDIT_OWNS: managers
         run: node scripts/audit-holdings.mjs
 
       - name: Open reviewed series data PR

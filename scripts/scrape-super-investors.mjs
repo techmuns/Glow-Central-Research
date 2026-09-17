@@ -27,7 +27,7 @@
 // report the gap as the whole book. So this refuses to write below MIN_COVERAGE unless SI_FORCE=1,
 // and a book that failed is recorded under `failed` rather than written as an empty one.
 
-import { writeFile, readFile, rename } from 'node:fs/promises';
+import { writeFile, readFile, rename, appendFile } from 'node:fs/promises';
 import { assembleSnapshot, validateBook } from './lib/investor-snapshot.mjs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -69,14 +69,37 @@ async function getJson(path) {
   throw last || new Error(`${url} could not be read`);
 }
 
-const list = await getJson('/api/super-investors');
-if (!list || list.ok === false || !Array.isArray(list.investors) || !list.investors.length) {
-  console.error(`The investor list could not be read: ${list?.reason || 'no investors'} — ${list?.message || ''}`);
-  process.exit(1);
+// THE LIST ROUTE FAILING IS NOT A REASON TO ASK ABOUT NOTHING. On 15–16 September 2026 the
+// Finology relay answered `/super-investors` with HTTP 502 for five scheduled runs in a row, and
+// this script exited before touching a single book — while the Worker still held every book in its
+// six-hour edge cache. The retained snapshot carries the same ninety names, so the walk runs off
+// that list instead and records WHY the live list could not be read; whatever the books answer is
+// then written per book, exactly as a run with a healthy list would write it. What it never does
+// is pretend: `lastAttempt` names the failure, nothing refreshed keeps its old `fetchedAt`, and the
+// run still exits non-zero.
+const attemptedAt = new Date().toISOString();
+let list = null;
+let listError = null;
+try {
+  list = await getJson('/api/super-investors');
+  if (!list || list.ok === false || !Array.isArray(list.investors) || !list.investors.length) {
+    listError = `${list?.reason || 'no investors'} — ${list?.message || 'the list route answered without investors'}`;
+    list = null;
+  }
+} catch (err) {
+  listError = `unreachable — ${String(err?.message || err)}`;
+}
+if (!list) {
+  if (!Array.isArray(previous.investors) || !previous.investors.length) {
+    console.error(`The investor list could not be read and no retained list exists: ${listError}`);
+    process.exit(1);
+  }
+  console.error(`The investor list could not be read: ${listError}. Walking the ${previous.investors.length} retained names instead.`);
+  list = { investors: previous.investors, dropped: previous.dropped || 0 };
 }
 
 const investors = LIMIT ? list.investors.slice(0, LIMIT) : list.investors;
-console.log(`${investors.length} investors from ${BASE}`);
+console.log(`${investors.length} investors from ${listError ? 'the retained snapshot' : BASE}`);
 
 const books = {};
 const failed = {};
@@ -100,7 +123,10 @@ await Promise.all(
           books[slug] = validateBook(body, slug, previous.books?.[slug]);
         }
       } catch (err) {
-        failed[slug] = { reason: 'unreachable', message: String(err?.message || err) };
+        // `validateBook` refuses a response that answered but is not a book — a wrong slug, no
+        // quarters, regressed periods. That is a SHAPE failure and used to be filed as
+        // `unreachable`, which sent the reader after a network that had answered perfectly well.
+        failed[slug] = { reason: /portfolio shape|Invalid holding|Unexpected empty|older than|regressed/.test(String(err?.message)) ? 'shape' : 'unreachable', message: String(err?.message || err) };
       }
       done++;
       if (done % 10 === 0) process.stdout.write(`\r  ${done}/${investors.length} …`);
@@ -136,9 +162,21 @@ const covered = Object.keys(books).length;
 const positions = Object.values(books).reduce((a, b) => a + (Array.isArray(b.holdings) ? b.holdings.length : 0), 0);
 process.stdout.write(`\r  ${done}/${investors.length} — ${covered} books, ${positions} positions, ${Object.keys(failed).length} failed\n`);
 
-const snapshot = assembleSnapshot({ list: { ...list, investors }, books, failed, previous, capturedAt: new Date().toISOString() });
+const snapshot = assembleSnapshot({ list: { ...list, investors }, books, failed, previous, capturedAt: new Date().toISOString(),
+  attempt: { at: attemptedAt, listError, refreshed: covered, failed: Object.keys(failed).length, base: BASE } });
 await writeFile(`${OUT}.tmp`, `${JSON.stringify(snapshot)}\n`);
 await rename(`${OUT}.tmp`, OUT);
 console.log(`wrote ${OUT}: ${covered} refreshed, ${snapshot.retained.length} retained, ${snapshot.failedCount} failed`);
+// THE RUN SUMMARY NAMES THE CAUSE, because "Holdings ingestion needs attention" sent an operator
+// to read working code while the upstream was down. One line per thing that failed, in words.
+if (process.env.GITHUB_STEP_SUMMARY) {
+  const lines = [`## Finology capture (${attemptedAt})`,
+    listError ? `- **The live investor list could not be read** from \`${BASE}/api/super-investors\`: ${listError}. The walk used the ${investors.length} retained names.` : `- Investor list read: ${investors.length} investors.`,
+    `- ${covered} books refreshed · ${snapshot.retained.length} retained from the previous capture · ${snapshot.failedCount} failed.`,
+    ...Object.entries(failed).slice(0, 12).map(([slug, f]) => `- ${slug}: ${f.reason} — ${f.message}`),
+    Object.keys(failed).length > 12 ? `- …and ${Object.keys(failed).length - 12} more; see the log.` : null].filter(Boolean);
+  await appendFile(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n\n`);
+}
+if (listError) console.error(`::error title=Finology relay unreachable::${BASE}/api/super-investors — ${listError}. The relay at devde.muns.io answers this route; nothing in this repository can bring it back. Retained books keep their last read time.`);
 // Publish the last-good books and failure metadata, but surface an operational failure to CI.
-if (snapshot.failedCount) process.exitCode = 1;
+if (snapshot.failedCount || listError) process.exitCode = 1;
