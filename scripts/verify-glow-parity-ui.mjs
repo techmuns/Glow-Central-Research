@@ -137,10 +137,37 @@ try {
     localStorage.setItem('sattva:amfibeas-base', 'https://amfibeas.fixture');
     location.hash = '#/research/mutual-funds/all-schemes?scope=universe';
   });
+  // The previous block leaves the viewport at phone width; the geometry below is a desktop claim.
+  await page.setViewportSize({ width: 1440, height: 1000 });
   const fundInput = page.locator('#content-host [data-fund-search] input');
   await fundInput.waitFor();
   const fundRows = page.locator('#content-host tr[data-row-key]');
   assert.equal(await fundRows.count(), 8);
+  // THE TABLE IS THE PAGE. The shell's picker card is gone from above it; the two views are a
+  // tray in the heading row that routes exactly as the picker did, and the table takes the
+  // height the chrome leaves rather than a guessed calc().
+  assert(await page.evaluate(() => { const m = document.getElementById('subview-mount'); return !m || m.classList.contains('hidden') || !m.innerText.trim(); }), 'the shell’s sub-view picker card is hidden for Mutual Funds');
+  assert.equal(await page.locator('[data-mf-views] [data-mf-view]').count(), 2, 'the heading row carries the two-view switch');
+  assert.equal(await page.locator('[data-mf-view="all-schemes"]').getAttribute('aria-pressed'), 'true');
+  assert((await page.locator('[data-mf-views]').boundingBox()).y < (await page.locator('[data-mf-filters]').boundingBox()).y, 'the switch sits in the heading row above the toolbar');
+  assert.equal(await page.locator('#content-host [data-section-head] p').count(), 0, 'All Schemes carries no description paragraph');
+  {
+    const scroller = await page.locator('#content-host [data-table-scroll]').boundingBox();
+    const cap = await page.$eval('#content-host [data-table-scroll]', (el) => parseInt(el.style.maxHeight, 10));
+    assert(scroller.y + scroller.height <= 1000, `the table stays inside the viewport (bottom at ${Math.round(scroller.y + scroller.height)} of 1000)`);
+    assert(Math.abs(scroller.y + cap - (1000 - 24)) <= 2, `its cap is measured from its own top to the viewport’s foot (top ${Math.round(scroller.y)} + cap ${cap})`);
+  }
+  await page.locator('[data-mf-view="category-performance"]').click();
+  await page.locator('[data-mf-info]').waitFor();
+  assert.match(await page.evaluate(() => location.hash), /mutual-funds\/category-performance/, 'the switch routes through the URL');
+  assert.equal(await page.locator('[data-mf-view="category-performance"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#content-host [data-section-head] p').count(), 0, 'Category Performance carries no description paragraph either');
+  assert(await page.evaluate(() => { const m = document.getElementById('subview-mount'); return !m || m.classList.contains('hidden'); }));
+  assert.equal(await page.locator('[data-mf-management-row]').count(), 1, 'the workbook view has the same toolbar');
+  assert.equal(await page.locator('[data-mf-category-select]').count(), 0, '…without the category slot, because there the category is the row');
+  await page.locator('[data-mf-view="all-schemes"]').click();
+  await fundInput.waitFor();
+  assert.equal(await fundRows.count(), 8, 'switching back returns to the same live table');
   // ONE TOOLBAR OF FIXED SLOTS. Every control is present all the time, in one order, and picking
   // something moves nothing — the owner's complaint was that the old chip rows reflowed on every
   // press and the category strip scrolled sideways.
@@ -261,5 +288,5 @@ try {
   await verifyChangesUI(page, { base: origin });
   await verifyTechnicalFiltersUI(browser, { base: origin });
   assert.deepEqual(errors, []);
-  console.log(`PASS real Glow bridge: ${companies.holdings.length} identities, statement dates and weights, fresh detailed reads, Family Book, My Managers, fund category search, the fixed-slot filter toolbar, the active / passive cut and moved trackers, desktop/mobile, mismatch rejection and recovery.`);
+  console.log(`PASS real Glow bridge: ${companies.holdings.length} identities, statement dates and weights, fresh detailed reads, Family Book, My Managers, fund category search, the inline view switch, the fixed-slot filter toolbar, the viewport-fitted table, the active / passive cut and moved trackers, desktop/mobile, mismatch rejection and recovery.`);
 } finally { await browser.close(); server.closeAllConnections(); await new Promise(done => server.close(done)); }
