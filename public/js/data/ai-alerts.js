@@ -778,9 +778,16 @@ export function impactOf(events = []) {
 const listWords = (items) => items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 
 /**
- * The second bullet as parts, so a renderer can set the axis names apart without a second wording.
- * `{ kind: 'axis' }` parts are the question names; everything else is prose. `impactLine` is the
- * same sentence flattened.
+ * The second bullet as parts, so a renderer can set the axis names apart and link each trigger
+ * without a second wording. `{ kind: 'axis' }` parts are the question names, `{ kind: 'reason' }`
+ * parts are the triggers — each carrying the id of the event it was read from — and everything
+ * else is prose. `impactLine` is the same sentence flattened.
+ *
+ * EVERY REASON IS A DOOR, AND NONE IS FOLDED AWAY. A bullet that says "Order in a filing" and offers
+ * no way to the filing is a claim the reader cannot check, which is the one thing this card may
+ * not be; and "+2 more" hides exactly the triggers a reader would want to open. So every trigger is
+ * listed, in the order it was read, and the card links each to its own event — the same door the
+ * evidence rows use.
  */
 export function impactParts(impacts = []) {
   const missing = IMPACT_AXES.filter((axis) => !impacts.some((hit) => hit.axis === axis.id)).map((axis) => axis.label.toLowerCase());
@@ -791,9 +798,12 @@ export function impactParts(impacts = []) {
   impacts.forEach((hit, i) => {
     if (i > 0) parts.push({ kind: 'text', text: i === impacts.length - 1 ? ' and ' : ', ' });
     parts.push({ kind: 'axis', axis: hit.axis, text: `the ${hit.label.toLowerCase()}` });
-    const reasons = hit.reasons.slice(0, 2).map((reason) => reason.text);
-    const more = hit.reasons.length - reasons.length;
-    parts.push({ kind: 'text', text: ` (${reasons.join('; ')}${more > 0 ? `; +${more} more` : ''})` });
+    parts.push({ kind: 'text', text: ' (' });
+    hit.reasons.forEach((reason, j) => {
+      if (j > 0) parts.push({ kind: 'text', text: '; ' });
+      parts.push({ kind: 'reason', axis: hit.axis, text: reason.text, eventId: reason.eventId ?? null, feed: reason.feed || null });
+    });
+    parts.push({ kind: 'text', text: ')' });
   });
   parts.push({ kind: 'text', text: '.' });
   if (missing.length) parts.push({ kind: 'text', text: ` Nothing tracked here bears on the ${listWords(missing)}.` });

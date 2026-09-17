@@ -1203,6 +1203,37 @@ the colour this dashboard reserves for a partial figure; the owner asked for it 
 *How this is derived* beside the freshness chip, every row of it, and `ensureHoldingsFresh()` still
 revalidates its sources on mount — moved, not deleted, and the age stays stated on the page.
 
+### The team brief — two emails a weekday, built at the edge (GLOW-OWNED)
+
+The **Newsletter** button beside the header bell subscribes the desk to two Munshot-branded emails
+a weekday: the **morning brief** at 08:00 IST (what happened overnight — the US close, Asia this
+morning, Brent, gold, silver, the dollar index and USD/JPY, plus every filing and story about a
+DIRECT holding since the previous evening) and the **evening brief** at 16:00 IST (the trading day).
+`docs/DATA-CONTRACTS.md` → *The team brief* has the routes, the shapes and the window rule. Six
+rules, and every one of them is a rule this file already runs on:
+
+1. **"Direct ones" means `portfolio-companies.json`**, the Portfolio scope's own file, and nothing
+   wider. Fund units, AIFs and the ring-fenced line are outside it there and outside it here.
+2. **Every figure carries its own state and time.** Quotes are read from Yahoo's chart endpoint at
+   send time and Yahoo's own session bounds decide `Close · Wed 16:00 EDT` versus `Live · Thu 07:58
+   JST`; a symbol Yahoo refuses is filled from the macro series store and says `Series store ·
+   2026-09-08` on the row, never a stale close dressed as this morning's. A source that cannot be
+   read says so in the email — `NSE feed could not be read (blocked)` — rather than going quiet.
+3. **The stories carry no new reading.** Topic is the desk's thirty keywords folded onto the seven
+   Munshot topics; mood is `announcementSignal()` over a filing's own subject, and a published
+   headline is Neutral because nothing on this dashboard reads sentiment off one. The footer says so.
+4. **The alarm is the scheduler, and a claim precedes every send.** No cron slot exists on the
+   account and GitHub's schedule does not fire, so the object's alarm sends. `wake()` moves its
+   clock forward in a transaction before reading a quote and `deliver()` claims `<day>:<edition>`
+   before the first email, so a replayed alarm sends nothing and one morning brief a day is a
+   property of the store. An edition reached three hours late is recorded `missed`, not sent at lunch.
+5. **The credential is `MUNS_TOKEN` on the Worker, and its absence is a named state.** Sends go to
+   `POST https://devde.muns.io/email/send/raw` with exactly one of `html`/`text`; without a token
+   the delivery is recorded `no-token` per recipient and the panel names the secret. A reader's own
+   session token may stand in for a send they press themselves, passed as a value and never stored.
+6. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
+   origin is told it has no newsletter, never shown an error.
+
 ### Two disclosures that look identical — the Institutions rule
 
 Institutions is also where a subtler failure lives, and it is not about *whose* number it is but
@@ -2994,7 +3025,10 @@ absence is stated in words — *"Nothing tracked here bears on the thesis"* — 
 again to clear, each count measured with the other group held fixed (the technical-filter rule), and
 an empty trigger view says it is a reading of tracked triggers rather than a claim that nothing could
 change. The mapping is one table (`IMPACT_BY_KEYWORD`, `IMPACT_BY_FILING_RULE`); a keyword absent
-from it bears on nothing rather than on a nearest guess.
+from it bears on nothing rather than on a nearest guess. **And every trigger the bullet names is a
+LINK to the event it was read from** — `impactParts` emits each reason with its `eventId`, and the
+card sends it through `evidenceDestination`, the same door as the evidence rows — because a claim the
+reader cannot reach is a claim they cannot check; nothing is folded into a "+n more".
 
 ### ARCHIVING IS A PLACE, NOT A DELETION — `js/core/ai-mute.js`
 
@@ -3534,6 +3568,27 @@ data and empty intersections offline. Two browser checks drive them in the real 
 `verify-technical-filters-context.mjs` exports a function that runs inside another suite's origin
 against that suite's own book, and `verify-glow-parity-ui.mjs` is its caller. Keep them apart — the
 two were one file once, and a template merge took the standalone half and silently dropped the call.
+
+**A QUOTE WITHOUT A BASE IS NOT A COMPANY WITHOUT A BASE.** Strong Breakouts regrades a company from
+its captured quote whenever that quote is from a later session than the daily file, and the capture
+supplies a 30-session base only when Yahoo has published every bar up to yesterday's. It routinely
+has not: measured at midday on 17 September 2026, **292 of 610 quotes carried no base — 87 of the
+book's 166** — and `decorate()` was writing `null` over each of those companies' daily grade, so
+the view read *"0 of 76 companies with a detectable base"* over a book of 166 with nothing on screen
+saying where the other 90 had gone. The pill's *74/166* was honest and no reader could get from it
+to the count line. `gradeFor()` in `js/data/breakout-live.js` now keeps the daily file's own
+grade when the capture has no base, marked `grade_source: 'daily'` and dated by `graded_on`, and
+three surfaces print that: an amber *Graded at <date> close* note on the row, a sentence under the
+chips counting how many rows are graded that way and how many have no base from either source, and
+two export columns naming each grade's basis. **It is the `priceInfo` rule applied to the grade**:
+a completed-session measurement is kept, dated, when nothing newer vouches for the row — never
+replaced by nothing. The empty table under untouched chips now says what it means — no company is
+above its base high — rather than *"no companies match your filters"* to a reader who set none.
+`scripts/verify-breakouts-ui.mjs` drives a quote with `base: null` through the real view. The
+collector's Upstox history backup (`docs/BREAKOUT-CAPTURE.md`) is what would supply the missing
+bases at source, and it is **not configured** on this repository: no `UPSTOX_ACCESS_TOKEN` secret,
+no `UPSTOX_BACKUP_ENABLED` variable, so every collector run reports `upstox: not-configured` and
+exits 1 on the base count by design.
 
 ---
 
@@ -4120,6 +4175,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change how X posts are collected | `scripts/scrape-twitter.py` + `.github/workflows/twitter-refresh.yml` — the exit codes are the interface (0 wrote, 2 nothing readable, 3 no credential, 1 a real fault) |
 | Set up X collection on a deployment | add an **`X_ACCOUNTS`** repository secret (*Settings → Secrets and variables → Actions*), one `username:password:email:email_password` per line. The dashboard's Add Handle control additionally needs `GH_DISPATCH_TOKEN` on the Worker, and says `Adding…` rather than failing without it |
 | Change the FPI Activity view, or what a debt figure means | `public/js/data/fpi-activity.js` (the matrix) + `paintFpi` in `public/js/tabs/macro-research.js` (the table) + `scripts/lib/nsdl-fpi.mjs` and `scripts/scrape-fpi-activity.mjs` (the capture) — read *One sub-view of Macro Research is not a series at all* first. Equity is NSDL's published net investment and debt is the change in their published outstanding investment; the two may never be described in the same words. `node scripts/verify-fpi-activity.mjs` is the test and needs no server |
+| Change the team brief — what is in it, how it reads, when it sends | `worker/newsletter-brief.mjs` (the scan, the stories and the broadsheet), `worker/newsletter-schedule.mjs` (the alarm and the send), `worker/newsletter-store.mjs` (subscribers, settings, deliveries), `public/js/data/newsletter-shared.js` (editions, windows, addresses — imported by both sides) and `public/js/ui/newsletter.js` (the header control). Read *The team brief* first. `node scripts/verify-newsletter.mjs` and `node scripts/verify-newsletter-ui.mjs` are the tests |
+| Set up the team brief on a deployment | `MUNS_TOKEN` on the Worker sends it; `DASHBOARD_ORIGIN` and `NEWSLETTER_PRODUCT_NAME` are vars in `wrangler.jsonc`; the `NEWSLETTER` binding and `NEWSLETTER_LIMITER` are there too. Subscribe from the header and the alarm arms itself |
 | Change the lower-left source beacon | `js/ui/source-beacon.js` + the `.beacon-*` block in `public/index.html` — read *The source beacon* first; it may not reintroduce a header Sources button, and every count in it stays derived |
 | Add a reusable chrome widget | `js/ui/components.js` |
 | Change the header status pill or refresh button | `statusControl()` in `js/ui/components.js`, wired in `wireStaticHeader()` |

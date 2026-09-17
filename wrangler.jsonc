@@ -15,7 +15,11 @@
       { "name": "TELEGRAM_SCHEDULER", "class_name": "CaptureRegistry" },
       // The one shared watchlist. Same provisioned class, its own fixed object name, so the desk's
       // list needs no namespace migration and no company-registry shard ever sees its tables.
-      { "name": "SHARED_WATCHLIST", "class_name": "CaptureRegistry" }
+      { "name": "SHARED_WATCHLIST", "class_name": "CaptureRegistry" },
+      // The team brief: the subscriber list, the two send times and the delivery log, on one fixed
+      // object (team-brief:v1) whose alarm is what sends the morning and evening emails. Same
+      // provisioned class, its own storage; see worker/newsletter-schedule.mjs.
+      { "name": "NEWSLETTER", "class_name": "CaptureRegistry" }
     ]
   },
   "migrations": [{ "tag": "capture-registry-v1", "new_sqlite_classes": ["CaptureRegistry"] }],
@@ -48,7 +52,13 @@
     "MUNS_LLM_TYPE": "local_llm",
     // The operator confirmed this old binding now contains a Muns token, not an Anthropic key.
     // Remove this migration opt-in after `MUNS_LLM_TOKEN` is installed.
-    "MUNS_LLM_LEGACY_ANTHROPIC_BINDING": "confirmed-muns-token"
+    "MUNS_LLM_LEGACY_ANTHROPIC_BINDING": "confirmed-muns-token",
+
+    // Where the brief's links and its unsubscribe route point. The email is built on the edge with
+    // no request in hand, so the origin cannot be read off one; this is the public dashboard.
+    "DASHBOARD_ORIGIN": "https://glow-central-research.tech-441.workers.dev",
+    // The product name on the brief's masthead tagline, subject and caption ("… by Munshot").
+    "NEWSLETTER_PRODUCT_NAME": "Research Central"
   },
 
   // The dashboard has no account system to key this on today, so the route uses the authenticated
@@ -74,6 +84,14 @@
       "name": "SHARED_WATCHLIST_LIMITER",
       "namespace_id": "1803",
       "simple": { "limit": 60, "period": 60 }
+    },
+    {
+      // The brief's edits and sends. A send costs somebody else's email service one message per
+      // subscriber, so this is deliberately tighter than the watchlist's ceiling; the object adds a
+      // five-minute cooldown on "send to everyone" behind it.
+      "name": "NEWSLETTER_LIMITER",
+      "namespace_id": "1804",
+      "simple": { "limit": 12, "period": 60 }
     }
   ]
 
