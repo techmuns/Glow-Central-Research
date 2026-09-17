@@ -105,6 +105,8 @@ import * as weekly from '../data/mf-weekly.js';
 import * as fundReturns from '../data/fund-returns.js';
 import { buildTree, FACTORS, factorsOf, factorLabel, MANAGEMENT, managementOf } from '../data/mf-taxonomy.js';
 import * as router from '../core/router.js';
+import { loadMfFilters, saveMfFilters, reconcileHierarchy } from '../data/mf-filter-memory.js';
+import { categoryOf } from '../ui/fund-search.js';
 
 export const meta = {
   id: 'mutual-funds',
@@ -127,8 +129,20 @@ export const meta = {
 };
 
 // ---------------------------------------------------------------------------------------
-// State that survives a repaint but not leaving the tab
+// State that survives a repaint, leaving the tab AND a reload
 // ---------------------------------------------------------------------------------------
+//
+// THE LAST STATE OF SELECTION IS RETAINED (the owner, 17 September 2026). Every selection below
+// is read from this device on load (`js/data/mf-filter-memory.js`, `sattva:mf-filters:v1`), written
+// back on every change and on the way out, and re-checked against the loaded feed before it is
+// applied — so a reader who narrowed the feed to the schemes they follow finds it narrowed the
+// same way tomorrow, and a saved choice the feed no longer offers is dropped rather than drawn.
+// `destroy()` resets only what belongs to one visit: the drill, its table view and the mount.
+
+const saved = loadMfFilters();
+// A saved table view in the shape the kit's `initialView` and the search box seed from. A null
+// sort keeps the table's own default; the chips are the search box's category selection.
+const viewFromSaved = (v) => ({ q: v.q, sort: v.sort ? { ...v.sort } : null, fundSearch: { categories: [...v.categories] } });
 
 let ctxRef = null;
 let renderToken = 0;
@@ -137,25 +151,68 @@ let disposers = [];
 let openCategory = null;
 // Which reading the numeric columns show. 'return' is the source's own figure; the other two are
 // the derived gap, in percentage points, and say so in their headings.
-let measure = 'return';
+let measure = saved.measure;
 // The reader's own table state, carried across the repaints a drill or a measure change causes.
-let categoryView = null;
+// The kit mutates these in place (a sort, a search), so the object held here is always current.
+let categoryView = viewFromSaved(saved.weekly);
 let schemeView = null;
-let allSchemesView = null;
+let allSchemesView = viewFromSaved(saved.live);
 // THE FIRST CUT, above the hierarchy and shared by both sub-views: 'active' | 'passive' | null.
 // Null means both, and — as everywhere else here — is a different claim from "both chips pressed".
-let management = null;
+let management = saved.management;
 // The hierarchy filter, shared by both sub-views: null means "every asset class".
-let assetClass = null;
-let group = null;
+let assetClass = saved.assetClass;
+let group = saved.group;
 // The third level — the source's own category — offered on All Schemes, where the row is a scheme
 // rather than a category. Null means every category under the selected classification/group.
-let categoryId = null;
+let categoryId = saved.categoryId;
 // The strategy the scheme's own NAME states. A separate axis from the three above; null means "any".
-let strategy = null;
+let strategy = saved.strategy;
 // The reader's own benchmark choice, per category id — one of the indices the workbook prints under
 // THAT category, or, for the one sheet it prints none under, one from its own master index sheet.
-let chosenBenchmark = {};
+let chosenBenchmark = saved.benchmarks;
+
+/** The saved shape of a live table view: its search text, its sort, and the search box's chips. */
+const viewToSaved = (v) => (v
+  ? { q: v.q || '', sort: v.sort || null, categories: v.fundSearch?.categories || [] }
+  : { q: '', sort: null, categories: [] });
+
+/** Write every selection to this device. Cheap, idempotent, and called wherever one changes. */
+function persist() {
+  saveMfFilters({
+    management, assetClass, group, categoryId, strategy, measure,
+    live: viewToSaved(allSchemesView),
+    weekly: viewToSaved(categoryView),
+    benchmarks: chosenBenchmark,
+  });
+}
+
+// A SORT OR A SEARCH HAS NO CALLBACK OF ITS OWN — the kit mutates the view object in place — so the
+// last of those changes is written down on the way out: leaving the tab (`destroy`), and leaving
+// or hiding the page, which is what a reload, a closed tab and a backgrounded phone all do first.
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', persist);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') persist(); });
+}
+
+/**
+ * Re-check the saved hierarchy and search chips against the feed before painting All Schemes. A
+ * category id, a group label or a chip the feed no longer carries is dropped, with everything
+ * beneath it, so the toolbar and the table can never disagree: a stale value would narrow the
+ * table to nothing under a control reading "All". Runs on every paint — it is a few lookups over
+ * a tree that is being built anyway — which also makes a feed reload safe.
+ */
+function reconcileLive(tree) {
+  const next = reconcileHierarchy({ assetClass, group, categoryId }, tree);
+  assetClass = next.assetClass;
+  group = next.group;
+  categoryId = next.categoryId;
+  const chips = allSchemesView?.fundSearch?.categories;
+  if (chips?.length) {
+    const labels = new Set(fundReturns.all().map(categoryOf));
+    allSchemesView.fundSearch.categories = chips.filter((c) => labels.has(c));
+  }
+}
 
 // WHICH READINGS EACH LEVEL OFFERS, and the reason the two lists differ.
 //
@@ -210,16 +267,10 @@ export function destroy() {
   disposers.forEach((d) => d && d());
   disposers = [];
   openCategory = null;
-  measure = 'return';
-  categoryView = null;
   schemeView = null;
-  allSchemesView = null;
-  management = null;
-  assetClass = null;
-  group = null;
-  categoryId = null;
-  strategy = null;
-  chosenBenchmark = {};
+  // THE SELECTIONS ARE NOT RESET HERE — that is the owner's ask — and this is where the last sort
+  // or search made in the table views is written down, since the kit reports neither as it happens.
+  persist();
 }
 
 function releaseDisposers() {
@@ -514,6 +565,7 @@ function schemePanel(m, repaint) {
       root.querySelectorAll('[data-mf-benchmark]').forEach((el) => {
         const on = () => {
           chosenBenchmark = { ...chosenBenchmark, [cat.id]: el.dataset.mfBenchmark };
+          persist();
           repaint();
         };
         el.addEventListener('click', on);
@@ -525,6 +577,7 @@ function schemePanel(m, repaint) {
       if (pickSelect) {
         const onPick = () => {
           chosenBenchmark = { ...chosenBenchmark, [cat.id]: pickSelect.value };
+          persist();
           repaint();
         };
         pickSelect.addEventListener('change', onPick);
@@ -781,6 +834,7 @@ function renderAllSchemes(ctx) {
     releaseDisposers();
     const m = fundReturns.meta();
     const tree = liveTree();
+    if (m && !m.reason) reconcileLive(tree);
     // The toolbar's choices narrow the feed before the table applies its search predicate.
     // The result count and export read that same final set.
     const rows = m && !m.reason ? liveScoped(fundReturns.all()) : null;
@@ -811,7 +865,7 @@ function renderAllSchemes(ctx) {
       }),
       view: allSchemesView,
       onView: (v, matchesSearch) => { allSchemesView = v; updateStrategyCounts(v, matchesSearch); },
-      onSearchChange: updateStrategyCounts,
+      onSearchChange: (v, matchesSearch) => { updateStrategyCounts(v, matchesSearch); persist(); },
       measure: measureFor('live'),
       extraProvenance: twoFeedsProvenance(m),
       metaHtml: viewSwitch('all-schemes'),
@@ -1072,6 +1126,7 @@ function wireFilters(root, repaint) {
   const apply = (selector, change) => {
     change();
     openCategory = null;
+    persist();
     repaint();
     if (selector) ctxRef?.root?.querySelector(selector)?.focus({ preventScroll: true });
   };
@@ -1137,6 +1192,7 @@ function wireMeasure(root, repaint) {
   root.querySelectorAll('[data-mf-measure]').forEach((el) => {
     const on = () => {
       measure = el.dataset.mfMeasure;
+      persist();
       repaint();
     };
     el.addEventListener('click', on);

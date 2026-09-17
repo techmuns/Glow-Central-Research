@@ -10,7 +10,8 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber } from '../core/format.js';
 
 let sequence = 0;
-const categoryOf = (row) => row.taxonomy?.shownLabel || row.classification || 'Unclassified';
+/** The facet a scheme is filed under in the search box: the category it is SHOWN in. Exported so the owning tab can re-check a saved chip against the feed. */
+export const categoryOf = (row) => row.taxonomy?.shownLabel || row.classification || 'Unclassified';
 const normalise = (value) => String(value ?? '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const wordsOf = (value) => normalise(value).split(/\s+/).filter(Boolean);
 const containsWords = (text, words) => words.every((word) => text.includes(word));

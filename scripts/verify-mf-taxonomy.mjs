@@ -18,6 +18,9 @@ import {
   classifyLive, buildTree, managementOf, PASSIVE_GROUPS, MANAGEMENT, managementLabel,
   passiveKindOf, isFundOfFunds, WORKBOOK_TAXONOMY, PASSIVE_NAME,
 } from '../public/js/data/mf-taxonomy.js';
+import {
+  loadMfFilters, saveMfFilters, normaliseMfFilters, reconcileHierarchy, MF_FILTERS_KEY,
+} from '../public/js/data/mf-filter-memory.js';
 
 let checks = 0;
 const ok = (label, fn) => { fn(); checks++; console.log(`  ok  ${label}`); };
@@ -168,4 +171,98 @@ ok('the tree carries refiled on a moved category, and keeps the source’s label
   assert.equal(active.management, 'active');
 });
 
-console.log(`PASS mf taxonomy: ${checks} checks — the active / passive cut, and the one rule that moves a tracker out of an active bucket.`);
+// ---------------------------------------------------------------------------------------------
+// THE LAST STATE OF SELECTION IS RETAINED — js/data/mf-filter-memory.js. Device-local, validated
+// field by field, and re-checked against the feed's own tree before it is applied.
+// ---------------------------------------------------------------------------------------------
+
+const memoryStore = () => {
+  const m = new Map();
+  return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), raw: m };
+};
+
+ok('nothing saved reads as nothing chosen — every control All, the source’s own figure', () => {
+  const s = loadMfFilters(memoryStore());
+  assert.deepEqual(s, {
+    management: null, assetClass: null, group: null, categoryId: null, strategy: null, measure: 'return',
+    live: { q: '', sort: null, categories: [] }, weekly: { q: '', sort: null, categories: [] }, benchmarks: {},
+  });
+});
+
+ok('a saved selection round-trips whole, under one versioned key', () => {
+  const store = memoryStore();
+  saveMfFilters({
+    management: 'passive', assetClass: 'Equity', group: 'Index & smart beta', categoryId: 'equity-mid-cap-index',
+    strategy: 'momentum', measure: 'vs-benchmark',
+    live: { q: 'nifty', sort: { key: '1Y', dir: 'asc' }, categories: ['Equity : Index · Mid Cap'] },
+    weekly: { q: '', sort: { key: 'name', dir: 'desc' }, categories: [] },
+    benchmarks: { 'smart-beta': 'nifty-500-tri' },
+  }, store);
+  assert.equal(JSON.parse(store.raw.get(MF_FILTERS_KEY)).v, 1);
+  const s = loadMfFilters(store);
+  assert.equal(s.management, 'passive');
+  assert.equal(s.categoryId, 'equity-mid-cap-index');
+  assert.equal(s.strategy, 'momentum');
+  assert.equal(s.measure, 'vs-benchmark');
+  assert.deepEqual(s.live, { q: 'nifty', sort: { key: '1Y', dir: 'asc' }, categories: ['Equity : Index · Mid Cap'] });
+  assert.deepEqual(s.weekly.sort, { key: 'name', dir: 'desc' });
+  assert.deepEqual(s.benchmarks, { 'smart-beta': 'nifty-500-tri' });
+});
+
+ok('a value the vocabulary does not hold resolves to its default, field by field, never by throwing', () => {
+  const s = normaliseMfFilters({
+    management: 'hybrid', strategy: 'growth', measure: 'vs-nothing', assetClass: 7, group: '   ',
+    live: { q: 42, sort: { dir: 'asc' }, categories: ['ok', 3, ''] }, benchmarks: ['x'],
+  });
+  assert.equal(s.management, null, 'an unknown management word is dropped');
+  assert.equal(s.strategy, null, '"growth" is deliberately not a factor');
+  assert.equal(s.measure, 'return');
+  assert.equal(s.assetClass, null);
+  assert.equal(s.group, null);
+  assert.deepEqual(s.live, { q: '', sort: null, categories: ['ok'] });
+  assert.deepEqual(s.benchmarks, {});
+});
+
+ok('malformed JSON, a wrong version and a throwing store all read as nothing chosen', () => {
+  const bad = memoryStore(); bad.raw.set(MF_FILTERS_KEY, '{not json');
+  assert.equal(loadMfFilters(bad).assetClass, null);
+  const old = memoryStore(); old.raw.set(MF_FILTERS_KEY, JSON.stringify({ v: 0, assetClass: 'Equity' }));
+  assert.equal(loadMfFilters(old).assetClass, null);
+  assert.equal(loadMfFilters({ getItem: () => { throw new Error('quota'); } }).assetClass, null);
+  assert.doesNotThrow(() => saveMfFilters({ assetClass: 'Equity' }, { setItem: () => { throw new Error('quota'); } }));
+  assert.equal(loadMfFilters(null).assetClass, null, 'no storage at all is a plain default');
+});
+
+const memTree = buildTree([
+  { classification: 'Equity : Mid Cap', fundName: 'Hotel Mid Cap Opportunities Fund' },
+  { classification: 'Equity : Mid Cap', fundName: 'Foxtrot Nifty Midcap 150 Index Fund' },
+  { classification: 'Debt : Short Duration', fundName: 'Delta Debt Fund' },
+].map((f) => ({ ...f, taxonomy: classifyLive(f.classification, f.fundName) })), (f) => f.taxonomy);
+
+ok('a saved class, group and category the tree still offers are kept whole', () => {
+  assert.deepEqual(reconcileHierarchy({ assetClass: 'Equity', group: 'Market cap', categoryId: 'equity-mid-cap' }, memTree),
+    { assetClass: 'Equity', group: 'Market cap', categoryId: 'equity-mid-cap' });
+});
+
+ok('a saved group the tree no longer holds is dropped with the category beneath it, and the class stays', () => {
+  assert.deepEqual(reconcileHierarchy({ assetClass: 'Equity', group: 'Gone', categoryId: 'equity-mid-cap' }, memTree),
+    { assetClass: 'Equity', group: null, categoryId: null });
+  assert.deepEqual(reconcileHierarchy({ assetClass: 'Equity', group: 'Market cap', categoryId: 'equity-gone' }, memTree),
+    { assetClass: 'Equity', group: 'Market cap', categoryId: null });
+  assert.deepEqual(reconcileHierarchy({ assetClass: 'Commodities', group: 'Market cap', categoryId: 'equity-mid-cap' }, memTree),
+    { assetClass: null, group: null, categoryId: null });
+});
+
+ok('a saved group or category without its class fills the class in from the tree rather than being dropped', () => {
+  assert.deepEqual(reconcileHierarchy({ assetClass: null, group: 'Duration', categoryId: null }, memTree),
+    { assetClass: 'Debt', group: 'Duration', categoryId: null });
+  assert.deepEqual(reconcileHierarchy({ assetClass: null, group: null, categoryId: 'equity-mid-cap-index' }, memTree),
+    { assetClass: 'Equity', group: 'Index & smart beta', categoryId: 'equity-mid-cap-index' });
+});
+
+ok('a category saved under the group it left is not offered there — it is under Index & smart beta now', () => {
+  assert.deepEqual(reconcileHierarchy({ assetClass: 'Equity', group: 'Market cap', categoryId: 'equity-mid-cap-index' }, memTree),
+    { assetClass: 'Equity', group: 'Market cap', categoryId: null });
+});
+
+console.log(`PASS mf taxonomy: ${checks} checks — the active / passive cut, the one rule that moves a tracker out of an active bucket, and the remembered selection.`);
