@@ -10,6 +10,17 @@
 // frame's measurement. The tab's own re-anchor runs in that gap and puts the record back — and the
 // deferred measurement then re-anchors from a geometry that no longer describes the DOM, scrolling
 // the reader to a different row. A reader on row 13 landed on row 10, every time.
+//
+// AND THE SAME GAP, ONE PAINT EARLIER. Placing the held record from measured heights closed the
+// update path and left the scroll path open: a paint that mounts rows still measured them on the
+// next frame, so between the two anything that read the anchor read the estimate over rows the DOM
+// was already showing at their real height. Traced on 17 September 2026 (case 5 below is that
+// trace, made deterministic): every row object replaced while the reader was at the end of the
+// history, the scroll back to the top painting rows 0–39 at 82–99px with their geometry at 120px,
+// the suite's scroll to 900 arriving before the frame, and the deferred measurement then anchoring
+// on row 7 where the reader was on row 10 — scrollTop 705 written over 900, the refresh preserving
+// the wrong row faithfully, and the assertion reading "moved 195px during refresh". Every paint
+// now measures what it painted in the same task, so there is no such gap to land in.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -23,6 +34,7 @@ const html = `<!doctype html><html><head><style>
  table{border-collapse:collapse;width:100%}
  thead th{position:sticky;top:0;background:#eee;height:40px}
  td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
+ .badge{display:block;height:20px;margin-top:5px;background:#ddd;font-size:9px}
 </style></head><body>
 <div id="scroller"><table><thead><tr><th>Subject</th></tr></thead><tbody id="body"></tbody></table></div>
 <script type="module">
@@ -33,12 +45,17 @@ const lines = (i) => 1 + ((i * 7) % 4);
 window.make = (n, gen) => Array.from({ length: n }, (_, i) => ({ key: 'k' + i, gen,
   text: Array.from({ length: lines(i) }, (_, l) => 'row ' + i + ' (' + gen + ') line ' + l).join('<br>') }));
 const scroller = document.querySelector('#scroller'), body = document.querySelector('#body');
-const render = (rows, s, e) => rows.slice(s, e).map(r => '<tr data-row-key="' + r.key + '"><td>' + r.text + '</td></tr>').join('');
+const rowHtml = (r) => '<tr data-row-key="' + r.key + '"><td>' + r.text + '</td></tr>';
+const render = (rows, s, e) => rows.slice(s, e).map(rowHtml).join('');
 const spacer = (h, edge) => '<tr aria-hidden="true"><td data-window-spacer="' + edge + '" style="height:' + h + 'px;padding:0;border:0"></td></tr>';
-window.mount = (rows, initialKey = null) => {
+// Mounted the way All Alerts mounts it: renderParts keeps a row's node — and whatever another
+// module appended to it — while its own markup is unchanged. renderRows is the other contract.
+window.mount = (rows, initialKey = null, parts = true) => {
   window.list?.destroy();
   body.innerHTML = '';
+  window.current = rows;
   window.list = mountWindowedList({ scroller, content: body, items: rows, key: r => r.key, renderRows: render,
+    renderParts: parts ? (rows, s, e) => rows.slice(s, e).map(rowHtml) : null,
     rowSelector: 'tr[data-row-key]', estimateHeight: 120, initialKey, spacerHtml: spacer });
 };
 const boundary = () => scroller.getBoundingClientRect().top + scroller.querySelector('thead').offsetHeight;
@@ -53,6 +70,20 @@ window.restore = (pos) => {
   const b = boundary();
   const anchor = [...body.querySelectorAll('tr[data-row-key]')].find(r => r.dataset.rowKey === pos.key);
   if (anchor) scroller.scrollTop += anchor.getBoundingClientRect().top - b - pos.offset;
+};
+// What the tab's arrivals module does to a row the list knows nothing about: a NEW badge appended
+// to the last three mounted rows that sit entirely above the scroller's top edge — above every
+// row the reader can see, inside the overscan so they stay mounted through an update — and, when
+// the highlight expires, removed again. 25px each, outside every paint. Returns how many.
+window.badges = (on) => {
+  if (!on) { body.querySelectorAll('.badge').forEach(el => el.remove()); return 0; }
+  const top = scroller.getBoundingClientRect().top;
+  const rows = [...body.querySelectorAll('tr[data-row-key]')].filter(r => r.getBoundingClientRect().bottom <= top).slice(-3);
+  for (const row of rows) {
+    const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = 'NEW';
+    row.querySelector('td').append(badge);
+  }
+  return rows.length;
 };
 window.frames = (n) => new Promise(done => { const step = () => n-- > 0 ? requestAnimationFrame(step) : done(); step(); });
 window.mount(window.make(300, 'a'));
@@ -79,7 +110,8 @@ try {
   await page.waitForFunction(() => window.ready && document.querySelectorAll('tr[data-row-key]').length > 0);
 
   const settle = () => page.evaluate(async () => {
-    window.list.update(window.make(300, 'a'), { resetScroll: true });
+    window.current = window.make(300, 'a');
+    window.list.update(window.current, { resetScroll: true });
     await window.frames(3);
     document.querySelector('#scroller').scrollTop = 900;
     await window.frames(3);
@@ -136,6 +168,70 @@ try {
   assert.equal(await page.evaluate(() => document.querySelector('tr[data-row-key]').dataset.rowKey), 'k0');
   console.log('PASS unscrolled and reset updates stay at the top');
 
+  // 5. THE ALL ALERTS TRACE, MADE DETERMINISTIC. Every row object is replaced while the reader is at
+  //    the end of the history, so every row the window does not hold is back at the estimate. They
+  //    scroll to the top — the paint mounts rows 0–39 at their real heights — and on again before
+  //    the next frame, a wheel gesture or the suite's own scrollTop write. The rows that paint
+  //    mounted must already be measured, or the frame after it re-anchors on 120px rows the DOM
+  //    never showed, and the reader's row moves by the difference: 111px or 195px on the tab.
+  await settle();
+  after = await page.evaluate(async () => {
+    const scroller = document.querySelector('#scroller');
+    scroller.scrollTop = scroller.scrollHeight; await window.frames(3);
+    window.current = window.make(300, 'g');
+    window.list.update(window.current, { resetScroll: false });
+    await window.frames(3);
+    scroller.scrollTop = 0;
+    // The top window is painted; nothing that its paint deferred has run yet.
+    await new Promise(done => { const tick = () => document.querySelector('tr[data-row-key]')?.dataset.rowKey === 'k0' ? done() : requestAnimationFrame(tick); tick(); });
+    scroller.scrollTop = 900;
+    const immediate = window.edgeRow();
+    await window.frames(4);
+    return { immediate, settled: window.edgeRow() };
+  });
+  assert(after.immediate.key && after.immediate.scrollTop === 900, `the reader is on ${after.immediate.key} at 900`);
+  held(after.immediate, after.settled);
+  console.log('PASS rows mounted by a scroll are measured before the reader can move again');
+
+  // 6. ROWS ABOVE THE HELD RECORD CHANGE HEIGHT RIGHT BEFORE AN UPDATE. The tab's NEW badges are
+  //    appended and removed by a mutation observer the list knows nothing about, and the twenty-
+  //    second expiry can land in the same task as a source repaint. The geometry still describes
+  //    what the reader saw; the update anchors on that and puts the record back — grown or shrunk.
+  //    This was the first hypothesis for the tab's failure and is not it: every trace had the
+  //    badges long expired, and the list already held this case. It stays as the guard it is.
+  before = await settle();
+  after = await page.evaluate(async () => {
+    const added = window.badges(true);
+    window.list.update([{ key: 'new', gen: 'n', text: 'NEW ROW above the viewport' }, ...window.current], { resetScroll: false });
+    await window.frames(4);
+    const grown = window.edgeRow();
+    const kept = document.querySelectorAll('.badge').length;
+    window.badges(false);
+    window.list.update([{ key: 'new2', gen: 'n', text: 'ANOTHER ROW above the viewport' }, { key: 'new', gen: 'n', text: 'NEW ROW above the viewport' }, ...window.current], { resetScroll: false });
+    await window.frames(4);
+    return { added, grown, kept, shrunk: window.edgeRow() };
+  });
+  assert.equal(after.added, 3, 'three rows above the viewport were decorated');
+  assert.equal(after.kept, 3, 'the update kept the decorated rows, badges and all');
+  held(before, after.grown);
+  held(before, after.shrunk);
+  console.log('PASS rows above the record grow and shrink right before an update; the record stays put');
+
+  // 7. The same change with no update behind it: a badge expiring above the viewport while the
+  //    reader is still. The list's own resize observer re-anchors from the geometry the reader
+  //    last saw, and the row is back within a frame. Also held before the fix; also a guard.
+  before = await settle();
+  after = await page.evaluate(async () => {
+    const added = window.badges(true); await window.frames(4);
+    const grown = window.edgeRow();
+    window.badges(false); await window.frames(4);
+    return { added, grown, shrunk: window.edgeRow() };
+  });
+  assert.equal(after.added, 3, 'three rows above the viewport were decorated');
+  held(before, after.grown);
+  held(before, after.shrunk);
+  console.log('PASS a badge added or removed above the viewport leaves the reader on their row');
+
   assert.deepEqual(errors, []);
-  console.log('PASS windowed list: the reader keeps their row through replaced rows, inserted rows and a caller re-anchor');
+  console.log('PASS windowed list: the reader keeps their row through replaced rows, inserted rows, a caller re-anchor, a scroll before the frame and decorated rows');
 } finally { await browser.close(); await new Promise(done => server.close(done)); }
