@@ -930,7 +930,7 @@
       "pending": []
     },
     "isin:INE12F801023|KISSHT": {
-      "lastAttemptAt": "2026-09-13T11:04:59+00:00",
+      "lastAttemptAt": "2026-09-17T23:30:56+00:00",
       "error": "search-unavailable"
     },
     "isin:INE881D01027|Oracle Financial Services Software": {
@@ -1506,6 +1506,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 213,
-    "checkedAt": "2026-09-17T22:54:13.684684+00:00"
+    "checkedAt": "2026-09-17T23:30:56.945319+00:00"
   }
 }
