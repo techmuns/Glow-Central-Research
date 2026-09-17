@@ -188,8 +188,10 @@ public/
     tabs/                     ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
                               super-investors, news, corp-announcements, nse-filings, insider-trades
       corp-announcements.js   CORP ANNOUNCEMENTS — ONE TAB, TWO VIEWS: Announcements (the stream) and
-                              Corporate Actions. Its Show row is a remembered multi-select over the
-                              filing TYPE (data/announcement-types.js); see the filing-type rule below
+                              Corporate Actions, switched on the title row. Its Filing types slot in the
+                              filter row is a remembered multi-select over the filing TYPE
+                              (data/announcement-types.js); see the filing-type rule below
+      corp-announcements-views.js  the two views and the title-row switch both view modules share
       corporate-actions.js    the Corporate Actions VIEW — a sub-view, not a tab; its retired tab id
                               `corporate-actions` is aliased to the view by LEGACY_TABS in ui/shell.js
       ai-alerts.js            ranked company insight cards, strongest evidence first
@@ -398,13 +400,22 @@ Conventions:
   shell hides `#subview-mount` and skips wiring it. Its kicker reads *View*, not the tab's title,
   because the section head immediately below prints that title as the page heading.
   **A tab may also declare `meta.inlineSubviews: true`**: the shell hides its picker card but keeps
-  routing the sub-views, and the tab draws its own compact switch inside its section head, routed
-  through `router.navigate` exactly as the picker is. Mutual Funds is the consumer — a two-option
-  tray beside the as-on pill — because the card cost ~90px above a table whose whole point is the
-  rows, to choose between two views.
+  routing the sub-views (URL segment, first-view fallback, legacy aliases), and the tab draws its own
+  compact switch inside its section head. Two consumers, one flag: Mutual Funds — a two-option tray
+  beside the as-on pill, routed through `router.navigate` exactly as the picker is — because the
+  card cost ~90px above a table whose whole point is the rows; and Corp Announcements, below. A
+  second spelling of the same declaration landed the same morning and was folded into this one,
+  because a shell honouring either is two predicates over one question.
   **The picker's menu is `position: absolute` below its card, so its wrapper must never carry
   `overflow-hidden`** — that clips the menu into invisibility while every click handler goes on
   working, which is a control that looks broken and tests as fine.
+  **Corp Announcements is the second consumer, and it draws the switch on its own title row**
+  through `sectionHead`'s `titleAside` (`viewSwitchHtml` in `js/tabs/corp-announcements-views.js`,
+  plain hash links, nothing to wire). The reason is measured: the
+  card was ~70px of chrome for a choice between two words, on a tab the owner wants to open on
+  its table. `sectionHead`'s `compact` flag goes with it — no description line (the sentence leads
+  the provenance panel instead), a tighter margin — and `scoreTable`'s `toolbarExtra` slot is how
+  a tab's own filter control joins the filter row rather than occupying a band above the table.
 - Long-running lists get `.scrollbar-thin`; panels that mount fresh get `.fade-in`.
 
 ---
@@ -1401,16 +1412,23 @@ each is a rule this file already runs on:
 3. **A filing no rule recognises is `other`, never a nearest guess.** `General`, `Updates` and
    *"Please find attached"* say nothing, so they stay under *Other updates* — and that type is
    never hidden by default, because "unclassified" is not "unimportant".
-4. **The hiding is visible.** A switched-off chip still prints its count for the selected period,
-   the note beside the chips says how many rows the selection hides, Reset appears whenever the
-   selection is not the default, and row 1 of the export names the types it excludes. A control
-   that makes rows disappear with nothing on screen saying so is indistinguishable from a broken
-   feed — the same rule as AI Alerts' archive.
-5. **It is a TABLE filter, drawn by the tab.** The type predicate is the second entry in the table's
-   `filters`, marked `hidden` so the kit draws no `<select>` for it; the chip row is its control and
-   re-applies it by dispatching `change` on the hidden slot. That is what lets search, the count
+4. **The hiding is visible.** The control's face prints how many rows the selection hides for the
+   selected period (*"12 of 13 · 1,599 hidden"*), a switched-off type keeps its count in the
+   checklist, Reset is there whenever the selection is not the default, and row 1 of the export
+   names the types it excludes. A control that makes rows disappear with nothing on screen saying
+   so is indistinguishable from a broken feed — the same rule as AI Alerts' archive.
+5. **It is a TABLE filter, drawn by the tab, IN THE FILTER ROW.** The type predicate is the second
+   entry in the table's `filters`, marked `hidden` so the kit draws no `<select>` for it; the
+   **Filing types** slot beside the period dropdown (`scoreTable`'s `toolbarExtra`) is its control
+   and re-applies it by dispatching `change` on the hidden slot. That is what lets search, the count
    label, the empty message and the export all read one predicate — two predicates over the same
-   question is the pattern this file keeps having to un-write.
+   question is the pattern this file keeps having to un-write. It was a band of thirteen chips
+   above the table for a day, wrapping onto two lines on the owner's screen; it went the way the
+   Mutual Funds chip rows went the same morning — one fixed-width slot, a checklist behind it,
+   nothing that moves when you use it. The checklist is appended to `<body>` and positioned
+   `fixed` from the button's rectangle, because the table card clips its overflow and
+   `#dashboard-main` animates a transform: an absolutely positioned menu inside either is the
+   clipped-picker failure named above.
 
 **What is stored is the set switched OFF** (`sattva:announcement-types:v1`, `{ hidden: [...] }`),
 not the set switched on: a type added to the vocabulary later then appears switched on rather than

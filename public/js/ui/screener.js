@@ -358,6 +358,10 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *                input holding its slot, so a tab can offer a control the kit does not (a remembered
  *                multi-select) and still have the count label, the empty message and the export read
  *                the one predicate. The tab re-applies it by dispatching `change` on that input.
+ *  toolbarExtra  trusted markup rendered in the toolbar after the filter selects — the slot a tab's
+ *                own control (the Corp Announcements filing-types checklist) sits in, so a filter
+ *                that is not a <select> still lives in the one filter row rather than in a band of
+ *                its own above the table. The tab wires it; the kit only places it.
  *                Pass an ARRAY of these for several dropdowns; they AND together.
  *  searchable    (row) => haystack string. Defaults to name(row).
  *  initialSort   { key, dir } where key is a column label, 'name', or 'score'
@@ -415,6 +419,7 @@ export function scoreTable(config) {
     bookmarkDate = null,
     bookmarkSource = null,
     filters = null,
+    toolbarExtra = '',
     searchable = null,
     // Glow owns the category picker; the shared table uses its predicate for rows and export.
     searchControl = null,
@@ -851,6 +856,7 @@ export function scoreTable(config) {
             <span>Watchlist</span>
             <span data-watch-count class="min-w-[18px] rounded-full bg-slate-200/70 px-1.5 py-0.5 text-center text-[10px] font-bold text-slate-500">${watchlist.size()}</span>
           </button>` : ''}
+          ${toolbarExtra || ''}
         </div>
         <div data-table-actions class="flex items-center gap-3">
           <div class="hidden text-xs text-slate-500 sm:block">
@@ -1859,12 +1865,19 @@ export function closeModal() {
 // row out, where the overflow-x:hidden backstop clipped it rather than scrolling — so the chips
 // were simply unreachable and nothing on screen said so. The inner block already carries
 // flex-wrap, so letting the slot shrink makes them stack instead of vanish.
-export function sectionHead({ title, description = '', meta = '', controls = '' }) {
+/**
+ * `titleAside` is trusted markup drawn on the title's own line, after the heading — a segmented
+ * view switch is the reference use. `compact` tightens the block for a tab whose table is the
+ * point: no description (its sentence belongs in the provenance panel), the title row vertically
+ * centred, and the margin under it reduced. Corp Announcements is the first consumer of both.
+ */
+export function sectionHead({ title, description = '', meta = '', controls = '', titleAside = '', compact = false }) {
   return `
-    <div class="mb-5" data-section-head>
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
+    <div class="${compact ? 'mb-3' : 'mb-5'}" data-section-head${compact ? ' data-section-head-compact' : ''}>
+      <div class="flex flex-wrap ${compact ? 'items-center' : 'items-start'} justify-between gap-3">
+        <div class="${titleAside ? 'flex min-w-0 flex-wrap items-center gap-3' : ''}">
           <h2 class="font-display text-xl font-bold text-slate-900">${escapeHtml(title)}</h2>
+          ${titleAside || ''}
           ${description ? `<p class="mt-1 max-w-5xl text-sm text-slate-500">${escapeHtml(description)}</p>` : ''}
         </div>
         ${meta ? `<div class="min-w-0 max-w-full">${meta}</div>` : ''}
