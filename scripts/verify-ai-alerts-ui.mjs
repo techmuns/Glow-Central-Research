@@ -15,6 +15,9 @@ const eventsFor = (ticker, company, day = '2026-09-04') => feeds.map((feed, i) =
 const events = Array.from({ length: 11 }, (_, i) => eventsFor(`A${String(i).padStart(2, '0')}`, i === 10 ? 'Zenith Manufacturing' : `Company ${String(i).padStart(2, '0')}`)).flat();
 events.filter(e => e.ticker === 'A10').forEach(e => { e.time = '08:00'; });
 events.find((e) => e.ticker === 'A01').time = null;
+// Two filings carry a tracked keyword each, so the valuation and thesis questions have exactly one card behind them.
+events.find((e) => e.id === 'A03-announcements').keywords = ['Buyback'];
+events.find((e) => e.id === 'A05-announcements').keywords = ['Resignation'];
 events.push({ ...events[30], id: 'hidden-event', importance: 'low', headline: 'Lithium supply agreement hidden beyond the evidence preview' });
 events.push({ ...events[0], id: 'context-document', aiEligible: false, kind: 'document', importance: 'low', direction: 'neutral', headline: 'Material risk source document', detail: 'Underlying source record' });
 events.push(...eventsFor('OLD', 'Old signal', '2026-08-22'));
@@ -226,6 +229,7 @@ try {
   await waitFor(page, async () => (await import('/js/core/bookmarks.js')).all().length === 2);
   const savedCard = await page.evaluate(async () => (await import('/js/core/bookmarks.js')).all().find(entry => entry.kind === 'AI Alerts'));
   assert(savedCard.body && savedCard.details.length, 'The AI insight preserves its evidence after archiving');
+  assert.equal(savedCard.details[0]?.label, 'Earnings assumption, valuation or thesis?', 'a saved card keeps its second bullet');
   assert(!Object.hasOwn(savedCard, 'holdingWeightPct'), 'No private position object is copied into a saved insight');
   const sortControl = page.getByRole('combobox', { name: 'Sort AI Alerts' });
   assert.equal(await sortControl.inputValue(), 'newest');
@@ -279,6 +283,71 @@ try {
   assert.equal(await search.inputValue(), '');
   assert.equal(await page.locator('[data-ai-card]').count(), 8);
   console.log('PASS: search beyond pagination and preview, priority, archive/restore and clear search.');
+
+  // THE TWO BULLETS AND THE THREE TRIGGERS. "One bullet is what has happened; the second, will it
+  // change the earnings assumption, valuation or thesis?" Every card carries both, the second names
+  // the QUESTIONS the evidence bears on (could change, never will), and the trigger chips above count
+  // exactly the cards whose second bullet names each question — with the priority band held fixed.
+  const briefs = async () => page.locator('[data-ai-card]').evaluateAll(els => els.map(el => ({
+    ticker: el.dataset.ticker,
+    kickers: [...el.querySelectorAll('[data-ai-brief] li > div > div:first-child')].map(n => n.textContent.trim()),
+    insight: el.querySelector('[data-ai-insight]')?.textContent.trim() || '',
+    line: el.querySelector('[data-ai-impact-line]')?.textContent.trim() || '',
+    axes: (el.querySelector('[data-ai-impact-row]')?.dataset.axes || '').split(' ').filter(Boolean),
+    bold: [...el.querySelectorAll('[data-ai-impact-line] [data-ai-axis]')].map(n => n.dataset.aiAxis),
+  })));
+  const firstPage = await briefs();
+  assert.equal(firstPage.length, 8);
+  for (const brief of firstPage) {
+    assert.deepEqual(brief.kickers, ['What happened', 'Earnings assumption, valuation or thesis?'], `${brief.ticker} carries the two bullets, in order`);
+    assert(brief.insight.length > 0 && brief.line.length > 0, `${brief.ticker} has both lines`);
+    assert.deepEqual(brief.bold, brief.axes, `${brief.ticker} sets in bold exactly the questions it bears on`);
+    assert(/^Could change /.test(brief.line) && !/\bwill\b/i.test(brief.line), `${brief.ticker} asks, never answers: ${brief.line}`);
+  }
+  const a00Brief = firstPage.find(brief => brief.ticker === 'A00');
+  assert.deepEqual(a00Brief.axes, ['earnings'], 'a result filed bears on earnings; a material insider trade is not one of the three questions');
+  assert.equal(a00Brief.line, 'Could change the earnings assumption (results filed). Nothing tracked here bears on the valuation and thesis.', 'the untouched questions are named in words');
+  await search.fill('buyback in a filing');
+  assert.equal(await card('A03').count(), 1, 'search reaches the second bullet');
+  const a03Brief = (await briefs()).find(brief => brief.ticker === 'A03');
+  assert.deepEqual(a03Brief.axes, ['earnings', 'valuation'], 'a Buyback keyword on the filing adds the valuation question');
+  assert.match(a03Brief.line, /the valuation \(Buyback in a filing\)\. Nothing tracked here bears on the thesis\./);
+  await page.locator('[data-ai-clear]').click();
+  const chipCounts = async () => page.locator('[data-ai-triggers] [data-ai-impact]').evaluateAll(els =>
+    Object.fromEntries(els.map(el => [el.dataset.aiImpact, Number(el.textContent.split('·')[1])])));
+  const allCount = Number((await page.locator('[data-ai-filter="all"]').innerText()).split('·')[1]);
+  const counts = await chipCounts();
+  assert.deepEqual(Object.keys(counts), ['earnings', 'valuation', 'thesis'], 'the three triggers, in the desk’s order');
+  // ZIMP carries one untracked announcement and nothing else, so it bears on none of the three.
+  assert.equal(counts.earnings, allCount - 1, 'every fixture company but the announcement-only one filed a result');
+  assert.equal(counts.valuation, 1, 'only the buyback filing bears on valuation');
+  assert.equal(counts.thesis, 1, 'only the resignation filing bears on the thesis; material insider trades do not');
+  const readsBeforeTrigger = await page.evaluate(() => window.reads);
+  await page.locator('[data-ai-impact="valuation"]').click();
+  assert.equal(await page.locator('[data-ai-card]').count(), 1);
+  assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A03');
+  assert.equal(await page.locator('[data-ai-impact="valuation"]').getAttribute('aria-pressed'), 'true');
+  assert(await page.evaluate(() => document.activeElement?.dataset.aiImpact === 'valuation'), 'the pressed chip keeps focus through the repaint');
+  assert.match(await page.locator('[data-ai-filter="all"]').innerText(), /· 1$/, 'priority counts hold the pressed trigger fixed');
+  assert.deepEqual(await chipCounts(), counts, 'trigger counts hold the priority band fixed, not the pressed trigger');
+  assert.equal(await page.evaluate(() => window.reads), readsBeforeTrigger, 'a trigger chip is a local view, not a network read');
+  await page.locator('[data-ai-filter="important"]').click();
+  assert.equal(await page.locator('[data-ai-card]').count(), 0);
+  assert.equal(await page.locator('[data-ai-empty][data-ai-empty-trigger="valuation"]').count(), 1, 'an empty trigger view names the trigger, not the threshold');
+  assert.match(await page.locator('[data-ai-empty]').innerText(), /No card in this view bears on the valuation/);
+  assert.match(await page.locator('[data-ai-impact="valuation"]').innerText(), /· 0$/, 'the trigger count follows the priority band');
+  await page.locator('[data-ai-impact-clear]').click();
+  assert.equal(await page.locator('[data-ai-impact][aria-pressed="true"]').count(), 0, 'Show all triggers clears the trigger');
+  assert.equal(await page.locator('[data-ai-filter="important"]').getAttribute('aria-pressed'), 'true', '…and keeps the priority band');
+  await page.locator('[data-ai-filter="all"]').click();
+  await page.locator('[data-ai-impact="thesis"]').click();
+  assert.equal(await page.locator('[data-ai-impact="thesis"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('[data-ai-card]').count(), 1);
+  assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A05');
+  await page.locator('[data-ai-impact="thesis"]').click();
+  assert.equal(await page.locator('[data-ai-impact][aria-pressed="true"]').count(), 0, 'pressing the chip again clears it');
+  assert.equal(await page.locator('[data-ai-card]').count(), 8);
+  console.log('PASS: two bullets on every card, and the three trigger chips narrow, count with the other group held fixed, clear and explain an empty view.');
 
   await page.evaluate(() => {
     window.savedFixture = window.fixtureEvents;

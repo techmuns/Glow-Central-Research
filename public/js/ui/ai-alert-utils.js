@@ -74,7 +74,8 @@ export function matchesSearch(card, query) {
   const words = normalize(query).split(' ').filter(Boolean);
   if (!words.length) return true;
   const text = normalize([
-    card.company, card.ticker, card.sector, card.insight, card.contextSummary, card.badge?.label,
+    card.company, card.ticker, card.sector, card.insight, card.impactLine, card.contextSummary, card.badge?.label,
+    ...(card.impacts || []).flatMap((hit) => [hit.label, hit.short, ...(hit.reasons || []).map((reason) => reason.text)]),
     ...(card.feedLabels || []),
     ...(card.confluence || []).flatMap((pattern) => [pattern.label, pattern.short, pattern.detail]),
     ...(card.events || []).flatMap((event) => [event.company, event.ticker, event.headline, event.detail, event.feedLabel, event.feed, event.day, formatDay(event.day), event.time]),
