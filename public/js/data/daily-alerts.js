@@ -783,10 +783,18 @@ export function onChange(fn) {
       releaseRequested = true;
       // Reading work nobody is watching STOPS here, rather than being left to finish. The
       // release below cannot do it: it waits for the in-flight collection, and that collection
-      // is waiting for the very archive walk we want to cancel. Each pooled period reader is
-      // one request per retained month, so leaving the walk running spends a tab's worth of
-      // requests after the tab is gone. Records already read are kept.
-      for (const entry of queryNewsReaders.values()) entry.reader.stopReads?.();
+      // is itself awaiting the archive walk it would cancel, so it can only ever arrive after
+      // the walk. Each pooled period reader is one request per retained month, so a walk left
+      // running spends a tab's worth of requests after the tab is gone.
+      //
+      // DROPPING THEM FROM THE POOL MATTERS AS MUCH AS RELEASING THEM. Cancelling alone only
+      // ends the walk in flight: a released reader still reachable from the pool starts the
+      // whole walk again on its very next read, which is the same leak one request later.
+      // The shared reader is deliberately left to the gated release below, so a prepared
+      // research estate is not discarded by alert navigation.
+      for (const [key, entry] of queryNewsReaders) {
+        queryNewsReaders.delete(key); entry.off(); entry.reader.release();
+      }
       releaseInactiveMemory();
     }
   };

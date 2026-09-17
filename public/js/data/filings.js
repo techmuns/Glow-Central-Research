@@ -981,6 +981,13 @@ export function createQueryNews(window, { extraRows = () => marketNews.rows(), a
         if (result.failed || marketNews.archiveMeta().remaining >= before) break;
       }
     } catch { /* Company captures can still paint while publisher health reports failure. */ }
+    // RE-ASK BEFORE THE WALK, NOT ONLY AFTER IT. The check at the top of this function is made
+    // before the publisher loads above, and those awaits are long enough for the reader to be
+    // released underneath them — at which point the working set's own cancellation cannot help
+    // either, because a walk starting now reads the epoch that release just moved to and so
+    // counts itself current. The archive walk is one request per retained month, so starting it
+    // here is the whole leak in one line.
+    if (disposed) throw Error('News reader released');
     await working.prepare();
     if (disposed) throw Error('News reader released');
     if (initializedWindow !== JSON.stringify(activeWindow)) {
@@ -1016,13 +1023,6 @@ export function createQueryNews(window, { extraRows = () => marketNews.rows(), a
     load(items = [], ...args) { wanted = items; return run(() => feed.load(wanted, ...args)); },
     refresh: (...args) => run(() => feed.refresh(...args), true),
     refreshSnapshot: (...args) => run(() => feed.refreshSnapshot(...args), true),
-    // STOP READING WITHOUT TEARING DOWN. The archive walk is one request per month, so a walk
-    // that outlives the tab that asked for it goes on fetching for seconds after nobody is
-    // watching — and the memory release that would cancel it is itself gated on that same read
-    // finishing, so it can only ever arrive too late. This breaks that circle. What the reader
-    // already holds is kept; the working set rebuilds on its next read, and `release()` remains
-    // the full teardown.
-    stopReads() { working.release(); },
     release() { disposed = true; feed.dispose(); working.release(); retainedRows = null; combined = null; },
   };
 }
