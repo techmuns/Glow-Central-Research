@@ -84,6 +84,14 @@ Fresh Yahoo quotes that lack a base also enter the backup history lookup. Their
 price and volume are retained if that lookup fails; a supplied base enriches the
 primary observation before its first checkpoint, without rewriting saved history.
 
+In the browser, a quote that arrived without a base does not remove the company
+from Strong Breakouts. The row keeps the daily file's completed-session grade,
+labelled `Graded at <date> close` on the row and counted in the line under the
+chips, and the export states `Capture · <session>` or `Daily close · <date>` as
+each grade's basis. Only a company with a base from neither source is absent, and
+that count is stated too. Yahoo routinely publishes the previous session's daily
+bar late: on 17 September 2026 it was missing for 292 of 610 quotes at midday.
+
 ## Freshness, completeness and history
 
 Freshness uses the quote's own exchange-session date and source time. During the

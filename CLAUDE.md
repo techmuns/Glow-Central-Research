@@ -3551,6 +3551,27 @@ data and empty intersections offline. Two browser checks drive them in the real 
 against that suite's own book, and `verify-glow-parity-ui.mjs` is its caller. Keep them apart — the
 two were one file once, and a template merge took the standalone half and silently dropped the call.
 
+**A QUOTE WITHOUT A BASE IS NOT A COMPANY WITHOUT A BASE.** Strong Breakouts regrades a company from
+its captured quote whenever that quote is from a later session than the daily file, and the capture
+supplies a 30-session base only when Yahoo has published every bar up to yesterday's. It routinely
+has not: measured at midday on 17 September 2026, **292 of 610 quotes carried no base — 87 of the
+book's 166** — and `decorate()` was writing `null` over each of those companies' daily grade, so
+the view read *"0 of 76 companies with a detectable base"* over a book of 166 with nothing on screen
+saying where the other 90 had gone. The pill's *74/166* was honest and no reader could get from it
+to the count line. `gradeFor()` in `js/data/breakout-live.js` now keeps the daily file's own
+grade when the capture has no base, marked `grade_source: 'daily'` and dated by `graded_on`, and
+three surfaces print that: an amber *Graded at <date> close* note on the row, a sentence under the
+chips counting how many rows are graded that way and how many have no base from either source, and
+two export columns naming each grade's basis. **It is the `priceInfo` rule applied to the grade**:
+a completed-session measurement is kept, dated, when nothing newer vouches for the row — never
+replaced by nothing. The empty table under untouched chips now says what it means — no company is
+above its base high — rather than *"no companies match your filters"* to a reader who set none.
+`scripts/verify-breakouts-ui.mjs` drives a quote with `base: null` through the real view. The
+collector's Upstox history backup (`docs/BREAKOUT-CAPTURE.md`) is what would supply the missing
+bases at source, and it is **not configured** on this repository: no `UPSTOX_ACCESS_TOKEN` secret,
+no `UPSTOX_BACKUP_ENABLED` variable, so every collector run reports `upstox: not-configured` and
+exits 1 on the base count by design.
+
 ---
 
 ## Running inside the Munshot host — the SDK integration

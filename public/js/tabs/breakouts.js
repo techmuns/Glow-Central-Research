@@ -451,9 +451,32 @@ function wireChipBar(root, groups, state, onChange) {
   });
 }
 
+// Which measurement a row's grade came from — see `gradeFor` in data/breakout-live.js. A grade
+// with no `grade_source` is the daily file's own, reached by a row with no usable quote at all.
+const gradeSourceOf = (s) => (s.company.consolidation_breakout?.grade_source === 'capture' ? 'capture' : 'daily');
+const gradedOn = (s) => s.company.consolidation_breakout?.graded_on || s.company.price_date || null;
+// "the 2026-09-08 close" for one date; "their last completed daily close (2026-09-04 to 2026-09-08)"
+// for several — the daily file's rows are not all on one session, because Yahoo publishes late.
+function gradeDatesPhrase(rows) {
+  const dates = [...new Set(rows.map(gradedOn).filter(Boolean))].sort();
+  if (!dates.length) return 'their last completed daily close';
+  if (dates.length === 1) return `the ${dates[0]} close`;
+  return `their last completed daily close (${dates[0]} to ${dates.at(-1)})`;
+}
+function gradeNote(s) {
+  if (!s.company.consolidation_breakout || gradeSourceOf(s) === 'capture') return '';
+  const on = gradedOn(s);
+  return `<div class="text-[10px] text-amber-700" data-grade-source="daily" title="Today's price capture carries no 30-session base for this company, so the grade is the completed daily close${on ? ` of ${escapeHtml(on)}` : ''}.">Graded at ${on ? escapeHtml(on) : 'last daily'} close</div>`;
+}
+
 function renderStrongBreakouts(ctx, rows) {
   const state = readChipState(ctx.params || {}, BREAKOUT_DEFAULTS, BREAKOUT_FILTERS);
   const withBreakout = rows.filter((s) => s.company.consolidation_breakout);
+  // Rows graded at a daily close rather than on today's capture, and rows with no base at all.
+  // Both are stated under the chips: a company that leaves this view has to leave a trace.
+  const dailyGraded = withBreakout.filter((s) => gradeSourceOf(s) === 'daily');
+  const ungraded = rows.length - withBreakout.length;
+  const narrowed = Object.entries(state).some(([k, v]) => v.join(',') !== BREAKOUT_DEFAULTS[k]);
 
   // Live counts per chip: how many rows would remain if that chip alone were toggled on,
   // holding the other groups at their current setting.
@@ -497,11 +520,17 @@ function renderStrongBreakouts(ctx, rows) {
   const table = scoreTable({
     initialView: tableViews.get(ctx.subview) || null,
     ...tableBase(filtered, ctx),
+    // An empty table under chips the reader never touched is not "your filters": it is the answer.
+    emptyMessage: narrowed
+      ? 'No companies match your filters.'
+      : withBreakout.length
+        ? `No breakouts: none of the ${formatNumber(withBreakout.length)} ${withBreakout.length === 1 ? 'company' : 'companies'} with a base is above its 30-session base high.`
+        : 'No company in this scope has a 30-session base to grade against.',
     showScore: true,
     score: scoreOf,
     columns: [
       { label: 'Base range %', get: (s) => `${num(s.company.consolidation_breakout?.base_range_pct, 1)}%`, align: 'right', sortValue: (s) => s.company.consolidation_breakout?.base_range_pct ?? 999 },
-      { label: 'Base high', get: (s) => formatRupee(s.company.consolidation_breakout?.base_max, { decimals: 0 }), align: 'right', sortValue: (s) => s.company.consolidation_breakout?.base_max ?? 0 },
+      { label: 'Base high', get: (s) => `<span class="text-slate-700">${escapeHtml(formatRupee(s.company.consolidation_breakout?.base_max, { decimals: 0 }))}</span>${gradeNote(s)}`, html: true, align: 'right', sortValue: (s) => s.company.consolidation_breakout?.base_max ?? 0 },
       { label: 'CMP', get: (s) => cmpCell(s.company), html: true, align: 'right', sortValue: (s) => live.priceInfo(s.company).price ?? 0 },
       { label: 'Volume ratio', get: (s) => volRatioCell(s.company.consolidation_breakout?.today_volume_ratio), html: true, align: 'right', sortValue: (s) => s.company.consolidation_breakout?.today_volume_ratio ?? 0 },
       { label: '52W distance', get: (s) => distanceCell(s.company.high_proximity_pct), html: true, align: 'right', sortValue: (s) => (s.company.high_proximity_pct == null ? 999 : (1 - s.company.high_proximity_pct) * 100) },
@@ -518,7 +547,15 @@ function renderStrongBreakouts(ctx, rows) {
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'candidates', book: coverage.meta() })}</div>`,
     })}
     ${chipBar(BREAKOUT_FILTERS, state, counts)}
-    <div class="mb-3 text-xs text-slate-500"><span class="font-semibold text-slate-700">${filtered.length} of ${withBreakout.length}</span> companies with a detectable base match these filters.</div>
+    <div class="mb-3 text-xs text-slate-500"><span class="font-semibold text-slate-700">${filtered.length} of ${withBreakout.length}</span> companies with a detectable base match these filters.${
+      dailyGraded.length
+        ? ` <span data-daily-graded="${dailyGraded.length}">${formatNumber(dailyGraded.length)} of them ${dailyGraded.length === 1 ? 'is' : 'are'} graded at ${escapeHtml(gradeDatesPhrase(dailyGraded))} because today's price capture carries no 30-session base for ${dailyGraded.length === 1 ? 'it' : 'them'}.</span>`
+        : ''
+    }${
+      ungraded
+        ? ` <span data-ungraded="${ungraded}">${formatNumber(ungraded)} ${ungraded === 1 ? 'has' : 'have'} no base from either source and cannot be graded.</span>`
+        : ''
+    }</div>
     ${table.html}
     ${legendStrip()}
   `;
@@ -707,6 +744,9 @@ function runExport(visibleRows, filename) {
     { header: '52W high', key: 'h52', width: 12, get: (s) => s.company.high_52w ?? null },
     { header: '% below 52W high', key: 'd52', width: 18, get: (s) => (s.company.high_proximity_pct == null ? null : Number(((1 - s.company.high_proximity_pct) * 100).toFixed(2))) },
     { header: 'Volume ratio', key: 'volr', width: 14, get: (s) => s.company.consolidation_breakout?.today_volume_ratio ?? null },
+    // The grade leaves the page with the measurement it came from — a workbook has no amber note.
+    { header: 'Breakout grade', key: 'grade', width: 14, get: (s) => s.company.consolidation_breakout?.quality ?? '' },
+    { header: 'Breakout graded on', key: 'graded_on', width: 26, get: (s) => (s.company.consolidation_breakout ? `${gradeSourceOf(s) === 'capture' ? 'Capture' : 'Daily close'} · ${gradedOn(s) || 'date unavailable'}` : '') },
     { header: 'Delivery Δ (pp)', key: 'dlv', width: 16, get: (s) => s.company.delivery_trend_diff ?? null },
     { header: 'Chg FII %', key: 'fii', width: 12, get: (s) => s.company.chg_fii_hold ?? null },
     { header: 'Chg DII %', key: 'dii', width: 12, get: (s) => s.company.chg_dii_hold ?? null },
