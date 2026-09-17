@@ -213,3 +213,87 @@ clearRankingCache();
 assert.notEqual(rankReport(publication, { holdings: publicIdentities }).allCards, failedRank.allCards,
   'access invalidation discards the previous private derivation');
 console.log('PASS: unchanged publications reuse derivations; corrections, source health, membership, dates, Insights and positions invalidate them.');
+
+// ---------------------------------------------------------------------------------------
+// THE TWO-BULLET READING. "One bullet is what has happened; the second, will it change the earnings
+// assumption, the valuation or the thesis?" The second bullet is a deterministic reading of which
+// QUESTION each event bears on — never an answer — so every branch is asserted on a fixture here,
+// because a day's capture rarely holds a buyback, a rating cut, a big move and a holder's exit on
+// one company.
+const { IMPACT_AXES, eventImpacts, impactOf, impactParts, impactLine } = await import('../public/js/data/ai-alerts.js');
+assert.deepEqual(IMPACT_AXES.map(axis => axis.id), ['earnings', 'valuation', 'thesis'], 'the three triggers, in the desk’s order');
+const base = { day: '2026-09-04', ticker: 'T', company: 'Test Co', direction: 'neutral', importance: 'high' };
+const orderFiling = { ...base, id: 'f1', feed: 'announcements', headline: 'Receipt of order worth Rs 135 crore', keywords: ['Order', 'Receipt of Order'], filingRule: 'order or contract award' };
+const buybackStory = { ...base, id: 'n1', feed: 'news', headline: 'Board approves buyback', keywords: ['Buyback', 'Approval'] };
+const fraudStory = { ...base, id: 'n2', feed: 'news', headline: 'Regulator probes alleged fraud', keywordIds: ['fraud', 'investigation'] };
+const nseDowngrade = { ...base, id: 'f2', feed: 'nse-filings', headline: 'Credit rating downgrade', keywords: [], filingRule: 'rating downgrade' };
+const result = { ...base, id: 'e1', feed: 'earnings', headline: 'YOY quarterly result filed' };
+const call = { ...base, id: 'c1', feed: 'concalls', headline: 'Con-call analysis published', direction: 'negative' };
+const quietCall = { ...call, id: 'c2', importance: 'low', direction: 'neutral' };
+const bigMove = { ...base, id: 't1', feed: 'technicals', kind: 'move', movePct: 6.5, direction: 'positive', headline: 'Rose 6.5% at the 2026-09-03 close' };
+const smallMove = { ...bigMove, id: 't2', movePct: 1.2, importance: 'low', aiEligible: false, kind: 'price-reading' };
+const volume = { ...base, id: 't3', feed: 'technicals', kind: 'volume', volumeX: 4.4 };
+const breakout = { ...base, id: 't4', feed: 'technicals', kind: 'breakout', direction: 'positive' };
+const holderCut = { ...base, id: 'i1', feed: 'investors', action: 'trimmed', investor: 'Life Insurance Corporation', deltaPp: -2, direction: 'negative' };
+const holderSmall = { ...holderCut, id: 'i2', deltaPp: -0.5, importance: 'low' };
+const insiderSell = { ...base, id: 's1', feed: 'insider', headline: 'Promoter — Disposal', direction: 'negative' };
+const insiderSmall = { ...insiderSell, id: 's2', importance: 'low' };
+const chatter = { ...base, id: 'ch1', feed: 'chatter', headline: 'Bearish public chatter', direction: 'negative' };
+const relatedStory = { ...buybackStory, id: 'n3', aiEligible: false,
+  attribution: { version: ATTRIBUTION_VERSION, status: 'related', relationships: [{ relationship: 'subsidiary of a related entity', evidenceUrl: 'https://example.test/relationship' }] } };
+const untracked = { ...base, id: 'n4', feed: 'news', headline: 'General coverage', keywords: [] };
+
+const axesOf = event => [...new Set(eventImpacts(event).map(hit => hit.axis))];
+assert.deepEqual(axesOf(orderFiling), ['earnings']);
+assert.deepEqual(eventImpacts(orderFiling).map(hit => hit.text), ['Order in a filing', 'Receipt of Order in a filing', 'order or contract award in a filing'],
+  'a filing names its keywords by the desk’s own labels and its rule by the rule’s own name');
+assert.deepEqual(axesOf(buybackStory).sort(), ['earnings', 'valuation'], 'labels resolve to keyword ids: Approval is an earnings question, Buyback a valuation one');
+assert.deepEqual(axesOf(fraudStory), ['thesis'], 'keyword ids are read directly where a row carries them');
+assert.deepEqual(axesOf(nseDowngrade), ['valuation', 'thesis'], 'NSE filings count as filings and a filing rule alone is enough');
+assert.deepEqual(eventImpacts(result), [{ axis: 'earnings', text: 'results filed' }]);
+assert.deepEqual(axesOf(call), ['earnings']);
+assert.deepEqual(axesOf(quietCall), [], 'a neutral, mid-band con-call is not an earnings trigger');
+assert.deepEqual(eventImpacts(bigMove), [{ axis: 'valuation', text: 'up 6.5% at the close' }], 'a move past the feed’s own threshold bears on valuation');
+assert.deepEqual(axesOf(smallMove), [], 'a move below MOVE_PCT bears on nothing — the feed’s threshold, not a second one');
+assert.deepEqual(axesOf(volume), [], 'volume is participation and bears on nothing by itself');
+assert.deepEqual(axesOf(breakout), [], 'a base break is a tape reading, not one of the three questions');
+assert.deepEqual(axesOf(holderCut), [], 'a holder’s move is somebody else’s decision, not one of the three questions — it is the first bullet’s business');
+assert.deepEqual(axesOf(holderSmall), []);
+assert.deepEqual(axesOf(insiderSell), [], 'an insider trade bears on none of the three by itself');
+assert.deepEqual(axesOf(insiderSmall), []);
+assert.deepEqual(axesOf(chatter), [], 'chatter bears on none of the three');
+assert.deepEqual(axesOf(relatedStory), [], 'a related-entity story never drives a company’s bullet');
+assert.deepEqual(axesOf(untracked), []);
+
+const all = impactOf([holderCut, chatter, fraudStory, bigMove, orderFiling, result, buybackStory, { ...result, id: 'e2' }]);
+assert.deepEqual(all.map(hit => hit.axis), ['earnings', 'valuation', 'thesis'], 'axes come out in the desk’s order whatever order the events arrived in');
+assert.deepEqual(all[0].reasons.map(r => r.text), ['Order in a filing', 'Receipt of Order in a filing', 'order or contract award in a filing', 'results filed', 'Approval in the news'],
+  'one reason per distinct trigger — a second result filing does not repeat “results filed”');
+assert.equal(all[0].reasons.find(r => r.text === 'results filed').eventId, 'e1', 'a reason keeps the id of the event it was read from');
+assert.deepEqual(all[2].reasons.map(r => r.text), ['Fraud in the news', 'Investigation in the news']);
+assert.deepEqual(impactOf([]), []);
+assert.deepEqual(impactOf([chatter, volume, untracked, holderCut, insiderSell]), [], 'no axis is present-and-empty');
+
+assert.equal(impactLine([]), 'Nothing here is a tracked trigger for the earnings assumption, the valuation or the thesis. Read the evidence before deciding.');
+assert.equal(impactLine(impactOf([result])), 'Could change the earnings assumption (results filed). Nothing tracked here bears on the valuation and thesis.');
+assert.equal(impactLine(impactOf([bigMove, nseDowngrade])),
+  'Could change the valuation (up 6.5% at the close; rating downgrade in a filing) and the thesis (rating downgrade in a filing). Nothing tracked here bears on the earnings assumption.',
+  'two axes present: the missing one is named in words');
+assert.equal(impactLine(all),
+  'Could change the earnings assumption (Order in a filing; Receipt of Order in a filing; +3 more), the valuation (up 6.5% at the close; Buyback in the news) and the thesis (Fraud in the news; Investigation in the news).',
+  'all three present: no “nothing bears on” tail, and a long axis is capped at two reasons with a count');
+for (const line of [impactLine([]), impactLine(all), impactLine(impactOf([result]))]) {
+  assert(!/\bwill\b/i.test(line) && !/\bEPS\b/.test(line), `the bullet never answers the question it asks: ${line}`);
+}
+const parts = impactParts(all);
+assert.deepEqual(parts.filter(part => part.kind === 'axis').map(part => part.axis), ['earnings', 'valuation', 'thesis']);
+assert.equal(parts.map(part => part.text).join(''), impactLine(all), 'the parts are the line, so a renderer cannot drift from it');
+
+const twoBullets = rankReport({ day: '2026-09-04', scope: 'portfolio', feeds: [{ id: 'announcements', status: 'ok', reachesToday: true }, { id: 'technicals', status: 'ok', reachesToday: true }],
+  events: [orderFiling, bigMove] }, { holdings: [{ ticker: 'T', name: 'Test Co' }] });
+const bulletCard = twoBullets.cards.find(card => card.ticker === 'T');
+assert(bulletCard, 'the fixture surfaces');
+assert.deepEqual(bulletCard.impacts.map(hit => hit.axis), ['earnings', 'valuation']);
+assert.equal(bulletCard.impactLine, impactLine(bulletCard.impacts));
+assert(matchesSearch(bulletCard, 'thesis') && matchesSearch(bulletCard, 'order in a filing') && matchesSearch(bulletCard, 'valuation'), 'search reaches the second bullet');
+console.log('PASS: the second bullet reads which of earnings, valuation or thesis each event bears on, from the feeds’ own thresholds and the desk’s own keywords, and never answers it.');
