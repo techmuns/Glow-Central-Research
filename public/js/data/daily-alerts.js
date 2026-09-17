@@ -779,7 +779,16 @@ export function onChange(fn) {
   listeners.add(fn);
   return () => {
     listeners.delete(fn);
-    if (!listeners.size) { releaseRequested = true; releaseInactiveMemory(); }
+    if (!listeners.size) {
+      releaseRequested = true;
+      // Reading work nobody is watching STOPS here, rather than being left to finish. The
+      // release below cannot do it: it waits for the in-flight collection, and that collection
+      // is waiting for the very archive walk we want to cancel. Each pooled period reader is
+      // one request per retained month, so leaving the walk running spends a tab's worth of
+      // requests after the tab is gone. Records already read are kept.
+      for (const entry of queryNewsReaders.values()) entry.reader.stopReads?.();
+      releaseInactiveMemory();
+    }
   };
 }
 

@@ -1016,6 +1016,13 @@ export function createQueryNews(window, { extraRows = () => marketNews.rows(), a
     load(items = [], ...args) { wanted = items; return run(() => feed.load(wanted, ...args)); },
     refresh: (...args) => run(() => feed.refresh(...args), true),
     refreshSnapshot: (...args) => run(() => feed.refreshSnapshot(...args), true),
+    // STOP READING WITHOUT TEARING DOWN. The archive walk is one request per month, so a walk
+    // that outlives the tab that asked for it goes on fetching for seconds after nobody is
+    // watching — and the memory release that would cancel it is itself gated on that same read
+    // finishing, so it can only ever arrive too late. This breaks that circle. What the reader
+    // already holds is kept; the working set rebuilds on its next read, and `release()` remains
+    // the full teardown.
+    stopReads() { working.release(); },
     release() { disposed = true; feed.dispose(); working.release(); retainedRows = null; combined = null; },
   };
 }
