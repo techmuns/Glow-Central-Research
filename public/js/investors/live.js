@@ -30,7 +30,7 @@ import { rankedList, scoreTable, sectionHead, openWorkspace, openModal } from '.
 import { tabBar } from '../ui/components.js';
 import { avatarFor } from '../ui/visual.js';
 import { escapeHtml } from '../core/dom.js';
-import { formatNumber, formatCroreCompact, formatRelativeTime } from '../core/format.js';
+import { formatNumber, formatCroreCompact, formatRelativeTime, formatDate } from '../core/format.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
 import * as feed from '../data/super-investors.js';
 import * as coverage from '../data/coverage.js';
@@ -39,9 +39,9 @@ import * as scopeLists from '../core/scope-lists.js';
 import { scopePossessive, scopeLabel } from '../data/scope.js';
 // The ONE classifier — this view used to carry a second copy of it. See `classifyHolding` there.
 import { classifyHolding, companyKey, filedPair, isMove, quarterOrder } from '../data/finology-shared.js';
-import { deriveMoves, comparisonPeriods, disclosureStatus } from '../data/finology-shared.js';
+import { deriveMoves, comparisonPeriods, disclosureStatus, periodEnd } from '../data/finology-shared.js';
 import { renderChanges } from './changes.js';
-import { wireIntegrity, associatedEvidenceHtml } from './integrity.js';
+import { wireIntegrity, ensureHoldingsFresh, associatedEvidenceHtml } from './integrity.js';
 import { loadEvidence } from '../data/holding-evidence.js';
 import * as publicHoldings from '../data/public-holdings.js';
 import { publicDisclosuresHtml, wirePublicDisclosures } from './public-disclosures.js';
@@ -52,6 +52,13 @@ const FINOLOGY_COMPANY = (slug) => `https://ticker.finology.in/company/${encodeU
 const dash = '<span class="text-slate-300">—</span>';
 const pct = (v) => (v == null ? dash : `${Number(v).toFixed(2)}%`);
 const cr = (v) => (v == null ? dash : formatCroreCompact(v));
+// THE DATE A SHAREHOLDING PATTERN STATES THE HOLDING ON is the quarter end its label names. Every
+// row that compares two patterns prints both dates rather than leaving "Jun 2026" to imply one —
+// and never a trade date, because a pattern carries none. `readDate` is the separate fact of when
+// this dashboard last read the source for that book.
+const patternDate = (label) => (periodEnd(label) ? formatDate(periodEnd(label)) : label || '—');
+const patternSpan = (prior, latest) => `${patternDate(prior)} → ${patternDate(latest)}`;
+const readDate = (at) => (Number.isFinite(Date.parse(at || '')) ? formatDate(at) : '—');
 
 // ---------------------------------------------------------------------------------------
 // Entry
@@ -110,7 +117,6 @@ export function renderLive(ctx, { disposers = [], section = 'quarterly-changes',
       meta: `${freshnessChip(m)}${derivationButton}`,
     })}
     ${!m.ok && activeSection === 'quarterly-changes' ? unavailableHtml(m) : ''}
-    <div data-holdings-integrity></div>
     <div class="mb-5 rounded-2xl bg-white px-3 shadow-sm ring-1 ring-slate-100" data-live-section-tabs>
       ${sectionTabs.html}
     </div>
@@ -118,11 +124,16 @@ export function renderLive(ctx, { disposers = [], section = 'quarterly-changes',
       ${panel}
     </div>`;
 
-  ctx.root.querySelector('[data-summary-help]')
-    ?.addEventListener('click', () => openModal(summaryHelpBody(derivation, m), { size: 'wide' }));
+  // EVERY "How this is derived" button on this view opens the one provenance modal — the head's
+  // and the quarterly roll-up's alike — and the coverage audit lives inside it. See integrity.js
+  // for why it is behind this door rather than at the top of the page.
+  ctx.root.querySelectorAll('[data-summary-help]').forEach((btn) =>
+    btn.addEventListener('click', () => openDerivation(derivation, m)));
+  // The sources the audit reads are revalidated on mount whether or not the audit is opened:
+  // "refresh on opening" is a standing requirement, not a side effect of a panel.
+  ensureHoldingsFresh().catch(() => {});
 
   disposers.push(sectionTabs.wire(ctx.root.querySelector('[data-live-section-tabs]')));
-  wireIntegrity(ctx.root, disposers, openInvestor, openManager);
   summary?.wire(ctx.root, disposers);
   mine?.wire(ctx.root, disposers);
   if (table) disposers.push(table.wire(ctx.root));
@@ -177,7 +188,7 @@ function quarterSummaryBlock(ctx, m) {
         name: c.company,
         company: c.company,
         companySlug: c.companySlug,
-        sub: andOthers(c.investors.map((i) => i.investor)),
+        sub: `${andOthers(c.investors.map((i) => i.investor))} · ${patternSpan(q.prior, q.latest)}`,
         value: `${c.count} investors`,
         badge: c.sumPp != null ? pp(c.sumPp) : null,
         tone: 'pos',
@@ -193,7 +204,7 @@ function quarterSummaryBlock(ctx, m) {
         name: mv.company,
         company: mv.company,
         companySlug: mv.companySlug,
-        sub: mv.investor,
+        sub: `${mv.investor} · ${patternSpan(mv.prior, mv.latest)}`,
         value: mv.now == null ? '—' : `${Number(mv.now).toFixed(2)}%`,
         tone: 'pos',
       })),
@@ -204,7 +215,7 @@ function quarterSummaryBlock(ctx, m) {
       key: 'si-adds',
       title: 'Largest increases',
       note: 'Percentage points of the company, latest quarter minus the one before — derived.',
-      items: q.topAdds.map((mv) => ({ name: mv.company, company: mv.company, companySlug: mv.companySlug, sub: mv.investor, value: pp(mv.deltaPp), tone: 'pos' })),
+      items: q.topAdds.map((mv) => ({ name: mv.company, company: mv.company, companySlug: mv.companySlug, sub: `${mv.investor} · ${patternSpan(mv.prior, mv.latest)}`, value: pp(mv.deltaPp), tone: 'pos' })),
       empty: empty('stake increases'),
       onSelect: openCompany,
     }),
@@ -216,7 +227,7 @@ function quarterSummaryBlock(ctx, m) {
         name: c.company,
         company: c.company,
         companySlug: c.companySlug,
-        sub: andOthers(c.investors.map((i) => i.investor)),
+        sub: `${andOthers(c.investors.map((i) => i.investor))} · ${patternSpan(q.prior, q.latest)}`,
         value: `${c.count} investors`,
         badge: c.sumPp != null ? pp(c.sumPp) : null,
         tone: 'neg',
@@ -228,7 +239,7 @@ function quarterSummaryBlock(ctx, m) {
       key: 'si-trims',
       title: 'Largest reductions',
       note: 'Percentage points of the company, latest quarter minus the one before — derived.',
-      items: q.topTrims.map((mv) => ({ name: mv.company, company: mv.company, companySlug: mv.companySlug, sub: mv.investor, value: pp(mv.deltaPp), tone: 'neg' })),
+      items: q.topTrims.map((mv) => ({ name: mv.company, company: mv.company, companySlug: mv.companySlug, sub: `${mv.investor} · ${patternSpan(mv.prior, mv.latest)}`, value: pp(mv.deltaPp), tone: 'neg' })),
       empty: empty('stake reductions'),
       onSelect: openCompany,
     }),
@@ -240,7 +251,7 @@ function quarterSummaryBlock(ctx, m) {
         name: mv.company,
         company: mv.company,
         companySlug: mv.companySlug,
-        sub: mv.investor,
+        sub: `${mv.investor} · ${patternSpan(mv.prior, mv.latest)}`,
         // The stake they last disclosed, labelled as the prior quarter's — NOT a size for the
         // exit, which has none. An em dash where even that is missing.
         value: mv.before == null ? '—' : `was ${Number(mv.before).toFixed(2)}%`,
@@ -259,7 +270,7 @@ function quarterSummaryBlock(ctx, m) {
       <div class="mb-3 rounded-xl bg-white px-4 py-3 text-xs text-slate-500 ring-1 ring-slate-200" data-si-coverage>
         <p><strong>${escapeHtml(scope)} companies</strong> · ${q.comparableBooks} of ${m.total} tracked books have the same comparison pair · ${q.coveredBooks} contain data in this scope.</p>
         <p class="mt-1">${q.loadedBooks} books loaded · ${q.missingBooks} unavailable · ${q.excludedBooks.length} excluded for missing comparison quarters · ${q.counts.awaiting} incomplete positions in this scope.</p>
-        <p class="mt-1">Ticker Finology · read ${escapeHtml(sourceDate)}. Results cover available disclosures and may change as data arrives.</p>
+        <p class="mt-1">${q.latest && q.prior ? `Patterns dated ${escapeHtml(patternSpan(q.prior, q.latest))} — a shareholding pattern states the holding on the quarter end and carries no trade date. ` : ''}Ticker Finology · read ${escapeHtml(sourceDate)}. Results cover available disclosures and may change as data arrives.</p>
         ${ctx.scope !== 'universe' ? `<button type="button" data-si-universe class="mt-2 font-semibold text-indigo-600 hover:underline">View Universe: ${universe.consensusBuyCount} ${universe.consensusBuyCount === 1 ? 'company' : 'companies'} with shared increases or new disclosures</button>` : ''}
       </div>
       <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">${panels.map((p) => p.html).join('')}</div>
@@ -274,11 +285,21 @@ function quarterSummaryBlock(ctx, m) {
       params.set('scope', 'universe');
       location.hash = `${path}?${params}`;
     });
-    const btn = root.querySelector('[data-summary-help]');
-    if (btn) btn.addEventListener('click', () => openModal(summaryHelpBody(q, m), { size: 'wide' }));
   }
 
   return { html, wire };
+}
+
+/**
+ * The provenance modal: the derivation prose, the freshness paragraph and — beneath them — the
+ * coverage audit, painted live into its own host and disposed with the modal. `onClose` is what
+ * releases the audit's subscriptions; without it every open would stack another repainter.
+ */
+function openDerivation(q, m) {
+  const audit = [];
+  openModal(summaryHelpBody(q, m), { size: 'wide', onClose: () => audit.forEach((d) => d?.()) });
+  const host = document.getElementById('modal-content')?.querySelector('[data-holdings-integrity]');
+  if (host) wireIntegrity(host, audit, openInvestor, openManager);
 }
 
 const COMPANY_ACTION = {
@@ -335,15 +356,16 @@ function openCompanyDetail(item, comparison) {
             <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${cls}">${escapeHtml(label)}</span>
           </td>
           <td class="whitespace-nowrap px-3 py-3 text-right align-top">
-            <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400">${escapeHtml(r.prior || 'Not published')}</span>
+            <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400">${escapeHtml(r.prior ? `${r.prior} · ${patternDate(r.prior)}` : 'Not published')}</span>
             <span class="mt-0.5 block font-semibold tabular-nums text-slate-700">${r.before == null ? escapeHtml(r.quarterlyNotes?.[r.prior] || '—') : escapeHtml(`${Number(r.before).toFixed(2)}%`)}</span>
           </td>
           <td class="whitespace-nowrap px-3 py-3 text-right align-top">
-            <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400">${escapeHtml(r.latest || 'Not published')}</span>
+            <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400">${escapeHtml(r.latest ? `${r.latest} · ${patternDate(r.latest)}` : 'Not published')}</span>
             <span class="mt-0.5 block font-semibold tabular-nums text-slate-900">${r.now == null ? escapeHtml(r.quarterlyNotes?.[r.latest] || '—') : escapeHtml(`${Number(r.now).toFixed(2)}%`)}</span>
           </td>
           <td class="whitespace-nowrap px-3 py-3 text-right align-top font-semibold tabular-nums ${deltaClass}">${delta == null ? dash : escapeHtml(pp(delta))}</td>
           <td class="whitespace-nowrap px-3 py-3 text-right align-top font-semibold tabular-nums text-slate-700">${escapeHtml(currentValue)}</td>
+          <td class="whitespace-nowrap px-3 py-3 text-right align-top tabular-nums text-slate-500" title="When this dashboard last read the source for this investor's book">${escapeHtml(readDate(r.fetchedAt))}</td>
         </tr>`;
     })
     .join('');
@@ -365,7 +387,7 @@ function openCompanyDetail(item, comparison) {
       </div>
       <div class="px-6 py-5 sm:px-7">
         <p class="mb-4 text-xs leading-relaxed text-slate-500">
-          Percentages use ${escapeHtml(comparison.latest || 'unavailable')} vs ${escapeHtml(comparison.prior || 'unavailable')}, the same pair as the summary. Investor names link to the source.
+          Percentages use ${escapeHtml(comparison.latest || 'unavailable')} vs ${escapeHtml(comparison.prior || 'unavailable')}, the same pair as the summary — patterns dated ${escapeHtml(patternSpan(comparison.prior, comparison.latest))}; a pattern carries no trade date. Investor names link to the source.
           <strong class="text-slate-600">Current value is Finology's estimate of the position now, not an amount bought or sold.</strong>
           A dash means not disclosed, not zero.
         </p>
@@ -379,9 +401,10 @@ function openCompanyDetail(item, comparison) {
                 <th scope="col" class="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">Current stake</th>
                 <th scope="col" class="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">Change (derived)</th>
                 <th scope="col" class="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">Current value (Finology)</th>
+                <th scope="col" class="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">Source read</th>
               </tr>
             </thead>
-            <tbody>${rows || `<tr><td colspan="6" class="px-4 py-10 text-center text-sm text-slate-500">No comparable investor disclosure is available for this company.</td></tr>`}</tbody>
+            <tbody>${rows || `<tr><td colspan="7" class="px-4 py-10 text-center text-sm text-slate-500">No comparable investor disclosure is available for this company.</td></tr>`}</tbody>
           </table>
         </div>
       </div>
@@ -483,8 +506,10 @@ function summaryHelpBody(q, m = {}) {
         <p><strong>Stake changes do not establish purchases or sales.</strong> Issuance, buybacks and other changes in share capital can change ownership percentages. Current rupee values estimate holdings, not money traded.</p>
         <p><strong>Shared changes count distinct investors in the same company and quarter pair.</strong> Source company identifiers join names; duplicate rows never add votes. A combined percentage-point change is shown only when every included change has a measured delta.</p>
         <p><strong>The selected scope filters companies.</strong> Portfolio and Watchlist results do not describe the whole Universe. Missing books, excluded periods and incomplete positions are shown above the cards; an empty card means no match in the available data, not proof of no activity.</p>
+        <p><strong>Every row is dated.</strong> A shareholding pattern states the holding on the quarter end its label names — ${escapeHtml(q.latest && q.prior ? patternSpan(q.prior, q.latest) : 'the two quarter ends compared')} — and carries no trade date, so no row here implies a day inside the quarter. "Source read" is the separate date this dashboard last read the source for that book.</p>
         ${freshnessProvenance(m)}
       </div>
+      <section class="mt-5 border-t border-slate-100 pt-4" data-holdings-integrity aria-label="Coverage and source checks"></section>
     </div>`;
 }
 
@@ -644,7 +669,7 @@ function investorCard(inv) {
         ${portrait}
         <span class="min-w-0">
           <span class="block truncate font-display text-sm font-bold text-slate-900">${escapeHtml(inv.name || inv.slug)}</span>
-          <span class="block truncate text-[11px] text-slate-500">${escapeHtml(t?.latestQuarter ? `${t.latestQuarter} disclosures${t.offCycleCount ? ` · ${t.offCycleCount} later updates` : ''}` : fail ? 'no book published' : 'reading…')}</span>
+          <span class="block truncate text-[11px] text-slate-500">${escapeHtml(t?.latestQuarter ? `${t.latestQuarter} disclosures · as of ${patternDate(t.latestQuarter)}${t.offCycleCount ? ` · ${t.offCycleCount} later updates` : ''}` : fail ? 'no book published' : 'reading…')}</span>
         </span>
       </div>
       ${inv.bio ? `<p class="mt-2.5 line-clamp-2 text-[11px] leading-snug text-slate-500">${escapeHtml(inv.bio)}</p>` : ''}
@@ -787,7 +812,9 @@ function holdingsTable(ctx, rows, quarters, initialView) {
  * printing it after `deriveMoves` was fixed. See `classifyHolding` in js/data/finology-shared.js.
  */
 function changeOf(r) {
-  return deriveMoves({ quarters: r.quarters, holdings: [r] }).moves[0] || null;
+  const d = deriveMoves({ quarters: r.quarters, holdings: [r] });
+  // The pair the move was measured on travels with it, so the cell can print both pattern dates.
+  return d.moves[0] ? { ...d.moves[0], latest: d.latest, prior: d.prior } : null;
 }
 
 const ACTION = {
@@ -819,7 +846,12 @@ function changeCell(r) {
       : c.action === 'new'
         ? 'Not disclosed in the prior quarter, disclosed in the latest.'
         : 'Latest disclosed percentage minus the prior one.';
-  return `<span class="inline-flex items-center whitespace-nowrap" title="${escapeHtml(why)}">${delta}<span class="inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${cls}">${label}</span></span>`;
+  // THREE LINES, NO NEW COLUMN. The two pattern dates and the source-read date are two different
+  // facts and both belong on every row — but a column for the second put the table 118px into its
+  // own horizontal scroll at 1440px (measured: 1,359px → 1,470px against a 1,352px viewport). The
+  // change cell already stacks, so the dates stack beneath the badge and the width stays where it
+  // was; the export carries the same two dates as their own columns, where width costs nothing.
+  return `<span class="inline-flex flex-col items-end whitespace-nowrap" title="${escapeHtml(why)}"><span class="inline-flex items-center">${delta}<span class="inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${cls}">${label}</span></span><span class="mt-0.5 text-[10px] tabular-nums text-slate-400" data-pattern-dates>${escapeHtml(patternSpan(c.prior, c.latest))}</span><span class="text-[10px] tabular-nums text-slate-400" data-source-read title="When this dashboard last read the source for this investor's book">read ${escapeHtml(readDate(r.fetchedAt))}</span></span>`;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -898,6 +930,7 @@ function movesPanel() {
   return `
     <p class="mb-3 text-xs leading-relaxed text-slate-500">
       <strong>Derived</strong> — ${escapeHtml(latest)} minus ${escapeHtml(prior)}, per company, from Finology's own disclosed percentages.
+      The two patterns state the holding on <strong>${escapeHtml(patternDate(prior))}</strong> and <strong>${escapeHtml(patternDate(latest))}</strong>; a pattern carries no trade date. Source read ${escapeHtml(readDate(open?.b?.sourceCheckedAt || open?.b?.fetchedAt))}.
       Only consecutive completed quarters are compared. Filing due and unexplained blanks are unconfirmed; an explicit missing disclosure does not prove a sale.
     </p>
     ${order
@@ -913,9 +946,12 @@ function movesPanel() {
           <div class="grid gap-1.5 sm:grid-cols-2">
             ${group
               .map(
-                (m) => `<div class="flex items-baseline justify-between gap-3 rounded-lg bg-slate-50 px-3 py-1.5">
-                  <span class="min-w-0 truncate text-sm text-slate-800">${escapeHtml(m.company)}</span>
-                  <span class="flex-shrink-0 text-xs tabular-nums text-slate-500">${pct(m.before)} → ${pct(m.now)}${m.deltaPp != null ? ` <span class="${m.deltaPp > 0 ? 'text-emerald-700' : m.deltaPp < 0 ? 'text-rose-700' : ''}">(${m.deltaPp > 0 ? '+' : ''}${m.deltaPp.toFixed(2)}pp)</span>` : ''}</span>
+                (m) => `<div class="rounded-lg bg-slate-50 px-3 py-1.5">
+                  <div class="flex items-baseline justify-between gap-3">
+                    <span class="min-w-0 truncate text-sm text-slate-800">${escapeHtml(m.company)}</span>
+                    <span class="flex-shrink-0 text-xs tabular-nums text-slate-500">${pct(m.before)} → ${pct(m.now)}${m.deltaPp != null ? ` <span class="${m.deltaPp > 0 ? 'text-emerald-700' : m.deltaPp < 0 ? 'text-rose-700' : ''}">(${m.deltaPp > 0 ? '+' : ''}${m.deltaPp.toFixed(2)}pp)</span>` : ''}</span>
+                  </div>
+                  <div class="mt-0.5 text-[11px] tabular-nums text-slate-400" data-pattern-dates>${escapeHtml(patternSpan(prior, latest))}</div>
                 </div>`
               )
               .join('')}
@@ -1047,7 +1083,8 @@ async function runExport() {
       `Each percentage is what the company filed with the exchanges for that quarter, as Finology publish it. The "Value Cr (Finology)" column is THEIR derivation ` +
       `from that percentage and a market cap — a shareholding filing never states a rupee amount. BLANK CELLS ARE UNCONFIRMED unless the source explicitly distinguishes filing due from not disclosed. Below the ` +
       `disclosure threshold a real holding is invisible, so it is neither a nil position nor necessarily a sale. The only figure computed by this dashboard is ` +
-      `"Change (derived)", comparing consecutive completed calendar quarters. Unknown/awaited cells do not establish purchases or sales.`,
+      `"Change (derived)", comparing consecutive completed calendar quarters. Unknown/awaited cells do not establish purchases or sales. ` +
+      `DATES: a pattern date is the quarter end the shareholding pattern states the holding on; "Source read" is when this dashboard last read the source. A pattern carries no trade date.`,
     sheets: [
       {
         name: 'Holdings',
@@ -1058,6 +1095,8 @@ async function runExport() {
           { header: 'Company Id', width: 24, get: (r) => r.companySlug || '' },
           ...quarters.flatMap((q) => [{ header: `${q} %`, width: 13, get: (r) => r.quarterlyHoldings[q] ?? '' }, { header: `${q} status`, width: 18, get: (r) => disclosureStatus(r, q) }]),
           { header: 'Value Cr (Finology)', width: 20, get: (r) => (r.valueCr == null ? '' : r.valueCr) },
+          { header: 'Latest pattern date', width: 18, get: (r) => periodEnd(r.latest) || '' },
+          { header: 'Source read', width: 22, get: (r) => r.fetchedAt || '' },
         ],
         rows,
       },
@@ -1081,13 +1120,16 @@ async function runExport() {
           { header: 'Company', width: 34, get: (r) => r.company },
           { header: 'Action', width: 14, get: (r) => r.action },
           { header: 'Prior period', width: 16, get: (r) => r.prior },
+          { header: 'Prior pattern date', width: 18, get: (r) => periodEnd(r.prior) || '' },
           { header: 'Latest period', width: 16, get: (r) => r.latest },
+          { header: 'Latest pattern date', width: 18, get: (r) => periodEnd(r.latest) || '' },
           { header: 'Prior status', width: 18, get: (r) => r.beforeStatus },
           { header: 'Latest status', width: 18, get: (r) => r.nowStatus },
           { header: 'Prior %', width: 12, get: (r) => (r.before == null ? '' : r.before) },
           { header: 'Latest %', width: 12, get: (r) => (r.now == null ? '' : r.now) },
           { header: 'Change pp', width: 12, get: (r) => (r.deltaPp == null ? '' : r.deltaPp) },
           { header: 'Value Cr (Finology)', width: 20, get: (r) => (r.valueCr == null ? '' : r.valueCr) },
+          { header: 'Source read', width: 22, get: (r) => feed.book(r.slug)?.fetchedAt || '' },
         ],
         rows: feed.allMoves(),
       },

@@ -1096,6 +1096,19 @@ Five rules, and every one is a rule this file already runs on:
    appraisal, else the SEBI investor report, else the holdings statement; trades from the transaction
    statement, else the investor report — the order `src/lib/ledger.ts` reads them in there — and a
    row printed on two issues of a statement is counted once by the same identity.
+6. **Every row is dated, and says which kind of date it carries.** The owner asked "how dated is the
+   information?" of a screen that printed *between 10 Jul and 10 Aug* once at the top and nothing on
+   the rows. A comparison row now prints the two dates it was measured on — the two statement dates
+   for a mandate, the two quarter-end pattern dates for a public investor — and a trade date only
+   where the statement carries one (`trades.first` / `trades.last`; a shareholding pattern carries
+   none and the row says so). *Source read* is the separate date this dashboard last read the
+   source and is never merged with either. A move never borrows a day it was not given.
+
+**The coverage audit is behind the provenance door, not on the page.** It was a full-width amber
+block reading *Coverage & unresolved gaps · 119 of 119 books need attention* above the holdings, in
+the colour this dashboard reserves for a partial figure; the owner asked for it to go. It opens from
+*How this is derived* beside the freshness chip, every row of it, and `ensureHoldingsFresh()` still
+revalidates its sources on mount — moved, not deleted, and the age stays stated on the page.
 
 ### Two disclosures that look identical — the Institutions rule
 

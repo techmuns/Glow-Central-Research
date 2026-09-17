@@ -29,7 +29,7 @@ const MODULE_ENTRIES = [APP_ENTRY, '/js/research/glow-bridge.js'];
 // read and eviction uses the same combined key, retaining atomic upgrades.
 // Glow's own reader markers lead; the template's follow, so a returning reader upgrades
 // once for both and neither side's revision can be dropped by the next sync.
-const CACHE_KEY = `${CACHE_NAME}-glow-alert-filters-v1-glow-portfolio-reader-v3-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v1-all-alerts-restore-v2-ai-card-updates-v1-performance-ownership-v1`;
+const CACHE_KEY = `${CACHE_NAME}-glow-alert-filters-v1-glow-portfolio-reader-v3-glow-investor-dates-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v1-all-alerts-restore-v2-ai-card-updates-v1-performance-ownership-v1`;
 
 function moduleSpecifiers(source) {
   const found = new Set();

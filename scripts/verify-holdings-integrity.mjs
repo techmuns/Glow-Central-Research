@@ -40,6 +40,12 @@ const retained = assembleSnapshot({ list, books: {}, failed, previous, capturedA
 assert.equal(retained.books.example.fetchedAt, fetchedAt);
 assert.equal(retained.failedCount, 2); assert.equal(retained.refreshed, 0); assert.equal(retained.covered, 1);
 assert.deepEqual(retained.retained, ['example']);
+assert.equal(retained.lastAttempt, undefined, 'no attempt recorded is no attempt claimed');
+const attempted = assembleSnapshot({ list, books: {}, failed, previous, capturedAt: '2026-09-10T00:00:00Z',
+  attempt: { at: '2026-09-10T00:00:00Z', listError: 'upstream — /super-investors returned HTTP 502', refreshed: 0, failed: 2 } });
+assert.equal(attempted.lastAttempt.listError, 'upstream — /super-investors returned HTTP 502');
+assert.equal(attempted.books.example.fetchedAt, fetchedAt, 'a failed attempt moves no book read time');
+assert.equal(assembleSnapshot({ list, books: {}, failed, previous: attempted, capturedAt: '2026-09-11T00:00:00Z' }).lastAttempt.at, '2026-09-10T00:00:00Z', 'the last recorded attempt survives a run that records none');
 const historical = retainHistory({ ...raw, quarters: ['Sep 2026', 'Jun 2026'], holdings: [raw.holdings[0]] }, raw);
 assert(historical.quarters.includes('Mar 2026'));
 assert.equal(historical.holdings[0].quarterlyHoldings['Mar 2026'], 3);
