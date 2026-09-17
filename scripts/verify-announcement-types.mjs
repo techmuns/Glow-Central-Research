@@ -96,8 +96,7 @@ assert.equal(counts.get('results'), 1);
 assert.equal(counts.get('deals'), 0);
 assert.equal(countTypes(sample, (row) => row.subCategory !== 'Newspaper Publication').get('routine'), 1);
 
-// The shipped captures classify without throwing, every row lands on a known type, and the routine
-// share is material — which is the reason the filter exists.
+// The shipped captures classify without throwing and every row lands on a known type.
 const shippedBse = Object.values(JSON.parse(readFileSync('public/data/corp-announcements.json', 'utf8')).byTicker).flat();
 const shippedNse = JSON.parse(readFileSync('public/data/nse-announcements.json', 'utf8')).rows
   .map((r) => ({ ...r, title: r.subject || r.description || null, summary: r.description || null }));
@@ -106,8 +105,41 @@ const known = new Set(ANNOUNCEMENT_TYPES.map((t) => t.id));
 for (const row of shipped) assert(known.has(type(row)));
 const shippedCounts = countTypes(shipped);
 assert.equal([...shippedCounts.values()].reduce((a, b) => a + b, 0), shipped.length);
-assert(shippedCounts.get('routine') / shipped.length > 0.1, `routine share ${shippedCounts.get('routine')} of ${shipped.length}`);
 assert(shippedCounts.get(OTHER_TYPE) / shipped.length < 0.5, 'most filings carry a label the rules recognise');
+
+// THE ROUTINE SHARE IS A FACT ABOUT THE WEEK, NOT ABOUT THESE RULES, so it is not asserted as a
+// floor. This used to read `routine / shipped > 0.1` on the reasoning that the share is material and
+// that is why the filter exists — true of the capture it was written against, and not a property of
+// anything in this file. Measured on two shipped captures nine days apart, with these rules
+// unchanged: 1,542 of 5,251 (29%) over 7-9 September, and 147 of 2,085 (7%) over 15-17 September.
+// `ANN_KEEP_DAYS` keeps three days and which three is the calendar's business — 981 newspaper copies
+// in the first window against 93 in the second, because those cluster after a results deadline while
+// mid-September is AGM season, and the NSE half is a live window that is nearly empty overnight. So
+// the floor failed on `main` with nothing wrong and no fix available except waiting for the market.
+//
+// What IS ours is that the rules still match the labels the exchanges actually send, so that is what
+// is asserted now: every shipped row whose OWN EXCHANGE LABEL carries a confirmed routine marker must
+// read as routine. Deleting any one of these markers from RE.routine fails this — verified against
+// the shipped capture for each of the three it carries, with the constructed cases above removed so
+// that only this block could fail: dropping `newspaper` alone takes 67 of the 133 routine-labelled
+// rows off the type, and reads them as `deals`.
+//
+// It reads the exchange's label alone (BSE's sub-category, or NSE's subject where there is none) and
+// never the subject line beneath it, because the label is what the rules read FIRST: an AGM notice
+// whose subject says "Newspaper Publication for Annual General Meeting" is filed by BSE under `AGM`
+// and correctly reads as a shareholder meeting. Scanning the subject too made 43 such rows look like
+// failures of a rule that was working exactly as documented.
+const ROUTINE_MARKERS = [/newspaper/i, /trading window/i, /registered office/i, /\bnav\b|net asset value/i];
+const exchangeLabel = (row) => String(row.subCategory || row.title || '').replace(/<[^>]+>/g, ' ').trim();
+const routineLabelled = shipped.filter((row) => ROUTINE_MARKERS.some((re) => re.test(exchangeLabel(row))));
+// A check that can pass by matching nothing is not a check. Measured: 133 rows in the thinner
+// capture and 1,471 in the wider one, so a floor of 20 has room for a short week and still fails a
+// capture too thin to say anything — which is a different fault, and the message names both.
+assert(routineLabelled.length >= 20,
+  `the shipped captures carry ${routineLabelled.length} routine-labelled filings; under 20 means the capture is thin, not that the rules changed`);
+for (const row of routineLabelled) {
+  assert.equal(type(row), 'routine', `"${exchangeLabel(row)}" is an exchange routine label and must read as routine`);
+}
 
 // The device memory stores the set switched OFF, keeps an explicit empty choice, and defaults otherwise.
 const store = new Map();

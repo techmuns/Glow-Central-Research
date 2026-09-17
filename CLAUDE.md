@@ -1510,6 +1510,16 @@ made, **436 are mutual-fund NAV declarations**, and the certificate-loss and dem
 BSE's catch-all `General` sub-category — which is why a sub-category filter alone could never remove
 them. **1,542 rows (29%) are routine**, and every one of them was in front of the reader.
 
+**That 29% is a fact about those three days, not about the rules, so nothing may assert it as a
+floor.** `ANN_KEEP_DAYS` keeps three days and which three is the calendar's business: the same rules
+over 15-17 September read 147 of 2,085 (7%), because newspaper copies cluster after a results
+deadline (981 in the first window, 93 in the second) and the NSE half is a live window that is
+nearly empty overnight. `verify-announcement-types.mjs` asserted `routine / shipped > 0.1` and went
+red on `main` with nothing wrong and no fix available except waiting for the market. What it asserts
+now is what is ours: every shipped row whose own EXCHANGE LABEL carries a confirmed routine marker
+must read as routine, which fails the moment a marker leaves `RE.routine` or an exchange renames a
+label, on any week's capture.
+
 So `js/data/announcement-types.js` reads ONE TYPE per filing and the Announcements view offers the
 types as a **multi-select the reader switches on and off, remembered on this device**, with
 *Routine & administrative* switched off until somebody switches it on. Five rules hold it up, and
