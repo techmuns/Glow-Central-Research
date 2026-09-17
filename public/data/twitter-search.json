@@ -786,11 +786,11 @@
       "error": "search-unavailable"
     },
     "isin:INE237A01036|KOTAKBANK": {
-      "lastAttemptAt": "2026-09-13T03:36:38+00:00",
+      "lastAttemptAt": "2026-09-17T12:03:43+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0O6601022|Kross": {
-      "lastAttemptAt": "2026-09-13T04:09:32+00:00",
+      "lastAttemptAt": "2026-09-17T12:34:52+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0O6601022|KROSS": {
@@ -1506,6 +1506,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 207,
-    "checkedAt": "2026-09-17T11:31:30.802122+00:00"
+    "checkedAt": "2026-09-17T12:34:52.248736+00:00"
   }
 }
