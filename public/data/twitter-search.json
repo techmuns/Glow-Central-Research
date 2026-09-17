@@ -646,7 +646,7 @@
       "error": "search-unavailable"
     },
     "isin:INE00M901018|Interarch Building Products": {
-      "lastAttemptAt": "2026-09-12T14:47:30+00:00",
+      "lastAttemptAt": "2026-09-17T04:56:59+00:00",
       "error": "search-unavailable"
     },
     "isin:INE00M901018|INTERARCH": {
@@ -1458,6 +1458,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-17T04:26:07.009147+00:00"
+    "checkedAt": "2026-09-17T04:56:59.542244+00:00"
   }
 }
