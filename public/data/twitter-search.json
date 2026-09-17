@@ -770,7 +770,7 @@
       "error": "search-unavailable"
     },
     "isin:INE415I01015|KIRIINDUS": {
-      "lastAttemptAt": "2026-09-13T00:42:22+00:00",
+      "lastAttemptAt": "2026-09-17T09:48:40+00:00",
       "error": "search-unavailable"
     },
     "isin:INE082A01010|Kopran": {
@@ -1504,8 +1504,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 13,
+    "attempted": 1,
     "incomplete": 207,
-    "checkedAt": "2026-09-17T09:01:32.478053+00:00"
+    "checkedAt": "2026-09-17T09:48:40.144622+00:00"
   }
 }
