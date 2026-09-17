@@ -8,7 +8,7 @@ import { holdsTicker } from './row-ticker-index.js';
 // attribution still run in their existing consumers; storage partitioning is never a filter.
 export function withNewsHistory(base, { read = conditionalJson, window: readingWindow = () => null } = {}) {
   let held = new Map(), identities = new Map(), revision = 0, combined = null;
-  let pending = null, error = null, loaded = false, initialized = false, epoch = 0;
+  let pending = null, error = null, loaded = false, initialized = false, epoch = 0, aborter = null;
   const indexes = new Map(), listeners = new Set();
   const emit = () => listeners.forEach(fn => fn());
   function rows() {
@@ -42,6 +42,14 @@ export function withNewsHistory(base, { read = conditionalJson, window: readingW
   function loadArchive() {
     if (pending) return pending;
     const generation = epoch;
+    // A GENERATION CHECK CAN ONLY REFUSE THE NEXT READ; IT CANNOT RECALL THE ONE IN FLIGHT.
+    // These are whole month files — the retained TradingView months are 80KB to 790KB each and
+    // none of them is sharded — so an archive load running when the reader is torn down goes on
+    // to finish a request nobody will read. Worse, `read` awaits the device store before it
+    // reaches the network, so a release landing in that gap still lets the request go out.
+    // The signal reaches fetch itself, which is the only thing that can stop it.
+    const controller = new AbortController();
+    aborter = controller;
     pending = (async () => {
       const meta = base.meta();
       const window = readingWindow(), windowKey = JSON.stringify(window);
@@ -50,7 +58,7 @@ export function withNewsHistory(base, { read = conditionalJson, window: readingW
       for (const indexPath of paths) {
         try {
           if (!/^(company-news|tradingview-news)\/index\.json$/.test(indexPath)) throw Error('Invalid news archive index');
-          const { value, tag, queryRevision = null } = await read(`data/${indexPath}`, { key: `news-history:${indexPath}` });
+          const { value, tag, queryRevision = null } = await read(`data/${indexPath}`, { key: `news-history:${indexPath}`, signal: controller.signal });
           if (generation !== epoch) return false;
           if (!Array.isArray(value?.archive)) throw Error('News archive index unavailable');
           const stamp = tag || value.updatedAt;
@@ -69,7 +77,7 @@ export function withNewsHistory(base, { read = conditionalJson, window: readingW
           for (const shard of value.archive) {
             if (!new RegExp(`^${family}/(\\d{4}-\\d{2}|undated)\\.json$`).test(shard.file || '')) throw Error('Invalid news archive month');
             if (coveredByHead || !newsShardInWindow(shard, window)) continue;
-            const part = await read(`data/${shard.file}`, { key: `news-history:${shard.file}` });
+            const part = await read(`data/${shard.file}`, { key: `news-history:${shard.file}`, signal: controller.signal });
             if (generation !== epoch) return false;
             if (!Array.isArray(part.value?.articles) || (part.value.querySourceCount ?? part.value.articles.length) !== shard.count) throw Error('News archive month incomplete');
             next.set(shard.file, part.value.articles);
@@ -117,8 +125,9 @@ export function withNewsHistory(base, { read = conditionalJson, window: readingW
       });
       return () => { listeners.delete(fn); off(); };
     },
-    invalidate() { epoch++; base.invalidate(); held = new Map(); identities = new Map(); indexes.clear();
+    invalidate() { epoch++; aborter?.abort(); aborter = null; base.invalidate(); held = new Map(); identities = new Map(); indexes.clear();
       revision++; combined = null; pending = null; error = null; loaded = false; initialized = false; },
-    dispose() { epoch++; base.dispose?.(); held.clear(); identities.clear(); indexes.clear(); listeners.clear(); combined = null; },
+    dispose() { epoch++; aborter?.abort(); aborter = null; initialized = false; pending = null;
+      base.dispose?.(); held.clear(); identities.clear(); indexes.clear(); listeners.clear(); combined = null; },
   };
 }
