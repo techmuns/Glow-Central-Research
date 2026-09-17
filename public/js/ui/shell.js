@@ -36,7 +36,6 @@ import * as breakouts from '../tabs/breakouts.js';
 import * as superInvestors from '../tabs/super-investors.js';
 import * as news from '../tabs/news.js';
 import * as corpAnnouncements from '../tabs/corp-announcements.js';
-import * as corporateActions from '../tabs/corporate-actions.js';
 import * as nseFilings from '../tabs/nse-filings.js';
 import * as insiderTrades from '../tabs/insider-trades.js';
 import * as ipos from '../tabs/ipos.js';
@@ -70,8 +69,18 @@ import * as familyBook from '../tabs/family-book.js';
 // an unknown or absent tab, so the order of this array IS the default landing page — there is no
 // second place recording it that could disagree.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, bookmarks, earningsHub, concall, publicChatter, breakouts, superInvestors, news, ipos, corpAnnouncements, corporateActions, nseFilings, insiderTrades, mutualFunds, macroResearch, economyMacro, familyBook] },
+  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, bookmarks, earningsHub, concall, publicChatter, breakouts, superInvestors, news, ipos, corpAnnouncements, nseFilings, insiderTrades, mutualFunds, macroResearch, economyMacro, familyBook] },
 ];
+
+// A TAB THAT BECAME A SUB-VIEW KEEPS ITS OLD ADDRESS WORKING. Corporate Actions was its own tab in
+// the bar until 17 September 2026 and is now the second view of Corp Announcements. Bookmarks, Ask
+// Research citations in saved conversations and the host's own links still name the old tab id, and
+// an unknown tab falls through to the landing page — which reads as the link being broken, not as
+// the view having moved. So the retired id resolves to the view it became, and `replaceRoute` below
+// corrects the URL, exactly as an old `#/portfolio/…` link lands on Research Central.
+const LEGACY_TABS = {
+  'corporate-actions': { tab: 'corp-announcements', subview: 'corporate-actions' },
+};
 
 let contentHost = null;
 let currentTabModule = null;
@@ -287,10 +296,13 @@ function wireStaticHeader(root) {
 
 function handleRoute(root, rawRoute) {
   const ws = WORKSPACES.find((w) => w.id === rawRoute.workspace) || WORKSPACES[0];
-  const tabModule = ws.tabs.find((t) => t.meta.id === rawRoute.tab) || ws.tabs[0];
+  const legacy = LEGACY_TABS[rawRoute.tab] || null;
+  const wantedTab = legacy ? legacy.tab : rawRoute.tab;
+  const wantedSubview = legacy ? legacy.subview : rawRoute.subview;
+  const tabModule = ws.tabs.find((t) => t.meta.id === wantedTab) || ws.tabs[0];
   const subviews = tabModule.meta.subviews || [];
-  const subviewValid = subviews.some((s) => s.id === rawRoute.subview);
-  const subview = subviewValid ? rawRoute.subview : subviews[0]?.id || null;
+  const subviewValid = subviews.some((s) => s.id === wantedSubview);
+  const subview = subviewValid ? wantedSubview : subviews[0]?.id || null;
   const scope = rawRoute.scope || state.scope;
 
   // Tab-owned filter params ride along in the query string so a filtered view is shareable.
@@ -387,7 +399,12 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
     title: `Switch between ${tabModule.meta.title} views`,
   });
 
-  const hasSubviews = subviewItems.length > 0;
+  // A tab that declares `meta.inlineSubviews` draws its own compact switch inside its section
+  // head (Mutual Funds: a two-option tray beside the as-on pill) and routes through
+  // `router.navigate` exactly as this picker does. The card here — a kicker, a label and a menu in
+  // a 15rem white box — cost ~90px above a table whose whole point is the rows, to choose between
+  // two views; the routing, the URL and the fallback to the first sub-view are unchanged.
+  const hasSubviews = subviewItems.length > 0 && !tabModule.meta.inlineSubviews;
   const subviewMount = $('#subview-mount', root);
   // A tab with `subviews: []` has nothing to pick, so the row goes entirely rather than
   // rendering an empty control — same rule the rail followed.

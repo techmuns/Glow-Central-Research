@@ -34,7 +34,7 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
 import { gapHeat } from '../ui/mf-heatmap.js';
-import { factorLabel } from '../data/mf-taxonomy.js';
+import { factorLabel, managementLabel } from '../data/mf-taxonomy.js';
 import * as fundReturns from '../data/fund-returns.js';
 import { fundSearch } from '../ui/fund-search.js';
 
@@ -52,7 +52,7 @@ import { fundSearch } from '../ui/fund-search.js';
  */
 export function renderFundReturns(ctx, {
   disposers = [], repaint = null, rows = null, headHtml = '', view = null, onView = null,
-  measure = 'return', extraProvenance = '', onSearchChange = null,
+  measure = 'return', extraProvenance = '', onSearchChange = null, metaHtml = '',
 } = {}) {
   const m = fundReturns.meta();
   // `rows` lets the OWNING TAB narrow the set — the Mutual Funds tab's asset-class / group chips
@@ -77,7 +77,9 @@ export function renderFundReturns(ctx, {
   const html = `
     ${sectionHead({
       title: 'Fund Returns & Ranking',
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}</div>`,
+      // `metaHtml` is trusted markup from the owning tab — its compact view switch — placed
+      // before the Live pill so the heading row carries every control the old picker card did.
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${metaHtml}${livePill(m)}</div>`,
       // Trusted markup from the owning tab — the classification chips, where there are any.
       controls: headHtml,
     })}
@@ -181,7 +183,24 @@ function buildTable(funds, m, visiblePeriods, view = null, measure = 'return', o
 function identitySub(r) {
   const option = r.option && r.option !== 'unknown' ? cap(r.option === 'idcw' ? 'IDCW' : r.option) : null;
   const strategy = (r.factors || []).map(factorLabel).join(' · ') || null;
-  return [r.classification, strategy, option].filter(Boolean).join(' · ');
+  // A SCHEME SHOWN SOMEWHERE OTHER THAN THE SOURCE'S BUCKET SAYS SO ON ITS OWN ROW. The source's
+  // classification leads, unchanged; the move and its reason follow, in words, so the sub-line and
+  // the chip above it can never disagree about where this scheme is. See classifyLive().
+  // Short, because the identity column is capped at 300px and the claim has to survive the
+  // ellipsis: the WHY is on the chip above, in every cell's title and in the provenance panel.
+  const moved = r.taxonomy?.refiled ? `shown under ${r.taxonomy.group}` : null;
+  return [r.classification || (moved ? 'No classification from the source' : null), moved, strategy, option].filter(Boolean).join(' · ');
+}
+
+/**
+ * The cohort a moved scheme's figures still belong to. Its rank, median and excess are the source's
+ * own and were computed inside the bucket the SOURCE chose — a mid-cap index fund's "7/52" is a rank
+ * among the mid-cap funds, actively managed ones included — so every cell of such a row says which
+ * cohort that is. Null for a scheme shown where the source put it.
+ */
+function cohortNoteOf(r) {
+  if (!r.taxonomy?.refiled) return null;
+  return `The rank and category median here are the source’s own, computed inside its ${r.classification || 'unclassified'} cohort — which includes actively managed schemes — not inside ${r.taxonomy.group}.`;
 }
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -198,7 +217,7 @@ function columnsFor(periods, measure) {
       // THE HEADING NAMES THE UNIT WHEN THE UNIT CHANGES. A gap between two percentages is measured
       // in percentage POINTS, and a screenshot travels without the chip row that selected the mode.
       label: measure === 'return' ? label : `${label} pp`,
-      get: (r) => (measure === 'return' ? returnCell(r.returns?.[p], p) : excessCell(r.returns?.[p], p)),
+      get: (r) => (measure === 'return' ? returnCell(r.returns?.[p], p, cohortNoteOf(r)) : excessCell(r.returns?.[p], p, cohortNoteOf(r))),
       html: true,
       align: 'right',
       sortable: true,
@@ -208,7 +227,7 @@ function columnsFor(periods, measure) {
       // The rank sub-column. `wrapHeads` lets "3Y CAGR Rank" stack instead of forcing the column
       // as wide as the label — the headings, not the "38/149" figures, are what would overflow.
       label: `${label} Rank`,
-      get: (r) => rankCell(r.returns?.[p]),
+      get: (r) => rankCell(r.returns?.[p], cohortNoteOf(r)),
       html: true,
       align: 'right',
       sortable: true,
@@ -234,16 +253,17 @@ const fmtPp = (v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}`;
  * em dash beneath it and a title saying which side is missing — never a zero, and never a benchmark
  * quietly borrowed from a wider set.
  */
-function returnCell(cell, period) {
+function returnCell(cell, period, cohortNote = null) {
   const v = cell?.return;
   if (v == null) return dash(cell?.reason || 'no return for this period');
   const median = cell.categoryMedian;
   const excess = cell.excessVsMedian;
   const heat = excess == null ? { className: '', title: null } : gapHeat(excess, period);
   const tone = v > 0 ? 'text-emerald-700' : v < 0 ? 'text-rose-700' : 'text-slate-500';
-  const title = median == null
+  const title = (median == null
     ? `${fmt1(v)} over ${period}. This scheme’s cohort is too small for the source to publish a category median, so there is nothing to compare it with — not a zero.`
-    : `${heat.title}. Scheme ${fmt1(v)} against its category median ${fmt1(median)}${cell.categoryAverage != null ? ` (average ${fmt1(cell.categoryAverage)})` : ''} over ${period}.`;
+    : `${heat.title}. Scheme ${fmt1(v)} against its category median ${fmt1(median)}${cell.categoryAverage != null ? ` (average ${fmt1(cell.categoryAverage)})` : ''} over ${period}.`)
+    + (cohortNote ? ` ${cohortNote}` : '');
   return `
     <span class="inline-block w-full rounded px-1 py-0.5 text-right ${heat.className}" title="${escapeHtml(title)}">
       <span class="block font-semibold tabular-nums ${tone}">${escapeHtml(fmt1(v))}</span>
@@ -252,7 +272,7 @@ function returnCell(cell, period) {
 }
 
 /** The same cell in the gap reading: the source's own excess over its category median, in points. */
-function excessCell(cell, period) {
+function excessCell(cell, period, cohortNote = null) {
   const excess = cell?.excessVsMedian;
   if (excess == null) {
     return dash(
@@ -262,14 +282,14 @@ function excessCell(cell, period) {
     );
   }
   const heat = gapHeat(excess, period);
-  return `<span class="inline-block w-full rounded px-1 py-0.5 text-right tabular-nums font-semibold ${heat.className}" title="${escapeHtml(`${fmt1(cell.return)} against its category median ${fmt1(cell.categoryMedian)} over ${period} — ${heat.title}. The excess is the source’s own figure.`)}">${escapeHtml(fmtPp(excess))}</span>`;
+  return `<span class="inline-block w-full rounded px-1 py-0.5 text-right tabular-nums font-semibold ${heat.className}" title="${escapeHtml(`${fmt1(cell.return)} against its category median ${fmt1(cell.categoryMedian)} over ${period} — ${heat.title}. The excess is the source’s own figure.${cohortNote ? ` ${cohortNote}` : ''}`)}">${escapeHtml(fmtPp(excess))}</span>`;
 }
 
 /**
  * The peer rank: "rank/peerCount" within the scheme's own cohort, an em dash where the cohort was
  * too small to rank. Reproduced, not computed — the same rule the con-call score follows.
  */
-function rankCell(cell) {
+function rankCell(cell, cohortNote = null) {
   if (!cell || cell.rank == null) return dash('the cohort was too small to rank');
   const peers = cell.peerCount != null ? cell.peerCount : '—';
   // The quartile and percentile are the source's too, so they ride in the title rather than as two
@@ -278,7 +298,7 @@ function rankCell(cell) {
     cell.quartile ? `${cell.quartile} of its cohort` : null,
     cell.percentile != null ? `${cell.percentile.toFixed(0)}th percentile` : null,
   ].filter(Boolean).join(' · ');
-  const title = `Rank within the scheme’s own cohort${extra ? ` — ${extra}` : ''}. The source’s own ranking.`;
+  const title = `Rank within the scheme’s own cohort${extra ? ` — ${extra}` : ''}. The source’s own ranking.${cohortNote ? ` ${cohortNote}` : ''}`;
   return `<span class="tabular-nums text-slate-600" title="${escapeHtml(title)}">${escapeHtml(String(cell.rank))}/${escapeHtml(String(peers))}</span>`;
 }
 
@@ -341,6 +361,10 @@ function openProvenance(m, extra = '') {
           <dd class="text-slate-600">The source names hundreds of <em>direct-plan</em> rows <code>…-Reg(G)</code> — the regular plan’s label on the direct plan’s row, which its own <code>plan</code> field contradicts. The trailing <strong>plan</strong> marker is dropped from the name shown here and <strong>nothing else is</strong>: the option suffix stays, no scheme is renamed, and the export carries the source’s own string in its own column beside ours.</dd></div>
         <div><dt class="font-semibold text-slate-800">What the rank measures</dt>
           <dd class="text-slate-600">The scheme’s rank <strong>within its own cohort</strong>, shown <code>rank/peerCount</code> — e.g. <code>38/149</code>. It is a rank against comparable schemes, not against the whole list; the quartile and percentile the source publishes beside it are in each cell’s tooltip.</dd></div>
+        <div><dt class="font-semibold text-slate-800">Active or passive, and where an index fund the source filed under an active category is shown</dt>
+          <dd class="text-slate-600">The <strong>Active / Passive</strong> row above the table is the first cut: a scheme is <strong>passive</strong> where the source files it as <em>Index</em>, <em>Index Funds</em> or <em>ETFs</em>, or where its <strong>own name states a tracked index or ETF</strong> — which SEBI requires of every tracker — and <strong>active</strong> otherwise. ${escapeHtml(formatNumber(m.passive || 0))} of the ${escapeHtml(formatNumber(m.total || m.count))} schemes listed are passive and ${escapeHtml(formatNumber(m.active || 0))} active. The source files some trackers under the <em>active</em> category whose segment they track — a <em>Nifty Midcap 150 Index Fund</em> under <em>Equity : Mid Cap</em>, a target-maturity index fund under a debt duration — and an index fund is not an actively managed fund’s peer, so ${
+            m.refiled ? `<strong>${escapeHtml(formatNumber(m.refiled))} such schemes are shown under Index &amp; smart beta or Exchange traded</strong>, in a category named for both facts (<em>Index · Mid Cap</em>)` : '<strong>any such scheme is shown under Index &amp; smart beta or Exchange traded</strong>, in a category named for both facts (<em>Index · Mid Cap</em>); none arrives that way in this feed'
+          }. That is the <strong>one place this tab shows a scheme somewhere other than the bucket its source chose</strong>, and it is labelled everywhere it surfaces: the source’s classification stays on the row and in the export, the chip and the sub-line say why the scheme moved, and its rank and category median are left as the source’s own cohort — a mid-cap index fund’s <code>7/52</code> is still its rank among the source’s mid-cap funds, active ones included. The source’s own word wins where it gives one: a scheme it files as <em>Index Funds</em> is passive on its say-so, whatever its name says.</dd></div>
         <div><dt class="font-semibold text-slate-800">“Strategy in the name” is read from the scheme name</dt>
           <dd class="text-slate-600">Neither this feed nor the weekly workbook classifies a fund as a momentum or a quality fund — the source files every passive equity scheme as <em>Index</em>, <em>Index Funds</em> or <em>ETFs</em> and stops there. The strategy filter reads the word out of the <strong>scheme’s own name</strong>, which is where the tracked index is stated, and it is a separate axis: it never changes a scheme’s classification and a scheme matching nothing is simply not in a strategy.</dd></div>
         <div><dt class="font-semibold text-slate-800">A dash is not a zero</dt>
@@ -459,6 +483,8 @@ async function exportFunds(visible, m, periods) {
     `Where the source lists one scheme twice under two ids with EVERY FIGURE IDENTICAL, it appears once. ` +
     `The "Scheme" column drops the trailing PLAN marker from the source's own name, because it labels direct-plan rows "-Reg(G)" against its own plan field; the source's string is in the column beside it, unaltered. ` +
     `"Strategy in name" is read from the SCHEME'S OWN NAME, where the tracked index is stated — it is not a classification either source publishes, and it never changes the classification column beside it. ` +
+    `"Active / Passive" is this dashboard's reading: PASSIVE where the source files the scheme as Index, Index Funds or ETFs, or where the scheme's own name states a tracked index or ETF; ACTIVE otherwise. ` +
+    `"Shown under" is where this dashboard lists the scheme. It is the source's own category except where the source filed a NAME-STATED TRACKER under an active category (e.g. a Nifty Midcap 150 Index Fund under Equity : Mid Cap): such a scheme is shown under Index & smart beta or Exchange traded, its "Classification" column keeps the source's own bucket, and its rank and category median remain the source's own cohort, active schemes included. ` +
     `A blank return means no return for that period; a blank median or rank means the cohort was too small for the source to publish one — NONE IS A ZERO. ` +
     `NOT COMPARABLE WITH THE CATEGORY PERFORMANCE SHEET, which reads a weekly workbook on an earlier date. ` +
     `Source: ${m.source || 'AmfiBeas'}. Exported ${new Date().toISOString()}.`;
@@ -467,7 +493,9 @@ async function exportFunds(visible, m, periods) {
     { header: 'Scheme code', key: 'code', width: 14, get: (r) => r.schemecode },
     { header: 'Scheme', key: 'name', width: 46, get: (r) => r.fundName },
     { header: 'Scheme (as the source names it)', key: 'srcname', width: 46, get: (r) => r.sourceName || r.fundName },
-    { header: 'Classification', key: 'cls', width: 26, get: (r) => r.classification || '' },
+    { header: 'Classification (as the source files it)', key: 'cls', width: 30, get: (r) => r.classification || '' },
+    { header: 'Active / Passive (this dashboard’s reading)', key: 'mgmt', width: 22, get: (r) => managementLabel(r.taxonomy?.management) || '' },
+    { header: 'Shown under (this dashboard’s grouping)', key: 'shown', width: 40, get: (r) => (r.taxonomy ? `${r.taxonomy.assetClass} › ${r.taxonomy.group} › ${r.taxonomy.label}${r.taxonomy.refiled ? ' (moved: the name states a tracked ' + (r.taxonomy.refiled.kind === 'etf' ? 'ETF' : 'index') + ')' : ''}` : '') },
     { header: 'Strategy in name (read from the name)', key: 'fac', width: 30, get: (r) => (r.factors || []).map(factorLabel).join(' · ') },
     { header: 'Plan', key: 'plan', width: 10, get: (r) => (r.plan && r.plan !== 'unknown' ? cap(r.plan) : '') },
     { header: 'Option', key: 'opt', width: 10, get: (r) => (r.option && r.option !== 'unknown' ? (r.option === 'idcw' ? 'IDCW' : cap(r.option)) : '') },
