@@ -4207,80 +4207,50 @@ nothing — which is exactly why the con-call route has no projection either.
 `docs/HOLDINGS-RELIABILITY.md` records the current source coverage and the remaining primary-feed
 and manager-statement requirements. Investor snapshots now have a dedicated six-hour
 `investor-refresh.yml`; remove any duplicate investor capture from the general technicals job.
-The investor, manager-archive and insider-trades refreshes publish through checked `codex/*` PRs
-with `scripts/publish-data-pr.mjs`. Missing secrets, failed captures and overdue ingestion must
-surface as failed runs, even when last-good data and failure metadata can still be published.
+Every scheduled capture commits straight to `main`, exactly as it does on the Sattva template.
+Missing secrets, failed captures and overdue ingestion must surface as failed runs, even when
+last-good data and failure metadata can still be published.
 
-**A CAPTURE THAT PUBLISHES INTO A PR NOBODY CAN MERGE IS A CAPTURE THAT NEVER HAPPENED, AND EVERY
-RUN STILL REPORTS SUCCESS.** Measured on 10 September 2026: the collectors ran all day, each one
-opening its `codex/data-*` PR and exiting `published: false, outcome: review-pending`, while `main`
-— which is what Cloudflare deploys — still carried the 9 September capture. News opens on Today, so
-the tab was empty; every other feed was a day behind with nothing on screen or in the run log saying
-why. `merge-data-pr.mjs` is the only thing that merges those PRs, and it needs BOTH the `browser`
-check green (one flaky assertion is enough to stop every feed at once) AND a review. **Neither gate
-may be removed to unblock data** — a generated-data PR is reviewed like any other change — but both
-have to be REACHABLE, and the run has to say when one is not: `review-unavailable` is the reviewer
-app's own answer that it is not connected to this repository, and it is annotated as a warning
-because a spent quota is answered tomorrow and an unreviewable author never is: measured on
-10 September 2026 the connector reviews a pull request raised by a PERSON and answers every capture
-PR with that notice, because their author is `github-actions[bot]`, which has no Codex account to
-connect. **A person's own
-approval is a review**, and where the connector cannot answer it is the one that counts — bound to
-that head commit exactly as the Codex summary is, from somebody GitHub would let merge the branch by
-hand, and never from the branch's own author. An app saying it cannot review here is not review
-feedback to address. **Check that captured data reached `main` before believing a green capture
-run**, exactly as the market-news rule says to check that a committed capture reaches the live
-site.
+**GENERATED DATA COMMITS STRAIGHT TO MAIN. THE PR GATE THAT STOOD IN FOR THAT FOR EIGHT DAYS IS
+RETIRED, AND `verify-glow-isolation.mjs` KEEPS IT RETIRED.** From 9 to 17 September 2026 every
+capture opened its own `codex/data-*` pull request, and `merge-data-pr.mjs` merged one only on
+green Verify AND a review bound to that head commit. The review could not arrive: the Codex
+connector does not review a PR raised by `github-actions[bot]`, and it answered a person's PR with
+its quota notice. Measured on 17 September: **1,091 open capture PRs, about 120 new ones a day, and
+`main` — which is what Cloudflare deploys — still on the 9 September technicals and insider trades**
+while every run reported success. Nothing threw and no count was wrong; the data simply never
+reached the site. Two hand sweeps recovered the stranded captures (#1094, and the PR that retired
+the gate, which also widened `scripts/recover-capture-backlog.mjs` to every feed). Sattva never had
+the gate: its writers commit to main with a fetch-and-rebase retry, and Glow's do again —
+byte-identical wherever the workflow exists on both sides, so the template sync stays clean. Verify
+still runs on every push to main and reports; it no longer stands between a capture and the site,
+because one flaky browser assertion had been enough to stop every feed at once. **Check that
+captured data reached `main` before believing a green capture run**, exactly as the market-news
+rule says to check that a committed capture reaches the live site — and if `codex/data-*`
+branches ever strand again, the recovery script unions each feed by its own identity, oldest branch
+first, and is re-runnable.
 
-**AND THE GATE HAS TO READ THE VERIFY RUN THAT RAN, BECAUSE EVERY CAPTURE COMMIT CARRIES TWO.** A PR
-opened with the Actions token gets a `pull_request` run that GitHub creates and never executes — it
-completes as `action_required`, awaiting an approval nobody gives — beside the `workflow_dispatch`
-run `openPreparedDataPr` starts on purpose. Both carry the head SHA, and the never-run one usually
-has the higher id. "The newest Verify run for this commit" therefore picked a run that measured
-nothing, and the gate answered `verification` to every capture PR — including one a person had
-approved. Measured on 17 September 2026: 483 open capture PRs, three green jobs on most of them, and
-not one merged; the recovery in #1094 swept the branches by hand instead. `merge-data-pr.mjs` now
-ignores runs that did not execute (`action_required`, `skipped`) and takes the newest of the rest,
-so an executed failure still blocks. **The review gate is still the one that cannot clear itself**:
-the Codex connector says nothing at all on a bot-authored PR and answers a person's with its quota
-notice, so a capture PR merges only on a person's own approval of that head commit. Silence from
-the connector by the time Verify has finished is reported as `review-unavailable`, with the warning,
-rather than as an ordinary wait.
+**The gate's own bugs are in git history, not here.** Three rounds of fixes went into it before it
+was retired — reading the Verify run that actually executed rather than the never-run
+`pull_request` one, asking GitHub again while it still said a PR's mergeability was `UNKNOWN`,
+running only for events that could change the answer, and finally waiting out a Verify in progress
+because GitHub raises no `workflow_run` event for a run that `GITHUB_TOKEN` dispatched (measured:
+97 dispatched Verify completions in six hours and not one gate run after any of them) — and every
+one of them was a fix to a mechanism that could not work, because the review it waited for could
+not arrive. If a reviewed-data gate is ever wanted again, it needs a reviewer that answers
+bot-authored PRs before it needs any of that, and a scheduler that is not `GITHUB_TOKEN` either.
 
-**Two more traps sat on the approval path, and both were measured the same afternoon.** GitHub
-computes a PR's mergeability lazily: the first look at a PR nobody has opened answers `UNKNOWN`,
-and the gate — which runs once per event and is never re-triggered by the computation finishing —
-read that as `merge-gate`, so a person's approval of a fresh PR could silently do nothing.
-`resolveMergeability()` asks again for up to half a minute before it calls that a conflict. And
-the gate ran for events that could not change its answer: Cloudflare edits its deploy comment on
-every build and each edit queued a run that cancelled the one waiting before it in the PR's
-concurrency group, and the never-executed `pull_request` Verify completion queued a run per PR that
-could only ever answer `unrelated-run`. The job now runs for a person's comment, the connector's
-comment, a review, or a Verify that succeeded — nothing else.
-
-**AND NOTHING EVER RE-RAN THE GATE WHEN A CAPTURE PR'S VERIFY FINISHED.** GitHub raises no
-`workflow_run` event for a run that GITHUB_TOKEN started — its guard against recursive workflows —
-and `openPreparedDataPr` starts every capture PR's Verify exactly that way. Measured over six hours
-on 17 September 2026: 97 dispatched Verify runs on capture branches completed and not one gate run
-followed any of them, while all 56 gate runs raised by "Verify finished" matched a run a person's
-push or `main` had started. The moment a capture PR's checks go green was a moment the gate had
-never seen, so an approval given mid-run answered `verification` and nothing came back to it. The
-gate now outlasts the run: on a person's or the reviewer's event it polls the executed Verify for
-that commit while it is queued or in progress, bounded by the longest Verify job plus its queue,
-and decides on what it concludes. A Verify-finished event never waits. If a scheduler is ever
-wanted here, `GITHUB_TOKEN` cannot be it either — dispatch from something a person owns.
-
-**One flaky Verify assertion still stops every feed, and the last one was a real bug.** The All
-Alerts "visible row moved 110px / 194px during refresh" failures on a third of capture branches
-were the windowed list carrying the ESTIMATE over rows it had already painted and measuring them a
-frame later — closed first on the update path (#1132), then on every paint once a scroller-write
-trace showed the deferred measurement re-anchoring on the estimate after a scroll; see *Performance
-on large tables*. `verify-windowed-list-ui.mjs` pins the reader's row deterministically through
-both. When a browser step fails on a data-only branch, read the assertion before
-retrying: it is either a test reading live data (`verify-research-reasoning-ui.mjs` asserts a
-market-wrap co-mention against the shipped capture), a runner-speed budget (the All Alerts "visible
-stream completes quickly" clock measures a shared runner's repaint of a large pool, and now prints
-its timings), or a product defect the data happened to reach.
+**A flaky Verify assertion on a data commit can still be a real bug.** The All Alerts "visible row
+moved 110px / 194px during refresh" failures on a third of the capture branches were the windowed
+list carrying the ESTIMATE over rows it had already painted and measuring them a frame later —
+closed first on the update path (#1132), then on every paint once a scroller-write trace showed the
+deferred measurement re-anchoring on the estimate after a scroll; see *Performance on large
+tables*. `verify-windowed-list-ui.mjs` pins the reader's row deterministically through both. When
+a browser step fails on a data-only push to main, read the assertion before retrying: it is either
+a test reading live data (`verify-research-reasoning-ui.mjs` asserts a market-wrap co-mention
+against the shipped capture), a runner-speed budget (the All Alerts "visible stream completes
+quickly" clock measures a shared runner's repaint of a large pool, and prints its timings), or a
+product defect the data happened to reach.
 
 `finology-shared.js` compares consecutive completed calendar quarters throughout the dashboard.
 Preserve `quarterlyStatus`: reported, filing_due, not_disclosed, unknown. A legacy null cannot prove

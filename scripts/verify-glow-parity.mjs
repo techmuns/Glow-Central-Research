@@ -116,7 +116,7 @@ for (const name of ['mutualFunds', 'macroResearch', 'economyMacro', 'familyBook'
 // the substitution table itself, this checker's own assertions, the documented Sattva bulk/block
 // fallback, and the deliberately foreign cache key in the review-gate fixture.
 const deliberatelyForeign = new Set(['adapt-glow-template.mjs', 'verify-glow-parity.mjs',
-  'sync-bulk-deals.mjs', 'verify-glow-review-gates.mjs']);
+  'sync-bulk-deals.mjs', 'verify-glow-isolation.mjs']);
 const scan = dir => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);

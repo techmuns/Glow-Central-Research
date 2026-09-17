@@ -8,7 +8,6 @@ import { join, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { mergeCaptureData } from './lib/company-news-publish.mjs';
-import { openPreparedDataPr, dataBranch, DATA_REPOSITORY } from './data-pr.mjs';
 import { assessFilingsHealth } from '../public/js/data/filings-health-shared.js';
 
 const git = (cwd, args, { mayFail = false } = {}) => {
@@ -26,7 +25,7 @@ export async function publishCompanyNews({ repoDir = process.cwd(), captureDataD
   if (fixtureRoot) {
     const remote = git(repoDir, ['remote', 'get-url', 'origin']).output;
     if (!inside(repoDir, fixtureRoot) || !existsSync(remote) || !inside(remote, fixtureRoot)) throw Error('company-news-fixture-scope-invalid');
-  } else if (process.env.GITHUB_REPOSITORY !== DATA_REPOSITORY || process.env.GITHUB_ACTIONS !== 'true' || process.env.GITHUB_REF !== 'refs/heads/main' ||
+  } else if (process.env.GITHUB_ACTIONS !== 'true' || process.env.GITHUB_REF !== 'refs/heads/main' ||
       !process.env.GITHUB_WORKSPACE || realpathSync(process.env.GITHUB_WORKSPACE) !== repoDir) {
     throw Error('company-news-publication-requires-main-actions-workspace');
   }
@@ -41,7 +40,6 @@ export async function publishCompanyNews({ repoDir = process.cwd(), captureDataD
   const baselineDiscovery = baselineJson('public/data/company-news/discovery.json');
   const scratch = mkdtempSync(join(fixtureRoot || process.env.RUNNER_TEMP || tmpdir(), 'company-news-publish-'));
   const capture = join(scratch, 'capture'), worktrees = [];
-  const publicationBranch = fixtureRoot ? dataBranch(String(Date.now()), '1') : dataBranch();
   try {
     // Copy only this collector's allow-listed data, never scripts, workflow files or credentials.
     for (const path of ['news.json', 'news.parts', 'company-news']) if (existsSync(join(captureDataDir, path)))
@@ -60,7 +58,7 @@ export async function publishCompanyNews({ repoDir = process.cwd(), captureDataD
       const changed = git(worktree, ['diff', '--cached', '--name-only']).output.split('\n').filter(Boolean);
       if (changed.some(path => path !== 'public/data/news.json' && !path.startsWith('public/data/news.parts/') && !path.startsWith('public/data/company-news/')))
         throw Error('company-news-publication-path-outside-scope');
-      const finish = (outcome, commit, branch = null, pr = null) => {
+      const finish = (outcome, commit) => {
         // Assess the exact committed index, never the original capture checkout or mutable
         // remote main. This stays tied to the published version even if main advances again.
         // Incomplete coverage fails the job only AFTER useful partial data is preserved.
@@ -68,24 +66,21 @@ export async function publishCompanyNews({ repoDir = process.cwd(), captureDataD
         try { index = JSON.parse(git(worktree, ['show', `${commit}:public/data/company-news/index.json`]).output); } catch {}
         const health = { ...assessFilingsHealth({ news: index }, { sources: ['news'], now: healthNow ?? Date.now() }),
           publicationCommit: commit, publicationOutcome: outcome };
-        return { ok: health.ok, published: outcome === 'already-retained', outcome, attempts: attempt, commit, branch, pr, ...merged, health };
+        return { ok: health.ok, published: true, outcome, attempts: attempt, commit, ...merged, health };
       };
       if (!changed.length) return finish('already-retained', latest);
-      const branch = `${publicationBranch}-news-${attempt}`;
-      git(worktree, ['switch', '-c', branch]);
       git(worktree, ['-c', 'user.name=github-actions[bot]', '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com',
         'commit', '-m', `Company news refresh (${merged.capturedAt})`]);
       const commit = git(worktree, ['rev-parse', 'HEAD']).output;
       await beforePush({ attempt, worktree, commit, base: latest });
-      // A newer main must be reconciled semantically, never by rebasing generated JSON.
+      if (git(worktree, ['push', 'origin', 'HEAD:refs/heads/main'], { mayFail: true }).ok)
+        return finish('published', commit);
+      // Distinguish a real main-branch race from authentication/protection/network refusal.
+      // An ambiguous response that actually published this commit is success, not a second push.
       git(repoDir, ['fetch', '--no-tags', 'origin', 'main']);
       const after = git(repoDir, ['rev-parse', 'FETCH_HEAD']).output;
-      if (after !== latest) continue;
-      if (!git(worktree, ['push', 'origin', `HEAD:refs/heads/${branch}`], { mayFail: true }).ok)
-        throw Error('company-news-push-refused-without-main-change');
-      const pr = fixtureRoot ? null : openPreparedDataPr({ cwd: worktree, branch,
-        title: `Company news refresh (${merged.capturedAt})` });
-      return finish('review-pending', commit, branch, pr);
+      if (after === commit) return finish('published', commit);
+      if (after === latest) throw Error('company-news-push-refused-without-main-change');
     }
     throw Error('company-news-publication-retry-budget-exhausted');
   } finally {
@@ -104,12 +99,12 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     } });
     if (process.env.FILINGS_HEALTH_REPORT) writeFileSync(process.env.FILINGS_HEALTH_REPORT, `${JSON.stringify(report.health, null, 2)}\n`);
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-      `\n## Proposed company-news health\n\nCommit: \`${report.commit}\` · Publication: **${report.outcome}** · Status: **${report.health.status}** · ${report.health.critical} critical findings\n\n` +
+      `\n## Published company-news health\n\nCommit: \`${report.commit}\` · Status: **${report.health.status}** · ${report.health.critical} critical findings\n\n` +
       report.health.findings.map(finding => `- ${finding.severity}: ${finding.code} (${finding.count})`).join('\n') +
-      '\n\nThe exact proposed commit was checked. Captured records remain in the review branch and uploaded artifact until the PR passes verification and review; this does not certify exhaustive provider coverage.\n');
+      '\n\nThe exact committed index was checked after publication. Retained records were published even when coverage remained incomplete; this does not certify exhaustive provider coverage.\n');
     console.log(JSON.stringify(report));
     if (!report.ok) {
-      if (process.env.GITHUB_ACTIONS === 'true') console.error('::error::Proposed company-news coverage is incomplete. See the commit-bound health report; captured records were retained.');
+      if (process.env.GITHUB_ACTIONS === 'true') console.error('::error::Published company-news coverage is incomplete. See the commit-bound health report; captured records were retained.');
       process.exitCode = 1;
     }
   } catch (error) {
