@@ -119,7 +119,11 @@ const openDevice = async () => {
   // Nothing leaves this fixture. A check that quietly reached the internet would be measuring
   // somebody else's uptime rather than this code.
   await page.route('**/*', (route) => (route.request().url().startsWith(`${origin}/`) ? route.continue() : route.abort()));
-  await page.goto(`${origin}/#/research/breakouts?scope=universe`, { waitUntil: 'domcontentloaded' });
+  // The Technical Scanner lists every scored company, so the seventh star is always there. Strong
+  // Breakouts lists only the companies above their base high, which is a fact about the market on
+  // the shipped close — three rows on the 16 September 2026 capture — and this suite once starred
+  // its fifth row: a test that passed or failed with the day's breakouts, not with the code.
+  await page.goto(`${origin}/#/research/breakouts/technical-scanner?scope=universe`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('[data-watch]', { timeout: 30000 });
   await page.waitForTimeout(1500);
   return { context, page, errors };
