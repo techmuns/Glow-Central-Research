@@ -1210,7 +1210,7 @@ emails a weekday, each leading with the portfolio companies (one block per compa
 opening in a new tab) and following with the market scan: the **morning brief** at 08:00 IST (what happened overnight — the US close, Asia this
 morning, Brent, gold, silver, the dollar index and USD/JPY, plus every filing and story about a
 DIRECT holding since the previous evening) and the **evening brief** at 16:00 IST (the trading day).
-`docs/DATA-CONTRACTS.md` → *The team brief* has the routes, the shapes and the window rule. Six
+`docs/DATA-CONTRACTS.md` → *The team brief* has the routes, the shapes and the window rule. Seven
 rules, and every one of them is a rule this file already runs on:
 
 1. **"Direct ones" means `portfolio-companies.json`**, the Portfolio scope's own file, and nothing
@@ -1230,9 +1230,13 @@ rules, and every one of them is a rule this file already runs on:
    property of the store. An edition reached three hours late is recorded `missed`, not sent at lunch.
 5. **The credential is `MUNS_TOKEN` on the Worker, and its absence is a named state.** Sends go to
    `POST https://devde.muns.io/email/send/raw` with exactly one of `html`/`text`; without a token
-   the delivery is recorded `no-token` per recipient and the panel names the secret. A reader's own
-   session token may stand in for a send they press themselves, passed as a value and never stored.
-6. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
+   the delivery is recorded `no-token` per recipient and the panel names the secret in one line. A
+   reader's own session token may stand in for a send through `/api/newsletter/send`, passed as a
+   value and never stored.
+6. **The panel stays minimal**: your address with Subscribe / Unsubscribe, the list with × and one
+   add field, Preview Morning · Evening. No name field, no edition ticks, no send times, no send
+   buttons, no log — the owner asked for the simplest control, and those stay on the routes.
+7. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
    origin is told it has no newsletter, never shown an error.
 
 ### Two disclosures that look identical — the Institutions rule

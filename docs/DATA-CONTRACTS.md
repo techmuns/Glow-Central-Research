@@ -5555,9 +5555,9 @@ GET of the panel, and re-armed at the end of every wake. `worker/newsletter-sche
 3. **The credential is the Worker's `MUNS_TOKEN`**, sent as `Authorization: Bearer` to
    `POST https://devde.muns.io/email/send/raw` with `{ email, subject, html }` — exactly one of
    `html`/`text`, as the endpoint requires. Without it the delivery is recorded `no-token` against
-   every recipient, nothing is built, and the panel names the secret. A reader's own session token
-   (forwarded by `authHeaders()`) may stand in for a send **they** press; it is passed as a value
-   for that send and never stored.
+   every recipient, nothing is built, and the panel names the secret in one line. A reader's own
+   session token (forwarded by `authHeaders()`) may stand in for a send made through
+   `/api/newsletter/send`; it is passed as a value for that send and never stored.
 4. **Every failure is a named reason per recipient** — `unauthorised`, `rate-limited`, `upstream`,
    `refused`, `timeout`, `unreachable`, `invalid-response` — and never the upstream's own text.
    `sent` counts successes only.
@@ -5567,6 +5567,14 @@ covering its window up to now (the sheet says `built on request`), and sends it 
 test copy or to every subscriber of that edition; "everyone" cools down for five minutes and never
 claims the scheduled key. `GET /api/newsletter/preview?edition=morning[&format=text]` renders
 the same build without sending.
+
+**The panel is deliberately minimal** (owner's ask, 17 September 2026: "keep it simple"). It offers
+your own address with Subscribe / Unsubscribe, the other addresses on the list with × and one
+field to add a teammate, and Preview Morning · Evening. Every address added from it gets both
+editions, and no name is asked for — the addition is attributed to this device's known
+contributor, else the signed-in address, else the address itself. Send times, manual sends and
+the delivery log remain on these routes and are not controls in the panel; a missing
+`MUNS_TOKEN` is one quiet line.
 
 ### Verifying
 

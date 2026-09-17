@@ -143,74 +143,56 @@ try {
   await button().click();
   await panel().waitFor();
   await page.locator('[data-brief-form="me"]').waitFor();
-  ok('opens on the reader\'s own subscription form, opaque over the page', await panel().evaluate((n) => /^rgb\(/.test(getComputedStyle(n).backgroundColor)));
-  ok('...names the next scheduled send in IST', /Next: (Morning|Evening) brief, \w{3} \d+ \w{3}, \d\d:\d\d IST/.test(await page.locator('[data-brief-next]').innerText()), await page.locator('[data-brief-next]').innerText());
+  ok('opens on the reader\'s own email and a Subscribe button, opaque over the page', await panel().evaluate((n) => /^rgb\(/.test(getComputedStyle(n).backgroundColor)) && (await page.locator('[data-brief-form="me"] button[type="submit"]').innerText()) === 'Subscribe');
+  const shape = await panel().evaluate((n) => ({
+    inputs: n.querySelectorAll('input').length,
+    names: n.querySelectorAll('input[name="by"]').length,
+    checks: n.querySelectorAll('input[type="checkbox"], input[type="time"], select').length,
+    sends: n.querySelectorAll('[data-brief-action^="send"]').length,
+    lede: n.querySelector('.brief-lede')?.textContent || '',
+  }));
+  ok('...and stays simple: two email fields, no name, no ticks, no times, no send buttons', shape.inputs === 2 && shape.names === 0 && shape.checks === 0 && shape.sends === 0, JSON.stringify(shape));
+  ok('...with one line saying what it is and when it sends', /portfolio companies by email at 8:00 AM and 4:00 PM IST, weekdays/.test(shape.lede), shape.lede);
   await page.keyboard.press('Escape');
   ok('Escape closes it and returns focus to the button', !(await panel().isVisible()) && (await button().evaluate((n) => n === document.activeElement)));
 
   console.log('\n— subscribing —');
   await button().click();
   await page.locator('[data-brief-form="me"] input[name="email"]').fill('Pratik@Muns.io');
-  await page.locator('[data-brief-form="me"] input[name="by"]').fill('Pratik');
   await page.locator('[data-brief-form="me"] button[type="submit"]').click();
   await page.locator('.brief-you').waitFor().catch(async (error) => { console.error('  panel said:', await page.locator('.brief-body').innerText()); throw error; });
-  ok('subscribing shows "You\'re subscribed" with the normalised address', (await page.locator('.brief-you').innerText()).includes('pratik@muns.io'));
+  ok('subscribing shows "Subscribed as" with the normalised address', (await page.locator('.brief-you').innerText()).includes('pratik@muns.io'));
   ok('...the button now carries the subscribed dot', await page.locator('[data-brief-dot]').isVisible());
-  ok('...and the store holds one attributed row', store.snapshot().subscribers[0]?.addedBy === 'Pratik' && store.snapshot().count === 1);
+  const first = store.snapshot().subscribers[0];
+  ok('...and the store holds one row, both editions, attributed without asking for a name', store.snapshot().count === 1 && JSON.stringify(first?.editions) === '["morning","evening"]' && first?.addedBy === 'pratik@muns.io', JSON.stringify(first));
   ok('...with the alarm armed for the next weekday send', alarm != null);
-  await page.locator('[data-brief-my-edition][value="evening"]').uncheck();
-  await page.waitForFunction(() => document.querySelector('.brief-note')?.textContent.includes('Updated which briefs'));
-  ok('unticking the evening brief updates only that address\'s editions', JSON.stringify(store.snapshot().subscribers[0].editions) === '["morning"]');
 
   console.log('\n— the team —');
   await page.locator('[data-brief-form="add"] input[name="email"]').fill('meera@muns.io');
   await page.locator('[data-brief-form="add"] button[type="submit"]').click();
   await page.waitForFunction(() => [...document.querySelectorAll('.brief-row')].some((r) => r.textContent.includes('meera@muns.io')));
-  ok('adding a colleague lists them under Team, attributed to this device\'s name', (await page.locator('.brief-row', { hasText: 'meera@muns.io' }).innerText()).includes('added by Pratik'));
-  ok('...and the count reads 2 of 100', (await page.locator('.brief-count').innerText()) === '2 of 100');
+  ok('adding a teammate lists them under Also receiving and clears the field', store.snapshot().count === 2 && (await page.locator('[data-brief-form="add"] input[name="email"]').inputValue()) === '');
+  await page.locator('[data-brief-action="remove"][data-email="meera@muns.io"]').click();
+  await page.waitForFunction(() => ![...document.querySelectorAll('.brief-row')].some((r) => r.textContent.includes('meera@muns.io')));
+  ok('...and × removes them', store.snapshot().count === 1);
 
-  console.log('\n— sending —');
-  await page.locator('[data-brief-edition-select]').selectOption('morning');
-  await page.locator('[data-brief-action="send-test"]').click();
-  await page.waitForFunction(() => document.querySelector('.brief-note')?.textContent.includes('Test copy'));
-  ok('"Send me a copy" posts exactly one html email to the reader', emails.length === 1 && emails[0].to === 'pratik@muns.io' && emails[0].html && !emails[0].hasText, JSON.stringify(emails.map((e) => e.to)));
-  ok('...as a Glow Ventures broadsheet with the portfolio subject', emails[0].html.includes('GLOW VENTURES') && !emails[0].html.includes('MUNSHOT') && /^Glow Ventures · \d+ updates? on your portfolio companies/.test(emails[0].subject), emails[0].subject);
-  ok('...marked as a test copy in its footer', emails[0].html.includes('This is a test copy you asked for.'));
-  await page.locator('[data-brief-action="send-all"]').click();
-  ok('"Send to everyone" asks first, naming how many will get it', (await page.locator('.brief-confirm').innerText()).includes('2 addresses'), 'pratik is morning-only and meera gets both');
-  await page.locator('[data-brief-action="send-all-cancel"]').click();
-  ok('...and Cancel sends nothing', emails.length === 1 && !(await page.locator('.brief-confirm').isVisible()));
-  await page.locator('[data-brief-edition-select]').selectOption('evening');
-  await page.locator('[data-brief-action="send-all"]').click();
-  await page.locator('[data-brief-action="send-all-confirm"]').click();
-  await page.waitForFunction(() => document.querySelector('.brief-note')?.textContent.includes('sent to'));
-  ok('confirming sends the evening brief to its one subscriber', emails.length === 2 && emails[1].to === 'meera@muns.io' && emails[1].auth === 'Bearer team-token');
-  ok('...and the send appears under Recent sends', (await page.locator('.brief-log').innerText()).includes('sent to 1 of 1'));
-  const [preview] = await Promise.all([context.waitForEvent('page'), page.locator('[data-brief-action="preview"]').click()]);
+  console.log('\n— preview —');
+  const [preview] = await Promise.all([context.waitForEvent('page'), page.locator('[data-brief-action="preview"][data-edition="evening"]').click()]);
   await preview.waitForLoadState();
-  ok('Preview opens the edition as it would send now, in a new tab', /Glow Ventures · \d+ updates?/.test(await preview.title()) && (await preview.locator('body').innerText()).includes('GLOW VENTURES'));
+  ok('Preview Evening opens the edition as it would send now, in a new tab', /^Glow Ventures · \d+ updates?/.test(await preview.title()) && (await preview.locator('body').innerText()).includes('GLOW VENTURES') && new URL(preview.url()).searchParams.get('edition') === 'evening');
   await preview.close();
-
-  console.log('\n— the schedule —');
-  await page.locator('[data-brief-form="schedule"] input[name="time-morning"]').fill('07:30');
-  await page.locator('[data-brief-form="schedule"] button[type="submit"]').click();
-  await page.waitForFunction(() => document.querySelector('.brief-note')?.textContent.includes('Schedule saved'));
-  ok('saving a send time changes the desk-wide schedule and re-arms the alarm', store.settings().morning.time === '07:30' && alarm != null);
-  ok('...and the panel prints the new time on the edition', (await page.locator('.brief-check-row').first().innerText()).includes('Morning 07:30 IST'));
+  ok('...and nothing was emailed from the panel', emails.length === 0);
 
   console.log('\n— states —');
   await page.keyboard.press('Escape');
   tokenConfigured = false;
   await button().click();
-  await page.locator('.brief-warn').waitFor();
-  ok('with no token on the Worker the panel names the secret and says the buttons still work with the session', (await page.locator('.brief-warn').innerText()).includes('MUNS_TOKEN'));
+  await page.locator('.brief-token').waitFor();
+  ok('with no token on the Worker one quiet line names the secret', (await page.locator('.brief-token').innerText()).includes('MUNS_TOKEN'));
   tokenConfigured = true;
-  await page.keyboard.press('Escape');
-  await page.locator('[data-brief-action="unsubscribe-me"]').waitFor({ state: 'hidden' }).catch(() => {});
-  await button().click();
   await page.locator('[data-brief-action="unsubscribe-me"]').click();
   await page.locator('[data-brief-form="me"]').waitFor();
-  ok('Unsubscribe returns the reader to the form and clears the dot', !(await page.locator('[data-brief-dot]').isVisible()) && store.snapshot().count === 1);
+  ok('Unsubscribe returns the reader to the form and clears the dot', !(await page.locator('[data-brief-dot]').isVisible()) && store.snapshot().count === 0);
   await page.keyboard.press('Escape');
   offline = true;
   await button().click();
