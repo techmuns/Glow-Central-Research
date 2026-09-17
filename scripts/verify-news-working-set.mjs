@@ -54,3 +54,52 @@ const preparedNews = news.rows();
 const off = alerts.onChange(() => {}); off();
 assert.equal(news.rows(), preparedNews, 'leaving alerts must not invalidate a prepared research estate');
 console.log('PASS bounded raw reading preserves canonical history, corrections, provenance and independent research ownership.');
+
+// A RELEASED READER STARTS NO FURTHER READS. The archive walk is one sequential request per
+// month, so a cancellation observed only after the walk lets a disposed tab go on fetching every
+// remaining month — requests that start after destroy, are discarded on arrival, and hold
+// connections the next view needs. Nothing throws, no count is wrong and no state is lost, which
+// is why the browser suite could only catch it as a race it could not reproduce locally. Asserted
+// here against the paths actually requested, so the guarantee is testable off a clock.
+const { createNewsWorkingSet } = await import('../public/js/data/news-working-set.js');
+const month = (file, url, day) => [file, { articles: [{ url, publishedAt: `${day}T00:00:00Z` }] }];
+const captures = Object.fromEntries([
+  ['data/news.json', { archive: { index: 'company-news/index.json' }, byTicker: { AAA: [{ url: 'https://example.test/head', publishedAt: '2026-08-02T00:00:00Z' }] } }],
+  ['data/tradingview-news/latest.json', { archive: { index: 'tradingview-news/index.json' }, articles: [] }],
+  ['data/company-news/index.json', { updatedAt: '2026-08-31T00:00:00Z', entities: [],
+    archive: [{ file: 'company-news/2026-08.json', count: 1 }, { file: 'company-news/2026-07.json', count: 1 }] }],
+  ['data/tradingview-news/index.json', { updatedAt: '2026-08-31T00:00:00Z', entities: [],
+    archive: [{ file: 'tradingview-news/2026-08.json', count: 1 }, { file: 'tradingview-news/2026-07.json', count: 1 }] }],
+  month('data/company-news/2026-08.json', 'https://example.test/c8', '2026-08-10'),
+  month('data/company-news/2026-07.json', 'https://example.test/c7', '2026-07-10'),
+  month('data/tradingview-news/2026-08.json', 'https://example.test/t8', '2026-08-11'),
+  month('data/tradingview-news/2026-07.json', 'https://example.test/t7', '2026-07-11'),
+]);
+const held = 'data/company-news/2026-08.json';
+const requested = [];
+let openGate, atGate;
+const gate = new Promise(resolve => { openGate = resolve; });
+const reached = new Promise(resolve => { atGate = resolve; });
+const workingSet = createNewsWorkingSet({
+  window: () => null,
+  read: async (path) => {
+    requested.push(path);
+    if (path === held) { atGate(); await gate; }
+    if (!Object.hasOwn(captures, path)) throw Error(`Unexpected read: ${path}`);
+    return { value: structuredClone(captures[path]), tag: path };
+  },
+  diskRead: async () => null,
+  diskWrite: async () => {},
+  fetcher: async () => { throw Error('this fixture has no sharded parts to fetch'); },
+});
+const walk = workingSet.prepare().then(() => 'completed', (error) => error.message);
+await reached;
+workingSet.release();
+const duringWalk = requested.length;
+openGate();
+assert.equal(await walk, 'Obsolete news view', 'a released preparation is abandoned rather than adopted');
+await new Promise(resolve => setTimeout(resolve, 50));
+const after = requested.slice(duringWalk);
+assert.deepEqual(after, [], `a released reader starts no further reads (started: ${after.join(', ') || 'none'})`);
+assert(duringWalk < Object.keys(captures).length, 'the fixture must leave unread months for the walk to skip');
+console.log(`PASS released news reader stops after ${duringWalk} reads instead of walking all ${Object.keys(captures).length} captures.`);

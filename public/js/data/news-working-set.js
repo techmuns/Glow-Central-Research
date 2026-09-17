@@ -65,6 +65,13 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
       };
       const load = async path => {
         if (next.has(path)) return next.get(path);
+        // A RELEASED READER MAY NOT START ANOTHER READ. This walk is one sequential request per
+        // archive month, so checking only after it finishes lets a disposed tab go on fetching
+        // every remaining month: requests that start after destroy, are discarded on arrival, and
+        // hold connections the next view needs. Nothing threw and no state was wrong — the reads
+        // simply outlived their owner. The loops below break on the same condition so the walk
+        // ends promptly; this is the funnel that makes it a guarantee rather than an optimisation.
+        if (generation !== epoch) throw Error('Obsolete news view');
         const entry = await raw(path), spec = shardSpec(entry.value);
         if (!entry.value || typeof entry.value !== 'object') throw Error('News capture unavailable');
         const descriptor = { path, entry, spec };
@@ -89,6 +96,7 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
       // The supplemental capture can fail independently. Keep that failure local to its reader.
       let trading = null;
       try { trading = await load('data/tradingview-news/latest.json'); } catch { /* Reader reports this below. */ }
+      if (generation !== epoch) throw Error('Obsolete news view');
       for (const headValue of [head?.entry.value, trading?.entry.value].filter(Boolean)) {
         const indexPath = headValue.archive?.index;
         if (!indexPath) continue;
@@ -98,6 +106,7 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
         const family = indexPath.split('/')[0];
         if (!Array.isArray(index.entry.value.archive)) continue;
         for (const part of index.entry.value.archive) {
+          if (generation !== epoch) throw Error('Obsolete news view');
           if (!new RegExp(`^${family}/(\\d{4}-\\d{2}|undated)\\.json$`).test(part.file || '')) continue;
           let descriptor;
           try { descriptor = await load(`data/${part.file}`); } catch { continue; }
@@ -111,6 +120,7 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
       for (const descriptor of next.values()) {
         if (descriptor.spec) {
           for (const part of descriptor.spec.parts) {
+            if (generation !== epoch) throw Error('Obsolete news view');
             let index;
             try { index = await partIndex(descriptor, part); }
             catch { next.delete(descriptor.path); break; }
