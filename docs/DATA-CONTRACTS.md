@@ -5350,3 +5350,136 @@ marked `≈`, while other source values retain their units.
 
 Offline checks: `verify-exchange-deals.mjs`, `verify-muns-insider-capture.mjs`,
 `verify-exchange-worker-runtime.mjs` and `verify-sattva-deals-ui.mjs`.
+
+## The team brief — `GET`/`POST /api/newsletter`, `/api/newsletter/send`, `/api/newsletter/preview`
+
+**Two emails a weekday to the desk, built at the edge from feeds this dashboard already reads.**
+The desk asked for it in these words: a fixed-time email covering the global market scan, the
+corporate announcements and the news, "two times in a day — one at 4PM after market hours, and
+then what happened overnight, so between 4PM and 8AM", and "in the email, I would just send for
+direct ones". So:
+
+| Edition | Default send (IST) | Window it covers |
+| --- | --- | --- |
+| `morning` | 08:00 | from the previous **weekday's** evening send — Monday's covers from Friday 16:00 |
+| `evening` | 16:00 | from that day's morning send |
+
+Weekdays only. The window rule is the honesty rule: nothing that happens over a weekend falls
+between two briefs, and every email prints the window it covers on its face.
+
+**"Direct ones" means `portfolio-companies.json`** — the family's listed direct-equity lines, the
+same file the Portfolio scope means everywhere. Fund units, AIFs, cash and the ring-fenced holding
+are outside it there and outside it here.
+
+### What is in it, and where each figure comes from
+
+| Section | Source | Read when |
+| --- | --- | --- |
+| Global market scan — S&P 500, Nasdaq, Dow; Nikkei, Taiwan TAIEX, Shanghai, Hang Seng, Kospi; Nifty 50, Sensex; Brent, gold, silver; DXY, USD/JPY, USD/INR; US 10-year | Yahoo's public chart endpoint, one symbol per request, with Yahoo's own session bounds deciding `Close` versus `Live` | at send time |
+| the same, for a symbol Yahoo refused | `public/data/series/index.json` (`last_value`, `last`, `returns.d1`) | the store's own date, printed on the row as `Series store · YYYY-MM-DD` |
+| Corporate announcements · direct holdings | NSE's live announcements RSS (as `/api/nse-announcements`), resolved by name against the book; plus BSE's date-indexed capture `corp-announcements.json` | NSE at send time; BSE as captured, dated on the page |
+| News · direct holdings | `market-news.json` — the four publishers' feeds — joined to the book with `matchPortfolioNews`, the same identity match the News tab uses | as captured, dated on the page |
+
+A source that could not be read says so **in the email** (`NSE feed could not be read (blocked)`),
+and a scan row that could not be quoted prints `unavailable`, never a number. If the **book**
+cannot be read the brief is not built at all — an email about direct holdings with no book behind
+it is about nothing — and the delivery is recorded `book-unavailable`.
+
+### The email is a Munshot broadsheet
+
+`worker/newsletter-brief.mjs` renders one table-based, inline-styled, 640px sheet: the `MUNSHOT`
+masthead, the product tagline (`Research Central — Morning Market Brief`), a date/edition strip,
+a stats line, the market scan, a **front page** of the three strongest items, then every other
+item under a **topic pill**, an Ink footer with the unsubscribe link and `Powered by Munshot ·
+muns.io`, and the caption `Research Central by Munshot`. Subject:
+`Research Central · 12 updates on your direct holdings — 17 Sep`.
+
+Filings and published stories become one list of **stories**, each carrying two readings this
+dashboard already makes and no new one:
+
+- **Topic** is what a story is *about*, from the desk's thirty tracked keywords. The seven Munshot
+  topics fold the keyword families: Orders is the three order keywords, Growth the rest of that
+  family, Money is capital raising and results, Approvals & IP is regulatory, Trouble is risk and
+  governance, and a story matching nothing is Other.
+- **Mood** is a direction, and only where a stated rule gives one: `announcementSignal()` over a
+  filing's own subject and category. A published headline carries **no** sentiment reading anywhere
+  on this dashboard, so a news story's dot is Neutral — never a guess dressed as a judgement. The
+  footer disclaimer says exactly this.
+
+The front page is ordered by (tracked keyword, non-neutral mood, importance), then recency; the
+stats line counts stories, good, watch-outs and the busiest topic from the same list. Headlines,
+standfirsts and filing subjects are reproduced as written; nothing is summarised.
+
+### The list — one Durable Object, `team-brief:v1`
+
+`worker/newsletter-store.mjs` on the provisioned `CaptureRegistry` class, under the `NEWSLETTER`
+binding. Three tables: subscribers (an unsubscribe is a `removed` row, never a deletion), the
+desk-wide settings, and a delivery log. `public/js/data/newsletter-shared.js` owns the rules —
+what an address is, what an edition is, when it sends, what window it covers — and is imported by
+the browser and the Worker alike.
+
+```jsonc
+// GET /api/newsletter — no-store, never at the edge: it names the desk's addresses
+{
+  "ok": true, "version": 1, "revision": 4, "updatedAt": "…",
+  "settings": { "morning": { "enabled": true, "time": "08:00" }, "evening": { "enabled": true, "time": "16:00" } },
+  "count": 2, "limit": 100,
+  "subscribers": [{ "email": "pratik@muns.io", "name": null, "editions": ["morning", "evening"], "addedAt": "…", "addedBy": "Pratik" }],
+  "deliveries": [{ "key": "2026-09-17:morning", "edition": "morning", "day": "2026-09-17", "source": "timer",
+                   "recipients": 2, "sent": 2, "failed": 0, "reason": null, "subject": "…", "outcomes": [{ "email": "…", "ok": true, "status": 200, "reason": null }],
+                   "summary": { "quotes": 17, "quotesFailed": [], "quotesStored": [], "announcements": 4, "news": 6, "stories": 10, "good": 1, "watch": 0, "nse": true, "bse": true, "publishers": true } }],
+  "schedule": { "tokenConfigured": true, "armed": true, "alarmAt": "…", "next": { "edition": "evening", "day": "2026-09-17", "at": "…", "key": "2026-09-17:evening" }, "lastResult": "sent", "reason": null },
+  "dashboardUrl": "https://glow-central-research.tech-441.workers.dev"
+}
+```
+
+`POST /api/newsletter` takes `{ intents?: [{ op, email, name?, by, editions? }], settings? }`,
+same-origin, `application/json`, bounded at 16 KB, rate-limited (`NEWSLETTER_LIMITER`, 12 a minute).
+An edit is sent as **what it was**, never as the list it produced — the shared-watchlist rule.
+
+| `op` | Contributor | Meaning |
+| --- | --- | --- |
+| `subscribe` | **required** | Adds or re-activates an address with the editions named (default both). Records who added it. |
+| `editions` | — | Changes which briefs an active address gets; at least one, or unsubscribe. |
+| `unsubscribe` | optional | The row stays, `state = 'removed'`. |
+
+Outcomes: `subscribed` · `updated` · `unchanged` · `unsubscribed` · `not-subscribed` · `full`
+(refused at 100, and **never** reads as subscribed).
+
+### The timer — a Durable Object alarm, because nothing else here keeps time
+
+Cloudflare's cron cannot drive this (the account's five slots are spent — see `wrangler.jsonc`) and
+GitHub's scheduler measurably drops most of a dense schedule. The object's **alarm** is neither: it
+is armed for the next enabled weekday send whenever the list or the schedule changes and on every
+GET of the panel, and re-armed at the end of every wake. `worker/newsletter-schedule.mjs`:
+
+1. **Durable claims precede external I/O.** `wake()` moves `lastCheckedAt` forward in a transaction
+   before it reads a quote; `deliver()` claims the edition's key — `<day>:<edition>` — in SQLite
+   before the first email goes. A replayed alarm or a restart mid-send finds the claim and sends
+   nothing. One morning brief a day is a property of the store, not a hope about the scheduler.
+2. **An edition the timer reaches more than three hours late is recorded `missed`**, not sent at
+   lunch. A morning brief at 15:00 is a different product.
+3. **The credential is the Worker's `MUNS_TOKEN`**, sent as `Authorization: Bearer` to
+   `POST https://devde.muns.io/email/send/raw` with `{ email, subject, html }` — exactly one of
+   `html`/`text`, as the endpoint requires. Without it the delivery is recorded `no-token` against
+   every recipient, nothing is built, and the panel names the secret. A reader's own session token
+   (forwarded by `authHeaders()`) may stand in for a send **they** press; it is passed as a value
+   for that send and never stored.
+4. **Every failure is a named reason per recipient** — `unauthorised`, `rate-limited`, `upstream`,
+   `refused`, `timeout`, `unreachable`, `invalid-response` — and never the upstream's own text.
+   `sent` counts successes only.
+
+`POST /api/newsletter/send` `{ edition, to: 'me' | 'all', email? }` builds the edition **now**,
+covering its window up to now (the sheet says `built on request`), and sends it to one address as a
+test copy or to every subscriber of that edition; "everyone" cools down for five minutes and never
+claims the scheduled key. `GET /api/newsletter/preview?edition=morning[&format=text]` renders
+the same build without sending.
+
+### Verifying
+
+`node scripts/verify-newsletter.mjs` — the contract, the store, editions built against fixtures
+under `scripts/fixtures/newsletter/`, the renderer's fixed elements and escaping, and the alarm:
+one send per key, replay-safe, `no-token`, refused, missed, test copy, cooldown, preview.
+`node scripts/verify-newsletter-ui.mjs` drives the real button and panel against the real route,
+store and schedule over an in-process server with stubbed upstreams — the email endpoint records
+what it was asked to send.
