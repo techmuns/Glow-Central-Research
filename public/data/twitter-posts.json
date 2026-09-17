@@ -9965,7 +9965,7 @@
     "optional": true,
     "status": "unavailable",
     "reason": "source-read-failed",
-    "lastAttemptAt": "2026-09-17T06:04:46.514Z",
+    "lastAttemptAt": "2026-09-17T07:40:36.564Z",
     "lastSuccessAt": null
   }
 }

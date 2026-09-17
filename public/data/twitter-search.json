@@ -658,7 +658,7 @@
       "error": "search-unavailable"
     },
     "isin:INE858B01029|ISGEC": {
-      "lastAttemptAt": "2026-09-12T16:22:27+00:00",
+      "lastAttemptAt": "2026-09-17T07:40:21+00:00",
       "error": "search-unavailable"
     },
     "isin:INE168A01041|J & K Bank Ltd.": {
@@ -1458,6 +1458,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-17T06:04:31.041891+00:00"
+    "checkedAt": "2026-09-17T07:40:21.022918+00:00"
   }
 }
