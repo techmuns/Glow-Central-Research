@@ -156,6 +156,12 @@ try {
   assert.equal(await period.inputValue(), 'today', 'All Alerts opens on Today');
   assert.equal(await page.locator('[data-alert-arrivals]').count(), 0, 'no separate live banner');
   assert.equal(await page.locator('[data-arrival-badge]').count(), 0, 'initial history is not a live arrival');
+  const settledRows = async () => {
+    await page.waitForFunction(() => {
+      const table = document.querySelector('[data-score-table]');
+      return !!table && !table.hasAttribute('data-rows-pending') && !document.querySelector('[data-table-loading]');
+    }, null, { timeout: 30000 });
+  };
   const selectPeriod = async value => {
     await period.selectOption(value);
     await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
@@ -362,6 +368,13 @@ try {
   // Stable recall cases and the exact user-reviewed mismatch, independent of today's capture.
   await page.locator('[data-table-search]').fill('jayaswal');
   await page.waitForFunction(() => document.querySelector('tbody')?.textContent.toLowerCase().includes('jayaswal'));
+  // READ THE SETTLED TABLE, NOT A PARTLY FILLED ONE. Rows stream in — the first paint carries a
+  // screenful and the rest arrive under requestIdleCallback — so waiting only for the company
+  // name to appear reads the table mid-fill, and a row further down the stream is intermittently
+  // absent. That is a race in the reading, not a gap in the recall these assertions are about,
+  // and it surfaces as the capture grows. `data-rows-pending` is the signal the kit publishes
+  // for exactly this; see "Performance on large tables" in CLAUDE.md.
+  await settledRows();
   const jayaswalResults = await page.locator('tbody').innerText();
   assert(jayaswalResults.includes('Jayaswal Neco'), 'publisher-supported Jayaswal stories remain searchable');
   assert(!jayaswalResults.includes('Lululemon stock analysis'), 'the reviewed mismatch does not match Jayaswal');
