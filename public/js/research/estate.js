@@ -480,6 +480,13 @@ function trimSkeleton(sources, measure, ceiling) {
  * rows it has in scope and how many are present, so a row that is not shown can never be read as
  * an absent fact.
  */
+/** The prose a row can give up under budget pressure, in place; identity, dates and links stay. */
+function shrinkRow(row) {
+  for (const field of ['detail', 'summary', 'headline', 'text']) {
+    if (row[field] && typeof row[field] === 'string' && row[field].length > 120) row[field] = clipped(row[field], 120);
+  }
+}
+
 export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHAR_BUDGET) {
   const sourceInputs = Array.isArray(evidence?.sources) ? evidence.sources : [];
   const packet = {
@@ -539,14 +546,28 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
     if (candidate.rowIndex === 0 && measure() > charBudget) trimSkeleton(packet.sources, measure, charBudget);
     if (measure() > charBudget) {
       if (candidate.rowIndex === 0 && sample.rows.length === 1) {
-        for (const field of ['detail', 'summary', 'headline', 'text']) {
-          if (candidate.row[field] && typeof candidate.row[field] === 'string' && candidate.row[field].length > 120) {
-            candidate.row[field] = clipped(candidate.row[field], 120);
-          }
-        }
+        shrinkRow(candidate.row);
         if (measure() > charBudget) {
           delete candidate.row.detail;
           delete candidate.row.summary;
+        }
+        // A SOURCE'S ONLY REPRESENTATIVE OUTRANKS ANOTHER SOURCE'S PROSE. Every first row is
+        // admitted before any second row, so when this one does not fit, what is in the way is
+        // other sources' first rows — and the packet promises every source with company rows at
+        // least one of them. Measured on the 17 September 2026 capture: an earnings question's
+        // first General Alerts row ran to 1,316 characters, the fixed part of the packet to
+        // 10,200, and the source listed eighteenth landed nothing. So before this row is dropped,
+        // the other first rows give up the same optional prose, largest first; provenance, dates,
+        // titles and links stay, and a row that still does not fit is dropped as before.
+        if (measure() > charBudget) {
+          const firstRows = packet.sources.flatMap((s) => [s, s.unresolvedTopics].filter(Boolean))
+            .map((s) => s.rows?.[0]).filter((row) => row && row !== candidate.row)
+            .sort((a, b) => JSON.stringify(b).length - JSON.stringify(a).length);
+          for (const row of firstRows) {
+            if (measure() <= charBudget) break;
+            shrinkRow(row);
+            if (measure() > charBudget) { delete row.detail; delete row.summary; }
+          }
         }
         if (measure() > charBudget) {
           sample.rows.pop();
