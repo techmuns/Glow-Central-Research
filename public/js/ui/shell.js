@@ -395,7 +395,12 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
     title: `Switch between ${tabModule.meta.title} views`,
   });
 
-  const hasSubviews = subviewItems.length > 0;
+  // A tab that declares `meta.inlineSubviews` draws its own compact switch inside its section
+  // head (Mutual Funds: a two-option tray beside the as-on pill) and routes through
+  // `router.navigate` exactly as this picker does. The card here — a kicker, a label and a menu in
+  // a 15rem white box — cost ~90px above a table whose whole point is the rows, to choose between
+  // two views; the routing, the URL and the fallback to the first sub-view are unchanged.
+  const hasSubviews = subviewItems.length > 0 && !tabModule.meta.inlineSubviews;
   const subviewMount = $('#subview-mount', root);
   // A tab with `subviews: []` has nothing to pick, so the row goes entirely rather than
   // rendering an empty control — same rule the rail followed.
