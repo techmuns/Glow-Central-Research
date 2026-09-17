@@ -104,6 +104,7 @@ import { renderFundReturns } from '../investors/fund-returns.js';
 import * as weekly from '../data/mf-weekly.js';
 import * as fundReturns from '../data/fund-returns.js';
 import { buildTree, FACTORS, factorsOf, factorLabel, MANAGEMENT, managementOf } from '../data/mf-taxonomy.js';
+import * as router from '../core/router.js';
 
 export const meta = {
   id: 'mutual-funds',
@@ -118,6 +119,11 @@ export const meta = {
   // Scope does not narrow a list of schemes, so an EMPTY watchlist must not replace the tab with
   // the shell's "add companies" panel.
   allowEmptyScope: true,
+  // THE TABLE IS THE PAGE, SO THE CHROME ABOVE IT IS ONE HEADING ROW AND ONE TOOLBAR. The shell's
+  // sub-view picker card (kicker, label, menu, ~90px) is replaced by a two-option tray inside the
+  // heading row — `viewSwitch()` — that routes exactly as the picker did. The owner's ask: give
+  // the table and the filters the space; everything else is a click away.
+  inlineSubviews: true,
 };
 
 // ---------------------------------------------------------------------------------------
@@ -290,10 +296,11 @@ function comparisonPanel(m, repaint) {
   const html = `
     ${sectionHead({
       title: 'Category performance against its benchmark',
-      description:
-        `Every mutual-fund category in the weekly workbook: the median return it published for that category, beside the index it prints beneath it. ` +
-        `The medians and the index returns are the workbook’s, reproduced unchanged; the gap between them is the one figure derived here, and it is measured in percentage points.`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${asOfPill(m)}${scopeChip()}</div>`,
+      // No description paragraph: the three lines it took — whose the medians and index returns
+      // are, and that the gap is the one derived figure, in percentage points — are the first two
+      // entries of the provenance panel behind the as-on pill, and the gap columns say "pp" on
+      // their own face. Moved, not deleted.
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${viewSwitch('category-performance')}${asOfPill(m)}${scopeChip()}</div>`,
       controls: filterToolbar(weekly.tree(managedCategories()), {
         management: managementCounts(weekly.categories(), (c) => managementOf(c.group)),
         noun: 'categories',
@@ -308,8 +315,10 @@ function comparisonPanel(m, repaint) {
     wire(root) {
       const off = table.wire(root);
       if (off) disposers.push(off);
+      wireViewSwitch(root);
       wireFilters(root, repaint);
       wireProvenance(root, m);
+      fitTableToViewport(root);
     },
   };
 }
@@ -473,16 +482,13 @@ function schemePanel(m, repaint) {
   const html = `
     ${sectionHead({
       title: `${cat.label} — every scheme`,
-      description:
-        `${cat.funds.length} scheme${cat.funds.length === 1 ? '' : 's'} in the workbook’s ${cat.sheet} sheet, each direct-plan growth. ` +
-        `Every return is the workbook’s own; the reference row below carries the category’s published median and ${
-          benchmark
-            ? paired
-              ? `the ${benchmark.name}`
-              : `the ${benchmark.name} — a stated fallback from the workbook’s master index sheet, because it prints no index row under this one`
-            : 'the fact that no index is published here'
-        }.`,
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${asOfPill(m)}${scopeChip()}</div>`,
+      // One line. The reference row beneath carries the median and the index in figures, and the
+      // fallback / no-index cases are stated on that row and in its picker, so the head need not
+      // repeat them in prose.
+      description: `${cat.funds.length} direct-plan growth scheme${cat.funds.length === 1 ? '' : 's'} in the workbook’s ${cat.sheet} sheet — every return the workbook’s own${
+        benchmark && !paired ? `; the ${benchmark.name} below is a stated fallback, not the workbook’s pairing` : ''
+      }.`,
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${viewSwitch('category-performance')}${asOfPill(m)}${scopeChip()}</div>`,
       controls: `${backControl(cat)}${measureControls('scheme')}`,
     })}
     ${referenceStrip(cat, benchmark, reason, alternatives, periods, chosen, paired)}
@@ -502,7 +508,9 @@ function schemePanel(m, repaint) {
       };
       back?.addEventListener('click', onBack);
       if (back) disposers.push(() => back.removeEventListener('click', onBack));
+      wireViewSwitch(root);
       wireMeasure(root, repaint);
+      fitTableToViewport(root);
       root.querySelectorAll('[data-mf-benchmark]').forEach((el) => {
         const on = () => {
           chosenBenchmark = { ...chosenBenchmark, [cat.id]: el.dataset.mfBenchmark };
@@ -806,10 +814,13 @@ function renderAllSchemes(ctx) {
       onSearchChange: updateStrategyCounts,
       measure: measureFor('live'),
       extraProvenance: twoFeedsProvenance(m),
+      metaHtml: viewSwitch('all-schemes'),
     });
     ctx.root.innerHTML = panel.html;
     panel.wire(ctx.root);
+    wireViewSwitch(ctx.root);
     wireFilters(ctx.root, paint);
+    fitTableToViewport(ctx.root);
   };
 
   if (fundReturns.isLoaded()) {
@@ -1131,6 +1142,55 @@ function wireMeasure(root, repaint) {
     el.addEventListener('click', on);
     disposers.push(() => el.removeEventListener('click', on));
   });
+}
+
+/**
+ * THE VIEW SWITCH — All Schemes | Category Performance — in the heading row, where the shell's
+ * picker card used to sit above it. Two options, one tray, routed through `router.navigate`
+ * exactly as the shell's picker routes, so the URL, back/forward and the reload path are the
+ * same. See `meta.inlineSubviews`.
+ */
+function viewSwitch(current) {
+  return pillGroup('data-mf-views', 'View', meta.subviews.map((v) => ({
+    attr: `data-mf-view="${escapeHtml(v.id)}"`, label: v.label, active: v.id === current,
+    title: v.id === 'all-schemes'
+      ? 'Every tracked scheme’s daily return and peer rank, from the live AmfiBeas feed.'
+      : 'Every category’s published median against the index the weekly workbook pairs it with.',
+  })));
+}
+
+function wireViewSwitch(root) {
+  root.querySelectorAll('[data-mf-view]').forEach((el) => {
+    const on = () => {
+      const subview = el.dataset.mfView;
+      if (!ctxRef || subview === ctxRef.subview) return;
+      router.navigate({ workspace: 'research', tab: meta.id, subview, scope: ctxRef.scope });
+    };
+    el.addEventListener('click', on);
+    disposers.push(() => el.removeEventListener('click', on));
+  });
+}
+
+// THE TABLE TAKES THE HEIGHT THE CHROME LEAVES, MEASURED, NOT WRITTEN INTO A calc(). The kit's
+// `stickyHead` is a CSS length that has to guess how tall everything above the table is, and
+// that is not a constant: the toolbar wraps at 1024px, the workbook head carries two pills and a
+// note, and the reader's zoom moves all of it. `fitStreamToViewport` on General Alerts is the
+// reference; this is the same measurement — the scroller's own top, once painted — re-applied on
+// resize, with the listener in `disposers` so it dies with the paint.
+const MIN_TABLE_PX = 320;
+const TABLE_BOTTOM_GAP_PX = 24;
+function fitTableToViewport(root) {
+  const el = root.querySelector('[data-table-scroll]');
+  if (!el || !el.style.maxHeight) return;
+  const apply = () => {
+    if (!el.isConnected) return;
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    const h = Math.max(MIN_TABLE_PX, Math.round(window.innerHeight - top - TABLE_BOTTOM_GAP_PX));
+    el.style.maxHeight = `${h}px`;
+  };
+  apply();
+  window.addEventListener('resize', apply);
+  disposers.push(() => window.removeEventListener('resize', apply));
 }
 
 function backControl(cat) {
