@@ -60,11 +60,24 @@
 //
 // THE HIERARCHY IS A READING AID OVER SOMEBODY ELSE'S CATEGORY, NOT A NEW CATEGORY. Both feeds
 // publish a flat bucket — a sheet name, or an "Equity : Large Cap" string — and js/data/mf-taxonomy.js
-// groups them into asset class -> group -> category for both. Nothing is renamed or merged, every
-// scheme keeps the bucket its source put it in, and a bucket nothing anticipated is `Unclassified`
-// and visible rather than folded into whichever group looked closest. All Schemes offers all three
-// levels, because there the third one is invisible until a control names it; Category Performance
-// offers two, because there the third level IS the row.
+// groups them into asset class -> group -> category for both. Nothing is renamed or merged, and a
+// bucket nothing anticipated is `Unclassified` and visible rather than folded into whichever group
+// looked closest. All Schemes offers all three levels, because there the third one is invisible
+// until a control names it; Category Performance offers two, because there the third level IS the
+// row.
+//
+// ABOVE ALL THREE SITS ACTIVE / PASSIVE, AND IT IS THE FIRST CHIP ROW ON BOTH SUB-VIEWS. The owner's
+// first cut is whether a scheme is run by a manager or tracks an index, because the two are not
+// comparable on one table — and the source's own buckets do not draw it: measured on the live feed,
+// 19 direct-plan "Nifty Midcap 150" index funds and ETFs were filed under `Equity : Mid Cap` beside
+// 100 actively managed mid-cap funds, 13 more under `Small Cap`, and target-maturity index funds
+// across seven debt buckets. Her own workbook files every one of these under one Index & smart beta
+// sheet. So a scheme the source filed under an active category whose OWN NAME states a tracked
+// index is the one exception to "every scheme keeps the bucket its source put it in": it is SHOWN
+// under `Index & smart beta` (or `Exchange traded`), in a category labelled `Index · Mid Cap`, with
+// the source's own classification kept on the row, in the export and on every chip that names it,
+// and its rank and category median left as the source's own cohort. The rule, the measurement and
+// the labelling all live in js/data/mf-taxonomy.js (`classifyLive`, `MANAGEMENT`, `managementOf`).
 //
 // AND THERE IS A FOURTH READING THAT IS NOT PART OF THE TREE. Neither source classifies a momentum
 // or a quality fund as one — AmfiBeas file all 645 passive equity schemes as `Index`, `Index Funds`
@@ -90,7 +103,7 @@ import { peerHeat, gapHeat, HEAT_LEGEND } from '../ui/mf-heatmap.js';
 import { renderFundReturns } from '../investors/fund-returns.js';
 import * as weekly from '../data/mf-weekly.js';
 import * as fundReturns from '../data/fund-returns.js';
-import { buildTree, classifyLive, FACTORS, factorsOf, factorLabel } from '../data/mf-taxonomy.js';
+import { buildTree, FACTORS, factorsOf, factorLabel, MANAGEMENT, managementOf } from '../data/mf-taxonomy.js';
 
 export const meta = {
   id: 'mutual-funds',
@@ -123,13 +136,15 @@ let measure = 'return';
 let categoryView = null;
 let schemeView = null;
 let allSchemesView = null;
+// THE FIRST CUT, above the hierarchy and shared by both sub-views: 'active' | 'passive' | null.
+// Null means both, and — as everywhere else here — is a different claim from "both chips pressed".
+let management = null;
 // The hierarchy filter, shared by both sub-views: null means "every asset class".
 let assetClass = null;
 let group = null;
 // The third level — the source's own category — offered on All Schemes, where the row is a scheme
 // rather than a category. Null means every category under the selected classification/group.
 let categoryId = null;
-let categoryScrollLeft = 0;
 // The strategy the scheme's own NAME states. A separate axis from the three above; null means "any".
 let strategy = null;
 // The reader's own benchmark choice, per category id — one of the indices the workbook prints under
@@ -193,10 +208,10 @@ export function destroy() {
   categoryView = null;
   schemeView = null;
   allSchemesView = null;
+  management = null;
   assetClass = null;
   group = null;
   categoryId = null;
-  categoryScrollLeft = 0;
   strategy = null;
   chosenBenchmark = {};
 }
@@ -239,9 +254,26 @@ function renderCategoryPerformance(ctx) {
   });
 }
 
+/** Categories after the active / passive cut. The tree and its chip counts are built over these. */
+function managedCategories() {
+  return weekly.categories().filter((c) => !management || managementOf(c.group) === management);
+}
+
 /** Categories after the asset-class / group filter. One predicate, used by the tree AND the table. */
 function scopedCategories() {
-  return weekly.categories().filter((c) => (!assetClass || c.assetClass === assetClass) && (!group || c.group === group));
+  return managedCategories().filter((c) => (!assetClass || c.assetClass === assetClass) && (!group || c.group === group));
+}
+
+/**
+ * The Active / Passive chip counts, over the WHOLE set the sub-view lists — never the narrowed one,
+ * because this row sits above every other control and its counts describe the feed, not the
+ * selection. Counts categories on Category Performance and schemes on All Schemes, exactly as the
+ * classification chips beneath it do.
+ */
+function managementCounts(items, managementOfItem) {
+  const counts = { active: 0, passive: 0 };
+  for (const item of items) counts[managementOfItem(item)] = (counts[managementOfItem(item)] || 0) + 1;
+  return counts;
 }
 
 // ---- Level 1: every category against its own benchmark ---------------------------------------
@@ -262,7 +294,11 @@ function comparisonPanel(m, repaint) {
         `Every mutual-fund category in the weekly workbook: the median return it published for that category, beside the index it prints beneath it. ` +
         `The medians and the index returns are the workbook’s, reproduced unchanged; the gap between them is the one figure derived here, and it is measured in percentage points.`,
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${asOfPill(m)}${scopeChip()}</div>`,
-      controls: `${hierarchyControls(weekly.categories())}${measureControls('category')}`,
+      controls: filterToolbar(weekly.tree(managedCategories()), {
+        management: managementCounts(weekly.categories(), (c) => managementOf(c.group)),
+        noun: 'categories',
+        level: 'category',
+      }),
     })}
     ${table.html}
   `;
@@ -272,8 +308,7 @@ function comparisonPanel(m, repaint) {
     wire(root) {
       const off = table.wire(root);
       if (off) disposers.push(off);
-      wireHierarchy(root, repaint);
-      wireMeasure(root, repaint);
+      wireFilters(root, repaint);
       wireProvenance(root, m);
     },
   };
@@ -611,7 +646,7 @@ function expenseCell(v, which) {
 
 /**
  * The strategy the scheme's own name states, as a filter for a table that has no chip row of its
- * own. Same reading as `strategyControls()` and the same caveat: read from the name, never a
+ * own. Same reading as `strategySelectHtml()` and the same caveat: read from the name, never a
  * classification either source publishes.
  */
 function strategyFilter(rows, factorsOfRow) {
@@ -738,7 +773,7 @@ function renderAllSchemes(ctx) {
     releaseDisposers();
     const m = fundReturns.meta();
     const tree = liveTree();
-    // The hierarchy and strategy narrow the feed before the table applies its search predicate.
+    // The toolbar's choices narrow the feed before the table applies its search predicate.
     // The result count and export read that same final set.
     const rows = m && !m.reason ? liveScoped(fundReturns.all()) : null;
     // Count alternatives within the chosen classification and search, BEFORE applying strategy.
@@ -748,14 +783,24 @@ function renderAllSchemes(ctx) {
     const updateStrategyCounts = (view, matchesSearch) => {
       if (token !== renderToken) return;
       const mount = ctx.root.querySelector('[data-mf-strategy-mount]');
-      if (mount) mount.innerHTML = strategyControls(strategyBase.filter((f) => matchesSearch(f, view.q)), (f) => f.factors);
+      if (mount) mount.innerHTML = strategySelectHtml(strategyBase.filter((f) => matchesSearch(f, view.q)), (f) => f.factors);
     };
     const panel = renderFundReturns(ctx, {
       disposers,
       repaint: paint,
       rows,
       // Categories are a direct choice on their own row, including before a group is selected.
-      headHtml: `${hierarchyControls(null, tree, { coverage: false })}${liveCategoryControls(tree)}<div data-mf-strategy-mount></div>${measureControls('live')}`,
+      // One toolbar: Active / Passive, then asset class, group, category and strategy as cascading
+      // dropdowns, then the Show toggle. The strategy slot is a mount so its counts can follow the
+      // search text without repainting the panel.
+      headHtml: filterToolbar(tree, {
+        coverage: false,
+        management: managementCounts(fundReturns.all(), (f) => f.taxonomy.management),
+        noun: 'schemes',
+        withCategories: true,
+        strategyHtml: strategySelectHtml(strategyBase, (f) => f.factors),
+        level: 'live',
+      }),
       view: allSchemesView,
       onView: (v, matchesSearch) => { allSchemesView = v; updateStrategyCounts(v, matchesSearch); },
       onSearchChange: updateStrategyCounts,
@@ -764,10 +809,7 @@ function renderAllSchemes(ctx) {
     });
     ctx.root.innerHTML = panel.html;
     panel.wire(ctx.root);
-    wireHierarchy(ctx.root, paint);
-    wireCategoryScroll(ctx.root);
-    wireStrategy(ctx.root, paint);
-    wireMeasure(ctx.root, paint);
+    wireFilters(ctx.root, paint);
   };
 
   if (fundReturns.isLoaded()) {
@@ -780,20 +822,31 @@ function renderAllSchemes(ctx) {
   });
 }
 
+/**
+ * The tree the classification, group and category chips are drawn from — built over the rows the
+ * active / passive cut leaves, so a reader who pressed Passive sees Equity · 445 (measured, 16 Sep
+ * 2026), not the whole feed's 953 above a table that will show 445. The cut sits ABOVE the
+ * hierarchy; the hierarchy's counts follow it, and its own counts follow nothing.
+ */
 function liveTree() {
-  return buildTree(fundReturns.all(), (f) => classifyLive(f.classification));
+  return buildTree(liveManaged(fundReturns.all()), (f) => f.taxonomy);
 }
 
+const liveManaged = (all) => (management ? all.filter((f) => f.taxonomy.management === management) : all);
+
 /**
- * The live feed under the chips above it — asset class, group, category and strategy. Strategy
- * counts reuse the hierarchy without their own filter, so they describe the available alternatives.
+ * The live feed under the chips above it — active / passive, asset class, group, category and
+ * strategy. Every predicate reads `f.taxonomy`, computed once at ingest, so the chips, the table,
+ * the counts and the export cannot disagree about where a scheme is. Strategy counts reuse the
+ * hierarchy without their own filter, so they describe the available alternatives.
  */
 function liveScoped(all, { includeStrategy = true } = {}) {
   const chosenStrategy = includeStrategy ? strategy : null;
-  if (!assetClass && !group && !categoryId && !chosenStrategy) return all;
+  if (!management && !assetClass && !group && !categoryId && !chosenStrategy) return all;
   return all.filter((f) => {
-    const t = classifyLive(f.classification);
-    return (!assetClass || t.assetClass === assetClass)
+    const t = f.taxonomy;
+    return (!management || t.management === management)
+      && (!assetClass || t.assetClass === assetClass)
       && (!group || t.group === group)
       && (!categoryId || t.categoryId === categoryId)
       && (!chosenStrategy || f.factors?.includes(chosenStrategy));
@@ -826,202 +879,247 @@ function twoFeedsProvenance(m) {
 }
 
 // ---------------------------------------------------------------------------------------
-// The hierarchy control
+// The filter toolbar — one row of fixed slots, cascading dropdowns, nothing that moves
 // ---------------------------------------------------------------------------------------
 
 /**
- * Asset class, then group. Two rows of chips rather than a tree widget: the whole taxonomy is three
- * levels deep and the third level IS the table, so a collapsible tree would be a second navigation
- * for a list the reader can already see.
+ * ONE ROW, AND EVERY CONTROL IN IT KEEPS ITS PLACE WHATEVER IS SELECTED.
  *
- * `All` is null, not "every chip pressed" — the same distinction `scopeTickers()` draws between a
- * null and a full Set, for the same reason: the two look identical until a category appears or
- * disappears. The counts on a chip describe the TAXONOMY, so they do not move when you press one.
+ * This used to be four rows of chips — Active / Passive, Classification (with the groups appearing
+ * beside it once a class was pressed), a Category strip that scrolled sideways behind two arrows,
+ * and Strategy — and the owner's complaint was exactly what CLAUDE.md warns about under "meta versus
+ * controls": press a chip and the whole block reflows, group chips appear where there were none,
+ * counts change width, the strip's scroll position is lost, and the row you were reading is no
+ * longer where it was. Controls that move when you use them read as a different page.
+ *
+ * So the four rows are one toolbar of FIXED-WIDTH slots that are all present all the time:
+ *
+ *   [ All · Active · Passive ] [ Asset class ▾ ] [ Group ▾ ] [ Category ▾ ] [ Strategy ▾ ] [ Return · vs Category ] [ Clear ]
+ *
+ * Each dropdown lists what the ones to its left leave — an asset class narrows the groups, a group
+ * narrows the categories — and each also works on its own: with no class chosen, the Group and
+ * Category lists show every option grouped under its class, and picking one fills the dropdowns
+ * to its left so the path reads left to right. A select is as wide as its slot, not its longest
+ * option, so a count changing from 953 to 445 moves nothing; the Clear button is rendered
+ * invisible rather than omitted when there is nothing to clear, for the same reason.
+ *
+ * `All` is null, not "every option ticked" — the same distinction `scopeTickers()` draws between a
+ * null and a full Set. The Active / Passive counts describe the WHOLE FEED and never move; the
+ * dropdown counts describe the tree the cut above them leaves. The workbook view uses the same
+ * toolbar without the Category and Strategy slots, because there the category IS the row.
  */
-function hierarchyControls(all, tree = weekly.tree(all), { coverage = true } = {}) {
-  const classChips = tree
-    .map((n) => chipBtn(`data-mf-class="${escapeHtml(n.assetClass)}"`, `${n.assetClass} · ${n.count}`, assetClass === n.assetClass))
-    .join('');
-  const active = tree.find((n) => n.assetClass === assetClass);
-  const groupChips = active
-    ? `<span class="mx-1 h-4 w-px bg-slate-200"></span>${chipBtn('data-mf-group=""', 'All groups', !group)}${active.groups
-        .map((g) => chipBtn(`data-mf-group="${escapeHtml(g.group)}"`, `${g.group} · ${g.count}`, group === g.group))
-        .join('')}`
+function filterToolbar(tree, { management: counts = null, noun = 'schemes', withCategories = false, strategyHtml = null, coverage = true, level = 'live' } = {}) {
+  const activeClass = tree.find((n) => n.assetClass === assetClass) || null;
+  const anySet = !!(management || assetClass || group || categoryId || strategy);
+
+  const managementGroup = counts
+    ? pillGroup('data-mf-management-row', 'Active or passive', [
+        { attr: 'data-mf-management=""', label: 'All', active: !management, title: 'Both actively managed and index-tracking schemes.' },
+        ...MANAGEMENT.map((m) => ({
+          attr: `data-mf-management="${m.id}"`,
+          label: `${m.label} · ${formatNumber(counts[m.id] || 0)}`,
+          active: management === m.id,
+          title: `${formatNumber(counts[m.id] || 0)} ${noun}. ${m.title}`,
+        })),
+      ])
     : '';
+
+  const classSelect = selectHtml('data-mf-class-select', 'Asset class', 'w-40', assetClass || '', [
+    { value: '', label: 'All asset classes' },
+    ...tree.map((n) => ({ value: n.assetClass, label: `${n.assetClass} (${formatNumber(n.count)})` })),
+  ]);
+
+  // Groups: those of the chosen class, or every class's groups under a heading each, so the reader
+  // can reach a group in one pick and the class fills in beside it.
+  const groupSelect = selectHtml('data-mf-group-select', 'Group', 'w-44', group || '', [
+    { value: '', label: 'All groups' },
+    ...(activeClass
+      ? activeClass.groups.map((g) => ({ value: g.group, label: `${g.group} (${formatNumber(g.count)})`, data: { class: activeClass.assetClass } }))
+      : tree.map((n) => ({
+          group: n.assetClass,
+          options: n.groups.map((g) => ({ value: g.group, label: `${g.group} (${formatNumber(g.count)})`, data: { class: n.assetClass } })),
+        }))),
+  ]);
+
+  const categorySelect = withCategories ? categorySelectHtml(tree, activeClass) : '';
+
+  const measures = pillGroup('data-mf-measures', 'Show', measuresFor(level).map(([id, label, title]) => ({
+    attr: `data-mf-measure="${id}"`, label, active: measureFor(level) === id, title,
+  })));
+
   // `coverage: false` on All Schemes. The note names what the WEEKLY WORKBOOK does not publish;
   // the live feed carries debt, commodities and fund-of-funds, so printing it there would tell the
   // reader a feed does not cover data it is displaying at that moment.
   const uncovered = coverage ? (weekly.meta()?.coverage || []).filter((c) => !c.covered) : [];
+
   return `
-    <div class="flex flex-wrap items-center gap-1.5" data-mf-hierarchy>
-      <span class="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Classification</span>
-      ${chipBtn('data-mf-class=""', 'All', !assetClass)}
-      ${classChips}
-      ${groupChips}
+    <div class="flex flex-wrap items-center gap-2" data-mf-filters>
+      ${managementGroup}
+      ${classSelect}
+      ${groupSelect}
+      ${categorySelect}
+      ${strategyHtml == null ? '' : `<span data-mf-strategy-mount class="inline-flex">${strategyHtml}</span>`}
+      ${measures}
+      <button type="button" data-mf-clear ${anySet ? '' : 'tabindex="-1" aria-hidden="true"'}
+        class="rounded-md px-2 py-1 text-[11px] font-semibold text-slate-500 underline-offset-2 hover:text-rose-700 hover:underline ${anySet ? '' : 'invisible'}"
+        title="Back to every scheme: clears Active / Passive, asset class, group, category and strategy.">Clear</button>
       ${
         uncovered.length
-          ? `<span class="ml-1 cursor-help text-[11px] text-slate-400" title="${escapeHtml(uncovered.map((c) => c.note).join(' '))}">${escapeHtml(uncovered.map((c) => c.label).join(', '))} not covered here</span>`
+          ? `<span class="cursor-help text-[11px] text-slate-400" title="${escapeHtml(uncovered.map((c) => c.note).join(' '))}">${escapeHtml(uncovered.map((c) => c.label).join(', '))} not covered here</span>`
           : ''
       }
     </div>`;
 }
 
-// Match the customer's workbook-style navigation while keeping each live source category intact.
-// Only ordering is curated: combined categories and repeated labels are never merged or guessed.
-function liveCategoryControls(tree) {
+/**
+ * THE CATEGORY DROPDOWN, which replaced a strip of forty chips that scrolled sideways. Every source
+ * category under the chosen class and group — or all of them, headed by class and group — with the
+ * four the owner's workbook leads with (Small, Mid, Flexi, Large Cap) first in their own heading
+ * and the rest in the source's alphabetical order. Nothing is merged: two source labels that read
+ * alike stay two options, told apart by their heading. A category this dashboard moved schemes
+ * into (see classifyLive) carries `data-mf-refiled` and a title saying where they came from.
+ */
+function categorySelectHtml(tree, activeClass) {
   const first = ['Small Cap', 'Mid Cap', 'Flexi Cap', 'Large Cap'];
-  const rank = (label) => first.includes(label) ? first.indexOf(label) : first.length;
-  const categories = tree.filter((n) => !assetClass || n.assetClass === assetClass)
-    .flatMap((n) => n.groups.filter((g) => !group || g.group === group)
-      .flatMap((g) => g.categories.map((c) => ({ ...c, assetClass: n.assetClass }))))
-    .sort((a, b) => rank(a.label) - rank(b.label));
-  const labels = new Map();
-  categories.forEach((c) => labels.set(c.label, (labels.get(c.label) || 0) + 1));
-  const arrow = (direction, symbol) => `<button type="button" data-mf-category-scroll-by="${direction}"
-    aria-label="Scroll categories ${direction < 0 ? 'left' : 'right'}" hidden
-    class="rounded-md px-2 py-1 text-sm font-bold text-slate-500 hover:bg-slate-100 disabled:opacity-30">${symbol}</button>`;
-  return `<div data-mf-categories role="group" aria-label="Category" class="flex w-full min-w-0 items-center gap-2">
-    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Category</span>
-    ${chipBtn(`data-mf-category="" aria-pressed="${!categoryId}"`, 'All', !categoryId)}
-    ${arrow(-1, '‹')}
-    <div data-mf-category-scroll class="scrollbar-thin min-w-0 flex-1 overflow-x-auto">
-      <div class="relative flex w-max items-center gap-1.5 p-1 whitespace-nowrap">
-        ${categories.map((c) => chipBtn(`data-mf-category="${escapeHtml(c.id)}" aria-pressed="${categoryId === c.id}"`,
-          labels.get(c.label) > 1 ? `${c.assetClass} · ${c.label}` : c.label, categoryId === c.id, c.sourceLabel)).join('')}
-      </div>
-    </div>
-    ${arrow(1, '›')}
-  </div>`;
-}
-
-function wireCategoryScroll(root) {
-  const row = root.querySelector('[data-mf-categories]');
-  if (!row) return;
-  const scroller = row.querySelector('[data-mf-category-scroll]');
-  const arrows = [...row.querySelectorAll('[data-mf-category-scroll-by]')];
-  const update = () => {
-    const max = scroller.scrollWidth - scroller.clientWidth;
-    arrows.forEach((button) => {
-      button.hidden = max <= 1;
-      button.disabled = Number(button.dataset.mfCategoryScrollBy) < 0 ? scroller.scrollLeft <= 1 : scroller.scrollLeft >= max - 1;
-    });
-    categoryScrollLeft = scroller.scrollLeft;
-  };
-  const onClick = (event) => {
-    const button = event.target.closest('[data-mf-category-scroll-by]');
-    if (button) scroller.scrollBy({ left: Number(button.dataset.mfCategoryScrollBy) * scroller.clientWidth * 0.8, behavior: 'smooth' });
-  };
-  // Retain the reader's place through filter/measure repaints and keep a selected chip in view.
-  scroller.scrollLeft = categoryScrollLeft;
-  update();
-  const active = scroller.querySelector('[aria-pressed="true"]');
-  const revealActive = () => {
-    if (active) {
-      if (active.offsetLeft < scroller.scrollLeft) scroller.scrollLeft = active.offsetLeft;
-      else if (active.offsetLeft + active.offsetWidth > scroller.scrollLeft + scroller.clientWidth)
-        scroller.scrollLeft = active.offsetLeft + active.offsetWidth - scroller.clientWidth;
-    }
-    update();
-  };
-  const onResize = () => { update(); revealActive(); };
-  revealActive();
-  row.addEventListener('click', onClick);
-  scroller.addEventListener('scroll', update, { passive: true });
-  window.addEventListener('resize', onResize);
-  disposers.push(() => {
-    row.removeEventListener('click', onClick);
-    scroller.removeEventListener('scroll', update);
-    window.removeEventListener('resize', onResize);
-  });
+  const rank = (label) => (first.includes(label) ? first.indexOf(label) : first.length);
+  const sections = tree
+    .filter((n) => !activeClass || n === activeClass)
+    .flatMap((n) => n.groups.filter((g) => !group || g.group === group).map((g) => ({
+      group: `${n.assetClass} · ${g.group}`,
+      options: [...g.categories]
+        .sort((a, b) => rank(a.label) - rank(b.label))
+        .map((c) => ({
+          value: c.id,
+          label: `${c.label} (${formatNumber(c.items.length)})`,
+          data: { class: n.assetClass, group: g.group, ...(c.refiled ? { mfRefiled: 'true' } : {}) },
+          // A category whose label the source never printed says where its schemes came from and why.
+          title: c.refiled
+            ? `${c.items.length} scheme${c.items.length === 1 ? '' : 's'} the source files as ${c.sourceLabel}, shown here because each one’s own name states a tracked ${c.refiled.kind === 'etf' ? 'ETF' : 'index'}. The source’s classification is unchanged on every row and in the export.`
+            : c.sourceLabel,
+        })),
+    })));
+  // One heading is no heading: under a chosen class and group the options stand on their own.
+  const body = sections.length === 1 ? sections[0].options : sections;
+  return selectHtml('data-mf-category-select', 'Category', 'w-56', categoryId || '', [{ value: '', label: 'All categories' }, ...body]);
 }
 
 /**
- * THE STRATEGY ROW — momentum, quality, value, low volatility, alpha, equal weight, dividend yield.
- *
- * NEITHER SOURCE CLASSIFIES A MOMENTUM FUND AS ONE. AmfiBeas file all 645 passive equity schemes as
- * `Index`, `Index Funds` or `ETFs` and stop there; the workbook files all 70 of them as one Smart
- * Beta sheet. So the question "which of these are the momentum funds" had no control on either
- * sub-view and could only be answered by typing the word into a search box and hoping.
- *
- * IT READS THE SCHEME'S OWN NAME, WHICH IS WHERE THE TRACKED INDEX IS STATED, and the row says so
- * on its own face. It is a SEPARATE axis from the classification chips beside it: a momentum fund's
- * classification is still `Equity : Index`, nothing here moves it, and a scheme matching no pattern
- * is simply not in a strategy rather than placed in the nearest one. Counts follow the classification
- * and search filters, excluding the strategy itself so other valid choices remain available.
+ * THE STRATEGY DROPDOWN — momentum, quality, value, low volatility, alpha, equal weight, dividend
+ * yield. Neither source classifies a momentum fund as one, so this reads the scheme's OWN NAME,
+ * which is where the tracked index is stated, and the control says so in its own title. It is a
+ * separate axis from the dropdowns beside it: a momentum fund's classification is untouched, and a
+ * scheme matching no pattern is simply not in a strategy rather than placed in the nearest one.
+ * Counts follow the classification and search filters, excluding the strategy itself so other valid
+ * choices remain available; a chosen strategy with no matches stays listed at zero so it can be
+ * cleared. Rebuilt in its mount as the search text changes, so the search box keeps its focus.
  */
-function strategyControls(all, factorsOf) {
+function strategySelectHtml(all, factorsOf) {
   const present = FACTORS.map((f) => ({ ...f, count: all.filter((r) => factorsOf(r)?.includes(f.id)).length }))
     .filter((f) => f.count > 0 || f.id === strategy);
-  return `
-    <div class="flex flex-wrap items-center gap-1.5" data-mf-strategies>
-      <span class="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-400" title="Read from each scheme’s own name, where the tracked index is stated. Neither source publishes this as a classification.">Strategy in the name</span>
-      ${chipBtn('data-mf-strategy=""', 'Any', !strategy)}
-      ${present.map((f) => chipBtn(`data-mf-strategy="${escapeHtml(f.id)}"`, `${f.label} · ${f.count}`, strategy === f.id,
-        `${f.count} schemes match the current classification and search filters and state ${f.label.toLowerCase()} in their own name.`)).join('')}
-      ${present.some((f) => f.count > 0) ? '' : '<span class="text-[11px] text-slate-400">No named strategies match these filters.</span>'}
+  return selectHtml('data-mf-strategy-select', 'Strategy in the name — read from each scheme’s own name, where the tracked index is stated; neither source publishes this as a classification', 'w-44', strategy || '', [
+    { value: '', label: present.length ? 'Any strategy' : 'No named strategy' },
+    ...present.map((f) => ({ value: f.id, label: `${f.label} (${formatNumber(f.count)})`, title: `${f.count} schemes match the current filters and state ${f.label.toLowerCase()} in their own name.` })),
+  ]);
+}
+
+/**
+ * A fixed-width <select>. Highlighted like an active chip when it holds a choice, so the state is
+ * legible at a glance. Counts sit in parentheses here rather than after a " · ", because the labels
+ * themselves use " · " ("Index · Mid Cap") and "Index · Mid Cap · 12" reads as a three-part name.
+ */
+function selectHtml(attr, label, width, current, options) {
+  const active = current !== '';
+  const option = (o) => `<option value="${escapeHtml(o.value)}"${o.value === current ? ' selected' : ''}${
+    o.title ? ` title="${escapeHtml(o.title)}"` : ''
+  }${Object.entries(o.data || {}).map(([k, v]) => ` data-${k === 'mfRefiled' ? 'mf-refiled' : escapeHtml(k)}="${escapeHtml(v)}"`).join('')}>${escapeHtml(o.label)}</option>`;
+  return `<select ${attr} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"
+      class="${width} shrink-0 truncate rounded-lg px-2.5 py-1.5 text-[11px] font-semibold ring-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+        active ? 'bg-indigo-50 text-indigo-800 ring-indigo-200' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'
+      }">
+      ${options.map((o) => (o.options ? `<optgroup label="${escapeHtml(o.group)}">${o.options.map(option).join('')}</optgroup>` : option(o))).join('')}
+    </select>`;
+}
+
+/** A group of pill buttons in one rounded tray — the Active / Passive and Show controls. */
+function pillGroup(attr, label, options) {
+  return `<div role="group" aria-label="${escapeHtml(label)}" ${attr} class="inline-flex shrink-0 items-center rounded-lg bg-slate-100 p-0.5 ring-1 ring-slate-200">
+      ${options.map((o) => `<button type="button" ${o.attr} aria-pressed="${o.active}"${o.title ? ` title="${escapeHtml(o.title)}"` : ''}
+        class="whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${o.active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}">${escapeHtml(o.label)}</button>`).join('')}
     </div>`;
 }
 
-function wireHierarchy(root, repaint) {
-  root.querySelectorAll('[data-mf-class]').forEach((el) => {
-    const on = () => {
-      assetClass = el.dataset.mfClass || null;
-      group = null;
-      categoryId = null;
-      categoryScrollLeft = 0;
-      openCategory = null;
-      repaint();
-    };
-    el.addEventListener('click', on);
-    disposers.push(() => el.removeEventListener('click', on));
-  });
-  root.querySelectorAll('[data-mf-group]').forEach((el) => {
-    const on = () => {
-      group = el.dataset.mfGroup || null;
-      categoryId = null;
-      categoryScrollLeft = 0;
-      openCategory = null;
-      repaint();
-    };
-    el.addEventListener('click', on);
-    disposers.push(() => el.removeEventListener('click', on));
-  });
-  root.querySelectorAll('[data-mf-category]').forEach((el) => {
-    const on = () => {
-      const focused = document.activeElement === el;
-      categoryId = el.dataset.mfCategory || null;
-      if (!categoryId) categoryScrollLeft = 0;
-      openCategory = null;
-      repaint();
-      if (focused) [...root.querySelectorAll('[data-mf-category]')]
-        .find((button) => button.dataset.mfCategory === (categoryId || ''))?.focus({ preventScroll: true });
-    };
-    el.addEventListener('click', on);
-    disposers.push(() => el.removeEventListener('click', on));
-  });
-}
-
-function wireStrategy(root, repaint) {
-  // The buttons are replaced as the search changes; one listener on their stable mount survives it.
-  const mount = root.querySelector('[data-mf-strategy-mount]');
-  if (!mount) return;
-  const on = (event) => {
-    const button = event.target.closest('[data-mf-strategy]');
-    if (!button || !mount.contains(button)) return;
-    strategy = button.dataset.mfStrategy || null;
-    repaint();
+/**
+ * Wire every control in the toolbar. A change repaints the panel, which replaces the toolbar, so
+ * focus is put back on the same slot afterwards — a keyboard reader who picked a class should not
+ * find themselves at the top of the document.
+ */
+function wireFilters(root, repaint) {
+  const on = (el, type, fn) => {
+    el.addEventListener(type, fn);
+    disposers.push(() => el.removeEventListener(type, fn));
   };
-  mount.addEventListener('click', on);
-  disposers.push(() => mount.removeEventListener('click', on));
+  const apply = (selector, change) => {
+    change();
+    openCategory = null;
+    repaint();
+    if (selector) ctxRef?.root?.querySelector(selector)?.focus({ preventScroll: true });
+  };
+  // The top-level cut resets everything beneath it: the tree a Passive reader sees has different
+  // groups and categories from the tree an Active reader sees, so a choice made under one cannot
+  // be carried into the other.
+  root.querySelectorAll('[data-mf-management]').forEach((el) => on(el, 'click', () => apply(`[data-mf-management="${el.dataset.mfManagement}"]`, () => {
+    management = el.dataset.mfManagement || null;
+    assetClass = null;
+    group = null;
+    categoryId = null;
+  })));
+  const classSel = root.querySelector('[data-mf-class-select]');
+  if (classSel) on(classSel, 'change', () => apply('[data-mf-class-select]', () => {
+    assetClass = classSel.value || null;
+    group = null;
+    categoryId = null;
+  }));
+  const groupSel = root.querySelector('[data-mf-group-select]');
+  if (groupSel) on(groupSel, 'change', () => apply('[data-mf-group-select]', () => {
+    const picked = groupSel.selectedOptions[0];
+    group = groupSel.value || null;
+    // Picked from the all-classes list: the class fills in beside it so the path reads left to right.
+    if (group && picked?.dataset.class) assetClass = picked.dataset.class;
+    categoryId = null;
+  }));
+  const catSel = root.querySelector('[data-mf-category-select]');
+  if (catSel) on(catSel, 'change', () => apply('[data-mf-category-select]', () => {
+    const picked = catSel.selectedOptions[0];
+    categoryId = catSel.value || null;
+    if (categoryId && picked) {
+      assetClass = picked.dataset.class || assetClass;
+      group = picked.dataset.group || group;
+    }
+  }));
+  // The strategy select is replaced inside its mount as the search text changes; one listener on
+  // the stable mount survives that (a change event bubbles).
+  const mount = root.querySelector('[data-mf-strategy-mount]');
+  if (mount) on(mount, 'change', (event) => {
+    const sel = event.target.closest('[data-mf-strategy-select]');
+    if (!sel || !mount.contains(sel)) return;
+    apply('[data-mf-strategy-select]', () => { strategy = sel.value || null; });
+  });
+  root.querySelectorAll('[data-mf-measure]').forEach((el) => on(el, 'click', () => apply(`[data-mf-measure="${el.dataset.mfMeasure}"]`, () => { measure = el.dataset.mfMeasure; })));
+  const clear = root.querySelector('[data-mf-clear]');
+  if (clear) on(clear, 'click', () => apply('[data-mf-class-select]', () => {
+    management = null;
+    assetClass = null;
+    group = null;
+    categoryId = null;
+    strategy = null;
+  }));
 }
 
+/** The Show control on its own, for the workbook's scheme drill, whose head has no other filter. */
 function measureControls(level) {
-  const active = measureFor(level);
-  return `
-    <div class="flex flex-wrap items-center gap-1.5" data-mf-measures>
-      <span class="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Show</span>
-      ${measuresFor(level).map(([id, label, title]) => chipBtn(`data-mf-measure="${id}"`, label, active === id, title)).join('')}
-    </div>`;
+  return pillGroup('data-mf-measures', 'Show', measuresFor(level).map(([id, label, title]) => ({
+    attr: `data-mf-measure="${id}"`, label, active: measureFor(level) === id, title,
+  })));
 }
 
 function wireMeasure(root, repaint) {

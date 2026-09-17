@@ -105,7 +105,9 @@ captured every 15 minutes by
 `.github/workflows/corporate-actions-refresh.yml` through
 `scripts/scrape-corporate-actions.mjs`. The request covers the prior three years and the next year
 in one bounded view. NSE is the official base. Screener adds its bonus, rights, split, buyback and
-dividend records and their structured terms. The browser loads this file only when Corporate Actions opens, keeps it in
+dividend records and their structured terms. The browser loads this file only when the Corporate Actions view of
+Corp Announcements opens (`#/research/corp-announcements/corporate-actions`; the retired `#/research/corporate-actions`
+address is aliased to it by the shell), keeps it in
 the shared IndexedDB cache, and conditionally checks it every 90 seconds while visible.
 
 Each upstream has an independent last-good layer. An NSE refusal, timeout, empty response, format
@@ -4475,6 +4477,64 @@ never parsed back out of a sentence.
 `Reconcile`, because that changes what the reader does next and `Important` does not. The band
 itself stays on the card as `data-priority` and in the filter chips.
 
+
+### The two bullets — `impactOf` / `impactParts` / `impactLine` / `eventImpacts`
+
+The desk's brief (17 September 2026): *"there are three triggers here. One is, will it change the
+earnings assumption? Second is, will it change the valuation? And third is whether it will make or
+break the thesis… two bullets for each company: one line, what has happened; and second, will that
+change the earnings assumption, valuation, or thesis?"*
+
+Every card therefore carries two bullets. The first, **What happened**, is `insight` (`plainInsight`,
+unchanged). The second, **Earnings assumption, valuation or thesis?**, is `impactLine`, built from
+`impacts`:
+
+```
+impacts:    [{ axis: 'earnings' | 'valuation' | 'thesis', label, short, question,
+               reasons: [{ eventId, feed, text }] }]   // axes with no reason are absent
+impactLine: 'Could change the earnings assumption (Order in a filing; results filed) and the
+             valuation (up 6.5% at the close). Nothing tracked here bears on the thesis.'
+```
+
+`IMPACT_AXES` fixes the three questions and their order. `eventImpacts(event)` is pure and exported:
+it reads which question ONE event bears on, off structured facts the collectors already write, and
+never the answer:
+
+| trigger read from the event | bears on |
+| --- | --- |
+| a tracked keyword (`keywords` labels or `keywordIds`) on a news story or a filing — Order, Capex, Approval, Trial, Patent, Earnings, Commissioning, Product launch, JV, Partnership, Fire, Accident | earnings assumption |
+| Buyback, QIP, Preferential / Rights Issue, Stake sale, Brokerage research | valuation |
+| Fraud, Investigation, Lawsuit, Resignation, Corporate Governance, Default | thesis |
+| Merger, Acquisition; Downgrade | valuation **and** thesis |
+| a filing rule by its own name (`filingRule` from `announcementSignal`) — order award, approval or patent, commercial production start, contract cancellation | earnings assumption |
+| rating upgrade, shareholder distribution | valuation; rating downgrade also thesis |
+| default or insolvency, fraud or enforcement, auditor resignation | thesis |
+| a result filed (`earnings` feed); a con-call analysis graded off neutral (`concalls`, high) | earnings assumption |
+| a close moving past `MOVE_PCT` (`technicals`, `kind: 'move'`, high) | valuation |
+| a tracked holder's move, an insider trade, volume, a base break, chatter, an untracked story, a related-entity story, a below-threshold move | nothing |
+
+Four rules are contractual:
+
+1. **It is a reading of WHICH QUESTION, never an answer.** The line says *could change*; the suite
+   asserts it never contains *will* or *EPS*. A keyword is a topic (Lawsuit bears on the thesis on
+   either side of the suit), so the bullet names the question and the reader decides the answer.
+2. **Every leg keys on the owning feed's own published threshold** (`importance === 'high'`), the
+   same predicate the confluence patterns use — never a second threshold written here.
+3. **A holder's or insider's move bears on none of the three by itself.** It is somebody else's
+   decision, not a fact about the company's earnings, value or the reason to own it, and it is
+   already the first bullet's business. Measured before this rule, insider disclosures alone put 31
+   of 60 shipped cards under Thesis, which made the chip say nothing.
+4. **An absent trigger is stated, not implied.** The line always names the questions nothing
+   tracked bears on (*"Nothing tracked here bears on the thesis"*), and a card with no trigger at all
+   says so and tells the reader to read the evidence — *not tracked* and *no* are different answers.
+
+The tab offers the three questions as a second chip group, **Could change** (*Earnings · n*,
+*Valuation · n*, *Thesis · n*), independent of the priority band: one chip at a time, pressed again
+to clear, each count measured with the other group held fixed. An empty trigger view says it is a
+reading of tracked triggers, not a claim that nothing could change, and offers the way back.
+`impactParts` returns the same sentence as parts so the card can set the axis names in bold without
+a second wording; `impactLine` is those parts joined.
+
 ### Screener company Insights — authenticated capture, context only
 
 Screener's company `#insights` tables are captured because they contain source-backed operating
@@ -5096,12 +5156,31 @@ company history load automatically, with bounded concurrency and revision checks
 re-downloading unchanged archive files. NSE contributes up to 90 days of retained history without
 changing the history range selected in the separate NSE Filings tab. Failed reads retain rows.
 
-The page contains its heading and one searchable, newest-first table with export. It has no
-company/date lookup form, archive-load button, capture diagnostics, extra dropdown filters or
-second Watchlist filter. The global scope control chooses the companies. Older rows render as
-the reader scrolls; counts, search and export include all loaded records. Background arrivals
-preserve the reader's search, focus and scroll position. Source coverage, capture errors and
-unresolved company details remain available through the information link below the table.
+The page contains its heading, a **Show** row of filing-type switches, and one searchable,
+newest-first table with export. It has no company/date lookup form, archive-load button, capture
+diagnostics, extra dropdown filters or second Watchlist filter. The global scope control chooses
+the companies. Older rows render as the reader scrolls; counts, search and export include all
+loaded records. Background arrivals preserve the reader's search, focus and scroll position. Source
+coverage, capture errors and unresolved company details remain available through the information
+link below the table.
+
+**Corporate Announcements is one tab with two views** since 17 September 2026: *Announcements* (this
+stream, the default) and *Corporate Actions* (`js/tabs/corporate-actions.js`, the NSE + Screener
+calendar, unchanged inside). The shell aliases the retired `corporate-actions` tab id to the view.
+
+**Filing type — `js/data/announcement-types.js`.** Every merged row carries one derived type, read
+from BSE's sub-category or NSE's subject where that label says something, otherwise from the filing's
+subject line (and, for an NSE catch-all subject, its description); the first matching rule wins,
+BSE's category is the last resort, and a row no rule recognises is `other`. The reading returns
+`{ id, label, routine, from, text }` so the cell's tooltip and the export can name what was read.
+The Show row switches types on and off (OR across the switched-on types; search and the period
+filter then narrow), and its counts are for the selected period in the current scope, before
+search. The selection is device-local under `localStorage['sattva:announcement-types:v1']` as
+`{ hidden: [ids] }` — the set switched OFF, so a type added to the vocabulary later starts switched
+on, and an explicit empty set is kept apart from "never chose", which gets the default of
+`['routine']`. Switching a type off hides its rows from this view, its count and its export only:
+capture, retention, All Alerts and the provenance panel are untouched, the switched-off chip still
+prints its count, and the export's disclosure line names the types it excludes.
 
 ### Ask Research comparable activities and optional price history
 

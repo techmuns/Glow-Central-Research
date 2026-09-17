@@ -187,6 +187,11 @@ public/
                               different claims; see the section below
     tabs/                     ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
                               super-investors, news, corp-announcements, nse-filings, insider-trades
+      corp-announcements.js   CORP ANNOUNCEMENTS — ONE TAB, TWO VIEWS: Announcements (the stream) and
+                              Corporate Actions. Its Show row is a remembered multi-select over the
+                              filing TYPE (data/announcement-types.js); see the filing-type rule below
+      corporate-actions.js    the Corporate Actions VIEW — a sub-view, not a tab; its retired tab id
+                              `corporate-actions` is aliased to the view by LEGACY_TABS in ui/shell.js
       ai-alerts.js            ranked company insight cards, strongest evidence first
       daily-alerts.js         GENERAL ALERTS — one newest-first historical stream across the research
                               feeds, with direction + importance reasons and feed freshness
@@ -883,6 +888,33 @@ Everything else follows the rules this file already runs on, and four are worth 
    subtracting another, and the toolbar offers **no plan filter**: it could only answer with
    "direct" and an empty "regular".
 
+**ACTIVE / PASSIVE IS THE FIRST CONTROL IN THE TOOLBAR ON BOTH SUB-VIEWS, AHEAD OF THE
+CLASSIFICATION, AND IT IS THE ONE PLACE A SCHEME IS SHOWN SOMEWHERE OTHER THAN THE BUCKET ITS SOURCE
+CHOSE.** The owner's
+first cut is whether a scheme is run by a manager or tracks an index, because the two are not
+comparable on one table, and the source's own buckets do not draw it. Measured on the 16 September
+2026 feed: 19 direct-plan *Nifty Midcap 150* index funds and ETFs sat under `Equity : Mid Cap`
+beside 100 actively managed mid-cap funds, 13 more under `Small Cap`, seven under `Multi Cap`, and
+target-maturity index funds across seven debt buckets — every one ranked, by the source, against
+stock-pickers. Her own workbook files all of them under one Index & smart beta sheet. So
+`classifyLive(classification, name)` in `js/data/mf-taxonomy.js` reads the scheme's OWN NAME —
+SEBI requires a tracker to carry the index it tracks, the same fact `factorsOf` already rests on —
+and a name-stated tracker the source filed under an ACTIVE category is SHOWN under `Index & smart
+beta` (or `Exchange traded` for a listed unit), in a category labelled `Index · Mid Cap` whose id
+is the source's own with the kind appended, so it can never collide with the bucket it left.
+`management` is read off the GROUP (`PASSIVE_GROUPS`), so both feeds answer from one definition and
+the workbook's Smart Beta sheet is passive without a second table. Four things keep it honest, and
+the suite asserts each: **the source's own word wins where it gives one** (a scheme filed as `Index
+Funds` is passive on its say-so and is never re-filed, whatever its name says); **the source's
+classification stays on the row, in the search text and in the export**, and `refiled.from` names
+it; **the chip, the sub-line and the provenance panel say why the scheme moved**; and **its rank and
+category median are left as the source's own cohort** — a mid-cap index fund's `7/52` is still its
+rank among the source's mid-cap funds, active ones included, and every cell of such a row says so.
+The Active / Passive counts describe the whole feed and never move; the classification counts
+beneath describe the tree the cut leaves, because the cut sits above them. `Growth`-style option
+words and factor words such as *Value* are not passive signals: an actively managed value fund is
+active. `node scripts/verify-mf-taxonomy.mjs` is the offline test and needs no server.
+
 **AND "WHICH OF THESE ARE THE MOMENTUM FUNDS" IS A REAL QUESTION NEITHER SOURCE CAN ANSWER.**
 AmfiBeas file all 645 passive equity schemes as `Equity : Index`, `Equity : Index Funds` or
 `Equity : ETFs` and stop there; the workbook files all 70 of them as one Smart Beta sheet. So the
@@ -895,19 +927,35 @@ is untouched and the suite asserts it), a scheme matching nothing is **not in a 
 than in a nearest one, and `Growth` is deliberately **not** a factor — it is the option suffix on
 nearly every name in both feeds, so a pattern for it would match the universe and say nothing.
 
-Strategy-chip counts follow the current asset class, group, category, and search selections/text.
+Strategy counts follow the current asset class, group, category, and search selections/text.
 They exclude the strategy filter itself so other valid strategies remain available. An active
-strategy with no matches stays visible with a zero and can be cleared with Any; it must never
-keep a whole-feed count under Debt or disappear while still filtering the table. Even a single
-available strategy stays selectable.
+strategy with no matches stays listed with a zero and can be cleared; it must never keep a
+whole-feed count under Debt or disappear while still filtering the table. Even a single available
+strategy stays selectable.
+
+**THE FILTERS ARE ONE TOOLBAR OF FIXED-WIDTH SLOTS, AND NOTHING IN IT MOVES WHEN YOU USE IT.** They
+were four rows of chips — Active / Passive, Classification with the group chips appearing beside it
+once a class was pressed, a Category strip scrolling sideways behind two arrows, and Strategy — and
+the owner's complaint was the one *meta versus controls* already names: press a chip and the block
+reflows, chips appear where there were none, counts change width, the strip loses its place, and
+what you were reading is somewhere else. `filterToolbar()` in `js/tabs/mutual-funds.js` renders one
+row: the Active / Passive tray, then cascading `<select>`s for asset class, group, category and
+strategy, then the Show tray and a Clear button. Every slot is present all the time, each select is
+as wide as its slot rather than its longest option, and Clear is rendered `invisible` rather than
+omitted, so the suite can assert that every slot's box is identical before and after a choice. Each
+dropdown lists what the ones to its left leave, and each also works alone: with no class chosen the
+Group and Category lists show every option under a heading per class, and picking one fills the
+dropdowns to its left so the path reads left to right. The four categories the owner's workbook
+leads with still come first within their heading, and nothing is merged. The workbook sub-view uses
+the same toolbar without the Category and Strategy slots, because there the category is the row.
 
 **THE CLASSIFICATION TREE GOES THREE LEVELS DEEP ON ALL SCHEMES AND TWO ON CATEGORY PERFORMANCE**,
-because there the third level **is** the row: a chip per category above a table of categories is the
-same control twice. All Schemes offers a separate, single-line **Category** row immediately, without
-requiring a group first. Small Cap, Mid Cap, Flexi Cap, and Large Cap lead the live choices; remaining
-categories retain the source's labels, with the asset class shown for duplicate labels. The row
-scrolls on narrow screens, retains the selected chip through repaints, and narrows with the chosen
-classification/group. Category selection filters the same rows used by search, counts, and export.
+because there the third level **is** the row: a category control above a table of categories is the
+same control twice. All Schemes offers the **Category** dropdown immediately, without requiring a
+group first. Small Cap, Mid Cap, Flexi Cap, and Large Cap lead the live choices within their heading;
+remaining categories retain the source's labels, told apart by their class · group heading. The
+dropdown narrows with the chosen classification/group, keeps its choice through repaints, and
+category selection filters the same rows used by search, counts, and export.
 Exchange-traded funds are their own group rather than a corner of `Index & smart beta`, because
 listed-versus-open-ended is a distinction the source draws and because 25 gold ETFs under a heading
 about equity factor strategies is a heading that is simply wrong. A bare head with no tail (`Debt`,
@@ -1278,6 +1326,50 @@ column's: `rowSub` already prints the sub-category under every subject, so the c
 copy of it. The sub-category keeps its own filter and its place in the export. **The strict
 "names the company" filter option is dropped here** — a BSE filing *is* the company's own
 statement, so the question does not arise.
+
+### ROUTINE FILINGS ARE SWITCHED OFF BY DEFAULT, AND THE SWITCH IS VISIBLE — the filing-type rule
+
+Corp Announcements carries a great deal nobody at the desk acts on, and the desk said so in its own
+words: *"somebody has lost their physical shares, so the company has to upload a document saying
+that we have been converting physical shares into demat"*. Measured on the shipped captures
+(17 September 2026): of 5,251 retained filings, **981 are newspaper copies** of filings already
+made, **436 are mutual-fund NAV declarations**, and the certificate-loss and demat notices sit inside
+BSE's catch-all `General` sub-category — which is why a sub-category filter alone could never remove
+them. **1,542 rows (29%) are routine**, and every one of them was in front of the reader.
+
+So `js/data/announcement-types.js` reads ONE TYPE per filing and the Announcements view offers the
+types as a **multi-select the reader switches on and off, remembered on this device**, with
+*Routine & administrative* switched off until somebody switches it on. Five rules hold it up, and
+each is a rule this file already runs on:
+
+1. **The label is READ, not judged.** It comes from the exchange's own sub-category (BSE) or subject
+   (NSE) where that says something, and only then from the filing's subject line — never from the
+   document, which is never opened. `announcementTypeOf()` returns `from` and `text`, and the cell's
+   tooltip prints them: *"Read from the exchange's own sub-category: Newspaper Publication."* It is
+   the Topic column's rule (a word in a headline, not a verified event) applied to a second axis.
+2. **First rule wins, and the order is part of the definition.** A newspaper copy of a results
+   advertisement is routine before it is a result. The list in that file IS the order; a new type
+   goes in at the position that makes its collisions resolve the right way, and the offline test
+   asserts the collisions that were checked.
+3. **A filing no rule recognises is `other`, never a nearest guess.** `General`, `Updates` and
+   *"Please find attached"* say nothing, so they stay under *Other updates* — and that type is
+   never hidden by default, because "unclassified" is not "unimportant".
+4. **The hiding is visible.** A switched-off chip still prints its count for the selected period,
+   the note beside the chips says how many rows the selection hides, Reset appears whenever the
+   selection is not the default, and row 1 of the export names the types it excludes. A control
+   that makes rows disappear with nothing on screen saying so is indistinguishable from a broken
+   feed — the same rule as AI Alerts' archive.
+5. **It is a TABLE filter, drawn by the tab.** The type predicate is the second entry in the table's
+   `filters`, marked `hidden` so the kit draws no `<select>` for it; the chip row is its control and
+   re-applies it by dispatching `change` on the hidden slot. That is what lets search, the count
+   label, the empty message and the export all read one predicate — two predicates over the same
+   question is the pattern this file keeps having to un-write.
+
+**What is stored is the set switched OFF** (`sattva:announcement-types:v1`, `{ hidden: [...] }`),
+not the set switched on: a type added to the vocabulary later then appears switched on rather than
+silently hidden by a stale saved list, and an explicit empty set ("show everything") is kept apart
+from "never chose", which gets the default. **This is a display default, not a collection or
+deletion rule**: capture, retention, All Alerts and the provenance panel read none of it.
 
 ### AN EXPLANATION WITH NO DOOR IS WORSE THAN NO EXPLANATION — where provenance is reached from
 
@@ -2782,6 +2874,31 @@ as `data-priority` and in the filter chips. And the pattern block is now a row o
 pattern, not a panel restating their sentences — it still sits above the evidence, because the
 finding is read before its workings, and it still prints no score.
 
+### TWO BULLETS PER COMPANY, AND THE THREE TRIGGERS AS FILTERS — `impactOf()`
+
+The desk's brief (17 September 2026): *"three triggers — will it change the earnings assumption,
+will it change the valuation, will it make or break the thesis. Two bullets for each company: what
+has happened, and will it change those three."* Every card now carries exactly those two bullets.
+The first is `plainInsight`, unchanged. The second is `impactLine`, and the whole of its honesty is
+in the verb: **it says *could change*, never *will*, and it names the QUESTION an event bears on,
+never the answer** — no field in any feed here carries an analyst's judgement, and this dashboard
+does not invent one. `eventImpacts(event)` reads the question off structured facts the collectors
+already write: a tracked keyword's family (an order win is an earnings question, a buyback a
+valuation one, a fraud probe a thesis one), a filing rule's own name (`filingRule`, now returned by
+`announcementSignal`), a result filed, a close past `MOVE_PCT`, a holder's move past its feed's own
+bar. Four rules, all already in this file: **no new fact**; **each leg keys on the owning feed's
+published threshold** (`importance === 'high'`, the confluence predicate); **a holder's or an
+insider's move bears on none of the three by itself** — it is somebody else's decision and already
+the first bullet's business, and measured on the shipped capture insider disclosures alone had put
+31 of 60 cards under Thesis; **volume bears on nothing**. And an
+absence is stated in words — *"Nothing tracked here bears on the thesis"* — because *not tracked* and
+*no* are different answers. The three questions are a second chip group beside the priority chips,
+**Could change** · *Earnings · n* · *Valuation · n* · *Thesis · n*: one pressed at a time, pressed
+again to clear, each count measured with the other group held fixed (the technical-filter rule), and
+an empty trigger view says it is a reading of tracked triggers rather than a claim that nothing could
+change. The mapping is one table (`IMPACT_BY_KEYWORD`, `IMPACT_BY_FILING_RULE`); a keyword absent
+from it bears on nothing rather than on a nearest guess.
+
 ### ARCHIVING IS A PLACE, NOT A DELETION — `js/core/ai-mute.js`
 
 A card can be archived once it has been read. **A control that makes a card disappear with nothing
@@ -3811,7 +3928,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Refresh the calendar capture | `node scripts/scrape-calendar.mjs` (`CAL_BACK`/`CAL_AHEAD` to widen) |
 | Change the chatter feed | `js/data/chatter-live.js` + `js/data/sentiment-shared.js` — the browser calls it DIRECTLY and must; read *There is no `/api/chatter`* in `docs/DATA-CONTRACTS.md` before adding a proxy. `changePct` there is mention volume, not price |
 | Change News or Insider | `worker/muns.mjs` + `js/data/filings-shared.js`, then the routes in `worker/index.js` — read *Three feeds whose SHAPE is not ours to pin* first |
-| Change Corporate Announcements | Keep the exchange-wide base in `worker/bse-ann.mjs` + `scripts/scrape-bse-announcements.mjs`. Additional user-requested company/date lookups use `worker/muns.mjs` + `js/data/announcements-extra.js`; they merge with the table and never replace the base capture or claim universe coverage. |
+| Change Corporate Announcements | Keep the exchange-wide base in `worker/bse-ann.mjs` + `scripts/scrape-bse-announcements.mjs`. Additional user-requested company/date lookups use `worker/muns.mjs` + `js/data/announcements-extra.js`; they merge with the table and never replace the base capture or claim universe coverage. The tab is `js/tabs/corp-announcements.js` with two views; Corporate Actions is `js/tabs/corporate-actions.js` underneath it |
+| Change which filings count as routine, or add a filing type | `ANNOUNCEMENT_TYPES` + `RE` in `public/js/data/announcement-types.js` — read *Routine filings are switched off by default* first. The order is the definition, a new type starts switched ON on every device, and `node scripts/verify-announcement-types.mjs` asserts the collisions |
 | Change the NSE live announcements feed | `worker/nse-ann.mjs` (pure parser + name->symbol resolver, shared) + `handleNseAnnouncements` in `worker/index.js` (live route, edge-cached) + `js/data/nse-filings.js` (browser) + `js/tabs/nse-filings.js` (the scoped table). The browser CANNOT read NSE (CORS null), so it must proxy through the Worker; a full desktop user-agent is required or Akamai 430s it. Resolve by NAME — the filename prefix is only 31% reliable |
 | Refresh the NSE snapshot fallback | `node scripts/scrape-nse-announcements.mjs` — reads NSE directly (no token), resolves, commits `public/data/nse-announcements.json`. The live route is the primary read; this is the floor beneath it |
 | Change how an NSE XBRL filing is READ, or which URLs may be fetched for one | `public/js/data/nse-xbrl-shared.js` (the pure parser + the `src` allow-list, imported by the Worker too) + `handleNseFiling` in `worker/index.js` (`GET /api/nse-filing`) + `public/js/ui/xbrl-filing.js` (the panel and the one delegated click listener, installed from `app.js`). About one NSE announcement in eleven is a raw XBRL file with no readable twin — read *An XBRL filing is a document* in `docs/DATA-CONTRACTS.md` first. A fact is an element with a `contextRef`, a repeated section is a context, values travel verbatim, `row.url` keeps NSE's own address, and a modified click still gets the raw file. `node scripts/verify-nse-xbrl.mjs` and `scripts/verify-nse-xbrl-ui.mjs` are the tests |

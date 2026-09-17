@@ -22,6 +22,7 @@ import * as screenerInsights from './screener-insights.js';
 import * as technicals from './technicals.js';
 import { enrichCardFromAllAlerts, indexAlertContext } from './intelligence-graph.js';
 import { canonicalArticleUrl } from './filings-shared.js';
+import { KEYWORDS } from './news-keywords.js';
 import { getHostContext } from '../core/host-context.js';
 import { AI_ALERT_WINDOW_DAYS as WINDOW_DAYS } from '../core/alert-window.js';
 export { AI_ALERT_WINDOW_DAYS as WINDOW_DAYS } from '../core/alert-window.js';
@@ -641,6 +642,169 @@ export function cardBadge(card) {
   return { id: 'important', label: 'Important', tone: 'neutral' };
 }
 
+// ---------------------------------------------------------------------------------------
+// THE TWO-BULLET READING — WHAT HAPPENED, AND COULD IT CHANGE THE EARNINGS ASSUMPTION, THE
+// VALUATION OR THE THESIS
+//
+// The desk's brief (17 September 2026): "there are three triggers here. One is, will it change the
+// earnings assumption? Second is, will it change the valuation? And third is whether it will make or
+// break the thesis which we have… we should have two bullet points. One bullet is basically what
+// has happened. And second is, will it change the three things?"
+//
+// The first bullet already exists — `plainInsight` is what happened, in ordinary English. This is
+// the second, and the whole difficulty is the verb. "Will it change the EPS" is an analyst's
+// judgement and no field in any feed here carries one, so this layer never answers it. What it CAN
+// answer deterministically is WHICH of the three questions an event bears on, read off structured
+// facts the collectors already wrote: a tracked keyword's family (an order win is an earnings
+// question, a buyback a valuation one, a fraud probe a thesis one), a filing rule's own name, a
+// result being filed, a close moving past the feed's own threshold, a big holder's move past the
+// feed's own threshold. So the bullet says "could change", names the trigger it read, and says in
+// words which of the three nothing here bears on — because "not tracked" and "no" are different
+// answers, and the reader is owed the first.
+//
+// FOUR RULES, ALL ALREADY IN THIS FILE:
+// 1. NO NEW FACT. Every reason names an event already on the card, by its keyword, its rule or its
+//    own figure. A keyword is a TOPIC (news-keywords.js, rule 1): "Lawsuit" bears on the thesis
+//    whichever side the company is on, and the bullet says which QUESTION, never which answer.
+// 2. EACH LEG KEYS ON THE OWNING FEED'S OWN THRESHOLD. A price move counts only past MOVE_PCT, an
+//    investor or insider move only past its feed's published bar — `importance === 'high'`, the
+//    same predicate the confluence layer uses, not a second one written here.
+// 3. A HOLDER'S MOVE BEARS ON NONE OF THE THREE BY ITSELF. A tracked investor cutting a stake or an
+//    insider selling is information about what somebody else did, not about the company's earnings,
+//    its value or the reason to own it; it is already the first bullet's business ("Heavy trading,
+//    and a big holder has been selling"). Measured on the shipped capture before this rule: insider
+//    disclosures alone put 31 of 60 cards under Thesis, which made that chip say nothing.
+// 4. VOLUME BEARS ON NOTHING. Participation has no sign and no price, so on its own it changes no
+//    assumption, valuation or thesis — the same reason `cardMetrics` gives it no tone.
+
+/** The three questions the desk asks of every piece of news, in the order it asks them. */
+export const IMPACT_AXES = [
+  { id: 'earnings', label: 'Earnings assumption', short: 'Earnings', question: 'Could it change the earnings assumption?' },
+  { id: 'valuation', label: 'Valuation', short: 'Valuation', question: 'Could it change the valuation?' },
+  { id: 'thesis', label: 'Thesis', short: 'Thesis', question: 'Could it make or break the thesis?' },
+];
+
+// Which question each tracked keyword bears on, by the keyword's id. A topic maps to a QUESTION,
+// not to an answer: "Approval" is an earnings question whether the approval was granted to this
+// company or to a rival, and the reader decides which. Keywords absent here (none today) bear on
+// nothing rather than on a nearest guess.
+const IMPACT_BY_KEYWORD = {
+  'capacity-expansion': ['earnings'], capex: ['earnings'], order: ['earnings'], orderbook: ['earnings'],
+  'receipt-of-order': ['earnings'], 'product-launch': ['earnings'], commissioning: ['earnings'],
+  'joint-venture': ['earnings'], partnership: ['earnings'],
+  'stake-sale': ['valuation'], merger: ['valuation', 'thesis'], acquisition: ['valuation', 'thesis'],
+  patent: ['earnings'], approval: ['earnings'], trial: ['earnings'],
+  earnings: ['earnings'],
+  qip: ['valuation'], 'qualified-institutional-placement': ['valuation'], 'preferential-issue': ['valuation'],
+  'rights-issue': ['valuation'], buyback: ['valuation'],
+  'corporate-governance': ['thesis'], fraud: ['thesis'], lawsuit: ['thesis'], resignation: ['thesis'],
+  investigation: ['thesis'], default: ['thesis'], downgrade: ['valuation', 'thesis'],
+  fire: ['earnings'], accident: ['earnings'],
+  'brokerage-research': ['valuation'],
+};
+
+// The directional filing rules in filing-signals.js, by the name each rule reports itself under.
+const IMPACT_BY_FILING_RULE = {
+  'rating downgrade': ['valuation', 'thesis'],
+  'default or insolvency': ['thesis'],
+  'fraud or enforcement action': ['thesis'],
+  'contract cancellation or suspension': ['earnings'],
+  'auditor resignation': ['thesis'],
+  'rating upgrade': ['valuation'],
+  'shareholder distribution': ['valuation'],
+  'order or contract award': ['earnings'],
+  'regulatory approval or patent grant': ['earnings'],
+  'commercial production start': ['earnings'],
+};
+
+// Events carry keyword LABELS (`keywords`) and, on newer rows, ids (`keywordIds`). The label is the
+// desk's own word and is unique in the vocabulary, so it resolves to the id without guessing.
+const KEYWORD_ID_BY_LABEL = new Map(KEYWORDS.map((k) => [k.label.toLowerCase(), k.id]));
+const keywordIdsOf = (event) => {
+  const ids = Array.isArray(event.keywordIds) ? event.keywordIds : [];
+  const fromLabels = (Array.isArray(event.keywords) ? event.keywords : []).map((label) => KEYWORD_ID_BY_LABEL.get(String(label).toLowerCase())).filter(Boolean);
+  return [...new Set([...ids, ...fromLabels])];
+};
+const keywordLabel = (id) => KEYWORDS.find((k) => k.id === id)?.label || id;
+
+/**
+ * The questions ONE event bears on, each with the trigger it was read from.
+ *
+ * Pure and exported so every branch is testable on a fixture: a day's capture rarely holds a
+ * buyback, a rating cut and a base breakout on one company.
+ */
+export function eventImpacts(event) {
+  if (!event || event.aiEligible === false || isRelatedNewsContext(event)) return [];
+  const out = [];
+  const add = (axis, text) => {
+    if (!out.some((hit) => hit.axis === axis && hit.text === text)) out.push({ axis, text });
+  };
+  const family = feedFamily(event);
+  if (event.feed === 'earnings') add('earnings', 'results filed');
+  if (event.feed === 'concalls' && event.importance === 'high') add('earnings', 'the con-call analysis read off neutral');
+  if (event.feed === 'technicals' && event.kind === 'move' && event.importance === 'high') {
+    const fact = shortFact(event);
+    if (fact) add('valuation', fact);
+  }
+  if (family === 'news' || family === 'announcements') {
+    const noun = family === 'news' ? 'in the news' : 'in a filing';
+    for (const id of keywordIdsOf(event)) {
+      for (const axis of IMPACT_BY_KEYWORD[id] || []) add(axis, `${keywordLabel(id)} ${noun}`);
+    }
+    const rule = event.filingRule && IMPACT_BY_FILING_RULE[String(event.filingRule).toLowerCase()];
+    for (const axis of rule || []) add(axis, `${event.filingRule} in a filing`);
+  }
+  return out;
+}
+
+/**
+ * The questions a card's events bear on, in the desk's order, each with every distinct reason.
+ *
+ * An axis with no reason is absent, never present-and-empty, so a consumer can count it; the
+ * sentence below still names the absent ones in words.
+ */
+export function impactOf(events = []) {
+  const byAxis = new Map(IMPACT_AXES.map((axis) => [axis.id, []]));
+  for (const event of events) {
+    for (const hit of eventImpacts(event)) {
+      const reasons = byAxis.get(hit.axis);
+      if (!reasons.some((reason) => reason.text === hit.text)) reasons.push({ eventId: event.id ?? null, feed: event.feed, text: hit.text });
+    }
+  }
+  return IMPACT_AXES.filter((axis) => byAxis.get(axis.id).length).map((axis) =>
+    ({ axis: axis.id, label: axis.label, short: axis.short, question: axis.question, reasons: byAxis.get(axis.id) }));
+}
+
+const listWords = (items) => items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+
+/**
+ * The second bullet as parts, so a renderer can set the axis names apart without a second wording.
+ * `{ kind: 'axis' }` parts are the question names; everything else is prose. `impactLine` is the
+ * same sentence flattened.
+ */
+export function impactParts(impacts = []) {
+  const missing = IMPACT_AXES.filter((axis) => !impacts.some((hit) => hit.axis === axis.id)).map((axis) => axis.label.toLowerCase());
+  if (!impacts.length) {
+    return [{ kind: 'text', text: 'Nothing here is a tracked trigger for the earnings assumption, the valuation or the thesis. Read the evidence before deciding.' }];
+  }
+  const parts = [{ kind: 'text', text: 'Could change ' }];
+  impacts.forEach((hit, i) => {
+    if (i > 0) parts.push({ kind: 'text', text: i === impacts.length - 1 ? ' and ' : ', ' });
+    parts.push({ kind: 'axis', axis: hit.axis, text: `the ${hit.label.toLowerCase()}` });
+    const reasons = hit.reasons.slice(0, 2).map((reason) => reason.text);
+    const more = hit.reasons.length - reasons.length;
+    parts.push({ kind: 'text', text: ` (${reasons.join('; ')}${more > 0 ? `; +${more} more` : ''})` });
+  });
+  parts.push({ kind: 'text', text: '.' });
+  if (missing.length) parts.push({ kind: 'text', text: ` Nothing tracked here bears on the ${listWords(missing)}.` });
+  return parts;
+}
+
+/** The second bullet, flat: "Could change the earnings assumption (…) and the valuation (…). …" */
+export function impactLine(impacts = []) {
+  return impactParts(impacts).map((part) => part.text).join('');
+}
+
 function directionSummary(events) {
   const count = { positive: 0, negative: 0, neutral: 0 };
   for (const event of events) count[event.direction] = (count[event.direction] || 0) + 1;
@@ -823,6 +987,10 @@ export function rankReport(report, { holdings = coverage.holdings(), positionSiz
     }
     card.priority = card.score >= MUST_SEE_SCORE ? 'must-see' : card.score >= MIN_SCORE || card.materialPortfolioEvent ? 'important' : 'watch';
     card.insight = plainInsight(card);
+    // The second bullet. `eventImpacts` excludes related-entity context and ineligible rows itself,
+    // so the card's whole event list is the right input — the same list the evidence rows draw.
+    card.impacts = impactOf(card.events);
+    card.impactLine = impactLine(card.impacts);
     card.metrics = cardMetrics(card);
     card.badge = cardBadge(card);
     return enrichCardFromAllAlerts(card, supportedReport, { contextIndex });
