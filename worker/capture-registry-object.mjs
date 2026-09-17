@@ -5,6 +5,8 @@ import { ConcallSummarySchedule } from './concall-summary-schedule.mjs';
 import { SharedWatchlistStore } from './watchlist-store.mjs';
 import { BreakoutStore } from './breakout-store.mjs';
 import { BreakoutSchedule } from './breakout-schedule.mjs';
+import { NewsletterStore } from './newsletter-store.mjs';
+import { NewsletterSchedule, NEWSLETTER_TIMER_KEY } from './newsletter-schedule.mjs';
 import { CAPTURE_REGISTRY_LIMIT, CAPTURE_REGISTRATION_BATCH, registeredCompany } from '../public/js/data/capture-registration-shared.js';
 
 // Each shard coordinates one bounded set of issuer registrations. No reader identity is stored.
@@ -22,6 +24,10 @@ export class CaptureRegistry extends DurableObject {
     this.watchlist = new SharedWatchlistStore(ctx.storage);
     this.breakouts = new BreakoutStore(ctx.storage);
     this.breakoutSchedule = new BreakoutSchedule(ctx.storage, env);
+    // The team brief lives in its own fixed object (team-brief:v1): subscribers and the delivery
+    // log in SQLite, the send timer in KV, and the alarm below is what actually emails the desk.
+    this.newsletter = new NewsletterStore(ctx.storage);
+    this.newsletterSchedule = new NewsletterSchedule(ctx.storage, env, this.newsletter);
     this.ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS companies (isin TEXT PRIMARY KEY, ticker TEXT NOT NULL, name TEXT NOT NULL)');
   }
   status() { return this.schedule.status(); }
@@ -44,8 +50,20 @@ export class CaptureRegistry extends DurableObject {
   breakoutRead() { return this.breakouts.read(); }
   breakoutHistory(ticker, before) { return this.breakouts.history(ticker, before); }
   breakoutScheduleStatus() { return this.breakoutSchedule.status(); }
+  newsletterSnapshot() { return this.newsletter.snapshot(); }
+  async newsletterStatus() { await this.newsletterSchedule.arm(); return this.newsletterSchedule.status(); }
+  async newsletterApply({ intents = null, settings = null } = {}) {
+    const out = { outcomes: [], settingsChanged: false };
+    if (settings) out.settingsChanged = this.newsletter.setSettings(settings).changed;
+    if (intents) out.outcomes = this.newsletter.apply(intents).outcomes;
+    await this.newsletterSchedule.arm();
+    return { ...out, snapshot: this.newsletter.snapshot(), schedule: await this.newsletterSchedule.status() };
+  }
+  newsletterSend(input, token) { return this.newsletterSchedule.sendNow(input, token); }
+  newsletterPreview(input) { return this.newsletterSchedule.preview(input); }
   async alarm() {
-    if (await this.ctx.storage.get('breakout-timer')) await this.breakoutSchedule.wake();
+    if (await this.ctx.storage.get(NEWSLETTER_TIMER_KEY)) await this.newsletterSchedule.wake();
+    else if (await this.ctx.storage.get('breakout-timer')) await this.breakoutSchedule.wake();
     else if (await this.ctx.storage.get('summary-timer')) await this.summarySchedule.wake();
     else await this.schedule.request('cron');
   }
