@@ -5156,8 +5156,9 @@ company history load automatically, with bounded concurrency and revision checks
 re-downloading unchanged archive files. NSE contributes up to 90 days of retained history without
 changing the history range selected in the separate NSE Filings tab. Failed reads retain rows.
 
-The page contains its heading, a **Show** row of filing-type switches, and one searchable,
-newest-first table with export. It has no company/date lookup form, archive-load button, capture
+The page contains its one-row heading (title, the switch between the two views, the status label),
+and one searchable, newest-first table with export whose filter row carries the period dropdown and
+the **Filing types** control. It has no company/date lookup form, archive-load button, capture
 diagnostics, extra dropdown filters or second Watchlist filter. The global scope control chooses
 the companies. Older rows render as the reader scrolls; counts, search and export include all
 loaded records. Background arrivals preserve the reader's search, focus and scroll position. Source
@@ -5166,16 +5167,18 @@ link below the table.
 
 **Corporate Announcements is one tab with two views** since 17 September 2026: *Announcements* (this
 stream, the default) and *Corporate Actions* (`js/tabs/corporate-actions.js`, the NSE + Screener
-calendar, unchanged inside). The shell aliases the retired `corporate-actions` tab id to the view.
+calendar, unchanged inside), switched on the title row (`subviewPicker: 'inline'`; the shell draws no
+picker card for this tab). The shell aliases the retired `corporate-actions` tab id to the view.
 
 **Filing type — `js/data/announcement-types.js`.** Every merged row carries one derived type, read
 from BSE's sub-category or NSE's subject where that label says something, otherwise from the filing's
 subject line (and, for an NSE catch-all subject, its description); the first matching rule wins,
 BSE's category is the last resort, and a row no rule recognises is `other`. The reading returns
 `{ id, label, routine, from, text }` so the cell's tooltip and the export can name what was read.
-The Show row switches types on and off (OR across the switched-on types; search and the period
-filter then narrow), and its counts are for the selected period in the current scope, before
-search. The selection is device-local under `localStorage['sattva:announcement-types:v1']` as
+The Filing types control — one slot in the table's filter row, a checklist behind it — switches
+types on and off (OR across the switched-on types; search and the period filter then narrow); its
+face states the selection and how many rows it hides, and the checklist's counts are for the
+selected period in the current scope, before search. The selection is device-local under `localStorage['sattva:announcement-types:v1']` as
 `{ hidden: [ids] }` — the set switched OFF, so a type added to the vocabulary later starts switched
 on, and an explicit empty set is kept apart from "never chose", which gets the default of
 `['routine']`. Switching a type off hides its rows from this view, its count and its export only:

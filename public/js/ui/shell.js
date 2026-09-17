@@ -395,10 +395,13 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
     title: `Switch between ${tabModule.meta.title} views`,
   });
 
-  const hasSubviews = subviewItems.length > 0;
-  const subviewMount = $('#subview-mount', root);
   // A tab with `subviews: []` has nothing to pick, so the row goes entirely rather than
-  // rendering an empty control — same rule the rail followed.
+  // rendering an empty control — same rule the rail followed. A tab declaring
+  // `subviewPicker: 'inline'` keeps its sub-views ROUTED (the URL segment, the fallback to the
+  // first view, the legacy aliases above) and draws the switch itself, in its own title row: on a
+  // tab whose point is the table, this card was ~70px spent on a choice between two words.
+  const hasSubviews = subviewItems.length > 0 && tabModule.meta.subviewPicker !== 'inline';
+  const subviewMount = $('#subview-mount', root);
   subviewMount.classList.toggle('hidden', !hasSubviews);
   if (!hasSubviews) {
     subviewMount.innerHTML = '';
