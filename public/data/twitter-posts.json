@@ -1,10 +1,511 @@
 {
   "note": "Posts captured from the handles in twitter-handles.json, written by scripts/scrape-twitter.py. Empty until a run has read at least one account. A handle that could not be read is listed under failed with a reason — never as an account with no posts.",
-  "capturedAt": "2026-09-16T18:13:59+00:00",
+  "capturedAt": "2026-09-17T09:02:01+00:00",
   "handles": [
     "moneycontrolcom"
   ],
   "posts": [
+    {
+      "tweet_id": "2100510372268753162",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCPodcast\nMC Exclusive: Chris Wood decodes Fed Rate hike, bond yields &amp; West Asia crisis\n@N_Mahalakshmi_   \n https://t.co/MLMbioiAUY",
+      "created_at": "2026-09-17T09:01:13+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100510372268753162",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100509098769080544",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "SEBI to look into concerns over new UPI charges: Tuhin Kanta Pandey\n\n-SEBI to review UPI MDR concerns.\n-Brokers, MFs raise issues on new charges.\n-New 0.02% MDR on capital market UPI from Oct 15.\n\nRead More:\nhttps://t.co/Z9h74FSbI3",
+      "created_at": "2026-09-17T08:56:09+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100509098769080544",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100508474249793639",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#AIWithMC | Early-stage AI deal activity at an all-time high: Activate founder Aakrit Vaish\n\nThe fund's first close marks another step-up in investor appetite for AI in India, as capital increasingly flows towards companies building foundational technology, infrastructure and applications around the AI stack, he told Moneycontrol.\n\n@Goenka_Tushar1 and @chandrarsrikant bring in details:\nhttps://t.co/ukPgEvrMD9",
+      "created_at": "2026-09-17T08:53:40+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100508474249793639",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100499803000217761",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "The biggest risk in a volatile market may not be volatility itself.\n\nIt’s reacting emotionally to it.\n\nBuy when markets rise. Exit when they fall. Repeat.\n\nWhat if, instead, you had a framework designed to respond, not predict?\n\n@deepakshenoy , MD & CEO, Capitalmind Mutual Fund (SEBI Reg. No.: MF/084/25/10), explains Capitalmind’s approach to volatility in Respond. Don’t Predict, in association with Moneycontrol.\n\nhttps://t.co/obUlosAvJi\n\nMutual Fund investments are subject to market risks, read all scheme-related documents carefully.\n\n#RespondDontPredict #EvidenceLedInvesting #Partnered | @CapitalmindMF",
+      "created_at": "2026-09-17T08:19:13+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100499803000217761",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100499717885239649",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#Business | Tata Motors to hike commercial vehicle prices by up to 1% from October 1\n\n-Tata Motors CV prices to rise up to 1%.\n- Effective October 1, 2026.\n- Due to higher commodity and input costs.\n\nRead More:\nhttps://t.co/xXvBqKiLwj",
+      "created_at": "2026-09-17T08:18:52+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100499717885239649",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100497443289002260",
+      "handle": "JNILindia",
+      "display_name": "Jayaswal Neco Industries Ltd",
+      "text": "Team JNIL extends its warm wishes on the auspicious occasion of Vishwakarma Puja.\n\nMay the blessings of Lord Vishwakarma inspire us to uphold excellence, strengthen our endeavours, and move forward with purpose.\n\nWishing everyone a prosperous Vishwakarma Puja. https://t.co/Rjqthu4I2r",
+      "created_at": "2026-09-17T08:09:50+00:00",
+      "url": "https://x.com/JNILindia/status/2100497443289002260",
+      "image": "https://pbs.twimg.com/media/HSZ3SfnbIAAT-hw.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Jayaswal Neco Industries\""
+        },
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Jayaswal Neco\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100497401027178511",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MarketsWithMC | SEBI’s broker capital overhaul divides small and big brokers; industry questions risk metrics, net-worth rules\n\n-SEBI may reconsider broker net worth framework.\n-Proposal faced strong opposition from brokers.\n-Debate on net worth definition and calculation\n\n@BrajeshKMJi reports: \nhttps://t.co/HkPUxglHhC",
+      "created_at": "2026-09-17T08:09:40+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100497401027178511",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100497115638292942",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "India’s US Treasury purchases hit record $15.2 billion as RBI dollar inflows surge\n\nIndia’s net purchases of US Treasuries surged to a record $15.2 billion in July as RBI-backed overseas inflows boosted foreign-exchange reserves.\n\nRead More:\nhttps://t.co/Z7hrUtI4k9",
+      "created_at": "2026-09-17T08:08:32+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100497115638292942",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100496929356681376",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "SEBI says deeper capital markets key to funding India's infrastructure push\n\n-India needs capital markets for infra financing.\n-Equity, bonds, AIFs, REITs, InvITs are key.\n-SEBI aims to deepen securities market for infra.\n\nRead More:\nhttps://t.co/NgCxefAPrX",
+      "created_at": "2026-09-17T08:07:47+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100496929356681376",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100496102248120747",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#Business | Amazon Pay India looks beyond UPI market share to drive next growth phase, CEO says\n\n- Amazon Pay shifts focus from UPI to digital credit.\n- Digital credit drives growth, targets new customers.\n- Expanding credit services beyond Amazon's platform.\n\n@archishmaaa with more details\nhttps://t.co/HQFjb65tOE",
+      "created_at": "2026-09-17T08:04:30+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100496102248120747",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100494398488543591",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MarketsWithMC | Abakkus’ playbook in focus: Seven years without an IT large cap holding and other exceptions\n\n- Abakkus Asset Management may list by Jan 2027.\n- Manages Rs 50,000 crore across various funds.\n- Uses un-benchmarked portfolios; avoids index laggards.\n\nRead More:\nhttps://t.co/3OfGlZ3ABA",
+      "created_at": "2026-09-17T07:57:44+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100494398488543591",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100491109872828823",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCPersonalFinance | West Bengal Annapurna Yojana: Rs 3,000 September installment released; check eligibility and payment status\n\n- West Bengal distributes Sept Annapurna Yojana benefits.\n- Scheme provides Rs 3,000 monthly to eligible women.\n- Launched June 1, 2026, for women aged 25-60.\n\n@Dipen_Journals with more details\nhttps://t.co/iKyDzoeXfk",
+      "created_at": "2026-09-17T07:44:40+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100491109872828823",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100490127198113799",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCExclusive | FSSAI targets D2C supplements, kitchen staples in widened labelling crackdown on Dabur\n\n- FSSAI expands labeling crackdown on Dabur India.\n- 27 Dabur product lines audited for health claims.\n- FSSAI demands scientific proof for health benefits.\n\n@Aishwaryajourno & @aksharatweets with more details\nhttps://t.co/U1xzk70LGH",
+      "created_at": "2026-09-17T07:40:46+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100490127198113799",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100488934006702263",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCExclusive | Infineon CEO sees India opportunity in power, AI data centres as semiconductor ecosystem expands\n\n- Infineon eyes India's power infrastructure, AI data centers.\n- Infineon expanding its presence in India.\n- Acquired C2i Semiconductors for AI data centers.\n\n@AihikS with more details\nhttps://t.co/tPxUDphYIe",
+      "created_at": "2026-09-17T07:36:01+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100488934006702263",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100487553136861398",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#Business | Happiest Minds’ 11% valuation premium comes with a $1 billion growth test\n\n- Happiest Minds merges with ITC Infotech.\n- Shareholders got 11% premium in merger.\n- Combined entity targets $1 billion revenue by FY28.\n\n@shaw_reshab with more details\nhttps://t.co/aBnUvZmAYj",
+      "created_at": "2026-09-17T07:30:32+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100487553136861398",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100485922332770636",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCExclusive | 🚨 ASML sees scope to build India’s semiconductor supplier base as fabs take shape\n\n-India must adapt industries for chip supply.\n-ASML supports Tata Electronics' 300mm fab.\n-ASML evaluates India's supplier landscape.\n\n@AihikS reports: \nhttps://t.co/gylQ3KO02W",
+      "created_at": "2026-09-17T07:24:03+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100485922332770636",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100485493259632810",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "🚨MC deal newsbreak of September 15 now confirmed and official! \n\nAdvent International to invest Rs 3,150 crore in Yatharth Hospitals for 24.9% stake reports @ashwinmohansays \n\nRead here ⤵️\nhttps://t.co/qfsIgjpJnr",
+      "created_at": "2026-09-17T07:22:21+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100485493259632810",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100485177709298046",
+      "handle": "errnews",
+      "display_name": "ERR News",
+      "text": "Former MoD permanent secretary: Datasel contract followed 10 months of preparations\n\n#Estonia https://t.co/YZSVZZqO6Q",
+      "created_at": "2026-09-17T07:21:06+00:00",
+      "url": "https://x.com/errnews/status/2100485177709298046",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Datasel\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100483469302460443",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MutualFundSummit2026 | 📊 Small caps can deliver strong gains when liquidity is abundant — but the downside can be equally sharp when liquidity dries up.\n\nNaveen Kulkarni, CIO, PMS and Listed Equity Alternates, Axis AMC, discusses the risks facing small caps amid crude oil above $100, rising US Treasury yields and expectations of higher interest rates.\n\nIn conversation with @LovishaDarad at the Moneycontrol Mutual Fund Summit 2026, Kulkarni also weighs the potential impact of elevated crude prices and higher borrowing costs on corporate earnings.\n\n#Moneycontrol #MFSummit #MutualFunds #SmallCaps #Markets",
+      "created_at": "2026-09-17T07:14:18+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100483469302460443",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100478118289150095",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MutualFundSummit2026 | 📊 Are mid- and small-cap valuations getting stretched?\n\nNaveen Kulkarni, CIO, PMS and Listed Equity Alternates, Axis AMC, discusses the strong investor interest in mid- and small-cap funds and whether the rally is backed by earnings growth and improving fundamentals or pockets of froth.\n\nIn conversation with @LovishaDarad  at the Moneycontrol Mutual Fund Summit 2026, Kulkarni also shares his views on nominal GDP, valuation premiums and investors’ continued preference for growth.\n\n#Moneycontrol #MFSummit #MutualFunds #MidCaps #SmallCaps",
+      "created_at": "2026-09-17T06:53:03+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100478118289150095",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100477176810541312",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "🚨 \"India has started the second phase of semiconductor mission. India's semiconductor ecosystem is expanding rapidly. It is opening new opportunities for innovation, investment and growth,\" says Prime Minister Narendra Modi at Semicon India 2026.\n\nPM Modi said India’s centuries-old tradition of innovation and its embrace of 21st-century technology and vision together provide the impetus for building an Aatmanirbhar Bharat and a Viksit Bharat.\n\n#SemiconIndia #PMModi #Semiconductor",
+      "created_at": "2026-09-17T06:49:18+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100477176810541312",
+      "image": "https://pbs.twimg.com/media/HSZkyemakAAF8UA.jpg",
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100475459985408076",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "Read More:\n\nhttps://t.co/HaXWmS53uD",
+      "created_at": "2026-09-17T06:42:29+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100475459985408076",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100475422899355895",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "India prepared to take ‘all necessary measures’ as US bill raises 100% tariff threat over Russian oil\n\nMEA says implications for bilateral ties and global energy markets have been conveyed to US.\n\n“The Indian side has also made clear its determination to take all necessary measures to protect its trade and economic interests. The government will work closely with Indian trade and industry bodies to deal with the implications of these developments,” the Ministry of External Affairs (MEA) said in a statement on September 17.\n\n#USTariffs #MEA #India",
+      "created_at": "2026-09-17T06:42:20+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100475422899355895",
+      "image": "https://pbs.twimg.com/media/HSZjNrwagAAY308.jpg",
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100475150739337647",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#WATCH | Union Home Minister Amit Shah, Gujarat CM Bhupendra Patel, Dy CM Harsh Sanghavi and Maharashtra Dy CM Eknath Shinde flag off the ‘Seva Sankalp’ bike rally from Vadnagar to Varanasi on PM Narendra Modi’s 76th birthday. \n\nBJP’s ‘Seva Sankalp Abhiyan’, marks PM Modi’s 25 years in public service, and the yatra will pass through 10 states, 193 districts and around 1,159 villages. \n\nThe leaders also performed aarti in Vadnagar as part of the birthday celebrations.\n\n#PMModi",
+      "created_at": "2026-09-17T06:41:15+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100475150739337647",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100468657604464671",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#Business | Semicon India 2026 News Live: 'India's chips will go out to the world,' says PM Modi on commercial production\n\nhttps://t.co/WEuXaY1Du2",
+      "created_at": "2026-09-17T06:15:27+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100468657604464671",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100464437014741296",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#Business | Lupin shares gain over 1 % after Nomura reaffirms 'Buy', Rs 2,675 target\n\n- Lupin shares gained after Nomura's 'Buy' rating.\n- Nomura set Lupin's target price at Rs 2,675.\n- Lupin aims for 1/3 revenue from specialty in 10 years.\n\nRead More:\nhttps://t.co/mIYM8PVaFp",
+      "created_at": "2026-09-17T05:58:41+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100464437014741296",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100463742165430336",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCOpinion | As many as 668 independent directors resigned in FY26. What happens when the boardroom turns difficult? Do directors stay to challenge, dissent and protect the institution—or exit to protect themselves? writes @ssmumbai on governance and board accountability. \n\nhttps://t.co/CnU20KoMqn",
+      "created_at": "2026-09-17T05:55:55+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100463742165430336",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100462910053187795",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MarketsWithMC | Sensex falls 350 pts from day's high, Nifty near 23,200: Key factors behind market decline\n\nThe Fed raised rates by 25 basis points in a unanimous decision; higher US interest rates reduce the appeal of emerging markets such as India for global investors\n\nRead More:\nhttps://t.co/LSOw69rmyr",
+      "created_at": "2026-09-17T05:52:37+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100462910053187795",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100461523823145022",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCOpinion |  India's two-wheeler exports have been forging ahead, into new markets and clocking higher volumes. What's driving exports ? Read #Chartoftheday\n\nhttps://t.co/Z2PfslQNrG",
+      "created_at": "2026-09-17T05:47:06+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100461523823145022",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100461324623073436",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCOpinion | Can entrepreneurship be taught? Academic institutions think so, as the number of courses in this arena has been rising. @ChanduNair takes a close look at what works and what does not   \n\nhttps://t.co/foXlNNilTm",
+      "created_at": "2026-09-17T05:46:19+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100461324623073436",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100461200538763462",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCOpinion | Jobs, paper leaks and education are moving up UP’s political agenda. Can they displace the caste-and-religion equations that have dominated the state for decades?\n\nhttps://t.co/ie2eeq2X3P",
+      "created_at": "2026-09-17T05:45:49+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100461200538763462",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100461061103350038",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCPRO | A Rs 15,000-crore order backlog gives Premier Energies strong revenue visibility. Backward integration and new businesses could add another layer to its growth story.\n\nhttps://t.co/XyAHD9zJad",
+      "created_at": "2026-09-17T05:45:16+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100461061103350038",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100460934930329824",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCOpinion | Diesel, crude, and India's export routes are all exposed as a second strait comes under attack.\n\nDetails by @asthanashishir \nhttps://t.co/minoS2WXVm",
+      "created_at": "2026-09-17T05:44:46+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100460934930329824",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100460508621218225",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#India | US Russia Sanctions Bill: What happens next for India\n\nThe bill now goes to Trump for his signature. The legislation gives the President authority to impose tariffs of up to 100 percent on countries that are major buyers of Russian crude oil and natural gas.\n\n@adrijac with more details\nhttps://t.co/K0TAxTSiyR",
+      "created_at": "2026-09-17T05:43:04+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100460508621218225",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100459934995603652",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#Business | Maharashtra promises probe into 2,841% medical device markup, issue to be raised in Cabinet\n\n- Maharashtra to probe high medical device markups.\n- Survey found markups up to 2,841% on devices.\n- State FDA seeks central govt intervention on pricing.\n\nRead More:\nhttps://t.co/wK3H8zI8WO",
+      "created_at": "2026-09-17T05:40:47+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100459934995603652",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100459776560017572",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "US House passes 100% Russia sanctions bill, India faces risk of higher tariffs\n\nThe House vote now puts the legislation before Trump, who will decide whether to sign it into law.\n\n@adrijac reports: \nhttps://t.co/yvCWj0sdjK",
+      "created_at": "2026-09-17T05:40:10+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100459776560017572",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100458947044081767",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#Business | India trade deficit narrows to $26.9 billion in August; Nomura sees $65.5 billion BoP surplus in FY27\n\n- India's trade deficit narrowed to $26.9B in August.\n- Stronger exports, moderating imports drove improvement.\n- Exports grew 26.1%; electronics exports rose 90%.\n\nRead More:\nhttps://t.co/BAaz7F529y",
+      "created_at": "2026-09-17T05:36:52+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100458947044081767",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100458246494671111",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#World | India prepared to take ‘all necessary measures’ as US bill raises 100% tariff threat over Russian oil\n\n- US Congress passed Sanctioning Russia and Iran Act.\n- India to protect trade interests after US Act.\n- India conveyed concerns to US on Act's implications.\n\n@Meghnamittal23 with more details\nhttps://t.co/HIzrghWU8p",
+      "created_at": "2026-09-17T05:34:05+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100458246494671111",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100457712668819739",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCPersonalFinance | NSE IPO opens today: From 132.37 million investors to a Rs 4.42 lakh crore valuation- what are you actually buying?\n\n-NSE IPO opens Sept 17; closes Sept 21.\n-IPO price band Rs 1,700-Rs 1,785 per share.\n-NSE valued at Rs 4.42 lakh crore at IPO.\n\n@imNavneetDubey reports: \nhttps://t.co/VWnR6In8G1",
+      "created_at": "2026-09-17T05:31:57+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100457712668819739",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100457322082713887",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCPro | The wait is over. NSE is finally hitting the IPO market. Will it set the primary market on fire?\n\nFind out: \nhttps://t.co/aDJgrxG7zJ https://t.co/D0Q4hjOUES",
+      "created_at": "2026-09-17T05:30:24+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100457322082713887",
+      "image": "https://pbs.twimg.com/media/HSZSszRbUAA-cub.png",
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100456530395214170",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCPro |  The Fed has raised rates after a gap of more than three years. With another hike possible this year, what does it mean for global markets?\n\nFind out: \nhttps://t.co/jwNQHegVoE https://t.co/IFgHX6cMqY",
+      "created_at": "2026-09-17T05:27:16+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2100456530395214170",
+      "image": "https://pbs.twimg.com/media/HSZSEWzaQAAWH5o.png",
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2100449528726102213",
+      "handle": "SudhirN94847744",
+      "display_name": "KnowledgeX",
+      "text": "You may like to see if you own any stocks from below list ⤵️\n\nFor your benefit I have compiled a list of companies where we have seen good financial performances and also management is bullish on future business guidance: \n\nAarti Pharmalabs\nAcutaas Chemicals\nAdani Energy Solutions\nAnand Rathi Wealth\nApar Industries\nApcotex Industries\nAther Energy\nAzad Engineering\nBajaj Auto\nBank of Maharashtra\nBeta Drugs\nBhansali Engineering Polymers\nBlueStone Jewellery\nCholamandalam Investment & Finance\nCraftsman Automation\nCreditAccess Grameen\nCupid\nCyient DLM\nDeep Industries\nDynamatic Technologies\nDynamic Cables\nE2E Networks\nElectronics Mart\nEmmvee Photovoltaic Power\nEquitas Small Finance Bank\nEternal\nFederal Bank\nFineotex Chemical\nFinolex Cables\nGandhar Oil Refinery\nGarware Hi-Tech Films\nGland Pharma\nGNA Axles\nGroww\nHFCL\nHindusthan Urban Infrastructure\nHitachi Energy India\nHuhtamaki India\nICICI Bank\nICICI Prudential Asset Management Company\nIDFC First Bank\nInfo Edge\nJayaswal Neco Industries\nJio Financial Services\nKalyan Jewellers\nKSH International\nKwality Pharmaceuticals\nL&T Finance\nLandmark Cars\nLaurus Labs\nLloyds Engineering Works\nLodha Developers\nMahindra & Mahindra Financial Services\nMold-Tek Technologies\nMRPL\nMTAR Technologies\nMuthoot Microfinance\nNavin Fluorine\nNavkar Corporation\nNeogen Chemicals\nNetweb Technologies\nNeuland Laboratories\nNTPC Green Energy\nP N Gadgil & Sons\nPaytm\nPiramal Finance\nPNGS Reva Diamond Jewellery\nPolycab India\nPoonawalla Fincorp\nPremier Energies\nPrime Cable Industries\nQuality Power Electrical Equipments\nRajratan Global Wire\nRBL Bank\nReliance Industries\nSai Life Sciences\nSakar Healthcare\nSedemac Mechatronics\nSenco Gold\nSG Finserve\nShadowfax Technologies\nShilpa Medicare\nShriram Finance\nShyam Metalics and Energy\nSiemens Energy India\nSJS Enterprises\nSky Gold\nSterlite Technologies\nSudeep Pharma\nSyrma SGS\nTata Technologies\nTatva Chintan Pharma Chem\nTD Power\nThyrocare Technologies\nTimex Group India\nTitan Company\nTVS Motor\nUjjivan Small Finance Bank\nUniversal Cables\nV2 Retail",
+      "created_at": "2026-09-17T04:59:26+00:00",
+      "url": "https://x.com/SudhirN94847744/status/2100449528726102213",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Jayaswal Neco Industries\""
+        },
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Jayaswal Neco\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100440002408657310",
+      "handle": "NGotchev",
+      "display_name": "Nikolai Gotchev",
+      "text": "Корупцията не познава граници: как естонските корупционери се преместват в Латвия\n\nВ Естония бушува скандал около доставките на боеприпаси за Украйна: платени са почти 60 милиона евро, а снарядите се оказаха негодни за употреба. Министърът на отбраната подаде оставка, а случаят се разследва от Европейската прокуратура. \n\nНа пръв поглед бихте си казали: какво общо има Латвия с това? А ето го: хората, които бяха в центъра на този скандал, вече са се установили там и развиват проекти в областта на отбраната.\n\nПървата група — организаторите: Кусти Салм, Мартин Херем и Вейко-Вело Палм. Салм беше канцлер на Министерството на отбраната на Естония, Херем — командващ на Силите за отбрана, а сега е кандидат за поста министър на отбраната. Именно Салм, според журналисти, е създал системата за обществени поръчки, която доведе до корупционния скандал. \n\nСега и тримата работят във „Франкенбург Текнолоджис“ — Салм е генерален директор, Херем — стратегически съветник, а Палм — член на управителния съвет. Именно тази компания през юни 2026 г. откри в Рига завод за сглобяване на ракети. Инвестициите възлизат на над 10 милиона евро, а плановете са за производство на до 100 ракети на ден.\n\nВтората група — изпълнителите: Магнус-Валдемар Саар и Катри Раудсепа. Саар ръководеше Естонския център за отбранителни инвестиции (RKIK), Раудсепа беше негов заместник, а след напускането на Саар временно пое ръководството на центъра. Именно те са подписали договорите с фиктивната фирма „Datasel“, която е доставила некачествени снаряди. \n\nСега и двамата ръководят компанията „Wolfram Europa“ и прокарват в Екабпилс проект за завод за боеприпаси на стойност 200 милиона евро.\n\nСхемата е очевидна: първите трима създадоха корупционна схема в Естония, „поработиха“, преминаха в частния бизнес и пренесоха дейността си в Латвия. Вторите — тези, които директно подписаха провалените договори — тръгнаха по същия път. Те видяха, че в Латвия може да се правят дела, и „избягаха“ от Естония, като донесоха в Латвия своите корупционни умения. \n\nА какво казват в Рига? Там са спокойни: казват, че това е само един епизод в тяхното изпълнено със събития ежедневие. Нищо страшно, „ще видим“.\n\n„Тази информация за това, което се случва в Естония, се появи едва сега. Ако тази компания продължава да работи и да се развива, това е един-единствен случай, който им се е случил. Какво ще стане по-нататък, какво ще реши съдът и какво ще реши тяхното правителство, какво ще прави компанията — това трябва да се види. Това ще трябва да се има предвид, когато тази компания ни предложи да закупим някаква нейна продукция“,\n — посочва министърът на отбраната на Латвия Райвис Мелнис.\n\nА междувременно Wolfram Europa вече претендира за подкрепа от латвийската държава в рамките на програма за големи инвестиции — отстъпка от капитала до 4,9 милиона евро. И, съдейки по настроението на латвийския им колега Мелнис, всичко може да се получи.\n\nПътуващият цирк-шапито от Естония продължава своето балтийско турне. Портфейлите на латвийските данъкоплатци са под заплаха.",
+      "created_at": "2026-09-17T04:21:35+00:00",
+      "url": "https://x.com/NGotchev/status/2100440002408657310",
+      "image": "https://pbs.twimg.com/media/HSZDC5xWAAAWA2Z.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Datasel\""
+        }
+      ]
+    },
     {
       "tweet_id": "2100286934165651949",
       "handle": "ohwellcunt",
@@ -2050,6 +2551,22 @@
       ]
     },
     {
+      "tweet_id": "2100278027158716835",
+      "handle": "GV_TRADES_",
+      "display_name": "GV_TRADES_",
+      "text": "3. #KALYANKJIL https://t.co/KV4RlgfIuI",
+      "created_at": "2026-09-16T17:37:57+00:00",
+      "url": "https://x.com/GV_TRADES_/status/2100278027158716835",
+      "image": "https://pbs.twimg.com/media/HSWvu1waYAAtwO2.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2100276387395596556",
       "handle": "moneycontrolcom",
       "display_name": "Moneycontrol",
@@ -2537,6 +3054,38 @@
       "matchedQueries": []
     },
     {
+      "tweet_id": "2100207386371948836",
+      "handle": "manideepmittal",
+      "display_name": "Manideep Mittal",
+      "text": "After ubs gave target of 900.\nStock is struggling to cross even 620\nOperator ?\n#kalyankjil",
+      "created_at": "2026-09-16T12:57:15+00:00",
+      "url": "https://x.com/manideepmittal/status/2100207386371948836",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100205478005330204",
+      "handle": "errnews",
+      "display_name": "ERR News",
+      "text": "Datasel seeks resolution in Estonia ammunition dispute\n\n#Estonia\n\nhttps://t.co/vaOa4tT6BY",
+      "created_at": "2026-09-16T12:49:40+00:00",
+      "url": "https://x.com/errnews/status/2100205478005330204",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Datasel\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2100202272055832792",
       "handle": "_Vishal_Balaji_",
       "display_name": "Edhuku",
@@ -2553,6 +3102,22 @@
         {
           "entityId": "isin:INE758T01015",
           "query": "\"ETERNAL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100180425209749745",
+      "handle": "SBK_analysis",
+      "display_name": "SAU₹ABH SHUKLA",
+      "text": "Market Wrap : 16 SEP\n\n📈 Markets Close Higher Led by FMCG & PSU Banking Stocks: #NIFTY Gains 99 Pts to 23.2K & #SENSEX Rallies 333 Pts; #PAYTM & #PATANJALI Surge 🚀🛒\n\nIndian benchmark indices bounced back into positive territory, driven by gains in FMCG and PSU Banking stocks despite weak market breadth. Volatility cooled off, with the Nifty VIX falling 2.1% to 13.2 points. Market sentiment was supported by narrowing trade deficit data and new NPCI policy updates.\n\n📊 Closing Bell Metrics\n#NIFTY: 23,217.60 (+0.4%)\n#SENSEX: 74,336.45 (+0.5%)\n#NIFTY500: 22,532.00 (+0.2%)\n#INDIAVIX: Fell 2.1% to 13.2 points\nMarket Breadth: Bearish (1,233 Gainers vs. 1,526 Losers)\n\n📢 Top Market Movers & Brokerage Actions\n✅ THE GAINERS (UPI MDR Boost, Brokerage Upgrades & Order Wins)\n\n#PAYTM (+5.3%): Soared to a 52-week high of ₹1,855.5 after JM Financial kept a 'Buy' rating (target price: ₹2,150) citing ₹210 Cr+ FY27 incremental revenue from the new 0.4% UPI MDR framework.\n\n#CMSINFO & #RADIANTCMS: Rose sharply on expectations of higher cash withdrawal volumes following the UPI MDR implementation.\n\n#OBEROIRLTY (+4.1%): Upgraded to 'Buy' by Motilal Oswal with a target price of ₹2,130 on project acquisitions and NCR expansion.\n\n#PATANJALI (+7.8%) & #POLICYBZAAR (+5.3%): Led the largecap and midcap gainers chart today with strong volume participation.\n\n#SAATVIKGREEN: Surged after securing a ₹1,041.6 crore order from SECI for solar panel supply.\n\n#INDIAPEST: Jumped following product regulatory approvals for an insecticide in the UK and a herbicide in Argentina.\n\n⚠️ THE LAGGARDS (Block Deals, Stake Sales & Executive Exit)\n#GROWW (-3.9%): Dropped sharply after 10.4 crore shares (~₹1,999 crore) changed hands via block deals by Peak XV and Sequoia Capital.\n\n#WELSPUNENT (-4.2%): Declined as Authum Investment sold 25 lakh shares worth ₹191.3 crore through a bulk deal.\n\n#BLUEDART (-2.8%): Fell as MD Balfour Manuel announced early retirement effective November 29, 2026.\n#KALYANKJIL (-3.9%) & #NYKAA (-3.2%): Slid among the top midcap losers of the session.\n\n🎯 Key Corporate & Boardroom Updates\n#MAZDOCK: Signed an MoU to develop a ₹27,000 crore commercial greenfield shipbuilding cluster at Dighi, Raigad.\n\n#BHARATFORG: Partnered with Pratt & Whitney Canada for turboprop engine integration into DRDO’s HALE UAV program.\n\n#BHEL & #TITAGARH: Agreed to establish a 50:50 joint venture for Vande Bharat train maintenance.\n\n#EXIDEIND: Partnered with Germany's ExCom Energy Solutions to expand its industrial battery business across Europe.\n\n#NBCC: Secured PMC and construction orders worth ₹145 crore from SAIL, DVC, NEEPCO, and the ED.\n\n#SOUTHBANK: Appointed Mahesh Muralidhar Pai as MD & CEO effective October 1, 2026.\n\n#NIFTY #SENSEX #StockMarketIndia #PAYTM #MAZDOCK #GROWW #BHARATFORG #TradingUpdate",
+      "created_at": "2026-09-16T11:10:07+00:00",
+      "url": "https://x.com/SBK_analysis/status/2100180425209749745",
+      "image": "https://pbs.twimg.com/media/HSVW6oUagAAXofG.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
         }
       ]
     },
@@ -2593,6 +3158,198 @@
       ]
     },
     {
+      "tweet_id": "2100165905397194849",
+      "handle": "Bullsmartapp",
+      "display_name": "Bullsmart",
+      "text": "Market Close | 16 Sept 2026\nSmall gains across the board, but breadth tells a different story.\n\nIndices\nNifty 23,217.60 ↑ +0.43%\nSensex 74,336.45 ↑ +0.45%\nBank Nifty 56,292.45 ↑ +0.89%\nBanking led the charge while broader indices stayed tepid, suggesting strength is concentrated.\n\nMarket Breadth\n1688 stocks rose, 1855 declined\nDeclines outnumbered gains, which is the real caution flag hiding behind positive index moves.\n\nSectors\nFMCG +1.63%\nPSU Bank +1.44%\nRealty +0.99%\nMedia +0.74%\nEnergy +0.10%\n\nIT -1.58%\nPharma -0.16%\nDefensive trades thrived today while IT took the hit, classic risk-off positioning.\n\nTop Movers (F&O)\nGainers\nPATANJALI +7.81%\nPOLICYBZR +5.25%\nMFSL +4.33%\nPAYTM +3.47%\nHDFCLIFE +2.73%\n\nLosers\nPREMIERENE -4.87%\nKALYANKJIL -3.86%\nNYKAA -3.15%\nSONACOMS -2.78%\nTCS -2.76%\nStock-specific moves dominated, with no clear sector narrative among the biggest movers.\n\nWhat stood out\nBank Nifty outperformed significantly with nearly 0.9% gain while broader market struggled, showing where money actually flowed today.\nIT weakness on the day with TCS and others retreating marks a pullback from recent momentum in the sector.\nFMCG and PSU banks rallied together, suggesting investors rotated into traditionally safer, dividend-paying spaces.\n\n#Bullsmart #StockMarket #StocksToWatch #BSE #NSE #IndianStockMarket #StockPortfolio #MarketClose #Viral #ViralPost",
+      "created_at": "2026-09-16T10:12:25+00:00",
+      "url": "https://x.com/Bullsmartapp/status/2100165905397194849",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100165809658102138",
+      "handle": "beretta_g",
+      "display_name": "Giorgio Beretta",
+      "text": "Datasel è stata citata in giudizio presso un tribunale nazionale e il caso è ora al vaglio della Corte di Arbitrato Europea di Strasburgo. L’Estonia ha versato a Datasel 59 milioni di euro dei 70 milioni totali: 11 milioni di euro sono mancanti. https://t.co/fplIhnX5XH",
+      "created_at": "2026-09-16T10:12:02+00:00",
+      "url": "https://x.com/beretta_g/status/2100165809658102138",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Datasel\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100162180951777572",
+      "handle": "beretta_g",
+      "display_name": "Giorgio Beretta",
+      "text": "La questione riguarda anche l'Italia. Nel 2024 il ministero della Difesa estone fece con Datasel srl, una società italiana, un contratto da circa 70 milioni di euro per munizioni d’artiglieria destinate all’Ucraina, usando anche fondi europei. (segue) https://t.co/QsHDcIm2oz",
+      "created_at": "2026-09-16T09:57:37+00:00",
+      "url": "https://x.com/beretta_g/status/2100162180951777572",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Datasel\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100157592870027453",
+      "handle": "SwingTrader_VCP",
+      "display_name": "S JORWAL",
+      "text": "SL in #KALYANKJIL \n\nNow, Nil holdings",
+      "created_at": "2026-09-16T09:39:23+00:00",
+      "url": "https://x.com/SwingTrader_VCP/status/2100157592870027453",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100152653712064713",
+      "handle": "algo_charts",
+      "display_name": "The Algo Day Trader",
+      "text": "2️⃣:4️⃣9️⃣ 𝑷𝑴: 🇮🇳\n\nNIFTY Stock Trends 📈📉 At This Hour - NSE/BSE.\n\nSTOCK NEWS:\n\nPATANJALI -\n🔹FMCG stocks surge: Nestle India, ITC, HUL, Patanjali Foods shares jump over 3%\n\nKALYANKJIL -\n🔹UBS Initiates Kalyan Jewellers With Buy, Sets Rs 900 Target https://t.co/80GJkirwjq",
+      "created_at": "2026-09-16T09:19:46+00:00",
+      "url": "https://x.com/algo_charts/status/2100152653712064713",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100149681267646688",
+      "handle": "MySoctr",
+      "display_name": "Soctr.IN",
+      "text": "#Stocks with #ShortCovering\n\nCheck #trending #chartpatterns and #Updates on\nhttps://t.co/W8IWGOJTtr and \"follow @MySoctr\n\n#Nifty #Nifty50 #investing #breakoutstocks #StocksInFocus #StocksToWatch #stocks #Trending #LatestNews #StockNews #StocksToBuy #stockmarketcrash #StockMarketIndia #Breakout #Earnings #EarningSpot #StockMarket #trading #stockmarkets #Breakout #nse #breakoutstock #stockmarketindia #sensex #stockideas #Gainers #NiftyMidCap #NiftySmallCap #MarketGainers #StockGainers #MarketTrends #Liquidity #DABUR #KALYANKJIL #INFY #KPITTECH #TATAELXSI",
+      "created_at": "2026-09-16T09:07:57+00:00",
+      "url": "https://x.com/MySoctr/status/2100149681267646688",
+      "image": "https://pbs.twimg.com/media/HSU68hTbEAACahF.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100149142467027186",
+      "handle": "gr8Ranju",
+      "display_name": "AI Stock Alerts for listed Stocks in Bharat Market",
+      "text": "🔻 #OFSS (-2.0%)\n🔻 #BSE (-2.2%)\n🔻 #NYKAA (-2.2%)\n🔻 #CYIENT (-2.6%)\n🔻 #TCS (-2.8%)\n🔻 #HFCL (-3.5%)\n🔻 #KALYANKJIL (-4.2%)\n#StocksInFocus #NIFTY #NSE #BSE #StocksToTrade #StocksToWatch #StocksMarket",
+      "created_at": "2026-09-16T09:05:49+00:00",
+      "url": "https://x.com/gr8Ranju/status/2100149142467027186",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100148100589310273",
+      "handle": "Tick_Tracker",
+      "display_name": "AI Sentiment Detection App for Bharat Stock Market",
+      "text": "Hourly Bearish\n#HDFCAMC\n#SHRIRAMFIN\n#SUPREMEIND\n#NTPC\n#ADANIENT\n#LT\n#KALYANKJIL\n#FEDERALBNK\n#BANKINDIA\n#TATAELXSI\n#CHOLAFIN\n#TATAPOWER\n#PFC\n#APOLLOHOSP\n#AMBER\n#KAYNES\n#MAZDOCK\n#StocksInFocus #HPORB #StocksToTrade #StocksToWatch #StocksMarket #NSE #BSE #NIFTY",
+      "created_at": "2026-09-16T09:01:40+00:00",
+      "url": "https://x.com/Tick_Tracker/status/2100148100589310273",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100139286607863994",
+      "handle": "faxioms_in",
+      "display_name": "Faxioms | Indian Markets",
+      "text": "Patanjali Foods (#PATANJALI) surges 7% to near its day's high, while Kalyan Jewellers (#KALYANKJIL) slides 4% to near its low, as market breadth weakens further with only 602 stocks rising over the past 15 minutes.\n\nFollow the live tape as it happens: https://t.co/xIRwV7eaPR\n\n#Nifty #Sensex #DalalStreet #IndianStockMarket",
+      "created_at": "2026-09-16T08:26:39+00:00",
+      "url": "https://x.com/faxioms_in/status/2100139286607863994",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100139180277760285",
+      "handle": "Tick_Tracker",
+      "display_name": "AI Sentiment Detection App for Bharat Stock Market",
+      "text": "Hourly Bearish\n#SHRIRAMFIN\n#SUPREMEIND\n#LT\n#KALYANKJIL\n#POWERINDIA\n#TATASTEEL\n#BHEL\n#BANKINDIA\n#IDFCFIRSTB\n#CHOLAFIN\n#TATAELXSI\n#INDIGO\n#ICICIPRULI\n#PPLPHARMA\n#TORNTPOWER\n#MAZDOCK\n#MANKIND\n#COLPAL\n#DMART\n\n#StocksInFocus #HPORB #StocksToTrade #StocksToWatch #StocksMarket #NSE",
+      "created_at": "2026-09-16T08:26:13+00:00",
+      "url": "https://x.com/Tick_Tracker/status/2100139180277760285",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100136986380226661",
+      "handle": "AutusInvestment",
+      "display_name": "Rajendra Agarwal",
+      "text": "🔵 #KALYANKJIL — 60m CANDLE chart \n(Day high - 611.80 & currently at Day low 575.10 )\n\nTraded the Plan  and Following the chart = \"भाव भगवान छे और एस जी लेवल देवदूत छे”\n\n📊 Study the Chart → Make a Strategy Plan → Trade the Plan → Follow the Chart\n\n#Positional 60m chart with SSG/ #SGLEVEL\n\n📌📌 No Copy Paste please 📌📌\n\n#SGLogic #SGLEVEL #Nifty #Sensex #Banknifty #NiftyMidSelect\n#TradingDiscipline #Priceaction #AutusInvestment",
+      "created_at": "2026-09-16T08:17:30+00:00",
+      "url": "https://x.com/AutusInvestment/status/2100136986380226661",
+      "image": "https://pbs.twimg.com/media/HSUvAYjawAAOApH.png",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100132817716072651",
+      "handle": "VK0006",
+      "display_name": "VIKASH AGARWAL",
+      "text": "#Kalyankjil Weakest at 581",
+      "created_at": "2026-09-16T08:00:56+00:00",
+      "url": "https://x.com/VK0006/status/2100132817716072651",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2100127294408835517",
       "handle": "Emma506131772",
       "display_name": "THE CATHOLIC GENTLEMAN 🇻🇦🇺🇬🇺🇬🇺🇬",
@@ -2613,6 +3370,22 @@
       ]
     },
     {
+      "tweet_id": "2100121347045372379",
+      "handle": "Nishith_nagar",
+      "display_name": "Nishith Nagar",
+      "text": "WHAT A DAYYY!!!\n\n#KANOHAR\n#GLASSWALL\n#PRASOLCHEM\n\n#KALYANKJIL (Intraday short position)",
+      "created_at": "2026-09-16T07:15:22+00:00",
+      "url": "https://x.com/Nishith_nagar/status/2100121347045372379",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2100116190651994536",
       "handle": "AnkitFinAlpha",
       "display_name": "Ankit | FinAlpha",
@@ -2629,6 +3402,70 @@
       ]
     },
     {
+      "tweet_id": "2100114355064905979",
+      "handle": "errnews",
+      "display_name": "ERR News",
+      "text": "Defense agency rejects Datasel talks as EU funding period ends\n\n#Estonia\n\nhttps://t.co/PWoJITY2pQ",
+      "created_at": "2026-09-16T06:47:35+00:00",
+      "url": "https://x.com/errnews/status/2100114355064905979",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Datasel\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100113589067821348",
+      "handle": "AutusInvestment",
+      "display_name": "Rajendra Agarwal",
+      "text": "KALYANKJIL 60m chart- Holding / Today, added multiple SP PEs to CF\n🕺Traded at 24.20🥁 ..KALYANKJIL 595 PE from 9.70 to 18 = 2X almost\n\nTraded the Plan  and Following the chart = \"भाव भगवान छे और एस जी लेवल देवदूत छे”\n\n📊 Study the Chart → Make a Strategy Plan → Trade the Plan → Follow the Chart\n\n🎯 PPB = Partial Profit Booking\n🛑 SL = Stop Loss Exit\n\n👉 Once the strategy is planned, follow the chart and respect the predefined PPB or SL exit.\n\n📌 No emotional decisions.\n📌 No change in strategy in the middle of the trade.\n📌 Chart decides — we follow . 📈📉\n\n#KALYANKJIL #SGLogic #SGLEVEL\n\n “Study the Chart. Plan the Trade. Trade the Plan. Follow the Chart.” \n\n📌📌 No Copy Paste please 📌📌\n\n #Nifty #Sensex #Banknifty #NiftyMidSelect\n#TradingDiscipline #Priceaction #AutusInvestment\nImage",
+      "created_at": "2026-09-16T06:44:32+00:00",
+      "url": "https://x.com/AutusInvestment/status/2100113589067821348",
+      "image": "https://pbs.twimg.com/media/HSUaBlNbQAApbZP.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100106791119925369",
+      "handle": "gr8Ranju",
+      "display_name": "AI Stock Alerts for listed Stocks in Bharat Market",
+      "text": "🔻 #COFORGE (-2.1%)\n🔻 #KALYANKJIL (-2.2%)\n🔻 #CYIENT (-2.3%)\n🔻 #SOLARINDS (-2.7%)\n🔻 #LAURUSLABS (-2.8%)\n🔻 #NYKAA (-2.8%)\n🔻 #HFCL (-4.5%)\n#StocksInFocus #NIFTY #NSE #BSE #StocksToTrade #StocksToWatch #StocksMarket",
+      "created_at": "2026-09-16T06:17:31+00:00",
+      "url": "https://x.com/gr8Ranju/status/2100106791119925369",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100106681485254709",
+      "handle": "SES_Governance",
+      "display_name": "SES_Governance",
+      "text": "SES PA Report - Kalyan Jewellers India Ltd, AGM 19-09-2026. For more details https://t.co/LSkgaaOzXh https://t.co/UCVRqpJAhE",
+      "created_at": "2026-09-16T06:17:05+00:00",
+      "url": "https://x.com/SES_Governance/status/2100106681485254709",
+      "image": "https://pbs.twimg.com/media/HSUT4ebb0AARQLf.png",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"Kalyan Jewellers India\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2100098473655701958",
       "handle": "artyomchaltsev",
       "display_name": "Artyom Chaltsev",
@@ -2641,6 +3478,54 @@
         {
           "entityId": "isin:INE220J01025",
           "query": "\"Future Consumer\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100097697625842095",
+      "handle": "urstrulygauthi",
+      "display_name": "UrsTruly  Gowtham",
+      "text": "@theparthrastogi IRCTC and Kiri industries",
+      "created_at": "2026-09-16T05:41:23+00:00",
+      "url": "https://x.com/urstrulygauthi/status/2100097697625842095",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE415I01015",
+          "query": "\"Kiri Industries\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100076142028104154",
+      "handle": "AutusInvestment",
+      "display_name": "Rajendra Agarwal",
+      "text": "🔵 #KALYANKJIL — DAY CANDLE and 60m chart #SGLogic setup with #SGLEVELs\n\nKALYANKJIL 60m chart- Holding / Today, added multiple SP PEs to CF\n\n📊 Study the Chart → Make a Strategy Plan → Trade the Plan → Follow the Chart\n\n🎯 PPB = Partial Profit Booking\n🛑 SL = Stop Loss Exit\n\n👉 Once the strategy is planned, follow the chart and respect the predefined PPB or SL exit.\n\n📌 No emotional decisions.\n📌 No change in strategy in the middle of the trade.\n📌 Chart decides — we follow . 📈📉\n\n#KALYANKJIL #SGLogic #SGLEVEL\n\n “Study the Chart. Plan the Trade. Trade the Plan. Follow the Chart.” \n\n📌📌 No Copy Paste please 📌📌\n\n #Nifty #Sensex #Banknifty #NiftyMidSelect\n#TradingDiscipline #Priceaction #AutusInvestment",
+      "created_at": "2026-09-16T04:15:44+00:00",
+      "url": "https://x.com/AutusInvestment/status/2100076142028104154",
+      "image": "https://pbs.twimg.com/media/HST3w3DbAAAtGWM.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2100074347847409942",
+      "handle": "SwingTrader_VCP",
+      "display_name": "S JORWAL",
+      "text": "SL in #Orienthot\n\nLast stock #KALYANKJIL with SL 590\n\nLets see 😎",
+      "created_at": "2026-09-16T04:08:36+00:00",
+      "url": "https://x.com/SwingTrader_VCP/status/2100074347847409942",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
         }
       ]
     },
@@ -3343,6 +4228,22 @@
       "matchedQueries": []
     },
     {
+      "tweet_id": "2099911526169923633",
+      "handle": "VCPMomentumIN",
+      "display_name": "VCP Momentum Trader 🪖",
+      "text": "4. #KALYANKJIL https://t.co/wgIWS9eFX7",
+      "created_at": "2026-09-15T17:21:36+00:00",
+      "url": "https://x.com/VCPMomentumIN/status/2099911526169923633",
+      "image": "https://pbs.twimg.com/media/HSRhgCcbMAAQon2.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099910520484831569",
       "handle": "chartwhisp60202",
       "display_name": "Chart Whisperer",
@@ -3484,6 +4385,22 @@
         {
           "entityId": "isin:INE0ALI01010",
           "query": "\"ADVAIT\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099902323376210079",
+      "handle": "SBK_analysis",
+      "display_name": "SAU₹ABH SHUKLA",
+      "text": "Market Wrap : 15 SEP\nSummary 📉\n\nNifty 50: 23,118.60 📉 (-1.2%)\nBSE Sensex: 74,003.82 🔻 (-1.0%)\nNifty 500: 22,477.45 🔴 (-1.7%)\nWorst Sector: General Industrials 🏗️ (-4.5%)\nNifty VIX: 13.4 📈 (+9.3% Fear Spike!)\n\nWhy Markets Slipped Today 🛑\n\n🛢️ Crude Oil Surge: Brent crude climbed near $108/bbl, spiking inflation fears across Asia.\n\n🌐 Global Macro Pressure: West Asia geopolitical tensions & a 92% chance of a US Fed rate hike spooked investors.\n\n📈 Inflation Alert: India's CPI inflation hit a 20-month high of 4.8% 🏷️, with WPI surging to 9.9%.\n\nBig Movers & Shakers 🚀💣\nThe Green Army (Gainers) 🟢\n\n🧪 Tata Chemicals (+20.0%) & Tata Investment (+9.9%): Soared on RBI news regarding Tata Sons' NBFC status, reigniting IPO buzz! 🔔\n\n🚀 Solar Industries: Hit an all-time high after acquiring South Africa's Omnia Holdings for $1.4 Bn (~₹12,951 Cr)! 💰\n\n💻 IT Giants: HCL Tech (+4.0%) 🖥️, Infosys (+3.8%) ⚡, and Mphasis (+3.6%) held strong!\n\nThe Red Zone (Losers) 🔴\n🚧 PNC Infratech: Plunged after a 3-year ban from bidding on MoRTH/NHAI highway projects. 🛑\n🧾 HDFC Life: Took a hit following a massive ₹3,365.2 Cr GST demand notice. 💸\n\n💊 Piramal Pharma & Dr. Reddy's: Dropped under US FDA inspection observation pressure. 🩺\n\n#TATACHEM #TATAINVEST #TCS #SOLARINDS #MOTHERSON #HDFCBANK #HCLTECH #INFY #MPHASIS #PRANAV\n\n#PNCINFRA #HDFCLIFE #PIRPHYG #DRREDDY\n\n#UNOMINDA #KEC  #DIAMONDPOWER #IBULHSGFIN #HFCL\n\n#Nifty #Sensex #BankNifty #GiftNifty",
+      "created_at": "2026-09-15T16:45:02+00:00",
+      "url": "https://x.com/SBK_analysis/status/2099902323376210079",
+      "image": "https://pbs.twimg.com/media/HSRaBxvbMAcawsz.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
         }
       ]
     },
@@ -4854,6 +5771,22 @@
       ]
     },
     {
+      "tweet_id": "2099862057458057540",
+      "handle": "stocksntrends",
+      "display_name": "stocksntrends",
+      "text": "You need to follow closely \n\nWe have generated 25% returns on 50 lakh+ to 3 crore portfolios in 2026 in just 4 months and it included several stocks - all from Apr 2026 till date\n\nAnd every one is the below charts were posted, explained several times including entry and exit\n\nWhat were you doing ?\n\nUnimech\nCapacite\nBajaj Hind Sugars\nBalamines\nBirlacable\nTPL Plastech\nCE Water \nTolins Tyres\nBectorfood\nBEPL\nClean Science\nEMS Limited\nEmil \nGenus paper\nGraphite\nKiri Industries \nHappiest Minds\nVAML\nVISL \nVOGL\nHCC\nIdea\nIndostar\nJyoti CNC\nKPL\nMcloud \nola Electric \nRolex Rings\nWard Wiard Mobility \nVPRPL \nTata tech\nSonacoms\nSbdl\nSharika\nShankara",
+      "created_at": "2026-09-15T14:05:02+00:00",
+      "url": "https://x.com/stocksntrends/status/2099862057458057540",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE415I01015",
+          "query": "\"Kiri Industries\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099862049644015789",
       "handle": "ThatNumerouno",
       "display_name": "Advait 🇦🇷",
@@ -5008,6 +5941,22 @@
       ]
     },
     {
+      "tweet_id": "2099854052322340935",
+      "handle": "errnews",
+      "display_name": "ERR News",
+      "text": "Former agency head: Defense minister actively involved in Datasel dealings\n\n#Estonia https://t.co/XhNnUX3Txc",
+      "created_at": "2026-09-15T13:33:14+00:00",
+      "url": "https://x.com/errnews/status/2099854052322340935",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Datasel\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099853340964511921",
       "handle": "adityayadav6513",
       "display_name": "Adityayaduvanshi",
@@ -5035,6 +5984,22 @@
       "matchedQueries": []
     },
     {
+      "tweet_id": "2099852209483657495",
+      "handle": "IndrekLindsalu",
+      "display_name": "Indrek Lindsalu",
+      "text": "\"Dataseli sõnul on nad viivitamatult võimelised omapoolsed lepingulised kohustused täitma, kui rahastamise raamistik on paika pandud.\" - Kõlab nagu peaks neile uue ülekande tegema? https://t.co/xFNOvoAmog",
+      "created_at": "2026-09-15T13:25:54+00:00",
+      "url": "https://x.com/IndrekLindsalu/status/2099852209483657495",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Datasel\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099851617072034074",
       "handle": "moneycontrolcom",
       "display_name": "Moneycontrol",
@@ -5055,6 +6020,22 @@
       "image": "https://pbs.twimg.com/media/HSQrVlgbAAAi8Bp.jpg",
       "source_url": "https://x.com/moneycontrolcom",
       "matchedQueries": []
+    },
+    {
+      "tweet_id": "2099850553111327010",
+      "handle": "TradingNuggetz",
+      "display_name": "Trading Nuggetz",
+      "text": "#KALYANKJIL - By far the best stock setup after today's move\n- move prior up move (80%+)\n- shakeout in the base\n- resting on EMA\n- tightness + Low volumes https://t.co/VWMs4JPcsA",
+      "created_at": "2026-09-15T13:19:19+00:00",
+      "url": "https://x.com/TradingNuggetz/status/2099850553111327010",
+      "image": "https://pbs.twimg.com/media/HSQqv72b0AALD8J.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
     },
     {
       "tweet_id": "2099847977808679253",
@@ -5080,6 +6061,22 @@
         {
           "entityId": "isin:INE674K01013",
           "query": "\"ABCAPITAL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099844966944059539",
+      "handle": "errnews",
+      "display_name": "ERR News",
+      "text": "Datasel seeks resolution in Estonia ammunition dispute\n\n#Estonia https://t.co/vaOa4tT6BY",
+      "created_at": "2026-09-15T12:57:08+00:00",
+      "url": "https://x.com/errnews/status/2099844966944059539",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Datasel\""
         }
       ]
     },
@@ -5465,6 +6462,22 @@
       ]
     },
     {
+      "tweet_id": "2099821282410066070",
+      "handle": "AshishRaoWho",
+      "display_name": "Ashish Rao",
+      "text": "#KALYANKJIL (Kalyan Jewellers) 1D\nTracking the minor degree waves of this rise in wave 5.\n\nPS - disclaimer in my profile bio\n\nhttps://t.co/owHa0n1ISW https://t.co/84BwB5gj9D",
+      "created_at": "2026-09-15T11:23:01+00:00",
+      "url": "https://x.com/AshishRaoWho/status/2099821282410066070",
+      "image": "https://pbs.twimg.com/media/HSQQUiMbEAAlnHP.png",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099820858709807358",
       "handle": "investorthings",
       "display_name": "Investor Things",
@@ -5648,6 +6661,22 @@
         {
           "entityId": "isin:INE674K01013",
           "query": "\"ABCAPITAL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099810953361793085",
+      "handle": "EkanshMittal_KW",
+      "display_name": "Ekansh Mittal",
+      "text": "Stock idea: Kiri Industries\n\n$689 million settlement\n₹270cr quarterly PAT\n₹17cr core EBITDA\n₹20,000-25,000cr guidance, walked back mid-call\n\nFour numbers, one earnings call. We broke down what's real and what isn't\n\nDetails: https://t.co/Q6YwXZnffk\n\nSEBI RA - Ekansh Mittal Proprietor Mittal Consulting, INH100001690, BSE Enlistment No - 5114",
+      "created_at": "2026-09-15T10:41:58+00:00",
+      "url": "https://x.com/EkanshMittal_KW/status/2099810953361793085",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE415I01015",
+          "query": "\"Kiri Industries\""
         }
       ]
     },
@@ -5871,6 +6900,22 @@
       ]
     },
     {
+      "tweet_id": "2099789123687153871",
+      "handle": "SwingTrader_VCP",
+      "display_name": "S JORWAL",
+      "text": "SL in Triggered at BE #APOLLO #AEROFLEX\n\nOpen Position 🤞🤞 https://t.co/ukErNXMuRT",
+      "created_at": "2026-09-15T09:15:13+00:00",
+      "url": "https://x.com/SwingTrader_VCP/status/2099789123687153871",
+      "image": "https://pbs.twimg.com/media/HSPytksaoAAvp5r.png",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099788530830737744",
       "handle": "Thetaksalnews",
       "display_name": "The Taksal News",
@@ -5963,6 +7008,22 @@
         {
           "entityId": "isin:INE674K01013",
           "query": "\"ABCAPITAL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099785397480108093",
+      "handle": "tvnews_signal",
+      "display_name": "Signal",
+      "text": "📺 Most-featured on TV today\n\n1. #HDFCBANK — 17 mentions\n2. #BSE — 12\n3. #KALYANKJIL — 11\n4. #NIFTY — 6\n5. #MORGAN — 6\n6. #KOTAKBANK — 5\n7. #MPHASIS — 4\n8. #RAYMOND — 4\n9. #CGPOWER — 4\n\nTracking every idea that airs, so you don't watch all day 📊\nNot investment advice · Follow",
+      "created_at": "2026-09-15T09:00:25+00:00",
+      "url": "https://x.com/tvnews_signal/status/2099785397480108093",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
         }
       ]
     },
@@ -6107,6 +7168,26 @@
         {
           "entityId": "isin:INE674K01013",
           "query": "\"ABCAPITAL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099774704693465432",
+      "handle": "JNILindia",
+      "display_name": "Jayaswal Neco Industries Ltd",
+      "text": "Team JNIL wishes all engineers a very Happy Engineer's Day!\n\nCelebrating the minds that turn challenges into solutions, ideas into innovation, and possibilities into progress.\n\nHere's to the engineers who continue to build a stronger future. https://t.co/U2tmW1r8AB",
+      "created_at": "2026-09-15T08:17:56+00:00",
+      "url": "https://x.com/JNILindia/status/2099774704693465432",
+      "image": "https://pbs.twimg.com/media/HSPl7jBakAAbdtW.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Jayaswal Neco Industries\""
+        },
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Jayaswal Neco\""
         }
       ]
     },
@@ -6271,6 +7352,22 @@
       ]
     },
     {
+      "tweet_id": "2099763380798234763",
+      "handle": "Lakhotia_Cap",
+      "display_name": "Lakhotia Capital",
+      "text": "Kalyankjil 610 CE \n\n19.6 ~&gt; 21.2🚀\n\n1st target achieved 🎯",
+      "created_at": "2026-09-15T07:32:56+00:00",
+      "url": "https://x.com/Lakhotia_Cap/status/2099763380798234763",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099760003708289138",
       "handle": "abcapital",
       "display_name": "Aditya Birla Capital",
@@ -6291,6 +7388,38 @@
       ]
     },
     {
+      "tweet_id": "2099759977133191501",
+      "handle": "Lakhotia_Cap",
+      "display_name": "Lakhotia Capital",
+      "text": "KALYANKJIL 29 SEP 610 CALL\n\nCMP - 19.6 \n\nTarget - 21/23/25\n\nStop - 17\n\nDYODD",
+      "created_at": "2026-09-15T07:19:24+00:00",
+      "url": "https://x.com/Lakhotia_Cap/status/2099759977133191501",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099758828233593039",
+      "handle": "Stupid1nvest0r",
+      "display_name": "Stage2VCP",
+      "text": "#KALYANKJIL\n\nWill you enter right now after seeing this Descending Triangle ?",
+      "created_at": "2026-09-15T07:14:50+00:00",
+      "url": "https://x.com/Stupid1nvest0r/status/2099758828233593039",
+      "image": "https://pbs.twimg.com/media/HSPXXjxbIAA84Nb.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099756114703532076",
       "handle": "prateek_madaan1",
       "display_name": "Prateek Madaan",
@@ -6303,6 +7432,22 @@
         {
           "entityId": "isin:INE18UN01038",
           "query": "\"Gaja Alternative Asset Management\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099755198344491411",
+      "handle": "tvnews_signal",
+      "display_name": "Signal",
+      "text": "📺 Most-featured on TV today\n\n1. #HDFCBANK — 12 mentions\n2. #KALYANKJIL — 10\n3. #BSE — 10\n4. #KOTAKBANK — 5\n5. #NIFTY — 5\n6. #MORGAN — 4\n7. #MPHASIS — 4\n8. #RAYMOND — 4\n9. #CDSL — 3\n\nTracking every idea that airs, so you don't watch all day 📊\nNot investment advice · Follow",
+      "created_at": "2026-09-15T07:00:25+00:00",
+      "url": "https://x.com/tvnews_signal/status/2099755198344491411",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
         }
       ]
     },
@@ -6323,6 +7468,22 @@
       ]
     },
     {
+      "tweet_id": "2099753390112637137",
+      "handle": "Tick_Tracker",
+      "display_name": "AI Sentiment Detection App for Bharat Stock Market",
+      "text": "Hourly Bullish\n#HDFCAMC\n#POWERGRID\n#LT\n#KALYANKJIL\n#CIPLA\n#SUNPHARMA\n#MCX\n#INDIGO\n#KPITTECH\n#ADANIPORTS\n#SONACOMS\n#POLYCAB\n#PHOENIXLTD\n#DMART\n\n#StocksInFocus #HPORB #StocksToTrade #StocksToWatch #StocksMarket #NSE #BSE #NIFTY",
+      "created_at": "2026-09-15T06:53:14+00:00",
+      "url": "https://x.com/Tick_Tracker/status/2099753390112637137",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099752746513727980",
       "handle": "abcapital",
       "display_name": "Aditya Birla Capital",
@@ -6339,6 +7500,26 @@
         {
           "entityId": "isin:INE674K01013",
           "query": "\"ABCAPITAL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099750941885165855",
+      "handle": "RameshJayaswal",
+      "display_name": "Ramesh Jayaswal",
+      "text": "On this Engineers’ Day, I extend my heartfelt greetings and appreciation to all Engineers at Jayaswal Neco Industries Limited and across the nation.\n\nHappy Engineers’ Day!\n\nRamesh Jayaswal\nManaging Director\nJayaswal Neco Industries Limited",
+      "created_at": "2026-09-15T06:43:30+00:00",
+      "url": "https://x.com/RameshJayaswal/status/2099750941885165855",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Jayaswal Neco Industries\""
+        },
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Jayaswal Neco\""
         }
       ]
     },
@@ -6587,6 +7768,22 @@
       ]
     },
     {
+      "tweet_id": "2099728462986776816",
+      "handle": "TToriya26590",
+      "display_name": "Tulika Toriya",
+      "text": "#KALYANKJIL !! 💰💰\n\nFrom 20 to 22.20 moved for 2700 rs profit !! \n\nFrom GOLD rush to #KALYAN rush ! \n\n#Nifty50 #StockMarket #gold #stockoptions https://t.co/PN7nWtwqV7",
+      "created_at": "2026-09-15T05:14:11+00:00",
+      "url": "https://x.com/TToriya26590/status/2099728462986776816",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099726998709174561",
       "handle": "abhealthin",
       "display_name": "ABC - Aditya Birla Health Insurance",
@@ -6599,6 +7796,38 @@
         {
           "entityId": "isin:INE674K01013",
           "query": "\"ABCAPITAL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099725307293098366",
+      "handle": "naruto8178",
+      "display_name": "The Mechanical Trader",
+      "text": "Bought #KALYANKJIL\n\nAvg price: 613\nRisk: 0.125\nSL: Day low\n\nKept Risk very low as the market is under pressure. However, I feel , it might recover in the second half of the day. let's see\n\nReason: Gold-related stocks are doing well. https://t.co/qSUJBcNixM",
+      "created_at": "2026-09-15T05:01:38+00:00",
+      "url": "https://x.com/naruto8178/status/2099725307293098366",
+      "image": "https://pbs.twimg.com/media/HSO4IQ7bUAAWmZz.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099725094994206950",
+      "handle": "Parinita01",
+      "display_name": "PARINITA PATIDAR",
+      "text": "Book at 21.90 \nNo movement right now \n#KALYANKJIL",
+      "created_at": "2026-09-15T05:00:48+00:00",
+      "url": "https://x.com/Parinita01/status/2099725094994206950",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
         }
       ]
     },
@@ -6671,6 +7900,22 @@
       ]
     },
     {
+      "tweet_id": "2099715836789543266",
+      "handle": "Supriyakumwn",
+      "display_name": "Supriya kumari",
+      "text": "STOCK OPTION TRADE ALERT !!\n\n#KALYANKJIL 600 CE !!! 29 SEP \n\nEntry zone - 26.10\n\nMESSAGE ME for proper trade setup...TARGET and STOPLOSS \n\nDisclaimer - Only for educational purpose, not a buy/sell recommendations !!\n#expiry #stockinfocus #sharemarket",
+      "created_at": "2026-09-15T04:24:00+00:00",
+      "url": "https://x.com/Supriyakumwn/status/2099715836789543266",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099715732594667858",
       "handle": "abcapital",
       "display_name": "Aditya Birla Capital",
@@ -6711,6 +7956,102 @@
       ]
     },
     {
+      "tweet_id": "2099714884942672125",
+      "handle": "theta_sell",
+      "display_name": "Manohar Lal",
+      "text": "🚨 #KALYANKJIL 600 CE | 29 SEP\n\nCMP: ₹25.50 🔥\n\n📩 Complete trade setup &amp; levels on Telegram:\nJoin: https://t.co/ezM4sWlzRI\n\nEducational Purpose Only. DYOR.\n\n#IndianStockMarket #StockToWatch #StockInFocus #MarketUpdate",
+      "created_at": "2026-09-15T04:20:14+00:00",
+      "url": "https://x.com/theta_sell/status/2099714884942672125",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099714844018778256",
+      "handle": "tradersumita",
+      "display_name": "Sumita",
+      "text": "🚨 #KALYANKJIL 600 CE | 29 SEP\n\nCMP: ₹25.50 🔥\n\n📩 Complete trade setup &amp; levels on Telegram:\nJoin: https://t.co/DvAhFBt1rG\n\nEducational Purpose Only. DYOR.\n\n#IndianStockMarket #StockToWatch #StockInFocus #MarketUpdate",
+      "created_at": "2026-09-15T04:20:04+00:00",
+      "url": "https://x.com/tradersumita/status/2099714844018778256",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099714315318345847",
+      "handle": "Suruchi7974",
+      "display_name": "Suruchi",
+      "text": "#KALYANKJIL 600 CE ! 29 SEP \n\nMORNING- 25.50 \n\nMessage for complete trade setup..!! \n\nEducational purpose only. DYOR \n\n#IndianStockMarket #Nifty50 #Sensex #StockToWatch #StockInFocus #MarketUpdate",
+      "created_at": "2026-09-15T04:17:58+00:00",
+      "url": "https://x.com/Suruchi7974/status/2099714315318345847",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099713828875542560",
+      "handle": "Parinita01",
+      "display_name": "PARINITA PATIDAR",
+      "text": "#KALYANKJIL BULLISH MOVEMENT\n\n  KALYANKJIL 610 CE/ SEP EXPIRY \n\nMOVING IN RANGE OF 20-21\n\n#STOCKOPTIONS GOOD MOVEMENT #NIFTY\n\nMessage me for exclusive trade setup.📥\n\n🚨This is only for Educational Purpose ,Trade at your own risk and consult with your financial advisor",
+      "created_at": "2026-09-15T04:16:02+00:00",
+      "url": "https://x.com/Parinita01/status/2099713828875542560",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099713517855391921",
+      "handle": "RaiAnuja34353",
+      "display_name": "Anuja Rai",
+      "text": "TRADE SETUP ALERT          \n\n#KALYANKJIL 610 CE 29 SEP          \n\nEntry Zone:  19-20\n\n📩 Message for the Trade Setup          \n\nEducational Purpose Only | DYOR          \n\n#KALYANKJIL #IndianStockMarket #Nifty50 #Sensex #StockInFocus",
+      "created_at": "2026-09-15T04:14:48+00:00",
+      "url": "https://x.com/RaiAnuja34353/status/2099713517855391921",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099713462050173169",
+      "handle": "ssharmar004",
+      "display_name": "Sakshi Sharma",
+      "text": "#KALYANKJIL 29 SEP CE 600\nmoving range ~ 24-25\n#SBICARDS 29 SEP PE 640\nmoving range ~ 12~13 \n\nStrong movement in stocks for proper SL TARGET inbox me 📥\n \nThis trade is only for educational purpose Do your own research before taking any trade. \n#nifty #giftnifty #stockmarket",
+      "created_at": "2026-09-15T04:14:34+00:00",
+      "url": "https://x.com/ssharmar004/status/2099713462050173169",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099713351886700733",
       "handle": "abcapital",
       "display_name": "Aditya Birla Capital",
@@ -6731,6 +8072,38 @@
       ]
     },
     {
+      "tweet_id": "2099712840529797544",
+      "handle": "TToriya26590",
+      "display_name": "Tulika Toriya",
+      "text": "STOCK OPTION TRADE ALERT!!! \n\n#KALYANKJIL 610 call !!! Sep \n\nFROM 20 \n\nFOR TRADE SETUP FOLLOW ME OR INBOX ME!!! \n\nThis is for educational purpose, DYOR!!!\n\n#Kalyankjil #Nifty #BankNifty #Sensex #OptionsTrading #StockMarket",
+      "created_at": "2026-09-15T04:12:06+00:00",
+      "url": "https://x.com/TToriya26590/status/2099712840529797544",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099712550632136791",
+      "handle": "harshalinvest",
+      "display_name": "Harshali",
+      "text": "STOCK OPTION TRADE \n\n#KALYANKJIL 610 CALL \nCP- 19\nTGT - 23 || 24\nSL - 14\n\nNot a buy sell recommendation \n\n#Market #StockOption #DalalStreet #IndianStockMarket #Trading #TradingView",
+      "created_at": "2026-09-15T04:10:57+00:00",
+      "url": "https://x.com/harshalinvest/status/2099712550632136791",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099711493432607192",
       "handle": "Prasenjtbiswas",
       "display_name": "PRASENJIT BISWAS🇮🇳",
@@ -6743,6 +8116,22 @@
         {
           "entityId": "isin:INE674K01013",
           "query": "\"ABCAPITAL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099701583152128309",
+      "handle": "iproud_sanatani",
+      "display_name": "Proud Sanatani",
+      "text": "Buy Kalyan Jewellers \n\n#kalyankjil",
+      "created_at": "2026-09-15T03:27:22+00:00",
+      "url": "https://x.com/iproud_sanatani/status/2099701583152128309",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
         }
       ]
     },
@@ -6783,6 +8172,22 @@
       ]
     },
     {
+      "tweet_id": "2099700046371672273",
+      "handle": "Mohitsnegi94",
+      "display_name": "Charts 24/7",
+      "text": "#JUBLPHARMA 🔥\nTrendline breakout setup!\nChart looks interesting \nGood to Go \nHeading Towards ₹1,300 → ₹1,500+ 🎯\n\n#JubilantPharma #Stocks #Breakout #NSE https://t.co/GA0tZLeFdf",
+      "created_at": "2026-09-15T03:21:16+00:00",
+      "url": "https://x.com/Mohitsnegi94/status/2099700046371672273",
+      "image": "https://pbs.twimg.com/media/HSOiDs1bcAA8z5y.png",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE700A01033",
+          "query": "\"JUBLPHARMA\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099698193575633152",
       "handle": "stockhifi",
       "display_name": "Stockhifi.com",
@@ -6811,6 +8216,38 @@
         {
           "entityId": "isin:INE674K01013",
           "query": "\"Aditya Birla Capital\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099695741111533871",
+      "handle": "voltricsX",
+      "display_name": "VoltricsX",
+      "text": "Top Brokerage Ratings &amp; Target Prices 15 Sept 2026\n\nBSE, Sterlite Technologies, Kalyan Jewellers India, HDFC Bank, Solar Industries, Indian Hotels, Sun Pharma, Nuvama Wealth, SBI Life Insurance, HDFC Life Insurance, Motilal Oswal Financial Services, Hindustan Petroleum (HPCL ), https://t.co/BXaWjPhUo6",
+      "created_at": "2026-09-15T03:04:09+00:00",
+      "url": "https://x.com/voltricsX/status/2099695741111533871",
+      "image": "https://pbs.twimg.com/media/HSOeJEkaMAATaHe.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"Kalyan Jewellers India\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099695640456695976",
+      "handle": "SmarTradingA",
+      "display_name": "Smart Trading Alerts",
+      "text": "Kalyan Jewellers India, Motilal Oswal Financial Services, Nuvama Wealth, SBI Life Insurance, Solar Industries, Sterlite Technologies, Sun Pharma, Tata Chemicals,\n\nPart 2\n#BrokerageRadar https://t.co/gUSOdrLTAW",
+      "created_at": "2026-09-15T03:03:45+00:00",
+      "url": "https://x.com/SmarTradingA/status/2099695640456695976",
+      "image": "https://pbs.twimg.com/media/HSOeDHsbkAA44Yh.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"Kalyan Jewellers India\""
         }
       ]
     },
@@ -6863,6 +8300,22 @@
         {
           "entityId": "isin:INE674K01013",
           "query": "\"ABCAPITAL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099631692772184225",
+      "handle": "cmfan1968",
+      "display_name": "☢️@zucasBorbonetdelLinhaçone et Garrafole",
+      "text": "Datasel",
+      "created_at": "2026-09-14T22:49:39+00:00",
+      "url": "https://x.com/cmfan1968/status/2099631692772184225",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Datasel\""
         }
       ]
     },
@@ -7159,6 +8612,22 @@
       ]
     },
     {
+      "tweet_id": "2099512688489701708",
+      "handle": "Bajajtraderss",
+      "display_name": "BAJAJ TRADERS",
+      "text": "🔥 LONG-TERM WATCHLIST | 4 STOCKS TO WATCH\n#LICI • #KALYANKJIL • #HEROMOTOCO • #KEI\n\nStrong Supply & Demand Zones + Market Structure are setting up for potentially interesting long-term moves. 📊\n\n🎯 Patience > Prediction\nWait for price to reach the zone and confirm the setup before taking any trade.\n\n📌 Follow me for Daily Stock Updates & Long-Term Views\nCash Stocks • Options • Futures • Supply & Demand Setups\n⚠️ Stop Loss Must — Every Trade\nEducational Purpose Only.\n\n#Stocks #Nifty #Trading #Investing #StockMarket #SwingTrading",
+      "created_at": "2026-09-14T14:56:46+00:00",
+      "url": "https://x.com/Bajajtraderss/status/2099512688489701708",
+      "image": "https://pbs.twimg.com/media/HSL3eFgbsAA3k8J.png",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099511818960122117",
       "handle": "TheThevaluetrad",
       "display_name": "The Value Trader",
@@ -7227,6 +8696,26 @@
       ]
     },
     {
+      "tweet_id": "2099502234979688759",
+      "handle": "shivjikavaibhav",
+      "display_name": "vaibhav gupta",
+      "text": "SCANNED 658 STOCKS ✅ \n\nHere are List of TOP 06  #stocks that could fly in the coming days...🚀\n\n1/ Kalyan Jewellers India Ltd #kalyankjil https://t.co/3VD0QVtcfD",
+      "created_at": "2026-09-14T14:15:14+00:00",
+      "url": "https://x.com/shivjikavaibhav/status/2099502234979688759",
+      "image": "https://pbs.twimg.com/media/HSLszwTakAA9iyP.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"Kalyan Jewellers India\""
+        },
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099489741209055576",
       "handle": "MaheshSingh2021",
       "display_name": "Mahesh Singh2021",
@@ -7259,6 +8748,22 @@
         {
           "entityId": "isin:INE914E01040",
           "query": "\"ALANKIT\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099482829608423598",
+      "handle": "errnews",
+      "display_name": "ERR News",
+      "text": "Former agency head: Defense minister actively involved in Datasel dealings\n\n#Estonia https://t.co/XhNnUX3Txc",
+      "created_at": "2026-09-14T12:58:07+00:00",
+      "url": "https://x.com/errnews/status/2099482829608423598",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Datasel\""
         }
       ]
     },
@@ -7331,6 +8836,38 @@
       ]
     },
     {
+      "tweet_id": "2099459788547764327",
+      "handle": "jai_7799",
+      "display_name": "TheYoungEngineer",
+      "text": "Stocks to watch for this week:\n\nRATNAMANI MAITHANALL\nMAXHEALTH\nJSL\nGARUDA\nMANAKCOAT\nEVEREADY\nMRPL\nMUKANDLTD\nABDL\nWAKEFIT\nPOWERICA\nSUNDROP\nPINELABS\nSAGILITY\nHINDOILEXP\nJUBLPHARMA",
+      "created_at": "2026-09-14T11:26:34+00:00",
+      "url": "https://x.com/jai_7799/status/2099459788547764327",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE700A01033",
+          "query": "\"JUBLPHARMA\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099453488266948814",
+      "handle": "Gaurav_7811",
+      "display_name": "Gaurav Tiwari",
+      "text": "3️⃣ #KALYANKJIL https://t.co/MJG0tvSFnW",
+      "created_at": "2026-09-14T11:01:32+00:00",
+      "url": "https://x.com/Gaurav_7811/status/2099453488266948814",
+      "image": "https://pbs.twimg.com/media/HSLB0TvawAAd8W6.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099446621935440296",
       "handle": "abcapital",
       "display_name": "Aditya Birla Capital",
@@ -7383,6 +8920,22 @@
         {
           "entityId": "isin:INE674K01013",
           "query": "\"ABCAPITAL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099440436830167485",
+      "handle": "meesubhajit",
+      "display_name": "𝑺𝒖𝒃𝒉𝒂𝒋𝒊𝒕 𝑲𝒖𝒏𝒅𝒖",
+      "text": "@jeet_09_ Why did you sell these two companies?\n\nChandan healthcare\nJay Bee Laminations",
+      "created_at": "2026-09-14T10:09:40+00:00",
+      "url": "https://x.com/meesubhajit/status/2099440436830167485",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE0SMY01017",
+          "query": "\"Jay Bee Laminations\""
         }
       ]
     },
@@ -7831,6 +9384,26 @@
       ]
     },
     {
+      "tweet_id": "2099362541004808288",
+      "handle": "JNILindia",
+      "display_name": "Jayaswal Neco Industries Ltd",
+      "text": "Team JNIL wishes you and your loved ones a very Happy Ganesh Chaturthi!\n\nMay Lord Ganesha bless every home with happiness, prosperity, and positivity, and may this auspicious occasion mark the beginning of new possibilities. https://t.co/EqYyJgUY6U",
+      "created_at": "2026-09-14T05:00:08+00:00",
+      "url": "https://x.com/JNILindia/status/2099362541004808288",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Jayaswal Neco Industries\""
+        },
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Jayaswal Neco\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2099359666581176744",
       "handle": "LawofInvesting",
       "display_name": "Shubham Upadhyay",
@@ -7907,6 +9480,54 @@
         {
           "entityId": "isin:INE674K01013",
           "query": "\"Aditya Birla Capital\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099339858426614121",
+      "handle": "ChartStudy_IN",
+      "display_name": "Trading Insights - Indian Stocks",
+      "text": "#UYFINCORP\n#kalyankjil \n\n#StockMarketindia #StockToWatch #NSE #BSE #Nifty #Wyckoff #accumulate #wyckoffanalysis #wyckoffmethod #patterns https://t.co/DzMf90EUcQ",
+      "created_at": "2026-09-14T03:30:00+00:00",
+      "url": "https://x.com/ChartStudy_IN/status/2099339858426614121",
+      "image": "https://pbs.twimg.com/media/HSEAKSlWEAsH4SV.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099339351784357900",
+      "handle": "twitflwr",
+      "display_name": "Twitflwr",
+      "text": "@profitable55282 @Gurumoorty Jayaswal Neco Ind ? CMP near 90.",
+      "created_at": "2026-09-14T03:27:59+00:00",
+      "url": "https://x.com/twitflwr/status/2099339351784357900",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE854B01010",
+          "query": "\"Jayaswal Neco\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2099337528889499721",
+      "handle": "kaidi_aankh",
+      "display_name": "Chartwala Monk",
+      "text": "(2/3)\n\n#KALYANKJIL: Taking longer than expected. Caution.\n\n#MARKSANS: Aur tight?\n\n#NELCO: Jhatke de sakta hai aur.\n\n#SHADOWFOX: Fox 20 EMA ke paas khadi hai. https://t.co/0iKbvS0PEN",
+      "created_at": "2026-09-14T03:20:45+00:00",
+      "url": "https://x.com/kaidi_aankh/status/2099337528889499721",
+      "image": "https://pbs.twimg.com/media/HSJWiteawAE7tQ2.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE303R01014",
+          "query": "\"KALYANKJIL\""
         }
       ]
     },
@@ -8085,1814 +9706,14 @@
           "query": "\"RAIN\""
         }
       ]
-    },
-    {
-      "tweet_id": "2099283661459698092",
-      "handle": "fish38421672",
-      "display_name": "fish",
-      "text": "Ezra, you got a place where grass won’t grow love on these. I just gave him a little extra help every once in a zillion miles when there’s been no rain at all and they’re all withered to death and look like they even wanna die.\n\nMy filter is clearly filter, which does it. Also it really made a huge difference on the plants because I know how plants react to water and wow that once I went to my filtered water everything changed how they woke up the new ones that I could see that I needed Trailr with my little filtered water\n\nI’m not overwatering them, but they were really dry, but I didn’t have tons of water each time. Just my squirt bottle.",
-      "created_at": "2026-09-13T23:46:42+00:00",
-      "url": "https://x.com/fish38421672/status/2099283661459698092",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283656703402200",
-      "handle": "KUMICHORAIN",
-      "display_name": "KUMICHO RAIN",
-      "text": "@ObtainDotGG Higher cashback, faster withdrawals, better reload bonuses, exclusive tournaments, and personal host support.\n\nstake username: outsiiderprod1",
-      "created_at": "2026-09-13T23:46:41+00:00",
-      "url": "https://x.com/KUMICHORAIN/status/2099283656703402200",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283644905132151",
-      "handle": "ops_karolis",
-      "display_name": "KAROL LAINE 🌻",
-      "text": "Her leaks just dropped, I dare you to last more that 15 secs?\n💗👤🪴\nSophie rain New Mexico \nHere:,,,\nFuck it.. Tired of posting , here’s the full leak here \n🌻☔\n  here.,,,,\nhttps://t.co/KhGe7CXD8A",
-      "created_at": "2026-09-13T23:46:38+00:00",
-      "url": "https://x.com/ops_karolis/status/2099283644905132151",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283641679409496",
-      "handle": "metalbee_",
-      "display_name": "rain - amv.mp4",
-      "text": "É meio cansativo vc ter que passar por isso praticamente a vida inteira justamente por não saber expor seus sentimentos e nunca ter sido ensinada a fazer isso, apenas a engolir o próprio choro...",
-      "created_at": "2026-09-13T23:46:37+00:00",
-      "url": "https://x.com/metalbee_/status/2099283641679409496",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283634511343738",
-      "handle": "AkiraleTorimaki",
-      "display_name": "Akirale Torimaki 👻✨ (明レ 鳥巻 | アキラレ トリマキ)",
-      "text": "My sister tried to go to this game but, being under the assumption that the game would be postponed due to the rain, she didn’t go. \n\nImagine having tickets to the game, leaving because you thought it would rain out, only for the game to start and you miss out on THIS:",
-      "created_at": "2026-09-13T23:46:35+00:00",
-      "url": "https://x.com/AkiraleTorimaki/status/2099283634511343738",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283632003100938",
-      "handle": "animatedrai",
-      "display_name": "Rain is a fxxking star⭑.ᐟ",
-      "text": "@Whosrobin57 I would bonk you on the head for this but it would probably make it worse",
-      "created_at": "2026-09-13T23:46:35+00:00",
-      "url": "https://x.com/animatedrai/status/2099283632003100938",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283615062560802",
-      "handle": "YubeiHe12703",
-      "display_name": "真・ロックをこよなく愛するもの🌈",
-      "text": "オールディーズ⑥\n\n🇺🇲THE COWSILLS\n🎙️The Rain, The Park &amp; Other Things\nhttps://t.co/rJhaCQAayK\n\n🇺🇲 EVERY MOTHER'S SON\n🎙️Come On Down To My Boat\nhttps://t.co/ux2VwPbqDm\n\n🏴󠁧󠁢󠁥󠁮󠁧󠁿CREAM\n🎙️White Room\nhttps://t.co/8J1jJ8mTp4\n\n🇬🇧🇦🇺THE BEE GEES\n🎙️Melody Fair\nhttps://t.co/YwtMAJcyfw https://t.co/yFKw0ec5Hm",
-      "created_at": "2026-09-13T23:46:31+00:00",
-      "url": "https://x.com/YubeiHe12703/status/2099283615062560802",
-      "image": "https://pbs.twimg.com/media/HSInStsbYAAJPxE.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283615053951425",
-      "handle": "IvoYoon23790",
-      "display_name": "Rain Ivo",
-      "text": "Como se fosse tão simples assim",
-      "created_at": "2026-09-13T23:46:31+00:00",
-      "url": "https://x.com/IvoYoon23790/status/2099283615053951425",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283602223874520",
-      "handle": "ops_karolis",
-      "display_name": "KAROL LAINE 🌻",
-      "text": "Her leaks just dropped, I dare you to last more that 15 secs?\n👤💫\nSophie rain New Mexico \nHere:,,,\nFuck it.. Tired of posting , here’s the full leak here \n💘⛄\n  here.,,,,\nhttps://t.co/KhGe7CXD8A",
-      "created_at": "2026-09-13T23:46:28+00:00",
-      "url": "https://x.com/ops_karolis/status/2099283602223874520",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283592585138591",
-      "handle": "acearcheologist",
-      "display_name": "Amandatory Archaeologist ⚔️",
-      "text": "Now I just want a Guy left out in the rain, almost hypothermia, drenched to the bone, spying on Jasper in that resturant. +",
-      "created_at": "2026-09-13T23:46:25+00:00",
-      "url": "https://x.com/acearcheologist/status/2099283592585138591",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283590458552426",
-      "handle": "BaileyGray29",
-      "display_name": "Bailey Gray",
-      "text": "The rain shortened our tournament we only had 2 games but, I had a great start to the Fall season in the Alliance Super Cup! It was awesome to be on the field again with my teammates. I went 2-3 with 2 RBI’s and a HBP \n@DelValSB \n@Bh2osoftball \n@RoanokeSoftball \n@LMC_Softball https://t.co/u0RaGA0nPR",
-      "created_at": "2026-09-13T23:46:25+00:00",
-      "url": "https://x.com/BaileyGray29/status/2099283590458552426",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283584901058563",
-      "handle": "stephenthatdope",
-      "display_name": "Ted Mosby HK",
-      "text": "@guwopci Yoooo the rain picture 🔥🔥🔥🔥🔥🔥🔥",
-      "created_at": "2026-09-13T23:46:24+00:00",
-      "url": "https://x.com/stephenthatdope/status/2099283584901058563",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283583966064775",
-      "handle": "leskingg",
-      "display_name": "เงี่ยน",
-      "text": "#anal #blowjob #deepthroat #cumshot #creampie #doggy #cowgirl #squirt #titfuck #hardcore #rough #xxx #porn #nsfw #adult #kinky #bdsm #fetiche #sex #sexvideo #hot #dirty #naughty #xxxvideo #pornstar #threesome #orgy #gangbang \n#pornstar #threesome \nhttps://t.co/49MuBsLP2P+…",
-      "created_at": "2026-09-13T23:46:23+00:00",
-      "url": "https://x.com/leskingg/status/2099283583966064775",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283581722095842",
-      "handle": "melialbistur",
-      "display_name": "PORN SEXHUB",
-      "text": "con el video filtrado del sinaka esta\nfoto envejeció original?!\nbelow, ?98\nvídeo de sinaka vídeo completo\nAquí el video.65,\n🐣🍇😵🌼♥️🌼🖐️🐔\nhttps://t.co/b6YClJm14Q",
-      "created_at": "2026-09-13T23:46:23+00:00",
-      "url": "https://x.com/melialbistur/status/2099283581722095842",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283581273358566",
-      "handle": "gulamasolann",
-      "display_name": "+19 PORn X 🍂",
-      "text": "con el video filtrado del sinaka esta foto envejeció original below...??!!\n🧅🧅🥚🥔\nvídeo de sinaka vídeo completo\nAquí el video.!!???\n🥝🍈🥔🥕🍅🍆\nhttps://t.co/5j0ESnAH8A",
-      "created_at": "2026-09-13T23:46:23+00:00",
-      "url": "https://x.com/gulamasolann/status/2099283581273358566",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283564336414756",
-      "handle": "PeteGrigsbyKMBC",
-      "display_name": "PETE GRIGSBY 🌪️",
-      "text": "Forecast Focus: HOT Monday. Several Rain chances ahead. A slight taste of Fall next Sunday into following week. Details below from Sunday 5pm @kmbc broadcast. Have a great week everyone. https://t.co/vdpGIBPrV0",
-      "created_at": "2026-09-13T23:46:19+00:00",
-      "url": "https://x.com/PeteGrigsbyKMBC/status/2099283564336414756",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283564227678549",
-      "handle": "krish_mohana",
-      "display_name": "Star dust 🦋💫",
-      "text": "I have watched two birds\nleave the same branch\nin opposite directions,\neach carrying a little morning\ninside its wings.\nThe branch did not follow.\nIt simply trembled awhile\nbeneath the weight\nof what had been there.\n\nLove comes like that..\nwithout asking whether the season is kind,\nwithout consulting distance or tomorrow.\nIt places its whole, unreasonable tenderness\ninto our ordinary hands\nand calls that faith.\nFor a while, someone becomes the lamp\nleft burning in the kitchen\nafter every other room has gone dark,\nand even loneliness forgets its old name.\n\nThen the weather changes.\nNot cruelly.\nOnly as weather does.\nA road bends where neither heart expected.\nA season asks more\nthan two people can give\nand still remain gentle.\nAnd suddenly you are learning\nhow to become separate\nwithout becoming strangers.\n\nYet the body keeps its small knowledge:\nhow they liked the window open,\nhow much milk went into their coffee,\nwhich silence meant stay,\nthe almost invisible tiredness\nthat entered their voice before sleep.\nMorning comes,\nand all that knowing wanders the rooms\nlike a dog no one has told\nthe door will not open again.\n\nI used to call this failure.\nI was wrong.\nSome loves come as rain\nto a field that has forgotten rain..\nbrief, \ncomplete,\nalready disappearing into the earth\nwhile the roots beneath\nare only beginning to wake.\nThe rain does not remain\nto witness what it has changed.\n\nYears later, \nsomething greens.\nPerhaps only a tenderness\nyou cannot remember learning,\nthe way you now hold another person's sorrow\nwithout trying to repair it,\nthe mercy with which you forgive\nwhat once would have hardened you.\nAnd somewhere beneath your ribs\nthere is still a small room\nwhere winter enters\nbut cannot finish its work.\n\nSo if love finds you\nin tall grass,\nat an airport,\nacross an impossible distance,\nor barefoot in an ordinary kitchen,\ngo toward it.\nDo not ask the sky\nto swear it will never change.\nThe sky has other work.\nLove does not become more true\nbecause it survives every season.\n\nAnd if one day you must open your hand\naround the one\nyou once believed you would keep,\nopen it gently..\nas you would release a living bird\nback into the enormous field.\nNot because holding it meant nothing.\nNot because leaving makes the love less real.\nBut because sometimes the last tenderness\nwe can give what we love\nis not to turn our love into a cage.\n\nThen let them go.\n\nThe hand will remember the warmth.\nThe branch will remember the weight.\nThe field will remember the rain.\n\nSomeone walks away.\nThe longing does not.\n\nIt stays\nthe way evening light stays trembling on water\nafter the bird\nhas disappeared beyond the trees..\n\nnot asking to be called forever,\nnot asking to be understood,\n\nonly shining\nwhere something beautiful\nonce passed.\n\n#InkByVKrish",
-      "created_at": "2026-09-13T23:46:19+00:00",
-      "url": "https://x.com/krish_mohana/status/2099283564227678549",
-      "image": "https://pbs.twimg.com/media/HSInRWkbsAAgvTe.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283560708678008",
-      "handle": "Nuni_Sas_Yu",
-      "display_name": "nuni sas yu",
-      "text": "Perfect weather, 90% done. Critical parts done so rental lift can go back tomorrow.\nHe wanted the big trees down as he was concerned with all the rain, and the high winds we have had this year, that the trees would come over on his house or his neighbor’s property. Now he does not have to worry about it. He is thinking of a row of cedars for a nice hedge.",
-      "created_at": "2026-09-13T23:46:18+00:00",
-      "url": "https://x.com/Nuni_Sas_Yu/status/2099283560708678008",
-      "image": "https://pbs.twimg.com/media/HSInQsvawAAptYt.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283560247206389",
-      "handle": "ops_karolis",
-      "display_name": "KAROL LAINE 🌻",
-      "text": "Her leaks just dropped, I dare you to last more that 15 secs?\n🪴💫⭐\nSophie rain New Mexico \nHere:,,,\nFuck it.. Tired of posting , here’s the full leak here \n❤️☔\n  here.,,,,\nhttps://t.co/KhGe7CXD8A",
-      "created_at": "2026-09-13T23:46:18+00:00",
-      "url": "https://x.com/ops_karolis/status/2099283560247206389",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283555637477603",
-      "handle": "animatedrai",
-      "display_name": "Rain is a fxxking star⭑.ᐟ",
-      "text": "I really like the word lurking. feels very mysterious",
-      "created_at": "2026-09-13T23:46:17+00:00",
-      "url": "https://x.com/animatedrai/status/2099283555637477603",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283549719613735",
-      "handle": "melialbistur",
-      "display_name": "PORN SEXHUB",
-      "text": "con el video filtrado del sinaka esta\nfoto envejeció original?!\nbelow, ?98\nvídeo de sinaka vídeo completo\nAquí el video.65,\n🕊️🖐️🐦‍🔥🪹😆🪹🦜🪻🪻🦜\nhttps://t.co/b6YClJm14Q",
-      "created_at": "2026-09-13T23:46:15+00:00",
-      "url": "https://x.com/melialbistur/status/2099283549719613735",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283543633650164",
-      "handle": "WynellBrocjv6b",
-      "display_name": "Wynell Brochet",
-      "text": "قصص مقاطع نيك قصص سكس  محارم\nسكس عالمي مترجم\nأفلام سكس \n🐸🐗\n#xxx #girl #سـكـــسًْ #سِِكُسْ_كتَاب\n\nسككس عربي مترجم نار خليجي 🔞\n\n#sex\n\n#سـكـــسًْiut\n\n#سِِكُسْ._كتَاب.\n\nسككس عربي\nhttps://t.co/5GZST1xyPI",
-      "created_at": "2026-09-13T23:46:14+00:00",
-      "url": "https://x.com/WynellBrocjv6b/status/2099283543633650164",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283535546741177",
-      "handle": "CestCheshireCat",
-      "display_name": "Rain Morningstar",
-      "text": "LOL",
-      "created_at": "2026-09-13T23:46:12+00:00",
-      "url": "https://x.com/CestCheshireCat/status/2099283535546741177",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283513904357452",
-      "handle": "melialbistur",
-      "display_name": "PORN SEXHUB",
-      "text": "con el video filtrado del sinaka esta\nfoto envejeció original?!\nbelow, ?98\nvídeo de sinaka vídeo completo\nAquí el video.65,()(+-&amp;&amp;)(+&amp;_)\n🐔🪻☃️😆☃️💕💞💞🪷\nhttps://t.co/b6YClJm14Q",
-      "created_at": "2026-09-13T23:46:07+00:00",
-      "url": "https://x.com/melialbistur/status/2099283513904357452",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283510754423124",
-      "handle": "ops_karolis",
-      "display_name": "KAROL LAINE 🌻",
-      "text": "Her leaks just dropped, I dare you to last more that 15 secs?\n⛄💫\nSophie rain New Mexico \nHere:,,,\nFuck it.. Tired of posting , here’s the full leak here \n🌻🍈\n  here.,,,,\nhttps://t.co/KhGe7CXD8A",
-      "created_at": "2026-09-13T23:46:06+00:00",
-      "url": "https://x.com/ops_karolis/status/2099283510754423124",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283496707694842",
-      "handle": "YnAud6r4",
-      "display_name": "Rain Days",
-      "text": "#ポケポケトレード\n#ポケポケトレード募集 https://t.co/X5MAKUywqx",
-      "created_at": "2026-09-13T23:46:03+00:00",
-      "url": "https://x.com/YnAud6r4/status/2099283496707694842",
-      "image": "https://pbs.twimg.com/media/HSInNn2bsAANtZF.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283485693489586",
-      "handle": "nadnerbus",
-      "display_name": "Nadnerbus",
-      "text": "@Deedo_2026 @MonsignorMrtnez @grok @RantyAmyCurtis @TomTiffanyWI 😄😄  \n\n\"Feels like it's about to rain like dogs and cats around here.\" https://t.co/g95All3Y43",
-      "created_at": "2026-09-13T23:46:00+00:00",
-      "url": "https://x.com/nadnerbus/status/2099283485693489586",
-      "image": "https://pbs.twimg.com/media/HSInNLpawAAEeUT.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283484900823085",
-      "handle": "ValuedGatoxpx",
-      "display_name": "ValuedGator",
-      "text": "#nsfwtwt #nsfw #sex #porn #naked #nudes #hentai #squirt #pussy #goon #horny #trade #masturbate #anal #dhkisex #turk #milf #blowjob #creampie #latina #leaks #trade #leak #jav #teen #ntr #ass #chudai #wataa #feet #cum #lesbian #footjob #soles #mauve👆🥒😚💕\nhttps://t.co/PJ3nB56txX",
-      "created_at": "2026-09-13T23:46:00+00:00",
-      "url": "https://x.com/ValuedGatoxpx/status/2099283484900823085",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283469365043311",
-      "handle": "ops_karolis",
-      "display_name": "KAROL LAINE 🌻",
-      "text": "Her leaks just dropped, I dare you to last more that 15 secs?\n💫⚡\nSophie rain New Mexico \nHere:,,,\nFuck it.. Tired of posting , here’s the full leak here \n⚡⭐\n  here.,,,,\nhttps://t.co/KhGe7CXD8A",
-      "created_at": "2026-09-13T23:45:56+00:00",
-      "url": "https://x.com/ops_karolis/status/2099283469365043311",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283456811233758",
-      "handle": "animatedrai",
-      "display_name": "Rain is a fxxking star⭑.ᐟ",
-      "text": "@whinehwastains plus they're lurking anyway they probably already know",
-      "created_at": "2026-09-13T23:45:53+00:00",
-      "url": "https://x.com/animatedrai/status/2099283456811233758",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283456559645181",
-      "handle": "PoppaTris",
-      "display_name": "Shunsui KyoAyyub",
-      "text": "@KayLova27 I don’t know much about her but I like that Sophie Rain from the little I do know",
-      "created_at": "2026-09-13T23:45:53+00:00",
-      "url": "https://x.com/PoppaTris/status/2099283456559645181",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283442441548131",
-      "handle": "loveherlethergo",
-      "display_name": "Nerdy Librarian",
-      "text": "There's nothing like the sweet smell of rain.",
-      "created_at": "2026-09-13T23:45:50+00:00",
-      "url": "https://x.com/loveherlethergo/status/2099283442441548131",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283437274251603",
-      "handle": "rainbowmuhafizi",
-      "display_name": "Rain🇹🇷",
-      "text": "@termoavukat I will survive yani",
-      "created_at": "2026-09-13T23:45:48+00:00",
-      "url": "https://x.com/rainbowmuhafizi/status/2099283437274251603",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283425563947437",
-      "handle": "ops_karolis",
-      "display_name": "KAROL LAINE 🌻",
-      "text": "Her leaks just dropped, I dare you to last more that 15 secs?\n⚡☔\nSophie rain New Mexico \nHere:,,,\nFuck it.. Tired of posting , here’s the full leak here \n⚡💘\n  here.,,,,\nhttps://t.co/KhGe7CXD8A",
-      "created_at": "2026-09-13T23:45:46+00:00",
-      "url": "https://x.com/ops_karolis/status/2099283425563947437",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283424238567807",
-      "handle": "krish_mohana",
-      "display_name": "Star dust 🦋💫",
-      "text": "Yes…leaving is only something the body knows....Once someone has truly entered our inner world.. they remain in strange little places...a song..a phrase.. the scent of rain... an unexpected silence. We keep meeting them again.. sometimes years later.. without ever having gone looking.",
-      "created_at": "2026-09-13T23:45:45+00:00",
-      "url": "https://x.com/krish_mohana/status/2099283424238567807",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283411475284419",
-      "handle": "JerrodHisawy",
-      "display_name": "Jerrod Hisaw",
-      "text": "قصص مقاطع نيك قصص سكس  محارم\nسكس عالمي مترجم\nأفلام سكس \n🐺🐦🐺🐗\n#xxx #girl #سـكـــسًْ #سِِكُسْ_كتَاب\n\nسككس عربي مترجم نار خليجي 🔞\n\n#sex\n\n#سـكـــسًْiut\n\n#سِِكُسْ._كتَاب.\n\nسككس عربي\nhttps://t.co/rZrl9MW4ok",
-      "created_at": "2026-09-13T23:45:42+00:00",
-      "url": "https://x.com/JerrodHisawy/status/2099283411475284419",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283407994081337",
-      "handle": "TasteTheRain__",
-      "display_name": "Rain",
-      "text": "I want you in the worst way",
-      "created_at": "2026-09-13T23:45:41+00:00",
-      "url": "https://x.com/TasteTheRain__/status/2099283407994081337",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283405418664437",
-      "handle": "HenleyEffington",
-      "display_name": "Lefty Lemmings",
-      "text": "Man jailed in Oregon for collecting and using the rain water that fell on his own land.  Leftist tyranny at its finest…\n\n  https://t.co/tthvaOQcul",
-      "created_at": "2026-09-13T23:45:41+00:00",
-      "url": "https://x.com/HenleyEffington/status/2099283405418664437",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283399345316220",
-      "handle": "ABCWorldNews",
-      "display_name": "World News Tonight",
-      "text": "Flash floods slammed the Northeast, submerging cars and forcing rescues from Delaware to Massachusetts. Some areas recorded over four inches of rain in a matter of hours. Wildfire burns 4,000+ acres in CA, with evacuations ongoing. @perryrussom reports. https://t.co/pa50VegBSW https://t.co/0sKdrpxAuR",
-      "created_at": "2026-09-13T23:45:39+00:00",
-      "url": "https://x.com/ABCWorldNews/status/2099283399345316220",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283380387074442",
-      "handle": "_nessymessy",
-      "display_name": "Nurse Nessa",
-      "text": "con el video filtrado del sinaka esta\nfoto envejeció original?!\nbelow, ?98\nvídeo de sinaka vídeo completo\nAquí el video.65,\n🦜🐦😵🦚♥️😵♥️\nhttps://t.co/Z1PjDPZ9vD",
-      "created_at": "2026-09-13T23:45:35+00:00",
-      "url": "https://x.com/_nessymessy/status/2099283380387074442",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283377610215910",
-      "handle": "sariyareneee",
-      "display_name": "sariyarenee",
-      "text": "i love when it rain 🥲",
-      "created_at": "2026-09-13T23:45:34+00:00",
-      "url": "https://x.com/sariyareneee/status/2099283377610215910",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283357083578825",
-      "handle": "pt76oz",
-      "display_name": "matt scurrah",
-      "text": "@curiouscat34168 @AFL @CalTwomey Did it matter? Plenty of rain on the night and as it stands right now we may as well of finished first. Load up on the Hawks",
-      "created_at": "2026-09-13T23:45:29+00:00",
-      "url": "https://x.com/pt76oz/status/2099283357083578825",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283355015450972",
-      "handle": "brwonbunnie",
-      "display_name": "𝑅𝑎𝑖𝑛 🐰(-40.8/53lbs)",
-      "text": "@tetyzwetzy69 🫪🫪",
-      "created_at": "2026-09-13T23:45:29+00:00",
-      "url": "https://x.com/brwonbunnie/status/2099283355015450972",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283347449196820",
-      "handle": "rainthistle",
-      "display_name": "𝑹𝒂𝒊𝒏",
-      "text": "I wish i had a puter :&lt;",
-      "created_at": "2026-09-13T23:45:27+00:00",
-      "url": "https://x.com/rainthistle/status/2099283347449196820",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283347440857375",
-      "handle": "_nessymessy",
-      "display_name": "Nurse Nessa",
-      "text": "con el video filtrado del sinaka esta\nfoto envejeció original?!\nbelow, ?98\nvídeo de sinaka vídeo completo\nAquí el video.65,\n🍂♐♐🪷🐦‍🔥🪷\nhttps://t.co/Z1PjDPZ9vD",
-      "created_at": "2026-09-13T23:45:27+00:00",
-      "url": "https://x.com/_nessymessy/status/2099283347440857375",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283343623807481",
-      "handle": "BringrofRain1",
-      "display_name": "Bringr of Rain",
-      "text": "@stoolpresidente Nah, he just sucks \nAlways have since 🦆 days \n\nAll that talent &amp; all he has is good hair 😂",
-      "created_at": "2026-09-13T23:45:26+00:00",
-      "url": "https://x.com/BringrofRain1/status/2099283343623807481",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283335990100102",
-      "handle": "peachgumm_es",
-      "display_name": "Aren (playing Rain Code)",
-      "text": "I like ships that are these images basically. LOL https://t.co/q4vGD2Iujk",
-      "created_at": "2026-09-13T23:45:24+00:00",
-      "url": "https://x.com/peachgumm_es/status/2099283335990100102",
-      "image": "https://pbs.twimg.com/media/HSIm6QDb0AAsuAp.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283332286533842",
-      "handle": "TheGhostSupp",
-      "display_name": "GreninjaSupp",
-      "text": "@CheChoTy Wait, rain world really counts? But also night in the woods mentioned :D",
-      "created_at": "2026-09-13T23:45:23+00:00",
-      "url": "https://x.com/TheGhostSupp/status/2099283332286533842",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283310488998182",
-      "handle": "_nessymessy",
-      "display_name": "Nurse Nessa",
-      "text": "con el video filtrado del sinaka esta\nfoto envejeció original?!\nbelow, ?98\nvídeo de sinaka vídeo completo\nAquí el video.65,+()(+)/(-&amp;_)\n🐦‍🔥💞💕🌼😵🐤\nhttps://t.co/Z1PjDPZ9vD",
-      "created_at": "2026-09-13T23:45:18+00:00",
-      "url": "https://x.com/_nessymessy/status/2099283310488998182",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283295749951734",
-      "handle": "animatedrai",
-      "display_name": "Rain is a fxxking star⭑.ᐟ",
-      "text": "@whinehwastains dude I got attacked because I accidentally forgot to censor when I was talking about false accusations.. it was in a comment section like damn I promise nothing will happen",
-      "created_at": "2026-09-13T23:45:15+00:00",
-      "url": "https://x.com/animatedrai/status/2099283295749951734",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283292906516541",
-      "handle": "MOVWeatherTweet",
-      "display_name": "Ken McNatt with the MOV Weather",
-      "text": "A Severe Thunderstorm Warning has been issued for Ritchie, WV, Wirt, WV, Wood, WV. | Max Hail: 0.75 inches, Wind: 60 MPH | Torrential Rain: Occurring | Expires Sunday, 9/13/26 at 8:30 PM. https://t.co/JwRXrJR7ST",
-      "created_at": "2026-09-13T23:45:14+00:00",
-      "url": "https://x.com/MOVWeatherTweet/status/2099283292906516541",
-      "image": "https://pbs.twimg.com/media/HSInB3casAAYpim.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283276154204594",
-      "handle": "biancasvote",
-      "display_name": "Rain !! 💦💙 || LATRICE MOURNINGS",
-      "text": "@ashleyhollis_ Robbed of that traitors call im so upset",
-      "created_at": "2026-09-13T23:45:10+00:00",
-      "url": "https://x.com/biancasvote/status/2099283276154204594",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283270315749787",
-      "handle": "brwonbunnie",
-      "display_name": "𝑅𝑎𝑖𝑛 🐰(-40.8/53lbs)",
-      "text": "@WynnThin omg 😭😭",
-      "created_at": "2026-09-13T23:45:09+00:00",
-      "url": "https://x.com/brwonbunnie/status/2099283270315749787",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283232353346010",
-      "handle": "jhpddmyterko",
-      "display_name": "XXX SEXY PORN",
-      "text": "Her leaks just dropped, I dare you to last more that 15 secs?\n⭐⚡⚡🥝\nSophie rain New Mexico \nHere:,,,\nFuck it.. Tired of posting , here’s the full leak here \n⚡❤️☔⛄\n  here.,,,,\nhttps://t.co/vVMKmQ7vWr",
-      "created_at": "2026-09-13T23:45:00+00:00",
-      "url": "https://x.com/jhpddmyterko/status/2099283232353346010",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283230633370111",
-      "handle": "EasySkinkxb",
-      "display_name": "EasySkink",
-      "text": "Neveah gets emotional and ✨starts CRYING after she caught Blueface CHEATED🏆 on her with the 5th woman this week after her ØF 🏆tape got 🏆leaked\n\"I'm dumb as f*ck for this n*gga....he got me bad and I ain't ever gonna leave\"😂👇💯\nhttps://t.co/33gfQJBT35",
-      "created_at": "2026-09-13T23:44:59+00:00",
-      "url": "https://x.com/EasySkinkxb/status/2099283230633370111",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283207757975935",
-      "handle": "moni313ca",
-      "display_name": "茶子",
-      "text": "Over 520 businesses affected by heavy rain in Chiba | NHK WORLD-JAPAN News https://t.co/6WXD4LRW5M",
-      "created_at": "2026-09-13T23:44:54+00:00",
-      "url": "https://x.com/moni313ca/status/2099283207757975935",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283200787062964",
-      "handle": "Lobonhoso",
-      "display_name": "Lobonhoso",
-      "text": "Rain World gameplay when you're no longer 15 years old and have less than 1000 hours of gameplay https://t.co/pdY7y8PZL0",
-      "created_at": "2026-09-13T23:44:52+00:00",
-      "url": "https://x.com/Lobonhoso/status/2099283200787062964",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283194634010641",
-      "handle": "sonnschein70",
-      "display_name": "Sonnschein70",
-      "text": "con el video filtrado del sinaka esta\nfoto envejeció original?!\nbelow, ?98\nvídeo de sinaka vídeo completo\nAquí el video.65,\n🪹🦜🦜🙂‍↕️🐣🐤🙂‍↕️♥️🙂‍↕️☃️\nhttps://t.co/b3OQLKHaFn",
-      "created_at": "2026-09-13T23:44:51+00:00",
-      "url": "https://x.com/sonnschein70/status/2099283194634010641",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283194021343705",
-      "handle": "CURSEDPRlNCE",
-      "display_name": "rain ☽ scsp S4!",
-      "text": "@donniecoded i listen to a lot of screamo/post-hardcore/metalcore is that gay",
-      "created_at": "2026-09-13T23:44:50+00:00",
-      "url": "https://x.com/CURSEDPRlNCE/status/2099283194021343705",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283193308361154",
-      "handle": "OfficerJa876",
-      "display_name": "Mr. Locomotive 🇺🇸🇯🇲",
-      "text": "@clovermyrie Dwl mi feel like a di rain 🌧️ a di problem 😂 all di barber no safe 😭",
-      "created_at": "2026-09-13T23:44:50+00:00",
-      "url": "https://x.com/OfficerJa876/status/2099283193308361154",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283179647729953",
-      "handle": "jhpddmyterko",
-      "display_name": "XXX SEXY PORN",
-      "text": "Her leaks just dropped, I dare you to last more that 15 secs?\n💔☔🍍⚡🍍\nSophie rain New Mexico \nHere:,,,\nFuck it.. Tired of posting , here’s the full leak here \n🥝🍍🍍☔\n  here.,,,,\nhttps://t.co/vVMKmQ7vWr",
-      "created_at": "2026-09-13T23:44:47+00:00",
-      "url": "https://x.com/jhpddmyterko/status/2099283179647729953",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283161184374995",
-      "handle": "sonnschein70",
-      "display_name": "Sonnschein70",
-      "text": "con el video filtrado del sinaka esta\nfoto envejeció original?!\nbelow, ?98\nvídeo de sinaka vídeo completo\nAquí el video.65,\n()+-+))+)/😵😆💚🖐️💚🖐️♐🖐️\nhttps://t.co/b3OQLKHaFn",
-      "created_at": "2026-09-13T23:44:43+00:00",
-      "url": "https://x.com/sonnschein70/status/2099283161184374995",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283131522248907",
-      "handle": "briseidaalcala",
-      "display_name": "Briseida Alcalá",
-      "text": "Rain is coming 🌧️ https://t.co/AyUmFD68Cz",
-      "created_at": "2026-09-13T23:44:36+00:00",
-      "url": "https://x.com/briseidaalcala/status/2099283131522248907",
-      "image": "https://pbs.twimg.com/media/HSIm4GVb0AAxkS6.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283120684232916",
-      "handle": "jhpddmyterko",
-      "display_name": "XXX SEXY PORN",
-      "text": "Her leaks just dropped, I dare you to last more that 15 secs?\n☔🥝☔🥝\nSophie rain New Mexico \nHere:,,,\nFuck it.. Tired of posting , here’s the full leak here \n⚡☀️⚡⚡\n  here.,,,,\nhttps://t.co/vVMKmQ7vWr",
-      "created_at": "2026-09-13T23:44:33+00:00",
-      "url": "https://x.com/jhpddmyterko/status/2099283120684232916",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283107484754181",
-      "handle": "sonnschein70",
-      "display_name": "Sonnschein70",
-      "text": "con el video filtrado del sinaka esta\nfoto envejeció original?!\nbelow, ?98\nvídeo de sinaka vídeo completo\nAquí el video.65,()+-(/(()\n🪷🍀🪷🪻🪻🦚💕🌻\nhttps://t.co/b3OQLKHaFn",
-      "created_at": "2026-09-13T23:44:30+00:00",
-      "url": "https://x.com/sonnschein70/status/2099283107484754181",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283103575380041",
-      "handle": "zalinsky_p",
-      "display_name": "Zalinsky Auto parts",
-      "text": "Rain incoming.   Looks like a Big Iron meet and greet at Wild Bill's in Fargo!?!?! https://t.co/VpnNUUae7h",
-      "created_at": "2026-09-13T23:44:29+00:00",
-      "url": "https://x.com/zalinsky_p/status/2099283103575380041",
-      "image": "https://pbs.twimg.com/media/HSImkSfaoAAG5T1.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283094109073667",
-      "handle": "nerdsports_com",
-      "display_name": "NerdSports.com",
-      "text": "FINAL: England Lions beat Sri Lanka in a rain-affected T20 warm-up ahead of the Sri Lanka tour of England 2026. No DLS adjustment was applied, and the result gives the Lions a useful pre-series boost without affecting the official standings. This was the tour’s sole warm-up fixture; the six-match international programme still begins from scratch on Tuesday, with three T20s followed by three ODIs. England and Sri Lanka now move into the series proper. #Cricket #EnglandCricket #SriLankaCricket #T20Cricket #ENGvSL #SriLankaTour #CricketNews",
-      "created_at": "2026-09-13T23:44:27+00:00",
-      "url": "https://x.com/nerdsports_com/status/2099283094109073667",
-      "image": "https://pbs.twimg.com/media/HSIm2XIb0AADMWr.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283090094936128",
-      "handle": "KUMICHORAIN",
-      "display_name": "KUMICHO RAIN",
-      "text": "@kpopoppiee_surf @_ttdante stake username: outsiiderprod1",
-      "created_at": "2026-09-13T23:44:26+00:00",
-      "url": "https://x.com/KUMICHORAIN/status/2099283090094936128",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283086559076511",
-      "handle": "Jane_Doe_JD",
-      "display_name": "Freedom",
-      "text": "Me and Sophia rain\nhttps://t.co/4lpy7L9dyZ",
-      "created_at": "2026-09-13T23:44:25+00:00",
-      "url": "https://x.com/Jane_Doe_JD/status/2099283086559076511",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283085963760064",
-      "handle": "elvergosito",
-      "display_name": "+18 PORN 💥",
-      "text": "con el video filtrado del sinaka esta foto envejeció original below..\n📽💿🖨🖱📷🔭🔭🔭🩹🩹🧫🧻\nvídeo de sinaka vídeo completo\nAquí el video..,,\n🗜🗜🗜🗜🗜\nhttps://t.co/z9J06Uf1vZ",
-      "created_at": "2026-09-13T23:44:25+00:00",
-      "url": "https://x.com/elvergosito/status/2099283085963760064",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283085380702582",
-      "handle": "raaiinnsas",
-      "display_name": "rain",
-      "text": "@juliee_im @skiess7chillgo Capek bnget",
-      "created_at": "2026-09-13T23:44:25+00:00",
-      "url": "https://x.com/raaiinnsas/status/2099283085380702582",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283081769406847",
-      "handle": "elvergosito",
-      "display_name": "+18 PORN 💥",
-      "text": "con el video filtrado del sinaka esta foto envejeció original below..\n📽💿🖨🖱📷🔭🔭🔭🩹🩹🧫🧻\nvídeo de sinaka vídeo completo\nAquí el video..,,\n🗜🗜🗜🗜🗜\nhttps://t.co/z9J06Uf1vZ",
-      "created_at": "2026-09-13T23:44:24+00:00",
-      "url": "https://x.com/elvergosito/status/2099283081769406847",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283078317551842",
-      "handle": "elvergosito",
-      "display_name": "+18 PORN 💥",
-      "text": "con el video filtrado del sinaka esta foto envejeció original below..\n📽💿🖨🖱📷🔭🔭🔭🩹🩹🧫🧻\nvídeo de sinaka vídeo completo\nAquí el video..,,\n🗜🗜🗜🗜🗜\nhttps://t.co/z9J06Uf1vZ",
-      "created_at": "2026-09-13T23:44:23+00:00",
-      "url": "https://x.com/elvergosito/status/2099283078317551842",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283069366849895",
-      "handle": "jhpddmyterko",
-      "display_name": "XXX SEXY PORN",
-      "text": "Her leaks just dropped, I dare you to last more that 15 secs?\n😅☀️🍍☀️⛄\nSophie rain New Mexico \nHere:,,,\nFuck it.. Tired of posting , here’s the full leak here \n🌈⚡☀️🍍\n  here.,,,,\nhttps://t.co/vVMKmQ7vWr",
-      "created_at": "2026-09-13T23:44:21+00:00",
-      "url": "https://x.com/jhpddmyterko/status/2099283069366849895",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283067902828781",
-      "handle": "larsen_griffeth",
-      "display_name": "Larsen Griffeth",
-      "text": "EMU/Wisconsin under 49 --\nI got a juiced 49 (-145). I'm disappointed and underwhelmed by the EMU offense, just scored 7 on Michigan State and will face a better defense now. Tempos for both teams should be slower. Also expecting rain and wind. Probably 31-7 final.",
-      "created_at": "2026-09-13T23:44:20+00:00",
-      "url": "https://x.com/larsen_griffeth/status/2099283067902828781",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283044536549616",
-      "handle": "VivienDisht9e",
-      "display_name": "Vivien Dishon",
-      "text": "قصص مقاطع نيك قصص سكس  محارم\nسكس عالمي مترجم\nأفلام سكس \n❤️,🐣🐤\n#xxx #girl #سـكـــسًْ #سِِكُسْ_كتَاب\n\nسككس عربي مترجم نار خليجي 🔞\n\n#sex\n\n#سـكـــسًْiut\n\n#سِِكُسْ._كتَاب.\n\nسككس عربي\nhttps://t.co/zvP5kELmHi",
-      "created_at": "2026-09-13T23:44:15+00:00",
-      "url": "https://x.com/VivienDisht9e/status/2099283044536549616",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283043957813357",
-      "handle": "RealCraigSawyer",
-      "display_name": "CraigSawmanSawyer",
-      "text": "@SteveLCC321 No idea. Rain is natural. Who has you thinking we need a corrupt cabal of wicked men to interfere with everything to have natural occurrences?",
-      "created_at": "2026-09-13T23:44:15+00:00",
-      "url": "https://x.com/RealCraigSawyer/status/2099283043957813357",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283027247476857",
-      "handle": "BearuCram",
-      "display_name": "Rain 🫧 Commissions open",
-      "text": "Fake demon",
-      "created_at": "2026-09-13T23:44:11+00:00",
-      "url": "https://x.com/BearuCram/status/2099283027247476857",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283024986992979",
-      "handle": "sonnschein70",
-      "display_name": "Sonnschein70",
-      "text": "con el video filtrado del sinaka esta\nfoto envejeció original?!\nbelow, ?98\nvídeo de sinaka vídeo completo\nAquí el video.65,+)/(++)/++&amp;_),\n🦤🌼🌼💕🌼🐥🐣🙂‍↕️🐣\nhttps://t.co/b3OQLKHaFn",
-      "created_at": "2026-09-13T23:44:10+00:00",
-      "url": "https://x.com/sonnschein70/status/2099283024986992979",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099283017118241060",
-      "handle": "KUMICHORAIN",
-      "display_name": "KUMICHO RAIN",
-      "text": "@TwitchLadyLuck @Stake stake username: outsiiderprod1",
-      "created_at": "2026-09-13T23:44:08+00:00",
-      "url": "https://x.com/KUMICHORAIN/status/2099283017118241060",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282996134363467",
-      "handle": "jhpddmyterko",
-      "display_name": "XXX SEXY PORN",
-      "text": "Her leaks just dropped, I dare you to last more that 15 secs?\n🍈☀️⚔️☀️🌈\nSophie rain New Mexico \nHere:,,,\nFuck it.. Tired of posting , here’s the full leak here \n☀️⚡☀️⚡\n  here.,,,,\nhttps://t.co/vVMKmQ7vWr",
-      "created_at": "2026-09-13T23:44:03+00:00",
-      "url": "https://x.com/jhpddmyterko/status/2099282996134363467",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282968518750315",
-      "handle": "olaxbash",
-      "display_name": "olaxbash🦺",
-      "text": "@SkySportsNews If that happen to be Arsenal  , all hell would've rain",
-      "created_at": "2026-09-13T23:43:57+00:00",
-      "url": "https://x.com/olaxbash/status/2099282968518750315",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282967679967624",
-      "handle": "rachseiwert",
-      "display_name": "rach",
-      "text": "Bears win and put up 59 points, Packers lose, went to Les Mis, and we got a little rain. What a good Sunday!",
-      "created_at": "2026-09-13T23:43:56+00:00",
-      "url": "https://x.com/rachseiwert/status/2099282967679967624",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282951372460230",
-      "handle": "MassiveMediaMS",
-      "display_name": "Massive Media",
-      "text": "NEW ADDS this week on Massive Media Radio - Download the app and stream today \n\nWatersdeep - Hopeless &amp; Restless\nTwo Sides Of Me - Follow You Into The Grave\n@downnola - Stone The Crow\n@cshieldslive - Fall Like Rain\n#Radioplay #NewAdd #MassiveMediaRadio https://t.co/EBs1fEBl69",
-      "created_at": "2026-09-13T23:43:53+00:00",
-      "url": "https://x.com/MassiveMediaMS/status/2099282951372460230",
-      "image": "https://pbs.twimg.com/media/HSImtvmWIAEr2KI.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282951359844836",
-      "handle": "ggumidanshi",
-      "display_name": "🫧 rain 🌱",
-      "text": "@_sleepyg0re IKM SO S SCAREDDD",
-      "created_at": "2026-09-13T23:43:53+00:00",
-      "url": "https://x.com/ggumidanshi/status/2099282951359844836",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282937950982195",
-      "handle": "RHONDAsmil",
-      "display_name": "R",
-      "text": "con el video filtrado del sinaka esta foto envejeció original below...??!!\n🍂🍂🍁🍁🌻🌻🌿💐🌹🌹🌿💐\nvídeo de sinaka vídeo completo\nAquí el video.!!???\n🍀🪴🥀🌸⭐🪐🌛🍀🎋🌹🍂\nhttps://t.co/RMSoS1OJ1o",
-      "created_at": "2026-09-13T23:43:49+00:00",
-      "url": "https://x.com/RHONDAsmil/status/2099282937950982195",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282930472456652",
-      "handle": "jhpddmyterko",
-      "display_name": "XXX SEXY PORN",
-      "text": "Her leaks just dropped, I dare you to last more that 15 secs?\n❤️‍🔥⛄🍍☀️🍍☀️🍍\nSophie rain New Mexico \nHere:,,,\nFuck it.. Tired of posting , here’s the full leak here \n ⛄☔☀️☀️🍍\n  here.,,,,\nhttps://t.co/vVMKmQ7vWr",
-      "created_at": "2026-09-13T23:43:48+00:00",
-      "url": "https://x.com/jhpddmyterko/status/2099282930472456652",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282920544330148",
-      "handle": "twil1ghtbough",
-      "display_name": ".𖥔 ݁ ˖ 𝘋𝘢𝘪𝘯𝘴𝘭𝘦𝘪𝘧 ִֶָ☾.",
-      "text": "@_heliosent [ Dain recognises the reaction, one he is all too familiar with. ]\n\nI've no reason to laugh about such a thing.. I used to react the same, before I grew accustomed to it. \n\n[ The rain falling around them is soothing, a sound he'll never get tired of. ]\n\nI still do, sometimes.",
-      "created_at": "2026-09-13T23:43:45+00:00",
-      "url": "https://x.com/twil1ghtbough/status/2099282920544330148",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282919525138561",
-      "handle": "KUMICHORAIN",
-      "display_name": "KUMICHO RAIN",
-      "text": "@RollinRiches_ @Stake stake username: outsiiderprod1",
-      "created_at": "2026-09-13T23:43:45+00:00",
-      "url": "https://x.com/KUMICHORAIN/status/2099282919525138561",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282914580017257",
-      "handle": "CURSEDPRlNCE",
-      "display_name": "rain ☽ scsp S4!",
-      "text": "@donniecoded wait your fancast is perfect like i can see those three 110% this is fucking brilliant oomfie your brain is so huge",
-      "created_at": "2026-09-13T23:43:44+00:00",
-      "url": "https://x.com/CURSEDPRlNCE/status/2099282914580017257",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282910293754109",
-      "handle": "chirpyderp",
-      "display_name": "Rain / Violet 🦈 - next: PAWAI",
-      "text": "@PyxeTheFox Have you got advice? I'd love to know your journey, also congrats!",
-      "created_at": "2026-09-13T23:43:43+00:00",
-      "url": "https://x.com/chirpyderp/status/2099282910293754109",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282907705802851",
-      "handle": "GiovanniZa9w6h",
-      "display_name": "Giovanni Zampedri",
-      "text": "Neveah gets emotional and 🟣starts CRYING after she caught Blueface CHEATED🟣 on her with the 5th woman this week after her ØF 🟣tape got 🏑🔎🏒leaked\n\"I'm dumb as f*ck for this n*gga....he got me bad and I ain't ever gonna leave\"🍁📸😍🥰🤳📷👇🏻\nhttps://t.co/3L6GLrXRZV",
-      "created_at": "2026-09-13T23:43:42+00:00",
-      "url": "https://x.com/GiovanniZa9w6h/status/2099282907705802851",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282905906426324",
-      "handle": "LawrenceMocpe3",
-      "display_name": "Lawrence Moore",
-      "text": "Jaden for 4 minutes straight\n\n#leak #50cent🔗\n\nFollow\n\njulian newman sister | jaden\n\nnewman why bebe | ion run it | jaden newman\n👎\nlamelo ball.\n\n#50cent\nhttps://t.co/BXRiVOozIL",
-      "created_at": "2026-09-13T23:43:42+00:00",
-      "url": "https://x.com/LawrenceMocpe3/status/2099282905906426324",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099282636254421070",
-      "handle": "glockeseevee",
-      "display_name": "Lorron76",
-      "text": "@BearuCram Dw ill pay",
-      "created_at": "2026-09-13T23:42:37+00:00",
-      "url": "https://x.com/glockeseevee/status/2099282636254421070",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099250972753002626",
-      "handle": "SnoreDollar",
-      "display_name": "SnoreDollar",
-      "text": "I greatly apologize for my absence but its been for good reason...\n\nEVOLVE is now available for FREE TO DOWNLOAD and has WORKING MULTIPLAYER\n\nLINK TO THE DISCORD AND LAUNCHER WILL BE IN THE REPLY\n\nTHANK YOU ALL FOR THE SUPPORT AND HAPPY HUNTING EVERYONE!!! https://t.co/GtFq7Nnpx2",
-      "created_at": "2026-09-13T21:36:48+00:00",
-      "url": "https://x.com/SnoreDollar/status/2099250972753002626",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099247528285778228",
-      "handle": "Lobonhoso",
-      "display_name": "Lobonhoso",
-      "text": "bixa a onde eu to",
-      "created_at": "2026-09-13T21:23:07+00:00",
-      "url": "https://x.com/Lobonhoso/status/2099247528285778228",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099241774543675584",
-      "handle": "MLB",
-      "display_name": "MLB",
-      "text": "IMMACULATE INNING FOR PAYTON TOLLE! https://t.co/YIS0TYnqe6",
-      "created_at": "2026-09-13T21:00:15+00:00",
-      "url": "https://x.com/MLB/status/2099241774543675584",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099228296462713060",
-      "handle": "ZeroMinusClose",
-      "display_name": "Aniket",
-      "text": "@iamankitpande RBL Bank ka kya kare par ?",
-      "created_at": "2026-09-13T20:06:42+00:00",
-      "url": "https://x.com/ZeroMinusClose/status/2099228296462713060",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE976G01028",
-          "query": "\"RBL Bank\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099224588605694364",
-      "handle": "RBLBankCares",
-      "display_name": "RBL Bank Cares",
-      "text": "@VikasPdy1998 Hello, We regret the experience you've had. To enable us to address your concern in detail, we request you to send your contact details vide https://t.co/R5Lpzqs65t Regards, RBL bank",
-      "created_at": "2026-09-13T19:51:58+00:00",
-      "url": "https://x.com/RBLBankCares/status/2099224588605694364",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE976G01028",
-          "query": "\"RBL Bank\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099212262661869998",
-      "handle": "andreia565131",
-      "display_name": "Andreia Paixao",
-      "text": "Autocontrole é a chave. https://t.co/5JeB0AVp8V",
-      "created_at": "2026-09-13T19:02:59+00:00",
-      "url": "https://x.com/andreia565131/status/2099212262661869998",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099210542200324217",
-      "handle": "abcapital",
-      "display_name": "Aditya Birla Capital",
-      "text": "@SrylNexus Hi there, we're coordinating with the concerned team to get more clarity. We understand the wait has been long, and we’ll connect back with an update soon. ~ Rushi",
-      "created_at": "2026-09-13T18:56:09+00:00",
-      "url": "https://x.com/abcapital/status/2099210542200324217",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE674K01013",
-          "query": "\"Aditya Birla Capital\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099205939937304879",
-      "handle": "Krishna_S_Bisht",
-      "display_name": "कृष्णा सिंह बिष्ट",
-      "text": "@RBLBankCares \n@rblbank \n\nआपके RBL Bank के Nodal desk से email आया और उन्होंने सबूत मांगे अपने एजेंट्स के खिलाफ । मैंने दिनांक 12-09-2026  को सुबह 10:55 AM पर सबूत के साथ email भेजा लेकिन अभी तक Bank की तरफ से कोई रिप्लाई या रेफरेंस नंबर नहीं दिया गया।\n\nअब सबूत देख के सब चुप हैं।",
-      "created_at": "2026-09-13T18:37:52+00:00",
-      "url": "https://x.com/Krishna_S_Bisht/status/2099205939937304879",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE976G01028",
-          "query": "\"RBL Bank\""
-        },
-        {
-          "entityId": "isin:INE976G01028",
-          "query": "\"RBLBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099201768534233253",
-      "handle": "lapislagoons",
-      "display_name": "˗ˏˋ ´ˎ˗",
-      "text": "I matched w this guy bc I was curious about how he makes sense of his own worldview and he said if we hit it off he would fly me to New York and I said I’m more of an Amtrak girl and he said I’m a socialist I don’t do private transportation only public transportation and I said which public planes do you use and he unmatched me",
-      "created_at": "2026-09-13T18:21:17+00:00",
-      "url": "https://x.com/lapislagoons/status/2099201768534233253",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE855B01025",
-          "query": "\"RAIN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099197458786189526",
-      "handle": "RBLBankCares",
-      "display_name": "RBL Bank Cares",
-      "text": "@RakeshKumati Hello, our representative will get in touch with you at the earliest to address your query. Regards, RBL Bank.",
-      "created_at": "2026-09-13T18:04:10+00:00",
-      "url": "https://x.com/RBLBankCares/status/2099197458786189526",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE976G01028",
-          "query": "\"RBL Bank\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099197372723310603",
-      "handle": "RBLBankCares",
-      "display_name": "RBL Bank Cares",
-      "text": "Hello, we are sorry for your experience. For security reasons, request you to please share your contact details on cardservices@rbl.bank.in with the following subject line: SM- \"2094900\" or write to us vide https://t.co/Zrd6bSlEb4 it will enable us to assist you accordingly. Regards, RBL Bank",
-      "created_at": "2026-09-13T18:03:49+00:00",
-      "url": "https://x.com/RBLBankCares/status/2099197372723310603",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE976G01028",
-          "query": "\"RBL Bank\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099190807802814574",
-      "handle": "cmagurvinder",
-      "display_name": "CMA Gurvinder Malhotra",
-      "text": "Aditya Birla Capital was shared multiple times.",
-      "created_at": "2026-09-13T17:37:44+00:00",
-      "url": "https://x.com/cmagurvinder/status/2099190807802814574",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE674K01013",
-          "query": "\"Aditya Birla Capital\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099187432046608825",
-      "handle": "Green_Traders0",
-      "display_name": "Green traders",
-      "text": "🚨 QUALITY SMALLCAPS TRADING DEEP BELOW THEIR ALL-TIME HIGHS! 📊\n\nSome well-known businesses are still 30%–79% below their ATHs 👀\n\n🔻 Route Mobile — 78%\n🔻 Happiest Minds — 79%\n🔻 Clean Science — 68%\n🔻 Birlasoft — 66%\n🔻 IndiaMART InterMESH — 64%\n🔻 Praj Industries — 62%\n🔻 Alkyl Amines — 60%\n🔻 Mastek — 54%\n🔻 JBM Auto — 49%\n🔻 Cera Sanitaryware — 47%\n🔻 Olectra Greentech — 46%\n🔻 Vinati Organics — 44%\n🔻 Elecon Engineering — 43%\n🔻 PCBL Chemical — 43%\n🔻 UTI AMC — 40%\n🔻 CIE Automotive India — 39%\n🔻 HBL Engineering — 35%\n🔻 CAMS — 34%\n🔻 Ramkrishna Forgings — 32%\n🔻 Fine Organic Industries — 30%\n\n📌 Big correction ≠ automatic buying opportunity.\n\nBut when quality businesses fall this much, they can become interesting candidates for deeper fundamental research. 🔎📚\n\n🔖 Bookmark this list for your research.\n\n#Smallcap #SmallcapStocks #StockMarket #Investing #GreenTraders",
-      "created_at": "2026-09-13T17:24:19+00:00",
-      "url": "https://x.com/Green_Traders0/status/2099187432046608825",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE399G01023",
-          "query": "\"Ramkrishna Forgings\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099169915684933784",
-      "handle": "growinjob",
-      "display_name": "GrowInJob.com",
-      "text": "https://t.co/OnAJkWIFmJ\nWe are an independent career platform providing job information for candidates. We do not charge any fee. \n#AdityaBirlaCapital #LeadDataScientist #DataScientistJobs #DataScienceJobs #MachineLearningJobs #MumbaiJobs #AnalyticsJobs #BFSIJobs #JobsInIndia",
-      "created_at": "2026-09-13T16:14:43+00:00",
-      "url": "https://x.com/growinjob/status/2099169915684933784",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE674K01013",
-          "query": "\"Aditya Birla Capital\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099166220499214514",
-      "handle": "propnewstime",
-      "display_name": "Prop News Time",
-      "text": "Tata Capital has accepted bids worth INR 24.75 billion for three-year bonds carrying an 8.05% coupon, according to bankers familiar with the transaction. The issue was offered to investors during the day and received bids for the full amount accepted by the company. The bond carries a AAA rating from Crisil. The transaction comes amid a busy corporate bond calendar, with several highly rated financial institutions also tapping the debt market for funding. Other issuers include Bajaj Housing Finance, Kotak Mahindra Prime and REC, while Aditya Birla Capital and other financial companies have lined up bond issues for the following day.\n\nTo read more click on the link below: https://t.co/QfwVAJACIi \n\nFor more insights on the real estate sector download the PNT mobile application or visit the website: \nhttps://t.co/ApVQUAx8k3\n\n#propnewstime #TataCapital #CorporateBonds #DebtMarket #Finance",
-      "created_at": "2026-09-13T16:00:02+00:00",
-      "url": "https://x.com/propnewstime/status/2099166220499214514",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE674K01013",
-          "query": "\"Aditya Birla Capital\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099163603601604804",
-      "handle": "Alankit_",
-      "display_name": "Alankit",
-      "text": "Couldn't agree more.",
-      "created_at": "2026-09-13T15:49:38+00:00",
-      "url": "https://x.com/Alankit_/status/2099163603601604804",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE914E01040",
-          "query": "\"Alankit\""
-        },
-        {
-          "entityId": "isin:INE914E01040",
-          "query": "\"ALANKIT\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099158039358255365",
-      "handle": "Sharad9Dubey",
-      "display_name": "Sharad Dubey",
-      "text": "Beneficiary includes Advait Energy Transitions as well.",
-      "created_at": "2026-09-13T15:27:31+00:00",
-      "url": "https://x.com/Sharad9Dubey/status/2099158039358255365",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE0ALI01010",
-          "query": "\"Advait Energy Transitions\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2099154889049792822",
-      "handle": "sunilgurjar01",
-      "display_name": "Sunil Gurjar, CFTe",
-      "text": "QUALITY SMALLCAP STOCKS DOWN FROM ATH!📊\n\nRoute Mobile — 78% 🔻\nHappiest Minds — 79% 🔻\nClean Science — 68% 🔻\nBirlasoft — 66% 🔻\nIndiaMART InterMESH — 64% 🔻\nPraj Industries — 62% 🔻\nAlkyl Amines — 60% 🔻\nMastek — 54% 🔻\nCera Sanitaryware — 47% 🔻\nJBM Auto — 49% 🔻\nOlectra Greentech — 46% 🔻\nVinati Organics — 44% 🔻\nElecon Engineering — 43% 🔻\nPCBL Chemical — 43% 🔻\nUTI AMC — 40% 🔻\nCIE Automotive India — 39% 🔻\nHBL Engineering — 35% 🔻\nCAMS — 34% 🔻\nRamkrishna Forgings — 32% 🔻\nFine Organic Industries — 30% 🔻\n\nQuality Smallcaps. Big Corrections From ATH. 🔻\n\nBookmark This List.🔖",
-      "created_at": "2026-09-13T15:15:00+00:00",
-      "url": "https://x.com/sunilgurjar01/status/2099154889049792822",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE399G01023",
-          "query": "\"Ramkrishna Forgings\""
-        }
-      ]
     }
   ],
   "failed": [],
   "searchCoverage": {
     "planned": 232,
-    "attempted": 10,
-    "incomplete": 219,
-    "checkedAt": "2026-09-16T18:13:23.200662+00:00"
+    "attempted": 13,
+    "incomplete": 207,
+    "checkedAt": "2026-09-17T09:01:32.478053+00:00"
   },
   "archive": [
     {
@@ -9965,7 +9786,7 @@
     "optional": true,
     "status": "unavailable",
     "reason": "source-read-failed",
-    "lastAttemptAt": "2026-09-17T07:40:36.564Z",
+    "lastAttemptAt": "2026-09-17T14:59:27.067Z",
     "lastSuccessAt": null
   }
 }

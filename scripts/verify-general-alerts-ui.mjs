@@ -156,6 +156,49 @@ try {
   assert.equal(await period.inputValue(), 'today', 'All Alerts opens on Today');
   assert.equal(await page.locator('[data-alert-arrivals]').count(), 0, 'no separate live banner');
   assert.equal(await page.locator('[data-arrival-badge]').count(), 0, 'initial history is not a live arrival');
+  // THE TIMELINE IS A WINDOWED TABLE, SO `tbody` IS ONE SCREEN AND NOT THE ROW SET.
+  // All Alerts mounts with `fillMode: 'windowed'`, which keeps the whole filtered array for
+  // search, counts and export while mounting only a moving screen-sized window between two
+  // spacer rows. Two readings that look settled are not:
+  //
+  //   `data-rows-pending` is never published in that mode, so waiting for it returns at once;
+  //   and waiting for the company name to appear in `tbody` returns while feeds are still
+  //   landing, because the unfiltered table already contains that name.
+  //
+  // Measured on this capture, reading straight after those waits saw 5 rows matching "jayaswal"
+  // where the settled table holds 102 — and the row being asserted on sits far below the mounted
+  // window in either case. A recall assertion read that way measures how far down today's capture
+  // a fixture happens to fall, which is a fact about the capture's size rather than about recall,
+  // and it turns red on its own as the capture grows.
+  //
+  // So settle the surface through the signal the kit already publishes (`stableReadingSurface`
+  // watches `data-virtual-total` and the mounted row keys), then page the window the way a reader
+  // does and accumulate what each window draws. Accumulating also makes the negative assertions
+  // stronger: they now cover every matching row rather than the first screenful.
+  const searchedText = async (query) => {
+    // The pool itself has to be complete before the window is worth paging: a stable surface is
+    // only stable between arrivals, and the source coalescer leaves gaps wider than that.
+    await settled();
+    await page.locator('[data-table-search]').fill(query);
+    await page.locator('[data-table-scroll]').evaluate((node) => { node.scrollTop = 0; });
+    await stableReadingSurface();
+    let text = await page.locator('tbody').innerText();
+    for (let guard = 0; guard < 200; guard += 1) {
+      const moved = await page.locator('[data-table-scroll]').evaluate((node) => {
+        const before = node.scrollTop;
+        node.scrollTop = Math.min(before + node.clientHeight, node.scrollHeight);
+        return node.scrollTop > before;
+      });
+      if (!moved) break;
+      await stableReadingSurface();
+      text += `\n${await page.locator('tbody').innerText()}`;
+    }
+    // Leave the scroller where it was found. Later checks measure scroll anchoring, and a reading
+    // helper that parks the timeline at its bottom would be writing their starting conditions.
+    await page.locator('[data-table-scroll]').evaluate((node) => { node.scrollTop = 0; });
+    await stableReadingSurface();
+    return text;
+  };
   const selectPeriod = async value => {
     await period.selectOption(value);
     await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
@@ -360,9 +403,7 @@ try {
   console.log('Verified undated search, scope changes and newly arrived filings');
 
   // Stable recall cases and the exact user-reviewed mismatch, independent of today's capture.
-  await page.locator('[data-table-search]').fill('jayaswal');
-  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.toLowerCase().includes('jayaswal'));
-  const jayaswalResults = await page.locator('tbody').innerText();
+  const jayaswalResults = await searchedText('jayaswal');
   assert(jayaswalResults.includes('Jayaswal Neco'), 'publisher-supported Jayaswal stories remain searchable');
   assert(!jayaswalResults.includes('Lululemon stock analysis'), 'the reviewed mismatch does not match Jayaswal');
   assert(jayaswalResults.includes('Indian manufacturer shares a business update'), 'snippet-only coverage remains in company search');

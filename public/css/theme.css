@@ -223,3 +223,73 @@ html[data-theme="dark"] ::selection { background: #4338ca; color: #fff; }
 .notification-storage { flex-shrink: 0; margin: 0; padding: 10px 16px; border-top: 1px solid rgb(var(--edge-slate-100, 241 245 249)); color: var(--ink-400); font-size: 10px; }
 @media (max-width: 639px) { .notification-bell { width: 44px; min-height: 44px; } .notification-icon-button { width: 36px; height: 36px; } .notification-heading { gap: 8px; padding: 10px 12px; } .notification-item { padding: 14px 12px; } }
 @media print { .notification-bell, .notification-panel { display: none !important; } }
+
+/* ---- The newsletter control beside the bell, and its popover -------------------------------
+   Ported from Glow Central Research. Every colour is a shared theme token, so the panel takes
+   Sattva's indigo ramp rather than Glow's gold with no per-rule change. The one rule NOT ported
+   is Glow's `html[data-theme="dark"] .brief-button-primary { color: var(--brand-ink) }`: Glow's
+   dark brand is a pale gold that needs dark text on it, Sattva's is indigo in both themes, and
+   copying it would put near-black text on a near-black button. The panel is a POPOVER like the
+   inbox — no backdrop, the page stays live behind it — so it carries no overlay chrome. */
+.brief-button { position: relative; display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 0.4rem; min-height: 2.25rem; padding: 0.4rem 0.7rem; border: 1px solid rgb(var(--edge-slate-200, 226 232 240)); border-radius: 999px; background: rgb(var(--surface-white, 255 255 255) / 0.8); color: var(--ink-600); font-size: 0.75rem; font-weight: 600; white-space: nowrap; cursor: pointer; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+.brief-button svg { width: 1rem; height: 1rem; }
+.brief-button:active { transform: scale(0.97); }
+.brief-button[aria-expanded="true"] { background: rgb(var(--surface-indigo-50, 238 242 255)); color: var(--accent-600); }
+@media (hover: hover) and (pointer: fine) { .brief-button:hover { background: rgb(var(--surface-indigo-50, 238 242 255)); color: var(--accent-600); } }
+.brief-button:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 3px; }
+.brief-button-dot { position: absolute; top: 5px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--positive); box-shadow: 0 0 0 2px rgb(var(--surface-white, 255 255 255)); }
+.brief-button [hidden] { display: none; }
+@media (pointer: coarse) { .brief-button { min-height: 44px; } }
+@media (max-width: 639px) { .brief-button span:not(.brief-button-dot) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } .brief-button { width: 44px; min-height: 44px; padding: 0; } }
+@media (min-width: 960px) and (max-width: 1199px) { [data-reading-layout="table"] .brief-button span:not(.brief-button-dot) { display: none; } [data-reading-layout="table"] .brief-button { width: 32px; min-height: 32px; padding: 0; } }
+
+.brief-panel { position: fixed; z-index: 45; display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgb(var(--edge-slate-200, 226 232 240)); border-radius: 16px; background: rgb(var(--surface-white, 255 255 255)); color: var(--ink-900); box-shadow: 0 12px 40px rgb(15 23 42 / .16); text-align: left; transform-origin: top right; }
+.brief-panel[hidden], .brief-panel [hidden] { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .brief-panel:not([hidden]) { animation: brief-enter 180ms cubic-bezier(0.23, 1, 0.32, 1); }
+  @keyframes brief-enter { from { opacity: 0; transform: scale(0.96) translateY(-4px); } to { opacity: 1; transform: none; } }
+}
+.brief-heading { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; padding: 12px 12px 0 16px; }
+.brief-heading h2 { margin: 0; font-size: 15px; font-weight: 700; }
+.brief-icon-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px; border-radius: 7px; color: var(--ink-400); transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+.brief-icon-button:active { transform: scale(0.94); }
+@media (hover: hover) and (pointer: fine) { .brief-icon-button:hover { color: var(--accent-600); background: rgb(var(--surface-indigo-50, 238 242 255)); } }
+.brief-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 16px 14px; }
+.brief-lede { margin: 0 0 12px; font-size: 12px; line-height: 1.5; color: var(--ink-600); }
+.brief-section + .brief-section { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgb(var(--edge-slate-100, 241 245 249)); }
+.brief-inline { display: flex; gap: 8px; }
+.brief-input { flex: 1; min-width: 0; min-height: 36px; padding: 6px 10px; border: 1px solid rgb(var(--edge-slate-300, 203 213 225)); border-radius: 9px; background: rgb(var(--surface-white, 255 255 255)); color: var(--ink-900); font-size: 13px; }
+.brief-input::placeholder { color: var(--ink-400); }
+.brief-button-primary, .brief-button-secondary { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; min-height: 36px; padding: 6px 14px; border-radius: 9px; font-size: 12px; font-weight: 700; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+.brief-button-primary { color: #fff; background: var(--brand-600); }
+.brief-button-secondary { border: 1px solid rgb(var(--edge-slate-200, 226 232 240)); background: rgb(var(--surface-white, 255 255 255)); color: var(--ink-600); }
+.brief-button-primary:active, .brief-button-secondary:active { transform: scale(0.97); }
+.brief-button-primary:disabled, .brief-button-secondary:disabled { opacity: .55; cursor: default; }
+@media (hover: hover) and (pointer: fine) { .brief-button-secondary:hover:not(:disabled) { background: rgb(var(--surface-indigo-50, 238 242 255)); color: var(--accent-600); } .brief-button-primary:hover:not(:disabled) { opacity: .92; } }
+.brief-you { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-600); }
+.brief-you-tick { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; background: rgb(var(--surface-emerald-50, 236 253 245)); color: var(--positive); font-size: 11px; font-weight: 700; }
+.brief-you-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.brief-you strong { font-weight: 650; color: var(--ink-900); }
+.brief-link { flex-shrink: 0; padding: 2px 0; font-size: 12px; font-weight: 600; color: var(--accent-600); }
+@media (hover: hover) and (pointer: fine) { .brief-link:hover:not(:disabled) { text-decoration: underline; } }
+.brief-label { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--ink-900); }
+.brief-soft { font-weight: 500; color: var(--ink-400); }
+.brief-token { margin: 12px 0 0; font-size: 11px; line-height: 1.5; }
+.brief-list { list-style: none; margin: 0 0 8px; padding: 0; }
+.brief-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.brief-row-copy { flex: 1; min-width: 0; font-size: 13px; color: var(--ink-900); overflow-wrap: anywhere; }
+.brief-note { margin: 0 0 12px; padding: 7px 10px; border-radius: 9px; font-size: 12px; line-height: 1.5; font-weight: 600; }
+.brief-note[data-tone="ok"] { background: rgb(var(--surface-emerald-50, 236 253 245)); color: var(--positive); }
+.brief-note[data-tone="error"] { background: rgb(var(--surface-rose-50, 255 241 242)); color: var(--negative); }
+.brief-foot { display: flex; flex-shrink: 0; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid rgb(var(--edge-slate-100, 241 245 249)); color: var(--ink-400); font-size: 12px; }
+.brief-empty { padding: 28px 16px; margin: 0; text-align: center; color: var(--ink-600); font-size: 13px; }
+.brief-empty strong { display: block; font-weight: 700; }
+.brief-empty span { display: block; margin-top: 6px; font-size: 12px; color: var(--ink-400); }
+.brief-actions { display: flex; justify-content: center; padding-bottom: 16px; }
+.brief-skeleton { display: grid; gap: 10px; padding: 14px 0; }
+.brief-skeleton span { display: block; height: 14px; border-radius: 7px; background: rgb(var(--surface-slate-100, 241 245 249)); }
+@media (prefers-reduced-motion: no-preference) { .brief-skeleton span { animation: brief-pulse 1.2s cubic-bezier(0.23, 1, 0.32, 1) infinite alternate; } @keyframes brief-pulse { from { opacity: .55; } to { opacity: 1; } } }
+.brief-skeleton span:nth-child(2) { width: 70%; } .brief-skeleton span:nth-child(3) { width: 45%; }
+.brief-panel :is(button, a, input):focus-visible { outline: 2px solid var(--accent-600); outline-offset: 2px; }
+@media (pointer: coarse) { .brief-input, .brief-button-primary, .brief-button-secondary { min-height: 44px; } .brief-icon-button { width: 36px; height: 36px; } }
+@media print { .brief-button, .brief-panel { display: none !important; } }

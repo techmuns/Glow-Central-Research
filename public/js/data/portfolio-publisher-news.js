@@ -22,14 +22,12 @@ export function publisherNewsDate(row = {}) {
 }
 
 export function withPortfolioPublisherNews(base, { publishers = marketNews, book = coverage,
-  now = Date.now, window: readingWindow = () => null } = {}) {
+  now = Date.now, window: readingWindow = () => null, include = () => true } = {}) {
   const listeners = new Set(), wanted = new Map();
   let combined = null, pending = null, archivePending = null, archiveError = null, publisherReadError = null, epoch = 0;
   let identityStamp = null, identities = [];
   const emit = () => listeners.forEach(fn => fn());
-  base.onChange(emit);
-  publishers.onChange(emit);
-  book.onChange(emit);
+  const offBase = base.onChange(emit), offPublishers = publishers.onChange(emit), offBook = book.onChange(emit);
 
   function companyIdentities() {
     const holdings = book.holdings();
@@ -56,7 +54,7 @@ export function withPortfolioPublisherNews(base, { publishers = marketNews, book
     };
     // Head/body-backed publisher matches are preferred over an older uncertain search copy at
     // the same company URL; dedupe never crosses companies or publisher domains.
-    for (const row of published) if (inNewsWindow(row, window)) for (const match of matchPortfolioNews(row, entities)) add({
+    for (const row of published) if (inNewsWindow(row, window) && include(row)) for (const match of matchPortfolioNews(row, entities)) add({
       ...match, source: row.source || row.publisher || null, date: publisherNewsDate(row),
       discoverySource: 'published-publisher-feed', publisherSourceRecord: row,
     });
@@ -161,5 +159,7 @@ export function withPortfolioPublisherNews(base, { publishers = marketNews, book
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     invalidate() { epoch++; base.invalidate(); combined = null; pending = null; archivePending = null; archiveError = null; publisherReadError = null;
       wanted.clear(); identityStamp = null; identities = []; },
+    dispose() { epoch++; offBase(); offPublishers(); offBook(); listeners.clear(); combined = null;
+      base.dispose?.(); },
   };
 }
