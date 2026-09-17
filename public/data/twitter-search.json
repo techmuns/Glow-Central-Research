@@ -475,27 +475,27 @@
       "error": "search-unavailable"
     },
     "isin:INE077F01035|GOCL Corporation": {
-      "lastAttemptAt": "2026-09-12T08:54:02+00:00",
+      "lastAttemptAt": "2026-09-16T18:45:43+00:00",
       "error": "search-unavailable"
     },
     "isin:INE077F01035|GOCLCORP": {
-      "lastAttemptAt": "2026-09-12T09:25:59+00:00",
+      "lastAttemptAt": "2026-09-16T18:59:11+00:00",
       "error": "search-unavailable"
     },
     "isin:INE850D01014|Godrej Agrovet": {
-      "lastAttemptAt": "2026-09-12T10:13:11+00:00",
+      "lastAttemptAt": "2026-09-16T19:38:13+00:00",
       "error": "search-unavailable"
     },
     "isin:INE850D01014|GODREJAGRO": {
-      "lastAttemptAt": "2026-09-12T10:58:51+00:00",
+      "lastAttemptAt": "2026-09-16T20:11:18+00:00",
       "error": "search-unavailable"
     },
     "isin:INE036B01030|Gujarat Ambuja Exports": {
-      "lastAttemptAt": "2026-09-12T11:00:50+00:00",
+      "lastAttemptAt": "2026-09-16T20:44:10+00:00",
       "error": "search-unavailable"
     },
     "isin:INE036B01030|GAEL": {
-      "lastAttemptAt": "2026-09-12T11:32:01+00:00",
+      "lastAttemptAt": "2026-09-16T21:17:34+00:00",
       "lastResultCount": 108,
       "error": "search-unavailable",
       "targetThrough": "2026-09-07T15:18:18+00:00",
@@ -511,7 +511,7 @@
       ]
     },
     "isin:INE330T01021|Happy Forgings": {
-      "lastAttemptAt": "2026-09-12T12:05:12+00:00",
+      "lastAttemptAt": "2026-09-16T21:49:50+00:00",
       "lastResultCount": 41,
       "error": "search-unavailable",
       "lastSuccessAt": "2026-09-07T15:18:18+00:00",
@@ -519,7 +519,7 @@
       "pending": []
     },
     "isin:INE330T01021|HAPPYFORGE": {
-      "lastAttemptAt": "2026-09-12T12:37:58+00:00",
+      "lastAttemptAt": "2026-09-16T21:53:33+00:00",
       "lastResultCount": 16,
       "error": "search-unavailable",
       "lastSuccessAt": "2026-09-07T15:18:18+00:00",
@@ -527,7 +527,7 @@
       "pending": []
     },
     "isin:INE548A01028|HFCL": {
-      "lastAttemptAt": "2026-09-12T13:32:29+00:00",
+      "lastAttemptAt": "2026-09-16T22:42:20+00:00",
       "lastResultCount": 108,
       "error": "search-unavailable",
       "targetThrough": "2026-09-07T15:18:18+00:00",
@@ -543,7 +543,7 @@
       ]
     },
     "isin:INE267A01025|Hindustan Zinc": {
-      "lastAttemptAt": "2026-09-12T14:04:37+00:00",
+      "lastAttemptAt": "2026-09-16T23:46:19+00:00",
       "lastResultCount": 103,
       "error": "search-unavailable",
       "targetThrough": "2026-09-07T15:18:18+00:00",
@@ -559,9 +559,9 @@
       ]
     },
     "isin:INE267A01025|HINDZINC": {
-      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
+      "lastAttemptAt": "2026-09-16T23:58:56+00:00",
       "lastResultCount": 25,
-      "error": null,
+      "error": "search-unavailable",
       "targetThrough": "2026-09-07T15:18:18+00:00",
       "pending": [
         {
@@ -572,17 +572,17 @@
       "lastDiscoveryAt": "2026-09-12T14:15:30+00:00"
     },
     "isin:INE685T01010|Horizon Industrial Parks": {
-      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
+      "lastAttemptAt": "2026-09-17T00:35:41+00:00",
       "lastResultCount": 45,
-      "error": null,
+      "error": "search-unavailable",
       "lastSuccessAt": "2026-09-12T14:15:30+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE530B01024|IIFL Finance": {
-      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
+      "lastAttemptAt": "2026-09-17T01:07:43+00:00",
       "lastResultCount": 104,
-      "error": "result-cap-incomplete",
+      "error": "search-unavailable",
       "lastSuccessAt": "2026-09-07T15:18:18+00:00",
       "targetThrough": "2026-09-12T14:15:30+00:00",
       "pending": [
@@ -597,9 +597,9 @@
       ]
     },
     "isin:INE530B01024|IIFL": {
-      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
+      "lastAttemptAt": "2026-09-17T01:40:45+00:00",
       "lastResultCount": 68,
-      "error": null,
+      "error": "search-unavailable",
       "targetThrough": "2026-09-07T15:18:18+00:00",
       "pending": [
         {
@@ -610,16 +610,16 @@
       "lastDiscoveryAt": "2026-09-12T14:15:30+00:00"
     },
     "isin:INE622H01018|Indo Farm Equipment": {
-      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-09-17T02:46:37+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 5,
       "lastSuccessAt": "2026-09-12T14:15:30+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE622H01018|INDOFARM": {
-      "lastAttemptAt": "2026-09-12T14:15:30+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-09-17T03:19:40+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 8,
       "lastSuccessAt": "2026-09-12T14:15:30+00:00",
       "targetThrough": null,
@@ -1456,8 +1456,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 10,
+    "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-16T18:13:23.200662+00:00"
+    "checkedAt": "2026-09-17T03:19:40.238718+00:00"
   }
 }
