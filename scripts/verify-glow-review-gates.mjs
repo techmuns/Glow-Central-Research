@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import worker from '../worker/index.js';
-import { dataReviewDecision } from './merge-data-pr.mjs';
+import { dataReviewDecision, resolveMergeability } from './merge-data-pr.mjs';
 import { dataBranch, dataPath, publishStagedData, DATA_REPOSITORY } from './data-pr.mjs';
 
 const sha = 'a'.repeat(40), bot = { login: 'chatgpt-codex-connector[bot]' };
@@ -49,6 +49,19 @@ for (const [change, reason] of [
 ]) assert.equal(dataReviewDecision({ ...input, ...change }), reason);
 assert.equal(dataReviewDecision({ ...input, pr: { ...input.pr, isCrossRepository: true } }), 'scope');
 assert.equal(dataReviewDecision({ ...input, pr: { ...input.pr, mergeable: 'CONFLICTING' } }), 'merge-gate');
+// GitHub answers UNKNOWN until it has computed mergeability; the gate asks again before it calls
+// that a conflict, and stops asking the moment it has a real answer.
+{
+  let reads = 0;
+  const pr = resolveMergeability(() => ({ mergeable: reads++ < 2 ? 'UNKNOWN' : 'MERGEABLE' }), { sleep: () => {} });
+  assert.equal(pr.mergeable, 'MERGEABLE'); assert.equal(reads, 3);
+  reads = 0;
+  assert.equal(resolveMergeability(() => { reads++; return { mergeable: 'UNKNOWN' }; }, { attempts: 3, sleep: () => {} }).mergeable, 'UNKNOWN');
+  assert.equal(reads, 3, 'a bounded number of looks, then the honest answer');
+  reads = 0;
+  resolveMergeability(() => { reads++; return { mergeable: 'CONFLICTING' }; }, { sleep: () => { throw Error('must not wait on a computed answer'); } });
+  assert.equal(reads, 1);
+}
 assert(!dataPath('public/data/../worker.json')); assert(!dataPath('public/data/source.js'));
 assert(dataPath('public/data/shareholding-filings.json.gz')); assert(!dataPath('public/data/source.js.gz'));
 assert.equal(dataBranch('123', '2'), 'codex/data-123-2'); assert.throws(() => dataBranch('../main', '1'));

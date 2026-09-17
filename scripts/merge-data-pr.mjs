@@ -69,6 +69,19 @@ export function dataReviewDecision({ pr, files, checks, runs, reviews, inline, c
   if (comments.some(c => !informational(c))) return 'review-feedback';
   return 'ready';
 }
+// GITHUB COMPUTES MERGEABILITY LAZILY, AND "NOT YET" IS NOT "CONFLICTING". The first read of a
+// PR nobody has looked at answers `UNKNOWN` and starts the computation in the background; a read
+// a few seconds later answers MERGEABLE or CONFLICTING. Measured on 17 September 2026: two freshly
+// green capture PRs read UNKNOWN on the first look and MERGEABLE on the second — and this gate,
+// which runs once per event and is not re-triggered by GitHub finishing the computation, had
+// answered `merge-gate` to both. On the approval path that is a person's approval silently doing
+// nothing. Ask again, briefly, before concluding; a real conflict answers CONFLICTING at once.
+const sleepSync = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+export function resolveMergeability(read, { attempts = 6, waitMs = 5000, sleep = sleepSync } = {}) {
+  let pr = read();
+  for (let i = 1; i < attempts && pr.mergeable === 'UNKNOWN'; i++) { sleep(waitMs); pr = read(); }
+  return pr;
+}
 export function mergeDataPr(event) {
   if (process.env.GITHUB_REPOSITORY !== DATA_REPOSITORY) throw Error('Unexpected repository');
   const gh = (...args) => execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -84,8 +97,8 @@ export function mergeDataPr(event) {
     number = matches[0].number;
   }
   if (!Number.isSafeInteger(number) || number < 1) return 'unrelated-event';
-  const pr = json('pr', 'view', String(number), '--repo', DATA_REPOSITORY, '--json',
-    'state,isDraft,isCrossRepository,headRefName,headRefOid,headRepository,baseRefName,changedFiles,mergeable,author');
+  const pr = resolveMergeability(() => json('pr', 'view', String(number), '--repo', DATA_REPOSITORY, '--json',
+    'state,isDraft,isCrossRepository,headRefName,headRefOid,headRepository,baseRefName,changedFiles,mergeable,author'));
   if (!pr.headRefName.startsWith('codex/data-')) return 'unrelated-pr';
   const input = { pr, files: pages(`repos/${DATA_REPOSITORY}/pulls/${number}/files`),
     checks: json('api', `repos/${DATA_REPOSITORY}/commits/${pr.headRefOid}/check-runs?per_page=100`, '--paginate', '--slurp').flatMap(page => page.check_runs),
