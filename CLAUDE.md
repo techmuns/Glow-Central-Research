@@ -397,6 +397,11 @@ Conventions:
   on the width that needed it most. A tab with `subviews: []` renders **no picker at all** — the
   shell hides `#subview-mount` and skips wiring it. Its kicker reads *View*, not the tab's title,
   because the section head immediately below prints that title as the page heading.
+  **A tab may also declare `meta.inlineSubviews: true`**: the shell hides its picker card but keeps
+  routing the sub-views, and the tab draws its own compact switch inside its section head, routed
+  through `router.navigate` exactly as the picker is. Mutual Funds is the consumer — a two-option
+  tray beside the as-on pill — because the card cost ~90px above a table whose whole point is the
+  rows, to choose between two views.
   **The picker's menu is `position: absolute` below its card, so its wrapper must never carry
   `overflow-hidden`** — that clips the menu into invisibility while every click handler goes on
   working, which is a control that looks broken and tests as fine.
@@ -932,6 +937,16 @@ They exclude the strategy filter itself so other valid strategies remain availab
 strategy with no matches stays listed with a zero and can be cleared; it must never keep a
 whole-feed count under Debt or disappear while still filtering the table. Even a single available
 strategy stays selectable.
+
+**THE TABLE IS THE PAGE, AND THE CHROME ABOVE IT IS ONE HEADING ROW AND ONE TOOLBAR.** The owner's
+ask: give the table and the filters the space. So the shell's sub-view picker card is replaced by
+`viewSwitch()` — All Schemes | Category Performance as a tray in the heading row (`meta.inlineSubviews`,
+above) — Category Performance's three-line description moved into the provenance panel behind its
+as-on pill (moved, not deleted: the medians and index returns being the workbook's, and the gap being
+the one derived figure in percentage points, are its first two entries, and the gap columns say *pp*
+on their face), and `fitTableToViewport()` gives the table the height the chrome actually leaves,
+measured from the scroller's own top after each paint and on resize, the same measurement General
+Alerts' `fitStreamToViewport` makes rather than a `calc()` that guesses at the chrome's height.
 
 **THE FILTERS ARE ONE TOOLBAR OF FIXED-WIDTH SLOTS, AND NOTHING IN IT MOVES WHEN YOU USE IT.** They
 were four rows of chips — Active / Passive, Classification with the group chips appearing beside it
