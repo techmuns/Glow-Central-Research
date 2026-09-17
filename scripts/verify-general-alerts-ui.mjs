@@ -352,7 +352,13 @@ try {
   assert.deepEqual(streamed.map(item => item.title), ['Stream batch first arrival', 'Stream batch second arrival', 'Automatic arrival at the top']);
   assert(streamed[1].at - streamed[0].at >= 80 && streamed[2].at - streamed[1].at >= 80,
     `one source batch enters as three separate rows: ${JSON.stringify(streamed)}`);
-  assert(streamed[2].at - streamed[0].at < 1500, 'the visible stream completes quickly');
+  // THE BUDGET IS A RUNNER'S REPAINT COST, NOT THE STREAM'S CADENCE. The stream itself is 110ms a
+  // row, but every release repaints the mounted window of a pool of tens of thousands of records,
+  // and on a shared CI runner that repaint is what the clock measures. At 1.5s this failed on
+  // capture branches whose diff touched nothing here, and said nothing about how long it took;
+  // a failure that cannot be diagnosed from its own artefact is half a failure. What this asserts
+  // is that the batch does not drag on — a stalled queue would sit for the 20s highlight or longer.
+  assert(streamed[2].at - streamed[0].at < 6000, `the visible stream completes quickly: ${JSON.stringify(streamed.map(item => ({ title: item.title, at: Math.round(item.at) })))}`);
   assert.equal(await page.locator('[data-arrival-badge]').count(), 3, 'each genuine new row receives its own highlight');
   assert.equal(await period.inputValue(), 'today', 'automatic arrival retains Today');
   assert.equal(await page.locator('[data-table-scroll]').evaluate(node => node.scrollTop), 0, 'newest record is inserted at the top without a click');

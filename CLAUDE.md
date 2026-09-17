@@ -4224,13 +4224,26 @@ notice, so a capture PR merges only on a person's own approval of that head comm
 the connector by the time Verify has finished is reported as `review-unavailable`, with the warning,
 rather than as an ordinary wait.
 
+**Two more traps sat on the approval path, and both were measured the same afternoon.** GitHub
+computes a PR's mergeability lazily: the first look at a PR nobody has opened answers `UNKNOWN`,
+and the gate — which runs once per event and is never re-triggered by the computation finishing —
+read that as `merge-gate`, so a person's approval of a fresh PR could silently do nothing.
+`resolveMergeability()` asks again for up to half a minute before it calls that a conflict. And
+the gate ran for events that could not change its answer: Cloudflare edits its deploy comment on
+every build and each edit queued a run that cancelled the one waiting before it in the PR's
+concurrency group, and the never-executed `pull_request` Verify completion queued a run per PR that
+could only ever answer `unrelated-run`. The job now runs for a person's comment, the connector's
+comment, a review, or a Verify that succeeded — nothing else.
+
 **One flaky Verify assertion still stops every feed, and the last one was a real bug.** The All
 Alerts "visible row moved 110px / 194px during refresh" failures on a third of capture branches
 were the windowed list placing a held row from ESTIMATED heights and correcting a frame later — see
 *Performance on large tables* — and `verify-windowed-list-ui.mjs` now pins the reader's row
 deterministically. When a browser step fails on a data-only branch, read the assertion before
 retrying: it is either a test reading live data (`verify-research-reasoning-ui.mjs` asserts a
-market-wrap co-mention against the shipped capture) or a product defect the data happened to reach.
+market-wrap co-mention against the shipped capture), a runner-speed budget (the All Alerts "visible
+stream completes quickly" clock measures a shared runner's repaint of a large pool, and now prints
+its timings), or a product defect the data happened to reach.
 
 `finology-shared.js` compares consecutive completed calendar quarters throughout the dashboard.
 Preserve `quarterlyStatus`: reported, filing_due, not_disclosed, unknown. A legacy null cannot prove
