@@ -125,9 +125,12 @@ try {
   await page.evaluate(async () => { const s = await import('/js/ui/screener.js'); s.closeWorkspace(); s.closeDrill(); });
 
   // Real route surfaces, including a sticky table and the source/semantic pills.
-  for (const tab of ['daily-alerts', 'ai-alerts', 'earnings-hub', 'concall', 'public-chatter', 'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'corporate-actions', 'nse-filings', 'insider-trades']) {
-    await page.evaluate(tab => { location.hash = `#/research/${tab}?scope=universe`; }, tab);
+  // Corporate Actions is the second view of Corp Announcements, so it is reached by its sub-view route.
+  for (const route of ['daily-alerts', 'ai-alerts', 'earnings-hub', 'concall', 'public-chatter', 'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'corp-announcements/corporate-actions', 'nse-filings', 'insider-trades']) {
+    const tab = route.split('/')[0];
+    await page.evaluate(route => { location.hash = `#/research/${route}?scope=universe`; }, route);
     await page.waitForFunction(tab => document.querySelector('#tabbar-mount .tab-btn.is-active')?.dataset.tabId === tab, tab);
+    await page.waitForFunction(route => location.hash.startsWith(`#/research/${route}`), route);
     assert.equal(await theme(page), 'dark', tab);
     assert(contrast((await surface(page, '[data-app-header] h1')).color, 'rgb(11,18,32)') >= 7);
     if (tab === 'ipos') {
@@ -141,7 +144,7 @@ try {
       await toggle(page).click();
       assert(await page.evaluate(() => window.themeContentBefore === document.querySelector('#content-host').firstElementChild), 'theme change does not remount the table');
     }
-    await shot(page, `${tab}-dark`);
+    await shot(page, `${route.replace('/', '-')}-dark`);
   }
   // A small component matrix tests actual generated utility selectors and alpha syntax.
   await page.evaluate(async () => {

@@ -1,5 +1,11 @@
 // Exchange-wide corporate actions from NSE and Screener, scoped at paint time to the current portfolio,
 // watchlist or full captured universe.
+//
+// THIS IS A SUB-VIEW, NOT A TAB. It is the Corporate Actions view of Corp Announcements
+// (`tabs/corp-announcements.js`), which owns the tab id, the sub-view picker and the dispatch; this
+// module keeps the whole of the view — feed, columns, provenance, export — and the same
+// `{ meta, render, destroy }` shape so `scripts/verify-corporate-actions-ui.mjs` can drive it
+// directly. `meta.id` here is the refresh-registry id and the bookmark section key, not a route.
 
 import { escapeHtml } from '../core/dom.js';
 import { formatDate, formatNumber, formatRelativeTime } from '../core/format.js';
