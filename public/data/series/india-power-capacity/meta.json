@@ -10,15 +10,15 @@
  "source": {
   "name": "Central Electricity Authority",
   "symbol": "Total Installed Capacity",
-  "url": "https://cea.nic.in/wp-content/uploads/installed/2026/06/Website_June.xlsx",
+  "url": "https://cea.nic.in/wp-content/uploads/installed/2026/07/IC_July_2026.xlsx",
   "exchange": null,
   "upstreamCurrency": null
  },
  "note": null,
  "accumulating": true,
  "first": "2026-06-01",
- "last": "2026-06-01",
- "count": 1,
- "retrievedAt": "2026-08-11T04:35:31.316Z",
- "staleSince": "2026-06-01"
+ "last": "2026-07-01",
+ "count": 2,
+ "retrievedAt": "2026-09-16T07:17:18.060Z",
+ "staleSince": "2026-07-01"
 }

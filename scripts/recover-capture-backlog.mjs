@@ -238,8 +238,12 @@ function filingArchiveRecovery({ id, dir, kind }) {
   return async function recover(branches, { dryRun }) {
     const { archiveFilings } = await import('./lib/filing-archive.mjs');
     const target = join(DATA, dir);
-    const rows = [];
-    let seen = 0;
+    // A changed shard still carries every row the base had, so 114 branches hand over the same
+    // eighteen thousand rows 114 times (measured: 2,146,940 incoming for insider trades). Rows
+    // identical in every field collapse here; rows that differ for one identity all go through,
+    // and the feed's own merge decides between them. Insertion order stays oldest-branch-first.
+    const distinct = new Map();
+    let seen = 0, incoming = 0;
     for (const { ref } of branches) {
       const changed = changedFiles(ref);
       if (!touches(changed, f => f.startsWith(`public/data/${dir}/`))) continue;
@@ -249,15 +253,21 @@ function filingArchiveRecovery({ id, dir, kind }) {
         for (const name of existsSync(source) ? readdirSync(source) : []) {
           if (!ARCHIVE_SHARD.test(name)) continue;
           if (changed !== null && !changed.includes(`public/data/${dir}/${name}`)) continue;
-          rows.push(...(readJson(join(source, name), {}).rows || []));
+          for (const row of readJson(join(source, name), {}).rows || []) {
+            incoming += 1;
+            const key = JSON.stringify(row);
+            distinct.delete(key);
+            distinct.set(key, row);
+          }
         }
         seen += 1;
       } finally { rmSync(checkout, { recursive: true, force: true }); }
     }
+    const rows = [...distinct.values()];
     const before = readJson(join(target, 'index.json'), { rowCount: 0 }).rowCount || 0;
-    if (dryRun || !rows.length) return { feed: id, branches: seen, before, incoming: rows.length, wrote: false };
+    if (dryRun || !rows.length) return { feed: id, branches: seen, before, incoming, distinct: rows.length, wrote: false };
     const index = archiveFilings(target, kind, rows);
-    return { feed: id, branches: seen, before, after: index.rowCount, added: index.rowCount - before, incoming: rows.length, wrote: true };
+    return { feed: id, branches: seen, before, after: index.rowCount, added: index.rowCount - before, incoming, distinct: rows.length, wrote: true };
   };
 }
 
@@ -401,7 +411,26 @@ async function recoverSnapshots(branches, { dryRun }) {
     writeFileSync(target, bytes);
     written += 1;
   }
-  return { feed: 'snapshots', branches: seen, paths: latest.size, suppliers: suppliers.size, written, deleted, wrote: !dryRun && latest.size > 0 };
+  // A `.parts` directory is CONTENT-ADDRESSED, so per-path newest-wins is wrong for it: every
+  // branch wrote its own sha-named parts beside the ones it inherited, and a later branch never
+  // "deleted" a part it never had. Measured on the first pass: 688 parts, 2.5 GB, for a manifest
+  // naming eight. The manifest is the authority — its writer prunes to exactly the parts it names
+  // (`pruneGeneratedParts` in news-json-storage.mjs) — so the same pruning runs here, and the
+  // manifest is then read back through its own reader, which throws on a missing or altered part.
+  let pruned = 0;
+  if (!dryRun) {
+    for (const manifest of ['public/data/news.json']) {
+      const path = join(ROOT, manifest), parts = join(ROOT, manifest.replace(/\.json$/, '.parts'));
+      if (!existsSync(path) || !existsSync(parts)) continue;
+      const keep = new Set((readJson(path)?._jsonShards?.parts || []).map(p => p.file.split('/').pop()));
+      for (const name of readdirSync(parts)) {
+        if (!/^[a-f0-9]{64}\.json$/.test(name) || keep.has(name)) continue;
+        rmSync(join(parts, name), { force: true }); pruned += 1;
+      }
+      readNewsJson(path);
+    }
+  }
+  return { feed: 'snapshots', branches: seen, paths: latest.size, suppliers: suppliers.size, written, deleted, pruned, wrote: !dryRun && latest.size > 0 };
 }
 
 const FEEDS = {
