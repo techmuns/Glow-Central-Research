@@ -53,7 +53,7 @@ import * as screenerInsights from './screener-insights.js';
 // filing would have become a negative alert about a named investor.
 import { isMove } from './finology-shared.js';
 import { announcements, insider, news, createQueryNews } from './filings.js';
-import { insiderTradeSourceUrl, canonicalArticleUrl } from './filings-shared.js';
+import { insiderTradeSourceUrl, articleUrlKey, canonicalArticleUrl } from './filings-shared.js';
 import { classifyStory } from './news-keywords.js';
 import { announcementSignal } from './filing-signals.js';
 export { announcementSignal, BSE_CRITICAL_IS_MATERIAL } from './filing-signals.js';
@@ -201,11 +201,29 @@ function istTime(value) {
 }
 
 /** The IST calendar date of an instant. */
-function istDay(value) {
-  if (!value) return null;
+function istDayOf(value) {
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return null;
   return new Date(d.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
+}
+// A pure string-to-string function asked about the same 80,000 timestamps on every pass over the
+// news history (two Date allocations each): bounded FIFO on the raw string, the same shape as
+// `matchKeywords` and `canonicalArticleUrl`. The key is the row's own string, so nothing is copied.
+const IST_DAY_CACHE_MAX = 65_536;
+const istDayCache = new Map();
+const istDayKeys = new Array(IST_DAY_CACHE_MAX);
+let nextIstDayKey = 0;
+function istDay(value) {
+  if (!value) return null;
+  if (typeof value !== 'string') return istDayOf(value);
+  const hit = istDayCache.get(value);
+  if (hit !== undefined) return hit;
+  const day = istDayOf(value);
+  istDayCache.delete(istDayKeys[nextIstDayKey]);
+  istDayKeys[nextIstDayKey] = value;
+  nextIstDayKey = (nextIstDayKey + 1) % IST_DAY_CACHE_MAX;
+  istDayCache.set(value, day);
+  return day;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -546,14 +564,19 @@ function queryNewsReader(queryWindow) {
   trimQueryReaders();
   return entry.reader;
 }
+// `articleUrlKey` (filings-shared.js) is the row's own canonical address: `canonicalArticleUrl`
+// keeps a 16,384-entry text cache, which a pass over 81,921 history rows evicts as fast as it
+// fills, so every switch between the AI window and a selected period parsed every URL again
+// (profiled at 1,635ms plus 868ms inside the URL constructor).
+const rowUrlKey = articleUrlKey;
 function newsQueryRows(reader, queryWindow, companyReader = news) {
   if (!queryWindow) { newsCandidates = null; return reader.rows(); }
   const companyRows = companyReader.rows(), marketRows = marketNews.rows();
   const key = alertWindowKey(queryWindow);
   if (newsCandidates?.companyRows !== companyRows || newsCandidates.marketRows !== marketRows || newsCandidates.key !== key) {
     const selected = row => inAlertQuery({ at: row.publishedAt || row.date }, queryWindow);
-    const urls = new Set([...companyRows, ...marketRows].filter(selected).filter(row => row.url).map(row => canonicalArticleUrl(row.url)));
-    const matches = row => selected(row) || row.url && urls.has(canonicalArticleUrl(row.url));
+    const urls = new Set([...companyRows, ...marketRows].filter(selected).filter(row => row.url).map(rowUrlKey));
+    const matches = row => selected(row) || row.url && urls.has(rowUrlKey(row));
     newsCandidates = { companyRows, marketRows, key, company: companyRows.filter(matches), market: marketRows.filter(matches) };
   }
   return reader === companyReader ? newsCandidates.company : newsCandidates.market;
@@ -626,7 +649,30 @@ export async function prepareSources({ refresh = false, feedIds = null } = {}) {
  * nothing else. A failure becomes a `feeds[]` row saying so — the same rule as everywhere here, a
  * failed read is never an empty result.
  */
-export async function collect({ scope = 'universe', day = today(), holdings = null, includeHistory = false, refresh = false, load = true, onPartial = null, requestedCompanies = [], queryWindow = null } = {}) {
+// WARM THE PER-ROW READINGS IN TIME-SLICED CHUNKS BEFORE THE SYNCHRONOUS COLLECTOR RUNS.
+//
+// `fromCompanyNews` classifies and attributes every story in one synchronous pass, and after a
+// release the full-history reader is rebuilt from disk as new row objects, so that pass is cold
+// again on every return: profiled at 4.2 seconds on one main-thread task, landing while the reader
+// had already moved from AI Alerts to All Alerts. The readings themselves are memoised on the row
+// object, so touching them here in ~12ms slices with a yield between each turns that one task into
+// forty small ones. Nothing is skipped and nothing is decided here — the collector still reads
+// every row itself and reports its own failures; this only changes when the work happens.
+async function warmNewsReadings(feedId, reader, queryWindow, yieldForInput) {
+  let rows;
+  try {
+    if (feedId === 'news') await reader.warm?.(yieldForInput);
+    rows = feedId === 'news' ? newsQueryRows(reader, queryWindow, reader) : newsQueryRows(marketNews, queryWindow, reader);
+  } catch { return; }
+  let started = performance.now();
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    try { if (feedId === 'news') companyNewsEvent(row); else classifyStory(row); } catch { /* the collector reports the row's own failure */ }
+    if (performance.now() - started >= 12) { await yieldForInput(); started = performance.now(); }
+  }
+}
+
+export async function collect({ scope = 'universe', day = today(), holdings = null, includeHistory = false, refresh = false, load = true, onPartial = null, requestedCompanies = [], queryWindow = null, isCurrent = () => true } = {}) {
   observeSources();
   // Pure reassembly of explicitly preloaded source fixtures keeps using those same records.
   const newsReader = queryWindow && (load || queryNewsReaders.has(alertWindowKey(queryWindow))) ? queryNewsReader(queryWindow) : news;
@@ -673,6 +719,11 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   let partialTimer = null;
   const publishPartial = () => {
     partialTimer = null;
+    // A partial nobody will read is not built. AI Alerts hands its own currency check through;
+    // once its reader has moved to another tab, assembling and sorting the full-history report
+    // for it was a one-to-two second task landing under the tab they had moved to. Collection,
+    // the final report and the saved window are unaffected — only the progress publication.
+    if (!isCurrent()) return;
     try { onPartial?.(build()); } catch (err) { console.error('[daily-alerts] onPartial threw', err); }
   };
   const schedulePartial = () => {
@@ -706,6 +757,7 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
           loadedFeeds.add('news'); normalizedFeeds.delete('news');
         } else if (load) await loadFeed(feed.id, refresh);
         await yieldForInput();
+        if (feed.id === 'news' || feed.id === 'market-news') await warmNewsReadings(feed.id, newsReader, queryWindow, yieldForInput);
         out = readFeed(feed, args);
         if (!load && loadErrors.has(feed.id)) out = { ...out, status: 'failed', reachesToday: false, note: `Last read failed: ${loadErrors.get(feed.id)}. Retained records remain visible.` };
         else if (!load && (!loadedFeeds.has(feed.id) || loadingFeeds.has(feed.id)) && LOADERS[feed.id]) out = { ...out, status: 'pending' };
@@ -765,9 +817,15 @@ const LOADERS = {
   'chatter-posts': (refresh) => loadFeed('chatter', refresh),
 };
 
+const yieldToInput = () => typeof window === 'undefined' ? Promise.resolve() : new Promise(resolve => setTimeout(resolve, 0));
 async function refreshFilings(feed, refresh) {
   await feed.seed();
   if (refresh && !(await feed.refreshSnapshot()).available) throw Error('Latest filings capture unavailable');
+  // `meta()` below rebuilds the reader's rows synchronously, and after a load every row is new:
+  // warm the readings that rebuild will hit in slices first, so it pays for the join, not for
+  // attributing every retained story in one task. A feed without `warm` (announcements, insider)
+  // is unchanged.
+  await feed.warm?.(yieldToInput);
   const m = feed.meta();
   if (m.reason || m.failed || m.truncated) throw Error(m.message || 'Filings coverage is incomplete');
 }
@@ -1661,11 +1719,17 @@ function fromTechnicals({ day, wanted, includeHistory }) {
   };
 }
 
-/** Company news published today. An editorial headline is not sentiment data, so it stays neutral. */
-function fromCompanyNews({ day, wanted, includeHistory, queryWindow, newsReader = news }) {
-  const rows = newsQueryRows(newsReader, queryWindow, newsReader).filter((r) => inRequestedWindow(r.publishedAt || r.date, day, includeHistory) && inScope(wanted, r.ticker));
-
-  const events = rows.map((r) => ({
+// ONE EVENT PER ROW OBJECT. The collector rebuilt every story's event on every pass — 81,926
+// objects, each spreading a fresh `newsSignal` reading — and after a reader rebuild that pass is
+// cold again. The event is a pure function of the row and the book, so it is memoised on the row
+// and checked against the holdings array; `toFeedRow` copies it before adding feed fields, and no
+// consumer edits it. The warm-up touches it in slices so the synchronous pass only maps.
+const companyNewsEvents = new WeakMap();
+function companyNewsEvent(r) {
+  const holdings = coverage.holdings();
+  const hit = companyNewsEvents.get(r);
+  if (hit && hit.holdings === holdings) return hit.event;
+  const event = {
     // THE TICKER IS PART OF THE IDENTITY. One story is returned by several companies' searches,
     // and a RELIANCE row and an HDFCBANK row about the same article are two rows, not one.
     id: `news:${r.entityId || r.ticker || '?'}|${r.url || JSON.stringify([r.date, r.title, r.source])}`,
@@ -1688,7 +1752,16 @@ function fromCompanyNews({ day, wanted, includeHistory, queryWindow, newsReader 
     detail: [r.source ? `Published by ${r.source}` : 'Publisher not carried',
       attributionFor(r).status === 'related' ? attributionFor(r).reason : null].filter(Boolean).join(' · '),
     url: r.url || null,
-  }));
+  };
+  companyNewsEvents.set(r, { holdings, event });
+  return event;
+}
+
+/** Company news published today. An editorial headline is not sentiment data, so it stays neutral. */
+function fromCompanyNews({ day, wanted, includeHistory, queryWindow, newsReader = news }) {
+  const rows = newsQueryRows(newsReader, queryWindow, newsReader).filter((r) => inRequestedWindow(r.publishedAt || r.date, day, includeHistory) && inScope(wanted, r.ticker));
+
+  const events = rows.map(companyNewsEvent);
 
   return { events, ...companyNewsState(day, newsReader.meta()) };
 }

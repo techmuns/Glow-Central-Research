@@ -6,6 +6,19 @@ import { holdsTicker } from './row-ticker-index.js';
 
 // Retained monthly records stay available after they leave the recent head. Scope, search and
 // attribution still run in their existing consumers; storage partitioning is never a filter.
+// The observation instant is parsed once per row object: the sort above asked `Date.parse` on
+// every comparison of every rebuild (profiled at 482ms on one rebuild of the combined reader).
+// Rows are replaced, never edited; the two stamps are checked on every read regardless.
+const yieldToInput = () => typeof window === 'undefined' ? Promise.resolve() : new Promise(resolve => setTimeout(resolve, 0));
+const observationTimes = new WeakMap();
+function observationTime(row) {
+  const hit = observationTimes.get(row);
+  if (hit && hit.last === row.lastSeenAt && hit.first === row.firstSeenAt) return hit.time;
+  const parsed = Date.parse(row.lastSeenAt || row.firstSeenAt || '');
+  const time = Number.isFinite(parsed) ? parsed : null;
+  observationTimes.set(row, { last: row.lastSeenAt, first: row.firstSeenAt, time });
+  return time;
+}
 export function withNewsHistory(base, { read = conditionalJson, window: readingWindow = () => null } = {}) {
   let held = new Map(), identities = new Map(), revision = 0, combined = null;
   let pending = null, error = null, loaded = false, initialized = false, epoch = 0, aborter = null;
@@ -30,8 +43,8 @@ export function withNewsHistory(base, { read = conditionalJson, window: readingW
     // Publication dates are not observation times. Raw versions stay in the archive.
     const currentRows = new Set(source);
     const observedAt = row => {
-      const time = Date.parse(row.lastSeenAt || row.firstSeenAt || '');
-      return Number.isFinite(time) ? time : currentRows.has(row) ? Infinity : -Infinity;
+      const time = observationTime(row);
+      return time !== null ? time : currentRows.has(row) ? Infinity : -Infinity;
     };
     const value = [...buckets.values()].flatMap(list => dedupeArticles(list.sort((a, b) => observedAt(b) - observedAt(a))))
       .filter(row => inNewsWindow(row, window))
@@ -82,6 +95,19 @@ export function withNewsHistory(base, { read = conditionalJson, window: readingW
             if (!Array.isArray(part.value?.articles) || (part.value.querySourceCount ?? part.value.articles.length) !== shard.count) throw Error('News archive month incomplete');
             next.set(shard.file, part.value.articles);
           }
+          // Warm before install: once these records are in `held`, the first `rows()` is whoever
+          // asks first — the source beacon's poller as easily as the tab — and a cold rebuild
+          // attributed ninety thousand rows in one task. Under the identities the rebuild will
+          // use; every held month too when the index moved an identity object.
+          const merged = new Map(identities);
+          for (const [key, identity] of nextIdentities) merged.set(key, identity);
+          const identityMoved = [...nextIdentities].some(([key, identity]) => identities.get(key) !== identity);
+          const lists = [...next.values(), ...(identityMoved ? [...held].filter(([path]) => !next.has(path)).map(([, records]) => records) : [])];
+          let started = performance.now();
+          for (const list of lists) for (const row of list) {
+            attributeNewsRow(row, merged.get(row.entityId) || merged.get(row.ticker) || row);
+            if (performance.now() - started >= 12) { await yieldToInput(); started = performance.now(); if (generation !== epoch) return false; }
+          }
           for (const [path, records] of next) held.set(path, records);
           for (const [key, identity] of nextIdentities) identities.set(key, identity);
           if (stamp) indexes.set(indexPath, { stamp, updatedAt: value.updatedAt, windowKey, coveredByHead, queryRevision });
@@ -96,6 +122,17 @@ export function withNewsHistory(base, { read = conditionalJson, window: readingW
     return pending;
   }
   return { ...base, rows, loadArchive,
+    // Warm the readings `rows()` will hit — the readers beneath, then every retained archive row
+    // under its index identity — in ~12ms slices. The synchronous rebuild then pays for the
+    // dedupe and the sort, not for attributing ninety thousand rows in one task.
+    async warm(yieldForInput = () => Promise.resolve()) {
+      await base.warm?.(yieldForInput);
+      let started = performance.now();
+      for (const list of held.values()) for (const row of list) {
+        attributeNewsRow(row, identities.get(row.entityId) || identities.get(row.ticker) || row);
+        if (performance.now() - started >= 12) { await yieldForInput(); started = performance.now(); }
+      }
+    },
     // Another view may have loaded the shared company head without initializing this reader's
     // publisher/TradingView sources. A head alone cannot make this reader skip its own load.
     isLoaded: () => initialized && base.isLoaded(),
