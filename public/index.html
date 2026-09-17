@@ -697,10 +697,16 @@
         #app:has(.research-workspace) .theme-toggle span { display: none; }
         #app:has(.research-workspace) .theme-toggle { width: 2.25rem; padding: 0; }
         /* The Newsletter button joined this row and, with its label, wrapped the control cluster onto
+<<<<<<< HEAD
            a second line at 1024px -- measured: 129px of header against 86px, which is 43px taken from
            the transcript on the landing tab. Collapsing it alone still wrapped (115px); collapsing
            Bookmarks beside it, exactly as the 560px rule below already does, restores the 86px.
            CLIPPED, never display:none, because the span is each control's accessible name. */
+=======
+           a second line at 1024px. Collapsing it alone still wrapped; collapsing Bookmarks beside it,
+           exactly as the 560px rule below already does, restores the single row. CLIPPED, never
+           display:none, because the span is each control's accessible name. */
+>>>>>>> sattva/main
         #app:has(.research-workspace) .header-bookmarks span,
         #app:has(.research-workspace) .brief-button span:not(.brief-button-dot) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
         #app:has(.research-workspace) .header-bookmarks,
@@ -723,11 +729,22 @@
         #app:has(.research-workspace) .header-bookmarks span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
         #app:has(.research-workspace) .header-bookmarks { width: 2.25rem; min-height: 2.25rem; padding: 0; justify-content: center; }
         #app:has(.research-workspace) .brief-button span:not(.brief-button-dot) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+<<<<<<< HEAD
         /* A fourth icon does not fit the 374px control row beside the status pill (measured: 400px
            needed, so the whole cluster dropped to a third line and took 44px from the transcript).
            The scope row above has room, so the cluster is flattened into the header row here and
            the Newsletter button ordered ahead of the status pill: it wraps up beside the scope
            toggle, at 2rem so that row keeps its own height, and the other three stay together. */
+=======
+        /* A fourth icon does not fit the 374px control row beside the status pill. Measured at
+           390x844: the cluster needs 184px against the 144px left beside the pill, so the WHOLE
+           cluster dropped to a third line and took 44px from the transcript -- and shrinking the
+           four icons cannot recover it, because four targets plus their gaps exceed 144px at any
+           size a thumb can hit. The scope row above has room, so the cluster is flattened into the
+           header row here and the Newsletter button ordered ahead of the status pill: it wraps up
+           beside the scope toggle, at 2rem so that row keeps its own height, and the other three
+           stay together. */
+>>>>>>> sattva/main
         #app:has(.research-workspace) .header-personal-controls { display: contents; }
         #app:has(.research-workspace) [data-scope-controls] { order: -2; }
         #app:has(.research-workspace) .brief-button { order: -1; width: 2rem; min-height: 2rem; padding: 0; justify-content: center; }

@@ -18,6 +18,10 @@ import { escapeHtml } from '../core/dom.js';
 import { getHostContext, authHeaders } from '../core/host-context.js';
 import * as people from '../core/watchlist-people.js';
 import * as router from '../core/router.js';
+<<<<<<< HEAD
+=======
+import { saveLastRoute } from '../core/state.js';
+>>>>>>> sattva/main
 import { EDITIONS, EDITION_IDS, normaliseEmail } from '../data/newsletter-shared.js';
 
 const ROUTE = '/api/newsletter';
@@ -165,7 +169,16 @@ function openFromLink() {
     const route = router.parseHash();
     if (route.params) delete route.params.newsletter;
     router.replaceRoute(route);
+<<<<<<< HEAD
     router.saveLastRoute(router.buildHash(route));
+=======
+    // `saveLastRoute` lives in core/state.js, NOT on the router. Reaching for `router.saveLastRoute`
+    // throws a TypeError straight into this catch, which reads as the flag being scrubbed while the
+    // SAVED route keeps `?newsletter=manage` — so the next visit, restored from that saved hash,
+    // reopens the panel over whatever the reader actually wanted. The URL and the saved copy have
+    // to be corrected together or neither is corrected.
+    saveLastRoute(router.buildHash(route));
+>>>>>>> sattva/main
   } catch { /* the flag is a convenience; the panel still opens */ }
   setTimeout(open, 0);
   return true;

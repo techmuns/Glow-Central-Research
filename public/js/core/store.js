@@ -30,6 +30,7 @@
 
 import { authHeaders } from './host-context.js';
 import { hydrateJsonShards } from './json-shards.js';
+import { createMemoryCache, estimateMemoryBytes } from './memory-cache.js';
 
 const DB_NAME = 'sattva-cache';
 const DB_VERSION = 1;
@@ -106,7 +107,16 @@ export const KEYS = {
 
 // The in-memory tier. Always written, so a reader that lands during an IndexedDB round trip still
 // gets the value, and so the whole module keeps working when IndexedDB does not.
-const memory = new Map();
+const MEMORY_BUDGET = 24 * 1024 * 1024;
+const memory = createMemoryCache(MEMORY_BUDGET);
+// Unknown/user-authored keys and unsaved writes stay pinned. These public representations can
+// be read from the verified disk copy; no disk eviction or retention rule is introduced here.
+const reconstructible = key => /^(filings:news(?::|$)|news-history:|snapshot:tradingview-news$|market-news(?::|$)|(?:all-alerts:public-pool|ai-alerts:public-window):|news-query:)/.test(key);
+function remember(key, row, durable = false) {
+  memory.set(key, row, reconstructible(key) ? estimateMemoryBytes(row, MEMORY_BUDGET) : 0,
+    durable && reconstructible(key));
+}
+export const memoryCacheState = () => memory.stats();
 
 let dbPromise = null;
 let unavailable = false;
@@ -170,7 +180,9 @@ export async function readEntry(key) {
   if (!db) return null;
   const row = await tx(db, 'readonly', (s) => s.get(key));
   if (!row || !row.value) return null;
-  memory.set(key, row);
+  const newer = memory.get(key);
+  if (newer) return newer;
+  remember(key, row, true);
   return row;
 }
 
@@ -218,8 +230,9 @@ export async function readEntries(keys) {
       req.onsuccess = () => {
         const row = req.result;
         if (!row || !row.value) return;
-        memory.set(key, row);
-        out.set(key, row);
+        const newer = memory.get(key);
+        if (!newer) remember(key, row, true);
+        out.set(key, newer || row);
       };
     }
     t.oncomplete = resolve;
@@ -236,9 +249,13 @@ export async function readEntries(keys) {
  */
 export function writeEntry(key, { tag, value, savedAt = Date.now() }) {
   const row = { tag: tag || null, savedAt, value };
-  memory.set(key, row);
+  remember(key, row);
   return openDb()
-    .then((db) => (db ? tx(db, 'readwrite', (s) => s.put(row, key)) : null))
+    .then(async db => {
+      const result = db ? await tx(db, 'readwrite', s => s.put(row, key)) : null;
+      if (result === key && reconstructible(key)) memory.markEvictable(key, row);
+      return result;
+    })
     .catch(() => null);
 }
 
@@ -276,7 +293,7 @@ export async function writeEntryBatch(entries, deleteKeys = [], { prunePrefix = 
   }) : false;
   if (prunePrefix) for (const key of memory.keys()) if (inGroup(key) && !keep.has(key)) memory.delete(key);
   for (const key of deleteKeys) memory.delete(key);
-  for (const [key, row] of rows) memory.set(key, row);
+  for (const [key, row] of rows) remember(key, row, persistent);
   return { persistent };
 }
 
@@ -325,7 +342,7 @@ export function conditionalJson(path, options = {}) {
   // Custom validation and authenticated reads belong to their caller.
   // Ordinary public poll, capture, and header reads share one bounded revalidation.
   if (options.validate || authHeaders(path).authorization) return readConditionalJson(path, options);
-  const requestKey = JSON.stringify([path, options.key, !!options.optional]);
+  const requestKey = JSON.stringify([path, options.key, !!options.optional, !!options.rawManifest]);
   let pending = conditionalInFlight.get(requestKey);
   if (!pending) {
     pending = readConditionalJson(path, options).finally(() => conditionalInFlight.delete(requestKey));
@@ -345,7 +362,8 @@ export function conditionalJson(path, options = {}) {
   return pending;
 }
 
-async function readConditionalJson(path, { key, optional = false, signal, validate } = {}) {
+async function readConditionalJson(path, { key, optional = false, signal, validate, rawManifest = false } = {}) {
+  if (rawManifest && (!key?.startsWith('news-query:manifest:') || !path.startsWith('data/'))) throw Error('Invalid raw manifest reader');
   const callerSignal = signal;
   signal = signal || AbortSignal.timeout(20000);
   const stored = key ? await readEntry(key) : null;
@@ -376,7 +394,7 @@ async function readConditionalJson(path, { key, optional = false, signal, valida
   // The tag travels in the body as well as the header. The header is authoritative where it can be
   // read; the body copy is what survives a cross-origin response whose ETag is not exposed.
   const headerTag = res.headers.get('etag');
-  if (headerTag && stored?.tag === headerTag && stored.value && !Object.hasOwn(stored.value, '_jsonShards')) {
+  if (headerTag && stored?.tag === headerTag && stored.value && (rawManifest || !Object.hasOwn(stored.value, '_jsonShards'))) {
     validate?.(stored.value);
     return { status: 304, value: stored.value, tag: stored.tag, savedAt: stored.savedAt, checkedAt, fromStore: true };
   }
@@ -385,16 +403,19 @@ async function readConditionalJson(path, { key, optional = false, signal, valida
   try {
     // Each immutable part has its own bounded timeout. A large complete capture must not share
     // the manifest's 20-second budget; an explicit caller cancellation still covers every read.
-    value = await hydrateJsonShards(await res.json(), path, { signal: callerSignal });
+    const body = await res.json();
+    value = rawManifest ? body : await hydrateJsonShards(body, path, { signal: callerSignal });
   } catch (err) {
     if (optional) return miss(res.status);
     throw err;
   }
 
-  const tag = headerTag || value?.meta?.contentTag || null;
+  // A logical-content tag can survive a lossless representation/index rewrite. Raw readers
+  // must adopt the new part addresses even when that body tag is unchanged.
+  const tag = headerTag || (!rawManifest && value?.meta?.contentTag) || null;
   // Same short-circuit, for the case where the ETag header was unreadable and the tag had to come
   // out of the body. The parse is already paid for, but the caller still learns nothing changed.
-  if (tag && stored?.tag === tag && stored.value && !Object.hasOwn(stored.value, '_jsonShards')) {
+  if (tag && stored?.tag === tag && stored.value && (rawManifest || !Object.hasOwn(stored.value, '_jsonShards'))) {
     validate?.(stored.value);
     return { status: 304, value: stored.value, tag: stored.tag, savedAt: stored.savedAt, checkedAt, fromStore: true };
   }

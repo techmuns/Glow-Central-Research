@@ -20,6 +20,13 @@ import { handleNewsletter } from '../worker/newsletter.mjs';
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
 const { chromium } = await import(`${PW_ROOT}/index.mjs`);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
+<<<<<<< HEAD
+=======
+// A screenshot taken the instant the form appears catches the 180ms `brief-enter` animation
+// mid-flight, so an opaque panel photographs as a translucent one. Wait for it to settle.
+const settled = async (locator) => { await locator.evaluate((n) => Promise.all(n.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {})))); };
+
+>>>>>>> sattva/main
 const fixture = (name) => readFileSync(new URL(`./fixtures/newsletter/${name}`, import.meta.url), 'utf8');
 
 // ---- the stand-in Worker ---------------------------------------------------------------------------
@@ -179,7 +186,11 @@ try {
   console.log('\n— preview —');
   const [preview] = await Promise.all([context.waitForEvent('page'), page.locator('[data-brief-action="preview"][data-edition="evening"]').click()]);
   await preview.waitForLoadState();
+<<<<<<< HEAD
   ok('Preview Evening opens the edition as it would send now, in a new tab', /^Glow Ventures · \d+ updates?/.test(await preview.title()) && (await preview.locator('body').innerText()).includes('GLOW VENTURES') && new URL(preview.url()).searchParams.get('edition') === 'evening');
+=======
+  ok('Preview Evening opens the edition as it would send now, in a new tab', /^Sattva Ventures · \d+ updates?/.test(await preview.title()) && (await preview.locator('body').innerText()).includes('SATTVA VENTURES') && new URL(preview.url()).searchParams.get('edition') === 'evening');
+>>>>>>> sattva/main
   await preview.close();
   ok('...and nothing was emailed from the panel', emails.length === 0);
 
@@ -222,7 +233,12 @@ try {
   await page.locator('[data-brief-form="me"]').waitFor();
   const dark = await panel().evaluate((n) => getComputedStyle(n).backgroundColor);
   ok('the dark panel paints an opaque dark surface', /^rgb\(/.test(dark) && dark !== 'rgb(255, 255, 255)', dark);
+<<<<<<< HEAD
   await page.screenshot({ path: '/tmp/glow-newsletter-dark.png' });
+=======
+  await settled(panel());
+  await page.screenshot({ path: '/tmp/sattva-newsletter-dark.png' });
+>>>>>>> sattva/main
   await page.keyboard.press('Escape');
   await page.evaluate(() => window.sattvaTheme.toggle());
   await page.setViewportSize({ width: 390, height: 844 });
@@ -232,12 +248,39 @@ try {
   ok('on a phone the panel stays inside the viewport and the page does not scroll sideways',
     bounds.x >= 0 && bounds.x + bounds.width <= 391 && bounds.y + bounds.height <= 845 && (await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)), JSON.stringify(bounds));
   ok('...and the button is a 44px touch target', (await button().boundingBox()).height >= 44);
+<<<<<<< HEAD
   await page.screenshot({ path: '/tmp/glow-newsletter-mobile.png' });
   await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await button().click();
   await page.locator('[data-brief-form="me"]').waitFor();
   await page.screenshot({ path: '/tmp/glow-newsletter-desktop.png' });
+=======
+
+  await settled(panel());
+  await page.screenshot({ path: '/tmp/sattva-newsletter-mobile.png' });
+  await page.keyboard.press('Escape');
+  // Ask Research is the landing tab and reserves its viewport for the answer, so at 560px and under
+  // the control cluster is flattened into the header row and this button is ordered up beside the
+  // scope toggle at 2rem. That is a deliberate trade against the 44px target above — a fourth 44px
+  // icon does not fit beside the status pill at 390px and wrapping the cluster costs the transcript
+  // a whole 44px row (scripts/verify-research-stream-ui.mjs asserts that reading space). Assert the
+  // exception rather than leaving it to hold by accident of which route this suite happens to open.
+  await page.goto(`${base}/#/research/ask-research?scope=portfolio`);
+  await button().waitFor();
+  const compact = await button().evaluate((n) => {
+    const r = n.getBoundingClientRect();
+    return { w: Math.round(r.width), h: Math.round(r.height), label: n.getAttribute('aria-label'), name: (n.textContent || '').trim() };
+  });
+  ok('on Ask Research at 390px it stays visible and named, at the compact size that keeps the answer its row',
+    compact.w >= 32 && compact.h >= 32 && compact.w <= 36 && /Newsletter/.test(compact.label || '') && /Newsletter/.test(compact.name),
+    JSON.stringify(compact));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await button().click();
+  await page.locator('[data-brief-form="me"]').waitFor();
+  await settled(panel());
+  await page.screenshot({ path: '/tmp/sattva-newsletter-desktop.png' });
+>>>>>>> sattva/main
 
   ok('zero page errors throughout', errors.length === 0, errors.join(' | '));
 } finally {

@@ -85,6 +85,26 @@ export class NewsletterSchedule {
     return /^https:\/\/[a-z0-9.-]+$/i.test(origin) ? origin : PRODUCTION_ORIGIN;
   }
 
+<<<<<<< HEAD
+=======
+  /**
+   * What every render of the sheet needs besides the brief itself. Two of these are here because
+   * leaving them out is invisible: `productName` is a declared Worker var, so a deployment that
+   * sets it and never sees it change would read as a var that does not work; and `settings` is
+   * what the footer's "every weekday at 8:00 AM IST" is built from, so without it a desk that
+   * moved its send time is told the old one by the very email that arrived at the new one.
+   */
+  renderOptions(recipient = null) {
+    const productName = String(this.env?.NEWSLETTER_PRODUCT_NAME || '').trim();
+    return {
+      dashboardUrl: this.dashboardUrl(),
+      settings: this.store.settings(),
+      ...(productName ? { productName } : {}),
+      ...(recipient ? { recipient } : {}),
+    };
+  }
+
+>>>>>>> sattva/main
   async status() {
     const { state, alarm } = await this.storage.transaction(async (tx) => ({ state: (await tx.get(NEWSLETTER_TIMER_KEY)) || {}, alarm: await tx.getAlarm() }));
     const next = nextScheduled(this.store.settings(), this.now());
@@ -182,7 +202,11 @@ export class NewsletterSchedule {
     const subject = briefSubject(brief);
     const outcomes = [];
     await pooled(list, SEND_POOL, async (recipient) => {
+<<<<<<< HEAD
       const html = renderBriefHtml(brief, { dashboardUrl: this.dashboardUrl(), recipient });
+=======
+      const html = renderBriefHtml(brief, this.renderOptions(recipient));
+>>>>>>> sattva/main
       const result = await sendEmail({ fetcher: this.fetcher, token: credential, email: recipient.email, subject, html, signal: AbortSignal.timeout(SEND_TIMEOUT_MS) });
       outcomes.push({ email: recipient.email, ok: result.ok, status: result.status, reason: result.reason });
     });
@@ -224,7 +248,11 @@ export class NewsletterSchedule {
     }
     return {
       ok: true, edition, subject: briefSubject(brief), builtAt: iso(now), summary: briefSummary(brief),
+<<<<<<< HEAD
       body: format === 'text' ? renderBriefText(brief) : renderBriefHtml(brief, { dashboardUrl: this.dashboardUrl() }),
+=======
+      body: format === 'text' ? renderBriefText(brief, this.renderOptions()) : renderBriefHtml(brief, this.renderOptions()),
+>>>>>>> sattva/main
     };
   }
 }

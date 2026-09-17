@@ -9,13 +9,13 @@ import { holdsTicker } from './row-ticker-index.js';
 export const NEWS_SNAPSHOT_POLL_MS = 120000;
 
 export function withTradingViewNews(base, { read = conditionalJson, doc = globalThis.document,
-  view = doc?.defaultView || globalThis.window, now = Date.now, schedule = setTimeout, cancel = clearTimeout } = {}) {
+  view = doc?.defaultView || globalThis.window, now = Date.now, schedule = setTimeout, cancel = clearTimeout, revalidate = null, autoRefresh = true } = {}) {
   let snapshot = null, pending = null, loaded = false, readError = null, readerCheckedAt = null;
   let timer = null, listening = false, lastAttempt = null, failures = 0, generation = 0;
   let combined = null;
   const subscribers = new Set();
   const emit = () => subscribers.forEach(fn => fn());
-  base.onChange(emit);
+  const offBase = base.onChange(emit);
 
   function readSnapshot() {
     if (pending) return pending;
@@ -28,7 +28,7 @@ export function withTradingViewNews(base, { read = conditionalJson, doc = global
         if (!Number.isFinite(stamp) || stamp > now() + 600000 || !value?.byTicker || !Array.isArray(value.entities) || !value.tradingViewCoverage)
           throw Error('TradingView published snapshot unavailable or invalid');
         if (snapshot && stamp < Date.parse(snapshot.capturedAt)) throw Error('TradingView published snapshot is older than retained news');
-        const changed = !snapshot || stamp > Date.parse(snapshot.capturedAt);
+        const changed = !snapshot || stamp > Date.parse(snapshot.capturedAt) || value.queryRevision != null && value.queryRevision !== snapshot.queryRevision;
         if (changed) snapshot = value;
         readError = null;
         return { available: true, changed };
@@ -104,19 +104,19 @@ export function withTradingViewNews(base, { read = conditionalJson, doc = global
   function pause() { if (timer !== null) cancel(timer); timer = null; }
   function arm() {
     pause();
-    if (!doc || doc.hidden || !loaded || !subscribers.size) return;
+    if (!autoRefresh || !doc || doc.hidden || !loaded || !subscribers.size) return;
     const delay = Math.min(NEWS_SNAPSHOT_POLL_MS * 2 ** failures, 600000);
     timer = schedule(async () => {
       timer = null;
       lastAttempt = now();
-      try { const result = await refreshSnapshot(); failures = result.partial ? failures + 1 : 0; }
+      try { const result = await (revalidate ? revalidate() : refreshSnapshot()); failures = result.partial ? failures + 1 : 0; }
       catch { failures++; }
       finally { emit(); arm(); }
     }, Math.max(0, delay - (lastAttempt == null ? 0 : now() - lastAttempt)));
   }
   const visibility = () => doc.hidden ? pause() : arm();
   function watch() {
-    if (!doc || listening || !loaded || !subscribers.size) return;
+    if (!autoRefresh || !doc || listening || !loaded || !subscribers.size) return;
     listening = true;
     doc.addEventListener('visibilitychange', visibility);
     view?.addEventListener('focus', visibility);
@@ -157,5 +157,6 @@ export function withTradingViewNews(base, { read = conditionalJson, doc = global
       subscribers.add(fn); watch();
       return () => { subscribers.delete(fn); if (!subscribers.size) unwatch(); };
     },
+    dispose() { generation++; unwatch(); offBase(); subscribers.clear(); snapshot = null; combined = null; base.dispose?.(); },
   };
 }

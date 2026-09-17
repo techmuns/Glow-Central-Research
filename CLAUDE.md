@@ -815,6 +815,7 @@ resolves it from the list for every derived view, so one person is one string on
 **not** a regex that strips the suffix: the list is the authoritative display name, and a pattern
 match would quietly fail the day they reword it.
 
+<<<<<<< HEAD
 
 ### Two fund feeds on two dates — the Mutual Funds rule (GLOW-OWNED)
 
@@ -1223,6 +1224,31 @@ rules, and every one of them is a rule this file already runs on:
 3. **The stories carry no new reading.** Topic is the desk's thirty keywords folded onto the seven
    Munshot topics; mood is `announcementSignal()` over a filing's own subject, and a published
    headline is Neutral because nothing on this dashboard reads sentiment off one. The footer says so.
+=======
+### The team brief — two emails a weekday, built at the edge
+
+The **Newsletter** button beside the header bell subscribes the desk to two Sattva Ventures-branded
+emails a weekday, each leading with the portfolio companies (one block per company, every link
+opening in a new tab) and following with the market scan: the **morning brief** at 08:00 IST (what
+happened overnight — the US close, Asia this morning, Brent, gold, silver, the dollar index and
+USD/JPY, plus every filing and story about a DIRECT holding since the previous evening) and the
+**evening brief** at 16:00 IST (the trading day). `docs/DATA-CONTRACTS.md` → *The team brief* has the
+routes, the shapes and the window rule. Seven rules, and every one of them is a rule this file
+already runs on:
+
+1. **"Direct ones" means `portfolio-companies.json`**, the Portfolio scope's own file, and nothing
+   wider. A line with no NSE symbol is still a holding and is still the denominator — the brief
+   counts companies reported against the book's **listed** lines, exactly as `scopeSummary` does.
+2. **Every figure carries its own state and time.** Quotes are read from Yahoo's chart endpoint at
+   send time and Yahoo's own session bounds decide `Close · Wed 16:00 EDT` versus `Live · Thu 07:58
+   JST`. **A symbol Yahoo refuses prints `unavailable` and never a number** — this dashboard keeps
+   no macro series store, so there is no second reading to fall back to, and a stale close dressed
+   as this morning's is the one thing the row may not become. A source that cannot be read says so
+   in the email — `NSE feed could not be read (blocked)` — rather than going quiet.
+3. **The stories carry no new reading.** Topic is the desk's thirty keywords folded onto seven
+   topics; mood is `announcementSignal()` over a filing's own subject, and a published headline is
+   Neutral because nothing on this dashboard reads sentiment off one. The footer says so.
+>>>>>>> sattva/main
 4. **The alarm is the scheduler, and a claim precedes every send.** No cron slot exists on the
    account and GitHub's schedule does not fire, so the object's alarm sends. `wake()` moves its
    clock forward in a transaction before reading a quote and `deliver()` claims `<day>:<edition>`
@@ -1235,10 +1261,28 @@ rules, and every one of them is a rule this file already runs on:
    value and never stored.
 6. **The panel stays minimal**: your address with Subscribe / Unsubscribe, the list with × and one
    add field, Preview Morning · Evening. No name field, no edition ticks, no send times, no send
+<<<<<<< HEAD
    buttons, no log — the owner asked for the simplest control, and those stay on the routes.
 7. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
    origin is told it has no newsletter, never shown an error.
 
+=======
+   buttons, no log — the simplest control that does the job, and those stay on the routes.
+7. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
+   origin is told it has no newsletter, never shown an error.
+
+**The brief is asserted against FIXTURES, not against today's capture.** `scripts/fixtures/newsletter/`
+carries a small book and two small filing captures, because `corp-announcements.json` and
+`market-news.json` are rewritten by their own evening workflows and the book by
+`family-book-sync.yml` — a test naming a company against those files asserts whatever a workflow
+committed that day (27 rows for 19 book companies sat inside the morning window when this was
+written, and which of them led the sheet was a property of the capture rather than of the rule).
+One test still builds against the **shipped** files, because a brief only ever built against a
+fixture has not been shown to build against the data it will be sent from; it asserts structure and
+honesty — every company is a book ticker, every story is inside its window, a published headline
+carries no direction — and never a name or a count.
+
+>>>>>>> sattva/main
 ### Two disclosures that look identical — the Institutions rule
 
 Institutions is also where a subtler failure lives, and it is not about *whose* number it is but
@@ -4137,6 +4181,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the device mirror + sync) + `watchKey` on the table that stars it — read *The star marks a COMPANY* and *The watchlist is a list of COMPANIES, and ONE list for the whole desk* first |
 | Change the SHARED watchlist itself — its shape, its conflict rules or its route | `public/js/data/watchlist-shared.js` (the one definition, imported by the Worker too) + `worker/watchlist-store.mjs` + `worker/watchlist.mjs`. Edits are INTENTS, never a whole list; an `add` must name its contributor; a `seed` may not apply over any row that already exists. `node scripts/verify-shared-watchlist.mjs` and `node scripts/verify-shared-watchlist-ui.mjs` are the tests |
+| Change the team brief — what is in it, how it reads, when it sends | `worker/newsletter-brief.mjs` (the scan, the stories and the broadsheet), `worker/newsletter-schedule.mjs` (the alarm and the send), `worker/newsletter-store.mjs` (subscribers, settings, deliveries), `public/js/data/newsletter-shared.js` (editions, windows, addresses — imported by both sides) and `public/js/ui/newsletter.js` (the header control). Read *The team brief* first. `node scripts/verify-newsletter.mjs` and `node scripts/verify-newsletter-ui.mjs` are the tests |
+| Set up the team brief on a deployment | `MUNS_TOKEN` on the Worker sends it; `DASHBOARD_ORIGIN` and `NEWSLETTER_PRODUCT_NAME` are vars in `wrangler.jsonc`; the `NEWSLETTER` binding and `NEWSLETTER_LIMITER` are there too. Subscribe from the header and the alarm arms itself |
 | Change who is asked, or how the contributor dropdown behaves | `js/ui/watchlist-attribution.js` (the prompt) + `js/core/watchlist-people.js` (the roster and this device's own name) — read *An addition carries the name of whoever made it* first. Never preselect a name on a device nobody has identified themselves on |
 | Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book, and test `rankReport()` directly |
 | Change what an AI Alerts card SAYS, or the four figures on it | `plainInsight()` / `cardMetrics()` / `plainHeadline()` / `topEvidence()` in `js/data/ai-alerts.js` — all pure and exported. Read *Time to insight is the product's only job* first: no new number, only sentences we wrote may be reworded, the volume cell takes no tone, and the figures follow `READ_ORDER` rather than score order |

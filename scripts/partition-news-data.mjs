@@ -48,7 +48,7 @@ export function verifyAssetSizes(publicDir) {
         if (size > JSON_ASSET_LIMIT) throw Error(`Static asset exceeds 25 MiB: ${path}`);
         if (entry.name.endsWith('.json') && !dir.endsWith('.parts')) {
           const raw = JSON.parse(readFileSync(path, 'utf8'));
-          if (raw?._jsonShards) readNewsJson(path); // missing/corrupt parts fail the build too
+          if (raw?._jsonShards) readNewsJson(path, null, { verifyIndexes: true }); // missing/corrupt parts fail the build too
         }
       }
     }

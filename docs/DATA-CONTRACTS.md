@@ -4415,6 +4415,182 @@ destroyed rather than left painting into the content host.
 
 ---
 
+## The team brief — `GET`/`POST /api/newsletter`, `/api/newsletter/send`, `/api/newsletter/preview`
+
+**Two emails a weekday to the desk, built at the edge from feeds this dashboard already reads.**
+
+| Edition | Default send (IST) | Window it covers |
+| --- | --- | --- |
+| `morning` | 08:00 | from the previous **weekday's** evening send — Monday's covers from Friday 16:00 |
+| `evening` | 16:00 | from that day's morning send |
+
+Weekdays only. The window rule is the honesty rule: nothing that happens over a weekend falls
+between two briefs, and every email prints the window it covers on its face.
+
+**"Direct ones" means `portfolio-companies.json`** — the family's listed direct-equity lines, the
+same file the Portfolio scope means everywhere. A line with no NSE symbol is still a holding: the
+brief counts companies reported against the book's **listed** lines and never redefines the book as
+the subset a feed happens to cover.
+
+### What is in it, and where each figure comes from
+
+| Section | Source | Read when |
+| --- | --- | --- |
+| Global market scan — S&P 500, Nasdaq, Dow; Nikkei, Taiwan TAIEX, Shanghai, Hang Seng, Kospi; Nifty 50, Sensex; Brent, gold, silver; DXY, USD/JPY, USD/INR; US 10-year | Yahoo's public chart endpoint, one symbol per request, with Yahoo's own session bounds deciding `Close` versus `Live` | at send time |
+| Corporate announcements · direct holdings | NSE's live announcements RSS (as `/api/nse-announcements`), resolved by name against the book; plus BSE's date-indexed capture `corp-announcements.json` | NSE at send time; BSE as captured, dated on the page |
+| News · direct holdings | `market-news.json` — the publishers' feeds — joined to the book with `matchPortfolioNews`, the same identity match the News tab uses | as captured, dated on the page |
+
+**A symbol Yahoo refuses prints `unavailable`, never a number.** Glow Central Research, which this
+brief is ported from, keeps a macro series store under `public/data/series/` and fills a refused row
+from it. **This dashboard has no such file**, so `quoteFromSeries` and `SERIES_INDEX_PATH` are
+deliberately absent rather than present and unreachable — an unreachable fallback reads as
+documentation of a working one. The row keeps its `reason` (`timeout`, `rate-limited`, `upstream`,
+`shape`) so the sheet states the refusal instead of going quiet.
+
+A source that could not be read says so **in the email** (`NSE feed could not be read (blocked)`).
+If the **book** cannot be read the brief is not built at all — an email about portfolio companies
+with no book behind it is about nothing — and the delivery is recorded `book-unavailable`.
+
+### The email is a Sattva Ventures broadsheet, and it leads with the portfolio companies
+
+`worker/newsletter-brief.mjs` renders one table-based, inline-styled, 640px sheet: the
+`SATTVA VENTURES` masthead, the tagline (`Research Central — Morning Portfolio Brief`), a
+date/edition strip (`Edition: Portfolio companies`), a summary line counting updates and the
+companies they cover against the book, then **Your portfolio companies** — every filing and story
+filed under its company — and only then the global market scan, the sources line, a dark footer with
+the unsubscribe link and a small `powered by Munshot` credit, and the caption
+`Sattva Ventures · Research Central`. Subject:
+`Sattva Ventures · 12 updates on your portfolio companies — 17 Sep`.
+
+The palette is the dashboard's own, resolved to literals because an email carries no stylesheet and
+no custom property: `--ink-900` `#0f172a`, the slate ramp, and `--brand-600` `#4f46e5` with
+indigo-300 `#a5b4fc` on the dark footer. **The ramp's purple and pink are a gradient on the page and
+email clients do not render one**, so the brand reaches the sheet as its indigo start — and never as
+a semantic emerald/amber/rose, which stay reserved for direction.
+
+A company is one block — its name links to All Alerts narrowed to that company
+(`#/research/daily-alerts?scope=portfolio&company=TICKER`), filings and news together under it — and
+companies are ordered by their strongest story (tracked keyword, directional mood, importance), then
+by how much they had, then by recency. **Every link carries `target="_blank" rel="noopener
+noreferrer"`**, and the page declares `<base target="_blank">`, so opening a filing from the preview
+or a web mail client never navigates away from the brief.
+
+Filings and published stories become one list of **stories**, each carrying two readings this
+dashboard already makes and no new one:
+
+- **Topic** is what a story is *about*, from the desk's thirty tracked keywords. The seven topics
+  fold the keyword families: Orders is the three order keywords, Growth the rest of that family,
+  Money is capital raising and results, Approvals & IP is regulatory, Trouble is risk and
+  governance, and a story matching nothing is Other.
+- **Mood** is a direction, and only where a stated rule gives one: `announcementSignal()` over a
+  filing's own subject and category. A published headline carries **no** sentiment reading anywhere
+  on this dashboard, so a news story's dot is Neutral — never a guess dressed as a judgement. The
+  footer disclaimer says exactly this.
+
+Headlines, standfirsts and filing subjects are reproduced as written; nothing is summarised.
+
+### The list — one Durable Object, `team-brief:v1`
+
+`worker/newsletter-store.mjs` on the provisioned `CaptureRegistry` class, under the `NEWSLETTER`
+binding. Three tables: subscribers (an unsubscribe is a `removed` row, never a deletion), the
+desk-wide settings, and a delivery log. `public/js/data/newsletter-shared.js` owns the rules —
+what an address is, what an edition is, when it sends, what window it covers — and is imported by
+the browser and the Worker alike.
+
+```jsonc
+// GET /api/newsletter — no-store, never at the edge: it names the desk's addresses
+{
+  "ok": true, "version": 1, "revision": 4, "updatedAt": "…",
+  "settings": { "morning": { "enabled": true, "time": "08:00" }, "evening": { "enabled": true, "time": "16:00" } },
+  "count": 2, "limit": 100,
+  "subscribers": [{ "email": "tech@muns.io", "name": null, "editions": ["morning", "evening"], "addedAt": "…", "addedBy": "Ravi" }],
+  "deliveries": [{ "key": "2026-09-17:morning", "edition": "morning", "day": "2026-09-17", "source": "timer",
+                   "recipients": 2, "sent": 2, "failed": 0, "reason": null, "subject": "…", "outcomes": [{ "email": "…", "ok": true, "status": 200, "reason": null }],
+                   "summary": { "quotes": 16, "quotesFailed": ["taiex"], "announcements": 4, "news": 6, "stories": 10, "companies": 7, "good": 1, "watch": 0, "nse": true, "bse": true, "publishers": true } }],
+  "schedule": { "tokenConfigured": true, "armed": true, "alarmAt": "…", "next": { "edition": "evening", "day": "2026-09-17", "at": "…", "key": "2026-09-17:evening" }, "lastResult": "sent", "reason": null },
+  "dashboardUrl": "https://sattva-central-research.tech-441.workers.dev"
+}
+```
+
+`POST /api/newsletter` takes `{ intents?: [{ op, email, name?, by, editions? }], settings? }`,
+same-origin, `application/json`, bounded at 16 KB, rate-limited (`NEWSLETTER_LIMITER`, 12 a minute).
+An edit is sent as **what it was**, never as the list it produced — the shared-watchlist rule.
+
+| `op` | Contributor | Meaning |
+| --- | --- | --- |
+| `subscribe` | **required** | Adds or re-activates an address with the editions named (default both). Records who added it. |
+| `editions` | — | Changes which briefs an active address gets; at least one, or unsubscribe. |
+| `unsubscribe` | optional | The row stays, `state = 'removed'`. |
+
+Outcomes: `subscribed` · `updated` · `unchanged` · `unsubscribed` · `not-subscribed` · `full`
+(refused at 100, and **never** reads as subscribed).
+
+### The timer — a Durable Object alarm, because nothing else here keeps time
+
+Cloudflare's cron cannot drive this (the account's five slots are spent — see `wrangler.jsonc`) and
+GitHub's scheduler measurably drops most of a dense schedule. The object's **alarm** is neither: it
+is armed for the next enabled weekday send whenever the list or the schedule changes and on every
+GET of the panel, and re-armed at the end of every wake. `worker/newsletter-schedule.mjs`:
+
+1. **Durable claims precede external I/O.** `wake()` moves `lastCheckedAt` forward in a transaction
+   before it reads a quote; `deliver()` claims the edition's key — `<day>:<edition>` — in SQLite
+   before the first email goes. A replayed alarm or a restart mid-send finds the claim and sends
+   nothing. One morning brief a day is a property of the store, not a hope about the scheduler.
+2. **An edition the timer reaches more than three hours late is recorded `missed`**, not sent at
+   lunch. A morning brief at 15:00 is a different product.
+3. **The credential is the Worker's `MUNS_TOKEN`**, sent as `Authorization: Bearer` to
+   `POST https://devde.muns.io/email/send/raw` with `{ email, subject, html }` — exactly one of
+   `html`/`text`, as the endpoint requires. Without it the delivery is recorded `no-token` against
+   every recipient, nothing is built, and the panel names the secret in one line. A reader's own
+   session token (forwarded by `authHeaders()`) may stand in for a send made through
+   `/api/newsletter/send`; it is passed as a value for that send and never stored.
+4. **Every failure is a named reason per recipient** — `unauthorised`, `rate-limited`, `upstream`,
+   `refused`, `timeout`, `unreachable`, `invalid-response` — and never the upstream's own text.
+   `sent` counts successes only.
+5. **`renderOptions()` is what every render of the sheet is built with.** It carries
+   `NEWSLETTER_PRODUCT_NAME` and the store's own `settings`, because leaving either out is
+   invisible: a declared Worker var nothing reads looks like a var that does not work, and a footer
+   built from the DEFAULT send time tells a desk that moved its schedule the old time in the very
+   email that arrived at the new one.
+
+`POST /api/newsletter/send` `{ edition, to: 'me' | 'all', email? }` builds the edition **now**,
+covering its window up to now (the sheet says `built on request`), and sends it to one address as a
+test copy or to every subscriber of that edition; "everyone" cools down for five minutes and never
+claims the scheduled key. `GET /api/newsletter/preview?edition=morning[&format=text]` renders
+the same build without sending.
+
+**The panel is deliberately minimal.** It offers your own address with Subscribe / Unsubscribe, the
+other addresses on the list with × and one field to add a teammate, and Preview Morning · Evening.
+Every address added from it gets both editions, and no name is asked for — the addition is
+attributed to this device's known contributor, else the signed-in address, else the address itself.
+Send times, manual sends and the delivery log remain on these routes and are not controls in the
+panel; a missing `MUNS_TOKEN` is one quiet line.
+
+The email's Unsubscribe link lands on `#/research/ask-research?newsletter=manage`, which opens
+straight onto the panel and then **scrubs the flag from the URL and from the saved route together**.
+`saveLastRoute` lives in `core/state.js`, not on the router: correcting only the URL leaves the
+saved hash carrying `?newsletter=manage`, so the next visit reopens the panel over whatever the
+reader actually wanted.
+
+### Verifying
+
+`node scripts/verify-newsletter.mjs` — the contract, the store, editions built against fixtures
+under `scripts/fixtures/newsletter/`, the renderer's fixed elements and escaping, and the alarm:
+one send per key, replay-safe, `no-token`, refused, missed, test copy, cooldown, preview.
+`node scripts/verify-newsletter-ui.mjs` drives the real button and panel against the real route,
+store and schedule over an in-process server with stubbed upstreams — the email endpoint records
+what it was asked to send.
+
+**The fixtures are the point, not a shortcut.** `book.json`, `corp-announcements.json` and
+`market-news.json` under `scripts/fixtures/newsletter/` stand in for the shipped files so the
+ordering, grouping and denominator assertions mean the same thing tomorrow: the two captures are
+rewritten by their own evening workflows and the book by `family-book-sync.yml`, and the shipped
+capture carried 27 rows for 19 book companies inside the morning window when this was written — so
+which company led the sheet was a property of that day's commit, not of the rule under test. One
+test still builds against the shipped files and asserts structure and honesty only.
+
+---
+
 ## AI Alerts priority — DERIVED, no file and no route of its own
 
 `js/data/ai-alerts.js` consumes the retained report below and writes nothing. It takes company events

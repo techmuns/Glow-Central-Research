@@ -17,7 +17,11 @@ import {
 } from '../public/js/data/newsletter-shared.js';
 import { NewsletterStore } from '../worker/newsletter-store.mjs';
 import {
+<<<<<<< HEAD
   MARKET_ROWS, TOPICS, briefStats, briefSubject, buildBrief, quoteFromChart, quoteFromSeries, renderBriefHtml, renderBriefText, topicOf,
+=======
+  MARKET_ROWS, TOPICS, briefStats, briefStories, briefSubject, buildBrief, quoteFromChart, renderBriefHtml, renderBriefText, topicOf,
+>>>>>>> sattva/main
 } from '../worker/newsletter-brief.mjs';
 import { NewsletterSchedule, NEWSLETTER_TIMER_KEY, EMAIL_SEND_URL, CATCH_UP_MS, sendEmail } from '../worker/newsletter-schedule.mjs';
 
@@ -65,15 +69,48 @@ const assets = {
     try { return new Response(asset(path), { headers: { 'content-type': 'application/json' } }); } catch { return new Response('missing', { status: 404 }); }
   },
 };
+<<<<<<< HEAD
+=======
+// THE BRIEF IS ASSERTED AGAINST FIXTURES, NOT AGAINST TODAY'S CAPTURE. `assets` serves the real
+// committed files and is what proves the brief builds on shipped data; `fixtureAssets` serves a
+// small known book and two small known captures, and is what the ordering, grouping and
+// denominator assertions run on. The shipped book is rewritten by family-book-sync.yml and both
+// filing captures by their own evening workflows, so naming a company against those files asserts
+// whatever a workflow committed that day — the shipped corp-announcements.json carried 27 rows for
+// 19 book companies inside this very window when this was written, and which of them led the sheet
+// was a property of the capture rather than of the rule under test.
+const FIXTURE_ASSETS = {
+  '/data/portfolio-companies.json': 'book.json',
+  '/data/corp-announcements.json': 'corp-announcements.json',
+  '/data/market-news.json': 'market-news.json',
+};
+const fixtureAssets = {
+  fetch: async (request) => {
+    const path = new URL(request.url).pathname;
+    const file = FIXTURE_ASSETS[path];
+    if (!file) return new Response('missing', { status: 404 });
+    return new Response(fixture(file), { headers: { 'content-type': 'application/json' } });
+  },
+};
+
+>>>>>>> sattva/main
 const CHARTS = { '^GSPC': 'yahoo-sp500.json', '^N225': 'yahoo-nikkei.json', 'BZ=F': 'yahoo-brent.json', 'JPY=X': 'yahoo-usdjpy.json', '^TNX': 'yahoo-us10y.json' };
 
 // 08:00 IST on 17 September 2026, the morning after the captured feeds.
 const MORNING = istInstant('2026-09-17', '08:00');
 const nseXml = () => {
   const xml = fixture('nse-announcements.xml');
+<<<<<<< HEAD
   // A filing by a book company inside the window, so the join is asserted rather than hoped for.
   const item = '<item><title>Aarti Drugs Ltd</title><link>https://nsearchives.nseindia.com/corporate/AARTIDRUGS_17092026071500_test.pdf</link><description>Aarti Drugs Ltd has informed the Exchange regarding Receipt of order from a customer &lt;script&gt;alert(1)&lt;/script&gt; |SUBJECT: Bagging/Receiving of orders/contracts</description><pubDate>17-Sep-2026 07:15:00</pubDate></item>'
     + '<item><title>Aarti Drugs Ltd</title><link>https://nsearchives.nseindia.com/corporate/AARTIDRUGS_17092026071600_test2.pdf</link><description>Aarti Drugs Ltd has informed the Exchange regarding Credit rating downgrade by CRISIL |SUBJECT: Credit Rating</description><pubDate>17-Sep-2026 07:16:00</pubDate></item>';
+=======
+  // Two filings by a company in the FIXTURE book, inside the window, so the join, the keyword
+  // reading, the direction reading and the escaping are asserted rather than hoped for. The
+  // company is deliberately one the shipped capture has no rows for in this window.
+  const item = '<item><title>Alankit Limited</title><link>https://nsearchives.nseindia.com/corporate/ALANKIT_17092026071500_test.pdf</link><description>Alankit Limited has informed the Exchange regarding Receipt of order from a customer &lt;script&gt;alert(1)&lt;/script&gt; |SUBJECT: Bagging/Receiving of orders/contracts</description><pubDate>17-Sep-2026 07:15:00</pubDate></item>'
+    + '<item><title>Alankit Limited</title><link>https://nsearchives.nseindia.com/corporate/ALANKIT_17092026071600_test2.pdf</link><description>Alankit Limited has informed the Exchange regarding Credit rating downgrade by CRISIL |SUBJECT: Credit Rating</description><pubDate>17-Sep-2026 07:16:00</pubDate></item>';
+>>>>>>> sattva/main
   return xml.replace('<item>', `${item}<item>`);
 };
 
@@ -237,12 +274,24 @@ await test('a Yahoo chart becomes a quote with its own session state and time', 
   assert.throws(() => quoteFromChart({ chart: { result: [{ meta: {} }] } }, MARKET_ROWS[0], MORNING), /shape/);
 });
 
+<<<<<<< HEAD
 await test('the series store fills a refused symbol and says so with the store\'s own date', () => {
   const manifest = JSON.parse(asset('/data/series/index.json'));
   const row = quoteFromSeries(manifest, MARKET_ROWS[0]);
   assert.equal(row.state, 'stored');
   assert.match(row.storedDay, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(quoteFromSeries(manifest, { ...MARKET_ROWS[4] }), null, 'a symbol with no series stays unavailable');
+=======
+// Glow Central Research, which this brief is ported from, keeps a macro series store and fills a
+// refused symbol from it. This dashboard has no such file, so there is no second reading and the
+// row must stay refused — which is the property worth asserting, because the failure it guards
+// against is a stale close printed as this morning's.
+await test('this dashboard carries no series fallback, so no scan row may claim a second source', async () => {
+  const briefModule = await import('../worker/newsletter-brief.mjs');
+  assert.equal('quoteFromSeries' in briefModule, false, 'the fallback reader is not present');
+  assert.equal('SERIES_INDEX_PATH' in briefModule, false, 'nor the path it would have read');
+  assert.ok(MARKET_ROWS.every((r) => !('series' in r)), 'no scan row names a fallback series');
+>>>>>>> sattva/main
 });
 
 await test('the desk\'s keyword families fold onto the seven topics, and nothing matched is Other', () => {
@@ -256,13 +305,18 @@ await test('the desk\'s keyword families fold onto the seven topics, and nothing
 let morning;
 await test('the morning brief builds from the fixtures and every section states its window and sources', async () => {
   const log = [];
+<<<<<<< HEAD
   morning = await buildBrief({ edition: 'morning', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assets }, fetcher: makeFetcher({ log }), now: MORNING });
+=======
+  morning = await buildBrief({ edition: 'morning', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: fixtureAssets }, fetcher: makeFetcher({ log }), now: MORNING });
+>>>>>>> sattva/main
   assert.equal(log.filter((l) => l.kind === 'yahoo').length, MARKET_ROWS.length, 'one chart read per symbol');
   assert.equal(log.filter((l) => l.kind === 'nse').length, 1);
   assert.equal(morning.markets.rows.length, MARKET_ROWS.length);
   assert.deepEqual(morning.markets.failed, []);
   assert.equal(istLabel(morning.window.from), 'Wed 16 Sep, 16:00 IST');
   assert.equal(istLabel(morning.window.to), 'Thu 17 Sep, 08:00 IST');
+<<<<<<< HEAD
   assert.ok(morning.book.listed > 100, 'the book\'s listed lines are the denominator');
   assert.equal(morning.announcements.nse.ok, true);
   const aarti = morning.announcements.groups.find((g) => g.ticker === 'AARTIDRUGS');
@@ -288,6 +342,41 @@ await test('the broadsheet carries the Glow Ventures masthead, escapes the excha
   assert.ok(html.includes('Research Central — Morning Portfolio Brief'));
   assert.ok(html.includes('Edition: Portfolio companies'));
   assert.ok(html.includes('Glow Ventures · Research Central'), 'the caption under the sheet');
+=======
+  assert.equal(morning.book.lines, 4, 'the book\'s own count travels');
+  assert.equal(morning.book.listed, 3, 'the denominator is the LISTED lines — a line with no NSE symbol is still a holding');
+  assert.equal(morning.announcements.nse.ok, true);
+  const filer = morning.announcements.groups.find((g) => g.ticker === 'ALANKIT');
+  assert.ok(filer, 'a filing by a book company inside the window joins');
+  assert.equal(filer.items.length, 2);
+  const order = filer.items.find((i) => /Receipt of order/.test(i.headline));
+  assert.ok(order.keywords.includes('Receipt of Order'), 'the exchange\'s own phrase is a tracked keyword');
+  assert.equal(order.direction, 'neutral', 'a customer order receipt is not called an award by the filing rule');
+  const downgrade = filer.items.find((i) => /downgrade/.test(i.headline));
+  assert.equal(downgrade.direction, 'negative', 'the filing rule reads a downgrade as negative');
+  // The BSE capture contributes a second book company, and a filing by a company the desk does
+  // not hold is not in the brief at all.
+  assert.ok(morning.announcements.groups.some((g) => g.ticker === 'ABCAPITAL'), 'the BSE capture joins on the book too');
+  assert.ok(!morning.announcements.groups.some((g) => g.ticker === 'NOTINBOOK'), 'a filing by a company the desk does not hold never reaches the sheet');
+  assert.equal(morning.news.source.ok, true);
+  assert.ok(morning.news.source.publishers.length >= 1);
+  const story = morning.news.groups.find((g) => g.ticker === 'ADANIENT');
+  assert.ok(story, 'a published story about a book company joins');
+  assert.equal(story.items.length, 1, 'a story published before the window opens stays out');
+  for (const g of morning.news.groups) for (const item of g.items) assert.ok(item.at >= morning.window.from && item.at < morning.window.to);
+});
+
+await test('the broadsheet carries the Sattva Ventures masthead, escapes the exchanges\' text and dates every figure', () => {
+  const html = renderBriefHtml(morning, { dashboardUrl: 'https://example.test', recipient: { email: 'pratik@muns.io', addedBy: 'Ravi' } });
+  assert.match(html, /^<!doctype html>/);
+  assert.ok(html.includes('<meta name="color-scheme" content="light">'));
+  assert.ok(html.includes('letter-spacing:6px;color:#0f172a;">SATTVA VENTURES</div>'), 'the masthead is the family office\'s name');
+  assert.ok(!html.includes('MUNSHOT'), 'no Munshot masthead on a Sattva Ventures brief');
+  assert.ok(html.includes('border-top:3px double #0f172a'), 'the double rule');
+  assert.ok(html.includes('Research Central — Morning Portfolio Brief'));
+  assert.ok(html.includes('Edition: Portfolio companies'));
+  assert.ok(html.includes('Sattva Ventures · Research Central'), 'the caption under the sheet');
+>>>>>>> sattva/main
   assert.ok(html.includes('https://example.test/#/research/ask-research?newsletter=manage'), 'the unsubscribe link lands on the panel');
   assert.ok(html.includes('Added by Ravi'));
   assert.ok(html.includes('Global market scan'));
@@ -303,9 +392,15 @@ await test('the broadsheet carries the Glow Ventures masthead, escapes the excha
   assert.ok(!html.includes('<style') && !html.includes('<script'), 'no stylesheet, no script');
   assert.ok(html.length < 200000);
   const subject = briefSubject(morning);
+<<<<<<< HEAD
   assert.match(subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep$/, subject);
   const text = renderBriefText(morning);
   assert.ok(text.startsWith('GLOW VENTURES') && text.includes('GLOBAL MARKET SCAN') && text.includes('Aarti Drugs'));
+=======
+  assert.match(subject, /^Sattva Ventures · \d+ updates? on your portfolio companies — 17 Sep$/, subject);
+  const text = renderBriefText(morning);
+  assert.ok(text.startsWith('SATTVA VENTURES') && text.includes('GLOBAL MARKET SCAN') && text.includes('Alankit'));
+>>>>>>> sattva/main
   assert.ok(text.indexOf('YOUR PORTFOLIO COMPANIES') < text.indexOf('GLOBAL MARKET SCAN'), 'the text copy leads with the companies too');
 });
 
@@ -319,11 +414,50 @@ await test('the portfolio companies lead the sheet, each company once, strongest
     const [a, b] = [stats.companies[i - 1], stats.companies[i]];
     assert.ok(a.score > b.score || (a.score === b.score && a.stories.length >= b.stories.length), `${a.ticker} before ${b.ticker}`);
   }
+<<<<<<< HEAD
   assert.equal(stats.companies[0].ticker, 'AARTIDRUGS', 'the company with a tracked order and a downgrade leads');
   assert.ok(html.indexOf('Your portfolio companies') > 0 && html.indexOf('Your portfolio companies') < html.indexOf('Global market scan'), 'companies before the market scan');
   assert.ok(html.indexOf('Aarti Drugs') < html.indexOf('Global market scan'));
   assert.ok(html.includes(`across <strong style="color:#1a1712;">${stats.companies.length} of ${morning.book.listed}</strong> portfolio companies`), 'the summary counts companies against the book');
   assert.ok(html.includes('https://example.test/#/research/daily-alerts?scope=portfolio&amp;company=AARTIDRUGS'), 'a company links to its own alerts on the dashboard');
+=======
+  assert.equal(stats.companies[0].ticker, 'ALANKIT', 'the company with a tracked order and a downgrade leads');
+  assert.deepEqual(stats.companies.map((c) => c.ticker), ['ALANKIT', 'ABCAPITAL', 'ADANIENT'],
+    'a tracked AND directional filing outranks a merely directional one, which outranks a neutral published story');
+  assert.deepEqual(stats.companies.map((c) => c.score), [4, 2, 0], 'the ladder is the score, and no company invents one');
+  assert.equal(stats.companies[0].watch, 1, 'the downgrade is the watch-out');
+  assert.equal(stats.companies[0].stories[0].headline.includes('downgrade'), true, 'within a company the tie breaks on recency');
+  assert.equal(stats.companies.at(-1).stories[0].mood.id, 'neutral', 'a published headline carries no direction of ours');
+  assert.ok(html.indexOf('Your portfolio companies') > 0 && html.indexOf('Your portfolio companies') < html.indexOf('Global market scan'), 'companies before the market scan');
+  assert.ok(html.indexOf('Alankit') < html.indexOf('Global market scan'));
+  assert.ok(html.includes(`across <strong style="color:#0f172a;">${stats.companies.length} of ${morning.book.listed}</strong> portfolio companies`), 'the summary counts companies against the book');
+  assert.ok(html.includes('https://example.test/#/research/daily-alerts?scope=portfolio&amp;company=ALANKIT'), 'a company links to its own alerts on the dashboard');
+});
+
+// The tests above run on fixtures so their assertions mean the same thing tomorrow. This one runs
+// on the SHIPPED files — the real book and the two real captures — because a brief that only ever
+// builds against a fixture has not been shown to build against the data it will actually be sent
+// from. It therefore asserts structure and honesty, never a company or a count.
+await test('the brief also builds against the shipped book and captures, and invents nothing doing it', async () => {
+  const real = await buildBrief({ edition: 'morning', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assets }, fetcher: makeFetcher(), now: MORNING });
+  assert.ok(real.book.listed > 100 && real.book.listed <= real.book.lines, 'the shipped book is the denominator, listed lines only');
+  const stats = briefStats(real);
+  assert.equal(stats.companies.reduce((n, c) => n + c.stories.length, 0), stats.stories);
+  assert.equal(new Set(stats.companies.map((c) => c.ticker)).size, stats.companies.length, 'a company appears once');
+  for (let i = 1; i < stats.companies.length; i++) {
+    const [a, b] = [stats.companies[i - 1], stats.companies[i]];
+    assert.ok(a.score > b.score || (a.score === b.score && a.stories.length >= b.stories.length), `${a.ticker} before ${b.ticker}`);
+  }
+  const bookTickers = new Set(JSON.parse(asset('/data/portfolio-companies.json')).holdings.filter((h) => h?.ticker).map((h) => h.ticker.toUpperCase()));
+  for (const c of stats.companies) assert.ok(bookTickers.has(c.ticker), `${c.ticker} is a direct holding`);
+  for (const s of briefStories(real)) {
+    assert.ok(s.at >= real.window.from && s.at < real.window.to, 'every story is inside the window it is filed under');
+    if (s.kind === 'news') assert.equal(s.mood.id, 'neutral', 'a published headline never carries a direction of ours');
+  }
+  const html = renderBriefHtml(real, { dashboardUrl: 'https://example.test' });
+  assert.ok(!html.includes('<script'), 'nothing the exchanges or publishers wrote reaches the DOM as markup');
+  assert.ok(html.includes('SATTVA VENTURES'));
+>>>>>>> sattva/main
 });
 
 await test('every link in the brief opens in a new tab', () => {
@@ -339,6 +473,7 @@ await test('every link in the brief opens in a new tab', () => {
 
 await test('a refused quote source and a blocked exchange are stated on the page, never drawn as numbers', async () => {
   const brief = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assets }, fetcher: makeFetcher({ yahoo: 'down', nse: 'blocked' }), now: istInstant('2026-09-17', '16:00') });
+<<<<<<< HEAD
   assert.ok(brief.markets.stored.length > 0, 'the series store fills what it can');
   assert.ok(brief.markets.failed.includes('taiex'), 'a symbol with no series stays unavailable');
   assert.equal(brief.announcements.nse.ok, false);
@@ -346,6 +481,17 @@ await test('a refused quote source and a blocked exchange are stated on the page
   const html = renderBriefHtml(brief);
   assert.ok(html.includes('Series store · '), 'a stored figure carries the store\'s date');
   assert.ok(html.includes('unavailable'));
+=======
+  assert.ok(brief.markets.failed.length > 0, 'a refused symbol is recorded as refused');
+  assert.equal(brief.markets.stored, undefined, 'there is no stored-fallback bucket to hide a refusal in');
+  assert.ok(brief.markets.rows.filter((r) => brief.markets.failed.includes(r.id)).every((r) => r.last == null),
+    'a refused row carries NO number');
+  assert.equal(brief.announcements.nse.ok, false);
+  assert.equal(brief.announcements.nse.reason, 'blocked');
+  const html = renderBriefHtml(brief);
+  assert.ok(!html.includes('Series store'), 'nothing claims a store this dashboard does not keep');
+  assert.ok(html.includes('unavailable'), 'a refused quote says so on its own row');
+>>>>>>> sattva/main
   assert.ok(html.includes('NSE feed could not be read (blocked)'));
   const stats = briefStats(brief);
   assert.equal(stats.stories, brief.announcements.count + brief.news.count);
@@ -355,10 +501,17 @@ await test('with nothing filed or published the sheet says so, and only about wh
   const brief = await buildBrief({ edition: 'morning', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assets }, fetcher: makeFetcher(), now: istInstant('2026-09-17', '02:00') });
   const html = renderBriefHtml(brief);
   if (!briefStats(brief).stories) {
+<<<<<<< HEAD
     assert.ok(html.includes('Quiet day — nothing to report.'));
     assert.ok(html.includes('Nothing was filed or published about a portfolio company in this window.'));
   }
   assert.ok(html.includes('GLOW VENTURES'));
+=======
+    assert.ok(html.includes('Quiet window — nothing to report.'));
+    assert.ok(html.includes('Nothing was filed or published about a portfolio company in this window.'));
+  }
+  assert.ok(html.includes('SATTVA VENTURES'));
+>>>>>>> sattva/main
 });
 
 // ---- the schedule -----------------------------------------------------------------------------------
@@ -405,8 +558,13 @@ await test('the alarm sends the morning brief to its subscribers once, with html
     assert.equal(e.method, 'POST');
     assert.equal(e.auth, 'Bearer team-secret-token');
     assert.ok(e.html && e.text === undefined, 'exactly one of html/text');
+<<<<<<< HEAD
     assert.match(e.subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep$/);
     assert.ok(e.html.includes('GLOW VENTURES'));
+=======
+    assert.match(e.subject, /^Sattva Ventures · \d+ updates? on your portfolio companies — 17 Sep$/);
+    assert.ok(e.html.includes('SATTVA VENTURES'));
+>>>>>>> sattva/main
   }
   const delivery = store.delivery('2026-09-17:morning');
   assert.equal(delivery.sent, 2); assert.equal(delivery.failed, 0); assert.equal(delivery.source, 'timer');
@@ -493,9 +651,15 @@ await test('a preview builds the edition up to now without sending, in html or t
   clock = istInstant('2026-09-17', '10:30');
   const { schedule, log } = makeSchedule();
   const html = await schedule.preview({ edition: 'morning' });
+<<<<<<< HEAD
   assert.equal(html.ok, true); assert.ok(html.body.startsWith('<!doctype html>')); assert.match(html.subject, /^Glow Ventures ·/);
   const text = await schedule.preview({ edition: 'morning', format: 'text' });
   assert.ok(text.body.startsWith('GLOW VENTURES'));
+=======
+  assert.equal(html.ok, true); assert.ok(html.body.startsWith('<!doctype html>')); assert.match(html.subject, /^Sattva Ventures ·/);
+  const text = await schedule.preview({ edition: 'morning', format: 'text' });
+  assert.ok(text.body.startsWith('SATTVA VENTURES'));
+>>>>>>> sattva/main
   assert.equal(log.filter((l) => l.kind === 'email').length, 0);
   assert.equal((await schedule.preview({ edition: 'weekly' })).reason, 'invalid-edition');
 });
