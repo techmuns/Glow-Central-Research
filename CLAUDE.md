@@ -1236,6 +1236,17 @@ rules, and every one of them is a rule this file already runs on:
 6. **The panel stays minimal**: your address with Subscribe / Unsubscribe, the list with × and one
    add field, Preview Morning · Evening. No name field, no edition ticks, no send times, no send
    buttons, no log — the owner asked for the simplest control, and those stay on the routes.
+   **That one field takes the whole team**, because adding six people one at a time is six rounds of
+   type-and-click for an edit the contract could always carry in one (`newsletterIntents`, up to
+   `NEWSLETTER_INTENT_BATCH`). `normaliseEmailList()` in `newsletter-shared.js` reads a paste split on
+   newlines, commas or semicolons and reduces a mail client's `Name <a@b.in>` to the address. Three
+   rules hold it up and each is one this file already runs on: **nothing is dropped silently** — a
+   token that is not an address is returned verbatim, refuses the whole paste and is NAMED, because a
+   mistyped address vanishing from a list of six would read as five being all that was pasted;
+   **the note counts the server's own outcomes**, so "6 added · 1 already on the list" is what
+   happened rather than what was sent; and **a multi-line paste is rewritten to a comma-separated one
+   as it lands**, since a single-line `<input>` strips newlines rather than separating on them and
+   would sanitise two addresses into one that never existed, silently.
 7. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
    origin is told it has no newsletter, never shown an error.
 
