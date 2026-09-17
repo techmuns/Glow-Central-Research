@@ -82,9 +82,25 @@ export function resolveMergeability(read, { attempts = 6, waitMs = 5000, sleep =
   for (let i = 1; i < attempts && pr.mergeable === 'UNKNOWN'; i++) { sleep(waitMs); pr = read(); }
   return pr;
 }
-export function mergeDataPr(event) {
+// NOTHING RE-RUNS THIS GATE WHEN A DISPATCHED VERIFY FINISHES. GitHub raises no `workflow_run`
+// event for a run that GITHUB_TOKEN started — that is its guard against recursive workflows, and
+// `openPreparedDataPr` starts every capture PR's Verify exactly that way. Measured over six hours
+// on 17 September 2026: 97 dispatched Verify runs on capture branches completed and not one gate
+// run followed any of them, while all 56 gate runs raised by "Verify finished" matched a run a
+// person's push or `main` had started. So the moment a capture PR's checks go green is a moment
+// this gate has never seen: an approval given while Verify was still running answered
+// `verification`, and nothing ever came back to it.
+//
+// The events this gate does receive are a person's comment, the reviewer's comment, a review, and
+// a Verify a person started. An approval that arrives mid-Verify therefore has to outlast the
+// run: while the executed run for this commit is still queued or in progress, wait for it — one
+// runner, held for the length of one Verify, only for an event a person or the reviewer caused —
+// and decide on what it concludes. A Verify completion event never waits, a run that has already
+// failed never waits, and the wait is bounded by the longest Verify job plus its queue.
+const RUNNING = new Set(['queued', 'in_progress', 'waiting', 'pending', 'requested']);
+export function mergeDataPr(event, { exec = null, sleep = sleepSync, now = Date.now, waitMs = 0, pollMs = 60_000 } = {}) {
   if (process.env.GITHUB_REPOSITORY !== DATA_REPOSITORY) throw Error('Unexpected repository');
-  const gh = (...args) => execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  const gh = exec || ((...args) => execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }).trim());
   const json = (...args) => JSON.parse(gh(...args));
   const pages = path => json('api', path, '--paginate', '--slurp').flat();
   let number = event.pull_request?.number || (event.issue?.pull_request ? event.issue.number : null);
@@ -97,21 +113,33 @@ export function mergeDataPr(event) {
     number = matches[0].number;
   }
   if (!Number.isSafeInteger(number) || number < 1) return 'unrelated-event';
-  const pr = resolveMergeability(() => json('pr', 'view', String(number), '--repo', DATA_REPOSITORY, '--json',
-    'state,isDraft,isCrossRepository,headRefName,headRefOid,headRepository,baseRefName,changedFiles,mergeable,author'));
-  if (!pr.headRefName.startsWith('codex/data-')) return 'unrelated-pr';
-  const input = { pr, files: pages(`repos/${DATA_REPOSITORY}/pulls/${number}/files`),
-    checks: json('api', `repos/${DATA_REPOSITORY}/commits/${pr.headRefOid}/check-runs?per_page=100`, '--paginate', '--slurp').flatMap(page => page.check_runs),
-    runs: json('run', 'list', '--repo', DATA_REPOSITORY, '--workflow', 'verify.yml', '--branch', pr.headRefName,
-      '--limit', '30', '--json', 'databaseId,headSha,status,conclusion'),
-    reviews: pages(`repos/${DATA_REPOSITORY}/pulls/${number}/reviews`), inline: pages(`repos/${DATA_REPOSITORY}/pulls/${number}/comments`),
-    comments: pages(`repos/${DATA_REPOSITORY}/issues/${number}/comments`) };
-  const decision = dataReviewDecision(input);
+  const read = () => {
+    const pr = resolveMergeability(() => json('pr', 'view', String(number), '--repo', DATA_REPOSITORY, '--json',
+      'state,isDraft,isCrossRepository,headRefName,headRefOid,headRepository,baseRefName,changedFiles,mergeable,author'), { sleep });
+    if (!pr.headRefName.startsWith('codex/data-')) return { pr, input: null, decision: 'unrelated-pr' };
+    const input = { pr, files: pages(`repos/${DATA_REPOSITORY}/pulls/${number}/files`),
+      checks: json('api', `repos/${DATA_REPOSITORY}/commits/${pr.headRefOid}/check-runs?per_page=100`, '--paginate', '--slurp').flatMap(page => page.check_runs),
+      runs: json('run', 'list', '--repo', DATA_REPOSITORY, '--workflow', 'verify.yml', '--branch', pr.headRefName,
+        '--limit', '30', '--json', 'databaseId,headSha,status,conclusion'),
+      reviews: pages(`repos/${DATA_REPOSITORY}/pulls/${number}/reviews`), inline: pages(`repos/${DATA_REPOSITORY}/pulls/${number}/comments`),
+      comments: pages(`repos/${DATA_REPOSITORY}/issues/${number}/comments`) };
+    return { pr, input, decision: dataReviewDecision(input) };
+  };
+  let { pr, input, decision } = read();
+  const verifying = () => decision === 'verification' && input?.runs.some(r => r.headSha === pr.headRefOid && RUNNING.has(r.status));
+  const deadline = now() + waitMs;
+  while (!event.workflow_run && verifying() && now() + pollMs <= deadline) {
+    sleep(pollMs);
+    ({ pr, input, decision } = read());
+  }
   if (decision === 'ready') gh('pr', 'merge', String(number), '--repo', DATA_REPOSITORY, '--merge', '--match-head-commit', pr.headRefOid);
   return decision;
 }
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
-  const decision = mergeDataPr(JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')));
+  // Verify's longest job is budgeted at 50 minutes; the wait covers that and its queue, and the
+  // workflow's own timeout sits above it.
+  const decision = mergeDataPr(JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')),
+    { waitMs: Number(process.env.DATA_PR_VERIFY_WAIT_MS ?? 55 * 60_000) });
   console.log(decision);
   // Only the state that will never resolve on its own is annotated; a PR still waiting for CI or
   // for the reviewer is ordinary and stays quiet.

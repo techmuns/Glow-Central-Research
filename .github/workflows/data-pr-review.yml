@@ -28,7 +28,9 @@ jobs:
       || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
       || github.event_name == 'pull_request_review'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # An approval that arrives while Verify is still running waits for it (see merge-data-pr.mjs):
+    # Verify's longest job is budgeted at 50 minutes, plus its queue.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
         with:
