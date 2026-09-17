@@ -179,6 +179,7 @@ export function render(ctx) {
 }
 
 export function destroy() {
+  alerts.clearRankingCache();
   offBookmarks?.(); offBookmarks = null;
   bookmarkRoot = null;
   actionGeneration++;

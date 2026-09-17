@@ -17,7 +17,27 @@ export function createAlertWindowCache({ read = readEntry, write = writeEntryBat
     message: 'The offline alert copy could not be verified. Available live evidence remains visible.' });
   let activeReaders = 0;
   const obsoleteParts = new Set();
-  let pendingWrite = Promise.resolve();
+  // Inputs are complete, already-merged views, never source deltas. Only the active
+  // revision and newest waiting revision may retain an events array.
+  let running = false, waiting = null, cleanupRequested = false;
+  async function drain() {
+    if (running) return;
+    running = true;
+    try {
+      while (waiting || cleanupRequested) {
+        if (waiting) {
+          const job = waiting;
+          waiting = null;
+          const result = await save(job.value);
+          job.resolve({ ...result, superseded: false });
+          cleanupRequested = true;
+        } else {
+          cleanupRequested = false;
+          await prune();
+        }
+      }
+    } finally { running = false; }
+  }
   let pruneEnabled = true;
   async function prune() {
     if (!pruneEnabled || activeReaders || !obsoleteParts.size) return;
@@ -62,7 +82,8 @@ export function createAlertWindowCache({ read = readEntry, write = writeEntryBat
     finally {
       activeReaders--;
       if (activeReaders === 0 && obsoleteParts.size > 0) {
-        pendingWrite = pendingWrite.then(prune).catch(() => {});
+        cleanupRequested = true;
+        void drain();
       }
     }
   }
@@ -115,8 +136,11 @@ export function createAlertWindowCache({ read = readEntry, write = writeEntryBat
     } catch { fail(); return { persistent: false }; }
   }
   return { async read() { return load(); }, write(value) {
-    pendingWrite = pendingWrite.then(async () => { const result = await save(value); await prune(); return result; });
-    return pendingWrite;
+    // Resolving a superseded caller must never claim that its exact revision reached disk.
+    waiting?.resolve({ persistent: false, superseded: true });
+    const result = new Promise(resolve => { waiting = { value, resolve }; });
+    void drain();
+    return result;
   },
     status: () => ({ ...state }), onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); } };
 }

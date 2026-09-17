@@ -21,7 +21,9 @@ export async function checkNewsPublication({ dataDir, base, fetcher = fetch, now
       if (!revision(raw) || revision(raw) > now + 600000) throw Error('snapshot-time-invalid');
       if (revision(raw) < revision(expected)) throw Error('capture-not-published');
       // The same decoder used by the dashboard checks every referenced byte and record count.
-      const value = await hydrateJsonShards(raw, url, { fetcher });
+      // This probe certifies current delivery at the origin. A previously verified RAM part is
+      // useful to readers during an outage, but cannot certify that the server still serves it.
+      const value = await hydrateJsonShards(raw, url, { fetcher: (...args) => fetcher(...args) });
       const rows = value.byTicker ? Object.values(value.byTicker).reduce((n, list) => n + list.length, 0) : value.articles?.length;
       if (!Number.isSafeInteger(rows)) throw Error('snapshot-shape-invalid');
       sources.push({ path, capturedAt: value.capturedAt, rows, completeTransport: true });
