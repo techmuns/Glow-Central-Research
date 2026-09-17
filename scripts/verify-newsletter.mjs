@@ -13,7 +13,7 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   DEFAULT_SETTINGS, EDITION_IDS, NEWSLETTER_SUBSCRIBER_LIMIT,
   editionWindow, istDay, istInstant, istLabel, newsletterIntent, newsletterIntents, newsletterSettings,
-  nextScheduled, normaliseEmail, previousWeekday, scheduledEditions,
+  nextScheduled, normaliseEmail, normaliseEmailList, previousWeekday, scheduledEditions,
 } from '../public/js/data/newsletter-shared.js';
 import { NewsletterStore } from '../worker/newsletter-store.mjs';
 import {
@@ -112,6 +112,21 @@ console.log('\n— the contract —');
 await test('an address is lower-cased and trimmed, and a bad one is null rather than a row', () => {
   assert.equal(normaliseEmail('  Pratik@Muns.IO '), 'pratik@muns.io');
   for (const bad of ['pratik', 'pratik@', '@muns.io', 'a b@muns.io', '', null, 'x'.repeat(250) + '@muns.io']) assert.equal(normaliseEmail(bad), null, String(bad));
+});
+
+await test('a pasted list is read as several addresses, and what could not be read is NAMED', () => {
+  // The shape a desk actually pastes: a column out of a table, then a mail client's separators.
+  const pasted = normaliseEmailList('bharat@glowventures.in\ngaurav@glowventures.in\r\nprateek@glowventures.in ,  ashwini@glowventures.in;ankita@glowventures.in\nYAMINI@Glowventures.in\n');
+  assert.deepEqual(pasted.emails, ['bharat@glowventures.in', 'gaurav@glowventures.in', 'prateek@glowventures.in', 'ashwini@glowventures.in', 'ankita@glowventures.in', 'yamini@glowventures.in']);
+  assert.deepEqual(pasted.invalid, []);
+  // A display name is consumed with its brackets — neither refused as a bad address nor left as chaff.
+  assert.deepEqual(normaliseEmailList('Bharat Kumar <bharat@glowventures.in>, gaurav@glowventures.in').emails, ['bharat@glowventures.in', 'gaurav@glowventures.in']);
+  // One person is one row whatever case they were typed in, and one address twice is still one row.
+  assert.deepEqual(normaliseEmailList('a@muns.io, A@MUNS.IO').emails, ['a@muns.io']);
+  // The whole point: a token that is not an address is reported verbatim, never quietly dropped.
+  assert.deepEqual(normaliseEmailList('a@muns.io, nope, b@muns.io').invalid, ['nope']);
+  assert.deepEqual(normaliseEmailList('a@muns.io, nope, b@muns.io').emails, ['a@muns.io', 'b@muns.io']);
+  assert.deepEqual(normaliseEmailList('   '), { emails: [], invalid: [] });
 });
 
 await test('a subscription names who added it; an unsubscribe need not', () => {
