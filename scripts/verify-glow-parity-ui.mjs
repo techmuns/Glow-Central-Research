@@ -276,6 +276,63 @@ try {
   await fundInput.press('Escape');
   await strategySelect.selectOption('');
   assert.equal(await fundRows.count(), 8);
+
+  // THE LAST STATE OF SELECTION IS RETAINED (the owner, 17 Sep 2026). A choice on every control —
+  // the cut, the three dropdowns, the search text, the Show toggle and the sort — survives leaving
+  // the tab and coming back, and a reload. Then a saved value the feed no longer offers is dropped
+  // with everything beneath it, never drawn as a narrowed table under a control reading All.
+  await page.locator('[data-mf-management="active"]').click();
+  await categorySelect.selectOption('equity-mid-cap');
+  assert.equal(await fundRows.count(), 1);
+  await fundInput.fill('hotel');
+  await fundInput.press('Escape');
+  await page.locator('[data-mf-measure]').last().click();
+  const sortHead = page.locator('#content-host th[data-sort]').last();
+  await sortHead.click();
+  const sortedHead = await sortHead.innerText();
+  assert.match(sortedHead, /[▴▾]/, 'the sort marker is on the clicked heading');
+  const expectRemembered = async (how) => {
+    assert.equal(await page.locator('[data-mf-management="active"]').getAttribute('aria-pressed'), 'true', `Active is still pressed ${how}`);
+    assert.equal(await classSelect.inputValue(), 'Equity', `the class is remembered ${how}`);
+    assert.equal(await groupSelect.inputValue(), 'Market cap', `the group is remembered ${how}`);
+    assert.equal(await categorySelect.inputValue(), 'equity-mid-cap', `the category is remembered ${how}`);
+    assert.equal(await fundInput.inputValue(), 'hotel', `the search text is remembered ${how}`);
+    assert.equal(await page.locator('[data-mf-measure]').last().getAttribute('aria-pressed'), 'true', `the Show toggle is remembered ${how}`);
+    assert.equal(await page.locator('#content-host th[data-sort]').last().innerText(), sortedHead, `the sort is remembered ${how}`);
+    assert.equal(await fundRows.count(), 1, `the table is narrowed the same way ${how}`);
+  };
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=universe&enable_research=1'; });
+  await page.locator('.research-workspace').waitFor();
+  await page.evaluate(() => { location.hash = '#/research/mutual-funds/all-schemes?scope=universe'; });
+  await fundInput.waitFor();
+  await expectRemembered('after leaving the tab and returning');
+  await page.reload();
+  await fundInput.waitFor();
+  await expectRemembered('after a reload');
+  // A saved selection from an older feed. Written by an init script, because the tab itself writes
+  // the live state on pagehide — which is exactly what a reload fires first.
+  await page.addInitScript(() => {
+    const pending = sessionStorage.getItem('glow-test:mf-filters-once');
+    if (pending) { localStorage.setItem('sattva:mf-filters:v1', pending); sessionStorage.removeItem('glow-test:mf-filters-once'); }
+  });
+  await page.evaluate(() => sessionStorage.setItem('glow-test:mf-filters-once', JSON.stringify({
+    v: 1, management: null, assetClass: 'Equity', group: 'A group the feed dropped', categoryId: 'equity-mid-cap', strategy: null, measure: 'return',
+    live: { q: '', sort: null, categories: ['Equity : A category the feed dropped', 'Equity : Large Cap'] },
+    weekly: { q: '', sort: null, categories: [] }, benchmarks: {},
+  })));
+  await page.reload();
+  await fundInput.waitFor();
+  assert.equal(await classSelect.inputValue(), 'Equity', 'the class the feed still offers is kept');
+  assert.equal(await groupSelect.inputValue(), '', 'the group it no longer offers is dropped…');
+  assert.equal(await categorySelect.inputValue(), '', '…with the category beneath it');
+  assert.equal(await page.locator('[data-fund-category-remove]').count(), 1, 'a chip the feed no longer carries is dropped; the one it does stays');
+  assert.equal(await fundRows.count(), 2, 'Equity, narrowed by the surviving Large Cap chip');
+  await page.locator('[data-mf-clear]').click();
+  await page.locator('[data-fund-category-remove]').click();
+  assert.equal(await fundRows.count(), 8);
+  const remembered = await page.evaluate(() => JSON.parse(localStorage.getItem('sattva:mf-filters:v1')));
+  assert.equal(remembered.assetClass, null, 'Clear is remembered too');
+  assert.deepEqual(remembered.live.categories, [], 'and so is removing the chips');
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), `fund search fits ${width}px`);
@@ -288,5 +345,5 @@ try {
   await verifyChangesUI(page, { base: origin });
   await verifyTechnicalFiltersUI(browser, { base: origin });
   assert.deepEqual(errors, []);
-  console.log(`PASS real Glow bridge: ${companies.holdings.length} identities, statement dates and weights, fresh detailed reads, Family Book, My Managers, fund category search, the inline view switch, the fixed-slot filter toolbar, the viewport-fitted table, the active / passive cut and moved trackers, desktop/mobile, mismatch rejection and recovery.`);
+  console.log(`PASS real Glow bridge: ${companies.holdings.length} identities, statement dates and weights, fresh detailed reads, Family Book, My Managers, fund category search, the inline view switch, the fixed-slot filter toolbar, the viewport-fitted table, the remembered selection, the active / passive cut and moved trackers, desktop/mobile, mismatch rejection and recovery.`);
 } finally { await browser.close(); server.closeAllConnections(); await new Promise(done => server.close(done)); }

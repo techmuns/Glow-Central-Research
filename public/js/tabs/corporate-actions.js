@@ -13,6 +13,7 @@ import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { corporateActions as feed } from '../data/corporate-actions.js';
 import { screenerActionDetails } from '../data/corporate-actions-shared.js';
+import { CORPORATE_ACTIONS_VIEW, viewSwitchHtml } from './corp-announcements-views.js';
 
 const LABELS = {
   bonus: 'Bonus', rights: 'Rights', split: 'Split', buyback: 'Buyback', dividend: 'Dividend',
@@ -78,10 +79,16 @@ function filters(rows) {
   ];
 }
 
+const SUBTITLE = 'One deduplicated feed of NSE actions, enriched with Screener ratios, terms, prices and additional records.';
+
 const tab = makeFilingsTab({
   id: 'corporate-actions',
   title: 'Corporate Actions',
-  subtitle: 'One deduplicated feed of NSE actions, enriched with Screener ratios, terms, prices and additional records.',
+  subtitle: SUBTITLE,
+  // Same head as the Announcements view: title, the switch between the two views, the status label.
+  // The sentence above leads the provenance panel instead of sitting under the title.
+  compactHead: true,
+  headAside: (ctx) => viewSwitchHtml(ctx, CORPORATE_ACTIONS_VIEW),
   feed,
   filterByScope: feed.filterByScope,
   noun: 'actions',
@@ -135,6 +142,7 @@ const tab = makeFilingsTab({
       <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
     </div>
     <div class="space-y-3 text-sm leading-relaxed text-slate-600">
+      <p>${escapeHtml(SUBTITLE)}</p>
       <p><strong>Summative source feed.</strong> NSE supplies the official market-wide company, symbol, ISIN, purpose, face value, ex date, record date and book-closure dates. Screener adds bonus and rights ratios, rights premium, split face values, buyback terms and dividend type and percentage. An NSE purpose stays exactly as filed.</p>
       <p>A Screener action joins an NSE row only when ticker, action type and ex date form one unambiguous one-to-one match. The terms enrich that row and both source links remain. Ambiguous matches and actions found by only one source remain separate, so the merge neither guesses nor drops source records. Screener-only purpose text is visibly derived from its structured fields.</p>
       <p>Action type is a navigation label so dividends, distributions, bonuses, rights, splits, buybacks, demergers, interest, redemptions and capital reductions can be filtered. Meeting-only AGM/EGM diary entries from NSE are excluded; a meeting row that also declares an action remains.</p>

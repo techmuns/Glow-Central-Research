@@ -4215,6 +4215,37 @@ remain excluded; only explicit company objects can carry six-digit BSE codes. Th
 records that it ran under `sattva:watchlist:shape`. A dropped entry was never a company; it was
 a row.
 
+### `sattva:mf-filters:v1` — the remembered Mutual Funds selection
+
+```jsonc
+{
+  "v": 1,
+  "management": "passive",                 // 'active' | 'passive' | null (both)
+  "assetClass": "Equity",                  // taxonomy labels; null means every
+  "group": "Index & smart beta",
+  "categoryId": "equity-mid-cap-index",    // All Schemes only; the source's category id with this dashboard's kind appended where it moved the scheme
+  "strategy": "momentum",                  // a FACTORS id, or null
+  "measure": "vs-benchmark",               // 'return' | 'vs-benchmark' | 'vs-median'; each level falls back to 'return' where it does not offer one
+  "live":   { "q": "nifty", "sort": { "key": "1Y", "dir": "asc" }, "categories": ["Equity : Index · Mid Cap"] },   // the All Schemes table: search text, sort, the search box's category chips
+  "weekly": { "q": "", "sort": null, "categories": [] },                                                          // the Category Performance comparison table
+  "benchmarks": { "smart-beta": "nifty-500-tri" }                                                                  // the reader's benchmark choice per workbook category id
+}
+```
+
+Written by `js/data/mf-filter-memory.js` on every change in the Mutual Funds toolbar, search box
+and Show tray, and again when the tab is left, the page hidden or unloaded — the kit mutates a
+table's sort and search in place and reports neither, so the way out is when the last of those is
+written down. Read once, at module load. **Every field is validated on read** (an unknown
+management word, strategy or measure resolves to its default; malformed JSON, a wrong `v` or a
+storage that throws resolve to nothing chosen), and **the hierarchy and the chips are re-checked
+against the loaded feed before they are applied**: `reconcileHierarchy` keeps a group only under
+its class and a category only under its group, and a chip only while the feed carries that label,
+so a saved value the feed dropped can never narrow the table under a toolbar reading *All*. A
+benchmark choice is honoured only from among the indices `benchmarkFor` already allows. Clear
+writes the defaults rather than deleting the key. Display preference only: capture, counts and the
+export's disclosure line read none of it. `node scripts/verify-mf-taxonomy.mjs` covers the module
+offline; `scripts/verify-glow-parity-ui.mjs` drives the tab through a navigation and a reload.
+
 ## The shared watchlist — `GET`/`POST /api/watchlist`
 
 **One watchlist, every device, every reader.** It was `localStorage` and nothing else, so it was a
@@ -5163,8 +5194,9 @@ company history load automatically, with bounded concurrency and revision checks
 re-downloading unchanged archive files. NSE contributes up to 90 days of retained history without
 changing the history range selected in the separate NSE Filings tab. Failed reads retain rows.
 
-The page contains its heading, a **Show** row of filing-type switches, and one searchable,
-newest-first table with export. It has no company/date lookup form, archive-load button, capture
+The page contains its one-row heading (title, the switch between the two views, the status label),
+and one searchable, newest-first table with export whose filter row carries the period dropdown and
+the **Filing types** control. It has no company/date lookup form, archive-load button, capture
 diagnostics, extra dropdown filters or second Watchlist filter. The global scope control chooses
 the companies. Older rows render as the reader scrolls; counts, search and export include all
 loaded records. Background arrivals preserve the reader's search, focus and scroll position. Source
@@ -5173,16 +5205,18 @@ link below the table.
 
 **Corporate Announcements is one tab with two views** since 17 September 2026: *Announcements* (this
 stream, the default) and *Corporate Actions* (`js/tabs/corporate-actions.js`, the NSE + Screener
-calendar, unchanged inside). The shell aliases the retired `corporate-actions` tab id to the view.
+calendar, unchanged inside), switched on the title row (`meta.inlineSubviews: true`; the shell draws no
+picker card for this tab). The shell aliases the retired `corporate-actions` tab id to the view.
 
 **Filing type — `js/data/announcement-types.js`.** Every merged row carries one derived type, read
 from BSE's sub-category or NSE's subject where that label says something, otherwise from the filing's
 subject line (and, for an NSE catch-all subject, its description); the first matching rule wins,
 BSE's category is the last resort, and a row no rule recognises is `other`. The reading returns
 `{ id, label, routine, from, text }` so the cell's tooltip and the export can name what was read.
-The Show row switches types on and off (OR across the switched-on types; search and the period
-filter then narrow), and its counts are for the selected period in the current scope, before
-search. The selection is device-local under `localStorage['sattva:announcement-types:v1']` as
+The Filing types control — one slot in the table's filter row, a checklist behind it — switches
+types on and off (OR across the switched-on types; search and the period filter then narrow); its
+face states the selection and how many rows it hides, and the checklist's counts are for the
+selected period in the current scope, before search. The selection is device-local under `localStorage['sattva:announcement-types:v1']` as
 `{ hidden: [ids] }` — the set switched OFF, so a type added to the vocabulary later starts switched
 on, and an explicit empty set is kept apart from "never chose", which gets the default of
 `['routine']`. Switching a type off hides its rows from this view, its count and its export only:

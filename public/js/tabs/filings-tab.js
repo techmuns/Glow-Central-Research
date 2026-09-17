@@ -72,6 +72,12 @@ const REASONS = {
  *                                   and `view` is the table's live view (search, filter slots, sort),
  *                                   so a control drawn here can count against the current period.
  * @param {Function} [cfg.wireAboveTable] (root, ctx) => disposer, for that control's listeners
+ *                                   (and for a `toolbarExtra` control, which is in the DOM by then)
+ * @param {Function} [cfg.toolbarExtra] (ctx, meta, rows, view) => html for the table toolbar, after
+ *                                   the filter selects — a tab's own filter control in the filter row
+ * @param {boolean}  [cfg.compactHead] no description under the title and a tighter block; the
+ *                                   subtitle then belongs in the provenance panel, never dropped
+ * @param {Function} [cfg.headAside]  (ctx) => html drawn on the title's line (a view switch)
  * @param {Function} [cfg.renderRevision] extra revision for time-dependent filters on otherwise unchanged rows
  * @param {Function} [cfg.keyFor]    (row, i) => watchlist key
  * @param {Function|false} [cfg.link] custom row-link getter, or false when the tab owns its link cell
@@ -127,6 +133,17 @@ export function makeFilingsTab(cfg) {
       }
     }
     return scopeLists.apply('universe', out);
+  }
+
+  // The section head, in the shape this tab asked for. `compactHead` drops the description — the
+  // sentence still exists, in the provenance panel — and `headAside` is drawn on the title's line.
+  function headConfig(ctx) {
+    return {
+      title: cfg.title,
+      description: cfg.compactHead ? '' : cfg.subtitle,
+      titleAside: cfg.headAside?.(ctx) || '',
+      compact: cfg.compactHead === true,
+    };
   }
 
   function render(ctx) {
@@ -186,7 +203,7 @@ export function makeFilingsTab(cfg) {
     cfg.feed.setWanted(items);
 
     if (!cfg.feed.isLoaded()) {
-      ctx.root.innerHTML = `${sectionHead({ title: cfg.title, description: cfg.subtitle })}${loadingHtml()}`;
+      ctx.root.innerHTML = `${sectionHead(headConfig(ctx))}${loadingHtml()}`;
       cfg.feed.load(items).then(() => {
         if (t === token) paint(ctx);
       });
@@ -271,8 +288,7 @@ export function makeFilingsTab(cfg) {
       // outlive the failure.
       ctx.root.innerHTML = `
         ${sectionHead({
-          title: cfg.title,
-          description: cfg.subtitle,
+          ...headConfig(ctx),
           meta: cfg.status ? cfg.status(m) : pill(m, ctx.scope, []),
         })}
         ${cfg.aboveTable?.(ctx, m) || ''}
@@ -332,6 +348,10 @@ export function makeFilingsTab(cfg) {
       showWatchFilter: cfg.showWatchFilter !== false,
       columns: cfg.columns(m),
       filters: cfg.filters ? cfg.filters(rows) : null,
+      // A tab's own control in the filter row. `view` here is the previous instance's — the
+      // period slot it holds is what a period-aware control needs, and the table it seeds is the
+      // one about to be built from it.
+      toolbarExtra: cfg.toolbarExtra?.(ctx, m, rows, view) || '',
       searchable: cfg.searchable,
       link: cfg.link === false ? null : cfg.link || ((r) => r.url || null),
       initialSort: cfg.initialSort || { key: 'Date', dir: 'desc' },
@@ -369,8 +389,7 @@ export function makeFilingsTab(cfg) {
 
     ctx.root.innerHTML = `
       ${sectionHead({
-        title: cfg.title,
-        description: cfg.subtitle,
+        ...headConfig(ctx),
         // ONE CHIP, THE SAME ONE THE MARKET-NEWS HALF OF THIS TAB ALREADY WEARS. The scope summary
         // that used to sit beside it — "Portfolio · 23 of 142 companies with articles" — has moved
         // into the modal, whole and worded exactly as it was. The DENOMINATOR RULE is not waived by

@@ -7911,7 +7911,7 @@ const annWidth = await page.evaluate(() => {
 });
 ok('...and the table still fits without a horizontal scrollbar of its own', annWidth && annWidth.scrollWidth <= annWidth.clientWidth, `${annWidth?.scrollWidth}px in ${annWidth?.clientWidth}px`);
 
-// --- Routine filings are switched off by default, VISIBLY, and the choice is remembered ---
+// --- Routine filings are switched off by default, VISIBLY, from one slot in the filter row, and the choice is remembered ---
 {
   await page.evaluate(() => localStorage.removeItem('sattva:announcement-types:v1'));
   await go('/#/research/corp-announcements?scope=universe', 2000);
@@ -7920,63 +7920,100 @@ ok('...and the table still fits without a horizontal scrollbar of its own', annW
   await page.locator('#content-host [data-table-filter="0"]').selectOption('all');
   await page.waitForTimeout(500);
   await settleTables();
-  const chips = await page.evaluate(() => [...document.querySelectorAll('[data-announcement-type]')].map((el) => ({
-    id: el.dataset.announcementType, on: el.getAttribute('aria-checked') === 'true',
-    n: Number(el.querySelector('[data-announcement-type-count]')?.textContent.replace(/,/g, '') || 0),
+  const trigger = page.locator('#content-host [data-table-toolbar] [data-announcement-types-trigger]');
+  const face = () => page.locator('#content-host [data-announcement-types-face]').innerText();
+  ok('the filing-types control is one slot in the table\'s filter row, and its face states what it hides',
+    (await trigger.count()) === 1 && /^12 of 13 · [\d,]+ hidden$/.test(await face()), await face());
+  ok('...and no band of chips sits between the head and the table', (await page.locator('#content-host [data-announcement-types]').count()) === 0);
+  await trigger.click();
+  await page.waitForSelector('[data-announcement-types-panel]');
+  const rows = await page.evaluate(() => [...document.querySelectorAll('[data-announcement-types-panel] [data-announcement-type]')].map((el) => ({
+    id: el.dataset.announcementType, on: el.checked,
+    n: Number(el.closest('label').querySelector('[data-announcement-type-count]')?.textContent.replace(/,/g, '') || 0),
   })));
-  const routine = chips.find((c) => c.id === 'routine');
-  ok('the Show row lists every filing type with a count, and only Routine & administrative starts switched off',
-    chips.length === 13 && !!routine && !routine.on && chips.filter((c) => !c.on).length === 1,
-    chips.map((c) => `${c.id}:${c.on ? 'on' : 'off'}:${c.n}`).join(' '));
-  const hiddenNote = await page.locator('[data-announcement-hidden-count]').innerText();
-  ok('...and the switched-off chip still prints what it hides', routine?.n > 0 && /hidden by the types switched off/.test(hiddenNote), hiddenNote);
+  const routine = rows.find((r) => r.id === 'routine');
+  ok('...and opens a checklist of every type with a count, only Routine & administrative switched off',
+    rows.length === 13 && !!routine && !routine.on && rows.filter((r) => !r.on).length === 1,
+    rows.map((r) => `${r.id}:${r.on ? 'on' : 'off'}:${r.n}`).join(' '));
+  ok('...where the switched-off type still prints its count', routine?.n > 0, String(routine?.n));
   const routineOnScreen = () => page.locator('#content-host tbody tr[data-row-key] [title^="Type (derived): Routine"]').count();
   ok('...and no routine row is on screen', (await routineOnScreen()) === 0);
   const countBefore = await page.locator('#content-host [data-row-count]').innerText();
-  await page.locator('[data-announcement-type="routine"]').click();
+  await page.locator('[data-announcement-types-panel] [data-announcement-type="routine"]').check();
   await page.waitForTimeout(600);
   await settleTables();
   const countAfter = await page.locator('#content-host [data-row-count]').innerText();
-  ok('switching it on adds those rows to the table and to its count', countAfter !== countBefore && (await routineOnScreen()) > 0, `${countBefore} → ${countAfter}`);
-  ok('...and Reset appears because the selection is no longer the default', (await page.locator('[data-announcement-types-reset]').count()) === 1);
+  ok('switching it on adds those rows to the table and to its count, with the checklist still open',
+    countAfter !== countBefore && (await routineOnScreen()) > 0 && (await page.locator('[data-announcement-types-panel]').count()) === 1, `${countBefore} → ${countAfter}`);
+  ok('...the face now says none hidden', /none hidden$/.test(await face()), await face());
+  ok('...and Reset appears because the selection is no longer the default',
+    await page.locator('[data-announcement-types-panel] [data-announcement-types-reset]').evaluate((el) => !el.classList.contains('invisible')));
   const stored = await page.evaluate(() => localStorage.getItem('sattva:announcement-types:v1'));
   ok('...stored as the set switched OFF, so a type added later starts switched on', stored === '{"hidden":[]}', String(stored));
+  await page.keyboard.press('Escape');
+  ok('Escape closes the checklist and returns focus to the control',
+    (await page.locator('[data-announcement-types-panel]').count()) === 0 && await trigger.evaluate((el) => el === document.activeElement));
   await page.reload();
   await waitForPanel();
   await settleTables();
-  const remembered = await page.locator('[data-announcement-type="routine"]').getAttribute('aria-checked');
-  ok('...and the choice survives a reload', remembered === 'true', String(remembered));
-  await page.locator('[data-announcement-types-reset]').click();
+  await page.locator('#content-host [data-announcement-types-trigger]').click();
+  await page.waitForSelector('[data-announcement-types-panel]');
+  const remembered = await page.locator('[data-announcement-types-panel] [data-announcement-type="routine"]').isChecked();
+  ok('...and the choice survives a reload', remembered === true, String(remembered));
+  await page.locator('[data-announcement-types-panel] [data-announcement-types-reset]').click();
   await page.waitForTimeout(300);
-  ok('Reset restores the default and removes itself',
-    (await page.locator('[data-announcement-type="routine"]').getAttribute('aria-checked')) === 'false' && (await page.locator('[data-announcement-types-reset]').count()) === 0);
+  ok('Reset restores the default and hides itself without moving the panel',
+    (await page.locator('[data-announcement-types-panel] [data-announcement-type="routine"]').isChecked()) === false &&
+    await page.locator('[data-announcement-types-panel] [data-announcement-types-reset]').evaluate((el) => el.classList.contains('invisible')));
+  await page.locator('#content-host [data-section-head] h2').click();
+  await page.waitForTimeout(200);
+  ok('...and a click outside closes it', (await page.locator('[data-announcement-types-panel]').count()) === 0);
   const typeHeads = await page.locator('#content-host table thead th').allInnerTexts();
   ok('...and the Type column is on the table, beside the exchange\'s own Category', typeHeads.some((h) => /^Type$/i.test(h.trim())) && typeHeads.some((h) => /Category/i.test(h)), typeHeads.join(' | '));
 }
 
-// --- Corporate Actions is a VIEW of Corp Announcements, and the retired tab address still lands on it ---
+// --- Corporate Actions is a VIEW of Corp Announcements, switched on the title row; the retired tab address still lands on it ---
 {
   const tabIds = await page.evaluate(() => [...document.querySelectorAll('#tabbar-mount [data-tab-id]')].map((el) => el.dataset.tabId));
   ok('the tab bar carries Corp Announcements and no Corporate Actions tab', tabIds.includes('corp-announcements') && !tabIds.includes('corporate-actions'), tabIds.join(', '));
   await go('/#/research/corp-announcements?scope=universe', 1500);
   await waitForPanel();
-  const picker = await page.evaluate(() => {
+  const head = await page.evaluate(() => {
     const m = document.getElementById('subview-mount');
-    return { hidden: m?.classList.contains('hidden'), text: (m?.innerText || '').replace(/\s+/g, ' ').trim() };
+    const sw = document.querySelector('#content-host [data-section-head] [data-view-switch]');
+    const h2 = document.querySelector('#content-host [data-section-head] h2');
+    return {
+      pickerHidden: !m || m.classList.contains('hidden'),
+      items: sw ? [...sw.querySelectorAll('a')].map((a) => `${a.dataset.viewSwitchItem}:${a.getAttribute('aria-current') || '-'}`) : [],
+      description: !!document.querySelector('#content-host [data-section-head] p'),
+      sameRow: !!(sw && h2) && Math.abs(sw.getBoundingClientRect().top - h2.getBoundingClientRect().top) < 14,
+    };
   });
-  ok('...and the tab opens on Announcements with a sub-view picker', picker.hidden === false && /Announcements/.test(picker.text) && /corp-announcements\/announcements/.test(page.url()), `${picker.text} · ${page.url()}`);
-  await page.locator('#subview-mount [data-dd-trigger]').click();
-  const items = await page.evaluate(() => [...document.querySelectorAll('#subview-mount [data-dd-id]')].map((el) => el.dataset.ddId));
-  ok('...offering Announcements and Corporate Actions', items.join(',') === 'announcements,corporate-actions', items.join(','));
-  await page.locator('#subview-mount [data-dd-id="corporate-actions"]').click();
+  ok('...and the tab opens on Announcements with the view switch on the title row, no picker card and no description line',
+    head.pickerHidden && head.items.join(',') === 'announcements:page,corporate-actions:-' && !head.description && head.sameRow && /corp-announcements\/announcements/.test(page.url()),
+    `${JSON.stringify(head)} · ${page.url()}`);
+  const gap = () => page.evaluate(() => {
+    const table = document.querySelector('#content-host [data-score-table]');
+    const nav = document.querySelector('#tabbar-mount');
+    return table && nav ? Math.round(table.getBoundingClientRect().top - nav.getBoundingClientRect().bottom) : null;
+  });
+  const annGap = await gap();
+  ok('...and the table starts within 120px of the tab bar', annGap != null && annGap <= 120, `${annGap}px`);
+  await page.locator('#content-host [data-view-switch-item="corporate-actions"]').click();
   await waitForPanel();
   await settleTables();
   const actHeads = await page.locator('#content-host table thead th').allInnerTexts();
-  ok('...and Corporate Actions renders its own table under the same tab', /corp-announcements\/corporate-actions/.test(page.url()) && actHeads.some((h) => /Ex date/i.test(h)), `${page.url()} · ${actHeads.join(' | ')}`);
+  ok('...and Corporate Actions renders its own table under the same tab, with the switch marking it current',
+    /corp-announcements\/corporate-actions/.test(page.url()) && actHeads.some((h) => /Ex date/i.test(h)) &&
+    (await page.locator('#content-host [data-view-switch-item="corporate-actions"][aria-current="page"]').count()) === 1,
+    `${page.url()} · ${actHeads.join(' | ')}`);
+  const actGap = await gap();
+  ok('...also within 120px of the tab bar', actGap != null && actGap <= 120, `${actGap}px`);
   await go('/#/research/corporate-actions?scope=universe', 1500);
   await waitForPanel();
   ok('...and the retired #/research/corporate-actions address lands on that view with the URL corrected', /corp-announcements\/corporate-actions/.test(page.url()), page.url());
 }
+
 // THE EXPLANATION HAS TO BE REACHABLE, AND ON THESE TABS THE MODAL IS NOT.
 //
 // `cfg.provenance` is built for all three filings tabs and `openProvenance` is never called: the
