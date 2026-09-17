@@ -6,10 +6,18 @@ import {resolve,sep,extname} from 'node:path';
 const {chromium}=await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root=resolve('public'), AT=Date.parse('2026-09-15T06:30:00Z');
 const original=JSON.parse(readFileSync(`${root}/data/technicals.json`)), seed=original.companies.find(row=>!row.error);
-const daily={...original,generated_at:'2026-09-15T01:30:00Z',price_date:'2026-09-10',companies:[{...seed,ticker:'TEST',name:'Test Company',cmp:105,bar_date:'2026-09-10',price_date:undefined,sma200:90,high_52w:120,consolidation_breakout:{...seed.consolidation_breakout,quality:'strong'}}],company_count:1,failures:0};
+const daily={...original,generated_at:'2026-09-15T01:30:00Z',price_date:'2026-09-10',companies:[
+ {...seed,ticker:'TEST',name:'Test Company',cmp:105,bar_date:'2026-09-10',price_date:undefined,sma200:90,high_52w:120,consolidation_breakout:{...seed.consolidation_breakout,quality:'strong'}},
+ // Graded weak_base at its own daily close; today's quote for it carries NO base (Yahoo had not
+ // published the previous session's bar). It must stay on the view, dated, not vanish.
+ {...seed,ticker:'NOBASE',name:'No Base Today',cmp:50,bar_date:'2026-09-10',price_date:undefined,sma200:40,high_52w:60,consolidation_breakout:{...seed.consolidation_breakout,quality:'weak_base',breaks_out:true,base_max:48,base_range_pct:15,today_volume_ratio:1.8}},
+],company_count:2,failures:0};
 const deployedDaily=structuredClone(daily);
-let price=106,volume=2000,at=AT,fail=false,revision=1,reads=0,muns=0,dailyFail=false,companionFail=false,dailySha='a'.repeat(40);
-const snapshot=()=>({version:1,state:'complete',targets:['TEST','FUTURE','WATCHONLY'],startedAt:new Date(at-1000).toISOString(),completedAt:new Date(at).toISOString(),captureStartedAt:'2026-09-15T03:45:00Z',failures:[],gaps:[{count:1,reason:'candles-unavailable',since:AT-3600000,until:AT}],rows:['TEST','FUTURE','WATCHONLY'].map(ticker=>({ticker,name:ticker==='TEST'?'Test Company':'Future Holding',price,volume,prevClose:98,quoteAt:new Date(at).toISOString(),checkedAt:new Date(at).toISOString(),sessionDate:'2026-09-15',provider:'Yahoo Finance',base:{high:100,low:95,average:97,averageVolume:1000,count:30,to:'2026-09-11'}}))});
+let price=106,volume=2000,at=AT,fail=false,revision=1,reads=0,muns=0,dailyFail=false,companionFail=false,dailySha='a'.repeat(40),noBase=true;
+const snapshot=()=>({version:1,state:'complete',targets:['TEST','FUTURE','WATCHONLY','NOBASE'],startedAt:new Date(at-1000).toISOString(),completedAt:new Date(at).toISOString(),captureStartedAt:'2026-09-15T03:45:00Z',failures:[],gaps:[{count:1,reason:'candles-unavailable',since:AT-3600000,until:AT}],rows:[
+ ...['TEST','FUTURE','WATCHONLY'].map(ticker=>({ticker,name:ticker==='TEST'?'Test Company':'Future Holding',price,volume,prevClose:98,quoteAt:new Date(at).toISOString(),checkedAt:new Date(at).toISOString(),sessionDate:'2026-09-15',provider:'Yahoo Finance',base:{high:100,low:95,average:97,averageVolume:1000,count:30,to:'2026-09-11'}})),
+ {ticker:'NOBASE',name:'No Base Today',price:52,volume:500,prevClose:50,quoteAt:new Date(at).toISOString(),checkedAt:new Date(at).toISOString(),sessionDate:'2026-09-15',provider:'Yahoo Finance',base:noBase?null:{high:55,low:45,average:50,averageVolume:1000,count:30,to:'2026-09-11'}},
+]});
 const server=createServer((req,res)=>{
  const path=new URL(req.url,'http://localhost').pathname;
  res.setHeader('cache-control','no-cache');
@@ -49,6 +57,25 @@ try{
  assert.equal(await page.evaluate(async()=>(await import('/js/data/technicals.js')).byTicker('TEST').company.atr_history[0].atr_pct),1.23);
  await page.locator('[data-row-key="FUTURE"]').waitFor();
  assert.equal(await page.locator('[data-row-key="WATCHONLY"]').count(),0);
+ // A quote without a base keeps the company on the view under its dated daily grade, with today's
+ // price beside it; the line under the chips accounts for it and the workbook carries the basis.
+ const noBaseRow=page.locator('[data-row-key="NOBASE"]');await noBaseRow.waitFor();
+ assert.equal(await page.locator('[data-cmp="NOBASE"]').textContent(),'₹52.00');
+ assert.equal(await noBaseRow.locator('[data-grade-source="daily"]').innerText(),'Graded at 2026-09-10 close');
+ assert.equal(await page.locator('[data-row-key="TEST"] [data-grade-source]').count(),0,'a capture-graded row carries no dated note');
+ assert.equal(await page.locator('[data-daily-graded]').innerText(),'1 of them is graded at the 2026-09-10 close because today\'s price capture carries no 30-session base for it.');
+ assert.equal(await page.locator('[data-ungraded]').count(),0);
+ await page.evaluate(()=>{location.hash='#/research/breakouts/strong-breakouts?scope=universe&bo=weak_base';});
+ await page.waitForFunction(()=>document.querySelector('[data-row-key="NOBASE"]')&&!document.querySelector('[data-row-key="TEST"]'));
+ await page.evaluate(()=>{location.hash='#/research/breakouts/strong-breakouts?scope=universe&bo=strong';});
+ await page.waitForFunction(()=>document.querySelector('[data-row-key="TEST"]')&&!document.querySelector('[data-row-key="NOBASE"]'));
+ await page.evaluate(()=>{location.hash='#/research/breakouts/strong-breakouts?scope=universe';});
+ await noBaseRow.waitFor();await cell.waitFor();
+ assert.equal(await page.locator('[data-live-info]').innerText(),'Partial update · 2/3','a quote with no base is not covered, and the pill says so');
+ // Once the source publishes the missing bar the capture grades NOBASE itself: ₹52 under a ₹55 base
+ // high is no breakout, so the row leaves this view and the dated-grade sentence goes with it.
+ noBase=false;await page.evaluate(async()=>{await (await import('/js/data/breakout-live.js')).refresh();});
+ await page.waitForFunction(()=>!document.querySelector('[data-row-key="NOBASE"]')&&!document.querySelector('[data-daily-graded]'));
  await page.evaluate(async()=>{await (await import('/js/core/watchlist.js')).syncNow({force:true});location.hash='#/research/breakouts/strong-breakouts?scope=watchlist';});
  await page.locator('[data-row-key="WATCHONLY"]').waitFor();
  assert.equal(await page.locator('[data-row-key="FUTURE"]').count(),0);

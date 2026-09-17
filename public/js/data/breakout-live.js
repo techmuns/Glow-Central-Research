@@ -47,6 +47,22 @@ export function priceCaption(info) {
 export function stamp(at) {
   return at && Number.isFinite(Date.parse(at)) ? `${new Date(at).toLocaleString('en-IN', {timeZone:'Asia/Kolkata',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} IST` : 'not available';
 }
+// A QUOTE WITHOUT A BASE IS NOT A COMPANY WITHOUT A BASE. The capture grades a breakout only when
+// its source supplied the prior 30 completed sessions, and on a morning when Yahoo has not yet
+// published yesterday's daily bar that is about half the universe (measured 17 September 2026:
+// 292 of 610 quotes, 87 of the book's 166). Replacing those grades with null drew every one of
+// those companies off Strong Breakouts with nothing on screen saying so — "0 of 76 with a
+// detectable base" over a book of 166. The daily file's grade is a completed-session measurement
+// of its own date, so it stays and is DATED, exactly as `priceInfo` keeps the daily close under a
+// "Daily close · <date>" label when no quote is usable. `grade_source` and `graded_on` say which
+// measurement a row carries, and every surface that prints the grade prints them beside it.
+// Only a company with a base from neither source is absent.
+function gradeFor(q, daily) {
+  const live = liveBreakout(q);
+  if (live) return { ...live, grade_source: 'capture', graded_on: q.sessionDate };
+  const own = daily.consolidation_breakout;
+  return own ? { ...own, grade_source: 'daily', graded_on: daily.price_date || daily.bar_date || null } : null;
+}
 export function decorate(rows, additionalTickers = new Set()) {
   const combined = new Map(rows.map(row => [row.company.ticker, row]));
   for (const ticker of capture?.targets || []) if (additionalTickers.has(ticker) && !combined.has(ticker)) {
@@ -58,7 +74,7 @@ export function decorate(rows, additionalTickers = new Set()) {
     if (!usable) return scored;
     // Keep the exact daily inputs for score explanations. Only screening fields use observations.
     return { ...scored, company: { ...daily, dailyCompany: daily, capturedQuote: q,
-      consolidation_breakout: liveBreakout(q),
+      consolidation_breakout: gradeFor(q, daily),
       above_200dma: daily.sma200 > 0 ? q.price > daily.sma200 : null,
       high_proximity_pct: daily.high_52w > 0 ? q.price / Math.max(q.price, daily.high_52w) : null } };
   });
