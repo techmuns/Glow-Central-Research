@@ -1124,10 +1124,18 @@ function byNewestFirst(a, b) {
   if (ad !== bd) return bd.localeCompare(ad);
   const at = a.time || '';
   const bt = b.time || '';
-  if (at && bt) return bt.localeCompare(at);
-  if (at) return -1;
-  if (bt) return 1;
-  return String(a.company || '').localeCompare(String(b.company || ''));
+  if (at && bt && at !== bt) return bt.localeCompare(at);
+  if (at && !bt) return -1;
+  if (bt && !at) return 1;
+  // THE SAME DAY AND THE SAME CLOCK TIME IS A TIE, AND A TIE MAY NOT BE LEFT TO INPUT ORDER.
+  // One story returned by two companies' searches is two rows carrying identical timestamps, and
+  // the bounded reader and the full-history reader assemble them in different orders — so an
+  // unbroken tie makes the same evidence come out in a different sequence depending on which
+  // period is selected. That is what "1-day query preserves full-history IDs" reports, and no
+  // row was ever missing: both companies are present in both readings, in opposite order.
+  // Company then id — both already part of the row's identity, so neither invents an ordering.
+  return String(a.company || '').localeCompare(String(b.company || '')) ||
+    String(a.id || '').localeCompare(String(b.id || ''));
 }
 
 /** The Indian trading date committed on the row, whether `at` is a day or a full instant. */
