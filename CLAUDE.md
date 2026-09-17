@@ -4236,6 +4236,18 @@ concurrency group, and the never-executed `pull_request` Verify completion queue
 could only ever answer `unrelated-run`. The job now runs for a person's comment, the connector's
 comment, a review, or a Verify that succeeded — nothing else.
 
+**AND NOTHING EVER RE-RAN THE GATE WHEN A CAPTURE PR'S VERIFY FINISHED.** GitHub raises no
+`workflow_run` event for a run that GITHUB_TOKEN started — its guard against recursive workflows —
+and `openPreparedDataPr` starts every capture PR's Verify exactly that way. Measured over six hours
+on 17 September 2026: 97 dispatched Verify runs on capture branches completed and not one gate run
+followed any of them, while all 56 gate runs raised by "Verify finished" matched a run a person's
+push or `main` had started. The moment a capture PR's checks go green was a moment the gate had
+never seen, so an approval given mid-run answered `verification` and nothing came back to it. The
+gate now outlasts the run: on a person's or the reviewer's event it polls the executed Verify for
+that commit while it is queued or in progress, bounded by the longest Verify job plus its queue,
+and decides on what it concludes. A Verify-finished event never waits. If a scheduler is ever
+wanted here, `GITHUB_TOKEN` cannot be it either — dispatch from something a person owns.
+
 **One flaky Verify assertion still stops every feed, and the last one was a real bug.** The All
 Alerts "visible row moved 110px / 194px during refresh" failures on a third of capture branches
 were the windowed list placing a held row from ESTIMATED heights and correcting a frame later — see

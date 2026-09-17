@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import worker from '../worker/index.js';
-import { dataReviewDecision, resolveMergeability } from './merge-data-pr.mjs';
+import { dataReviewDecision, resolveMergeability, mergeDataPr } from './merge-data-pr.mjs';
 import { dataBranch, dataPath, publishStagedData, DATA_REPOSITORY } from './data-pr.mjs';
 
 const sha = 'a'.repeat(40), bot = { login: 'chatgpt-codex-connector[bot]' };
@@ -61,6 +61,48 @@ assert.equal(dataReviewDecision({ ...input, pr: { ...input.pr, mergeable: 'CONFL
   reads = 0;
   resolveMergeability(() => { reads++; return { mergeable: 'CONFLICTING' }; }, { sleep: () => { throw Error('must not wait on a computed answer'); } });
   assert.equal(reads, 1);
+}
+// AN APPROVAL GIVEN WHILE VERIFY IS STILL RUNNING OUTLASTS IT. GitHub raises no workflow_run event
+// for a Verify that GITHUB_TOKEN dispatched, so nothing else ever comes back to a PR approved
+// mid-run. The gate polls the executed run for this commit, decides on what it concludes, merges
+// when that is ready, gives up honestly at its budget, and never waits on a Verify-finished event.
+{
+  const head = 'd'.repeat(40);
+  let reads = 0, merged = [], slept = 0; // one read = pr view, files, check-runs, run list, reviews, comments
+  const fake = (...args) => {
+    const cmd = args.join(' ');
+    if (args[0] === 'pr' && args[1] === 'list') return JSON.stringify([{ number: 123 }]);
+    if (args[0] === 'pr' && args[1] === 'view') { reads++; return JSON.stringify({ ...input.pr, headRefOid: head }); }
+    if (args[0] === 'run' && args[1] === 'list') return JSON.stringify([{ databaseId: 2, headSha: head, status: 'completed', conclusion: 'action_required' },
+      { databaseId: 1, headSha: head, status: reads < 3 ? 'in_progress' : 'completed', conclusion: reads < 3 ? null : 'success' }]);
+    if (cmd.includes('/files')) return JSON.stringify([[{ filename: 'public/data/news.json' }]]);
+    if (cmd.includes('/check-runs')) return JSON.stringify([{ check_runs: reads < 3 ? [] : input.checks }]);
+    if (cmd.includes('/reviews')) return JSON.stringify([[{ ...approval, commit_id: head }]]);
+    if (cmd.includes('/pulls/123/comments')) return JSON.stringify([[]]);
+    if (cmd.includes('/issues/123/comments')) return JSON.stringify([[notice]]);
+    if (args[0] === 'pr' && args[1] === 'merge') { merged.push(args); return ''; }
+    throw Error(`unexpected gh ${cmd}`);
+  };
+  const clock = { sleep: () => { slept++; }, now: () => slept * 60_000, pollMs: 60_000 };
+  const review = { pull_request: { number: 123 }, review: { state: 'approved' } };
+  const saved = process.env.GITHUB_REPOSITORY;
+  process.env.GITHUB_REPOSITORY = DATA_REPOSITORY;
+  try {
+    assert.equal(mergeDataPr(review, { exec: fake, ...clock, waitMs: 10 * 60_000 }), 'ready');
+    assert.equal(slept, 2, 'waited exactly until the run concluded');
+    assert.deepEqual(merged.map(m => m.slice(0, 3)), [['pr', 'merge', '123']]);
+    assert(merged[0].includes(head), 'merged the commit that was verified, not whatever the branch holds now');
+    reads = 0; merged = []; slept = 0;
+    assert.equal(mergeDataPr(review, { exec: fake, ...clock, waitMs: 60_000 }), 'verification', 'a bounded wait ends in the honest answer');
+    assert.equal(merged.length, 0);
+    reads = 0; merged = []; slept = 0;
+    const finished = { workflow_run: { name: 'Verify', conclusion: 'success', head_branch: 'codex/data-123-1' } };
+    assert.equal(mergeDataPr(finished, { exec: fake, ...clock, waitMs: 10 * 60_000 }), 'verification');
+    assert.equal(slept, 0, 'a Verify-finished event never waits for another Verify');
+    reads = 3; merged = []; slept = 0;
+    assert.equal(mergeDataPr(finished, { exec: fake, ...clock, waitMs: 10 * 60_000 }), 'ready');
+    assert.equal(slept, 0); assert.equal(merged.length, 1);
+  } finally { process.env.GITHUB_REPOSITORY = saved; }
 }
 assert(!dataPath('public/data/../worker.json')); assert(!dataPath('public/data/source.js'));
 assert(dataPath('public/data/shareholding-filings.json.gz')); assert(!dataPath('public/data/source.js.gz'));
