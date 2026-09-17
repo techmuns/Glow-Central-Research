@@ -1375,12 +1375,19 @@ console.log('\n— AI alerts —');
     line: (el.querySelector('[data-ai-impact-line]')?.innerText || '').trim(),
     axes: (el.querySelector('[data-ai-impact-row]')?.dataset.axes || '').split(' ').filter(Boolean),
     bold: [...el.querySelectorAll('[data-ai-impact-line] [data-ai-axis]')].map((n) => n.dataset.aiAxis),
+    reasons: [...el.querySelectorAll('[data-ai-impact-line] [data-ai-impact-reason]')].map((a) => ({ tag: a.tagName, href: a.getAttribute('href') || '', id: a.dataset.eventId })),
   })));
   ok('every card carries the two bullets the desk asked for, in order',
     bullets.length > 0 && bullets.every((c) => c.kickers.join('|') === 'What happened|Earnings assumption, valuation or thesis?' && c.line.length > 0));
   ok('...and the second bullet asks which question, never answers it',
     bullets.every((c) => /^(Could change |Nothing here is a tracked trigger)/.test(c.line) && !/\bwill\b/i.test(c.line) && c.bold.join() === c.axes.join()),
     bullets.map((c) => `${c.ticker}:${c.axes.join('+') || 'none'}`).join(' | ').slice(0, 160));
+  // EVERY TRIGGER THE BULLET NAMES IS A LINK TO THE RECORD IT WAS READ FROM — the same door as the
+  // evidence rows. A card that bears on a question with no way to the event behind it is a claim
+  // the reader cannot check.
+  ok('...and every trigger it names is a link to the record it was read from',
+    bullets.every((c) => (c.axes.length === 0 || c.reasons.length > 0) && c.reasons.every((r) => r.tag === 'A' && r.href.length > 0 && !!r.id)),
+    `${bullets.reduce((n, c) => n + c.reasons.length, 0)} trigger links on ${bullets.length} cards`);
   const triggerChips = await page.locator('[data-ai-triggers] [data-ai-impact]').evaluateAll((els) => els.map((el) => ({ axis: el.dataset.aiImpact, count: Number(el.innerText.split('·')[1]) })));
   const allChipCount = Number((await page.locator('[data-ai-filter="all"]').innerText()).split('·')[1]);
   ok('the three trigger chips are offered, each counted, none above the view total',

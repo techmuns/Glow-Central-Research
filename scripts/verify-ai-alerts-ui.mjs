@@ -295,6 +295,8 @@ try {
     line: el.querySelector('[data-ai-impact-line]')?.textContent.trim() || '',
     axes: (el.querySelector('[data-ai-impact-row]')?.dataset.axes || '').split(' ').filter(Boolean),
     bold: [...el.querySelectorAll('[data-ai-impact-line] [data-ai-axis]')].map(n => n.dataset.aiAxis),
+    reasons: [...el.querySelectorAll('[data-ai-impact-line] [data-ai-impact-reason]')].map(a => ({
+      tag: a.tagName, text: a.textContent.trim(), href: a.getAttribute('href') || '', id: a.dataset.eventId, axis: a.dataset.axis, title: a.getAttribute('title') || '' })),
   })));
   const firstPage = await briefs();
   assert.equal(firstPage.length, 8);
@@ -303,15 +305,22 @@ try {
     assert(brief.insight.length > 0 && brief.line.length > 0, `${brief.ticker} has both lines`);
     assert.deepEqual(brief.bold, brief.axes, `${brief.ticker} sets in bold exactly the questions it bears on`);
     assert(/^Could change /.test(brief.line) && !/\bwill\b/i.test(brief.line), `${brief.ticker} asks, never answers: ${brief.line}`);
+    // EVERY TRIGGER NAMED IS A LINK TO ITS OWN EVENT, exactly as the evidence rows are: the fixture
+    // events carry no upstream URL, so each link is the dashboard door seeded for that company.
+    assert(brief.reasons.length > 0 && brief.reasons.every(r => r.tag === 'A' && r.href === `#/research/daily-alerts?scope=portfolio&company=${brief.ticker}` &&
+      r.id.startsWith(`${brief.ticker}-`) && brief.axes.includes(r.axis) && r.title.length > 0), `${brief.ticker} links every trigger to the record it was read from: ${JSON.stringify(brief.reasons)}`);
   }
   const a00Brief = firstPage.find(brief => brief.ticker === 'A00');
   assert.deepEqual(a00Brief.axes, ['earnings'], 'a result filed bears on earnings; a material insider trade is not one of the three questions');
   assert.equal(a00Brief.line, 'Could change the earnings assumption (results filed). Nothing tracked here bears on the valuation and thesis.', 'the untouched questions are named in words');
+  assert.deepEqual(a00Brief.reasons.map(r => [r.text, r.id]), [['results filed', 'A00-earnings']], 'the result trigger opens the result event');
+  assert.match(a00Brief.reasons[0].title, /Company 00: material risk 1 · earnings · 04 Sept 2026 · 09:15 IST/, 'the link’s tooltip names the event, its feed and its time');
   await search.fill('buyback in a filing');
   assert.equal(await card('A03').count(), 1, 'search reaches the second bullet');
   const a03Brief = (await briefs()).find(brief => brief.ticker === 'A03');
   assert.deepEqual(a03Brief.axes, ['earnings', 'valuation'], 'a Buyback keyword on the filing adds the valuation question');
   assert.match(a03Brief.line, /the valuation \(Buyback in a filing\)\. Nothing tracked here bears on the thesis\./);
+  assert.deepEqual(a03Brief.reasons.map(r => [r.text, r.id, r.axis]), [['results filed', 'A03-earnings', 'earnings'], ['Buyback in a filing', 'A03-announcements', 'valuation']], 'the buyback trigger opens the filing it was read from');
   await page.locator('[data-ai-clear]').click();
   const chipCounts = async () => page.locator('[data-ai-triggers] [data-ai-impact]').evaluateAll(els =>
     Object.fromEntries(els.map(el => [el.dataset.aiImpact, Number(el.textContent.split('·')[1])])));
