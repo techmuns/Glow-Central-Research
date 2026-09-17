@@ -47,7 +47,18 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
     geometry = rowGeometry(rows.length, estimateHeight);
     rows.forEach((row, i) => { const old = measured.get(String(key(row))); if (old?.row === row) geometry.set(i, old.height); });
   };
+  // THE RECORD AT THE READING BOUNDARY, and how far inside it the boundary sits — read from the
+  // geometry, never from the DOM. Every paint leaves the geometry describing what it painted (see
+  // settle), so this is the row the reader last saw at the boundary even when the DOM has moved on
+  // since: a NEW badge above the viewport expiring, a row re-rendered taller. Anchoring on the DOM
+  // would keep whatever that change did to the reader's row; anchoring here undoes it.
   const anchor = () => { const top = rowTop(), index = geometry.indexAt(top); return { index, inside: top - geometry.offset(index) }; };
+  // Put the held record back at its offset. Written only when it would move the scroller: a write
+  // that changes nothing still raises a scroll event, and the callers coalesce their paints on quiet.
+  function restore(held) {
+    const target = head() + geometry.offset(held.index) + held.inside;
+    if (Math.abs(target - scroller.scrollTop) >= 0.5) scroller.scrollTop = target;
+  }
   function spacers() {
     const top = content.querySelector('[data-window-spacer="top"]');
     const bottom = content.querySelector('[data-window-spacer="bottom"]');
@@ -70,39 +81,47 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
     if (changed) spacers();
     return changed;
   }
+  // PAINT, MEASURE AND PLACE IN ONE TASK. A row the paint mounts carries the estimate until it is
+  // measured — replaced row objects, a fresh mount, a resize, a window moved by scrolling — while
+  // the DOM renders it at its real height at once. Measuring on the next frame left a gap in which
+  // the geometry described rows the reader had never seen at that height, and anything that read
+  // the anchor in that gap read the wrong record: a scroll before the frame, an update, or the
+  // deferred measurement itself once the scroller had moved. That is the All Alerts failure on a
+  // third of capture branches ("visible row moved 111px / 195px during refresh"), traced on
+  // 17 September 2026: an update that replaced every row object landed while the reader was at
+  // the bottom of the history, so rows 0–39 were back at the 120px estimate; the scroll to the top
+  // painted them at 82–99px and deferred the measurement; the suite's scroll to 900 landed in that
+  // gap; and the deferred measure() re-anchored on the estimate — row 7 at 20px inside, rows above
+  // the one the reader was on — and wrote scrollTop 705 for 900. The refresh then preserved the
+  // wrong row faithfully, so the assertion read it as movement during the refresh.
+  // So the geometry is brought into line in the same task as the paint, and the held record is put
+  // back from measured heights before anything else can run. The layout read costs nothing extra:
+  // the placement forces one anyway, and a paint that mounts nothing new returns before reading.
+  function settle(index, { force = false, held = null } = {}) {
+    if (!paint(index, force)) return false;
+    measureMounted();
+    if (held) restore(held);
+    return true;
+  }
+  function place(index, inside) { settle(index, { force: true, held: { index, inside } }); }
+  // The DOM changed under a geometry that matched it — a badge added or removed, a font arriving,
+  // a resize. The anchor still names the row the reader was looking at; measure, then put it back.
   function measure() {
     measureFrame = 0;
     if (disposed || !rows.length) return;
     const held = anchor();
     const changed = measureMounted();
-    if (changed && scroller.scrollTop > 0) scroller.scrollTop = head() + geometry.offset(held.index) + held.inside;
+    if (changed && scroller.scrollTop > 0) restore(held);
     onWindow?.(start, rows.length);
     // Measuring shorter rows can expose an unpainted part of the viewport without another
     // user scroll. Recheck coverage on the next frame after the spacer/anchor correction.
     if (changed) scheduleViewport();
   }
-  // PLACE A ROW FROM MEASURED HEIGHTS, NEVER FROM THE ESTIMATE. Rows the geometry has not measured
-  // — replaced row objects, a fresh mount, a resize — carry the estimate, while the rows painted
-  // above the held record render at their real height at once. A scrollTop computed from the
-  // estimate therefore lands the reader rows away from their record for a frame, until measure()
-  // corrects it; and a caller that corrects the position itself in that gap (All Alerts re-anchors
-  // against the real layout after every repaint) has its correction undone, because the deferred
-  // measurement then re-anchors from a geometry that no longer describes the DOM and scrolls to a
-  // different row. Measured, deterministically, in verify-windowed-list-ui.mjs: a reader on row 13
-  // landed on row 10 after every refresh that replaced the row objects — the "visible row moved
-  // 110px / 194px" failures on a third of capture branches. Paint the window, measure it in the
-  // same task, and only then place the record: the layout read costs nothing extra, because the
-  // placement forces one anyway.
-  function place(index, inside) {
-    paint(index, true);
-    measureMounted();
-    scroller.scrollTop = head() + geometry.offset(index) + inside;
-  }
   const scheduleMeasure = () => { if (!measureFrame && !disposed) measureFrame = requestAnimationFrame(measure); };
   function paint(index, force = false) {
     const count = Math.max(40, Math.min(100, Math.ceil(scroller.clientHeight / 40) + overscan * 2));
     const next = Math.max(0, Math.min(Math.max(0, rows.length - count), index - overscan));
-    if (!force && next === start && end === Math.min(rows.length, next + count)) return;
+    if (!force && next === start && end === Math.min(rows.length, next + count)) return false;
     start = next; end = Math.min(rows.length, start + count);
     const active = content.contains(document.activeElement) ? document.activeElement : null;
     const activeRow = active?.closest(rowSelector);
@@ -153,15 +172,19 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
       (replacement?.querySelectorAll('a,button,input,[tabindex]')[focusIndex] || scroller).focus({ preventScroll: true });
     }
     onWindow?.(start, rows.length);
+    // The same-task measurement above is what places the rows; this catches what lands after
+    // the task — a caller's mutation observer decorating the rows it was just handed.
     scheduleMeasure();
+    return true;
   }
   function scheduleViewport() {
     if (frame || disposed) return;
     frame = requestAnimationFrame(() => {
       frame = 0;
-      const index = geometry.indexAt(rowTop());
+      const held = scroller.scrollTop > 0 ? anchor() : null;
+      const index = held ? held.index : geometry.indexAt(rowTop());
       const lastVisible = geometry.indexAt(rowTop() + scroller.clientHeight);
-      if (index < start + overscan / 2 || lastVisible >= end - overscan / 2) paint(index);
+      if (index < start + overscan / 2 || lastVisible >= end - overscan / 2) settle(index, { held });
     });
   }
   function onScroll() { onScrollActivity?.(); scheduleViewport(); }
@@ -170,7 +193,7 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
   scroller.addEventListener('scroll', onScroll, { passive: true });
   const initialIndex = initialKey == null ? -1 : rows.findIndex(row => String(key(row)) === initialKey);
   if (initialIndex >= 0) place(initialIndex, 0);
-  else paint(geometry.indexAt(rowTop()), true);
+  else settle(geometry.indexAt(rowTop()), { force: true });
   const observer = new ResizeObserver(() => {
     if (width !== scroller.clientWidth) {
       const held = anchor(); width = scroller.clientWidth;
@@ -195,9 +218,9 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
         // Source updates can insert rows or replace their objects without changing the record
         // being read. Preserve that record and its within-row offset across new measurements.
         place(nextIndex, held.inside);
-      } else paint(geometry.indexAt(rowTop()), true);
+      } else settle(geometry.indexAt(rowTop()), { force: true });
     },
-    refresh() { paint(geometry.indexAt(rowTop()), true); },
+    refresh() { settle(geometry.indexAt(rowTop()), { force: true, held: scroller.scrollTop > 0 ? anchor() : null }); },
     destroy() {
       disposed = true;
       observer.disconnect(); scroller.removeEventListener('scroll', onScroll);

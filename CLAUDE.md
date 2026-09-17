@@ -1205,11 +1205,12 @@ revalidates its sources on mount — moved, not deleted, and the age stays state
 
 ### The team brief — two emails a weekday, built at the edge (GLOW-OWNED)
 
-The **Newsletter** button beside the header bell subscribes the desk to two Munshot-branded emails
-a weekday: the **morning brief** at 08:00 IST (what happened overnight — the US close, Asia this
+The **Newsletter** button beside the header bell subscribes the desk to two Glow Ventures-branded
+emails a weekday, each leading with the portfolio companies (one block per company, every link
+opening in a new tab) and following with the market scan: the **morning brief** at 08:00 IST (what happened overnight — the US close, Asia this
 morning, Brent, gold, silver, the dollar index and USD/JPY, plus every filing and story about a
 DIRECT holding since the previous evening) and the **evening brief** at 16:00 IST (the trading day).
-`docs/DATA-CONTRACTS.md` → *The team brief* has the routes, the shapes and the window rule. Six
+`docs/DATA-CONTRACTS.md` → *The team brief* has the routes, the shapes and the window rule. Seven
 rules, and every one of them is a rule this file already runs on:
 
 1. **"Direct ones" means `portfolio-companies.json`**, the Portfolio scope's own file, and nothing
@@ -1229,9 +1230,13 @@ rules, and every one of them is a rule this file already runs on:
    property of the store. An edition reached three hours late is recorded `missed`, not sent at lunch.
 5. **The credential is `MUNS_TOKEN` on the Worker, and its absence is a named state.** Sends go to
    `POST https://devde.muns.io/email/send/raw` with exactly one of `html`/`text`; without a token
-   the delivery is recorded `no-token` per recipient and the panel names the secret. A reader's own
-   session token may stand in for a send they press themselves, passed as a value and never stored.
-6. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
+   the delivery is recorded `no-token` per recipient and the panel names the secret in one line. A
+   reader's own session token may stand in for a send through `/api/newsletter/send`, passed as a
+   value and never stored.
+6. **The panel stays minimal**: your address with Subscribe / Unsubscribe, the list with × and one
+   add field, Preview Morning · Evening. No name field, no edition ticks, no send times, no send
+   buttons, no log — the owner asked for the simplest control, and those stay on the routes.
+7. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
    origin is told it has no newsletter, never shown an error.
 
 ### Two disclosures that look identical — the Institutions rule
@@ -2544,6 +2549,24 @@ were replaced — the "visible row moved 110px / 194px" failures that stopped a 
 read costs nothing extra, because the placement forces one anyway. `verify-windowed-list-ui.mjs`
 asserts it with a real browser and no data file: an update that replaces every row, the same update
 followed by the caller's own re-anchor, and a mount at a saved row.
+
+**AND THE SAME GAP WAS STILL OPEN ONE PAINT EARLIER.** That closed the update path and left the
+scroll path: a paint that mounted rows still measured them on the next frame, so between the two
+the geometry carried the estimate over rows the DOM was already showing at their real height, and
+anything that read the anchor in that gap read the wrong record. The failures went on at a third of
+runs (111px / 195px), and a trace that wrapped the scroller's `scrollTop` setter on 17 September
+2026 showed why: an update replacing every row object landed while the reader was at the end of the
+history, so rows 0–39 went back to the 120px estimate; the scroll to the top painted them at 82–99px
+and deferred the measurement; the suite's scroll to 900 arrived before that frame; and the deferred
+`measure()` re-anchored on the estimate — row 7 for row 10 — and wrote 705 for 900. The refresh then
+preserved the wrong row faithfully, which is what made the movement read as the refresh's. The NEW
+badges were not it: every trace had them long expired, and the list already held a badge appearing
+or vanishing above the viewport, before an update or without one — cases 6 and 7 in the suite, kept
+as guards. So every paint now ends in `settle()`: measure what was painted in the same task and put
+the held record back from measured heights — on the viewport path, the update path, `refresh()` and
+the first mount alike — and `measure()` on the next frame is left for what lands after the task, a
+caller's mutation observer decorating the rows it was just handed. Case 5 in the suite is the trace
+made deterministic, and it fails on the code before this.
 
 **The third one has a trap, and it cost the watchlist star.** Invalidating a row's cached markup
 does nothing on the fast path, because the fast path re-parses no HTML at all — it moves nodes
@@ -4207,17 +4230,22 @@ rule says to check that a committed capture reaches the live site — and if `co
 branches ever strand again, the recovery script unions each feed by its own identity, oldest branch
 first, and is re-runnable.
 
-**The gate's own bugs are in git history, not here.** Two rounds of fixes went into it before it was
-retired — reading the Verify run that actually executed rather than the never-run `pull_request`
-one, asking GitHub again while it still said a PR's mergeability was `UNKNOWN`, and running only for
-events that could change the answer — and every one of them was a fix to a mechanism that could not
-work, because the review it waited for could not arrive. If a reviewed-data gate is ever wanted
-again, it needs a reviewer that answers bot-authored PRs before it needs any of that.
+**The gate's own bugs are in git history, not here.** Three rounds of fixes went into it before it
+was retired — reading the Verify run that actually executed rather than the never-run
+`pull_request` one, asking GitHub again while it still said a PR's mergeability was `UNKNOWN`,
+running only for events that could change the answer, and finally waiting out a Verify in progress
+because GitHub raises no `workflow_run` event for a run that `GITHUB_TOKEN` dispatched (measured:
+97 dispatched Verify completions in six hours and not one gate run after any of them) — and every
+one of them was a fix to a mechanism that could not work, because the review it waited for could
+not arrive. If a reviewed-data gate is ever wanted again, it needs a reviewer that answers
+bot-authored PRs before it needs any of that, and a scheduler that is not `GITHUB_TOKEN` either.
 
 **A flaky Verify assertion on a data commit can still be a real bug.** The All Alerts "visible row
 moved 110px / 194px during refresh" failures on a third of the capture branches were the windowed
-list placing a held row from ESTIMATED heights and correcting a frame later — see *Performance on
-large tables* — and `verify-windowed-list-ui.mjs` now pins the reader's row deterministically. When
+list carrying the ESTIMATE over rows it had already painted and measuring them a frame later —
+closed first on the update path (#1132), then on every paint once a scroller-write trace showed the
+deferred measurement re-anchoring on the estimate after a scroll; see *Performance on large
+tables*. `verify-windowed-list-ui.mjs` pins the reader's row deterministically through both. When
 a browser step fails on a data-only push to main, read the assertion before retrying: it is either
 a test reading live data (`verify-research-reasoning-ui.mjs` asserts a market-wrap co-mention
 against the shipped capture), a runner-speed budget (the All Alerts "visible stream completes
