@@ -176,7 +176,9 @@ export function periodSummary({ include = null, limit = 5 } = {}) {
     for (const mv of moves) {
       if (!actions.includes(mv.action)) continue;
       if (!byKey.has(mv.securityKey)) byKey.set(mv.securityKey, { securityKey: mv.securityKey, security: mv.security, symbol: mv.symbol, managers: [] });
-      byKey.get(mv.securityKey).managers.push({ managerId: mv.managerId, manager: mv.manager, action: mv.action, deltaPp: mv.deltaPp, weightNow: mv.weightNow, qtyNow: mv.qtyNow });
+      // The dated trades and the statement window travel with each mandate's entry, so a consensus
+      // row can print WHEN each manager moved rather than only that it did.
+      byKey.get(mv.securityKey).managers.push({ managerId: mv.managerId, manager: mv.manager, action: mv.action, deltaPp: mv.deltaPp, weightNow: mv.weightNow, qtyNow: mv.qtyNow, trades: mv.trades || null, window: mv.window || null });
     }
     return [...byKey.values()]
       .filter((c) => c.managers.length > 1)

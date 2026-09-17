@@ -35,6 +35,11 @@ jobs:
       - name: Audit every investor and manager
         id: audit
         continue-on-error: true
+        # This run answers for the Finology books and the exchange filings it captured. The
+        # managers' statement archive is series-refresh.yml's capture: an age on it is printed
+        # here as a warning naming that workflow, never as this run's failure.
+        env:
+          HOLDINGS_AUDIT_OWNS: investors,exchange
         run: node scripts/audit-holdings.mjs
       - uses: actions/upload-artifact@v5
         if: always()
@@ -45,8 +50,50 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/publish-data-pr.mjs investor-holdings public/data/super-investors.json public/data/shareholding-filings.json.gz public/data/public-holdings.json
+      # A CAPTURE THAT SITS IN AN UNMERGED PR HAS NOT REACHED THE DASHBOARD. Every scheduled writer
+      # publishes into a codex/data-* PR that merges only once its checks pass AND a review lands,
+      # and the Codex connector cannot review a PR raised by github-actions[bot] — so measured on
+      # 16 September 2026 the live site still carried the 9 September capture while five green
+      # captures a day piled up as open PRs. Nothing about the gate changes here; what changes is
+      # that every run now says, in its own summary, how much captured data is waiting and where.
+      - name: Report captured data still waiting for review
+        if: always()
+        # Informational: it may never be the reason a run is red.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          pending="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --author 'app/github-actions' --limit 100 \
+            --json number,title,headRefName,createdAt,url \
+            --jq '[.[] | select(.headRefName | startswith("codex/data-"))] | sort_by(.createdAt)')"
+          count="$(printf '%s' "$pending" | jq 'length')"
+          {
+            echo "## Captured data waiting for review"
+            if [ "$count" = "0" ]; then
+              echo "Every generated-data PR has merged; the dashboard is on the latest captures."
+            else
+              echo "$count open \`codex/data-*\` pull requests hold captured data the dashboard is not yet showing. Each needs its Verify checks green and a review from someone who can merge by hand — the Codex connector cannot review a PR raised by github-actions[bot]."
+              echo
+              printf '%s' "$pending" | jq -r '.[] | "- [#\(.number)](\(.url)) \(.title) — opened \(.createdAt[:10])"'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$count" != "0" ]; then
+            oldest="$(printf '%s' "$pending" | jq -r '.[0].createdAt[:10]')"
+            echo "::warning title=$count captured data PRs are waiting for review::The oldest was opened on $oldest. The dashboard shows main, so it stays on the last merged capture until these are approved."
+          fi
       - name: Surface failed or overdue ingestion
         if: steps.capture.outcome == 'failure' || steps.primary.outcome == 'failure' || steps.audit.outcome == 'failure'
         run: |
-          echo "::error::Holdings ingestion needs attention. Last-good data was preserved; see the coverage audit artifact and run summary."
+          # One error per cause, in words, so the red run says what happened rather than only that
+          # something did. Last-good data is preserved in every case.
+          if [ "${{ steps.capture.outcome }}" = "failure" ]; then
+            echo "::error title=Finology capture did not complete::The super-investor books could not all be read from the Worker relay (devde.muns.io behind it). Retained books keep their last read time; see the Finology capture section of this summary."
+          fi
+          if [ "${{ steps.primary.outcome }}" = "failure" ]; then
+            echo "::error title=Exchange filings capture did not complete::Some NSE/BSE shareholding filings could not be read this run. Successful reads are retained; unread filings stay in the review queue."
+          fi
+          if [ "${{ steps.audit.outcome }}" = "failure" ]; then
+            echo "::error title=This run's sources are overdue::The coverage audit found an investor book or exchange capture older than policy allows. See the Holdings coverage section of this summary."
+          fi
           exit 1

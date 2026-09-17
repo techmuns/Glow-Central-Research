@@ -13,7 +13,7 @@ import { openManager } from './my-managers.js';
 import { exportRows } from '../ui/export.js';
 import { withVerifiedEntities } from '../data/holdings-integrity.js';
 import { loadEvidence, evidence } from '../data/holding-evidence.js';
-import { PERIODS, periodRange, inPeriod, matchedDeals, managerTrades, managerHoldings, investorHoldings } from '../data/investor-changes.js';
+import { PERIODS, periodRange, inPeriod, matchedDeals, managerTrades, managerHoldings, investorHoldings, tradeWindow } from '../data/investor-changes.js';
 
 const audiences = [{ id: 'my-managers', label: 'My Managers' }, { id: 'investors', label: 'All Investors' }];
 const date = (value) => value ? formatDate(value) : '—';
@@ -23,6 +23,21 @@ const money = (value) => Math.abs(value) >= 1e7 ? formatCroreCompact(Math.abs(va
   : `₹${formatNumber(Math.abs(value), { decimals: 2 })}`;
 const pct = (value) => value == null ? '—' : `${value.toFixed(2)}%`;
 const actionLabels = { new: 'Newly reported', added: 'Increased', trimmed: 'Reduced', exited: 'No longer reported', awaiting: 'Incomplete disclosure' };
+// DATES ON EVERY ROW. A comparison row prints the two dates it was measured on — quarter-end
+// dates for two shareholding patterns, statement dates for two PMS statements — and never
+// implies a day inside the window. A trade date is printed only where the statement carries one.
+const dateSpan = (from, to) => `${from ? date(from) : '—'} → ${to ? date(to) : '—'}`;
+function statementDatesCell(r) {
+  const kind = r.dateKind === 'pattern' ? 'shareholding patterns, dated on the quarter end' : 'manager statements';
+  return `<span class="whitespace-nowrap tabular-nums text-slate-800">${esc(dateSpan(r.from, r.date))}</span><span class="block text-[10px] text-slate-400">${esc(r.period)} · ${esc(kind)}</span>`;
+}
+function tradeDatesCell(r) {
+  if (r.dateKind === 'pattern') return `<span class="text-slate-400" title="A quarterly shareholding pattern states the holding on the quarter-end date. The exchange filing does not carry the date of any trade behind the change.">Not in a pattern</span>`;
+  const w = tradeWindow(r);
+  if (!w) return `<span class="text-slate-400" title="The manager’s transaction statement lists no trade in this security between the two statement dates.">${r.via?.length ? esc(`Corporate action: ${r.via.join(', ')}`) : 'No dated trade in the window'}</span>`;
+  const sides = [w.buys ? `${w.buys} buy${w.buys === 1 ? '' : 's'}` : null, w.sells ? `${w.sells} sell${w.sells === 1 ? '' : 's'}` : null].filter(Boolean).join(', ');
+  return `<span class="whitespace-nowrap tabular-nums text-slate-800">${esc(w.first === w.last ? date(w.first) : dateSpan(w.first, w.last).replace('→', '–'))}</span><span class="block text-[10px] text-slate-400">${esc(sides)} on the statement</span>`;
+}
 
 export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor, includeHolding } = {}) {
   const state = { audience: 'my-managers', period: 'quarter', ...view };
@@ -50,7 +65,7 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
       : row.ticker ? scopeAllowsTicker(ctx.scope, row.ticker) : !includeHolding || includeHolding(row.company);
     const deals = matchedDeals(insider.rows(), people);
     const activity = [...(mine ? managerTrades(allManagers) : []), ...deals].filter(allows);
-    const holdings = (mine ? managerHoldings(allManagers) : investorHoldings(investors.books(), list)).filter(allows);
+    const holdings = (mine ? managerHoldings(allManagers, { syncedAt: managers.meta()?.syncedAt || null }) : investorHoldings(investors.books(), list)).filter(allows);
     const range = periodRange(state.period);
     const events = activity.filter((r) => inPeriod(r, range)).sort((a, b) => b.date.localeCompare(a.date));
     const observations = holdings.filter((r) => inPeriod(r, range)).sort((a, b) => b.date.localeCompare(a.date));
@@ -87,11 +102,13 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
       onExport: (rows) => exportChanges(rows, state, range, true),
       emptyMessage: 'No holdings comparison ends in this period. Reports may arrive after the period ends.',
       columns: [
-        { label: 'Comparison', get: (r) => r.period },
+        { label: mine ? 'Statement dates' : 'Pattern dates', html: true, get: statementDatesCell, sortValue: (r) => r.date || '' },
         { label: 'Change', get: (r) => actionLabels[r.action] || r.action },
         { label: mine ? 'Prior weight' : 'Prior stake', get: (r) => pct(r.before) },
         { label: mine ? 'Latest weight' : 'Latest stake', get: (r) => pct(r.now) },
         { label: 'Change (derived)', get: (r) => pp(r.deltaPp) },
+        { label: 'Trade dates', html: true, get: tradeDatesCell, sortValue: (r) => tradeWindow(r)?.last || '' },
+        { label: 'Source read', get: (r) => date(r.sourceCheckedAt), sortValue: (r) => r.sourceCheckedAt || '' },
       ],
     });
     state.holdingsView = holdingTable.view;
@@ -123,7 +140,7 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
         <p class="my-3 text-xs text-slate-500" data-changes-coverage>${ready ? (earliest ? `Matching trade records: ${esc(date(earliest))} – ${esc(date(latest))}. ` : 'No matching trade records loaded. ') : 'Loading source records. '}${mine ? 'PMS activity covers the family’s accounts; public deals are at the named manager/fund level. ' : ''}ITD covers retained records, not necessarily inception. Deals do not establish total allocation.</p>
         <details class="mb-4 rounded-2xl bg-white p-4 ring-1 ring-slate-100" data-changes-holdings ${state.holdingsOpen ? 'open' : ''}>
           <summary class="cursor-pointer text-sm font-semibold text-slate-700">Holdings changes · ${observations.length} comparisons in this period</summary>
-          <p class="my-3 text-xs text-slate-500">Filtered by the comparison’s end date, not a trade date. ${mine ? 'The two latest PMS statements compare quantities; weights are derived from statement values.' : 'Quarterly disclosures compare the stake in a company. A missing disclosure does not prove a sale.'} These comparisons are separate from the trades above.</p>
+          <p class="my-3 text-xs text-slate-500">Every row prints the two dates it was measured on${mine ? ' — the two statement dates — and the dated trades the transaction statement carries between them.' : ' — the quarter-end dates of the two shareholding patterns. A pattern states a holding on a date and carries no trade date.'} Filtered by the later of the two dates, not a trade date. ${mine ? 'The two latest PMS statements compare quantities; weights are derived from statement values.' : 'Quarterly disclosures compare the stake in a company. A missing disclosure does not prove a sale.'} Source read is when this dashboard last read the source. These comparisons are separate from the trades above.</p>
           <div data-changes-observations>${holdingTable.html}</div>
         </details>
         <details class="text-xs text-slate-500" data-changes-sources ${state.sourcesOpen ? 'open' : ''}>
@@ -172,10 +189,16 @@ function openEvidence(row, mine, openPerson) {
 }
 
 function exportChanges(rows, state, range, holdings) {
-  const keys = holdings ? ['date', 'from', 'period', 'person', 'company', 'action', 'before', 'now', 'deltaPp', 'unit', 'source']
+  const keys = holdings ? ['from', 'date', 'dateKind', 'period', 'person', 'company', 'action', 'before', 'now', 'deltaPp', 'unit', 'source', 'sourceCheckedAt']
     : ['date', 'person', 'company', 'ticker', 'action', 'quantity', 'amount', 'value', 'source', 'reportedName'];
+  const headers = { amount: 'Statement amount (INR)', from: 'Measured from (date)', date: holdings ? 'Measured to (date)' : 'Trade date', dateKind: 'Date kind (pattern = quarter end, statement = statement date)', sourceCheckedAt: 'Source read' };
+  const tradeColumns = holdings ? [
+    { header: 'First trade in window', key: 'tradeFirst', width: 20, get: (r) => tradeWindow(r)?.first ?? null },
+    { header: 'Last trade in window', key: 'tradeLast', width: 20, get: (r) => tradeWindow(r)?.last ?? null },
+    { header: 'Buys / sells in window', key: 'tradeSides', width: 20, get: (r) => { const w = tradeWindow(r); return w ? `${w.buys} / ${w.sells}` : null; } },
+  ] : [];
   return exportRows({ filename: `${state.audience}-${holdings ? 'holdings' : 'activity'}-${state.period}`, sheetName: holdings ? 'Holdings comparisons' : 'Trades',
-    columns: [...keys.map((key) => ({ header: key === 'amount' ? 'Statement amount (INR)' : key, key, width: 24, get: (r) => r[key] ?? null })),
+    columns: [...keys.map((key) => ({ header: headers[key] || key, key, width: 24, get: (r) => r[key] ?? null })), ...tradeColumns,
       { header: 'Evidence', key: 'evidence', width: 60, get: (r) => r.raw?.cells ? insiderTradeSourceUrl(r.raw) : r.raw?.source || r.period || '' },
-      { header: 'Period and scope', key: 'periodNote', width: 70, get: () => `${state.audience}; ${range.from || 'All retained history'} to ${range.to}. ${holdings ? 'Comparison end dates; weights/stakes are derived observations, not trade sizes.' : 'Reported trades only; public deals are not family account trades. Duplicate identical reports grouped.'} ITD may not reach inception.` }], rows });
+      { header: 'Period and scope', key: 'periodNote', width: 70, get: () => `${state.audience}; ${range.from || 'All retained history'} to ${range.to}. ${holdings ? 'Each row is measured on the two dates printed (quarter ends of two shareholding patterns, or two statement dates); weights/stakes are derived observations, not trade sizes, and only a statement trade carries a trade date.' : 'Reported trades only; public deals are not family account trades. Duplicate identical reports grouped.'} ITD may not reach inception.` }], rows });
 }

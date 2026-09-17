@@ -36,9 +36,31 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   await page.keyboard.press('Escape');
   await page.locator('[data-changes-holdings] summary').click();
   assert(await page.locator('[data-changes-observations] tr[data-row-key]').count() > 0);
+  // EVERY COMPARISON ROW IS DATED ON BOTH STATEMENTS, and a trade date appears only where the
+  // statement carries one. The dates are printed, not implied by "this period".
+  // Chromium's en-IN locale spells September "Sept", so a month is three or four letters here.
+  const DATE = '\\d{2} [A-Z][a-z]{2,4} \\d{4}';
+  const span = new RegExp(`${DATE} → ${DATE}`);
+  const observationRows = page.locator('[data-changes-observations] tr[data-row-key]');
+  assert.match(await page.locator('[data-changes-observations] thead').innerText(), /statement dates.*trade dates.*source read/is, 'the comparison table heads name both dates and the read date');
+  for (let i = 0; i < Math.min(await observationRows.count(), 6); i++) {
+    const text = await observationRows.nth(i).innerText();
+    assert.match(text, span, `row ${i} prints the two statement dates: ${text.slice(0, 120)}`);
+    assert.match(text, /manager statements/, 'the row says which kind of dates they are');
+    assert.match(text, new RegExp(`(${DATE}.*(buy|sell))|No dated trade in the window|Corporate action`, 's'), `row ${i} states its trade date or says there is none`);
+  }
   await page.locator(`${nav} [data-tab-id=my-managers]`).click();
   await page.waitForSelector('[data-managers-panel]:not([data-managers-loading])');
   assert(await page.locator('[data-open-manager]').count() > 0);
+  // Inside a PMS mandate, every move on "This period" carries the statement dates and the dated
+  // trades that explain it, in the manager's own figures.
+  await page.locator('[data-manager-kind="pms"] [data-open-manager]').first().click();
+  await page.waitForSelector('#workspace-panel');
+  await page.locator('[data-ws-tab=moves]').click();
+  const movesText = await page.locator('#workspace-panel').innerText();
+  assert.match(movesText, span, 'the moves panel dates the two statements on every row');
+  assert.match(movesText, new RegExp(`(bought|sold) [\\d,]+ in \\d+ trades? .*(on ${DATE}|${DATE} – ${DATE})`, 's'), 'a dated trade prints its own date');
+  await page.keyboard.press('Escape');
   await page.locator(`${nav} [data-tab-id=investors]`).click();
   assert(await page.locator('[data-open-investor]').count() > 0);
   await page.locator(`${nav} [data-tab-id=quarterly-changes]`).click();
@@ -82,7 +104,15 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   await settled();
   assert.equal(await page.locator(`${nav} [aria-selected=true]`).innerText(), 'Changes');
   assert.equal(await page.locator('[data-changes-period]').inputValue(), 'quarter');
-  await page.locator('[data-holdings-integrity] summary').click();
+  // THE COVERAGE AUDIT IS NOT ON THE PAGE. It opens from "How this is derived", lists every
+  // investor and manager, and a row closes the modal before it opens the workspace.
+  assert.equal(await page.locator('[data-live-panel] [data-holdings-integrity], #app [data-holdings-integrity]').count(), 0, 'no coverage block on the customer page');
+  assert.doesNotMatch(await page.locator('[data-live-panel]').innerText(), /need attention/);
+  const openCoverage = async () => {
+    await page.locator('[data-summary-help]').first().click();
+    await page.waitForSelector('#modal-content [data-holdings-integrity] [data-integrity-person]');
+  };
+  await openCoverage();
   const expectedCoverage = await page.evaluate(async () => {
     const investors = await import('/js/data/super-investors.js');
     const managers = await import('/js/data/managers.js');
@@ -93,6 +123,7 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   assert.equal(await page.locator('[data-integrity-person]').count(), 1);
   await page.locator('[data-integrity-person]').click();
   await page.waitForSelector('[data-public-disclosures]');
+  assert.equal(await page.locator('#modal-overlay.is-open').count(), 0, 'opening a profile closes the audit modal so the workspace is not stacked beneath it');
   assert.match(await page.locator('[data-public-disclosures]').innerText(), /TIL LIMITED.*Singularity Equity Fund I/s);
   assert.match(await page.locator('[data-public-disclosures]').innerText(), /2026-08-06/);
   await page.locator('[data-ws-tab=exchange]').click();
@@ -113,12 +144,18 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   assert((await page.locator('#workspace-panel').innerText()).includes(`${periods.latest} minus ${periods.prior}`));
   assert.doesNotMatch(await page.locator('#workspace-panel').innerText(), /Aug 2026 minus/);
   await page.keyboard.press('Escape');
+  await openCoverage();
   await page.locator('[data-integrity-search]').fill('Mukul');
   await page.locator('[data-integrity-person]').click();
   await page.locator('[data-ws-tab=moves]').click();
   const mukulPeriods = await page.evaluate(async () => (await import('/js/data/super-investors.js')).movesFor('mukul-agrawal'));
   assert((await page.locator('#workspace-panel').innerText()).includes(`${mukulPeriods.latest} minus ${mukulPeriods.prior}`));
+  // The investor workspace dates both patterns on every compared row and says when the book was read.
+  assert(await page.locator('#workspace-panel [data-pattern-dates]').count() > 0, 'every quarterly comparison row carries its two pattern dates');
+  assert.match(await page.locator('#workspace-panel [data-pattern-dates]').first().innerText(), span);
+  assert.match(await page.locator('#workspace-panel').innerText(), new RegExp(`Source read ${DATE}`));
   await page.keyboard.press('Escape');
+  await openCoverage();
   await page.locator('[data-integrity-search]').fill('3P');
   await page.locator('[data-integrity-person="3p-investment-managers"]').click();
   await page.locator('[data-ws-tab=exchange]').click();
@@ -134,13 +171,16 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   await evidenceFile.saveAs('/tmp/glow-manager-exchange-evidence.xlsx');
   await page.screenshot({ path: '/tmp/glow-manager-public-holdings.png', fullPage: true });
   await page.keyboard.press('Escape');
-  await page.locator('[data-integrity-search]').fill('');
   await page.setViewportSize({ width: 390, height: 844 });
-  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'expanded coverage must stay within the mobile page');
+  await openCoverage();
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'the open coverage audit must stay within the mobile page');
   await page.screenshot({ path: '/tmp/glow-holdings-integrity-mobile.png', fullPage: true });
+  await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await openCoverage();
   await page.screenshot({ path: '/tmp/glow-holdings-integrity-desktop.png', fullPage: true });
-  console.log('PASS Changes UI: default/order, independent audiences, eight periods, directory navigation, source details, preserved state, keyboard focus and mobile overflow');
+  await page.keyboard.press('Escape');
+  console.log('PASS Changes UI: default/order, independent audiences, eight periods, dated rows, coverage behind the provenance door, directory navigation, source details, preserved state, keyboard focus and mobile overflow');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
