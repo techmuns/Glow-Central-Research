@@ -2808,6 +2808,31 @@ as `data-priority` and in the filter chips. And the pattern block is now a row o
 pattern, not a panel restating their sentences — it still sits above the evidence, because the
 finding is read before its workings, and it still prints no score.
 
+### TWO BULLETS PER COMPANY, AND THE THREE TRIGGERS AS FILTERS — `impactOf()`
+
+The desk's brief (17 September 2026): *"three triggers — will it change the earnings assumption,
+will it change the valuation, will it make or break the thesis. Two bullets for each company: what
+has happened, and will it change those three."* Every card now carries exactly those two bullets.
+The first is `plainInsight`, unchanged. The second is `impactLine`, and the whole of its honesty is
+in the verb: **it says *could change*, never *will*, and it names the QUESTION an event bears on,
+never the answer** — no field in any feed here carries an analyst's judgement, and this dashboard
+does not invent one. `eventImpacts(event)` reads the question off structured facts the collectors
+already write: a tracked keyword's family (an order win is an earnings question, a buyback a
+valuation one, a fraud probe a thesis one), a filing rule's own name (`filingRule`, now returned by
+`announcementSignal`), a result filed, a close past `MOVE_PCT`, a holder's move past its feed's own
+bar. Four rules, all already in this file: **no new fact**; **each leg keys on the owning feed's
+published threshold** (`importance === 'high'`, the confluence predicate); **a holder's or an
+insider's move bears on none of the three by itself** — it is somebody else's decision and already
+the first bullet's business, and measured on the shipped capture insider disclosures alone had put
+31 of 60 cards under Thesis; **volume bears on nothing**. And an
+absence is stated in words — *"Nothing tracked here bears on the thesis"* — because *not tracked* and
+*no* are different answers. The three questions are a second chip group beside the priority chips,
+**Could change** · *Earnings · n* · *Valuation · n* · *Thesis · n*: one pressed at a time, pressed
+again to clear, each count measured with the other group held fixed (the technical-filter rule), and
+an empty trigger view says it is a reading of tracked triggers rather than a claim that nothing could
+change. The mapping is one table (`IMPACT_BY_KEYWORD`, `IMPACT_BY_FILING_RULE`); a keyword absent
+from it bears on nothing rather than on a nearest guess.
+
 ### ARCHIVING IS A PLACE, NOT A DELETION — `js/core/ai-mute.js`
 
 A card can be archived once it has been read. **A control that makes a card disappear with nothing

@@ -1365,6 +1365,40 @@ console.log('\n— AI alerts —');
     aiShape.every((card) => card.insight.length > 0 && card.insight.length <= 260),
     `longest ${Math.max(0, ...aiShape.map((card) => card.insight.length))} chars`);
 
+  // THE TWO BULLETS. Every card reads "What happened" and "Earnings assumption, valuation or
+  // thesis?" — the desk's brief — with the second saying which of the three QUESTIONS the evidence
+  // bears on: "could change", never "will", read from tracked keywords, filing rules and each feed's
+  // own threshold. The trigger chips above count exactly the cards whose second bullet names each.
+  const bullets = await aiCards.evaluateAll((els) => els.map((el) => ({
+    ticker: el.dataset.ticker,
+    kickers: [...el.querySelectorAll('[data-ai-brief] li > div > div:first-child')].map((n) => n.textContent.trim()),
+    line: (el.querySelector('[data-ai-impact-line]')?.innerText || '').trim(),
+    axes: (el.querySelector('[data-ai-impact-row]')?.dataset.axes || '').split(' ').filter(Boolean),
+    bold: [...el.querySelectorAll('[data-ai-impact-line] [data-ai-axis]')].map((n) => n.dataset.aiAxis),
+  })));
+  ok('every card carries the two bullets the desk asked for, in order',
+    bullets.length > 0 && bullets.every((c) => c.kickers.join('|') === 'What happened|Earnings assumption, valuation or thesis?' && c.line.length > 0));
+  ok('...and the second bullet asks which question, never answers it',
+    bullets.every((c) => /^(Could change |Nothing here is a tracked trigger)/.test(c.line) && !/\bwill\b/i.test(c.line) && c.bold.join() === c.axes.join()),
+    bullets.map((c) => `${c.ticker}:${c.axes.join('+') || 'none'}`).join(' | ').slice(0, 160));
+  const triggerChips = await page.locator('[data-ai-triggers] [data-ai-impact]').evaluateAll((els) => els.map((el) => ({ axis: el.dataset.aiImpact, count: Number(el.innerText.split('·')[1]) })));
+  const allChipCount = Number((await page.locator('[data-ai-filter="all"]').innerText()).split('·')[1]);
+  ok('the three trigger chips are offered, each counted, none above the view total',
+    triggerChips.map((c) => c.axis).join(',') === 'earnings,valuation,thesis' && triggerChips.every((c) => Number.isFinite(c.count) && c.count <= allChipCount),
+    triggerChips.map((c) => `${c.axis} ${c.count}`).join(' · ') + ` of ${allChipCount}`);
+  const narrowing = triggerChips.find((c) => c.count > 0 && c.count < allChipCount) || triggerChips.find((c) => c.count > 0);
+  if (!narrowing) skip('a trigger chip narrows to the cards that bear on it', 'no card carries a trigger in this capture');
+  else {
+    await page.locator(`[data-ai-impact="${narrowing.axis}"]`).click();
+    await page.waitForTimeout(250);
+    const shown = await page.locator('[data-ai-card]').evaluateAll((els) => els.map((el) => (el.querySelector('[data-ai-impact-row]')?.dataset.axes || '').split(' ')));
+    const viewCount = Number((await page.locator('[data-ai-controls] [role="status"] strong').innerText()).replace(/[^0-9]/g, ''));
+    ok('a trigger chip narrows to the cards that bear on it, and says how many',
+      shown.length > 0 && shown.every((axes) => axes.includes(narrowing.axis)) && viewCount === narrowing.count, `${narrowing.axis}: ${viewCount} of ${allChipCount}`);
+    await page.locator(`[data-ai-impact="${narrowing.axis}"]`).click();
+    await page.waitForTimeout(250);
+  }
+
   // ARCHIVING IS A PLACE, NOT A DELETION. A control that makes a card vanish with nothing on
   // screen saying where it went is indistinguishable from losing it, so the round trip is asserted
   // in both directions: the card leaves the list, is findable in Archived, and comes back.

@@ -48,6 +48,8 @@ let loadToken = 0;
 let cacheToken = 0;
 let unsubs = [];
 let filter = 'all';
+// The desk's trigger filter: null, or one of IMPACT_AXES' ids. Independent of the priority band above.
+let impactFilter = null;
 let visibleLimit = PAGE_SIZE;
 let query = '';
 let sizeController = null;
@@ -458,14 +460,29 @@ export function feedStatus(rep) {
   return { label: 'Updated', tone: 'positive', state: 'complete' };
 }
 
+const isArchived = (card) => mute.isHidden(card.key || card.ticker, card.evidenceKey || card.topEvent?.id || '');
+const hasImpact = (card, axis) => (card.impacts || []).some((hit) => hit.axis === axis);
+
 function controls(cards, visibleCount) {
-  const active = cards.filter((card) => !mute.isHidden(card.key || card.ticker, card.evidenceKey || card.topEvent?.id || ''));
+  // EACH CHIP GROUP COUNTS WITH THE OTHER GROUP HELD FIXED — the technical-filter rule. A priority
+  // count that ignored the selected trigger would read "Must see · 6" above a view showing two, and
+  // a trigger count that ignored the band would promise cards the band has already excluded.
+  const inImpact = (card) => !impactFilter || hasImpact(card, impactFilter);
+  const inPriority = (card) => filter === 'archived' ? isArchived(card) : !isArchived(card) && (filter === 'all' || card.priority === filter);
+  const active = cards.filter((card) => !isArchived(card) && inImpact(card));
   const mustSee = active.filter((card) => card.priority === 'must-see').length;
   const important = active.filter(card => card.priority === 'important').length;
   // Counted over what is ACTUALLY archived out of this view, not over the whole store: an entry
   // whose evidence has been overtaken is no longer hiding anything, and reporting it as archived
   // would send the reader looking for a card that is already back on the page.
-  const archived = cards.length - active.length;
+  const archived = cards.filter((card) => isArchived(card) && inImpact(card)).length;
+  const byPriority = cards.filter(inPriority);
+  // THE DESK'S THREE TRIGGERS AS A SECOND CHIP GROUP. "Will it change the earnings assumption, the
+  // valuation, or the thesis?" — each chip narrows to the cards whose second bullet names that
+  // question, and its count is measured over the cards the priority band already admits.
+  const triggers = alerts.IMPACT_AXES.map((axis) => ({
+    id: axis.id, label: `${axis.short} · ${byPriority.filter((card) => hasImpact(card, axis.id)).length}`, title: axis.question,
+  }));
   const options = [
     { id: 'all', label: `All priorities · ${active.length}` },
     { id: 'must-see', label: `Must see · ${mustSee}` },
@@ -477,9 +494,16 @@ function controls(cards, visibleCount) {
   ];
   return `
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3" data-ai-controls>
-      <div class="flex flex-wrap gap-2" role="group" aria-label="Filter AI Alerts by priority">
-        ${options.map((option) => `<button type="button" data-ai-filter="${option.id}" aria-pressed="${filter === option.id}"
-          class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${filter === option.id ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200 hover:text-indigo-700 hover:ring-indigo-200'}">${escapeHtml(option.label)}</button>`).join('')}
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Filter AI Alerts by priority">
+          ${options.map((option) => `<button type="button" data-ai-filter="${option.id}" aria-pressed="${filter === option.id}"
+            class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${filter === option.id ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200 hover:text-indigo-700 hover:ring-indigo-200'}">${escapeHtml(option.label)}</button>`).join('')}
+        </div>
+        <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Filter AI Alerts by what the news could change" data-ai-triggers>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400" title="The desk’s three triggers. Each chip keeps the cards whose events bear on that question — read from a tracked keyword, a filing rule or a feed’s own threshold, never a verdict. Click again to clear.">Could change</span>
+          ${triggers.map((trigger) => `<button type="button" data-ai-impact="${trigger.id}" aria-pressed="${impactFilter === trigger.id}" title="${escapeHtml(trigger.title)}"
+            class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${impactFilter === trigger.id ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200 hover:text-indigo-700 hover:ring-indigo-200'}">${escapeHtml(trigger.label)}</button>`).join('')}
+        </div>
       </div>
       <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
         <label class="flex items-center gap-2">Sort
@@ -533,6 +557,44 @@ function confluenceMarkup(card) {
     </div>`;
 }
 
+/**
+ * THE TWO BULLETS. "One bullet is basically what has happened. And second is, will it change the
+ * earnings assumption, valuation, or thesis?" — the desk's brief, and the card's whole reading in
+ * two lines. The first is `plainInsight`, exactly as before; the second is `impactParts`, which says
+ * "could change", names the trigger it read and says in words which question nothing here bears on
+ * (see data/ai-alerts.js — it is a reading of tracked keywords, filing rules and feed thresholds,
+ * never a verdict). The axis names are set in bold so the eye can index the three questions, and
+ * `data-axes` carries the same answer machine-readably for the chips above and the checks.
+ */
+function briefMarkup(card) {
+  const impacts = card.impacts || [];
+  const parts = alerts.impactParts(impacts);
+  const title = impacts.length
+    ? impacts.map((hit) => `${hit.question} ${hit.reasons.map((reason) => reason.text).join('; ')}.`).join(' ')
+    : 'Read from each event’s tracked keyword, filing rule or feed threshold. No trigger matched here, which is not the same as no impact.';
+  return `
+    <ul data-ai-brief class="mt-3 space-y-2.5">
+      <li class="flex items-start gap-2.5">
+        <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" aria-hidden="true"></span>
+        <div class="min-w-0 flex-1">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">What happened</div>
+          <p data-ai-insight class="font-display text-[17px] font-bold leading-snug text-slate-900">${escapeHtml(card.insight)}</p>
+        </div>
+      </li>
+      <li class="flex items-start gap-2.5" data-ai-impact-row data-axes="${escapeHtml(impacts.map((hit) => hit.axis).join(' '))}">
+        <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" aria-hidden="true"></span>
+        <div class="min-w-0 flex-1">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Earnings assumption, valuation or thesis?</div>
+          <p data-ai-impact-line class="text-sm leading-snug text-slate-700" title="${escapeHtml(title)}">${parts
+            .map((part) => part.kind === 'axis'
+              ? `<strong data-ai-axis="${escapeHtml(part.axis)}" class="font-bold text-slate-900">${escapeHtml(part.text)}</strong>`
+              : escapeHtml(part.text))
+            .join('')}</p>
+        </div>
+      </li>
+    </ul>`;
+}
+
 const METRIC_TONE = {
   positive: 'text-emerald-600',
   negative: 'text-rose-600',
@@ -576,7 +638,8 @@ function cardSnapshot(card) {
     kind: 'AI Alerts', source: 'Dashboard analysis', sourceId: `${card.key || card.ticker}:${card.evidenceKey || card.insight}`,
     eventDate: latestAlertEvent(card)?.day,
     body: card.events.map(event => [event.headline, event.detail, event.reason].filter(Boolean).join('\n')).join('\n\n'),
-    details: card.events.map(event => ({ label: `${event.feedLabel || event.feed} · ${event.day || 'Date not supplied'}`, value: event.headline })),
+    details: [{ label: 'Earnings assumption, valuation or thesis?', value: card.impactLine || alerts.impactLine(card.impacts || []) },
+      ...card.events.map(event => ({ label: `${event.feedLabel || event.feed} · ${event.day || 'Date not supplied'}`, value: event.headline }))],
     links: card.events.filter(event => event.url).map(event => ({ label: event.headline, url: event.url })),
   });
   cardSnapshots.set(card, snapshot);
@@ -613,7 +676,7 @@ function cardMarkup(card, scope, day, archived = false) {
         </p>
         ${Number.isFinite(card.holdingWeightPct) ? `<p data-ai-holding-size class="mt-1 text-xs font-semibold text-indigo-700">${card.holdingWeightPct > 0 && card.holdingWeightPct < 0.01 ? '&lt;0.01' : card.holdingWeightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of equity statement book</p>` : ''}
 
-        <p data-ai-insight class="font-display mt-3 text-[17px] font-bold leading-snug text-slate-900">${escapeHtml(card.insight)}</p>
+        ${briefMarkup(card)}
         ${contextMarkup(card, scope)}
 
         ${confluenceMarkup(card)}
@@ -730,10 +793,12 @@ export function safeSourceUrl(value) {
  * comes back on its own, so muting can hide what has been read and can never hide what has not.
  */
 function filteredCards(cards) {
-  const archived = (card) => mute.isHidden(card.key || card.ticker, card.evidenceKey || card.topEvent?.id || '');
-  if (filter === 'archived') return cards.filter(archived);
+  // The trigger chip is a second, independent axis over the same cards: a card has to pass the
+  // priority band AND bear on the selected question. `null` means the chip is not narrowing at all.
+  const inImpact = (card) => !impactFilter || hasImpact(card, impactFilter);
+  if (filter === 'archived') return cards.filter(isArchived).filter(inImpact);
   const byPriority = filter === 'all' ? cards : cards.filter((card) => card.priority === filter);
-  return byPriority.filter((card) => !archived(card));
+  return byPriority.filter((card) => !isArchived(card)).filter(inImpact);
 }
 
 function wire(ctx, total) {
@@ -773,9 +838,25 @@ function wire(ctx, total) {
   click('[data-ai-unlock]', unlockPortfolio);
   click('[data-ai-empty-clear]', clearSearch);
   click('[data-ai-controls]', (event) => {
+    const trigger = event.target.closest('[data-ai-impact]');
+    if (trigger) {
+      // One chip at a time, and the pressed chip clears itself — a control that can only ever narrow
+      // leaves the reader hunting for the way back.
+      impactFilter = impactFilter === trigger.dataset.aiImpact ? null : trigger.dataset.aiImpact;
+      visibleLimit = PAGE_SIZE;
+      paint(ctxRef);
+      ctxRef?.root.querySelector(`[data-ai-impact="${trigger.dataset.aiImpact}"]`)?.focus({ preventScroll: true });
+      return;
+    }
     const button = event.target.closest('[data-ai-filter]');
     if (!button) return;
     filter = button.dataset.aiFilter;
+    visibleLimit = PAGE_SIZE;
+    paint(ctxRef);
+  });
+
+  click('[data-ai-impact-clear]', () => {
+    impactFilter = null;
     visibleLimit = PAGE_SIZE;
     paint(ctxRef);
   });
@@ -827,6 +908,20 @@ function emptyPanel(ctx) {
       <p class="mt-2 break-words text-sm text-slate-500">No results for “${escapeHtml(query.trim())}”. Try a company, symbol or keyword, or choose another priority filter.</p>
       <button type="button" data-ai-empty-clear class="mt-4 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">Clear search</button>
     </div>`;
+  }
+  // A TRIGGER CHIP THAT MATCHES NOTHING IS A STATEMENT ABOUT WHAT WAS TRACKED, not about the
+  // companies: "no card bears on the thesis" is a reading of keywords, filing rules and feed
+  // thresholds, and the panel says so rather than printing the threshold sentence below — which
+  // would claim, on the strength of a control the reader set, that nothing crossed the line.
+  if (impactFilter) {
+    const axis = alerts.IMPACT_AXES.find((candidate) => candidate.id === impactFilter);
+    return `
+      <div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100" data-ai-empty data-ai-empty-trigger="${escapeHtml(impactFilter)}">
+        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-xl text-indigo-600 ring-1 ring-indigo-100">✦</div>
+        <h3 class="font-display mt-4 text-lg font-bold text-slate-900">No card in this view bears on the ${escapeHtml(axis?.label.toLowerCase() || 'selected trigger')}</h3>
+        <p class="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">That is a reading of the tracked keywords, filing rules and feed thresholds on these cards, not a claim that nothing could change it. Clear the trigger, change the priority filter or open the complete stream.</p>
+        <button type="button" data-ai-impact-clear class="mt-5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Show all triggers</button>
+      </div>`;
   }
   // MUTING ITS OWN LIST EMPTY IS NOT THE SAME ANSWER AS NOTHING REACHING THE THRESHOLD, and the
   // panel must not print the second over the first — that would be a claim about the feeds made on
