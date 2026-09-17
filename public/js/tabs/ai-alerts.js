@@ -565,10 +565,28 @@ function confluenceMarkup(card) {
  * (see data/ai-alerts.js — it is a reading of tracked keywords, filing rules and feed thresholds,
  * never a verdict). The axis names are set in bold so the eye can index the three questions, and
  * `data-axes` carries the same answer machine-readably for the chips above and the checks.
+ *
+ * EVERY TRIGGER THE BULLET NAMES IS A LINK TO THE RECORD IT WAS READ FROM. "Order in a filing" opens
+ * that filing; "results filed" opens that result; "up 6.5% at the close" opens that session's row —
+ * through `evidenceDestination`, the same door the evidence rows below use, so the upstream record
+ * wins where the source carried a URL and the owning dashboard tab, seeded for the company, stands
+ * in where it did not. A reason whose event is no longer on the card (it cannot happen on a freshly
+ * ranked card, but a stale saved one could) renders as plain text rather than a link to nowhere.
  */
-function briefMarkup(card) {
+function briefMarkup(card, scope) {
   const impacts = card.impacts || [];
   const parts = alerts.impactParts(impacts);
+  const eventsById = new Map((card.events || []).map((event) => [String(event.id), event]));
+  const reasonMarkup = (part) => {
+    const event = part.eventId != null ? eventsById.get(String(part.eventId)) : null;
+    if (!event) return escapeHtml(part.text);
+    const destination = evidenceDestination(event, scope);
+    const when = event.day ? ` · ${fmtDay(event.day)}${event.time ? ` · ${event.time} IST` : ''}` : '';
+    return `<a data-ai-impact-reason data-event-id="${escapeHtml(String(event.id))}" data-axis="${escapeHtml(part.axis)}" href="${escapeHtml(destination.href)}"
+      ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
+      aria-label="${escapeHtml(destination.ariaLabel)}" title="${escapeHtml(`${event.headline || ''} · ${event.feedLabel || event.feed}${when}`)}"
+      class="font-semibold text-indigo-700 underline decoration-indigo-200 underline-offset-2 transition hover:text-indigo-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${escapeHtml(part.text)}</a>`;
+  };
   const title = impacts.length
     ? impacts.map((hit) => `${hit.question} ${hit.reasons.map((reason) => reason.text).join('; ')}.`).join(' ')
     : 'Read from each event’s tracked keyword, filing rule or feed threshold. No trigger matched here, which is not the same as no impact.';
@@ -588,7 +606,7 @@ function briefMarkup(card) {
           <p data-ai-impact-line class="text-sm leading-snug text-slate-700" title="${escapeHtml(title)}">${parts
             .map((part) => part.kind === 'axis'
               ? `<strong data-ai-axis="${escapeHtml(part.axis)}" class="font-bold text-slate-900">${escapeHtml(part.text)}</strong>`
-              : escapeHtml(part.text))
+              : part.kind === 'reason' ? reasonMarkup(part) : escapeHtml(part.text))
             .join('')}</p>
         </div>
       </li>
@@ -676,7 +694,7 @@ function cardMarkup(card, scope, day, archived = false) {
         </p>
         ${Number.isFinite(card.holdingWeightPct) ? `<p data-ai-holding-size class="mt-1 text-xs font-semibold text-indigo-700">${card.holdingWeightPct > 0 && card.holdingWeightPct < 0.01 ? '&lt;0.01' : card.holdingWeightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of equity statement book</p>` : ''}
 
-        ${briefMarkup(card)}
+        ${briefMarkup(card, scope)}
         ${contextMarkup(card, scope)}
 
         ${confluenceMarkup(card)}
