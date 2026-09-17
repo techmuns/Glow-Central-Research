@@ -18,12 +18,23 @@ assert.equal(dataReviewDecision(input), 'ready');
 for (const [change, reason] of [
   [{ files: [{ filename: 'worker/index.js' }] }, 'scope'],
   [{ runs: [{ ...input.runs[0], headSha: 'b'.repeat(40) }] }, 'verification'],
+  // The `pull_request` run GitHub creates for a bot-authored PR never executes: it completes as
+  // `action_required` beside the dispatched run that did the work, on the same SHA and usually
+  // with the higher id. It measured nothing and must not shadow the run that passed — or failed.
+  [{ runs: [{ headSha: sha, databaseId: 2, status: 'completed', conclusion: 'action_required' }, ...input.runs] }, 'ready'],
+  [{ runs: [{ headSha: sha, databaseId: 2, status: 'completed', conclusion: 'action_required' }] }, 'verification'],
+  [{ runs: [{ headSha: sha, databaseId: 2, status: 'completed', conclusion: 'failure' }, ...input.runs] }, 'verification'],
+  [{ runs: [{ headSha: sha, databaseId: 2, status: 'in_progress', conclusion: null }, ...input.runs] }, 'verification'],
   [{ checks: [check('contracts')] }, 'verification'],
   [{ checks: [...input.checks, { ...check('deploy'), conclusion: 'failure' }] }, 'checks'],
   [{ comments: [{ user: bot, body: 'You have reached your Codex usage limits for code reviews.' }] }, 'review-pending-or-unavailable'],
   // A reviewer that cannot answer here is not a reviewer that has not answered yet. Neither merges;
   // only the first will still be true tomorrow, so the run has to be able to name it.
   [{ comments: [notice] }, 'review-unavailable'],
+  // And so is the connector saying nothing at all by the time Verify has finished: this decision
+  // is only reached after the run, and a reviewer that answers within minutes has had twenty.
+  [{ comments: [] }, 'review-unavailable'],
+  [{ comments: [{ user: { login: 'cloudflare-workers-and-pages[bot]' }, body: '## Deploying with Cloudflare Workers' }] }, 'review-unavailable'],
   // Where it cannot answer, a person who could merge this by hand reviewing it is the review — and
   // of THIS capture only, by somebody who is not the branch's own author.
   [{ comments: [notice], reviews: [approval] }, 'ready'],
