@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { PERIODS, periodRange, inPeriod, matchedDeals, managerTrades, managerHoldings, investorHoldings, identityIndex, preserveBulkDeals } from '../public/js/data/investor-changes.js';
+import { PERIODS, periodRange, inPeriod, matchedDeals, managerTrades, managerHoldings, investorHoldings, identityIndex, preserveBulkDeals, tradeWindow } from '../public/js/data/investor-changes.js';
 import { mergeBulkDeals } from './lib/bulk-deals-snapshot.mjs';
 import { syncBulkDeals } from './sync-bulk-deals.mjs';
 import { parseRange, applyRange, indiaDay, rangeParam, describeRange, dayGap } from '../public/js/data/date-range.js';
@@ -95,6 +95,13 @@ const books = [{ slug: 'example', quarters: ['Sep 2026', 'Jun 2026', 'Mar 2026',
 ] }];
 const observed = investorHoldings(books, [{ slug: 'example', name: 'Investor' }], '2026-09-09');
 assert(observed.every((r) => r.date !== '2026-09-30'));
+// EVERY COMPARISON ROW CARRIES BOTH DATES IT WAS MEASURED ON — the quarter ends of the two patterns
+// — and says they are pattern dates, never a trade date, because a pattern carries none.
+const example = observed.find((r) => r.company === 'Example' && r.date === '2026-06-30');
+assert.deepEqual([example.from, example.date, example.dateKind, example.priorLabel, example.latestLabel], ['2026-03-31', '2026-06-30', 'pattern', 'Mar 2026', 'Jun 2026']);
+assert.equal(example.sourceCheckedAt, null, 'a book with no recorded read time reports none rather than today');
+assert.equal(tradeWindow(example), null, 'a shareholding pattern never yields a trade date');
+assert.equal(investorHoldings([{ ...books[0], fetchedAt: '2026-09-09T11:52:16.304Z' }], [], '2026-09-09')[0].sourceCheckedAt, '2026-09-09T11:52:16.304Z');
 assert.equal(observed.find((r) => r.company === 'Example' && r.date === '2026-06-30').deltaPp, 1);
 assert.equal(observed.find((r) => r.company === 'Gone').action, 'exited', 'an explicit source non-disclosure establishes a disclosure disappearance, without implying a sale');
 assert.equal(observed.find((r) => r.company === 'Gone').deltaPp, null);
@@ -102,9 +109,16 @@ assert.equal(observed.filter((r) => inPeriod(r, periodRange('month', '2026-09-09
 
 const load = (name) => JSON.parse(readFileSync(new URL(`../public/data/${name}.json`, import.meta.url), 'utf8'));
 const managers = load('managers'), investors = load('super-investors'), filings = load('insider-trades');
-const trades = managerTrades(managers.managers), holdings = managerHoldings(managers.managers);
+const trades = managerTrades(managers.managers), holdings = managerHoldings(managers.managers, { syncedAt: managers.syncedAt });
 assert(trades.length > 0 && trades.every((r) => r.date && ['buy', 'sell'].includes(r.action)));
 assert(holdings.length > 0 && holdings.every((r) => r.date && r.from && r.source === 'PMS statements'));
+// A manager's row is measured on two STATEMENT dates and carries the statement's own dated trades
+// where there are any; the statement dates are never passed off as trade dates.
+assert(holdings.every((r) => r.dateKind === 'statement' && r.sourceCheckedAt === managers.syncedAt && r.priorLabel === r.from && r.latestLabel === r.date));
+const dated = holdings.map(tradeWindow).filter(Boolean);
+assert(dated.length > 0, 'the shipped statements carry dated trades inside at least one comparison window');
+assert(dated.every((w) => /^\d{4}-\d{2}-\d{2}$/.test(w.first) && w.last >= w.first && w.buys + w.sells > 0));
+for (const r of holdings) { const w = tradeWindow(r); if (w) assert(w.first >= r.from && w.last <= r.date, `${r.company}: a trade dated outside the two statements cannot explain the move between them`); }
 assert(trades.some((r) => r.amount != null && r.amount < 1e5));
 assert(matchedDeals(Object.values(filings.byTicker).flat(), investors.investors.map((i) => ({ id: i.slug, name: i.name }))).length > 0);
-console.log('PASS investor changes: period boundaries, strict identity joins, ambiguous names, duplicate evidence, source failure retention, closed-quarter comparisons and shipped data');
+console.log('PASS investor changes: period boundaries, strict identity joins, ambiguous names, duplicate evidence, source failure retention, closed-quarter comparisons, dated rows and shipped data');

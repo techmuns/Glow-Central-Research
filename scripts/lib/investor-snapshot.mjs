@@ -31,7 +31,10 @@ export function retainHistory(incoming, previous) {
   return { ...incoming, ...book, quarters: [...book.quarters, ...older].sort((a, b) => quarterOrder(b) - quarterOrder(a)), holdings: [...rows.values()] };
 }
 
-export function assembleSnapshot({ list, books, failed, previous = {}, capturedAt }) {
+// `attempt` is what THIS run tried and how it went — separate from `capturedAt`, which every
+// consumer reads as "when this file was written", and from each book's own `fetchedAt`, which is
+// when its source was read. A run that refreshed nothing writes the attempt and moves neither.
+export function assembleSnapshot({ list, books, failed, previous = {}, capturedAt, attempt = null }) {
   const merged = {}, retained = [];
   const missing = (previous.investors || []).filter((i) => !list.investors.some((next) => next.slug === i.slug));
   const investors = [...list.investors, ...missing];
@@ -46,5 +49,6 @@ export function assembleSnapshot({ list, books, failed, previous = {}, capturedA
     count: investors.length, dropped: list.dropped || 0, investors,
     covered: Object.keys(merged).length, refreshed: Object.keys(books).length, retained,
     positions: Object.values(merged).reduce((n, b) => n + b.holdings.length, 0),
-    failedCount: Object.keys(failed).length, books: merged, failed };
+    failedCount: Object.keys(failed).length, books: merged, failed,
+    ...(attempt ? { lastAttempt: attempt } : previous.lastAttempt ? { lastAttempt: previous.lastAttempt } : {}) };
 }

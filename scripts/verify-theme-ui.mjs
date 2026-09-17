@@ -41,7 +41,11 @@ async function ready(page, route = 'ask-research') {
   if (!params.has('scope')) params.set('scope', 'universe');
   params.set('test_stream', '1');
   await page.goto(`${origin}/#/research/${path}?${params.toString()}`);
-  await page.locator('[data-theme-toggle]').waitFor();
+  // The first paint waits on the committed bootstrap files, and on a generated-data PR those are
+  // the enlarged archives the PR exists to add. Fifteen seconds was enough on a code PR and timed
+  // out on a data PR (16 September 2026, PR #1059), which stalled every capture behind it. A
+  // header control that never appears still fails here — after a minute, not a quarter of one.
+  await page.locator('[data-theme-toggle]').waitFor({ timeout: 60000 });
 }
 const theme = page => page.locator('html').getAttribute('data-theme');
 const toggle = page => page.getByRole('button', { name: 'Dark mode', exact: true });
