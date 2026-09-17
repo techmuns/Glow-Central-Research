@@ -883,8 +883,9 @@ Everything else follows the rules this file already runs on, and four are worth 
    subtracting another, and the toolbar offers **no plan filter**: it could only answer with
    "direct" and an empty "regular".
 
-**ACTIVE / PASSIVE IS THE FIRST CHIP ROW ON BOTH SUB-VIEWS, ABOVE THE CLASSIFICATION, AND IT IS
-THE ONE PLACE A SCHEME IS SHOWN SOMEWHERE OTHER THAN THE BUCKET ITS SOURCE CHOSE.** The owner's
+**ACTIVE / PASSIVE IS THE FIRST CONTROL IN THE TOOLBAR ON BOTH SUB-VIEWS, AHEAD OF THE
+CLASSIFICATION, AND IT IS THE ONE PLACE A SCHEME IS SHOWN SOMEWHERE OTHER THAN THE BUCKET ITS SOURCE
+CHOSE.** The owner's
 first cut is whether a scheme is run by a manager or tracks an index, because the two are not
 comparable on one table, and the source's own buckets do not draw it. Measured on the 16 September
 2026 feed: 19 direct-plan *Nifty Midcap 150* index funds and ETFs sat under `Equity : Mid Cap`
@@ -921,19 +922,35 @@ is untouched and the suite asserts it), a scheme matching nothing is **not in a 
 than in a nearest one, and `Growth` is deliberately **not** a factor — it is the option suffix on
 nearly every name in both feeds, so a pattern for it would match the universe and say nothing.
 
-Strategy-chip counts follow the current asset class, group, category, and search selections/text.
+Strategy counts follow the current asset class, group, category, and search selections/text.
 They exclude the strategy filter itself so other valid strategies remain available. An active
-strategy with no matches stays visible with a zero and can be cleared with Any; it must never
-keep a whole-feed count under Debt or disappear while still filtering the table. Even a single
-available strategy stays selectable.
+strategy with no matches stays listed with a zero and can be cleared; it must never keep a
+whole-feed count under Debt or disappear while still filtering the table. Even a single available
+strategy stays selectable.
+
+**THE FILTERS ARE ONE TOOLBAR OF FIXED-WIDTH SLOTS, AND NOTHING IN IT MOVES WHEN YOU USE IT.** They
+were four rows of chips — Active / Passive, Classification with the group chips appearing beside it
+once a class was pressed, a Category strip scrolling sideways behind two arrows, and Strategy — and
+the owner's complaint was the one *meta versus controls* already names: press a chip and the block
+reflows, chips appear where there were none, counts change width, the strip loses its place, and
+what you were reading is somewhere else. `filterToolbar()` in `js/tabs/mutual-funds.js` renders one
+row: the Active / Passive tray, then cascading `<select>`s for asset class, group, category and
+strategy, then the Show tray and a Clear button. Every slot is present all the time, each select is
+as wide as its slot rather than its longest option, and Clear is rendered `invisible` rather than
+omitted, so the suite can assert that every slot's box is identical before and after a choice. Each
+dropdown lists what the ones to its left leave, and each also works alone: with no class chosen the
+Group and Category lists show every option under a heading per class, and picking one fills the
+dropdowns to its left so the path reads left to right. The four categories the owner's workbook
+leads with still come first within their heading, and nothing is merged. The workbook sub-view uses
+the same toolbar without the Category and Strategy slots, because there the category is the row.
 
 **THE CLASSIFICATION TREE GOES THREE LEVELS DEEP ON ALL SCHEMES AND TWO ON CATEGORY PERFORMANCE**,
-because there the third level **is** the row: a chip per category above a table of categories is the
-same control twice. All Schemes offers a separate, single-line **Category** row immediately, without
-requiring a group first. Small Cap, Mid Cap, Flexi Cap, and Large Cap lead the live choices; remaining
-categories retain the source's labels, with the asset class shown for duplicate labels. The row
-scrolls on narrow screens, retains the selected chip through repaints, and narrows with the chosen
-classification/group. Category selection filters the same rows used by search, counts, and export.
+because there the third level **is** the row: a category control above a table of categories is the
+same control twice. All Schemes offers the **Category** dropdown immediately, without requiring a
+group first. Small Cap, Mid Cap, Flexi Cap, and Large Cap lead the live choices within their heading;
+remaining categories retain the source's labels, told apart by their class · group heading. The
+dropdown narrows with the chosen classification/group, keeps its choice through repaints, and
+category selection filters the same rows used by search, counts, and export.
 Exchange-traded funds are their own group rather than a corner of `Index & smart beta`, because
 listed-versus-open-ended is a distinction the source draws and because 25 gold ETFs under a heading
 about equity factor strategies is a heading that is simply wrong. A bare head with no tail (`Debt`,
