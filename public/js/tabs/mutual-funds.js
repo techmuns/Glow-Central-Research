@@ -60,11 +60,24 @@
 //
 // THE HIERARCHY IS A READING AID OVER SOMEBODY ELSE'S CATEGORY, NOT A NEW CATEGORY. Both feeds
 // publish a flat bucket — a sheet name, or an "Equity : Large Cap" string — and js/data/mf-taxonomy.js
-// groups them into asset class -> group -> category for both. Nothing is renamed or merged, every
-// scheme keeps the bucket its source put it in, and a bucket nothing anticipated is `Unclassified`
-// and visible rather than folded into whichever group looked closest. All Schemes offers all three
-// levels, because there the third one is invisible until a control names it; Category Performance
-// offers two, because there the third level IS the row.
+// groups them into asset class -> group -> category for both. Nothing is renamed or merged, and a
+// bucket nothing anticipated is `Unclassified` and visible rather than folded into whichever group
+// looked closest. All Schemes offers all three levels, because there the third one is invisible
+// until a control names it; Category Performance offers two, because there the third level IS the
+// row.
+//
+// ABOVE ALL THREE SITS ACTIVE / PASSIVE, AND IT IS THE FIRST CHIP ROW ON BOTH SUB-VIEWS. The owner's
+// first cut is whether a scheme is run by a manager or tracks an index, because the two are not
+// comparable on one table — and the source's own buckets do not draw it: measured on the live feed,
+// 19 direct-plan "Nifty Midcap 150" index funds and ETFs were filed under `Equity : Mid Cap` beside
+// 100 actively managed mid-cap funds, 13 more under `Small Cap`, and target-maturity index funds
+// across seven debt buckets. Her own workbook files every one of these under one Index & smart beta
+// sheet. So a scheme the source filed under an active category whose OWN NAME states a tracked
+// index is the one exception to "every scheme keeps the bucket its source put it in": it is SHOWN
+// under `Index & smart beta` (or `Exchange traded`), in a category labelled `Index · Mid Cap`, with
+// the source's own classification kept on the row, in the export and on every chip that names it,
+// and its rank and category median left as the source's own cohort. The rule, the measurement and
+// the labelling all live in js/data/mf-taxonomy.js (`classifyLive`, `MANAGEMENT`, `managementOf`).
 //
 // AND THERE IS A FOURTH READING THAT IS NOT PART OF THE TREE. Neither source classifies a momentum
 // or a quality fund as one — AmfiBeas file all 645 passive equity schemes as `Index`, `Index Funds`
@@ -90,7 +103,7 @@ import { peerHeat, gapHeat, HEAT_LEGEND } from '../ui/mf-heatmap.js';
 import { renderFundReturns } from '../investors/fund-returns.js';
 import * as weekly from '../data/mf-weekly.js';
 import * as fundReturns from '../data/fund-returns.js';
-import { buildTree, classifyLive, FACTORS, factorsOf, factorLabel } from '../data/mf-taxonomy.js';
+import { buildTree, FACTORS, factorsOf, factorLabel, MANAGEMENT, managementOf } from '../data/mf-taxonomy.js';
 
 export const meta = {
   id: 'mutual-funds',
@@ -123,6 +136,9 @@ let measure = 'return';
 let categoryView = null;
 let schemeView = null;
 let allSchemesView = null;
+// THE FIRST CUT, above the hierarchy and shared by both sub-views: 'active' | 'passive' | null.
+// Null means both, and — as everywhere else here — is a different claim from "both chips pressed".
+let management = null;
 // The hierarchy filter, shared by both sub-views: null means "every asset class".
 let assetClass = null;
 let group = null;
@@ -193,6 +209,7 @@ export function destroy() {
   categoryView = null;
   schemeView = null;
   allSchemesView = null;
+  management = null;
   assetClass = null;
   group = null;
   categoryId = null;
@@ -239,9 +256,26 @@ function renderCategoryPerformance(ctx) {
   });
 }
 
+/** Categories after the active / passive cut. The tree and its chip counts are built over these. */
+function managedCategories() {
+  return weekly.categories().filter((c) => !management || managementOf(c.group) === management);
+}
+
 /** Categories after the asset-class / group filter. One predicate, used by the tree AND the table. */
 function scopedCategories() {
-  return weekly.categories().filter((c) => (!assetClass || c.assetClass === assetClass) && (!group || c.group === group));
+  return managedCategories().filter((c) => (!assetClass || c.assetClass === assetClass) && (!group || c.group === group));
+}
+
+/**
+ * The Active / Passive chip counts, over the WHOLE set the sub-view lists — never the narrowed one,
+ * because this row sits above every other control and its counts describe the feed, not the
+ * selection. Counts categories on Category Performance and schemes on All Schemes, exactly as the
+ * classification chips beneath it do.
+ */
+function managementCounts(items, managementOfItem) {
+  const counts = { active: 0, passive: 0 };
+  for (const item of items) counts[managementOfItem(item)] = (counts[managementOfItem(item)] || 0) + 1;
+  return counts;
 }
 
 // ---- Level 1: every category against its own benchmark ---------------------------------------
@@ -262,7 +296,10 @@ function comparisonPanel(m, repaint) {
         `Every mutual-fund category in the weekly workbook: the median return it published for that category, beside the index it prints beneath it. ` +
         `The medians and the index returns are the workbook’s, reproduced unchanged; the gap between them is the one figure derived here, and it is measured in percentage points.`,
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${asOfPill(m)}${scopeChip()}</div>`,
-      controls: `${hierarchyControls(weekly.categories())}${measureControls('category')}`,
+      controls: `${hierarchyControls(weekly.tree(managedCategories()), {
+        management: managementCounts(weekly.categories(), (c) => managementOf(c.group)),
+        noun: 'categories',
+      })}${measureControls('category')}`,
     })}
     ${table.html}
   `;
@@ -755,7 +792,11 @@ function renderAllSchemes(ctx) {
       repaint: paint,
       rows,
       // Categories are a direct choice on their own row, including before a group is selected.
-      headHtml: `${hierarchyControls(null, tree, { coverage: false })}${liveCategoryControls(tree)}<div data-mf-strategy-mount></div>${measureControls('live')}`,
+      headHtml: `${hierarchyControls(tree, {
+        coverage: false,
+        management: managementCounts(fundReturns.all(), (f) => f.taxonomy.management),
+        noun: 'schemes',
+      })}${liveCategoryControls(tree)}<div data-mf-strategy-mount></div>${measureControls('live')}`,
       view: allSchemesView,
       onView: (v, matchesSearch) => { allSchemesView = v; updateStrategyCounts(v, matchesSearch); },
       onSearchChange: updateStrategyCounts,
@@ -780,20 +821,31 @@ function renderAllSchemes(ctx) {
   });
 }
 
+/**
+ * The tree the classification, group and category chips are drawn from — built over the rows the
+ * active / passive cut leaves, so a reader who pressed Passive sees Equity · 445 (measured, 16 Sep
+ * 2026), not the whole feed's 953 above a table that will show 445. The cut sits ABOVE the
+ * hierarchy; the hierarchy's counts follow it, and its own counts follow nothing.
+ */
 function liveTree() {
-  return buildTree(fundReturns.all(), (f) => classifyLive(f.classification));
+  return buildTree(liveManaged(fundReturns.all()), (f) => f.taxonomy);
 }
 
+const liveManaged = (all) => (management ? all.filter((f) => f.taxonomy.management === management) : all);
+
 /**
- * The live feed under the chips above it — asset class, group, category and strategy. Strategy
- * counts reuse the hierarchy without their own filter, so they describe the available alternatives.
+ * The live feed under the chips above it — active / passive, asset class, group, category and
+ * strategy. Every predicate reads `f.taxonomy`, computed once at ingest, so the chips, the table,
+ * the counts and the export cannot disagree about where a scheme is. Strategy counts reuse the
+ * hierarchy without their own filter, so they describe the available alternatives.
  */
 function liveScoped(all, { includeStrategy = true } = {}) {
   const chosenStrategy = includeStrategy ? strategy : null;
-  if (!assetClass && !group && !categoryId && !chosenStrategy) return all;
+  if (!management && !assetClass && !group && !categoryId && !chosenStrategy) return all;
   return all.filter((f) => {
-    const t = classifyLive(f.classification);
-    return (!assetClass || t.assetClass === assetClass)
+    const t = f.taxonomy;
+    return (!management || t.management === management)
+      && (!assetClass || t.assetClass === assetClass)
       && (!group || t.group === group)
       && (!categoryId || t.categoryId === categoryId)
       && (!chosenStrategy || f.factors?.includes(chosenStrategy));
@@ -830,15 +882,21 @@ function twoFeedsProvenance(m) {
 // ---------------------------------------------------------------------------------------
 
 /**
- * Asset class, then group. Two rows of chips rather than a tree widget: the whole taxonomy is three
- * levels deep and the third level IS the table, so a collapsible tree would be a second navigation
- * for a list the reader can already see.
+ * Active / Passive, then asset class, then group. Three rows of chips rather than a tree widget: the
+ * whole taxonomy is three levels deep and the third level IS the table, so a collapsible tree would
+ * be a second navigation for a list the reader can already see.
  *
  * `All` is null, not "every chip pressed" — the same distinction `scopeTickers()` draws between a
  * null and a full Set, for the same reason: the two look identical until a category appears or
- * disappears. The counts on a chip describe the TAXONOMY, so they do not move when you press one.
+ * disappears. The counts on the Active / Passive chips describe the WHOLE FEED and never move; the
+ * counts on the classification chips describe the tree the active / passive cut leaves, because
+ * that cut sits above them — and they do not move when a classification chip is pressed.
  */
-function hierarchyControls(all, tree = weekly.tree(all), { coverage = true } = {}) {
+function hierarchyControls(tree, { coverage = true, management: counts = null, noun = 'schemes' } = {}) {
+  const managementChips = counts
+    ? MANAGEMENT.map((m) => chipBtn(`data-mf-management="${m.id}"`, `${m.label} · ${formatNumber(counts[m.id] || 0)}`, management === m.id,
+        `${formatNumber(counts[m.id] || 0)} ${noun}. ${m.title}`)).join('')
+    : '';
   const classChips = tree
     .map((n) => chipBtn(`data-mf-class="${escapeHtml(n.assetClass)}"`, `${n.assetClass} · ${n.count}`, assetClass === n.assetClass))
     .join('');
@@ -853,6 +911,15 @@ function hierarchyControls(all, tree = weekly.tree(all), { coverage = true } = {
   // reader a feed does not cover data it is displaying at that moment.
   const uncovered = coverage ? (weekly.meta()?.coverage || []).filter((c) => !c.covered) : [];
   return `
+    ${
+      counts
+        ? `<div class="flex flex-wrap items-center gap-1.5" data-mf-management-row>
+      <span class="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-400" title="Whether a scheme is run by a manager or tracks an index. Read from the group each source’s own category falls in, plus the scheme’s own name where the source filed a tracker under an active category — see the details behind the as-on pill.">Active / Passive</span>
+      ${chipBtn('data-mf-management=""', 'All', !management, 'Both actively managed and index-tracking schemes.')}
+      ${managementChips}
+    </div>`
+        : ''
+    }
     <div class="flex flex-wrap items-center gap-1.5" data-mf-hierarchy>
       <span class="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Classification</span>
       ${chipBtn('data-mf-class=""', 'All', !assetClass)}
@@ -886,8 +953,10 @@ function liveCategoryControls(tree) {
     ${arrow(-1, '‹')}
     <div data-mf-category-scroll class="scrollbar-thin min-w-0 flex-1 overflow-x-auto">
       <div class="relative flex w-max items-center gap-1.5 p-1 whitespace-nowrap">
-        ${categories.map((c) => chipBtn(`data-mf-category="${escapeHtml(c.id)}" aria-pressed="${categoryId === c.id}"`,
-          labels.get(c.label) > 1 ? `${c.assetClass} · ${c.label}` : c.label, categoryId === c.id, c.sourceLabel)).join('')}
+        ${categories.map((c) => chipBtn(`data-mf-category="${escapeHtml(c.id)}" aria-pressed="${categoryId === c.id}"${c.refiled ? ' data-mf-refiled="true"' : ''}`,
+          labels.get(c.label) > 1 ? `${c.assetClass} · ${c.label}` : c.label, categoryId === c.id,
+          // A chip whose label the source never printed says where its schemes came from and why.
+          c.refiled ? `${c.items.length} scheme${c.items.length === 1 ? '' : 's'} the source files as ${c.sourceLabel}, shown here because each one’s own name states a tracked ${c.refiled.kind === 'etf' ? 'ETF' : 'index'}. The source’s classification is unchanged on every row and in the export.` : c.sourceLabel)).join('')}
       </div>
     </div>
     ${arrow(1, '›')}
@@ -963,6 +1032,22 @@ function strategyControls(all, factorsOf) {
 }
 
 function wireHierarchy(root, repaint) {
+  // The top-level cut resets everything beneath it: the tree a Passive reader sees has different
+  // groups and categories from the tree an Active reader sees, so a category chosen under one
+  // cannot be carried into the other.
+  root.querySelectorAll('[data-mf-management]').forEach((el) => {
+    const on = () => {
+      management = el.dataset.mfManagement || null;
+      assetClass = null;
+      group = null;
+      categoryId = null;
+      categoryScrollLeft = 0;
+      openCategory = null;
+      repaint();
+    };
+    el.addEventListener('click', on);
+    disposers.push(() => el.removeEventListener('click', on));
+  });
   root.querySelectorAll('[data-mf-class]').forEach((el) => {
     const on = () => {
       assetClass = el.dataset.mfClass || null;
