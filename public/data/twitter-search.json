@@ -794,19 +794,19 @@
       "error": "search-unavailable"
     },
     "isin:INE0O6601022|KROSS": {
-      "lastAttemptAt": "2026-09-13T04:42:35+00:00",
+      "lastAttemptAt": "2026-09-17T13:08:17+00:00",
       "error": "search-unavailable"
     },
     "isin:INE818H01020|LT Foods": {
-      "lastAttemptAt": "2026-09-13T05:15:38+00:00",
+      "lastAttemptAt": "2026-09-17T13:40:58+00:00",
       "error": "search-unavailable"
     },
     "isin:INE818H01020|LTFOODS": {
-      "lastAttemptAt": "2026-09-13T05:50:47+00:00",
+      "lastAttemptAt": "2026-09-17T14:14:43+00:00",
       "error": "search-unavailable"
     },
     "isin:INE101A01026|Mahindra & Mahindra": {
-      "lastAttemptAt": "2026-09-13T06:23:33+00:00",
+      "lastAttemptAt": "2026-09-17T14:22:34+00:00",
       "error": "search-unavailable"
     },
     "isin:INE774D01024|Mahindra & Mahindra Financial Services": {
@@ -1506,6 +1506,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 207,
-    "checkedAt": "2026-09-17T12:34:52.248736+00:00"
+    "checkedAt": "2026-09-17T14:22:34.562443+00:00"
   }
 }

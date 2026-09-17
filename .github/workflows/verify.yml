@@ -81,6 +81,8 @@ jobs:
         run: node scripts/verify-capture-registration.mjs
       - name: Verify the shared watchlist contract, attribution and conflicting edits
         run: node scripts/verify-shared-watchlist.mjs
+      - name: Verify the team brief — contract, store, fixture-built editions and the sending alarm
+        run: node scripts/verify-newsletter.mjs
       - name: Verify operational filing health
         run: node scripts/verify-filings-health.mjs
       - name: Verify capture watchdog
@@ -149,6 +151,10 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-notifications-ui.mjs
+      - name: Verify the newsletter control beside the bell, its list, sends and states
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-newsletter-ui.mjs
       - name: Verify light and dark appearance across dashboard surfaces
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
