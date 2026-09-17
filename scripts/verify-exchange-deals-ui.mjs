@@ -55,10 +55,18 @@ try {
     await select.selectOption(value);
     assert.equal(await select.inputValue(), value);
     assert(page.url().includes(`range=${id}`), 'date selection is linkable');
-    const expected = await page.evaluate(async (id) => {
+    // How many rows this period holds, and whether today's fixture deal is one of them, are the
+    // same question about the same model, so ask it once and ask the MODEL. Reading the second off
+    // the DOM is what made this fragile: the table paints a screenful and streams the rest, so a
+    // row sitting below the fold reads as missing the moment a capture lands more rows above it —
+    // measured on 17 September 2026, when the 15:20 insider refresh added 6,331 lines to
+    // insider-trades.json and reverting that one file turned this suite green again, with no row
+    // ever lost. Same rule as the kit's own: anything that reads the row set reads the array.
+    const { expected, hasPoll } = await page.evaluate(async (id) => {
       const { insider } = await import('/js/data/filings.js');
       const { parseRange, applyRange } = await import('/js/data/date-range.js');
-      return applyRange(insider.rows(), parseRange(id)).rows.length;
+      const rows = applyRange(insider.rows(), parseRange(id)).rows;
+      return { expected: rows.length, hasPoll: rows.some((row) => JSON.stringify(row).includes('TESTPOLL')) };
     }, id);
     // Wait for the repaint rather than sampling it: selecting a period rebuilds a table of tens of
     // thousands of retained rows, so reading the count straight afterwards catches either the
@@ -70,7 +78,7 @@ try {
       ?.textContent.replace(/,/g, '').match(/\d+/)?.[0]) === target, [expected], { timeout: 30000 })
       .catch(() => {});
     assert.equal(await shown(), expected, `Bulk/Block ${id}`);
-    assert(await page.getByText('TESTPOLL', { exact: true }).count() > 0, 'today’s new deal remains in every short window');
+    assert(hasPoll, `today’s new deal remains in every short window (${id})`);
   }
   await page.reload();
   await page.waitForFunction(() => document.querySelector('[aria-label="Trade period"]')?.value === '1y');
