@@ -63,6 +63,62 @@ The legacy `sync-family-book.mjs` / `resolve-portfolio-companies.mjs` workbook f
 are retained for upstream regression tests. Their CLI cannot overwrite Glow's portfolio.
 Use `build-book.mjs` / `check-book.mjs` / `build-managers.mjs` for Glow production data.
 
+### The dated evidence — `public/data/book-ledger.json`
+
+`glowData.ts` is a set of RESTATEMENTS: one row per holding as the newest statement marks it. It
+carries no trade, no dividend and no realised gain, because GlowVentures keeps a value (which
+supersedes) apart from an event (which accumulates). Those events live one level down, in the
+statement archive its extractor writes under `public/audit/` — one directory per document, each
+`document.json` carrying that statement's parsed `transactions`, `capitalGains` and `income` rows,
+which its own Transactions and Capital Gains pages read at runtime.
+
+`scripts/lib/glow-archive.mjs` reads the same directories with **that repository's own two rules**,
+reproduced rather than reinvented: authoritative precedence per account (a manager publishing both
+a transaction statement and an investor report is read from one, never both) and a dated-row key
+that carries each row's ORDINAL among identical rows on its own document (a repeat within one
+document is data; a repeat across two is a duplicate). `build-book.mjs` writes the result beside
+the book. Nothing is derived: `settledAmount` picks whichever amount the row carries in the
+upstream's own order, and a row that printed none keeps `null`.
+
+| | |
+| --- | --- |
+| shape | `{ _provenance, source, builtFrom, asOf, window, transactions[], lots[], income[] }` |
+| built by | `scripts/build-book.mjs`, from `$GLOWVENTURES_DIR/public/audit/` |
+| checked by | `scripts/check-book.mjs` — see below |
+| read by | `js/data/book.js` (`loadLedger`, `transactionsFor`, `lotsFor`, `incomeFor`), and only by the Family Book's Direct Equity view |
+| size | ~630 KB against the book's ~420 KB |
+
+**It is a second FILE and must not become a second TRUTH.** It is separate only because it is
+630 KB that one sub-view reads, and `book.json` is a bootstrap file every visitor fetches — the
+same cost CLAUDE.md records for "a 347KB shareholdings file read by one sub-view". So `book.json`
+carries `equityLedger`, the META alone (~3 KB): the window, the counts, the accounts with and
+without a transaction statement, and the security keys the tape, lots and income rows reach. Every
+coverage sentence on the page is said from that, without a byte of the rows being fetched.
+`check-book.mjs` then refuses the pair whenever they could disagree — a stale copy (`asOf` or
+`builtFrom` out of step), a count the meta overstates, a trade against an account the book does not
+carry, a string where a figure belongs, a coverage list that is not the rows' own, or a day's sale
+whose realised gain is attributed to more than one row. Both files are committed by the same
+`series-refresh` run.
+
+**THE WINDOW IS THE STATEMENTS' AND IS NOT A HOLDING PERIOD.** These statements cover one financial
+year to date (2026-04-01 to 2026-08-13 on the shipped capture, across 12 of 51 accounts), so the
+earliest BUY on the tape is not when a holding was started. `window` carries `declaredFrom`/`To`
+(what the statements say they cover) apart from `observedFrom`/`To` (the dates actually present),
+because one account's statement declares no period at all and a window taken from the rows alone
+would read as a coverage claim nobody made. A company bought years ago and untouched since
+correctly shows no trade; the Direct Equity view's *First buy* column therefore reads the
+statements' own dated lot register (`heldSince`, the oldest unit still held — three positions in
+this corpus) and is a dash everywhere else, never the first date on the tape.
+
+**A realised gain belongs to a DAY'S sale, not to each printed row of it.** The capital gain
+statement settles a day's sale against however many purchase lots it consumed and prints one figure
+per lot; the transaction statement prints the same sale as one row, or occasionally two. Each
+`(account, security, date)` is attributed once, to the first row, and the rest carry a
+`realizedNote` saying where the figure went. `equityLedger.realised` reports the two totals side by
+side and never merged: `inLots` is what the capital gain statements determined, `onTape` is how
+much of it is attributable to a printed sale row, and the difference is the lots whose sale the
+transaction statements do not print.
+
 ## Credentials and settings to add
 
 ### Glow setup on 10 September 2026

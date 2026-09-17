@@ -188,6 +188,25 @@ export function byTicker(ticker) {
   return cache.byTicker.get(String(ticker).toUpperCase()) || null;
 }
 
+/**
+ * THE CAPTURED FEED ROW for a ticker — `cmp`, `bar_date`, `marketCap`, the delivery figures.
+ *
+ * `byTicker` returns the SCORED object, whose measurements live one level down under `.company`.
+ * That is right for the technicals drill, which wants the score. It is a trap for everyone else:
+ * `byTicker(sym)?.cmp` is `undefined` on every ticker in the feed, silently, and the caller reads
+ * it as "this company is not priced" rather than as a mis-read. It cost the Family Book's
+ * "EOD mark (derived)" column and Ask Research's portfolio packet exactly that — both asked for
+ * `.cmp`, both got `undefined` for every one of the book's 166 listed symbols, and both rendered
+ * an em dash whose title said the symbol was not in the feed. Nothing threw and no count was
+ * wrong; the column was simply always empty, which is the version of this bug that reads as a
+ * gap in the data.
+ *
+ * So the raw row has a name of its own, and a caller that wants a measurement asks for this.
+ */
+export function rowFor(ticker) {
+  return byTicker(ticker)?.company || null;
+}
+
 export function isLoaded() {
   return !!cache;
 }

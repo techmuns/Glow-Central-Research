@@ -20,6 +20,7 @@ import { execSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildIndex, resolveTicker } from './lib/company-index.mjs';
+import { AUTHORITATIVE, authoritativeDocs, datedRows, loadArchive, realisedIndex, saleKey, settledAmount } from './lib/glow-archive.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC_DIR = process.env.GLOWVENTURES_DIR || '/tmp/glowventures';
@@ -29,6 +30,10 @@ const OUT = process.env.BOOK_OUT || join(ROOT, 'public/data/book.json');
 // through scripts/sync-family-book.mjs and the ISIN-keyed resolver; that is the SATTVA family's
 // book, and only twenty of its tickers are in this one. See "The Portfolio book" below.
 const COMPANIES_OUT = process.env.BOOK_COMPANIES_OUT || join(ROOT, 'public/data/portfolio-companies.json');
+// THE DATED EVIDENCE behind the direct-equity holdings — the trades, capital-gain lots and income
+// rows the statements carry. Its own file because it is 630 KB that one sub-view reads; see the
+// note above `equityLedgerMeta`.
+const LEDGER_OUT = process.env.BOOK_LEDGER_OUT || join(ROOT, 'public/data/book-ledger.json');
 
 const src = readFileSync(join(SRC_DIR, 'src/data/glowData.ts'), 'utf8');
 
@@ -86,6 +91,178 @@ try {
 const accountById = new Map(accounts.map((a) => [a.accountId, a]));
 const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k] === undefined ? null : o[k]]));
 
+// ---------------------------------------------------------------------------------------
+// THE DATED EVIDENCE — `equityLedger`
+// ---------------------------------------------------------------------------------------
+//
+// The generated book above is a set of RESTATEMENTS: one row per holding, as the newest statement
+// marks it. It carries no trade, no dividend and no realised gain, because GlowVentures keeps a
+// value (which supersedes) apart from an event (which accumulates) — and rightly. Those events are
+// one level down, in the statement archive its extractor writes under `public/audit/`, where its
+// own Transactions and Capital Gains pages read them at runtime.
+//
+// This reads the same directories with the same rules (`scripts/lib/glow-archive.mjs`) and carries
+// the DATED rows across, so the Direct Equity view can answer "when did we last trade this, what
+// has it paid us, and what did the sells realise" from the family's own statements rather than
+// from a model. Four rules, and each is a rule this repository already runs on:
+//
+//   • NOTHING IS DERIVED. Every figure is the statement's own — the price it printed, the
+//     settlement it printed, the gain its capital gain statement determined. A row that printed no
+//     amount keeps `null`; dividing a settlement by a quantity would price a trade nobody priced.
+//   • THE WINDOW IS THE STATEMENTS', AND IT IS NOT THE HOLDING PERIOD. These statements cover one
+//     financial year to date, so the earliest BUY on the tape is not when a holding was started —
+//     `heldSince` on the position is the only field in this corpus that can say that, and it is
+//     populated on three rows. `window` carries both the declared period and the dates actually
+//     observed so no surface can present one as the other.
+//   • AN ACCOUNT THAT ISSUED NO TRANSACTION STATEMENT IS NAMED, not left as a company that did not
+//     trade. `accountsWithout` is the list, and the view says so rather than reading an absence as
+//     a fact about the family's dealing.
+//   • EVERY ROW IS FILED UNDER THE UPSTREAM'S OWN `securityKey`, which is what joins it to the
+//     positions. The symbol is attached where a position carries one; a name that has been fully
+//     exited has no position and therefore no symbol, and keeps its key and its printed name.
+const archiveDocs = loadArchive(SRC_DIR);
+const accountIdByStatement = new Map(accounts.map((a) => [`${a.provider}|${a.accountNo}`, a.accountId]));
+const symbolByKey = new Map();
+const classByKey = new Map();
+for (const p of positions) {
+  if (p.symbol && !symbolByKey.has(p.securityKey)) symbolByKey.set(p.securityKey, p.symbol);
+  if (!classByKey.has(p.securityKey)) classByKey.set(p.securityKey, p.assetClass ?? null);
+}
+/** Where a row's account sits in the book. `null` is an account the book does not carry — said, never dropped. */
+const placeAccount = (doc) => ({
+  accountId: accountIdByStatement.get(`${doc.provider}|${doc.accountNo}`) ?? null,
+  provider: doc.provider ?? null,
+  accountNo: doc.accountNo ?? null,
+  owner: doc.owner ?? null,
+  ownerId: doc.ownerId ?? null,
+  strategy: doc.strategy ?? null,
+});
+/**
+ * What the statements say a row IS, and what the book says the holding is.
+ *
+ * `assetClass` is the statement's own word and `null` is "not stated" — never a guess. The Direct
+ * Equity view narrows on it, so a row whose statement classified nothing must not silently vanish:
+ * `bookAssetClass` is what the book files the same security under, and a view may use either, but
+ * neither is invented from the other.
+ */
+const classify = (row) => ({
+  assetClass: row.assetClass ?? null,
+  bookAssetClass: classByKey.get(row.securityKey) ?? null,
+});
+
+const txnDocs = authoritativeDocs(archiveDocs, AUTHORITATIVE.transactions);
+const realised = realisedIndex(archiveDocs);
+const claimedSales = new Set();
+const equityTransactions = datedRows(archiveDocs, AUTHORITATIVE.transactions, 'transactions')
+  .filter(({ row }) => row.date)
+  .map(({ doc, row }) => {
+    // A SELL'S REALISED GAIN EXISTS ONLY WHERE THAT ACCOUNT'S MANAGER ISSUED A CAPITAL GAIN
+    // STATEMENT, and it belongs to the DAY'S sale rather than to each printed row of it.
+    let realizedGain = null;
+    let realizedNote = null;
+    if (row.side === 'sell') {
+      const k = saleKey(doc.accountNo, row.securityKey, row.date);
+      const v = realised.get(k);
+      if (v === undefined) realizedNote = 'no capital gain lot in the statements matches this sale';
+      else if (claimedSales.has(k)) realizedNote = "this sale's realised gain is shown on its first row for the day — the capital gain statement settles the day's sale, not each printed row";
+      else { claimedSales.add(k); realizedGain = v; }
+    }
+    return {
+      date: row.date,
+      settlementDate: row.settlementDate ?? null,
+      securityKey: row.securityKey ?? null,
+      security: row.security ?? null,
+      symbol: symbolByKey.get(row.securityKey) ?? null,
+      isin: row.isin ?? null,
+      ...classify(row),
+      side: row.side === 'sell' ? 'Sell' : 'Buy',
+      quantity: row.quantity ?? null,
+      // The statement's own unit price. Never a settlement divided by a quantity.
+      price: row.unitPrice ?? null,
+      amount: settledAmount(row),
+      charges: row.charges ?? null,
+      exchange: row.exchange ?? null,
+      realized: realizedGain,
+      realizedNote,
+      ...placeAccount(doc),
+      source: row.source ?? doc.docKey ?? null,
+    };
+  })
+  .sort((a, b) => (b.date === a.date ? String(a.securityKey).localeCompare(String(b.securityKey)) : b.date.localeCompare(a.date)));
+
+const equityLots = datedRows(archiveDocs, AUTHORITATIVE.capitalGains, 'capitalGains').map(({ doc, row }) => ({
+  ...pick(row, ['security', 'securityKey', 'isin', 'saleDate', 'purchaseDate', 'quantity', 'saleRate', 'saleAmount', 'purchaseRate', 'purchaseAmount', 'daysHeld', 'shortTerm', 'longTerm']),
+  symbol: symbolByKey.get(row.securityKey) ?? null,
+  bookAssetClass: classByKey.get(row.securityKey) ?? null,
+  ...placeAccount(doc),
+  source: row.source ?? doc.docKey ?? null,
+}));
+
+const equityIncome = [
+  ...datedRows(archiveDocs, AUTHORITATIVE.cashIncome, 'income'),
+  ...datedRows(archiveDocs, AUTHORITATIVE.nonCashIncome, 'income'),
+].map(({ doc, row }) => ({
+  ...pick(row, ['security', 'securityKey', 'isin', 'kind', 'exDate', 'receivedDate', 'quantity', 'ratePerUnit', 'receivable', 'received', 'tds', 'netAmount', 'entitlement']),
+  symbol: symbolByKey.get(row.securityKey) ?? null,
+  bookAssetClass: classByKey.get(row.securityKey) ?? null,
+  ...placeAccount(doc),
+  source: row.source ?? doc.docKey ?? null,
+}));
+
+const declaredFrom = txnDocs.map((d) => d.periodFrom).filter(Boolean).sort()[0] ?? null;
+const declaredTo = txnDocs.map((d) => d.periodTo).filter(Boolean).sort().at(-1) ?? null;
+const observed = equityTransactions.map((t) => t.date).sort();
+const accountsWithStatement = [...new Set(txnDocs.map((d) => accountIdByStatement.get(`${d.provider}|${d.accountNo}`)).filter(Boolean))].sort();
+const accountsWithoutStatement = accounts
+  .filter((a) => !accountsWithStatement.includes(a.accountId))
+  .map((a) => a.accountId)
+  .sort();
+// THE ROWS DO NOT RIDE IN `book.json`, AND THAT IS THE CACHING RULE THIS REPOSITORY ALREADY HAS.
+//
+// Measured: the tape, the lots and the income rows come to 630 KB — more than the whole of the rest
+// of the book — and exactly one sub-view reads them. `book.json` is a bootstrap file every visitor
+// fetches, and CLAUDE.md records what that costs ("a 347KB shareholdings file read by one sub-view"
+// in front of the first pixel). So the META travels in the book, where every surface can state the
+// coverage without downloading anything, and the ROWS go to their own file that the Direct Equity
+// view fetches when it is opened. Counts live on the meta rather than being reached by loading the
+// rows, so a coverage sentence can never be a reason to download 630 KB.
+const equityLedgerMeta = {
+  _provenance:
+    'THE DATED EVIDENCE BEHIND THE BOOK — every trade, capital-gain lot and income row the family’s own statements carry, read from the statement archive in techmuns/GlowVentures (public/audit/) by scripts/lib/glow-archive.mjs with that repository’s own precedence and de-duplication rules. Nothing here is derived: each figure is the statement’s own, and a row that printed none keeps null. THE WINDOW IS THE STATEMENTS’ AND IS NOT A HOLDING PERIOD — the earliest buy on this tape is not when a holding was started. The rows are in book-ledger.json, fetched only by the view that reads them.',
+  rowsFile: 'data/book-ledger.json',
+  window: {
+    // What the statements DECLARE they cover, and what was actually observed. Two different facts:
+    // one account's statement declares no period at all, so a window taken from the rows alone
+    // would read as a coverage claim nobody made.
+    declaredFrom,
+    declaredTo,
+    observedFrom: observed[0] ?? null,
+    observedTo: observed.at(-1) ?? null,
+    statementsWithoutDeclaredPeriod: txnDocs.filter((d) => !d.periodFrom || !d.periodTo).length,
+  },
+  archiveDocuments: archiveDocs.length,
+  accountsWithStatement,
+  accountsWithoutStatement,
+  transactionCount: equityTransactions.length,
+  lotCount: equityLots.length,
+  incomeCount: equityIncome.length,
+  // THE TWO REALISED FIGURES, SIDE BY SIDE AND NEVER MERGED. The capital gain statements determine
+  // the gain (`inLots`); the tape carries it on the sell row it belongs to (`onTape`). They differ
+  // by the lots whose sale the transaction statements do not print — a real gap in the corpus, and
+  // one GlowVentures reports too rather than letting a reader read either as the whole.
+  realised: {
+    inLots: equityLots.reduce((s, l) => s + (l.shortTerm || 0) + (l.longTerm || 0), 0),
+    onTape: equityTransactions.reduce((s, t) => s + (t.realized || 0), 0),
+    salesAttributed: claimedSales.size,
+    sellsWithoutLot: equityTransactions.filter((t) => t.side === 'Sell' && t.realized == null && /no capital gain lot/.test(t.realizedNote || '')).length,
+  },
+  // Companies the tape and the income rows reach, so the view can say what share of the book has
+  // dated evidence behind it without fetching a byte of it.
+  securitiesTraded: [...new Set(equityTransactions.map((t) => t.securityKey).filter(Boolean))].sort(),
+  securitiesWithIncome: [...new Set(equityIncome.map((i) => i.securityKey).filter(Boolean))].sort(),
+  securitiesWithLots: [...new Set(equityLots.map((l) => l.securityKey).filter(Boolean))].sort(),
+};
+
 const out = {
   _provenance:
     'THE FAMILY OFFICE BOOK, as the wealth platforms’ statements print it. Built by scripts/build-book.mjs from src/data/glowData.ts in techmuns/GlowVentures, itself generated from the PDF statements in that repository’s archive. Every figure traces to one document; a null is a figure the statements do not carry, never a zero. Market values are the statements’ own marks on each account’s report date (summary.asOf is the newest); the dashboard adds a live mark only for listed symbols and labels it.',
@@ -99,7 +276,7 @@ const out = {
   positions: positions.map((p) => {
     const a = accountById.get(p.accountId) || {};
     return {
-      ...pick(p, ['securityKey', 'security', 'symbol', 'isin', 'accountId', 'memberId', 'sector', 'providerSector', 'assetClass', 'quantity', 'marketValue', 'costBasis', 'unrealizedPnL', 'returnPct', 'avgCost', 'currentPrice', 'costBasisSource', 'stCostBasis', 'ltCostBasis', 'daysToLT', 'heldSince', 'accruedIncome', 'dividendReceived', 'positionIrrPct', 'dedupeGroup', 'alsoReportedUnder']),
+      ...pick(p, ['securityKey', 'security', 'symbol', 'isin', 'accountId', 'memberId', 'sector', 'providerSector', 'assetClass', 'quantity', 'marketValue', 'costBasis', 'unrealizedPnL', 'returnPct', 'avgCost', 'currentPrice', 'costBasisSource', 'costUnavailable', 'stCostBasis', 'ltCostBasis', 'daysToLT', 'heldSince', 'accruedIncome', 'dividendReceived', 'positionIrrPct', 'dedupeGroup', 'alsoReportedUnder']),
       provider: a.provider ?? null,
       owner: a.owner ?? null,
       ownerId: a.ownerId ?? null,
@@ -123,12 +300,32 @@ const out = {
   accountNavHistory: accountNav,
   accountCashFlows,
   realisedByClass,
+  equityLedger: equityLedgerMeta,
 };
 
 mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, `${JSON.stringify(out, null, 1)}\n`);
 const listed = out.positions.filter((p) => p.symbol).length;
 console.log(`book.json: ${out.positions.length} positions (${listed} with an NSE symbol) across ${out.accounts.length} accounts, ₹${(out.summary.totalValue / 1e7).toFixed(1)} Cr as of ${out.asOf}, from ${out.source}@${builtFrom || '?'} → ${OUT}`);
+
+// The rows themselves, in their own file — see the note above `equityLedgerMeta`. Same source, same
+// commit, same asOf as the book it belongs to, so a reader can tell whether the two are in step.
+const ledgerOut = {
+  _provenance: equityLedgerMeta._provenance,
+  source: out.source,
+  builtFrom,
+  asOf: out.asOf,
+  window: equityLedgerMeta.window,
+  transactions: equityTransactions,
+  lots: equityLots,
+  income: equityIncome,
+};
+writeFileSync(LEDGER_OUT, `${JSON.stringify(ledgerOut, null, 1)}\n`);
+console.log(
+  `book-ledger.json: ${equityTransactions.length} dated trades, ${equityLots.length} capital-gain lots, ${equityIncome.length} income rows ` +
+    `from ${archiveDocs.length} archived statements · declared ${declaredFrom || '?'}..${declaredTo || '?'}, observed ${observed[0] || '—'}..${observed.at(-1) || '—'} · ` +
+    `${accountsWithStatement.length} account(s) issued a transaction statement, ${accountsWithoutStatement.length} did not → ${LEDGER_OUT}`
+);
 
 // ---------------------------------------------------------------------------------------
 // THE PORTFOLIO BOOK — public/data/portfolio-companies.json

@@ -1146,6 +1146,74 @@ The scope toggle's *Portfolio* definition (`js/data/coverage.js`, the 142-line d
 statement) is **unchanged**: the book has 293 rows with an NSE symbol across 49 accounts, and
 redefining every research tab's Portfolio filter by it is a product decision, not a sync.
 
+### ALL HOLDINGS | DIRECT EQUITY — the Family Book's two views (GLOW-OWNED)
+
+`meta.inlineSubviews: true`, the switch on the title row through `sectionHead`'s `titleAside`
+(`family-book-views.js`, plain hash links) — the third consumer of that flag, for the reason the
+first two had it. **All Holdings is the tab as it was**: every row on every statement, every asset
+class, one row per (security, account). **Direct Equity** (`family-book-equity.js`) narrows to
+`assetClass === 'Equity'` and consolidates by COMPANY, because "how much SBI do we own" is one
+number and the book files it as five. Both read the same `counted()` rows, so they cannot disagree,
+and `directEquity()` / `directEquityTotals()` in `js/data/book.js` are the one rollup.
+
+**WHAT IS SUMMED IS SUMMABLE, AND WHAT IS NOT IS NOT.** Quantity, value, cost, unrealised P&L and
+dividends are rupees and shares and are summed. A RETURN, A PRICE and AN IRR are none of those:
+
+1. **A sum over a nullable column is a sum over the rows that carry a figure, and it says so.**
+   Twenty-five companies carry no cost on any statement, so `costedValue` is the market value of
+   just the rows the cost covers — measured, ₹128.11 Cr of the ₹222.00 Cr equity book — and the
+   return is struck on that, never on the whole. `costRows` / `rowCount` is on every row and in the
+   card's own note. The same rule one level down: **average cost divides by the shares the cost
+   covers**, never by the whole quantity, which would print an average cheaper than anybody paid.
+2. **A PUBLISHED IRR IS REPRODUCED, NEVER BLENDED** — the Finology rule, arrived at from the other
+   side. Two of the family's providers compute a per-position money-weighted return; where a
+   company sits in several of their accounts each publishes its own (Blue Jet is 96.01% in one book
+   and 99.52% in another, because they bought on different days). `irrOf` carries every figure with
+   the account that printed it; the cell prints the one figure where they agree and the RANGE where
+   they do not, and `single` stays null. A mean of two IRRs is not an IRR — the arithmetic that
+   would make one needs the cash flows, not the answers.
+3. **A TOTAL RETURN NEEDS EVERY DIVIDEND.** They are on 71 of 300 rows, so a total return over some
+   of a company's accounts' dividends understates while looking complete. It is computed only where
+   every row of that company carries both a cost and a dividend figure — 32 companies — and is a
+   dash everywhere else, with the coverage in the title.
+4. **CMP AND MARKET CAP ARE NOT GLOWVENTURES FIGURES AT ALL**, and are headed and titled as this
+   dashboard's. The statements print a mark per account on that account's own report date, which is
+   neither actionable nor one number per company; these two come from the technicals capture and
+   carry its bar date. Same split, same reason, as the EOD mark on All Holdings.
+5. **FIRST BUY IS THE LOT REGISTER'S, NOT THE TAPE'S.** `heldSince` — the oldest unit still held —
+   is populated on three positions, so nearly every company shows a dash whose title says why. The
+   transaction tape starts at the financial year (see *The dated evidence* in
+   `docs/GLOW-TEMPLATE-SYNC.md`), so reading its earliest buy as a first buy would date a holding
+   from 2019 to April 2026. **Last trade** is the newest row ON THAT TAPE and says so; a company
+   with none was not traded in the window, which the cell, the drill and the footnote all state.
+
+**The drill is the company across the desk**: position by owner and account (each statement line's
+own quantity, average cost, cost, P&L, return, published IRR, dividends and report date), then the
+dated trades, the capital-gain lots with the purchase date each sale was settled against, and the
+dividends — each income row labelled `declared` / `received` / `receivable reversed` off the
+statement's own columns, because a dividend statement books one dividend three times and a
+−₹86,750 line reading "dividend" looks like a feed printing a mistake.
+
+**`book-ledger.json` is fetched by this view and by nothing else.** 630 KB against the book's
+420 KB, so the rows live in their own file and `book.json` carries only the meta every coverage
+sentence is said from. All Holdings, Ask Research and every other reader of `js/data/book.js` never
+touch it; `verify-direct-equity-ui.mjs` asserts both halves of that.
+
+`node scripts/verify-direct-equity.mjs` is the offline test (the rollup against the shipped book,
+plus constructed books for the refusals the real one cannot exercise today) and
+`scripts/verify-direct-equity-ui.mjs` drives the two views in a browser.
+
+**AND A COLUMN THAT IS ALWAYS EMPTY READS AS MISSING DATA.** `technicals.byTicker()` returns the
+SCORED object, whose measurements are one level down under `.company`, so `byTicker(sym)?.cmp` is
+`undefined` for every ticker in the feed. The Family Book's *EOD mark (derived)* column and Ask
+Research's portfolio packet both asked for it and both got nothing — measured, an em dash on all
+166 listed holdings, with a title saying the symbols were not in the capture. Nothing threw, no
+count was wrong, and the only artefact was a column that had never once had a value in it, which
+is indistinguishable from a feed that does not carry the field. **`technicals.rowFor(ticker)` is
+the named accessor for a measurement** and is what all three read now; the browser suite asserts
+the CMP column is POPULATED rather than merely present, because "the column exists" is exactly what
+was true the whole time.
+
 ### The family's managers — My Managers on Superstar Investors (GLOW-OWNED)
 
 **Changes leads Superstar Investors in every scope**, with My Managers / All Investors sub-tabs
@@ -4145,6 +4213,9 @@ nothing — which is exactly why the con-call route has no projection either.
 | Set up the automatic book sync on a deployment | add a Secret named **`FAMILY_REPO_TOKEN`** to this repository (*Settings → Secrets and variables → Actions*): a fine-grained token on `techmuns/Sattva-Family` alone with **Contents: read**. Optionally have that repository POST `repository_dispatch` (`family-book-updated`) here on push — the snippet is in `docs/DATA-CONTRACTS.md` |
 | Change the device-local scope editor | `js/ui/scope-editor.js` (modal) + `js/core/scope-lists.js` (Portfolio/Universe overlay) + `js/core/watchlist.js` (Watchlist) + `/api/stock-search` in `worker/index.js` / `worker/muns.mjs` |
 | Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first. It is the only portfolio data here: names and sectors, never a quantity or a value |
+| Change the Family Book's Direct Equity view, its columns or its drill | `js/tabs/family-book-equity.js` (the view) + `directEquity()` / `directEquityTotals()` in `js/data/book.js` (the rollup) — read *ALL HOLDINGS \| DIRECT EQUITY* first. What is summed must be summable: a return is re-derived and labelled, a price is left per statement, an IRR is reproduced and never blended. `node scripts/verify-direct-equity.mjs` and `scripts/verify-direct-equity-ui.mjs` are the tests |
+| Change what dated evidence the book carries — trades, capital-gain lots, dividends | `scripts/lib/glow-archive.mjs` (GlowVentures' own precedence and de-duplication rules, reproduced) + the `equityLedger` block in `scripts/build-book.mjs` + the guards in `scripts/check-book.mjs` — read *The dated evidence* in `docs/GLOW-TEMPLATE-SYNC.md` first. The rows go to `public/data/book-ledger.json`, never into `book.json`, and both files are committed by the same `series-refresh` run |
+| Read a MEASUREMENT out of the technicals feed | `technicals.rowFor(ticker)`, never `byTicker(ticker)?.cmp` — the latter returns the scored object and its measurements are one level down, so `.cmp` there is `undefined` for every ticker in the feed and the caller silently renders "not in the capture" |
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the device mirror + sync) + `watchKey` on the table that stars it — read *The star marks a COMPANY* and *The watchlist is a list of COMPANIES, and ONE list for the whole desk* first |
 | Change the SHARED watchlist itself — its shape, its conflict rules or its route | `public/js/data/watchlist-shared.js` (the one definition, imported by the Worker too) + `worker/watchlist-store.mjs` + `worker/watchlist.mjs`. Edits are INTENTS, never a whole list; an `add` must name its contributor; a `seed` may not apply over any row that already exists. `node scripts/verify-shared-watchlist.mjs` and `node scripts/verify-shared-watchlist-ui.mjs` are the tests |
@@ -4291,9 +4362,17 @@ node scripts/verify-portfolio-calendar.mjs
 node scripts/verify-research.mjs
 node scripts/verify-shared-watchlist.mjs
 node scripts/verify-shared-watchlist-ui.mjs
+node scripts/verify-direct-equity.mjs
+node scripts/verify-direct-equity-ui.mjs
 node scripts/verify-ui.mjs
 node scripts/verify-sdk.mjs
 ```
+
+`verify-direct-equity.mjs` needs no server: it primes `js/data/book.js` with the shipped book and
+asserts the Direct Equity rollup against it — the value is the equity slice to the paisa, a
+single-account company reproduces that statement's own return and average cost, and every refusal
+(a partial cost, a blended IRR, a partial dividend set, a first buy read off the tape) still
+refuses. `verify-direct-equity-ui.mjs` serves `public/` itself and drives both views.
 
 `verify-shared-watchlist-ui.mjs` needs no Worker and no egress: it stands up the real
 `SharedWatchlistStore` behind an in-process `/api/watchlist` and drives **two browser contexts** —

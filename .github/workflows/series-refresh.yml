@@ -12,6 +12,11 @@ name: GlowVentures sync (series store + family book)
 #     `src/data/glowData.ts`; `scripts/build-book.mjs` reads the generated arrays out of it and
 #     writes `public/data/book.json`, and `scripts/check-book.mjs` refuses a file whose sums do
 #     not reconcile to the upstream headline — so a bad build commits nothing.
+#     THE DATED EVIDENCE rides the same clone and the same run: `public/data/book-ledger.json`, the
+#     trades, capital-gain lots and dividend rows behind the Family Book's Direct Equity view, read
+#     from that repository's statement archive (`public/audit/`). It is a SECOND FILE only because
+#     it is 630 KB that one sub-view reads; the two are built together and `check-book.mjs` refuses
+#     them if they fall out of step, so they must be committed together.
 #
 # See docs/DATA-CONTRACTS.md — "The macro series store" and "public/data/book.json".
 #
@@ -140,7 +145,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # technicals.json is staged because the step above may have filled prices for holdings
           # this very run added. It is a no-op on the ordinary day when the book did not grow.
-          git add -A public/data/series public/data/book.json public/data/portfolio-companies.json public/data/managers.json public/data/technicals.json public/data/filing-capture/index.json
+          git add -A public/data/series public/data/book.json public/data/book-ledger.json public/data/portfolio-companies.json public/data/managers.json public/data/technicals.json public/data/filing-capture/index.json
           if git diff --cached --quiet; then
             echo "The series store and the book are already current."
             echo "### Already current — nothing to commit" >> "$GITHUB_STEP_SUMMARY"
