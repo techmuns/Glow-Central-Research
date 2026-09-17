@@ -650,99 +650,147 @@
       "error": "search-unavailable"
     },
     "isin:INE00M901018|INTERARCH": {
-      "lastAttemptAt": "2026-09-12T15:20:53+00:00",
+      "lastAttemptAt": "2026-09-17T05:28:16+00:00",
       "error": "search-unavailable"
     },
     "isin:INE858B01029|ISGEC Heavy Engineering": {
-      "lastAttemptAt": "2026-09-12T15:51:29+00:00",
+      "lastAttemptAt": "2026-09-17T06:04:31+00:00",
       "error": "search-unavailable"
     },
     "isin:INE858B01029|ISGEC": {
-      "lastAttemptAt": "2026-09-12T16:22:27+00:00",
+      "lastAttemptAt": "2026-09-17T07:40:21+00:00",
       "error": "search-unavailable"
     },
     "isin:INE168A01041|J & K Bank Ltd.": {
-      "lastAttemptAt": "2026-09-12T16:54:37+00:00",
+      "lastAttemptAt": "2026-09-17T08:19:06+00:00",
       "error": "search-unavailable"
     },
     "isin:INE168A01041|J&KBANK": {
-      "lastAttemptAt": "2026-09-12T17:18:48+00:00",
+      "lastAttemptAt": "2026-09-17T08:57:45+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0SMY01017|Jay Bee Laminations": {
-      "lastAttemptAt": "2026-09-12T18:00:09+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
+      "error": null,
+      "lastResultCount": 1,
+      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE0SMY01017|JAYBEE-SM": {
-      "lastAttemptAt": "2026-09-12T18:35:53+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
+      "error": null,
+      "lastResultCount": 0,
+      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE854B01010|Jayaswal Neco Industries": {
-      "lastAttemptAt": "2026-09-12T19:18:15+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
+      "error": null,
+      "lastResultCount": 5,
+      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE854B01010|Jayaswal Neco": {
-      "lastAttemptAt": "2026-09-12T19:30:04+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
+      "error": null,
+      "lastResultCount": 7,
+      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE854B01010|Neco Defence Munitions": {
-      "lastAttemptAt": "2026-09-12T20:06:21+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
+      "error": null,
+      "lastResultCount": 3,
+      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE854B01010|Datasel": {
-      "lastAttemptAt": "2026-09-12T20:47:29+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
+      "error": null,
+      "lastResultCount": 20,
+      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE854B01010|Datasel S.R.L.": {
-      "lastAttemptAt": "2026-09-12T21:21:51+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
+      "error": null,
+      "lastResultCount": 0,
+      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE854B01010|JAYNECOIND": {
-      "lastAttemptAt": "2026-09-12T21:34:18+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
+      "error": null,
+      "lastResultCount": 3,
+      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE700A01033|Jubilant Pharmova LT": {
-      "lastAttemptAt": "2026-09-12T22:22:10+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
+      "error": null,
+      "lastResultCount": 0,
+      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE700A01033|JUBLPHARMA": {
-      "lastAttemptAt": "2026-09-12T22:55:44+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
+      "error": null,
+      "lastResultCount": 9,
+      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE303R01014|Kalyan Jewellers India": {
-      "lastAttemptAt": "2026-09-12T23:26:55+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
+      "error": null,
+      "lastResultCount": 12,
+      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE303R01014|KALYANKJIL": {
-      "lastAttemptAt": "2026-09-12T23:34:58+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
+      "error": null,
+      "lastResultCount": 82,
+      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE415I01015|Kiri Industries": {
-      "lastAttemptAt": "2026-09-13T00:07:25+00:00",
+      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
       "error": "search-unavailable"
     },
     "isin:INE415I01015|KIRIINDUS": {
-      "lastAttemptAt": "2026-09-13T00:42:22+00:00",
+      "lastAttemptAt": "2026-09-17T09:48:40+00:00",
       "error": "search-unavailable"
     },
     "isin:INE082A01010|Kopran": {
-      "lastAttemptAt": "2026-09-13T01:27:45+00:00",
+      "lastAttemptAt": "2026-09-17T10:24:16+00:00",
       "error": "search-unavailable"
     },
     "isin:INE082A01010|KOPRAN": {
-      "lastAttemptAt": "2026-09-13T02:07:14+00:00",
+      "lastAttemptAt": "2026-09-17T10:58:19+00:00",
       "error": "search-unavailable"
     },
     "isin:INE237A01036|Kotak Mahindra Bank": {
-      "lastAttemptAt": "2026-09-13T03:02:20+00:00",
+      "lastAttemptAt": "2026-09-17T11:31:30+00:00",
       "error": "search-unavailable"
     },
     "isin:INE237A01036|KOTAKBANK": {
-      "lastAttemptAt": "2026-09-13T03:36:38+00:00",
+      "lastAttemptAt": "2026-09-17T12:03:43+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0O6601022|Kross": {
-      "lastAttemptAt": "2026-09-13T04:09:32+00:00",
+      "lastAttemptAt": "2026-09-17T12:34:52+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0O6601022|KROSS": {
@@ -1457,7 +1505,7 @@
   "coverage": {
     "planned": 232,
     "attempted": 1,
-    "incomplete": 219,
-    "checkedAt": "2026-09-17T04:56:59.542244+00:00"
+    "incomplete": 207,
+    "checkedAt": "2026-09-17T12:34:52.248736+00:00"
   }
 }
