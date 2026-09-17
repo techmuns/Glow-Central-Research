@@ -354,6 +354,10 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *  link          (row) => url for the right-aligned ↗, or null to omit the column
  *  onRowClick    (row) => void
  *  filters       { label, options: [{ value, label }], match(row, value), value? } — the <select>.
+ *                A def with `hidden: true` is APPLIED but draws no control: it renders as one hidden
+ *                input holding its slot, so a tab can offer a control the kit does not (a remembered
+ *                multi-select) and still have the count label, the empty message and the export read
+ *                the one predicate. The tab re-applies it by dispatching `change` on that input.
  *                Pass an ARRAY of these for several dropdowns; they AND together.
  *  searchable    (row) => haystack string. Defaults to name(row).
  *  initialSort   { key, dir } where key is a column label, 'name', or 'score'
@@ -832,7 +836,9 @@ export function scoreTable(config) {
               // shortening anyone's labels. `maxWidthPx` is the optional tighter desktop cap for a
               // toolbar with several filters; Insider Trades uses it so a long Mode value does not
               // force the Watchlist control onto another row.
-              (f, i) => `<select data-table-filter="${i}" ${f.label ? `aria-label="${escapeHtml(f.label)}" title="${escapeHtml(f.label)}"` : ''}
+              (f, i) => f.hidden
+                ? `<input type="hidden" data-table-filter="${i}" data-table-filter-hidden value="${escapeHtml(view.filters[i])}">`
+                : `<select data-table-filter="${i}" ${f.label ? `aria-label="${escapeHtml(f.label)}" title="${escapeHtml(f.label)}"` : ''}
                    ${Number.isFinite(f.maxWidthPx) ? `style="max-width:${Math.max(120, Math.min(400, Math.round(f.maxWidthPx)))}px"` : ''}
                    class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                    ${f.options.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === view.filters[i] ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}

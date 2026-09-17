@@ -105,7 +105,9 @@ captured every 15 minutes by
 `.github/workflows/corporate-actions-refresh.yml` through
 `scripts/scrape-corporate-actions.mjs`. The request covers the prior three years and the next year
 in one bounded view. NSE is the official base. Screener adds its bonus, rights, split, buyback and
-dividend records and their structured terms. The browser loads this file only when Corporate Actions opens, keeps it in
+dividend records and their structured terms. The browser loads this file only when the Corporate Actions view of
+Corp Announcements opens (`#/research/corp-announcements/corporate-actions`; the retired `#/research/corporate-actions`
+address is aliased to it by the shell), keeps it in
 the shared IndexedDB cache, and conditionally checks it every 90 seconds while visible.
 
 Each upstream has an independent last-good layer. An NSE refusal, timeout, empty response, format
@@ -5154,12 +5156,31 @@ company history load automatically, with bounded concurrency and revision checks
 re-downloading unchanged archive files. NSE contributes up to 90 days of retained history without
 changing the history range selected in the separate NSE Filings tab. Failed reads retain rows.
 
-The page contains its heading and one searchable, newest-first table with export. It has no
-company/date lookup form, archive-load button, capture diagnostics, extra dropdown filters or
-second Watchlist filter. The global scope control chooses the companies. Older rows render as
-the reader scrolls; counts, search and export include all loaded records. Background arrivals
-preserve the reader's search, focus and scroll position. Source coverage, capture errors and
-unresolved company details remain available through the information link below the table.
+The page contains its heading, a **Show** row of filing-type switches, and one searchable,
+newest-first table with export. It has no company/date lookup form, archive-load button, capture
+diagnostics, extra dropdown filters or second Watchlist filter. The global scope control chooses
+the companies. Older rows render as the reader scrolls; counts, search and export include all
+loaded records. Background arrivals preserve the reader's search, focus and scroll position. Source
+coverage, capture errors and unresolved company details remain available through the information
+link below the table.
+
+**Corporate Announcements is one tab with two views** since 17 September 2026: *Announcements* (this
+stream, the default) and *Corporate Actions* (`js/tabs/corporate-actions.js`, the NSE + Screener
+calendar, unchanged inside). The shell aliases the retired `corporate-actions` tab id to the view.
+
+**Filing type — `js/data/announcement-types.js`.** Every merged row carries one derived type, read
+from BSE's sub-category or NSE's subject where that label says something, otherwise from the filing's
+subject line (and, for an NSE catch-all subject, its description); the first matching rule wins,
+BSE's category is the last resort, and a row no rule recognises is `other`. The reading returns
+`{ id, label, routine, from, text }` so the cell's tooltip and the export can name what was read.
+The Show row switches types on and off (OR across the switched-on types; search and the period
+filter then narrow), and its counts are for the selected period in the current scope, before
+search. The selection is device-local under `localStorage['sattva:announcement-types:v1']` as
+`{ hidden: [ids] }` — the set switched OFF, so a type added to the vocabulary later starts switched
+on, and an explicit empty set is kept apart from "never chose", which gets the default of
+`['routine']`. Switching a type off hides its rows from this view, its count and its export only:
+capture, retention, All Alerts and the provenance panel are untouched, the switched-off chip still
+prints its count, and the export's disclosure line names the types it excludes.
 
 ### Ask Research comparable activities and optional price history
 
