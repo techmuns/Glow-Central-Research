@@ -798,7 +798,7 @@
       "error": "search-unavailable"
     },
     "isin:INE818H01020|LT Foods": {
-      "lastAttemptAt": "2026-09-13T05:15:38+00:00",
+      "lastAttemptAt": "2026-09-17T13:40:58+00:00",
       "error": "search-unavailable"
     },
     "isin:INE818H01020|LTFOODS": {
@@ -1506,6 +1506,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 207,
-    "checkedAt": "2026-09-17T13:08:17.241802+00:00"
+    "checkedAt": "2026-09-17T13:40:58.613431+00:00"
   }
 }
