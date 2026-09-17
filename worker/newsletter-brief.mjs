@@ -326,12 +326,14 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
 
 // ---- stories -------------------------------------------------------------------------------------
 //
-// THE EMAIL IS A MUNSHOT BROADSHEET: a front page of the three strongest items, then every other
-// item under a topic pill. Filings and published stories become one list of STORIES for that
-// purpose, and two readings travel on each — both of them readings this dashboard already makes:
+// THE EMAIL IS A GLOW VENTURES BROADSHEET, AND IT LEADS WITH THE PORTFOLIO COMPANIES. The desk
+// reads it for what happened to the companies they own, so every filing and story is filed under
+// its COMPANY, companies with a tracked or directional item first, and the global market scan
+// follows them. Filings and published stories become one list of STORIES for that purpose, and
+// two readings travel on each — both of them readings this dashboard already makes:
 //
 //   TOPIC  what the story is ABOUT, from the desk's thirty tracked keywords (data/news-keywords.js).
-//          The seven Munshot topics fold those keyword families: Orders is the three order keywords,
+//          The seven topics fold those keyword families: Orders is the three order keywords,
 //          Growth the rest of that family, Money is capital raising and results, Approvals & IP is
 //          regulatory, Trouble is risk and governance, and a story matching nothing is Other.
 //   MOOD   a direction, and only where a stated rule gives one: `announcementSignal()` over a
@@ -339,9 +341,12 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
 //          published headline carries NO sentiment reading anywhere on this dashboard, so a news
 //          story's dot is Neutral — never a guess dressed as a judgement.
 
+// The masthead is the family office's own name: this is Glow Ventures' dashboard, not a platform
+// newsletter. Munshot stays only as the small platform credit in the footer.
+export const BRAND = 'Glow Ventures';
 export const PRODUCT_NAME = 'Research Central';
-export const EDITION_NAME = 'Direct holdings';
-export const TAGLINES = { morning: 'Morning Market Brief', evening: 'Evening Market Brief' };
+export const EDITION_NAME = 'Portfolio companies';
+export const TAGLINES = { morning: 'Morning Portfolio Brief', evening: 'Evening Portfolio Brief' };
 
 export const TOPICS = [
   { id: 'growth', label: 'Growth', color: '#10b981' },
@@ -402,18 +407,41 @@ export function briefStories(brief) {
   return stories.sort((a, b) => b.score - a.score || b.at - a.at);
 }
 
+/**
+ * The stories filed under their companies. A company's rank is its strongest story (tracked
+ * keyword, then a directional mood, then importance), then how much it had, then how recently —
+ * so a downgrade or an order win leads the sheet, and a day of routine intimations reads newest
+ * first. Within a company the same order holds. Nothing new is read: the score is `briefStories`'.
+ */
+export function briefCompanies(stories) {
+  const byTicker = new Map();
+  for (const s of stories) {
+    if (!byTicker.has(s.ticker)) byTicker.set(s.ticker, { ticker: s.ticker, company: s.company, stories: [] });
+    const entry = byTicker.get(s.ticker);
+    // The book's own name wins over a publisher match's spelling of it.
+    if (s.kind === 'filing') entry.company = s.company;
+    entry.stories.push(s);
+  }
+  const companies = [...byTicker.values()].map((c) => {
+    c.stories.sort((a, b) => b.score - a.score || b.at - a.at);
+    return {
+      ...c,
+      score: c.stories[0].score,
+      latest: Math.max(...c.stories.map((s) => s.at)),
+      good: c.stories.filter((s) => s.mood.id === 'good').length,
+      watch: c.stories.filter((s) => s.mood.id === 'watch').length,
+    };
+  });
+  return companies.sort((a, b) => b.score - a.score || b.stories.length - a.stories.length || b.latest - a.latest || a.company.localeCompare(b.company));
+}
+
 export function briefStats(brief) {
   const stories = briefStories(brief);
-  const counts = new Map();
-  for (const s of stories) counts.set(s.topic.id, (counts.get(s.topic.id) || 0) + 1);
-  const busiest = [...counts.entries()].sort((a, b) => b[1] - a[1] || TOPICS.findIndex((t) => t.id === a[0]) - TOPICS.findIndex((t) => t.id === b[0]))[0];
   return {
     stories: stories.length,
     good: stories.filter((s) => s.mood.id === 'good').length,
     watch: stories.filter((s) => s.mood.id === 'watch').length,
-    busiest: busiest ? TOPIC_BY_ID.get(busiest[0]) : null,
-    front: stories.slice(0, 3),
-    sections: TOPICS.map((t) => ({ topic: t, stories: stories.slice(3).filter((s) => s.topic.id === t.id).sort((a, b) => b.at - a.at) })).filter((s) => s.stories.length),
+    companies: briefCompanies(stories),
   };
 }
 
@@ -426,7 +454,7 @@ export function briefSummary(brief) {
     quotesStored: brief.markets.stored,
     announcements: brief.announcements.count,
     news: brief.news.count,
-    stories: stats.stories, good: stats.good, watch: stats.watch,
+    stories: stats.stories, companies: stats.companies.length, good: stats.good, watch: stats.watch,
     nse: brief.announcements.nse.ok, bse: brief.announcements.bse.ok, publishers: brief.news.source.ok,
   };
 }
@@ -436,7 +464,9 @@ export function briefSummary(brief) {
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtNumber = (v, decimals) => v.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const signed = (v, decimals, suffix = '') => (v > 0 ? '+' : v < 0 ? '−' : '') + fmtNumber(Math.abs(v), decimals) + suffix;
-const INK = '#1a1712', PAPER = '#fbf9f3', CREAM = '#f2eee3', RULE = '#d9d2c2', META = '#8a8272', RUST = '#b4531f', BODY = '#4a4438', BODY2 = '#5c5445';
+const INK = '#1a1712', PAPER = '#fbf9f3', CREAM = '#f2eee3', RULE = '#d9d2c2', META = '#8a8272', BODY = '#4a4438', BODY2 = '#5c5445';
+// Glow Ventures' gold, from public/css/glow.css (--brand-600 on the page, --brand-mid on the mark).
+const GOLD = '#8a6a1c', GOLD_LIGHT = '#d9c48f';
 const SERIF = "Georgia,'Times New Roman',Times,serif";
 const SANS = 'Arial,Helvetica,sans-serif';
 const NUM = 'font-variant-numeric:tabular-nums;white-space:nowrap;';
@@ -496,10 +526,10 @@ export const storyDate = (ms) => { const d = new Date(ms + 5.5 * 3600 * 1000); r
 /** "8:00 AM IST" from "08:00". */
 const clockLabel = (time) => { const [h, m] = String(time).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'} IST`; };
 
-/** "Research Central · 12 updates on your direct holdings — 17 Sep" */
-export function briefSubject(brief, { productName = PRODUCT_NAME } = {}) {
+/** "Glow Ventures · 12 updates on your portfolio companies — 17 Sep" */
+export function briefSubject(brief, { brand = BRAND } = {}) {
   const n = briefStats(brief).stories;
-  return `${productName} · ${n} update${n === 1 ? '' : 's'} on your ${EDITION_NAME.toLowerCase()} — ${shortDate(brief.at)}`;
+  return `${brand} · ${n} update${n === 1 ? '' : 's'} on your ${EDITION_NAME.toLowerCase()} — ${shortDate(brief.at)}`;
 }
 
 const windowLine = (brief) => `${istLabel(brief.window.from)} → ${istLabel(brief.window.to)}`;
@@ -517,7 +547,13 @@ const groupNote = (brief, groupId) => {
 
 const dot = (color, size = 8, square = false) => `<span style="display:inline-block;width:${size}px;height:${size}px;border-radius:${square ? 1 : size}px;background:${color};vertical-align:middle;"></span>`;
 const caps = (text, extra = '') => `<span style="font-family:${SANS};font-size:10px;letter-spacing:2px;text-transform:uppercase;${extra}">${text}</span>`;
-const link = (url, inner, style) => (url ? `<a href="${esc(url)}" style="${style}text-decoration:none;">${inner}</a>` : inner);
+// Every link opens in a new tab — in the preview page and in a web mail client alike — so reading a
+// filing never takes the reader away from the brief they were working down.
+const NEW_TAB = 'target="_blank" rel="noopener noreferrer"';
+const link = (url, inner, style) => (url ? `<a href="${esc(url)}" ${NEW_TAB} style="${style}text-decoration:none;">${inner}</a>` : inner);
+/** The dashboard's All Alerts view, narrowed to one company — the same route the host ticker chip opens. */
+const companyUrl = (dashboardUrl, ticker) => (/^[A-Z0-9&_.-]{1,20}$/.test(ticker || '')
+  ? `${dashboardUrl}/#/research/daily-alerts?scope=portfolio&company=${encodeURIComponent(ticker)}` : null);
 
 function marketSection(brief) {
   const m = brief.markets;
@@ -546,31 +582,45 @@ function marketSection(brief) {
       </tr>`);
     }
   }
-  return `<tr><td style="padding:20px 34px 0;">
+  return `<tr><td style="padding:30px 34px 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
       <td style="padding:0 0 4px;border-bottom:1px solid ${INK};">${caps('Global market scan', `color:${INK};font-weight:bold;letter-spacing:3px;`)}</td>
       <td align="right" style="padding:0 0 4px;border-bottom:1px solid ${INK};">${caps(esc(note), `color:${META};letter-spacing:1px;`)}</td>
     </tr></table>
-    ${glance ? `<div style="padding:8px 0 2px;font-family:${SANS};font-size:12px;line-height:1.6;color:${BODY};">${esc(glance)} <span style="color:${META};">· ${brief.book.listed} direct holdings</span></div>` : ''}
+    ${glance ? `<div style="padding:8px 0 2px;font-family:${SANS};font-size:12px;line-height:1.6;color:${BODY};">${esc(glance)}</div>` : ''}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows.join('')}</table>
   </td></tr>`;
 }
 
-const frontStory = (s, isLast) => `<tr><td style="padding:16px 0 14px;${isLast ? '' : `border-bottom:1px solid ${RULE};`}">
-  ${caps(esc(s.topic.label), `color:${s.topic.color};font-weight:bold;`)}
-  <div style="margin-top:6px;font-family:${SERIF};font-size:23px;line-height:1.24;font-weight:bold;color:${INK};">${link(s.url, esc(s.headline), `color:${INK};`)}</div>
-  ${s.dek ? `<div style="margin-top:6px;font-family:${SERIF};font-size:15px;line-height:1.45;font-style:italic;color:${BODY};">${esc(s.dek)}</div>` : ''}
-  <div style="margin-top:8px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${esc(s.company)} · ${esc(s.source)} · ${esc(storyDate(s.at))}${s.related ? ` · related entity` : ''}${s.url ? ` · <a href="${esc(s.url)}" style="color:${RUST};font-weight:bold;text-decoration:none;">Read →</a>` : ''}</div>
+const topicTag = (topic) => caps(esc(topic.label), `color:${topic.color};font-weight:bold;letter-spacing:1px;`);
+
+/** One story under its company: the exchange's or publisher's own headline, then where and when. */
+const companyStory = (s, isFirst) => `<tr><td style="padding:${isFirst ? '10px' : '12px'} 0 11px;${isFirst ? '' : `border-top:1px solid ${RULE};`}">
+  <div style="font-family:${SERIF};font-size:15px;line-height:1.4;font-weight:bold;color:${INK};">${link(s.url, esc(s.headline), `color:${INK};`)}</div>
+  ${s.dek ? `<div style="margin-top:4px;font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY2};">${esc(s.dek)}</div>` : ''}
+  <div style="margin-top:6px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${topicTag(s.topic)} &nbsp;·&nbsp; ${dot(s.mood.color)} ${esc(s.mood.label)} · ${esc(s.source)} · ${esc(storyDate(s.at))}, ${esc(istTime(s.at))} IST${s.related ? ' · related entity' : ''}${s.url ? ` · <a href="${esc(s.url)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">Read →</a>` : ''}</div>
 </td></tr>`;
 
-const sectionStory = (s, isLast) => `<tr><td style="padding:12px 0 11px;${isLast ? '' : `border-bottom:1px solid ${RULE};`}">
-  <div>${dot(s.topic.color, 8, true)} ${caps(esc(s.company), `color:${META};letter-spacing:1px;margin-left:4px;`)}</div>
-  <div style="margin-top:4px;font-family:${SERIF};font-size:15px;line-height:1.35;font-weight:bold;color:${INK};">${link(s.url, esc(s.headline), `color:${INK};`)}</div>
-  ${s.dek ? `<div style="margin-top:3px;font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY2};">${esc(s.dek)}</div>` : ''}
-  <div style="margin-top:5px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${dot(s.mood.color)} ${esc(s.mood.label)} · ${esc(s.source)} · ${esc(storyDate(s.at))}</div>
-</td></tr>`;
-
-const pill = (topic) => `<span style="display:inline-block;padding:4px 12px;border-radius:999px;background:${topic.color};color:#ffffff;font-family:${SANS};font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;">${esc(topic.label)}</span>`;
+/** A portfolio company and everything filed or published about it in the window. */
+function companyBlock(c, dashboardUrl) {
+  const n = c.stories.length;
+  const counts = [
+    `${n} update${n === 1 ? '' : 's'}`,
+    c.good ? `<span style="color:${MOODS.good.color};">${c.good} good</span>` : null,
+    c.watch ? `<span style="color:${MOODS.watch.color};">${c.watch} watch-out${c.watch === 1 ? '' : 's'}</span>` : null,
+  ].filter(Boolean).join(' · ');
+  const href = companyUrl(dashboardUrl, c.ticker);
+  return `<tr><td style="padding:20px 0 0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
+      <td valign="bottom" style="padding:0 8px 6px 0;border-bottom:2px solid ${INK};">
+        <div style="font-family:${SERIF};font-size:21px;line-height:1.2;font-weight:bold;color:${INK};">${link(href, esc(c.company), `color:${INK};`)}</div>
+        <div style="margin-top:3px;font-family:${SANS};font-size:10px;letter-spacing:1px;color:${META};${NUM}">${esc(c.ticker)} · ${counts}</div>
+      </td>
+      <td valign="bottom" align="right" style="padding:0 0 8px;border-bottom:2px solid ${INK};font-family:${SANS};font-size:11px;white-space:nowrap;">${href ? `<a href="${esc(href)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">On the dashboard →</a>` : ''}</td>
+    </tr></table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${c.stories.map((s, i) => companyStory(s, i === 0)).join('')}</table>
+  </td></tr>`;
+}
 
 function sourcesNote(brief) {
   const a = brief.announcements;
@@ -585,53 +635,55 @@ function sourcesNote(brief) {
 /**
  * The email. `recipient` personalises the footer only, so one build serves every subscriber.
  */
-export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recipient = null, productName = PRODUCT_NAME, settings = null } = {}) {
-  const subject = briefSubject(brief, { productName });
+export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recipient = null, productName = PRODUCT_NAME, brand = BRAND, settings = null } = {}) {
+  const subject = briefSubject(brief, { brand });
   const stats = briefStats(brief);
   const sendTime = settings?.[brief.edition]?.time || EDITIONS[brief.edition].defaultTime;
   const unsubscribeUrl = `${dashboardUrl}/#/research/ask-research?newsletter=manage`;
   const parts = [];
 
   parts.push(`<tr><td align="center" style="padding:30px 34px 0;">
-    <div style="font-family:${SERIF};font-size:34px;line-height:1.1;font-weight:bold;letter-spacing:7px;color:${INK};">MUNSHOT</div>
+    <div style="font-family:${SERIF};font-size:34px;line-height:1.1;font-weight:bold;letter-spacing:6px;color:${INK};">${esc(brand.toUpperCase())}</div>
     <div style="border-top:3px double ${INK};margin:12px 0 7px;font-size:0;line-height:0;">&nbsp;</div>
     <div style="font-family:${SANS};font-size:11px;letter-spacing:4px;text-transform:uppercase;color:${META};">${esc(productName)} — ${esc(TAGLINES[brief.edition])}</div>
     <div style="margin-top:10px;padding:7px 0;border-top:1px solid ${RULE};border-bottom:1px solid ${RULE};font-family:${SANS};font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${META};">${esc(istDateLong(brief.at).replace(/^(\w+) /, '$1, '))} · Edition: ${esc(EDITION_NAME)}${brief.onDemand ? ' · built on request' : ''}</div>
   </td></tr>`);
 
+  const reported = stats.companies.length;
   parts.push(`<tr><td style="padding:14px 34px 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${BODY};">
-    ${dot(MOODS.neutral.color, 9)} ${stats.stories} ${stats.stories === 1 ? 'story' : 'stories'} &nbsp;·&nbsp; ${dot(MOODS.good.color, 9)} ${stats.good} good &nbsp;·&nbsp; ${dot(MOODS.watch.color, 9)} ${stats.watch} watch-out${stats.watch === 1 ? '' : 's'} &nbsp;·&nbsp; busiest: ${stats.busiest ? `<span style="color:${stats.busiest.color};font-weight:bold;">${esc(stats.busiest.label)}</span>` : '—'}
+    <strong style="color:${INK};">${stats.stories} ${stats.stories === 1 ? 'update' : 'updates'}</strong> across <strong style="color:${INK};">${reported} of ${brief.book.listed}</strong> portfolio compan${brief.book.listed === 1 ? 'y' : 'ies'} &nbsp;·&nbsp; ${dot(MOODS.good.color, 9)} ${stats.good} good &nbsp;·&nbsp; ${dot(MOODS.watch.color, 9)} ${stats.watch} watch-out${stats.watch === 1 ? '' : 's'}
   </td></tr>`);
 
-  parts.push(marketSection(brief));
+  parts.push(`<tr><td style="padding:24px 34px 0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
+      <td style="padding:0 0 4px;border-bottom:3px solid ${GOLD_LIGHT};">${caps('Your portfolio companies', `color:${INK};font-weight:bold;letter-spacing:3px;`)}</td>
+      <td align="right" style="padding:0 0 4px;border-bottom:3px solid ${GOLD_LIGHT};">${caps(esc(windowLine(brief)), `color:${META};letter-spacing:1px;`)}</td>
+    </tr></table>
+  </td></tr>`);
 
   if (!stats.stories) {
-    parts.push(`<tr><td align="center" style="padding:36px 34px 30px;">
-      <div style="font-family:${SERIF};font-size:20px;line-height:1.3;font-style:italic;color:${INK};">Quiet day — nothing to report.</div>
-      <div style="margin-top:8px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${brief.announcements.nse.ok || brief.announcements.bse.ok || brief.news.source.ok ? 'Nothing was filed or published about a direct holding in this window.' : 'No filing or publisher feed could be read for this window, so stories are not known — not absent.'}</div>
-      <div style="margin-top:6px;font-family:${SANS};font-size:10px;line-height:1.6;color:${META};">${esc(sourcesNote(brief))}</div>
+    parts.push(`<tr><td align="center" style="padding:30px 34px 6px;">
+      <div style="font-family:${SERIF};font-size:20px;line-height:1.3;font-style:italic;color:${INK};">Quiet window — nothing to report.</div>
+      <div style="margin-top:8px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${brief.announcements.nse.ok || brief.announcements.bse.ok || brief.news.source.ok ? 'Nothing was filed or published about a portfolio company in this window.' : 'No filing or publisher feed could be read for this window, so stories are not known — not absent.'}</div>
     </td></tr>`);
   } else {
-    parts.push(`<tr><td style="padding:24px 34px 0;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-top:1px solid ${INK};">${stats.front.map((s, i) => frontStory(s, i === stats.front.length - 1)).join('')}</table>
+    parts.push(`<tr><td style="padding:0 34px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${stats.companies.map((c) => companyBlock(c, dashboardUrl)).join('')}</table>
     </td></tr>`);
-    for (const section of stats.sections) {
-      parts.push(`<tr><td style="padding:22px 34px 0;">
-        <div>${pill(section.topic)}</div>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:6px;">${section.stories.map((s, i) => sectionStory(s, i === section.stories.length - 1)).join('')}</table>
-      </td></tr>`);
-    }
     const more = brief.announcements.more + brief.news.more;
-    parts.push(`<tr><td style="padding:22px 34px 0;font-family:${SANS};font-size:10px;line-height:1.6;color:${META};">${more > 0 ? `${more} more in this window on the dashboard · ` : ''}${esc(sourcesNote(brief))}</td></tr>`);
+    if (more > 0) parts.push(`<tr><td style="padding:14px 34px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${more} more in this window on the <a href="${esc(`${dashboardUrl}/#/research/daily-alerts?scope=portfolio`)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">dashboard →</a></td></tr>`);
   }
+
+  parts.push(marketSection(brief));
+  parts.push(`<tr><td style="padding:22px 34px 0;font-family:${SANS};font-size:10px;line-height:1.6;color:${META};">${esc(sourcesNote(brief))}</td></tr>`);
 
   const subscribedLine = recipient?.test
     ? 'This is a test copy you asked for.'
-    : `You're subscribed to ${esc(EDITION_NAME)}, every weekday at ${esc(clockLabel(sendTime))}.${recipient?.addedBy ? ` Added by ${esc(recipient.addedBy)}.` : ''}`;
+    : `You're subscribed to the ${esc(brand)} brief on your ${esc(EDITION_NAME.toLowerCase())}, every weekday at ${esc(clockLabel(sendTime))}.${recipient?.addedBy ? ` Added by ${esc(recipient.addedBy)}.` : ''}`;
   const disclaimer = 'Filings and headlines as the exchanges and publishers wrote them — nothing summarised or ranked. Mood follows this dashboard’s stated filing rules; published stories are shown neutral. This brief is informational, not investment advice.';
   parts.push(`<tr><td style="padding:22px 34px;background:${INK};color:#d8d0be;font-family:${SANS};font-size:12px;line-height:1.7;">
     ${subscribedLine}<br>
-    <a href="${esc(unsubscribeUrl)}" style="color:#e0b48c;text-decoration:underline;">Unsubscribe</a> · Powered by <strong style="letter-spacing:1px;">Munshot</strong> · muns.io<br>
+    <a href="${esc(unsubscribeUrl)}" ${NEW_TAB} style="color:${GOLD_LIGHT};text-decoration:underline;">Unsubscribe</a> · <strong style="color:${GOLD_LIGHT};letter-spacing:1px;">${esc(brand)}</strong> ${esc(productName)} · powered by Munshot<br>
     <span style="color:#6b6455;font-size:10px;">${esc(disclaimer)} Sent ${esc(istLabel(brief.builtAt, { year: true }))}.</span>
   </td></tr>`);
 
@@ -642,6 +694,7 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
+<base target="_blank">
 <title>${esc(subject)}</title>
 </head>
 <body style="margin:0;padding:0;background:${CREAM};-webkit-text-size-adjust:100%;">
@@ -650,31 +703,30 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
 <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="width:640px;max-width:640px;background:${PAPER};border:1px solid ${RULE};">
 ${parts.join('\n')}
 </table>
-<div style="padding-top:12px;font-family:${SANS};font-size:10px;letter-spacing:1px;color:#a49b88;">${esc(productName)} by Munshot</div>
+<div style="padding-top:12px;font-family:${SANS};font-size:10px;letter-spacing:1px;color:#a49b88;">${esc(brand)} · ${esc(productName)}</div>
 </td></tr></table>
 </body>
 </html>`;
 }
 
 /** The same brief as plain text — what the tests read, and a copy that survives any client. */
-export function renderBriefText(brief, { productName = PRODUCT_NAME } = {}) {
+export function renderBriefText(brief, { productName = PRODUCT_NAME, brand = BRAND } = {}) {
   const stats = briefStats(brief);
   const lines = [];
-  lines.push('MUNSHOT', `${productName} — ${TAGLINES[brief.edition]}`, `${istDateLong(brief.at)} · Edition: ${EDITION_NAME}`);
-  lines.push(`${stats.stories} stories · ${stats.good} good · ${stats.watch} watch-outs · busiest: ${stats.busiest?.label || '—'}`);
+  lines.push(brand.toUpperCase(), `${productName} — ${TAGLINES[brief.edition]}`, `${istDateLong(brief.at)} · Edition: ${EDITION_NAME}`);
+  lines.push(`${stats.stories} updates across ${stats.companies.length} of ${brief.book.listed} portfolio companies · ${stats.good} good · ${stats.watch} watch-outs`);
+  lines.push('', `YOUR PORTFOLIO COMPANIES · ${windowLine(brief)}`);
+  if (!stats.stories) lines.push('Quiet window — nothing to report.');
+  for (const c of stats.companies) {
+    lines.push('', `${c.company} (${c.ticker}) · ${c.stories.length} update${c.stories.length === 1 ? '' : 's'}`);
+    for (const s of c.stories) lines.push(`  [${s.topic.label}] ${s.headline}`, `    ${s.mood.label} · ${s.source} · ${istLabel(s.at)}${s.url ? ` · ${s.url}` : ''}`);
+  }
   lines.push('', 'GLOBAL MARKET SCAN');
   for (const g of MARKET_GROUPS) {
     const members = brief.markets.rows.filter((r) => r.group === g.id);
     if (!members.length) continue;
     lines.push(`  ${g.label}`);
     for (const r of members) lines.push(`    ${r.label.padEnd(20)} ${(formatLast(r) ?? '—').padStart(11)} ${(formatPct(r) ?? '—').padStart(8)}   ${asOfLabel(r)}`);
-  }
-  lines.push('');
-  if (!stats.stories) lines.push('Quiet day — nothing to report.');
-  for (const s of stats.front) lines.push(`[${s.topic.label}] ${s.headline}`, `  ${s.company} · ${s.source} · ${istLabel(s.at)}${s.url ? ` · ${s.url}` : ''}`);
-  for (const section of stats.sections) {
-    lines.push('', section.topic.label.toUpperCase());
-    for (const s of section.stories) lines.push(`  ${s.company}: ${s.headline}`, `    ${s.mood.label} · ${s.source} · ${istLabel(s.at)}${s.url ? ` · ${s.url}` : ''}`);
   }
   lines.push('', sourcesNote(brief));
   return lines.join('\n');

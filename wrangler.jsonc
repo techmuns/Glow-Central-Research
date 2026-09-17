@@ -57,7 +57,7 @@
     // Where the brief's links and its unsubscribe route point. The email is built on the edge with
     // no request in hand, so the origin cannot be read off one; this is the public dashboard.
     "DASHBOARD_ORIGIN": "https://glow-central-research.tech-441.workers.dev",
-    // The product name on the brief's masthead tagline, subject and caption ("… by Munshot").
+    // The dashboard name on the brief's tagline and caption; the masthead and subject are Glow Ventures.
     "NEWSLETTER_PRODUCT_NAME": "Research Central"
   },
 
