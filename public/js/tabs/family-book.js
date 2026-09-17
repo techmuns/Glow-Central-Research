@@ -29,12 +29,18 @@ import { todayStamp } from '../ui/export.js';
 import * as watchlist from '../core/watchlist.js';
 import * as book from '../data/book.js';
 import * as technicals from '../data/technicals.js';
+import { ALL_HOLDINGS_VIEW, DIRECT_EQUITY_VIEW, VIEWS, viewSwitchHtml } from './family-book-views.js';
+import { paintDirectEquity, equityProvenanceHtml } from './family-book-equity.js';
 
 export const meta = {
   id: 'family-book',
   title: 'Family Book',
   subtitle: 'The family office book as the wealth platforms’ statements print it — every account, consolidated, synced daily from GlowVentures.',
-  subviews: [],
+  subviews: VIEWS,
+  // The switch is two words on the title row, not a 70px white card above a table whose whole
+  // point is the rows. The shell still routes #/research/family-book/<view>; see
+  // family-book-views.js and the `inlineSubviews` note in ui/shell.js.
+  inlineSubviews: true,
   // An empty watchlist must not replace the book with the shell's "add companies" panel: the book
   // is there whether or not anything is starred, and the pill says the watchlist is empty.
   allowEmptyScope: true,
@@ -44,8 +50,10 @@ export const meta = {
 let ctxRef = null;
 let token = 0;
 let tableView = null;
+let equityTableView = null;
 let unsubWatch = null;
 let marksLoading = null;
+let ledgerLoading = null;
 
 // ---- helpers ----------------------------------------------------------------------------------
 const crore = (rupees) => (Number.isFinite(rupees) ? rupees / 1e7 : null);
@@ -65,10 +73,16 @@ const chip = (label, title = '', tone = 'neutral') => {
 const dash = (title) => `<span class="text-slate-400" title="${escapeHtml(title)}">—</span>`;
 const toneOf = (v) => (v > 0 ? 'text-emerald-700' : v < 0 ? 'text-rose-700' : 'text-slate-700');
 
-/** The EOD mark, derived: quantity × the technicals feed's close. Null wherever either is missing. */
+/**
+ * The EOD mark, derived: quantity × the technicals feed's close. Null wherever either is missing.
+ *
+ * `rowFor`, not `byTicker` — the latter returns the SCORED object and its measurements are one
+ * level down, so `.cmp` there is `undefined` for every ticker in the feed and this column drew an
+ * em dash on all 166 listed holdings while its title said they were not in the capture.
+ */
 function eodMark(row) {
   if (!row.symbol || !technicals.isLoaded()) return null;
-  const t = technicals.byTicker(row.symbol);
+  const t = technicals.rowFor(row.symbol);
   const cmp = num(t?.cmp);
   const qty = num(row.quantity);
   if (!t || cmp == null || qty == null) return null;
@@ -91,6 +105,10 @@ function scopePill(ctx, rows) {
 }
 
 // ---- the panel --------------------------------------------------------------------------------
+
+/** The one door to the provenance modal, on both views' title rows. Wired once per paint. */
+const provenanceButton = () =>
+  '<button type="button" data-book-info class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50" title="Where these figures come from">Sources ?</button>';
 
 function unavailablePanel(reason) {
   return `
@@ -208,8 +226,9 @@ function paint(ctx) {
   root.innerHTML = `
     ${sectionHead({
       title: meta.title,
-      description: meta.subtitle,
-      meta: `${scopePill(ctx, rows)}${chip(`Statements · as of ${m.asOf ? formatDate(m.asOf) : '?'}`, 'Every figure is a wealth platform’s own statement mark; this is the newest report date in the book.', 'good')}${marked ? chip(`${formatNumber(marked)} EOD-marked`, 'Rows with a derived EOD mark beside the statement value — listed symbols the technicals feed carries.') : ''}<button type="button" data-book-info class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50" title="Where these figures come from">Sources ?</button>`,
+      compact: true,
+      titleAside: viewSwitchHtml(ctx, ALL_HOLDINGS_VIEW),
+      meta: `${scopePill(ctx, rows)}${chip(`Statements · as of ${m.asOf ? formatDate(m.asOf) : '?'}`, 'Every figure is a wealth platform’s own statement mark; this is the newest report date in the book.', 'good')}${marked ? chip(`${formatNumber(marked)} EOD-marked`, 'Rows with a derived EOD mark beside the statement value — listed symbols the technicals feed carries.') : ''}${provenanceButton()}`,
     })}
     ${stats.html}
     <div class="mt-4 fade-in" data-book-table>${table.html}</div>
@@ -276,6 +295,7 @@ function openPositionDrill(r) {
 
 function openProvenance() {
   const m = book.meta() || {};
+  const lm = book.ledgerMeta();
   const ring = book.ringFenced();
   const row = (label, value) => `<div class="flex items-start justify-between gap-4 py-1.5"><dt class="text-xs text-slate-500">${escapeHtml(label)}</dt><dd class="text-right text-sm tabular-nums text-slate-800">${escapeHtml(value)}</dd></div>`;
   openModal(
@@ -295,11 +315,14 @@ function openProvenance() {
         ${row('Accounts · with no valuation', `${formatNumber(m.accounts)} · ${formatNumber(m.accountsWithoutPositions)}`)}
         ${row('Rows with no cost on the statement', formatNumber(m.unpricedCost))}
         ${row('Ring-fenced, outside every figure', ring.length ? `${ring.map((p) => p.symbol || p.security).join(', ')} · ${fmtCr(m.ringFencedValue, 1)}` : 'none')}
+        ${lm ? row('Dated evidence behind Direct Equity', `${formatNumber(lm.transactionCount)} trades · ${formatNumber(lm.lotCount)} lots · ${formatNumber(lm.incomeCount)} income rows`) : ''}
+        ${lm ? row('Accounts issuing a transaction statement', `${formatNumber(lm.accountsWithStatement.length)} of ${formatNumber(lm.accountsWithStatement.length + lm.accountsWithoutStatement.length)}`) : ''}
       </dl>
       <div class="mt-4 space-y-2 text-sm text-slate-600">
         <p><strong>Statement value, cost, unrealised, return</strong> — the platform’s own figures on its report date; nothing is re-marked. <strong>Weight</strong> — the row’s share of the consolidated value. <strong>EOD mark (derived)</strong> — quantity × the technicals feed’s EOD close, listed symbols only, so a statement dated weeks ago can be read beside a recent close without either being mistaken for the other.</p>
         <p><strong>A dash is a figure the statement does not carry</strong> — a depository does not know what shares cost, an AIF unit has no price per unit — and is never rendered as zero, summed as zero, or read as a 100% gain.</p>
         <p><strong>The ring-fenced promoter holding</strong> is kept on its own page upstream and out of every book-wide figure there; it is carried here the same way and is in no total on this dashboard.</p>
+        ${equityProvenanceHtml()}
         <p><strong>Ask Research</strong> answers portfolio questions from this same file — the illustrative FIFO ledger under Portfolio Analytics is no longer its source.</p>
         <p class="text-xs text-slate-500">Refresh: <code class="rounded bg-slate-100 px-1">.github/workflows/series-refresh.yml</code>, 03:30 UTC daily, needs <code class="rounded bg-slate-100 px-1">GLOWVENTURES_READ_TOKEN</code>. By hand: <code class="rounded bg-slate-100 px-1">GLOWVENTURES_DIR=… node scripts/build-book.mjs</code>.</p>
       </div>
@@ -310,6 +333,49 @@ function openProvenance() {
 
 // ---- lifecycle --------------------------------------------------------------------------------
 
+/**
+ * WHICH VIEW, and the one place that decides it.
+ *
+ * `render()` runs again on every sub-view and scope change — that is the module contract — so the
+ * view is read from the ctx each time rather than remembered. An unknown segment falls through to
+ * All Holdings, which is also what the shell's own first-view fallback does.
+ */
+const viewOf = (ctx) => (ctx?.subview === DIRECT_EQUITY_VIEW ? DIRECT_EQUITY_VIEW : ALL_HOLDINGS_VIEW);
+
+/** Paint whichever view the route names, and wire the provenance door both of them carry. */
+function paintView(ctx) {
+  const m = book.meta();
+  if (!m) {
+    ctx.root.innerHTML = `${sectionHead({ title: meta.title, description: meta.subtitle })}${unavailablePanel('book.json did not load.')}`;
+    return;
+  }
+  if (viewOf(ctx) === DIRECT_EQUITY_VIEW) {
+    const dispose = paintDirectEquity(ctx, {
+      rows: scopeRows(ctx),
+      scopePill: scopePill(ctx, scopeRows(ctx)),
+      tableView: equityTableView,
+      onView: (v) => { equityTableView = v; },
+      provenanceButton: provenanceButton(),
+    });
+    ctx.root.__disposeTable = dispose;
+    ctx.root.querySelector('[data-book-info]')?.addEventListener('click', () => openProvenance());
+    return;
+  }
+  paint(ctx);
+}
+
+/**
+ * The dated evidence is a SECOND, OPTIONAL PASS, exactly as the EOD marks are — and only the view
+ * that renders it asks for it. `book-ledger.json` is 630 KB against the book's 420 KB, so All
+ * Holdings, Ask Research and every other reader of this module never fetch a byte of it. The
+ * table paints from the statements first and the Last trade column fills in when it lands.
+ */
+function ensureLedger(mine) {
+  if (book.isLedgerLoaded() || ledgerLoading) return;
+  ledgerLoading = book.loadLedger().catch(() => null).finally(() => { ledgerLoading = null; });
+  ledgerLoading.then(() => { if (mine === token && ctxRef && viewOf(ctxRef) === DIRECT_EQUITY_VIEW) paintView(ctxRef); });
+}
+
 export function render(ctx) {
   ctxRef = ctx;
   const mine = ++token;
@@ -318,12 +384,13 @@ export function render(ctx) {
   book.load()
     .then(() => {
       if (mine !== token || !ctxRef) return;
-      paint(ctxRef);
+      paintView(ctxRef);
+      if (viewOf(ctxRef) === DIRECT_EQUITY_VIEW) ensureLedger(mine);
       // The EOD marks are a second, optional pass: the statements' figures paint first, and the
       // derived column fills in when the technicals feed lands — never the other way round.
       if (!technicals.isLoaded()) {
         marksLoading = marksLoading || technicals.load().catch(() => null).finally(() => { marksLoading = null; });
-        marksLoading.then(() => { if (mine === token && ctxRef && technicals.isLoaded()) paint(ctxRef); });
+        marksLoading.then(() => { if (mine === token && ctxRef && technicals.isLoaded()) paintView(ctxRef); });
       }
     })
     .catch((err) => {
@@ -335,7 +402,7 @@ export function render(ctx) {
   // rule CLAUDE.md records the filings tabs breaking.
   if (!unsubWatch) {
     unsubWatch = watchlist.onChange(() => {
-      if (ctxRef && ctxRef.scope === 'watchlist' && book.isLoaded()) paint(ctxRef);
+      if (ctxRef && ctxRef.scope === 'watchlist' && book.isLoaded()) paintView(ctxRef);
     });
   }
 }
@@ -347,5 +414,6 @@ export function destroy() {
   }
   ctxRef = null;
   tableView = null;
+  equityTableView = null;
   if (unsubWatch) { unsubWatch(); unsubWatch = null; }
 }

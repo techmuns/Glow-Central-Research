@@ -99,6 +99,8 @@ jobs:
         run: node scripts/verify-screener-actions.mjs
       - name: Verify active Family Office holdings sync
         run: node scripts/verify-family-sync.mjs
+      - name: Verify the Direct Equity rollup, its derivations and its refusals
+        run: node scripts/verify-direct-equity.mjs
       - name: Verify Glow Screener portfolio mirror safety
         run: node scripts/verify-screener-watchlist.mjs
       - name: Verify NSE filing history and scoped search
@@ -191,6 +193,10 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-glow-parity-ui.mjs && node scripts/verify-glow-portfolio-cache-ui.mjs
+      - name: Verify the Family Book's two views, its lazy ledger and its fourteen columns
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-direct-equity-ui.mjs
       - name: Verify technical and institutional filters across scopes and refreshes
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright

@@ -42,7 +42,9 @@ const crore = (rupees) => (Number.isFinite(rupees) ? round(rupees / 1e7, 2) : nu
 
 function eodMark(row) {
   if (!row.symbol || !technicals.isLoaded()) return null;
-  const t = technicals.byTicker(row.symbol);
+  // `rowFor`, not `byTicker`: the latter returns the scored object, whose `.cmp` is undefined for
+  // every ticker in the feed — this packet carried no EOD mark at all until that was named.
+  const t = technicals.rowFor(row.symbol);
   const cmp = Number(t?.cmp);
   if (!t || !Number.isFinite(cmp) || !Number.isFinite(row.quantity)) return null;
   return { close: cmp, closeDate: t.bar_date || null, valueRupees: round(row.quantity * cmp) };
