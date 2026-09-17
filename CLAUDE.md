@@ -883,6 +883,32 @@ Everything else follows the rules this file already runs on, and four are worth 
    subtracting another, and the toolbar offers **no plan filter**: it could only answer with
    "direct" and an empty "regular".
 
+**ACTIVE / PASSIVE IS THE FIRST CHIP ROW ON BOTH SUB-VIEWS, ABOVE THE CLASSIFICATION, AND IT IS
+THE ONE PLACE A SCHEME IS SHOWN SOMEWHERE OTHER THAN THE BUCKET ITS SOURCE CHOSE.** The owner's
+first cut is whether a scheme is run by a manager or tracks an index, because the two are not
+comparable on one table, and the source's own buckets do not draw it. Measured on the 16 September
+2026 feed: 19 direct-plan *Nifty Midcap 150* index funds and ETFs sat under `Equity : Mid Cap`
+beside 100 actively managed mid-cap funds, 13 more under `Small Cap`, seven under `Multi Cap`, and
+target-maturity index funds across seven debt buckets — every one ranked, by the source, against
+stock-pickers. Her own workbook files all of them under one Index & smart beta sheet. So
+`classifyLive(classification, name)` in `js/data/mf-taxonomy.js` reads the scheme's OWN NAME —
+SEBI requires a tracker to carry the index it tracks, the same fact `factorsOf` already rests on —
+and a name-stated tracker the source filed under an ACTIVE category is SHOWN under `Index & smart
+beta` (or `Exchange traded` for a listed unit), in a category labelled `Index · Mid Cap` whose id
+is the source's own with the kind appended, so it can never collide with the bucket it left.
+`management` is read off the GROUP (`PASSIVE_GROUPS`), so both feeds answer from one definition and
+the workbook's Smart Beta sheet is passive without a second table. Four things keep it honest, and
+the suite asserts each: **the source's own word wins where it gives one** (a scheme filed as `Index
+Funds` is passive on its say-so and is never re-filed, whatever its name says); **the source's
+classification stays on the row, in the search text and in the export**, and `refiled.from` names
+it; **the chip, the sub-line and the provenance panel say why the scheme moved**; and **its rank and
+category median are left as the source's own cohort** — a mid-cap index fund's `7/52` is still its
+rank among the source's mid-cap funds, active ones included, and every cell of such a row says so.
+The Active / Passive counts describe the whole feed and never move; the classification counts
+beneath describe the tree the cut leaves, because the cut sits above them. `Growth`-style option
+words and factor words such as *Value* are not passive signals: an actively managed value fund is
+active. `node scripts/verify-mf-taxonomy.mjs` is the offline test and needs no server.
+
 **AND "WHICH OF THESE ARE THE MOMENTUM FUNDS" IS A REAL QUESTION NEITHER SOURCE CAN ANSWER.**
 AmfiBeas file all 645 passive equity schemes as `Equity : Index`, `Equity : Index Funds` or
 `Equity : ETFs` and stop there; the workbook files all 70 of them as one Smart Beta sheet. So the

@@ -36,6 +36,31 @@
 // can. It reads the scheme's OWN NAME rather than its classification, it is labelled as such
 // wherever it surfaces, and it is deliberately a SEPARATE axis: a momentum fund's classification is
 // still `Equity : Index`, and nothing here moves it.
+//
+// ABOVE THE TREE SITS ONE CUT, AND IT IS THE FIRST QUESTION THE OWNER ASKS: ACTIVE OR PASSIVE.
+// `MANAGEMENT` / `managementOf(group)` split every scheme into the ones a manager runs and the ones
+// that track an index, because the two are not comparable on one table: an index fund's return IS
+// the category's return less a fee, and ranking it beside a stock-picker measures nothing. The split
+// is read off the GROUP — `Index & smart beta` and `Exchange traded` are passive, everything else is
+// active — so both feeds answer it from one definition, and the workbook's Smart Beta sheet is
+// passive without a second table saying so.
+//
+// AND THE ONE PLACE THIS FILE MOVES A SCHEME OUT OF THE BUCKET ITS SOURCE PUT IT IN IS WRITTEN DOWN
+// HERE, WITH THE MEASUREMENT THAT MADE IT NECESSARY. AmfiBeas file some index trackers under the
+// active category whose SEGMENT they track rather than under `Index`: measured on the 16 September
+// 2026 feed, 19 direct-plan schemes named "…Nifty Midcap 150 Index Fund" or "…Midcap 150 ETF" sat
+// in `Equity : Mid Cap` beside 100 actively managed mid-cap funds, 13 more in `Small Cap`, and
+// target-maturity index funds across seven debt buckets. The owner's own workbook files every one
+// of these under a single Index & smart beta sheet, and she asked for the same here: an index fund
+// is not a mid-cap fund's peer. So `classifyLive(classification, name)` reads the scheme's OWN NAME
+// — SEBI requires a tracker to carry the index it tracks in its name, exactly the fact `factorsOf`
+// already relies on — and where the source has filed a name-stated tracker under an active category
+// it is SHOWN under `Index & smart beta` (or `Exchange traded` for a listed unit), in a category of
+// its own labelled `Index · Mid Cap`. Three things keep that honest: the source's own label travels
+// on every row as `sourceLabel` / `refiled.from` and in the export, the rule is stated on the chip,
+// the sub-line and the provenance panel, and the source's OWN WORD WINS WHERE IT GIVES ONE — a
+// scheme the source files under `Index`, `Index Funds` or `ETFs` is passive on its say-so, whatever
+// its name says, and is never re-filed. Nothing else in the tree moves.
 
 // ---------------------------------------------------------------------------------------
 // The top level
@@ -79,6 +104,55 @@ const groupRank = (g) => {
   const i = GROUP_ORDER.indexOf(g);
   return i < 0 ? GROUP_ORDER.length : i;
 };
+
+// ---------------------------------------------------------------------------------------
+// Active or passive — the cut above the tree
+// ---------------------------------------------------------------------------------------
+
+/** The two answers, in reading order. Every scheme is exactly one of them; there is no third. */
+export const MANAGEMENT = [
+  { id: 'active', label: 'Active', title: 'Schemes a fund manager runs — every category the source files that is not an index, index-fund or ETF bucket, and every scheme whose own name states no tracked index.' },
+  { id: 'passive', label: 'Passive', title: 'Schemes that track an index: filed by the source as Index, Index Funds or ETFs, or carrying a tracked index or ETF in the scheme’s own name, which SEBI requires of every tracker.' },
+];
+const MANAGEMENT_LABEL = new Map(MANAGEMENT.map((m) => [m.id, m.label]));
+export const managementLabel = (id) => MANAGEMENT_LABEL.get(id) || id;
+
+/**
+ * THE GROUPS THAT ARE PASSIVE, and the whole of the definition. Reading it off the group rather than
+ * off a second table is what lets both feeds answer from one place: the workbook's Smart Beta sheet
+ * and the live feed's `Equity : Index`, `Equity : Index Funds`, `Debt : ETFs` and `Metal : ETFs`
+ * all land in these two groups already, and a name-stated tracker re-filed by `classifyLive` lands
+ * in one of them too.
+ */
+export const PASSIVE_GROUPS = new Set(['Index & smart beta', 'Exchange traded']);
+export const managementOf = (group) => (PASSIVE_GROUPS.has(group) ? 'passive' : 'active');
+
+/**
+ * WHAT A SCHEME'S OWN NAME SAYS ABOUT HOW IT IS RUN. Two kinds, and the order matters: a name that
+ * says ETF is a listed unit even where it also says index ("Nifty Midcap 150 ETF"); a name that
+ * says index, or names an index family — Nifty, Sensex, Nasdaq, S&P, MSCI, FTSE, CRISIL-IBX and
+ * the like, which nothing but a tracker may carry — is an open-ended index fund. `note` records
+ * why each pattern is as narrow as it is, the same discipline as `FACTORS`.
+ */
+export const PASSIVE_NAME = [
+  { id: 'etf', label: 'ETF', re: /\betfs?\b|\bexchange[\s-]*traded\b/i, note: 'ETF as a word, and the spelt-out "Exchange Traded Fund" — nine schemes in the feed use the long form and nothing else.' },
+  { id: 'index', label: 'Index', re: /\bindex\b/i, note: 'Index as a word. "Indexation" and "Indexed" are not words a scheme is named with, so no narrowing is needed.' },
+  { id: 'index', label: 'Index', re: /\b(nifty|sensex|nasdaq|s&p|msci|ftse|crisil[\s-]*ibx|hang\s*seng|dow\s*jones|nyse\s*fang)\b/i, note: 'An index family’s own name. Measured on the feed, every scheme carrying one of these words without "index" or "ETF" is a tracker or a fund feeding one; no actively managed scheme is named for an index.' },
+];
+// A fund of funds is not itself listed, so a "Gold ETF FoF" is an open-ended feeder and sits with
+// the index funds rather than in the exchange-traded group whose whole point is the listing.
+const FUND_OF_FUNDS = /\bfofs?\b|\bfund\s+of\s+funds?\b/i;
+
+/** `'etf'`, `'index'` or null — what the scheme's own name states, and nothing the source said. */
+export function passiveKindOf(name) {
+  const n = String(name || '');
+  if (!n) return null;
+  return PASSIVE_NAME.find((p) => p.re.test(n))?.id || null;
+}
+export const isFundOfFunds = (name) => FUND_OF_FUNDS.test(String(name || ''));
+// The source's own words for a passive bucket, matched on the classification's TAIL. Their word
+// wins where they give one: a scheme filed here is passive whatever its name says.
+const PASSIVE_SOURCE_TAIL = /^(index|index funds|etfs)$/i;
 
 // ---------------------------------------------------------------------------------------
 // The workbook's 26 sheets
@@ -206,20 +280,72 @@ const GROUPS_BY_CLASS = {
 };
 
 /**
- * One AmfiBeas `classification` string -> where it sits in the tree.
+ * One AmfiBeas `classification` string — and, optionally, the scheme's own name — -> where it sits
+ * in the tree, and whether it is actively managed or tracks an index.
+ *
+ * Returns `{ assetClass, group, label, sourceLabel, categoryId, management, refiled, shownLabel }`.
  *
  * `sourceLabel` is always the string as it arrived, so the reader can see the source's own words
  * beside the grouping this file added. A null or unreadable classification is `Unclassified` and is
  * kept — 308 of the shipped feed's schemes carry none, and dropping them would silently shrink a
  * universe the source says is 3,439 strong.
+ *
+ * `refiled` is null for every scheme shown in the bucket its source chose. It is
+ * `{ from, kind, reason }` for the one case this file moves a scheme — a tracker the source filed
+ * under an ACTIVE category (see the head of this file): `from` is the source's classification,
+ * `kind` is what the name stated (`index` or `etf`), and the scheme is shown under `Index & smart
+ * beta` or `Exchange traded` in a category labelled `Index · Mid Cap` / `ETF · Mid Cap`, whose id
+ * is the source's own category id with the kind appended, so it can never collide with the bucket
+ * it came out of. `shownLabel` is the classification string as this dashboard presents it — the
+ * source's own where nothing moved, `Equity : Index · Mid Cap` where it did — for the search
+ * facets, which must agree with the chips about which cohort a scheme is in.
  */
-export function classifyLive(classification) {
+export function classifyLive(classification, name = '') {
   const raw = String(classification || '').trim();
-  if (!raw) {
-    return { assetClass: 'Unclassified', group: 'Other', label: 'No classification', sourceLabel: null, categoryId: 'unclassified' };
-  }
-  const [head, ...rest] = raw.split(':').map((s) => s.trim());
+  const [head = '', ...rest] = raw ? raw.split(':').map((s) => s.trim()) : [];
   const tail = rest.join(' : ');
+  const base = raw
+    ? placeLive(head, tail, raw)
+    : { assetClass: 'Unclassified', group: 'Other', label: 'No classification', sourceLabel: null, categoryId: 'unclassified' };
+  // THEIR OWN WORD WINS WHERE THEY GIVE ONE. A scheme the source files as Index / Index Funds / ETFs
+  // is passive on the source's say-so and is never re-filed, whatever its name says — the feed
+  // carries an "ICICI Pru PSU Equity Fund" under `Equity : Index Funds`, and that is their claim to
+  // make, reproduced.
+  if (raw && PASSIVE_SOURCE_TAIL.test(tail)) {
+    return { ...base, management: 'passive', refiled: null, shownLabel: raw };
+  }
+  const kind = passiveKindOf(name);
+  if (!kind) {
+    return { ...base, management: managementOf(base.group), refiled: null, shownLabel: base.sourceLabel };
+  }
+  // A NAME-STATED TRACKER FILED UNDER AN ACTIVE CATEGORY IS SHOWN WITH THE OTHER TRACKERS. The
+  // source's bucket is kept on the row as `refiled.from` and `sourceLabel`; only where it is SHOWN
+  // changes, and the category it is shown in is named after both facts.
+  const listed = kind === 'etf' && !isFundOfFunds(name);
+  const group = listed ? 'Exchange traded' : 'Index & smart beta';
+  const kindLabel = kind === 'etf' ? 'ETF' : 'Index';
+  const from = raw || null;
+  // A bare head ("Debt") names no sub-category, and the category label says so rather than
+  // repeating the asset class — the same wording the `Not sub-classified` group uses for the
+  // same absence.
+  const segment = tail || (head ? 'not sub-classified' : 'no classification');
+  return {
+    ...base,
+    group,
+    label: `${kindLabel} · ${segment}`,
+    categoryId: `${base.categoryId}-${kind}`,
+    management: 'passive',
+    refiled: {
+      from,
+      kind,
+      reason: `${from ? `Filed by the source as ${from}` : 'Carrying no classification from the source'}; shown under ${group} because the scheme’s own name states a tracked ${kindLabel === 'ETF' ? 'ETF' : 'index'}. The source’s classification is unchanged on the row and in the export, and its rank and category median remain the source’s own cohort.`,
+    },
+    shownLabel: `${head || 'Unclassified'} : ${kindLabel} · ${segment}`,
+  };
+}
+
+/** The bucket the source's own string names — the part of `classifyLive` that never moves anything. */
+function placeLive(head, tail, raw) {
   const assetClass = HEAD_TO_CLASS[head] || 'Unclassified';
   const label = tail || head;
   const rules = GROUPS_BY_CLASS[assetClass] || [];
@@ -313,7 +439,19 @@ export function buildTree(items, of) {
     if (!groups.has(t.group)) groups.set(t.group, new Map());
     const cats = groups.get(t.group);
     const id = t.categoryId || slugify(t.label);
-    if (!cats.has(id)) cats.set(id, { id, label: t.label, sourceLabel: t.sourceLabel ?? t.label, items: [] });
+    if (!cats.has(id)) {
+      cats.set(id, {
+        id,
+        label: t.label,
+        sourceLabel: t.sourceLabel ?? t.label,
+        // Where the whole category exists because its schemes were moved out of the source's bucket
+        // (see classifyLive), the chip has to say so — a label the source never printed, with no
+        // explanation beside it, would read as the source's own.
+        refiled: t.refiled || null,
+        management: t.management || managementOf(t.group),
+        items: [],
+      });
+    }
     cats.get(id).items.push(item);
   }
   return [...classes.entries()]
