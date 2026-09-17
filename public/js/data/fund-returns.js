@@ -9,6 +9,14 @@
 //   meta()        asOfDate, periods, counts, provenance, and a named `reason` on failure
 //   periods()     the periods the payload carries
 //
+// EVERY ROW CARRIES `taxonomy` — WHERE THIS DASHBOARD SHOWS IT, AND WHETHER IT IS ACTIVE OR PASSIVE.
+// `classifyLive(classification, name)` in js/data/mf-taxonomy.js is computed ONCE here, at ingest,
+// so the chips, the table, the search facets and the export all read one answer rather than each
+// re-deriving it. `classification` stays the source's own string on every row; `taxonomy.refiled`
+// is the one case where the two disagree — a tracker the source filed under an active category,
+// shown with the other trackers — and `meta().refiled` counts them so the provenance panel can say
+// how many. See the head of mf-taxonomy.js for the measurement behind that rule.
+//
 // ============================================================================================
 // EVERY RETURN ARRIVES WITH ITS BENCHMARK, AND THE BENCHMARK IS THEIRS
 // ============================================================================================
@@ -66,7 +74,7 @@
 // `rank` is "the cohort was too small to rank" and may sit beside a non-null return.
 
 import { conditionalJson, KEYS, isPersistent } from '../core/store.js';
-import { factorsOf } from './mf-taxonomy.js';
+import { factorsOf, classifyLive } from './mf-taxonomy.js';
 
 export const PERIODS = ['1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y'];
 // The label each period wears in the table — " CAGR" is appended for the multi-year ones, which is
@@ -149,6 +157,7 @@ function baseMeta(extra) {
   return {
     reason: null, url: null, status: null, asOfDate: null, generatedAt: null, source: null, periods: PERIODS,
     total: 0, count: 0, universe: 0, hiddenRegular: 0, singlePlan: 0, foldedDuplicates: 0, benchmarkBasis: null,
+    active: 0, passive: 0, refiled: 0,
     checkedAt: null, origin: null, persisted: isPersistent(), ...extra,
   };
 }
@@ -298,6 +307,9 @@ function ingest(res) {
         cohortKey: f.cohortKey || null,
         // The strategy the scheme's OWN NAME states, never a re-classification — see mf-taxonomy.js.
         factors: factorsOf(fundName),
+        // Where this dashboard shows the scheme, and whether it is actively managed or tracks an
+        // index. Read from the source's classification AND the scheme's own name, once, here.
+        taxonomy: classifyLive(f.classification, fundName),
 
         returns,
       };
@@ -327,6 +339,12 @@ function ingest(res) {
       // What a return is compared against on this feed, named once so the table heading, the modal
       // and the export cannot drift about it.
       benchmarkBasis: 'category',
+      // The active / passive split over the rows the tab lists, and how many of the passive ones
+      // are shown somewhere other than the bucket the source chose. Three counts, none reached by
+      // subtracting another.
+      active: kept.filter((r) => r.taxonomy.management === 'active').length,
+      passive: kept.filter((r) => r.taxonomy.management === 'passive').length,
+      refiled: kept.filter((r) => r.taxonomy.refiled).length,
       checkedAt: res.checkedAt || Date.now(),
       origin: res.fromStore ? 'store' : 'live',
     }),

@@ -58,6 +58,8 @@ jobs:
       # that every run now says, in its own summary, how much captured data is waiting and where.
       - name: Report captured data still waiting for review
         if: always()
+        # Informational: it may never be the reason a run is red.
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

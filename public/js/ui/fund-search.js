@@ -1,12 +1,16 @@
 // GLOW-OWNED: category selection and scheme search share the All Schemes search box.
-// Categories are the feed's own labels. Several selections mean OR; free text narrows that set.
-// The table consumes matches() for rows, counts and export, so they cannot disagree.
+// Categories are the feed's own labels — except where this dashboard shows a scheme under a
+// different one (a tracker the source filed under an active category; see classifyLive in
+// js/data/mf-taxonomy.js), where the facet is the category it is SHOWN in, so the search box and
+// the chips above it can never disagree about which cohort a scheme is in. Several selections mean
+// OR; free text narrows that set. The table consumes matches() for rows, counts and export, so
+// they cannot disagree.
 
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber } from '../core/format.js';
 
 let sequence = 0;
-const categoryOf = (row) => row.classification || 'Unclassified';
+const categoryOf = (row) => row.taxonomy?.shownLabel || row.classification || 'Unclassified';
 const normalise = (value) => String(value ?? '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const wordsOf = (value) => normalise(value).split(/\s+/).filter(Boolean);
 const containsWords = (text, words) => words.every((word) => text.includes(word));
@@ -18,7 +22,7 @@ export function fundSearch({ rows = [], selected = [], q = '', onFilterChange = 
   const categories = [...counts.keys()].sort((a, b) => a.localeCompare(b));
   const view = { categories: [...new Set(selected || [])] };
   let picked = new Set(view.categories);
-  const textOf = (row) => normalise(`${row.fundName} ${categoryOf(row)} ${(row.factors || []).join(' ')} ${row.option || ''}`);
+  const textOf = (row) => normalise(`${row.fundName} ${categoryOf(row)} ${row.classification || ''} ${row.taxonomy?.management || ''} ${(row.factors || []).join(' ')} ${row.option || ''}`);
   const textByRow = new Map(rows.map((row) => [row, textOf(row)]));
   let lastQuery;
   let words = [];

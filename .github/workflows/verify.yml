@@ -31,6 +31,8 @@ jobs:
         run: node scripts/verify-notification-inbox.mjs
       - name: Verify shared technical filter boundaries and counts
         run: node scripts/verify-technical-filters.mjs
+      - name: Verify the mutual-fund active / passive cut and where a moved tracker is shown
+        run: node scripts/verify-mf-taxonomy.mjs
       - name: Verify variable-height virtual list geometry
         run: node scripts/verify-windowed-geometry.mjs
       - name: Verify Glow portfolio and template isolation

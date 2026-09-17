@@ -883,6 +883,32 @@ Everything else follows the rules this file already runs on, and four are worth 
    subtracting another, and the toolbar offers **no plan filter**: it could only answer with
    "direct" and an empty "regular".
 
+**ACTIVE / PASSIVE IS THE FIRST CHIP ROW ON BOTH SUB-VIEWS, ABOVE THE CLASSIFICATION, AND IT IS
+THE ONE PLACE A SCHEME IS SHOWN SOMEWHERE OTHER THAN THE BUCKET ITS SOURCE CHOSE.** The owner's
+first cut is whether a scheme is run by a manager or tracks an index, because the two are not
+comparable on one table, and the source's own buckets do not draw it. Measured on the 16 September
+2026 feed: 19 direct-plan *Nifty Midcap 150* index funds and ETFs sat under `Equity : Mid Cap`
+beside 100 actively managed mid-cap funds, 13 more under `Small Cap`, seven under `Multi Cap`, and
+target-maturity index funds across seven debt buckets — every one ranked, by the source, against
+stock-pickers. Her own workbook files all of them under one Index & smart beta sheet. So
+`classifyLive(classification, name)` in `js/data/mf-taxonomy.js` reads the scheme's OWN NAME —
+SEBI requires a tracker to carry the index it tracks, the same fact `factorsOf` already rests on —
+and a name-stated tracker the source filed under an ACTIVE category is SHOWN under `Index & smart
+beta` (or `Exchange traded` for a listed unit), in a category labelled `Index · Mid Cap` whose id
+is the source's own with the kind appended, so it can never collide with the bucket it left.
+`management` is read off the GROUP (`PASSIVE_GROUPS`), so both feeds answer from one definition and
+the workbook's Smart Beta sheet is passive without a second table. Four things keep it honest, and
+the suite asserts each: **the source's own word wins where it gives one** (a scheme filed as `Index
+Funds` is passive on its say-so and is never re-filed, whatever its name says); **the source's
+classification stays on the row, in the search text and in the export**, and `refiled.from` names
+it; **the chip, the sub-line and the provenance panel say why the scheme moved**; and **its rank and
+category median are left as the source's own cohort** — a mid-cap index fund's `7/52` is still its
+rank among the source's mid-cap funds, active ones included, and every cell of such a row says so.
+The Active / Passive counts describe the whole feed and never move; the classification counts
+beneath describe the tree the cut leaves, because the cut sits above them. `Growth`-style option
+words and factor words such as *Value* are not passive signals: an actively managed value fund is
+active. `node scripts/verify-mf-taxonomy.mjs` is the offline test and needs no server.
+
 **AND "WHICH OF THESE ARE THE MOMENTUM FUNDS" IS A REAL QUESTION NEITHER SOURCE CAN ANSWER.**
 AmfiBeas file all 645 passive equity schemes as `Equity : Index`, `Equity : Index Funds` or
 `Equity : ETFs` and stop there; the workbook files all 70 of them as one Smart Beta sheet. So the
@@ -2794,6 +2820,31 @@ rather than `Must see`, because that is what changes the reader's next move; the
 as `data-priority` and in the filter chips. And the pattern block is now a row of CHIPS naming every
 pattern, not a panel restating their sentences — it still sits above the evidence, because the
 finding is read before its workings, and it still prints no score.
+
+### TWO BULLETS PER COMPANY, AND THE THREE TRIGGERS AS FILTERS — `impactOf()`
+
+The desk's brief (17 September 2026): *"three triggers — will it change the earnings assumption,
+will it change the valuation, will it make or break the thesis. Two bullets for each company: what
+has happened, and will it change those three."* Every card now carries exactly those two bullets.
+The first is `plainInsight`, unchanged. The second is `impactLine`, and the whole of its honesty is
+in the verb: **it says *could change*, never *will*, and it names the QUESTION an event bears on,
+never the answer** — no field in any feed here carries an analyst's judgement, and this dashboard
+does not invent one. `eventImpacts(event)` reads the question off structured facts the collectors
+already write: a tracked keyword's family (an order win is an earnings question, a buyback a
+valuation one, a fraud probe a thesis one), a filing rule's own name (`filingRule`, now returned by
+`announcementSignal`), a result filed, a close past `MOVE_PCT`, a holder's move past its feed's own
+bar. Four rules, all already in this file: **no new fact**; **each leg keys on the owning feed's
+published threshold** (`importance === 'high'`, the confluence predicate); **a holder's or an
+insider's move bears on none of the three by itself** — it is somebody else's decision and already
+the first bullet's business, and measured on the shipped capture insider disclosures alone had put
+31 of 60 cards under Thesis; **volume bears on nothing**. And an
+absence is stated in words — *"Nothing tracked here bears on the thesis"* — because *not tracked* and
+*no* are different answers. The three questions are a second chip group beside the priority chips,
+**Could change** · *Earnings · n* · *Valuation · n* · *Thesis · n*: one pressed at a time, pressed
+again to clear, each count measured with the other group held fixed (the technical-filter rule), and
+an empty trigger view says it is a reading of tracked triggers rather than a claim that nothing could
+change. The mapping is one table (`IMPACT_BY_KEYWORD`, `IMPACT_BY_FILING_RULE`); a keyword absent
+from it bears on nothing rather than on a nearest guess.
 
 ### ARCHIVING IS A PLACE, NOT A DELETION — `js/core/ai-mute.js`
 
