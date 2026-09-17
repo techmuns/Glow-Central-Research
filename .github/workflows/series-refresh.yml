@@ -37,8 +37,6 @@ jobs:
     timeout-minutes: 35
     permissions:
       contents: write
-      pull-requests: write
-      actions: write
     steps:
       - uses: actions/checkout@v5
 
@@ -135,10 +133,8 @@ jobs:
           HOLDINGS_AUDIT_OWNS: managers
         run: node scripts/audit-holdings.mjs
 
-      - name: Open reviewed series data PR
+      - name: Commit the series store and the book to main
         if: env.SRC_SHA != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -150,7 +146,15 @@ jobs:
             echo "### Already current — nothing to commit" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          node scripts/data-pr.mjs "Refresh series data"
+          git commit -m "Series and book refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          exit 1
       - name: Surface overdue holdings feeds
         if: steps.holdings-audit.outcome == 'failure'
         run: |

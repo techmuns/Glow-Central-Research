@@ -119,7 +119,17 @@ jobs:
           } > "$body"
           draft=()
           if [ "$CONFLICT" = true ] || [ "$CHECKED" != success ]; then draft=(--draft); fi
-          if ! gh pr create --base main --head "$BRANCH" --title "Sync Sattva template into Glow (${UPSTREAM:0:12})" --body-file "$body" "${draft[@]}"; then
+          if ! url=$(gh pr create --base main --head "$BRANCH" --title "Sync Sattva template into Glow (${UPSTREAM:0:12})" --body-file "$body" "${draft[@]}"); then
             echo "::error::SYNC_PUSH_TOKEN must allow Contents, Workflows and Pull requests read/write on Glow-Central-Research. The review branch is preserved; no main push was attempted."
             exit 1
           fi
+          # ONE OPEN SYNC PR AT A TIME. Sattva's main moves several times a day, so a fresh sync
+          # branch every six hours left 29 drafts open on 17 September 2026, each one a strict
+          # subset of the next. The newest carries everything the older ones did, so the older
+          # ones are closed as superseded. Their branches are kept: a person part-way through
+          # resolving a conflict on one loses nothing and can reopen it.
+          gh pr list --state open --limit 100 --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("codex/sattva-sync-")) | select(.headRefName != env.BRANCH) | .number' | \
+          while read -r number; do
+            gh pr close "$number" --comment "Superseded by $url, which syncs a later Sattva revision. This branch is kept."
+          done

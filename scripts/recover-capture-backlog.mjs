@@ -17,6 +17,15 @@
 // and writes the result back through that feed's OWN writer. It invents nothing, fetches nothing
 // from any publisher, and is re-runnable: a second pass over the same branches is a no-op.
 //
+// The gate is retired (writers commit to main again), so this is now the tool for the day a
+// branch strands for any other reason. Two kinds of feed, and the split is the whole design:
+//
+//   HISTORY feeds are unioned by identity — a story, a filing, a post, a checked move — because a
+//   later run cannot re-fetch what an upstream's window has already moved past.
+//   SNAPSHOT feeds are rebuilt from their upstream on every run, so each PATH is taken from the
+//   newest branch that changed it: that is the state a normal run sequence would have left, and it
+//   is what the next scheduled run would do to main in any case.
+//
 // Usage:  node scripts/recover-capture-backlog.mjs [--feed <id>] [--limit N] [--dry-run]
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -64,6 +73,7 @@ const readJson = (path, fallback = null) => { try { return JSON.parse(readFileSy
 const writeJson = (path, value) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, `${JSON.stringify(value)}\n`); };
 export const MONTH_SHARD = /^(\d{4}-\d{2})\.json$/;
 export const DAY_SHARD = /^(\d{4}-\d{2}-\d{2})\.json$/;
+const ARCHIVE_SHARD = /^(?:\d{4}-\d{2}|undated)\.json$/;
 
 /**
  * MARKET NEWS — the feed that proved the problem.
@@ -214,12 +224,197 @@ async function recoverCorporateActions(branches, { dryRun }) {
   return { feed: 'corporate-actions', branches: seen, before, after: rows.length, added: rows.length - before, wrote: true };
 }
 
+/**
+ * INSIDER TRADES and BSE ANNOUNCEMENTS — the archive layer is the history; the snapshot is a window.
+ *
+ * `filing-archive.mjs` keeps a month shard per feed and `archiveFilings` merges incoming rows into
+ * whatever is on disk through each feed's own identity (`mergeInsiderTrades`, `mergeAnnouncements`),
+ * so every shard a branch CHANGED goes back through it, oldest branch first. Only the changed shards
+ * are read: a branch carries the whole archive, and most of it is the base every other branch also
+ * carries. The bounded `insider-trades.json` / `corp-announcements.json` windows and the resumable
+ * `filing-capture/` state are snapshots and are taken from the newest branch below.
+ */
+function filingArchiveRecovery({ id, dir, kind }) {
+  return async function recover(branches, { dryRun }) {
+    const { archiveFilings } = await import('./lib/filing-archive.mjs');
+    const target = join(DATA, dir);
+    const rows = [];
+    let seen = 0;
+    for (const { ref } of branches) {
+      const changed = changedFiles(ref);
+      if (!touches(changed, f => f.startsWith(`public/data/${dir}/`))) continue;
+      const checkout = checkoutPaths(ref, [`public/data/${dir}`]);
+      try {
+        const source = join(checkout, 'public/data', dir);
+        for (const name of existsSync(source) ? readdirSync(source) : []) {
+          if (!ARCHIVE_SHARD.test(name)) continue;
+          if (changed !== null && !changed.includes(`public/data/${dir}/${name}`)) continue;
+          rows.push(...(readJson(join(source, name), {}).rows || []));
+        }
+        seen += 1;
+      } finally { rmSync(checkout, { recursive: true, force: true }); }
+    }
+    const before = readJson(join(target, 'index.json'), { rowCount: 0 }).rowCount || 0;
+    if (dryRun || !rows.length) return { feed: id, branches: seen, before, incoming: rows.length, wrote: false };
+    const index = archiveFilings(target, kind, rows);
+    return { feed: id, branches: seen, before, after: index.rowCount, added: index.rowCount - before, incoming: rows.length, wrote: true };
+  };
+}
+
+/**
+ * X / TWITTER — deduplicated by tweet id, then capped, the way `scrape-twitter.py` does it.
+ *
+ * The head is the newest `TWITTER_KEEP` posts and the month shards under `twitter-archive/` are
+ * the history; both are unioned by `tweet_id`, newest branch winning a post and `matchedQueries`
+ * accumulating, then sorted newest-first with the id as the tie-break so a post with no readable
+ * time still lands somewhere stable. The envelope is the newest branch's.
+ */
+async function recoverTwitterPosts(branches, { dryRun }) {
+  const KEEP = Number(process.env.TWITTER_KEEP || 600);
+  const path = join(DATA, 'twitter-posts.json');
+  const archiveDir = join(DATA, 'twitter-archive');
+  const current = readJson(path, { posts: [] });
+  const held = new Map();
+  const absorb = (post) => {
+    if (!post?.tweet_id) return;
+    const old = held.get(post.tweet_id) || {};
+    const matched = new Map([...(old.matchedQueries || []), ...(post.matchedQueries || [])].map(q => [JSON.stringify(q), q]));
+    held.set(post.tweet_id, { ...old, ...post, matchedQueries: [...matched.values()] });
+  };
+  for (const post of current.posts || []) absorb(post);
+  for (const name of existsSync(archiveDir) ? readdirSync(archiveDir) : []) if (ARCHIVE_SHARD.test(name)) for (const post of readJson(join(archiveDir, name), {}).posts || []) absorb(post);
+  const before = held.size;
+  let envelope = current, seen = 0;
+  for (const { ref } of branches) {
+    const changed = changedFiles(ref);
+    if (!touches(changed, f => f === 'public/data/twitter-posts.json' || f.startsWith('public/data/twitter-archive/'))) continue;
+    const dir = checkoutPaths(ref, ['public/data/twitter-posts.json', 'public/data/twitter-archive']);
+    try {
+      const payload = readJson(join(dir, 'public/data/twitter-posts.json'));
+      if (payload) { envelope = payload; for (const post of payload.posts || []) absorb(post); }
+      const shards = join(dir, 'public/data/twitter-archive');
+      for (const name of existsSync(shards) ? readdirSync(shards) : []) {
+        if (!ARCHIVE_SHARD.test(name)) continue;
+        if (changed !== null && !changed.includes(`public/data/twitter-archive/${name}`)) continue;
+        for (const post of readJson(join(shards, name), {}).posts || []) absorb(post);
+      }
+      seen += 1;
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }
+  const key = p => [p.created_at || '', String(p.tweet_id)];
+  const newestFirst = (a, b) => { const [ka, kb] = [key(a), key(b)]; for (let i = 0; i < 2; i++) { if (ka[i] < kb[i]) return 1; if (ka[i] > kb[i]) return -1; } return 0; };
+  const all = [...held.values()].sort(newestFirst);
+  if (dryRun) return { feed: 'twitter', branches: seen, before, after: all.length, added: all.length - before, wrote: false };
+  const buckets = new Map();
+  for (const post of all) {
+    const month = /^\d{4}-\d{2}/.test(post.created_at || '') ? post.created_at.slice(0, 7) : 'undated';
+    if (!buckets.has(month)) buckets.set(month, []);
+    buckets.get(month).push(post);
+  }
+  mkdirSync(archiveDir, { recursive: true });
+  for (const [month, posts] of buckets) writeJson(join(archiveDir, `${month}.json`), { month, posts });
+  const archive = readdirSync(archiveDir).filter(n => ARCHIVE_SHARD.test(n)).sort().reverse().map(n => ({ file: `twitter-archive/${n}`, month: n.replace(/\.json$/, '') }));
+  writeJson(path, { ...envelope, posts: all.slice(0, KEEP), archive });
+  return { feed: 'twitter', branches: seen, before, after: all.length, added: all.length - before, head: Math.min(all.length, KEEP), wrote: true };
+}
+
+/**
+ * PRICE-MOVE CHECKS — every answer the market-data endpoint ever gave, keyed `TICKER@bar_date`.
+ *
+ * Its quota is smaller than a day's flagged list, so the answers are collected across runs and a
+ * name is asked about once. A branch therefore holds the base's answers plus its own few, and the
+ * union by key is the recovery; the envelope is the branch with the newest `updated_at`.
+ */
+async function recoverPriceMoveChecks(branches, { dryRun }) {
+  const path = join(DATA, 'price-move-checks.json');
+  const current = readJson(path, { checks: {} });
+  const checks = { ...(current.checks || {}) };
+  let envelope = current, seen = 0;
+  for (const { ref } of branches) {
+    if (!touches(changedFiles(ref), f => f === 'public/data/price-move-checks.json')) continue;
+    const dir = checkoutPaths(ref, ['public/data/price-move-checks.json']);
+    try {
+      const payload = readJson(join(dir, 'public/data/price-move-checks.json'));
+      if (!payload?.checks) continue;
+      Object.assign(checks, payload.checks);
+      if ((payload.updated_at || '') >= (envelope.updated_at || '')) envelope = payload;
+      seen += 1;
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }
+  const before = Object.keys(current.checks || {}).length, after = Object.keys(checks).length;
+  if (dryRun) return { feed: 'price-move-checks', branches: seen, before, after, added: after - before, wrote: false };
+  writeJson(path, { ...envelope, count: after, checks });
+  return { feed: 'price-move-checks', branches: seen, before, after, added: after - before, wrote: true };
+}
+
+/**
+ * SNAPSHOT FILES — each path is taken from the newest branch that changed it.
+ *
+ * These feeds are rebuilt from their upstream on every run: a technicals file is recomputed from
+ * Yahoo, an investor book re-read from Finology, the series store copied whole from GlowVentures.
+ * The newest capture of a PATH is therefore the state a normal run sequence would have left, and
+ * it is what the next scheduled run does to main in any case. Per PATH rather than per directory,
+ * so a per-company file an earlier run wrote and a later run never reached is kept; a path the
+ * newest branch deleted is deleted. Nothing is merged, and nothing here is history.
+ */
+export const SNAPSHOT_PATHS = [
+  // technicals-refresh.yml and price-move-verify.yml (price-move-checks.json is unioned above)
+  'public/data/technicals.json', 'public/data/atr-history.json', 'public/data/result-returns.json',
+  'public/data/earnings-live.json', 'public/data/earnings-calendar.json', 'public/data/mc-ticker-map.json',
+  'public/data/concall-scans.json', 'public/data/portfolio-history.json',
+  // fpi-activity-refresh.yml
+  'public/data/fpi-activity.json',
+  // series-refresh.yml
+  'public/data/series/', 'public/data/book.json', 'public/data/managers.json', 'public/data/portfolio-companies.json',
+  // investor-refresh.yml
+  'public/data/super-investors.json', 'public/data/shareholding-filings.json.gz', 'public/data/public-holdings.json',
+  // insider-trades-refresh.yml: the bounded window and the resumable capture state (its archive is unioned above)
+  'public/data/insider-trades.json', 'public/data/filing-capture/',
+  // announcements-refresh.yml: the bounded window and the identity table (its archive is unioned above)
+  'public/data/corp-announcements.json', 'public/data/announcement-identities.json',
+  // twitter-refresh.yml: the handle list and search state (the posts are unioned above)
+  'public/data/twitter-handles.json', 'public/data/twitter-search-plan.json', 'public/data/twitter-search.json',
+  // company-news-refresh.yml: the thirty-day head and its lossless parts, written together by one
+  // run (the archive beneath them is unioned above and is the history)
+  'public/data/news.json', 'public/data/news.parts/',
+];
+async function recoverSnapshots(branches, { dryRun }) {
+  const latest = new Map();
+  let seen = 0;
+  for (const { ref } of branches) {
+    let entries;
+    try { entries = git('diff', '--name-status', '--no-renames', `${ref}^`, ref, '--', ...SNAPSHOT_PATHS).split('\n').filter(Boolean); }
+    catch { entries = git('ls-tree', '-r', '--name-only', ref, '--', ...SNAPSHOT_PATHS).split('\n').filter(Boolean).map(p => `M\t${p}`); }
+    if (!entries.length) continue;
+    seen += 1;
+    for (const line of entries) { const [status, path] = line.split('\t'); latest.set(path, { ref, status }); }
+  }
+  let written = 0, deleted = 0;
+  const suppliers = new Map();
+  for (const [path, { ref, status }] of latest) {
+    suppliers.set(ref, (suppliers.get(ref) || 0) + 1);
+    if (dryRun) continue;
+    const target = join(ROOT, path);
+    if (status === 'D') { rmSync(target, { force: true }); deleted += 1; continue; }
+    const bytes = execFileSync('git', ['show', `${ref}:${path}`], { cwd: ROOT, maxBuffer: 1024 * 1024 * 1024 });
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, bytes);
+    written += 1;
+  }
+  return { feed: 'snapshots', branches: seen, paths: latest.size, suppliers: suppliers.size, written, deleted, wrote: !dryRun && latest.size > 0 };
+}
+
 const FEEDS = {
   'market-news': recoverMarketNews,
   'nse-filings': recoverNseFilings,
   'company-news': companyArchiveRecovery({ id: 'company-news', dir: 'company-news', prefix: 'company-news' }),
   'tradingview-news': companyArchiveRecovery({ id: 'tradingview-news', dir: 'tradingview-news', prefix: 'tradingview-news' }),
   'corporate-actions': recoverCorporateActions,
+  'insider-archive': filingArchiveRecovery({ id: 'insider-archive', dir: 'insider-archive', kind: 'insider' }),
+  'announcements-archive': filingArchiveRecovery({ id: 'announcements-archive', dir: 'announcements-archive', kind: 'announcements' }),
+  'twitter': recoverTwitterPosts,
+  'price-move-checks': recoverPriceMoveChecks,
+  'snapshots': recoverSnapshots,
 };
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

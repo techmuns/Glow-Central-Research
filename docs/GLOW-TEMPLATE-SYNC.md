@@ -140,20 +140,25 @@ credentials in repository files, frontend assets, PR text or chat.
 
 ## Generated-data publication
 
-Scheduled repository writers commit on `codex/data-*` branches and open PRs with an explicit
-Verify dispatch and automated review request. Company-news publication still reconciles captured
-records with the latest main in disposable worktrees, preserving competing records and source
-health. It reports `review-pending` until the PR merges; a capture or PR is not deployed data.
-The review controller reads trusted main-branch code, checks the exact proposed SHA and only
-merges data-only PRs with successful verification and completed review without feedback.
+Scheduled repository writers commit captured data straight to `main`, exactly as they do on the
+template: a commit, then `git push origin HEAD:main` with a fetch-and-rebase retry so two writers
+landing together lose nothing. Company-news publication reconciles captured records with the latest
+main in disposable worktrees and pushes the result to main itself. Verify runs on every push to
+main and reports; Cloudflare's Git integration deploys main.
 
-A failed check, conflicting update, review finding or unavailable reviewer leaves the PR open.
-Codex review quota was exhausted during this migration; future generated-data PRs need completed
-review after availability returns, or a disclosed local review by an operator following the
-repository workflow. A quota notice is never approval. Captures stay in their review branches
-(and the company-news workflow's uploaded artifact) while publication is pending. Repository
-Actions must permit PR creation; no extra publication PAT is required because CI is explicitly
-dispatched with `GITHUB_TOKEN`.
+Between 9 and 17 September 2026 the writers instead opened a `codex/data-*` pull request per
+capture and a review controller merged only verified, reviewed ones. The Codex connector does not
+review a PR raised by `github-actions[bot]`, so 1,091 capture PRs were open on 17 September and the
+live site sat on 9 September prices. That gate is retired: `data-pr-review.yml`, `data-pr.mjs`,
+`merge-data-pr.mjs` and `publish-data-pr.mjs` are gone, `verify-glow-isolation.mjs` asserts that
+every workflow staging `public/data` pushes to main through the retry, and
+`scripts/recover-capture-backlog.mjs` unions any stranded `codex/data-*` branches back in, feed by
+feed, should that ever happen again. Every refresh workflow that exists on both sides is
+byte-identical to Sattva's again, so the template sync no longer conflicts on them.
+
+The sync workflow itself still opens a pull request for the template merge — code changes are
+reviewed — but keeps one open at a time: a new sync closes the older `codex/sattva-sync-*` drafts
+as superseded and leaves their branches in place.
 
 ## Sync of 16 September 2026
 

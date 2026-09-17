@@ -15,8 +15,6 @@ jobs:
     timeout-minutes: 120
     permissions:
       contents: write
-      pull-requests: write
-      actions: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -46,42 +44,24 @@ jobs:
         with:
           name: holdings-coverage-audit
           path: /tmp/holdings-audit.json
-      - name: Publish the capture and failure metadata through a checked PR
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/publish-data-pr.mjs investor-holdings public/data/super-investors.json public/data/shareholding-filings.json.gz public/data/public-holdings.json
-      # A CAPTURE THAT SITS IN AN UNMERGED PR HAS NOT REACHED THE DASHBOARD. Every scheduled writer
-      # publishes into a codex/data-* PR that merges only once its checks pass AND a review lands,
-      # and the Codex connector cannot review a PR raised by github-actions[bot] — so measured on
-      # 16 September 2026 the live site still carried the 9 September capture while five green
-      # captures a day piled up as open PRs. Nothing about the gate changes here; what changes is
-      # that every run now says, in its own summary, how much captured data is waiting and where.
-      - name: Report captured data still waiting for review
-        if: always()
-        # Informational: it may never be the reason a run is red.
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Commit the capture and failure metadata to main
         run: |
-          set -eu
-          pending="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --author 'app/github-actions' --limit 100 \
-            --json number,title,headRefName,createdAt,url \
-            --jq '[.[] | select(.headRefName | startswith("codex/data-"))] | sort_by(.createdAt)')"
-          count="$(printf '%s' "$pending" | jq 'length')"
-          {
-            echo "## Captured data waiting for review"
-            if [ "$count" = "0" ]; then
-              echo "Every generated-data PR has merged; the dashboard is on the latest captures."
-            else
-              echo "$count open \`codex/data-*\` pull requests hold captured data the dashboard is not yet showing. Each needs its Verify checks green and a review from someone who can merge by hand — the Codex connector cannot review a PR raised by github-actions[bot]."
-              echo
-              printf '%s' "$pending" | jq -r '.[] | "- [#\(.number)](\(.url)) \(.title) — opened \(.createdAt[:10])"'
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$count" != "0" ]; then
-            oldest="$(printf '%s' "$pending" | jq -r '.[0].createdAt[:10]')"
-            echo "::warning title=$count captured data PRs are waiting for review::The oldest was opened on $oldest. The dashboard shows main, so it stays on the last merged capture until these are approved."
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- public/data/super-investors.json public/data/shareholding-filings.json.gz public/data/public-holdings.json
+          if git diff --cached --quiet; then
+            echo "No investor-holdings changes to commit."
+            exit 0
           fi
+          git commit -m "Investor holdings refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          exit 1
       - name: Surface failed or overdue ingestion
         if: steps.capture.outcome == 'failure' || steps.primary.outcome == 'failure' || steps.audit.outcome == 'failure'
         run: |

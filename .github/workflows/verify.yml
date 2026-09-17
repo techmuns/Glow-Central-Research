@@ -36,7 +36,7 @@ jobs:
       - name: Verify variable-height virtual list geometry
         run: node scripts/verify-windowed-geometry.mjs
       - name: Verify Glow portfolio and template isolation
-        run: node scripts/verify-glow-parity.mjs && node scripts/verify-glow-review-gates.mjs && node scripts/check-book.mjs
+        run: node scripts/verify-glow-parity.mjs && node scripts/verify-glow-isolation.mjs && node scripts/check-book.mjs
       - name: Verify filings snapshot recovery
         run: node scripts/verify-filings-snapshot.mjs
       - name: Verify permanent company-news identities and archive
