@@ -4220,7 +4220,9 @@ were the windowed list placing a held row from ESTIMATED heights and correcting 
 *Performance on large tables* — and `verify-windowed-list-ui.mjs` now pins the reader's row
 deterministically. When a browser step fails on a data-only branch, read the assertion before
 retrying: it is either a test reading live data (`verify-research-reasoning-ui.mjs` asserts a
-market-wrap co-mention against the shipped capture) or a product defect the data happened to reach.
+market-wrap co-mention against the shipped capture), a runner-speed budget (the All Alerts "visible
+stream completes quickly" clock measures a shared runner's repaint of a large pool, and now prints
+its timings), or a product defect the data happened to reach.
 
 `finology-shared.js` compares consecutive completed calendar quarters throughout the dashboard.
 Preserve `quarterlyStatus`: reported, filing_due, not_disclosed, unknown. A legacy null cannot prove
