@@ -5464,22 +5464,32 @@ are outside it there and outside it here.
 
 A source that could not be read says so **in the email** (`NSE feed could not be read (blocked)`),
 and a scan row that could not be quoted prints `unavailable`, never a number. If the **book**
-cannot be read the brief is not built at all — an email about direct holdings with no book behind
+cannot be read the brief is not built at all — an email about portfolio companies with no book behind
 it is about nothing — and the delivery is recorded `book-unavailable`.
 
-### The email is a Munshot broadsheet
+### The email is a Glow Ventures broadsheet, and it leads with the portfolio companies
 
-`worker/newsletter-brief.mjs` renders one table-based, inline-styled, 640px sheet: the `MUNSHOT`
-masthead, the product tagline (`Research Central — Morning Market Brief`), a date/edition strip,
-a stats line, the market scan, a **front page** of the three strongest items, then every other
-item under a **topic pill**, an Ink footer with the unsubscribe link and `Powered by Munshot ·
-muns.io`, and the caption `Research Central by Munshot`. Subject:
-`Research Central · 12 updates on your direct holdings — 17 Sep`.
+`worker/newsletter-brief.mjs` renders one table-based, inline-styled, 640px sheet: the
+`GLOW VENTURES` masthead, the tagline (`Research Central — Morning Portfolio Brief`), a
+date/edition strip (`Edition: Portfolio companies`), a summary line counting updates and the
+companies they cover against the book (`8 updates across 7 of 166 portfolio companies`), then
+**Your portfolio companies** — every filing and story filed under its company — and only then the
+global market scan, the sources line, an Ink footer with the unsubscribe link and a small
+`powered by Munshot` credit, and the caption `Glow Ventures · Research Central`. Subject:
+`Glow Ventures · 12 updates on your portfolio companies — 17 Sep`.
+
+The owner's ask (17 September 2026): the brief is Glow Ventures' own, not a platform newsletter,
+and its focus is the portfolio companies. So a company is one block — its name links to All Alerts
+narrowed to that company (`#/research/daily-alerts?scope=portfolio&company=TICKER`), filings and
+news together under it — and companies are ordered by their strongest story (tracked keyword,
+directional mood, importance), then by how much they had, then by recency. **Every link carries
+`target="_blank" rel="noopener noreferrer"`**, and the page declares `<base target="_blank">`, so
+opening a filing from the preview or a web mail client never navigates away from the brief.
 
 Filings and published stories become one list of **stories**, each carrying two readings this
 dashboard already makes and no new one:
 
-- **Topic** is what a story is *about*, from the desk's thirty tracked keywords. The seven Munshot
+- **Topic** is what a story is *about*, from the desk's thirty tracked keywords. The seven
   topics fold the keyword families: Orders is the three order keywords, Growth the rest of that
   family, Money is capital raising and results, Approvals & IP is regulatory, Trouble is risk and
   governance, and a story matching nothing is Other.
@@ -5488,8 +5498,9 @@ dashboard already makes and no new one:
   on this dashboard, so a news story's dot is Neutral — never a guess dressed as a judgement. The
   footer disclaimer says exactly this.
 
-The front page is ordered by (tracked keyword, non-neutral mood, importance), then recency; the
-stats line counts stories, good, watch-outs and the busiest topic from the same list. Headlines,
+Within a company, stories are ordered by (tracked keyword, non-neutral mood, importance), then
+recency; the topic is a small tag on each story and the summary line counts updates, companies,
+good and watch-outs from the same list. Headlines,
 standfirsts and filing subjects are reproduced as written; nothing is summarised.
 
 ### The list — one Durable Object, `team-brief:v1`

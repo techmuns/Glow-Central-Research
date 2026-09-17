@@ -278,16 +278,16 @@ await test('the morning brief builds from the fixtures and every section states 
   for (const g of morning.news.groups) for (const item of g.items) assert.ok(item.at >= morning.window.from && item.at < morning.window.to);
 });
 
-await test('the broadsheet renders every fixed Munshot element, escapes the exchanges\' text and dates every figure', () => {
+await test('the broadsheet carries the Glow Ventures masthead, escapes the exchanges\' text and dates every figure', () => {
   const html = renderBriefHtml(morning, { dashboardUrl: 'https://example.test', recipient: { email: 'pratik@muns.io', addedBy: 'Ravi' } });
   assert.match(html, /^<!doctype html>/);
   assert.ok(html.includes('<meta name="color-scheme" content="light">'));
-  assert.ok(html.includes('letter-spacing:7px;color:#1a1712;">MUNSHOT</div>'), 'the masthead wordmark');
+  assert.ok(html.includes('letter-spacing:6px;color:#1a1712;">GLOW VENTURES</div>'), 'the masthead is the family office\'s name');
+  assert.ok(!html.includes('MUNSHOT'), 'no Munshot masthead on a Glow Ventures brief');
   assert.ok(html.includes('border-top:3px double #1a1712'), 'the double rule');
-  assert.ok(html.includes('RESEARCH CENTRAL — MORNING MARKET BRIEF'.replace('RESEARCH CENTRAL — MORNING MARKET BRIEF', 'Research Central — Morning Market Brief')));
-  assert.ok(html.includes('Edition: Direct holdings'));
-  assert.ok(html.includes('Powered by <strong style="letter-spacing:1px;">Munshot</strong> · muns.io'));
-  assert.ok(html.includes('Research Central by Munshot'));
+  assert.ok(html.includes('Research Central — Morning Portfolio Brief'));
+  assert.ok(html.includes('Edition: Portfolio companies'));
+  assert.ok(html.includes('Glow Ventures · Research Central'), 'the caption under the sheet');
   assert.ok(html.includes('https://example.test/#/research/ask-research?newsletter=manage'), 'the unsubscribe link lands on the panel');
   assert.ok(html.includes('Added by Ravi'));
   assert.ok(html.includes('Global market scan'));
@@ -296,16 +296,45 @@ await test('the broadsheet renders every fixed Munshot element, escapes the exch
   assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
   assert.ok(/Close · \w{3} \d{2}:\d{2} \w+/.test(html), 'a closed market prints its close time');
   assert.ok(/Live · \w{3} \d{2}:\d{2} \w+/.test(html), 'a trading market prints its last print');
-  assert.ok(html.includes('background:#3b82f6;color:#ffffff') || html.includes('color:#3b82f6;font-weight:bold'), 'the Orders topic colour appears');
+  assert.ok(html.includes('color:#3b82f6;font-weight:bold'), 'the Orders topic colour appears');
   assert.ok(/\b1 watch-out\b/.test(html), 'the downgrade filing is counted as a watch-out on the stats line');
   assert.ok(html.includes('#f43f5e'), 'the watch-out colour appears');
-  assert.ok(html.includes('Read \u2192'), 'every story offers Read →');
+  assert.ok(html.includes('Read →'), 'every story offers Read →');
   assert.ok(!html.includes('<style') && !html.includes('<script'), 'no stylesheet, no script');
   assert.ok(html.length < 200000);
   const subject = briefSubject(morning);
-  assert.match(subject, /^Research Central · \d+ updates? on your direct holdings — 17 Sep$/, subject);
+  assert.match(subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep$/, subject);
   const text = renderBriefText(morning);
-  assert.ok(text.includes('MUNSHOT') && text.includes('GLOBAL MARKET SCAN') && text.includes('Aarti Drugs'));
+  assert.ok(text.startsWith('GLOW VENTURES') && text.includes('GLOBAL MARKET SCAN') && text.includes('Aarti Drugs'));
+  assert.ok(text.indexOf('YOUR PORTFOLIO COMPANIES') < text.indexOf('GLOBAL MARKET SCAN'), 'the text copy leads with the companies too');
+});
+
+await test('the portfolio companies lead the sheet, each company once, strongest first, with its stories under it', () => {
+  const html = renderBriefHtml(morning, { dashboardUrl: 'https://example.test' });
+  const stats = briefStats(morning);
+  assert.ok(stats.companies.length > 0);
+  assert.equal(stats.companies.reduce((n, c) => n + c.stories.length, 0), stats.stories, 'every story sits under exactly one company');
+  assert.equal(new Set(stats.companies.map((c) => c.ticker)).size, stats.companies.length, 'a company appears once, filings and news together');
+  for (let i = 1; i < stats.companies.length; i++) {
+    const [a, b] = [stats.companies[i - 1], stats.companies[i]];
+    assert.ok(a.score > b.score || (a.score === b.score && a.stories.length >= b.stories.length), `${a.ticker} before ${b.ticker}`);
+  }
+  assert.equal(stats.companies[0].ticker, 'AARTIDRUGS', 'the company with a tracked order and a downgrade leads');
+  assert.ok(html.indexOf('Your portfolio companies') > 0 && html.indexOf('Your portfolio companies') < html.indexOf('Global market scan'), 'companies before the market scan');
+  assert.ok(html.indexOf('Aarti Drugs') < html.indexOf('Global market scan'));
+  assert.ok(html.includes(`across <strong style="color:#1a1712;">${stats.companies.length} of ${morning.book.listed}</strong> portfolio companies`), 'the summary counts companies against the book');
+  assert.ok(html.includes('https://example.test/#/research/daily-alerts?scope=portfolio&amp;company=AARTIDRUGS'), 'a company links to its own alerts on the dashboard');
+});
+
+await test('every link in the brief opens in a new tab', () => {
+  const html = renderBriefHtml(morning, { dashboardUrl: 'https://example.test', recipient: { email: 'pratik@muns.io' } });
+  const anchors = html.match(/<a\s[^>]*>/g) || [];
+  assert.ok(anchors.length > 5, 'stories, companies and the footer carry links');
+  for (const a of anchors) {
+    assert.ok(a.includes('target="_blank"'), a);
+    assert.ok(a.includes('rel="noopener noreferrer"'), a);
+  }
+  assert.ok(html.includes('<base target="_blank">'), 'the preview page opens anything else in a new tab too');
 });
 
 await test('a refused quote source and a blocked exchange are stated on the page, never drawn as numbers', async () => {
@@ -327,9 +356,9 @@ await test('with nothing filed or published the sheet says so, and only about wh
   const html = renderBriefHtml(brief);
   if (!briefStats(brief).stories) {
     assert.ok(html.includes('Quiet day — nothing to report.'));
-    assert.ok(html.includes('Nothing was filed or published about a direct holding in this window.'));
+    assert.ok(html.includes('Nothing was filed or published about a portfolio company in this window.'));
   }
-  assert.ok(html.includes('MUNSHOT'));
+  assert.ok(html.includes('GLOW VENTURES'));
 });
 
 // ---- the schedule -----------------------------------------------------------------------------------
@@ -376,8 +405,8 @@ await test('the alarm sends the morning brief to its subscribers once, with html
     assert.equal(e.method, 'POST');
     assert.equal(e.auth, 'Bearer team-secret-token');
     assert.ok(e.html && e.text === undefined, 'exactly one of html/text');
-    assert.match(e.subject, /^Research Central · \d+ updates? on your direct holdings — 17 Sep$/);
-    assert.ok(e.html.includes('MUNSHOT'));
+    assert.match(e.subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep$/);
+    assert.ok(e.html.includes('GLOW VENTURES'));
   }
   const delivery = store.delivery('2026-09-17:morning');
   assert.equal(delivery.sent, 2); assert.equal(delivery.failed, 0); assert.equal(delivery.source, 'timer');
@@ -464,9 +493,9 @@ await test('a preview builds the edition up to now without sending, in html or t
   clock = istInstant('2026-09-17', '10:30');
   const { schedule, log } = makeSchedule();
   const html = await schedule.preview({ edition: 'morning' });
-  assert.equal(html.ok, true); assert.ok(html.body.startsWith('<!doctype html>')); assert.match(html.subject, /^Research Central ·/);
+  assert.equal(html.ok, true); assert.ok(html.body.startsWith('<!doctype html>')); assert.match(html.subject, /^Glow Ventures ·/);
   const text = await schedule.preview({ edition: 'morning', format: 'text' });
-  assert.ok(text.body.startsWith('MUNSHOT'));
+  assert.ok(text.body.startsWith('GLOW VENTURES'));
   assert.equal(log.filter((l) => l.kind === 'email').length, 0);
   assert.equal((await schedule.preview({ edition: 'weekly' })).reason, 'invalid-edition');
 });

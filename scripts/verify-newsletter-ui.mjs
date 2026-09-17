@@ -174,7 +174,7 @@ try {
   await page.locator('[data-brief-action="send-test"]').click();
   await page.waitForFunction(() => document.querySelector('.brief-note')?.textContent.includes('Test copy'));
   ok('"Send me a copy" posts exactly one html email to the reader', emails.length === 1 && emails[0].to === 'pratik@muns.io' && emails[0].html && !emails[0].hasText, JSON.stringify(emails.map((e) => e.to)));
-  ok('...as a Munshot broadsheet with the product subject', emails[0].html.includes('MUNSHOT') && /^Research Central · \d+ updates? on your direct holdings/.test(emails[0].subject), emails[0].subject);
+  ok('...as a Glow Ventures broadsheet with the portfolio subject', emails[0].html.includes('GLOW VENTURES') && !emails[0].html.includes('MUNSHOT') && /^Glow Ventures · \d+ updates? on your portfolio companies/.test(emails[0].subject), emails[0].subject);
   ok('...marked as a test copy in its footer', emails[0].html.includes('This is a test copy you asked for.'));
   await page.locator('[data-brief-action="send-all"]').click();
   ok('"Send to everyone" asks first, naming how many will get it', (await page.locator('.brief-confirm').innerText()).includes('2 addresses'), 'pratik is morning-only and meera gets both');
@@ -188,7 +188,7 @@ try {
   ok('...and the send appears under Recent sends', (await page.locator('.brief-log').innerText()).includes('sent to 1 of 1'));
   const [preview] = await Promise.all([context.waitForEvent('page'), page.locator('[data-brief-action="preview"]').click()]);
   await preview.waitForLoadState();
-  ok('Preview opens the edition as it would send now, in a new tab', /Research Central · \d+ updates?/.test(await preview.title()) && (await preview.locator('body').innerText()).includes('MUNSHOT'));
+  ok('Preview opens the edition as it would send now, in a new tab', /Glow Ventures · \d+ updates?/.test(await preview.title()) && (await preview.locator('body').innerText()).includes('GLOW VENTURES'));
   await preview.close();
 
   console.log('\n— the schedule —');

@@ -1205,8 +1205,9 @@ revalidates its sources on mount — moved, not deleted, and the age stays state
 
 ### The team brief — two emails a weekday, built at the edge (GLOW-OWNED)
 
-The **Newsletter** button beside the header bell subscribes the desk to two Munshot-branded emails
-a weekday: the **morning brief** at 08:00 IST (what happened overnight — the US close, Asia this
+The **Newsletter** button beside the header bell subscribes the desk to two Glow Ventures-branded
+emails a weekday, each leading with the portfolio companies (one block per company, every link
+opening in a new tab) and following with the market scan: the **morning brief** at 08:00 IST (what happened overnight — the US close, Asia this
 morning, Brent, gold, silver, the dollar index and USD/JPY, plus every filing and story about a
 DIRECT holding since the previous evening) and the **evening brief** at 16:00 IST (the trading day).
 `docs/DATA-CONTRACTS.md` → *The team brief* has the routes, the shapes and the window rule. Six
