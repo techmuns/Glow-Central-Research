@@ -382,6 +382,12 @@ try {
   // Stable recall cases and the exact user-reviewed mismatch, independent of today's capture.
   await page.locator('[data-table-search]').fill('jayaswal');
   await page.waitForFunction(() => document.querySelector('tbody')?.textContent.toLowerCase().includes('jayaswal'));
+  // A NEW FILTER IS A NEW LIST, AND THE LIST ENTERS ONE ROW EVERY 110MS. The first matching row
+  // satisfies the wait above while the rest are still staged, so reading the table at that instant
+  // sees however many rows had entered — and the fixture story, dated 4 September, sits below every
+  // newer Jayaswal record. Measured on 17 September 2026: two more current-week records above it
+  // were enough for the read to miss it in CI. Read the table once the surface has settled.
+  await stableReadingSurface();
   const jayaswalResults = await page.locator('tbody').innerText();
   assert(jayaswalResults.includes('Jayaswal Neco'), 'publisher-supported Jayaswal stories remain searchable');
   assert(!jayaswalResults.includes('Lululemon stock analysis'), 'the reviewed mismatch does not match Jayaswal');
@@ -396,6 +402,7 @@ try {
   await settled();
   await page.locator('[data-table-search]').fill('lululemon');
   await page.waitForFunction(() => document.querySelector('tbody')?.textContent.toLowerCase().includes('lululemon'));
+  await stableReadingSurface();
   assert((await page.locator('tbody').innerText()).includes('Lululemon'), 'the retained story remains searchable by its own publisher text');
   assert((await page.locator('tbody').innerText()).includes('Unrelated search result'));
   assert(!(await page.locator('tbody').innerText()).includes('JAYNECOIND'), 'the unrelated row is not labelled as the company');
