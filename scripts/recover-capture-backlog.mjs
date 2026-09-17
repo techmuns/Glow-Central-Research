@@ -36,8 +36,20 @@ export function captureBranches() {
     .map(line => { const [ref, when, subject] = line.split('\t'); return { ref, when, subject }; });
 }
 
-/** A branch's own change, never a diff against today's main — main has moved since. */
-const changedFiles = (ref) => git('diff', '--name-only', `${ref}^`, ref, '--', 'public/data').split('\n').filter(Boolean);
+/**
+ * A branch's own change, never a diff against today's main — main has moved since.
+ *
+ * Some capture branches chain onto another capture branch that has since been deleted, so their
+ * parent commit is simply not in this clone and `<ref>^` cannot be resolved. That is a fact about
+ * what was fetched, not about the branch, so it returns NULL rather than an empty list: a caller
+ * reading null as "nothing changed" would silently skip a real capture, which is the same class of
+ * error as reading a failed request as an empty result. Callers treat null as "read it anyway".
+ */
+const changedFiles = (ref) => {
+  try { return git('diff', '--name-only', `${ref}^`, ref, '--', 'public/data').split('\n').filter(Boolean); }
+  catch { return null; }
+};
+const touches = (files, test) => files === null || files.some(test);
 
 /** Materialise just the paths a feed needs, so a branch costs its own files and nothing else. */
 function checkoutPaths(ref, paths) {
@@ -67,8 +79,7 @@ async function recoverMarketNews(branches, { dryRun }) {
   const merged = new Map([...onDisk.all]);
   let newestHead = null, seen = 0;
   for (const { ref } of branches) {
-    const files = changedFiles(ref);
-    if (!files.some(f => f === 'public/data/market-news.json' || f.startsWith('public/data/market-news/'))) continue;
+    if (!touches(changedFiles(ref), f => f === 'public/data/market-news.json' || f.startsWith('public/data/market-news/'))) continue;
     const dir = checkoutPaths(ref, ['public/data/market-news.json', 'public/data/market-news']);
     try {
       const head = readNewsJson(join(dir, 'public/data/market-news.json'), null);
@@ -79,6 +90,7 @@ async function recoverMarketNews(branches, { dryRun }) {
         for (const a of readNewsJson(join(shardDir, name), { articles: [] }).articles || []) merged.set(store.keyOf(a), a);
       }
       seen += 1;
+      if (seen % 25 === 0) process.stderr.write(`market-news: ${seen} captures read, ${merged.size} stories\n`);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   }
   const before = onDisk.all.size;
@@ -107,8 +119,7 @@ async function recoverNseFilings(branches, { dryRun }) {
   const captures = [];
   let newestSnapshot = null, seen = 0;
   for (const { ref, when } of branches) {
-    const files = changedFiles(ref);
-    if (!files.some(f => f.startsWith('public/data/nse-filings/') || f === 'public/data/nse-announcements.json')) continue;
+    if (!touches(changedFiles(ref), f => f.startsWith('public/data/nse-filings/') || f === 'public/data/nse-announcements.json')) continue;
     const dir = checkoutPaths(ref, ['public/data/nse-announcements.json', 'public/data/nse-filings']);
     try {
       const snapshot = readJson(join(dir, 'public/data/nse-announcements.json'));
@@ -150,8 +161,7 @@ function companyArchiveRecovery({ id, dir, prefix, extraPaths = [] }) {
     const merged = new Map(before.map(row => [archive.companyArticleKey(row), row]));
     let newestIndex = null, newestCapturedAt = null, seen = 0;
     for (const { ref } of branches) {
-      const files = changedFiles(ref);
-      if (!files.some(f => f.startsWith(`public/data/${dir}/`))) continue;
+      if (!touches(changedFiles(ref), f => f.startsWith(`public/data/${dir}/`))) continue;
       const checkout = checkoutPaths(ref, [`public/data/${dir}`, ...extraPaths]);
       try {
         const source = join(checkout, 'public/data', dir);
@@ -187,7 +197,7 @@ async function recoverCorporateActions(branches, { dryRun }) {
   const merged = new Map((current.rows || []).map(r => [String(r.id || JSON.stringify(r)), r]));
   let envelope = current, seen = 0;
   for (const { ref } of branches) {
-    if (!changedFiles(ref).includes('public/data/corporate-actions.json')) continue;
+    if (!touches(changedFiles(ref), f => f === 'public/data/corporate-actions.json')) continue;
     const dir = checkoutPaths(ref, ['public/data/corporate-actions.json']);
     try {
       const payload = readJson(join(dir, 'public/data/corporate-actions.json'));
