@@ -54,6 +54,9 @@ const { runCaptureWatchdog, captureNamesForView, resetForTest, onCaptureLanded }
 assert.deepEqual(captureNamesForView({ tab: 'news', scope: 'portfolio' }), ['companyNews']);
 assert.deepEqual(captureNamesForView({ tab: 'news', scope: 'universe' }), ['marketNews']);
 assert.deepEqual(captureNamesForView({ tab: 'earnings-hub', params: { view: 'filings' } }), []);
+assert.deepEqual(captureNamesForView({ tab: 'corp-announcements', scope: 'universe' }), ['announcements']);
+assert.deepEqual(captureNamesForView({ tab: 'corp-announcements', scope: 'universe', subview: 'corporate-actions' }), ['corporateActions'],
+  'the Corporate Actions view of Corp Announcements checks its own capture, not the announcements one');
 const now = Date.parse('2026-09-05T10:00:00Z');
 const callsMade = [];
 globalThis.fetch = async (url, options = {}) => {

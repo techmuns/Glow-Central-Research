@@ -795,7 +795,7 @@ function citeResolver(companies = []) {
     if (['ask sattva', 'sattva family', 'family book'].includes(wanted)) return { href: '#/research/family-book', title: 'Open the GlowVentures statement book', label: 'Family Book' };
     const source = DASHBOARD_RESEARCH_SOURCES.find((item) => normalise(item.tab) === wanted) || DASHBOARD_RESEARCH_SOURCES.find((item) => item.id === wanted);
     if (!source) return null;
-    return { href: dashboardHref(tabRoute(source.route), company?.inScope === false ? 'universe' : scope, company), title: company ? `Open ${source.tab} for ${company.name || company.ticker}` : `Open ${source.tab}`, label: source.tab };
+    return { href: dashboardHref(source.exactRoute ? source.route : tabRoute(source.route), company?.inScope === false ? 'universe' : scope, company), title: company ? `Open ${source.tab} for ${company.name || company.ticker}` : `Open ${source.tab}`, label: source.tab };
   };
 }
 
@@ -805,7 +805,8 @@ function citeResolver(companies = []) {
  * The shell resolves a tab with no sub-view to that tab's FIRST sub-view, which is the same rule
  * that makes the WORKSPACES array the landing page (see CLAUDE.md). So this lands a reader on the
  * view the tab itself opens on, rather than on whichever sub-view one contributing source happens
- * to belong to.
+ * to belong to. A source whose citation names the view itself sets `exactRoute` and skips this —
+ * Corporate Actions is one, since the label a reader clicks is the sub-view's, not the tab's.
  */
 function tabRoute(route) {
   const [path, query = ''] = String(route || '#').split('?');

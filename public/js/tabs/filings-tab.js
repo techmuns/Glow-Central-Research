@@ -67,6 +67,11 @@ const REASONS = {
  * @param {Function} cfg.searchable  (row) => string
  * @param {Function} cfg.provenance  (meta) => html for the pill's modal
  * @param {Function} [cfg.filters]   (rows) => scoreTable filters
+ * @param {Function} [cfg.aboveTable] (ctx, meta, rows, view) => html between the busy strip and the
+ *                                   table. `rows` are the scoped rows before the table's own filters
+ *                                   and `view` is the table's live view (search, filter slots, sort),
+ *                                   so a control drawn here can count against the current period.
+ * @param {Function} [cfg.wireAboveTable] (root, ctx) => disposer, for that control's listeners
  * @param {Function} [cfg.renderRevision] extra revision for time-dependent filters on otherwise unchanged rows
  * @param {Function} [cfg.keyFor]    (row, i) => watchlist key
  * @param {Function|false} [cfg.link] custom row-link getter, or false when the tab owns its link cell
@@ -379,7 +384,7 @@ export function makeFilingsTab(cfg) {
         // moves when you use it reads as a different page.
       })}
       <div data-filings-busy>${busyStrip(m)}</div>
-      ${cfg.aboveTable?.(ctx, m) || ''}
+      ${cfg.aboveTable?.(ctx, m, rows, view) || ''}
       ${table.html}
       ${methodFooter(cfg)}`;
 

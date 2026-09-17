@@ -78,7 +78,10 @@ export const DASHBOARD_RESEARCH_SOURCES = [
   { id: 'market-news', tab: 'News', route: '#/research/news', description: 'Market-wide Moneycontrol stories; intentionally not company-scopeable.' },
   { id: 'announcements', tab: 'Corp Announcements', route: '#/research/corp-announcements', description: 'BSE exchange-wide capture plus retained company/date lookups from BSE, NSE and DRHP.' },
   { id: 'nse-filings', tab: 'NSE Filings', route: '#/research/nse-filings', description: 'Retained NSE disclosure history, with publication dates, original document links and coverage gaps.' },
-  { id: 'corporate-actions', tab: 'Corporate Actions', route: '#/research/corporate-actions', description: 'Retained NSE and Screener dividends, splits, bonuses and other actions, with distinct announcement and effective dates.' },
+  // `exactRoute`: the citation names the VIEW, not the tab, so the resolver keeps the sub-view rather
+  // than collapsing to the tab's first one — a `[Dashboard: Corporate Actions]` link that opened the
+  // Announcements stream would be a link to the wrong feed.
+  { id: 'corporate-actions', tab: 'Corporate Actions', route: '#/research/corp-announcements/corporate-actions', exactRoute: true, description: 'Retained NSE and Screener dividends, splits, bonuses and other actions, with distinct announcement and effective dates.' },
   { id: 'ipos', tab: 'IPOs', route: '#/research/ipos', description: 'Retained official IPO filings; a filing does not establish an approved or open offer.' },
   { id: 'insider-trades', tab: 'Bulk/Block Deal', route: '#/research/insider-trades', description: 'Insider and promoter disclosures in the upstream\'s own vocabulary.' },
 ];
