@@ -50,6 +50,36 @@ export function normaliseEmail(value) {
   return email && email.length <= NEWSLETTER_EMAIL_MAX && EMAIL_RE.test(email) ? email : null;
 }
 
+/**
+ * SEVERAL ADDRESSES AS A READER PASTES THEM — one per line out of a table, comma- or
+ * semicolon-separated out of a mail client, or one typed. Returns `{ emails, invalid }`: the valid
+ * addresses, normalised and deduplicated in the order given, and every token that is not one, kept
+ * VERBATIM so the caller can name it.
+ *
+ * NOTHING IS DROPPED SILENTLY. A mistyped address that simply vanished from a paste of six would
+ * leave the reader believing five was all they pasted — the same class of error as rendering a
+ * missing value as zero. A caller decides what to do with `invalid`; it may not ignore it.
+ *
+ * A mail client's `Name <a@b.in>` pair is reduced to the address, the display NAME consumed with
+ * the brackets rather than left behind as chaff that would then be refused as a bad address. The
+ * panel asks for no name, so there is nothing here for one to be kept in.
+ */
+export function normaliseEmailList(value) {
+  const text = String(value ?? '').replace(/[^,;<>\r\n]*<\s*([^<>\s,;]+@[^<>\s,;]+)\s*>/g, ' $1 ');
+  const emails = [];
+  const invalid = [];
+  const seen = new Set();
+  for (const token of text.split(/[\s,;]+/)) {
+    if (!token) continue;
+    const email = normaliseEmail(token);
+    if (!email) { if (!invalid.includes(token)) invalid.push(token); continue; }
+    if (seen.has(email)) continue;
+    seen.add(email);
+    emails.push(email);
+  }
+  return { emails, invalid };
+}
+
 export const isTime = (value) => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(value ?? ''));
 const minutesOf = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 

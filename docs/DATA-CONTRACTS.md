@@ -5570,7 +5570,13 @@ the same build without sending.
 
 **The panel is deliberately minimal** (owner's ask, 17 September 2026: "keep it simple"). It offers
 your own address with Subscribe / Unsubscribe, the other addresses on the list with × and one
-field to add a teammate, and Preview Morning · Evening. Every address added from it gets both
+field to add teammates, and Preview Morning · Evening. **That field takes one address or several** —
+pasted a line at a time out of a table, or comma- or semicolon-separated out of a mail client, up to
+`NEWSLETTER_INTENT_BATCH` (20) in the one request the route has always accepted. A newline paste is
+rewritten to a comma-separated one as it lands, because a single-line field strips newlines instead
+of separating on them; a token that cannot be read as an address refuses the whole paste and is named
+rather than dropped; and the note that follows counts the store's own outcomes, so "5 added · 1
+already on the list" is what happened rather than what was sent. Every address added from it gets both
 editions, and no name is asked for — the addition is attributed to this device's known
 contributor, else the signed-in address, else the address itself. Send times, manual sends and
 the delivery log remain on these routes and are not controls in the panel; a missing
