@@ -399,14 +399,19 @@ Conventions:
   on the width that needed it most. A tab with `subviews: []` renders **no picker at all** — the
   shell hides `#subview-mount` and skips wiring it. Its kicker reads *View*, not the tab's title,
   because the section head immediately below prints that title as the page heading.
+  **A tab may also declare `meta.inlineSubviews: true`**: the shell hides its picker card but keeps
+  routing the sub-views (URL segment, first-view fallback, legacy aliases), and the tab draws its own
+  compact switch inside its section head. Two consumers, one flag: Mutual Funds — a two-option tray
+  beside the as-on pill, routed through `router.navigate` exactly as the picker is — because the
+  card cost ~90px above a table whose whole point is the rows; and Corp Announcements, below. A
+  second spelling of the same declaration landed the same morning and was folded into this one,
+  because a shell honouring either is two predicates over one question.
   **The picker's menu is `position: absolute` below its card, so its wrapper must never carry
   `overflow-hidden`** — that clips the menu into invisibility while every click handler goes on
   working, which is a control that looks broken and tests as fine.
-  **A two-view tab whose point is the table may decline the card.** `subviewPicker: 'inline'` in
-  its meta keeps the sub-view ROUTING (URL segment, first-view fallback, legacy aliases) and the
-  shell hides `#subview-mount`; the tab draws the switch on its own title row through
-  `sectionHead`'s `titleAside` (`viewSwitchHtml` in `js/tabs/corp-announcements-views.js`, plain
-  hash links, nothing to wire). Corp Announcements is the consumer, and the reason is measured: the
+  **Corp Announcements is the second consumer, and it draws the switch on its own title row**
+  through `sectionHead`'s `titleAside` (`viewSwitchHtml` in `js/tabs/corp-announcements-views.js`,
+  plain hash links, nothing to wire). The reason is measured: the
   card was ~70px of chrome for a choice between two words, on a tab the owner wants to open on
   its table. `sectionHead`'s `compact` flag goes with it — no description line (the sentence leads
   the provenance panel instead), a tighter margin — and `scoreTable`'s `toolbarExtra` slot is how
@@ -943,6 +948,16 @@ They exclude the strategy filter itself so other valid strategies remain availab
 strategy with no matches stays listed with a zero and can be cleared; it must never keep a
 whole-feed count under Debt or disappear while still filtering the table. Even a single available
 strategy stays selectable.
+
+**THE TABLE IS THE PAGE, AND THE CHROME ABOVE IT IS ONE HEADING ROW AND ONE TOOLBAR.** The owner's
+ask: give the table and the filters the space. So the shell's sub-view picker card is replaced by
+`viewSwitch()` — All Schemes | Category Performance as a tray in the heading row (`meta.inlineSubviews`,
+above) — Category Performance's three-line description moved into the provenance panel behind its
+as-on pill (moved, not deleted: the medians and index returns being the workbook's, and the gap being
+the one derived figure in percentage points, are its first two entries, and the gap columns say *pp*
+on their face), and `fitTableToViewport()` gives the table the height the chrome actually leaves,
+measured from the scroller's own top after each paint and on resize, the same measurement General
+Alerts' `fitStreamToViewport` makes rather than a `calc()` that guesses at the chrome's height.
 
 **THE FILTERS ARE ONE TOOLBAR OF FIXED-WIDTH SLOTS, AND NOTHING IN IT MOVES WHEN YOU USE IT.** They
 were four rows of chips — Active / Passive, Classification with the group chips appearing beside it
@@ -2452,6 +2467,20 @@ Four rules if you touch it:
 The scroll listener that flushes the remainder when the reader reaches the end of the painted rows
 attaches only while a fill is outstanding and removes itself when it finishes — so a caller that
 drops `wire()`'s disposer still leaks nothing.
+
+**THE WINDOWED LIST PLACES A HELD ROW FROM MEASURED HEIGHTS, NEVER FROM THE ESTIMATE.**
+`js/ui/windowed-list.js` keeps a prefix-sum geometry of row heights and carries the estimate for any
+row it has not measured — replaced row objects, a fresh mount, a resize. The rows painted above a
+held record render at their real height at once, so a scrollTop computed from the estimate landed
+the reader rows away from their record until the next frame's `measure()` corrected it. That frame
+was where All Alerts' own `restoreTablePosition()` ran: it put the record back against the real
+layout, and the deferred measurement then re-anchored from a geometry that no longer described the
+DOM and scrolled to a different row. A reader on row 13 landed on row 10, every time the row objects
+were replaced — the "visible row moved 110px / 194px" failures that stopped a third of capture PRs.
+`place()` paints the window, measures it in the same task and only then sets scrollTop; the layout
+read costs nothing extra, because the placement forces one anyway. `verify-windowed-list-ui.mjs`
+asserts it with a real browser and no data file: an update that replaces every row, the same update
+followed by the caller's own re-anchor, and a mount at a saved row.
 
 **The third one has a trap, and it cost the watchlist star.** Invalidating a row's cached markup
 does nothing on the fast path, because the fast path re-parses no HTML at all — it moves nodes
@@ -4090,6 +4119,29 @@ hand, and never from the branch's own author. An app saying it cannot review her
 feedback to address. **Check that captured data reached `main` before believing a green capture
 run**, exactly as the market-news rule says to check that a committed capture reaches the live
 site.
+
+**AND THE GATE HAS TO READ THE VERIFY RUN THAT RAN, BECAUSE EVERY CAPTURE COMMIT CARRIES TWO.** A PR
+opened with the Actions token gets a `pull_request` run that GitHub creates and never executes — it
+completes as `action_required`, awaiting an approval nobody gives — beside the `workflow_dispatch`
+run `openPreparedDataPr` starts on purpose. Both carry the head SHA, and the never-run one usually
+has the higher id. "The newest Verify run for this commit" therefore picked a run that measured
+nothing, and the gate answered `verification` to every capture PR — including one a person had
+approved. Measured on 17 September 2026: 483 open capture PRs, three green jobs on most of them, and
+not one merged; the recovery in #1094 swept the branches by hand instead. `merge-data-pr.mjs` now
+ignores runs that did not execute (`action_required`, `skipped`) and takes the newest of the rest,
+so an executed failure still blocks. **The review gate is still the one that cannot clear itself**:
+the Codex connector says nothing at all on a bot-authored PR and answers a person's with its quota
+notice, so a capture PR merges only on a person's own approval of that head commit. Silence from
+the connector by the time Verify has finished is reported as `review-unavailable`, with the warning,
+rather than as an ordinary wait.
+
+**One flaky Verify assertion still stops every feed, and the last one was a real bug.** The All
+Alerts "visible row moved 110px / 194px during refresh" failures on a third of capture branches
+were the windowed list placing a held row from ESTIMATED heights and correcting a frame later — see
+*Performance on large tables* — and `verify-windowed-list-ui.mjs` now pins the reader's row
+deterministically. When a browser step fails on a data-only branch, read the assertion before
+retrying: it is either a test reading live data (`verify-research-reasoning-ui.mjs` asserts a
+market-wrap co-mention against the shipped capture) or a product defect the data happened to reach.
 
 `finology-shared.js` compares consecutive completed calendar quarters throughout the dashboard.
 Preserve `quarterlyStatus`: reported, filing_due, not_disclosed, unknown. A legacy null cannot prove

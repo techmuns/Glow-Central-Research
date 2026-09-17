@@ -5167,7 +5167,7 @@ link below the table.
 
 **Corporate Announcements is one tab with two views** since 17 September 2026: *Announcements* (this
 stream, the default) and *Corporate Actions* (`js/tabs/corporate-actions.js`, the NSE + Screener
-calendar, unchanged inside), switched on the title row (`subviewPicker: 'inline'`; the shell draws no
+calendar, unchanged inside), switched on the title row (`meta.inlineSubviews: true`; the shell draws no
 picker card for this tab). The shell aliases the retired `corporate-actions` tab id to the view.
 
 **Filing type — `js/data/announcement-types.js`.** Every merged row carries one derived type, read

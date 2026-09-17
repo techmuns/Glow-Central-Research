@@ -52,7 +52,7 @@ import { fundSearch } from '../ui/fund-search.js';
  */
 export function renderFundReturns(ctx, {
   disposers = [], repaint = null, rows = null, headHtml = '', view = null, onView = null,
-  measure = 'return', extraProvenance = '', onSearchChange = null,
+  measure = 'return', extraProvenance = '', onSearchChange = null, metaHtml = '',
 } = {}) {
   const m = fundReturns.meta();
   // `rows` lets the OWNING TAB narrow the set — the Mutual Funds tab's asset-class / group chips
@@ -77,7 +77,9 @@ export function renderFundReturns(ctx, {
   const html = `
     ${sectionHead({
       title: 'Fund Returns & Ranking',
-      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${livePill(m)}</div>`,
+      // `metaHtml` is trusted markup from the owning tab — its compact view switch — placed
+      // before the Live pill so the heading row carries every control the old picker card did.
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${metaHtml}${livePill(m)}</div>`,
       // Trusted markup from the owning tab — the classification chips, where there are any.
       controls: headHtml,
     })}

@@ -18,7 +18,7 @@
 // on that view; the shell aliases the retired tab id (see LEGACY_TABS in js/ui/shell.js).
 //
 // THE TABLE IS THE POINT, SO THE CHROME ABOVE IT IS ONE ROW. The switch between the two views sits
-// on the title's own line (`subviewPicker: 'inline'` — see corp-announcements-views.js) instead of
+// on the title's own line (`inlineSubviews: true` — see corp-announcements-views.js) instead of
 // the shell's card; the one-sentence description is in the provenance panel rather than under the
 // title; and the filing-type filter is a slot in the table's own filter row, beside the period
 // dropdown, rather than a band of chips above the table. Measured on the screen the owner sent:
@@ -509,14 +509,14 @@ export { ANNOUNCEMENTS_VIEW, CORPORATE_ACTIONS_VIEW };
 
 // Announcements is first, and first is what the shell opens the tab on: `handleRoute` resolves a
 // missing or unknown sub-view to `subviews[0]`, so `#/research/corp-announcements` still lands on
-// the stream it always did. `subviewPicker: 'inline'` keeps that routing and declines the shell's
+// the stream it always did. `inlineSubviews: true` keeps that routing and declines the shell's
 // picker card: the switch is on the title row (corp-announcements-views.js).
 export const meta = {
   id: announcements.meta.id,
   title: announcements.meta.title,
   subtitle: announcements.meta.subtitle,
   subviews: VIEWS.map((v) => ({ id: v.id, label: v.label })),
-  subviewPicker: 'inline',
+  inlineSubviews: true,
 };
 
 let mounted = null; // ANNOUNCEMENTS_VIEW | CORPORATE_ACTIONS_VIEW | null

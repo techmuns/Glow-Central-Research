@@ -395,13 +395,18 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
     title: `Switch between ${tabModule.meta.title} views`,
   });
 
-  // A tab with `subviews: []` has nothing to pick, so the row goes entirely rather than
-  // rendering an empty control — same rule the rail followed. A tab declaring
-  // `subviewPicker: 'inline'` keeps its sub-views ROUTED (the URL segment, the fallback to the
-  // first view, the legacy aliases above) and draws the switch itself, in its own title row: on a
-  // tab whose point is the table, this card was ~70px spent on a choice between two words.
-  const hasSubviews = subviewItems.length > 0 && tabModule.meta.subviewPicker !== 'inline';
+  // A tab that declares `meta.inlineSubviews: true` keeps its sub-views ROUTED (the URL segment,
+  // the fallback to the first view, the legacy aliases above) and draws the switch itself, inside
+  // its own section head: Mutual Funds as a two-option tray beside the as-on pill, routed through
+  // `router.navigate` exactly as this picker is; Corp Announcements as plain hash links on the
+  // title row. The card here — a kicker, a label and a menu in a 15rem white box — cost 70–90px
+  // above a table whose whole point is the rows, to choose between two words. ONE flag, because
+  // two spellings of "no picker card" landed the same morning and a shell reading either would be
+  // two predicates over one question.
+  const hasSubviews = subviewItems.length > 0 && !tabModule.meta.inlineSubviews;
   const subviewMount = $('#subview-mount', root);
+  // A tab with `subviews: []` has nothing to pick, so the row goes entirely rather than
+  // rendering an empty control — same rule the rail followed.
   subviewMount.classList.toggle('hidden', !hasSubviews);
   if (!hasSubviews) {
     subviewMount.innerHTML = '';

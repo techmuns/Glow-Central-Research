@@ -4,7 +4,8 @@
 // THE SWITCH SITS IN THE TITLE ROW, NOT IN A CARD ABOVE IT. The shell's sub-view picker is a
 // white card of its own — a kicker, a label and a chevron — and on a tab whose whole point is the
 // table beneath, it was ~70px of chrome spent on a choice between two words. So this tab declares
-// `subviewPicker: 'inline'`: the shell still routes `#/research/corp-announcements/<view>` exactly
+// `inlineSubviews: true`, the same flag Mutual Funds declares: the shell still routes
+// `#/research/corp-announcements/<view>` exactly
 // as before (the alias for the retired tab id, the watchdog mapping and the Ask Research citation
 // route are untouched), but draws no card, and the section head carries this segmented switch
 // beside the title instead. They are plain hash links, so the router does the navigation and no
