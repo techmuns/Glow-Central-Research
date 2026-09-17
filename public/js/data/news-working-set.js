@@ -25,7 +25,12 @@ function unwrap(item, descriptor) {
 export function createNewsWorkingSet({ window: readingWindow, extraRows = () => [], read = conditionalJson,
   diskRead = readEntry, diskWrite = writeEntry, fetcher = fetchPart } = {}) {
   let pending = null, descriptors = new Map(), urls = new Set(), preparedWindow = null, lastPrepared = 0, epoch = 0, selectionRevision = 0;
-  const raw = path => read(path, { key: `news-query:manifest:${path}`, rawManifest: true });
+  // THE GENERATION CHECKS BELOW CAN ONLY REFUSE THE NEXT READ. `read` awaits the device store
+  // before it reaches the network, so a release landing in that gap still lets the request go
+  // out — one month file, fetched for a reader nobody holds any more. Only a signal that
+  // reaches fetch itself can stop that one, and `conditionalJson` accepts one.
+  let aborter = null;
+  const raw = (path, signal) => read(path, { key: `news-query:manifest:${path}`, rawManifest: true, signal });
   async function partIndex(descriptor, part) {
     const index = part.queryIndex;
     if (index?.version === NEWS_QUERY_INDEX_VERSION && index.sourceSha256 === part.sha256 && index.rows === part.rows &&
@@ -52,6 +57,8 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
   async function prepare() {
     if (pending) return pending;
     const generation = epoch, window = readingWindow();
+    const controller = new AbortController();
+    aborter = controller;
     pending = (async () => {
       const next = new Map(), selectedUrls = new Set(), edges = new Map();
       const indexRow = item => {
@@ -72,7 +79,7 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
         // simply outlived their owner. The loops below break on the same condition so the walk
         // ends promptly; this is the funnel that makes it a guarantee rather than an optimisation.
         if (generation !== epoch) throw Error('Obsolete news view');
-        const entry = await raw(path), spec = shardSpec(entry.value);
+        const entry = await raw(path, controller.signal), spec = shardSpec(entry.value);
         if (!entry.value || typeof entry.value !== 'object') throw Error('News capture unavailable');
         const descriptor = { path, entry, spec };
         if (entry.value.byTicker) {
@@ -178,7 +185,7 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
     const matches = item => selected(item, window) || item[2].some(id => selectedUrls.has(id));
     if (descriptor.inlineDigest && descriptor.inlineNeeded) {
       live();
-      const entry = await raw(descriptor.path);
+      const entry = await raw(descriptor.path, aborter?.signal);
       if (await hash(JSON.stringify(entry.value?.[descriptor.inlineField])) !== descriptor.inlineDigest) throw Error('News capture changed during this query');
       value = entry.value;
     }
@@ -228,6 +235,6 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
       if (!descriptor) throw Error('News capture unavailable');
       return project(descriptor);
     },
-    release() { epoch++; pending = null; descriptors.clear(); urls.clear(); lastPrepared = 0; preparedWindow = null; },
+    release() { epoch++; aborter?.abort(); aborter = null; pending = null; descriptors.clear(); urls.clear(); lastPrepared = 0; preparedWindow = null; },
   };
 }
