@@ -16,7 +16,7 @@
 // happened to the Telegram section, whose new module is reachable from app.js but would never have
 // been requested. Nothing fails and nothing looks wrong; the feature simply is not there.
 const CACHE_PREFIX = 'sattva-dashboard-';
-const CACHE_NAME = `${CACHE_PREFIX}2026-09-16-glow-sattva-sync-v1`;
+const CACHE_NAME = `${CACHE_PREFIX}2026-09-17-corp-announcements-views-v1`;
 const APP_ENTRY = '/js/app.js';
 const CORE = ['/', '/index.html', '/css/tailwind.css', '/css/theme.css', '/css/glow.css', '/glow-bridge.html', '/data/portfolio-companies.json',
   '/assets/brand/glow-ventures-wordmark.svg', '/assets/brand/favicon.svg'];
@@ -29,7 +29,7 @@ const MODULE_ENTRIES = [APP_ENTRY, '/js/research/glow-bridge.js'];
 // read and eviction uses the same combined key, retaining atomic upgrades.
 // Glow's own reader markers lead; the template's follow, so a returning reader upgrades
 // once for both and neither side's revision can be dropped by the next sync.
-const CACHE_KEY = `${CACHE_NAME}-glow-alert-filters-v1-glow-portfolio-reader-v3-glow-investor-dates-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v1-all-alerts-restore-v2-ai-card-updates-v1-performance-ownership-v1-ai-impact-triggers-v1-mf-active-passive-v1`;
+const CACHE_KEY = `${CACHE_NAME}-glow-alert-filters-v1-glow-portfolio-reader-v3-glow-investor-dates-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v1-all-alerts-restore-v2-ai-card-updates-v1-performance-ownership-v1-ai-impact-triggers-v1-mf-active-passive-v2`;
 
 function moduleSpecifiers(source) {
   const found = new Set();

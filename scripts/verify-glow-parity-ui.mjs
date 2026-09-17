@@ -141,44 +141,69 @@ try {
   await fundInput.waitFor();
   const fundRows = page.locator('#content-host tr[data-row-key]');
   assert.equal(await fundRows.count(), 8);
-  const categoryBar = page.locator('[data-mf-categories]');
-  assert(await categoryBar.isVisible());
-  await categoryBar.locator('[data-mf-category="equity-large-cap"]').click();
+  // ONE TOOLBAR OF FIXED SLOTS. Every control is present all the time, in one order, and picking
+  // something moves nothing — the owner's complaint was that the old chip rows reflowed on every
+  // press and the category strip scrolled sideways.
+  const toolbar = page.locator('[data-mf-filters]');
+  assert(await toolbar.isVisible());
+  const slots = ['[data-mf-management-row]', '[data-mf-class-select]', '[data-mf-group-select]', '[data-mf-category-select]', '[data-mf-strategy-select]', '[data-mf-measures]', '[data-mf-clear]'];
+  const boxes = async () => Promise.all(slots.map((sel) => page.locator(sel).boundingBox()));
+  const before = await boxes();
+  assert(before.every(Boolean), 'every slot is rendered before anything is chosen');
+  for (let i = 1; i < before.length; i++) assert(before[i].x > before[i - 1].x || before[i].y > before[i - 1].y, `slot ${slots[i]} follows ${slots[i - 1]}`);
+  assert.equal(await page.locator('[data-mf-categories], [data-mf-category-scroll-by], [data-mf-hierarchy]').count(), 0, 'no chip rows and no scrolling category strip remain');
+  const classSelect = page.locator('[data-mf-class-select]');
+  const groupSelect = page.locator('[data-mf-group-select]');
+  const categorySelect = page.locator('[data-mf-category-select]');
+  const optionText = async (select, value) => page.locator(`${select} option[value="${value}"]`).textContent();
+  await categorySelect.selectOption('equity-large-cap');
   assert.equal(await fundRows.count(), 2, 'direct category selection works before classification/group selection');
-  await categoryBar.locator('[data-mf-category="equity-flexi-cap"]').click();
-  assert.equal(await fundRows.count(), 1, 'selecting another category replaces the direct choice');
-  await categoryBar.locator('[data-mf-category=""]').click();
+  assert.equal(await classSelect.inputValue(), 'Equity', 'picking a category fills the class beside it');
+  assert.equal(await groupSelect.inputValue(), 'Market cap', 'and the group');
+  const after = await boxes();
+  assert.deepEqual(after.map((b) => [Math.round(b.x), Math.round(b.y), Math.round(b.width)]), before.map((b) => [Math.round(b.x), Math.round(b.y), Math.round(b.width)]), 'no slot moves or resizes when a choice is made');
+  await categorySelect.selectOption('equity-flexi-cap');
+  assert.equal(await fundRows.count(), 1, 'selecting another category replaces the choice');
+  await page.locator('[data-mf-clear]').click();
   assert.equal(await fundRows.count(), 8);
+  assert.equal(await classSelect.inputValue(), '', 'Clear empties every slot');
 
   // ACTIVE / PASSIVE IS THE FIRST CUT, and a tracker the source filed under Mid Cap is not a
   // mid-cap fund's peer: it is shown with the trackers, labelled, with the source's bucket kept.
-  const managementRow = page.locator('[data-mf-management-row]');
-  assert(await managementRow.isVisible(), 'the Active / Passive row sits above the classification');
-  assert((await managementRow.boundingBox()).y < (await page.locator('[data-mf-hierarchy]').boundingBox()).y);
   assert.match(await page.locator('[data-mf-management="active"]').innerText(), /Active\s*·\s*6/);
   assert.match(await page.locator('[data-mf-management="passive"]').innerText(), /Passive\s*·\s*2/);
-  await categoryBar.locator('[data-mf-category="equity-mid-cap"]').click();
+  // With nothing chosen the Category list is the whole tree under class · group headings, and the
+  // two moved categories carry their explanation there.
+  assert.equal(await page.locator('[data-mf-category-select] option[data-mf-refiled="true"]').count(), 2, 'the two moved categories say so on their option');
+  assert.match(await page.locator('[data-mf-category-select] option[value="equity-mid-cap-index"]').getAttribute('title'), /files as Equity : Mid Cap/);
+  assert.equal(await page.locator('[data-mf-category-select] optgroup').count(), 4, 'the full list is headed by class · group');
+  await categorySelect.selectOption('equity-mid-cap');
   assert.equal(await fundRows.count(), 1, 'the source’s Mid Cap category holds only the actively managed fund');
-  assert.equal(await categoryBar.locator('[data-mf-refiled="true"]').count(), 2, 'the two moved categories say so on their chip');
-  assert.match(await categoryBar.locator('[data-mf-category="equity-mid-cap-index"]').getAttribute('title'), /files as Equity : Mid Cap/);
+  assert.equal(await page.locator('[data-mf-category-select] option[value="equity-mid-cap-index"]').count(), 0, 'the list then cascades to the chosen group, where the moved category is not');
   await page.locator('[data-mf-management="passive"]').click();
   assert.equal(await fundRows.count(), 2, 'Passive lists the two name-stated trackers');
   assert.match(await page.locator('[data-mf-management="passive"]').innerText(), /Passive\s*·\s*2/, 'the cut’s own counts never move');
-  assert.match(await page.locator('[data-mf-class="Equity"]').innerText(), /Equity\s*·\s*2/, 'classification counts follow the cut above them');
-  assert.equal(await categoryBar.locator('[data-mf-category="equity-mid-cap"]').count(), 0, 'no active category is offered under Passive');
+  assert.match(await optionText('[data-mf-class-select]', 'Equity'), /Equity \(2\)/, 'classification counts follow the cut above them');
+  assert.equal(await page.locator('[data-mf-category-select] option[value="equity-mid-cap"]').count(), 0, 'no active category is offered under Passive');
   assert.equal(await fundRows.filter({ hasText: 'Equity : Mid Cap · shown under Index & smart beta' }).count(), 1, 'the row keeps the source’s bucket and says where it is shown');
   assert.equal(await fundRows.filter({ hasText: 'Equity : Mid Cap · shown under Exchange traded' }).count(), 1);
   assert.match(await fundRows.first().locator('td').nth(1).locator('[title]').first().getAttribute('title'), /source’s own, computed inside its Equity : Mid Cap cohort/, 'every figure of a moved row names the cohort it still belongs to');
-  await page.locator('[data-mf-class="Equity"]').click();
-  await page.locator('[data-mf-group="Index & smart beta"]').click();
+  await classSelect.selectOption('Equity');
+  await groupSelect.selectOption('Index & smart beta');
   assert.equal(await fundRows.count(), 1);
   await page.locator('[data-mf-management="active"]').click();
   assert.equal(await fundRows.count(), 6);
-  assert.equal(await page.locator('[data-mf-group]').count(), 0, 'the cut resets the classification beneath it');
-  assert.equal(await page.locator('[data-mf-refiled="true"]').count(), 0, 'no moved category is offered under Active');
+  assert.equal(await classSelect.inputValue(), '', 'the cut resets the classification beneath it');
+  assert.equal(await page.locator('[data-mf-category-select] option[data-mf-refiled="true"]').count(), 0, 'no moved category is offered under Active');
   await page.locator('[data-mf-management=""]').click();
   assert.equal(await fundRows.count(), 8);
-  // The search facet agrees with the chips about which cohort a scheme is in.
+  // A group picked from the all-classes list fills the class beside it. (The taxonomy files the
+  // fixture's "Debt : Short Duration" under the Duration group; the group is what the list offers.)
+  await groupSelect.selectOption('Duration');
+  assert.equal(await classSelect.inputValue(), 'Debt');
+  assert.equal(await fundRows.count(), 2);
+  await page.locator('[data-mf-clear]').click();
+  // The search facet agrees with the dropdowns about which cohort a scheme is in.
   await fundInput.fill('mid cap');
   await page.locator('[data-fund-category="Equity : Mid Cap"]').waitFor({ state: 'visible' });
   assert.equal(await page.locator('[data-fund-category="Equity : Index · Mid Cap"]').count(), 1, 'the moved category is a facet of its own');
@@ -205,23 +230,24 @@ try {
   await page.locator('[data-fund-search-clear]').click();
   assert.equal(await fundRows.count(), 8);
   await fundInput.press('Escape');
-  await page.locator('[data-mf-strategy="momentum"]').click();
+  const strategySelect = page.locator('[data-mf-strategy-select]');
+  await strategySelect.selectOption('momentum');
   assert.equal(await fundRows.count(), 1);
-  await page.locator('[data-mf-class="Debt"]').click();
-  assert.match(await page.locator('[data-mf-strategy="momentum"]').innerText(), /Momentum\s*·\s*0/);
+  await classSelect.selectOption('Debt');
+  assert.match(await optionText('[data-mf-strategy-select]', 'momentum'), /Momentum \(0\)/);
   assert.equal(await fundRows.count(), 0, 'strategy counts respect the selected asset class');
-  await page.locator('[data-mf-strategy=""]').click();
+  await strategySelect.selectOption('');
   assert.equal(await fundRows.count(), 2);
-  assert.equal(await page.locator('[data-mf-strategy="momentum"]').count(), 0);
-  await page.locator('[data-mf-class=""]').click();
+  assert.equal(await page.locator('[data-mf-strategy-select] option[value="momentum"]').count(), 0);
+  await classSelect.selectOption('');
   await fundInput.fill('equal weight');
-  assert.match(await page.locator('[data-mf-strategy="equal-weight"]').innerText(), /Equal weight\s*·\s*1/i);
+  assert.match(await optionText('[data-mf-strategy-select]', 'equal-weight'), /Equal weight \(1\)/i);
   await fundInput.press('Escape');
-  await page.locator('[data-mf-strategy="equal-weight"]').click();
+  await strategySelect.selectOption('equal-weight');
   assert.equal(await fundRows.count(), 1, 'a single matching strategy remains selectable');
   await fundInput.fill('');
   await fundInput.press('Escape');
-  await page.locator('[data-mf-strategy=""]').click();
+  await strategySelect.selectOption('');
   assert.equal(await fundRows.count(), 8);
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -235,5 +261,5 @@ try {
   await verifyChangesUI(page, { base: origin });
   await verifyTechnicalFiltersUI(browser, { base: origin });
   assert.deepEqual(errors, []);
-  console.log(`PASS real Glow bridge: ${companies.holdings.length} identities, statement dates and weights, fresh detailed reads, Family Book, My Managers, fund category search, the active / passive cut and moved trackers, desktop/mobile, mismatch rejection and recovery.`);
+  console.log(`PASS real Glow bridge: ${companies.holdings.length} identities, statement dates and weights, fresh detailed reads, Family Book, My Managers, fund category search, the fixed-slot filter toolbar, the active / passive cut and moved trackers, desktop/mobile, mismatch rejection and recovery.`);
 } finally { await browser.close(); server.closeAllConnections(); await new Promise(done => server.close(done)); }
