@@ -161,6 +161,13 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
     return pending;
   }
   async function project(descriptor) {
+    // A RELEASED READER MAY NOT START ANOTHER READ HERE EITHER. `prepare()` is guarded above, but
+    // this is the other place that fetches: an unsharded month is read whole, and a sharded one
+    // costs an index and a part per slice. Left unguarded, a projection in flight when the tab
+    // goes away carries on fetching — one request that starts after destroy, which is what the
+    // browser suite reports and what no amount of cancelling the walk alone could stop.
+    const generation = epoch;
+    const live = () => { if (generation !== epoch) throw Error('Obsolete news view'); };
     const window = preparedWindow, selectedUrls = urls, queryRevision = selectionRevision;
     let value = descriptor.entry.value;
     if (!descriptor.spec && !value.byTicker && !Array.isArray(value.articles)) return { ...descriptor.entry, queryRevision };
@@ -170,6 +177,7 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
     out[field] = field === 'byTicker' ? Object.fromEntries(Object.keys(value.byTicker).map(key => [key, []])) : [];
     const matches = item => selected(item, window) || item[2].some(id => selectedUrls.has(id));
     if (descriptor.inlineDigest && descriptor.inlineNeeded) {
+      live();
       const entry = await raw(descriptor.path);
       if (await hash(JSON.stringify(entry.value?.[descriptor.inlineField])) !== descriptor.inlineDigest) throw Error('News capture changed during this query');
       value = entry.value;
@@ -183,8 +191,10 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
       const selectedItems = [];
       let offset = 0;
       for (const part of descriptor.spec.parts) {
+      live();
       const index = await partIndex(descriptor, part);
       if (index.some(matches)) {
+        live();
         const items = await readVerifiedShard(shardPath(descriptor.path, part.file), part, { fetcher });
         items.forEach((item, i) => { if (matches(index[i])) selectedItems.push({ item, order: part.order?.[i] ?? offset+i }); });
       }
