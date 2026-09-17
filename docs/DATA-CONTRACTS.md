@@ -4215,6 +4215,37 @@ remain excluded; only explicit company objects can carry six-digit BSE codes. Th
 records that it ran under `sattva:watchlist:shape`. A dropped entry was never a company; it was
 a row.
 
+### `sattva:mf-filters:v1` — the remembered Mutual Funds selection
+
+```jsonc
+{
+  "v": 1,
+  "management": "passive",                 // 'active' | 'passive' | null (both)
+  "assetClass": "Equity",                  // taxonomy labels; null means every
+  "group": "Index & smart beta",
+  "categoryId": "equity-mid-cap-index",    // All Schemes only; the source's category id with this dashboard's kind appended where it moved the scheme
+  "strategy": "momentum",                  // a FACTORS id, or null
+  "measure": "vs-benchmark",               // 'return' | 'vs-benchmark' | 'vs-median'; each level falls back to 'return' where it does not offer one
+  "live":   { "q": "nifty", "sort": { "key": "1Y", "dir": "asc" }, "categories": ["Equity : Index · Mid Cap"] },   // the All Schemes table: search text, sort, the search box's category chips
+  "weekly": { "q": "", "sort": null, "categories": [] },                                                          // the Category Performance comparison table
+  "benchmarks": { "smart-beta": "nifty-500-tri" }                                                                  // the reader's benchmark choice per workbook category id
+}
+```
+
+Written by `js/data/mf-filter-memory.js` on every change in the Mutual Funds toolbar, search box
+and Show tray, and again when the tab is left, the page hidden or unloaded — the kit mutates a
+table's sort and search in place and reports neither, so the way out is when the last of those is
+written down. Read once, at module load. **Every field is validated on read** (an unknown
+management word, strategy or measure resolves to its default; malformed JSON, a wrong `v` or a
+storage that throws resolve to nothing chosen), and **the hierarchy and the chips are re-checked
+against the loaded feed before they are applied**: `reconcileHierarchy` keeps a group only under
+its class and a category only under its group, and a chip only while the feed carries that label,
+so a saved value the feed dropped can never narrow the table under a toolbar reading *All*. A
+benchmark choice is honoured only from among the indices `benchmarkFor` already allows. Clear
+writes the defaults rather than deleting the key. Display preference only: capture, counts and the
+export's disclosure line read none of it. `node scripts/verify-mf-taxonomy.mjs` covers the module
+offline; `scripts/verify-glow-parity-ui.mjs` drives the tab through a navigation and a reload.
+
 ## The shared watchlist — `GET`/`POST /api/watchlist`
 
 **One watchlist, every device, every reader.** It was `localStorage` and nothing else, so it was a
