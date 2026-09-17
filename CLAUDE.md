@@ -1203,6 +1203,37 @@ the colour this dashboard reserves for a partial figure; the owner asked for it 
 *How this is derived* beside the freshness chip, every row of it, and `ensureHoldingsFresh()` still
 revalidates its sources on mount — moved, not deleted, and the age stays stated on the page.
 
+### The team brief — two emails a weekday, built at the edge (GLOW-OWNED)
+
+The **Newsletter** button beside the header bell subscribes the desk to two Munshot-branded emails
+a weekday: the **morning brief** at 08:00 IST (what happened overnight — the US close, Asia this
+morning, Brent, gold, silver, the dollar index and USD/JPY, plus every filing and story about a
+DIRECT holding since the previous evening) and the **evening brief** at 16:00 IST (the trading day).
+`docs/DATA-CONTRACTS.md` → *The team brief* has the routes, the shapes and the window rule. Six
+rules, and every one of them is a rule this file already runs on:
+
+1. **"Direct ones" means `portfolio-companies.json`**, the Portfolio scope's own file, and nothing
+   wider. Fund units, AIFs and the ring-fenced line are outside it there and outside it here.
+2. **Every figure carries its own state and time.** Quotes are read from Yahoo's chart endpoint at
+   send time and Yahoo's own session bounds decide `Close · Wed 16:00 EDT` versus `Live · Thu 07:58
+   JST`; a symbol Yahoo refuses is filled from the macro series store and says `Series store ·
+   2026-09-08` on the row, never a stale close dressed as this morning's. A source that cannot be
+   read says so in the email — `NSE feed could not be read (blocked)` — rather than going quiet.
+3. **The stories carry no new reading.** Topic is the desk's thirty keywords folded onto the seven
+   Munshot topics; mood is `announcementSignal()` over a filing's own subject, and a published
+   headline is Neutral because nothing on this dashboard reads sentiment off one. The footer says so.
+4. **The alarm is the scheduler, and a claim precedes every send.** No cron slot exists on the
+   account and GitHub's schedule does not fire, so the object's alarm sends. `wake()` moves its
+   clock forward in a transaction before reading a quote and `deliver()` claims `<day>:<edition>`
+   before the first email, so a replayed alarm sends nothing and one morning brief a day is a
+   property of the store. An edition reached three hours late is recorded `missed`, not sent at lunch.
+5. **The credential is `MUNS_TOKEN` on the Worker, and its absence is a named state.** Sends go to
+   `POST https://devde.muns.io/email/send/raw` with exactly one of `html`/`text`; without a token
+   the delivery is recorded `no-token` per recipient and the panel names the secret. A reader's own
+   session token may stand in for a send they press themselves, passed as a value and never stored.
+6. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
+   origin is told it has no newsletter, never shown an error.
+
 ### Two disclosures that look identical — the Institutions rule
 
 Institutions is also where a subtler failure lives, and it is not about *whose* number it is but
@@ -4102,6 +4133,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change how X posts are collected | `scripts/scrape-twitter.py` + `.github/workflows/twitter-refresh.yml` — the exit codes are the interface (0 wrote, 2 nothing readable, 3 no credential, 1 a real fault) |
 | Set up X collection on a deployment | add an **`X_ACCOUNTS`** repository secret (*Settings → Secrets and variables → Actions*), one `username:password:email:email_password` per line. The dashboard's Add Handle control additionally needs `GH_DISPATCH_TOKEN` on the Worker, and says `Adding…` rather than failing without it |
 | Change the FPI Activity view, or what a debt figure means | `public/js/data/fpi-activity.js` (the matrix) + `paintFpi` in `public/js/tabs/macro-research.js` (the table) + `scripts/lib/nsdl-fpi.mjs` and `scripts/scrape-fpi-activity.mjs` (the capture) — read *One sub-view of Macro Research is not a series at all* first. Equity is NSDL's published net investment and debt is the change in their published outstanding investment; the two may never be described in the same words. `node scripts/verify-fpi-activity.mjs` is the test and needs no server |
+| Change the team brief — what is in it, how it reads, when it sends | `worker/newsletter-brief.mjs` (the scan, the stories and the broadsheet), `worker/newsletter-schedule.mjs` (the alarm and the send), `worker/newsletter-store.mjs` (subscribers, settings, deliveries), `public/js/data/newsletter-shared.js` (editions, windows, addresses — imported by both sides) and `public/js/ui/newsletter.js` (the header control). Read *The team brief* first. `node scripts/verify-newsletter.mjs` and `node scripts/verify-newsletter-ui.mjs` are the tests |
+| Set up the team brief on a deployment | `MUNS_TOKEN` on the Worker sends it; `DASHBOARD_ORIGIN` and `NEWSLETTER_PRODUCT_NAME` are vars in `wrangler.jsonc`; the `NEWSLETTER` binding and `NEWSLETTER_LIMITER` are there too. Subscribe from the header and the alarm arms itself |
 | Change the lower-left source beacon | `js/ui/source-beacon.js` + the `.beacon-*` block in `public/index.html` — read *The source beacon* first; it may not reintroduce a header Sources button, and every count in it stays derived |
 | Add a reusable chrome widget | `js/ui/components.js` |
 | Change the header status pill or refresh button | `statusControl()` in `js/ui/components.js`, wired in `wireStaticHeader()` |
