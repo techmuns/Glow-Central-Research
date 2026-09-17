@@ -280,14 +280,20 @@ assert.equal(impactLine(impactOf([bigMove, nseDowngrade])),
   'Could change the valuation (up 6.5% at the close; rating downgrade in a filing) and the thesis (rating downgrade in a filing). Nothing tracked here bears on the earnings assumption.',
   'two axes present: the missing one is named in words');
 assert.equal(impactLine(all),
-  'Could change the earnings assumption (Order in a filing; Receipt of Order in a filing; +3 more), the valuation (up 6.5% at the close; Buyback in the news) and the thesis (Fraud in the news; Investigation in the news).',
-  'all three present: no “nothing bears on” tail, and a long axis is capped at two reasons with a count');
+  'Could change the earnings assumption (Order in a filing; Receipt of Order in a filing; order or contract award in a filing; results filed; Approval in the news), the valuation (up 6.5% at the close; Buyback in the news) and the thesis (Fraud in the news; Investigation in the news).',
+  'all three present: no “nothing bears on” tail, and every trigger is listed — none is folded into a count');
 for (const line of [impactLine([]), impactLine(all), impactLine(impactOf([result]))]) {
   assert(!/\bwill\b/i.test(line) && !/\bEPS\b/.test(line), `the bullet never answers the question it asks: ${line}`);
 }
 const parts = impactParts(all);
 assert.deepEqual(parts.filter(part => part.kind === 'axis').map(part => part.axis), ['earnings', 'valuation', 'thesis']);
 assert.equal(parts.map(part => part.text).join(''), impactLine(all), 'the parts are the line, so a renderer cannot drift from it');
+const reasonParts = parts.filter(part => part.kind === 'reason');
+assert.equal(reasonParts.length, all.reduce((sum, hit) => sum + hit.reasons.length, 0), 'every trigger is its own part, so every one can be a link');
+assert(reasonParts.every(part => part.eventId && part.feed && part.axis), 'every trigger part carries the event it was read from');
+assert.deepEqual(reasonParts.find(part => part.text === 'results filed'), { kind: 'reason', axis: 'earnings', text: 'results filed', eventId: 'e1', feed: 'earnings' });
+assert.equal(reasonParts.find(part => part.text === 'up 6.5% at the close').eventId, 't1');
+assert.equal(reasonParts.find(part => part.text === 'Buyback in the news').eventId, 'n1');
 
 const twoBullets = rankReport({ day: '2026-09-04', scope: 'portfolio', feeds: [{ id: 'announcements', status: 'ok', reachesToday: true }, { id: 'technicals', status: 'ok', reachesToday: true }],
   events: [orderFiling, bigMove] }, { holdings: [{ ticker: 'T', name: 'Test Co' }] });

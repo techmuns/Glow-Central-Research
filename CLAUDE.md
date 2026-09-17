@@ -3007,7 +3007,10 @@ absence is stated in words — *"Nothing tracked here bears on the thesis"* — 
 again to clear, each count measured with the other group held fixed (the technical-filter rule), and
 an empty trigger view says it is a reading of tracked triggers rather than a claim that nothing could
 change. The mapping is one table (`IMPACT_BY_KEYWORD`, `IMPACT_BY_FILING_RULE`); a keyword absent
-from it bears on nothing rather than on a nearest guess.
+from it bears on nothing rather than on a nearest guess. **And every trigger the bullet names is a
+LINK to the event it was read from** — `impactParts` emits each reason with its `eventId`, and the
+card sends it through `evidenceDestination`, the same door as the evidence rows — because a claim the
+reader cannot reach is a claim they cannot check; nothing is folded into a "+n more".
 
 ### ARCHIVING IS A PLACE, NOT A DELETION — `js/core/ai-mute.js`
 

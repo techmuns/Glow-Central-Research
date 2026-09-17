@@ -4527,6 +4527,12 @@ impactLine: 'Could change the earnings assumption (Order in a filing; results fi
              valuation (up 6.5% at the close). Nothing tracked here bears on the thesis.'
 ```
 
+Every reason carries the `eventId` it was read from, and the card renders each one as a link to
+that event's own destination through `evidenceDestination` — the upstream record where the source
+carried a URL, else the owning dashboard tab seeded for the company — exactly as the evidence rows
+are linked. No reason is folded into a "+n more": every trigger the bullet names is one click from
+the record behind it, and a trigger the reader cannot reach is a claim they cannot check.
+
 `IMPACT_AXES` fixes the three questions and their order. `eventImpacts(event)` is pure and exported:
 it reads which question ONE event bears on, off structured facts the collectors already write, and
 never the answer:
@@ -4563,8 +4569,9 @@ The tab offers the three questions as a second chip group, **Could change** (*Ea
 *Valuation · n*, *Thesis · n*), independent of the priority band: one chip at a time, pressed again
 to clear, each count measured with the other group held fixed. An empty trigger view says it is a
 reading of tracked triggers, not a claim that nothing could change, and offers the way back.
-`impactParts` returns the same sentence as parts so the card can set the axis names in bold without
-a second wording; `impactLine` is those parts joined.
+`impactParts` returns the same sentence as parts — `text`, `axis` and `reason` kinds, the last
+carrying `eventId` and `feed` — so the card can set the axis names in bold and link every trigger
+without a second wording; `impactLine` is those parts joined.
 
 ### Screener company Insights — authenticated capture, context only
 
