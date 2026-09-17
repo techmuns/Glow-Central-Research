@@ -251,6 +251,7 @@ export function createFeed(kind) {
       kind,
       bulkDeals: state.bulkDeals,
       exchanges: kind === 'insider' ? exchangeDeals.meta() : null,
+      disclosuresStatus: kind === 'insider' ? exchangeDeals.disclosuresStatus(state.wanted) : null,
       ok: covered > 0 || state.failures.size === 0,
       loaded: state.loaded,
       reason: state.reason,
@@ -649,7 +650,7 @@ export function createFeed(kind) {
    * overwritten by an older file.
    */
   async function seedFromSnapshot({ replace = false } = {}) {
-    if (kind === 'insider') await exchangeDeals.refresh();
+    if (kind === 'insider') void exchangeDeals.refresh();
     let res;
     state.snapshotPending = true;
     try {

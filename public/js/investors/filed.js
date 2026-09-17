@@ -121,7 +121,7 @@ export function renderFiled(ctx, { disposers = [], section = 'institutions', onS
     initialView: ctx.params?.company ? { q: String(ctx.params.company).trim().toUpperCase() } : null,
     initialSort: { key: filing ? 'Holding Value' : 'Value (AMC)', dir: 'desc' },
     onRowClick: (r) => drillHolding(r, fund),
-    exportName: `sattva-${fund.investorId}-holdings`,
+    exportName: `glow-${fund.investorId}-holdings`,
     onExport: (visible) => exportFund(visible, fund),
     emptyMessage: scopePossessive(ctx.scope) ? `This fund holds none of ${scopePossessive(ctx.scope)}.` : 'No holding matches your filters.',
   });
@@ -382,7 +382,7 @@ function openInstitutionCompany(key) {
 
   openModal(
     `<div class="scrollbar-thin max-h-[82vh] overflow-y-auto" data-company-institution-detail>
-      <div class="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-6 py-5 backdrop-blur sm:px-7">
+      <div class="sticky top-0 z-10 border-b border-slate-100 bg-white px-6 py-5  sm:px-7">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
             <p class="text-[11px] font-bold uppercase tracking-wider text-indigo-600">Across quarterly institution filings</p>
@@ -932,7 +932,7 @@ async function exportFund(visible, fund) {
       ];
 
   await exportRows({
-    filename: `sattva-${fund.investorId}-holdings`,
+    filename: `glow-${fund.investorId}-holdings`,
     sheetName: filing ? 'Filed holdings' : 'Fund portfolio',
     columns: [
       ...columns,

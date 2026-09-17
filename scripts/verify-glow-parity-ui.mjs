@@ -5,7 +5,11 @@ import { readFileSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyChangesUI } from './verify-investor-changes-ui.mjs';
-import { verifyTechnicalFiltersUI } from './verify-technical-filters-ui.mjs';
+// The shared-chip fixture that runs INSIDE this suite's Glow server, so the chips are exercised
+// against the real book rather than a standalone fixture. `verify-technical-filters-ui.mjs` is the
+// template's own standalone version and serves itself; the two cover different ground and CI runs
+// both. Keeping them in one file is what silently dropped this call in a template merge.
+import { verifyTechnicalFiltersUI } from './verify-technical-filters-context.mjs';
 import { handleGlowPortfolio } from '../worker/glow-portfolio.mjs';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = fileURLToPath(new URL('../public', import.meta.url));
@@ -52,7 +56,8 @@ await context.route('**/*', route => {
 const page = await context.newPage();
 page.on('pageerror', error => { errors.push(error.message); console.error(error.message); });
 try {
-  await page.goto(`${origin}/#/research/ask-research?scope=portfolio`);
+  // Ask Research is stood down by default here; this suite drives the live tab, so it says so.
+  await page.goto(`${origin}/#/research/ask-research?scope=portfolio&enable_research=1`);
   await page.locator('.research-workspace').waitFor();
   const result = await page.evaluate(async () => {
     const bridge = await import('/js/research/portfolio-bridge.js');
@@ -181,7 +186,7 @@ try {
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), `fund search fits ${width}px`);
     if (process.env.GLOW_SCREENSHOT_PREFIX) await page.screenshot({ path: `${process.env.GLOW_SCREENSHOT_PREFIX}-fund-search-${width}.png` });
   }
-  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio'; });
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio&enable_research=1'; });
   await page.locator('.research-workspace').waitFor();
   assert.equal(await page.locator('[data-fund-search-menu]').count(), 0, 'leaving the table removes the category portal');
   assert.deepEqual(foreignPortfolio, []);

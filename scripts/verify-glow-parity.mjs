@@ -106,20 +106,34 @@ try {
 } finally { rmSync(scratch, { recursive: true, force: true }); }
 const shell = readFileSync(new URL('../public/js/ui/shell.js', import.meta.url), 'utf8');
 for (const name of ['mutualFunds', 'macroResearch', 'economyMacro', 'familyBook']) assert(shell.includes(name));
+// `scripts/` IS SCANNED, AND IT IS THE DIRECTORY THE ADAPTER CANNOT REACH. `adaptGlowTemplate`
+// skips every `verify-*` file on purpose — a check may legitimately assert an upstream string, and
+// rewriting a fixture is how a real mismatch gets masked. The cost is that a merged upstream check
+// keeps ITS deployment's repository, and a check pinned to the wrong deployment either exercises a
+// configuration this one refuses or asserts against a repository nobody here owns. That is how
+// `verify-telegram-scheduler.mjs` arrived asking Glow's Worker to dispatch into Sattva.
+// So the scan runs here too, with the four files that carry a foreign name ON PURPOSE named:
+// the substitution table itself, this checker's own assertions, the documented Sattva bulk/block
+// fallback, and the deliberately foreign cache key in the review-gate fixture.
+const deliberatelyForeign = new Set(['adapt-glow-template.mjs', 'verify-glow-parity.mjs',
+  'sync-bulk-deals.mjs', 'verify-glow-review-gates.mjs']);
 const scan = dir => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
-    if (entry.isDirectory()) scan(path);
-    else if (/\.(js|mjs)$/.test(path)) {
-      const source = readFileSync(path, 'utf8');
-      assert(!source.includes('https://sattva-family.pages.dev'), `foreign portfolio URL in ${path}`);
-      assert(!source.includes('techmuns/Sattva-Central-Research'), `foreign collector repo in ${path}`);
-      assert(!source.includes('/assets/brand/sattva-ventures-'), `foreign product artwork in ${path}`);
-      assert(!/^(<<<<<<<|=======|>>>>>>>) /m.test(source), `merge marker in ${path}`);
-    }
+    if (entry.isDirectory()) { if (entry.name !== 'fixtures' && entry.name !== 'node_modules') scan(path); continue; }
+    if (!/\.(js|mjs)$/.test(path)) continue;
+    const source = readFileSync(path, 'utf8');
+    assert(!/^(<<<<<<<|=======|>>>>>>>) /m.test(source), `merge marker in ${path}`);
+    if (deliberatelyForeign.has(entry.name)) continue;
+    assert(!source.includes('https://sattva-family.pages.dev'), `foreign portfolio URL in ${path}`);
+    assert(!source.includes('techmuns/Sattva-Central-Research'), `foreign collector repo in ${path}`);
+    assert(!source.includes("'Sattva-Central-Research'"), `foreign deployment repository in ${path}`);
+    assert(!source.includes('sattva-central-research.tech-441'), `foreign Worker host in ${path}`);
+    assert(!source.includes('1329567087'), `foreign repository id in ${path}`);
+    assert(!source.includes('/assets/brand/sattva-ventures-'), `foreign product artwork in ${path}`);
   }
 };
-scan('worker'); scan('public/js');
+scan('worker'); scan('public/js'); scan('scripts');
 const sync = readFileSync(new URL('../.github/workflows/sync-upstream.yml', import.meta.url), 'utf8');
 assert(!sync.includes('HEAD:main'));
 assert(sync.includes('git restore --source="$base" --staged --worktree'));

@@ -121,7 +121,13 @@ try {
   const expectedCheck = new Date(alarmAt+31*60000);
   const oldDay=expectedCheck.toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',weekday:'long'});
   assert(checkBack.includes(oldDay),'the check-back date uses the Indian calendar day');
-  assert.equal(checkBack,`Please check back — ${expectedCheck.toLocaleString('en-IN',{timeZone:'Asia/Kolkata',weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit',hour12:true})} IST.`,
+  // Format the expectation IN THE PAGE. The call is identical to the app's, but Node's ICU and the
+  // browser's disagree about one comma in `en-IN` ("Friday, 18 September" against "Friday 18
+  // September"), so comparing a browser-rendered string against a Node-rendered one tests which
+  // runtimes the checkout happens to have rather than what the message says. The instant being
+  // asserted is still computed here, which is the part this check is about.
+  const expectedText = await page.evaluate(at => new Date(at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit',hour12:true}), expectedCheck.getTime());
+  assert.equal(checkBack,`Please check back — ${expectedText} IST.`,
     'a cooldown between timer runs allows both the next alarm and :41 cron slot, including the Indian date rollover');
   cooldownUntil=new Date(Date.parse(cooldownUntil)+86400000).toISOString();
   await page.evaluate(async()=>{await (await import('/js/data/concall-summaries.js')).refresh({force:true});});
@@ -132,7 +138,10 @@ try {
   await page.waitForFunction(()=>document.querySelector('[data-summary-check-back]')?.textContent==='Please check back later.');
   pendingActive=true;pendingNextAttemptAt=new Date(alarmAt+6*86400000+10*60000).toISOString();
   await page.evaluate(async()=>{await (await import('/js/data/concall-summaries.js')).refresh({force:true});});
-  const deferredDay=new Date(alarmAt+6*86400000+31*60000).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',weekday:'long',day:'numeric',month:'long'});
+  // Formatted in the page for the same reason as the check-back text above: `en-IN` puts a comma
+  // after the weekday in one ICU build and not the other, and this string is matched against what
+  // the browser rendered.
+  const deferredDay=await page.evaluate(at=>new Date(at).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',weekday:'long',day:'numeric',month:'long'}),alarmAt+6*86400000+31*60000);
   await page.waitForFunction(day=>document.querySelector('[data-summary-check-back]')?.textContent.includes(day),deferredDay);
   pendingId='124';savedIds=['123'];pendingNextAttemptAt=null;readBudget=1;
   await page.evaluate(async()=>{await (await import('/js/data/concall-summaries.js')).refresh({force:true});});
@@ -201,7 +210,7 @@ try {
 
   // Source parser is exercised offline with script execution disabled, as in collection.
   const sourceContext=await browser.newContext({javaScriptEnabled:false,serviceWorkers:'block'});
-  let html=`<main><h1>Concall Summary - Test Ltd - Sep 2026</h1><a href="/company/TEST/">Test Ltd</a><h2>Operating performance</h2><p>${text}</p><ul><li>Demand discussion</li><li>Cost discussion</li></ul><table><tr><th>Measure</th><th>Value</th></tr><tr><td>Fixture</td><td>12</td></tr></table><footer>Account footer</footer></main>`;
+  let html=`<main><h1>Concall Summary - Test Ltd - Sep 2026</h1><a href="/company/TEST/">Test Ltd</a><h2>Operating performance</h2><p>${text}</p><ul><li>Demand discussion</li><li>Cost discussion</li></ul><table><tr><th>Measure</th><th>Value</th></tr><tr><td>Fixture</td><td>12</td></tr></table><footer>Upgrade to Premium</footer></main>`;
   await sourceContext.route('**/*',route=>route.fulfill({contentType:'text/html',body:html}));
   const sourcePage=await sourceContext.newPage();
   const target={id:'123',url:'https://www.screener.in/concalls/summary/123/',companyUrl:'https://www.screener.in/company/TEST/'};
@@ -209,6 +218,8 @@ try {
   assert.equal(parsed.blocks.length,4);assert.equal(parsed.blocks[1].text,text);
   html=html.replace('<p>','<div>').replace('</p>','</div>');
   await assert.rejects(readScreenerSummary(sourcePage,target),e=>e.summaryCode==='structure-changed');
+  html='<main><h1>Concall Summary - Test Ltd</h1><a href="/company/TEST/">Test Ltd</a><p>Upgrade to Premium to read the summary.</p></main>';
+  await assert.rejects(readScreenerSummary(sourcePage,target),e=>e.summaryCode==='structure-changed','a paywall cannot become a saved report');
   html='<main><h1>Concall Summary - Test Ltd</h1><p>Limit exceeded - Please try again later. Premium users can request 80 summaries each day.</p></main>';
   await assert.rejects(readScreenerSummary(sourcePage,target),e=>e.summaryCode==='rate-limited');
   console.log('PASS private summary UI and parser: one inline reader, versions, inert content, pending recovery, portfolio gaps, session isolation, disabled state, responsive themes and quota/template refusals');

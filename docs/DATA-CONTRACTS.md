@@ -2127,14 +2127,15 @@ ZIP of XML, both of which `node:zlib` and a tag scanner already handle. This rep
 
 ---
 
-## SentimentDash — LIVE, retail chatter, called STRAIGHT FROM THE BROWSER
+## SentimentDash — retained public chatter, read directly from the browser
 
 Companies and topics trending across ValuePickr, TradingQnA and Google News over a rolling 30 days,
 ranked by mention count and keyword-scored for sentiment. Public, unauthenticated, CORS-open.
-Re-scraped twice daily at **01:30 and 13:30 UTC**, so polling faster than hourly asks a question
-whose answer cannot have changed.
+Source checks are requested every two hours through the upstream scheduled collector. Its
+half-hourly scheduling opportunities remain best effort. The page checks every five minutes
+while visible and on return; a saved snapshot paints immediately while revalidation runs.
 
-`GET {base}/dashboard?limit=all` + `GET {base}/health`, where `base` is
+`GET {base}/dashboard?limit=all` (following all pages), where `base` is
 `window.SATTVA_CHATTER_URL` in `public/index.html`, overridable with
 `localStorage['sattva:chatter-base']`. Consumed by `js/data/chatter-live.js`.
 
@@ -2177,11 +2178,11 @@ retreat. Verified against the live endpoint with `curl -D-`:
 | `access-control-expose-headers` | `ETag, X-Data-Generated-At` |
 | `cache-control` | `public, max-age=60, stale-while-revalidate=300` |
 
-So `conditionalJson` revalidates against **their** ETag exactly as it did against ours — a repeat
-fetch answers **304 with no body** — and the device store still means a return visit costs headers.
-Their own `max-age` does the politeness work the edge cache was there for, over data that moves
-twice a day. A side-benefit: Public Chatter is now the one live feed that works when the site is
-served as **plain static files**, with no Worker at all.
+The reader conditionally revalidates with the API ETag and keeps only validated, complete
+responses in the public device store. An unchanged response does not advance source-check
+times. Readable saved rows remain visible after failures; failed or malformed responses never
+replace the last good capture. Public company names are cached separately so cold identity
+resolution does not block a returning reader. Private portfolio membership is not persisted here.
 
 The UI does not render these aggregate facts as a KPI strip. Coverage, total posts and source
 split, market mood and scrape timing are printed as one footnote beneath the active in-page tab.
@@ -2248,26 +2249,40 @@ nothing.
 }
 ```
 
-`health.ageSeconds` is **their** figure, from their `/health` route — how stale the scrape is
-according to the only clock that is authoritative about it, rather than a subtraction between
-their `generatedAt` and ours.
+### Source health, cached reads and retained history
 
-### Failure is reported by kind, and a failed read is never an empty one
+`chatter.meta().health` evaluates `collection.sources` from the dashboard snapshot.
+`generatedAt` is snapshot assembly time. `checkedAt` is a browser/API read, not a source check.
+Only all three recent successful source checks yield “Updated”; missing source metadata is
+unconfirmed, incomplete source work is partial, and a check more than twice the requested
+interval old is delayed. An API failure leaves readable rows with “Saved data”. A 304 or a
+recently rebuilt archive cannot turn stale collection green. Research evidence follows the
+same source-health rules, and awaits bounded fresh detail reads instead of treating a failed
+background check as successful evidence.
 
-`entries: []` only ever travels with `ok: false` and a `reason`, and the tab renders a named panel
-rather than an empty table.
+`GET /archive` exposes retained topics including companies outside the recent list.
+`GET /archive/{slug}/{YYYY-MM}` reads monthly captures with pagination. The reader caches
+complete responses, opens them immediately, then revalidates. All pages are fetched (with an
+explicit failure at the supported safety bound), while only 40 post cards are mounted initially.
+Show more and Load older captured mentions expose the remaining records. The open recent
+mention dialog follows summary changes automatically. Status-only checks preserve the mounted
+search/table; changed data preserves search focus and selection. All poll/listener ownership
+ends when leaving the tab.
 
-| `reason` | Means | What to do |
-| --- | --- | --- |
-| `no-url` | no base configured | set `window.SATTVA_CHATTER_URL` in `public/index.html` |
-| `not-found` | 404 from the host | check the base ends in `/v1` — **and see the 1042 note above if the caller is a Worker** |
-| `unreachable` | the request never completed — DNS, offline, or a refused CORS preflight | wait; the poll retries |
-| `upstream` | it answered with an error status | wait; the poll retries |
-| `shape` | answered, but not in the documented shape | their contract changed |
+The upstream retains topic/month post files independently of its 30-day summary. A failed
+source keeps its last captured layer. Forum head reads and historical reconciliation have
+separate persisted progress, and source cooldowns survive job boundaries. Initial Git-history
+recovery is resumable; the API exposes progress and excludes the original synthetic examples.
+A captured-history archive is not an exhaustive source archive: uncaptured or deleted records
+may be unrecoverable, RSS discovery is bounded, and company matching is heuristic. Matched
+holdings never mean every holding was checked. The footer discloses these limits and actual
+source times. Telegram has its own independent capture contract below.
 
-The `not-found` wording is the one that had to be rewritten. It used to read *"check that it ends
-in /v1 and that the API is deployed"*, which pointed at the one thing that was fine. **A named
-state that names the wrong thing is worse than an unnamed one.**
+Local acceptance: `scripts/verify-chatter-reliability-ui.mjs` tests immediate saved reloads,
+source delay/partial/failure states, conditional refresh, recovery after inactivity, complete
+pagination beyond 1000, archived-only companies, monthly history, invalid snapshot rejection,
+focus preservation and mobile layout. `scripts/verify-research-social.mjs` checks the research
+consumer's warm reuse, failed detail reads and recovery.
 
 ### Verifying without egress — `scripts/stub-chatter.mjs`
 
@@ -2348,7 +2363,7 @@ can span 31 days. Date filters never delete archives or change collection cadenc
 archive-derived head covering the period avoids duplicate company-month downloads; a newer index
 or insufficient head coverage loads the overlapping months. Dedicated-publisher and TradingView
 history are also bounded to overlapping months. Undated records remain separately accessible.
-All Alerts uses the same IST presets with Last 3 days as its display default, while retaining
+All Alerts uses the same IST presets with Today as its display default, while retaining
 All history through today, Older than 30 days and the separate Upcoming horizon. Its source
 reader still retains full history, and company "See all" links explicitly open All history.
 An incomplete monthly read preserves the last complete history and reports the gap; it is retried
@@ -3055,6 +3070,86 @@ the market-news list keeps a story whose URL it cannot use.
 on it says whose it is — the honesty rule every feed here follows. The `worker/nse-ann.mjs` parser and
 resolver are pure and shared by the Worker route and the scraper, so the live feed and the snapshot can
 never disagree about shape or about how a name becomes a ticker.
+
+**AN XBRL FILING IS A DOCUMENT, AND A BROWSER SHOWS IT AS MARKUP — so this renders it.** About one
+item in eleven links to a raw XBRL file rather than a PDF (measured: **150 of 1,693** on one live
+pull, `.../corporate/xbrl/<FORM>_<id>_WebXMLFile_<stamp>.xml`), and every one of those rows sent the
+reader to *"This XML file does not appear to have any style information associated with it"* over a
+tree of SEBI namespaces. NSE publish **no readable twin** — measured against the live archive for one
+such filing, `<file>.html`, `<file>_WEB.html` and `/corporate/ixbrl/<file>_iXBRL_WEB.html` all 404,
+the document carries no XSLT stylesheet, and the response has **no `access-control-allow-origin`
+header at all**, so the browser cannot read it even to lay it out itself. (Integrated Filings are the
+exception: NSE publish those directly as `_iXBRL_WEB.html`, already readable, and nothing here
+touches them.)
+
+`GET /api/nse-filing?src=<url>` fetches the file with the same desktop user-agent the RSS needs and
+returns the exchange's own facts as JSON. **`src` is an allow-list, not a parameter**:
+`isXbrlFilingUrl()` in `public/js/data/nse-xbrl-shared.js` pins `https`, the host *exactly*
+(a hostname that merely ends in `nseindia.com` is somebody else's), the `/corporate/xbrl/` path and an
+`.xml` file, and refuses anything else with `400 unsupported` before a request is made — without that
+this is an open proxy answering from our origin. These files are immutable (the filename carries the
+filing's own timestamp), so the edge holds one for **a day** and a failure for **15 seconds**, the
+same split the Finology client draws.
+
+```
+GET /api/nse-filing?src=https://nsearchives.nseindia.com/corporate/xbrl/REG30_PARA_B_897_….xml
+{
+  "ok": true,
+  "url": "https://nsearchives.nseindia.com/corporate/xbrl/REG30_PARA_B_897_….xml",
+  "fetchedAt": "2026-09-10T13:12:41.001Z",
+  "company": "Man Industries (India) Limited",   // in-capmkt:NameOfTheCompany, or null
+  "symbol": "MANINDS", "isin": "INE993A01026", "scripCode": "513269",
+  "factCount": 27,
+  "blocks": [ {
+    "key": "Main",            // the context id, with the taxonomy's instant/duration marker folded
+    "title": null,            // null for the header block; otherwise the block's own name, spaced
+    "facts": [ {
+      "tag": "NSESymbol",     // SEBI's own element name
+      "label": "NSE symbol",  // the same name, spaced into words — the ONLY thing added
+      "value": "MANINDS",     // the company's own value, verbatim
+      "unit": null            // the document's own unitRef, e.g. "INR", where it declares one
+    } ]
+  } ]
+}
+```
+
+**READ BY SHAPE, NOT BY FIELD NAME.** The taxonomy is SEBI's and moves on their schedule, so nothing
+here knows a field by name: measured across twelve form types in one pull (orders, board intimations,
+director changes, shareholder notices, restructuring, trading-window closure, CIRP, analyst meets and
+more) they carry between 9 and 45 facts each, and a form published next month arrives laid out rather
+than dropped. Three rules make the rendering honest:
+
+1. **A fact is an element with a `contextRef`; structure is not a fact.** RailTel's 10 Sep filing
+   declares its repeated blocks with `<in-capmkt:ChangeInManagementDomain>` members nested inside
+   `<xbrli:context>` — same namespace, no context of their own — and four of them landed at the top
+   of the panel reading *"Change in management domain: ChangeInManagementDomain1"* before that rule
+   existed. The taxonomy's own definition is the discriminator, so a typed member of any name is
+   excluded without this code having to know the name.
+2. **A repeated section is a context, not a field name.** That same filing reports four auditor
+   re-appointments as `D_ChangeInManagement1..4` / `I_ChangeInManagement1..4` — the same six tags,
+   four times. Flattened into one list they read as one contradictory record; grouped by context they
+   read as four appointments. `blockKey()` folds the `I_`/`D_` instant-duration marker away so
+   `MainI` and `MainD` are one header, and keeps everything else as written.
+3. **Values travel verbatim and blanks are not findings.** A date stays the date the company filed,
+   `true` stays `true`, a number keeps its digits and gains only the unit the document declares, and
+   a field the company left empty is omitted rather than rendered as an answer. Nothing is summed,
+   scored, re-banded or re-worded — the same reproduce-never-recompute rule the con-call and
+   Institutions feeds follow.
+
+**The row still carries NSE's own URL, everywhere.** `row.url` is unchanged, so the export, the
+provenance surfaces and every other consumer keep the exchange's address; only the *click* is
+intercepted, by one delegated listener in `public/js/ui/xbrl-filing.js` installed once from
+`app.js` — a check in five tabs is how one rule ends up with five spellings that disagree. A
+ctrl-click, a middle-click and "open in new tab" are untouched, because that is how somebody asks
+for the file itself. **On a static origin there is no Worker and so no route**: the panel says that
+in those words and offers the original document, which is exactly where the click used to land, so
+a failure costs one extra click and never the filing.
+
+Regression checks: `node scripts/verify-nse-xbrl.mjs` (offline, over two real filings committed under
+`scripts/fixtures/nse-xbrl/`) and `PLAYWRIGHT_ROOT=… node scripts/verify-nse-xbrl-ui.mjs`, which
+drives the real tab against a stub route and asserts the panel carries the filing's fields, no
+`in-capmkt:` markup, the original link, and the honest no-Worker wording.
+
 
 ### Keeping captures fresh — scheduled first, demand-driven recovery second
 
@@ -3988,7 +4083,9 @@ twenty". Measured after the change: 12.4s for the first request into a hung upst
 next, because the failure is cached.
 
 `holdings: []` never travels without `ok: false` beside it — a book that failed to load must not be
-able to read as an investor who holds nothing. The card says "could not be read" instead.
+able to read as an investor who holds nothing. The card says so instead. A book that is merely
+of a known age is a different state: it keeps its figures on the card and its age is stated once,
+in the view's freshness label. See `failureFor` vs `uncheckedFor` in `js/data/super-investors.js`.
 
 ---
 
@@ -4033,8 +4130,11 @@ the back-adjustment trap that governs corporate actions against a split-adjusted
 
 ## Browser-local state — editable scope lists, the watchlist, and the active scope
 
-Three things the reader owns are not files and never travel to a server. They are documented here
-because a scope filter is a data contract even when its storage is `localStorage`.
+Two of the three things below are the reader's own and never travel to a server: the Universe scope
+list and the active scope. **The watchlist is no longer one of them** — it is a single shared list
+for the whole desk, held on the Worker and mirrored into `localStorage` on each device. It is still
+documented here because that mirror is a data contract, and because the mirror is what paints when
+the shared list cannot be reached. The shared half is specified under *The shared watchlist* below.
 
 ### `sattva:scope-lists:v1` — Universe edits and legacy Portfolio migration
 
@@ -4067,11 +4167,11 @@ body `{ query, user_index: 124 }`, keeps `MUNS_TOKEN` out of the browser, and no
 ticker-keyed upstream object to `{ ticker, country, name, industry, validTicker }[]`. The editor
 offers only Indian results with valid NSE-shaped tickers.
 
-### `sattva:watchlist` — the companies the reader is tracking
+### `sattva:watchlist` — this device's copy of the shared watchlist
 
 ```jsonc
 [
-  { "ticker": "RELIANCE", "name": "Reliance Industries", "addedAt": "2026-08-31T09:14:22.001Z" }
+  { "ticker": "RELIANCE", "name": "Reliance Industries", "addedAt": "2026-08-31T09:14:22.001Z", "addedBy": "Ravi Kumar" }
 ]
 ```
 
@@ -4079,7 +4179,14 @@ offers only Indian results with valid NSE-shaped tickers.
 | --- | --- |
 | `ticker` | **Upper-case NSE symbol or six-digit BSE company code.** Digit-leading symbols such as `20MICRONS` are accepted. |
 | `name` | The display name of the row it was starred from, or `null` for a pre-v2 entry. It exists so a watched company can be *named* on a feed that does not carry it — printing the symbol back as though it were a name would be inventing one. |
-| `addedAt` | ISO timestamp. Drives the ordering: a watchlist is a working set, so newest first. |
+| `addedAt` | ISO timestamp, **stamped by the server** when it accepted the addition. Drives the ordering: a watchlist is a working set, so newest first. |
+| `addedBy` | Who added it, as they typed it — or `null`, which means *nothing ever recorded who* and is a different claim from "nobody". Never printed as a name; `attributionLabel()` renders it as *"Added before names were recorded"*. |
+
+This array is a **mirror, not the list**. It exists because every scope filter in the dashboard asks
+"is this ticker watched?" during a render and cannot await a network read to decide whether a row is
+in scope — and because it is what the dashboard paints when the shared list is unreachable. It is
+rewritten from each accepted server snapshot; the v3 migration (`sattva:watchlist:shape`) adds
+`addedBy` to entries written before attribution existed.
 
 **It is a list of COMPANIES, and it did not used to be.** The star lived entirely inside
 `scoreTable` and stored whatever that table used as a row key — which is a different vocabulary on
@@ -4106,6 +4213,147 @@ remain excluded; only explicit company objects can carry six-digit BSE codes. Th
 records that it ran under `sattva:watchlist:shape`. A dropped entry was never a company; it was
 a row.
 
+## The shared watchlist — `GET`/`POST /api/watchlist`
+
+**One watchlist, every device, every reader.** It was `localStorage` and nothing else, so it was a
+list per *browser*: two people at one desk kept two different watchlists and neither could see the
+other's, and the same person on a phone saw a third. Every device held a partial answer and none of
+them said so.
+
+The list lives in a Durable Object — the already provisioned `CaptureRegistry` class under the fixed
+object name `shared-watchlist:v1`, so it needs no namespace migration and no company-registry shard
+ever sees its tables. `worker/watchlist-store.mjs` owns the SQLite; `worker/watchlist.mjs` owns the
+route; `public/js/data/watchlist-shared.js` owns the rules and is imported by **both**, so the edge
+and the page cannot drift about what a company is or who a contributor is.
+
+### `GET /api/watchlist`
+
+```jsonc
+{
+  "ok": true,
+  "version": 1,
+  "revision": 4,                      // the server's own counter; moves only on a real change
+  "updatedAt": "2026-09-11T12:58:56.496Z",
+  "count": 2,
+  "limit": 600,
+  "companies": [
+    { "ticker": "STLTECH", "name": "Sterlite Technologies Ltd.", "addedAt": "…", "addedBy": "Ravi Kumar" }
+  ],
+  "people": [                         // the roster behind the contributor dropdown
+    { "name": "Ravi Kumar", "lastUsedAt": "…", "uses": 3 }
+  ]
+}
+```
+
+`cache-control: private, max-age=0, must-revalidate`. **Private, never `no-store`.** Every other GET
+here is market data — the same filings whoever asks — which is what makes a shared edge entry safe
+for them; this one changes the moment somebody stars a company, so no shared cache may hold it. The
+browser may, and must, because that is what lets the ETag turn an unchanged poll into a bodyless
+304. Measured: 304 with 0 bytes while `revision` is unmoved.
+
+**No `checkedAt` in the body.** `withTag` hashes the payload minus `VOLATILE_KEYS`, and `checkedAt`
+is not one of them — stamping the current time in gave every response a different tag while the list
+was identical, and the 304 never fired. The client reports when *it* checked, which is the honest
+answer anyway: a server-stamped time would be the response vouching for its own freshness.
+
+### `POST /api/watchlist`
+
+Body: `{ "intents": [{ "op", "ticker", "name", "by" }] }`, at most `WATCHLIST_INTENT_BATCH` (50),
+one entry per company. Same-origin only, `application/json` only, bounded at 16 KB. Returns the
+snapshot above plus `outcomes`.
+
+**AN EDIT IS SENT AS WHAT IT WAS, NOT AS THE LIST IT PRODUCED.** The obvious wire shape is "PUT the
+whole array", and it silently deletes: a device that loaded the list an hour ago and stars one
+company would PUT its stale array over everything anyone else added since, and nothing anywhere
+would report the loss. Intents apply to whatever the list is *now*, so a concurrent add survives an
+unrelated remove because they touch different rows.
+
+| `op` | Contributor | Meaning |
+| --- | --- | --- |
+| `add` | **required** | Somebody starred a company. Refused without a name — the desk asked for attribution on additions, so the contract enforces it rather than trusting one UI path. |
+| `remove` | optional | Unstarring. May be unattributed: it reaches the contract from paths with nobody to name, and recording the removal with no name beats inventing one. |
+| `seed` | never | A device carrying its pre-shared local list across. Records no contributor, never joins the roster, and **applies only where no row exists at all** — watched or removed — so a browser last opened a month ago cannot resurrect a company somebody deliberately dropped. |
+
+| `outcome` | Meaning |
+| --- | --- |
+| `added` / `removed` | Applied; `revision` moved. |
+| `unchanged` | Already in that state. Not a failure — two people unstarring the same company is a race, not a mistake — and it does not move `revision`, so the next poll still 304s. |
+| `full` | Refused for capacity at `WATCHLIST_COMPANY_LIMIT`. **Never reads as added**, or a device would report a star it does not have. |
+
+### Attribution, and the growing dropdown
+
+The desk asked that an addition carry the name of whoever made it, so everyone knows who put a
+company there. Three rules hold it up, and the second is the one that makes it survive daily use:
+
+1. **The name is asked for on the add**, by `ui/watchlist-attribution.js`, and enforced by the
+   contract. Cancelling adds nothing — a dismissed prompt is an answer, never an anonymous add.
+2. **Every add after the first is a selection, not typing.** The roster is shared, so a new phone
+   opens with the desk's names already in the list rather than an empty box that invites a second
+   spelling of a name already there. `personKey()` folds case and spacing, so "Ravi Kumar", "ravi
+   kumar" and "Ravi  Kumar" are one person; the display name is the latest spelling they typed.
+3. **A device nobody has identified themselves on preselects nobody.** Defaulting to the top of the
+   roster looks helpful and is the one genuinely damaging default available: the top is whoever
+   added most recently *anywhere on the desk*, so a colleague on a new phone pressing Enter would
+   file their add under that person's name. Once this browser has been used its own last name is
+   preselected, which is what makes the second add onwards a single key.
+
+Which name is *mine* stays device-local (`sattva:watchlist:me`) for the same reason the roster does
+not: storing it on the server would make the last person to add anything everybody's default.
+`sattva:watchlist:people` mirrors the roster so the dropdown works offline, marking a name this
+browser has used but the shared list has not yet acknowledged as `pending` rather than `shared` —
+the same distinction the X handle list draws between `adding` and `active`.
+
+### What the browser guarantees
+
+`core/watchlist.js` keeps the synchronous API every scope filter already calls, and adds:
+
+- **An outbox** (`sattva:watchlist:outbox`), persisted, so an edit made while the shared list is
+  unreachable is not lost to a closed tab when browser storage is available. One pending edit per
+  company — starring, unstarring and starring again is one state to send, not three to replay.
+  Each queued edit has a device-generated `id` and `at`; these are local bookkeeping and are not
+  sent to the server. An acknowledgement removes only those exact edits from the current queue,
+  preserving later additions/removals, including edits queued by another tab. Legacy queued edits
+  receive an ID before they are sent.
+- **Migration precedes acknowledgement adoption.** When an interrupted first visit leaves queued
+  changes, all older device entries are queued as seeds before the first server reply replaces
+  the device copy. Pending explicit edits keep their attribution and take precedence over seeds.
+  The migration-complete marker cannot be persisted before the old entries' outbox.
+  An unreadable migration marker defers migration and replacement of a readable legacy list;
+  it is never interpreted as a missing marker or used to report that list as confirmed.
+- **Storage failure has a session fallback.** The open tab retains both the list and pending edits
+  in memory and exposes `meta().storageAvailable = false` with a reader-facing warning. Reconnection
+  can still send those edits. Failed local writes are retried; storage that was unreadable at
+  startup is recovered before temporary values overwrite its old list or queue. Recovered older
+  companies remain visible and saved while migration is waiting for the server, including when
+  outbox writes still fail; reopening can retry migration from that retained list. A recovered
+  outbox write merges the current disk queue with this tab's changes since its last known disk
+  value. Intent IDs preserve sibling edits without replaying already-acknowledged entries.
+  Recovered mirror writes keep a sibling's newer saved snapshot and overlay outstanding edits;
+  only a fresh server adoption may replace it directly.
+  Same-device edits to one company keep the newer local click; the server still orders accepted
+  operations with its own clock. Closing a tab
+  before an unpersisted edit reaches the server can lose that edit, and the warning says to keep
+  the tab open while changes are pending.
+- **Capacity refusals remain visible.** `sattva:watchlist:rejected` retains rejected intents,
+  exposed as `meta().rejected` and an error in the existing editor status. Successful reads and
+  reopening do not dismiss them. A successful retry or confirmation that another device added
+  the company resolves its refusal.
+- **`meta().origin`**, derived and never assigned: `live` only once a read in *this session* has
+  vouched for what is painted, `store` for bytes this device kept from an earlier visit, `pending`
+  while an edit of the reader's own has not been accepted. One "connected" over all three would be
+  wrong two thirds of the time.
+- **A failed read is never an empty list.** `adopt()` is reached only from a response that carried
+  companies; a 503, an aborted fetch and a static origin with no Worker all leave the list exactly
+  as it was. A 404 is reported as *no shared list on this deployment* rather than as a fault, because
+  running this dashboard as static files is supported — that is how the verification suite runs it.
+- **A seed is not painted before it is accepted.** The outbox is re-applied optimistically over each
+  snapshot so the reader never sees their own click undone — but only for `add` and `remove`, which
+  are clicks. A `seed` is this device *guessing*, and the server is entitled to refuse it.
+
+`scripts/verify-shared-watchlist.mjs` covers the contract and the store against `node:sqlite`;
+`scripts/verify-shared-watchlist-ui.mjs` drives two browser contexts — two devices, one server —
+through the real UI against the real store class.
+
 ### `sattva:scope` — which of the three scopes is active
 
 `"portfolio" | "watchlist" | "universe"`, defaulting to **`portfolio`**. The vocabulary lives in
@@ -4116,7 +4364,7 @@ stored one rather than letting a typo redefine what is on screen.
 | Scope | Filters by | Denominator the pill prints |
 | --- | --- | --- |
 | `portfolio` | Authenticated Family book or labelled names-only Family snapshot via `js/data/coverage.js` | All owned identities remain in the denominator, including unresolved symbols. Browser edits cannot alter ownership. |
-| `watchlist` | `sattva:watchlist` above | *"12 of 20 watched companies"*. This gap is only ever *this feed does not carry it* — a watchlist entry came **from** a feed. |
+| `watchlist` | the shared watchlist, mirrored into `sattva:watchlist` above | *"12 of 20 watched companies"*. This gap is only ever *this feed does not carry it* — a watchlist entry came **from** a feed. |
 | `universe` | the feed's full rows, minus local exclusions; local additions appear wherever that feed has data for their ticker | plain count |
 
 `scopeTickers(scope, holdings)` returns the `Set` to filter by, or **`null` for universe**. `null`
@@ -4985,3 +5233,62 @@ source failures, links and mobile layout against a local server with mocked live
 `public/data/public-holdings.json` is the version-1 browser projection from `scripts/reconcile-shareholdings.mjs`: dated attributed holdings, every original source figure/link/hash, source coverage, reconciliation issues, filing exceptions, unresolved identity candidates and all tracked profile counts. `complete` remains false. `latest-disclosure` means latest captured issuer disclosure for that security; it is not real-time ownership. A conflict does not have a chosen display value. Source and holding dates must not be interchanged.
 
 `public/data/holding-evidence.json` relations accept exact legal names/aliases, investor and manager IDs, entity ID, `same-person` / `same-entity` / associated relationship kind, source URLs and `verifiedAt`. Only current reviewed mappings expand attribution. Possible name matches never do. The same entity can be linked explicitly to several profiles without merging their holdings or account values. Captures and the projection publish together through the investor-refresh checked PR.
+## Exchange deals and supplementary insider checkpoint
+
+`public/data/exchange-deals.json` is the fallback for `GET /api/bulk-block-deals`.
+The read-only Worker delivers the latest completed Sattva `bulk-block-refresh.yml` artifact,
+including partially successful captures; a delivery failure serves the fallback with
+`X-Sattva-Exchange-Fallback: 1`. `ETag` identifies the artifact. GitHub credentials stay on the
+Worker and never follow the signed artifact-download redirect.
+
+The version-1 snapshot contains `records` as tuples of source id, source date, exchange security
+id, company, client, Buy/Sell, quantity, price and remarks. Four `sources` entries cover NSE/BSE
+bulk/block reports individually: `coverage` is the union of successfully read intervals,
+`checkedAt` is the latest attempt, `lastSuccessAt` is the latest successful read, and `ok/error`
+report its outcome. `securityMap` joins BSE codes to NSE tickers by ISIN. Unresolved codes remain
+in Universe. `identity` reports mapping failures independently. `updatedAt` versions delivery;
+it never certifies source success. Official interval corrections replace the matching source
+slice; failed or suspiciously empty reads preserve it. The initial public exchange history comes
+from the supplied Glow reference, with its original check dates and no Glow portfolio data.
+
+`insiders.byTicker[ticker]` retains Muns `trades`, `from/to`, the last attempt and last success,
+and an explicit error. `insiders.targetTickers` is Sattva's capture universe: its resolved live
+portfolio, local universe, and companies already present in its market disclosures. The bounded
+12-minute walk prioritises portfolio companies whose successful check is at least two hours old,
+then rotates the universe by attempt time. Requests start at least 2.5 seconds apart with four
+in flight. Each read overlaps the last successful day by seven days; the first asks for a year.
+Old records remain additive, including beyond the page's default 30-day reading window. Each
+completed source interval/company response is saved atomically so interrupted jobs can publish
+and resume their completed progress. A failed live portfolio lookup retains the checkpoint and
+reports the error, rather than silently substituting an old book.
+The target manifest retains every intended company through each checkpoint and final publication,
+including completed, failed and pending reads. Consuming the request queue must never shrink the
+coverage denominator; a budget-limited run leaves unattempted targets visibly unchecked.
+Indian Muns disclosure requests reuse the reviewed SME aliases in `announcement-identity.js`
+(Alpex Solar, Jay Bee Laminations and Sahana). The source receives the bare exchange symbol;
+responses retain the requested portfolio ticker. Unknown suffixes and non-India requests are
+unchanged, and source success still requires a readable response.
+Scope matching recognises those same reviewed aliases in both directions, including Watchlist
+membership and Universe exclusions. Raw exchange rows and holdings keep their original tickers;
+older Jay Bee bulk deals therefore remain visible under its `JAYBEE-SM` portfolio holding.
+
+The schedule runs every 30 minutes during weekday day/evening hours plus a weekend check.
+The browser reads every minute while the feed is visible, and on focus/reconnection; it can
+request the same throttled workflow when an exchange check is overdue. Collection runs
+independently of a reader, uses Sattva's existing repository/Worker configuration, and publishes
+artifacts without commits to main. Each artifact retains the cumulative history and has 90-day
+artifact retention. An outage beyond retained artifacts is an explicit recovery limit; this is
+not a guarantee of an exhaustive historical archive. Muns coverage is per company and best
+effort; queue size, unavailable securities and upstream response limits can delay checks.
+
+The shared insider reader merges these records with Screener and the monthly archive, so tables,
+alerts and research use the same rows. Official reports supersede secondary rows only inside
+successfully captured exchange intervals. Venue, category, side, quantity and price keep
+separate official transactions distinct. Portfolio and Watchlist filter using Sattva membership;
+Universe keeps the market-wide feed and existing universe exclusions. The UI displays exchange
+and Muns status separately, with original source dates, failed checks and stale coverage. Excel
+keeps the Exchange field; approximate official trade value is quantity × price in rupees,
+marked `≈`, while other source values retain their units.
+
+Offline checks: `verify-exchange-deals.mjs`, `verify-muns-insider-capture.mjs`,
+`verify-exchange-worker-runtime.mjs` and `verify-sattva-deals-ui.mjs`.

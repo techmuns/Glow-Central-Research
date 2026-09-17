@@ -452,7 +452,7 @@ export function renderScans(ctx, { disposers, tableView, onView, onInsights = nu
     // it short is what made every one of these links 404.
     link: (r) => r.transcriptUrl || readableDocuments(r)[0]?.url || r.screenerCompanyUrl || null,
     initialSort: { key: 'Call / Published', dir: 'desc' },
-    exportName: 'sattva-concall-scans',
+    exportName: 'glow-concall-scans',
     onExport: (visible) => exportScans(visible, m),
     emptyMessage: scopePossessive(ctx.scope) ? `No concall document or current-quarter scan matches ${scopePossessive(ctx.scope)}.` : 'No calls match your filters.',
     initialView: tableView,

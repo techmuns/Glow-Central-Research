@@ -10,6 +10,8 @@ import { scopeSummary, pill } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { normalizeBookmark, snapshotForRow } from '../core/bookmark-record.js';
 import { bookmarkButton, wireBookmarks } from '../ui/bookmark-button.js';
+import { reconcileMarkup } from '../ui/reconcile-markup.js';
+import { getHostContext } from '../core/host-context.js';
 import { formatNumber } from '../core/format.js';
 import * as refresh from '../core/refresh.js';
 import * as alerts from '../data/ai-alerts.js';
@@ -39,6 +41,8 @@ try { const saved = localStorage.getItem(SORT_KEY); if (Object.hasOwn(SORTS, sav
 
 let ctxRef = null;
 let offBookmarks = null;
+let bookmarkRoot = null;
+let actionGeneration = 0;
 let report = null;
 let loadToken = 0;
 let cacheToken = 0;
@@ -70,6 +74,8 @@ function sourceChanged() {
 // Keep a completed view in memory across tab visits. This lifetime listener also
 // revokes that cached private view if access expires while another tab is open.
 onPortfolioInvalidation((version) => {
+  actionGeneration++;
+  alerts.clearRankingCache();
   cacheToken += 1;
   if (version < 0) {
     // Universe/Watchlist cards also carry membership badges from the private
@@ -82,7 +88,8 @@ onPortfolioInvalidation((version) => {
     sizesLoading = collecting = false;
     awaitingBook = null;
     sizeError = 'Unlock your portfolio to refresh your alerts.';
-    if (ctxRef.scope !== 'portfolio') { void recollect(ctxRef); return; }
+    void recollect(ctxRef);
+    return;
   } else {
     if (ctxRef?.scope !== 'portfolio') return;
     // A positions read already in flight will return the checked book. Otherwise
@@ -100,12 +107,17 @@ function portfolioUnavailable() {
   collecting = false;
   awaitingBook = null;
   sizeError = 'Family Office is temporarily unavailable.';
-  if (report) report = alerts.rankReport({ scope: report.scope, day: report.day,
-    feeds: report.feeds, events: report.allCards.flatMap(card => card.events) }, { holdings: coverage.holdings() });
-  paint(ctxRef);
+  if (report) {
+    report = alerts.rankReport({ scope: report.scope, day: report.day,
+      feeds: report.feeds, events: report.allCards.flatMap(card => card.events) }, { holdings: coverage.holdings() });
+    paint(ctxRef);
+  } else {
+    void recollect(ctxRef);
+  }
 }
 
 export function render(ctx) {
+  actionGeneration++;
   ctxRef = ctx;
 
   if (!unsubs.length) {
@@ -156,8 +168,10 @@ export function render(ctx) {
       holdings: coverage.holdings(),
       positionSizes: cachedPositionSizes(),
     }).then((cached) => {
-      if (token !== cacheToken || ctxRef !== ctx || report || !cached) return;
-      report = cached;
+      if (token !== cacheToken || ctxRef !== ctx || !cached || report?.pending === 0) return;
+      // An empty partial is still an unfinished source read. Merge the retained window beneath
+      // any newer live evidence instead of letting that partial suppress a slow cache restore.
+      report = alerts.withPositionSnapshot(report ? alerts.mergePartialReport(cached, report) : cached, cachedPositionSizes());
       paint(ctxRef);
     });
   }
@@ -166,6 +180,8 @@ export function render(ctx) {
 
 export function destroy() {
   offBookmarks?.(); offBookmarks = null;
+  bookmarkRoot = null;
+  actionGeneration++;
   clearTimeout(sourceTimer);
   sourceTimer = null;
   captureDirty = false;
@@ -200,13 +216,18 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
   sizeError = loadError = '';
   awaitingBook = null;
   const current = () => token === loadToken && !!ctxRef;
+  const book = coverage.holdings();
+  const bookSignature = JSON.stringify(book);
 
   // Public evidence can load while the private connector checks holding sizes.
   // A slow or unavailable size reader must not hold the first alert hostage.
   // An explicit Refresh must really check Family again. Navigation, calendar
   // ageing and a quick tab return are the paths allowed to reuse the snapshot.
-  const heldSizes = forceRefresh && !reusePositions ? null : cachedPositionSizes();
-  let checkedSnapshot = heldSizes;
+  const previousSnapshot = cachedPositionSizes();
+  const heldSizes = forceRefresh && !reusePositions ? null : previousSnapshot;
+  // Keep the still-valid, dated snapshot on partial cards while an explicit
+  // refresh checks it again. Failure handling removes unverified sizes below.
+  let checkedSnapshot = previousSnapshot;
   let positions = Promise.resolve(heldSizes);
   if (ctx.scope === 'portfolio' && privatePortfolioContext()) {
     if (!heldSizes) {
@@ -234,11 +255,12 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
     const [next, positionSizes] = await Promise.all([
       alerts.collect({
         scope: ctx.scope,
-        holdings: coverage.holdings(),
+        holdings: book,
         refresh: forceRefresh,
         load,
+        isCurrent: current,
         onPartial: (partial) => {
-          if (!current() || !partial.cards.length) return;
+          if (!current()) return;
           report = alerts.withPositionSnapshot(alerts.mergePartialReport(report, partial), checkedSnapshot);
           paint(ctxRef);
         },
@@ -248,8 +270,9 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
     if (!current()) return;
     // The checked book can contain additions/exits since collection began. Read
     // the now-loaded feeds against that book without another network refresh.
-    const completed = positionSizes ? await alerts.collect({ scope: ctx.scope,
-      holdings: coverage.holdings(), positionSizes, load: false }) : next;
+    const completed = positionSizes && JSON.stringify(coverage.holdings()) !== bookSignature
+      ? await alerts.collect({ scope: ctx.scope, holdings: coverage.holdings(), positionSizes, load: false, isCurrent: current })
+      : alerts.withPositionSnapshot(next, positionSizes);
     if (!current()) return;
     report = completed.pending || completed.feeds.some(feed => feed.status === 'failed')
       ? alerts.mergePartialReport(report, completed) : completed;
@@ -270,6 +293,11 @@ function effectiveSort(ctx) {
 }
 
 function paint(ctx) {
+  if (!ctx || ctx !== ctxRef) return;
+  const anchor = [...ctx.root.querySelectorAll('[data-ai-card]')].find(node => {
+    const rect = node.getBoundingClientRect(); return rect.bottom > 0 && rect.top < innerHeight;
+  });
+  const anchorTop = anchor?.getBoundingClientRect().top;
   const matches = (query.trim() ? report?.allCards || [] : report?.cards || []).filter((card) => matchesSearch(card, query));
   const cards = sortAlertCards(filteredCards(matches), effectiveSort(ctx));
   const shown = cards.slice(0, visibleLimit);
@@ -286,10 +314,10 @@ function paint(ctx) {
     });
     ctx.root.querySelector('[data-ai-clear]')?.addEventListener('click', clearSearch);
   }
-  ctx.root.querySelector('[data-ai-heading]').innerHTML = head(ctx);
+  reconcileMarkup(ctx.root.querySelector('[data-ai-heading]'), head(ctx));
   const cache = alertWindowCache.status();
-  ctx.root.querySelector('[data-ai-position-status]').innerHTML = positionStatus(ctx) + (cache.message
-    ? `<p data-ai-cache-status role="status" class="mb-4 text-xs text-slate-500">${escapeHtml(cache.message)}</p>` : '');
+  reconcileMarkup(ctx.root.querySelector('[data-ai-position-status]'), positionStatus(ctx) + (cache.message
+    ? `<p data-ai-cache-status role="status" class="mb-4 text-xs text-slate-500">${escapeHtml(cache.message)}</p>` : ''));
   ctx.root.querySelector('[data-ai-clear]').hidden = !query.length;
   // Identical results keep their DOM, expanded evidence and keyboard focus.
   for (const [selector, markup] of [
@@ -297,9 +325,13 @@ function paint(ctx) {
     ['[data-ai-results]', report ? cardsPanel(ctx, shown, cards.length) : loadError ? quietFallbackPanel() : loadingPanel()],
   ]) {
     const node = ctx.root.querySelector(selector);
-    if (node._markup !== markup) { node.innerHTML = markup; node._markup = markup; }
+    reconcileMarkup(node, markup);
   }
   wire(ctx, cards.length);
+  if (anchor?.isConnected && anchorTop != null) {
+    const delta = anchor.getBoundingClientRect().top - anchorTop;
+    if (Math.abs(delta) > 1) window.scrollBy(0, delta);
+  }
 }
 
 function positionStatus(ctx) {
@@ -342,7 +374,7 @@ function watchCalendar() {
   let day = currentDay();
   let timer;
   const check = () => {
-    if (!ctxRef || document.hidden || currentDay() === day) return;
+    if (!ctxRef || (document.hidden || innerWidth === 0) || currentDay() === day) return;
     day = currentDay();
     for (const el of ctxRef.root.querySelectorAll('[data-ai-age]')) {
       el.textContent = relativeAge(el.dataset.day, day);
@@ -368,7 +400,7 @@ function watchCalendar() {
  * This checks published captures only; it does not dispatch production collection jobs. */
 function watchFreshness() {
   const check = () => {
-    if (!ctxRef || document.hidden || collecting || Date.now() - lastSourceCheck < RECHECK_MS) return;
+    if (!ctxRef || (document.hidden || innerWidth === 0) || collecting || Date.now() - lastSourceCheck < RECHECK_MS) return;
     void recollect(ctxRef, { refresh: true, reusePositions: true });
   };
   const timer = setInterval(check, RECHECK_MS);
@@ -537,14 +569,18 @@ function contextMarkup(card, scope) {
     class="mt-2 block text-xs leading-relaxed text-slate-500 transition hover:text-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${escapeHtml(card.contextSummary)}</a>`;
 }
 
+const cardSnapshots = new WeakMap();
 function cardSnapshot(card) {
-  return normalizeBookmark({ title: card.insight, company: card.company, ticker: card.ticker, entityId: card.entityId,
+  if (cardSnapshots.has(card)) return cardSnapshots.get(card);
+  const snapshot = normalizeBookmark({ title: card.insight, company: card.company, ticker: card.ticker, entityId: card.entityId,
     kind: 'AI Alerts', source: 'Dashboard analysis', sourceId: `${card.key || card.ticker}:${card.evidenceKey || card.insight}`,
     eventDate: latestAlertEvent(card)?.day,
     body: card.events.map(event => [event.headline, event.detail, event.reason].filter(Boolean).join('\n')).join('\n\n'),
     details: card.events.map(event => ({ label: `${event.feedLabel || event.feed} · ${event.day || 'Date not supplied'}`, value: event.headline })),
     links: card.events.filter(event => event.url).map(event => ({ label: event.headline, url: event.url })),
   });
+  cardSnapshots.set(card, snapshot);
+  return snapshot;
 }
 function cardMarkup(card, scope, day, archived = false) {
   const badge = card.badge || { id: 'important', label: 'Important', tone: 'neutral' };
@@ -558,8 +594,9 @@ function cardMarkup(card, scope, day, archived = false) {
   const rest = card.events.length - events.length;
   const signal = latestAlertSignal(card);
   return `
-    <article data-ai-card data-ticker="${escapeHtml(card.ticker || '')}" data-entity-id="${escapeHtml(card.entityId || '')}" data-priority="${escapeHtml(card.priority)}" data-score="${card.score}"${archived ? ' data-ai-archived' : ''}
-      class="flex h-full flex-col overflow-hidden rounded-2xl border-l-4 ${archived ? 'border-l-slate-200' : tone.edge} bg-white shadow-sm ring-1 ring-slate-100">
+    <article data-ai-card data-ai-key="${escapeHtml(card.key || card.ticker || card.entityId)}" data-ticker="${escapeHtml(card.ticker || '')}" data-entity-id="${escapeHtml(card.entityId || '')}" data-priority="${escapeHtml(card.priority)}" data-score="${card.score}"${Number.isFinite(card.holdingWeightPct) ? ` data-holding-weight="${card.holdingWeightPct}"` : ''}${archived ? ' data-ai-archived' : ''}
+      class="flex h-full flex-col overflow-hidden rounded-2xl border-l-4 ${archived ? 'border-l-slate-200' : tone.edge} bg-white shadow-sm ring-1 ring-slate-100"
+      style="content-visibility: auto; contain-intrinsic-size: auto none auto 320px;">
       <div class="flex-1 p-5">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
@@ -633,7 +670,7 @@ function eventMarkup(event, scope, day) {
   const claim = alerts.plainHeadline(event);
   return `
     <li class="flex items-start gap-2" data-ai-notebook-event="${escapeHtml(event.id)}">
-      <a data-ai-event data-ai-evidence-link href="${escapeHtml(destination.href)}"
+      <a data-ai-event data-ai-evidence-link data-feed-family="${escapeHtml(alerts.feedFamily(event))}" href="${escapeHtml(destination.href)}"
         ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
         aria-label="${escapeHtml(destination.ariaLabel)}"
         class="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-1.5 -mx-2 transition-colors hover:bg-indigo-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
@@ -700,14 +737,29 @@ function filteredCards(cards) {
 }
 
 function wire(ctx, total) {
-  offBookmarks?.();
-  offBookmarks = wireBookmarks(ctx.root, button => {
-    const cardKey = button.closest('[data-ai-notebook-card]')?.dataset.aiNotebookCard;
-    if (cardKey) { const card = report?.cards?.find(card => String(card.key || card.ticker) === cardKey); return card && cardSnapshot(card); }
-    const id = button.closest('[data-ai-notebook-event]')?.dataset.aiNotebookEvent;
-    const event = report?.cards?.flatMap(card => card.events).find(event => String(event.id) === id);
-    return event && snapshotForRow(event, { section: 'daily-alerts' });
-  });
+  if (bookmarkRoot !== ctx.root) {
+    offBookmarks?.();
+    bookmarkRoot = ctx.root;
+    offBookmarks = wireBookmarks(ctx.root, button => {
+      if (ctxRef?.root !== ctx.root || !ctx.root.contains(button)) return null;
+      const model = report?.allCards || report?.cards || [];
+      const owner = button.closest('[data-ai-key]')?.dataset.aiKey;
+      const card = model.find(card => String(card.key || card.ticker || card.entityId) === owner);
+      if (!card) return null;
+      const cardKey = button.closest('[data-ai-notebook-card]')?.dataset.aiNotebookCard;
+      if (cardKey) return cardSnapshot(card);
+      const id = button.closest('[data-ai-notebook-event]')?.dataset.aiNotebookEvent;
+      const event = card.events.find(event => String(event.id) === id);
+      return event && snapshotForRow(event, { section: 'daily-alerts' });
+    }, { captureGuard: () => {
+      const view = ctxRef, generation = actionGeneration, session = getHostContext().session;
+      return () => {
+        const current = getHostContext().session;
+        return ctxRef === view && actionGeneration === generation &&
+          current.token === session.token && current.email === session.email && current.orgId === session.orgId;
+      };
+    } });
+  }
   const sort = ctx.root.querySelector('[data-ai-sort]');
   if (sort) sort.onchange = () => {
     if (!Object.hasOwn(SORTS, sort.value)) return;

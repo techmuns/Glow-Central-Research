@@ -60,8 +60,16 @@ try {
       const { parseRange, applyRange } = await import('/js/data/date-range.js');
       return applyRange(insider.rows(), parseRange(id)).rows.length;
     }, id);
-    const count = await page.locator('[data-row-count]').first().innerText();
-    assert.equal(Number(count.replace(/,/g, '').match(/\d+/)?.[0]), expected, `Bulk/Block ${id}`);
+    // Wait for the repaint rather than sampling it: selecting a period rebuilds a table of tens of
+    // thousands of retained rows, so reading the count straight afterwards catches either the
+    // previous period's figure or the loading placeholder, and the assertion then fails on timing
+    // rather than on the predicate it is about.
+    const shown = () => page.locator('[data-row-count]').first().innerText()
+      .then(text => Number(text.replace(/,/g, '').match(/\d+/)?.[0]));
+    await page.waitForFunction(([target]) => Number(document.querySelector('[data-row-count]')
+      ?.textContent.replace(/,/g, '').match(/\d+/)?.[0]) === target, [expected], { timeout: 30000 })
+      .catch(() => {});
+    assert.equal(await shown(), expected, `Bulk/Block ${id}`);
     assert(await page.getByText('TESTPOLL', { exact: true }).count() > 0, 'today’s new deal remains in every short window');
   }
   await page.reload();

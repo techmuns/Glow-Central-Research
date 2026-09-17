@@ -62,6 +62,8 @@ assert(matchesCapturedNews({ ...includedLatest, ticker: null }, { ...capturedLat
 assert(!matchesCapturedNews({ ...includedLatest, ticker: null, company: 'Other company' }, { ...capturedLatest, ticker: null }), 'a shared article URL cannot substitute a different tickerless issuer');
 assert(matchesCapturedNews({ ...includedLatest, ticker: null, isin: 'INE423A01024', company: 'Clipped name…' }, { ...capturedLatest, ticker: null, isin: 'INE423A01024' }), 'stable ISIN identifies tickerless issuers without relying on display-name clipping');
 assert(!matchesCapturedNews({ ...includedLatest, ticker: null, isin: 'OTHER' }, { ...capturedLatest, ticker: null, isin: 'INE423A01024' }), 'a different stable ISIN cannot share a latest-news match');
+assert(matchesCapturedNews({ ...includedLatest, ticker: null, isin: 'INE423A01024' }, { ...capturedLatest, isin: 'INE423A01024' }), 'a pre-listing article retains its identity after the portfolio gains a ticker');
+assert(!matchesCapturedNews({ ...includedLatest, isin: 'OTHER' }, { ...capturedLatest, isin: 'INE423A01024' }), 'matching tickers cannot override conflicting stable ISINs');
 assert(!matchesCapturedNews({ ...includedLatest, title: 'A…', url: null }, { ...capturedLatest, url: null }), 'a near-empty URL-less prefix cannot identify an article');
 const longTitle = 'Literal captured company development '.repeat(16);
 assert(matchesCapturedNews({ ...includedLatest, title: `${longTitle.slice(0, 419)}…`, url: null }, { ...capturedLatest, title: longTitle, url: null }), 'URL-less fallback supports the actual 420-character headline boundary');

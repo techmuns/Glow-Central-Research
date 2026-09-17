@@ -140,6 +140,14 @@ try {
   observedPage = page;
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${origin}/#/research/ask-research?scope=portfolio`);
+  await page.locator('.research-workspace.is-disabled-coming-soon').waitFor();
+  await page.locator('.research-coming-soon-overlay').waitFor();
+  assert(await page.locator('.research-coming-soon-title').innerText().then(t => t.includes('Merging with Munshot Chat')));
+  assert(await page.locator('.research-coming-soon-msg').innerText().then(t => t.includes('Please wait for some time, we will let you know as soon as it is ready.')));
+  assert.equal(await page.locator('[data-research-input]').isDisabled(), true);
+  assert.equal(await page.locator('[data-research-send]').isDisabled(), true);
+
+  await page.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`);
   await page.getByText('Portfolio connected', { exact: false }).waitFor();
   if (process.env.SCREENSHOT_PATH) {
     await page.locator('.research-opening-brand').evaluate(image => image.decode());
@@ -241,7 +249,7 @@ try {
   slow.on('pageerror', error => errors.push(error.message));
   const parked = [];
   await slow.route('**/api/screener-insights', route => { parked.push(route); });
-  await slow.goto(`${origin}/#/research/ask-research?scope=portfolio`);
+  await slow.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`);
   await slow.getByText('Portfolio connected', { exact: false }).waitFor();
   const slowStart = Date.now();
   await slow.getByRole('textbox', { name: 'Ask about the dashboard' }).fill(exactQuestion);
@@ -477,7 +485,7 @@ try {
     result.partialCitationHidden = !node.textContent.includes('[Dashboard:');
     renderResearchAnswer(node, 'Stable first paragraph.\n\nNext reading [Dashboard: News]\n\nMore text.', { streaming: true });
     result.stableParagraph = first === node.firstChild && first.isConnected;
-    renderResearchAnswer(node, 'Portfolio reading [Dashboard: Ask Sattva]', { compactCitations: true, cite: () => ({ href: 'https://sattva-family.pages.dev/ask', label: 'Ask Sattva' }) });
+    renderResearchAnswer(node, 'Portfolio reading [Dashboard: Ask Glow]', { compactCitations: true, cite: () => ({ href: 'https://glowventures.example/ask', label: 'Ask Glow' }) });
     result.externalTarget = node.querySelector('.research-cite').target;
     result.citationAttached = node.querySelector('.research-cite').parentElement.classList.contains('research-citation-anchor');
     renderResearchAnswer(node, '# Summary\n\n**Revenue**: 120\n\n**Risks**\n\nStill unresolved.');
@@ -517,7 +525,7 @@ try {
   let configFailures = 1;
   await disconnected.route('**/api/research', route => configFailures-- > 0
     ? route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }) : route.continue());
-  await disconnected.goto(`${origin}/#/research/ask-research?scope=portfolio`);
+  await disconnected.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`);
   await disconnected.getByRole('button', { name: 'Reconnect', exact: true }).waitFor();
   await disconnected.getByRole('textbox', { name: 'Ask about the dashboard' }).fill(screenshotQuestion);
   await disconnected.getByRole('button', { name: 'Reconnect', exact: true }).click();

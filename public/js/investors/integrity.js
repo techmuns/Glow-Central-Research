@@ -16,7 +16,11 @@ export function wireIntegrity(root, disposers, openInvestor, openManager) {
     if (disposed || !host?.isConnected) return;
     const report = assessCoverage({ snapshot: { investors: investors.list(),
       books: Object.fromEntries(investors.books().map((b) => [b.slug, b])),
-      failed: Object.fromEntries(investors.list().filter((i) => investors.failureFor(i.slug)).map((i) => [i.slug, investors.failureFor(i.slug)])) },
+      // The audit reports FRESHNESS, so it wants both halves of the split in `super-investors.js`:
+      // a book with nothing behind it (`failureFor`) and a retained book whose latest check did not
+      // answer (`uncheckedFor`). The card there shows only the first; dropping the second here would
+      // silence "Refresh failed; last successful book retained" — the one line this panel exists for.
+      failed: Object.fromEntries(investors.list().map((i) => [i.slug, investors.failureFor(i.slug) || investors.uncheckedFor(i.slug)]).filter(([, f]) => f)) },
       managers: { ...managers.meta(), managers: managers.all() }, deals: { bulkDeals: insider.meta().bulkDeals }, exchange: insider.meta().exchanges, evidence: evidence(), publicHoldings: primary.report() });
     const publicReport = primary.report();
     const reviewRows = [...(publicReport?.issues || []).map((r) => ({ ...r, person: publicReport.profiles.find((p) => p.id === r.personId && p.kind === r.kind)?.name })), ...(publicReport?.sourceExceptions || []), ...(publicReport?.candidates || []).map((r) => ({ company: r.company, legalHolder: r.legalName, sourceUrl: r.sourceUrl,

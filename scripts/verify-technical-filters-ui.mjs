@@ -1,161 +1,139 @@
+// Real app with six local fixture companies; all external requests are intercepted.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
-
-// Different volume windows deliberately disagree: these chips use the same 30-session
-// confirmation as Strong Breakouts, not the scoring model's separate 20-session ratio.
-const seed = JSON.parse(readFileSync(new URL('../public/data/technicals.json', import.meta.url))).companies.find(c => !c.error && c.cmp);
-const cases = [
-  ['ALPHA', 1.5, .95, true, 1, 1, 'no_breakout'],
-  ['BETA', 1.49, .90, true, .6, -1, 'weak_base'],
-  ['GAMMA', 1, .80, false, 2.5, 1, 'strong'],
-  ['DELTA', .8, .7999, true, -1, 1, 'low_volume'],
-  ['EPSILON', 2, .98, false, 1.5, -1, 'no_breakout'],
-  ['ZETA', 2, .90, true, 0, 0, 'no_breakout'],
-  ['MISSING', null, null, null, 1, 1, null],
-  ['ERROR', null, null, null, null, null, null],
-];
-const companies = cases.map(([ticker, volume, proximity, above, fii, dii, quality]) => ({
-  ...structuredClone(seed), ticker, name: `${ticker} fixture`, sector: 'Verification',
-  cmp: 100, sma200: above ? 90 : 110, above_200dma: above,
-  high_proximity_pct: proximity, chg_fii_hold: fii, chg_dii_hold: dii,
-  volume_ratio_today: volume == null ? null : 3 - volume,
-  consolidation_breakout: quality ? { ...seed.consolidation_breakout, quality, today_volume_ratio: volume } : null,
-  error: ticker === 'ERROR' ? 'No price history in fixture' : null,
+import { createServer } from 'node:http';
+import { readFileSync, mkdirSync } from 'node:fs';
+import { resolve, extname, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
+const root = fileURLToPath(new URL('../public', import.meta.url));
+const original = JSON.parse(readFileSync(resolve(root, 'data/technicals.json')));
+const book = JSON.parse(readFileSync(resolve(root, 'data/portfolio-companies.json')));
+const identities = book.holdings.filter(h => h.ticker).slice(0, 6);
+const seed = original.companies.find(c => c.consolidation_breakout && c.above_200dma);
+const values = [[1.5, .95, true, 2], [1, .9, false, 1], [3, .8, true, .2], [.7, .99, true, -1], [null, null, null, 1], [1.4999, .9499, true, 1]];
+const companies = values.map(([volume, proximity, above, fii], i) => ({ ...structuredClone(seed),
+  ticker: identities[i].ticker, name: `Filter fixture ${'ABCDEF'[i]}`, isin: identities[i].isin,
+  consolidation_breakout: volume == null ? null : { ...seed.consolidation_breakout, today_volume_ratio: volume },
+  volume_ratio_today: 9, high_proximity_pct: proximity, above_200dma: above, chg_fii_hold: fii, chg_dii_hold: .2,
 }));
-
-export async function verifyTechnicalFiltersUI(browser, { base = 'http://127.0.0.1:8080' } = {}) {
-  // Keep fixture interception authoritative across reloads; the separate refresh suite tests the real service worker.
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
-  const errors = [], refreshes = [];
+const payload = { ...original, source: 'Local filter fixture', companies, company_count: 6, scored_count: 6, failures: 0 };
+const portfolio = { ...book, holdings: identities.slice(0, 3) };
+let quoteTickers = [];
+const server = createServer((req, res) => {
+  const path = new URL(req.url, 'http://localhost').pathname;
+  res.setHeader('cache-control', 'no-store');
+  const json = value => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(value)); };
+  if (path === '/api/live-prices') {
+    let body = ''; req.on('data', chunk => { body += chunk; }); req.on('end', () => {
+      quoteTickers = JSON.parse(body).tickers;
+      json({ prices: Object.fromEntries(quoteTickers.map(ticker => [ticker, { current: 100, prevClose: 99 }])), generated_at: new Date().toISOString() });
+    }); return;
+  }
+  if (path.startsWith('/api/')) return json({ ok: false, error: 'Local filter fixture' });
+  if (path === '/data/technicals.json') return json(payload);
+  if (path === '/data/portfolio-companies.json') return json(portfolio);
+  const file = resolve(root, `.${path === '/' ? '/index.html' : path}`);
+  if (!file.startsWith(root + sep)) { res.writeHead(404).end(); return; }
   try {
-    await context.route('**/*', route => {
-      const url = new URL(route.request().url());
-      if (url.pathname === '/data/technicals.json') return route.fulfill({ json: { generated_at: new Date().toISOString(), source: 'Local verification fixture', companies } });
-      if (url.pathname === '/data/portfolio-companies.json') return route.fulfill({ json: { holdings: companies.filter(c => ['ALPHA', 'GAMMA', 'DELTA', 'MISSING'].includes(c.ticker)) } });
-      if (url.pathname === '/js/ui/export.js') return route.fulfill({ contentType: 'application/javascript', body: `
-        export async function exportRows({rows}) { window.__filterExport = rows.map(r => r.company.ticker); return true; }
-        export async function exportSheets() { return true; }
-        export function todayStamp() { return 'fixture'; }
-      ` });
-      if (url.pathname === '/api/live-prices') {
-        refreshes.push(route.request().postDataJSON().tickers);
-        return route.fulfill({ json: { quotes: {}, missing: [], requested: refreshes.at(-1).length, generated_at: new Date().toISOString() } });
-      }
-      if (url.origin === base && !url.pathname.startsWith('/api/')) return route.continue();
-      if (route.request().resourceType() === 'script') return route.fulfill({ contentType: 'application/javascript', body: '' });
-      if (route.request().resourceType() === 'stylesheet') return route.fulfill({ contentType: 'text/css', body: '' });
-      return route.fulfill({ status: 404, json: { ok: false, reason: 'no-route' }, headers: { 'access-control-allow-origin': '*' } });
+    res.setHeader('content-type', { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' }[extname(file)] || 'text/plain');
+    res.end(readFileSync(file));
+  } catch { res.writeHead(404).end(); }
+});
+await new Promise(done => server.listen(0, '127.0.0.1', done));
+const origin = `http://127.0.0.1:${server.address().port}`;
+const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
+try {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
+  await context.route('**/*', route => {
+    if (route.request().url().startsWith(origin + '/')) return route.continue();
+    const type = route.request().resourceType();
+    return route.fulfill({ contentType: type === 'script' ? 'text/javascript' : type === 'stylesheet' ? 'text/css' : 'application/json', body: ['script', 'stylesheet'].includes(type) ? '' : '{}' });
+  });
+  const page = await context.newPage(), errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  const tickers = letters => [...letters].map(letter => identities['ABCDEF'.indexOf(letter)].ticker).sort();
+  const rowsAre = async letters => page.waitForFunction(expected => !document.querySelector('#content-host')?.inert && JSON.stringify([...document.querySelectorAll('#content-host tr[data-row-key]')].map(el => el.dataset.rowKey).sort()) === JSON.stringify(expected), tickers(letters));
+  const chip = (group, id) => page.locator(`[data-chip-group="${group}"][data-chip-id="${id}"]`);
+  const choose = async (group, id, param) => {
+    await chip(group, id).click();
+    await page.waitForFunction(({ param, id }) => new URLSearchParams(location.hash.split('?')[1]).get(param) === id && !document.querySelector('#content-host')?.inert, { param, id });
+    // Routing updates the URL before the next frame paints the filter. Unchanged row
+    // sets cannot establish that the new input is mounted (for example while searched).
+    await page.waitForFunction(({ group, id }) => document.querySelector(`[data-chip-group="${group}"][data-chip-id="${id}"]`)?.classList.contains('bg-indigo-50'), { group, id });
+  };
+  for (const view of ['technical-scanner', 'fii-accumulation']) {
+    await page.goto(`${origin}/#/research/breakouts/${view}?scope=universe`);
+    await rowsAre(view === 'technical-scanner' ? 'ABCDEF' : 'ABCEF');
+    if (view === 'technical-scanner') {
+      // Hold the view replacement between the filter click and its render. The old search
+      // control must not accept input for a view that is about to be replaced.
+      await page.evaluate(() => {
+        const native = window.requestAnimationFrame, queued = [];
+        window.requestAnimationFrame = fn => { queued.push(fn); return queued.length; };
+        window.releaseFilterFrames = () => { window.requestAnimationFrame = native; queued.forEach(fn => native(fn)); };
+        document.querySelector('[data-chip-group="volume"][data-chip-id="1.5"]').click();
+      });
+      assert(await page.locator('#dashboard-main > [data-table-loading]').isVisible(), 'a full-view filter change shows loading feedback');
+      assert(await page.locator('#content-host').evaluate(el => el.inert), 'previous-view controls cannot receive an accidental follow-up interaction');
+      await page.evaluate(() => releaseFilterFrames());
+      await rowsAre('AC');
+      await choose('volume', 'all', 'vol'); await rowsAre('ABCDEF');
+    }
+    for (const group of ['volume', 'proximity', 'trend']) assert(await chip(group, 'all').isVisible());
+    await choose('volume', '1.5', 'vol'); await rowsAre('AC');
+    await choose('proximity', '5', 'near'); await rowsAre('A');
+    await choose('trend', 'above', 'dma'); await rowsAre('A');
+    assert.equal((await chip('proximity', '20').locator('span').last().innerText()).trim(), '2');
+    await choose('proximity', '20', 'near'); await rowsAre('AC');
+    await page.reload(); await rowsAre('AC');
+    assert(await chip('volume', '1.5').evaluate(el => el.classList.contains('bg-indigo-50')));
+    await page.evaluate(() => {
+      window.exportedRows = null;
+      window.ExcelJS = { Workbook: class {
+        constructor() { this.xlsx = { writeBuffer: async () => new Uint8Array() }; }
+        addWorksheet() { const records = []; window.exportedRows = records; return { addRow: row => records.push(row), getRow: () => ({}) }; }
+      } };
     });
-    const page = await context.newPage();
-    page.on('pageerror', e => { errors.push(e.message); console.error(e.message); });
-    const failedRequests = [];
-    page.on('requestfailed', request => failedRequests.push({ url: request.url(), error: request.failure()?.errorText }));
-    const chip = (group, id) => page.locator(`[data-chip-group="${group}"][data-chip-id="${id}"]`);
-    const count = async (group, id) => Number(await chip(group, id).locator('span').last().innerText());
-    const expectRows = async (expected) => {
-      try { await page.waitForFunction(expected => {
-        const actual = [...document.querySelectorAll('#content-host tr[data-row-key]')].map(r => r.dataset.rowKey).sort();
-        return JSON.stringify(actual) === JSON.stringify(expected);
-      }, [...expected].sort()); } catch (error) {
-        console.error(JSON.stringify(await page.evaluate(() => ({ url: location.href, rows: [...document.querySelectorAll('#content-host tr[data-row-key]')].map(r => r.dataset.rowKey), text: (document.querySelector('#content-host') || document.body)?.innerText?.slice(0, 1800), ready: document.readyState, scripts: [...document.scripts].map(s => s.src).filter(Boolean) }))));
-        console.error(JSON.stringify({ failedRequests }));
-        await page.screenshot({ path: '/tmp/glow-technical-filter-failure.png' });
-        throw error;
+    await page.locator('[data-export]').click();
+    await page.waitForFunction(() => Array.isArray(window.exportedRows));
+    assert.deepEqual(await page.evaluate(() => exportedRows.map(row => row.ticker).sort()), tickers('AC'));
+    if (view === 'technical-scanner') {
+      assert.equal(await page.locator('[data-top-idx]').count(), 2, 'top cards obey market filters');
+      assert.equal(quoteTickers.length,0,'view reads saved capture without spending Muns requests');
+      await page.locator('[data-table-filter]').selectOption('below200'); await rowsAre('');
+      await choose('volume', 'all', 'vol');
+      assert.equal(await page.locator('[data-table-filter]').inputValue(), 'below200', 'score selection survives chip changes');
+      await page.locator('[data-table-filter]').selectOption('all');
+      await page.locator('[data-table-search]').fill(identities[0].ticker); await rowsAre('A');
+      await choose('volume', '1.5', 'vol'); await rowsAre('A');
+      assert.equal((await page.locator('[data-table-search]').inputValue()).toUpperCase(), identities[0].ticker);
+      await page.locator('[data-table-search]').fill(''); await rowsAre('AC');
+    } else {
+      await choose('magnitude', '1', 'mag'); await rowsAre('A');
+      await choose('magnitude', '0', 'mag'); await rowsAre('AC');
+    }
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      for (const theme of ['light', 'dark']) {
+        await page.evaluate(theme => { if (document.documentElement.dataset.theme !== theme) window.sattvaTheme.toggle(); }, theme);
+        assert(await page.locator('[data-chip-bar]').evaluate(el => el.getBoundingClientRect().right <= document.documentElement.clientWidth));
+        if (process.env.TECHNICAL_FILTER_SCREENSHOTS) {
+          mkdirSync(process.env.TECHNICAL_FILTER_SCREENSHOTS, { recursive: true });
+          await page.screenshot({ path: `${process.env.TECHNICAL_FILTER_SCREENSHOTS}/${view}-${width}-${theme}.png`, animations: 'disabled' });
+        }
       }
-    };
-    const go = async (sub, expected, query = 'scope=universe') => {
-      await page.goto(`${base}/#/research/breakouts/${sub}?${query}`);
-      await page.locator('[data-chip-bar]').waitFor();
-      await expectRows(expected);
-    };
-    const click = async (group, id, expected) => {
-      await chip(group, id).click();
-      await page.waitForFunction(({group, id}) => document.querySelector(`[data-chip-group="${group}"][data-chip-id="${id}"]`)?.classList.contains('border-indigo-500'), {group, id});
-      await expectRows(expected);
-    };
-    const all = cases.map(c => c[0]);
-    await go('technical-scanner', all);
-    for (const group of ['volume', 'proximity', 'trend']) assert(await chip(group, 'all').evaluate(el => el.classList.contains('border-indigo-500')));
-    assert.equal(await count('volume', 'all'), 8);
-    assert.equal(await count('volume', '1.5'), 3);
-    assert.equal(await count('proximity', '5'), 2, 'exactly 5% below the high is included');
-    assert.equal(await count('proximity', '10'), 4, '10% boundary is included');
-    assert.equal(await count('proximity', '20'), 5, '20% boundary is included');
-    assert.equal(await count('trend', 'above'), 4);
-
-    // A chip click must not erase the table's existing controls.
-    await page.locator('[data-table-search]').fill('ALPHA');
-    const tier = await page.evaluate(async () => {
-      const p = (await import('/js/data/technicals.js')).byTicker('ALPHA').scorePct;
-      return p >= 80 ? 'excellent' : p >= 60 ? 'good' : p >= 40 ? 'average' : 'weak';
-    });
-    await page.locator('[data-table-filter]').selectOption(tier);
-    await click('volume', '1.5', ['ALPHA']);
-    assert.match(await page.locator('[data-table-search]').inputValue(), /^alpha$/i);
-    assert.equal(await page.locator('[data-table-filter]').inputValue(), tier);
-    await page.locator('[data-table-search]').fill('');
-    await page.locator('[data-table-filter]').selectOption('all');
-    await expectRows(['ALPHA', 'EPSILON', 'ZETA']);
-    await click('proximity', '5', ['ALPHA', 'EPSILON']);
-    assert.equal(await count('trend', 'above'), 1);
-    await click('trend', 'above', ['ALPHA']);
-    assert.equal(await count('proximity', 'all'), 2, 'alternative counts hold the other groups fixed');
-    assert.equal(await page.locator('[data-top-idx]').count(), 1);
-    assert.match(await page.locator('[data-top-cards]').innerText(), /ALPHA/);
-    await page.locator('[data-export]').click();
-    assert.deepEqual(await page.evaluate(() => window.__filterExport), ['ALPHA']);
-    await page.locator('[data-refresh-btn]').click();
-    await page.waitForFunction(() => !document.querySelector('[data-refresh-btn]').disabled);
-    assert.deepEqual(refreshes.at(-1), ['ALPHA']);
-    await page.screenshot({ path: '/tmp/glow-technical-filters-scanner.png' });
-    await page.reload();
-    await expectRows(['ALPHA']);
-
-    await go('technical-scanner', ['ALPHA', 'GAMMA', 'DELTA', 'MISSING'], 'scope=portfolio');
-    assert.equal(await count('volume', '1.5'), 1, 'counts use the current portfolio scope');
-    await page.evaluate(async () => { const w = await import('/js/core/watchlist.js'); w.add('ALPHA'); w.add('BETA'); });
-    await go('technical-scanner', ['ALPHA', 'BETA'], 'scope=watchlist');
-    assert.equal(await count('volume', 'all'), 2);
-    assert.equal(await count('volume', '1.5'), 1);
-    await page.evaluate(async () => (await import('/js/core/watchlist.js')).remove('ALPHA'));
-    await click('volume', '1.5', []);
-    assert(await page.locator('[data-refresh-btn]').isDisabled(), 'empty filters cannot dispatch an empty quote request');
-    await go('technical-scanner', all, 'scope=universe&vol=any&near=invalid&dma=any');
-    for (const group of ['volume', 'proximity', 'trend']) assert(await chip(group, 'all').evaluate(el => el.classList.contains('border-indigo-500')));
-
-    await go('fii-accumulation', ['ALPHA', 'BETA', 'GAMMA', 'EPSILON', 'MISSING']);
-    assert.equal(await count('volume', 'all'), 5);
-    assert.equal(await count('volume', '1.5'), 2, 'FII counts include the existing holding filters');
-    await click('volume', '1.5', ['ALPHA', 'EPSILON']);
-    await click('proximity', '5', ['ALPHA', 'EPSILON']);
-    await click('trend', 'above', ['ALPHA']);
-    assert.equal(await count('magnitude', '1'), 0);
-    await click('magnitude', '1', []);
-    assert.equal(await count('trend', 'all'), 1);
-    await click('trend', 'all', ['EPSILON']);
-    await click('side', 'both', []);
-    await click('side', 'fii', ['EPSILON']);
-    await page.locator('[data-export]').click();
-    assert.deepEqual(await page.evaluate(() => window.__filterExport), ['EPSILON']);
-    await page.reload();
-    await expectRows(['EPSILON']);
-    await page.setViewportSize({ width: 390, height: 844 });
-    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-    await page.screenshot({ path: '/tmp/glow-technical-filters-fii-mobile.png' });
-
-    // Sharing the predicates must retain the separate Strong Breakouts qualification.
-    await go('strong-breakouts', ['BETA', 'GAMMA', 'DELTA']);
-    await click('proximity', '10', ['BETA']);
-    assert.deepEqual(errors, []);
-    console.log('PASS technical filters: shared thresholds, boundaries, facet counts, scope, missing data, search/score retention, cards, export, refresh, URL restore, FII combinations and mobile layout');
-  } finally { await context.close(); }
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const root = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
-  const { chromium } = await import(`${root}/index.mjs`);
-  const browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
-  try { await verifyTechnicalFiltersUI(browser, { base: process.argv[2] || 'http://127.0.0.1:8080' }); }
-  finally { await browser.close(); }
-}
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.evaluate(() => { location.hash = location.hash.replace('scope=universe', 'scope=portfolio'); }); await rowsAre('AC');
+    await page.evaluate(async ticker => { (await import('/js/core/watchlist.js')).add(ticker); location.hash = location.hash.replace('scope=portfolio', 'scope=watchlist'); }, identities[0].ticker);
+    await rowsAre('A');
+  }
+  await page.goto(`${origin}/#/research/breakouts/technical-scanner?scope=universe&vol=1.5&near=20&dma=above`);
+  await rowsAre('AC');
+  companies[0].consolidation_breakout.today_volume_ratio = 1.1;
+  await page.evaluate(async () => (await import('/js/data/technicals.js')).refresh());
+  await rowsAre('C');
+  assert(await chip('volume', '1.5').evaluate(el => el.classList.contains('bg-indigo-50')), 'refresh preserves the selected filter');
+  assert.deepEqual(errors, []);
+  console.log('PASS shared filter UI: intersections, contextual counts, saved URLs, all scopes, score/search and FII controls, cards/export/quotes, refreshed data and responsive themes');
+} finally { await browser.close(); await new Promise(done => server.close(done)); }

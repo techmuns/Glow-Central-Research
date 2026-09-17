@@ -1,16 +1,6 @@
-// tabs/breakouts.js — Breakouts / Technical. The dashboard's one genuinely live tab.
-//
-// Everything here is scored by the ported LKP model (scoring/tech-scoring.js): 16 rules,
-// 24 points, five categories. This is the first tab where scoreTable's Score and Signals
-// columns are switched ON, because these are real modelled points rather than direct
-// readings.
-//
-// The feed is fetched and scored ONCE by data/technicals.js and cached for the life of the
-// page. Sub-view switches, scope changes, chip filters and sorts all operate on that cached
-// list — nothing below refetches or rescores.
-
-import { authHeaders } from '../core/host-context.js';
-import { topCards, scoreTable, sectionHead, openModal, companySeededView } from '../ui/screener.js';
+import * as live from '../data/breakout-live.js';
+import { filterByScope, scopeTickers } from '../data/scope.js';
+import { topCards, scoreTable, sectionHead, openModal } from '../ui/screener.js';
 import { legendStrip } from '../ui/visual.js';
 import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
@@ -21,11 +11,13 @@ import * as refreshRegistry from '../core/refresh.js';
 import { ACTIVE_RULES } from '../scoring/tech-scoring.js';
 import { openTechnicalsDrill, fmtPoints } from './breakouts-drill.js';
 import * as coverage from '../data/coverage.js';
+import * as scopeLists from '../core/scope-lists.js';
+import { TECHNICAL_FILTERS, TECHNICAL_DEFAULTS, chipCounts } from './technical-filters.js';
 
 export const meta = {
   id: 'breakouts',
   title: 'Breakouts / Technical',
-  subtitle: 'Live technical scoring across the NSE 500 and every listed holding — 16 rules, 24 points.',
+  subtitle: 'Daily technical scoring and captured prices across the NSE 500 and every listed holding — 16 rules, 24 points.',
   subviews: [
     { id: 'strong-breakouts', label: 'Strong Breakouts' },
     { id: 'technical-scanner', label: 'Technical Scanner' },
@@ -39,46 +31,39 @@ let renderToken = 0;
 let ctxRef = null;
 let refreshOff = null;
 let dataOff = null;
-let refreshQuotes = null;
+let liveOff = null;
+let dailyTimer = null;
+let dailyCheckedAt = 0;
+function checkDaily() {
+  if (document.visibilityState === 'hidden' || Date.now()-dailyCheckedAt < 15*60000) return;
+  dailyCheckedAt = Date.now();
+  void technicals.refresh().catch(() => {});
+}
 let tableOff = null;
-// Chip changes rebuild the panel; preserve the table's search, score filter and sort within
-// that view, and reset them when the reader chooses another view or leaves the tab.
-let tableView = null;
-let tableSubview = null;
-let routeCompany = null;
+const tableViews = new Map();
 
 export function render(ctx) {
   tableOff?.(); tableOff = null;
   ctxRef = ctx;
-  refreshQuotes = null;
+
   if (!refreshOff) refreshOff = refreshRegistry.register('technicals-view', {
     label: 'Technicals', refresh: async () => {
       await technicals.refresh();
-      if (ctxRef?.subview === 'technical-scanner' && refreshQuotes) return refreshQuotes();
-      return { checked: 1, partial: !!technicals.meta()?.failures };
+      const prices = await live.refresh();
+      return {...prices,partial:prices.partial || technicals.meta()?.deliveryFailed === true};
     },
   });
   if (!dataOff) dataOff = technicals.onChange(() => { if (ctxRef) paint(ctxRef); });
+  if (!liveOff) liveOff = live.watch(() => { if (ctxRef && technicals.isLoaded()) paint(ctxRef); });
+  if (!dailyTimer) { dailyTimer = setInterval(checkDaily, 60000); document.addEventListener('visibilitychange', checkDaily); window.addEventListener('focus', checkDaily); window.addEventListener('online', checkDaily); if (technicals.isLoaded()) checkDaily(); }
   const token = ++renderToken;
-  // A filter repaint replaces the table that an outstanding quote request would update.
-  inFlight?.abort();
-  inFlight = null;
-  if (tableSubview !== ctx.subview) {
-    tableView = null;
-    routeCompany = null;
-    tableSubview = ctx.subview;
-  }
-  if (ctx.subview === 'technical-scanner') {
-    const seeded = companySeededView(ctx, routeCompany, tableView);
-    routeCompany = seeded.company;
-    tableView = seeded.view;
-  }
   ctx.root.innerHTML = loadingHtml();
 
   technicals
     .load()
     .then(() => {
       if (token !== renderToken) return; // stale — user moved on
+      if (!dailyCheckedAt) dailyCheckedAt = Date.now();
       paint(ctx);
     })
     .catch((err) => {
@@ -103,9 +88,20 @@ function loadingHtml() {
     <div class="skeleton-shimmer h-96 rounded-2xl bg-slate-100"></div>`;
 }
 
+function extraScopeTickers(ctx) {
+  return scopeTickers(ctx?.scope, coverage.holdings()) ||
+    new Set(scopeLists.apply('universe', ctx?.data?.universe || []).map(row => row.ticker));
+}
+
 function paint(ctx) {
   tableOff?.(); tableOff = null;
-  const rows = technicals.forScope(ctx.scope, coverage.holdings());
+  const scrollTop = ctx.root.closest('main')?.scrollTop;
+  const pageY = window.scrollY;
+  const active = ctx.root.contains(document.activeElement) ? document.activeElement : null;
+  const selection = active?.selectionStart;
+  const selectionEnd = active?.selectionEnd, selectionDirection = active?.selectionDirection;
+  const selector = active?.matches('input[type="search"]') ? 'input[type="search"]' : active?.getAttribute('placeholder') ? `input[placeholder="${CSS.escape(active.getAttribute('placeholder'))}"]` : null;
+  const rows = filterByScope(live.decorate(technicals.all(), extraScopeTickers(ctx)), ctx.scope, coverage.holdings(), s => s.company.ticker);
   const view = {
     'strong-breakouts': renderStrongBreakouts,
     'technical-scanner': renderScanner,
@@ -113,6 +109,9 @@ function paint(ctx) {
   }[ctx.subview] || renderStrongBreakouts;
 
   view(ctx, rows);
+  if (scrollTop != null) ctx.root.closest('main').scrollTop = scrollTop;
+  window.scrollTo(0, pageY);
+  if (selector) { const input = ctx.root.querySelector(selector); input?.focus({preventScroll:true}); if (selection != null) input?.setSelectionRange(selection, selectionEnd ?? selection, selectionDirection || 'none'); }
 }
 
 // ---- shared cell formatters ---------------------------------------------------------------
@@ -127,6 +126,10 @@ function rsiCell(v) {
   if (v == null) return '—';
   return toneSpan(num(v, 1), v >= 55 && v <= 75 ? 'pos' : v > 75 ? 'warn' : v < 40 ? 'neg' : null);
 }
+function adxCell(v) {
+  if (v == null) return '—';
+  return toneSpan(num(v, 1), v > 25 ? 'pos' : v >= 20 ? 'warn' : 'neg');
+}
 function rsCell(v) {
   if (v == null) return '—';
   return toneSpan(`${v > 0 ? '+' : ''}${(v * 100).toFixed(1)}%`, v > 0 ? 'pos' : 'neg');
@@ -139,24 +142,10 @@ function atrCell(v) {
   if (v == null) return '—';
   return toneSpan(`${num(v, 2)}%`, v < 2.5 ? 'pos' : v < 4 ? 'warn' : 'neg');
 }
-// CMP is the one cell a live quote may replace, and it is marked when it has been.
-//
-// The live print is kept in `company.liveQuote` and the EOD `cmp` is left ALONE. Every one of the
-// 16 rules is computed from the daily OHLCV series — a 50 EMA, an RSI, a 52-week position — so
-// overwriting the close that those rules were scored against would put a 14:32 price underneath a
-// score that never saw it, and the drill panel would explain a rule using a number that is not the
-// one the rule read. The score stays EOD, says so, and only the price moves.
 function cmpCell(c) {
-  const live = c.liveQuote || null;
-  const price = live ? live.current : c.cmp;
-  if (price == null) return '—';
-  const chg = live ? live.changePct : c.pct_change_today;
-  const dot = live
-    ? ` <span class="inline-block h-1.5 w-1.5 rounded-full bg-indigo-500 align-middle" title="Live quote ${escapeHtml(live.atLabel)} — the 16-rule score is still EOD, from the close of ${escapeHtml(live.eodLabel)}"></span>`
-    : '';
-  return `<span class="font-semibold text-slate-800">₹${Number(price).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>${
-    chg == null ? '' : ` <span class="text-[11px] ${chg > 0 ? 'text-emerald-600' : chg < 0 ? 'text-rose-600' : 'text-slate-400'}">${chg > 0 ? '+' : ''}${Number(chg).toFixed(2)}%</span>`
-  }${dot}`;
+  const info = live.priceInfo(c);
+  return `<span class="font-semibold text-slate-800" data-cmp="${escapeHtml(c.ticker)}">${info.price == null ? '—' : formatRupee(info.price, {decimals:2})}</span> ${info.change == null ? '' : toneSpan(`${info.change > 0 ? '+' : ''}${Number(info.change).toFixed(2)}%`, info.change >= 0 ? 'pos' : 'neg')}
+    <div class="text-[10px] ${info.stale ? 'text-amber-700' : 'text-slate-500'}">${escapeHtml(info.label)}</div>`;
 }
 
 // Every scored row feeds the same score + signals shape into scoreTable.
@@ -171,7 +160,6 @@ const signalsOf = (s) => s.breakdown.map((b) => ({ label: `${b.label} (${fmtPoin
 // scoreTable accessors are shared across all three sub-views.
 const tableBase = (rows, ctx) => ({
   rows,
-  initialView: tableView,
   key: (s) => s.company.ticker,
   name: (s) => s.company.name || s.company.ticker,
   sub: (s) => [s.company.ticker, s.company.sector].filter(Boolean).join(' · '),
@@ -181,157 +169,18 @@ const tableBase = (rows, ctx) => ({
   emptyMessage: 'No companies match your filters.',
 });
 
-// ---- freshness + stat strip ---------------------------------------------------------------
-
-// ---- the Live pill — what the four stat cards became ---------------------------------------
-//
-// Every sub-view here opened with a 4-up KPI row: two or three counts, and the gradient freshness
-// hero. It was the first object on the page, above the table those counts describe, and most of
-// what it said was already on screen a few pixels lower — "Breakout candidates 21 of 586" is the
-// line under the chip bar, and "Strong breakouts 0" is the count on the Strong chip itself.
-//
-// So it goes the way the Earnings Hub's strip and Portfolio's four-line block went: the
-// explanation moves behind a control that still states the claim, and the claim is never deleted.
-// The pill's modal carries every figure the cards carried, the source, the capture time, and the
-// help each card's "?" used to open. Decluttering a page is fine; deleting its accountability
-// is not.
-//
-// A GREEN "LIVE" IS A CLAIM ABOUT DATA AND IS NOT PAINTED UNCONDITIONALLY. That rule is in
-// CLAUDE.md because the header once had a green chip reading "just now" whether or not a byte had
-// been confirmed in an hour. Here the claim is checked against the schedule rather than a
-// constant: see lastExpectedRefresh.
-
-// THIS FEED IS END-OF-DAY, AND THAT IS WHAT MAKES THE THRESHOLD WHAT IT IS.
-//
-// The first cut of this derived freshness from the cron — `30 1 * * 1-5` UTC, weekdays 07:00 IST
-// — and called the capture stale the moment a scheduled run had not landed. Two things are wrong
-// with that, and the second is the one written down in CLAUDE.md:
-//
-//   1. A 22-hour-old EOD capture is CURRENT. Yesterday's close is the newest close there is; no
-//      scrape at any hour can produce a fresher one until the market closes again. Reporting it
-//      as stale describes the scraper's timetable, not the data.
-//   2. "Never write a cadence into the UI from the cron expression: the expression is a request,
-//      not a promise." Measured on this repository's own market-news job, GitHub fired 12 of 124
-//      scheduled runs. A chip keyed to a schedule that is not honoured would sit amber most of
-//      the week with nothing actually wrong — which teaches the reader to ignore it, and then it
-//      is worth nothing on the day something IS wrong.
-//
-// So the threshold is the schedule's own WORST CASE, the same shape the market-news chip uses:
-// Friday's capture is still the newest thing that exists on Monday morning, so three days is the
-// widest legitimate gap. Past that, a weekday has been missed and the chip says how old it is
-// rather than claiming anything.
-const STALE_AFTER_MS = 72 * 60 * 60 * 1000;
-
+// Kept for consumers of the old age helper; no completeness claim is made from it.
 export function freshnessOf(generatedAt, now = Date.now()) {
-  // Exported and pure so the suite can assert both sides of the boundary directly, rather than
-  // waiting for a day the shipped snapshot happens to be stale on.
-  const raw = generatedAt ? new Date(generatedAt) : null;
-  const ts = raw && !Number.isNaN(raw.getTime()) ? raw : null;
-  // No capture time is its own state. It is not "live", and it is not stale either — nothing is
-  // known, and saying so is the only honest option.
-  if (!ts) return { state: 'unknown', ts: null };
-  return { state: now - ts.getTime() <= STALE_AFTER_MS ? 'live' : 'stale', ts };
+  const ts = generatedAt ? new Date(generatedAt) : null;
+  return !ts || Number.isNaN(ts.getTime()) ? {state:'unknown',ts:null} : {state:now-ts <= 72*3600000 ? 'live':'stale',ts};
 }
-
-function freshness() {
-  const m = technicals.meta();
-  return { ...freshnessOf(m?.generated_at), meta: m };
+function livePill() {
+  const expected = scopeTickers(ctxRef?.scope, coverage.holdings());
+  const tickers = expected ? [...expected] : filterByScope(live.decorate(technicals.all(), extraScopeTickers(ctxRef)), 'universe', null, s => s.company.ticker).map(s => s.company.ticker);
+  const health = live.coverageFor(tickers);
+  const label = !live.snapshot() ? 'Current prices unavailable' : `${health.partial ? 'Partial update' : 'Prices checked'} · ${health.checked}/${health.total}`;
+  return {html:`<span data-live-info class="rounded-full px-3 py-1 text-xs ${health.partial ? 'bg-amber-50 text-amber-800' : 'bg-slate-50 text-slate-700'}" title="Last completed check: ${escapeHtml(live.stamp(health.checkedAt))}">${escapeHtml(label)}</span>`,wire() {}};
 }
-
-const TONE = {
-  live: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  stale: 'bg-slate-50 text-slate-600 ring-slate-200',
-  unknown: 'bg-slate-100 text-slate-600 ring-slate-300',
-};
-const DOT = {
-  live: '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>',
-  stale: '',
-  unknown: '<span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>',
-};
-
-/**
- * livePill({ facts, bodyHtml, more }) — one chip in the section head, and behind it
- * everything the stat cards used to print.
- *
- * `facts` are the figures the removed cards carried, `bodyHtml` the help their "?" opened, and
- * `more` an optional { label, open() } for help too long to inline.
- */
-function livePill({ facts = [], bodyHtml = '', more = null } = {}) {
-  const f = freshness();
-  const tone = f.state;
-  const face = f.state === 'live'
-      ? 'Up to date'
-      : f.state === 'stale'
-        ? `Updated ${formatRelativeTime(f.ts)}`
-        : 'Updating';
-  const coverage = f.meta?.company_count
-    ? `${formatNumber(f.meta.scored_count || 0)} of ${formatNumber(f.meta.company_count)} companies scored`
-    : null;
-  const title = f.state === 'live'
-      ? `End-of-day data, captured ${formatRelativeTime(f.ts)}${coverage ? ` · ${coverage}` : ''} — click for the source and the figures`
-      : f.state === 'stale'
-        ? `End-of-day data captured ${formatRelativeTime(f.ts)}${coverage ? ` · ${coverage}` : ''}`
-        : 'This feed carries no capture time — click for what is known';
-
-  const html = `
-    <span data-live-info title="${escapeHtml(title.replace(/\s*— click.*$/i, ''))}"
-      class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${TONE[tone]}">
-      ${DOT[tone]}<span>${escapeHtml(face)}</span>
-    </span>`;
-
-  function wire() {}
-
-  return { html, wire };
-}
-
-function pillModalBody({ f, facts, bodyHtml, more }) {
-  const m = f.meta;
-  const captured = f.ts
-    ? `${escapeHtml(formatRelativeTime(f.ts))} <span class="text-slate-400">· ${escapeHtml(f.ts.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }))} IST</span>`
-    : '<span class="text-slate-400">not stated by the feed</span>';
-  const note = f.state === 'stale'
-      ? `<p class="mt-3 rounded-xl bg-amber-50 p-3 text-[12px] leading-relaxed text-amber-900 ring-1 ring-amber-200">This capture is more than three days old, which is wider than any weekend gap — at least one weekday scrape has not landed. The figures below are from ${escapeHtml(formatRelativeTime(f.ts))}.</p>`
-      : f.state === 'unknown'
-        ? '<p class="mt-3 rounded-xl bg-slate-100 p-3 text-[12px] leading-relaxed text-slate-700 ring-1 ring-slate-200">The feed did not state when it was captured, so its age cannot be reported. It is not being claimed as current.</p>'
-        : '';
-
-  const factRows = facts
-    .filter((c) => c)
-    .map(
-      (c) => `
-      <div class="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200/70">
-        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(c.label)}</div>
-        <div class="text-sm font-bold tabular-nums text-slate-900">${escapeHtml(String(c.value))}</div>
-        ${c.note ? `<div class="text-[11px] text-slate-500">${escapeHtml(c.note)}</div>` : ''}
-      </div>`
-    )
-    .join('');
-
-  return `
-    <div class="scrollbar-thin max-h-[80vh] overflow-y-auto px-7 py-6">
-      <div class="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h2 class="font-display text-xl font-bold text-slate-900">Where these figures come from</h2>
-          <p class="mt-1 text-sm text-slate-500">
-            ${escapeHtml(m?.source || 'Yahoo Finance')} end-of-day OHLCV plus NSE delivery data, scraped on a
-            weekday 07:00 IST schedule and committed to the repo. ${escapeHtml(technicals.coverage().label)}.
-          </p>
-        </div>
-        <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700" aria-label="Close">&times;</button>
-      </div>
-
-      <div class="mb-4 rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200/70">
-        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Captured</div>
-        <div class="text-sm font-semibold text-slate-900">${captured}</div>
-      </div>
-      ${note}
-
-      ${factRows ? `<div class="mt-4"><div class="mb-1.5 text-xs font-bold uppercase tracking-wider text-indigo-700">This view</div><div class="grid gap-2 sm:grid-cols-3">${factRows}</div></div>` : ''}
-      ${bodyHtml ? `<div class="mt-4 text-[13px] leading-relaxed text-slate-700">${bodyHtml}</div>` : ''}
-      ${more ? `<button type="button" data-live-more class="mt-4 text-xs font-semibold text-indigo-600 underline-offset-2 hover:underline">${escapeHtml(more.label)} →</button>` : ''}
-    </div>`;
-}
-
 function scoringHelpModalBody() {
   const byCat = new Map();
   for (const r of ACTIVE_RULES) {
@@ -396,7 +245,8 @@ function scoringHelpModalBody() {
 function renderScanner(ctx, rows) {
   const m = technicals.meta();
   const state = readChipState(ctx.params || {}, TECHNICAL_DEFAULTS, TECHNICAL_FILTERS);
-  const { filtered, counts } = applyChipFilters(rows, TECHNICAL_FILTERS, state);
+  const counts = chipCounts(rows, TECHNICAL_FILTERS, state);
+  const filtered = rows.filter(row => Object.values(TECHNICAL_FILTERS).every(group => group.test(row, state[group.param])));
   const scored = filtered.filter((s) => !s.tickerError);
   const maxPoints = scored[0]?.totalMax ?? 24;
 
@@ -425,6 +275,8 @@ function renderScanner(ctx, rows) {
 
   const table = scoreTable({
     ...tableBase(filtered, ctx),
+    // `?company=` from a citation or an AI Alerts card opens the scanner searched for it.
+    initialView: tableViews.get(ctx.subview) || (ctx.params?.company ? { q: String(ctx.params.company).trim().toUpperCase() } : null),
     showScore: true,
     score: scoreOf,
     showSignals: true,
@@ -432,8 +284,9 @@ function renderScanner(ctx, rows) {
     columns: [
       // Sort on what the cell SHOWS. Once a live quote is on screen, sorting by the EOD close
       // would order the column by numbers the reader can no longer see.
-      { label: 'CMP', get: (s) => cmpCell(s.company), html: true, align: 'right', sortValue: (s) => s.company.liveQuote?.current ?? s.company.cmp ?? -1 },
+      { label: 'CMP', get: (s) => cmpCell(s.company), html: true, align: 'right', sortValue: (s) => live.priceInfo(s.company).price ?? -1 },
       { label: 'RSI', get: (s) => rsiCell(s.company.rsi14), html: true, align: 'right', sortValue: (s) => s.company.rsi14 ?? -1 },
+      { label: 'ADX', get: (s) => adxCell(s.company.adx14), html: true, align: 'right', sortValue: (s) => s.company.adx14 ?? -1 },
       { label: '6M RS', get: (s) => rsCell(s.company.relative_strength_6m), html: true, align: 'right', sortValue: (s) => s.company.relative_strength_6m ?? -99 },
       { label: 'Beta', get: (s) => betaCell(s.company.beta_1y), html: true, align: 'right', sortValue: (s) => s.company.beta_1y ?? -1 },
       { label: 'ATR%', get: (s) => atrCell(s.company.atr14_pct), html: true, align: 'right', sortValue: (s) => s.company.atr14_pct ?? 999 },
@@ -462,7 +315,6 @@ function renderScanner(ctx, rows) {
     exportName: `glow-technicals-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
-  tableView = table.view;
 
   ctx.root.innerHTML = `
     ${sectionHead({
@@ -470,8 +322,8 @@ function renderScanner(ctx, rows) {
       description: 'Every company scored against the 16-rule technicals framework, ranked best first.',
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'companies', book: coverage.meta() })}</div>`,
     })}
-    ${refreshBar()}
     ${chipBar(TECHNICAL_FILTERS, state, counts)}
+    <div class="mb-3 text-xs text-slate-500"><span class="font-semibold text-slate-700">${filtered.length} of ${rows.length}</span> companies match these filters.</div>
     ${cards.html}
     ${table.html}
     ${legendStrip({ note: `Scored from ${m?.source || 'Yahoo Finance'} daily OHLCV plus NSE delivery data. ${m?.failures || 0} of ${m?.company_count || 0} companies have no usable price history and score 0 of 0.` })}
@@ -479,8 +331,9 @@ function renderScanner(ctx, rows) {
 
   pill.wire(ctx.root);
   cards.wire(ctx.root);
+  tableViews.set(ctx.subview, table.view);
   tableOff = table.wire(ctx.root);
-  wireRefreshBar(ctx, table, filtered);
+
   wireChipBar(ctx.root, TECHNICAL_FILTERS, state, (param, next) => {
     ctx.setParams({ ...(ctx.params || {}), [param]: next.join(',') });
   });
@@ -520,95 +373,32 @@ const BREAKOUT_FILTERS = {
       return ids.includes(q);
     },
   },
-  volume: {
-    param: 'vol',
-    label: 'Volume confirm',
-    multi: false,
-    aliases: { any: 'all' },
-    options: [
-      { id: 'all', label: 'All' },
-      { id: '1.5', label: '≥ 1.5×' },
-      { id: '1.0', label: '≥ 1.0×' },
-    ],
-    test: (s, ids) => {
-      const id = ids[0];
-      if (!id || id === 'all') return true;
-      const r = s.company.consolidation_breakout?.today_volume_ratio;
-      return r != null && r >= Number(id);
-    },
-  },
-  proximity: {
-    param: 'near',
-    label: '52W proximity',
-    multi: false,
-    aliases: { any: 'all' },
-    options: [
-      { id: 'all', label: 'All' },
-      { id: '5', label: 'Within 5%' },
-      { id: '10', label: 'Within 10%' },
-      { id: '20', label: 'Within 20%' },
-    ],
-    test: (s, ids) => {
-      const id = ids[0];
-      if (!id || id === 'all') return true;
-      const p = s.company.high_proximity_pct;
-      if (p == null) return false;
-      return p >= 1 - Number(id) / 100;
-    },
-  },
-  trend: {
-    param: 'dma',
-    label: 'Trend filter',
-    multi: false,
-    // 'any' was this group's include-everything id, so it aliases onto 'all' rather than being
-    // dropped: a bookmarked `?dma=any` still means what its author meant.
-    aliases: { any: 'all' },
-    options: [
-      { id: 'all', label: 'All' },
-      { id: 'above', label: 'Above 200 DMA only' },
-    ],
-    // Only 'above' constrains. Written this way round so an id this group no longer knows widens
-    // the view rather than silently emptying it.
-    test: (s, ids) => (ids[0] === 'above' ? s.company.above_200dma === true : true),
-  },
+  ...TECHNICAL_FILTERS,
 };
 
-// GLOW: use the same three market filters in every technical view. Volume confirmation reads
-// today's volume against the prior 30-session base, including companies without a breakout.
-const TECHNICAL_FILTERS = {
-  volume: BREAKOUT_FILTERS.volume,
-  proximity: BREAKOUT_FILTERS.proximity,
-  trend: BREAKOUT_FILTERS.trend,
-};
-const TECHNICAL_DEFAULTS = { vol: 'all', near: 'all', dma: 'all' };
 // Defaults: all of everything. Nothing on this sub-view is narrowed until the reader narrows it.
 const BREAKOUT_DEFAULTS = { bo: 'all', ...TECHNICAL_DEFAULTS };
 
+// AN ID NO GROUP OFFERS FALLS BACK TO THAT GROUP'S DEFAULT, because the alternative is a table
+// that empties with no chip to explain it. An unknown id used to travel straight through to the
+// predicates, where `Number('invalid')` is NaN and every `>=` against it is false — so `?near=
+// invalid` drew ZERO rows while the chip bar, which marks a chip active by matching its own option
+// ids, highlighted nothing at all. A control that disagrees with what is drawn is the failure this
+// file's own `trend` group already guards against in its predicate ("an id this group no longer
+// knows widens the view rather than silently emptying it"); doing it once here covers every group,
+// including any added later. A retired id that `aliases` still maps keeps its meaning.
 function readChipState(params, defaults, groups = null) {
+  const groupFor = (param) => Object.values(groups || {}).find((g) => g.param === param) || null;
   const state = {};
   for (const [key, def] of Object.entries(defaults)) {
     const raw = params[key];
-    const ids = raw == null || raw === '' ? def.split(',') : String(raw).split(',');
-    const group = Object.values(groups || {}).find((g) => g.param === key);
-    const canonical = ids.map((id) => group?.aliases?.[id] || id);
-    const valid = group ? canonical.filter((id) => group.options.some((o) => o.id === id)) : canonical;
-    state[key] = valid.length ? (group?.multi ? valid : valid.slice(0, 1)) : def.split(',');
+    const group = groupFor(key);
+    const ids = (raw == null || raw === '' ? def : String(raw)).split(',')
+      .map((id) => group?.aliases?.[id] || id);
+    const known = group ? ids.filter((id) => group.options.some((option) => option.id === id)) : ids;
+    state[key] = known.length ? known : def.split(',');
   }
   return state;
-}
-
-function applyChipFilters(rows, groups, state) {
-  const definitions = Object.values(groups);
-  const matches = (row, selected) => definitions.every((g) => g.test(row, selected[g.param]));
-  const counts = {};
-  for (const g of definitions) {
-    counts[g.param] = {};
-    for (const o of g.options) {
-      const trial = { ...state, [g.param]: [o.id] };
-      counts[g.param][o.id] = rows.filter((row) => matches(row, trial)).length;
-    }
-  }
-  return { filtered: rows.filter((row) => matches(row, state)), counts };
 }
 
 function chipBar(groups, state, counts) {
@@ -617,13 +407,13 @@ function chipBar(groups, state, counts) {
       ${Object.entries(groups)
         .map(
           ([groupKey, g]) => `
-        <div class="flex flex-wrap items-center gap-2" role="group" aria-label="${escapeHtml(g.label)}">
-          <span class="w-32 flex-shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(g.label)}</span>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="w-32 flex-shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400"${g.description ? ` title="${escapeHtml(g.description)}"` : ''}>${escapeHtml(g.label)}</span>
           ${g.options
             .map((o) => {
               const active = state[g.param].includes(o.id);
               const n = counts?.[g.param]?.[o.id];
-              return `<button type="button" data-chip-group="${escapeHtml(groupKey)}" data-chip-id="${escapeHtml(o.id)}" aria-pressed="${active}"
+              return `<button type="button" data-chip-group="${escapeHtml(groupKey)}" data-chip-id="${escapeHtml(o.id)}"
                 class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
                   active ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                 }">
@@ -663,11 +453,14 @@ function wireChipBar(root, groups, state, onChange) {
 
 function renderStrongBreakouts(ctx, rows) {
   const state = readChipState(ctx.params || {}, BREAKOUT_DEFAULTS, BREAKOUT_FILTERS);
-  const withBreakout = rows.filter((s) => !s.tickerError && s.company.consolidation_breakout);
+  const withBreakout = rows.filter((s) => s.company.consolidation_breakout);
 
-  // Each chip counts its result with every other group held at the current selection.
-  const { filtered, counts } = applyChipFilters(withBreakout, BREAKOUT_FILTERS, state);
-  filtered
+  // Live counts per chip: how many rows would remain if that chip alone were toggled on,
+  // holding the other groups at their current setting.
+  const counts = chipCounts(withBreakout, BREAKOUT_FILTERS, state);
+
+  const filtered = withBreakout
+    .filter((s) => Object.values(BREAKOUT_FILTERS).every((g) => g.test(s, state[g.param])))
     // RANKED ON THE SCORE ALONE. It used to lead on breakout quality and break ties on the score,
     // which put a "Weak base" above a stronger-scoring row and made the ranking unreadable from the
     // columns left on screen once the Quality column came off. The quality is still what the chip
@@ -702,13 +495,14 @@ function renderStrongBreakouts(ctx, rows) {
   });
 
   const table = scoreTable({
+    initialView: tableViews.get(ctx.subview) || null,
     ...tableBase(filtered, ctx),
     showScore: true,
     score: scoreOf,
     columns: [
       { label: 'Base range %', get: (s) => `${num(s.company.consolidation_breakout?.base_range_pct, 1)}%`, align: 'right', sortValue: (s) => s.company.consolidation_breakout?.base_range_pct ?? 999 },
       { label: 'Base high', get: (s) => formatRupee(s.company.consolidation_breakout?.base_max, { decimals: 0 }), align: 'right', sortValue: (s) => s.company.consolidation_breakout?.base_max ?? 0 },
-      { label: 'Today close', get: (s) => formatRupee(s.company.consolidation_breakout?.today_close, { decimals: 0 }), align: 'right', sortValue: (s) => s.company.consolidation_breakout?.today_close ?? 0 },
+      { label: 'CMP', get: (s) => cmpCell(s.company), html: true, align: 'right', sortValue: (s) => live.priceInfo(s.company).price ?? 0 },
       { label: 'Volume ratio', get: (s) => volRatioCell(s.company.consolidation_breakout?.today_volume_ratio), html: true, align: 'right', sortValue: (s) => s.company.consolidation_breakout?.today_volume_ratio ?? 0 },
       { label: '52W distance', get: (s) => distanceCell(s.company.high_proximity_pct), html: true, align: 'right', sortValue: (s) => (s.company.high_proximity_pct == null ? 999 : (1 - s.company.high_proximity_pct) * 100) },
     ],
@@ -716,12 +510,11 @@ function renderStrongBreakouts(ctx, rows) {
     exportName: `glow-breakouts-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
-  tableView = table.view;
 
   ctx.root.innerHTML = `
     ${sectionHead({
       title: meta.title,
-      description: 'Companies breaking out of a 6-week base, ranked by technical score.',
+      description: 'Companies breaking out of a 6-week base, ranked by daily technical score.',
       meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: filtered.length, noun: 'candidates', book: coverage.meta() })}</div>`,
     })}
     ${chipBar(BREAKOUT_FILTERS, state, counts)}
@@ -731,6 +524,7 @@ function renderStrongBreakouts(ctx, rows) {
   `;
 
   pill.wire(ctx.root);
+  tableViews.set(ctx.subview, table.view);
   tableOff = table.wire(ctx.root);
   wireChipBar(ctx.root, BREAKOUT_FILTERS, state, (param, next) => {
     ctx.setParams({ ...(ctx.params || {}), [param]: next.join(',') });
@@ -796,8 +590,11 @@ function renderFiiAccumulation(ctx, rows) {
   const state = readChipState(ctx.params || {}, FII_DEFAULTS, FII_FILTERS);
   const withHold = rows.filter((s) => !s.tickerError && (s.company.chg_fii_hold != null || s.company.chg_dii_hold != null));
 
-  const { filtered, counts } = applyChipFilters(withHold, FII_FILTERS, state);
-  filtered.sort((a, b) => (b.company.chg_fii_hold ?? -99) - (a.company.chg_fii_hold ?? -99));
+  const counts = chipCounts(withHold, FII_FILTERS, state);
+
+  const filtered = withHold
+    .filter((s) => Object.values(FII_FILTERS).every((g) => g.test(s, state[g.param])))
+    .sort((a, b) => (b.company.chg_fii_hold ?? -99) - (a.company.chg_fii_hold ?? -99));
 
   const exiting = withHold.filter((s) => (s.company.chg_fii_hold ?? 0) < -2).length;
   const avgFii = withHold.length ? withHold.reduce((s, r) => s + (r.company.chg_fii_hold ?? 0), 0) / withHold.length : 0;
@@ -814,6 +611,7 @@ function renderFiiAccumulation(ctx, rows) {
   });
 
   const table = scoreTable({
+    initialView: tableViews.get(ctx.subview) || null,
     ...tableBase(filtered, ctx),
     showScore: true,
     score: (s) => {
@@ -833,7 +631,6 @@ function renderFiiAccumulation(ctx, rows) {
     exportName: `glow-fii-accumulation-${todayStamp()}`,
     onExport: (visible, filename) => runExport(visible, filename),
   });
-  tableView = table.view;
 
   ctx.root.innerHTML = `
     ${sectionHead({
@@ -848,6 +645,7 @@ function renderFiiAccumulation(ctx, rows) {
   `;
 
   pill.wire(ctx.root);
+  tableViews.set(ctx.subview, table.view);
   tableOff = table.wire(ctx.root);
   wireChipBar(ctx.root, FII_FILTERS, state, (param, next) => {
     ctx.setParams({ ...(ctx.params || {}), [param]: next.join(',') });
@@ -863,11 +661,22 @@ function deliveryCell(v) {
   return toneSpan(`${v > 0 ? '+' : ''}${num(v, 1)} pp`, v > 1 ? 'pos' : v > 0 ? 'warn' : 'neg');
 }
 
+function tagPill(tag) {
+  const cls = tag === 'Beat' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : tag === 'Miss' ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-slate-100 text-slate-600 ring-slate-200';
+  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${cls}">${tag}</span>`;
+}
+function dmaPill(v) {
+  if (v == null) return '<span class="text-slate-300">—</span>';
+  return v
+    ? '<span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">Above</span>'
+    : '<span class="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200">Below</span>';
+}
+
 // ---- Excel export ----------------------------------------------------------------------------
 
 // One row per company: identity, score, every rule's points, then the headline indicators.
 function runExport(visibleRows, filename) {
-  const scoredRows = visibleRows.filter((s) => s.company && !s.tickerError);
+  const scoredRows = visibleRows.filter((s) => s.company);
   const columns = [
     { header: 'Company', key: 'name', width: 30, get: (s) => s.company.name || '' },
     { header: 'Ticker', key: 'ticker', width: 14, get: (s) => s.company.ticker || '' },
@@ -886,7 +695,9 @@ function runExport(visibleRows, filename) {
       get: (s) => s.breakdown.find((b) => b.key === r.key)?.points ?? null,
     })),
     // Headline indicators.
-    { header: 'CMP', key: 'cmp', width: 12, get: (s) => s.company.cmp ?? null },
+    { header: 'CMP', key: 'cmp', width: 12, get: (s) => live.priceInfo(s.company).price ?? null },
+    { header: 'Quote source and time', key: 'quote_time', width: 40, get: s => live.priceInfo(s.company).label },
+    { header: 'Daily score date', key: 'score_date', width: 16, get: s => s.company.price_date || technicals.meta()?.price_date || '' },
     { header: 'RSI 14', key: 'rsi', width: 10, get: (s) => s.company.rsi14 ?? null },
     { header: 'ADX 14', key: 'adx', width: 10, get: (s) => s.company.adx14 ?? null },
     { header: 'ATR %', key: 'atr', width: 10, get: (s) => s.company.atr14_pct ?? null },
@@ -895,7 +706,7 @@ function runExport(visibleRows, filename) {
     { header: '6M RS vs Nifty500', key: 'rs', width: 18, get: (s) => s.company.relative_strength_6m ?? null },
     { header: '52W high', key: 'h52', width: 12, get: (s) => s.company.high_52w ?? null },
     { header: '% below 52W high', key: 'd52', width: 18, get: (s) => (s.company.high_proximity_pct == null ? null : Number(((1 - s.company.high_proximity_pct) * 100).toFixed(2))) },
-    { header: 'Volume ratio', key: 'volr', width: 14, get: (s) => s.company.volume_ratio_today ?? null },
+    { header: 'Volume ratio', key: 'volr', width: 14, get: (s) => s.company.consolidation_breakout?.today_volume_ratio ?? null },
     { header: 'Delivery Δ (pp)', key: 'dlv', width: 16, get: (s) => s.company.delivery_trend_diff ?? null },
     { header: 'Chg FII %', key: 'fii', width: 12, get: (s) => s.company.chg_fii_hold ?? null },
     { header: 'Chg DII %', key: 'dii', width: 12, get: (s) => s.company.chg_dii_hold ?? null },
@@ -907,241 +718,14 @@ function runExport(visibleRows, filename) {
   });
 }
 
-// ---- live-quote refresh bar --------------------------------------------------------------------
-
-function refreshBar() {
-  return `
-    <div class="mb-5 flex flex-wrap items-center gap-3" data-refresh-bar>
-      <button type="button" data-refresh-btn disabled
-        class="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-500 shadow-sm ring-1 ring-slate-200 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
-        <span data-refresh-label>Refresh prices</span>
-      </button>
-      <span data-refresh-note class="text-xs text-slate-400">Checking for the live-quote endpoint…</span>
-    </div>`;
-}
-
-const LIVE_PRICES_ENDPOINT = '/api/live-prices';
-// The route is absent from a plain static preview, and that is a different thing from a broken one.
-const NO_ENDPOINT_STATUSES = new Set([404, 405, 501]);
-// Above the Worker's own 25s budget (QUOTE_BUDGET_MS), so a slow-but-working refresh is never cut
-// off from this end. The Worker returns a partial rather than hanging, so this only catches a
-// request that never lands at all — and if that budget is ever raised, raise this with it.
-const CLIENT_TIMEOUT_MS = 32000;
-
-// In flight, so a second click cannot race the first, and so navigating away cancels the request
-// instead of leaving it to resolve against a table that no longer exists.
-let inFlight = null;
-
-// The /api/live-prices route only exists when the site is served by the Cloudflare Worker.
-// We do NOT probe for it on mount — an unsolicited request that 404s in a static preview is
-// just console noise. The button starts enabled; if the first click finds no endpoint we
-// disable it and explain, so the failure is stated once and never repeated.
-function wireRefreshBar(ctx, table, rows) {
-  const btn = ctx.root.querySelector('[data-refresh-btn]');
-  const note = ctx.root.querySelector('[data-refresh-note]');
-  const label = ctx.root.querySelector('[data-refresh-label]');
-  if (!btn) return;
-
-  const scored = rows.filter((s) => !s.tickerError);
-  const byTicker = new Map(scored.map((s) => [s.company.ticker, s.company]));
-  const tickers = scored.slice(0, 60).map((s) => s.company.ticker);
-
-  btn.disabled = tickers.length === 0;
-  btn.classList.add('hover:bg-indigo-50', 'hover:text-indigo-700', 'hover:ring-indigo-200');
-  btn.title = tickers.length ? `Fetch live quotes for the top ${tickers.length} names on screen` : 'No matching companies to refresh';
-  note.textContent = tickers.length ? `EOD data below. Live quotes for the top ${tickers.length} names on demand.` : 'No matching companies to refresh.';
-  refreshQuotes = () => tickers.length ? doRefresh({ btn, note, label, tickers, byTicker, table }) : { skipped: true };
-  btn.addEventListener('click', refreshQuotes);
-}
-
-/**
- * Fetch live quotes and PUT THEM ON THE TABLE.
- *
- * The previous version fetched them and dropped them on the floor — it rewrote the note and
- * nothing else, so a button labelled "Refresh prices" left every price exactly where it was.
- * A control that reports success without changing what it names is worse than one that fails.
- */
-async function doRefresh({ btn, note, label, tickers, byTicker, table }) {
-  if (inFlight) return { pending: true }; // do not duplicate a local price refresh
-  const ctl = new AbortController();
-  inFlight = ctl;
-  const timer = setTimeout(() => ctl.abort(new Error('client timeout')), CLIENT_TIMEOUT_MS);
-  btn.disabled = true;
-  label.textContent = 'Refreshing…';
-
-  try {
-    const res = await fetch(LIVE_PRICES_ENDPOINT, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...authHeaders(LIVE_PRICES_ENDPOINT) },
-      body: JSON.stringify({ tickers }),
-      signal: ctl.signal,
-    });
-
-    if (NO_ENDPOINT_STATUSES.has(res.status)) {
-      // Static preview — no Worker. Say so once and stop offering the button.
-      btn.title = 'Live quotes need the Cloudflare Worker (npx wrangler dev). Not available in a static preview.';
-      note.textContent = 'Live quotes need the Worker — run `npx wrangler dev`. The EOD data below is unaffected.';
-      return { failed: 1, error: 'Live quotes are unavailable.' }; // stays disabled
-    }
-
-    // Read the body BEFORE deciding this is a failure. The Worker puts the diagnosis in there —
-    // which upstream it asked and what each missing name did — and a bare status code throws all
-    // of it away. A failure state that cannot be diagnosed from its own artefact is half a
-    // failure state; that lesson has already been paid for once on the chatter feed.
-    const payload = await res.json().catch(() => null);
-    if (!res.ok) throw httpError(res.status, payload);
-
-    const applied = applyQuotes(payload?.prices, byTicker, payload?.generated_at, table);
-    note.textContent = resultNote(payload, applied);
-    note.className = 'text-xs text-slate-500';
-    // The names, on the control itself. The summary line has to stay short, and "8 still warming"
-    // is not something a reader can check against the table without being told which eight.
-    btn.title = missingTitle(payload) || `Fetch live quotes for the top ${tickers.length} names on screen`;
-    btn.disabled = false;
-    return { checked: applied.length, partial: applied.length < tickers.length };
-  } catch (err) {
-    if (ctl.signal.aborted && !isTimeout(err)) return; // we navigated away; the tab is gone
-    console.warn('[breakouts] live price refresh failed', err);
-    note.textContent = failureNote(err);
-    note.className = 'text-xs text-amber-700';
-    btn.disabled = false;
-    return { failed: 1, error: String(err?.message || err) };
-  } finally {
-    clearTimeout(timer);
-    if (inFlight === ctl) inFlight = null;
-    label.textContent = 'Refresh prices';
-  }
-}
-
-function isTimeout(err) {
-  return /timeout/i.test(String(err?.message || ''));
-}
-
-function httpError(status, payload) {
-  const err = new Error(payload?.error || `HTTP ${status}`);
-  err.status = status;
-  err.reasons = payload?.reasons || null;
-  err.upstream = payload?.upstream || null;
-  return err;
-}
-
-/**
- * Fold the quotes into the rows and repaint just those cells.
- *
- * `company.cmp` is NOT touched — see cmpCell. The day change is recomputed from the quote's own
- * previous close rather than carried over from the EOD row: pairing a 14:32 price with this
- * morning's percentage would be two different measurements rendered as one.
- */
-function applyQuotes(prices, byTicker, generatedAt, table) {
-  if (!prices || typeof prices !== 'object') return [];
-  const at = generatedAt ? new Date(generatedAt) : new Date();
-  const atLabel = Number.isNaN(at.getTime()) ? 'just now' : at.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-  const eodLabel = eodDateLabel();
-  const touched = [];
-
-  for (const [ticker, quote] of Object.entries(prices)) {
-    const company = byTicker.get(ticker);
-    if (!company || !quote || typeof quote.current !== 'number') continue;
-    const prev = typeof quote.prevClose === 'number' && quote.prevClose > 0 ? quote.prevClose : null;
-    company.liveQuote = {
-      current: quote.current,
-      // Null, not a stale carry-over, when there is no previous close to measure against. An
-      // em dash beside a live price is honest; this morning's percentage beside it is not.
-      changePct: prev == null ? null : ((quote.current - prev) / prev) * 100,
-      atLabel,
-      eodLabel,
-    };
-    touched.push(ticker);
-  }
-
-  if (touched.length && table?.updateRows) table.updateRows(touched);
-  return touched;
-}
-
-function eodDateLabel() {
-  const m = technicals.meta();
-  const d = m?.generated_at ? new Date(m.generated_at) : null;
-  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'the last EOD run';
-}
-
-// A name that timed out is warm upstream a moment later, so clicking again really does fetch it.
-// A name the quote API does not carry will 404 forever, and no number of clicks changes that.
-// Telling the reader to retry something that cannot succeed is the same failure as rendering a
-// missing value as a zero: two different states, one indistinguishable message.
-const TRANSIENT_MISS = /^(timeout|deadline|unreachable|http-5\d\d)$/;
-
-/**
- * What the refresh actually achieved, including what it did not — and, for what it did not,
- * whether that is worth waiting for.
- */
-function resultNote(payload, applied) {
-  const requested = payload?.requested ?? applied.length;
-  const missing = Array.isArray(payload?.missing) ? payload.missing : [];
-  const when = payload?.generated_at ? formatRelativeTime(payload.generated_at) : 'just now';
-
-  if (!missing.length) return `${applied.length} live quotes · ${when} · CMP only; the 16-rule score stays EOD.`;
-
-  // Three outcomes, not two: a name that was never asked for is a third thing again, and saying
-  // it is "not carried by the quote API" would blame the upstream for our own cap.
-  const overCap = missing.filter((m) => m.reason === 'over-cap').length;
-  const asked = missing.filter((m) => m.reason !== 'over-cap');
-  const retryable = asked.filter((m) => TRANSIENT_MISS.test(m.reason)).length;
-  const permanent = asked.length - retryable;
-  const tail = [
-    retryable ? `${retryable} still warming upstream — click again to fill them in` : '',
-    permanent ? `${permanent} not carried by the quote API` : '',
-    overCap ? `${overCap} beyond the 60-name request cap` : '',
-  ].filter(Boolean);
-
-  return `${applied.length} of ${requested} live quotes · ${tail.join(' · ')} · CMP only; the 16-rule score stays EOD.`;
-}
-
-/** Which names did not land, and why, grouped by reason. Empty string when everything did. */
-function missingTitle(payload) {
-  const missing = Array.isArray(payload?.missing) ? payload.missing : [];
-  if (!missing.length) return '';
-  const byReason = new Map();
-  for (const m of missing) {
-    if (!byReason.has(m.reason)) byReason.set(m.reason, []);
-    byReason.get(m.reason).push(m.ticker);
-  }
-  return [...byReason.entries()].map(([reason, names]) => `${reason}: ${names.join(', ')}`).join('\n');
-}
-
-/** Name the endpoint, the status and the upstream's own reasons. "Failed" on its own is unusable. */
-function failureNote(err) {
-  if (isTimeout(err)) {
-    return `Live quotes timed out after ${CLIENT_TIMEOUT_MS / 1000}s (${LIVE_PRICES_ENDPOINT}) — the EOD data below is unchanged.`;
-  }
-  const bits = [];
-  if (err?.status) bits.push(`HTTP ${err.status}`);
-  if (err?.message && !/^HTTP /.test(err.message)) bits.push(err.message);
-  if (err?.upstream) bits.push(`upstream ${err.upstream}`);
-  if (err?.reasons && Object.keys(err.reasons).length) {
-    bits.push(
-      Object.entries(err.reasons)
-        .map(([reason, n]) => `${n}× ${reason}`)
-        .join(', ')
-    );
-  }
-  const detail = bits.length ? ` (${bits.join(' · ')})` : '';
-  return `Live quote refresh failed at ${LIVE_PRICES_ENDPOINT}${detail} — the EOD data below is unchanged.`;
-}
-
 export function destroy() {
   tableOff?.(); tableOff = null;
-  ctxRef = null; refreshQuotes = null;
+  ctxRef = null;
   refreshOff?.(); refreshOff = null;
   dataOff?.(); dataOff = null;
-  // Invalidate any in-flight load so it can't paint after we're gone. The parsed+scored
-  // technicals cache is intentionally kept — that's what makes tab re-entry instant.
+  liveOff?.(); liveOff = null;
+  clearInterval(dailyTimer); dailyTimer = null;
+  document.removeEventListener('visibilitychange', checkDaily); window.removeEventListener('focus', checkDaily); window.removeEventListener('online', checkDaily);
+  tableViews.clear();
   renderToken++;
-  tableView = null;
-  tableSubview = null;
-  routeCompany = null;
-  // A quote refresh can take twenty seconds. Abandoning one mid-flight would otherwise leave it
-  // to resolve against a table that has been torn down, and to write its note into detached DOM.
-  inFlight?.abort();
-  inFlight = null;
 }

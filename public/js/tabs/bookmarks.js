@@ -61,7 +61,7 @@ export function render(ctx) {
     try {
       const blob = new Blob([await notebook.exportBackup()], { type: 'application/json' });
       const url = URL.createObjectURL(blob), anchor = document.createElement('a');
-      anchor.href = url; anchor.download = `sattva-notebook-${new Date().toISOString().slice(0, 10)}.json`;
+      anchor.href = url; anchor.download = `glow-notebook-${new Date().toISOString().slice(0, 10)}.json`;
       anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) { showBookmarkMessage(error.message, { error: true }); }
   };
