@@ -942,7 +942,7 @@
       "pending": []
     },
     "isin:INE881D01027|OFSS": {
-      "lastAttemptAt": "2026-09-13T12:07:39+00:00",
+      "lastAttemptAt": "2026-09-18T00:24:09+00:00",
       "lastResultCount": 108,
       "error": "search-unavailable",
       "targetThrough": "2026-09-08T19:20:14+00:00",
@@ -1506,6 +1506,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 213,
-    "checkedAt": "2026-09-17T23:48:30.025696+00:00"
+    "checkedAt": "2026-09-18T00:24:09.711879+00:00"
   }
 }
