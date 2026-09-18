@@ -31,6 +31,14 @@
 //   5. PRICE MOVES · DIRECT HOLDINGS — a holding that closed ±MOVE_PCT on the session, the same
 //      bar General Alerts raise a price-move row at: the evening brief reads the breakout capture's
 //      closing quotes, the morning brief the completed daily bars, and each says which it read.
+//   6. ON THE CALENDAR · DIRECT HOLDINGS — the holdings' scheduled results, con-calls and meetings
+//      for the week ahead: Screener's portfolio calendar (the authenticated capture the Earnings
+//      Calendar and All Alerts read, through the Actions artifact) and Moneycontrol's committed
+//      results calendar, one row per event however many sources name it.
+//   7. CORPORATE ACTIONS · DIRECT HOLDINGS — ex-dates, record dates and book closures inside the
+//      week ahead, from the same NSE + Screener capture the Corporate Actions view lists, in the
+//      source's own words. A calendar is not news, so neither section goes through the ledger:
+//      an event stays on the page until its date has passed.
 //
 // "DIRECT ONES" MEANS `portfolio-companies.json`: the family's listed direct-equity lines, one per
 // NSE symbol, the same file the Portfolio scope means on every tab. Fund units, AIFs and the
@@ -61,7 +69,8 @@ import { insiderSignal } from '../public/js/data/insider-signal.js';
 import { insiderTradeIdentity } from '../public/js/data/insider-history.js';
 import { insiderTradeSourceUrl } from '../public/js/data/filings-shared.js';
 import { BREAKOUT_OBJECT, expectedSession, quoteFresh } from '../public/js/data/breakout-live-shared.js';
-import { EDITIONS, dayOnlyInstant, editionWindow, istDay, istDateLong, istInstant, istLabel, istTime, lateArrivalsFrom } from '../public/js/data/newsletter-shared.js';
+import { readScreenerConcallCollector } from './screener-concalls-collector.mjs';
+import { EDITIONS, addDays, dayOnlyInstant, editionWindow, istDay, istDateLong, istInstant, istLabel, istTime, lateArrivalsFrom } from '../public/js/data/newsletter-shared.js';
 
 export const PRODUCTION_ORIGIN = 'https://glow-central-research.tech-441.workers.dev';
 export const YAHOO_CHART_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart/';
@@ -77,6 +86,15 @@ export const PER_COMPANY_LIMIT = 8;
 // The price-move bar is General Alerts' own (`MOVE_PCT` in public/js/data/daily-alerts.js, which
 // imports browser modules and so cannot be imported here). Change both or neither.
 export const MOVE_PCT = 5;
+// The week ahead: the brief's own day and the seven days after it. A calendar row is not news and
+// is not carried through the ledger — it stays on the page until its date has passed.
+export const CALENDAR_DAYS = 7;
+export const CALENDAR_LIMIT = 40;
+export const ACTIONS_LIMIT = 40;
+export const SCREENER_TIMEOUT_MS = 15000;
+// Interest and redemption dates belong to an issuer's debt instruments, not to the equity the book
+// holds; they are counted and not listed.
+export const DEBT_ACTION_TYPES = new Set(['interest', 'redemption']);
 
 export const BOOK_PATH = '/data/portfolio-companies.json';
 export const BSE_PATH = '/data/corp-announcements.json';
@@ -88,6 +106,8 @@ export const INSIDER_ARCHIVE_INDEX_PATH = '/data/insider-archive/index.json';
 export const insiderArchiveMonthPath = (month) => `/data/insider-archive/${month}.json`;
 export const IDENTITIES_PATH = '/data/announcement-identities.json';
 export const TECHNICALS_PATH = '/data/technicals.json';
+export const MC_CALENDAR_PATH = '/data/earnings-calendar.json';
+export const ACTIONS_PATH = '/data/corporate-actions.json';
 export const SERIES_INDEX_PATH = '/data/series/index.json';
 
 // The scan, in the order the desk reads it. `series` names the fallback in the macro store.
@@ -617,6 +637,143 @@ export async function readMoves({ env, now = Date.now(), edition, window, lateFr
   return { ...out, state: read.rows[0].basis, asOf: read.asOf || null, ...group(rows, MOVE_LIMIT) };
 }
 
+// ---- 6. the week ahead on the calendar -------------------------------------------------------------
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const clockOf = (value) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(value || '').trim());
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const pm = /pm/i.test(String(value)) && hh < 12;
+  const am = /am/i.test(String(value)) && hh === 12;
+  return `${String(pm ? hh + 12 : am ? 0 : hh).padStart(2, '0')}:${m[2]}`;
+};
+const calendarKind = (eventType) => {
+  const label = String(eventType || '').trim();
+  if (/^result/i.test(label)) return { kind: 'result', label: 'Result' };
+  if (/con-?call|earnings call|conference/i.test(label)) return { kind: 'concall', label: 'Con-call' };
+  return { kind: `meeting:${norm(label) || 'event'}`, label: label || 'Event' };
+};
+
+/**
+ * The holdings' scheduled results, con-calls and meetings from the brief's day through the next
+ * CALENDAR_DAYS days. Two sources name them and neither is asked to agree with the other: an event
+ * both name is one row that says so. Screener's portfolio calendar is the artifact the Earnings
+ * Calendar and All Alerts already read (`readScreenerConcallCollector`, injected as `screener` for
+ * the tests); Moneycontrol's is the committed daily capture, so a result it names carries the
+ * capture's own date.
+ */
+export async function readCalendar({ env, day, holdings, fetcher = fetch, now = Date.now(), screener = null }) {
+  const byTicker = bookIndex(holdings);
+  const resolver = buildResolver({ book: holdings });
+  const from = day;
+  const to = addDays(day, CALENDAR_DAYS);
+  const inRange = (d) => DAY_RE.test(String(d || '')) && d >= from && d <= to;
+  const tickerOf = (row) => {
+    const t = upper(row?.ticker);
+    if (byTicker.has(t)) return t;
+    const byName = resolveRow({ company: row?.name || row?.company || '', symbolHint: null }, resolver).ticker;
+    return byName && byTicker.has(upper(byName)) ? upper(byName) : null;
+  };
+  const merged = new Map();
+  const admit = (row) => {
+    const key = `cal:${row.ticker}|${row.date}|${row.kind}`;
+    const held = merged.get(key);
+    if (!held) { merged.set(key, { ...row, key, sources: [row.source] }); return; }
+    if (!held.sources.includes(row.source)) held.sources.push(row.source);
+    if (!held.time && row.time) held.time = row.time;
+    if (!held.url && row.url) held.url = row.url;
+  };
+
+  // Screener's portfolio calendar, the authenticated capture read back through the Actions artifact.
+  let screenerSource;
+  const read = screener || (env?.GH_DISPATCH_TOKEN
+    ? () => readScreenerConcallCollector({ token: env.GH_DISPATCH_TOKEN, fetcher, now: () => now, signal: AbortSignal.timeout(SCREENER_TIMEOUT_MS) })
+    : null);
+  if (!read) {
+    screenerSource = { ok: false, reason: 'no-token', checkedAt: null, records: 0, matched: 0 };
+  } else {
+    try {
+      const out = await read();
+      const list = out?.capture?.portfolioUpcoming;
+      if (!Array.isArray(list)) {
+        screenerSource = { ok: false, reason: 'calendar-unavailable', checkedAt: out?.source?.checkedAt || null, records: 0, matched: 0 };
+      } else {
+        screenerSource = { ok: true, checkedAt: out?.source?.checkedAt || out?.capture?.checkedAt || null, records: list.length, matched: 0 };
+        for (const r of list) {
+          const ticker = tickerOf(r);
+          if (!ticker || !inRange(r?.date)) continue;
+          const { kind, label } = calendarKind(r.eventType);
+          screenerSource.matched += 1;
+          admit({ ticker, company: byTicker.get(ticker).name, date: r.date, time: clockOf(r.time), kind, label, source: 'Screener', url: (typeof r.sourceUrl === 'string' && /^https:\/\//.test(r.sourceUrl) ? r.sourceUrl : null) || (typeof r.companyUrl === 'string' && /^https:\/\//.test(r.companyUrl) ? r.companyUrl : null) });
+        }
+      }
+    } catch (error) {
+      screenerSource = { ok: false, reason: reasonOf(error), checkedAt: null, records: 0, matched: 0 };
+    }
+  }
+
+  // Moneycontrol's committed results calendar: one entry per date, rows already resolved to tickers.
+  const snap = await readAsset(env, MC_CALENDAR_PATH);
+  let moneycontrol;
+  if (snap?.byDate && typeof snap.byDate === 'object') {
+    moneycontrol = { ok: true, capturedAt: snap.capturedAt || null, from: snap.from || null, to: snap.to || null, matched: 0 };
+    for (let d = from; d <= to; d = addDays(d, 1)) {
+      for (const r of Array.isArray(snap.byDate[d]?.rows) ? snap.byDate[d].rows : []) {
+        const ticker = tickerOf(r);
+        if (!ticker) continue;
+        moneycontrol.matched += 1;
+        admit({ ticker, company: byTicker.get(ticker).name, date: d, time: clockOf(r.time), kind: 'result', label: 'Result', source: 'Moneycontrol', url: typeof r.mcUrl === 'string' && /^https:\/\//.test(r.mcUrl) ? r.mcUrl : null });
+      }
+    }
+  } else {
+    moneycontrol = { ok: false, reason: 'capture-unavailable', capturedAt: null, from: null, to: null, matched: 0 };
+  }
+
+  const rows = [...merged.values()].sort((a, b) => a.date.localeCompare(b.date) || String(a.time || '99:99').localeCompare(String(b.time || '99:99')) || a.company.localeCompare(b.company));
+  return { screener: screenerSource, moneycontrol, from, to, rows: rows.slice(0, CALENDAR_LIMIT), count: rows.length, more: Math.max(0, rows.length - CALENDAR_LIMIT) };
+}
+
+// ---- 7. corporate action dates -------------------------------------------------------------------
+
+/**
+ * Ex-dates, record dates and book closures on the holdings inside the week ahead, from the same
+ * capture the Corporate Actions view lists, matched by ticker or ISIN exactly as that view matches
+ * the Portfolio scope. The purpose is the source's own wording; nothing is derived from it.
+ */
+export async function readActions({ env, day, holdings }) {
+  const from = day;
+  const to = addDays(day, CALENDAR_DAYS);
+  const empty = { from, to, rows: [], count: 0, more: 0 };
+  const capture = await readAsset(env, ACTIONS_PATH);
+  if (!Array.isArray(capture?.rows)) return { source: { ok: false, reason: 'capture-unavailable', capturedAt: null, debtSkipped: 0 }, ...empty };
+  const byTicker = bookIndex(holdings);
+  const byIsin = new Map(holdings.map((h) => [upper(h.isin), h]).filter(([k]) => k));
+  const seen = new Set();
+  const rows = [];
+  let debtSkipped = 0;
+  for (const r of capture.rows) {
+    const line = byTicker.get(upper(r?.ticker)) || byIsin.get(upper(r?.isin));
+    if (!line) continue;
+    const dates = [['Ex-date', r.exDate], ['Record date', r.recordDate], ['Book closure', r.bookClosureStart]]
+      .filter(([, d]) => DAY_RE.test(String(d || '')) && d >= from && d <= to)
+      .map(([label, date]) => ({ label, date }));
+    if (!dates.length) continue;
+    if (DEBT_ACTION_TYPES.has(String(r.actionType || ''))) { debtSkipped += 1; continue; }
+    const key = `action:${r.id || [line.ticker, r.actionType, dates[0].date, norm(r.purpose)].join('|')}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({
+      key, ticker: upper(line.ticker), company: line.name, type: String(r.actionType || 'action'),
+      purpose: String(r.purpose || r.actionType || 'Corporate action'), dates, on: dates.map((d) => d.date).sort()[0],
+      source: (Array.isArray(r.sources) && r.sources.length ? r.sources : [r.source]).filter(Boolean).join(' · ') || 'capture',
+      url: [r.screenerCompanyUrl, r.sourceUrl].find((u) => typeof u === 'string' && /^https:\/\//.test(u)) || null,
+    });
+  }
+  rows.sort((a, b) => a.on.localeCompare(b.on) || a.company.localeCompare(b.company));
+  return { source: { ok: true, capturedAt: capture.capturedAt || null, rows: capture.rowCount ?? capture.rows.length, debtSkipped }, from, to, rows: rows.slice(0, ACTIONS_LIMIT), count: rows.length, more: Math.max(0, rows.length - ACTIONS_LIMIT) };
+}
+
 // ---- the brief -----------------------------------------------------------------------------------
 
 /**
@@ -625,7 +782,7 @@ export async function readMoves({ env, now = Date.now(), edition, window, lateFr
  * the page instead. `reported` is the ledger of items a brief sent to the desk has carried; without
  * one, or with an empty one, no late arrivals are read.
  */
-export async function buildBrief({ edition, day, settings, env, fetcher = fetch, now = Date.now(), to = null, reported = null }) {
+export async function buildBrief({ edition, day, settings, env, fetcher = fetch, now = Date.now(), to = null, reported = null, screener = null }) {
   if (!EDITIONS[edition]) throw Object.assign(new Error('Unknown edition'), { code: 'invalid-edition' });
   const book = await readAsset(env, BOOK_PATH);
   if (!Array.isArray(book?.holdings)) throw Object.assign(new Error('The portfolio book could not be read'), { code: 'book-unavailable' });
@@ -644,13 +801,17 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
   const news = await readNews(common);
   const trades = await readTrades(common);
   const moves = await readMoves({ ...common, now, edition });
+  const calendar = await readCalendar({ env, day, holdings, fetcher, now, screener });
+  // The corporate-actions capture is the largest file the brief reads, so it goes last, with
+  // nothing else large still held.
+  const actions = await readActions({ env, day, holdings });
   const brief = {
-    version: 2, edition, day, at: window.at, builtAt: now,
+    version: 3, edition, day, at: window.at, builtAt: now,
     onDemand: to != null,
     window: { from: window.from, to: window.to },
     lateFrom: lateFrom < window.from ? lateFrom : null,
     book: { asOf: book.asOf || null, lines: book.count ?? book.holdings.length, listed: holdings.length },
-    markets: await markets, announcements, news, trades, moves,
+    markets: await markets, announcements, news, trades, moves, calendar, actions,
   };
   // What a send of this brief would put in the ledger: every item it carries, by every identity it
   // was seen under.
@@ -833,6 +994,9 @@ export function briefSummary(brief) {
     nse: brief.announcements.nse.ok, nseHistory: brief.announcements.nseHistory?.ok ?? false, bse: brief.announcements.bse.ok,
     publishers: brief.news.source.ok, tradingview: brief.news.tradingview?.ok ?? false,
     tradesSource: brief.trades?.source?.ok ?? false, prices: brief.moves?.state || 'unavailable',
+    calendar: brief.calendar?.count ?? 0, actions: brief.actions?.count ?? 0,
+    screenerCalendar: brief.calendar?.screener?.ok ?? false, mcCalendar: brief.calendar?.moneycontrol?.ok ?? false,
+    actionsSource: brief.actions?.source?.ok ?? false,
   };
 }
 
@@ -1025,8 +1189,83 @@ export function sourcesNote(brief) {
       : m.state === 'daily' ? `prices from the completed daily bars for ${m.session}, written ${m.asOf ? istLabel(m.asOf) : 'at an unknown time'}`
       : `price moves unavailable (${m.reason || 'unavailable'}${m.priceDate ? `; daily bars end ${m.priceDate}` : ''})`);
   }
+  const c = brief.calendar;
+  if (c) {
+    bits.push(c.screener.ok ? `Screener portfolio calendar checked ${capturedLabel(c.screener.checkedAt)}` : `Screener portfolio calendar unavailable (${c.screener.reason || 'unavailable'})`);
+    bits.push(c.moneycontrol.ok ? `Moneycontrol results calendar captured ${capturedLabel(c.moneycontrol.capturedAt)}${c.moneycontrol.to && c.moneycontrol.to < c.to ? `, covering to ${c.moneycontrol.to}` : ''}` : 'Moneycontrol results calendar unavailable');
+  }
+  const x = brief.actions;
+  if (x) bits.push(x.source.ok ? `corporate actions captured ${capturedLabel(x.source.capturedAt)}` : 'corporate actions capture unavailable');
   const late = brief.lateFrom != null ? ` Items published since ${istLabel(brief.lateFrom)} that no earlier brief carried are included and marked.` : '';
   return `Window ${windowLine(brief)} · ${bits.join(' · ')}.${late}`;
+}
+
+/** "Today · Thu 18 Sep", "Tomorrow · Fri 19 Sep", then "Mon 22 Sep". */
+export function calendarDayLabel(date, day) {
+  const label = istLabel(istInstant(date), { time: false });
+  if (date === day) return `Today · ${label}`;
+  if (date === addDays(day, 1)) return `Tomorrow · ${label}`;
+  return label;
+}
+const rangeLine = (from, to) => `${istLabel(istInstant(from), { time: false })} → ${istLabel(istInstant(to), { time: false })}`;
+
+/** A section heading in the sheet's own style, with a note on the right. */
+const sectionRule = (title, note) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
+      <td style="padding:0 0 4px;border-bottom:3px solid ${GOLD_LIGHT};">${caps(esc(title), `color:${INK};font-weight:bold;letter-spacing:3px;`)}</td>
+      <td align="right" style="padding:0 0 4px;border-bottom:3px solid ${GOLD_LIGHT};">${caps(esc(note), `color:${META};letter-spacing:1px;`)}</td>
+    </tr></table>`;
+const quietLine = (text) => `<div style="padding:12px 0 2px;font-family:${SANS};font-size:12px;line-height:1.6;color:${META};">${esc(text)}</div>`;
+
+/** The week ahead: every scheduled result, call and meeting on a holding, grouped by day. */
+function calendarSection(brief, dashboardUrl) {
+  const c = brief.calendar;
+  if (!c) return '';
+  const parts = [sectionRule('On the calendar', rangeLine(c.from, c.to))];
+  if (!c.rows.length) {
+    parts.push(quietLine(c.screener.ok || c.moneycontrol.ok
+      ? 'No result, con-call or meeting is scheduled on a portfolio company in the next seven days, as far as the calendars read go.'
+      : 'Neither calendar could be read, so the week ahead is not known — not empty.'));
+  } else {
+    const rows = [];
+    let lastDay = null;
+    for (const r of c.rows) {
+      if (r.date !== lastDay) {
+        lastDay = r.date;
+        rows.push(`<tr><td colspan="3" style="padding:12px 0 3px;font-family:${SANS};font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${META};">${esc(calendarDayLabel(r.date, brief.day))}</td></tr>`);
+      }
+      const href = companyUrl(dashboardUrl, r.ticker);
+      rows.push(`<tr>
+        <td style="padding:5px 8px 5px 0;border-bottom:1px solid ${RULE};font-family:${SERIF};font-size:14px;font-weight:bold;color:${INK};">${link(href, esc(r.company), `color:${INK};`)} <span style="font-family:${SANS};font-size:10px;font-weight:normal;letter-spacing:1px;color:${META};">${esc(r.ticker)}</span></td>
+        <td style="padding:5px 8px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;color:${INK};white-space:nowrap;">${esc(r.label)}${r.time ? ` · ${esc(r.time)} IST` : ''}</td>
+        <td align="right" style="padding:5px 0 5px 8px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:10px;color:${META};white-space:nowrap;">${esc(r.sources.join(' · '))}${r.url ? ` · <a href="${esc(r.url)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">Open →</a>` : ''}</td>
+      </tr>`);
+    }
+    parts.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows.join('')}</table>`);
+    if (c.more > 0) parts.push(quietLine(`${c.more} more scheduled in this week on the dashboard's Earnings Calendar.`));
+  }
+  return `<tr><td style="padding:26px 34px 0;">${parts.join('\n')}</td></tr>`;
+}
+
+/** The week's ex-dates, record dates and book closures on the holdings, in the source's words. */
+function actionsSection(brief) {
+  const x = brief.actions;
+  if (!x) return '';
+  const parts = [sectionRule('Corporate actions', rangeLine(x.from, x.to))];
+  if (!x.rows.length) {
+    parts.push(quietLine(x.source.ok
+      ? 'No ex-date, record date or book closure falls on a portfolio company in the next seven days in the corporate-actions capture.'
+      : 'The corporate-actions capture could not be read, so the week ahead is not known — not empty.'));
+  } else {
+    const rows = x.rows.map((r) => `<tr>
+        <td style="padding:5px 8px 5px 0;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:11px;color:${INK};white-space:nowrap;">${esc(r.dates.map((d) => `${d.label} ${istLabel(istInstant(d.date), { time: false })}`).join(' · '))}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid ${RULE};font-family:${SERIF};font-size:14px;font-weight:bold;color:${INK};">${link(r.url, esc(r.company), `color:${INK};`)} <span style="font-family:${SANS};font-size:10px;font-weight:normal;letter-spacing:1px;color:${META};">${esc(r.ticker)}</span></td>
+        <td style="padding:5px 0 5px 8px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;color:${BODY2};">${esc(r.purpose)} <span style="font-size:10px;color:${META};">· ${esc(r.source)}</span></td>
+      </tr>`);
+    parts.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows.join('')}</table>`);
+    if (x.more > 0) parts.push(quietLine(`${x.more} more in this week on the dashboard's Corporate Actions view.`));
+  }
+  if (x.source.debtSkipped) parts.push(quietLine(`${x.source.debtSkipped} interest or redemption date${x.source.debtSkipped === 1 ? '' : 's'} on an issuer's debt instruments ${x.source.debtSkipped === 1 ? 'is' : 'are'} not listed.`));
+  return `<tr><td style="padding:26px 34px 0;">${parts.join('\n')}</td></tr>`;
 }
 
 const routineNote = (n) => `${n} routine filing${n === 1 ? '' : 's'} (newspaper copies, NAV declarations, trading-window, certificate and demat notices) ${n === 1 ? 'is' : 'are'} not listed here; ${n === 1 ? 'it stays' : 'they stay'} on the dashboard.`;
@@ -1077,6 +1316,8 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
     parts.push(`<tr><td style="padding:${stats.stories ? 8 : 14}px 34px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${esc(routineNote(brief.announcements.routineHidden))}</td></tr>`);
   }
 
+  parts.push(calendarSection(brief, dashboardUrl));
+  parts.push(actionsSection(brief));
   parts.push(marketSection(brief));
   parts.push(`<tr><td style="padding:22px 34px 0;font-family:${SANS};font-size:10px;line-height:1.6;color:${META};">${esc(sourcesNote(brief))}</td></tr>`);
 
@@ -1125,6 +1366,25 @@ export function renderBriefText(brief, { productName = PRODUCT_NAME, brand = BRA
     for (const s of c.stories) lines.push(`  [${s.topic.label}] ${s.headline}`, `    ${s.mood.label} · ${s.source} · ${storyWhen(s)}${s.late ? ' · not in the previous brief' : ''}${s.url ? ` · ${s.url}` : ''}`);
   }
   if (brief.announcements.routineHidden) lines.push('', routineNote(brief.announcements.routineHidden));
+  if (brief.calendar) {
+    const c = brief.calendar;
+    lines.push('', `ON THE CALENDAR · ${rangeLine(c.from, c.to)}`);
+    if (!c.rows.length) lines.push(c.screener.ok || c.moneycontrol.ok ? '  Nothing scheduled on a portfolio company in the next seven days, as far as the calendars read go.' : '  Neither calendar could be read — the week ahead is not known, not empty.');
+    let lastDay = null;
+    for (const r of c.rows) {
+      if (r.date !== lastDay) { lastDay = r.date; lines.push(`  ${calendarDayLabel(r.date, brief.day)}`); }
+      lines.push(`    ${r.company} (${r.ticker}) · ${r.label}${r.time ? ` · ${r.time} IST` : ''} · ${r.sources.join(' · ')}${r.url ? ` · ${r.url}` : ''}`);
+    }
+    if (c.more > 0) lines.push(`  ${c.more} more on the dashboard's Earnings Calendar.`);
+  }
+  if (brief.actions) {
+    const x = brief.actions;
+    lines.push('', `CORPORATE ACTIONS · ${rangeLine(x.from, x.to)}`);
+    if (!x.rows.length) lines.push(x.source.ok ? '  No ex-date, record date or book closure on a portfolio company in the next seven days.' : '  The corporate-actions capture could not be read — the week ahead is not known, not empty.');
+    for (const r of x.rows) lines.push(`  ${r.dates.map((d) => `${d.label} ${istLabel(istInstant(d.date), { time: false })}`).join(' · ')} · ${r.company} (${r.ticker}) · ${r.purpose} · ${r.source}${r.url ? ` · ${r.url}` : ''}`);
+    if (x.more > 0) lines.push(`  ${x.more} more on the dashboard's Corporate Actions view.`);
+    if (x.source.debtSkipped) lines.push(`  ${x.source.debtSkipped} interest or redemption date(s) on an issuer's debt instruments not listed.`);
+  }
   lines.push('', 'GLOBAL MARKET SCAN');
   for (const g of MARKET_GROUPS) {
     const members = brief.markets.rows.filter((r) => r.group === g.id);

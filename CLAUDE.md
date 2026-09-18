@@ -1346,6 +1346,25 @@ lost its whole window. Six things close it, and each is a rule this file already
    Announcements tab hides by default), so the per-company cap — material rows first, then the
    newest — cannot spend itself on newspaper copies.
 
+**AND THE WEEK AHEAD IS ON THE PAGE, OUTSIDE THE LEDGER.** The owner's ask (18 September 2026): the
+two things a reader would otherwise learn after the fact were an ex-date or record date on a holding
+and a result or con-call due. Each brief now closes the portfolio half with **On the calendar** —
+every result, con-call and meeting scheduled on a holding from the brief's day through the next
+seven (`CALENDAR_DAYS`), from Screener's portfolio calendar (the authenticated capture the Earnings
+Calendar and All Alerts already read, through `readScreenerConcallCollector`) and Moneycontrol's
+committed results calendar, one row per event however many sources name it — and **Corporate
+actions**, the ex-dates, record dates and book closures inside the same week from the capture the
+Corporate Actions view lists, in the source's words. Four rules, each one this file already runs on:
+**a calendar is not news, so neither section goes through the ledger** — an event stays on the page
+until its date has passed and nothing in it is marked *not in the previous brief*; **an unreadable
+calendar is *not known, not empty*** — the Screener read needs `GH_DISPATCH_TOKEN` on the Worker and
+its absence is printed as `no-token` on the sources line, never as a quiet week; **interest and
+redemption dates are an issuer's debt instruments, not the equity the book holds**
+(`DEBT_ACTION_TYPES`), counted on the page and never listed; and **nothing is derived from a purpose
+string** — a dividend's amount, a split's ratio and a bonus's terms are reproduced as the source
+printed them. `readCalendar` / `readActions` in `worker/newsletter-brief.mjs`; the offline suite
+drives both with a Screener stub and constructed captures.
+
 ### Two disclosures that look identical — the Institutions rule
 
 Institutions is also where a subtler failure lives, and it is not about *whose* number it is but

@@ -5463,12 +5463,20 @@ are outside it there and outside it here.
 | News · direct holdings | `market-news.json` — the four publishers' feeds — joined to the book with `matchPortfolioNews`, the same identity match the News tab uses; plus `tradingview-news/latest.json`'s symbol-tagged headlines per holding, admitted under the same name match or when the story is tagged with at most two symbols including the holding's (a sector story tagged with every bank is not one bank's news) | as captured, dated on the page |
 | Trades · direct holdings | `insider-archive/<month>.json` for the months the window touches — bulk deals, block deals, SAST and insider disclosures — one row per economic event (`insiderTradeIdentity`), a BSE-coded line matched to the book through `announcement-identities.json`, direction and importance from `insiderSignal` (`public/js/data/insider-signal.js`, the rule General Alerts read them with) | as captured; a broadcast day and no clock, filed at that day's close (`DAY_ONLY_TIME`, 15:30 IST) and printed `day only` |
 | Price moves · direct holdings | a holding that moved at least `MOVE_PCT` (±5%, General Alerts' own bar) on the session the brief speaks about: the evening brief reads the breakout capture's closing quotes (`CAPTURE_REGISTRY` → `breakout-capture:v1`, a quote `quoteFresh` after the close), the morning brief the completed bars in `technicals.json` for that `price_date`, each standing in for the other when it has that session | the quote's own print time, or the session's close; the sources line names which |
+| On the calendar · direct holdings | the holdings' scheduled results, con-calls and meetings from the brief's day through the next `CALENDAR_DAYS` (7) days: Screener's portfolio calendar — the authenticated capture the Earnings Calendar and All Alerts already read back through the Actions artifact (`readScreenerConcallCollector`; needs `GH_DISPATCH_TOKEN` on the Worker, and its absence is printed on the sources line as `Screener portfolio calendar unavailable (no-token)`) — plus `earnings-calendar.json`, Moneycontrol's committed results calendar (`byDate[day].rows`, already resolved to tickers). One row per (holding, date, kind) naming every source that carries it; a Screener row that carries only a company name is resolved against the book by the NSE name resolver | Screener at send time, bounded by `SCREENER_TIMEOUT_MS`; Moneycontrol as captured, its capture time on the sources line |
+| Corporate actions · direct holdings | `corporate-actions.json` — the same NSE + Screener capture the Corporate Actions view lists — every row whose ex-date, record date or book-closure start falls inside the same seven days on a holding, matched by ticker or ISIN exactly as that view matches the Portfolio scope; the purpose is the source's own wording and nothing is derived from it. Interest and redemption dates (`DEBT_ACTION_TYPES`) belong to an issuer's debt instruments, not to the equity the book holds, and are counted on the page, never listed | as captured, its capture time on the sources line |
 
 A source that could not be read says so **in the email** (`NSE live feed could not be read
 (blocked)`, `price moves unavailable (capture-unavailable; daily-behind; daily bars end 2026-09-16)`),
 and a scan row that could not be quoted prints `unavailable`, never a number. If the **book**
 cannot be read the brief is not built at all — an email about portfolio companies with no book behind
 it is about nothing — and the delivery is recorded `book-unavailable`.
+
+**The two calendar sections are a week ahead, not a window behind, and neither goes through the
+ledger.** A scheduled result or an ex-date is not news: it stays on the page until its date has
+passed, is never marked *not in the previous brief*, and is not written to `newsletter_reported`.
+A calendar that could not be read prints *the week ahead is not known — not empty* in its section,
+and the sources line names which calendar and why.
 
 ### Nothing falls between two briefs — the ledger and late arrivals
 
@@ -5623,7 +5631,7 @@ under `scripts/fixtures/newsletter/` and the committed data files, the renderer'
 escaping, the ledger (a late filing carried once and never twice, an empty ledger reading nothing,
 the lookback bounded by `reportedSince`, NSE day files read from the index only, routine filings
 counted not listed, trades day-only with the dashboard's own direction, price moves at ±5% from the
-capture and from the daily bars with the same key), and the alarm: one send per key, replay-safe,
+capture and from the daily bars with the same key), the week ahead (Screener's calendar and Moneycontrol's merged onto one row per event, an unreadable calendar named as unknown rather than empty, corporate-action dates inside the seven days with debt instruments counted and not listed), and the alarm: one send per key, replay-safe,
 `no-token`, refused, missed, test copy, cooldown, preview, and which sends write the ledger.
 `node scripts/verify-newsletter-ui.mjs` drives the real button and panel against the real route,
 store and schedule over an in-process server with stubbed upstreams — the email endpoint records

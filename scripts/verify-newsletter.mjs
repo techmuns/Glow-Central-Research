@@ -17,7 +17,7 @@ import {
 } from '../public/js/data/newsletter-shared.js';
 import { NewsletterStore } from '../worker/newsletter-store.mjs';
 import {
-  MARKET_ROWS, MOVE_PCT, TOPICS, briefStats, briefStories, briefSubject, buildBrief, quoteFromChart, quoteFromSeries, renderBriefHtml, renderBriefText, topicOf,
+  CALENDAR_DAYS, MARKET_ROWS, MOVE_PCT, TOPICS, briefStats, briefStories, briefSubject, buildBrief, calendarDayLabel, quoteFromChart, quoteFromSeries, renderBriefHtml, renderBriefText, topicOf,
 } from '../worker/newsletter-brief.mjs';
 import { NewsletterSchedule, NEWSLETTER_TIMER_KEY, EMAIL_SEND_URL, CATCH_UP_MS, sendEmail } from '../worker/newsletter-schedule.mjs';
 
@@ -598,6 +598,120 @@ await test('TradingView\'s symbol-tagged headlines join only under the dashboard
   assert.equal(story.mood.id, 'neutral', 'a headline carries no sentiment reading');
   assert.equal(story.source, 'Reuters · via TradingView');
   assert.ok(story.keys[0].startsWith('tv:AARTIDRUGS|'));
+});
+
+// ---- the week ahead ----------------------------------------------------------------------------------
+
+console.log('\n— the week ahead —');
+
+const upcoming = (overrides) => ({
+  id: 'x', companyKey: 'AARTIDRUGS', ticker: 'AARTIDRUGS', name: 'Aarti Drugs Ltd', date: '2026-09-17', time: null, eventType: 'Result',
+  companyUrl: 'https://www.screener.in/company/AARTIDRUGS/consolidated/', sourceUrl: 'https://www.screener.in/company/AARTIDRUGS/consolidated/#documents', observedAt: '2026-09-17T01:00:00.000Z', ...overrides,
+});
+const screenerStub = (rows, checkedAt = '2026-09-17T01:30:00.000Z') => async () => ({ capture: { checkedAt, portfolioUpcoming: rows }, source: { status: 'ok', checkedAt, portfolioUpcomingAvailable: true } });
+const mcRow = (ticker, name, extra = {}) => ({ scId: `${ticker}-mc`, name, ticker, resultDate: '2026-09-17', time: null, mcUrl: `https://www.moneycontrol.com/india/stockpricequote/x/${ticker.toLowerCase()}/${ticker}`, ...extra });
+const mcSnapshot = { capturedAt: '2026-09-17T01:45:00.000Z', from: '2026-09-14', to: '2026-10-08', pageSize: 20, days: [], byDate: {
+  '2026-09-17': { rows: [mcRow('AARTIDRUGS', 'Aarti Drugs')], complete: true },
+  '2026-09-18': { rows: [mcRow('SBIN', 'State Bank of India', { resultDate: '2026-09-18', time: '11:30 AM' }), mcRow('NOTINBOOK', 'Somebody Else', { resultDate: '2026-09-18' })], complete: true },
+  '2026-09-26': { rows: [mcRow('ABCAPITAL', 'Aditya Birla Capital', { resultDate: '2026-09-26' })], complete: true },
+} };
+
+await test('the calendar names the holdings\' scheduled results, calls and meetings for the week, once each however many sources name them', async () => {
+  const screener = screenerStub([
+    upcoming({ id: 'a' }),
+    upcoming({ id: 'b', date: '2026-09-19', time: '10:30', eventType: 'Con-call' }),
+    upcoming({ id: 'c', ticker: 'SBIN', companyKey: 'SBIN', name: 'State Bank of India', date: '2026-09-30', eventType: 'AGM' }),
+    upcoming({ id: 'd', ticker: 'NOTINBOOK', companyKey: 'NOTINBOOK', name: 'Somebody Else', date: '2026-09-18' }),
+    upcoming({ id: 'e', ticker: null, companyKey: 'AD2', date: '2026-09-22', eventType: 'AGM' }),
+  ]);
+  const env = { ASSETS: assetsWith({ '/data/earnings-calendar.json': mcSnapshot }) };
+  const brief = await buildBrief({ edition: 'morning', day: '2026-09-17', settings: DEFAULT_SETTINGS, env, fetcher: makeFetcher(), now: MORNING, screener });
+  const c = brief.calendar;
+  assert.equal(CALENDAR_DAYS, 7);
+  assert.deepEqual([c.from, c.to], ['2026-09-17', '2026-09-24'], 'the brief\'s own day and the seven after it');
+  assert.equal(c.screener.ok, true);
+  assert.equal(c.moneycontrol.ok, true);
+  assert.deepEqual(c.rows.map((r) => [r.date, r.ticker, r.label, r.time, r.sources.join('+')]), [
+    ['2026-09-17', 'AARTIDRUGS', 'Result', null, 'Screener+Moneycontrol'],
+    ['2026-09-18', 'SBIN', 'Result', '11:30', 'Moneycontrol'],
+    ['2026-09-19', 'AARTIDRUGS', 'Con-call', '10:30', 'Screener'],
+    ['2026-09-22', 'AARTIDRUGS', 'AGM', null, 'Screener'],
+  ], 'one row per event, by date; the AGM outside the week and the stranger are not here; a row with no ticker resolves by the book\'s name');
+  assert.equal(c.count, 4);
+  assert.equal(calendarDayLabel('2026-09-17', '2026-09-17'), 'Today · Thu 17 Sep');
+  assert.equal(calendarDayLabel('2026-09-18', '2026-09-17'), 'Tomorrow · Fri 18 Sep');
+  assert.equal(calendarDayLabel('2026-09-22', '2026-09-17'), 'Tue 22 Sep');
+  const html = renderBriefHtml(brief, { dashboardUrl: 'https://example.test' });
+  assert.ok(html.includes('On the calendar'));
+  assert.ok(html.includes('Today · Thu 17 Sep') && html.includes('Tomorrow · Fri 18 Sep'));
+  assert.ok(html.includes('Con-call · 10:30 IST'), 'a call carries its clock');
+  assert.ok(html.includes('Screener · Moneycontrol'), 'both sources named on the row both carry');
+  assert.ok(html.includes('Screener portfolio calendar checked Thu 17 Sep, 07:00 IST'), 'the sources line dates the calendar');
+  assert.ok(html.includes('Moneycontrol results calendar captured Thu 17 Sep, 07:15 IST'));
+  const text = renderBriefText(brief);
+  assert.ok(text.includes('ON THE CALENDAR · Thu 17 Sep → Thu 24 Sep'));
+  assert.ok(text.indexOf('ON THE CALENDAR') < text.indexOf('GLOBAL MARKET SCAN'), 'the week ahead sits before the market scan');
+  assert.ok(!brief.reported.some((r) => r.key.startsWith('cal:')), 'a calendar row is not news and never enters the ledger');
+});
+
+await test('a calendar that could not be read is named, and the other calendar still carries', async () => {
+  const noToken = await buildBrief({ edition: 'morning', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assetsWith({ '/data/earnings-calendar.json': mcSnapshot }) }, fetcher: makeFetcher(), now: MORNING });
+  assert.equal(noToken.calendar.screener.reason, 'no-token', 'without the Worker\'s GitHub token the artifact is not asked for');
+  assert.deepEqual(noToken.calendar.rows.map((r) => r.ticker), ['AARTIDRUGS', 'SBIN'], 'Moneycontrol\'s results still carry');
+  assert.ok(renderBriefHtml(noToken).includes('Screener portfolio calendar unavailable (no-token)'));
+  const broken = await buildBrief({ edition: 'morning', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assetsWith({ '/data/earnings-calendar.json': null }) }, fetcher: makeFetcher(), now: MORNING, screener: async () => { throw new Error('No successful Screener concall capture is available'); } });
+  assert.equal(broken.calendar.screener.ok, false);
+  assert.equal(broken.calendar.moneycontrol.ok, false);
+  assert.equal(broken.calendar.count, 0);
+  const html = renderBriefHtml(broken);
+  assert.ok(html.includes('Neither calendar could be read, so the week ahead is not known — not empty.'));
+  assert.ok(html.includes('Moneycontrol results calendar unavailable'));
+  const quiet = await buildBrief({ edition: 'morning', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assetsWith({ '/data/earnings-calendar.json': { ...mcSnapshot, byDate: {} } }) }, fetcher: makeFetcher(), now: MORNING, screener: screenerStub([]) });
+  assert.ok(renderBriefHtml(quiet).includes('No result, con-call or meeting is scheduled on a portfolio company in the next seven days'), 'an empty week from readable calendars says so');
+});
+
+await test('corporate action dates on the holdings for the week ahead, in the source\'s own words, debt instruments aside', async () => {
+  const isin = JSON.parse(asset('/data/portfolio-companies.json')).holdings.find((h) => h.ticker === 'ABCAPITAL')?.isin;
+  assert.ok(isin, 'the book carries the ISIN this test matches on');
+  const action = (overrides) => ({ id: `t:${Math.random()}`, ticker: 'AARTIDRUGS', company: 'Aarti Drugs', isin: null, purpose: 'Dividend · Final · 100.00%', actionType: 'dividend', exDate: null, recordDate: null, bookClosureStart: null, source: 'Screener', sources: ['Screener'], sourceUrl: 'https://www.screener.in/actions/dividend/', screenerCompanyUrl: 'https://www.screener.in/company/AARTIDRUGS/consolidated/', ...overrides });
+  const rows = [
+    action({ id: 'div-1', exDate: '2026-09-19', recordDate: '2026-09-20' }),
+    action({ id: 'bonus-1', ticker: null, isin, company: 'Aditya Birla Capital', purpose: 'Bonus 1:1', actionType: 'bonus', recordDate: '2026-09-23', source: 'NSE', sources: ['NSE', 'Screener'] }),
+    action({ id: 'split-1', ticker: 'SBIN', company: 'State Bank of India', purpose: 'Stock split', actionType: 'split', exDate: '2026-10-10' }),
+    action({ id: 'stranger-1', ticker: 'NOTINBOOK', company: 'Somebody Else', exDate: '2026-09-18' }),
+    action({ id: 'int-1', purpose: 'Interest payment', actionType: 'interest', exDate: '2026-09-18' }),
+    action({ id: 'bc-1', ticker: 'SBIN', company: 'State Bank of India', purpose: 'Dividend - Rs 15 Per Share', actionType: 'dividend', bookClosureStart: '2026-09-21', bookClosureEnd: '2026-09-23', source: 'NSE', sources: ['NSE'] }),
+  ];
+  const overlay = { version: 1, capturedAt: '2026-09-17T02:00:00.000Z', rowCount: rows.length, rows };
+  const brief = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assetsWith({ '/data/corporate-actions.json': overlay }) }, fetcher: makeFetcher(), now: istInstant('2026-09-17', '16:00') });
+  const x = brief.actions;
+  assert.equal(x.source.ok, true);
+  assert.deepEqual([x.from, x.to], ['2026-09-17', '2026-09-24']);
+  assert.deepEqual(x.rows.map((r) => [r.on, r.ticker, r.purpose, r.dates.map((d) => `${d.label} ${d.date}`).join(' · '), r.source]), [
+    ['2026-09-19', 'AARTIDRUGS', 'Dividend · Final · 100.00%', 'Ex-date 2026-09-19 · Record date 2026-09-20', 'Screener'],
+    ['2026-09-21', 'SBIN', 'Dividend - Rs 15 Per Share', 'Book closure 2026-09-21', 'NSE'],
+    ['2026-09-23', 'ABCAPITAL', 'Bonus 1:1', 'Record date 2026-09-23', 'NSE · Screener'],
+  ], 'by date; the split outside the week and the stranger are not here; an ISIN-only line matches the book; the interest date is counted, not listed');
+  assert.equal(x.source.debtSkipped, 1);
+  assert.deepEqual(x.rows.map((r) => r.key), ['action:div-1', 'action:bc-1', 'action:bonus-1']);
+  const html = renderBriefHtml(brief, { dashboardUrl: 'https://example.test' });
+  assert.ok(html.includes('Corporate actions'));
+  assert.ok(html.includes('Ex-date Sat 19 Sep · Record date Sun 20 Sep'));
+  assert.ok(html.includes('Bonus 1:1'));
+  assert.ok(html.includes('1 interest or redemption date on an issuer&#39;s debt instruments is not listed'));
+  assert.ok(html.includes('corporate actions captured Thu 17 Sep, 07:30 IST'));
+  const text = renderBriefText(brief);
+  assert.ok(text.includes('CORPORATE ACTIONS · Thu 17 Sep → Thu 24 Sep'));
+  assert.ok(text.includes('Ex-date Sat 19 Sep · Record date Sun 20 Sep · Aarti Drugs Ltd (AARTIDRUGS) · Dividend · Final · 100.00% · Screener'));
+  assert.ok(!brief.reported.some((r) => r.key.startsWith('action:')), 'a date is not news and never enters the ledger');
+  const none = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assetsWith({ '/data/corporate-actions.json': { ...overlay, rows: [rows[3]], rowCount: 1 } }) }, fetcher: makeFetcher(), now: istInstant('2026-09-17', '16:00') });
+  assert.ok(renderBriefHtml(none).includes('No ex-date, record date or book closure falls on a portfolio company in the next seven days'));
+  const unread = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assetsWith({ '/data/corporate-actions.json': null }) }, fetcher: makeFetcher(), now: istInstant('2026-09-17', '16:00') });
+  assert.equal(unread.actions.source.ok, false);
+  assert.ok(renderBriefHtml(unread).includes('The corporate-actions capture could not be read, so the week ahead is not known — not empty.'));
+  const real = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assets }, fetcher: makeFetcher(), now: istInstant('2026-09-17', '16:00') });
+  assert.equal(real.actions.source.ok, true, 'the committed capture reads');
+  for (const r of real.actions.rows) assert.ok(r.on >= '2026-09-17' && r.on <= '2026-09-24' && r.dates.length >= 1);
 });
 
 // ---- the ledger ----------------------------------------------------------------------------------------
