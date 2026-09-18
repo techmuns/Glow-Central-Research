@@ -1246,7 +1246,7 @@
       "error": "search-unavailable"
     },
     "isin:INE08U801020|SAMHI": {
-      "lastAttemptAt": "2026-09-14T00:54:00+00:00",
+      "lastAttemptAt": "2026-09-18T14:19:09+00:00",
       "error": "search-unavailable"
     },
     "isin:INE148I01020|Sammaan Capital": {
@@ -1558,6 +1558,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 206,
-    "checkedAt": "2026-09-18T13:34:55.185871+00:00"
+    "checkedAt": "2026-09-18T14:19:09.897087+00:00"
   }
 }
