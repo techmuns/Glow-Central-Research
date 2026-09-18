@@ -1166,8 +1166,8 @@
       ]
     },
     "isin:INE399G01023|Ramkrishna Forgings": {
-      "lastAttemptAt": "2026-09-13T23:47:09+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-09-18T09:11:55+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 30,
       "lastSuccessAt": "2026-09-13T23:47:09+00:00",
       "targetThrough": null,
@@ -1558,6 +1558,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 206,
-    "checkedAt": "2026-09-18T08:37:01.508450+00:00"
+    "checkedAt": "2026-09-18T09:11:55.468305+00:00"
   }
 }
