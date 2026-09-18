@@ -1282,7 +1282,7 @@
       "error": "search-unavailable"
     },
     "isin:INE955I01044|SEJALLTD": {
-      "lastAttemptAt": "2026-09-14T05:54:26+00:00",
+      "lastAttemptAt": "2026-09-18T19:19:01+00:00",
       "error": "search-unavailable"
     },
     "isin:INE597J01018|Shalby": {
@@ -1558,6 +1558,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 213,
-    "checkedAt": "2026-09-18T19:06:35.229523+00:00"
+    "checkedAt": "2026-09-18T19:19:01.634687+00:00"
   }
 }
