@@ -1306,7 +1306,7 @@
       "error": "search-unavailable"
     },
     "isin:INE526E01018|SPR Auto Technologies": {
-      "lastAttemptAt": "2026-09-14T09:19:47+00:00",
+      "lastAttemptAt": "2026-09-18T22:53:21+00:00",
       "error": "search-unavailable"
     },
     "isin:INE526E01018|Shriram Pistons & Rings": {
@@ -1558,6 +1558,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 213,
-    "checkedAt": "2026-09-18T22:21:07.732236+00:00"
+    "checkedAt": "2026-09-18T22:53:21.884660+00:00"
   }
 }
