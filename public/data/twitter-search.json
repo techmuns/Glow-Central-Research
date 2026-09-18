@@ -1206,8 +1206,8 @@
       ]
     },
     "isin:INE976G01028|RBLBANK": {
-      "lastAttemptAt": "2026-09-13T23:47:09+00:00",
-      "error": "result-cap-incomplete",
+      "lastAttemptAt": "2026-09-18T11:21:11+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 105,
       "targetThrough": "2026-09-13T23:47:09+00:00",
       "pending": [
@@ -1558,6 +1558,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 206,
-    "checkedAt": "2026-09-18T10:50:55.863683+00:00"
+    "checkedAt": "2026-09-18T11:21:11.868983+00:00"
   }
 }
