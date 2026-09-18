@@ -4792,7 +4792,12 @@ reading of tracked triggers, not a claim that nothing could change, and offers t
 `impactParts` returns the same sentence as parts — `text`, `axis` and `reason` kinds, the last
 carrying `eventId` and `feed` — so the card can set the axis names in bold and link every trigger
 without a second wording; `impactLine` is those parts joined.
+
 ### The driver layer — `driversOf(card)` in `js/data/alert-drivers.js`
+
+**On Glow this is card DATA and not a card section**: the card renders the two bullets above, and
+`card.drivers` is computed so the template's contract tests hold — see `docs/GLOW-TEMPLATE-SYNC.md`
+→ *Sync of 18 September 2026*.
 
 Derived, pure, and attached to every ranked card as `card.drivers`. It answers the reader's second
 question — *does this change anything I believed?* — by bucketing the topic readings ALREADY on the
