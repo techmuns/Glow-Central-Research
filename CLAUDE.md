@@ -4433,7 +4433,14 @@ a browser step fails on a data-only push to main, read the assertion before retr
 a test reading live data (`verify-research-reasoning-ui.mjs` asserts a market-wrap co-mention
 against the shipped capture), a runner-speed budget (the All Alerts "visible stream completes
 quickly" clock measures a shared runner's repaint of a large pool, and prints its timings), or a
-product defect the data happened to reach.
+product defect the data happened to reach. **Or a wait for the whole network to go quiet.** The Direct
+Equity suite's `page.goto` waited for `networkidle`, which is decided by everything the page touches
+at boot — Google Fonts, the SDK bundle on S3 and the chatter API on workers.dev, the app-wide
+watchers, the capture watchdog, the service worker's first install — and it timed out at 30s on CI
+and once locally on a commit that passed on the next run, with nothing in the view at fault. A
+browser suite refuses every origin but its own server (`page.route`, as the XBRL suite already
+did) and waits for the thing it is about to assert on, by name: the table, its rows, the first
+priced cell.
 
 `finology-shared.js` compares consecutive completed calendar quarters throughout the dashboard.
 Preserve `quarterlyStatus`: reported, filing_due, not_disclosed, unknown. A legacy null cannot prove

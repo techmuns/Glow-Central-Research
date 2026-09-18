@@ -56,6 +56,12 @@ const ok = (label, cond, detail = '') => {
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+// NOTHING HERE MAY REACH THE INTERNET. The page contacts three third-party hosts at boot — Google
+// Fonts, the SDK bundle on S3 and the chatter API on workers.dev — and a runner on which one of
+// them answers slowly or not at all is a different machine from this sandbox, where all three fail
+// at once. Every other browser suite refuses foreign origins the same way, and the app already
+// treats each refusal as the named failure it is.
+await page.route('**', (route) => (route.request().url().startsWith(base) ? route.continue() : route.abort()));
 const consoleErrors = [];
 // A static origin has no Worker, so every /api/* route 404s and the SDK bundle is absent. That is a
 // SUPPORTED mode (CLAUDE.md), not a failure, and those are the only messages filtered.
@@ -68,7 +74,12 @@ const settle = async () => {
   await page.waitForFunction(() => !document.querySelector('[data-rows-pending]'), null, { timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(1200);
 };
-const go = async (hash) => { await page.goto(`${base}/${hash}`, { waitUntil: 'networkidle' }); await settle(); };
+// `load`, not `networkidle`: the readiness this suite needs is the table and its rows, which settle()
+// waits for by name. A wait for the whole network to go quiet is decided by everything the page
+// touches at boot — the app-wide watchers, the capture watchdog, the service worker's first install
+// — and on 18 September 2026 it timed out at 30s on CI and once locally on a commit that passed
+// on the next run, with nothing in the view at fault.
+const go = async (hash) => { await page.goto(`${base}/${hash}`, { waitUntil: 'load' }); await settle(); };
 
 // ---------------------------------------------------------------------------------------
 // The switch, and which view a bare route lands on.
@@ -93,6 +104,15 @@ ok('no view fetches the 630 KB ledger before it is asked for', ledgerRequests.le
 await page.click('[data-view-switch-item="direct-equity"]');
 await settle();
 ok('opening Direct Equity fetches the ledger, once', ledgerRequests.length === 1, `${ledgerRequests.length} request(s)`);
+
+// The EOD marks land on their own fetch and repaint the rows in place, so wait for the first priced
+// CMP cell rather than for the network as a whole. The assertion below still asks for half the rows;
+// a column that never populates costs this wait and then fails there, as it should.
+await page.waitForFunction(() => {
+  const heads = [...document.querySelectorAll('[data-score-table] thead th')].map((t) => t.textContent.replace(/\s+/g, ' ').trim());
+  const i = heads.findIndex((h) => h.startsWith('CMP (EOD)'));
+  return i >= 0 && [...document.querySelectorAll('[data-score-table] tbody tr')].some((r) => /₹/.test(r.querySelectorAll('td')[i]?.textContent || ''));
+}, null, { timeout: 15000 }).catch(() => {});
 
 const view = await page.evaluate(() => {
   const rows = [...document.querySelectorAll('[data-score-table] tbody tr')].filter((r) => !r.hasAttribute('aria-hidden') && r.offsetParent !== null);
