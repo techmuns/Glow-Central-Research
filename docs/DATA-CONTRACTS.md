@@ -5465,6 +5465,8 @@ are outside it there and outside it here.
 | Price moves · direct holdings | a holding that moved at least `MOVE_PCT` (±5%, General Alerts' own bar) on the session the brief speaks about: the evening brief reads the breakout capture's closing quotes (`CAPTURE_REGISTRY` → `breakout-capture:v1`, a quote `quoteFresh` after the close), the morning brief the completed bars in `technicals.json` for that `price_date`, each standing in for the other when it has that session | the quote's own print time, or the session's close; the sources line names which |
 | On the calendar · direct holdings | the holdings' scheduled results, con-calls and meetings from the brief's day through the next `CALENDAR_DAYS` (7) days: Screener's portfolio calendar — the authenticated capture the Earnings Calendar and All Alerts already read back through the Actions artifact (`readScreenerConcallCollector`; needs `GH_DISPATCH_TOKEN` on the Worker, and its absence is printed on the sources line as `Screener portfolio calendar unavailable (no-token)`) — plus `earnings-calendar.json`, Moneycontrol's committed results calendar (`byDate[day].rows`, already resolved to tickers). One row per (holding, date, kind) naming every source that carries it; a Screener row that carries only a company name is resolved against the book by the NSE name resolver | Screener at send time, bounded by `SCREENER_TIMEOUT_MS`; Moneycontrol as captured, its capture time on the sources line |
 | Corporate actions · direct holdings | `corporate-actions.json` — the same NSE + Screener capture the Corporate Actions view lists — every row whose ex-date, record date or book-closure start falls inside the same seven days on a holding, matched by ticker or ISIN exactly as that view matches the Portfolio scope; the purpose is the source's own wording and nothing is derived from it. Interest and redemption dates (`DEBT_ACTION_TYPES`) belong to an issuer's debt instruments, not to the equity the book holds, and are counted on the page, never listed | as captured, its capture time on the sources line |
+| Portfolio today (morning: previous session) · direct holdings | every listed holding with a quote for the session, best to worst, from the SAME read as the price moves (`readSessionQuotes`: the breakout capture's closing quotes in the evening, the completed daily bars in the morning, each standing in for the other); a count line (quoted of listed, up, down, flat, median, best, worst); and a rupee day change derived from the family book's statement quantities (`bookQuantities` over `book.json`: equity rows with a symbol, each `dedupeGroup` counted once, summed across accounts) times the session's close change, headed *derived* and *not a statement figure*, with the statements' own date range beside it. A holding with no quote is counted and never shown flat; one with no statement quantity prints *no quantity* | the quote's own print time or the session's close; the book as committed |
+| Indian markets | the India group of `MARKET_ROWS` — Nifty 50, Sensex, Nifty Bank, Nifty Midcap 100, Nifty Smallcap 100, Nifty 500, Nifty IT, India VIX — as its own table above the global scan, which no longer repeats them; read exactly as the scan rows are, one Yahoo chart request each, the series store the fallback where a series exists | at send time |
 
 A source that could not be read says so **in the email** (`NSE live feed could not be read
 (blocked)`, `price moves unavailable (capture-unavailable; daily-behind; daily bars end 2026-09-16)`),
@@ -5477,6 +5479,32 @@ ledger.** A scheduled result or an ex-date is not news: it stays on the page unt
 passed, is never marked *not in the previous brief*, and is not written to `newsletter_reported`.
 A calendar that could not be read prints *the week ahead is not known — not empty* in its section,
 and the sources line names which calendar and why.
+
+**One announcement is one update, and two AI lines sit under it.** A company's items are folded
+into updates by `clusterStories()` — exchange copies of one filing (same company, same filing
+type, lodged within `FILING_COPY_WINDOW_MS`, an hour) and stories that share the words and
+figures of the filing or of each other (`storyTokens` / `sameStory`: a fifth of the content words
+in common, or a shared figure of three or more digits and two words; the company's own name,
+currency words and years identify nothing) — the strongest item leading, the exchange's own
+statement before a publisher's account of it, and the rest as **Related** links (source, time,
+headline where it differs). A trade and a price move are always their own update. An update's id is
+`TICKER#n`, its place under its company, so the notes written for a brief find their updates on
+every render. The summary line, the subject and each company header count updates; the header adds
+*from n items* where it folded any. Every folded item still reaches the ledger under its own key.
+
+`readAiNotes()` then writes **AI summary** and **Potential impact** under each filing or story
+update (never a trade or a move): one request per brief to the Bedrock Messages endpoint Ask
+Research uses (`bedrockConfig`, `CLAUDE_KEY`; `AI_ITEM_LIMIT` 40 updates, `AI_TIMEOUT_MS` 45 s,
+`AI_MAX_TOKENS` 6,000, no stream), sending each update's headline, summary text, filing type,
+topic, mood and the headlines of its copies — never a link or a document — under `AI_INSTRUCTIONS`
+(write only from the text; no new figure, date, name or claim; *could* and *may*, never *will*;
+never a share-price call or a recommendation; a routine item is said to be routine), and reading
+back one JSON array `[{ id, summary, impact }]` (`parseAiNotes`: fenced JSON is read, unknown ids
+and one-line entries are dropped, each line clipped to `AI_NOTE_MAX`). `brief.ai` is `{ ok,
+reason, model, readAt, requested, answered, items }`: `no-key` without the credential, `refused`
+(401/403), `rate-limited`, `upstream`, `timeout` or `unreadable` otherwise, and in every one of
+those states the update keeps the source's own line and the sources line names the reason. The
+footer disclaimer says what the two lines are.
 
 ### Nothing falls between two briefs — the ledger and late arrivals
 
@@ -5513,9 +5541,11 @@ edition lost its whole window. So:
 `GLOW VENTURES` masthead, the tagline (`Research Central — Morning Portfolio Brief`), a
 date/edition strip (`Edition: Portfolio companies`), a summary line counting updates and the
 companies they cover against the book (`8 updates across 7 of 166 portfolio companies`), then
-**Your portfolio companies** — every filing and story filed under its company — and only then the
-global market scan, the sources line, an Ink footer with the unsubscribe link and a small
-`powered by Munshot` credit, and the caption `Glow Ventures · Research Central`. Subject:
+**Your portfolio companies** — every update filed under its company, the AI lines and the related
+links under each — then the week ahead (**On the calendar**, **Corporate actions**), then the
+desk's own numbers (**Portfolio today**, **Indian markets**), and only then the global market
+scan, the sources line, an Ink footer with the unsubscribe link and a small `powered by Munshot`
+credit, and the caption `Glow Ventures · Research Central`. Subject:
 `Glow Ventures · 12 updates on your portfolio companies — 17 Sep`.
 
 The owner's ask (17 September 2026): the brief is Glow Ventures' own, not a platform newsletter,
@@ -5631,7 +5661,7 @@ under `scripts/fixtures/newsletter/` and the committed data files, the renderer'
 escaping, the ledger (a late filing carried once and never twice, an empty ledger reading nothing,
 the lookback bounded by `reportedSince`, NSE day files read from the index only, routine filings
 counted not listed, trades day-only with the dashboard's own direction, price moves at ±5% from the
-capture and from the daily bars with the same key), the week ahead (Screener's calendar and Moneycontrol's merged onto one row per event, an unreadable calendar named as unknown rather than empty, corporate-action dates inside the seven days with debt instruments counted and not listed), and the alarm: one send per key, replay-safe,
+capture and from the daily bars with the same key), the week ahead (Screener's calendar and Moneycontrol's merged onto one row per event, an unreadable calendar named as unknown rather than empty, corporate-action dates inside the seven days with debt instruments counted and not listed), one update per announcement (Puravankara's press release on both exchanges with three publisher accounts as one update and its related links, the investor-meet pair folded, the share-price story apart; the matcher's words, figures and stop words), the AI notes (one request, its body, every note under its update, `no-key` / refused / unreadable / a skipped item, the parser), the portfolio table (best to worst, the book's quantities counted once per dedupe group, the derived rupee change and its percent, no book, an unread session, the morning's daily bars) and the Indian indices' own table above the scan, and the alarm: one send per key, replay-safe,
 `no-token`, refused, missed, test copy, cooldown, preview, and which sends write the ledger.
 `node scripts/verify-newsletter-ui.mjs` drives the real button and panel against the real route,
 store and schedule over an in-process server with stubbed upstreams — the email endpoint records

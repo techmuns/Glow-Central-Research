@@ -39,6 +39,14 @@
 //      week ahead, from the same NSE + Screener capture the Corporate Actions view lists, in the
 //      source's own words. A calendar is not news, so neither section goes through the ledger:
 //      an event stays on the page until its date has passed.
+//   8. THE AI NOTES — under each filing or story update, two lines the model writes from the text
+//      the page already shows: what was announced, and what it could change. One bounded request
+//      per brief, marked AI on its face, hedged, and absent with its reason rather than guessed.
+//
+// And the customer's reading of the first sheets (17 September 2026) reshaped it twice: one
+// announcement is ONE update with its copies as related links (`clusterStories`), and the desk's
+// own numbers — every quoted holding on the session with the day's rupee change off the book's
+// statement quantities, then the Indian indices — sit above the global scan.
 //
 // "DIRECT ONES" MEANS `portfolio-companies.json`: the family's listed direct-equity lines, one per
 // NSE symbol, the same file the Portfolio scope means on every tab. Fund units, AIFs and the
@@ -70,6 +78,7 @@ import { insiderTradeIdentity } from '../public/js/data/insider-history.js';
 import { insiderTradeSourceUrl } from '../public/js/data/filings-shared.js';
 import { BREAKOUT_OBJECT, expectedSession, quoteFresh } from '../public/js/data/breakout-live-shared.js';
 import { readScreenerConcallCollector } from './screener-concalls-collector.mjs';
+import { bedrockConfig, bedrockConfigured, claudeCredential } from './research-claude.mjs';
 import { EDITIONS, addDays, dayOnlyInstant, editionWindow, istDay, istDateLong, istInstant, istLabel, istTime, lateArrivalsFrom } from '../public/js/data/newsletter-shared.js';
 
 export const PRODUCTION_ORIGIN = 'https://glow-central-research.tech-441.workers.dev';
@@ -95,6 +104,16 @@ export const SCREENER_TIMEOUT_MS = 15000;
 // Interest and redemption dates belong to an issuer's debt instruments, not to the equity the book
 // holds; they are counted and not listed.
 export const DEBT_ACTION_TYPES = new Set(['interest', 'redemption']);
+// The AI notes: ONE request per brief, bounded, through the Bedrock credential Ask Research already
+// holds on the Worker. A brief without the key carries no notes and says so on the sources line; it
+// never waits on a second provider, and a note never replaces the source's own headline.
+export const AI_ITEM_LIMIT = 40;
+export const AI_TIMEOUT_MS = 45000;
+export const AI_NOTE_MAX = 320;
+export const AI_MAX_TOKENS = 6000;
+// The portfolio table prices the day's move with the family book's statement quantities — each
+// account's own quantity, counted once per dedupe group, as the Family Book tab counts them.
+export const FAMILY_BOOK_PATH = '/data/book.json';
 
 export const BOOK_PATH = '/data/portfolio-companies.json';
 export const BSE_PATH = '/data/corp-announcements.json';
@@ -130,6 +149,13 @@ export const MARKET_ROWS = [
   { id: 'kospi', symbol: '^KS11', label: 'Kospi', group: 'asia', kind: 'index' },
   { id: 'nifty', symbol: '^NSEI', label: 'Nifty 50', group: 'india', kind: 'index', series: 'nifty-50' },
   { id: 'sensex', symbol: '^BSESN', label: 'Sensex', group: 'india', kind: 'index', series: 'sensex' },
+  // The India group is its own table above the global scan: the desk's home market first.
+  { id: 'niftybank', symbol: '^NSEBANK', label: 'Nifty Bank', group: 'india', kind: 'index' },
+  { id: 'niftymid100', symbol: 'NIFTY_MIDCAP_100.NS', label: 'Nifty Midcap 100', group: 'india', kind: 'index' },
+  { id: 'niftysmall100', symbol: '^CNXSC', label: 'Nifty Smallcap 100', group: 'india', kind: 'index' },
+  { id: 'nifty500', symbol: '^CRSLDX', label: 'Nifty 500', group: 'india', kind: 'index' },
+  { id: 'niftyit', symbol: '^CNXIT', label: 'Nifty IT', group: 'india', kind: 'index' },
+  { id: 'indiavix', symbol: '^INDIAVIX', label: 'India VIX', group: 'india', kind: 'index' },
   { id: 'brent', symbol: 'BZ=F', label: 'Brent crude', unit: '$/bbl', group: 'commodities', kind: 'price', series: 'brent-crude' },
   { id: 'gold', symbol: 'GC=F', label: 'Gold', unit: '$/oz', group: 'commodities', kind: 'price', series: 'gold' },
   { id: 'silver', symbol: 'SI=F', label: 'Silver', unit: '$/oz', group: 'commodities', kind: 'price', series: 'silver' },
@@ -564,22 +590,22 @@ export async function readTrades({ env, window, lateFrom = window.from, reported
   return { source: { ok: true, capturedAt: index.updatedAt || null, months, identities: !!identities }, ...group(rows.sort((a, b) => b.at - a.at), TRADE_LIMIT) };
 }
 
-// ---- 5. price moves on direct holdings --------------------------------------------------------------
+// ---- 5. the session's quotes: price moves and the portfolio table ----------------------------------
 
 const pctOf = (last, prev) => (Number.isFinite(last) && Number.isFinite(prev) && prev > 0 ? ((last - prev) / prev) * 100 : null);
+const clip = (value, max) => { const text = String(value ?? '').replace(/\s+/g, ' ').trim(); return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text; };
 
 /**
- * The holdings that moved at least MOVE_PCT on the session this brief speaks about. The evening
- * brief reads the breakout capture's closing quotes (Yahoo, every 15 minutes, the last of them after
- * the close); the morning brief reads the completed daily bars the technicals scrape wrote — and
- * where the scrape has not yet caught up, the capture's closing quote stands in and says so. Either
- * way the row prints the session it measures and the time of the print.
+ * Every holding's quote for the session this brief speaks about. The evening brief reads the
+ * breakout capture's closing quotes (Yahoo, every 15 minutes, the last of them after the close); the
+ * morning brief reads the completed daily bars the technicals scrape wrote — and where the scrape
+ * has not yet caught up, the capture's closing quote stands in and says so. ONE read serves both the
+ * ±MOVE_PCT stories and the portfolio table, so the two can never disagree about a price.
  */
-export async function readMoves({ env, now = Date.now(), edition, window, lateFrom = window.from, reported = null, holdings }) {
+export async function readSessionQuotes({ env, now = Date.now(), edition, holdings }) {
   const byTicker = bookIndex(holdings);
-  const place = placementFor({ window, lateFrom, reported });
   const session = expectedSession(now);
-  const out = { state: 'unavailable', session, asOf: null, reason: null, groups: [], count: 0, more: 0 };
+  const out = { state: 'unavailable', session, asOf: null, reason: null, priceDate: null, rows: [] };
   if (!session) return { ...out, reason: 'no-session' };
 
   const fromCapture = async () => {
@@ -606,26 +632,35 @@ export async function readMoves({ env, now = Date.now(), edition, window, lateFr
       const ticker = upper(row?.ticker);
       const pct = Number(row?.pct_change_today);
       if (!byTicker.has(ticker) || (row.bar_date || session) !== session || !Number.isFinite(pct)) continue;
-      rows.push({ ticker, pct, last: Number.isFinite(row.cmp) ? row.cmp : null, prev: null, at: istInstant(session, '15:30'), provider: daily.source || 'Yahoo Finance', basis: 'daily', verified: row.move_check || null });
+      const last = Number.isFinite(row.cmp) ? row.cmp : null;
+      // The daily file carries the close and the day's move; the previous close is the one that move was struck on.
+      const prev = last != null && pct > -100 ? last / (1 + pct / 100) : null;
+      rows.push({ ticker, pct, last, prev, at: istInstant(session, '15:30'), provider: daily.source || 'Yahoo Finance', basis: 'daily', verified: row.move_check || null });
     }
     return { reason: null, rows, asOf: Date.parse(daily.generated_at || '') || null, priceDate: daily.price_date };
   };
 
   const order = edition === 'morning' ? [fromDaily, fromCapture] : [fromCapture, fromDaily];
-  let read = null;
   const reasons = [];
   for (const attempt of order) {
     const result = await attempt();
-    if (result.rows.length) { read = result; break; }
-    reasons.push(result.reason);
     if (result.priceDate) out.priceDate = result.priceDate;
+    if (result.rows.length) return { ...out, state: result.rows[0].basis, asOf: result.asOf || null, rows: result.rows };
+    reasons.push(result.reason);
   }
-  if (!read) return { ...out, reason: reasons.join('; ') || 'unavailable' };
+  return { ...out, reason: reasons.join('; ') || 'unavailable' };
+}
 
+/** The holdings that moved at least MOVE_PCT on the session, as stories, from the session's quotes. */
+export function readMoves({ quotes, window, lateFrom = window.from, reported = null, holdings }) {
+  const byTicker = bookIndex(holdings);
+  const place = placementFor({ window, lateFrom, reported });
+  const out = { state: quotes.state, session: quotes.session, asOf: quotes.asOf, reason: quotes.reason, priceDate: quotes.priceDate, groups: [], count: 0, more: 0 };
+  if (quotes.state === 'unavailable') return out;
   const rows = [];
-  for (const r of read.rows) {
+  for (const r of quotes.rows) {
     if (Math.abs(r.pct) < MOVE_PCT) continue;
-    const key = `move:${r.ticker}|${session}`;
+    const key = `move:${r.ticker}|${quotes.session}`;
     const where = place(r.at, [key]);
     if (!where) continue;
     rows.push({
@@ -634,7 +669,77 @@ export async function readMoves({ env, now = Date.now(), edition, window, lateFr
     });
   }
   rows.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct));
-  return { ...out, state: read.rows[0].basis, asOf: read.asOf || null, ...group(rows, MOVE_LIMIT) };
+  return { ...out, ...group(rows, MOVE_LIMIT) };
+}
+
+/**
+ * The listed equity quantity per symbol out of the family book: every position of asset class
+ * Equity with a symbol, each dedupe group counted ONCE (the same folio reported on two members'
+ * statements is one holding), summed across accounts. The statements' own dates travel with it.
+ */
+export function bookQuantities(book) {
+  const positions = Array.isArray(book?.positions) ? book.positions : null;
+  if (!positions) return { ok: false, byTicker: new Map(), from: null, to: null };
+  const byTicker = new Map();
+  const groups = new Set();
+  let from = null;
+  let to = null;
+  for (const p of positions) {
+    if (p?.assetClass !== 'Equity' || !p.symbol || !Number.isFinite(p.quantity)) continue;
+    if (p.dedupeGroup) { if (groups.has(p.dedupeGroup)) continue; groups.add(p.dedupeGroup); }
+    const ticker = upper(p.symbol);
+    const held = byTicker.get(ticker) || { quantity: 0, accounts: 0 };
+    held.quantity += p.quantity;
+    held.accounts += 1;
+    byTicker.set(ticker, held);
+    const day = String(p.accountAsOf || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(day)) { from = from == null || day < from ? day : from; to = to == null || day > to ? day : to; }
+  }
+  return { ok: true, byTicker, from, to };
+}
+
+/**
+ * The whole portfolio on the session: every listed holding with a quote, sorted by the day's move,
+ * and — where the family book carries a statement quantity for it — the rupee change of that
+ * quantity over the session. Three figures are refused: a holding with no quote is COUNTED, never
+ * shown flat; a holding with no statement quantity is priced at nothing, never at a guess; and the
+ * rupee change is labelled derived (quantity × close change) on every surface, because the
+ * statements print a mark on their own dates and this is not one of them.
+ */
+export async function readPerformance({ env, quotes, holdings }) {
+  const byTicker = bookIndex(holdings);
+  const out = { state: quotes.state, session: quotes.session, asOf: quotes.asOf, reason: quotes.reason, priceDate: quotes.priceDate, listed: holdings.length, quoted: 0, unquoted: holdings.length, rows: [], book: null, summary: null };
+  if (quotes.state === 'unavailable' || !quotes.rows.length) return out;
+  const book = bookQuantities(await readAsset(env, FAMILY_BOOK_PATH));
+  const rows = [];
+  for (const q of quotes.rows) {
+    const line = byTicker.get(q.ticker);
+    if (!line || !Number.isFinite(q.pct)) continue;
+    const held = book.byTicker.get(q.ticker) || null;
+    const priced = held && Number.isFinite(q.last) && Number.isFinite(q.prev);
+    rows.push({
+      ticker: q.ticker, company: line.name, last: Number.isFinite(q.last) ? q.last : null, prev: Number.isFinite(q.prev) ? q.prev : null, pct: q.pct,
+      quantity: held?.quantity ?? null, prevValue: priced ? held.quantity * q.prev : null, change: priced ? held.quantity * (q.last - q.prev) : null,
+      at: q.at, basis: q.basis, verified: q.verified || null,
+    });
+  }
+  rows.sort((a, b) => b.pct - a.pct || a.company.localeCompare(b.company));
+  const pcts = rows.map((r) => r.pct).sort((a, b) => a - b);
+  const median = !pcts.length ? null : pcts.length % 2 ? pcts[(pcts.length - 1) / 2] : (pcts[pcts.length / 2 - 1] + pcts[pcts.length / 2]) / 2;
+  const priced = rows.filter((r) => r.change != null);
+  const prevValue = priced.reduce((sum, r) => sum + r.prevValue, 0);
+  const change = priced.reduce((sum, r) => sum + r.change, 0);
+  return {
+    ...out, rows, quoted: rows.length, unquoted: holdings.length - rows.length,
+    book: book.ok
+      ? { ok: true, statementFrom: book.from, statementTo: book.to, priced: priced.length, unpriced: rows.length - priced.length }
+      : { ok: false, reason: 'book-unavailable', priced: 0, unpriced: rows.length },
+    summary: {
+      up: rows.filter((r) => r.pct > 0).length, down: rows.filter((r) => r.pct < 0).length, flat: rows.filter((r) => r.pct === 0).length,
+      median, best: rows[0] || null, worst: rows[rows.length - 1] || null,
+      change: priced.length ? change : null, prevValue: priced.length ? prevValue : null, changePct: priced.length && prevValue > 0 ? (change / prevValue) * 100 : null,
+    },
+  };
 }
 
 // ---- 6. the week ahead on the calendar -------------------------------------------------------------
@@ -800,7 +905,9 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
   const announcements = await readAnnouncements({ ...common, fetcher, now });
   const news = await readNews(common);
   const trades = await readTrades(common);
-  const moves = await readMoves({ ...common, now, edition });
+  const quotes = await readSessionQuotes({ env, now, edition, holdings });
+  const moves = readMoves({ ...common, quotes });
+  const performance = await readPerformance({ env, quotes, holdings });
   const calendar = await readCalendar({ env, day, holdings, fetcher, now, screener });
   // The corporate-actions capture is the largest file the brief reads, so it goes last, with
   // nothing else large still held.
@@ -811,11 +918,13 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
     window: { from: window.from, to: window.to },
     lateFrom: lateFrom < window.from ? lateFrom : null,
     book: { asOf: book.asOf || null, lines: book.count ?? book.holdings.length, listed: holdings.length },
-    markets: await markets, announcements, news, trades, moves, calendar, actions,
+    markets: await markets, announcements, news, trades, moves, performance, calendar, actions,
   };
   // What a send of this brief would put in the ledger: every item it carries, by every identity it
   // was seen under.
   brief.reported = briefStories(brief).flatMap((s) => (s.keys || []).map((key) => ({ key, publishedAt: s.at })));
+  // The AI notes are written last, from the updates the page will show, in one bounded request.
+  brief.ai = await readAiNotes({ env, fetcher, now, companies: briefStats(brief).companies, sectors: new Map(holdings.map((h) => [upper(h.ticker), h.sector && !/^unclassified$/i.test(h.sector) ? h.sector : null])) });
   return brief;
 }
 
@@ -899,7 +1008,7 @@ export function briefStories(brief) {
   });
   for (const g of brief.announcements.groups) {
     for (const item of g.items) rows.push({
-      ...base('filing', g, item), headline: item.headline,
+      ...base('filing', g, item), headline: item.headline, type: item.type || null,
       dek: [item.exchanges.join(' and '), item.subject].filter(Boolean).join(' filing · ') || null,
       url: item.url, source: item.exchanges.join(' · '),
       direction: item.direction || 'neutral', importance: item.importance || 'low',
@@ -939,11 +1048,73 @@ export function briefStories(brief) {
   return stories.sort((a, b) => b.score - a.score || b.at - a.at);
 }
 
+// ---- one update, not four copies of it ---------------------------------------------------------------
+//
+// A filing lodged with both exchanges, filed twice on one of them and reported by three publishers is
+// ONE update to the desk, and the 17 September evening brief printed Puravankara's ₹2,600 crore
+// redevelopment win as two identical items with four more due the next morning. `clusterStories`
+// folds a company's items into updates: exchange copies of one filing (same company, same filing
+// type, lodged within the hour), and stories that share the words and figures of the filing or of
+// each other. The strongest item leads — the exchange's own statement before a publisher's account
+// of it — and the rest travel as related links under it. A trade and a price move stay their own
+// update: each is a measurement with its own stated reading, never a copy of a headline.
+
+const STOP_WORDS = new Set(('the and for with from that this have been will into over about after their they than then also more most said says '
+  + 'informed exchange regarding limited company ltd dated titled announcement intimation disclosure regulation regulations sebi listing obligations '
+  + 'requirements schedule under press release update updates general board meeting outcome copy copies pursuant enclosed please find attached herewith '
+  + 'crore crores lakh lakhs rupees rs per cent percent share shares stock stocks today yesterday india indian read news').split(' '));
+export const FILING_COPY_WINDOW_MS = 60 * 60 * 1000;
+
+/** The words that identify a story: content words of four letters or more and figures of three digits or more, minus the company's own name. */
+export function storyTokens(text, company = '') {
+  const own = new Set(String(company || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  const out = new Set();
+  for (const raw of String(text || '').toLowerCase().replace(/(\d),(?=\d)/g, '$1').split(/[^a-z0-9]+/)) {
+    if (!raw || own.has(raw) || STOP_WORDS.has(raw)) continue;
+    if (/^\d+$/.test(raw)) { if (raw.length >= 3 && !/^(?:19|20)\d\d$/.test(raw)) out.add(raw); continue; }
+    if (raw.length >= 4) out.add(raw);
+  }
+  return out;
+}
+
+/** Two headlines are one story when a fifth of their words coincide, or when they share a figure and two words. */
+export function sameStory(a, b) {
+  let shared = 0;
+  let figure = false;
+  for (const t of a) if (b.has(t)) { shared += 1; if (/^\d+$/.test(t)) figure = true; }
+  if (!shared) return false;
+  return shared / (a.size + b.size - shared) >= 0.2 || (figure && shared >= 2);
+}
+
+/** A company's stories folded into updates, strongest first: `main` leads, `others` are its copies and accounts. */
+export function clusterStories(stories, { company = '' } = {}) {
+  const clusters = [];
+  for (const s of [...stories].sort((a, b) => a.at - b.at)) {
+    const tokens = storyTokens(s.headline, company);
+    let home = null;
+    if (s.kind === 'filing' || s.kind === 'news') {
+      for (const c of clusters) {
+        if (c.kind !== 'story') continue;
+        const copy = s.kind === 'filing' && c.items.some((i) => i.kind === 'filing' && Math.abs(i.at - s.at) <= FILING_COPY_WINDOW_MS && (i.type === s.type || i.type === 'other' || s.type === 'other'));
+        if (copy || sameStory(tokens, c.tokens)) { home = c; break; }
+      }
+    }
+    if (home) { home.items.push(s); for (const t of tokens) home.tokens.add(t); continue; }
+    clusters.push({ kind: s.kind === 'filing' || s.kind === 'news' ? 'story' : s.kind, items: [s], tokens: new Set(tokens) });
+  }
+  return clusters.map((c) => {
+    const main = [...c.items].sort((a, b) => b.score - a.score || Number(b.kind === 'filing') - Number(a.kind === 'filing') || a.at - b.at)[0];
+    const others = c.items.filter((i) => i !== main).sort((a, b) => a.at - b.at);
+    return { kind: c.kind, main, others, items: c.items.length, score: main.score, latest: Math.max(...c.items.map((i) => i.at)) };
+  }).sort((a, b) => b.score - a.score || b.latest - a.latest);
+}
+
 /**
- * The stories filed under their companies. A company's rank is its strongest story (tracked
- * keyword, then a directional mood, then importance), then how much it had, then how recently —
- * so a downgrade or an order win leads the sheet, and a day of routine intimations reads newest
- * first. Within a company the same order holds. Nothing new is read: the score is `briefStories`'.
+ * The stories filed under their companies, folded into updates. A company's rank is its strongest
+ * story (tracked keyword, then a directional mood, then importance), then how much it had, then how
+ * recently — so a downgrade or an order win leads the sheet, and a day of routine intimations reads
+ * newest first. Nothing new is read: the score is `briefStories`', and an update's id is its place
+ * under its company, so the notes written for a brief find their updates on every render of it.
  */
 export function briefCompanies(stories) {
   const byTicker = new Map();
@@ -956,12 +1127,13 @@ export function briefCompanies(stories) {
   }
   const companies = [...byTicker.values()].map((c) => {
     c.stories.sort((a, b) => b.score - a.score || b.at - a.at);
+    const clusters = clusterStories(c.stories, { company: c.company }).map((k, i) => ({ ...k, id: `${c.ticker}#${i + 1}` }));
     return {
-      ...c,
+      ...c, clusters,
       score: c.stories[0].score,
       latest: Math.max(...c.stories.map((s) => s.at)),
-      good: c.stories.filter((s) => s.mood.id === 'good').length,
-      watch: c.stories.filter((s) => s.mood.id === 'watch').length,
+      good: clusters.filter((k) => k.main.mood.id === 'good').length,
+      watch: clusters.filter((k) => k.main.mood.id === 'watch').length,
     };
   });
   return companies.sort((a, b) => b.score - a.score || b.stories.length - a.stories.length || b.latest - a.latest || a.company.localeCompare(b.company));
@@ -969,13 +1141,101 @@ export function briefCompanies(stories) {
 
 export function briefStats(brief) {
   const stories = briefStories(brief);
+  const companies = briefCompanies(stories);
+  const leads = companies.flatMap((c) => c.clusters.map((k) => k.main));
   return {
     stories: stories.length,
-    good: stories.filter((s) => s.mood.id === 'good').length,
-    watch: stories.filter((s) => s.mood.id === 'watch').length,
+    updates: leads.length,
+    good: leads.filter((s) => s.mood.id === 'good').length,
+    watch: leads.filter((s) => s.mood.id === 'watch').length,
     late: stories.filter((s) => s.late).length,
-    companies: briefCompanies(stories),
+    companies,
   };
+}
+
+// ---- 8. the AI notes -------------------------------------------------------------------------------
+//
+// Two lines under each update, written by the model from the text the page already shows: what was
+// announced, and what it could change. They are the ONE reading on this sheet that is not a stated
+// rule, so they are marked AI on their face, written only from the headlines and summaries given
+// (never from a document, which nobody opens), hedged as possibilities, and absent — with the
+// reason on the sources line — rather than guessed when the model cannot be asked.
+
+export const AI_INSTRUCTIONS = 'You write two short notes for each item in a family office\'s own portfolio email. Each item is one corporate announcement or news development about a company the family holds, given as the exchange\'s or publishers\' own headlines and any summary text. Write only from that text: never add a figure, a date, a name or a claim that is not in it. If the text is only a title, say what kind of announcement it is and that the details are in the filing.\n'
+  + 'SUMMARY: one or two sentences, at most 240 characters, plain English, stating what was announced or reported.\n'
+  + 'IMPACT: one or two sentences, at most 240 characters, on the potential impact on the business — what it could change (revenue, order book, margins, cash or debt, capacity, governance, valuation) and how material it looks only where the text supports that. Use "could" or "may", never "will". For a routine or administrative item say it looks routine, with no business impact expected. Never predict the share price, never recommend buying, selling or holding, and never present a possibility as a fact.\n'
+  + 'Return ONLY a JSON array: [{"id": "...", "summary": "...", "impact": "..."}], one entry per item, ids copied exactly as given, no markdown fences, no commentary.';
+
+/** The updates a model is asked about: the leading item's own text plus the headlines of its copies. */
+export function aiItemsFor(companies, sectors = new Map()) {
+  const items = [];
+  for (const c of companies) {
+    for (const k of c.clusters) {
+      if (k.kind !== 'story' || items.length >= AI_ITEM_LIMIT) continue;
+      const s = k.main;
+      items.push({
+        id: k.id, company: c.company, ticker: c.ticker, sector: sectors.get(c.ticker) || null,
+        kind: s.kind === 'filing' ? 'exchange filing' : 'published story', type: s.kind === 'filing' ? s.type || null : null,
+        headline: clip(s.headline, 300), detail: clip(s.dek, 500) || null, topic: s.topic.label, mood: s.mood.label,
+        related: k.others.slice(0, 6).map((r) => ({ source: r.source, headline: clip(r.headline, 200) })),
+      });
+    }
+  }
+  return items;
+}
+
+export function aiRequest(items, model) {
+  return {
+    model, max_tokens: AI_MAX_TOKENS,
+    thinking: { type: 'disabled' },
+    system: [{ type: 'text', text: AI_INSTRUCTIONS }],
+    messages: [{ role: 'user', content: JSON.stringify({ ITEMS: items, OUTPUT_CONTRACT: 'Return only the JSON array described, one entry per item.' }) }],
+  };
+}
+
+/** The model's reply as notes keyed by update id: only ids that were asked about, both lines present, each clipped. */
+export function parseAiNotes(text, ids) {
+  const raw = String(text || '');
+  const start = raw.indexOf('[');
+  const end = raw.lastIndexOf(']');
+  if (start < 0 || end <= start) return null;
+  let list;
+  try { list = JSON.parse(raw.slice(start, end + 1)); } catch { return null; }
+  if (!Array.isArray(list)) return null;
+  const out = {};
+  for (const entry of list) {
+    const id = typeof entry?.id === 'string' ? entry.id : null;
+    if (!id || !ids.has(id) || out[id]) continue;
+    const summary = clip(entry.summary, AI_NOTE_MAX);
+    const impact = clip(entry.impact, AI_NOTE_MAX);
+    if (!summary || !impact) continue;
+    out[id] = { summary, impact };
+  }
+  return out;
+}
+
+export async function readAiNotes({ env, fetcher = fetch, now = Date.now(), companies, sectors = new Map() }) {
+  const items = aiItemsFor(companies, sectors);
+  const base = { readAt: now, requested: items.length, answered: 0, items: {}, model: null };
+  if (!items.length) return { ...base, ok: true, reason: 'nothing-to-note' };
+  if (!bedrockConfigured(env)) return { ...base, ok: false, reason: 'no-key' };
+  const config = bedrockConfig(env);
+  try {
+    const res = await fetcher(config.url, {
+      method: 'POST', redirect: 'manual',
+      headers: { 'x-api-key': claudeCredential(env), 'anthropic-version': '2023-06-01', accept: 'application/json', 'content-type': 'application/json' },
+      body: JSON.stringify(aiRequest(items, config.model)),
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+    });
+    if (!res.ok) return { ...base, model: config.model, ok: false, reason: res.status === 401 || res.status === 403 ? 'refused' : res.status === 429 ? 'rate-limited' : 'upstream', status: res.status };
+    const body = await res.json();
+    const text = (Array.isArray(body?.content) ? body.content : []).filter((b) => b?.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n');
+    const notes = parseAiNotes(text, new Set(items.map((i) => i.id)));
+    if (!notes) return { ...base, model: config.model, ok: false, reason: 'unreadable' };
+    return { ...base, model: config.model, ok: true, answered: Object.keys(notes).length, items: notes };
+  } catch (error) {
+    return { ...base, model: config.model, ok: false, reason: reasonOf(error) };
+  }
 }
 
 /** The figures the panel keeps for a delivery — counts, never rows. */
@@ -990,7 +1250,9 @@ export function briefSummary(brief) {
     trades: brief.trades?.count ?? 0,
     moves: brief.moves?.count ?? 0,
     routineHidden: brief.announcements.routineHidden || 0,
-    stories: stats.stories, companies: stats.companies.length, good: stats.good, watch: stats.watch, late: stats.late,
+    stories: stats.stories, updates: stats.updates, companies: stats.companies.length, good: stats.good, watch: stats.watch, late: stats.late,
+    ai: brief.ai?.ok ?? false, aiReason: brief.ai?.reason || null, aiAnswered: brief.ai?.answered ?? 0,
+    performance: brief.performance?.state || 'unavailable', quoted: brief.performance?.quoted ?? 0,
     nse: brief.announcements.nse.ok, nseHistory: brief.announcements.nseHistory?.ok ?? false, bse: brief.announcements.bse.ok,
     publishers: brief.news.source.ok, tradingview: brief.news.tradingview?.ok ?? false,
     tradesSource: brief.trades?.source?.ok ?? false, prices: brief.moves?.state || 'unavailable',
@@ -1069,7 +1331,7 @@ const clockLabel = (time) => { const [h, m] = String(time).split(':').map(Number
 
 /** "Glow Ventures · 12 updates on your portfolio companies — 17 Sep" */
 export function briefSubject(brief, { brand = BRAND } = {}) {
-  const n = briefStats(brief).stories;
+  const n = briefStats(brief).updates;
   return `${brand} · ${n} update${n === 1 ? '' : 's'} on your ${EDITION_NAME.toLowerCase()} — ${shortDate(brief.at)}`;
 }
 
@@ -1096,6 +1358,74 @@ const link = (url, inner, style) => (url ? `<a href="${esc(url)}" ${NEW_TAB} sty
 const companyUrl = (dashboardUrl, ticker) => (/^[A-Z0-9&_.-]{1,20}$/.test(ticker || '')
   ? `${dashboardUrl}/#/research/daily-alerts?scope=portfolio&company=${encodeURIComponent(ticker)}` : null);
 
+/** One quote row: label, last, change, day %, and the time the print carries. */
+const marketRowHtml = (r) => {
+  const last = formatLast(r);
+  const pct = formatPct(r);
+  const tone = r.changePct == null ? META : toneOf(r.changePct);
+  return `<tr>
+        <td style="padding:5px 6px 5px 0;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;color:${INK};">${esc(r.label)}${r.unit ? ` <span style="color:${META};font-size:10px;">${esc(r.unit)}</span>` : ''}</td>
+        <td align="right" style="padding:5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;color:${INK};${NUM}">${last == null ? `<span style="color:${META};">—</span>` : esc(last)}</td>
+        <td align="right" style="padding:5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:11px;color:${META};${NUM}">${r.change == null ? '' : esc(formatChange(r))}</td>
+        <td align="right" style="padding:5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;font-weight:bold;color:${tone};${NUM}">${pct == null ? `<span style="color:${META};font-weight:normal;">—</span>` : esc(pct)}</td>
+        <td align="right" style="padding:5px 0 5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:10px;color:${META};white-space:nowrap;">${esc(asOfLabel(r))}</td>
+      </tr>`;
+};
+
+/** The Indian indices on their own, above the global scan: the desk's home market before the world's. */
+function indiaSection(brief) {
+  const m = brief.markets;
+  const members = m.rows.filter((r) => r.group === 'india');
+  if (!members.length) return '';
+  const unavailable = members.filter((r) => r.state === 'unavailable').length;
+  const note = [groupNote(brief, 'india'), `quotes ${istTime(m.readAt)} IST`, unavailable ? `${unavailable} unavailable` : null].filter(Boolean).join(' · ');
+  return `<tr><td style="padding:26px 34px 0;">
+    ${sectionRule('Indian markets', note)}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${members.map(marketRowHtml).join('')}</table>
+  </td></tr>`;
+}
+
+/** "+₹1.24 Cr", "−₹12.40 L", "+₹8,250": a rupee change in the units the desk reads. */
+export const fmtInrCompact = (v) => {
+  const a = Math.abs(v);
+  const sign = v < 0 ? '−' : v > 0 ? '+' : '';
+  if (a >= 1e7) return `${sign}₹${fmtNumber(a / 1e7, 2)} Cr`;
+  if (a >= 1e5) return `${sign}₹${fmtNumber(a / 1e5, 2)} L`;
+  return `${sign}₹${a.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+};
+
+/** Every quoted holding on the session, best to worst, with the day's rupee change where the book prices it. */
+function performanceSection(brief) {
+  const p = brief.performance;
+  if (!p) return '';
+  const title = brief.edition === 'evening' ? 'Portfolio today' : 'Portfolio · previous session';
+  const parts = [];
+  if (p.state === 'unavailable' || !p.rows.length) {
+    parts.push(sectionRule(title, 'prices unavailable'));
+    parts.push(quietLine(`Prices for this session could not be read (${p.reason || 'unavailable'}${p.priceDate ? `; daily bars end ${p.priceDate}` : ''}), so the day's performance is not known — not flat.`));
+    return `<tr><td style="padding:26px 34px 0;">${parts.join('\n')}</td></tr>`;
+  }
+  const s = p.summary;
+  parts.push(sectionRule(title, `${p.session} · ${p.state === 'capture' ? 'closing quotes' : 'completed daily bars'}`));
+  parts.push(`<div style="padding:10px 0 2px;font-family:${SANS};font-size:12px;line-height:1.7;color:${BODY};">
+    <strong style="color:${INK};">${p.quoted} of ${p.listed}</strong> listed holdings quoted &nbsp;·&nbsp; <span style="color:${MOODS.good.color};">${s.up} up</span> · <span style="color:${MOODS.watch.color};">${s.down} down</span> · ${s.flat} flat &nbsp;·&nbsp; median ${esc(signed(s.median, 2, '%'))}${s.best ? ` &nbsp;·&nbsp; best ${esc(s.best.company)} <span style="color:${toneOf(s.best.pct)};font-weight:bold;">${esc(signed(s.best.pct, 1, '%'))}</span>` : ''}${s.worst && s.worst !== s.best ? ` &nbsp;·&nbsp; worst ${esc(s.worst.company)} <span style="color:${toneOf(s.worst.pct)};font-weight:bold;">${esc(signed(s.worst.pct, 1, '%'))}</span>` : ''}
+  </div>`);
+  const priced = p.book?.ok && s.change != null;
+  parts.push(`<div style="padding:4px 0 6px;font-family:${SANS};font-size:12px;line-height:1.6;color:${BODY};">${priced
+    ? `Day change on the book's statement quantities: <strong style="color:${toneOf(s.change)};">${esc(fmtInrCompact(s.change))} (${esc(signed(s.changePct, 2, '%'))})</strong> across ${p.book.priced} holding${p.book.priced === 1 ? '' : 's'} priced — derived: each account's statement quantity (statements dated ${esc(p.book.statementFrom || 'unknown')} to ${esc(p.book.statementTo || 'unknown')}) times the session's close change, not a statement figure.${p.book.unpriced ? ` ${p.book.unpriced} quoted holding${p.book.unpriced === 1 ? ' carries' : 's carry'} no statement quantity and ${p.book.unpriced === 1 ? 'is' : 'are'} not in it.` : ''}`
+    : p.book?.ok ? 'No quoted holding carries a statement quantity in the family book, so no rupee day change is derived.' : 'The family book could not be read, so no rupee day change is derived.'}</div>`);
+  // Every quoted holding is a row, so the row's markup is kept to the minimum a mail client renders:
+  // one short style per cell, the sans face set once on the table.
+  const cell = `padding:4px 6px;border-bottom:1px solid ${RULE};`;
+  const th = `${cell}color:${META};font-weight:normal;letter-spacing:1px;text-transform:uppercase;font-size:10px;`;
+  const head = `<tr><th align="left" style="${th}padding-left:0;">Holding</th><th align="right" style="${th}">Close ₹</th><th align="right" style="${th}">Day</th>${priced ? `<th align="right" style="${th}padding-right:0;">Day change (derived)</th>` : ''}</tr>`;
+  const num = `${cell}white-space:nowrap;`;
+  const rows = p.rows.map((r) => `<tr><td style="${cell}padding-left:0;">${esc(r.company)} <span style="color:${META};font-size:10px;">${esc(r.ticker)}</span></td><td align="right" style="${num}">${r.last == null ? '—' : esc(fmtNumber(r.last, 2))}</td><td align="right" style="${num}color:${toneOf(r.pct)};font-weight:bold;">${esc(signed(r.pct, 2, '%'))}</td>${priced ? `<td align="right" style="${num}padding-right:0;color:${r.change == null ? META : toneOf(r.change)};">${r.change == null ? 'no quantity' : esc(fmtInrCompact(r.change))}</td>` : ''}</tr>`);
+  parts.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:${SANS};font-size:11px;color:${INK};">${head}${rows.join('')}</table>`);
+  if (p.unquoted) parts.push(quietLine(`${p.unquoted} listed holding${p.unquoted === 1 ? ' had' : 's had'} no quote for this session and ${p.unquoted === 1 ? 'is' : 'are'} not listed — not flat.`));
+  return `<tr><td style="padding:26px 34px 0;">${parts.join('\n')}</td></tr>`;
+}
+
 function marketSection(brief) {
   const m = brief.markets;
   const note = [
@@ -1106,22 +1436,13 @@ function marketSection(brief) {
   const glance = glanceLine(brief);
   const rows = [];
   for (const g of MARKET_GROUPS) {
+    // India has its own table above; the scan is the rest of the world.
+    if (g.id === 'india') continue;
     const members = m.rows.filter((r) => r.group === g.id);
     if (!members.length) continue;
     const gnote = groupNote(brief, g.id);
     rows.push(`<tr><td colspan="5" style="padding:10px 0 3px;font-family:${SANS};font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${META};">${esc(g.label)}${gnote ? ` <span style="letter-spacing:0;text-transform:none;">· ${esc(gnote)}</span>` : ''}</td></tr>`);
-    for (const r of members) {
-      const last = formatLast(r);
-      const pct = formatPct(r);
-      const tone = r.changePct == null ? META : toneOf(r.changePct);
-      rows.push(`<tr>
-        <td style="padding:5px 6px 5px 0;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;color:${INK};">${esc(r.label)}${r.unit ? ` <span style="color:${META};font-size:10px;">${esc(r.unit)}</span>` : ''}</td>
-        <td align="right" style="padding:5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;color:${INK};${NUM}">${last == null ? `<span style="color:${META};">—</span>` : esc(last)}</td>
-        <td align="right" style="padding:5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:11px;color:${META};${NUM}">${r.change == null ? '' : esc(formatChange(r))}</td>
-        <td align="right" style="padding:5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;font-weight:bold;color:${tone};${NUM}">${pct == null ? `<span style="color:${META};font-weight:normal;">—</span>` : esc(pct)}</td>
-        <td align="right" style="padding:5px 0 5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:10px;color:${META};white-space:nowrap;">${esc(asOfLabel(r))}</td>
-      </tr>`);
-    }
+    for (const r of members) rows.push(marketRowHtml(r));
   }
   return `<tr><td style="padding:30px 34px 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
@@ -1138,18 +1459,28 @@ const topicTag = (topic) => caps(esc(topic.label), `color:${topic.color};font-we
 /** "17 Sept, 19:09 IST", or "17 Sept, day only" for a disclosure that carries a broadcast day and no clock. */
 const storyWhen = (s) => `${storyDate(s.at)}, ${s.dayOnly ? 'day only' : `${istTime(s.at)} IST`}`;
 
-/** One story under its company: the exchange's or publisher's own headline, then where and when. */
-const companyStory = (s, isFirst) => `<tr><td style="padding:${isFirst ? '10px' : '12px'} 0 11px;${isFirst ? '' : `border-top:1px solid ${RULE};`}">
-  <div style="font-family:${SERIF};font-size:15px;line-height:1.4;font-weight:bold;color:${INK};">${link(s.url, esc(s.headline), `color:${INK};`)}</div>
-  ${s.dek ? `<div style="margin-top:4px;font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY2};">${esc(s.dek)}</div>` : ''}
-  <div style="margin-top:6px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${topicTag(s.topic)} &nbsp;·&nbsp; ${dot(s.mood.color)} ${esc(s.mood.label)} · ${esc(s.source)} · ${esc(storyWhen(s))}${s.late ? ` · <span style="color:${GOLD};font-weight:bold;">not in the previous brief</span>` : ''}${s.related ? ' · related entity' : ''}${s.url ? ` · <a href="${esc(s.url)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">Read →</a>` : ''}</div>
-</td></tr>`;
+/** The copies and accounts of one update, as small links under it: where, when, and the headline where it differs. */
+const relatedLine = (k) => (k.others.length ? `<div style="margin-top:5px;font-family:${SANS};font-size:11px;line-height:1.7;color:${META};">Related: ${k.others.map((r) => link(r.url, `${esc(r.source)} · ${esc(storyWhen(r))}${norm(r.headline) !== norm(k.main.headline) ? ` · ${esc(clip(r.headline, 72))}` : ''}${r.late ? ' · not in the previous brief' : ''}`, `color:${META};border-bottom:1px dotted ${RULE};`)).join('<br>')}</div>` : '');
 
-/** A portfolio company and everything filed, published, traded or moved about it in the window. */
-function companyBlock(c, dashboardUrl) {
-  const n = c.stories.length;
+/** The model's two lines, marked as its own on their face. */
+const aiNoteHtml = (note) => `<div style="margin-top:7px;padding:7px 10px;background:${CREAM};border-left:3px solid ${GOLD_LIGHT};font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY};">${caps('AI summary', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.summary)}<br>${caps('Potential impact', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.impact)}</div>`;
+
+/** One update under its company: the leading item's own headline, the AI notes where written, where and when, then its copies. */
+const companyUpdate = (k, note, isFirst) => {
+  const s = k.main;
+  return `<tr><td style="padding:${isFirst ? '10px' : '12px'} 0 11px;${isFirst ? '' : `border-top:1px solid ${RULE};`}">
+  <div style="font-family:${SERIF};font-size:15px;line-height:1.4;font-weight:bold;color:${INK};">${link(s.url, esc(s.headline), `color:${INK};`)}</div>
+  ${note ? aiNoteHtml(note) : s.dek ? `<div style="margin-top:4px;font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY2};">${esc(s.dek)}</div>` : ''}
+  <div style="margin-top:6px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${topicTag(s.topic)} &nbsp;·&nbsp; ${dot(s.mood.color)} ${esc(s.mood.label)} · ${esc(s.source)} · ${esc(storyWhen(s))}${s.late ? ` · <span style="color:${GOLD};font-weight:bold;">not in the previous brief</span>` : ''}${s.related ? ' · related entity' : ''}${s.url ? ` · <a href="${esc(s.url)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">Read →</a>` : ''}</div>
+  ${relatedLine(k)}
+</td></tr>`;
+};
+
+/** A portfolio company and everything filed, published, traded or moved about it in the window, folded into updates. */
+function companyBlock(c, dashboardUrl, ai = null) {
+  const n = c.clusters.length;
   const counts = [
-    `${n} update${n === 1 ? '' : 's'}`,
+    `${n} update${n === 1 ? '' : 's'}${c.stories.length > n ? ` from ${c.stories.length} items` : ''}`,
     c.good ? `<span style="color:${MOODS.good.color};">${c.good} good</span>` : null,
     c.watch ? `<span style="color:${MOODS.watch.color};">${c.watch} watch-out${c.watch === 1 ? '' : 's'}</span>` : null,
   ].filter(Boolean).join(' · ');
@@ -1162,7 +1493,7 @@ function companyBlock(c, dashboardUrl) {
       </td>
       <td valign="bottom" align="right" style="padding:0 0 8px;border-bottom:2px solid ${INK};font-family:${SANS};font-size:11px;white-space:nowrap;">${href ? `<a href="${esc(href)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">On the dashboard →</a>` : ''}</td>
     </tr></table>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${c.stories.map((s, i) => companyStory(s, i === 0)).join('')}</table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${c.clusters.map((k, i) => companyUpdate(k, ai?.items?.[k.id] || null, i === 0)).join('')}</table>
   </td></tr>`;
 }
 
@@ -1196,6 +1527,10 @@ export function sourcesNote(brief) {
   }
   const x = brief.actions;
   if (x) bits.push(x.source.ok ? `corporate actions captured ${capturedLabel(x.source.capturedAt)}` : 'corporate actions capture unavailable');
+  const p = brief.performance;
+  if (p?.book) bits.push(p.book.ok ? `statement quantities from the family book (statements dated ${p.book.statementFrom || 'unknown'} to ${p.book.statementTo || 'unknown'})` : 'family book unavailable, so no rupee day change');
+  const ai = brief.ai;
+  if (ai) bits.push(ai.ok ? (ai.requested ? `AI notes by ${ai.model} on ${ai.answered} of ${ai.requested} updates, written ${istLabel(ai.readAt)}` : 'no update for the AI notes') : `AI notes unavailable (${ai.reason || 'unavailable'})`);
   const late = brief.lateFrom != null ? ` Items published since ${istLabel(brief.lateFrom)} that no earlier brief carried are included and marked.` : '';
   return `Window ${windowLine(brief)} · ${bits.join(' · ')}.${late}`;
 }
@@ -1289,7 +1624,7 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
 
   const reported = stats.companies.length;
   parts.push(`<tr><td style="padding:14px 34px 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${BODY};">
-    <strong style="color:${INK};">${stats.stories} ${stats.stories === 1 ? 'update' : 'updates'}</strong> across <strong style="color:${INK};">${reported} of ${brief.book.listed}</strong> portfolio compan${brief.book.listed === 1 ? 'y' : 'ies'} &nbsp;·&nbsp; ${dot(MOODS.good.color, 9)} ${stats.good} good &nbsp;·&nbsp; ${dot(MOODS.watch.color, 9)} ${stats.watch} watch-out${stats.watch === 1 ? '' : 's'}${stats.late ? ` &nbsp;·&nbsp; <span style="color:${GOLD};">${stats.late} not in the previous brief</span>` : ''}
+    <strong style="color:${INK};">${stats.updates} ${stats.updates === 1 ? 'update' : 'updates'}</strong> across <strong style="color:${INK};">${reported} of ${brief.book.listed}</strong> portfolio compan${brief.book.listed === 1 ? 'y' : 'ies'} &nbsp;·&nbsp; ${dot(MOODS.good.color, 9)} ${stats.good} good &nbsp;·&nbsp; ${dot(MOODS.watch.color, 9)} ${stats.watch} watch-out${stats.watch === 1 ? '' : 's'}${stats.late ? ` &nbsp;·&nbsp; <span style="color:${GOLD};">${stats.late} not in the previous brief</span>` : ''}
   </td></tr>`);
 
   parts.push(`<tr><td style="padding:24px 34px 0;">
@@ -1307,7 +1642,7 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
     </td></tr>`);
   } else {
     parts.push(`<tr><td style="padding:0 34px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${stats.companies.map((c) => companyBlock(c, dashboardUrl)).join('')}</table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${stats.companies.map((c) => companyBlock(c, dashboardUrl, brief.ai)).join('')}</table>
     </td></tr>`);
     const more = brief.announcements.more + brief.news.more + (brief.trades?.more || 0) + (brief.moves?.more || 0);
     if (more > 0) parts.push(`<tr><td style="padding:14px 34px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${more} more in this window on the <a href="${esc(`${dashboardUrl}/#/research/daily-alerts?scope=portfolio`)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">dashboard →</a>; whatever is not shown here reaches the next brief.</td></tr>`);
@@ -1318,13 +1653,16 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
 
   parts.push(calendarSection(brief, dashboardUrl));
   parts.push(actionsSection(brief));
+  // The desk's own numbers before the world's: the portfolio on the session, the Indian indices, then the global scan.
+  parts.push(performanceSection(brief));
+  parts.push(indiaSection(brief));
   parts.push(marketSection(brief));
   parts.push(`<tr><td style="padding:22px 34px 0;font-family:${SANS};font-size:10px;line-height:1.6;color:${META};">${esc(sourcesNote(brief))}</td></tr>`);
 
   const subscribedLine = recipient?.test
     ? 'This is a test copy you asked for.'
     : `You're subscribed to the ${esc(brand)} brief on your ${esc(EDITION_NAME.toLowerCase())}, every weekday at ${esc(clockLabel(sendTime))}.${recipient?.addedBy ? ` Added by ${esc(recipient.addedBy)}.` : ''}`;
-  const disclaimer = 'Filings, headlines and disclosures as the exchanges, publishers and reporting sources wrote them — nothing summarised. Mood follows this dashboard’s stated rules: a filing’s subject, a trade’s own transaction word, the sign of a price move; published stories are shown neutral. This brief is informational, not investment advice.';
+  const disclaimer = 'Filings, headlines and disclosures as the exchanges, publishers and reporting sources wrote them. The two lines marked AI under an update are written by a language model from those headlines and summaries only — never from a document — and state possibilities, not facts. Mood follows this dashboard’s stated rules: a filing’s subject, a trade’s own transaction word, the sign of a price move; published stories are shown neutral. The rupee day change is derived from statement quantities and the session’s closes, not a statement figure. This brief is informational, not investment advice.';
   parts.push(`<tr><td style="padding:22px 34px;background:${INK};color:#d8d0be;font-family:${SANS};font-size:12px;line-height:1.7;">
     ${subscribedLine}<br>
     <a href="${esc(unsubscribeUrl)}" ${NEW_TAB} style="color:${GOLD_LIGHT};text-decoration:underline;">Unsubscribe</a> · <strong style="color:${GOLD_LIGHT};letter-spacing:1px;">${esc(brand)}</strong> ${esc(productName)} · powered by Munshot<br>
@@ -1358,12 +1696,19 @@ export function renderBriefText(brief, { productName = PRODUCT_NAME, brand = BRA
   const stats = briefStats(brief);
   const lines = [];
   lines.push(brand.toUpperCase(), `${productName} — ${TAGLINES[brief.edition]}`, `${istDateLong(brief.at)} · Edition: ${EDITION_NAME}`);
-  lines.push(`${stats.stories} updates across ${stats.companies.length} of ${brief.book.listed} portfolio companies · ${stats.good} good · ${stats.watch} watch-outs${stats.late ? ` · ${stats.late} not in the previous brief` : ''}`);
+  lines.push(`${stats.updates} update${stats.updates === 1 ? '' : 's'} across ${stats.companies.length} of ${brief.book.listed} portfolio companies · ${stats.good} good · ${stats.watch} watch-out${stats.watch === 1 ? '' : 's'}${stats.late ? ` · ${stats.late} not in the previous brief` : ''}`);
   lines.push('', `YOUR PORTFOLIO COMPANIES · ${windowLine(brief)}`);
   if (!stats.stories) lines.push('Quiet window — nothing to report.');
   for (const c of stats.companies) {
-    lines.push('', `${c.company} (${c.ticker}) · ${c.stories.length} update${c.stories.length === 1 ? '' : 's'}`);
-    for (const s of c.stories) lines.push(`  [${s.topic.label}] ${s.headline}`, `    ${s.mood.label} · ${s.source} · ${storyWhen(s)}${s.late ? ' · not in the previous brief' : ''}${s.url ? ` · ${s.url}` : ''}`);
+    lines.push('', `${c.company} (${c.ticker}) · ${c.clusters.length} update${c.clusters.length === 1 ? '' : 's'}${c.stories.length > c.clusters.length ? ` from ${c.stories.length} items` : ''}`);
+    for (const k of c.clusters) {
+      const s = k.main;
+      const note = brief.ai?.items?.[k.id];
+      lines.push(`  [${s.topic.label}] ${s.headline}`);
+      if (note) lines.push(`    AI summary: ${note.summary}`, `    Potential impact: ${note.impact}`);
+      lines.push(`    ${s.mood.label} · ${s.source} · ${storyWhen(s)}${s.late ? ' · not in the previous brief' : ''}${s.url ? ` · ${s.url}` : ''}`);
+      for (const r of k.others) lines.push(`    Related: ${r.source} · ${storyWhen(r)} · ${clip(r.headline, 90)}${r.late ? ' · not in the previous brief' : ''}${r.url ? ` · ${r.url}` : ''}`);
+    }
   }
   if (brief.announcements.routineHidden) lines.push('', routineNote(brief.announcements.routineHidden));
   if (brief.calendar) {
@@ -1385,8 +1730,23 @@ export function renderBriefText(brief, { productName = PRODUCT_NAME, brand = BRA
     if (x.more > 0) lines.push(`  ${x.more} more on the dashboard's Corporate Actions view.`);
     if (x.source.debtSkipped) lines.push(`  ${x.source.debtSkipped} interest or redemption date(s) on an issuer's debt instruments not listed.`);
   }
+  const p = brief.performance;
+  if (p) {
+    lines.push('', brief.edition === 'evening' ? 'PORTFOLIO TODAY' : 'PORTFOLIO · PREVIOUS SESSION');
+    if (p.state === 'unavailable' || !p.rows.length) lines.push(`  Prices for this session could not be read (${p.reason || 'unavailable'}) — the day's performance is not known, not flat.`);
+    else {
+      const s = p.summary;
+      lines.push(`  ${p.quoted} of ${p.listed} listed holdings quoted · ${s.up} up · ${s.down} down · ${s.flat} flat · median ${signed(s.median, 2, '%')}`);
+      if (p.book?.ok && s.change != null) lines.push(`  Day change on statement quantities (derived): ${fmtInrCompact(s.change)} (${signed(s.changePct, 2, '%')}) across ${p.book.priced} holdings priced`);
+      for (const r of p.rows) lines.push(`    ${r.company.padEnd(40).slice(0, 40)} ${(r.last == null ? '—' : fmtNumber(r.last, 2)).padStart(11)} ${signed(r.pct, 2, '%').padStart(8)}${r.change != null ? `   ${fmtInrCompact(r.change)}` : ''}`);
+      if (p.unquoted) lines.push(`  ${p.unquoted} listed holdings had no quote for this session and are not listed.`);
+    }
+  }
+  lines.push('', 'INDIAN MARKETS');
+  for (const r of brief.markets.rows.filter((row) => row.group === 'india')) lines.push(`    ${r.label.padEnd(20)} ${(formatLast(r) ?? '—').padStart(11)} ${(formatPct(r) ?? '—').padStart(8)}   ${asOfLabel(r)}`);
   lines.push('', 'GLOBAL MARKET SCAN');
   for (const g of MARKET_GROUPS) {
+    if (g.id === 'india') continue;
     const members = brief.markets.rows.filter((r) => r.group === g.id);
     if (!members.length) continue;
     lines.push(`  ${g.label}`);

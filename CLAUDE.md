@@ -1365,6 +1365,50 @@ string** — a dividend's amount, a split's ratio and a bonus's terms are reprod
 printed them. `readCalendar` / `readActions` in `worker/newsletter-brief.mjs`; the offline suite
 drives both with a Screener stub and constructed captures.
 
+**AND ONE ANNOUNCEMENT IS ONE UPDATE, WITH TWO AI LINES UNDER IT.** The customer's reading of the
+17 September evening brief: Puravankara's ₹2,600 crore redevelopment win was printed twice (the NSE
+copy and the BSE copy of one press release), with four publisher accounts of it due the next
+morning, and every item was the exchange's or the publisher's own wording with nothing saying what
+it meant. So `clusterStories()` in `worker/newsletter-brief.mjs` folds a company's items into
+UPDATES — exchange copies of one filing (same company, same filing type, lodged within the hour)
+and stories that share the words and figures of the filing or of each other (`storyTokens` /
+`sameStory`: a fifth of the content words in common, or a shared figure and two words; the
+company's own name, currency words and years identify nothing) — the strongest item leads, the
+exchange's own statement before a publisher's account of it, and the rest are **Related** links in
+small type under it. The summary line, the subject and the company header count updates, and the
+header says how many items they fold. A trade and a price move stay their own update: each is a
+measurement with its own stated reading. Under each filing or story update the model writes two
+lines — **AI summary** (what was announced) and **Potential impact** (what it could change) —
+and five rules keep that the one honest reading on the sheet: **one bounded request per brief**
+(`readAiNotes`, `AI_ITEM_LIMIT`, through the same Bedrock credential Ask Research holds on the
+Worker, JSON in and JSON out, never a stream); **the model gets headlines and summaries only**,
+never a link or a document, and is told to add no figure, date, name or claim; **the lines are
+marked AI on their face**, in the footer and on the sources line with the model and the count;
+**hedged as possibilities** — could, may, never will, never a share-price call; and **absent, with
+the reason named, rather than guessed** — `no-key`, `refused`, `rate-limited`, `unreadable` — with
+the item keeping the source's own line instead. Every folded item still reaches the ledger under
+its own identity, so late-arrival detection is unchanged.
+
+**AND THE DESK'S NUMBERS COME BEFORE THE WORLD'S.** The customer's second ask: full tables and a
+summary of the portfolio's performance on the session and of the major Indian indices, above the
+global market scan. **Portfolio today** (the morning brief: *previous session*) is every listed
+holding with a quote for the session, best to worst — `readSessionQuotes` is the ONE read the ±5%
+stories and this table share, so they cannot disagree about a price — with a count line (quoted of
+listed, up, down, flat, median, best, worst) and a rupee day change derived from the family book's
+statement quantities (`bookQuantities`: equity rows with a symbol, each `dedupeGroup` counted once,
+the statements' own date range printed beside it). Four refusals, each a rule this file already
+runs on: a holding with no quote is COUNTED and never shown flat; a holding with no statement
+quantity is priced at nothing and says so; the rupee change is headed *derived* and *not a
+statement figure* wherever it prints; an unread price feed names its reason rather than drawing a
+flat day. **Indian markets** is the India group of `MARKET_ROWS` — Nifty 50, Sensex, Nifty Bank,
+Nifty Midcap 100, Nifty Smallcap 100, Nifty 500, Nifty IT, India VIX — as its own table, and the
+global scan no longer repeats it. The order of the sheet is now: the summary line, the portfolio
+companies, the week ahead (calendar, corporate actions), the portfolio on the session, the Indian
+indices, the global scan, the sources line. Measured on the 18 September morning brief: the HTML
+grew from about 130 KB to about 200 KB; Gmail clips a message above roughly 100 KB behind *View
+entire message*, which the old sheet already crossed — if the desk reads in Gmail, cap the table
+before shrinking anything else.
+
 ### Two disclosures that look identical — the Institutions rule
 
 Institutions is also where a subtler failure lives, and it is not about *whose* number it is but

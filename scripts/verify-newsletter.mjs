@@ -17,7 +17,7 @@ import {
 } from '../public/js/data/newsletter-shared.js';
 import { NewsletterStore } from '../worker/newsletter-store.mjs';
 import {
-  CALENDAR_DAYS, MARKET_ROWS, MOVE_PCT, TOPICS, briefStats, briefStories, briefSubject, buildBrief, calendarDayLabel, quoteFromChart, quoteFromSeries, renderBriefHtml, renderBriefText, topicOf,
+  CALENDAR_DAYS, MARKET_ROWS, MOVE_PCT, TOPICS, bookQuantities, briefStats, briefStories, briefSubject, buildBrief, calendarDayLabel, clusterStories, fmtInrCompact, parseAiNotes, quoteFromChart, quoteFromSeries, renderBriefHtml, renderBriefText, sameStory, storyTokens, topicOf,
 } from '../worker/newsletter-brief.mjs';
 import { NewsletterSchedule, NEWSLETTER_TIMER_KEY, EMAIL_SEND_URL, CATCH_UP_MS, sendEmail } from '../worker/newsletter-schedule.mjs';
 
@@ -715,6 +715,257 @@ await test('corporate action dates on the holdings for the week ahead, in the so
 });
 
 // ---- the ledger ----------------------------------------------------------------------------------------
+
+// ---- one update, not four copies of it -------------------------------------------------------------
+
+console.log('\n— one update, not four copies of it —');
+
+const EVENING_17 = istInstant('2026-09-17', '16:00');
+/** Puravankara's 17 September: one press release on both exchanges, one investor-meet intimation on both, three publisher accounts of the project and one share-price story. */
+const purvaAssets = (extra = {}) => assetsWith({
+  '/data/corp-announcements.json': { capturedAt: '2026-09-17T10:30:00.000Z', from: '2026-09-15', to: '2026-09-17', byTicker: { PURVA: [
+    { newsId: 'purva-pr-1', scripCode: '532891', company: 'Puravankara Ltd', headline: 'Press Release titled "Puravankara Secures Rs. 2600 Crore redevelopment project in Goregaon West, Mumbai"', category: 'Company Update', subCategory: 'Press Release / Media Release', date: '2026-09-17', time: '14:12:04', url: 'https://www.bseindia.com/xml-data/corpfiling/purva-pr-1.pdf' },
+    { newsId: 'purva-meet-1', scripCode: '532891', company: 'Puravankara Ltd', headline: 'Intimation of schedule of Investor Conference', category: 'Company Update', subCategory: 'Analyst / Investor Meet - Intimation', date: '2026-09-17', time: '11:20:00', url: 'https://www.bseindia.com/xml-data/corpfiling/purva-meet-1.pdf' },
+  ] } },
+  '/data/nse-filings/index.json': { version: 1, capturedAt: '2026-09-17T10:00:00.000Z', count: 2, days: [{ day: '2026-09-17', count: 2 }] },
+  '/data/nse-filings/2026-09-17.json': { day: '2026-09-17', rows: [
+    { company: 'Puravankara Limited', symbolHint: 'PURVA', ticker: 'PURVA', resolvedBy: 'name', observedAt: '2026-09-17T09:00:00.000Z', url: 'https://nsearchives.nseindia.com/corporate/PURVA_17092026141319_SEintimation.pdf', subject: 'Press Release', description: 'Puravankara Limited has informed the Exchange regarding a press release dated September 17, 2026, titled "Puravankara secures Rs 2,600 crore redevelopment project in Goregaon West, Mumbai". |SUBJECT: Press Release', publishedAt: '2026-09-17T08:43:33.000Z' },
+    { company: 'Puravankara Limited', symbolHint: 'PURVA', ticker: 'PURVA', resolvedBy: 'name', observedAt: '2026-09-17T09:00:00.000Z', url: 'https://nsearchives.nseindia.com/corporate/PURVA_17092026112200_meet.xml', subject: 'Analyst/Investor Meet Para A-XBRL', description: 'Puravankara Limited has informed the Exchange about Schedule of Analysts or Institutional Investors Meet |SUBJECT: Analyst/Investor Meet Para A-XBRL', publishedAt: '2026-09-17T05:52:00.000Z' },
+  ] },
+  '/data/market-news.json': { ...JSON.parse(asset('/data/market-news.json')), capturedAt: '2026-09-17T10:35:00.000Z', articles: [
+    ['bs-1', 'Puravankara secures redevelopment project in Goregaon West worth Rs 2,600 crore', '2026-09-17T08:50:00.000Z', 'Business Standard'],
+    ['et-1', 'Puravankara Ltd eyes Rs 2,600 cr revenue from redevelopment of 3 housing societies in Mumbai', '2026-09-17T09:10:00.000Z', 'Economic Times'],
+    ['bs-2', 'Puravankara secures 4.68-acre redevelopment project in Goregaon West, Mumbai', '2026-09-17T09:40:00.000Z', 'Business Standard'],
+    ['mint-1', 'Puravankara shares jump 4%, extend rally to second day. Why is the realty stock rebounding?', '2026-09-17T09:55:00.000Z', 'Mint'],
+  ].map(([id, title, publishedAt, publisher]) => ({ id, url: `https://example.test/${id}`, title, summary: '', publishedAt, publisher, source: publisher })) },
+  '/data/tradingview-news/latest.json': { byTicker: {} },
+  ...extra,
+});
+
+await test('an announcement lodged with both exchanges and reported by three publishers is ONE update: the exchange\'s own statement leads and the rest are related links', async () => {
+  const brief = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: purvaAssets() }, fetcher: makeFetcher({ nse: 'blocked' }), now: EVENING_17 });
+  const purva = briefStats(brief).companies.find((c) => c.ticker === 'PURVA');
+  assert.ok(purva);
+  assert.equal(purva.stories.length, 8, 'two exchange copies of two filings and four stories are eight items');
+  assert.equal(purva.clusters.length, 3, '...and three updates: the project, the investor meet, the share move');
+  const project = purva.clusters.find((k) => /2600|2,600/.test(k.main.headline));
+  assert.equal(project.main.kind, 'filing', 'the exchange\'s own statement leads a publisher\'s account of it');
+  assert.equal(project.main.source, 'BSE', 'the earlier of the two exchange copies leads');
+  assert.equal(project.others.length, 4, 'the other exchange\'s copy and the three publisher stories are related');
+  assert.deepEqual(project.others.map((r) => r.source).sort(), ['Business Standard', 'Business Standard', 'Economic Times', 'NSE']);
+  assert.deepEqual(project.others.map((r) => r.at), [...project.others.map((r) => r.at)].sort((a, b) => a - b), 'related items read in time order');
+  const meet = purva.clusters.find((k) => /Investor/.test(k.main.headline));
+  assert.equal(meet.others.length, 1, 'an intimation lodged with both exchanges within the hour is one update, however each exchange worded it');
+  const move = purva.clusters.find((k) => /shares jump/.test(k.main.headline));
+  assert.equal(move.others.length, 0, 'a story about the share price is not the project story');
+  assert.equal(purva.clusters.map((k) => k.id).join(' '), 'PURVA#1 PURVA#2 PURVA#3', 'an update\'s id is its place under its company');
+  const stats = briefStats(brief);
+  assert.equal(stats.updates, stats.companies.reduce((n, c) => n + c.clusters.length, 0));
+  assert.ok(stats.updates < stats.stories, 'the summary counts updates, not copies');
+  const html = renderBriefHtml(brief, { dashboardUrl: 'https://example.test' });
+  assert.ok(html.includes('3 updates from 8 items'), 'the company header says how many items the updates fold');
+  assert.ok(html.includes(`<strong style="color:#1a1712;">${stats.updates} updates</strong>`), 'the summary line counts updates');
+  assert.match(briefSubject(brief), new RegExp(`^Glow Ventures · ${stats.updates} updates on your`));
+  assert.ok(html.includes('Related: '), 'the copies travel as related links');
+  assert.ok(html.includes('Economic Times · 17 Sept, 14:40 IST · Puravankara Ltd eyes Rs 2,600 cr revenue'), 'a related story keeps its source, time and headline');
+  assert.ok(html.includes('https://example.test/et-1'), 'and its link');
+  assert.equal((html.match(/Puravankara secures 4\.68-acre/g) || []).length, 1, 'each item is on the page once');
+  assert.ok(brief.reported.some((r) => r.key === 'bse:purva-pr-1') && brief.reported.some((r) => r.key.startsWith('nse:')) && brief.reported.some((r) => r.key === 'news:PURVA|https://example.test/et-1'), 'every folded item still reaches the ledger under its own identity');
+  const text = renderBriefText(brief);
+  assert.ok(text.includes('Puravankara Limited (PURVA) · 3 updates from 8 items'));
+  assert.ok(text.includes('    Related: NSE · 17 Sept, 14:13 IST'));
+});
+
+const MOODS_STUB = { watch: { id: 'watch' } };
+await test('the story matcher: shared words or a shared figure, never the company\'s own name, never a year', () => {
+  const a = storyTokens('Puravankara Secures Rs. 2600 Crore redevelopment project in Goregaon West, Mumbai', 'Puravankara Limited');
+  assert.ok(a.has('2600') && a.has('redevelopment') && a.has('goregaon'));
+  assert.ok(!a.has('puravankara') && !a.has('crore') && !a.has('rs'), 'the company\'s name and the currency words identify nothing');
+  const b = storyTokens('Puravankara Ltd eyes Rs 2,600 cr revenue from redevelopment of 3 housing societies in Mumbai', 'Puravankara Limited');
+  assert.ok(b.has('2600'), 'a figure with Indian grouping is one figure');
+  assert.ok(sameStory(a, b), 'a shared figure and two shared words are one story');
+  const c = storyTokens('Puravankara shares jump 4%, extend rally to second day', 'Puravankara Limited');
+  assert.ok(!sameStory(a, c));
+  assert.ok(!storyTokens('Board meeting on September 17, 2026 to consider results', '').has('2026'), 'a year is a date, not a figure');
+  const clusters = clusterStories([
+    { kind: 'trade', headline: 'Block deal: Somebody — Sell', at: 1, score: 1, mood: MOODS_STUB.watch, topic: {} },
+    { kind: 'trade', headline: 'Block deal: Somebody — Sell', at: 2, score: 1, mood: MOODS_STUB.watch, topic: {} },
+  ], { company: 'X' });
+  assert.equal(clusters.length, 2, 'two trades are two updates even when worded alike — each is its own measurement');
+});
+
+await test('the AI notes: one bounded request per brief, JSON in and out, each note under its own update — and none without a key, from a refusal or from an unreadable reply', async () => {
+  const key = { CLAUDE_KEY: 'ABSKtestkey12345' };
+  const bedrock = 'https://bedrock-runtime.ap-south-1.amazonaws.com/anthropic/v1/messages';
+  const aiFetcher = (reply, calls) => async (input, init = {}) => {
+    const url = String(input);
+    if (!url.startsWith('https://bedrock-runtime.')) return makeFetcher({ nse: 'blocked' })(input, init);
+    const body = JSON.parse(init.body);
+    calls.push({ url, init, body });
+    if (reply === 'refused') return Response.json({ message: 'private upstream text' }, { status: 403 });
+    if (reply === 'garbled') return Response.json({ content: [{ type: 'text', text: 'Sorry — {not json' }] });
+    const items = JSON.parse(body.messages[0].content).ITEMS;
+    const notes = items.map((i) => ({ id: i.id, summary: `What: ${i.headline.slice(0, 30)}`, impact: 'Could add to revenue; the size is stated in the filing.' }));
+    if (reply === 'partial') notes.pop();
+    return Response.json({ content: [{ type: 'text', text: `Here is the JSON you asked for:\n${JSON.stringify([...notes, { id: 'NOT#1', summary: 'stray', impact: 'stray' }])}` }] });
+  };
+  const build = (reply, env = key) => { const calls = []; return buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: purvaAssets(), ...env }, fetcher: aiFetcher(reply, calls), now: EVENING_17 }).then((brief) => ({ brief, calls })); };
+
+  const { brief, calls } = await build('ok');
+  assert.equal(calls.length, 1, 'one request per brief');
+  assert.equal(calls[0].url, bedrock);
+  assert.equal(calls[0].init.headers['x-api-key'], 'ABSKtestkey12345');
+  assert.equal(calls[0].init.redirect, 'manual');
+  assert.equal(calls[0].init.method, 'POST');
+  assert.equal(calls[0].body.stream, undefined, 'a plain reply, not a stream');
+  assert.equal(calls[0].body.model, 'global.anthropic.claude-sonnet-5');
+  assert.deepEqual(calls[0].body.thinking, { type: 'disabled' });
+  assert.ok(calls[0].body.system[0].text.includes('never add a figure'), 'the instructions forbid new facts');
+  const asked = JSON.parse(calls[0].body.messages[0].content).ITEMS;
+  const stats = briefStats(brief);
+  const storyUpdates = stats.companies.flatMap((c) => c.clusters.filter((k) => k.kind === 'story'));
+  assert.equal(asked.length, storyUpdates.length, 'every filing or story update is asked about; a trade or a price move is not');
+  assert.ok(asked.every((i) => storyUpdates.some((k) => k.id === i.id)));
+  const project = asked.find((i) => /2600|2,600/.test(i.headline));
+  assert.equal(project.related.length, 4, 'the copies\' headlines travel with the leading item');
+  assert.equal(project.kind, 'exchange filing');
+  assert.ok(!JSON.stringify(asked).includes('https://'), 'the model gets headlines and summaries, never a link or a document');
+  assert.equal(brief.ai.ok, true);
+  assert.equal(brief.ai.requested, asked.length);
+  assert.equal(brief.ai.answered, asked.length);
+  assert.ok(!brief.ai.items['NOT#1'], 'a note for an update nobody asked about is dropped');
+  const html = renderBriefHtml(brief);
+  assert.ok(html.includes('AI summary') && html.includes('Potential impact'), 'the notes are marked AI on their face');
+  assert.ok(html.includes('What: Press Release titled &quot;Purav'), 'a note is escaped like any other text');
+  assert.ok(html.includes(`AI notes by global.anthropic.claude-sonnet-5 on ${asked.length} of ${asked.length} updates, written Thu 17 Sep, 16:00 IST`), 'the sources line names the model and the count');
+  assert.ok(html.includes('written by a language model from those headlines and summaries only'), 'the footer says what the notes are');
+  const text = renderBriefText(brief);
+  assert.ok(text.includes('    AI summary: What: ') && text.includes('    Potential impact: Could add to revenue'));
+
+  const noKey = await build('ok', {});
+  assert.equal(noKey.calls.length, 0, 'nothing is asked without a key');
+  assert.equal(noKey.brief.ai.ok, false);
+  assert.equal(noKey.brief.ai.reason, 'no-key');
+  assert.ok(renderBriefHtml(noKey.brief).includes('AI notes unavailable (no-key)'));
+  assert.ok(!renderBriefHtml(noKey.brief).includes('AI summary'), 'no note is invented without the model');
+  assert.ok(renderBriefHtml(noKey.brief).includes('BSE filing · Press Release'), 'the item keeps the source\'s own line instead');
+
+  const refused = await build('refused');
+  assert.equal(refused.brief.ai.reason, 'refused');
+  assert.equal(refused.brief.ai.status, 403);
+  assert.ok(!renderBriefHtml(refused.brief).includes('private upstream text'), 'the upstream\'s words never reach the page');
+  assert.ok(renderBriefHtml(refused.brief).includes('AI notes unavailable (refused)'));
+
+  const garbled = await build('garbled');
+  assert.equal(garbled.brief.ai.reason, 'unreadable');
+  assert.ok(!renderBriefHtml(garbled.brief).includes('AI summary'));
+
+  const partial = await build('partial');
+  assert.equal(partial.brief.ai.ok, true);
+  assert.equal(partial.brief.ai.answered, asked.length - 1, 'an update the model skipped has no note and keeps its own line');
+  assert.ok(renderBriefHtml(partial.brief).includes(`on ${asked.length - 1} of ${asked.length} updates`));
+
+  assert.deepEqual(parseAiNotes('```json\n[{"id":"A#1","summary":"s","impact":"i"},{"id":"A#1","summary":"dup","impact":"dup"},{"id":"A#2","summary":"","impact":"i"}]\n```', new Set(['A#1', 'A#2'])), { 'A#1': { summary: 's', impact: 'i' } }, 'fenced JSON is read, a duplicate id keeps the first, a note missing a line is dropped');
+  assert.equal(parseAiNotes('no json here', new Set(['A#1'])), null);
+  assert.equal(parseAiNotes('{"id":"A#1"}', new Set(['A#1'])), null, 'an object is not the array asked for');
+  assert.equal(parseAiNotes(`[{"id":"A#1","summary":"${'x'.repeat(500)}","impact":"i"}]`, new Set(['A#1']))['A#1'].summary.length, 320, 'a note is clipped');
+});
+
+// ---- the portfolio on the session, and the Indian indices ------------------------------------------
+
+console.log('\n— the portfolio on the session —');
+
+await test('portfolio today: every quoted holding in one table, best to worst, priced by the book\'s statement quantities, and every refusal named', async () => {
+  const quote = (ticker, price, prevClose, sessionDate = '2026-09-17', time = '15:47') => ({ ticker, price, prevClose, quoteAt: new Date(istInstant(sessionDate, time)).toISOString(), checkedAt: new Date(istInstant(sessionDate, time) + 60000).toISOString(), sessionDate, provider: 'Yahoo Finance' });
+  const capture = { getByName: () => ({ breakoutRead: async () => ({ state: 'complete', rows: [quote('AARTIDRUGS', 1070, 1000), quote('PURVA', 210, 218), quote('SBIN', 950, 950), quote('NOTINBOOK', 109, 100)] }) }) };
+  const book = bookQuantities(JSON.parse(asset('/data/book.json')));
+  assert.equal(book.ok, true);
+  const purvaQty = book.byTicker.get('PURVA')?.quantity;
+  assert.ok(purvaQty > 0, 'the shipped book holds Puravankara');
+  assert.ok(book.from <= book.to && /^\d{4}-\d{2}-\d{2}$/.test(book.from), 'the statements\' own dates travel with the quantities');
+  const twice = bookQuantities({ positions: [
+    { assetClass: 'Equity', symbol: 'X', quantity: 100, dedupeGroup: 'g1', accountAsOf: '2026-08-01' },
+    { assetClass: 'Equity', symbol: 'X', quantity: 100, dedupeGroup: 'g1', accountAsOf: '2026-08-01' },
+    { assetClass: 'Equity', symbol: 'X', quantity: 50, dedupeGroup: null, accountAsOf: '2026-07-31' },
+    { assetClass: 'Mutual Fund', symbol: 'X', quantity: 999, dedupeGroup: null },
+    { assetClass: 'Equity', symbol: null, quantity: 999, dedupeGroup: null },
+  ] });
+  assert.equal(twice.byTicker.get('X').quantity, 150, 'a folio reported on two members\' statements is counted once; a fund unit and an unlisted line are not equity quantity');
+  assert.equal(twice.from, '2026-07-31');
+
+  const evening = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assets, CAPTURE_REGISTRY: capture }, fetcher: makeFetcher(), now: EVENING_17 });
+  const p = evening.performance;
+  assert.equal(p.state, 'capture');
+  assert.equal(p.session, '2026-09-17');
+  assert.deepEqual(p.rows.map((r) => r.ticker), ['AARTIDRUGS', 'SBIN', 'PURVA'], 'best to worst; a stranger is not a holding');
+  assert.equal(p.quoted, 3);
+  assert.equal(p.unquoted, p.listed - 3, 'a holding with no quote is counted, never shown flat');
+  assert.deepEqual([p.summary.up, p.summary.down, p.summary.flat], [1, 1, 1]);
+  assert.equal(p.summary.median, 0);
+  assert.equal(p.summary.best.ticker, 'AARTIDRUGS');
+  assert.equal(p.summary.worst.ticker, 'PURVA');
+  const purva = p.rows.find((r) => r.ticker === 'PURVA');
+  assert.equal(purva.quantity, purvaQty);
+  assert.equal(Math.round(purva.change), Math.round(purvaQty * (210 - 218)), 'the day change is quantity × close change');
+  assert.equal(p.book.ok, true);
+  assert.equal(p.book.priced, p.rows.filter((r) => r.change != null).length);
+  assert.equal(p.book.unpriced, p.rows.filter((r) => r.change == null).length);
+  const priced = p.rows.filter((r) => r.change != null);
+  assert.equal(Math.round(p.summary.change), Math.round(priced.reduce((n, r) => n + r.change, 0)));
+  assert.ok(Math.abs(p.summary.changePct - (p.summary.change / priced.reduce((n, r) => n + r.prevValue, 0)) * 100) < 1e-9, 'the day change in percent is struck on the priced holdings\' previous value');
+  const html = renderBriefHtml(evening, { dashboardUrl: 'https://example.test' });
+  assert.ok(html.includes('Portfolio today'));
+  assert.ok(html.includes(`<strong style="color:#1a1712;">3 of ${p.listed}</strong> listed holdings quoted`));
+  assert.ok(html.includes('Day change (derived)'));
+  assert.ok(html.includes('not a statement figure'), 'the rupee figure says what it is');
+  assert.ok(html.includes(`statements dated ${p.book.statementFrom} to ${p.book.statementTo}`));
+  assert.ok(html.includes(`${p.unquoted} listed holdings had no quote for this session and are not listed — not flat.`));
+  assert.ok(html.includes(fmtInrCompact(purva.change).replace('−', '−')), 'each priced row prints its own change');
+  assert.equal(fmtInrCompact(-221760), '−₹2.22 L');
+  assert.equal(fmtInrCompact(12345678), '+₹1.23 Cr');
+  assert.equal(fmtInrCompact(8250), '+₹8,250');
+  const text = renderBriefText(evening);
+  assert.ok(text.includes('PORTFOLIO TODAY') && text.includes(`  3 of ${p.listed} listed holdings quoted · 1 up · 1 down · 1 flat · median 0.00%`));
+
+  const noBook = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assetsWith({ '/data/book.json': null }), CAPTURE_REGISTRY: capture }, fetcher: makeFetcher(), now: EVENING_17 });
+  assert.equal(noBook.performance.book.ok, false);
+  assert.ok(noBook.performance.rows.every((r) => r.change == null), 'no book, no rupee change');
+  assert.ok(renderBriefHtml(noBook).includes('The family book could not be read, so no rupee day change is derived.'));
+  assert.ok(!renderBriefHtml(noBook).includes('Day change (derived)'));
+
+  const behind = { ...JSON.parse(asset('/data/technicals.json')), price_date: '2026-09-16' };
+  const none = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assetsWith({ '/data/technicals.json': behind }) }, fetcher: makeFetcher(), now: EVENING_17 });
+  assert.equal(none.performance.state, 'unavailable');
+  assert.ok(renderBriefHtml(none).includes('Prices for this session could not be read (capture-unavailable; daily-behind; daily bars end 2026-09-16), so the day&#39;s performance is not known — not flat.'), 'an unread price feed is named, never drawn as a flat day');
+
+  // The morning brief prices the previous session off the completed daily bars, with the previous close struck from the day's move.
+  const daily = JSON.parse(asset('/data/technicals.json'));
+  const nextMorning = istInstant(daily.price_date, '08:00') + 86400000;
+  const morning = await buildBrief({ edition: 'morning', day: istDay(nextMorning), settings: DEFAULT_SETTINGS, env: { ASSETS: assets }, fetcher: makeFetcher(), now: nextMorning });
+  const q = morning.performance;
+  assert.equal(q.state, 'daily');
+  const bookTickers = new Set(JSON.parse(asset('/data/portfolio-companies.json')).holdings.map((h) => h.ticker).filter(Boolean));
+  const expected = (daily.rows || daily.companies || []).filter((r) => bookTickers.has(r.ticker) && (r.bar_date || daily.price_date) === daily.price_date && Number.isFinite(Number(r.pct_change_today))).length;
+  assert.equal(q.rows.length, expected, 'every holding with a completed bar for the session');
+  for (let i = 1; i < q.rows.length; i++) assert.ok(q.rows[i - 1].pct >= q.rows[i].pct, 'best to worst');
+  const withPrev = q.rows.find((r) => r.last != null && r.prev != null);
+  assert.ok(withPrev && Math.abs(((withPrev.last - withPrev.prev) / withPrev.prev) * 100 - withPrev.pct) < 1e-6, 'the previous close reproduces the day\'s move');
+  assert.ok(renderBriefHtml(morning).includes('Portfolio · previous session'));
+});
+
+await test('the Indian indices sit in their own table above the global scan, which no longer repeats them', () => {
+  const india = MARKET_ROWS.filter((r) => r.group === 'india');
+  assert.deepEqual(india.map((r) => r.label), ['Nifty 50', 'Sensex', 'Nifty Bank', 'Nifty Midcap 100', 'Nifty Smallcap 100', 'Nifty 500', 'Nifty IT', 'India VIX']);
+  const html = renderBriefHtml(morning, { dashboardUrl: 'https://example.test' });
+  const at = (s) => html.indexOf(s);
+  assert.ok(at('Indian markets') > 0 && at('Nifty Bank') > at('Indian markets') && at('India VIX') > at('Indian markets'));
+  assert.ok(at('Your portfolio companies') < at('Portfolio · previous session') && at('Portfolio · previous session') < at('Indian markets') && at('Indian markets') < at('Global market scan'), 'companies, then the desk\'s numbers, then the world');
+  assert.ok(html.lastIndexOf('Nifty 50') < at('Global market scan'), 'the global scan does not repeat the Indian rows');
+  assert.ok(at('Global market scan') < at('S&amp;P 500'));
+  const text = renderBriefText(morning);
+  assert.ok(text.indexOf('INDIAN MARKETS') < text.indexOf('GLOBAL MARKET SCAN') && text.indexOf('YOUR PORTFOLIO COMPANIES') < text.indexOf('INDIAN MARKETS'));
+  assert.ok(/INDIAN MARKETS\n\s+Nifty 50/.test(text));
+});
 
 console.log('\n— the ledger —');
 
