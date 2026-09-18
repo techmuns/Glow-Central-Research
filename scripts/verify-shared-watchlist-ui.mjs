@@ -119,10 +119,19 @@ const openDevice = async () => {
   // Nothing leaves this fixture. A check that quietly reached the internet would be measuring
   // somebody else's uptime rather than this code.
   await page.route('**/*', (route) => (route.request().url().startsWith(`${origin}/`) ? route.continue() : route.abort()));
+<<<<<<< HEAD
   // The Technical Scanner lists every scored company, so the seventh star is always there. Strong
   // Breakouts lists only the companies above their base high, which is a fact about the market on
   // the shipped close — three rows on the 16 September 2026 capture — and this suite once starred
   // its fifth row: a test that passed or failed with the day's breakouts, not with the code.
+=======
+  // THE SCANNER, NOT THE DEFAULT SUB-VIEW — THIS FIXTURE NEEDS ROWS, NOT A MARKET OUTCOME.
+  // Strong Breakouts lists whatever cleared the breakout rules in the latest capture, which is a
+  // fact about the market on the day the scrape ran and is routinely single digits: measured on
+  // the committed capture it is 5 rows, so the fifth company this check has to star does not
+  // exist and `nth(6)` simply never resolves. Technical Scanner is the whole scanned universe
+  // — 590 rows on the same capture — and starring is the same control on the same table.
+>>>>>>> sattva/main
   await page.goto(`${origin}/#/research/breakouts/technical-scanner?scope=universe`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('[data-watch]', { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -138,6 +147,10 @@ const sync = async (page) => {
   await page.waitForTimeout(800);
 };
 const starAt = async (page, index) => {
+  // Say what is missing rather than waiting thirty seconds for a row that is not there. A table
+  // too short for this fixture is a broken fixture, and it should read as one.
+  const mounted = await page.locator('[data-watch]').count();
+  if (mounted <= index) throw Error(`this check needs at least ${index + 1} starrable rows; the table has ${mounted}`);
   const star = page.locator('[data-watch]').nth(index);
   const ticker = await star.getAttribute('data-watch');
   // Keep the row clear of the fixed source-status launcher at the viewport edge.

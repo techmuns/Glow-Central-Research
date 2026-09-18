@@ -215,6 +215,7 @@ assert.notEqual(rankReport(publication, { holdings: publicIdentities }).allCards
 console.log('PASS: unchanged publications reuse derivations; corrections, source health, membership, dates, Insights and positions invalidate them.');
 
 // ---------------------------------------------------------------------------------------
+<<<<<<< HEAD
 // THE TWO-BULLET READING. "One bullet is what has happened; the second, will it change the earnings
 // assumption, the valuation or the thesis?" The second bullet is a deterministic reading of which
 // QUESTION each event bears on — never an answer — so every branch is asserted on a fixture here,
@@ -303,3 +304,165 @@ assert.deepEqual(bulletCard.impacts.map(hit => hit.axis), ['earnings', 'valuatio
 assert.equal(bulletCard.impactLine, impactLine(bulletCard.impacts));
 assert(matchesSearch(bulletCard, 'thesis') && matchesSearch(bulletCard, 'order in a filing') && matchesSearch(bulletCard, 'valuation'), 'search reaches the second bullet');
 console.log('PASS: the second bullet reads which of earnings, valuation or thesis each event bears on, from the feeds’ own thresholds and the desk’s own keywords, and never answers it.');
+=======
+// THE DRIVER LAYER — "earnings assumption, valuation or thesis?"
+//
+// Fixtures rather than a capture, for the reason every rule block here uses them: the branches
+// depend on which topic fields a collector happened to write, and no single day can be relied on to
+// hold a dilution filing, a related-entity report and a market-wide story on one company.
+const { driversOf, driversFromEvent, QUESTIONS } = await import('../public/js/data/alert-drivers.js');
+const { announcementSignal } = await import('../public/js/data/filing-signals.js');
+
+const drv = (o) => ({ day: '2026-09-03', ticker: 'ZZTEST', url: 'https://example.test/a', ...o });
+const driverText = (events) => driversOf({ events }).buckets.flatMap((b) => b.drivers.map((x) => `${b.id}:${x.text}`));
+
+assert.deepEqual(QUESTIONS.map((q) => q.id), ['earnings', 'valuation', 'thesis'], 'the three investor questions, in the order a card states them');
+assert.deepEqual(QUESTIONS.map((q) => q.label), ['the earnings assumption', 'the valuation', 'the thesis']);
+
+// The matched rule travels as a FIELD. Recovering it from `signalReason` would be regexing a value
+// we had in hand back out of our own prose, and would empty the mapping silently on a reword.
+assert.equal(announcementSignal({ title: 'Record date for Final Dividend' }).filingRule, 'shareholder distribution');
+assert.equal(announcementSignal({ title: 'Notice of 25th Annual General Meeting' }).filingRule, null);
+
+const mixed = [
+  drv({ feed: 'announcements', keywordIds: ['order'], filingRule: 'shareholder distribution' }),
+  drv({ feed: 'news', keywordIds: ['partnership'] }),
+  drv({ feed: 'news', keywordIds: ['stake-sale'] }),
+  drv({ feed: 'nse-filings', keywordIds: ['fraud'] }),
+];
+for (const expected of ['earnings:Order in a filing', 'earnings:Partnership in the news',
+  'valuation:shareholder distribution in a filing', 'valuation:Stake sale in the news', 'thesis:Fraud in a filing']) {
+  assert(driverText(mixed).includes(expected), `bucketed: ${expected}`);
+}
+assert.deepEqual(driversOf({ events: mixed }).silent, [], 'every question answered leaves nothing silent');
+
+// A question with nothing behind it is STATED; only the whole section drops, and only when no
+// question has an answer at all.
+assert.deepEqual(driversOf({ events: [drv({ feed: 'news', keywordIds: ['order'] })] }).silent.map((q) => q.id), ['valuation', 'thesis']);
+assert.equal(driversOf({ events: [drv({ feed: 'technicals', kind: 'volume', volumeX: 3.1 })] }).buckets.length, 0);
+
+// The same topic in two sources is two drivers — separate records, separate links. Twice in one
+// source is one.
+assert.equal(driverText([drv({ feed: 'announcements', keywordIds: ['order'] }), drv({ feed: 'news', keywordIds: ['order'] })]).length, 2);
+assert.equal(driverText([drv({ feed: 'news', keywordIds: ['order'] }), drv({ feed: 'news', keywordIds: ['order'], url: 'https://example.test/b' })]).length, 1);
+
+// A FEED THAT CARRIES NO TOPIC SUPPLIES NO DRIVER. A volume ratio is not about orders or about
+// governance, and bucketing one would be this dashboard asserting why somebody traded.
+for (const feed of ['technicals', 'investors', 'insider', 'chatter', 'earnings', 'concalls']) {
+  assert.deepEqual(driversFromEvent(drv({ feed, keywordIds: ['order'] })), [], `${feed} supplies no driver`);
+}
+// Market-wide news carries no company, so it can never become a company's driver — the same
+// exclusion All Alerts already applies to the same feed.
+assert.deepEqual(driverText([drv({ feed: 'market-news', keywordIds: ['fraud'] })]), []);
+// ...and a reviewed report about a DIFFERENT company is not this company either.
+assert.deepEqual(driverText([drv({ feed: 'news', keywordIds: ['fraud'],
+  attribution: { version: ATTRIBUTION_VERSION, status: 'related', relationships: [{ relationship: 'subsidiary', evidenceUrl: 'https://example.test/e' }] } })]), []);
+// An analyst's published view is a view OF the company, not an event AT it.
+assert.deepEqual(driverText([drv({ feed: 'news', keywordIds: ['brokerage-research'] })]), []);
+
+// A collector branch that wrote labels and no ids still resolves; an unknown label invents nothing.
+assert.deepEqual(driverText([drv({ feed: 'news', keywords: ['Stake sale'] })]), ['valuation:Stake sale in the news']);
+assert.deepEqual(driverText([drv({ feed: 'news', keywords: ['Not A Tracked Topic'] })]), []);
+
+// A capped bucket COUNTS what it did not print: a truncation nobody can see is the card claiming
+// fewer things bear on the company than its own evidence holds.
+const many = ['order', 'capex', 'commissioning', 'product-launch', 'patent'].map((id) => drv({ feed: 'news', keywordIds: [id] }));
+assert.equal(driversOf({ events: many }).buckets[0].drivers.length, 3);
+assert.equal(driversOf({ events: many }).buckets[0].overflow, 2);
+assert.equal(driversOf({ events: many }).total, 5);
+
+// Every driver carries the event it was read off, so the card can link it to the same record the
+// evidence row uses — and says it matched a topic rather than verifying an event.
+for (const driver of driversOf({ events: mixed }).buckets.flatMap((b) => b.drivers)) {
+  assert(mixed.includes(driver.event), 'a driver carries its own source event');
+  assert(/does not verify|not confirmation/.test(driver.why), 'a driver disclaims verification');
+}
+
+// IT ADDS NO SCORE. It explains a card that was surfaced anyway; it is not a second materiality
+// gate, which is the pattern this codebase keeps having to un-write.
+const scored = (event) => {
+  clearRankingCache();
+  return rankReport({ scope: 'universe', day: '2026-09-03', feeds: [{ id: 'announcements', status: 'ok', reachesToday: true }], events: [event] }, { holdings: [] });
+};
+const topicEvent = { id: 'd1', day: '2026-09-03', ticker: 'ZZTEST', company: 'ZZ Test Ltd', feed: 'announcements', feedLabel: 'Announcements',
+  direction: 'positive', importance: 'high', headline: 'Record date for Final Dividend', filingRule: 'shareholder distribution', keywordIds: ['buyback'], url: 'https://example.test/a' };
+assert.equal(scored(topicEvent).allCards[0].score, scored({ ...topicEvent, filingRule: null, keywordIds: [] }).allCards[0].score,
+  'topics change no score');
+assert(scored(topicEvent).allCards[0].drivers.total > 0, '...while still reaching the card');
+
+console.log('PASS: driver buckets, source phrases, excluded feeds, capped overflow and score neutrality.');
+
+
+// --- the sliced ranking is the synchronous ranking, spread over time --------------------------
+// One generator, two drivers: `rankReportAsync` must resolve to exactly what `rankReport` returns,
+// must yield to input between slices on a large input, and must resolve null — never a partial
+// result — once nobody is waiting for it. Asserted on the fixture above and on a synthetic
+// Universe of 3,000 companies, because the yield only happens where a slice has something to cut.
+const { rankReportAsync, mergePartialReportAsync } = await import('../public/js/data/ai-alerts.js');
+const { runSteps, runStepsInSlices, sortSteps } = await import('../public/js/core/slices.js');
+clearRankingCache();
+const syncFixture = rankReport(report, { holdings: sizeHoldings, positionSizes: sizes });
+clearRankingCache();
+assert.deepEqual(await rankReportAsync(report, { holdings: sizeHoldings, positionSizes: sizes }), syncFixture, 'sliced ranking of the fixture equals the synchronous one');
+const universeFeeds = ['earnings', 'announcements', 'insider', 'technicals', 'investors'].map(id => ({ id, status: 'ok', reachesToday: true }));
+const universeDay = '2026-09-04';
+const universeEvents = [];
+for (let i = 0; i < 3000; i++) {
+  const ticker = `U${String(i).padStart(4, '0')}`;
+  universeFeeds.forEach(({ id }, j) => {
+    const age = (i + j) % 14;
+    const day = new Date(Date.parse(`${universeDay}T00:00:00Z`) - age * 86400000).toISOString().slice(0, 10);
+    universeEvents.push({ id: `${ticker}-${id}-${j}`, ticker, company: `Company ${i}`, feed: id, feedLabel: id, day, time: `${String(9 + j).padStart(2, '0')}:15`,
+      headline: `${ticker} ${id} ${['order win', 'fraud probe', 'buyback', 'results', 'stake sale'][(i + j) % 5]} update`,
+      detail: `Detail ${i} ${j}`, url: `https://example.test/${ticker}/${id}/${j}`, importance: (i + j) % 3 ? 'low' : 'high',
+      direction: ['positive', 'negative', 'neutral'][(i + j) % 3], kind: id === 'technicals' ? 'move' : 'filing',
+      ...(id === 'technicals' ? { movePct: ((i % 13) - 6) * 1.1, volumeX: 1 + (i % 4) } : {}),
+      ...(id === 'investors' ? { investor: `Fund ${i % 7}`, action: ['added', 'reduced', 'new', 'exited'][i % 4], deltaPp: (i % 5) * 0.4 } : {}),
+      ...(id === 'announcements' ? { keywordIds: ['order', 'fraud'].slice(0, 1 + (i % 2)) } : {}) });
+  });
+}
+const universeReport = { day: universeDay, scope: 'universe', feeds: universeFeeds, events: universeEvents };
+const universeHoldings = Array.from({ length: 140 }, (_, i) => ({ ticker: `U${String(i * 21).padStart(4, '0')}`, name: `Company ${i * 21}`, sector: `Sector ${i % 9}` }));
+clearRankingCache();
+const started = performance.now();
+const syncUniverse = rankReport(universeReport, { holdings: universeHoldings });
+const syncMs = performance.now() - started;
+assert(syncUniverse.allCards.length === 3000 && syncUniverse.cards.length > 0, 'the synthetic Universe ranks every company');
+clearRankingCache();
+let yields = 0, longestStretch = 0, lastYield = performance.now();
+const slicedUniverse = await rankReportAsync(universeReport, { holdings: universeHoldings }, { yieldForInput: async () => {
+  const now = performance.now(); longestStretch = Math.max(longestStretch, now - lastYield); yields++;
+  await new Promise(resolve => setTimeout(resolve, 0)); lastYield = performance.now();
+} });
+assert.deepEqual(slicedUniverse, syncUniverse, 'sliced Universe ranking equals the synchronous one, card for card');
+assert(yields > 0, `a ${Math.round(syncMs)}ms ranking yields to input at least once (yielded ${yields} times)`);
+assert(longestStretch < 250, `no stretch between yields exceeds a quarter second (longest ${Math.round(longestStretch)}ms)`);
+clearRankingCache();
+let asked = 0;
+assert.equal(await rankReportAsync(universeReport, { holdings: universeHoldings }, { yieldForInput: async () => { asked++; }, isCurrent: () => false }), null,
+  'a ranking nobody is waiting for resolves null after its first slice');
+assert.equal(asked, 1, 'and stops asking for more time');
+clearRankingCache();
+assert.deepEqual(await mergePartialReportAsync(byPriority, arriving), mergePartialReport(byPriority, arriving), 'the sliced merge equals the synchronous merge');
+assert.deepEqual(await mergePartialReportAsync(byPriority, { ...byPriority, cards: [], allCards: [] }), mergePartialReport(byPriority, { ...byPriority, cards: [], allCards: [] }), 'an empty partial merges the same way in slices');
+function* counting(n) { let sum = 0; for (let i = 1; i <= n; i++) { sum += i; yield; } return sum; }
+assert.equal(runSteps(counting(100)), 5050);
+assert.equal(await runStepsInSlices(counting(100), { sliceMs: 0, yieldForInput: async () => {} }), 5050, 'the sliced driver returns the generator result');
+assert.equal(await runStepsInSlices(counting(100), { sliceMs: 0, yieldForInput: async () => {}, keepGoing: () => false }), undefined, 'an abandoned generator resolves undefined');
+// A sliced stable sort orders exactly as the native stable sort, ties included, however driven.
+let seed = 7;
+const random = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+const sample = Array.from({ length: 50000 }, (_, i) => ({ key: Math.floor(random() * 300), tie: Math.floor(random() * 4), i }));
+const byKey = (a, b) => a.key - b.key || (a.tie === b.tie ? 0 : a.tie < b.tie ? -1 : 1);
+const native = [...sample].sort(byKey);
+const slicedSort = [...sample];
+let sortYields = 0;
+await runStepsInSlices(sortSteps(slicedSort, byKey, { run: 512, stride: 1024 }), { sliceMs: 0, yieldForInput: async () => { sortYields++; } });
+assert.deepEqual(slicedSort, native, 'the sliced stable sort orders exactly as the native stable sort, ties included');
+assert.deepEqual(runSteps(sortSteps([...sample], byKey)), native, 'driven synchronously it orders the same');
+assert(sortYields > 10, `a large sort yields many times (${sortYields})`);
+assert.deepEqual(runSteps(sortSteps([], byKey)), []);
+assert.deepEqual(runSteps(sortSteps([sample[0]], byKey)), [sample[0]]);
+assert.deepEqual(runSteps(sortSteps([...sample].slice(0, 3000), byKey, { run: 7, stride: 5 })), [...sample].slice(0, 3000).sort(byKey), 'odd run and stride sizes order the same');
+console.log(`PASS: sliced ranking and merge equal their synchronous references (3,000-company Universe: ${Math.round(syncMs)}ms synchronous, ${yields} yields, longest stretch ${Math.round(longestStretch)}ms), and stop when nobody is waiting.`);
+>>>>>>> sattva/main

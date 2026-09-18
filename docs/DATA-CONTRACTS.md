@@ -4415,6 +4415,226 @@ destroyed rather than left painting into the content host.
 
 ---
 
+## The team brief — `GET`/`POST /api/newsletter`, `/api/newsletter/send`, `/api/newsletter/preview`
+
+**Two emails a weekday to the desk, built at the edge from feeds this dashboard already reads.**
+
+| Edition | Default send (IST) | Window it covers |
+| --- | --- | --- |
+| `morning` | 08:00 | from the previous **weekday's** evening send — Monday's covers from Friday 16:00 |
+| `evening` | 16:00 | from that day's morning send |
+
+Weekdays only. The window rule is the honesty rule: nothing that happens over a weekend falls
+between two briefs, and every email prints the window it covers on its face.
+
+**"Direct ones" means `portfolio-companies.json`** — the family's listed direct-equity lines, the
+same file the Portfolio scope means everywhere. A line with no NSE symbol is still a holding: the
+brief counts companies reported against the book's **listed** lines and never redefines the book as
+the subset a feed happens to cover.
+
+### What is in it, and where each figure comes from
+
+| Section | Source | Read when |
+| --- | --- | --- |
+| Global market scan — S&P 500, Nasdaq, Dow; Nikkei, Taiwan TAIEX, Shanghai, Hang Seng, Kospi; Nifty 50, Sensex; Brent, gold, silver; DXY, USD/JPY, USD/INR; US 10-year | Yahoo's public chart endpoint, one symbol per request, with Yahoo's own session bounds deciding `Close` versus `Live` | at send time |
+| Corporate announcements · direct holdings | NSE's live announcements RSS (as `/api/nse-announcements`), resolved by name against the book; the retained NSE history `nse-filings/<day>.json` (every successful hourly read, rows already resolved) for the days the window touches; and BSE's date-indexed capture `corp-announcements.json` | NSE RSS at send time; the two captures as captured, each dated on the page |
+| News · direct holdings | `market-news.json` — the publishers' feeds — joined to the book with `matchPortfolioNews`, the same identity match the News tab uses; plus `tradingview-news/latest.json`, the headlines TradingView tags to each holding's symbol, admitted only where `attributeNewsRow` reads the story as `confirmed` or reviewed-`related` | as captured, dated on the page |
+| Price moves · direct holdings | `technicals.json` — a holding whose last completed session (`bar_date`, closing 15:30 IST) moved `MOVE_PCT` (5%) or more, with `move_check` saying whether the close was verified against the exchange | as captured; the session date is on the row |
+
+**The live NSE RSS is the exchange's last ~40 items** — measured, 40 items spanning 39 minutes — so
+at 08:00 it holds the previous night's tail and at 16:00 the last half hour of the session. It was
+the brief's only NSE source, and NSE-only filings from the rest of a sixteen-hour window were
+missed. The retained history is what covers the window; the RSS is the live top-up.
+
+**One filing is one story, and two filings are two.** Rows are folded per filing: an NSE XBRL twin
+folds into its readable copy (same company, same subject family, within 30 minutes), and NSE's copy
+of a BSE filing folds into the BSE row — identical text within twelve hours, or the same subject
+family within 45 minutes — which then names both venues (`exchanges: ['BSE', 'NSE']`). Two rows from
+the same exchange **never** fold: the sixty-character headline-prefix key that used to decide it
+dropped 6 of 61 book filings in one three-day capture ("Please refer the enclosed file." twice is two
+filings). `familyOf()` maps both exchanges' subject vocabularies onto one small set; a subject with
+no family folds only on identical text.
+
+**A capture that lands after a brief is sent is carried by the next one.** Every source above is a
+capture on its own cadence — BSE two-hourly, NSE hourly, the publishers hourly, the closes the next
+morning — so a filing lodged at 15:50 and captured at 16:15 belongs to the evening window and only
+reaches the file after that brief went out. Each edition therefore reads from `window.since`, the
+start of the **previous** edition's window (Monday's morning brief reaches back to Friday 08:00),
+and a row from before its own `from` is a **late arrival**: included, marked `late`, printed with
+*arrived after the previous brief*, counted on the summary line and in the sources line — unless an
+earlier brief already sent it. `sent` is the union of the story keys the last `SENT_HISTORY` (6)
+sent deliveries recorded (`stories` in the delivery log: a filing's URL on each exchange, a headline,
+a session move — keys, never rows; a test copy records none). A missed or failed edition records no
+keys, so its whole window travels with the next brief. Rows inside an edition's own window are never
+suppressed by `sent`: a scheduled brief is self-contained for its window.
+
+The summary line reads `47 updates across 28 of 107 portfolio companies · 2 good · 0 watch-outs ·
+21 arrived after the previous brief`; the sources line names every capture with its time, says
+`reaching back only to HH:MM` when the bounded publisher head stops short of `since`, and dates the
+session whose closes it carries (`closes for the 2026-09-17 session captured …`, or `not yet
+captured` when the morning capture has not landed). A move is a story under its company — `Rose
+7.2% at the 17 Sept close · ₹242.05` — with `Good` / `Watch-out` by sign, the dashboard's own
+price-move rule, and the footer says mood follows the filing **and price-move** rules.
+
+**A symbol Yahoo refuses prints `unavailable`, never a number.** Glow Central Research, which this
+brief is ported from, keeps a macro series store under `public/data/series/` and fills a refused row
+from it. **This dashboard has no such file**, so `quoteFromSeries` and `SERIES_INDEX_PATH` are
+deliberately absent rather than present and unreachable — an unreachable fallback reads as
+documentation of a working one. The row keeps its `reason` (`timeout`, `rate-limited`, `upstream`,
+`shape`) so the sheet states the refusal instead of going quiet.
+
+A source that could not be read says so **in the email** (`NSE feed could not be read (blocked)`).
+If the **book** cannot be read the brief is not built at all — an email about portfolio companies
+with no book behind it is about nothing — and the delivery is recorded `book-unavailable`.
+
+### The email is a Sattva Ventures broadsheet, and it leads with the portfolio companies
+
+`worker/newsletter-brief.mjs` renders one table-based, inline-styled, 640px sheet: the
+`SATTVA VENTURES` masthead, the tagline (`Research Central — Morning Portfolio Brief`), a
+date/edition strip (`Edition: Portfolio companies`), a summary line counting updates and the
+companies they cover against the book, then **Your portfolio companies** — every filing and story
+filed under its company — and only then the global market scan, the sources line, a dark footer with
+the unsubscribe link and a small `powered by Munshot` credit, and the caption
+`Sattva Ventures · Research Central`. Subject:
+`Sattva Ventures · 12 updates on your portfolio companies — 17 Sep`.
+
+The palette is the dashboard's own, resolved to literals because an email carries no stylesheet and
+no custom property: `--ink-900` `#0f172a`, the slate ramp, and `--brand-600` `#4f46e5` with
+indigo-300 `#a5b4fc` on the dark footer. **The ramp's purple and pink are a gradient on the page and
+email clients do not render one**, so the brand reaches the sheet as its indigo start — and never as
+a semantic emerald/amber/rose, which stay reserved for direction.
+
+A company is one block — its name links to All Alerts narrowed to that company
+(`#/research/daily-alerts?scope=portfolio&company=TICKER`), filings and news together under it — and
+companies are ordered by their strongest story (tracked keyword, directional mood, importance), then
+by how much they had, then by recency. **Every link carries `target="_blank" rel="noopener
+noreferrer"`**, and the page declares `<base target="_blank">`, so opening a filing from the preview
+or a web mail client never navigates away from the brief.
+
+Filings and published stories become one list of **stories**, each carrying two readings this
+dashboard already makes and no new one:
+
+- **Topic** is what a story is *about*, from the desk's thirty tracked keywords. The seven topics
+  fold the keyword families: Orders is the three order keywords, Growth the rest of that family,
+  Money is capital raising and results, Approvals & IP is regulatory, Trouble is risk and
+  governance, and a story matching nothing is Other.
+- **Mood** is a direction, and only where a stated rule gives one: `announcementSignal()` over a
+  filing's own subject and category. A published headline carries **no** sentiment reading anywhere
+  on this dashboard, so a news story's dot is Neutral — never a guess dressed as a judgement. The
+  footer disclaimer says exactly this.
+
+Headlines, standfirsts and filing subjects are reproduced as written; nothing is summarised.
+
+### The list — one Durable Object, `team-brief:v1`
+
+`worker/newsletter-store.mjs` on the provisioned `CaptureRegistry` class, under the `NEWSLETTER`
+binding. Three tables: subscribers (an unsubscribe is a `removed` row, never a deletion), the
+desk-wide settings, and a delivery log. `public/js/data/newsletter-shared.js` owns the rules —
+what an address is, what an edition is, when it sends, what window it covers — and is imported by
+the browser and the Worker alike.
+
+```jsonc
+// GET /api/newsletter — no-store, never at the edge: it names the desk's addresses
+{
+  "ok": true, "version": 1, "revision": 4, "updatedAt": "…",
+  "settings": { "morning": { "enabled": true, "time": "08:00" }, "evening": { "enabled": true, "time": "16:00" } },
+  "count": 2, "limit": 100,
+  "subscribers": [{ "email": "tech@muns.io", "name": null, "editions": ["morning", "evening"], "addedAt": "…", "addedBy": "Ravi" }],
+  "deliveries": [{ "key": "2026-09-17:morning", "edition": "morning", "day": "2026-09-17", "source": "timer",
+                   "recipients": 2, "sent": 2, "failed": 0, "reason": null, "subject": "…", "outcomes": [{ "email": "…", "ok": true, "status": 200, "reason": null }],
+                   "summary": { "quotes": 16, "quotesFailed": ["taiex"], "announcements": 4, "news": 6, "stories": 12, "companies": 7, "good": 1, "watch": 0,
+                                "moves": 2, "late": 3, "suppressed": 5, "nse": true, "history": true, "bse": true, "publishers": true, "tradingView": true, "prices": true } }],
+  // the delivery row also holds `stories` — the keys the brief was sent under — which the panel never receives
+  "schedule": { "tokenConfigured": true, "armed": true, "alarmAt": "…", "next": { "edition": "evening", "day": "2026-09-17", "at": "…", "key": "2026-09-17:evening" }, "lastResult": "sent", "reason": null },
+  "dashboardUrl": "https://sattva-central-research.tech-441.workers.dev"
+}
+```
+
+`POST /api/newsletter` takes `{ intents?: [{ op, email, name?, by, editions? }], settings? }`,
+same-origin, `application/json`, bounded at 16 KB, rate-limited (`NEWSLETTER_LIMITER`, 12 a minute).
+An edit is sent as **what it was**, never as the list it produced — the shared-watchlist rule.
+
+| `op` | Contributor | Meaning |
+| --- | --- | --- |
+| `subscribe` | **required** | Adds or re-activates an address with the editions named (default both). Records who added it. |
+| `editions` | — | Changes which briefs an active address gets; at least one, or unsubscribe. |
+| `unsubscribe` | optional | The row stays, `state = 'removed'`. |
+
+Outcomes: `subscribed` · `updated` · `unchanged` · `unsubscribed` · `not-subscribed` · `full`
+(refused at 100, and **never** reads as subscribed).
+
+### The timer — a Durable Object alarm, because nothing else here keeps time
+
+Cloudflare's cron cannot drive this (the account's five slots are spent — see `wrangler.jsonc`) and
+GitHub's scheduler measurably drops most of a dense schedule. The object's **alarm** is neither: it
+is armed for the next enabled weekday send whenever the list or the schedule changes and on every
+GET of the panel, and re-armed at the end of every wake. `worker/newsletter-schedule.mjs`:
+
+1. **Durable claims precede external I/O.** `wake()` moves `lastCheckedAt` forward in a transaction
+   before it reads a quote; `deliver()` claims the edition's key — `<day>:<edition>` — in SQLite
+   before the first email goes. A replayed alarm or a restart mid-send finds the claim and sends
+   nothing. One morning brief a day is a property of the store, not a hope about the scheduler.
+2. **An edition the timer reaches more than three hours late is recorded `missed`**, not sent at
+   lunch. A morning brief at 15:00 is a different product.
+3. **The credential is the Worker's `MUNS_TOKEN`**, sent as `Authorization: Bearer` to
+   `POST https://devde.muns.io/email/send/raw` with `{ email, subject, html }` — exactly one of
+   `html`/`text`, as the endpoint requires. Without it the delivery is recorded `no-token` against
+   every recipient, nothing is built, and the panel names the secret in one line. A reader's own
+   session token (forwarded by `authHeaders()`) may stand in for a send made through
+   `/api/newsletter/send`; it is passed as a value for that send and never stored.
+4. **Every failure is a named reason per recipient** — `unauthorised`, `rate-limited`, `upstream`,
+   `refused`, `timeout`, `unreachable`, `invalid-response` — and never the upstream's own text.
+   `sent` counts successes only.
+5. **`renderOptions()` is what every render of the sheet is built with.** It carries
+   `NEWSLETTER_PRODUCT_NAME` and the store's own `settings`, because leaving either out is
+   invisible: a declared Worker var nothing reads looks like a var that does not work, and a footer
+   built from the DEFAULT send time tells a desk that moved its schedule the old time in the very
+   email that arrived at the new one.
+
+`POST /api/newsletter/send` `{ edition, to: 'me' | 'all', email? }` builds the edition **now**,
+covering its window up to now (the sheet says `built on request`), and sends it to one address as a
+test copy or to every subscriber of that edition; "everyone" cools down for five minutes and never
+claims the scheduled key. `GET /api/newsletter/preview?edition=morning[&format=text]` renders
+the same build without sending.
+
+**The panel is deliberately minimal.** It offers your own address with Subscribe / Unsubscribe, the
+other addresses on the list with × and one field to add a teammate, and Preview Morning · Evening.
+Every address added from it gets both editions, and no name is asked for — the addition is
+attributed to this device's known contributor, else the signed-in address, else the address itself.
+Send times, manual sends and the delivery log remain on these routes and are not controls in the
+panel; a missing `MUNS_TOKEN` is one quiet line.
+
+The email's Unsubscribe link lands on `#/research/ask-research?newsletter=manage`, which opens
+straight onto the panel and then **scrubs the flag from the URL and from the saved route together**.
+`saveLastRoute` lives in `core/state.js`, not on the router: correcting only the URL leaves the
+saved hash carrying `?newsletter=manage`, so the next visit reopens the panel over whatever the
+reader actually wanted.
+
+### Verifying
+
+`node scripts/verify-newsletter.mjs` — the contract, the store, editions built against fixtures
+under `scripts/fixtures/newsletter/`, the renderer's fixed elements and escaping, and the alarm:
+one send per key, replay-safe, `no-token`, refused, missed, test copy, cooldown, preview. It also
+asserts the retained NSE history joins and folds (one filing on both exchanges is one story, an
+XBRL twin folds, two same-prefix filings stay two), the TradingView headlines join only where
+attribution confirms the company, a 5% session move is on the sheet with its verification state and
+`MOVE_PCT` equals `daily-alerts.js`'s, and late arrivals: carried once, marked, suppressed once sent,
+and a missed morning's window reaching the evening brief.
+`node scripts/verify-newsletter-ui.mjs` drives the real button and panel against the real route,
+store and schedule over an in-process server with stubbed upstreams — the email endpoint records
+what it was asked to send.
+
+**The fixtures are the point, not a shortcut.** `book.json`, `corp-announcements.json`,
+`market-news.json`, `nse-filings-index.json` + `nse-filings-2026-09-16.json`, `tradingview-news.json`
+and `technicals.json` under `scripts/fixtures/newsletter/` stand in for the shipped files so the
+ordering, grouping and denominator assertions mean the same thing tomorrow: the two captures are
+rewritten by their own evening workflows and the book by `family-book-sync.yml`, and the shipped
+capture carried 27 rows for 19 book companies inside the morning window when this was written — so
+which company led the sheet was a property of that day's commit, not of the rule under test. One
+test still builds against the shipped files and asserts structure and honesty only.
+
+---
+
 ## AI Alerts priority — DERIVED, no file and no route of its own
 
 `js/data/ai-alerts.js` consumes the retained report below and writes nothing. It takes company events
@@ -4508,6 +4728,7 @@ never parsed back out of a sentence.
 `Reconcile`, because that changes what the reader does next and `Important` does not. The band
 itself stays on the card as `data-priority` and in the filter chips.
 
+<<<<<<< HEAD
 
 ### The two bullets — `impactOf` / `impactParts` / `impactLine` / `eventImpacts`
 
@@ -4572,6 +4793,49 @@ reading of tracked triggers, not a claim that nothing could change, and offers t
 `impactParts` returns the same sentence as parts — `text`, `axis` and `reason` kinds, the last
 carrying `eventId` and `feed` — so the card can set the axis names in bold and link every trigger
 without a second wording; `impactLine` is those parts joined.
+=======
+### The driver layer — `driversOf(card)` in `js/data/alert-drivers.js`
+
+Derived, pure, and attached to every ranked card as `card.drivers`. It answers the reader's second
+question — *does this change anything I believed?* — by bucketing the topic readings ALREADY on the
+card's events onto the three forms that question takes on this desk.
+
+```js
+{
+  buckets: [{                 // only questions with at least one driver, in QUESTIONS order
+    id: 'earnings',           // 'earnings' | 'valuation' | 'thesis'
+    label: 'the earnings assumption',
+    short: 'Earnings assumption',
+    drivers: [{
+      key: 'earnings:order:a filing',
+      question: 'earnings',
+      label: 'Order',         // the desk's own word, or announcementSignal's own rule name
+      where: 'a filing',      // 'a filing' | 'the news'
+      text: 'Order in a filing',
+      why: 'Matched the tracked keyword Order. A keyword says what a source is about; …',
+      event,                  // the event this was read off — the card links the driver to it
+    }],
+    overflow: 0,              // drivers past the cap, COUNTED rather than dropped
+  }],
+  silent: [{ id: 'thesis', label: 'the thesis', short: 'Thesis' }],
+  total: 5,
+}
+```
+
+| Rule | Why |
+| --- | --- |
+| Adds no fact, no number, no score | Every driver is a topic reading `newsSignal()` / `announcementSignal()` already wrote. `rankReport`'s arithmetic is unchanged — a card scores identically with its topics stripped. |
+| A TOPIC, never a direction | The card says a topic **could change** a question. Strengthening that to a verdict would assert a direction the feeds themselves refuse to assert. |
+| `filingRule` is a field | `announcementSignal` returns its matched rule name directly, so nothing recovers it by parsing `signalReason`. |
+| Only topic-carrying, company-certain feeds | `announcements`, `nse-filings` and confirmed company `news`. The tape, fund books and insider rows carry no topic; **market-wide news carries no company** and related-entity reports are about a different one; `brokerage-research` is a view of the company, not an event at it. |
+| Same topic, two sources → two drivers | A filing and a story are separate records with separate links. The same topic twice in one source is one driver. |
+| A silent question is stated | *"Nothing tracked here bears on the thesis."* The whole section drops only when no question has an answer. |
+
+Two bucket choices are deliberate: **`stake-sale` is valuation** (a block changing hands alters who
+owns the company and what the float is, not what it earns), and **`merger` / `acquisition` are
+thesis** (they move earnings too, but whether the thing being valued is still the same thing is the
+prior question).
+>>>>>>> sattva/main
 
 ### Screener company Insights — authenticated capture, context only
 
@@ -4846,6 +5110,102 @@ seed's promise and silently discard its company list, and the Refresh button wou
 empty set and ask about nothing. All Alerts Refresh uses the one-shot earnings, con-call and
 chatter revalidators plus one conditional read of the bulk investor snapshot. It never performs
 the Super Investors tab's ninety-one-book revalidation walk.
+
+### The precomputed alert pool — DERIVED, an Actions artifact, never a source
+
+The collection above is expensive: a period view downloads and classifies a month of captures, and
+the AI ranking reads the retained history. `scripts/build-alert-pool.mjs` performs that collection
+ONCE per capture on the runner (`.github/workflows/alert-pool-refresh.yml`, triggered by every
+capture workflow's completion, with a best-effort schedule and `workflow_dispatch` behind it) and
+publishes the result as one Actions artifact, `alert-pool`, that the Worker serves by byte range
+(`worker/alert-pool.mjs`). **Nothing about the captures, their retention or the live collection
+changes.** The pool is an additional derived artifact, verified equal to a fresh collection, and
+every read it cannot answer keeps the path it always took.
+
+| Route | Answer |
+| --- | --- |
+| `GET /api/alert-pool/index` | the latest build's `index.json` plus the `artifact` id it lives in; 60s at the edge, ETagged |
+| `GET /api/alert-pool/<artifact>/days/<YYYY-MM-DD>.json.gz` | one pooled day, every pooled feed, full `sourceRecord`; immutable, cached for days |
+| `GET /api/alert-pool/<artifact>/ai/<span>.json.gz` | one AI span (a month before the pool's days, then each pool day), compact events |
+
+Members are gzip files stored uncompressed inside the artifact ZIP (`compression-level: 0`); the
+Worker reads the ZIP's central directory from the archive's tail, then the member's own bytes, and
+hands them to the browser unchanged with `content-encoding: gzip`. A storage that answers a range
+with the whole archive is refused rather than read into the Worker's memory. With no Worker (a
+static origin), no build yet, or an unreadable member, the browser is on the live path.
+
+**What the pool carries.** `public/js/data/alert-pool-shared.js` is the one definition:
+
+- `POOL_FEEDS`: `technicals`, `announcements`, `insider`, `news`, `market-news` — the feeds read
+  entirely from committed captures (the insider feed also folds in the bulk/block artifact, which the
+  builder reads and the index names by id). NSE filings and IPOs read a live route in the browser;
+  institutions, the calendar and the investor books are cheap; all keep their own path.
+- `POOL_CAPTURES` / `POOL_FEED_CAPTURES`: every capture each pooled feed reads, by the name
+  `/api/capture-status` reports it under (that route now lists the archive indexes, the TradingView
+  and company-news indexes and the shared announcements capture too, and reports the exchange
+  artifact id it is serving from its own edge entry). Each carries a `revision` — every field that
+  can move without `capturedAt` moving (`captureRevision`) — and `capturedAt` stays the single
+  timestamp the capture watchdog reads.
+- A DAY SHARD (`public/js/data/alert-pool-format.js`) holds, per pooled feed, that day's events in
+  the collector's own order (`order` is each event's index in the full feed) with their full
+  `sourceRecord`, plus the URL COMPANIONS the news dedupe needs: events of another day sharing a
+  canonical address with an event of this day, of either news feed. A period is the union of its
+  days' shards, reassembled in feed order, and `querySourceFeeds` then sees exactly what the bounded
+  live read gives it.
+- An AI SHARD holds the events the ranking can read at all — those `newsCanSupportAI` or
+  `isRelatedNewsContext` admits inside `CONTEXT_LOOKBACK_DAYS` (181 days), the tickerless events of
+  the ranking window (they only contribute to the market-wide count), and their URL companions —
+  in COMPACT form: no `sourceRecord`, except that a market-wide story keeps its record (the
+  portfolio discovery mapping runs in the browser against the reader's book and reads its text)
+  and a company story keeps the three provenance fields the dedupe copies. The ranking, priorities,
+  evidence, context rows and market-wide count are identical to the full history's; only
+  `meta.topFunnelEvents`, the count of events read, is smaller. A notebook snapshot taken from a
+  compact event fetches the full record from the day shard first (`alertPool.fullRecord`).
+- The `index.json` carries the build day (IST), the book signature, each capture's revision, each
+  pooled feed's row as the runner read it (the company-news row's inputs to `companyNewsState`, so
+  the browser recomputes its status against the reader's clock), and the member list.
+
+**When a feed is taken from the pool** (`public/js/data/alert-pool.js`), per feed, on every read:
+
+1. the index is for TODAY (IST) — a pool built yesterday is not used at all;
+2. every capture the feed reads carries the same `revision` in `/api/capture-status` as in the
+   index (the exchange artifact: the same id) — a capture that moved, or one the deployment does not
+   report, sends that feed down the live path until the next build;
+3. the collection would read no rows for the feed that the pool cannot carry: the feed module
+   holds nothing this session supplied beyond the capture (`holdsSessionRows()` — a company walked
+   or searched live, a device copy a tab loaded that the capture lacks) and there are no
+   announcement lookups, which the shared announcements reader restores on load. A per-company
+   entry left in the device store by an earlier visit (`filings:news:*`, `filings:insider:*`) does
+   not count: a reader seeded with no company list never reads it, so a collection made now would
+   not see it either;
+4. for company news, the pool's `bookDependent` flag is false, or the reader's book signature equals
+   the builder's — an event names its company from the book only when its row carries no name.
+
+A period's rows count what they carry (the period and its companions), exactly as the bounded live
+read counts its own rows. The AI pool's source rows keep the full read's figures (they describe the
+sources the ranking was read from); the ranking report's own feed rows, built by `toFeedRow`, count
+the events the ranking read, and the AI tab reads their `status` and never a count. A read without
+loading reuses the last pool read in memory. `alertPool.status()` reports, per feed, whether the
+last collection came from the pool and why not.
+
+**Verification.** `scripts/verify-alert-pool.mjs` builds the pool from one full collection over the
+shipped captures and asserts, with no egress: every member carries exactly the collector's events;
+Today, Last 3/7/30 days from the pool equal the full history narrowed to the period (identities,
+every field, order); every feed row, count and figure for Last 7 days in both scopes equals the
+full history narrowed by the real assembly; the ranking from the AI pool equals the ranking from the
+full history in both scopes — every figure, every feed row's source description, every surfaced and
+ranked company in order, and every card's score, priority, evidence, context, drivers and figures,
+compared card by card with the source records stripped from both sides, because a pooled AI event
+travels compact by contract and the record is fetched from the day shard; and every reason the pool
+stands aside is checked on the read.
+`scripts/verify-alert-pool-worker.mjs` drives the route in workerd against a fake GitHub and a
+range-serving storage; `scripts/verify-alert-pool-ui.mjs` paints All Alerts and AI Alerts from a
+built pool in Chromium, compares rows and cards with the live collection, and moves one capture's
+revision to see only that feed's capture downloaded.
+
+The one thing the pool does not carry is a rule function: the technicals source record holds the
+scoring rules' functions and a field `Set`, which no serialisation keeps and no alert surface reads —
+the pooled record is the JSON form the export column and the device cache already write.
 
 ---
 

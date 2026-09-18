@@ -1,0 +1,23 @@
+{
+  "_fixture": "A stand-in for public/data/market-news.json. One publisher story about a book company inside the morning window, carrying no tracked keyword — so it stays Neutral and low, which is what a published headline must always be on this dashboard, and ranks below a filing that carries both readings.",
+  "capturedAt": "2026-09-17T02:25:00.000Z",
+  "sources": [{ "id": "business-standard", "publisher": "Business Standard", "ok": true }],
+  "articles": [
+    {
+      "id": "fixture-adanient-1",
+      "title": "Adani Enterprises opens its new logistics park",
+      "summary": "The company said the facility began operations this week.",
+      "url": "https://www.business-standard.com/article/fixture-adanient-1.html",
+      "publisher": "Business Standard",
+      "publishedAt": "2026-09-16T17:05:00.000Z"
+    },
+    {
+      "id": "fixture-outside-window",
+      "title": "Adani Enterprises reported earlier in the week",
+      "summary": "Published before this brief's window opens.",
+      "url": "https://www.business-standard.com/article/fixture-outside.html",
+      "publisher": "Business Standard",
+      "publishedAt": "2026-09-14T06:00:00.000Z"
+    }
+  ]
+}

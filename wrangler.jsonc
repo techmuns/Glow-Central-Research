@@ -56,8 +56,14 @@
 
     // Where the brief's links and its unsubscribe route point. The email is built on the edge with
     // no request in hand, so the origin cannot be read off one; this is the public dashboard.
+<<<<<<< HEAD
     "DASHBOARD_ORIGIN": "https://glow-central-research.tech-441.workers.dev",
     // The dashboard name on the brief's tagline and caption; the masthead and subject are Glow Ventures.
+=======
+    "DASHBOARD_ORIGIN": "https://sattva-central-research.tech-441.workers.dev",
+    // The dashboard name on the brief's tagline and caption; the masthead and subject are the
+    // family office's own, "Sattva Ventures". Read by NewsletterSchedule.renderOptions().
+>>>>>>> sattva/main
     "NEWSLETTER_PRODUCT_NAME": "Research Central"
   },
 
@@ -90,7 +96,11 @@
       // subscriber, so this is deliberately tighter than the watchlist's ceiling; the object adds a
       // five-minute cooldown on "send to everyone" behind it.
       "name": "NEWSLETTER_LIMITER",
+<<<<<<< HEAD
       "namespace_id": "1804",
+=======
+      "namespace_id": "1704",
+>>>>>>> sattva/main
       "simple": { "limit": 12, "period": 60 }
     }
   ]

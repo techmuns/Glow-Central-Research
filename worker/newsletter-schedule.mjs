@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { buildBrief, briefSubject, briefSummary, renderBriefHtml, renderBriefText, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
+=======
+import { buildBrief, briefStoryKeys, briefSubject, briefSummary, renderBriefHtml, renderBriefText, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
+>>>>>>> sattva/main
 import { EDITIONS, editionKey, istDay, nextScheduled, normaliseEmail, scheduledEditions } from '../public/js/data/newsletter-shared.js';
 
 // THE TIMER THAT SENDS THE BRIEF, AND THE ONE PLACE AN EMAIL LEAVES THIS DASHBOARD.
@@ -21,11 +25,14 @@ import { EDITIONS, editionKey, istDay, nextScheduled, normaliseEmail, scheduledE
 // exactly as `withCallerToken` lets it elsewhere. Without either, the delivery is recorded as
 // `no-token` against every recipient and the panel says which secret an operator installs.
 // Nothing here ever logs, stores or returns upstream error text or a token.
+<<<<<<< HEAD
 //
 // A SEND THAT REACHED SOMEBODY IS WRITTEN TO THE LEDGER. Every item the brief carried is recorded
 // under its own identity once at least one recipient got it, for the timer's sends and a send to
 // everyone alike — and never for a test copy or a preview, which nobody on the list received. That
 // ledger is what the next brief reads late arrivals against (see newsletter-shared.js).
+=======
+>>>>>>> sattva/main
 
 export const NEWSLETTER_TIMER_KEY = 'newsletter-timer';
 export const EMAIL_SEND_URL = 'https://devde.muns.io/email/send/raw';
@@ -90,6 +97,26 @@ export class NewsletterSchedule {
     return /^https:\/\/[a-z0-9.-]+$/i.test(origin) ? origin : PRODUCTION_ORIGIN;
   }
 
+<<<<<<< HEAD
+=======
+  /**
+   * What every render of the sheet needs besides the brief itself. Two of these are here because
+   * leaving them out is invisible: `productName` is a declared Worker var, so a deployment that
+   * sets it and never sees it change would read as a var that does not work; and `settings` is
+   * what the footer's "every weekday at 8:00 AM IST" is built from, so without it a desk that
+   * moved its send time is told the old one by the very email that arrived at the new one.
+   */
+  renderOptions(recipient = null) {
+    const productName = String(this.env?.NEWSLETTER_PRODUCT_NAME || '').trim();
+    return {
+      dashboardUrl: this.dashboardUrl(),
+      settings: this.store.settings(),
+      ...(productName ? { productName } : {}),
+      ...(recipient ? { recipient } : {}),
+    };
+  }
+
+>>>>>>> sattva/main
   async status() {
     const { state, alarm } = await this.storage.transaction(async (tx) => ({ state: (await tx.get(NEWSLETTER_TIMER_KEY)) || {}, alarm: await tx.getAlarm() }));
     const next = nextScheduled(this.store.settings(), this.now());
@@ -102,7 +129,10 @@ export class NewsletterSchedule {
       lastWakeAt: iso(state.lastWakeAt),
       lastResult: state.lastResult || 'not-started',
       reason: state.reason || null,
+<<<<<<< HEAD
       reported: this.store.reportedCount(),
+=======
+>>>>>>> sattva/main
     };
   }
 
@@ -180,7 +210,13 @@ export class NewsletterSchedule {
 
     let brief;
     try {
+<<<<<<< HEAD
       brief = await buildBrief({ edition, day, settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to, reported: this.store.reportedLookup() });
+=======
+      // What earlier briefs already carried, so a capture that landed after the previous edition
+      // went out is sent once — in this edition — and never twice.
+      brief = await buildBrief({ edition, day, settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to, sent: this.store.sentStoryKeys() });
+>>>>>>> sattva/main
     } catch (error) {
       const reason = error?.code === 'book-unavailable' ? 'book-unavailable' : 'build-failed';
       return finish({ sent: 0, failed: list.length, reason, outcomes: list.map((r) => ({ email: r.email, ok: false, reason })) });
@@ -188,15 +224,25 @@ export class NewsletterSchedule {
     const subject = briefSubject(brief);
     const outcomes = [];
     await pooled(list, SEND_POOL, async (recipient) => {
+<<<<<<< HEAD
       const html = renderBriefHtml(brief, { dashboardUrl: this.dashboardUrl(), recipient });
+=======
+      const html = renderBriefHtml(brief, this.renderOptions(recipient));
+>>>>>>> sattva/main
       const result = await sendEmail({ fetcher: this.fetcher, token: credential, email: recipient.email, subject, html, signal: AbortSignal.timeout(SEND_TIMEOUT_MS) });
       outcomes.push({ email: recipient.email, ok: result.ok, status: result.status, reason: result.reason });
     });
     const sent = outcomes.filter((o) => o.ok).length;
     const failed = outcomes.length - sent;
+<<<<<<< HEAD
     // "Reported" means the desk saw it: a list send that reached at least one address, never a test copy.
     if (sent > 0 && ['timer', 'button'].includes(source)) this.store.markReported(brief.reported, key, { windowFrom: brief.window.from });
     return finish({ sent, failed, reason: sent ? null : outcomes[0]?.reason || 'failed', outcomes, subject, summary: briefSummary(brief) });
+=======
+    // The desk has read these once it was sent to the desk; a test copy to one person is not that.
+    const stories = sent && source !== 'test' ? briefStoryKeys(brief) : null;
+    return finish({ sent, failed, reason: sent ? null : outcomes[0]?.reason || 'failed', outcomes, subject, summary: briefSummary(brief), stories });
+>>>>>>> sattva/main
   }
 
   /** A send somebody pressed: a test copy to one address, or the edition to everyone, built now. */
@@ -226,13 +272,21 @@ export class NewsletterSchedule {
     const now = this.now();
     let brief;
     try {
+<<<<<<< HEAD
       brief = await buildBrief({ edition, day: istDay(now), settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to: now, reported: this.store.reportedLookup() });
+=======
+      brief = await buildBrief({ edition, day: istDay(now), settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to: now, sent: this.store.sentStoryKeys() });
+>>>>>>> sattva/main
     } catch (error) {
       return { ok: false, reason: error?.code === 'book-unavailable' ? 'book-unavailable' : 'build-failed' };
     }
     return {
       ok: true, edition, subject: briefSubject(brief), builtAt: iso(now), summary: briefSummary(brief),
+<<<<<<< HEAD
       body: format === 'text' ? renderBriefText(brief) : renderBriefHtml(brief, { dashboardUrl: this.dashboardUrl() }),
+=======
+      body: format === 'text' ? renderBriefText(brief, this.renderOptions()) : renderBriefHtml(brief, this.renderOptions()),
+>>>>>>> sattva/main
     };
   }
 }

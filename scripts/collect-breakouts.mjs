@@ -9,12 +9,13 @@ import { yahooQuote, upstoxQuotes, recoverYahoo } from './lib/breakout-providers
 
 export function captureTarget(company) {
   const ticker = String(company.ticker || /\/company\/([^/]+)/.exec(company['Screener URL'] || '')?.[1] || '').trim().toUpperCase();
-  return tickerValid(ticker) ? {ticker,name:company.name || company.Company || ticker,yahooTicker:company.yahooTicker} : null;
+  return tickerValid(ticker) ? {ticker,name:company.name || company.Company || ticker,yahooTicker:company.yahooTicker,
+    ...(/^IN[A-Z0-9]{10}$/.test(company.isin || '') ? {isin:company.isin} : {})} : null;
 }
 export function closingSeedComplete(capture, now = Date.now()) {
   if (capture?.state !== 'complete' || capture.discoveryFailed || capture.failures?.length || !capture.targets?.length) return false;
   const rows = new Map((capture.rows || []).map(row => [row.ticker, row]));
-  return capture.targets.every(ticker => quoteFresh(rows.get(ticker), now));
+  return capture.targets.every(ticker => quoteFresh(rows.get(ticker), now) && rows.get(ticker).base);
 }
 export function breakoutClient({ env = process.env, fetcher = fetch } = {}) {
   return async input => {
@@ -50,8 +51,17 @@ export async function collectBreakouts({ targets, previous = null, client, prima
     await Promise.all(wave.map(async target => {
       // Retry only missing closing observations overnight. Reused observations keep
       // their actual source/check times; they are not newly fetched prices.
-      const prior = retained.get(target.ticker);
-      if (closingRetry && quoteFresh(prior, now())) { saved.push(prior); rows.push(prior); return; }
+      let prior = retained.get(target.ticker);
+      if (closingRetry && quoteFresh(prior, now())) {
+        if (!prior.base && !token && !rateLimited && now() < captureDeadline) {
+          try {
+            const history = await primary(target, {now});
+            if (history.base && history.sessionDate === prior.sessionDate) prior = {...prior,base:history.base,historyBars:history.historyBars};
+          } catch (error) { if (error.message === 'rate-limited') rateLimited = true; }
+        }
+        if (token && !prior.base) { misses.push({target,reason:'missing-base',quote:prior}); return; }
+        saved.push(prior); rows.push(prior); return;
+      }
       if (now() >= captureDeadline) { misses.push({ target, reason:'unavailable' }); return; }
       if (rateLimited) { misses.push({ target, reason: 'rate-limited' }); return; }
       try {
@@ -71,12 +81,14 @@ export async function collectBreakouts({ targets, previous = null, client, prima
     if (!rateLimited && offset + 8 < targets.length) await sleep(300);
   }
   let backupReason = token ? 'unused' : 'not-configured';
+  let backupInstrumentFailures = [];
   if (misses.length && token) {
     let result = {rows:[]};
     try {
       result = await backup(misses.map(m => m.target), bases, { token, now });
       if (!Array.isArray(result?.rows)) throw Error('Invalid backup result');
       backupReason = result.reason || 'ok';
+      backupInstrumentFailures = result.instrumentFailures || [];
     } catch { result = {rows:[]}; backupReason = 'unavailable'; }
     const candidates = new Map(result.rows.map(row=>[row.ticker,row]));
     const saved = misses.flatMap(m => {
@@ -111,7 +123,7 @@ export async function collectBreakouts({ targets, previous = null, client, prima
     } catch (error) { recoveryFailed++; if (error.message==='rate-limited') rateLimited=true; }
   }
   return { targetCount: targets.length, saved: rows.length, failures: failures.length, noBase: rows.filter(r => !r.base).length,
-    discoveryFailed, recovered, recoveryFailed, upstox: backupReason, completedAt: new Date(now()).toISOString() };
+    discoveryFailed, recovered, recoveryFailed, upstox: backupReason, upstoxInstrumentFailures: backupInstrumentFailures, completedAt: new Date(now()).toISOString() };
 }
 export async function bootstrapBreakouts({client=breakoutClient(),now=Date.now,sleep=ms=>new Promise(done=>setTimeout(done,ms))}={}) {
   const deadline=now()+8*60000;
@@ -142,12 +154,12 @@ async function main() {
   for (const c of universe) { const target=captureTarget(c); if(target) { if(!targets.has(target.ticker)) targets.set(target.ticker,target); } else discoveryFailed=true; }
   try {
     const book = await loadActivePortfolio(resolve('public/data/portfolio-companies.json'), { live: true });
-    for (const c of book.holdings || []) if (tickerValid(c.ticker)) targets.set(c.ticker, { ticker: c.ticker, name: c.name, yahooTicker: c.yahooTicker });
+    for (const c of book.holdings || []) { const target=captureTarget(c); if(target) targets.set(target.ticker,target); }
   } catch { discoveryFailed = true; }
   try {
     const watchlist = await boundedJson(await fetch(`${BREAKOUT_ORIGIN}/api/watchlist`, { signal: AbortSignal.timeout(20000) }), 2 * 1024 * 1024);
     if (!Array.isArray(watchlist.companies)) throw Error('Watchlist unavailable');
-    for (const c of watchlist.companies) if (tickerValid(c.ticker)) targets.set(c.ticker, { ticker: c.ticker, name: c.name });
+    for (const c of watchlist.companies) if (tickerValid(c.ticker) && !targets.has(c.ticker)) targets.set(c.ticker, captureTarget(c));
   } catch { discoveryFailed = true; }
   if (discoveryFailed) for (const ticker of previous?.targets || []) if (!targets.has(ticker)) targets.set(ticker, {ticker,name:previous?.rows?.find(row=>row.ticker===ticker)?.name || ticker});
   const client = breakoutClient();

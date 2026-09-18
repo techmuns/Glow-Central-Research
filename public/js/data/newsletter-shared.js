@@ -21,6 +21,7 @@
 // A SEND ON A WEEKEND IS NOT OFFERED. Markets are shut, filings are rare, and Monday's morning brief
 // already covers from Friday's close — its window is "since the previous WEEKDAY's evening send",
 // so nothing that happened over the weekend falls between two briefs.
+<<<<<<< HEAD
 //
 // NOTHING FALLS BETWEEN TWO BRIEFS, AND THE WINDOW ALONE COULD NOT PROMISE THAT. Every source behind
 // the brief is a capture with a lag — BSE's date feed every hour or two on a best-effort scheduler,
@@ -33,6 +34,8 @@
 // hold — `lateArrivalsFrom()` below — printing those as "not in the previous brief" with their own
 // publication time. The ledger is the identity rule from everywhere else here: compare identities,
 // never counts or clocks.
+=======
+>>>>>>> sattva/main
 
 import { personName } from './watchlist-shared.js';
 
@@ -42,6 +45,7 @@ export const EDITIONS = Object.freeze({
 });
 export const EDITION_IDS = Object.freeze(['morning', 'evening']);
 
+<<<<<<< HEAD
 // A DAY-DATED RECORD IS FILED AT THAT DAY'S CLOSE. Insider, bulk, block and SAST disclosures carry a
 // broadcast day and no clock, so the brief has to decide which edition a day belongs to: the evening
 // brief of that day, with the label "day only" on the row rather than an invented clock. One captured
@@ -50,6 +54,8 @@ export const DAY_ONLY_TIME = '15:30';
 // Items a scheduled brief carried are remembered this long, which is longer than any lookback below.
 export const REPORTED_RETENTION_MS = 10 * 86400000;
 
+=======
+>>>>>>> sattva/main
 export const NEWSLETTER_SUBSCRIBER_LIMIT = 100;
 export const NEWSLETTER_INTENT_BATCH = 20;
 export const NEWSLETTER_REQUEST_BYTES = 16384;
@@ -70,6 +76,7 @@ export function normaliseEmail(value) {
   return email && email.length <= NEWSLETTER_EMAIL_MAX && EMAIL_RE.test(email) ? email : null;
 }
 
+<<<<<<< HEAD
 /**
  * SEVERAL ADDRESSES AS A READER PASTES THEM — one per line out of a table, comma- or
  * semicolon-separated out of a mail client, or one typed. Returns `{ emails, invalid }`: the valid
@@ -100,6 +107,8 @@ export function normaliseEmailList(value) {
   return { emails, invalid };
 }
 
+=======
+>>>>>>> sattva/main
 export const isTime = (value) => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(value ?? ''));
 const minutesOf = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 
@@ -226,6 +235,7 @@ export function editionWindow(edition, day, settings, { to = null } = {}) {
   return { from, to: to ?? at, at };
 }
 
+<<<<<<< HEAD
 /** The instant a day-dated record is filed at: the close of its own day. */
 export const dayOnlyInstant = (day) => istInstant(day, DAY_ONLY_TIME);
 
@@ -248,6 +258,8 @@ export function lateArrivalsFrom(edition, day, settings) {
   return editionWindow(before.edition, before.day, settings).from;
 }
 
+=======
+>>>>>>> sattva/main
 /** Every enabled weekday send whose instant lies in (after, until], earliest first. */
 export function scheduledEditions(settings, after, until) {
   const out = [];

@@ -93,12 +93,17 @@ const context = await browser.newContext();
 // exchange's availability rather than this code.
 await context.route('**', (route) => (route.request().url().startsWith(base) ? route.continue() : route.abort()));
 const page = await context.newPage();
+<<<<<<< HEAD
 // THE FIXTURE ROWS ARE DATED, AND THE TAB OPENS ON A ROLLING WINDOW, so without a fixed clock this
 // check quietly stops testing anything the moment those two dates drift apart: the table renders
 // its honest "no captured filings match" empty state, every assertion about the XBRL row fails, and
 // the failure looks like the reader broke. Pin the reading date to the filings' own day. Only the
 // clock is fixed, never the timers, so the tab's own polling and abort budgets behave normally.
 await page.clock.setFixedTime(new Date('2026-09-10T13:30:00Z'));
+=======
+// Keep the dated filing fixture inside the view's default recent-date window.
+await page.clock.setFixedTime(new Date('2026-09-10T14:00:00Z'));
+>>>>>>> sattva/main
 
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

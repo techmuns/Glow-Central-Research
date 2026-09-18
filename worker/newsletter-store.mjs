@@ -1,5 +1,9 @@
 import {
+<<<<<<< HEAD
   EDITION_IDS, NEWSLETTER_SUBSCRIBER_LIMIT, DEFAULT_SETTINGS, REPORTED_RETENTION_MS,
+=======
+  EDITION_IDS, NEWSLETTER_SUBSCRIBER_LIMIT, DEFAULT_SETTINGS,
+>>>>>>> sattva/main
   newsletterIntents, newsletterSettings, normaliseEditions, subscriberEntry,
 } from '../public/js/data/newsletter-shared.js';
 
@@ -23,6 +27,7 @@ import {
 // inside stays in the log with no `finishedAt`, and the panel shows it as interrupted rather than
 // quietly sending again.
 //
+<<<<<<< HEAD
 // WHAT THE DESK HAS BEEN SENT IS A RECORD TOO — `newsletter_reported`, one row per item (a filing,
 // a story, a trade, a price move) that a brief sent to the list actually carried, keyed by the item's
 // own identity rather than by anything the capture might restamp. It is what lets the next brief
@@ -32,6 +37,21 @@ import {
 
 export const NEWSLETTER_OBJECT = 'team-brief:v1';
 export const DELIVERY_HISTORY = 12;
+=======
+// A DELIVERY ALSO RECORDS WHAT IT CARRIED. `stories` is the list of keys every story in a sent
+// brief travelled under (a filing's URL on each exchange, a headline, a session move), and
+// `sentStoryKeys()` is the union over the last few sent deliveries. The brief builder reaches back
+// over the previous edition's window for captures that landed after that edition went out, and
+// this is how it knows which of those rows the desk has already read. Keys, never rows: the log
+// holds nothing the exchanges or publishers wrote. A test copy records nothing, because it went to
+// one person and not to the desk.
+
+export const NEWSLETTER_OBJECT = 'team-brief:v1';
+export const DELIVERY_HISTORY = 12;
+// Three weekdays of editions: a story that fell out of two consecutive windows is old news, and a
+// capture that lands later than that is an outage the sources line already reports.
+export const SENT_HISTORY = 6;
+>>>>>>> sattva/main
 
 const iso = (at) => new Date(at).toISOString();
 const parseJson = (text, fallback) => { try { return JSON.parse(text); } catch { return fallback; } };
@@ -56,9 +76,15 @@ export class NewsletterStore {
       subject TEXT, outcomes TEXT, summary TEXT)`);
     this.storage.sql.exec('CREATE INDEX IF NOT EXISTS newsletter_state ON newsletter_subscribers(state, seq)');
     this.storage.sql.exec('CREATE INDEX IF NOT EXISTS newsletter_delivery_time ON newsletter_deliveries(started_at)');
+<<<<<<< HEAD
     this.storage.sql.exec(`CREATE TABLE IF NOT EXISTS newsletter_reported (
       item TEXT PRIMARY KEY, published_at TEXT, delivery TEXT NOT NULL, reported_at TEXT NOT NULL)`);
     this.storage.sql.exec('CREATE INDEX IF NOT EXISTS newsletter_reported_time ON newsletter_reported(reported_at)');
+=======
+    // Added after the table shipped: a deployment whose log predates it gains the column in place.
+    const columns = this.storage.sql.exec('PRAGMA table_info(newsletter_deliveries)').toArray();
+    if (!columns.some((c) => c.name === 'stories')) this.storage.sql.exec('ALTER TABLE newsletter_deliveries ADD COLUMN stories TEXT');
+>>>>>>> sattva/main
     this.initialised = true;
   }
 
@@ -195,14 +221,34 @@ export class NewsletterStore {
     });
   }
 
+<<<<<<< HEAD
   finishDelivery(key, { sent = 0, failed = 0, reason = null, outcomes = [], subject = null, summary = null } = {}) {
     this.rows(
       'UPDATE newsletter_deliveries SET finished_at = ?, sent = ?, failed = ?, reason = ?, subject = ?, outcomes = ?, summary = ? WHERE key = ?',
       iso(this.now()), sent, failed, reason, subject, JSON.stringify(outcomes || []), summary ? JSON.stringify(summary) : null, key,
+=======
+  finishDelivery(key, { sent = 0, failed = 0, reason = null, outcomes = [], subject = null, summary = null, stories = null } = {}) {
+    const keys = Array.isArray(stories) ? stories.filter((k) => typeof k === 'string' && k.length <= 512).slice(0, 2000) : null;
+    this.rows(
+      'UPDATE newsletter_deliveries SET finished_at = ?, sent = ?, failed = ?, reason = ?, subject = ?, outcomes = ?, summary = ?, stories = ? WHERE key = ?',
+      iso(this.now()), sent, failed, reason, subject, JSON.stringify(outcomes || []), summary ? JSON.stringify(summary) : null, keys ? JSON.stringify(keys) : null, key,
+>>>>>>> sattva/main
     );
     this.pruneDeliveries();
   }
 
+<<<<<<< HEAD
+=======
+  /** The keys of every story the last few SENT deliveries carried — what the next brief may treat as read. */
+  sentStoryKeys(limit = SENT_HISTORY) {
+    const out = new Set();
+    for (const row of this.rows('SELECT stories FROM newsletter_deliveries WHERE stories IS NOT NULL AND sent > 0 ORDER BY started_at DESC LIMIT ?', limit)) {
+      for (const key of parseJson(row.stories, [])) if (typeof key === 'string') out.add(key);
+    }
+    return out;
+  }
+
+>>>>>>> sattva/main
   pruneDeliveries() {
     const keep = 200;
     const total = this.rows('SELECT COUNT(*) AS count FROM newsletter_deliveries')[0].count;
@@ -217,6 +263,7 @@ export class NewsletterStore {
   deliveries(limit = DELIVERY_HISTORY) {
     return this.rows('SELECT * FROM newsletter_deliveries ORDER BY started_at DESC LIMIT ?', limit).map(deliveryRow);
   }
+<<<<<<< HEAD
 
   /**
    * What the desk has already been sent, as one read: `has(key)` answers for any item key, and
@@ -263,6 +310,8 @@ export class NewsletterStore {
   reportedCount() {
     return this.rows('SELECT COUNT(*) AS count FROM newsletter_reported')[0].count;
   }
+=======
+>>>>>>> sattva/main
 }
 
 /** A delivery as the panel reads it. Per-recipient outcomes travel; upstream error text never does. */

@@ -11,6 +11,9 @@ const feeds = ['earnings', 'announcements', 'insider'];
 const eventsFor = (ticker, company, day = '2026-09-04') => feeds.map((feed, i) => ({
   id: `${ticker}-${feed}`, ticker, company, day, time: ['09:15', '11:10', '14:42'][i], feed, feedLabel: feed,
   headline: `${company}: material risk ${i + 1}`, direction: 'negative', importance: 'high', tab: 'daily-alerts',
+  // The filing carries a tracked topic so the card's driver section has something to bucket. It
+  // supplies no url, so the driver resolves to the dashboard route rather than an upstream one.
+  ...(feed === 'announcements' ? { keywordIds: ['fraud'] } : {}),
 }));
 const events = Array.from({ length: 11 }, (_, i) => eventsFor(`A${String(i).padStart(2, '0')}`, i === 10 ? 'Zenith Manufacturing' : `Company ${String(i).padStart(2, '0')}`)).flat();
 events.filter(e => e.ticker === 'A10').forEach(e => { e.time = '08:00'; });
@@ -284,6 +287,7 @@ try {
   assert.equal(await page.locator('[data-ai-card]').count(), 8);
   console.log('PASS: search beyond pagination and preview, priority, archive/restore and clear search.');
 
+<<<<<<< HEAD
   // THE TWO BULLETS AND THE THREE TRIGGERS. "One bullet is what has happened; the second, will it
   // change the earnings assumption, valuation or thesis?" Every card carries both, the second names
   // the QUESTIONS the evidence bears on (could change, never will), and the trigger chips above count
@@ -357,6 +361,67 @@ try {
   assert.equal(await page.locator('[data-ai-impact][aria-pressed="true"]').count(), 0, 'pressing the chip again clears it');
   assert.equal(await page.locator('[data-ai-card]').count(), 8);
   console.log('PASS: two bullets on every card, and the three trigger chips narrow, count with the other group held fixed, clear and explain an empty view.');
+=======
+  // --- the card's two labelled readings, and the links under the second ---
+  //
+  // The bucketing rules are asserted on fixtures in verify-ai-alerts.mjs. What only a rendered card
+  // can show is that the section REACHES THE SCREEN, in the right place, with links that resolve to
+  // evidence this card actually holds — a classification of ours with no way to check it would be a
+  // judgement with no record behind it.
+  //
+  // Every card is `content-visibility: auto`, and Chromium keeps a freshly inserted one SKIPPED —
+  // placeholder height, empty innerText — until the next rendering frame's intersection check
+  // unlocks the ones near the viewport. Clearing the search re-inserts all eight, so a read that
+  // lands before that frame (likely on a busy runner: measured 3 of 6 local runs under load) finds
+  // no text on ANY card, on screen or off, while textContent still carries it. scrollIntoView
+  // activates a card's contents synchronously, so each card is read the way a reader would see it
+  // and the check no longer races the frame. The scroll position is put back afterwards.
+  const shape = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('[data-ai-card]')];
+    const card = cards.find((c) => c.querySelector('[data-ai-drivers]'));
+    if (!card) return { withDrivers: 0 };
+    const y = scrollY;
+    const rendered = (node) => { node.scrollIntoView({ block: 'nearest' }); return node.innerText; };
+    const everyCardLabelsItsInsight = cards.every((c) => /what happened/i.test(rendered(c)));
+    rendered(card);
+    const insight = card.querySelector('[data-ai-insight]');
+    const drivers = card.querySelector('[data-ai-drivers]');
+    const evidence = card.querySelector('[data-ai-evidence]');
+    const links = [...card.querySelectorAll('[data-ai-driver]')];
+    const evidenceHrefs = new Set([...card.querySelectorAll('[data-ai-evidence-link]')].map((a) => a.getAttribute('href')));
+    const readings = {
+      withDrivers: cards.filter((c) => c.querySelector('[data-ai-drivers]')).length,
+      total: cards.length,
+      everyCardLabelsItsInsight,
+      kicker: drivers.querySelector('.uppercase')?.innerText.trim() || '',
+      text: drivers.innerText.replace(/\s+/g, ' ').trim(),
+      insightBeforeDrivers: !!(insight.compareDocumentPosition(drivers) & Node.DOCUMENT_POSITION_FOLLOWING),
+      driversBeforeEvidence: !!evidence && !!(drivers.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING),
+      linkCount: links.length,
+      linkTexts: links.map((a) => a.textContent.trim()),
+      hrefsAreOnCard: links.length > 0 && links.every((a) => evidenceHrefs.has(a.getAttribute('href'))),
+      disclaims: links.every((a) => /does not verify|not confirmation/i.test(a.getAttribute('title') || '')),
+      scriptInjected: card.querySelectorAll('[data-ai-drivers] script, [data-ai-drivers] img').length,
+    };
+    scrollTo(0, y);
+    return readings;
+  });
+  assert.equal(shape.withDrivers, shape.total, 'every card with a tracked topic states which question it bears on');
+  assert(shape.everyCardLabelsItsInsight, 'every card labels what happened');
+  assert.match(shape.kicker, /earnings assumption, valuation or thesis/i);
+  // A tracked keyword says what a source is ABOUT, so the sentence says what the evidence COULD
+  // change. Strengthening it to a verdict would assert a direction the feeds themselves refuse to.
+  assert.match(shape.text, /Could change the thesis/);
+  assert.doesNotMatch(shape.text, /\b(?:will|improves?|worsens?|undervalued|overvalued)\b/i, 'no verdict word reaches the sentence');
+  // A question with nothing behind it is stated rather than hidden.
+  assert.match(shape.text, /Nothing tracked here bears on the earnings assumption or the valuation\./);
+  assert(shape.insightBeforeDrivers && shape.driversBeforeEvidence, 'the finding is read before what it bears on, and both before the evidence');
+  assert.deepEqual(shape.linkTexts, ['Fraud in a filing']);
+  assert(shape.hrefsAreOnCard, 'every driver links to evidence this card actually holds');
+  assert(shape.disclaims, 'each driver says it matched a topic rather than verifying the event');
+  assert.equal(shape.scriptInjected, 0, 'driver text is escaped');
+  console.log('PASS: the card labels what happened and which investor question the evidence bears on, each driver linked to its own source.');
+>>>>>>> sattva/main
 
   await page.evaluate(() => {
     window.savedFixture = window.fixtureEvents;

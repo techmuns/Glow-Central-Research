@@ -1,0 +1,11 @@
+{
+  "_fixture": "A deliberately small stand-in for public/data/portfolio-companies.json, so the brief's ordering, grouping and denominator can be asserted against KNOWN inputs. The shipped book is refreshed by family-book-sync.yml and the two filing captures are rewritten every evening, so a test that names a company against those files asserts what a workflow happened to commit that day. Every line here is a real line from the shipped book, including one with no NSE symbol, because `listed` must be smaller than `count`.",
+  "asOf": "2027-03-31",
+  "count": 4,
+  "holdings": [
+    { "isin": "INE599A01015", "name": "Alankit Limited", "bookName": "Alankit Ltd", "sector": "Financials", "ticker": "ALANKIT", "listed": true },
+    { "isin": "INE674K01013", "name": "Aditya Birla Capital", "bookName": "Aditya Birla Capital Ltd", "sector": "Financials", "ticker": "ABCAPITAL", "listed": true },
+    { "isin": "INE423A01024", "name": "Adani Enterprises", "bookName": "Adani Enterprises Ltd", "sector": "Industrials", "ticker": "ADANIENT", "listed": true },
+    { "isin": "INE000X01018", "name": "A Private Holding", "bookName": "A Private Holding Pvt Ltd", "sector": "Industrials", "ticker": null, "listed": false, "reason": "unlisted private company" }
+  ]
+}
