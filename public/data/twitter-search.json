@@ -1262,7 +1262,7 @@
       "error": "search-unavailable"
     },
     "isin:INE953O01021|Sansera Engineering": {
-      "lastAttemptAt": "2026-09-14T02:56:41+00:00",
+      "lastAttemptAt": "2026-09-18T16:39:04+00:00",
       "error": "search-unavailable"
     },
     "isin:INE953O01021|SANSERA": {
@@ -1558,6 +1558,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 206,
-    "checkedAt": "2026-09-18T16:14:32.594524+00:00"
+    "checkedAt": "2026-09-18T16:39:04.324365+00:00"
   }
 }
