@@ -165,15 +165,20 @@ export function render(ctx) {
   paint(ctx);
   if (!report) {
     const token = ++cacheToken;
+    const restoring = () => token === cacheToken && ctxRef === ctx;
     void alerts.cached({
       scope: ctx.scope,
       holdings: coverage.holdings(),
       positionSizes: cachedPositionSizes(),
-    }).then((cached) => {
-      if (token !== cacheToken || ctxRef !== ctx || !cached || report?.pending === 0) return;
+      isCurrent: restoring,
+    }).then(async (cached) => {
+      if (!restoring() || !cached || report?.pending === 0) return;
       // An empty partial is still an unfinished source read. Merge the retained window beneath
       // any newer live evidence instead of letting that partial suppress a slow cache restore.
-      report = alerts.withPositionSnapshot(report ? alerts.mergePartialReport(cached, report) : cached, cachedPositionSizes());
+      // The merge ranks in slices; a live report that completed meanwhile is never overwritten.
+      const merged = report ? await alerts.mergePartialReportAsync(cached, report, { isCurrent: restoring }) : cached;
+      if (!restoring() || !merged || report?.pending === 0) return;
+      report = alerts.withPositionSnapshot(merged, cachedPositionSizes());
       paint(ctxRef);
     });
   }
@@ -181,6 +186,7 @@ export function render(ctx) {
 }
 
 export function destroy() {
+  alerts.clearRankingCache();
   offBookmarks?.(); offBookmarks = null;
   bookmarkRoot = null;
   actionGeneration++;
@@ -253,6 +259,22 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
     return snapshot;
   });
   paint(ctx);
+  // PARTIALS MERGE IN SLICES, ONE AT A TIME, NEWEST WAITING ONE FIRST. Merging a partial can rank
+  // the union of old and new evidence, which on the whole Universe is a second of CPU; done
+  // synchronously inside the callback it froze the page once per publication. The queue holds at
+  // most one waiting partial because each carries everything before it, and the completed report
+  // below waits for an in-flight merge so the two can never paint out of order.
+  let queuedPartial = null, mergingPartials = null;
+  const mergePartials = async () => {
+    while (queuedPartial && current()) {
+      const partial = queuedPartial;
+      queuedPartial = null;
+      const merged = await alerts.mergePartialReportAsync(report, partial, { isCurrent: current });
+      if (!merged || !current()) return;
+      report = alerts.withPositionSnapshot(merged, checkedSnapshot);
+      paint(ctxRef);
+    }
+  };
   try {
     const [next, positionSizes] = await Promise.all([
       alerts.collect({
@@ -263,21 +285,26 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
         isCurrent: current,
         onPartial: (partial) => {
           if (!current()) return;
-          report = alerts.withPositionSnapshot(alerts.mergePartialReport(report, partial), checkedSnapshot);
-          paint(ctxRef);
+          queuedPartial = partial;
+          if (!mergingPartials) mergingPartials = mergePartials().finally(() => { mergingPartials = null; });
         },
       }),
       positions,
     ]);
     if (!current()) return;
+    queuedPartial = null;
+    if (mergingPartials) await mergingPartials;
+    if (!current() || !next) return;
     // The checked book can contain additions/exits since collection began. Read
     // the now-loaded feeds against that book without another network refresh.
     const completed = positionSizes && JSON.stringify(coverage.holdings()) !== bookSignature
       ? await alerts.collect({ scope: ctx.scope, holdings: coverage.holdings(), positionSizes, load: false, isCurrent: current })
       : alerts.withPositionSnapshot(next, positionSizes);
-    if (!current()) return;
-    report = completed.pending || completed.feeds.some(feed => feed.status === 'failed')
-      ? alerts.mergePartialReport(report, completed) : completed;
+    if (!current() || !completed) return;
+    const settled = completed.pending || completed.feeds.some(feed => feed.status === 'failed')
+      ? await alerts.mergePartialReportAsync(report, completed, { isCurrent: current }) : completed;
+    if (!current() || !settled) return;
+    report = settled;
   } catch (err) {
     if (!current()) return;
     loadError = err?.message || 'The alert feeds could not be refreshed.';
@@ -649,6 +676,78 @@ function contextMarkup(card, scope) {
     class="mt-2 block text-xs leading-relaxed text-slate-500 transition hover:text-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${escapeHtml(card.contextSummary)}</a>`;
 }
 
+/**
+ * A labelled block on the card — a marker, a kicker and its content.
+ *
+ * The card grew two readings that answer different questions ("what happened" and "what does it
+ * bear on"), and two unlabelled paragraphs of similar weight read as one long paragraph. The kicker
+ * is what lets the eye jump to the second without reading the first again.
+ */
+function cardSection(kicker, bodyHtml, attrs = '') {
+  return `
+    <div ${attrs} class="mt-3 flex gap-2.5">
+      <span class="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" aria-hidden="true"></span>
+      <div class="min-w-0 flex-1">
+        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(kicker)}</div>
+        ${bodyHtml}
+      </div>
+    </div>`;
+}
+
+/** "a, b and c" — the list separator this dashboard's prose uses. */
+function joinPhrases(parts, conjunction = 'and') {
+  if (parts.length <= 1) return parts[0] || '';
+  return `${parts.slice(0, -1).join(', ')} ${conjunction} ${parts[parts.length - 1]}`;
+}
+
+/**
+ * EARNINGS ASSUMPTION, VALUATION OR THESIS? — the question a reader opens a card with.
+ *
+ * Every driver is a topic reading `js/data/alert-drivers.js` took off an event that is already on
+ * this card, and every one of them is A LINK TO THAT EVENT'S OWN SOURCE — the same destination the
+ * evidence row beneath uses, through the same `evidenceDestination`. That is the point of the
+ * section: the classification is ours, so the record behind it has to be one click away, or this is
+ * a judgement with no way to check it.
+ *
+ * THE WORDING IS "COULD CHANGE", AND IT MAY NOT BE STRENGTHENED. A tracked keyword says what a
+ * source is ABOUT — `news-keywords.js` rule 1 — so "Order in the news" means a story about this
+ * company carried the word Order, not that an order was won. "Could change the earnings assumption"
+ * is exactly as much as the evidence supports; "improves earnings" would be a direction this
+ * dashboard's own feeds refuse to assert, and the every-figure-carries-its-claim rule one layer up.
+ *
+ * A QUESTION WITH NOTHING BEHIND IT IS STATED, NOT OMITTED. "Nothing tracked here bears on the
+ * thesis" is a real answer and a useful one — it is how a reader tells a card about a fund book and
+ * a volume spike from one about a governance problem. What is omitted is the whole section, and
+ * only when NO question has a driver: three negatives in a row is noise, not an answer.
+ */
+function driversMarkup(card, scope) {
+  const drivers = card.drivers;
+  if (!drivers?.buckets?.length) return '';
+
+  const clauses = drivers.buckets.map((bucket) => {
+    const links = bucket.drivers.map((driver) => {
+      const destination = evidenceDestination(driver.event, scope);
+      return `<a data-ai-driver data-driver-question="${escapeHtml(bucket.id)}" href="${escapeHtml(destination.href)}"
+        ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
+        aria-label="${escapeHtml(`${driver.text} — ${destination.ariaLabel}`)}"
+        title="${escapeHtml(`${driver.why} Opens the source behind this reading.`)}"
+        class="font-semibold text-indigo-700 underline decoration-indigo-200 underline-offset-2 transition hover:text-indigo-900 hover:decoration-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${escapeHtml(driver.text)}</a>`;
+    });
+    // A capped bucket COUNTS what it did not print. Silently dropping the fourth driver would have
+    // the card claim fewer things bear on this company than its own evidence says.
+    if (bucket.overflow > 0) {
+      links.push(`<span class="text-slate-500" title="${escapeHtml(`${bucket.overflow} further tracked ${bucket.overflow === 1 ? 'reading' : 'readings'} on this question. Every event is in All Alerts.`)}">+${escapeHtml(formatNumber(bucket.overflow))} more</span>`);
+    }
+    return `<strong class="font-bold text-slate-900">${escapeHtml(bucket.label)}</strong> (${links.join('; ')})`;
+  });
+
+  const silent = drivers.silent.length
+    ? ` Nothing tracked here bears on ${escapeHtml(joinPhrases(drivers.silent.map((q) => q.label), 'or'))}.`
+    : '';
+  const body = `<p class="mt-1 text-sm leading-relaxed text-slate-600">Could change ${joinPhrases(clauses)}.${silent}</p>`;
+  return cardSection('Earnings assumption, valuation or thesis?', body, 'data-ai-drivers');
+}
+
 const cardSnapshots = new WeakMap();
 function cardSnapshot(card) {
   if (cardSnapshots.has(card)) return cardSnapshots.get(card);
@@ -694,7 +793,12 @@ function cardMarkup(card, scope, day, archived = false) {
         </p>
         ${Number.isFinite(card.holdingWeightPct) ? `<p data-ai-holding-size class="mt-1 text-xs font-semibold text-indigo-700">${card.holdingWeightPct > 0 && card.holdingWeightPct < 0.01 ? '&lt;0.01' : card.holdingWeightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of equity statement book</p>` : ''}
 
+<<<<<<< HEAD
         ${briefMarkup(card, scope)}
+=======
+        ${cardSection('What happened', `<p data-ai-insight class="font-display mt-0.5 text-[17px] font-bold leading-snug text-slate-900">${escapeHtml(card.insight)}</p>`)}
+        ${driversMarkup(card, scope)}
+>>>>>>> sattva/main
         ${contextMarkup(card, scope)}
 
         ${confluenceMarkup(card)}

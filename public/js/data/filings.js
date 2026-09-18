@@ -57,7 +57,10 @@ import { attributeNewsRow } from './company-news-attribution.js';
 import { withTradingViewNews } from './tradingview-news.js';
 import { withNewsHistory } from './news-history.js';
 import { withPortfolioPublisherNews } from './portfolio-publisher-news.js';
-import { recentNewsWindow } from './news-window.js';
+import { newsPeriodBounds } from './news-window.js';
+import * as marketNews from './market-news.js';
+import { createNewsWorkingSet } from './news-working-set.js';
+import { holdsTicker } from './row-ticker-index.js';
 import * as exchangeDeals from './exchange-deals.js';
 
 // How many companies a live walk will ask about before it stops and says so. The upstreams allow
@@ -109,6 +112,9 @@ export const WINDOW_DAYS = { news: 30, announcements: 365, insider: 365 };
 
 const iso = (d) => new Date(d).toISOString().slice(0, 10);
 const daysAgo = (n) => iso(Date.now() - n * 86400000);
+// Explicit public news searches are shared across reading windows. These observations may be
+// newer than the next scheduled capture, so a query-reader lifetime must never own their only copy.
+const liveNews = new Map(), liveNewsSubscribers = new Set();
 
 /**
  * One story at two addresses is one story.
@@ -128,12 +134,39 @@ const daysAgo = (n) => iso(Date.now() - n * 86400000);
  *     is what the provenance modal says — and dropping one would hide it from whichever reader was
  *     looking at that company. Hence: within a company, never across.
  */
-export function createFeed(kind) {
+// THE PROJECTED ROW IS KEPT ON THE CAPTURE ROW. A rebuilt snapshot used to hand out a fresh copy of
+// every announcement and insider row, so the event readings the alerts collector keeps per row
+// object missed after any invalidation — a loader landing, an exchange-deal revision — even when
+// the row itself was unchanged (profiled: the insider read classifying every row again, 570ms,
+// after a warm-up over the previous copies). Same content, same object; a changed ticker is a
+// changed projection. Rows are replaced, never edited, so the entry dies with its row.
+const projections = new WeakMap();
+function projected(row, ticker) {
+  if (!row || typeof row !== 'object') return { ...row, ticker };
+  const hit = projections.get(row);
+  if (hit && hit.ticker === ticker) return hit.value;
+  const value = { ...row, ticker };
+  projections.set(row, { ticker, value });
+  return value;
+}
+
+export function createFeed(kind, { read = conditionalJson, allowColdStart = true } = {}) {
   let state = fresh();
   let loading = null;
   let seeding = null;
   const subscribers = new Set();
   const emit = () => [...subscribers].forEach((fn) => fn());
+  function adoptLiveNews(ticker, saved, notify = true) {
+    const newer = saved.at > (Date.parse(state.snapshotUpdatedAt || state.capturedAt || '') || 0);
+    const previous = state.rows.get(ticker) || [];
+    state.rows.set(ticker, dedupeArticles(newer ? [...saved.rows, ...previous] : [...previous, ...saved.rows]));
+    if (newer) {
+      state.confirmedAt.set(ticker, saved.at); state.confirmedHere.add(ticker);
+      state.fromSnapshot.delete(ticker); state.failures.delete(ticker);
+    }
+    if (notify) emit();
+  }
+  if (kind === 'news') liveNewsSubscribers.add(adoptLiveNews);
 
   function fresh() {
     return {
@@ -184,6 +217,8 @@ export function createFeed(kind) {
       enrichmentCoverage: null,
       tradingViewCoverage: null,
       snapshotUpdatedAt: null,
+      queryRevision: null,
+      queryWindow: null,
       snapshotReadError: null,
       snapshotPending: false,
       snapshotChecked: false,
@@ -290,6 +325,7 @@ export function createFeed(kind) {
       tickerlessPortfolioLines: state.tickerlessPortfolioLines,
       tickerlessPortfolioEntities: state.tickerlessPortfolioEntities,
       queryCoverage: state.queryCoverage,
+      queryWindow: state.queryWindow,
       ...(kind === 'news' ? { newsDelivery: { core: {
         status: !state.snapshotChecked ? 'pending' : state.snapshotReadError || !coreFresh || !queryComplete
           ? (covered ? 'partial' : 'unavailable') : 'ok',
@@ -339,12 +375,35 @@ export function createFeed(kind) {
           if (!state.identities.has(key)) state.identities.set(key, { ticker, name: state.names.get(key) || row.company || row.query });
           const identity = state.identities.get(key);
           out.push(attributeNewsRow(row, identity));
-        } else out.push({ ...row, ticker });
+        } else out.push(projected(row, ticker));
       }
     }
     const value = (kind === 'insider' ? exchangeDeals.combined(out) : out).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     rowSnapshot = { state, parts, value, exchangeRevision };
     return value;
+  }
+
+  // WARM THE ATTRIBUTION OF EVERY HELD ROW IN TIME-SLICED CHUNKS. `rows()` attributes each row
+  // under its identity synchronously, and after an invalidation every row is a new object, so the
+  // first read after a return paid for all of them in one task. The reading is memoised per
+  // (row, identity); touching it here with a yield every ~12ms lets the synchronous read hit it.
+  // Same identities, same objects, nothing decided — this only moves when the work happens.
+  const yieldToInput = () => typeof window === 'undefined' ? Promise.resolve() : new Promise(resolve => setTimeout(resolve, 0));
+  async function warmRows(yieldForInput = () => Promise.resolve()) {
+    if (kind !== 'news') return;
+    const current = state;
+    let started = performance.now();
+    for (const [key, list] of current.rows) {
+      if (!current.identities.has(key)) {
+        const row = list[0] || {};
+        current.identities.set(key, { ticker: row.ticker || (row.entityId ? null : key), name: current.names.get(key) || row.company || row.query });
+      }
+      const identity = current.identities.get(key);
+      for (const row of list) {
+        attributeNewsRow(row, identity);
+        if (performance.now() - started >= 12) { await yieldForInput(); started = performance.now(); if (state !== current) return; }
+      }
+    }
   }
 
   const forTicker = (ticker) => {
@@ -393,6 +452,7 @@ export function createFeed(kind) {
     seeding = (async () => {
       await seedFromSnapshot();
       await seedFromDevice(state.wanted);
+      if (kind === 'news') for (const [ticker, saved] of liveNews) adoptLiveNews(ticker, saved, false);
       state.loaded = true;
       emit();
     })();
@@ -469,6 +529,7 @@ export function createFeed(kind) {
       if (seeding) await seeding;
       else await seedFromSnapshot();
       await seedFromDevice(wanted);
+      if (kind === 'news') for (const [ticker, saved] of liveNews) adoptLiveNews(ticker, saved, false);
       state.loaded = true;
       emit();
 
@@ -491,7 +552,7 @@ export function createFeed(kind) {
       // picker committed a selection and fetched nothing, which is the worst of both designs.
       if (walkWanted && !state.coversUniverse) {
         walkMissing();
-      } else if (!state.rows.size && !state.coversUniverse) {
+      } else if (allowColdStart && !state.rows.size && !state.coversUniverse) {
         // Nothing to show. Walk once rather than render an empty table over a working feed.
         state.coldStart = true;
         walkMissing();
@@ -654,7 +715,7 @@ export function createFeed(kind) {
     let res;
     state.snapshotPending = true;
     try {
-      res = await conditionalJson(SNAPSHOT[kind], { key: KEYS.filings(kind), optional: true });
+      res = await read(SNAPSHOT[kind], { key: KEYS.filings(kind), optional: true });
     } catch {
       res = null;
     }
@@ -688,10 +749,16 @@ export function createFeed(kind) {
     }
     // "Newer" is chronological, not merely different. A rollback or stale edge response must not
     // replace rows this browser has already proved came from a later capture.
+<<<<<<< HEAD
     const newer = replace && Number.isFinite(nextCaptured) && (!Number.isFinite(heldCaptured) || nextCaptured > heldCaptured);
     if (!replace || newer) { state.capturedAt = capturedAt; state.snapshotUpdatedAt = revisionAt; }
     const bulkNewer = kind === 'insider' && Date.parse(body.bulkDeals?.capturedAt || '') > (Date.parse(state.bulkDeals?.capturedAt || '') || 0);
     if (body.bulkDeals && (!state.bulkDeals || Date.parse(body.bulkDeals.capturedAt || '') >= Date.parse(state.bulkDeals.capturedAt || ''))) state.bulkDeals = body.bulkDeals;
+=======
+    const projectionChanged = kind === 'news' && body.queryRevision != null && body.queryRevision !== state.queryRevision;
+    const newer = replace && Number.isFinite(nextCaptured) && (!Number.isFinite(heldCaptured) || nextCaptured > heldCaptured || projectionChanged);
+    if (!replace || newer) { state.capturedAt = capturedAt; state.snapshotUpdatedAt = revisionAt; state.queryRevision = body.queryRevision ?? null; }
+>>>>>>> sattva/main
     if (!replace || newer) {
       state.oldestDataAt = body.oldestDataAt || capturedAt;
       state.fallbackCount = Number.isFinite(body.fallbackCount) ? body.fallbackCount : 0;
@@ -715,6 +782,7 @@ export function createFeed(kind) {
     state.portfolioEntities = Number.isFinite(body.portfolioEntities) ? body.portfolioEntities : null;
     state.tickerlessPortfolioLines = Number.isFinite(body.tickerlessPortfolioLines) ? body.tickerlessPortfolioLines : null;
     state.tickerlessPortfolioEntities = Number.isFinite(body.tickerlessPortfolioEntities) ? body.tickerlessPortfolioEntities : null;
+    state.queryWindow = kind === 'news' ? body.queryWindow || null : null;
     state.queryCoverage = body.queryCoverage && typeof body.queryCoverage === 'object' ? body.queryCoverage : null;
     state.enrichmentCoverage = body.enrichmentCoverage || null;
     if (!replace || newer || nextCaptured === heldCaptured) state.tradingViewCoverage = body.tradingViewCoverage || null;
@@ -726,7 +794,11 @@ export function createFeed(kind) {
         if (entity.name) state.names.set(key, entity.name);
       }
     }
+<<<<<<< HEAD
     if (replace && !newer && !bulkNewer) return state.rows.size > 0;
+=======
+    if (replace && !newer) return state.rows.size > 0 || !!body.queryWindow;
+>>>>>>> sattva/main
 
     if (newer) {
       // Announcement snapshots replace rows. Companies that aged out
@@ -766,7 +838,9 @@ export function createFeed(kind) {
     }
     // Companies the capture ASKED and that answered nothing. They get no rows — there are none —
     // but they are covered, so they must not be reported as waiting to be asked about.
-    for (const t of Array.isArray(body.empty) ? body.empty : []) {
+    const emptyCompanies = [...(Array.isArray(body.empty) ? body.empty : []),
+      ...(kind === 'news' && body.queryWindow && Array.isArray(body.queryEmpty) ? body.queryEmpty : [])];
+    for (const t of new Set(emptyCompanies)) {
       if (typeof t !== 'string' || !t) continue;
       const ticker = t.toUpperCase();
       // Empty latest search results are not a retraction of previously captured news/disclosures.
@@ -791,7 +865,11 @@ export function createFeed(kind) {
       if (t && unresolved && !state.failures.has(t)) state.failures.set(t, { ...info, fromSnapshot: true });
     }
     state.snapshotCount = state.fromSnapshot.size;
-    return state.rows.size > 0 || state.askedEmpty.size > 0;
+    // The callers announce this capture next, and the first `rows()` after an announcement is
+    // whoever asks first — a poller as easily as the tab. Warm the head's readings here, in
+    // slices, so that first read pays for the join and not for every story's attribution.
+    await warmRows(yieldToInput);
+    return state.rows.size > 0 || state.askedEmpty.size > 0 || !!body.queryWindow;
   }
 
   /** The rows out of one company's payload, deduplicated where duplication is meaningless. */
@@ -878,6 +956,11 @@ export function createFeed(kind) {
     state.failures.delete(t);
     state.confirmedAt.set(t, res?.checkedAt || Date.now());
     state.confirmedHere.add(t);
+    if (kind === 'news') {
+      const saved = { rows: dedupeArticles([...incoming, ...(liveNews.get(t)?.rows || [])]), at: res?.checkedAt || Date.now() };
+      liveNews.set(t, saved);
+      for (const notify of liveNewsSubscribers) notify(t, saved);
+    }
     if (!state.capturedAt && body.fetchedAt) state.checkedAt = Date.parse(body.fetchedAt) || state.checkedAt;
     return list;
   }
@@ -890,11 +973,13 @@ export function createFeed(kind) {
     refresh,
     refreshSnapshot,
     rows,
+    warm: warmRows,
     forTicker,
     wasAskedEmpty,
     failureFor,
     meta,
     isLoaded: () => state.loaded,
+    dispose() { state = fresh(); rowSnapshot = null; subscribers.clear(); liveNewsSubscribers.delete(adoptLiveNews); },
     invalidate() {
       state = fresh();
       loading = null;
@@ -914,9 +999,89 @@ const companyNewsFeed = createFeed('news');
 export const news = withNewsHistory(withTradingViewNews(withPortfolioPublisherNews(companyNewsFeed)));
 // Separate reading state: a fast News visit never narrows the history used by All Alerts,
 // AI Alerts, Ask Research or saved bookmarks. Network/cache bytes remain shared by URL.
-// Share captured/head and explicit live-search observations, not archive-loading state. A manual
-// News refresh must also reach All Alerts immediately; it cannot be marooned in a second cache.
-export const recentNews = withNewsHistory(withTradingViewNews(withPortfolioPublisherNews(companyNewsFeed,
-  { window: recentNewsWindow })), { window: recentNewsWindow });
+// Explicit live-search observations reach all readers through the shared public ledger above.
+// Each reading window owns only its selected captured records and correction companions.
+export const recentNews = createQueryNews(() => newsPeriodBounds('today'));
+// Each bounded query owns its projections; it cannot narrow the full-history/research reader.
+// It uses the same canonicalizers and coverage metadata, after the working-set reader has
+// located all date-correction / cross-route URL companions in the retained source archive.
+export function createQueryNews(window, { extraRows = () => marketNews.rows(), autoRefresh = true } = {}) {
+  const readWindow = () => typeof window === 'function' ? window() : window;
+  let activeWindow = readWindow(), wanted = [], initializedWindow = null, disposed = false, pending = Promise.resolve();
+  const working = createNewsWorkingSet({ window: () => activeWindow, extraRows });
+  const core = createFeed('news', { read: working.read, allowColdStart: false });
+  const feed = withNewsHistory(withTradingViewNews(withPortfolioPublisherNews(core, { include: working.includes }), { read: working.read, autoRefresh, revalidate: () => run(() => feed.refreshSnapshot(), true) }), { read: working.read });
+  let retainedRows = null, combined = null;
+  const rows = () => {
+    const current = feed.rows();
+    if (!retainedRows?.length) return current;
+    if (combined?.current === current && combined.retained === retainedRows) return combined.rows;
+    const buckets = new Map();
+    for (const row of [...current, ...retainedRows]) {
+      const key = row.ticker || row.entityId || row.company;
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(row);
+    }
+    const value = [...buckets.values()].flatMap(dedupeArticles)
+      .sort((a,b) => String(b.publishedAt || b.date || '').localeCompare(String(a.publishedAt || a.date || '')));
+    combined = { current, retained: retainedRows, rows: value };
+    return value;
+  };
+  const prepare = async (refreshPublishers = false) => {
+    if (disposed) throw Error('News reader released');
+    activeWindow = readWindow();
+    try {
+      if (refreshPublishers && marketNews.isLoaded()) await marketNews.refresh();
+      else await marketNews.load();
+      while (marketNews.archiveMeta().remaining) {
+        const before = marketNews.archiveMeta().remaining, result = await marketNews.loadMore();
+        if (result.failed || marketNews.archiveMeta().remaining >= before) break;
+      }
+    } catch { /* Company captures can still paint while publisher health reports failure. */ }
+    // RE-ASK BEFORE THE WALK, NOT ONLY AFTER IT. The check at the top of this function is made
+    // before the publisher loads above, and those awaits are long enough for the reader to be
+    // released underneath them — at which point the working set's own cancellation cannot help
+    // either, because a walk starting now reads the epoch that release just moved to and so
+    // counts itself current. The archive walk is one request per retained month, so starting it
+    // here is the whole leak in one line.
+    if (disposed) throw Error('News reader released');
+    await working.prepare();
+    if (disposed) throw Error('News reader released');
+    if (initializedWindow !== JSON.stringify(activeWindow)) {
+      // Keep only useful previously verified rows while a different period is being read.
+      // A missing newly-needed part must not erase overlapping last-good evidence.
+      retainedRows = initializedWindow === null ? null : rows().filter(working.includes); combined = null;
+      feed.invalidate(); feed.setWanted(wanted); initializedWindow = JSON.stringify(activeWindow);
+    }
+  };
+  // A changing picker must not replace the window halfway through a head/archive read. Each
+  // operation uses one stable window, then the next operation takes the latest requested scope.
+  const run = (operation, refreshPublishers = false) => {
+    const result = pending.then(async () => { await prepare(refreshPublishers);
+      // Window replacement also replaces the supplemental poller's lifetime. Initialize it
+      // before a refresh, so the midnight rollover cannot stop subsequent automatic checks.
+      if (!feed.isLoaded()) await feed.seed();
+      const result = await operation();
+      const m = feed.meta();
+      if (!m.newsDelivery?.core?.error && !m.tradingViewReadError && !m.newsHistory?.error &&
+          !m.newsDelivery?.publishers?.error) { retainedRows = null; combined = null; }
+      return result; });
+    pending = result.catch(() => {});
+    return result;
+  };
+  return { ...feed, rows,
+    meta() { return { ...feed.meta(), loaded: initializedWindow === JSON.stringify(readWindow()) && feed.isLoaded(), rowCount: rows().length }; },
+    forTicker: ticker => rows().filter(row => String(row.ticker || row.entityId || '').toUpperCase() === String(ticker).toUpperCase()),
+    wasAskedEmpty: ticker => !holdsTicker(rows(), ticker) && feed.wasAskedEmpty(ticker),
+    setWanted(items) { wanted = items; return feed.setWanted(items); },
+    setWindow(next) { const before = JSON.stringify(readWindow()); window = next; return before !== JSON.stringify(readWindow()); },
+    isLoaded: () => initializedWindow === JSON.stringify(readWindow()) && feed.isLoaded(),
+    seed: (...args) => run(() => feed.seed(...args)),
+    load(items = [], ...args) { wanted = items; return run(() => feed.load(wanted, ...args)); },
+    refresh: (...args) => run(() => feed.refresh(...args), true),
+    refreshSnapshot: (...args) => run(() => feed.refreshSnapshot(...args), true),
+    release() { disposed = true; feed.dispose(); working.release(); retainedRows = null; combined = null; },
+  };
+}
 export const announcements = withAnnouncementLookups(withFilingArchive(createFeed('announcements'), 'announcements'));
 export const insider = withFilingArchive(createFeed('insider'), 'insider');

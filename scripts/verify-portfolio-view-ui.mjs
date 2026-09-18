@@ -167,7 +167,7 @@ try {
   await page.getByText('KISSHT announces dividend', { exact:true }).waitFor();
   await page.getByText('Tickerless private company routine update', { exact:true }).waitFor();
   assert.equal(await page.evaluate(async () => {
-    const rows = (await import('/js/data/filings.js')).news.rows();
+    const rows = (await import('/js/data/filings.js')).recentNews.rows();
     const row = rows.find(item => item.title === 'Tickerless private company routine update');
     return row?.entityId === 'isin:INE000000001' && row?.ticker === null;
   }), true, 'tickerless company news stays linked by ISIN without a synthetic ticker');

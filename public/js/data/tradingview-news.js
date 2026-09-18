@@ -5,17 +5,25 @@ import { dedupeArticles } from './filings-shared.js';
 import { attributeNewsRow } from './company-news-attribution.js';
 import { assessTradingViewCoverage } from './tradingview-news-health.js';
 import { holdsTicker } from './row-ticker-index.js';
+import { runSteps, runStepsInSlices } from '../core/slices.js';
 
 export const NEWS_SNAPSHOT_POLL_MS = 120000;
 
 export function withTradingViewNews(base, { read = conditionalJson, doc = globalThis.document,
-  view = doc?.defaultView || globalThis.window, now = Date.now, schedule = setTimeout, cancel = clearTimeout } = {}) {
+  view = doc?.defaultView || globalThis.window, now = Date.now, schedule = setTimeout, cancel = clearTimeout, revalidate = null, autoRefresh = true } = {}) {
   let snapshot = null, pending = null, loaded = false, readError = null, readerCheckedAt = null;
   let timer = null, listening = false, lastAttempt = null, failures = 0, generation = 0;
   let combined = null;
   const subscribers = new Set();
   const emit = () => subscribers.forEach(fn => fn());
-  base.onChange(emit);
+  // A source announcement or an adopted capture moves this counter; a sliced rebuild in flight
+  // checks it between slices rather than asking the reader beneath for its rows.
+  let sourceRevision = 0;
+  // A base change is announced after the union is prepared in slices (`prepareRows`), so the
+  // first synchronous read that follows the announcement — a status label, the source beacon,
+  // a collector — finds the union ready rather than rebuilding it in one task. Rows are current
+  // whenever they are read; only the announcement waits.
+  const offBase = base.onChange(() => { sourceRevision++; prepareRows().catch(() => {}).then(emit); });
 
   function readSnapshot() {
     if (pending) return pending;
@@ -28,8 +36,17 @@ export function withTradingViewNews(base, { read = conditionalJson, doc = global
         if (!Number.isFinite(stamp) || stamp > now() + 600000 || !value?.byTicker || !Array.isArray(value.entities) || !value.tradingViewCoverage)
           throw Error('TradingView published snapshot unavailable or invalid');
         if (snapshot && stamp < Date.parse(snapshot.capturedAt)) throw Error('TradingView published snapshot is older than retained news');
-        const changed = !snapshot || stamp > Date.parse(snapshot.capturedAt);
-        if (changed) snapshot = value;
+        const changed = !snapshot || stamp > Date.parse(snapshot.capturedAt) || value.queryRevision != null && value.queryRevision !== snapshot.queryRevision;
+        if (changed) {
+          // Warm before adopting, so the first `combinedRows()` after this read pays for the join.
+          await warmSnapshot(value, yieldToInput);
+          if (epoch !== generation) return { available: false };
+          snapshot = value;
+          sourceRevision++;
+          // And build the union in slices before the announcement below reaches a consumer.
+          try { await prepareRows(yieldToInput); } catch { /* The synchronous read still answers. */ }
+          if (epoch !== generation) return { available: false };
+        }
         readError = null;
         return { available: true, changed };
       } catch (error) {
@@ -42,22 +59,32 @@ export function withTradingViewNews(base, { read = conditionalJson, doc = global
     return pending;
   }
 
-  function combinedRows() {
-    const source = base.rows();
-    const from = new Date(now() - 30 * 86400000).toISOString().slice(0, 10);
-    // Coverage, per-company status and several tabs all read this same union. Rebuilding it for
-    // every read made coverage O(companies × articles × URL parsing). Keep complete records;
-    // invalidate on either source revision, identity decoration, or retention-day rollover.
-    if (combined?.source === source && combined.snapshot === snapshot && combined.from === from) return combined.rows;
+  const yieldToInput = () => typeof doc === 'undefined' || !doc ? Promise.resolve() : new Promise(resolve => schedule(resolve, 0));
+  async function warmSnapshot(snap, yieldForInput = yieldToInput) {
     const identities = new Map();
-    for (const entity of snapshot?.entities || []) for (const key of [entity.entityId, entity.key, entity.ticker].filter(Boolean))
+    for (const entity of snap?.entities || []) for (const key of [entity.entityId, entity.key, entity.ticker].filter(Boolean))
+      identities.set(String(key).toUpperCase(), entity);
+    let started = performance.now();
+    for (const [key, list] of Object.entries(snap?.byTicker || {})) for (const row of Array.isArray(list) ? list : []) {
+      if (row?.tradingViewId) attributeNewsRow(row, identities.get(key.toUpperCase()) || row);
+      if (performance.now() - started >= 12) { await yieldForInput(); started = performance.now(); }
+    }
+  }
+  // The union is one generator, driven synchronously by `combinedRows()` or in ~12ms slices by
+  // `prepareRows()`, which the snapshot read runs before it announces a changed capture — so the
+  // first read after a cold seed finds the union ready instead of building it in one task
+  // (profiled at 0.9s on the first open of a session). Same records, same order either way.
+  const newestFirst = (a, b) => a === b ? 0 : a.length === b.length ? (b > a ? 1 : -1) : b.localeCompare(a);
+  function* buildCombined(source, snap, from) {
+    const identities = new Map();
+    for (const entity of snap?.entities || []) for (const key of [entity.entityId, entity.key, entity.ticker].filter(Boolean))
       identities.set(String(key).toUpperCase(), entity);
     const buckets = new Map();
-    const extras = Object.entries(snapshot?.byTicker || {}).flatMap(([key, list]) => (Array.isArray(list) ? list : [])
+    const extras = Object.entries(snap?.byTicker || {}).flatMap(([key, list]) => (Array.isArray(list) ? list : [])
       .filter(row => row?.tradingViewId && (!row.date || row.date >= from))
       .map(row => attributeNewsRow(row, identities.get(key.toUpperCase()) || row)));
-    const candidates = [...source, ...extras].sort((a, b) =>
-      String(b.lastSeenAt || b.firstSeenAt || '').localeCompare(String(a.lastSeenAt || a.firstSeenAt || '')));
+    const observed = row => String(row.lastSeenAt || row.firstSeenAt || '');
+    const candidates = [...source, ...extras].map(row => [observed(row), row]).sort((a, b) => newestFirst(a[0], b[0])).map(pair => pair[1]);
     for (const row of candidates) {
       if (row.tradingViewId && row.date && row.date < from) continue;
       const identity = identities.get(String(row.entityId || row.ticker || '').toUpperCase());
@@ -65,16 +92,53 @@ export function withTradingViewNews(base, { read = conditionalJson, doc = global
       if (!buckets.has(key)) buckets.set(key, []);
       buckets.get(key).push(row);
     }
-    const rows = [...buckets.values()].flatMap(list => {
+    const rows = [];
+    for (const list of buckets.values()) {
       const seenIds = new Set();
-      return dedupeArticles(list.filter(row => {
+      for (const row of dedupeArticles(list.filter(row => {
         if (!row.tradingViewId) return true;
         if (seenIds.has(row.tradingViewId)) return false;
         seenIds.add(row.tradingViewId); return true;
-      }));
-    }).sort((a, b) => String(b.publishedAt || b.date || '').localeCompare(String(a.publishedAt || a.date || '')));
+      }))) rows.push(row);
+      yield;
+    }
+    const stamp = row => String(row.publishedAt || row.date || '');
+    rows.sort((a, b) => newestFirst(stamp(a), stamp(b)));
+    return rows;
+  }
+  const retentionFrom = () => new Date(now() - 30 * 86400000).toISOString().slice(0, 10);
+  function combinedRows() {
+    const source = base.rows();
+    const from = retentionFrom();
+    // Coverage, per-company status and several tabs all read this same union. Rebuilding it for
+    // every read made coverage O(companies × articles × URL parsing). Keep complete records;
+    // invalidate on either source revision, identity decoration, or retention-day rollover.
+    if (combined?.source === source && combined.snapshot === snapshot && combined.from === from) return combined.rows;
+    const rows = runSteps(buildCombined(source, snapshot, from));
     combined = { source, snapshot, from, rows };
     return rows;
+  }
+  // One preparation in flight: a second caller shares it rather than driving a second rebuild.
+  let preparing = null;
+  function prepareRows(yieldForInput = yieldToInput) {
+    if (!preparing) preparing = prepareOnce(yieldForInput).finally(() => { preparing = null; });
+    return preparing;
+  }
+  // A build the source churn abandoned is tried again against the newer state, a few times: a
+  // preparation that gives up during a cold load leaves the next synchronous read to rebuild
+  // the union in one task, which is exactly what it exists to prevent.
+  async function prepareOnce(yieldForInput) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await base.prepareRows?.(yieldForInput);
+      const at = sourceRevision, epoch = generation;
+      const source = base.rows(), snap = snapshot, from = retentionFrom();
+      const ready = () => combined?.source === source && combined.snapshot === snap && combined.from === from;
+      if (ready()) return;
+      const current = () => sourceRevision === at && generation === epoch && snapshot === snap;
+      const rows = await runStepsInSlices(buildCombined(source, snap, from), { yieldForInput, keepGoing: current });
+      if (rows && current() && !ready()) combined = { source, snapshot: snap, from, rows };
+      if (rows || generation !== epoch) return;
+    }
   }
 
   function meta() {
@@ -104,19 +168,19 @@ export function withTradingViewNews(base, { read = conditionalJson, doc = global
   function pause() { if (timer !== null) cancel(timer); timer = null; }
   function arm() {
     pause();
-    if (!doc || doc.hidden || !loaded || !subscribers.size) return;
+    if (!autoRefresh || !doc || doc.hidden || !loaded || !subscribers.size) return;
     const delay = Math.min(NEWS_SNAPSHOT_POLL_MS * 2 ** failures, 600000);
     timer = schedule(async () => {
       timer = null;
       lastAttempt = now();
-      try { const result = await refreshSnapshot(); failures = result.partial ? failures + 1 : 0; }
+      try { const result = await (revalidate ? revalidate() : refreshSnapshot()); failures = result.partial ? failures + 1 : 0; }
       catch { failures++; }
       finally { emit(); arm(); }
     }, Math.max(0, delay - (lastAttempt == null ? 0 : now() - lastAttempt)));
   }
   const visibility = () => doc.hidden ? pause() : arm();
   function watch() {
-    if (!doc || listening || !loaded || !subscribers.size) return;
+    if (!autoRefresh || !doc || listening || !loaded || !subscribers.size) return;
     listening = true;
     doc.addEventListener('visibilitychange', visibility);
     view?.addEventListener('focus', visibility);
@@ -139,7 +203,14 @@ export function withTradingViewNews(base, { read = conditionalJson, doc = global
     if (!loaded) { loaded = true; lastAttempt = now(); }
     watch();
   }
-  return { ...base, rows: combinedRows, meta, refreshSnapshot,
+  return { ...base, rows: combinedRows, meta, refreshSnapshot, prepareRows,
+    // Warm the readings `combinedRows()` will hit, in ~12ms slices; same identity objects as the
+    // rebuild uses, so every reading it touches is the one the rebuild reuses.
+    async warm(yieldForInput = () => Promise.resolve()) {
+      await base.warm?.(yieldForInput);
+      await warmSnapshot(snapshot, yieldForInput);
+      await prepareRows(yieldForInput);
+    },
     seed: (...args) => initialize('seed', args), load: (...args) => initialize('load', args),
     async refresh(...args) {
       const [result] = await Promise.all([base.refresh(...args), readSnapshot()]);
@@ -157,5 +228,6 @@ export function withTradingViewNews(base, { read = conditionalJson, doc = global
       subscribers.add(fn); watch();
       return () => { subscribers.delete(fn); if (!subscribers.size) unwatch(); };
     },
+    dispose() { generation++; unwatch(); offBase(); subscribers.clear(); snapshot = null; combined = null; base.dispose?.(); },
   };
 }

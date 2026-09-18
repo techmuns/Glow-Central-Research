@@ -149,6 +149,8 @@ public/
                               a contributor and an edit are
       daily-alerts.js         RETAINED HISTORY across NINE feeds. Derived: no file, no route of its own
       ai-alerts.js            EXPLAINABLE seven-day company priority over Daily/General readings
+      alert-drivers.js        WHICH INVESTOR QUESTION a tracked topic bears on — earnings assumption,
+                              valuation or thesis. One mapping, read by the AI Alerts card
       coverage.js             THE BOOK — the 142 companies the Portfolio toggle means, and the
                               19 it cannot cover. NOT the ledger; see the section below
       technicals.js           loads + scores the live feed once, caches it
@@ -815,6 +817,7 @@ resolves it from the list for every derived view, so one person is one string on
 **not** a regex that strips the suffix: the list is the authoritative display name, and a pattern
 match would quietly fail the day they reword it.
 
+<<<<<<< HEAD
 
 ### Two fund feeds on two dates — the Mutual Funds rule (GLOW-OWNED)
 
@@ -1291,6 +1294,31 @@ rules, and every one of them is a rule this file already runs on:
 3. **The stories carry no new reading.** Topic is the desk's thirty keywords folded onto the seven
    Munshot topics; mood is `announcementSignal()` over a filing's own subject, and a published
    headline is Neutral because nothing on this dashboard reads sentiment off one. The footer says so.
+=======
+### The team brief — two emails a weekday, built at the edge
+
+The **Newsletter** button beside the header bell subscribes the desk to two Sattva Ventures-branded
+emails a weekday, each leading with the portfolio companies (one block per company, every link
+opening in a new tab) and following with the market scan: the **morning brief** at 08:00 IST (what
+happened overnight — the US close, Asia this morning, Brent, gold, silver, the dollar index and
+USD/JPY, plus every filing and story about a DIRECT holding since the previous evening) and the
+**evening brief** at 16:00 IST (the trading day). `docs/DATA-CONTRACTS.md` → *The team brief* has the
+routes, the shapes and the window rule. Seven rules, and every one of them is a rule this file
+already runs on:
+
+1. **"Direct ones" means `portfolio-companies.json`**, the Portfolio scope's own file, and nothing
+   wider. A line with no NSE symbol is still a holding and is still the denominator — the brief
+   counts companies reported against the book's **listed** lines, exactly as `scopeSummary` does.
+2. **Every figure carries its own state and time.** Quotes are read from Yahoo's chart endpoint at
+   send time and Yahoo's own session bounds decide `Close · Wed 16:00 EDT` versus `Live · Thu 07:58
+   JST`. **A symbol Yahoo refuses prints `unavailable` and never a number** — this dashboard keeps
+   no macro series store, so there is no second reading to fall back to, and a stale close dressed
+   as this morning's is the one thing the row may not become. A source that cannot be read says so
+   in the email — `NSE feed could not be read (blocked)` — rather than going quiet.
+3. **The stories carry no new reading.** Topic is the desk's thirty keywords folded onto seven
+   topics; mood is `announcementSignal()` over a filing's own subject, and a published headline is
+   Neutral because nothing on this dashboard reads sentiment off one. The footer says so.
+>>>>>>> sattva/main
 4. **The alarm is the scheduler, and a claim precedes every send.** No cron slot exists on the
    account and GitHub's schedule does not fire, so the object's alarm sends. `wake()` moves its
    clock forward in a transaction before reading a quote and `deliver()` claims `<day>:<edition>`
@@ -1303,6 +1331,7 @@ rules, and every one of them is a rule this file already runs on:
    value and never stored.
 6. **The panel stays minimal**: your address with Subscribe / Unsubscribe, the list with × and one
    add field, Preview Morning · Evening. No name field, no edition ticks, no send times, no send
+<<<<<<< HEAD
    buttons, no log — the owner asked for the simplest control, and those stay on the routes.
    **That one field takes the whole team**, because adding six people one at a time is six rounds of
    type-and-click for an edit the contract could always carry in one (`newsletterIntents`, up to
@@ -1318,6 +1347,23 @@ rules, and every one of them is a rule this file already runs on:
 7. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
    origin is told it has no newsletter, never shown an error.
 
+=======
+   buttons, no log — the simplest control that does the job, and those stay on the routes.
+7. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
+   origin is told it has no newsletter, never shown an error.
+
+**The brief is asserted against FIXTURES, not against today's capture.** `scripts/fixtures/newsletter/`
+carries a small book and two small filing captures, because `corp-announcements.json` and
+`market-news.json` are rewritten by their own evening workflows and the book by
+`family-book-sync.yml` — a test naming a company against those files asserts whatever a workflow
+committed that day (27 rows for 19 book companies sat inside the morning window when this was
+written, and which of them led the sheet was a property of the capture rather than of the rule).
+One test still builds against the **shipped** files, because a brief only ever built against a
+fixture has not been shown to build against the data it will be sent from; it asserts structure and
+honesty — every company is a book ticker, every story is inside its window, a published headline
+carries no direction — and never a name or a count.
+
+>>>>>>> sattva/main
 ### Two disclosures that look identical — the Institutions rule
 
 Institutions is also where a subtler failure lives, and it is not about *whose* number it is but
@@ -2704,6 +2750,78 @@ Three things to take from it:
    set — instead of quietly painting the wrong thing. A caller with a bad key gets a slower paint,
    never a lie.
 
+### A PER-ROW CACHE IS KEYED ON THE ROW OBJECT — and a projection that copies a row defeats it
+
+`docs/PERFORMANCE-HOT-PATHS-2026-09-17.md` has the measurements. The rule that survives:
+
+1. **A pure function of a row is memoised on the row object, in a `WeakMap`.** Rows are replaced,
+   never edited — verified parts arrive frozen — so the object is an exact key and the entry dies
+   with the row. `attributionFor`, `classifyStory`, `newsEventTopics`, `newsPublicationDay`,
+   `articleUrlKey`, `insiderTradeIdentity` and the insider tab's row key all work this way; each
+   checks the one or two fields it reads, so the single normaliser that edits a row it built is
+   still read correctly. A text-keyed FIFO alone is not enough on a full history: 65,536 entries
+   against 81,921 rows evicts exactly as fast as a pass walks it, and a full pass hit nothing.
+2. **A projection that spreads a row into a new object must itself be memoised on its inputs**, or
+   every cache below it misses at once. `portfolio-publisher-news.js` rebuilt every projected story
+   as a fresh object whenever the publisher capture moved, and one switch from AI Alerts to All
+   Alerts re-read the whole history — a 4.7-second main-thread task with every per-row cache in
+   place. `withTradeCategory` returns a row that already carries its category unchanged for the
+   same reason: a cumulative archive merge that copies every row it keeps can never hit twice.
+3. **A property of an object's shape is cached on the object, and the value is read live.**
+   `pickField` rebuilt a flattened key map on every call — 1,920ms on one cold open of Insider
+   Trades, five filter dropdowns asking ~48,000 rows five times each.
+4. **Do not measure bytes with `TextEncoder.encode` per record.** `utf8Length` counts without the
+   allocation; the per-part figure the integrity check reads is still the encoder's own.
+
+`scripts/verify-hot-path-memo.mjs` asserts every cache is invisible — same answers as a fresh
+computation, live reads where promised, exact byte counts — and runs in the contracts job.
+
+### ONE IMPLEMENTATION, TWO DRIVERS — and prepare before you announce
+
+The caches above made a *repeat* read cheap and left the first one alone: AI Alerts' Universe
+ranking was one 2.4-second task, the news readers' cold rebuilds and the collectors' first
+classification of every filing landed as one-to-two-second tasks under whichever tab the reader had
+moved to, and the final assembly of a full-history collection was a 2.3-second task on its own.
+`docs/PERFORMANCE-HOT-PATHS-2026-09-17.md` (round two) has the measurements. Three rules close it,
+and every one is a scheduling change, never a change to what is collected, matched, ordered or shown:
+
+1. **A rebuild or a ranking is a generator; the driver decides when it runs.** `rankSteps` in
+   `ai-alerts.js` and the `buildRows` / `buildCombined` generators in the three news readers yield
+   once per unit of work — a company's card, a bucket of rows. `runSteps` (`core/slices.js`) drives
+   one to completion now, which is the reference every consumer that must answer synchronously
+   still uses; `runStepsInSlices` drives the **same generator** in ~12ms slices with a yield to
+   input between them. `rankReport` is `runSteps(rankSteps(…))`, `rankReportAsync` is the sliced
+   drive of the identical generator, and `verify-ai-alerts.mjs` asserts the two are `deepEqual` on
+   the fixture and on a 3,000-company synthetic Universe. **Never write the sliced path as a second
+   implementation** — a second implementation is a second answer.
+2. **An abandoned slice resolves to nothing, never to a partial result.** `keepGoing()` is asked
+   between slices — the AI Alerts tab's currency token, a reader's own revision counter — and once
+   it says no the drive returns `undefined`, which every caller reads as *do not install, do not
+   publish*. **`keepGoing` may not ask a reader beneath for its rows**: `base.rows()` between slices
+   was itself a cold synchronous rebuild, 1.6 seconds inside a loop written to avoid exactly that.
+   Compare counters.
+3. **Prepare before you announce, and warm before you read.** A reader builds its combined rows in
+   slices (`prepareRows()`) before it `emit()`s, so the first synchronous `rows()` a subscriber
+   makes is a hit; a collector touches, in slices, every per-row reading its synchronous read and
+   the assembly after it will make (`warmRows`, `warmNewsReadings`, each source's `warm`, all
+   through one `touch(event, feedId)`). A preparation that throws changes nothing — the synchronous
+   read still answers — so every call is `try { await prepare } catch {}`.
+
+**And the warm-up must touch the SAME OBJECTS the read will read, or it warms nothing.** Measured
+after the first round: the insider read classified every row again in one 570ms task directly
+after a sliced warm-up over the same feed, the market-wide news read did the same, and the trailing
+assembly matched every X post against the book cold — because `rows()` handed the read a fresh copy
+of every row (`{ ...row, ticker }`) whenever its snapshot had been invalidated between the two,
+`fromMarketNews` and the X / IPO adapters built a fresh event per row on every read, and
+`portfolioNewsEntities` built fresh identity objects per assembly while `attributeNewsRow` is cached
+per (row, identity OBJECT). A projection built fresh per call defeats every cache keyed beneath it —
+the rule above, arrived at from the warm-up's side. So the projection (`projected()` in
+`filings.js`), the promoted insider row (`withTradeCategory`), the market-wide, X and IPO events
+(`marketNewsEvent`, `twitterRecord`, `ipoRecord`), the portfolio discovery reading (`discoveryFor`,
+keyed on the source record and validated on the book's signature) and the identity objects
+themselves (`discoveryEntities`) are all kept while their inputs are unchanged, and
+`verify-hot-path-memo.mjs` asserts the read returns the objects the warm-up built.
+
 ### Data sources
 
 The header "Sources" modal is generated from `js/ui/sources.js`. **Adding a data source means
@@ -3138,6 +3256,64 @@ Friday's, with nothing saying so. That is the same failure as rendering a missin
 absence produced by our own bookkeeping, presented as an absence of events. So the store records
 WHICH evidence was dismissed (the card's strongest event id); the card returns by itself the moment
 something stronger arrives, and the record lapses after the alert window it refers to.
+
+### EARNINGS ASSUMPTION, VALUATION OR THESIS — what the evidence bears on
+
+The card answered *what happened*. A reader opens it with a second question — **does this change
+anything I believed?** — and on this desk that question has exactly three forms: the **earnings
+assumption** (what the business earns), the **valuation** (what a share is worth, and how many there
+are) and the **thesis** (whether it is still the business that was bought).
+
+`js/data/alert-drivers.js` is the one mapping from the desk's tracked vocabulary onto those three,
+and the card states it in a sentence under its own kicker: *"Could change **the earnings assumption**
+(Order in a filing; Partnership in the news) and **the valuation** (shareholder distribution in a
+filing). Nothing tracked here bears on the thesis."* **Every driver in it is a link to that event's
+own source** — the same destination, through the same `evidenceDestination`, as the evidence row
+below it. That is the point rather than a nicety: the bucketing is this dashboard's reading, so the
+record behind it has to be one click away, or it is a judgement with no way to check it.
+
+It is a separate file from `news-keywords.js` deliberately. **The keyword list is the desk's; a
+taxonomy of what a topic BEARS ON is ours.** Two different claims, two files, as `stockscans-shared`
+and `finology-shared` are separate from the tabs that read them.
+
+Six rules, and every one is a rule this codebase already had:
+
+1. **It adds no fact, no number and no score.** Every driver is a topic reading already written onto
+   the event by `newsSignal()` or `announcementSignal()`. Nothing here fetches, computes or ranks,
+   and `rankReport`'s arithmetic is untouched — the suite asserts a card's score is identical with
+   the topics stripped out. It explains a card that was surfaced anyway; it is **not** a second
+   materiality gate, which is the pattern this codebase keeps having to un-write.
+2. **It is still a TOPIC reading, never a direction.** `news-keywords.js` rule 1 holds one layer up:
+   "Lawsuit" is a topic and the company can be the plaintiff. So the sentence says a topic **could
+   change** the earnings assumption and may never be strengthened — *"improves earnings"* would be a
+   direction this dashboard's own feeds refuse to assert. The suite asserts the wording in both
+   directions: the sentence starts *Could change*, and carries no verdict word.
+3. **The matched rule travels as a FIELD.** `announcementSignal` now returns `filingRule` beside
+   `keywords`, because recovering it from `signalReason` would be regexing a value back out of our
+   own prose — the error the card rules name directly — and would empty the map silently the day
+   that sentence is reworded.
+4. **A feed with no topic supplies no driver.** The tape, the fund books and the insider rows carry
+   no topic at all; bucketing a volume ratio would be this dashboard asserting *why* somebody traded.
+   `SOURCE_PHRASE` is a map rather than a list of exclusions, so a feed added later is silent by
+   default instead of inheriting a phrase that happens to be wrong for it.
+5. **Market-wide news and related-entity reports are excluded outright.** Market news carries no
+   company — the same reason General Alerts refuses to offer it under a narrowed scope — so filing
+   one under a company's valuation would attribute somebody else's story to them. A reviewed
+   related-entity report is about a *different* company and the card already says so.
+   `brokerage-research` is absent from the mapping for a third reason: an analyst's published view
+   is a view OF the company, not an event AT it.
+6. **A question with nothing behind it is STATED; only the whole section is dropped.** *"Nothing
+   tracked here bears on the thesis"* is a real answer and is how a reader tells a card about a fund
+   book and a volume spike from one about a governance problem. What is omitted is the section
+   entirely, and only when no question has an answer — three negatives in a row is noise. A capped
+   bucket **counts** what it did not print, because a truncation nobody can see is the card claiming
+   fewer things bear on the company than its own evidence holds.
+
+Two bucket choices are worth stating because the obvious answer is the wrong one. **`stake-sale` is
+valuation, not deals**: a block changing hands does not alter what the business earns, it alters who
+owns it and what the float is. **`merger` and `acquisition` are thesis, not earnings**: they plainly
+move future earnings too, but the prior question is whether the thing being valued is still the same
+thing, and that is the one a reader has to answer first.
 
 ### CORRELATION IS THE PRODUCT — the confluence layer
 
@@ -4181,6 +4357,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change how an NSE XBRL filing is READ, or which URLs may be fetched for one | `public/js/data/nse-xbrl-shared.js` (the pure parser + the `src` allow-list, imported by the Worker too) + `handleNseFiling` in `worker/index.js` (`GET /api/nse-filing`) + `public/js/ui/xbrl-filing.js` (the panel and the one delegated click listener, installed from `app.js`). About one NSE announcement in eleven is a raw XBRL file with no readable twin — read *An XBRL filing is a document* in `docs/DATA-CONTRACTS.md` first. A fact is an element with a `contextRef`, a repeated section is a context, values travel verbatim, `row.url` keeps NSE's own address, and a modified click still gets the raw file. `node scripts/verify-nse-xbrl.mjs` and `scripts/verify-nse-xbrl-ui.mjs` are the tests |
 | Change how many days of announcements are kept | `ANN_KEEP_DAYS` in `scripts/scrape-bse-announcements.mjs` — a bytes ceiling, ~900 filings a weekday |
 | Change the tracked news keywords, or what a Topic filter offers | `public/js/data/news-keywords.js` — the whole vocabulary is one array; read *Thirty words that make a search feed usable* first. A keyword is a topic and must never become a direction, and `namesCompany` marks a row rather than dropping one |
+| Speed up a per-row helper on a hot path | memoise it on the row object in a `WeakMap`, validated on the fields it reads — read *A per-row cache is keyed on the row object* first; `scripts/verify-hot-path-memo.mjs` is the test |
+| Make a long rebuild or ranking stop blocking the page | write it as a generator and drive it with `runSteps` / `runStepsInSlices` from `js/core/slices.js` — read *One implementation, two drivers* first. The synchronous drive stays the reference, the sliced drive must `deepEqual` it, an abandoned drive resolves to `undefined`, and whatever the synchronous read will touch is warmed in slices first through the collector's `touch` |
 | Change what makes a news story material to General Alerts / AI Alerts | `newsSignal()` in `js/data/daily-alerts.js` — it raises IMPORTANCE only, never direction, and the suite asserts that on a risk word |
 | Change what makes a FILING material | `announcementSignal()` + `BSE_CRITICAL_IS_MATERIAL` in `js/data/daily-alerts.js` — read *A borrowed flag is not a materiality rule* first. One predicate, stated inputs; BSE's critical flag is reproduced and is not the gate |
 | Change the volume/breakout alert, or its threshold | `VOLUME_X` and the participation branch of `fromTechnicals` in `js/data/daily-alerts.js` — volume is neutral because the tape does not say which side it was |
@@ -4229,9 +4407,12 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the device mirror + sync) + `watchKey` on the table that stars it — read *The star marks a COMPANY* and *The watchlist is a list of COMPANIES, and ONE list for the whole desk* first |
 | Change the SHARED watchlist itself — its shape, its conflict rules or its route | `public/js/data/watchlist-shared.js` (the one definition, imported by the Worker too) + `worker/watchlist-store.mjs` + `worker/watchlist.mjs`. Edits are INTENTS, never a whole list; an `add` must name its contributor; a `seed` may not apply over any row that already exists. `node scripts/verify-shared-watchlist.mjs` and `node scripts/verify-shared-watchlist-ui.mjs` are the tests |
+| Change the team brief — what is in it, how it reads, when it sends | `worker/newsletter-brief.mjs` (the scan, the stories and the broadsheet), `worker/newsletter-schedule.mjs` (the alarm and the send), `worker/newsletter-store.mjs` (subscribers, settings, deliveries), `public/js/data/newsletter-shared.js` (editions, windows, addresses — imported by both sides) and `public/js/ui/newsletter.js` (the header control). Read *The team brief* first. `node scripts/verify-newsletter.mjs` and `node scripts/verify-newsletter-ui.mjs` are the tests |
+| Set up the team brief on a deployment | `MUNS_TOKEN` on the Worker sends it; `DASHBOARD_ORIGIN` and `NEWSLETTER_PRODUCT_NAME` are vars in `wrangler.jsonc`; the `NEWSLETTER` binding and `NEWSLETTER_LIMITER` are there too. Subscribe from the header and the alarm arms itself |
 | Change who is asked, or how the contributor dropdown behaves | `js/ui/watchlist-attribution.js` (the prompt) + `js/core/watchlist-people.js` (the roster and this device's own name) — read *An addition carries the name of whoever made it* first. Never preselect a name on a device nobody has identified themselves on |
 | Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book, and test `rankReport()` directly |
 | Change what an AI Alerts card SAYS, or the four figures on it | `plainInsight()` / `cardMetrics()` / `plainHeadline()` / `topEvidence()` in `js/data/ai-alerts.js` — all pure and exported. Read *Time to insight is the product's only job* first: no new number, only sentences we wrote may be reworded, the volume cell takes no tone, and the figures follow `READ_ORDER` rather than score order |
+| Change which investor question a topic bears on, or how a card states it | `js/data/alert-drivers.js` (the one mapping) + `driversMarkup()` in `js/tabs/ai-alerts.js` — read *Earnings assumption, valuation or thesis* first. A driver is a TOPIC reading, so the wording stays "could change"; every driver links to its own source; and the layer adds no score |
 | Change archiving on AI Alerts | `js/core/ai-mute.js` (the store) + the `archived` filter and the Archive / Restore buttons in `js/tabs/ai-alerts.js` — a record is keyed to the evidence it was given for, so a card returns on its own when stronger evidence arrives |
 | Change the General Alerts tab | `js/tabs/daily-alerts.js` (the view) + `js/data/daily-alerts.js` (the readings) — read *General Alerts* above first. It has **no feed of its own** and must never send a request per company |
 | Change General Alerts direction or importance | the exported rules and per-feed collectors in `js/data/daily-alerts.js` — every row carries `signalReason` and `importanceReason`; keep thresholds visible in the source registry and export |
@@ -4425,6 +4606,10 @@ It covers, beyond the checklist below:
   is in that order — widest last
 - **the dashboard opens on Ask Research, in Portfolio scope**; AI Alerts has no sub-view picker and
   its cards are unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
+- **every AI Alerts card labels its two readings** — what happened, and which of the earnings
+  assumption / valuation / thesis its evidence bears on — with the second read after the first and
+  before the evidence, worded as what the evidence COULD change rather than as a verdict, and with
+  every driver linking to a source the card itself already holds
 - **Portfolio Analytics is gone and cannot be reached**: an old `#/portfolio/...` link lands on
   Research Central with the URL corrected and the tab bar back, every deleted ledger module and
   payload 404s on the served site, and no Ask Research source carries a ledger figure or a route

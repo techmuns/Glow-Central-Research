@@ -5,6 +5,21 @@ import { readEntry, writeEntryBatch } from '../core/store.js';
 export const ALERT_WINDOW_CACHE_KEY = 'ai-alerts:public-window:v1';
 export const ALERT_CACHE_PART_BYTES = 512 * 1024;
 const encoder = new TextEncoder();
+// UTF-8 length without allocating a byte array per event. `encoder.encode(json).byteLength` on
+// each of 43,000 events cost 1.5s of one All Alerts save (profiled). JSON.stringify never emits a
+// lone surrogate, so a high surrogate always pairs. The per-part `bytes` written to the manifest
+// is still measured by the encoder itself, so the load-time integrity check reads the same number.
+export function utf8Length(text) {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) { bytes += 4; i++; }
+    else bytes += 3;
+  }
+  return bytes;
+}
 const hash = async text => [...new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(text)))]
   .map(byte => byte.toString(16).padStart(2, '0')).join('');
 const yieldForInput = () => typeof window === 'undefined' ? Promise.resolve() : new Promise(resolve => setTimeout(resolve, 0));
@@ -17,7 +32,27 @@ export function createAlertWindowCache({ read = readEntry, write = writeEntryBat
     message: 'The offline alert copy could not be verified. Available live evidence remains visible.' });
   let activeReaders = 0;
   const obsoleteParts = new Set();
-  let pendingWrite = Promise.resolve();
+  // Inputs are complete, already-merged views, never source deltas. Only the active
+  // revision and newest waiting revision may retain an events array.
+  let running = false, waiting = null, cleanupRequested = false;
+  async function drain() {
+    if (running) return;
+    running = true;
+    try {
+      while (waiting || cleanupRequested) {
+        if (waiting) {
+          const job = waiting;
+          waiting = null;
+          const result = await save(job.value);
+          job.resolve({ ...result, superseded: false });
+          cleanupRequested = true;
+        } else {
+          cleanupRequested = false;
+          await prune();
+        }
+      }
+    } finally { running = false; }
+  }
   let pruneEnabled = true;
   async function prune() {
     if (!pruneEnabled || activeReaders || !obsoleteParts.size) return;
@@ -62,7 +97,8 @@ export function createAlertWindowCache({ read = readEntry, write = writeEntryBat
     finally {
       activeReaders--;
       if (activeReaders === 0 && obsoleteParts.size > 0) {
-        pendingWrite = pendingWrite.then(prune).catch(() => {});
+        cleanupRequested = true;
+        void drain();
       }
     }
   }
@@ -81,7 +117,7 @@ export function createAlertWindowCache({ read = readEntry, write = writeEntryBat
         await yieldForInput();
       };
       for (let i = 0; i < events.length; i++) {
-        const json = JSON.stringify(events[i]), size = encoder.encode(json).byteLength;
+        const json = JSON.stringify(events[i]), size = utf8Length(json);
         if (batch.length && bytes + size + 1 > partBytes) await flush();
         bytes += size + (batch.length ? 1 : 0); batch.push(json);
         if (i % 256 === 255) await yieldForInput();
@@ -115,8 +151,11 @@ export function createAlertWindowCache({ read = readEntry, write = writeEntryBat
     } catch { fail(); return { persistent: false }; }
   }
   return { async read() { return load(); }, write(value) {
-    pendingWrite = pendingWrite.then(async () => { const result = await save(value); await prune(); return result; });
-    return pendingWrite;
+    // Resolving a superseded caller must never claim that its exact revision reached disk.
+    waiting?.resolve({ persistent: false, superseded: true });
+    const result = new Promise(resolve => { waiting = { value, resolve }; });
+    void drain();
+    return result;
   },
     status: () => ({ ...state }), onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); } };
 }

@@ -150,11 +150,10 @@ export function makeFilingsTab(cfg) {
     const t = ++token;
     ctxRef = ctx;
     renderedRows = null;
-    disposers.forEach((d) => d && d());
-    disposers = [];
     const seeded = companySeededView(ctx, routeCompany, view);
     routeCompany = seeded.company;
     view = cfg.prepareView?.(ctx, seeded.view) ?? seeded.view;
+    cfg.prepareReading?.(view);
 
     // SUBSCRIBE BEFORE THE EARLY RETURN, not after it.
     //
@@ -203,7 +202,17 @@ export function makeFilingsTab(cfg) {
     cfg.feed.setWanted(items);
 
     if (!cfg.feed.isLoaded()) {
+<<<<<<< HEAD
       ctx.root.innerHTML = `${sectionHead(headConfig(ctx))}${loadingHtml()}`;
+=======
+      // Keep the reading controls and overlapping last-good rows usable while a new period
+      // loads. Replacing an already-painted table with a splash loses the user's next choice.
+      if (cfg.preserveReadingPosition && ctx.root.querySelector('[data-filings-info]')) paint(ctx);
+      else {
+        disposers.forEach(dispose => dispose && dispose()); disposers = [];
+        ctx.root.innerHTML = `${sectionHead({ title: cfg.title, description: cfg.subtitle })}${loadingHtml()}`;
+      }
+>>>>>>> sattva/main
       cfg.feed.load(items).then(() => {
         if (t === token) paint(ctx);
       });
@@ -356,6 +365,9 @@ export function makeFilingsTab(cfg) {
       link: cfg.link === false ? null : cfg.link || ((r) => r.url || null),
       initialSort: cfg.initialSort || { key: 'Date', dir: 'desc' },
       initialView: view,
+      onFilterChange(next, index) {
+        if (cfg.prepareReading?.(next, index)) { view = next; render(ctx); }
+      },
       // TWO UNITS, BOTH NAMED. Insider Trades can carry many disclosures for one portfolio
       // company, so a bare "1,295 of 1,295 shown" was understandably read as 1,295 companies.
       // Recompute both figures from the visible row DATA whenever search or a filter changes.
@@ -656,7 +668,8 @@ function coverageSentence(m, cov) {
       ${co(asked, 'was', 'were')} searched`);
   }
   if (cov.askedEmpty) {
-    parts.push(`${n(cov.askedEmpty)} of them had no ${escapeHtml(cov.noun)} in the last ${n(m.windowDays)} days`);
+    const period = m.queryWindow ? 'in the selected period' : `in the last ${n(m.windowDays)} days`;
+    parts.push(`${n(cov.askedEmpty)} of them had no ${escapeHtml(cov.noun)} ${period}`);
   }
   // TRIED AND FAILED IS NOT NEVER REACHED, and saying both about the same company says nothing
   // twice. The strip used to print "3 companies have not been checked since" and then "3 could not

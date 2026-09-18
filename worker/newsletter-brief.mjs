@@ -10,9 +10,18 @@
 //
 //   1. GLOBAL MARKET SCAN — live quotes read at send time from Yahoo's public chart endpoint, one
 //      symbol per request, each row carrying its OWN state and time: `Close · Wed 16:00 EDT` for a
+<<<<<<< HEAD
 //      market that has shut, `Live · 07:58 JST` for one still trading. The series store under
 //      public/data/series/ is the fallback for a symbol Yahoo would not answer, and a row filled
 //      from it says so and prints the store's date — never a stale close dressed as this morning's.
+=======
+//      market that has shut, `Live · 07:58 JST` for one still trading. A symbol Yahoo would not
+//      answer prints `unavailable` and NEVER a number: this dashboard keeps no macro series store,
+//      so there is no second reading to fall back to, and a stale close dressed as this morning's
+//      is the one thing the row may not become. (Glow Central Research, which this brief is ported
+//      from, has such a store and fills the row from it; Sattva has no equivalent file, so the code
+//      that would read one is deliberately absent rather than present and unreachable.)
+>>>>>>> sattva/main
 //   2. CORPORATE ANNOUNCEMENTS · DIRECT HOLDINGS — NSE's live announcements feed, read the way
 //      /api/nse-announcements reads it, plus BSE's date-indexed capture from the committed file,
 //      both narrowed to the book's listed lines and to the brief's window.
@@ -36,7 +45,11 @@ import { matchKeywords } from '../public/js/data/news-keywords.js';
 import { announcementSignal } from '../public/js/data/filing-signals.js';
 import { EDITIONS, editionWindow, istDateLong, istInstant, istLabel, istTime } from '../public/js/data/newsletter-shared.js';
 
+<<<<<<< HEAD
 export const PRODUCTION_ORIGIN = 'https://glow-central-research.tech-441.workers.dev';
+=======
+export const PRODUCTION_ORIGIN = 'https://sattva-central-research.tech-441.workers.dev';
+>>>>>>> sattva/main
 export const YAHOO_CHART_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart/';
 export const YAHOO_USER_AGENT = 'Mozilla/5.0 (compatible; SattvaCentralBot/1.0)';
 export const QUOTE_POOL = 6;
@@ -49,9 +62,14 @@ export const PER_COMPANY_LIMIT = 8;
 export const BOOK_PATH = '/data/portfolio-companies.json';
 export const BSE_PATH = '/data/corp-announcements.json';
 export const PUBLISHERS_PATH = '/data/market-news.json';
+<<<<<<< HEAD
 export const SERIES_INDEX_PATH = '/data/series/index.json';
 
 // The scan, in the order the desk reads it. `series` names the fallback in the macro store.
+=======
+
+// The scan, in the order the desk reads it.
+>>>>>>> sattva/main
 export const MARKET_GROUPS = [
   { id: 'us', label: 'United States' },
   { id: 'asia', label: 'Asia' },
@@ -61,6 +79,7 @@ export const MARKET_GROUPS = [
   { id: 'rates', label: 'Rates' },
 ];
 export const MARKET_ROWS = [
+<<<<<<< HEAD
   { id: 'sp500', symbol: '^GSPC', label: 'S&P 500', group: 'us', kind: 'index', series: 'sp500' },
   { id: 'nasdaq', symbol: '^IXIC', label: 'Nasdaq Composite', group: 'us', kind: 'index', series: 'nasdaq' },
   { id: 'dow', symbol: '^DJI', label: 'Dow Jones', group: 'us', kind: 'index', series: 'dow-jones' },
@@ -78,6 +97,25 @@ export const MARKET_ROWS = [
   { id: 'usdjpy', symbol: 'JPY=X', label: 'USD/JPY', group: 'currencies', kind: 'fx', series: 'usd-jpy' },
   { id: 'usdinr', symbol: 'INR=X', label: 'USD/INR', group: 'currencies', kind: 'fx', series: 'usd-inr' },
   { id: 'us10y', symbol: '^TNX', label: 'US 10-year yield', group: 'rates', kind: 'yield', series: 'us-10y' },
+=======
+  { id: 'sp500', symbol: '^GSPC', label: 'S&P 500', group: 'us', kind: 'index' },
+  { id: 'nasdaq', symbol: '^IXIC', label: 'Nasdaq Composite', group: 'us', kind: 'index' },
+  { id: 'dow', symbol: '^DJI', label: 'Dow Jones', group: 'us', kind: 'index' },
+  { id: 'nikkei', symbol: '^N225', label: 'Nikkei 225', group: 'asia', kind: 'index' },
+  { id: 'taiex', symbol: '^TWII', label: 'Taiwan TAIEX', group: 'asia', kind: 'index' },
+  { id: 'shanghai', symbol: '000001.SS', label: 'Shanghai Composite', group: 'asia', kind: 'index' },
+  { id: 'hangseng', symbol: '^HSI', label: 'Hang Seng', group: 'asia', kind: 'index' },
+  { id: 'kospi', symbol: '^KS11', label: 'Kospi', group: 'asia', kind: 'index' },
+  { id: 'nifty', symbol: '^NSEI', label: 'Nifty 50', group: 'india', kind: 'index' },
+  { id: 'sensex', symbol: '^BSESN', label: 'Sensex', group: 'india', kind: 'index' },
+  { id: 'brent', symbol: 'BZ=F', label: 'Brent crude', unit: '$/bbl', group: 'commodities', kind: 'price' },
+  { id: 'gold', symbol: 'GC=F', label: 'Gold', unit: '$/oz', group: 'commodities', kind: 'price' },
+  { id: 'silver', symbol: 'SI=F', label: 'Silver', unit: '$/oz', group: 'commodities', kind: 'price' },
+  { id: 'dxy', symbol: 'DX-Y.NYB', label: 'Dollar index (DXY)', group: 'currencies', kind: 'index' },
+  { id: 'usdjpy', symbol: 'JPY=X', label: 'USD/JPY', group: 'currencies', kind: 'fx' },
+  { id: 'usdinr', symbol: 'INR=X', label: 'USD/INR', group: 'currencies', kind: 'fx' },
+  { id: 'us10y', symbol: '^TNX', label: 'US 10-year yield', group: 'rates', kind: 'yield' },
+>>>>>>> sattva/main
 ];
 const GLANCE = { morning: ['sp500', 'nikkei', 'brent', 'usdjpy'], evening: ['nifty', 'sensex', 'brent', 'usdinr'] };
 
@@ -130,6 +168,7 @@ export function quoteFromChart(body, row, now) {
   };
 }
 
+<<<<<<< HEAD
 /** The same row filled from the macro series store, dated to the store, for a symbol Yahoo refused. */
 export function quoteFromSeries(manifest, row) {
   const series = (manifest?.series || []).find((s) => s?.id === row.series);
@@ -145,6 +184,8 @@ export function quoteFromSeries(manifest, row) {
   };
 }
 
+=======
+>>>>>>> sattva/main
 export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {}) {
   const rows = [];
   await pooled(MARKET_ROWS, QUOTE_POOL, async (row) => {
@@ -157,6 +198,7 @@ export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {
       rows.push({ ...row, last: null, prev: null, change: null, changePct: null, asOf: null, state: 'unavailable', origin: null, reason: reasonOf(error) });
     }
   });
+<<<<<<< HEAD
   const failed = rows.filter((r) => r.state === 'unavailable');
   let stored = [];
   if (failed.length && env?.ASSETS) {
@@ -166,12 +208,20 @@ export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {
       if (fallback) { rows[rows.indexOf(row)] = { ...fallback, reason: row.reason }; stored.push(row.id); }
     }
   }
+=======
+>>>>>>> sattva/main
   const byId = new Map(rows.map((r) => [r.id, r]));
   return {
     readAt: now,
     rows: MARKET_ROWS.map((r) => byId.get(r.id)),
+<<<<<<< HEAD
     failed: rows.filter((r) => r.state === 'unavailable').map((r) => r.id),
     stored,
+=======
+    // A refused symbol stays refused. `reason` keeps WHY on the row — timeout, rate-limited,
+    // upstream, shape — so the sheet can say the quote is unavailable rather than going quiet.
+    failed: rows.filter((r) => r.state === 'unavailable').map((r) => r.id),
+>>>>>>> sattva/main
   };
 }
 
@@ -326,7 +376,11 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
 
 // ---- stories -------------------------------------------------------------------------------------
 //
+<<<<<<< HEAD
 // THE EMAIL IS A GLOW VENTURES BROADSHEET, AND IT LEADS WITH THE PORTFOLIO COMPANIES. The desk
+=======
+// THE EMAIL IS A SATTVA VENTURES BROADSHEET, AND IT LEADS WITH THE PORTFOLIO COMPANIES. The desk
+>>>>>>> sattva/main
 // reads it for what happened to the companies they own, so every filing and story is filed under
 // its COMPANY, companies with a tracked or directional item first, and the global market scan
 // follows them. Filings and published stories become one list of STORIES for that purpose, and
@@ -341,9 +395,15 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
 //          published headline carries NO sentiment reading anywhere on this dashboard, so a news
 //          story's dot is Neutral — never a guess dressed as a judgement.
 
+<<<<<<< HEAD
 // The masthead is the family office's own name: this is Glow Ventures' dashboard, not a platform
 // newsletter. Munshot stays only as the small platform credit in the footer.
 export const BRAND = 'Glow Ventures';
+=======
+// The masthead is the family office's own name: this is Sattva Ventures' dashboard, not a platform
+// newsletter. Munshot stays only as the small platform credit in the footer.
+export const BRAND = 'Sattva Ventures';
+>>>>>>> sattva/main
 export const PRODUCT_NAME = 'Research Central';
 export const EDITION_NAME = 'Portfolio companies';
 export const TAGLINES = { morning: 'Morning Portfolio Brief', evening: 'Evening Portfolio Brief' };
@@ -451,7 +511,10 @@ export function briefSummary(brief) {
   return {
     quotes: brief.markets.rows.filter((r) => r.last != null).length,
     quotesFailed: brief.markets.failed,
+<<<<<<< HEAD
     quotesStored: brief.markets.stored,
+=======
+>>>>>>> sattva/main
     announcements: brief.announcements.count,
     news: brief.news.count,
     stories: stats.stories, companies: stats.companies.length, good: stats.good, watch: stats.watch,
@@ -464,9 +527,19 @@ export function briefSummary(brief) {
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtNumber = (v, decimals) => v.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const signed = (v, decimals, suffix = '') => (v > 0 ? '+' : v < 0 ? '−' : '') + fmtNumber(Math.abs(v), decimals) + suffix;
+<<<<<<< HEAD
 const INK = '#1a1712', PAPER = '#fbf9f3', CREAM = '#f2eee3', RULE = '#d9d2c2', META = '#8a8272', BODY = '#4a4438', BODY2 = '#5c5445';
 // Glow Ventures' gold, from public/css/glow.css (--brand-600 on the page, --brand-mid on the mark).
 const GOLD = '#8a6a1c', GOLD_LIGHT = '#d9c48f';
+=======
+// The sheet is Sattva's own palette, resolved to literals because an email carries no stylesheet
+// and no custom property: --ink-900, --ink-600, --neutral and the slate ramp from index.html.
+const INK = '#0f172a', PAPER = '#ffffff', SHELL = '#eef2f7', RULE = '#e2e8f0', META = '#64748b', BODY = '#334155', BODY2 = '#475569';
+// Sattva Ventures' indigo, from the :root tokens in public/index.html (--brand-600 / indigo-300).
+// The ramp's purple and pink are a GRADIENT on the page and email clients do not render one, so
+// the brand reaches the sheet as its indigo start — never as a semantic emerald/amber/rose.
+const ACCENT = '#4f46e5', ACCENT_LIGHT = '#a5b4fc';
+>>>>>>> sattva/main
 const SERIF = "Georgia,'Times New Roman',Times,serif";
 const SANS = 'Arial,Helvetica,sans-serif';
 const NUM = 'font-variant-numeric:tabular-nums;white-space:nowrap;';
@@ -497,10 +570,16 @@ const zoneShort = (ms, timezone) => {
   }
 };
 
+<<<<<<< HEAD
 /** "Close · Wed 16:00 EDT", "Live · Thu 07:58 JST", "Series store · 2026-09-08" or "unavailable". */
 export function asOfLabel(row) {
   if (row.state === 'unavailable') return 'unavailable';
   if (row.state === 'stored') return `Series store · ${row.storedDay}`;
+=======
+/** "Close · Wed 16:00 EDT", "Live · Thu 07:58 JST", or "unavailable" — never a number. */
+export function asOfLabel(row) {
+  if (row.state === 'unavailable') return 'unavailable';
+>>>>>>> sattva/main
   const when = row.timezone ? zoneShort(row.asOf, row.timezone) : istLabel(row.asOf);
   return `${row.state === 'live' ? 'Live' : 'Close'} · ${when}`;
 }
@@ -526,7 +605,11 @@ export const storyDate = (ms) => { const d = new Date(ms + 5.5 * 3600 * 1000); r
 /** "8:00 AM IST" from "08:00". */
 const clockLabel = (time) => { const [h, m] = String(time).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'} IST`; };
 
+<<<<<<< HEAD
 /** "Glow Ventures · 12 updates on your portfolio companies — 17 Sep" */
+=======
+/** "Sattva Ventures · 12 updates on your portfolio companies — 17 Sep" */
+>>>>>>> sattva/main
 export function briefSubject(brief, { brand = BRAND } = {}) {
   const n = briefStats(brief).stories;
   return `${brand} · ${n} update${n === 1 ? '' : 's'} on your ${EDITION_NAME.toLowerCase()} — ${shortDate(brief.at)}`;
@@ -559,7 +642,10 @@ function marketSection(brief) {
   const m = brief.markets;
   const note = [
     `quotes ${esc(istTime(m.readAt))} IST`,
+<<<<<<< HEAD
     m.stored.length ? `${m.stored.length} from the series store` : null,
+=======
+>>>>>>> sattva/main
     m.failed.length ? `${m.failed.length} unavailable` : null,
   ].filter(Boolean).join(' · ');
   const glance = glanceLine(brief);
@@ -598,7 +684,11 @@ const topicTag = (topic) => caps(esc(topic.label), `color:${topic.color};font-we
 const companyStory = (s, isFirst) => `<tr><td style="padding:${isFirst ? '10px' : '12px'} 0 11px;${isFirst ? '' : `border-top:1px solid ${RULE};`}">
   <div style="font-family:${SERIF};font-size:15px;line-height:1.4;font-weight:bold;color:${INK};">${link(s.url, esc(s.headline), `color:${INK};`)}</div>
   ${s.dek ? `<div style="margin-top:4px;font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY2};">${esc(s.dek)}</div>` : ''}
+<<<<<<< HEAD
   <div style="margin-top:6px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${topicTag(s.topic)} &nbsp;·&nbsp; ${dot(s.mood.color)} ${esc(s.mood.label)} · ${esc(s.source)} · ${esc(storyDate(s.at))}, ${esc(istTime(s.at))} IST${s.related ? ' · related entity' : ''}${s.url ? ` · <a href="${esc(s.url)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">Read →</a>` : ''}</div>
+=======
+  <div style="margin-top:6px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${topicTag(s.topic)} &nbsp;·&nbsp; ${dot(s.mood.color)} ${esc(s.mood.label)} · ${esc(s.source)} · ${esc(storyDate(s.at))}, ${esc(istTime(s.at))} IST${s.related ? ' · related entity' : ''}${s.url ? ` · <a href="${esc(s.url)}" ${NEW_TAB} style="color:${ACCENT};font-weight:bold;text-decoration:none;">Read →</a>` : ''}</div>
+>>>>>>> sattva/main
 </td></tr>`;
 
 /** A portfolio company and everything filed or published about it in the window. */
@@ -616,7 +706,11 @@ function companyBlock(c, dashboardUrl) {
         <div style="font-family:${SERIF};font-size:21px;line-height:1.2;font-weight:bold;color:${INK};">${link(href, esc(c.company), `color:${INK};`)}</div>
         <div style="margin-top:3px;font-family:${SANS};font-size:10px;letter-spacing:1px;color:${META};${NUM}">${esc(c.ticker)} · ${counts}</div>
       </td>
+<<<<<<< HEAD
       <td valign="bottom" align="right" style="padding:0 0 8px;border-bottom:2px solid ${INK};font-family:${SANS};font-size:11px;white-space:nowrap;">${href ? `<a href="${esc(href)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">On the dashboard →</a>` : ''}</td>
+=======
+      <td valign="bottom" align="right" style="padding:0 0 8px;border-bottom:2px solid ${INK};font-family:${SANS};font-size:11px;white-space:nowrap;">${href ? `<a href="${esc(href)}" ${NEW_TAB} style="color:${ACCENT};font-weight:bold;text-decoration:none;">On the dashboard →</a>` : ''}</td>
+>>>>>>> sattva/main
     </tr></table>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${c.stories.map((s, i) => companyStory(s, i === 0)).join('')}</table>
   </td></tr>`;
@@ -656,8 +750,13 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
 
   parts.push(`<tr><td style="padding:24px 34px 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
+<<<<<<< HEAD
       <td style="padding:0 0 4px;border-bottom:3px solid ${GOLD_LIGHT};">${caps('Your portfolio companies', `color:${INK};font-weight:bold;letter-spacing:3px;`)}</td>
       <td align="right" style="padding:0 0 4px;border-bottom:3px solid ${GOLD_LIGHT};">${caps(esc(windowLine(brief)), `color:${META};letter-spacing:1px;`)}</td>
+=======
+      <td style="padding:0 0 4px;border-bottom:3px solid ${ACCENT_LIGHT};">${caps('Your portfolio companies', `color:${INK};font-weight:bold;letter-spacing:3px;`)}</td>
+      <td align="right" style="padding:0 0 4px;border-bottom:3px solid ${ACCENT_LIGHT};">${caps(esc(windowLine(brief)), `color:${META};letter-spacing:1px;`)}</td>
+>>>>>>> sattva/main
     </tr></table>
   </td></tr>`);
 
@@ -671,7 +770,11 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${stats.companies.map((c) => companyBlock(c, dashboardUrl)).join('')}</table>
     </td></tr>`);
     const more = brief.announcements.more + brief.news.more;
+<<<<<<< HEAD
     if (more > 0) parts.push(`<tr><td style="padding:14px 34px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${more} more in this window on the <a href="${esc(`${dashboardUrl}/#/research/daily-alerts?scope=portfolio`)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">dashboard →</a></td></tr>`);
+=======
+    if (more > 0) parts.push(`<tr><td style="padding:14px 34px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${more} more in this window on the <a href="${esc(`${dashboardUrl}/#/research/daily-alerts?scope=portfolio`)}" ${NEW_TAB} style="color:${ACCENT};font-weight:bold;text-decoration:none;">dashboard →</a></td></tr>`);
+>>>>>>> sattva/main
   }
 
   parts.push(marketSection(brief));
@@ -681,10 +784,17 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
     ? 'This is a test copy you asked for.'
     : `You're subscribed to the ${esc(brand)} brief on your ${esc(EDITION_NAME.toLowerCase())}, every weekday at ${esc(clockLabel(sendTime))}.${recipient?.addedBy ? ` Added by ${esc(recipient.addedBy)}.` : ''}`;
   const disclaimer = 'Filings and headlines as the exchanges and publishers wrote them — nothing summarised or ranked. Mood follows this dashboard’s stated filing rules; published stories are shown neutral. This brief is informational, not investment advice.';
+<<<<<<< HEAD
   parts.push(`<tr><td style="padding:22px 34px;background:${INK};color:#d8d0be;font-family:${SANS};font-size:12px;line-height:1.7;">
     ${subscribedLine}<br>
     <a href="${esc(unsubscribeUrl)}" ${NEW_TAB} style="color:${GOLD_LIGHT};text-decoration:underline;">Unsubscribe</a> · <strong style="color:${GOLD_LIGHT};letter-spacing:1px;">${esc(brand)}</strong> ${esc(productName)} · powered by Munshot<br>
     <span style="color:#6b6455;font-size:10px;">${esc(disclaimer)} Sent ${esc(istLabel(brief.builtAt, { year: true }))}.</span>
+=======
+  parts.push(`<tr><td style="padding:22px 34px;background:${INK};color:#cbd5e1;font-family:${SANS};font-size:12px;line-height:1.7;">
+    ${subscribedLine}<br>
+    <a href="${esc(unsubscribeUrl)}" ${NEW_TAB} style="color:${ACCENT_LIGHT};text-decoration:underline;">Unsubscribe</a> · <strong style="color:${ACCENT_LIGHT};letter-spacing:1px;">${esc(brand)}</strong> ${esc(productName)} · powered by Munshot<br>
+    <span style="color:#94a3b8;font-size:10px;">${esc(disclaimer)} Sent ${esc(istLabel(brief.builtAt, { year: true }))}.</span>
+>>>>>>> sattva/main
   </td></tr>`);
 
   return `<!doctype html>
@@ -697,6 +807,7 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
 <base target="_blank">
 <title>${esc(subject)}</title>
 </head>
+<<<<<<< HEAD
 <body style="margin:0;padding:0;background:${CREAM};-webkit-text-size-adjust:100%;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(subject)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM};"><tr><td align="center" style="padding:24px 12px;">
@@ -704,6 +815,15 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
 ${parts.join('\n')}
 </table>
 <div style="padding-top:12px;font-family:${SANS};font-size:10px;letter-spacing:1px;color:#a49b88;">${esc(brand)} · ${esc(productName)}</div>
+=======
+<body style="margin:0;padding:0;background:${SHELL};-webkit-text-size-adjust:100%;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(subject)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${SHELL};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" style="width:640px;max-width:640px;background:${PAPER};border:1px solid ${RULE};">
+${parts.join('\n')}
+</table>
+<div style="padding-top:12px;font-family:${SANS};font-size:10px;letter-spacing:1px;color:#94a3b8;">${esc(brand)} · ${esc(productName)}</div>
+>>>>>>> sattva/main
 </td></tr></table>
 </body>
 </html>`;

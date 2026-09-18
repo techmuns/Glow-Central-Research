@@ -50,6 +50,7 @@ export function normaliseEmail(value) {
   return email && email.length <= NEWSLETTER_EMAIL_MAX && EMAIL_RE.test(email) ? email : null;
 }
 
+<<<<<<< HEAD
 /**
  * SEVERAL ADDRESSES AS A READER PASTES THEM — one per line out of a table, comma- or
  * semicolon-separated out of a mail client, or one typed. Returns `{ emails, invalid }`: the valid
@@ -80,6 +81,8 @@ export function normaliseEmailList(value) {
   return { emails, invalid };
 }
 
+=======
+>>>>>>> sattva/main
 export const isTime = (value) => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(value ?? ''));
 const minutesOf = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 
