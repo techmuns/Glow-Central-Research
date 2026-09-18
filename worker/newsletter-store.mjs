@@ -1,5 +1,5 @@
 import {
-  EDITION_IDS, NEWSLETTER_SUBSCRIBER_LIMIT, DEFAULT_SETTINGS,
+  EDITION_IDS, NEWSLETTER_SUBSCRIBER_LIMIT, DEFAULT_SETTINGS, REPORTED_RETENTION_MS,
   newsletterIntents, newsletterSettings, normaliseEditions, subscriberEntry,
 } from '../public/js/data/newsletter-shared.js';
 
@@ -22,6 +22,13 @@ import {
 // the desk twice. What it costs is honesty in the other direction: a delivery the object died
 // inside stays in the log with no `finishedAt`, and the panel shows it as interrupted rather than
 // quietly sending again.
+//
+// WHAT THE DESK HAS BEEN SENT IS A RECORD TOO — `newsletter_reported`, one row per item (a filing,
+// a story, a trade, a price move) that a brief sent to the list actually carried, keyed by the item's
+// own identity rather than by anything the capture might restamp. It is what lets the next brief
+// carry a filing captured after the previous one went out, and what stops it carrying the same
+// filing twice. Only a send that REACHED somebody writes it: a test copy, a preview, and a delivery
+// whose every send failed leave it alone, because "reported" has to mean the desk saw it.
 
 export const NEWSLETTER_OBJECT = 'team-brief:v1';
 export const DELIVERY_HISTORY = 12;
@@ -49,6 +56,9 @@ export class NewsletterStore {
       subject TEXT, outcomes TEXT, summary TEXT)`);
     this.storage.sql.exec('CREATE INDEX IF NOT EXISTS newsletter_state ON newsletter_subscribers(state, seq)');
     this.storage.sql.exec('CREATE INDEX IF NOT EXISTS newsletter_delivery_time ON newsletter_deliveries(started_at)');
+    this.storage.sql.exec(`CREATE TABLE IF NOT EXISTS newsletter_reported (
+      item TEXT PRIMARY KEY, published_at TEXT, delivery TEXT NOT NULL, reported_at TEXT NOT NULL)`);
+    this.storage.sql.exec('CREATE INDEX IF NOT EXISTS newsletter_reported_time ON newsletter_reported(reported_at)');
     this.initialised = true;
   }
 
@@ -206,6 +216,52 @@ export class NewsletterStore {
 
   deliveries(limit = DELIVERY_HISTORY) {
     return this.rows('SELECT * FROM newsletter_deliveries ORDER BY started_at DESC LIMIT ?', limit).map(deliveryRow);
+  }
+
+  /**
+   * What the desk has already been sent, as one read: `has(key)` answers for any item key, and
+   * `empty` says the ledger holds nothing at all — which the brief treats as "unknown" and reads no
+   * late arrivals against, so the first send after this ledger exists is an ordinary window rather
+   * than three days of everything the desk had seen without it.
+   */
+  reportedLookup() {
+    const keys = new Set(this.rows('SELECT item FROM newsletter_reported').map((row) => row.item));
+    const since = this.meta().reportedSince;
+    return {
+      empty: keys.size === 0,
+      size: keys.size,
+      // The window start of the first delivery this ledger recorded. Nothing published before it can
+      // be judged "not sent": briefs before the ledger existed carried it, and the ledger cannot know.
+      since: Number.isFinite(Date.parse(since || '')) ? Date.parse(since) : null,
+      has: (key) => keys.has(String(key)),
+    };
+  }
+
+  /**
+   * Record every item a delivery carried. Idempotent: a key already held keeps its first delivery.
+   * `windowFrom` is the delivery's own window start; the first one recorded is where the ledger's
+   * knowledge begins, and `reportedLookup().since` reports it.
+   */
+  markReported(items, delivery, { windowFrom = null } = {}) {
+    const at = iso(this.now());
+    return this.storage.transactionSync(() => {
+      const meta = this.meta();
+      if (!meta.reportedSince && Number.isFinite(windowFrom)) this.putMeta({ ...meta, reportedSince: iso(windowFrom) });
+      let added = 0;
+      for (const item of items || []) {
+        const key = String(item?.key || '');
+        if (!key) continue;
+        const publishedAt = Number.isFinite(item.publishedAt) ? iso(item.publishedAt) : null;
+        this.rows('INSERT OR IGNORE INTO newsletter_reported (item, published_at, delivery, reported_at) VALUES (?, ?, ?, ?)', key, publishedAt, String(delivery || ''), at);
+        added += this.rows('SELECT changes() AS n')[0].n;
+      }
+      this.rows('DELETE FROM newsletter_reported WHERE reported_at < ?', iso(this.now() - REPORTED_RETENTION_MS));
+      return { added };
+    });
+  }
+
+  reportedCount() {
+    return this.rows('SELECT COUNT(*) AS count FROM newsletter_reported')[0].count;
   }
 }
 

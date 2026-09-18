@@ -21,6 +21,11 @@ import { EDITIONS, editionKey, istDay, nextScheduled, normaliseEmail, scheduledE
 // exactly as `withCallerToken` lets it elsewhere. Without either, the delivery is recorded as
 // `no-token` against every recipient and the panel says which secret an operator installs.
 // Nothing here ever logs, stores or returns upstream error text or a token.
+//
+// A SEND THAT REACHED SOMEBODY IS WRITTEN TO THE LEDGER. Every item the brief carried is recorded
+// under its own identity once at least one recipient got it, for the timer's sends and a send to
+// everyone alike — and never for a test copy or a preview, which nobody on the list received. That
+// ledger is what the next brief reads late arrivals against (see newsletter-shared.js).
 
 export const NEWSLETTER_TIMER_KEY = 'newsletter-timer';
 export const EMAIL_SEND_URL = 'https://devde.muns.io/email/send/raw';
@@ -97,6 +102,7 @@ export class NewsletterSchedule {
       lastWakeAt: iso(state.lastWakeAt),
       lastResult: state.lastResult || 'not-started',
       reason: state.reason || null,
+      reported: this.store.reportedCount(),
     };
   }
 
@@ -174,7 +180,7 @@ export class NewsletterSchedule {
 
     let brief;
     try {
-      brief = await buildBrief({ edition, day, settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to });
+      brief = await buildBrief({ edition, day, settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to, reported: this.store.reportedLookup() });
     } catch (error) {
       const reason = error?.code === 'book-unavailable' ? 'book-unavailable' : 'build-failed';
       return finish({ sent: 0, failed: list.length, reason, outcomes: list.map((r) => ({ email: r.email, ok: false, reason })) });
@@ -188,6 +194,8 @@ export class NewsletterSchedule {
     });
     const sent = outcomes.filter((o) => o.ok).length;
     const failed = outcomes.length - sent;
+    // "Reported" means the desk saw it: a list send that reached at least one address, never a test copy.
+    if (sent > 0 && ['timer', 'button'].includes(source)) this.store.markReported(brief.reported, key, { windowFrom: brief.window.from });
     return finish({ sent, failed, reason: sent ? null : outcomes[0]?.reason || 'failed', outcomes, subject, summary: briefSummary(brief) });
   }
 
@@ -218,7 +226,7 @@ export class NewsletterSchedule {
     const now = this.now();
     let brief;
     try {
-      brief = await buildBrief({ edition, day: istDay(now), settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to: now });
+      brief = await buildBrief({ edition, day: istDay(now), settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to: now, reported: this.store.reportedLookup() });
     } catch (error) {
       return { ok: false, reason: error?.code === 'book-unavailable' ? 'book-unavailable' : 'build-failed' };
     }

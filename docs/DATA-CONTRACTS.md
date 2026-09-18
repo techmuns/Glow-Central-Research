@@ -5459,13 +5459,45 @@ are outside it there and outside it here.
 | --- | --- | --- |
 | Global market scan — S&P 500, Nasdaq, Dow; Nikkei, Taiwan TAIEX, Shanghai, Hang Seng, Kospi; Nifty 50, Sensex; Brent, gold, silver; DXY, USD/JPY, USD/INR; US 10-year | Yahoo's public chart endpoint, one symbol per request, with Yahoo's own session bounds deciding `Close` versus `Live` | at send time |
 | the same, for a symbol Yahoo refused | `public/data/series/index.json` (`last_value`, `last`, `returns.d1`) | the store's own date, printed on the row as `Series store · YYYY-MM-DD` |
-| Corporate announcements · direct holdings | NSE's live announcements RSS (as `/api/nse-announcements`), resolved by name against the book; plus BSE's date-indexed capture `corp-announcements.json` | NSE at send time; BSE as captured, dated on the page |
-| News · direct holdings | `market-news.json` — the four publishers' feeds — joined to the book with `matchPortfolioNews`, the same identity match the News tab uses | as captured, dated on the page |
+| Corporate announcements · direct holdings | NSE's live announcements RSS (as `/api/nse-announcements`), resolved by name against the book; **NSE's retained history**, `public/data/nse-filings/<day>.json` for every IST day the window touches that `nse-filings/index.json` lists (the live RSS holds the last few minutes of the exchange, not a window); plus BSE's date-indexed capture `corp-announcements.json`. Filings whose `announcementTypeOf` is `routine` are counted on the page and not listed | NSE live at send time; history and BSE as captured, dated on the page |
+| News · direct holdings | `market-news.json` — the four publishers' feeds — joined to the book with `matchPortfolioNews`, the same identity match the News tab uses; plus `tradingview-news/latest.json`'s symbol-tagged headlines per holding, admitted under the same name match or when the story is tagged with at most two symbols including the holding's (a sector story tagged with every bank is not one bank's news) | as captured, dated on the page |
+| Trades · direct holdings | `insider-archive/<month>.json` for the months the window touches — bulk deals, block deals, SAST and insider disclosures — one row per economic event (`insiderTradeIdentity`), a BSE-coded line matched to the book through `announcement-identities.json`, direction and importance from `insiderSignal` (`public/js/data/insider-signal.js`, the rule General Alerts read them with) | as captured; a broadcast day and no clock, filed at that day's close (`DAY_ONLY_TIME`, 15:30 IST) and printed `day only` |
+| Price moves · direct holdings | a holding that moved at least `MOVE_PCT` (±5%, General Alerts' own bar) on the session the brief speaks about: the evening brief reads the breakout capture's closing quotes (`CAPTURE_REGISTRY` → `breakout-capture:v1`, a quote `quoteFresh` after the close), the morning brief the completed bars in `technicals.json` for that `price_date`, each standing in for the other when it has that session | the quote's own print time, or the session's close; the sources line names which |
 
-A source that could not be read says so **in the email** (`NSE feed could not be read (blocked)`),
+A source that could not be read says so **in the email** (`NSE live feed could not be read
+(blocked)`, `price moves unavailable (capture-unavailable; daily-behind; daily bars end 2026-09-16)`),
 and a scan row that could not be quoted prints `unavailable`, never a number. If the **book**
 cannot be read the brief is not built at all — an email about portfolio companies with no book behind
 it is about nothing — and the delivery is recorded `book-unavailable`.
+
+### Nothing falls between two briefs — the ledger and late arrivals
+
+Every portfolio source above is a capture with a lag (BSE every hour or two on a best-effort
+scheduler, NSE's history hourly, the publishers every thirty minutes) and NSE's live RSS is a few
+minutes deep. Measured before this rule: a filing published at 15:50 and captured at 17:15 was in
+neither the 16:00 brief (not captured yet) nor the next morning's (published before its window),
+BSE's three-calendar-day head had pruned Friday's post-close filings by Monday 08:00, and a `missed`
+edition lost its whole window. So:
+
+- **The store keeps a ledger of what the desk has been sent** — `newsletter_reported`, one row per
+  item under its own identity: `bse:<newsId>`, `nse:<filingKey>`, `news:<ticker>|<url>`,
+  `tv:<ticker>|<tradingViewId>`, `trade:<insiderTradeIdentity>`, `move:<ticker>|<session>`. A filing
+  folded from both exchanges carries every copy's key. Only a send that **reached** at least one
+  subscriber writes it (the timer's, or a send to everyone); a test copy, a preview and a delivery
+  whose every send failed write nothing. Rows are pruned after `REPORTED_RETENTION_MS` (ten days).
+- **Each brief reads back over the two windows before its own** (`lateArrivalsFrom`: Monday
+  morning reaches Thursday 16:00, Tuesday evening Monday 08:00) and carries anything the ledger does
+  not hold, marked **not in the previous brief** on the row and counted on the summary line, with its
+  own publication time. Items inside the window are always carried, ledger or not: the printed window
+  is a promise about what is inside it.
+- **An empty ledger is "unknown", not "nothing was sent"**, so no late arrivals are read against
+  it; and the lookback never reaches before `reportedSince`, the window start of the first delivery
+  the ledger recorded, because an earlier brief carried those and the ledger cannot say so.
+- **A day-dated disclosure belongs to its day's evening brief** (`dayOnlyInstant`); one captured after
+  that brief went out reaches the next as a late arrival. A price move is keyed by session, so the
+  morning brief's completed bar does not repeat the close the evening brief already sent, and does
+  carry it when the evening capture could not be read.
+- `GET /api/newsletter` reports `schedule.reported`, the ledger's size.
 
 ### The email is a Glow Ventures broadsheet, and it leads with the portfolio companies
 
@@ -5486,17 +5518,19 @@ directional mood, importance), then by how much they had, then by recency. **Eve
 `target="_blank" rel="noopener noreferrer"`**, and the page declares `<base target="_blank">`, so
 opening a filing from the preview or a web mail client never navigates away from the brief.
 
-Filings and published stories become one list of **stories**, each carrying two readings this
-dashboard already makes and no new one:
+Filings, published stories, trades and price moves become one list of **stories**, each carrying
+two readings this dashboard already makes and no new one:
 
-- **Topic** is what a story is *about*, from the desk's thirty tracked keywords. The seven
-  topics fold the keyword families: Orders is the three order keywords, Growth the rest of that
-  family, Money is capital raising and results, Approvals & IP is regulatory, Trouble is risk and
-  governance, and a story matching nothing is Other.
+- **Topic** is what a story is *about*, from the desk's thirty tracked keywords. The topics fold the
+  keyword families: Orders is the three order keywords, Growth the rest of that family, Money is
+  capital raising and results, Approvals & IP is regulatory, Trouble is risk and governance, a
+  story matching nothing is Other; a trade is Trades and a price move is Price, because neither is
+  a headline.
 - **Mood** is a direction, and only where a stated rule gives one: `announcementSignal()` over a
-  filing's own subject and category. A published headline carries **no** sentiment reading anywhere
-  on this dashboard, so a news story's dot is Neutral — never a guess dressed as a judgement. The
-  footer disclaimer says exactly this.
+  filing's own subject and category, `insiderSignal()` over a trade's own transaction word, the sign
+  of a price move. A published headline carries **no** sentiment reading anywhere on this dashboard,
+  so a news story's dot is Neutral — never a guess dressed as a judgement. The footer disclaimer says
+  exactly this.
 
 Within a company, stories are ordered by (tracked keyword, non-neutral mood, importance), then
 recency; the topic is a small tag on each story and the summary line counts updates, companies,
@@ -5585,8 +5619,12 @@ the delivery log remain on these routes and are not controls in the panel; a mis
 ### Verifying
 
 `node scripts/verify-newsletter.mjs` — the contract, the store, editions built against fixtures
-under `scripts/fixtures/newsletter/`, the renderer's fixed elements and escaping, and the alarm:
-one send per key, replay-safe, `no-token`, refused, missed, test copy, cooldown, preview.
+under `scripts/fixtures/newsletter/` and the committed data files, the renderer's fixed elements and
+escaping, the ledger (a late filing carried once and never twice, an empty ledger reading nothing,
+the lookback bounded by `reportedSince`, NSE day files read from the index only, routine filings
+counted not listed, trades day-only with the dashboard's own direction, price moves at ±5% from the
+capture and from the daily bars with the same key), and the alarm: one send per key, replay-safe,
+`no-token`, refused, missed, test copy, cooldown, preview, and which sends write the ledger.
 `node scripts/verify-newsletter-ui.mjs` drives the real button and panel against the real route,
 store and schedule over an in-process server with stubbed upstreams — the email endpoint records
 what it was asked to send.

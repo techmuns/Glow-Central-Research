@@ -1318,6 +1318,34 @@ rules, and every one of them is a rule this file already runs on:
 7. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
    origin is told it has no newsletter, never shown an error.
 
+**AND NOTHING FALLS BETWEEN TWO BRIEFS.** The window alone could not promise that: every portfolio
+source is a capture with a lag and NSE's live RSS is a few minutes deep, so a filing published at
+15:50 and captured at 17:15 was in neither the 16:00 brief nor the next morning's; BSE's
+three-calendar-day head had pruned Friday's post-close filings by Monday 08:00; a `missed` edition
+lost its whole window. Six things close it, and each is a rule this file already runs on:
+
+1. **The store keeps a ledger of what the desk has been sent** (`newsletter_reported`), keyed by
+   each item's own identity — the exchange's `newsId`, NSE's `filingKey`, the trade's
+   `insiderTradeIdentity`, `move:<ticker>|<session>` — never by a count or a capture clock. Only a
+   send that REACHED somebody writes it; a test copy or a preview never does.
+2. **Each brief reads back over the two windows before its own** (`lateArrivalsFrom`) and carries
+   what the ledger does not hold, marked *not in the previous brief* with its own publication time.
+   An empty ledger is *unknown*, not *nothing was sent*, and the lookback never reaches before
+   `reportedSince` — the same "a failed read is never an empty result" rule, applied to a ledger.
+3. **NSE's retained day files are read, not only the RSS** — `public/data/nse-filings/<day>.json`,
+   the days the index lists and no other, resolved against the book by name.
+4. **Trades and price moves are stories too**: bulk, block, SAST and insider rows from the insider
+   archive with `insiderSignal` (now `public/js/data/insider-signal.js`, pure, re-exported by
+   `daily-alerts.js` so there is one definition), day-dated and printed *day only*; and a holding
+   past General Alerts' own ±5% bar, from the breakout capture's closing quote in the evening and
+   the completed daily bar in the morning, keyed by session so the two never repeat each other.
+5. **TradingView's symbol tags are not a name match.** A sector story is tagged with every bank in
+   it — measured, eight of one day's stories under SBI were about the NSE IPO — so a headline joins
+   under `matchPortfolioNews` or when tagged with at most two symbols including the holding's.
+6. **Routine filings are counted, not listed** (`announcementTypeOf`, the type the Corp
+   Announcements tab hides by default), so the per-company cap — material rows first, then the
+   newest — cannot spend itself on newspaper copies.
+
 ### Two disclosures that look identical — the Institutions rule
 
 Institutions is also where a subtler failure lives, and it is not about *whose* number it is but
