@@ -18,6 +18,7 @@ import { escapeHtml } from '../core/dom.js';
 import { getHostContext, authHeaders } from '../core/host-context.js';
 import * as people from '../core/watchlist-people.js';
 import * as router from '../core/router.js';
+import { saveLastRoute } from '../core/state.js';
 import { EDITIONS, EDITION_IDS, NEWSLETTER_INTENT_BATCH, normaliseEmail, normaliseEmailList } from '../data/newsletter-shared.js';
 
 const ROUTE = '/api/newsletter';
@@ -185,7 +186,7 @@ function openFromLink() {
     const route = router.parseHash();
     if (route.params) delete route.params.newsletter;
     router.replaceRoute(route);
-    router.saveLastRoute(router.buildHash(route));
+    saveLastRoute(router.buildHash(route));
   } catch { /* the flag is a convenience; the panel still opens */ }
   setTimeout(open, 0);
   return true;

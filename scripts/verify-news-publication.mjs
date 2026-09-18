@@ -37,8 +37,9 @@ try {
     return fetcher(input);
   } }), before, 'one transient part failure recovers without dropping rows');
   let deniedAttempts = 0;
-  const single = { ...manifest, _jsonShards: { ...manifest._jsonShards,
+  const single = { ...manifest, _jsonShards: { ...manifest._jsonShards, version: 1,
     parts: [manifest._jsonShards.parts[0]], rows: manifest._jsonShards.parts[0].rows } };
+  delete single._jsonShards.bucketRows; // This request-failure fixture intentionally keeps only one source part.
   await assert.rejects(hydrateJsonShards(single, 'news.json', { fetcher: async () => {
     deniedAttempts++; return new Response('', { status: 403 });
   } }), /unavailable/);
@@ -72,9 +73,12 @@ try {
   const part = newer._jsonShards.parts[0], partPath = join(dir, part.file), bytes = readFileSync(partPath);
   writeFileSync(partPath, bytes.toString().replace('Company update', 'Changed update'));
   assert.throws(() => readNewsJson(path, {}), /integrity/);
-  await assert.rejects(hydrateJsonShards(newer, 'news.json', { fetcher }), /count|integrity/);
+  assert.deepEqual(await hydrateJsonShards(newer, 'news.json', { fetcher }), after,
+    'already verified immutable content remains valid even if the origin later corrupts its copy');
+  await assert.rejects(hydrateJsonShards(newer, 'news.json', { fetcher: (...args) => fetcher(...args) }), /count|integrity/,
+    'an uncached corrupt part never passes integrity verification');
   writeFileSync(partPath, bytes);
-  assert.throws(() => shardSpec({ ...newer, _jsonShards: { ...newer._jsonShards, rows: 1 } }), /count/);
+  assert.throws(() => shardSpec({ ...newer, _jsonShards: { ...newer._jsonShards, rows: 1 } }), /count|order/);
   await assert.rejects(hydrateJsonShards({ ...newer, _jsonShards: { ...newer._jsonShards,
     parts: [{ ...part, file: '../outside.json' }] } }, 'news.json', { fetcher }), /reference/);
   assert.throws(() => writeNewsJson(path, { byTicker: { ALPHA: [{ text: 'x'.repeat(100000) }] } }, { maxBytes: 65536 }), /record exceeds/);

@@ -78,6 +78,10 @@ export function announcementSignal(row = {}) {
     // The rule's own name, so a consumer can key on it rather than parse `signalReason` back out.
     filingRule: matched ? matched[0] : null,
     filingTopic: researchDisclosure,
+    // The matched rule's own name, as a field rather than a phrase to be recovered from
+    // `signalReason` later. `data/alert-drivers.js` buckets it, and a consumer reading our prose
+    // back out would break silently the day that sentence is reworded.
+    filingRule: matched ? matched[0] : null,
     keywords: reading.labels,
     keywordIds: reading.ids,
     keywordGroups: reading.groups,
