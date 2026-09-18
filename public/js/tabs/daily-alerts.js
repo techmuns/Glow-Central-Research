@@ -69,6 +69,21 @@ const arrivalsUI = createArrivalsUI(arrivals, () => tableInstance?.refreshPresen
 // ---------------------------------------------------------------------------------------
 let ctxRef = null;
 let report = null; // the last collected report
+// LEAVING AND COMING STRAIGHT BACK MUST NOT BLANK THE TIMELINE. The full-history source graph is
+// released on unmount and the report is restored from the device snapshot — but that read is
+// asynchronous, so the first paint after a return had nothing to show and printed "Reading
+// sources\u2026" over rows the reader had just been looking at. Measured under CPU contention, that
+// is one return in three; on an unloaded machine it usually wins the race, which is worse, because
+// the blank only appears on the slow machines that can least afford it.
+//
+// So the assembled report is PARKED rather than dropped, and the next render adopts it
+// synchronously. Bounded period views are already retained for exactly this reason and with no
+// expiry at all, so this is the same fast return path, held for less time: a reader who has plainly
+// gone releases it, and the heavy source graph goes on being released the moment the tab unmounts.
+let parkedReport = null;
+let parkTimer = 0;
+const PARK_MS = 60_000;
+const unpark = () => { clearTimeout(parkTimer); parkTimer = 0; const held = parkedReport; parkedReport = null; return held; };
 let loadToken = 0;
 let cacheToken = 0;
 let cacheReady = Promise.resolve();
@@ -153,6 +168,10 @@ export function render(ctx) {
     tableInstance = null;
   }
   routeCompany = requestedCompany || null;
+  // Adopt the parked report before anything reads `report`, so the first paint of this render
+  // carries the rows rather than waiting on disk. `adoptAllAlertsReport` below still projects it
+  // onto the current scope and day, and the recheck still runs.
+  if (!report) report = unpark();
   const context = currentContext();
   const queryChanged = !!report && alertWindowKey(report.queryWindow) !== alertWindowKey(context.queryWindow);
   const readKey = alertWindowKey(context.queryWindow);
@@ -236,6 +255,14 @@ export function render(ctx) {
 }
 
 export function destroy() {
+  // All-history restores from its complete device snapshot. Retain only bounded period views
+  // as a fast RAM return path; leaving this tab must release its full-history source graph.
+  if (report && !report.queryWindow) {
+    parkedReport = report;
+    clearTimeout(parkTimer);
+    parkTimer = setTimeout(unpark, PARK_MS);
+    report = null;
+  }
   arrivalsUI.detach();
   arrivals.reset();
   ctxRef = null;
@@ -294,6 +321,9 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true } = {
       includeHistory: true,
       refresh: forceRefresh,
       load,
+      // A selected period may be answered from the precomputed pool; All history and the
+      // Upcoming horizon keep reading the sources themselves.
+      pool: context.queryWindow ? 'window' : null,
       // Feeds land one at a time and the page follows them. Coalesced, because eight arrivals is
       // eight full rebuilds of a table the reader may be typing into — a TRAILING THROTTLE rather
       // than a debounce, since a debounce would keep deferring while feeds kept landing and the

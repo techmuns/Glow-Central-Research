@@ -14,7 +14,8 @@ that every brief breakout will be observed.
   with the published 2026 NSE holidays excluded. The first scheduled run also
   seeds the latest closing observations outside market hours and retries incomplete
   seed manifests. Successful closing observations are reused with their original
-  source/check times; only missing or stale quotes spend more provider requests.
+  source/check times; only missing/stale quotes or missing breakout bases spend
+  more provider requests. A fresh closing price alone cannot complete the seed.
   The November 8 special session
   has no confirmed time in the source calendar, so checks are attempted all day
   and calendar completeness is explicitly unknown. Future calendar years are
@@ -26,7 +27,15 @@ that every brief breakout will be observed.
   Failed publishing leaves a visible failed bootstrap job. Each authenticated
   collector also ensures the alarm is armed. Every 15 minutes
   the alarm checks the fixed workflow and requests a missed run, unless one is
-  queued/running or a collection run was recently created. Successful push-only
+  queued/running or a collection run was recently created. Timer-originated runs
+  carry the fixed `Breakout capture · durable-timer` run name and use the stored
+  dispatch time for their next interval, so GitHub's creation delay cannot drift
+  the cadence. Independent scheduled/manual runs defer the alarm only for the
+  remainder of their 15-minute interval. GitHub's creation delay must not turn
+  each timer interval into a 30-minute capture gap.
+  Queued/running captures suppress duplicate dispatches and recheck after one
+  minute, including a run that starts between the timer's two GitHub checks.
+  Successful push-only
   bootstrap jobs are not counted as price collection. This uses the existing `GH_DISPATCH_TOKEN`
   and requires no additional Cloudflare cron slot. Reads never activate it.
 - GitHub OIDC permits writes only from the fixed repository, main branch and
@@ -70,9 +79,21 @@ this backup is **not active**. No paid subscription is requested by this change.
 Do not paste the token into issues, PRs, chat, browser storage or committed files.
 
 The [full-quote endpoint](https://upstox.com/developer/api-documentation/get-full-market-quote/)
-accepts batches of up to 500 mapped NSE equity instruments. It supplies last
-price, cumulative volume and last-trade time. Instruments are mapped by exact
-symbol and instrument key; ambiguous mappings are refused. Previous close is
+accepts batches of up to 500 mapped instruments. It supplies last
+price, cumulative volume and last-trade time. The official NSE/BSE cash-market
+instrument lists include SME shares, REITs and InvITs, not just the NSE EQ series.
+NSE symbols use the existing exact SME/explicit symbol aliases; numeric BSE
+tickers match the BSE exchange code. The returned symbol and instrument key must
+both match the selected instrument. Verified portfolio ISINs take precedence over
+symbols so an issuer rename can resolve without guessing from its name. A conflicting
+ISIN never falls back to an unrelated symbol. Shared instruments preserve each
+canonical target without duplicating the requested quote key.
+Ambiguous mappings and cross-exchange guesses
+are refused. A failed exchange list does not discard the other exchange's quotes.
+The health artifact names each unavailable instrument list under
+`upstoxInstrumentFailures`, separately from genuine unmapped identities. A later
+quote-batch timeout retains successful earlier batches.
+Previous close is
 derived from `last_price - net_change`, rather than confusing today's OHLC close
 with the previous close. Missing 30-session bases can be fetched from the
 [historical daily candle endpoint](https://upstox.com/developer/api-documentation/v3/get-historical-candle-data/).
@@ -83,6 +104,19 @@ customer redistribution permission.
 Fresh Yahoo quotes that lack a base also enter the backup history lookup. Their
 price and volume are retained if that lookup fails; a supplied base enriches the
 primary observation before its first checkpoint, without rewriting saved history.
+This also applies to retained closing observations missing a base after hours;
+their price, volume and original source/check times remain unchanged.
+With no backup token, missing closing bases retry the primary history instead,
+within the same budget and rate-limit guard. A failed history request retains the
+usable closing observation and continues to report its missing base.
+
+The user configured the Analytics token on 16 September 2026 with a one-year
+validity. Renew before the expiry shown by Upstox (expected around 16 September
+2027): generate a replacement in [Upstox Apps](https://account.upstox.com/developer/apps#analytics),
+then replace `UPSTOX_ACCESS_TOKEN` in
+[repository Actions secrets](https://github.com/techmuns/Sattva-Central-Research/settings/secrets/actions).
+Keep `UPSTOX_BACKUP_ENABLED=true`. A saved secret alone does not verify the token;
+check the next capture's backup result and actual saved Upstox observations.
 
 In the browser, a quote that arrived without a base does not remove the company
 from Strong Breakouts. The row keeps the daily file's completed-session grade,

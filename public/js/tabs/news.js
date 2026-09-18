@@ -33,7 +33,7 @@ import { newsViewStatus } from '../core/news-view-status.js';
 import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { recentNews as feed } from '../data/filings.js';
-import { newsPeriodFilter, newsPublicationDay } from '../data/news-window.js';
+import { newsPeriodFilter, newsPublicationDay, newsPeriodBounds } from '../data/news-window.js';
 import * as marketNews from './market-news-view.js';
 import { KEYWORDS, GROUPS, classifyStory, topicFilterOptions, matchesTopic, groupLabel } from '../data/news-keywords.js';
 import { filterByScope as filterTickerRows } from '../data/scope.js';
@@ -103,6 +103,7 @@ const tab = makeFilingsTab({
     'Company news, updated automatically. Opens on Today (IST); choose another period up to 30 days or This month. ' +
     'Undated stories have their own filter; older news stays saved in All Alerts.',
   feed,
+  prepareReading: view => feed.setWindow?.(() => newsPeriodBounds(view?.filters?.[3] || 'today')) || false,
   preserveReadingPosition: true,
   noun: 'articles',
   emptyMessage: (m) => {

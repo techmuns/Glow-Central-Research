@@ -1,7 +1,9 @@
 # Glow deployment and Sattva template sync
 
 Audited on 9 September 2026; template baseline advanced on 16 September 2026 to
-`techmuns/Sattva-Central-Research` commit `cf7eb444` — see *Sync of 16 September 2026* below.
+`techmuns/Sattva-Central-Research` commit `cf7eb444` and on 18 September 2026 to `955324e5` (the last
+code commit being `7c0947be`, PR #230) — see *Sync of 16 September 2026* and *Sync of 18 September
+2026* below.
 The original audit baseline was `542081ef` (merged PR #160, with PR #159 calendar/checkpoint fixes).
 
 ## What is shared
@@ -285,6 +287,66 @@ Two upstream checks needed their budgets widened for this deployment's data volu
 claims changed: the All Alerts arrival highlight expires at ~24s here against a 25s budget, and the
 repeat-visit window is written off the collection's path, so `whenAlertWindowSaved()` is the signal
 to wait on instead of a sleep.
+
+## Sync of 18 September 2026
+
+Template baseline advanced from `cf7eb444` to `955324e5` (Sattva PRs #220–#230 and the bounded-history
+commits between them): the work that makes the dashboard fast by moving the alert collection off the
+browser. Sattva's own numbers, on its captures: AI Alerts Universe cold open ~2,400 ms → 131 ms of
+longest main-thread task (#227); All Alerts re-entry 4,278 ms → 588 ms (#226); and with the pool
+(#228) All Alerts on Today reads one gzip shard instead of the news head, the archives and the
+exchange captures, and AI Alerts ranks from the pool's 55,000 events instead of 200,000 without
+classifying a row. What arrived, and how each piece lands here:
+
+- **The precomputed alert pool (#228, #230).** `alert-pool-refresh.yml` builds the pool on the runner
+  after every capture workflow and publishes ONE Actions artifact; `worker/alert-pool.mjs` serves its
+  members by byte range from `env.GH_REPO` with `env.GH_DISPATCH_TOKEN` (Glow's own repository and
+  the token already installed on the Worker — no new secret); `js/data/alert-pool.js` seeds the alert
+  collectors from it only while every capture it reads carries the revision `/api/capture-status`
+  reports now. All ten workflow names the trigger lists exist here under the same names. Nothing is
+  committed: the artifact has three-day retention and a member URL carries its artifact id.
+- **Sliced rankings, hot-path caches and bounded news working sets (#222, #226, #227)** merged
+  cleanly except where Glow had changed the same lines, resolved as below.
+- **The driver layer (#225) is DATA here, not a card section.** Sattva's `js/data/alert-drivers.js`
+  answers the same question Glow's owner asked for on 17 September — *does this change the earnings
+  assumption, the valuation or the thesis?* — and Glow answered it first, with `impactOf()`, the two
+  bullets on every card and the three trigger chips (#1115, #1128). Both cannot be on one card. The
+  card keeps Glow's `briefMarkup` (`data-ai-brief`, `data-ai-impact-line`, the `[data-ai-impact]`
+  chips); `card.drivers` is still computed by `driversOf(card)` so the template's contract tests in
+  `verify-ai-alerts.mjs` and the fixture block in `verify-ui.mjs` run unchanged, and the template's
+  rendered-card assertions on `[data-ai-drivers]` are the one block dropped from
+  `verify-ai-alerts-ui.mjs`, together with the `keywordIds: ['fraud']` its fixture put on every
+  announcement to feed that section — under Glow's trigger chips that keyword made every card bear
+  on the thesis and failed the count (its `verify-ui.mjs` counterpart skips by itself when no card
+  carries the section). A later sync must not swap the card back to `driversMarkup`.
+- **The newsletter stays Glow's, whole.** Sattva's team brief was ported from Glow's and then moved
+  on its own (#224, and its 18 September "fold per filing, carry late captures forward" commit);
+  Glow's went further the same morning — the week ahead, one update per announcement with AI notes,
+  the portfolio's day above the global scan — and is the superset (1,757 lines against 1,017).
+  `worker/newsletter-*.mjs`, `js/ui/newsletter.js`, `js/data/newsletter-shared.js`, both newsletter
+  checks and `scripts/fixtures/newsletter/` are Glow's own files at `origin/main`; Sattva's four new
+  fixtures and its versions of the shared ones were not adopted. The one template fix carried across
+  is `saveLastRoute`, which lives in `core/state.js` and not on the router — the old call threw into
+  its own catch and left `?newsletter=manage` in the saved route.
+- **`sw.js`'s cache key** is Glow's markers followed by the template's new ones
+  (`…-sattva-newsletter-v2-bounded-history-memory-v5-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v1`),
+  as the rule above already says: Glow's lead, the template's follow, nothing dropped.
+- **`daily-alerts.js`** keeps decision 5 (`settledLoads`, not `loadedFeeds`, gates the normalised
+  feed cache) inside the template's new cache entry, keeps `alertWindowWrite` /
+  `whenAlertWindowSaved()` around the template's sliced assembly, and keeps Glow's `periodEnd` import
+  beside the template's slices. **`filings.js`** keeps Glow's `bulkNewer` (the bulk/block fallback
+  adopts a newer deal list even when the insider capture has not moved) beside the template's
+  `queryRevision` projection change; the early return honours both. **`ai-alerts.js`**'s generator
+  keeps Glow's `companyMetadata` option. **`filings-tab.js`** keeps `headConfig(ctx)` inside the
+  template's preserve-reading-position branch.
+- **`verify-breakouts.mjs`** carried the template's repository in two fixture `GH_REPO` values
+  (#221); adapted by hand, as decision 4 requires, or `verify-glow-parity.mjs` fails on it.
+- **`theme.css` and `wrangler.jsonc`** are Glow's on every conflicted line (the dark-mode primary
+  button ink, `DASHBOARD_ORIGIN`, the `1804` limiter namespace); `index.html`'s two conflicts were
+  comment-only and take the template's wording.
+- **Captures:** every `public/data` path is Glow's own at `origin/main`, and the 83 shard, day and
+  archive files Sattva's captures had added were dropped, not adopted — the sync workflow restores
+  only paths that exist on both sides, so a review of its PR must still drop upstream-added data.
 
 ## Future upgrades
 
