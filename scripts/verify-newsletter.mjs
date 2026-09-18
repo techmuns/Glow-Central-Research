@@ -17,7 +17,8 @@ import {
 } from '../public/js/data/newsletter-shared.js';
 import { NewsletterStore } from '../worker/newsletter-store.mjs';
 import {
-  MARKET_ROWS, TOPICS, briefStats, briefStories, briefSubject, buildBrief, quoteFromChart, renderBriefHtml, renderBriefText, topicOf,
+  MARKET_ROWS, MOVE_PCT, TOPICS, briefStats, briefStories, briefStoryKeys, briefSubject, buildBrief, familyOf, foldAnnouncements,
+  quoteFromChart, renderBriefHtml, renderBriefText, topicOf,
 } from '../worker/newsletter-brief.mjs';
 import { NewsletterSchedule, NEWSLETTER_TIMER_KEY, EMAIL_SEND_URL, CATCH_UP_MS, sendEmail } from '../worker/newsletter-schedule.mjs';
 
@@ -77,6 +78,10 @@ const FIXTURE_ASSETS = {
   '/data/portfolio-companies.json': 'book.json',
   '/data/corp-announcements.json': 'corp-announcements.json',
   '/data/market-news.json': 'market-news.json',
+  '/data/nse-filings/index.json': 'nse-filings-index.json',
+  '/data/nse-filings/2026-09-16.json': 'nse-filings-2026-09-16.json',
+  '/data/tradingview-news/latest.json': 'tradingview-news.json',
+  '/data/technicals.json': 'technicals.json',
 };
 const fixtureAssets = {
   fetch: async (request) => {
@@ -309,7 +314,8 @@ await test('the morning brief builds from the fixtures and every section states 
   assert.ok(morning.news.source.publishers.length >= 1);
   const story = morning.news.groups.find((g) => g.ticker === 'ADANIENT');
   assert.ok(story, 'a published story about a book company joins');
-  assert.equal(story.items.length, 1, 'a story published before the window opens stays out');
+  assert.equal(story.items.length, 2, 'the publisher story and the one TradingView headline that names the company');
+  assert.ok(!story.items.some((i) => /earlier in the week/.test(i.headline)), 'a story published before the window opens stays out');
   for (const g of morning.news.groups) for (const item of g.items) assert.ok(item.at >= morning.window.from && item.at < morning.window.to);
 });
 
@@ -384,7 +390,7 @@ await test('the brief also builds against the shipped book and captures, and inv
   const bookTickers = new Set(JSON.parse(asset('/data/portfolio-companies.json')).holdings.filter((h) => h?.ticker).map((h) => h.ticker.toUpperCase()));
   for (const c of stats.companies) assert.ok(bookTickers.has(c.ticker), `${c.ticker} is a direct holding`);
   for (const s of briefStories(real)) {
-    assert.ok(s.at >= real.window.from && s.at < real.window.to, 'every story is inside the window it is filed under');
+    assert.ok((s.late ? s.at >= real.window.since && s.at < real.window.from : s.at >= real.window.from) && s.at < real.window.to, 'every story is inside the window it is filed under, or is a marked late arrival from the previous one');
     if (s.kind === 'news') assert.equal(s.mood.id, 'neutral', 'a published headline never carries a direction of ours');
   }
   const html = renderBriefHtml(real, { dashboardUrl: 'https://example.test' });
@@ -403,6 +409,107 @@ await test('every link in the brief opens in a new tab', () => {
   assert.ok(html.includes('<base target="_blank">'), 'the preview page opens anything else in a new tab too');
 });
 
+
+await test('the retained NSE history joins; one filing lodged with both exchanges is one story; an XBRL twin folds into its readable copy', () => {
+  assert.equal(morning.announcements.history.ok, true);
+  assert.deepEqual(morning.announcements.history.days, ['2026-09-16'], 'only the day the window touches is read');
+  const abc = morning.announcements.groups.find((g) => g.ticker === 'ABCAPITAL');
+  assert.ok(abc);
+  const office = abc.items.filter((i) => /registered office/.test(i.headline));
+  assert.equal(office.length, 1, 'the filing BSE and NSE both carry is one story');
+  assert.deepEqual(office[0].exchanges, ['BSE', 'NSE'], 'and it names both venues');
+  assert.ok(office[0].keys.some((k) => k.startsWith('ABCAPITAL|BSE:')) && office[0].keys.some((k) => k.startsWith('ABCAPITAL|NSE:')), 'it keeps the key of every copy it absorbed');
+  const meets = abc.items.filter((i) => /analysts or institutional investors meet/i.test(i.headline));
+  assert.equal(meets.length, 1, 'NSE\'s readable PDF and its XBRL twin are one story');
+  assert.deepEqual(meets[0].exchanges, ['NSE'], 'an NSE-only filing is on the sheet as NSE\'s');
+  assert.ok(meets[0].keys.some((k) => k.endsWith('meet.xml')), 'the twin\'s key travels with the story it folded into');
+  assert.ok(!meets[0].headline.includes('has informed the Exchange'), 'NSE\'s "X has informed the Exchange about" preamble is not printed under a heading that already names X');
+  assert.ok(!morning.announcements.groups.some((g) => g.ticker === 'NOTINBOOK'));
+});
+
+await test('two filings sharing their first sixty characters are two stories: the fold keys on the exchange\'s own document, never a headline prefix', () => {
+  const abc = morning.announcements.groups.find((g) => g.ticker === 'ABCAPITAL');
+  const reg30 = abc.items.filter((i) => i.headline.startsWith('Intimation under Regulation 30 of the Securities and Exchange Board of India'));
+  assert.equal(reg30.length, 2, 'both Regulation 30 intimations survive');
+  assert.ok(reg30.some((i) => /registered office/.test(i.headline)) && reg30.some((i) => /Newspaper publication/.test(i.headline)));
+  const at = istInstant('2026-09-16', '19:00');
+  const rows = [
+    { exchange: 'BSE', ticker: 'X', headline: 'Please refer the enclosed file.', url: 'https://bse.test/a.pdf', at, subject: 'General', family: familyOf('General', 'Company Update') },
+    { exchange: 'BSE', ticker: 'X', headline: 'Please refer the enclosed file.', url: 'https://bse.test/b.pdf', at: at + 60000, subject: 'General', family: familyOf('General', 'Company Update') },
+    { exchange: 'NSE', ticker: 'X', headline: 'Credit rating of the bank affirmed by CRISIL', url: 'https://nse.test/c.pdf', at: at + 120000, subject: 'Credit rating', family: familyOf('Credit rating') },
+  ];
+  assert.equal(foldAnnouncements(rows, { from: at - 1 }).length, 3, 'nothing from the same exchange folds, and a rating does not fold into a general update');
+  const withRating = [...rows, { exchange: 'BSE', ticker: 'X', headline: 'Please refer the enclosed file.', url: 'https://bse.test/d.pdf', at: at + 100000, subject: 'Credit Rating', family: familyOf('Credit Rating', 'Company Update') }];
+  const folded = foldAnnouncements(withRating, { from: at - 1 });
+  assert.equal(folded.length, 3);
+  const rating = folded.find((s) => s.exchanges.length === 2);
+  assert.ok(rating, 'NSE\'s credit-rating filing folds into BSE\'s, on the subject family, minutes apart');
+  assert.equal(rating.headline, 'Credit rating of the bank affirmed by CRISIL', 'BSE\'s placeholder headline gives way to NSE\'s description of the same filing');
+  assert.equal(familyOf('Analysts/Institutional Investor Meet/Con. Call Updates'), familyOf('Analyst / Investor Meet', 'Company Update'));
+  assert.equal(familyOf('Outcome of Board Meeting'), 'board');
+  assert.equal(familyOf('Disclosures under Reg. 29(2) of SEBI (SAST) Regulations, 2011', 'Insider Trading / SAST'), 'insider');
+  assert.equal(familyOf('Declaration of NAV'), null, 'a subject with no family folds only on identical text');
+});
+
+await test('TradingView\'s portfolio headlines join the news only where the dashboard confirms the story names the company, and a story two feeds carry is one story', () => {
+  assert.equal(morning.news.tradingView.ok, true);
+  const adani = morning.news.groups.find((g) => g.ticker === 'ADANIENT');
+  assert.ok(adani);
+  assert.equal(adani.items.length, 2);
+  const park = adani.items.filter((i) => /logistics park/.test(i.headline));
+  assert.equal(park.length, 1, 'the same story from the publisher feed and from TradingView is one story');
+  assert.ok(park[0].url.startsWith('https://www.business-standard.com/'), 'which keeps the publisher\'s own address');
+  const airports = adani.items.find((i) => /airports business/.test(i.headline));
+  assert.ok(airports, 'a TradingView headline naming the company joins');
+  assert.equal(airports.publisher, 'Mint');
+  assert.equal(airports.origin, 'tradingview');
+  assert.ok(!adani.items.some((i) => /Five safe dividend stocks/.test(i.headline)), 'a headline tagged to the symbol that never names the company stays off the sheet');
+  assert.equal(morning.news.tradingView.unverified, 1);
+  assert.ok(briefStories(morning).filter((s) => s.kind === 'news').every((s) => s.mood.id === 'neutral'), 'a published headline still carries no direction of ours');
+});
+
+await test('a holding that moved 5% or more on its last completed session is on the sheet, dated by the session and marked whether its close was verified', () => {
+  assert.equal(morning.moves.source.ok, true);
+  assert.equal(morning.moves.source.threshold, MOVE_PCT);
+  assert.deepEqual(morning.moves.rows.map((r) => r.ticker), ['ABCAPITAL', 'ALANKIT'], 'largest move first; a 1.2% move and a company not held are absent');
+  const stories = briefStories(morning);
+  const abc = stories.find((s) => s.kind === 'move' && s.ticker === 'ABCAPITAL');
+  assert.equal(abc.headline, 'Rose 6.2% at the 16 Sept close · ₹212.35');
+  assert.equal(abc.mood.id, 'good', 'a rise is good by the dashboard\'s own price-move rule');
+  assert.match(abc.dek, /verified against the exchange/);
+  const alankit = stories.find((s) => s.kind === 'move' && s.ticker === 'ALANKIT');
+  assert.match(alankit.dek, /not yet verified/);
+  assert.ok(abc.late && alankit.late, 'a session that closed inside the previous window and reached the file this morning is a late arrival');
+  assert.ok(renderBriefText(morning).includes('Rose 6.2% at the 16 Sept close'));
+  const html = renderBriefHtml(morning, { dashboardUrl: 'https://example.test' });
+  assert.ok(html.includes('closes for the 2026-09-16 session captured'), 'the sources line dates the closes');
+  assert.ok(html.includes('filing and price-move rules'), 'the footer says where a move\'s mood comes from');
+  // The threshold is the dashboard's own, and the two constants may not drift.
+  assert.equal(Number(asset('/js/data/daily-alerts.js').match(/export const MOVE_PCT = (\d+(?:\.\d+)?);/)[1]), MOVE_PCT);
+});
+
+await test('a capture that landed after the previous brief went out is carried by the next brief, marked late, and only when no earlier brief sent it', async () => {
+  const sent = new Set(briefStoryKeys(morning));
+  assert.ok(sent.size > 0);
+  const evening = (keys) => buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: fixtureAssets }, fetcher: makeFetcher(), now: istInstant('2026-09-17', '16:00'), sent: keys });
+  const unsent = await evening(new Set());
+  assert.equal(istLabel(unsent.window.since), 'Wed 16 Sep, 16:00 IST', 'the evening reaches back over the morning\'s window');
+  const late = briefStories(unsent);
+  assert.ok(late.length >= 8, `every fixture row sits in the morning window: ${late.length}`);
+  assert.ok(late.every((s) => s.late), 'nothing in the evening window itself, so every story is a late arrival');
+  const html = renderBriefHtml(unsent, { dashboardUrl: 'https://example.test' });
+  assert.ok(html.includes(`${late.length} arrived after the previous brief`), 'the summary line counts them');
+  assert.ok(html.includes('· arrived after the previous brief'), 'and each one says so');
+  assert.ok(html.includes(`${late.length} items from before this window arrived after the previous brief and are included.`));
+  const all = await evening(sent);
+  assert.equal(briefStories(all).length, 0, 'once the morning brief carried them, the evening repeats none');
+  assert.equal(all.announcements.suppressed + all.news.suppressed + all.moves.suppressed, late.length);
+  assert.ok(renderBriefHtml(all, {}).includes('Quiet window'));
+  const office = late.find((s) => /registered office/.test(s.headline));
+  const partial = await evening(new Set([...sent].filter((k) => !office.keys.includes(k))));
+  assert.deepEqual(briefStories(partial).map((s) => s.headline), [office.headline], 'drop one story\'s keys and only that story comes back — the one the desk never received');
+});
+
 await test('a refused quote source and a blocked exchange are stated on the page, never drawn as numbers', async () => {
   const brief = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assets }, fetcher: makeFetcher({ yahoo: 'down', nse: 'blocked' }), now: istInstant('2026-09-17', '16:00') });
   assert.ok(brief.markets.failed.length > 0, 'a refused symbol is recorded as refused');
@@ -416,7 +523,7 @@ await test('a refused quote source and a blocked exchange are stated on the page
   assert.ok(html.includes('unavailable'), 'a refused quote says so on its own row');
   assert.ok(html.includes('NSE feed could not be read (blocked)'));
   const stats = briefStats(brief);
-  assert.equal(stats.stories, brief.announcements.count + brief.news.count);
+  assert.equal(stats.stories, brief.announcements.count + brief.news.count + brief.moves.count);
 });
 
 await test('with nothing filed or published the sheet says so, and only about what it could read', async () => {
@@ -486,6 +593,46 @@ await test('the alarm sends the morning brief to its subscribers once, with html
   assert.equal(log.length, before, 'a replayed alarm reads nothing and sends nothing');
   assert.equal((await schedule.status()).lastResult, 'nothing-due');
   assert.ok(!JSON.stringify([...storage.data.values()]).includes('team-secret-token'), 'the token never enters durable storage');
+});
+
+
+await test('the evening brief repeats nothing the morning brief sent, and a test copy records nothing', async () => {
+  clock = istInstant('2026-09-16', '17:00');
+  const { store, schedule, log } = makeSchedule({ env: { ASSETS: fixtureAssets } });
+  store.apply([{ op: 'subscribe', email: 'pratik@muns.io', by: 'Pratik' }]);
+  await schedule.arm();
+  clock = MORNING + 5000;
+  await schedule.wake();
+  const sentKeys = store.sentStoryKeys();
+  assert.ok(sentKeys.size > 0, 'the morning delivery recorded what it carried');
+  assert.ok(log.filter((l) => l.kind === 'email').at(-1).html.includes('Alankit'));
+  assert.ok(!/\|(?:BSE|NSE|url|title|text|move):/.test(JSON.stringify(store.deliveries(1))), 'the panel sees counts, never the keys');
+  clock = istInstant('2026-09-17', '16:00') + 5000;
+  await schedule.wake();
+  const evening = log.filter((l) => l.kind === 'email').at(-1).html;
+  assert.ok(evening.includes('Evening Portfolio Brief'));
+  assert.ok(evening.includes('Quiet window') && !evening.includes('Alankit'), 'nothing new in the evening window, and nothing repeated from the morning');
+  assert.ok(store.delivery('2026-09-17:evening').summary.suppressed > 0);
+  const out = await schedule.sendNow({ edition: 'evening', to: 'me', email: 'pratik@muns.io' });
+  assert.equal(out.ok, true);
+  assert.equal(store.deliveries(1)[0].source, 'test');
+  assert.equal(store.sentStoryKeys().size, sentKeys.size, 'a test copy adds nothing to what the desk has read');
+});
+
+await test('a missed morning brief\'s window is carried by the evening brief as late arrivals rather than lost', async () => {
+  clock = istInstant('2026-09-16', '17:00');
+  const { store, schedule, log } = makeSchedule({ env: { ASSETS: fixtureAssets } });
+  store.apply([{ op: 'subscribe', email: 'pratik@muns.io', by: 'Pratik' }]);
+  await schedule.arm();
+  clock = MORNING + CATCH_UP_MS + 60000;
+  await schedule.wake();
+  assert.equal(store.delivery('2026-09-17:morning').reason, 'missed');
+  assert.equal(log.filter((l) => l.kind === 'email').length, 0);
+  clock = istInstant('2026-09-17', '16:00') + 5000;
+  await schedule.wake();
+  const html = log.filter((l) => l.kind === 'email').at(-1).html;
+  assert.ok(html.includes('Evening Portfolio Brief') && html.includes('Alankit') && html.includes('arrived after the previous brief'));
+  assert.ok(store.delivery('2026-09-17:evening').summary.late > 0);
 });
 
 await test('without a token the delivery is recorded as no-token against every recipient and nothing is posted', async () => {

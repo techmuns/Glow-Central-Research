@@ -797,7 +797,7 @@ opening in a new tab) and following with the market scan: the **morning brief** 
 happened overnight — the US close, Asia this morning, Brent, gold, silver, the dollar index and
 USD/JPY, plus every filing and story about a DIRECT holding since the previous evening) and the
 **evening brief** at 16:00 IST (the trading day). `docs/DATA-CONTRACTS.md` → *The team brief* has the
-routes, the shapes and the window rule. Seven rules, and every one of them is a rule this file
+routes, the shapes and the window rule. Eleven rules, and every one of them is a rule this file
 already runs on:
 
 1. **"Direct ones" means `portfolio-companies.json`**, the Portfolio scope's own file, and nothing
@@ -827,10 +827,39 @@ already runs on:
    buttons, no log — the simplest control that does the job, and those stay on the routes.
 7. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
    origin is told it has no newsletter, never shown an error.
+8. **It reads every capture the dashboard already keeps for the book, not the one that happens to
+   be live.** The live NSE RSS is the exchange's last ~40 items (measured: 40 spanning 39 minutes),
+   so for a while it was the brief's whole NSE coverage of a sixteen-hour window. The retained
+   history under `data/nse-filings/<day>.json` and BSE's capture are the announcements; the
+   publishers' head **and** `data/tradingview-news/latest.json` (headlines tagged to each holding,
+   every fifteen minutes) are the news — admitted only where `attributeNewsRow` confirms the story
+   names the company, the same gate the News tab and the AI ranking apply; and a holding that moved
+   `MOVE_PCT` or more on its last completed session is a story too, from the closes General Alerts
+   reads, dated by the session and marked whether the close was exchange-verified. Measured on the
+   18 September morning window: 15 updates across 11 companies went out; the same window against
+   the same captures builds 47 across 28.
+9. **One filing is one story, and two filings are two — never fold on a headline prefix.** The
+   sixty-character prefix key dropped 6 of 61 book filings in one three-day capture ("Please refer
+   the enclosed file." twice is two filings; two Regulation 30 intimations minutes apart are two
+   events). `foldAnnouncements()` never folds two rows from the same exchange; it folds an NSE XBRL
+   twin into its readable copy and NSE's copy of a BSE filing into the BSE row (identical text, or
+   the same `familyOf()` subject family minutes apart), which then names both venues.
+10. **A late capture is not a missed filing.** Every window is fixed and every source lands on its
+    own cadence, so a filing captured after its edition went out used to be sent by no edition at
+    all. Each brief now reads from `window.since` — the start of the previous edition's window —
+    and carries what it finds there that no earlier brief sent, marked *arrived after the previous
+    brief* on the row, on the summary line and in the sources line. `sent` is the story-key ledger
+    the last six sent deliveries recorded (`stories` in the delivery log; keys, never rows; a test
+    copy records none). A missed or failed edition records nothing, so its window travels with the
+    next brief. Rows inside an edition's own window are never suppressed.
+11. **Coverage that stops short says so.** The publishers' head is a bounded file; when its oldest
+    story is later than `since` the sources line says *reaching back only to HH:MM*, and a session
+    whose closes have not been captured yet is named as *not yet captured*, never implied quiet.
 
 **The brief is asserted against FIXTURES, not against today's capture.** `scripts/fixtures/newsletter/`
-carries a small book and two small filing captures, because `corp-announcements.json` and
-`market-news.json` are rewritten by their own evening workflows and the book by
+carries a small book, two small filing captures, an NSE history day, a TradingView snapshot and a
+closes file, because `corp-announcements.json` and `market-news.json` are rewritten by their own
+workflows and the book by
 `family-book-sync.yml` — a test naming a company against those files asserts whatever a workflow
 committed that day (27 rows for 19 book companies sat inside the morning window when this was
 written, and which of them led the sheet was a property of the capture rather than of the rule).
@@ -3716,7 +3745,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the device mirror + sync) + `watchKey` on the table that stars it — read *The star marks a COMPANY* and *The watchlist is a list of COMPANIES, and ONE list for the whole desk* first |
 | Change the SHARED watchlist itself — its shape, its conflict rules or its route | `public/js/data/watchlist-shared.js` (the one definition, imported by the Worker too) + `worker/watchlist-store.mjs` + `worker/watchlist.mjs`. Edits are INTENTS, never a whole list; an `add` must name its contributor; a `seed` may not apply over any row that already exists. `node scripts/verify-shared-watchlist.mjs` and `node scripts/verify-shared-watchlist-ui.mjs` are the tests |
-| Change the team brief — what is in it, how it reads, when it sends | `worker/newsletter-brief.mjs` (the scan, the stories and the broadsheet), `worker/newsletter-schedule.mjs` (the alarm and the send), `worker/newsletter-store.mjs` (subscribers, settings, deliveries), `public/js/data/newsletter-shared.js` (editions, windows, addresses — imported by both sides) and `public/js/ui/newsletter.js` (the header control). Read *The team brief* first. `node scripts/verify-newsletter.mjs` and `node scripts/verify-newsletter-ui.mjs` are the tests |
+| Change the team brief — what is in it, how it reads, when it sends | `worker/newsletter-brief.mjs` (the scan, the stories, the fold, the late-arrival look-back and the broadsheet), `worker/newsletter-schedule.mjs` (the alarm and the send), `worker/newsletter-store.mjs` (subscribers, settings, deliveries and the sent-story ledger), `public/js/data/newsletter-shared.js` (editions, windows, addresses — imported by both sides) and `public/js/ui/newsletter.js` (the header control). Read *The team brief* first. `node scripts/verify-newsletter.mjs` and `node scripts/verify-newsletter-ui.mjs` are the tests |
 | Set up the team brief on a deployment | `MUNS_TOKEN` on the Worker sends it; `DASHBOARD_ORIGIN` and `NEWSLETTER_PRODUCT_NAME` are vars in `wrangler.jsonc`; the `NEWSLETTER` binding and `NEWSLETTER_LIMITER` are there too. Subscribe from the header and the alarm arms itself |
 | Change who is asked, or how the contributor dropdown behaves | `js/ui/watchlist-attribution.js` (the prompt) + `js/core/watchlist-people.js` (the roster and this device's own name) — read *An addition carries the name of whoever made it* first. Never preselect a name on a device nobody has identified themselves on |
 | Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book, and test `rankReport()` directly |

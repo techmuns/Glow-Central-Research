@@ -4404,8 +4404,44 @@ the subset a feed happens to cover.
 | Section | Source | Read when |
 | --- | --- | --- |
 | Global market scan — S&P 500, Nasdaq, Dow; Nikkei, Taiwan TAIEX, Shanghai, Hang Seng, Kospi; Nifty 50, Sensex; Brent, gold, silver; DXY, USD/JPY, USD/INR; US 10-year | Yahoo's public chart endpoint, one symbol per request, with Yahoo's own session bounds deciding `Close` versus `Live` | at send time |
-| Corporate announcements · direct holdings | NSE's live announcements RSS (as `/api/nse-announcements`), resolved by name against the book; plus BSE's date-indexed capture `corp-announcements.json` | NSE at send time; BSE as captured, dated on the page |
-| News · direct holdings | `market-news.json` — the publishers' feeds — joined to the book with `matchPortfolioNews`, the same identity match the News tab uses | as captured, dated on the page |
+| Corporate announcements · direct holdings | NSE's live announcements RSS (as `/api/nse-announcements`), resolved by name against the book; the retained NSE history `nse-filings/<day>.json` (every successful hourly read, rows already resolved) for the days the window touches; and BSE's date-indexed capture `corp-announcements.json` | NSE RSS at send time; the two captures as captured, each dated on the page |
+| News · direct holdings | `market-news.json` — the publishers' feeds — joined to the book with `matchPortfolioNews`, the same identity match the News tab uses; plus `tradingview-news/latest.json`, the headlines TradingView tags to each holding's symbol, admitted only where `attributeNewsRow` reads the story as `confirmed` or reviewed-`related` | as captured, dated on the page |
+| Price moves · direct holdings | `technicals.json` — a holding whose last completed session (`bar_date`, closing 15:30 IST) moved `MOVE_PCT` (5%) or more, with `move_check` saying whether the close was verified against the exchange | as captured; the session date is on the row |
+
+**The live NSE RSS is the exchange's last ~40 items** — measured, 40 items spanning 39 minutes — so
+at 08:00 it holds the previous night's tail and at 16:00 the last half hour of the session. It was
+the brief's only NSE source, and NSE-only filings from the rest of a sixteen-hour window were
+missed. The retained history is what covers the window; the RSS is the live top-up.
+
+**One filing is one story, and two filings are two.** Rows are folded per filing: an NSE XBRL twin
+folds into its readable copy (same company, same subject family, within 30 minutes), and NSE's copy
+of a BSE filing folds into the BSE row — identical text within twelve hours, or the same subject
+family within 45 minutes — which then names both venues (`exchanges: ['BSE', 'NSE']`). Two rows from
+the same exchange **never** fold: the sixty-character headline-prefix key that used to decide it
+dropped 6 of 61 book filings in one three-day capture ("Please refer the enclosed file." twice is two
+filings). `familyOf()` maps both exchanges' subject vocabularies onto one small set; a subject with
+no family folds only on identical text.
+
+**A capture that lands after a brief is sent is carried by the next one.** Every source above is a
+capture on its own cadence — BSE two-hourly, NSE hourly, the publishers hourly, the closes the next
+morning — so a filing lodged at 15:50 and captured at 16:15 belongs to the evening window and only
+reaches the file after that brief went out. Each edition therefore reads from `window.since`, the
+start of the **previous** edition's window (Monday's morning brief reaches back to Friday 08:00),
+and a row from before its own `from` is a **late arrival**: included, marked `late`, printed with
+*arrived after the previous brief*, counted on the summary line and in the sources line — unless an
+earlier brief already sent it. `sent` is the union of the story keys the last `SENT_HISTORY` (6)
+sent deliveries recorded (`stories` in the delivery log: a filing's URL on each exchange, a headline,
+a session move — keys, never rows; a test copy records none). A missed or failed edition records no
+keys, so its whole window travels with the next brief. Rows inside an edition's own window are never
+suppressed by `sent`: a scheduled brief is self-contained for its window.
+
+The summary line reads `47 updates across 28 of 107 portfolio companies · 2 good · 0 watch-outs ·
+21 arrived after the previous brief`; the sources line names every capture with its time, says
+`reaching back only to HH:MM` when the bounded publisher head stops short of `since`, and dates the
+session whose closes it carries (`closes for the 2026-09-17 session captured …`, or `not yet
+captured` when the morning capture has not landed). A move is a story under its company — `Rose
+7.2% at the 17 Sept close · ₹242.05` — with `Good` / `Watch-out` by sign, the dashboard's own
+price-move rule, and the footer says mood follows the filing **and price-move** rules.
 
 **A symbol Yahoo refuses prints `unavailable`, never a number.** Glow Central Research, which this
 brief is ported from, keeps a macro series store under `public/data/series/` and fills a refused row
@@ -4473,7 +4509,9 @@ the browser and the Worker alike.
   "subscribers": [{ "email": "tech@muns.io", "name": null, "editions": ["morning", "evening"], "addedAt": "…", "addedBy": "Ravi" }],
   "deliveries": [{ "key": "2026-09-17:morning", "edition": "morning", "day": "2026-09-17", "source": "timer",
                    "recipients": 2, "sent": 2, "failed": 0, "reason": null, "subject": "…", "outcomes": [{ "email": "…", "ok": true, "status": 200, "reason": null }],
-                   "summary": { "quotes": 16, "quotesFailed": ["taiex"], "announcements": 4, "news": 6, "stories": 10, "companies": 7, "good": 1, "watch": 0, "nse": true, "bse": true, "publishers": true } }],
+                   "summary": { "quotes": 16, "quotesFailed": ["taiex"], "announcements": 4, "news": 6, "stories": 12, "companies": 7, "good": 1, "watch": 0,
+                                "moves": 2, "late": 3, "suppressed": 5, "nse": true, "history": true, "bse": true, "publishers": true, "tradingView": true, "prices": true } }],
+  // the delivery row also holds `stories` — the keys the brief was sent under — which the panel never receives
   "schedule": { "tokenConfigured": true, "armed": true, "alarmAt": "…", "next": { "edition": "evening", "day": "2026-09-17", "at": "…", "key": "2026-09-17:evening" }, "lastResult": "sent", "reason": null },
   "dashboardUrl": "https://sattva-central-research.tech-441.workers.dev"
 }
@@ -4543,13 +4581,19 @@ reader actually wanted.
 
 `node scripts/verify-newsletter.mjs` — the contract, the store, editions built against fixtures
 under `scripts/fixtures/newsletter/`, the renderer's fixed elements and escaping, and the alarm:
-one send per key, replay-safe, `no-token`, refused, missed, test copy, cooldown, preview.
+one send per key, replay-safe, `no-token`, refused, missed, test copy, cooldown, preview. It also
+asserts the retained NSE history joins and folds (one filing on both exchanges is one story, an
+XBRL twin folds, two same-prefix filings stay two), the TradingView headlines join only where
+attribution confirms the company, a 5% session move is on the sheet with its verification state and
+`MOVE_PCT` equals `daily-alerts.js`'s, and late arrivals: carried once, marked, suppressed once sent,
+and a missed morning's window reaching the evening brief.
 `node scripts/verify-newsletter-ui.mjs` drives the real button and panel against the real route,
 store and schedule over an in-process server with stubbed upstreams — the email endpoint records
 what it was asked to send.
 
-**The fixtures are the point, not a shortcut.** `book.json`, `corp-announcements.json` and
-`market-news.json` under `scripts/fixtures/newsletter/` stand in for the shipped files so the
+**The fixtures are the point, not a shortcut.** `book.json`, `corp-announcements.json`,
+`market-news.json`, `nse-filings-index.json` + `nse-filings-2026-09-16.json`, `tradingview-news.json`
+and `technicals.json` under `scripts/fixtures/newsletter/` stand in for the shipped files so the
 ordering, grouping and denominator assertions mean the same thing tomorrow: the two captures are
 rewritten by their own evening workflows and the book by `family-book-sync.yml`, and the shipped
 capture carried 27 rows for 19 book companies inside the morning window when this was written — so

@@ -1,5 +1,5 @@
 {
-  "_fixture": "A stand-in for public/data/corp-announcements.json. One DIRECTIONAL filing, by a different book company from the one the NSE fixture files for, inside the morning window \u2014 so the sheet has a middle rank: a filing carrying a stated direction but no tracked keyword, which must sit below one carrying both and above a published story carrying neither. A second filing by a company the desk does not hold must not reach the sheet at all.",
+  "_fixture": "A stand-in for public/data/corp-announcements.json. One DIRECTIONAL filing, by a different book company from the one the NSE fixture files for, inside the morning window — so the sheet has a middle rank: a filing carrying a stated direction but no tracked keyword, which must sit below one carrying both and above a published story carrying neither. Two further ABCAPITAL filings share their first sixty characters and differ only after them — the pair a headline-prefix dedupe folded into one, which is why the fold now keys on the exchange's own URL. The first of them is also lodged with NSE in the NSE history fixture, so the cross-exchange fold is asserted on it. A filing by a company the desk does not hold must not reach the sheet at all.",
   "capturedAt": "2026-09-17T02:20:00.000Z",
   "from": "2026-09-15",
   "to": "2026-09-17",
@@ -14,6 +14,28 @@
         "date": "2026-09-16",
         "time": "18:40:00",
         "url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/fixture-abcapital.pdf",
+        "critical": false
+      },
+      {
+        "scripCode": "540691",
+        "company": "Aditya Birla Capital Ltd",
+        "headline": "Intimation under Regulation 30 of the Securities and Exchange Board of India (Listing Obligations and Disclosure Requirements) Regulations, 2015 - Change in registered office address",
+        "category": "Company Update",
+        "subCategory": "General",
+        "date": "2026-09-16",
+        "time": "19:10:00",
+        "url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/fixture-abcapital-office.pdf",
+        "critical": false
+      },
+      {
+        "scripCode": "540691",
+        "company": "Aditya Birla Capital Ltd",
+        "headline": "Intimation under Regulation 30 of the Securities and Exchange Board of India (Listing Obligations and Disclosure Requirements) Regulations, 2015 - Newspaper publication of the notice of the board meeting",
+        "category": "Company Update",
+        "subCategory": "Newspaper Publication",
+        "date": "2026-09-16",
+        "time": "19:25:00",
+        "url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/fixture-abcapital-newspaper.pdf",
         "critical": false
       }
     ],

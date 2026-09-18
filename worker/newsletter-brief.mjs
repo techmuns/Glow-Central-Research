@@ -17,11 +17,31 @@
 //      from, has such a store and fills the row from it; Sattva has no equivalent file, so the code
 //      that would read one is deliberately absent rather than present and unreachable.)
 //   2. CORPORATE ANNOUNCEMENTS · DIRECT HOLDINGS — NSE's live announcements feed, read the way
-//      /api/nse-announcements reads it, plus BSE's date-indexed capture from the committed file,
-//      both narrowed to the book's listed lines and to the brief's window.
-//   3. NEWS · DIRECT HOLDINGS — the four publishers' feeds already captured for the News tab,
-//      joined to the book by the same identity match the tab uses (`matchPortfolioNews`), so an
-//      email can never name a company the dashboard would not.
+//      /api/nse-announcements reads it, PLUS the retained NSE history the hourly scraper commits
+//      under data/nse-filings/<day>.json, PLUS BSE's date-indexed capture — all narrowed to the
+//      book's listed lines and to the brief's window. The live RSS is the exchange's last ~40 items
+//      (measured: 40 items spanning 39 minutes), so on its own it covers a sliver of a sixteen-hour
+//      window; the retained history is what covers the rest of it.
+//   3. NEWS · DIRECT HOLDINGS — the publishers' feeds already captured for the News tab, joined to
+//      the book by the same identity match the tab uses (`matchPortfolioNews`), PLUS the portfolio
+//      headlines TradingView tags to each holding's symbol (data/tradingview-news/latest.json,
+//      captured every fifteen minutes), admitted only where the dashboard's own attribution
+//      confirms the story names the company — so an email can never name a company the dashboard
+//      would not.
+//   4. PRICE MOVES · DIRECT HOLDINGS — a holding whose last completed session closed MOVE_PCT (5%)
+//      or more away from the previous close, read from the technicals capture General Alerts reads,
+//      dated by the session (`bar_date`) and marked whether the close was verified against the
+//      exchange's own figure. The dashboard's own alert rule, and no new reading.
+//
+// A LATE CAPTURE IS NOT A MISSED FILING. Every window is fixed, and every source here is a capture
+// that lands on its own cadence — BSE two-hourly, NSE hourly, the publishers hourly, the closes the
+// next morning — so a filing lodged at 15:50 and captured at 16:15 belongs to the evening brief's
+// window and reaches the file only after that brief was sent. Under fixed windows alone it would
+// never be sent at all. So each edition also reaches back over the PREVIOUS edition's window and
+// carries whatever it finds there that no earlier brief sent (`sent`: the keys of every story the
+// last few deliveries carried, kept in the delivery log), marked on its face as having arrived
+// after the previous brief. The same mechanism carries a whole window forward when an edition was
+// missed or could not be sent.
 //
 // "DIRECT ONES" MEANS `portfolio-companies.json`: the family's listed direct-equity lines, one per
 // NSE symbol, the same file the Portfolio scope means on every tab. Fund units, AIFs and the
@@ -37,7 +57,9 @@ import { portfolioNewsEntities } from '../public/js/data/company-news-identity.j
 import { matchPortfolioNews } from '../public/js/data/portfolio-news-matching.js';
 import { matchKeywords } from '../public/js/data/news-keywords.js';
 import { announcementSignal } from '../public/js/data/filing-signals.js';
-import { EDITIONS, editionWindow, istDateLong, istInstant, istLabel, istTime } from '../public/js/data/newsletter-shared.js';
+import { attributeNewsRow } from '../public/js/data/company-news-attribution.js';
+import { articleUrlKey } from '../public/js/data/filings-shared.js';
+import { EDITIONS, editionWindow, istDay, istDateLong, istInstant, istLabel, istTime, previousWeekday } from '../public/js/data/newsletter-shared.js';
 
 export const PRODUCTION_ORIGIN = 'https://sattva-central-research.tech-441.workers.dev';
 export const YAHOO_CHART_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart/';
@@ -52,6 +74,23 @@ export const PER_COMPANY_LIMIT = 8;
 export const BOOK_PATH = '/data/portfolio-companies.json';
 export const BSE_PATH = '/data/corp-announcements.json';
 export const PUBLISHERS_PATH = '/data/market-news.json';
+export const NSE_HISTORY_INDEX_PATH = '/data/nse-filings/index.json';
+export const nseHistoryPath = (day) => `/data/nse-filings/${day}.json`;
+export const TRADINGVIEW_PATH = '/data/tradingview-news/latest.json';
+export const TECHNICALS_PATH = '/data/technicals.json';
+// The dashboard's own price-move threshold — `MOVE_PCT` in public/js/data/daily-alerts.js, which
+// the Worker cannot import (that module reaches for the browser's feeds at import time). The suite
+// asserts the two agree.
+export const MOVE_PCT = 5;
+export const MOVES_LIMIT = 40;
+// An Indian equity session closes at 15:30 IST; a session's move is dated to that instant.
+export const SESSION_CLOSE = '15:30';
+// One filing lodged with both exchanges: the same text within twelve hours, or the same subject
+// family within forty-five minutes (measured lodgement gaps are minutes apart).
+export const TEXT_FOLD_MS = 12 * 3600 * 1000;
+export const FAMILY_FOLD_MS = 45 * 60 * 1000;
+// NSE publishes many filings twice — a readable PDF and an XBRL twin minutes apart.
+export const XBRL_TWIN_MS = 30 * 60 * 1000;
 
 // The scan, in the order the desk reads it.
 export const MARKET_GROUPS = [
@@ -156,12 +195,113 @@ export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {
 
 // ---- 2. announcements on direct holdings ----------------------------------------------------------
 
-const headlineOfNse = (row) => String(row.description || '').split('|SUBJECT:')[0].trim() || row.subject || row.company;
-const dedupeKey = (row) => `${row.ticker}|${String(row.headline || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 60)}`;
+const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+// NSE prefixes every description with the filer's own name and "has informed the Exchange about".
+// The block heading already names the company, so the preamble is dropped and the exchange's own
+// description of the filing is the headline — nothing is added, reworded or summarised.
+const NSE_PREAMBLE = /^.{0,160}?\bhas (?:informed|intimated) the exchange\b\s*(?:about|regarding|that|of|on)?\s*(?:the\s+)?/i;
+export function headlineOfNse(row) {
+  const text = String(row.description || '').split('|SUBJECT:')[0].trim();
+  return text.replace(NSE_PREAMBLE, '').trim() || text || row.subject || row.company || '';
+}
 
-export async function readAnnouncements({ env, fetcher = fetch, now = Date.now(), window, holdings }) {
+// THE SUBJECT FAMILY, FOR FOLDING ONE FILING LODGED WITH BOTH EXCHANGES. NSE and BSE describe the
+// same filing in different words — NSE "Analysts/Institutional Investor Meet/Con. Call Updates",
+// BSE "Analyst / Investor Meet"; NSE "Credit rating", BSE "Credit Rating" under a headline reading
+// "Please refer the enclosed file." — so the text alone folded one pair in sixteen, measured on the
+// shipped captures. Both vocabularies are small; this maps each onto one family, and two filings by
+// one company in the same family minutes apart on DIFFERENT exchanges are one filing. A subject
+// with no family folds only on identical text.
+const FAMILIES = [
+  ['meet', /analyst|investor meet|con\.? ?call|earnings call|transcript|investor presentation|meeting update/],
+  ['rating', /\brating/],
+  ['results', /financial result|\bresults?\b/],
+  ['board', /board meeting|outcome without intimation/],
+  ['distribution', /dividend|record date|buy ?back|bonus/],
+  ['insider', /\bsast\b|insider|trading window|pledge|reg\.? ?(?:29|31|7)\b/],
+  ['meeting', /\bagm\b|\begm\b|postal ballot|shareholders? meeting|voting result/],
+  ['capital', /allotment|esop|esos|esps|issue of securities|preferential|rights issue|\bqip\b|alteration of capital|fund raising|open offer|scheme of arrangement/],
+  ['people', /change in director|change in management|appointment|resignation|cessation|\bkmp\b|auditor/],
+  ['orders', /\border|contract|bagging|receiving/],
+  ['deal', /acquisition|memorandum|agreement|joint venture|\bmou\b|merger|amalgamation|demerger/],
+  ['press', /press release|media release|newspaper|clarification|rumour/],
+  ['debt', /redemption|payment of interest|principal|debenture|\bncds?\b|\bbonds?\b/],
+  ['production', /commencement|commercial production|postponement/],
+  ['general', /general|\bupdates?\b|intimation|others/],
+];
+export const familyOf = (...parts) => {
+  const text = parts.filter(Boolean).join(' ').toLowerCase();
+  return FAMILIES.find(([, re]) => re.test(text))?.[0] || null;
+};
+
+const isXbrl = (row) => /xbrl/i.test(row.subject || '');
+const generic = (headline) => norm(headline).length < 40;
+const sameFiling = (a, b) => {
+  const gap = Math.abs(a.at - b.at);
+  const [short, long] = a.text.length <= b.text.length ? [a.text, b.text] : [b.text, a.text];
+  if (gap <= TEXT_FOLD_MS && short.length >= 25 && long.includes(short)) return true;
+  return gap <= FAMILY_FOLD_MS && !!a.family && a.family === b.family;
+};
+
+/**
+ * Raw exchange rows → one story per FILING. It never folds two filings from the same exchange:
+ * the sixty-character headline prefix that used to be the key did, and dropped 6 of 61 book
+ * filings in one three-day capture — "Please refer the enclosed file." twice is two filings, and
+ * two Regulation 30 intimations minutes apart are two events. It folds an NSE XBRL twin into its
+ * readable copy, and NSE's copy of a BSE filing into the BSE row, which then names both venues.
+ * Every story keeps the keys of every copy it absorbed, so a later brief can tell it was sent.
+ */
+export function foldAnnouncements(rows, { from }) {
+  const byTicker = new Map();
+  for (const row of rows) {
+    if (!byTicker.has(row.ticker)) byTicker.set(row.ticker, []);
+    byTicker.get(row.ticker).push({ ...row, text: norm(row.headline), copies: [] });
+  }
+  const out = [];
+  for (const list of byTicker.values()) {
+    list.sort((a, b) => a.at - b.at);
+    const readable = list.filter((r) => r.exchange === 'NSE' && !isXbrl(r));
+    const nse = [];
+    for (const r of list.filter((r) => r.exchange === 'NSE')) {
+      const twin = isXbrl(r) ? readable.find((t) => Math.abs(t.at - r.at) <= XBRL_TWIN_MS && (!r.family || t.family === r.family)) : null;
+      if (twin) twin.copies.push(r); else nse.push(r);
+    }
+    const stories = list.filter((r) => r.exchange === 'BSE').map((r) => ({ ...r, exchanges: ['BSE'] }));
+    for (const r of nse) {
+      const host = stories.find((s) => s.exchanges[0] === 'BSE' && sameFiling(s, r));
+      if (!host) { stories.push({ ...r, exchanges: ['NSE'] }); continue; }
+      if (!host.exchanges.includes('NSE')) host.exchanges.push('NSE');
+      host.copies.push(r, ...r.copies);
+      // BSE's headline is often a placeholder ("Intimation attached."); NSE's description of the
+      // same filing is then the exchange text worth printing — still an exchange's own words.
+      if (generic(host.headline) && r.text.length > host.text.length) { host.headline = r.headline; host.text = r.text; }
+    }
+    out.push(...stories);
+  }
+  return out.sort((a, b) => b.at - a.at).map(({ copies, ...s }) => ({
+    ...s,
+    late: s.at < from,
+    keys: [...new Set([...[s, ...copies].map((r) => `${r.ticker}|${r.exchange}:${r.url || r.at}`), `${s.ticker}|text:${s.text.slice(0, 120)}`])],
+  }));
+}
+
+export async function readAnnouncements({ env, fetcher = fetch, now = Date.now(), window, holdings, sent = new Set() }) {
   const byTicker = new Map(holdings.map((h) => [h.ticker.toUpperCase(), h]));
+  const inSpan = (at) => Number.isFinite(at) && at >= window.since && at < window.to;
   const rows = [];
+  const seen = new Set();
+  // The live feed and the retained history overlap by design; one URL is one filing.
+  const admit = (row) => {
+    const id = `${row.exchange}:${row.url || `${row.ticker}|${row.at}`}`;
+    if (seen.has(id)) return;
+    seen.add(id);
+    rows.push(row);
+  };
+  const nseRow = (r, ticker) => ({
+    exchange: 'NSE', ticker, company: byTicker.get(ticker).name, subject: r.subject || null, category: null, family: familyOf(r.subject),
+    headline: headlineOfNse(r), url: r.url || null, at: Date.parse(r.publishedAt || ''), critical: false,
+  });
+
   let nse;
   try {
     const res = await fetcher(NSE_FEED_URL, { headers: NSE_HEADERS, signal: AbortSignal.timeout(NSE_TIMEOUT_MS), redirect: 'manual' });
@@ -173,13 +313,39 @@ export async function readAnnouncements({ env, fetcher = fetch, now = Date.now()
     for (const r of parsed) {
       const ticker = r.ticker ? r.ticker.toUpperCase() : null;
       if (!ticker || !byTicker.has(ticker)) continue;
-      const at = Date.parse(r.publishedAt || '');
-      if (!Number.isFinite(at) || at < window.from || at >= window.to) continue;
+      const row = nseRow(r, ticker);
+      if (!inSpan(row.at)) continue;
       nse.matched += 1;
-      rows.push({ exchange: 'NSE', ticker, company: byTicker.get(ticker).name, subject: r.subject || null, headline: headlineOfNse(r), url: r.url || null, at });
+      admit(row);
     }
   } catch (error) {
     nse = { ok: false, readAt: now, reason: reasonOf(error), count: 0, resolved: 0, matched: 0 };
+  }
+
+  // The retained NSE history: one file per IST day, written by scrape-nse-announcements.mjs from
+  // every successful hourly read, rows already resolved to a ticker. Only the days the window
+  // touches are read.
+  let history = { ok: false, reason: 'capture-unavailable', capturedAt: null, days: [], rows: 0, matched: 0 };
+  const index = await readAsset(env, NSE_HISTORY_INDEX_PATH);
+  if (Array.isArray(index?.days)) {
+    const first = istDay(window.since);
+    const last = istDay(window.to);
+    const days = index.days.map((d) => d?.day).filter((day) => typeof day === 'string' && day >= first && day <= last).sort();
+    const files = await Promise.all(days.map((day) => readAsset(env, nseHistoryPath(day))));
+    history = { ok: true, reason: null, capturedAt: index.capturedAt || null, days: [], rows: 0, matched: 0 };
+    files.forEach((file, i) => {
+      if (!Array.isArray(file?.rows)) return;
+      history.days.push(days[i]);
+      for (const r of file.rows) {
+        history.rows += 1;
+        const ticker = r?.ticker ? String(r.ticker).toUpperCase() : null;
+        if (!ticker || !byTicker.has(ticker)) continue;
+        const row = nseRow(r, ticker);
+        if (!inSpan(row.at)) continue;
+        history.matched += 1;
+        admit(row);
+      }
+    });
   }
 
   const capture = await readAsset(env, BSE_PATH);
@@ -193,11 +359,11 @@ export async function readAnnouncements({ env, fetcher = fetch, now = Date.now()
         if (!a?.date) continue;
         // BSE prints the filing's own exchange time, which is Indian time.
         const at = istInstant(a.date, String(a.time || '00:00').slice(0, 5));
-        if (!Number.isFinite(at) || at < window.from || at >= window.to) continue;
+        if (!inSpan(at)) continue;
         bse.matched += 1;
-        rows.push({
+        admit({
           exchange: 'BSE', ticker: key, company: byTicker.get(key).name,
-          subject: a.subCategory || a.category || null, category: a.category || null,
+          subject: a.subCategory || a.category || null, category: a.category || null, family: familyOf(a.subCategory, a.category),
           headline: a.headline || a.title || a.subCategory || a.category || key, url: a.url || null, at, critical: a.critical === true,
         });
       }
@@ -206,53 +372,144 @@ export async function readAnnouncements({ env, fetcher = fetch, now = Date.now()
     bse = { ok: false, reason: 'capture-unavailable', capturedAt: null, from: null, to: null, matched: 0 };
   }
 
-  // One filing lodged with both exchanges is one filing: fold the copies and name both venues.
-  const folded = new Map();
-  for (const row of rows.sort((a, b) => b.at - a.at)) {
-    const key = dedupeKey(row);
-    const held = folded.get(key);
-    if (held) { if (!held.exchanges.includes(row.exchange)) held.exchanges.push(row.exchange); continue; }
+  const stories = foldAnnouncements(rows, { from: window.from }).map((row) => {
     const reading = matchKeywords(row.headline);
     const signal = announcementSignal({ category: row.category, subCategory: row.subject, headline: row.headline, critical: row.critical });
-    folded.set(key, { ...row, exchanges: [row.exchange], keywords: reading.map((k) => k.label), keywordIds: reading.map((k) => k.id), keywordGroups: [...new Set(reading.map((k) => k.group))], direction: signal.direction, importance: signal.importance, filingRule: signal.filingRule });
-  }
-  return { nse, bse, ...group([...folded.values()], ANNOUNCEMENT_LIMIT) };
+    return { ...row, keywords: reading.map((k) => k.label), keywordIds: reading.map((k) => k.id), keywordGroups: [...new Set(reading.map((k) => k.group))], direction: signal.direction, importance: signal.importance, filingRule: signal.filingRule };
+  });
+  // A late row an earlier brief already carried is not news twice; a late row nobody sent is.
+  const kept = stories.filter((s) => !(s.late && s.keys.some((k) => sent.has(k))));
+  return { nse, history, bse, suppressed: stories.length - kept.length, late: kept.filter((s) => s.late).length, ...group(kept, ANNOUNCEMENT_LIMIT) };
 }
 
 // ---- 3. news on direct holdings ---------------------------------------------------------------------
 
-export async function readNews({ env, window, holdings }) {
-  const feed = await readAsset(env, PUBLISHERS_PATH);
-  if (!Array.isArray(feed?.articles)) return { source: { ok: false, reason: 'capture-unavailable' }, groups: [], count: 0, more: 0 };
+const newsKeys = (row) => [...new Set([row.url ? `${row.ticker}|url:${articleUrlKey(row)}` : null, `${row.ticker}|title:${norm(row.headline).slice(0, 120)}`].filter(Boolean))];
+
+export async function readNews({ env, window, holdings, sent = new Set() }) {
+  const byTicker = new Map(holdings.map((h) => [h.ticker.toUpperCase(), h]));
+  const inSpan = (at) => Number.isFinite(at) && at >= window.since && at < window.to;
   const entities = portfolioNewsEntities(holdings);
-  const seen = new Set();
   const rows = [];
-  let inWindow = 0;
-  for (const article of feed.articles) {
-    const at = Date.parse(article?.publishedAt || '');
-    if (!Number.isFinite(at) || at < window.from || at >= window.to) continue;
-    inWindow += 1;
-    for (const match of matchPortfolioNews(article, entities)) {
-      const ticker = String(match.ticker || match.entityId || '').toUpperCase();
-      const key = `${ticker}|${article.url || article.id}`;
-      if (!ticker || seen.has(key)) continue;
-      seen.add(key);
-      rows.push({
-        ticker, company: match.company || match.attribution?.companyName || ticker,
-        headline: String(article.title || ''), summary: typeof article.summary === 'string' ? article.summary : '',
-        url: typeof article.url === 'string' && /^https?:\/\//.test(article.url) ? article.url : null,
-        publisher: article.publisher || article.source || null, at,
-        attribution: match.attribution?.status || null,
-        keywords: matchKeywords(article.title).map((k) => k.label),
-        keywordIds: matchKeywords(article.title).map((k) => k.id),
-        keywordGroups: [...new Set(matchKeywords(article.title).map((k) => k.group))],
-      });
+  const story = ({ ticker, company, title, summary, url, publisher, at, attribution, origin }) => {
+    const reading = matchKeywords(title);
+    return {
+      ticker, company, headline: String(title || ''), summary: typeof summary === 'string' ? summary : '',
+      url: typeof url === 'string' && /^https?:\/\//.test(url) ? url : null,
+      publisher: publisher || null, at, attribution: attribution || null, origin,
+      keywords: reading.map((k) => k.label), keywordIds: reading.map((k) => k.id), keywordGroups: [...new Set(reading.map((k) => k.group))],
+    };
+  };
+
+  const feed = await readAsset(env, PUBLISHERS_PATH);
+  let source;
+  if (Array.isArray(feed?.articles)) {
+    let inWindow = 0;
+    let oldest = null;
+    for (const article of feed.articles) {
+      const at = Date.parse(article?.publishedAt || '');
+      if (Number.isFinite(at) && (oldest == null || at < oldest)) oldest = at;
+      if (!inSpan(at)) continue;
+      inWindow += 1;
+      for (const match of matchPortfolioNews(article, entities)) {
+        const ticker = String(match.ticker || match.entityId || '').toUpperCase();
+        if (!ticker) continue;
+        rows.push(story({
+          ticker, company: match.company || match.attribution?.companyName || ticker, title: article.title, summary: article.summary,
+          url: article.url, publisher: article.publisher || article.source, at, attribution: match.attribution?.status, origin: 'publishers',
+        }));
+      }
     }
+    const publishers = (feed.sources || []).map((s) => (typeof s === 'string' ? s : s?.name || s?.label || s?.publisher || s?.id)).filter(Boolean);
+    // The head is a bounded file — 600 stories — and on a heavy day it can stop short of the
+    // window's start. That is a fact about coverage and the sheet states it rather than implying
+    // a quiet evening.
+    source = { ok: true, capturedAt: feed.capturedAt || null, publishers, articles: feed.articles.length, inWindow, oldestAt: oldest, reachesWindow: oldest == null || oldest <= window.since };
+  } else {
+    source = { ok: false, reason: 'capture-unavailable' };
   }
-  const publishers = (feed.sources || []).map((s) => (typeof s === 'string' ? s : s?.name || s?.label || s?.publisher || s?.id)).filter(Boolean);
+
+  // TradingView's headlines per holding, captured every fifteen minutes (data/tradingview-news).
+  // TradingView tags a story to a symbol; the dashboard's own attribution then decides whether the
+  // story names the company, and only a confirmed or reviewed-related match reaches the sheet —
+  // exactly what the News tab and the AI ranking admit.
+  const snapshot = await readAsset(env, TRADINGVIEW_PATH);
+  let tradingView;
+  if (snapshot?.byTicker && typeof snapshot.byTicker === 'object' && Array.isArray(snapshot.entities)) {
+    const identities = new Map();
+    for (const entity of snapshot.entities) for (const key of [entity?.entityId, entity?.key, entity?.ticker].filter(Boolean)) identities.set(String(key).toUpperCase(), entity);
+    tradingView = { ok: true, capturedAt: snapshot.capturedAt || null, rows: 0, inWindow: 0, matched: 0, unverified: 0 };
+    for (const [key, list] of Object.entries(snapshot.byTicker)) {
+      if (!Array.isArray(list)) continue;
+      const identity = identities.get(String(key).toUpperCase()) || null;
+      for (const row of list) {
+        tradingView.rows += 1;
+        const at = Date.parse(row?.publishedAt || '');
+        if (!inSpan(at)) continue;
+        tradingView.inWindow += 1;
+        const read = attributeNewsRow(row, identity || row);
+        const ticker = String(read.ticker || '').toUpperCase();
+        if (!ticker || !byTicker.has(ticker)) continue;
+        if (!['confirmed', 'related'].includes(read.attribution?.status)) { tradingView.unverified += 1; continue; }
+        tradingView.matched += 1;
+        rows.push(story({ ticker, company: byTicker.get(ticker).name, title: row.title, summary: '', url: row.url, publisher: row.source, at, attribution: read.attribution.status, origin: 'tradingview' }));
+      }
+    }
+  } else {
+    tradingView = { ok: false, reason: 'capture-unavailable' };
+  }
+
+  // One story under one company once, whichever feeds carried it: the publisher's own address
+  // first, then the same headline from the aggregator. One story about two holdings stays under
+  // both — the dashboard's rule.
+  const seen = new Set();
+  const deduped = [];
+  for (const row of rows) {
+    const keys = newsKeys(row);
+    if (keys.some((k) => seen.has(k))) continue;
+    keys.forEach((k) => seen.add(k));
+    deduped.push({ ...row, late: row.at < window.from, keys });
+  }
+  const kept = deduped.filter((s) => !(s.late && s.keys.some((k) => sent.has(k))));
+  return { source, tradingView, suppressed: deduped.length - kept.length, late: kept.filter((s) => s.late).length, ...group(kept.sort((a, b) => b.at - a.at), NEWS_LIMIT) };
+}
+
+// ---- 4. price moves on direct holdings -------------------------------------------------------------
+
+const numeric = (v) => (v == null || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+
+/**
+ * Holdings whose last completed session moved MOVE_PCT or more, from the technicals capture. The
+ * move is dated by its SESSION (`bar_date`, closing 15:30 IST), never by the capture — the file's
+ * own rule — so a session belongs to the evening brief's window and its closes reach the file
+ * the next morning: it travels as a late arrival in the morning brief, which is the truth.
+ */
+export async function readMoves({ env, window, holdings, sent = new Set() }) {
+  const byTicker = new Map(holdings.map((h) => [h.ticker.toUpperCase(), h]));
+  const tech = await readAsset(env, TECHNICALS_PATH);
+  if (!Array.isArray(tech?.companies)) return { source: { ok: false, reason: 'capture-unavailable' }, rows: [], count: 0, late: 0, suppressed: 0 };
+  const rows = [];
+  for (const c of tech.companies) {
+    const ticker = String(c?.ticker || '').toUpperCase();
+    if (!byTicker.has(ticker)) continue;
+    const pct = numeric(c.pct_change_today);
+    if (pct == null || Math.abs(pct) < MOVE_PCT) continue;
+    const barDate = typeof c.bar_date === 'string' ? c.bar_date : tech.price_date;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(barDate || '')) continue;
+    const at = istInstant(barDate, SESSION_CLOSE);
+    if (!(at >= window.since && at < window.to)) continue;
+    rows.push({
+      ticker, company: byTicker.get(ticker).name, pct, close: numeric(c.cmp), barDate, prevBarDate: c.prev_bar_date || c.move_prev_date || null,
+      // `move_check` is the scrape's re-derivation of the move from the exchange's own closes.
+      verified: c.move_check === 'confirmed' || c.move_check === 'corrected',
+      at, late: at < window.from, keys: [`${ticker}|move:${barDate}`],
+    });
+  }
+  rows.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct));
+  const kept = rows.filter((r) => !(r.late && r.keys.some((k) => sent.has(k)))).slice(0, MOVES_LIMIT);
   return {
-    source: { ok: true, capturedAt: feed.capturedAt || null, publishers, articles: feed.articles.length, inWindow },
-    ...group(rows.sort((a, b) => b.at - a.at), NEWS_LIMIT),
+    source: { ok: true, provider: typeof tech.source === 'string' ? tech.source : 'Yahoo Finance', priceDate: tech.price_date || null, generatedAt: tech.generated_at || null, threshold: MOVE_PCT },
+    rows: kept, count: kept.length, late: kept.filter((r) => r.late).length, suppressed: rows.length - kept.length,
   };
 }
 
@@ -277,28 +534,38 @@ function group(rows, limit) {
 
 // ---- the brief -----------------------------------------------------------------------------------
 
+/** The window an edition covers, plus `since`: where the PREVIOUS edition's window began. */
+export function briefWindow(edition, day, settings, { to = null } = {}) {
+  const window = editionWindow(edition, day, settings, { to });
+  const previous = edition === 'morning' ? editionWindow('evening', previousWeekday(day), settings) : editionWindow('morning', day, settings);
+  return { ...window, since: previous.from };
+}
+
 /**
  * Build one edition. Throws only when the BOOK cannot be read — an email about "direct holdings"
  * with no book behind it would be about nothing. Every other source reports its own failure on
- * the page instead.
+ * the page instead. `sent` is the keys of the stories earlier briefs carried, from the delivery
+ * log: a story from the previous window is included only if none of them sent it.
  */
-export async function buildBrief({ edition, day, settings, env, fetcher = fetch, now = Date.now(), to = null }) {
+export async function buildBrief({ edition, day, settings, env, fetcher = fetch, now = Date.now(), to = null, sent = null }) {
   if (!EDITIONS[edition]) throw Object.assign(new Error('Unknown edition'), { code: 'invalid-edition' });
   const book = await readAsset(env, BOOK_PATH);
   if (!Array.isArray(book?.holdings)) throw Object.assign(new Error('The portfolio book could not be read'), { code: 'book-unavailable' });
   const holdings = book.holdings.filter((h) => h?.ticker && h?.name);
-  const window = editionWindow(edition, day, settings, { to });
-  const [markets, announcements, news] = await Promise.all([
+  const window = briefWindow(edition, day, settings, { to });
+  const sentKeys = sent instanceof Set ? sent : new Set(Array.isArray(sent) ? sent : []);
+  const [markets, announcements, news, moves] = await Promise.all([
     readMarkets({ env, fetcher, now }),
-    readAnnouncements({ env, fetcher, now, window, holdings }),
-    readNews({ env, window, holdings }),
+    readAnnouncements({ env, fetcher, now, window, holdings, sent: sentKeys }),
+    readNews({ env, window, holdings, sent: sentKeys }),
+    readMoves({ env, window, holdings, sent: sentKeys }),
   ]);
   return {
-    version: 1, edition, day, at: window.at, builtAt: now,
+    version: 2, edition, day, at: window.at, builtAt: now,
     onDemand: to != null,
-    window: { from: window.from, to: window.to },
+    window: { from: window.from, to: window.to, since: window.since },
     book: { asOf: book.asOf || null, lines: book.count ?? book.holdings.length, listed: holdings.length },
-    markets, announcements, news,
+    markets, announcements, news, moves,
   };
 }
 
@@ -354,8 +621,11 @@ export function topicOf({ keywordIds = [], keywordGroups = [] } = {}) {
   return TOPIC_BY_ID.get('other');
 }
 
-export const moodOf = (item) => (item.kind === 'filing' && item.direction === 'positive' ? MOODS.good
-  : item.kind === 'filing' && item.direction === 'negative' ? MOODS.watch : MOODS.neutral);
+// A filing's direction is `announcementSignal()`'s; a move's is its sign, by the dashboard's own
+// price-move rule (a fall of MOVE_PCT or more is an alert there). A published headline has none.
+const directional = (item) => item.kind === 'filing' || item.kind === 'move';
+export const moodOf = (item) => (directional(item) && item.direction === 'positive' ? MOODS.good
+  : directional(item) && item.direction === 'negative' ? MOODS.watch : MOODS.neutral);
 
 /** Every filing and story in the brief as one list, strongest first. */
 export function briefStories(brief) {
@@ -366,7 +636,7 @@ export function briefStories(brief) {
       dek: [item.exchanges.join(' and '), item.subject].filter(Boolean).join(' filing · ') || null,
       url: item.url, source: item.exchanges.join(' · '), at: item.at,
       keywords: item.keywords, keywordIds: item.keywordIds || [], keywordGroups: item.keywordGroups || [],
-      direction: item.direction || 'neutral', importance: item.importance || 'low',
+      direction: item.direction || 'neutral', importance: item.importance || 'low', late: item.late === true, keys: item.keys || [],
     });
   }
   for (const g of brief.news.groups) {
@@ -374,9 +644,17 @@ export function briefStories(brief) {
       kind: 'news', ticker: g.ticker, company: g.company, headline: item.headline,
       dek: item.summary || null, url: item.url, source: item.publisher || 'Publisher not recorded', at: item.at,
       keywords: item.keywords, keywordIds: item.keywordIds || [], keywordGroups: item.keywordGroups || [],
-      direction: 'neutral', importance: item.keywords.length ? 'high' : 'low', related: item.attribution === 'related',
+      direction: 'neutral', importance: item.keywords.length ? 'high' : 'low', related: item.attribution === 'related', late: item.late === true, keys: item.keys || [],
     });
   }
+  for (const m of brief.moves?.rows || []) rows.push({
+    kind: 'move', ticker: m.ticker, company: m.company,
+    headline: `${m.pct < 0 ? 'Fell' : 'Rose'} ${Math.abs(m.pct).toFixed(1)}% at the ${storyDate(m.at)} close${m.close != null ? ` · ₹${fmtNumber(m.close, 2)}` : ''}`,
+    dek: `${m.verified ? 'Close verified against the exchange\u2019s own figure' : 'Yahoo Finance close, not yet verified against the exchange'}${m.prevBarDate ? ` · against the ${m.prevBarDate} close` : ''}.`,
+    url: null, source: `Price feed · ${brief.moves?.source?.provider || 'Yahoo Finance'}`, at: m.at,
+    keywords: [], keywordIds: [], keywordGroups: [],
+    direction: m.pct < 0 ? 'negative' : 'positive', importance: 'high', late: m.late === true, keys: m.keys || [],
+  });
   const stories = rows.map((row) => {
     const topic = topicOf(row);
     const mood = moodOf(row);
@@ -420,9 +698,13 @@ export function briefStats(brief) {
     stories: stories.length,
     good: stories.filter((s) => s.mood.id === 'good').length,
     watch: stories.filter((s) => s.mood.id === 'watch').length,
+    late: stories.filter((s) => s.late).length,
     companies: briefCompanies(stories),
   };
 }
+
+/** Every key the stories in this brief were sent under — what the next brief must not repeat. */
+export const briefStoryKeys = (brief) => [...new Set(briefStories(brief).flatMap((s) => s.keys || []))];
 
 /** The figures the panel keeps for a delivery — counts, never rows. */
 export function briefSummary(brief) {
@@ -433,7 +715,10 @@ export function briefSummary(brief) {
     announcements: brief.announcements.count,
     news: brief.news.count,
     stories: stats.stories, companies: stats.companies.length, good: stats.good, watch: stats.watch,
-    nse: brief.announcements.nse.ok, bse: brief.announcements.bse.ok, publishers: brief.news.source.ok,
+    moves: brief.moves?.count ?? 0, late: stats.late,
+    suppressed: (brief.announcements.suppressed || 0) + (brief.news.suppressed || 0) + (brief.moves?.suppressed || 0),
+    nse: brief.announcements.nse.ok, history: brief.announcements.history?.ok === true, bse: brief.announcements.bse.ok,
+    publishers: brief.news.source.ok, tradingView: brief.news.tradingView?.ok === true, prices: brief.moves?.source?.ok === true,
   };
 }
 
@@ -578,7 +863,7 @@ const topicTag = (topic) => caps(esc(topic.label), `color:${topic.color};font-we
 const companyStory = (s, isFirst) => `<tr><td style="padding:${isFirst ? '10px' : '12px'} 0 11px;${isFirst ? '' : `border-top:1px solid ${RULE};`}">
   <div style="font-family:${SERIF};font-size:15px;line-height:1.4;font-weight:bold;color:${INK};">${link(s.url, esc(s.headline), `color:${INK};`)}</div>
   ${s.dek ? `<div style="margin-top:4px;font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY2};">${esc(s.dek)}</div>` : ''}
-  <div style="margin-top:6px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${topicTag(s.topic)} &nbsp;·&nbsp; ${dot(s.mood.color)} ${esc(s.mood.label)} · ${esc(s.source)} · ${esc(storyDate(s.at))}, ${esc(istTime(s.at))} IST${s.related ? ' · related entity' : ''}${s.url ? ` · <a href="${esc(s.url)}" ${NEW_TAB} style="color:${ACCENT};font-weight:bold;text-decoration:none;">Read →</a>` : ''}</div>
+  <div style="margin-top:6px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${topicTag(s.topic)} &nbsp;·&nbsp; ${dot(s.mood.color)} ${esc(s.mood.label)} · ${esc(s.source)} · ${esc(storyDate(s.at))}, ${esc(istTime(s.at))} IST${s.related ? ' · related entity' : ''}${s.late && s.kind !== 'move' ? ' · arrived after the previous brief' : ''}${s.url ? ` · <a href="${esc(s.url)}" ${NEW_TAB} style="color:${ACCENT};font-weight:bold;text-decoration:none;">Read →</a>` : ''}</div>
 </td></tr>`;
 
 /** A portfolio company and everything filed or published about it in the window. */
@@ -605,11 +890,30 @@ function companyBlock(c, dashboardUrl) {
 function sourcesNote(brief) {
   const a = brief.announcements;
   const n = brief.news;
+  const m = brief.moves || { source: { ok: false } };
+  const dated = (iso) => (iso ? istLabel(Date.parse(iso)) : 'an unknown time');
+  const before = (iso) => iso && Date.parse(iso) < brief.window.to;
   const bits = [];
   bits.push(a.nse.ok ? `NSE feed read ${istLabel(a.nse.readAt)}` : `NSE feed could not be read (${a.nse.reason || 'unavailable'})`);
-  bits.push(a.bse.ok ? `BSE capture dated ${a.bse.capturedAt ? istLabel(Date.parse(a.bse.capturedAt)) : 'unknown'}${a.bse.capturedAt && Date.parse(a.bse.capturedAt) < brief.window.to ? ', so later BSE filings are not included' : ''}` : 'BSE capture unavailable');
-  bits.push(n.source.ok ? `publisher feeds (${n.source.publishers.join(', ') || 'four publishers'}) captured ${n.source.capturedAt ? istLabel(Date.parse(n.source.capturedAt)) : 'at an unknown time'}${n.source.capturedAt && Date.parse(n.source.capturedAt) < brief.window.to ? ', so later stories are not included' : ''}` : 'publisher capture unavailable');
-  return `Window ${windowLine(brief)} · ${bits.join(' · ')}.`;
+  bits.push(a.history?.ok && a.history.days.length ? `retained NSE filings for ${a.history.days.join(', ')} (captured ${dated(a.history.capturedAt)})` : 'no retained NSE filings for this window');
+  bits.push(a.bse.ok ? `BSE capture dated ${dated(a.bse.capturedAt)}${before(a.bse.capturedAt) ? ', so later BSE filings follow in the next brief' : ''}` : 'BSE capture unavailable');
+  bits.push(n.source.ok
+    ? `publisher feeds (${n.source.publishers.join(', ') || 'four publishers'}) captured ${dated(n.source.capturedAt)}${before(n.source.capturedAt) ? ', so later stories follow in the next brief' : ''}${n.source.reachesWindow === false && n.source.oldestAt ? `, reaching back only to ${istLabel(n.source.oldestAt)}` : ''}`
+    : 'publisher capture unavailable');
+  bits.push(n.tradingView?.ok ? `TradingView portfolio headlines captured ${dated(n.tradingView.capturedAt)}` : 'TradingView portfolio headlines unavailable');
+  if (m.source.ok) {
+    // The session a brief could carry: yesterday's for the morning, today's for the evening —
+    // and today's closes are captured overnight, so the evening says so instead of "not captured".
+    const expected = brief.edition === 'morning' ? previousWeekday(brief.day) : brief.day;
+    if (m.source.priceDate && m.source.priceDate >= expected) bits.push(`closes for the ${m.source.priceDate} session captured ${dated(m.source.generatedAt)} (moves of ${m.source.threshold}% or more)`);
+    else if (brief.edition === 'evening') bits.push(`today's closes are captured overnight and reach the morning brief (moves of ${m.source.threshold}% or more)`);
+    else bits.push(`closes for the ${expected} session not yet captured (latest ${m.source.priceDate || 'unknown'}), so its moves follow in the next brief`);
+  } else {
+    bits.push('session closes unavailable, so price moves are not included');
+  }
+  const late = briefStats(brief).late;
+  const carried = late ? ` ${late} item${late === 1 ? '' : 's'} from before this window arrived after the previous brief and ${late === 1 ? 'is' : 'are'} included.` : '';
+  return `Window ${windowLine(brief)} · ${bits.join(' · ')}.${carried}`;
 }
 
 /**
@@ -631,7 +935,7 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
 
   const reported = stats.companies.length;
   parts.push(`<tr><td style="padding:14px 34px 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${BODY};">
-    <strong style="color:${INK};">${stats.stories} ${stats.stories === 1 ? 'update' : 'updates'}</strong> across <strong style="color:${INK};">${reported} of ${brief.book.listed}</strong> portfolio compan${brief.book.listed === 1 ? 'y' : 'ies'} &nbsp;·&nbsp; ${dot(MOODS.good.color, 9)} ${stats.good} good &nbsp;·&nbsp; ${dot(MOODS.watch.color, 9)} ${stats.watch} watch-out${stats.watch === 1 ? '' : 's'}
+    <strong style="color:${INK};">${stats.stories} ${stats.stories === 1 ? 'update' : 'updates'}</strong> across <strong style="color:${INK};">${reported} of ${brief.book.listed}</strong> portfolio compan${brief.book.listed === 1 ? 'y' : 'ies'} &nbsp;·&nbsp; ${dot(MOODS.good.color, 9)} ${stats.good} good &nbsp;·&nbsp; ${dot(MOODS.watch.color, 9)} ${stats.watch} watch-out${stats.watch === 1 ? '' : 's'}${stats.late ? ` &nbsp;·&nbsp; ${stats.late} arrived after the previous brief` : ''}
   </td></tr>`);
 
   parts.push(`<tr><td style="padding:24px 34px 0;">
@@ -644,7 +948,7 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
   if (!stats.stories) {
     parts.push(`<tr><td align="center" style="padding:30px 34px 6px;">
       <div style="font-family:${SERIF};font-size:20px;line-height:1.3;font-style:italic;color:${INK};">Quiet window — nothing to report.</div>
-      <div style="margin-top:8px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${brief.announcements.nse.ok || brief.announcements.bse.ok || brief.news.source.ok ? 'Nothing was filed or published about a portfolio company in this window.' : 'No filing or publisher feed could be read for this window, so stories are not known — not absent.'}</div>
+      <div style="margin-top:8px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${brief.announcements.nse.ok || brief.announcements.history?.ok || brief.announcements.bse.ok || brief.news.source.ok || brief.news.tradingView?.ok ? 'Nothing was filed or published about a portfolio company in this window.' : 'No filing or publisher feed could be read for this window, so stories are not known — not absent.'}</div>
     </td></tr>`);
   } else {
     parts.push(`<tr><td style="padding:0 34px;">
@@ -660,7 +964,7 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
   const subscribedLine = recipient?.test
     ? 'This is a test copy you asked for.'
     : `You're subscribed to the ${esc(brand)} brief on your ${esc(EDITION_NAME.toLowerCase())}, every weekday at ${esc(clockLabel(sendTime))}.${recipient?.addedBy ? ` Added by ${esc(recipient.addedBy)}.` : ''}`;
-  const disclaimer = 'Filings and headlines as the exchanges and publishers wrote them — nothing summarised or ranked. Mood follows this dashboard’s stated filing rules; published stories are shown neutral. This brief is informational, not investment advice.';
+  const disclaimer = 'Filings and headlines as the exchanges and publishers wrote them — nothing summarised or ranked. Mood follows this dashboard’s stated filing and price-move rules; published stories are shown neutral. This brief is informational, not investment advice.';
   parts.push(`<tr><td style="padding:22px 34px;background:${INK};color:#cbd5e1;font-family:${SANS};font-size:12px;line-height:1.7;">
     ${subscribedLine}<br>
     <a href="${esc(unsubscribeUrl)}" ${NEW_TAB} style="color:${ACCENT_LIGHT};text-decoration:underline;">Unsubscribe</a> · <strong style="color:${ACCENT_LIGHT};letter-spacing:1px;">${esc(brand)}</strong> ${esc(productName)} · powered by Munshot<br>
@@ -699,7 +1003,7 @@ export function renderBriefText(brief, { productName = PRODUCT_NAME, brand = BRA
   if (!stats.stories) lines.push('Quiet window — nothing to report.');
   for (const c of stats.companies) {
     lines.push('', `${c.company} (${c.ticker}) · ${c.stories.length} update${c.stories.length === 1 ? '' : 's'}`);
-    for (const s of c.stories) lines.push(`  [${s.topic.label}] ${s.headline}`, `    ${s.mood.label} · ${s.source} · ${istLabel(s.at)}${s.url ? ` · ${s.url}` : ''}`);
+    for (const s of c.stories) lines.push(`  [${s.topic.label}] ${s.headline}`, `    ${s.mood.label} · ${s.source} · ${istLabel(s.at)}${s.late && s.kind !== 'move' ? ' · arrived after the previous brief' : ''}${s.url ? ` · ${s.url}` : ''}`);
   }
   lines.push('', 'GLOBAL MARKET SCAN');
   for (const g of MARKET_GROUPS) {

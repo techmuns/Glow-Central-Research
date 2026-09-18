@@ -1,0 +1,19 @@
+{
+  "_fixture": "A stand-in for public/data/nse-filings/index.json, the index of the retained NSE history the hourly scraper commits. One day overlaps the morning window.",
+  "version": 1,
+  "note": "Filings retained from successful NSE captures, not a complete exchange history. Dates are IST.",
+  "capturedAt": "2026-09-17T01:50:00.000Z",
+  "count": 4,
+  "days": [
+    {
+      "day": "2026-09-16",
+      "count": 4,
+      "revision": "fixture0916"
+    },
+    {
+      "day": "2026-09-15",
+      "count": 0,
+      "revision": "fixture0915"
+    }
+  ]
+}

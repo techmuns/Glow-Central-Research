@@ -1,4 +1,4 @@
-import { buildBrief, briefSubject, briefSummary, renderBriefHtml, renderBriefText, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
+import { buildBrief, briefStoryKeys, briefSubject, briefSummary, renderBriefHtml, renderBriefText, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
 import { EDITIONS, editionKey, istDay, nextScheduled, normaliseEmail, scheduledEditions } from '../public/js/data/newsletter-shared.js';
 
 // THE TIMER THAT SENDS THE BRIEF, AND THE ONE PLACE AN EMAIL LEAVES THIS DASHBOARD.
@@ -191,7 +191,9 @@ export class NewsletterSchedule {
 
     let brief;
     try {
-      brief = await buildBrief({ edition, day, settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to });
+      // What earlier briefs already carried, so a capture that landed after the previous edition
+      // went out is sent once — in this edition — and never twice.
+      brief = await buildBrief({ edition, day, settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to, sent: this.store.sentStoryKeys() });
     } catch (error) {
       const reason = error?.code === 'book-unavailable' ? 'book-unavailable' : 'build-failed';
       return finish({ sent: 0, failed: list.length, reason, outcomes: list.map((r) => ({ email: r.email, ok: false, reason })) });
@@ -205,7 +207,9 @@ export class NewsletterSchedule {
     });
     const sent = outcomes.filter((o) => o.ok).length;
     const failed = outcomes.length - sent;
-    return finish({ sent, failed, reason: sent ? null : outcomes[0]?.reason || 'failed', outcomes, subject, summary: briefSummary(brief) });
+    // The desk has read these once it was sent to the desk; a test copy to one person is not that.
+    const stories = sent && source !== 'test' ? briefStoryKeys(brief) : null;
+    return finish({ sent, failed, reason: sent ? null : outcomes[0]?.reason || 'failed', outcomes, subject, summary: briefSummary(brief), stories });
   }
 
   /** A send somebody pressed: a test copy to one address, or the edition to everyone, built now. */
@@ -235,7 +239,7 @@ export class NewsletterSchedule {
     const now = this.now();
     let brief;
     try {
-      brief = await buildBrief({ edition, day: istDay(now), settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to: now });
+      brief = await buildBrief({ edition, day: istDay(now), settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to: now, sent: this.store.sentStoryKeys() });
     } catch (error) {
       return { ok: false, reason: error?.code === 'book-unavailable' ? 'book-unavailable' : 'build-failed' };
     }
