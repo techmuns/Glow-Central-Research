@@ -75,8 +75,6 @@ export function announcementSignal(row = {}) {
             .join('; ')}.`
         : `Low: no tracked keyword and no material rule matched.${critical ? " BSE marked this filing critical and that marker is reproduced on the row, but it covers routine calendar filings — AGM notices and board-meeting intimations — so it is not this dashboard's materiality gate." : ''}`
     ),
-    // The rule's own name, so a consumer can key on it rather than parse `signalReason` back out.
-    filingRule: matched ? matched[0] : null,
     filingTopic: researchDisclosure,
     // The matched rule's own name, as a field rather than a phrase to be recovered from
     // `signalReason` later. `data/alert-drivers.js` buckets it, and a consumer reading our prose

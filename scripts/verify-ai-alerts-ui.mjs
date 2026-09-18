@@ -11,9 +11,6 @@ const feeds = ['earnings', 'announcements', 'insider'];
 const eventsFor = (ticker, company, day = '2026-09-04') => feeds.map((feed, i) => ({
   id: `${ticker}-${feed}`, ticker, company, day, time: ['09:15', '11:10', '14:42'][i], feed, feedLabel: feed,
   headline: `${company}: material risk ${i + 1}`, direction: 'negative', importance: 'high', tab: 'daily-alerts',
-  // The filing carries a tracked topic so the card's driver section has something to bucket. It
-  // supplies no url, so the driver resolves to the dashboard route rather than an upstream one.
-  ...(feed === 'announcements' ? { keywordIds: ['fraud'] } : {}),
 }));
 const events = Array.from({ length: 11 }, (_, i) => eventsFor(`A${String(i).padStart(2, '0')}`, i === 10 ? 'Zenith Manufacturing' : `Company ${String(i).padStart(2, '0')}`)).flat();
 events.filter(e => e.ticker === 'A10').forEach(e => { e.time = '08:00'; });

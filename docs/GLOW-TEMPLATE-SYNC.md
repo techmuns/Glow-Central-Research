@@ -315,8 +315,10 @@ classifying a row. What arrived, and how each piece lands here:
   chips); `card.drivers` is still computed by `driversOf(card)` so the template's contract tests in
   `verify-ai-alerts.mjs` and the fixture block in `verify-ui.mjs` run unchanged, and the template's
   rendered-card assertions on `[data-ai-drivers]` are the one block dropped from
-  `verify-ai-alerts-ui.mjs` (its `verify-ui.mjs` counterpart skips by itself when no card carries the
-  section). A later sync must not swap the card back to `driversMarkup`.
+  `verify-ai-alerts-ui.mjs`, together with the `keywordIds: ['fraud']` its fixture put on every
+  announcement to feed that section — under Glow's trigger chips that keyword made every card bear
+  on the thesis and failed the count (its `verify-ui.mjs` counterpart skips by itself when no card
+  carries the section). A later sync must not swap the card back to `driversMarkup`.
 - **The newsletter stays Glow's, whole.** Sattva's team brief was ported from Glow's and then moved
   on its own (#224, and its 18 September "fold per filing, carry late captures forward" commit);
   Glow's went further the same morning — the week ahead, one update per announcement with AI notes,
