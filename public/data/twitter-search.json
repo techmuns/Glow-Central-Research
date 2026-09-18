@@ -1250,7 +1250,7 @@
       "error": "search-unavailable"
     },
     "isin:INE148I01020|Sammaan Capital": {
-      "lastAttemptAt": "2026-09-14T01:28:47+00:00",
+      "lastAttemptAt": "2026-09-18T15:00:58+00:00",
       "error": "search-unavailable"
     },
     "isin:INE148I01020|SAMMAANCAP": {
@@ -1558,6 +1558,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 206,
-    "checkedAt": "2026-09-18T14:19:09.897087+00:00"
+    "checkedAt": "2026-09-18T15:00:58.356409+00:00"
   }
 }
