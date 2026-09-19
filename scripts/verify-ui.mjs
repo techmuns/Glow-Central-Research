@@ -1269,30 +1269,67 @@ console.log('\n— AI alerts —');
 
   // --- THE CARD IS BUILT FOR TIME-TO-INSIGHT, and each half of that is a property to assert ---
   //
-  // The old card printed the leading pattern's technical sentence as its insight AND again, in
-  // full, inside a "Signals lining up" panel below it — one finding, twice, in the feeds' own
-  // vocabulary. What replaces it is a plain sentence, then the numbers behind it AS numbers. Both
-  // are checkable: the sentence is short and singular, and the strip is the same four cells on
-  // every card so the eye can learn its shape rather than re-reading the labels each time.
+  // The card is one plain sentence and then a list of dated links: what happened, and the records
+  // behind it, newest first. Two blocks it used to carry are gone and are asserted gone here —
+  // the four-figure strip (`data-ai-metrics`) and the per-question paragraph (`data-ai-drivers`) —
+  // because a reader scanning eight cards was reading two restatements of what the sentence and
+  // the rows beneath already said. Every figure the strip held is still on the card: the leading
+  // fact is the sentence's own subject, the direction split is the dot on each row, and the two
+  // counts are in the list's header and the footer's door to All Alerts.
   const aiShape = await aiCards.evaluateAll((els) => els.map((el) => ({
     ticker: el.dataset.ticker,
     insight: (el.querySelector('[data-ai-insight]')?.innerText || '').trim(),
-    metrics: [...el.querySelectorAll('[data-ai-metrics] [data-metric]')].map((n) => n.getAttribute('data-metric')),
+    figureStrip: el.querySelectorAll('[data-ai-metrics]').length,
+    questionParagraph: el.querySelectorAll('[data-ai-drivers]').length,
     evidence: el.querySelectorAll('[data-ai-evidence] [data-ai-event]').length,
-    // The feed tag is the last cell of each row; the set of them is the breadth on screen.
-    evidenceFeeds: [...new Set([...el.querySelectorAll('[data-ai-evidence] [data-ai-event] span:last-child')].map((n) => n.innerText.split('·')[0].trim()))],
-    sources: Number(el.querySelector('[data-metric="feeds"] .tabular-nums')?.innerText || 0),
+    // Each row names its source in its own cell: the SET of them is the breadth on screen, and the
+    // LIST of them is what proves no one source took the whole card.
+    // textContent, not innerText: a card Chromium has skipped under `content-visibility: auto`
+    // reports empty innerText while still carrying its text, which reads as a card with no source.
+    evidenceSources: [...el.querySelectorAll('[data-ai-evidence] [data-ai-event-source]')].map((n) => n.textContent.split('·')[0].trim()),
+    evidenceFeeds: [...new Set([...el.querySelectorAll('[data-ai-evidence] [data-ai-event-source]')].map((n) => n.textContent.split('·')[0].trim()))],
+    // Newest first is what the list header claims, so the rows carry a comparable key.
+    rowKeys: [...el.querySelectorAll('[data-ai-evidence] [data-ai-event] [data-ai-age]')].map((n) => n.getAttribute('datetime') || ''),
+    // A reading is a chip on the row whose own record backs it — never a colour, never a verdict,
+    // and never an anchor of its own to the place the row already opens.
+    chips: [...el.querySelectorAll('[data-ai-driver]')].map((n) => ({
+      text: n.textContent.replace(/\s+/g, ' ').trim(),
+      onRow: !!n.closest('[data-ai-evidence-link][href]'),
+      says: /^Could change the (?:earnings assumption|valuation|thesis)\./.test(n.getAttribute('title') || ''),
+      disclaims: /does not verify|not confirmation/i.test(n.getAttribute('title') || ''),
+      toned: /emerald|rose|amber/.test(n.className),
+    })),
+    sources: Number(el.querySelector('[data-ai-sources]')?.textContent || 0),
     confluenceLines: [...el.querySelectorAll('[data-ai-confluence] [data-confluence]')].map((n) => n.innerText.trim()),
     archive: !!el.querySelector('[data-ai-mute]'),
     open: !!el.querySelector('footer [data-open-general]'),
   })));
-  ok('every card carries exactly four figures, and no cell repeats',
-    aiShape.every((card) => card.metrics.length === 4 && new Set(card.metrics).size === 4),
-    aiShape.map((card) => `${card.ticker}:${card.metrics.join('/')}`).join(' | ').slice(0, 160));
-  // A card that needs scrolling to reach its finding has not delivered one. Three evidence rows is
+  ok('no card carries a figure strip or a per-question paragraph, and the counts are still reachable',
+    aiShape.every((card) => card.figureStrip === 0 && card.questionParagraph === 0 && card.sources > 0),
+    aiShape.map((card) => `${card.ticker}:${card.sources} sources`).join(' | ').slice(0, 160));
+  // A card that needs scrolling to reach its finding has not delivered one. Four evidence rows is
   // the cap; the rest are one click away in the tab that exists to hold them.
-  ok('...at most three evidence rows, with the rest one click away',
-    aiShape.every((card) => card.evidence > 0 && card.evidence <= 3 && card.open));
+  ok('...at most four evidence rows, with the rest one click away',
+    aiShape.every((card) => card.evidence > 0 && card.evidence <= 4 && card.open));
+  // The header over those rows says newest first, which is a claim about the order they are in.
+  ok('...in the order the list header claims',
+    aiShape.every((card) => card.rowKeys.join('|') === [...card.rowKeys].sort().reverse().join('|')),
+    aiShape.map((card) => `${card.ticker}:${card.rowKeys.join(',')}`).join(' | ').slice(0, 170));
+  // NO SOURCE TAKES THE WHOLE CARD. One board meeting filed to both exchanges under four different
+  // subjects is four records upstream, and it took all four rows of a card whose own header read
+  // "1 source" — so slots go one per source in rounds and stop at three from any one of them.
+  // Counted on the tag each row prints, which names the source FAMILY, so NSE and BSE count as the
+  // one source they are.
+  ok('...with no more than three rows from any one source',
+    aiShape.every((card) => [...new Set(card.evidenceSources)]
+      .every((source) => card.evidenceSources.filter((name) => name === source).length <= 3)),
+    aiShape.map((card) => `${card.ticker}:${card.evidenceSources.join('/')}`).join(' | ').slice(0, 170));
+  // A TOPIC READING IS NOT A DIRECTION AND NOT A VERDICT. Today's capture may carry no tracked
+  // topic at all, which is a legitimate state — so this asserts the shape of whatever is drawn
+  // rather than that something is. The fixture-driven suite asserts one is drawn.
+  ok('...and every reading sits on the row that backs it, saying only what it could change',
+    aiShape.flatMap((card) => card.chips).every((chip) => chip.onRow && chip.says && chip.disclaims && !chip.toned),
+    `${aiShape.flatMap((card) => card.chips).length} readings drawn`);
   // The pattern chips NAME the patterns; they no longer restate them. A chip carrying a full
   // sentence is the duplication this redesign removed, so its length is the thing to hold down.
   // A CHIP IS A TAG, NOT A SECOND COPY OF THE HEADLINE. "Volume with selling behind it" under

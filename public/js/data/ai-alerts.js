@@ -16,7 +16,6 @@
 
 import * as generalAlerts from './daily-alerts.js';
 import { newsCanSupportAI, isRelatedNewsContext } from './company-news-attribution.js';
-import { driversOf } from './alert-drivers.js';
 import { defaultCompanyNewsEntityId, portfolioNewsEntities } from './company-news-identity.js';
 import * as coverage from './coverage.js';
 import * as screenerInsights from './screener-insights.js';
@@ -398,12 +397,24 @@ const PLAIN_PATTERN = {
   'unexplained-move': 'A big move with nothing to explain it',
 };
 
-/** The short label the evidence rows tag a feed with. Long enough to be a word, short enough to skim. */
+/**
+ * The short label the evidence rows tag a feed with — long enough to be a word, short enough to
+ * skim. IT NAMES THE SOURCE FAMILY, NOT THE FEED ID: the same grouping `feedFamily` uses.
+ *
+ * `market-news` has always shared NEWS with `news` for exactly this reason, and `nse-filings`
+ * belongs with `announcements` the same way: an exchange filing reaching us through NSE and its
+ * twin through BSE are one source, which is why they are one family for corroboration. Left to
+ * fall through to its own label it printed NSE FILINGS beside FILING, so a card whose header
+ * counted two independent sources showed three different words for them — two numbers disagreeing
+ * on one screen, with the reader left to guess which is right. The venue is not lost: the row's
+ * title carries the feed's own label and its time, and the row opens that feed's own tab.
+ */
 export const FEED_TAG = {
   earnings: 'RESULT',
   concalls: 'CALL',
   'screener-insights': 'INSIGHT',
   announcements: 'FILING',
+  'nse-filings': 'FILING',
   insider: 'INSIDER',
   investors: 'FUND',
   technicals: 'TAPE',
@@ -499,31 +510,51 @@ function factPhrases(card) {
 }
 
 /**
- * The three evidence rows a card shows: THE STRONGEST EVENT FROM EACH DIFFERENT FEED FIRST.
+ * The evidence rows a card shows (the view says how many): ONE PER SOURCE, IN ROUNDS.
  *
- * Taking the top three by score alone put three rows of one feed on the card — "Cohesion MK Best
+ * Taking the top rows by score alone put three rows of one feed on the card — "Cohesion MK Best
  * Ideas: no longer disclosed", "Life Insurance Corporation: no longer disclosed", "Vanguard Fund:
  * no longer disclosed" — under a strip announcing four sources. Every row was true and the card
  * still showed a quarter of what it had, three times over, while the reader's next question ("what
  * do the OTHER sources say?") was the one thing three identical lines cannot answer.
  *
- * So one row per feed comes first, in score order, and only then are the remaining events used to
- * fill. The rest are never lost: the footer counts them and opens General Alerts, which is the tab
- * that holds the complete record.
+ * So slots are handed out in ROUNDS: the strongest event from every source, then the second from
+ * every source, and so on. Two sources share four rows two and two rather than three and one, and
+ * a card with one source stops at `maxPerSource` instead of filling every slot from it.
+ *
+ * **IT COUNTS SOURCES THE WAY THE REST OF THE CARD DOES — `feedFamily`, not `event.feed`.** Keyed
+ * on the feed id it spent a slot on `announcements` and another on `nse-filings`, which are one
+ * source for corroboration (`feedCount`), one word on the row (`FEED_TAG`) and one family in the
+ * dedupe. Measured on Sky Gold's 18 September board meeting: one approval, filed to both exchanges
+ * under four different subjects, took all four rows of a card whose own header read "1 source" —
+ * the same event four times, which is the failure this function exists to prevent, arrived at
+ * through the one grouping that had not been brought in line.
+ *
+ * The cap is a display rule and nothing is lost to it: the footer counts every row it left out and
+ * opens General Alerts, which is the tab that holds the complete record. It is not a dedupe either
+ * — four filings of one event are four records upstream, and teaching the collector that they are
+ * one is a change to what every reader of that feed sees, not to this card.
  */
-export function topEvidence(card, limit = 3) {
-  const events = card?.events || [];
-  const firstOfFeed = [];
-  const rest = [];
-  const seen = new Set();
-  for (const event of events) {
-    if (seen.has(event.feed)) rest.push(event);
-    else {
-      seen.add(event.feed);
-      firstOfFeed.push(event);
+export const MAX_PER_SOURCE = 3;
+
+export function topEvidence(card, limit = 3, { maxPerSource = MAX_PER_SOURCE } = {}) {
+  // Grouped by FAMILY, in the order each family's strongest event appears — so the rounds below
+  // hand out slots by independent source, in score order within each one.
+  const bySource = new Map();
+  for (const event of card?.events || []) {
+    const family = feedFamily(event);
+    const found = bySource.get(family);
+    if (found) found.push(event);
+    else bySource.set(family, [event]);
+  }
+  const out = [];
+  for (let round = 0; round < maxPerSource && out.length < limit; round += 1) {
+    for (const list of bySource.values()) {
+      if (out.length >= limit) break;
+      if (list.length > round) out.push(list[round]);
     }
   }
-  return [...firstOfFeed, ...rest].slice(0, limit);
+  return out;
 }
 
 /**
@@ -557,78 +588,6 @@ export function plainInsight(card) {
   return `${latest}. It is here for how material, recent and relevant it is.`;
 }
 
-/**
- * EXACTLY FOUR FIGURES, so the strip is one shape on every card and the eye can learn it.
- *
- * The first two are the facts this company actually has — a volume ratio, a day move, a change in
- * a disclosed book — and where it has fewer than two, the shape of the evidence fills in instead.
- * The last two never change: how many independent sources, and how many events they hold.
- *
- * TONE IS A CLAIM, SO VOLUME HAS NONE. A volume ratio is participation and the tape does not say
- * whether it was buying or selling — the technicals collector says so in those words — so the
- * volume cell is slate however large the number is. Colouring 4.4x red would be this dashboard
- * asserting a direction its own feed refuses to assert, which is a worse error than a dull cell.
- */
-export function cardMetrics(card) {
-  const cells = [];
-  const seenFeeds = new Set();
-  for (const event of [...(card.events || [])].sort((a, b) => readRank(a) - readRank(b))) {
-    if (cells.length === 2) break;
-    if (seenFeeds.has(event.feed)) continue;
-    if (event.feed === 'technicals') {
-      if (event.kind === 'volume' && Number.isFinite(event.volumeX)) {
-        seenFeeds.add(event.feed);
-        cells.push({ id: 'volume', label: 'Volume', value: `${event.volumeX.toFixed(1)}x`, tone: 'neutral', title: 'Volume against this company’s own 20-day average. Volume is participation, not direction.' });
-        continue;
-      }
-      if (event.kind === 'move' && Number.isFinite(event.movePct)) {
-        seenFeeds.add(event.feed);
-        cells.push({ id: 'move', label: 'Move', value: `${event.movePct < 0 ? '−' : '+'}${Math.abs(event.movePct).toFixed(1)}%`, tone: event.movePct < 0 ? 'negative' : 'positive', title: 'The move between the last two completed closes.' });
-        continue;
-      }
-      if (event.kind === 'breakout') {
-        seenFeeds.add(event.feed);
-        cells.push({ id: 'breakout', label: 'Tape', value: 'Breakout', tone: 'positive', title: 'Closed above its consolidation base.' });
-        continue;
-      }
-      continue;
-    }
-    if (event.feed === 'investors') {
-      const value = event.action === 'new' ? 'New' : event.action === 'exited' ? 'Out' : Number.isFinite(event.deltaPp) ? `${event.direction === 'negative' ? '−' : '+'}${Math.abs(event.deltaPp).toFixed(2)}pp` : null;
-      if (!value) continue;
-      seenFeeds.add(event.feed);
-      cells.push({ id: 'holder', label: 'Holder', value, tone: event.direction === 'negative' ? 'negative' : 'positive', title: 'The change in a tracked investor’s latest filed book. A filing is quarterly; the trade behind it may be older.' });
-    }
-  }
-
-  // THE FILLERS ARE TAKEN IN ORDER, direction first, because how the evidence READS is worth more
-  // to somebody scanning than how much of it there is. A cell is one label and one value: "2 bad ·
-  // 1 good" is two facts crammed into a figure and it truncated to "2 bad ·…" at 390px, so the
-  // dominant side names the cell and the count is the figure. The full split stays in the tooltip.
-  const bad = card.directions?.negative || 0;
-  const good = card.directions?.positive || 0;
-  const split = `${bad} negative and ${good} positive readings on this card. Neutral events are counted neither way.`;
-  const fillers = [
-    bad > good
-      ? { id: 'direction', label: 'Bad signs', value: String(bad), tone: 'negative', title: split }
-      : good > bad
-        ? { id: 'direction', label: 'Good signs', value: String(good), tone: 'positive', title: split }
-        : { id: 'direction', label: 'Direction', value: bad ? 'Split' : 'None', tone: 'neutral', title: bad ? split : 'Nothing on this card reads positive or negative.' },
-    {
-      id: 'high',
-      label: 'Big news',
-      value: String(card.highCount || 0),
-      tone: 'neutral',
-      title: 'Events that crossed their own source feed’s published threshold for mattering.',
-    },
-  ];
-  let filler = 0;
-  while (cells.length < 2 && filler < fillers.length) cells.push(fillers[filler++]);
-
-  cells.push({ id: 'feeds', label: 'Sources', value: String(card.feedCount || 0), tone: 'neutral', title: 'How many independent feeds carry something on this company.' });
-  cells.push({ id: 'events', label: 'Events', value: String((card.events || []).length), tone: 'neutral', title: `Events in the last ${WINDOW_DAYS} days.` });
-  return cells.slice(0, 4);
-}
 
 /**
  * The badge in the card's corner — what to DO, not what we scored it.
@@ -829,11 +788,6 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     }
     card.priority = card.score >= MUST_SEE_SCORE ? 'must-see' : card.score >= MIN_SCORE || card.materialPortfolioEvent ? 'important' : 'watch';
     card.insight = plainInsight(card);
-    // Which of the three investor questions the card's own evidence bears on. Derived from topic
-    // readings already on those events — it adds no fact, no number and no score, and contributes
-    // nothing to the arithmetic above. See js/data/alert-drivers.js.
-    card.drivers = driversOf(card);
-    card.metrics = cardMetrics(card);
     card.badge = cardBadge(card);
     enriched.push(enrichCardFromAllAlerts(card, supportedReport, { contextIndex }));
     yield;
