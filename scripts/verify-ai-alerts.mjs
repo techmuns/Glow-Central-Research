@@ -386,9 +386,44 @@ const topicEvent = { id: 'd1', day: '2026-09-03', ticker: 'ZZTEST', company: 'ZZ
   direction: 'positive', importance: 'high', headline: 'Record date for Final Dividend', filingRule: 'shareholder distribution', keywordIds: ['buyback'], url: 'https://example.test/a' };
 assert.equal(scored(topicEvent).allCards[0].score, scored({ ...topicEvent, filingRule: null, keywordIds: [] }).allCards[0].score,
   'topics change no score');
-assert(scored(topicEvent).allCards[0].drivers.total > 0, '...while still reaching the card');
+// The reading now rides the ROW rather than the card object, so what has to be true is that the
+// event the card surfaced still answers `driversFromEvent` — that is what the row chip reads.
+assert(scored(topicEvent).allCards[0].events.flatMap((event) => driversFromEvent(event)).length > 0,
+  '...while still reaching the evidence the card surfaced');
 
 console.log('PASS: driver buckets, source phrases, excluded feeds, capped overflow and score neutrality.');
+
+
+// --- WHICH ROWS A CARD SHOWS: one per SOURCE, in rounds, capped per source -----------------------
+//
+// The rule exists so a card never answers "what do the other sources say?" with one source said
+// four times. It is asserted on fixtures because a day's capture decides which shapes exist, and
+// the shape that matters most — one board meeting filed to both exchanges under four subjects —
+// only shows up when a company happens to have filed one.
+const { topEvidence, MAX_PER_SOURCE } = await import('../public/js/data/ai-alerts.js');
+const row = (feed, id, importance = 'high') => ({ feed, id, headline: id, day: '2026-09-18', direction: 'neutral', importance });
+const ids = (card, limit) => topEvidence(card, limit).map((event) => event.id).join(',');
+
+// ONE SOURCE, FOUR SLOTS, THREE ROWS. `announcements` and `nse-filings` are one family, so keying
+// this on `event.feed` spent two slots before filling and printed the same event four times under
+// a header reading "1 source" — measured on Sky Gold's 18 September approval.
+const oneSource = { events: [row('announcements', 'a1'), row('nse-filings', 'a2'), row('announcements', 'a3'), row('nse-filings', 'a4')] };
+assert.equal(ids(oneSource, 4), 'a1,a2,a3', 'one source stops at the cap rather than filling every slot');
+assert.equal(MAX_PER_SOURCE, 3);
+
+// TWO SOURCES SHARE FOUR SLOTS TWO AND TWO, rather than three and one.
+assert.equal(ids({ events: [row('announcements', 'a1'), row('news', 'n1'), row('announcements', 'a2'), row('news', 'n2'), row('announcements', 'a3')] }, 4),
+  'a1,n1,a2,n2', 'slots go one per source in rounds');
+// AND EVERY SOURCE IS REPRESENTED BEFORE ANY SECOND ROW IS SPENT.
+assert.equal(ids({ events: [row('announcements', 'a1'), row('news', 'n1'), row('investors', 'f1'), row('announcements', 'a2')] }, 4),
+  'a1,n1,f1,a2', 'breadth first, then depth');
+// A source's own rows stay in score order, so the cap never promotes a weaker row over a stronger.
+assert.equal(ids({ events: [row('news', 'n1'), row('news', 'n2'), row('news', 'n3', 'low'), row('news', 'n4')] }, 4),
+  'n1,n2,n3', 'within one source the order is the score order it arrived in');
+// A card with fewer events than slots is unchanged by any of this.
+assert.equal(ids({ events: [row('news', 'n1')] }, 4), 'n1');
+assert.deepEqual(topEvidence({ events: [] }, 4), []);
+console.log('PASS: evidence rows go one per source in rounds, capped per source, counting NSE and BSE as one.');
 
 
 // --- the sliced ranking is the synchronous ranking, spread over time --------------------------

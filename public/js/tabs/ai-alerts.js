@@ -16,6 +16,7 @@ import { getHostContext } from '../core/host-context.js';
 import { formatNumber } from '../core/format.js';
 import * as refresh from '../core/refresh.js';
 import * as alerts from '../data/ai-alerts.js';
+import { driversFromEvent, QUESTIONS } from '../data/alert-drivers.js';
 import { alertWindowCache } from '../data/alert-window-cache.js';
 import * as screenerInsights from '../data/screener-insights.js';
 import { onCaptureLanded } from '../data/capture-watchdog.js';
@@ -34,6 +35,7 @@ export const meta = {
 
 const REFRESH_ID = 'ai-alerts';
 const PAGE_SIZE = 8;
+const EVIDENCE_ROWS = 4;
 const RECHECK_MS = 90_000;
 const SORT_KEY = 'sattva:ai-alerts:sort:v1';
 const SORTS = { newest: 'Newest first', holdings: 'Largest holdings', priority: 'Highest priority' };
@@ -575,7 +577,7 @@ function confluenceMarkup(card) {
   const found = card.confluence || [];
   if (!found.length) return '';
   return `
-    <div data-ai-confluence class="mt-3 flex flex-wrap items-center gap-1.5">
+    <div data-ai-confluence class="mt-2.5 flex flex-wrap items-center gap-1.5">
       ${found
         .map(
           (pattern) => `<span data-confluence="${escapeHtml(pattern.id)}" title="${escapeHtml(`${pattern.label} — ${pattern.detail}`)}"
@@ -585,6 +587,7 @@ function confluenceMarkup(card) {
     </div>`;
 }
 
+<<<<<<< HEAD
 /**
  * THE TWO BULLETS. "One bullet is basically what has happened. And second is, will it change the
  * earnings assumption, valuation, or thesis?" — the desk's brief, and the card's whole reading in
@@ -664,6 +667,8 @@ function metricsMarkup(card) {
     </div>`;
 }
 
+=======
+>>>>>>> sattva/main
 // One sentence, only when the complete top-of-funnel pool has genuinely related context. This is
 // deliberately not another panel: the card stays the same shape and the source remains one click
 // away. Context contributes no alert score (see intelligence-graph.js).
@@ -689,64 +694,91 @@ function cardSection(kicker, bodyHtml, attrs = '') {
     <div ${attrs} class="mt-3 flex gap-2.5">
       <span class="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" aria-hidden="true"></span>
       <div class="min-w-0 flex-1">
-        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(kicker)}</div>
+        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(kicker)}</div>
         ${bodyHtml}
       </div>
     </div>`;
 }
 
-/** "a, b and c" — the list separator this dashboard's prose uses. */
-function joinPhrases(parts, conjunction = 'and') {
-  if (parts.length <= 1) return parts[0] || '';
-  return `${parts.slice(0, -1).join(', ')} ${conjunction} ${parts[parts.length - 1]}`;
+/**
+ * WHAT A ROW COULD CHANGE — the reading, on the row that holds its record.
+ *
+ * This was a paragraph of its own under an "Earnings assumption, valuation or thesis?" kicker: up
+ * to three linked readings per question, the questions with nothing behind them stated, and a
+ * counted overflow. Every word of it was true and the desk reads the same three questions on every
+ * card, so restating them cost a block of prose above the evidence to tell a reader something they
+ * already know. The READING is what they did not know, so it rides the row it came off as a chip.
+ *
+ * Three things the paragraph was carrying that the chip has to keep:
+ *
+ * 1. **The record stays one click away.** The classification is ours, so a reader must be able to
+ *    check it — and now the row the chip sits on IS the link to that record, rather than a second
+ *    anchor to the same place. `driversFromEvent` is asked per event for exactly that reason: it
+ *    is the uncapped primitive, so a chip can never be missing from a row that earned one.
+ * 2. **It is a TOPIC reading, never a direction.** `news-keywords.js` rule 1 holds: "Order" means
+ *    a source carried the word, not that an order was won. So the chip is indigo — never the
+ *    emerald or rose the direction dot beside it uses — and its title says "Could change …",
+ *    with each rule's own non-verification sentence after it.
+ * 3. **A truncation is counted.** Two readings on one row for one question print as "+1" rather
+ *    than one of them vanishing. The chips are one per question and there are only three
+ *    questions, so nothing else needs capping.
+ *
+ * What the chip deliberately does NOT carry is the card-level total per question, or the "nothing
+ * tracked here bears on the valuation" statement. Both are the desk's own vocabulary rather than
+ * evidence, and the complete per-event accounting is in All Alerts, one click down in the footer.
+ */
+function driverReadings(event) {
+  const byQuestion = new Map();
+  for (const driver of driversFromEvent(event)) {
+    const found = byQuestion.get(driver.question);
+    if (found) found.push(driver);
+    else byQuestion.set(driver.question, [driver]);
+  }
+  // In the vocabulary's own order, so two rows never name the same pair of questions differently.
+  return QUESTIONS.filter((question) => byQuestion.has(question.id))
+    .map((question) => ({ question, drivers: byQuestion.get(question.id) }));
+}
+
+function driverChipsMarkup(readings) {
+  if (!readings.length) return '';
+  const chips = readings.map(({ question, drivers }) => {
+    const extra = drivers.length - 1;
+    const title = `Could change ${question.label}. ${drivers.map((driver) => driver.why).join(' ')}`;
+    return `<span data-ai-driver data-driver-question="${escapeHtml(question.id)}" title="${escapeHtml(title)}"
+      class="inline-flex items-center rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-700">${escapeHtml(`${question.short} · ${drivers[0].label}`)}${extra > 0 ? `&nbsp;+${escapeHtml(formatNumber(extra))}` : ''}</span>`;
+  });
+  return `<span class="mt-1.5 flex flex-wrap items-center gap-1">${chips.join('')}</span>`;
 }
 
 /**
- * EARNINGS ASSUMPTION, VALUATION OR THESIS? — the question a reader opens a card with.
+ * The list's own header, and the home of two figures the strip used to carry.
  *
- * Every driver is a topic reading `js/data/alert-drivers.js` took off an event that is already on
- * this card, and every one of them is A LINK TO THAT EVENT'S OWN SOURCE — the same destination the
- * evidence row beneath uses, through the same `evidenceDestination`. That is the point of the
- * section: the classification is ours, so the record behind it has to be one click away, or this is
- * a judgement with no way to check it.
- *
- * THE WORDING IS "COULD CHANGE", AND IT MAY NOT BE STRENGTHENED. A tracked keyword says what a
- * source is ABOUT — `news-keywords.js` rule 1 — so "Order in the news" means a story about this
- * company carried the word Order, not that an order was won. "Could change the earnings assumption"
- * is exactly as much as the evidence supports; "improves earnings" would be a direction this
- * dashboard's own feeds refuse to assert, and the every-figure-carries-its-claim rule one layer up.
- *
- * A QUESTION WITH NOTHING BEHIND IT IS STATED, NOT OMITTED. "Nothing tracked here bears on the
- * thesis" is a real answer and a useful one — it is how a reader tells a card about a fund book and
- * a volume spike from one about a governance problem. What is omitted is the whole section, and
- * only when NO question has a driver: three negatives in a row is noise, not an answer.
+ * "5 sources" is a property of the card's evidence rather than of any row, so it belongs to the
+ * list rather than to a cell of its own — and "newest first" is a claim about the order, which is
+ * why `byNewestFirst` sorts what `topEvidence` selected instead of trusting score order to read
+ * as recency. The window is named because an age of 9d means nothing without it.
  */
-function driversMarkup(card, scope) {
-  const drivers = card.drivers;
-  if (!drivers?.buckets?.length) return '';
+function listHeadMarkup(card) {
+  const sources = card.feedCount || 0;
+  return `
+    <div data-ai-list-head class="mt-4 flex items-baseline justify-between gap-3 border-t border-slate-100 pt-3">
+      <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Newest first</span>
+      <span class="text-[10px] font-bold uppercase tracking-wider tabular-nums text-slate-500"
+        title="${escapeHtml(`How many independent feeds carry something on this company in the last ${alerts.WINDOW_DAYS} days. Every event behind this card is in All Alerts.`)}"><span data-ai-sources>${escapeHtml(formatNumber(sources))}</span> ${sources === 1 ? 'source' : 'sources'} · ${alerts.WINDOW_DAYS} days</span>
+    </div>`;
+}
 
-  const clauses = drivers.buckets.map((bucket) => {
-    const links = bucket.drivers.map((driver) => {
-      const destination = evidenceDestination(driver.event, scope);
-      return `<a data-ai-driver data-driver-question="${escapeHtml(bucket.id)}" href="${escapeHtml(destination.href)}"
-        ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
-        aria-label="${escapeHtml(`${driver.text} — ${destination.ariaLabel}`)}"
-        title="${escapeHtml(`${driver.why} Opens the source behind this reading.`)}"
-        class="font-semibold text-indigo-700 underline decoration-indigo-200 underline-offset-2 transition hover:text-indigo-900 hover:decoration-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${escapeHtml(driver.text)}</a>`;
-    });
-    // A capped bucket COUNTS what it did not print. Silently dropping the fourth driver would have
-    // the card claim fewer things bear on this company than its own evidence says.
-    if (bucket.overflow > 0) {
-      links.push(`<span class="text-slate-500" title="${escapeHtml(`${bucket.overflow} further tracked ${bucket.overflow === 1 ? 'reading' : 'readings'} on this question. Every event is in All Alerts.`)}">+${escapeHtml(formatNumber(bucket.overflow))} more</span>`);
-    }
-    return `<strong class="font-bold text-slate-900">${escapeHtml(bucket.label)}</strong> (${links.join('; ')})`;
-  });
-
-  const silent = drivers.silent.length
-    ? ` Nothing tracked here bears on ${escapeHtml(joinPhrases(drivers.silent.map((q) => q.label), 'or'))}.`
-    : '';
-  const body = `<p class="mt-1 text-sm leading-relaxed text-slate-600">Could change ${joinPhrases(clauses)}.${silent}</p>`;
-  return cardSection('Earnings assumption, valuation or thesis?', body, 'data-ai-drivers');
+/**
+ * Newest first, by the day and by the time where the feed published one.
+ *
+ * `topEvidence` chooses WHICH rows (one per source in rounds, capped per source, so a card never
+ * spends every row on one of them), and this decides the order they are read in. Keeping them in
+ * score order under a header that says "newest first" would be the header describing a different
+ * list.
+ */
+function byNewestFirst(events) {
+  return [...events].sort((a, b) =>
+    String(b.day || '').localeCompare(String(a.day || '')) || String(b.time || '').localeCompare(String(a.time || '')));
 }
 
 const cardSnapshots = new WeakMap();
@@ -771,7 +803,7 @@ function cardMarkup(card, scope, day, archived = false) {
     neutral: { edge: 'border-l-slate-300', badge: 'bg-white text-slate-600 ring-slate-200' },
   }[badge.tone] || { edge: 'border-l-slate-300', badge: 'bg-white text-slate-600 ring-slate-200' };
   const newest = latestAlertEvent(card);
-  const events = alerts.topEvidence(newest ? { ...card, events: [newest, ...card.events.filter(event => event !== newest)] } : card, 3);
+  const events = byNewestFirst(alerts.topEvidence(newest ? { ...card, events: [newest, ...card.events.filter(event => event !== newest)] } : card, EVIDENCE_ROWS));
   const rest = card.events.length - events.length;
   const signal = latestAlertSignal(card);
   return `
@@ -794,15 +826,18 @@ function cardMarkup(card, scope, day, archived = false) {
         </p>
         ${Number.isFinite(card.holdingWeightPct) ? `<p data-ai-holding-size class="mt-1 text-xs font-semibold text-indigo-700">${card.holdingWeightPct > 0 && card.holdingWeightPct < 0.01 ? '&lt;0.01' : card.holdingWeightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of equity statement book</p>` : ''}
 
+<<<<<<< HEAD
         ${briefMarkup(card, scope)}
         ${contextMarkup(card, scope)}
+=======
+        ${cardSection('What happened', `<p data-ai-insight class="font-display mt-0.5 text-[17px] font-bold leading-snug text-slate-900">${escapeHtml(card.insight)}</p>${confluenceMarkup(card)}`)}
+>>>>>>> sattva/main
 
-        ${confluenceMarkup(card)}
-        ${metricsMarkup(card)}
-
-        <ul data-ai-evidence class="mt-4 space-y-2">
+        ${listHeadMarkup(card)}
+        <ul data-ai-evidence class="mt-1 space-y-0.5">
           ${events.map((event) => eventMarkup(event, scope, day)).join('')}
         </ul>
+        ${contextMarkup(card, scope)}
       </div>
       <footer class="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3">
         ${rest > 0
@@ -849,15 +884,28 @@ function eventMarkup(event, scope, day) {
   // Plain where this dashboard wrote the sentence, verbatim where somebody else did — see
   // `plainHeadline`. The tooltip always carries the feed's own wording so nothing is lost.
   const claim = alerts.plainHeadline(event);
+  const readings = driverReadings(event);
+  // THE CHIP MUST REACH A SCREEN READER TOO. The link carries an aria-label, which replaces its
+  // own contents for assistive technology — so a chip rendered inside it would be silently dropped
+  // unless the questions are named in that label as well.
+  const ariaLabel = readings.length
+    ? `${destination.ariaLabel} — could change ${readings.map(({ question }) => question.label).join(', ')}`
+    : destination.ariaLabel;
+  // Today and yesterday darken. An age is the reason a reader looks at a card this morning, so the
+  // newest rows read at full strength and a nine-day-old book change recedes without being hidden.
+  const recent = age === 'today' || age === '1d' || age.startsWith('in ');
   return `
     <li class="flex items-start gap-2" data-ai-notebook-event="${escapeHtml(event.id)}">
       <a data-ai-event data-ai-evidence-link data-feed-family="${escapeHtml(alerts.feedFamily(event))}" href="${escapeHtml(destination.href)}"
         ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
-        aria-label="${escapeHtml(destination.ariaLabel)}"
-        class="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-1.5 -mx-2 transition-colors hover:bg-indigo-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+        aria-label="${escapeHtml(ariaLabel)}"
+        class="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 transition-colors hover:bg-indigo-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
         <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${DOT_TONE[event.direction] || DOT_TONE.neutral}" aria-hidden="true"></span>
-        <span class="line-clamp-2 min-w-0 flex-1 text-sm leading-snug text-slate-700 group-hover:text-slate-900" title="${escapeHtml(event.headline || '')}">${escapeHtml(claim)}</span>
-        <span class="mt-0.5 shrink-0 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-slate-400" title="${escapeHtml(`${event.feedLabel || event.feed} · ${when}`)}">${escapeHtml(tag)} · <time data-ai-age data-day="${escapeHtml(event.day)}" datetime="${escapeHtml(event.day)}">${escapeHtml(age)}</time></span>
+        <span class="min-w-0 flex-1">
+          <span class="line-clamp-2 block text-sm font-medium leading-snug text-slate-800 group-hover:text-slate-900" title="${escapeHtml(event.headline || '')}">${escapeHtml(claim)}</span>
+          ${driverChipsMarkup(readings)}
+        </span>
+        <span data-ai-event-source class="mt-0.5 shrink-0 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider ${recent ? 'text-slate-600' : 'text-slate-400'}" title="${escapeHtml(`${event.feedLabel || event.feed} · ${when}`)}">${escapeHtml(tag)} · <time data-ai-age data-day="${escapeHtml(event.day)}" datetime="${escapeHtml(event.time ? `${event.day}T${event.time}+05:30` : event.day)}">${escapeHtml(age)}</time></span>
       </a>
       ${bookmarkButton(snapshotForRow(event, { section: 'daily-alerts' }))}
     </li>`;
