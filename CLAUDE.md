@@ -2608,7 +2608,7 @@ and next action without ranking implementation detail.
 
 ### TIME TO INSIGHT IS THE PRODUCT'S ONLY JOB — the card's reading layer
 
-Everything above decides WHAT to surface. `plainInsight()`, `cardMetrics()`, `plainHeadline()` and
+Everything above decides WHAT to surface. `plainInsight()`, `plainHeadline()` and
 `topEvidence()` decide how fast a human can take it in, and that is a separate concern with its own
 failure mode: a card can be perfectly honest and still take twenty seconds to read, at which point a
 page whose whole promise is *here is what needs you this morning* has failed at the only thing it
@@ -2621,9 +2621,8 @@ tracked investor's latest book shows selling — President Of India: reduced by 
 said twice, in a vocabulary a reader has to decode, above three evidence rows carrying long
 timestamps, direction pills, importance pills and each rule's own reason sentence.
 
-What replaces it is: **one short sentence in ordinary English, the numbers behind it as numbers, and
-three evidence lines.** Six rules hold it up, and every one of them is a rule this codebase already
-had:
+What replaces it is: **one short sentence in ordinary English and four dated evidence rows.** Six
+rules hold it up, and every one of them is a rule this codebase already had:
 
 1. **No new fact, and no new number.** Every phrase rewords an event already on the card; every
    figure is read from a field the collector wrote — `volumeX`, `movePct`, `deltaPp`, `action`,
@@ -2645,26 +2644,45 @@ had:
    `results-reaction` both fire on ANY technicals reading, so neither may say *"the price moved"* —
    it read that way over a card whose only tape event was 2.0x volume on a barely-changed close.
    They say *"Unusual trading"*.
-6. **Tone is a claim, so the volume cell has none.** The technicals feed states in its own words
-   that volume is participation and the tape does not say whether it was buying or selling.
+6. **Tone is a claim, so a volume reading carries none.** The technicals feed states in its own
+   words that volume is participation and the tape does not say whether it was buying or selling.
    Colouring `4.4x` rose because it is large would be this dashboard asserting a direction its own
-   feed refuses to assert — a worse error than a dull cell. Day moves and book changes ARE
-   directional and are toned.
+   feed refuses to assert — a worse error than a dull cell, and the reason a participation row's
+   direction dot stays grey. Day moves and book changes ARE directional and are toned.
 
 Two shapes follow from the same reasoning and are asserted:
 
-- **The figures arrive in the order the sentence names them.** Every plain sentence puts the tape
+- **The facts arrive in the order the sentence names them.** Every plain sentence puts the tape
   first, but the events are in SCORE order, so a fund book outranking a volume row produced *"…has
   been selling — Cohesion MK Best Ideas is off the register, 2.0x its normal volume"*: both facts
   true, read backwards against the clause they belong to, costing a second pass over a card built
-  to save one. `READ_ORDER` fixes the sequence for the sentence and the strip together.
-- **Three evidence rows mean three DIFFERENT sources where the card has them.** Taking the top three
-  by score put three rows of one feed on a card whose strip announced four sources — *"Cohesion MK
-  Best Ideas: no longer disclosed"*, *"Life Insurance Corporation: no longer disclosed"*, *"Vanguard
+  to save one. `READ_ORDER` fixes the sequence `factPhrases` reads them in.
+- **Four evidence rows mean four DIFFERENT sources where the card has them.** Taking the top rows
+  by score alone put three rows of one feed on a card announcing four sources — *"Cohesion MK Best
+  Ideas: no longer disclosed"*, *"Life Insurance Corporation: no longer disclosed"*, *"Vanguard
   Fund: no longer disclosed"*. Every row was true and the card still showed a quarter of what it
   held, three times, while the reader's actual next question — *what do the OTHER sources say?* — is
   the one thing three identical lines cannot answer. `topEvidence()` takes the strongest event per
-  feed first, then fills.
+  feed first, then fills; `byNewestFirst` in the tab then decides the order they are READ in,
+  because the header above them says *newest first* and that is a claim about the list.
+
+**AND THEN THE STRIP AND THE PARAGRAPH BOTH WENT, AT THE DESK'S REQUEST (19 September 2026).** The
+four-figure strip — `Holder Out · Bad signs 5 · Sources 5 · Events 214` — and the per-question
+paragraph beneath the sentence were the two blocks a reader crossed to reach the evidence, and both
+were restating what the card already said. `cardMetrics()` is deleted, `card.metrics` and
+`card.drivers` are no longer assembled, and the card is now the header, the sentence, and one list.
+
+**Every figure the strip carried still has a place, and that is the rule rather than the removal.**
+The leading fact was already the subject of the sentence (*"Abu Dhabi Investment Authority is off
+the register"* over a cell reading `Holder Out`); the direction split is the dot on each row, which
+says it per row with the row attached; `Sources` moved into the list's own header, where it
+describes the list rather than sitting in a cell of its own; and `Events` stays in the footer as
+*"211 more events →"*, where it is a door rather than a number. **A count that becomes unreachable
+is a different change from a count that moves**, and only the second one happened here.
+
+**Which left the row as the whole card, so the row carries the reading too** — see the section
+below. One consequence worth stating: the fourth row is only affordable because those two blocks
+went, and `EVIDENCE_ROWS` in the tab is where that trade is recorded.
 
 **`cardBadge()` names the action, not the band.** A directional disagreement reads `Reconcile`
 rather than `Must see`, because that is what changes the reader's next move; the band itself stays
@@ -2695,12 +2713,24 @@ assumption** (what the business earns), the **valuation** (what a share is worth
 are) and the **thesis** (whether it is still the business that was bought).
 
 `js/data/alert-drivers.js` is the one mapping from the desk's tracked vocabulary onto those three,
-and the card states it in a sentence under its own kicker: *"Could change **the earnings assumption**
-(Order in a filing; Partnership in the news) and **the valuation** (shareholder distribution in a
-filing). Nothing tracked here bears on the thesis."* **Every driver in it is a link to that event's
-own source** — the same destination, through the same `evidenceDestination`, as the evidence row
-below it. That is the point rather than a nicety: the bucketing is this dashboard's reading, so the
-record behind it has to be one click away, or it is a judgement with no way to check it.
+and **the card states it on the row that holds the record** — a chip reading *Valuation ·
+Shareholder distribution* under the dividend filing it came off, *Thesis · Resignation* under the
+resignation filing. `driverReadings()` in the tab asks `driversFromEvent` per event, which is the
+UNCAPPED primitive, so a chip can never be missing from a row that earned one.
+
+**The row IS the link to that record**, which is the point rather than a nicety: the bucketing is
+this dashboard's reading, so the record behind it has to be one click away, or it is a judgement
+with no way to check it. It used to be a paragraph of linked readings under an *"Earnings
+assumption, valuation or thesis?"* kicker, with a second anchor of its own to the same destination
+the row already opened.
+
+**THE PARAGRAPH WENT AT THE DESK'S REQUEST, AND THE REASON IS WORTH KEEPING (19 September 2026):**
+*"that the customer knows already"*. The three questions are the same three on every card, so
+naming them in prose above the evidence spent a block of the card telling a reader something they
+read yesterday and the day before. The READING is what they did not know, so it moved to the row
+and the prose went. Two things had to survive the move, and both are asserted: a chip sits only on
+a row whose own record backs it, and a second reading for the same question on one row prints as
+**+1** rather than disappearing.
 
 It is a separate file from `news-keywords.js` deliberately. **The keyword list is the desk's; a
 taxonomy of what a topic BEARS ON is ours.** Two different claims, two files, as `stockscans-shared`
@@ -2732,12 +2762,15 @@ Six rules, and every one is a rule this codebase already had:
    related-entity report is about a *different* company and the card already says so.
    `brokerage-research` is absent from the mapping for a third reason: an analyst's published view
    is a view OF the company, not an event AT it.
-6. **A question with nothing behind it is STATED; only the whole section is dropped.** *"Nothing
-   tracked here bears on the thesis"* is a real answer and is how a reader tells a card about a fund
-   book and a volume spike from one about a governance problem. What is omitted is the section
-   entirely, and only when no question has an answer — three negatives in a row is noise. A capped
-   bucket **counts** what it did not print, because a truncation nobody can see is the card claiming
-   fewer things bear on the company than its own evidence holds.
+6. **A truncation is COUNTED, and the card no longer speaks for a question it has nothing for.**
+   Two readings on one row for one question print as *"Thesis · Resignation +1"*, because a
+   truncation nobody can see is the card claiming fewer things bear on the company than its own
+   evidence holds. What is gone is the other half of this rule: *"Nothing tracked here bears on the
+   thesis"* used to be printed, on the reasoning that a stated negative is how a reader tells a
+   fund-book card from a governance one. The desk reads these three questions on every card and
+   asked for the prose back, so a question with nothing behind it is now simply not named, and the
+   complete per-question accounting is one click down in All Alerts. `driversOf()` still groups and
+   counts them and its rules are still asserted — nothing on a card calls it.
 
 Two bucket choices are worth stating because the obvious answer is the wrong one. **`stake-sale` is
 valuation, not deals**: a block changing hands does not alter what the business earns, it alters who
@@ -3796,8 +3829,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Set up the team brief on a deployment | `MUNS_TOKEN` on the Worker sends it; `DASHBOARD_ORIGIN` and `NEWSLETTER_PRODUCT_NAME` are vars in `wrangler.jsonc`; the `NEWSLETTER` binding and `NEWSLETTER_LIMITER` are there too. Subscribe from the header and the alarm arms itself |
 | Change who is asked, or how the contributor dropdown behaves | `js/ui/watchlist-attribution.js` (the prompt) + `js/core/watchlist-people.js` (the roster and this device's own name) — read *An addition carries the name of whoever made it* first. Never preselect a name on a device nobody has identified themselves on |
 | Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book, and test `rankReport()` directly |
-| Change what an AI Alerts card SAYS, or the four figures on it | `plainInsight()` / `cardMetrics()` / `plainHeadline()` / `topEvidence()` in `js/data/ai-alerts.js` — all pure and exported. Read *Time to insight is the product's only job* first: no new number, only sentences we wrote may be reworded, the volume cell takes no tone, and the figures follow `READ_ORDER` rather than score order |
-| Change which investor question a topic bears on, or how a card states it | `js/data/alert-drivers.js` (the one mapping) + `driversMarkup()` in `js/tabs/ai-alerts.js` — read *Earnings assumption, valuation or thesis* first. A driver is a TOPIC reading, so the wording stays "could change"; every driver links to its own source; and the layer adds no score |
+| Change what an AI Alerts card SAYS, or how many rows it shows | `plainInsight()` / `plainHeadline()` / `topEvidence()` in `js/data/ai-alerts.js` (pure and exported) + `EVIDENCE_ROWS` / `byNewestFirst` / `listHeadMarkup` in `js/tabs/ai-alerts.js` — read *Time to insight is the product's only job* first: no new number, only sentences we wrote may be reworded, a volume reading takes no tone, the sentence's facts follow `READ_ORDER`, and the rows are read newest first because the header says so. There is no figure strip: `cardMetrics` is deleted and every figure it held has a place named in that section |
+| Change which investor question a topic bears on, or how a card states it | `js/data/alert-drivers.js` (the one mapping) + `driverReadings()` / `driverChipsMarkup()` in `js/tabs/ai-alerts.js` — read *Earnings assumption, valuation or thesis* first. A reading is a chip on the row whose own record backs it, never a block of its own; it is a TOPIC reading, so the wording stays "could change" and the chip never borrows a direction colour; a second reading on one row prints `+1`; and the layer adds no score |
 | Change archiving on AI Alerts | `js/core/ai-mute.js` (the store) + the `archived` filter and the Archive / Restore buttons in `js/tabs/ai-alerts.js` — a record is keyed to the evidence it was given for, so a card returns on its own when stronger evidence arrives |
 | Change what the precomputed alert pool carries, or how a period is reassembled from it | `public/js/data/alert-pool-shared.js` (the feeds, the captures each reads, the revision rule, the members) + `public/js/data/alert-pool-format.js` (the shard encoding and decoding, shared by the builder and the browser) — read *The collection is done once, on the runner* first; `node scripts/verify-alert-pool.mjs` is the test |
 | Change when a pooled feed is taken from the pool, or why it is declined | `read()` / `verifyFeed()` / `deviceExtras()` in `public/js/data/alert-pool.js`, and the `pool` branch of `collect()` in `js/data/daily-alerts.js` — every check is per feed, per read, and a declined feed loads as before |
@@ -3921,10 +3954,11 @@ It covers, beyond the checklist below:
   is in that order — widest last
 - **the dashboard opens on Ask Research, in Portfolio scope**; AI Alerts has no sub-view picker and
   its cards are unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
-- **every AI Alerts card labels its two readings** — what happened, and which of the earnings
-  assumption / valuation / thesis its evidence bears on — with the second read after the first and
-  before the evidence, worded as what the evidence COULD change rather than as a verdict, and with
-  every driver linking to a source the card itself already holds
+- **every AI Alerts card is a labelled sentence and then four dated rows, newest first** — no
+  figure strip, no per-question paragraph, and the source count still reachable in the list's own
+  header; each row opens its own record, and where a reading rides one it names the earnings
+  assumption / valuation / thesis on the row that holds that record, worded as what the evidence
+  COULD change rather than as a verdict, in the brand indigo rather than a direction colour
 - **Portfolio Analytics is gone and cannot be reached**: an old `#/portfolio/...` link lands on
   Research Central with the URL corrected and the tab bar back, every deleted ledger module and
   payload 404s on the served site, and no Ask Research source carries a ledger figure or a route

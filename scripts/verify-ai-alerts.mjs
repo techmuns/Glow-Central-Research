@@ -286,7 +286,10 @@ const topicEvent = { id: 'd1', day: '2026-09-03', ticker: 'ZZTEST', company: 'ZZ
   direction: 'positive', importance: 'high', headline: 'Record date for Final Dividend', filingRule: 'shareholder distribution', keywordIds: ['buyback'], url: 'https://example.test/a' };
 assert.equal(scored(topicEvent).allCards[0].score, scored({ ...topicEvent, filingRule: null, keywordIds: [] }).allCards[0].score,
   'topics change no score');
-assert(scored(topicEvent).allCards[0].drivers.total > 0, '...while still reaching the card');
+// The reading now rides the ROW rather than the card object, so what has to be true is that the
+// event the card surfaced still answers `driversFromEvent` — that is what the row chip reads.
+assert(scored(topicEvent).allCards[0].events.flatMap((event) => driversFromEvent(event)).length > 0,
+  '...while still reaching the evidence the card surfaced');
 
 console.log('PASS: driver buckets, source phrases, excluded feeds, capped overflow and score neutrality.');
 
