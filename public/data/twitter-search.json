@@ -1398,7 +1398,7 @@
       "error": "search-unavailable"
     },
     "isin:INE659A01023|SUDARSCHEM": {
-      "lastAttemptAt": "2026-09-14T22:01:33+00:00",
+      "lastAttemptAt": "2026-09-19T11:35:32+00:00",
       "error": "search-unavailable"
     },
     "isin:INE07RO01027|Supriya Lifescience": {
@@ -1558,6 +1558,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 225,
-    "checkedAt": "2026-09-19T11:02:32.587320+00:00"
+    "checkedAt": "2026-09-19T11:35:32.904657+00:00"
   }
 }
