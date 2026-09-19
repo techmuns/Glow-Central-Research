@@ -29,7 +29,12 @@ export function nseRecord(r) {
   if (hit) return hit;
   const event = record({ id: `nse:${nse.rowKey(r)}`, row: r, at: r.publishedAt,
     ticker: r.ticker, company: r.company, headline: r.subject || 'NSE filing', detail: r.description,
-    url: r.url, kind: 'filing', ...announcementSignal({ ...r, title: r.subject }) });
+    url: r.url, kind: 'filing', ...announcementSignal({ ...r, title: r.subject }),
+    // The same three fields `announcementEvent` names, for the same reason: NSE's subject is
+    // often the filing TYPE ("Press Release") while its own description carries the event
+    // ("...titled \"Biocon Secures 10-Year Supply Contract for Pertuzumab in Brazil\""). NSE
+    // publishes no sub-category, so that one is null rather than borrowed from anywhere.
+    filingSubject: r.subject || null, filingSubCategory: null, filingDescription: r.description || null });
   // Official issuer identity/date/link are required. Raw unresolved records stay in All Alerts.
   event.aiEligible = event.importance === 'high' && !!event.ticker && !!event.day && !!event.url;
   nseEvents.set(r, event);

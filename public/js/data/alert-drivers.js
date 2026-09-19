@@ -177,7 +177,7 @@ const topicLabelOf = (id) => KEYWORDS.find((k) => k.id === id)?.label || null;
 /**
  * The drivers one event contributes, or an empty array where it contributes none.
  *
- * Exported for the same reason `moveSeverity` and `shortFact` are: these branches depend on which
+ * Exported for the same reason `moveSeverity` and `filingClaim` are: these branches depend on which
  * fields a collector happened to write, and a given day's capture contains only some of them.
  */
 export function driversFromEvent(event) {
