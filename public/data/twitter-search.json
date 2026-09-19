@@ -1410,7 +1410,7 @@
       "error": "search-unavailable"
     },
     "isin:INE665A01038|Swan Corp": {
-      "lastAttemptAt": "2026-09-14T23:40:27+00:00",
+      "lastAttemptAt": "2026-09-19T13:06:13+00:00",
       "error": "search-unavailable"
     },
     "isin:INE665A01038|SWANCORP": {
@@ -1558,6 +1558,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 225,
-    "checkedAt": "2026-09-19T12:33:46.189567+00:00"
+    "checkedAt": "2026-09-19T13:06:13.224152+00:00"
   }
 }
