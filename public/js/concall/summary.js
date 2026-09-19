@@ -29,7 +29,7 @@ function bodyHtml(body) {
       const tag = block.ordered ? 'ol' : 'ul';
       return `<${tag} class="${block.ordered ? 'list-decimal' : 'list-disc'} space-y-2 pl-5 text-sm leading-relaxed text-slate-700">${block.items.map(item => `<li>${e(item)}</li>`).join('')}</${tag}>`;
     }
-    return `<div class="overflow-x-auto"><table class="w-full text-left text-sm text-slate-700"><tbody>${block.rows.map(row => `<tr class="border-b border-slate-100">${row.map(cell => `<td class="px-3 py-2 align-top">${e(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    return `<div class="table-scroll-surface overflow-x-auto"><table class="w-full text-left text-sm text-slate-700"><tbody>${block.rows.map(row => `<tr class="border-b border-slate-100">${row.map(cell => `<td class="px-3 py-2 align-top">${e(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   }).join('');
 }
 function coverageNote() {

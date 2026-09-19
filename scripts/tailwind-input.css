@@ -15,36 +15,73 @@
  * Tables keep native scrolling — trackpads, wheels and touch screens already do that best — but
  * the surface now carries momentum on iOS, contains overscroll instead of handing a diagonal
  * gesture to the page, and is keyboard-focusable wherever the markup supplies tabindex="0".
- * A slightly larger, higher-contrast thumb is easier to acquire without becoming dashboard
- * chrome. Do not add scroll snapping here: stopping a financial table between rows/columns is a
- * feature, not an error.
+ * Do not add scroll snapping here: stopping a financial table between rows/columns is a feature,
+ * not an error — and do not add `scroll-behavior: smooth` either, because the windowed list
+ * writes `scrollTop` to put a held record back and an animated write would land the reader
+ * somewhere else.
+ *
+ * THE BAR IS WIDE ENOUGH TO GRAB WITH A MOUSE, WHICH IS THE WHOLE JOB OF A SCROLLBAR ON A TABLE
+ * OF TWENTY THOUSAND ROWS. It was an 8px thumb (`.scrollbar-thin` on the same element overrode
+ * the 10px declared here — two classes making contradictory claims about one scrollbar, so the
+ * table surfaces now carry this one alone), which is a target a reader has to aim at rather than
+ * reach for, and the owner's complaint was exactly that: hard to catch, easy to lose mid-drag.
+ * The track is 14px, the thumb sits 2px inside it so it reads as 10px at rest, and the inset
+ * closes to 1px under the pointer — the bar thickens as you approach it instead of appearing
+ * from nowhere. `min-height`/`min-width` matter more than the width does: on a full alert
+ * history the thumb is a sliver a few pixels long, and a 40px floor is what makes it draggable
+ * at all. Firefox gets `auto` rather than `thin` for the same reason; `thin` is the one value
+ * that cannot be widened.
  */
 .table-scroll-surface {
   max-width: 100%;
   overscroll-behavior: contain;
   scroll-padding: 1rem;
-  scrollbar-color: rgb(var(--edge-slate-400, 148 163 184) / 1) transparent;
-  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--edge-slate-400, 148 163 184) / 1) rgb(var(--surface-slate-100, 241 245 249) / 1);
+  scrollbar-width: auto;
   touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
 }
 
 .table-scroll-surface::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
 }
 
+/* A gutter the reader can see is a gutter the reader can aim at — kept faint so it reads as the
+   table's own edge rather than as chrome. */
 .table-scroll-surface::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgb(var(--surface-slate-100, 241 245 249) / 0.75);
+  border-radius: 9999px;
 }
 
 .table-scroll-surface::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  background: rgb(var(--surface-slate-400, 148 163 184) / 0.8);
+  background-clip: padding-box;
   border-radius: 9999px;
-  background: rgb(var(--surface-slate-400, 148 163 184) / 1);
+  min-height: 40px;
+  min-width: 40px;
 }
 
+/* Contrast on hover comes from ALPHA, not from a darker token: the surface ramp inverts under the
+   dark theme, where slate-500 is darker than slate-400 and "hover" would dim the thumb. Compositing
+   further toward the thumb's own colour stands out against the card in both themes. */
 .table-scroll-surface::-webkit-scrollbar-thumb:hover {
+  border-width: 1px;
+  background: rgb(var(--surface-slate-400, 148 163 184) / 1);
+  background-clip: padding-box;
+}
+
+.table-scroll-surface::-webkit-scrollbar-thumb:active {
+  border-width: 1px;
   background: rgb(var(--surface-slate-500, 100 116 139) / 1);
+  background-clip: padding-box;
+}
+
+/* Where both axes overflow, the square where they meet is not a scrollbar and must not paint as
+   one. */
+.table-scroll-surface::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .table-scroll-surface:focus-visible {

@@ -130,17 +130,31 @@
         font-variant-numeric: tabular-nums;
       }
 
-      /* Slim scrollbars for table bodies, drill panels and dropdowns. */
+      /* Scrollbars for drill panels, dropdowns and reading lists. Wider than they were (8px) so
+         the thumb can be caught with a mouse rather than aimed at, and narrower than the 14px a
+         data table gets, because a dropdown is a few rows deep and its scrollbar is furniture
+         rather than a control anybody drags. A table surface must NOT carry this class as well:
+         two classes declaring one scrollbar's width is how the tables' own 10px sat unused behind
+         this rule's 8px for as long as both were on the element. */
       .scrollbar-thin::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 11px;
+        height: 11px;
+      }
+      .scrollbar-thin::-webkit-scrollbar-track {
+        background: transparent;
       }
       .scrollbar-thin::-webkit-scrollbar-thumb {
+        border: 2px solid transparent;
         background: rgb(var(--surface-slate-300, 203 213 225) / 1);
-        border-radius: 4px;
+        background-clip: padding-box;
+        border-radius: 9999px;
+        min-height: 32px;
+        min-width: 32px;
       }
       .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+        border-width: 1px;
         background: rgb(var(--surface-slate-400, 148 163 184) / 1);
+        background-clip: padding-box;
       }
 
       @keyframes fade-in {
@@ -345,20 +359,28 @@
         }
       }
 
-      /* Restrained scrollbars inside table containers and dropdowns. */
+      /* The fallback for every scroller that declares nothing of its own, the page included.
+         `.scrollbar-thin` and `.table-scroll-surface` both outrank it on specificity whatever the
+         source order, so this sets the floor rather than competing with them. */
       ::-webkit-scrollbar {
-        height: 8px;
-        width: 8px;
+        height: 11px;
+        width: 11px;
       }
       ::-webkit-scrollbar-track {
         background: transparent;
       }
       ::-webkit-scrollbar-thumb {
-        background: rgb(var(--surface-slate-200, 226 232 240) / 1);
+        border: 2px solid transparent;
+        background: rgb(var(--surface-slate-300, 203 213 225) / 1);
+        background-clip: padding-box;
         border-radius: 9999px;
+        min-height: 32px;
+        min-width: 32px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: rgb(var(--surface-slate-300, 203 213 225) / 1);
+        border-width: 1px;
+        background: rgb(var(--surface-slate-400, 148 163 184) / 1);
+        background-clip: padding-box;
       }
 
       /* Ask Research fills the available frame; only the transcript scrolls. */

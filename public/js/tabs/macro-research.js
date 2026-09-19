@@ -347,7 +347,7 @@ function fpiTableHtml(t) {
     return `<td class="whitespace-nowrap px-3 py-2 text-right tabular-nums ${tone}${c.value == null ? 'text-slate-300' : fpi.toneOf(c.value)}" title="${escapeHtml(c.note || '')}">${escapeHtml(value)}</td>`;
   };
   return `
-    <div class="scrollbar-thin overflow-x-auto" data-fpi-scroll>
+    <div class="table-scroll-surface overflow-x-auto" data-fpi-scroll>
       <table class="w-full min-w-[880px] border-collapse text-sm">
         <thead>
           <tr class="border-b border-slate-200">

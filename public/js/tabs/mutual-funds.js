@@ -749,7 +749,7 @@ function referenceStrip(cat, benchmark, reason, alternatives, periods, chosen = 
     </tr>`;
 
   return `
-    <div class="mb-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-mf-reference>
+    <div class="table-scroll-surface mb-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-mf-reference>
       <table class="w-full min-w-[720px]">
         <thead>
           <tr class="bg-slate-50">
