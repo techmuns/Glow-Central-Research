@@ -1458,7 +1458,7 @@
       "error": "search-unavailable"
     },
     "isin:INE0CAZ01013|Urban Company": {
-      "lastAttemptAt": "2026-09-15T06:18:53+00:00",
+      "lastAttemptAt": "2026-09-19T20:13:05+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0CAZ01013|URBANCO": {
@@ -1558,6 +1558,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 225,
-    "checkedAt": "2026-09-19T19:42:11.389425+00:00"
+    "checkedAt": "2026-09-19T20:13:05.054067+00:00"
   }
 }
