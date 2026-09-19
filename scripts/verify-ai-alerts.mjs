@@ -326,6 +326,130 @@ assert.deepEqual(topEvidence({ events: [] }, 4), []);
 console.log('PASS: evidence rows go one per source in rounds, capped per source, counting NSE and BSE as one.');
 
 
+// --- WHAT THE CARD SAYS HAPPENED: one claim, the source's own -----------------------------------
+//
+// The sentence used to lead with the PATTERN and append the two figures a phrase had been written
+// for, so a card whose strongest event was a ten-year supply contract said "An insider and a big
+// holder moved the same way" and never mentioned the contract. It is now one claim — the strongest
+// event's own statement — and these are asserted on fixtures because which shapes a day contains
+// (a sign-flip result, a pointer subject, a block deal with a rupee value) is a property of the
+// capture and not of the rule.
+const { plainHeadline, plainInsight, leadEvent, filingClaim, sourceStatement, CLAIM_MAX } =
+  await import('../public/js/data/ai-alerts.js');
+
+// OUR OWN LINES ARE COMPLETED, because the figure a row was graded on is the specific a reader
+// opens the card for. Every one is read from a collector's field, never parsed out of a sentence.
+assert.equal(
+  plainHeadline({ feed: 'insider', headline: 'ACTIV PINE LLP — Sell', tradeValue: 491645000, tradeCategory: 'Block deal' }),
+  'ACTIV PINE LLP — Sell · ₹49.2 crore block deal');
+assert.equal(
+  plainHeadline({ feed: 'insider', headline: 'A PROMOTER — Sell', tradePct: 15 }),
+  'A PROMOTER — Sell · 15.00% of the company', 'a percentage of the company stands in for an absent value');
+assert.equal(
+  plainHeadline({ feed: 'insider', headline: 'A PROMOTER — Sell', tradeShares: 1277000 }),
+  'A PROMOTER — Sell · 12,77,000 shares', 'a share count is the last resort and is formatted, not summed');
+assert.equal(plainHeadline({ feed: 'insider', headline: 'A PROMOTER — Sell' }), 'A PROMOTER — Sell',
+  'a disclosure that carried no size gets no size — never a zero');
+// "SAST" and "Insider" are filing regimes rather than kinds of trade, so only a deal reads as one.
+assert.equal(
+  plainHeadline({ feed: 'insider', headline: 'X — Buy', tradeValue: 200000000, tradeCategory: 'SAST' }),
+  'X — Buy · ₹20.0 crore');
+
+// A RESULT SAYS WHAT WAS REPORTED, and a period that crossed zero is words rather than a rate —
+// the same rule as `classifyChange`, read off the same `kind`.
+const result = (netProfit, revenue) => plainHeadline({ feed: 'earnings', resultBasis: 'YOY', headline: 'YOY quarterly result filed', sourceRecord: { netProfit, revenue } });
+assert.equal(result({ label: 'Net Profit', kind: 'normal', pct: 95 }, { label: 'Revenue', kind: 'normal', pct: 55 }),
+  'Result filed (YOY) · net profit +95.0%, revenue +55.0%');
+assert.equal(result({ label: 'Net Profit', kind: 'turnaround', pct: null }, { label: 'Revenue', kind: 'normal', pct: 35 }),
+  'Result filed (YOY) · net profit swung to profit, revenue +35.0%');
+assert.equal(result({ label: 'Net Profit', kind: 'loss-widened', pct: -208 }, { label: 'Revenue', kind: 'normal', pct: -4 }),
+  'Result filed (YOY) · net profit loss widened 208.0%, revenue −4.0%');
+assert.equal(result({ label: 'Net Profit', kind: 'normal', pct: null }, null), 'YOY quarterly result filed',
+  'a comparison the source did not carry contributes nothing and the collector line stands');
+
+// SOMEBODY ELSE'S WORDS TRAVEL UNTOUCHED. A publisher's headline is the reference case.
+const story = 'Sona BLW Precision Forgings Ltd Downgraded to Hold Amid Mixed Technical Signals';
+assert.equal(plainHeadline({ feed: 'news', headline: story }), story);
+
+// A FILING'S SUBJECT IS NEVER REPLACED WHERE IT NAMES AN EVENT.
+assert.equal(filingClaim({ filingSubject: 'Resignation of Statutory Auditor', filingSubCategory: 'Resignation' }),
+  'Resignation of Statutory Auditor');
+// A greedy pointer pattern used to swallow one that does: measured on a real BSE filing.
+const enclosed = 'Please find enclosed herewith the disclosure pertaining to incorporation of two Wholly-Owned Subsidiaries';
+assert.equal(filingClaim({ filingSubject: enclosed, filingSubCategory: 'Acquisition' }), enclosed);
+// …and a subject that is only a pointer falls through to the source's own description.
+assert.equal(
+  filingClaim({ filingSubject: 'Press Release', filingSubCategory: null,
+    filingDescription: 'Biocon Limited has informed the Exchange regarding a press release dated September 08, 2026, titled "Biocon Secures 10-Year Supply Contract for Pertuzumab in Brazil". |SUBJECT: Press Release' }),
+  'Biocon Secures 10-Year Supply Contract for Pertuzumab in Brazil',
+  "their own quoted title for the filing is the claim — selected, not reworded");
+// EVERY SEGMENT HAS TO BE A TYPE WORD. "Press Release / Media Release" is BSE's own sub-category
+// for a press release and an exact-match list of single words let it through.
+assert.equal(filingClaim({ filingSubject: 'Press Release / Media Release', filingSubCategory: 'Press Release / Media Release',
+  filingDescription: 'Announcement under Regulation 30 on the commissioning of Unit II' }),
+  'Announcement under Regulation 30 on the commissioning of Unit II');
+// A description that only repeats the subject is not an improvement on it, and NSE sends both.
+assert.equal(filingClaim({ filingSubject: 'General Updates', filingDescription: 'General Updates |SUBJECT: General Updates', filingSubCategory: null }),
+  'General Updates');
+assert.equal(filingClaim({ filingSubject: 'Updates', filingDescription: "''. |SUBJECT: Updates", filingSubCategory: 'Company Update' }),
+  'Company Update', "the exchange's own sub-category is the floor, never our own invention");
+assert.equal(filingClaim({ filingSubject: 'PFA', filingSubCategory: 'Award of Order / Receipt of Order' }),
+  'Award of Order / Receipt of Order');
+
+// THE EXCHANGE'S MECHANICAL LEAD-IN IS REMOVED AND WHAT FOLLOWS IT IS NOT. It cost half the line.
+assert.equal(sourceStatement('Mazagon Dock Shipbuilders Limited has informed the Exchange regarding signing of MOU with NSHIPAP.'),
+  'Signing of MOU with NSHIPAP');
+assert.equal(sourceStatement('The Exchange has received Disclosure under Regulation 31(1) of SEBI (SAST) Regulations, 2011'),
+  'Disclosure under Regulation 31(1) of SEBI (SAST) Regulations, 2011');
+assert.equal(sourceStatement('Board Comments on fine levied by the Exchange'), 'Board Comments on fine levied by the Exchange',
+  'a statement with no lead-in comes back unchanged');
+// A clause the strip exposed opens as a sentence — but a word that capitalises itself is left be.
+assert.equal(sourceStatement('X Ltd has informed the exchange about the approval of the Board'), 'The approval of the Board');
+assert.equal(sourceStatement('X Ltd has informed the exchange about iPhone assembly beginning at Hosur'),
+  'iPhone assembly beginning at Hosur', 'a brand is not recapitalised by this dashboard');
+assert.equal(sourceStatement(''), '');
+assert.equal(sourceStatement(null), '');
+
+// A CLAIM TOO LONG FOR THE LINE IS CUT ON A WORD BOUNDARY, with an ellipsis that says so.
+const long = plainHeadline({ feed: 'news', headline: `${'Alpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota Kappa '.repeat(6)}end` });
+assert(long.length <= CLAIM_MAX + 1 && long.endsWith('…') && !/\s…$/.test(long), `clipped: ${long.length} chars`);
+assert(!long.includes('Zeta…'.slice(0, 2) + '…'), 'no word is cut in half');
+
+// THE SENTENCE IS THE LEAD EVENT'S CLAIM AND NOTHING ELSE — no pattern name, no feed tally.
+const ev = (over) => ({ feed: 'announcements', importance: 'high', direction: 'neutral', day: '2026-09-18', ...over });
+const contract = ev({ headline: 'Press Release', filingSubject: 'Press Release',
+  filingDescription: 'X Ltd has informed the Exchange regarding a press release titled "Ten-year supply contract signed".' });
+const tape = { feed: 'technicals', kind: 'volume', volumeX: 2.04, importance: 'high', direction: 'neutral', day: '2026-09-18' };
+const oneClaim = { events: [contract, tape], topEvent: contract, mixed: false, directions: { positive: 0, negative: 0, neutral: 2 },
+  feedCount: 2, confluence: [{ id: 'news-behind-the-move', label: 'The move has a story behind it', short: 'News behind it' }] };
+assert.equal(plainInsight(oneClaim), 'Ten-year supply contract signed.');
+assert.equal(leadEvent(oneClaim), contract);
+// A disagreement is still stated, because it changes what the reader does next — as an action.
+assert.equal(plainInsight({ ...oneClaim, mixed: true }),
+  'Ten-year supply contract signed. Sources disagree — check both directions below.');
+// AND THE TALLY AND THE FILLER ARE GONE. Neither was a thing that happened.
+for (const mixed of [true, false]) {
+  const text = plainInsight({ ...oneClaim, mixed, directions: { positive: 8, negative: 6, neutral: 1 } });
+  assert(!/\b8\b|\b6\b|good, |strongest recent|material, recent and relevant/i.test(text), `no tally or filler: ${text}`);
+  assert(!/^(Heavy trading|An insider and|Unusual trading|Results are out|Bad news showing up|A big move with)/.test(text),
+    `the pattern is the chip, not the sentence: ${text}`);
+}
+
+// A LEAD WHOSE CLAIM IS STILL ONLY A TYPE WORD IS SKIPPED, AND ITS ROW IS KEPT. NSE repeats the
+// subject as the description on some rows and publishes no sub-category, so this survives all
+// three fallbacks; the card then leads with the next fact it holds rather than with "Updates".
+const typeOnly = ev({ headline: 'General Updates', filingSubject: 'General Updates', filingDescription: 'General Updates' });
+const skipped = { events: [typeOnly, tape], topEvent: typeOnly, mixed: false, directions: { positive: 0, negative: 0, neutral: 2 }, feedCount: 2, confluence: [] };
+assert.equal(leadEvent(skipped), tape);
+assert.equal(plainInsight(skipped), 'Traded 2.0x its normal volume.');
+assert.equal(skipped.events.length, 2, 'the skipped event keeps its place in the evidence');
+assert.equal(topEvidence(skipped, 4)[0], typeOnly, '…and its row is still the first one shown');
+// Where every claim is a type word the card still says the one it has rather than inventing one.
+assert.equal(plainInsight({ events: [typeOnly], topEvent: typeOnly, mixed: false, directions: { positive: 0, negative: 0, neutral: 1 }, feedCount: 1, confluence: [] }),
+  'General Updates.');
+console.log('PASS: the card states one claim — the strongest event\'s own — completing our lines and reproducing theirs.');
+
+
 // --- the sliced ranking is the synchronous ranking, spread over time --------------------------
 // One generator, two drivers: `rankReportAsync` must resolve to exactly what `rankReport` returns,
 // must yield to input between slices on a large input, and must resolve null — never a partial

@@ -691,6 +691,10 @@ function cardMarkup(card, scope, day, archived = false) {
   const events = byNewestFirst(alerts.topEvidence(newest ? { ...card, events: [newest, ...card.events.filter(event => event !== newest)] } : card, EVIDENCE_ROWS));
   const rest = card.events.length - events.length;
   const signal = latestAlertSignal(card);
+  // The sentence is one source's own claim, sometimes chosen from the exchange's description and
+  // sometimes clipped on a word boundary — so the untouched wording, and which feed it came from,
+  // stay one hover away. See `plainHeadline` / `filingClaim`.
+  const lead = alerts.leadEvent(card);
   return `
     <article data-ai-card data-ai-key="${escapeHtml(card.key || card.ticker || card.entityId)}" data-ticker="${escapeHtml(card.ticker || '')}" data-entity-id="${escapeHtml(card.entityId || '')}" data-priority="${escapeHtml(card.priority)}" data-score="${card.score}"${archived ? ' data-ai-archived' : ''}
       class="flex h-full flex-col overflow-hidden rounded-2xl border-l-4 ${archived ? 'border-l-slate-200' : tone.edge} bg-white shadow-sm ring-1 ring-slate-100"
@@ -711,7 +715,7 @@ function cardMarkup(card, scope, day, archived = false) {
         </p>
         ${Number.isFinite(card.holdingWeightPct) ? `<p data-ai-holding-size class="mt-1 text-xs font-semibold text-indigo-700">${card.holdingWeightPct > 0 && card.holdingWeightPct < 0.01 ? '&lt;0.01' : card.holdingWeightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of listed portfolio</p>` : ''}
 
-        ${cardSection('What happened', `<p data-ai-insight class="font-display mt-0.5 text-[17px] font-bold leading-snug text-slate-900">${escapeHtml(card.insight)}</p>${confluenceMarkup(card)}`)}
+        ${cardSection('What happened', `<p data-ai-insight class="font-display mt-0.5 text-[17px] font-bold leading-snug text-slate-900"${lead ? ` title="${escapeHtml(`${lead.feedLabel || lead.feed} · ${lead.headline || ''}`)}"` : ''}>${escapeHtml(card.insight)}</p>${confluenceMarkup(card)}`)}
 
         ${listHeadMarkup(card)}
         <ul data-ai-evidence class="mt-1 space-y-0.5">
