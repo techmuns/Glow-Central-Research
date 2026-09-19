@@ -1450,7 +1450,7 @@
       "error": "search-unavailable"
     },
     "isin:INE0OC301013|Turtlemint Fintech Solutions": {
-      "lastAttemptAt": "2026-09-15T05:23:02+00:00",
+      "lastAttemptAt": "2026-09-19T19:05:12+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0OC301013|TURTLEMINT": {
@@ -1558,6 +1558,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 225,
-    "checkedAt": "2026-09-19T18:18:05.714205+00:00"
+    "checkedAt": "2026-09-19T19:05:12.624778+00:00"
   }
 }
