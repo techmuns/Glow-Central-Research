@@ -20,10 +20,12 @@ events.filter(e => e.ticker === 'A10').forEach(e => { e.time = '08:00'; });
 events.find((e) => e.ticker === 'A01').time = null;
 events.push({ ...events[30], id: 'hidden-event', importance: 'low', headline: 'Lithium supply agreement hidden beyond the evidence preview' });
 // THE PREVIEW IS FOUR ROWS, so a card needs five events for one to sit beyond it — and the search
-// below exists to prove a match off-screen still finds its card. This filler shares a feed A10
-// already has (adding no source breadth) and outranks the low-importance lithium row, so that row
-// is deterministically the one left out. It carries no tracked keyword, so it draws no reading.
-events.push({ ...events[31], id: 'preview-filler', keywordIds: [], headline: 'Zenith Manufacturing: material risk 4' });
+// below exists to prove a match off-screen still finds its card. Slots go one per SOURCE in rounds,
+// so the row left out is the second-weakest of some source rather than the weakest on the card:
+// this filler shares the earnings feed with the low-importance lithium row and outranks it, which
+// puts lithium third in that source's queue and so beyond the four slots. It adds no source breadth
+// and carries no tracked keyword, so it draws no reading of its own.
+events.push({ ...events[30], id: 'preview-filler', headline: 'Zenith Manufacturing: material risk 4' });
 events.push({ ...events[0], id: 'context-document', aiEligible: false, kind: 'document', importance: 'low', direction: 'neutral', headline: 'Material risk source document', detail: 'Underlying source record' });
 events.push(...eventsFor('OLD', 'Old signal', '2026-08-22'));
 events.push({ ...events[1], id: 'important-event', ticker: 'ZIMP', company: 'Important Company', direction: 'neutral' });

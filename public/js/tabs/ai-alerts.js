@@ -657,9 +657,10 @@ function listHeadMarkup(card) {
 /**
  * Newest first, by the day and by the time where the feed published one.
  *
- * `topEvidence` chooses WHICH rows (one per feed first, so a card never spends every row on one
- * source), and this decides the order they are read in. Keeping them in score order under a header
- * that says "newest first" would be the header describing a different list.
+ * `topEvidence` chooses WHICH rows (one per source in rounds, capped per source, so a card never
+ * spends every row on one of them), and this decides the order they are read in. Keeping them in
+ * score order under a header that says "newest first" would be the header describing a different
+ * list.
  */
 function byNewestFirst(events) {
   return [...events].sort((a, b) =>

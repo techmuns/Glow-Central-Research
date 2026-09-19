@@ -510,31 +510,51 @@ function factPhrases(card) {
 }
 
 /**
- * The evidence rows a card shows (the view says how many): THE STRONGEST EVENT FROM EACH FEED FIRST.
+ * The evidence rows a card shows (the view says how many): ONE PER SOURCE, IN ROUNDS.
  *
- * Taking the top three by score alone put three rows of one feed on the card — "Cohesion MK Best
+ * Taking the top rows by score alone put three rows of one feed on the card — "Cohesion MK Best
  * Ideas: no longer disclosed", "Life Insurance Corporation: no longer disclosed", "Vanguard Fund:
  * no longer disclosed" — under a strip announcing four sources. Every row was true and the card
  * still showed a quarter of what it had, three times over, while the reader's next question ("what
  * do the OTHER sources say?") was the one thing three identical lines cannot answer.
  *
- * So one row per feed comes first, in score order, and only then are the remaining events used to
- * fill. The rest are never lost: the footer counts them and opens General Alerts, which is the tab
- * that holds the complete record.
+ * So slots are handed out in ROUNDS: the strongest event from every source, then the second from
+ * every source, and so on. Two sources share four rows two and two rather than three and one, and
+ * a card with one source stops at `maxPerSource` instead of filling every slot from it.
+ *
+ * **IT COUNTS SOURCES THE WAY THE REST OF THE CARD DOES — `feedFamily`, not `event.feed`.** Keyed
+ * on the feed id it spent a slot on `announcements` and another on `nse-filings`, which are one
+ * source for corroboration (`feedCount`), one word on the row (`FEED_TAG`) and one family in the
+ * dedupe. Measured on Sky Gold's 18 September board meeting: one approval, filed to both exchanges
+ * under four different subjects, took all four rows of a card whose own header read "1 source" —
+ * the same event four times, which is the failure this function exists to prevent, arrived at
+ * through the one grouping that had not been brought in line.
+ *
+ * The cap is a display rule and nothing is lost to it: the footer counts every row it left out and
+ * opens General Alerts, which is the tab that holds the complete record. It is not a dedupe either
+ * — four filings of one event are four records upstream, and teaching the collector that they are
+ * one is a change to what every reader of that feed sees, not to this card.
  */
-export function topEvidence(card, limit = 3) {
-  const events = card?.events || [];
-  const firstOfFeed = [];
-  const rest = [];
-  const seen = new Set();
-  for (const event of events) {
-    if (seen.has(event.feed)) rest.push(event);
-    else {
-      seen.add(event.feed);
-      firstOfFeed.push(event);
+export const MAX_PER_SOURCE = 3;
+
+export function topEvidence(card, limit = 3, { maxPerSource = MAX_PER_SOURCE } = {}) {
+  // Grouped by FAMILY, in the order each family's strongest event appears — so the rounds below
+  // hand out slots by independent source, in score order within each one.
+  const bySource = new Map();
+  for (const event of card?.events || []) {
+    const family = feedFamily(event);
+    const found = bySource.get(family);
+    if (found) found.push(event);
+    else bySource.set(family, [event]);
+  }
+  const out = [];
+  for (let round = 0; round < maxPerSource && out.length < limit; round += 1) {
+    for (const list of bySource.values()) {
+      if (out.length >= limit) break;
+      if (list.length > round) out.push(list[round]);
     }
   }
-  return [...firstOfFeed, ...rest].slice(0, limit);
+  return out;
 }
 
 /**

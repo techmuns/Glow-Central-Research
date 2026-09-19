@@ -2662,9 +2662,26 @@ Two shapes follow from the same reasoning and are asserted:
   Ideas: no longer disclosed"*, *"Life Insurance Corporation: no longer disclosed"*, *"Vanguard
   Fund: no longer disclosed"*. Every row was true and the card still showed a quarter of what it
   held, three times, while the reader's actual next question — *what do the OTHER sources say?* — is
-  the one thing three identical lines cannot answer. `topEvidence()` takes the strongest event per
-  feed first, then fills; `byNewestFirst` in the tab then decides the order they are READ in,
-  because the header above them says *newest first* and that is a claim about the list.
+  the one thing three identical lines cannot answer.
+
+  So `topEvidence()` hands out slots in **ROUNDS**: the strongest event from every source, then the
+  second from every source, and so on, stopping at **`MAX_PER_SOURCE` (3)** from any one of them.
+  Two sources share four rows two and two rather than three and one, and a card with ONE source
+  shows three rows rather than filling every slot from it. `byNewestFirst` in the tab then decides
+  the order they are READ in, because the header above them says *newest first* and that is a claim
+  about the list.
+
+  **IT COUNTS SOURCES THE WAY THE REST OF THE CARD DOES — `feedFamily`, not `event.feed`.** Keyed
+  on the feed id it spent one slot on `announcements` and another on `nse-filings`, which are one
+  source for corroboration (`feedCount`), one word on the row (`FEED_TAG`) and one family in the
+  dedupe. Measured on Sky Gold's 18 September board meeting: one approval, filed to both exchanges
+  under four different subjects — *General Updates*, *Outcome of Board Meeting* and two full
+  statements of the same resolution — took all four rows of a card whose own header read *1 source*.
+  Every row was a real record and the card still said one thing four times.
+
+  **The cap is a display rule, and it is not a dedupe.** Four filings of one event are four records
+  upstream; teaching the collector they are one changes what every reader of that feed sees, which
+  is a change to `dedupe()` and not to this card. The footer counts every row the cap left out.
 
 **AND THEN THE STRIP AND THE PARAGRAPH BOTH WENT, AT THE DESK'S REQUEST (19 September 2026).** The
 four-figure strip — `Holder Out · Bad signs 5 · Sources 5 · Events 214` — and the per-question
@@ -3829,7 +3846,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Set up the team brief on a deployment | `MUNS_TOKEN` on the Worker sends it; `DASHBOARD_ORIGIN` and `NEWSLETTER_PRODUCT_NAME` are vars in `wrangler.jsonc`; the `NEWSLETTER` binding and `NEWSLETTER_LIMITER` are there too. Subscribe from the header and the alarm arms itself |
 | Change who is asked, or how the contributor dropdown behaves | `js/ui/watchlist-attribution.js` (the prompt) + `js/core/watchlist-people.js` (the roster and this device's own name) — read *An addition carries the name of whoever made it* first. Never preselect a name on a device nobody has identified themselves on |
 | Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book, and test `rankReport()` directly |
-| Change what an AI Alerts card SAYS, or how many rows it shows | `plainInsight()` / `plainHeadline()` / `topEvidence()` in `js/data/ai-alerts.js` (pure and exported) + `EVIDENCE_ROWS` / `byNewestFirst` / `listHeadMarkup` in `js/tabs/ai-alerts.js` — read *Time to insight is the product's only job* first: no new number, only sentences we wrote may be reworded, a volume reading takes no tone, the sentence's facts follow `READ_ORDER`, and the rows are read newest first because the header says so. There is no figure strip: `cardMetrics` is deleted and every figure it held has a place named in that section |
+| Change what an AI Alerts card SAYS, or how many rows it shows | `plainInsight()` / `plainHeadline()` / `topEvidence()` / `MAX_PER_SOURCE` in `js/data/ai-alerts.js` (pure and exported) + `EVIDENCE_ROWS` / `byNewestFirst` / `listHeadMarkup` in `js/tabs/ai-alerts.js` — read *Time to insight is the product's only job* first: no new number, only sentences we wrote may be reworded, a volume reading takes no tone, the sentence's facts follow `READ_ORDER`, and the rows are read newest first because the header says so. There is no figure strip: `cardMetrics` is deleted and every figure it held has a place named in that section |
 | Change which investor question a topic bears on, or how a card states it | `js/data/alert-drivers.js` (the one mapping) + `driverReadings()` / `driverChipsMarkup()` in `js/tabs/ai-alerts.js` — read *Earnings assumption, valuation or thesis* first. A reading is a chip on the row whose own record backs it, never a block of its own; it is a TOPIC reading, so the wording stays "could change" and the chip never borrows a direction colour; a second reading on one row prints `+1`; and the layer adds no score |
 | Change archiving on AI Alerts | `js/core/ai-mute.js` (the store) + the `archived` filter and the Archive / Restore buttons in `js/tabs/ai-alerts.js` — a record is keyed to the evidence it was given for, so a card returns on its own when stronger evidence arrives |
 | Change what the precomputed alert pool carries, or how a period is reassembled from it | `public/js/data/alert-pool-shared.js` (the feeds, the captures each reads, the revision rule, the members) + `public/js/data/alert-pool-format.js` (the shard encoding and decoding, shared by the builder and the browser) — read *The collection is done once, on the runner* first; `node scripts/verify-alert-pool.mjs` is the test |
@@ -3954,11 +3971,13 @@ It covers, beyond the checklist below:
   is in that order — widest last
 - **the dashboard opens on Ask Research, in Portfolio scope**; AI Alerts has no sub-view picker and
   its cards are unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
-- **every AI Alerts card is a labelled sentence and then four dated rows, newest first** — no
+- **every AI Alerts card is a labelled sentence and then up to four dated rows, newest first** — no
   figure strip, no per-question paragraph, and the source count still reachable in the list's own
-  header; each row opens its own record, and where a reading rides one it names the earnings
-  assumption / valuation / thesis on the row that holds that record, worded as what the evidence
-  COULD change rather than as a verdict, in the brand indigo rather than a direction colour
+  header; slots go one per source in rounds with **no more than three rows from any one source**,
+  counted on the family so NSE and BSE are the one source they are; each row opens its own record,
+  and where a reading rides one it names the earnings assumption / valuation / thesis on the row
+  that holds that record, worded as what the evidence COULD change rather than as a verdict, in the
+  brand indigo rather than a direction colour
 - **Portfolio Analytics is gone and cannot be reached**: an old `#/portfolio/...` link lands on
   Research Central with the URL corrected and the tab bar back, every deleted ledger module and
   payload 404s on the served site, and no Ask Research source carries a ledger figure or a route
