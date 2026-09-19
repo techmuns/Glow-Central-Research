@@ -1322,7 +1322,7 @@
       "error": "search-unavailable"
     },
     "isin:INE1NPP01017|ENRIN": {
-      "lastAttemptAt": "2026-09-14T11:31:42+00:00",
+      "lastAttemptAt": "2026-09-19T00:50:35+00:00",
       "error": "search-unavailable"
     },
     "isin:INE01IU01018|Sky Gold": {
@@ -1558,6 +1558,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 213,
-    "checkedAt": "2026-09-19T00:19:48.184429+00:00"
+    "checkedAt": "2026-09-19T00:50:35.080976+00:00"
   }
 }
