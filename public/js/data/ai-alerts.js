@@ -352,50 +352,54 @@ export function confluenceOf(events, { feedById = new Map() } = {}) {
 }
 
 // ---------------------------------------------------------------------------------------
-// THE READING LAYER — PLAIN WORDS, AND THE FEW NUMBERS THAT CARRY THE FINDING
+// THE READING LAYER — WHAT HAPPENED, IN THE FEWEST WORDS THAT STILL SAY IT
 //
 // Everything above decides WHAT to surface. This decides how fast a human can take it in, and it
 // is a separate concern with its own failure mode: a card can be perfectly honest and still take
 // twenty seconds to read, at which point a page whose whole promise is "here is what needs you
 // this morning" has failed at the only thing it does.
 //
-// The measured problem was repetition and register. The card printed a pattern's full sentence as
-// its insight AND again inside a "Signals lining up" block, in the feeds' own technical wording —
-// "Volume 4.4x its 20-day average at the 2026-09-02 close, and a tracked investor's latest book
-// shows selling — President Of India: reduced by 2.00pp." That is one fact, said twice, in a
-// vocabulary a reader has to decode.
+// THE MEASURED PROBLEM, TWICE OVER.
 //
-// So: one short sentence in ordinary English, then the two or three numbers behind it as figures
-// rather than prose, then the evidence rows. THREE RULES, and they are the file's existing rules:
+// First it was repetition: the card printed a pattern's full sentence as its insight AND again
+// inside a "Signals lining up" block, in the feeds' own technical wording. That block went.
 //
-// 1. NO NEW FACT, AND NO NEW NUMBER. Every phrase below is a rewording of an event already on the
-//    card, and every figure is read from a field the collector wrote (`volumeX`, `movePct`,
-//    `deltaPp`) rather than parsed back out of a sentence. Where the field is absent the cell is
-//    absent; nothing is defaulted and nothing is derived twice.
-// 2. CO-OCCURRENCE STAYS CO-OCCURRENCE. "Heavy trading, and a big holder has been selling" is two
-//    measurements inside one week joined by "and". It is deliberately not "sold into the tape",
-//    which reads as one causing the other and would be exactly the invented-trade-date error the
-//    confluence header warns about — a filed shareholding is a quarterly disclosure and the trade
-//    behind it may be months old.
-// 3. PLAIN IS NOT VAGUE. "A big holder" replaces "a tracked investor's latest book", which is
-//    shorter and says the same thing; it does not replace the investor's NAME, which stays in the
-//    figures and in the evidence row beneath. Simplifying the register must never cost the reader
-//    a specific.
-
-/** One short, ordinary-English phrase per named cross-feed pattern. */
-const PLAIN_PATTERN = {
-  accumulation: 'Heavy trading, and a big holder has been buying',
-  distribution: 'Heavy trading, and a big holder has been selling',
-  'insider-and-investor': 'An insider and a big holder moved the same way',
-  // BOTH OF THESE LEGS TAKE *ANY* TECHNICAL READING — a price move, a volume spike or a base
-  // breakout — so neither sentence may say "the price moved". It read that way over a card
-  // whose only tape event was 2.0x volume on a barely-changed close, which is a specific
-  // claim the evidence underneath it did not make.
-  'news-behind-the-move': 'Unusual trading, and there is news beside it',
-  'results-reaction': 'Results are out, and the trading was unusual',
-  'risk-cluster': 'Bad news showing up in more than one place',
-  'unexplained-move': 'A big move with nothing to explain it',
-};
+// Then the sentence itself was the problem, and it was worse, because it was a card that looked
+// finished. It led with the PATTERN and appended the two figures behind it, so what a reader got
+// was the SHAPE of the evidence and never the event: "Heavy trading, and a big holder has been
+// buying — 2.0x its normal volume, Vanguard Fund up 1.01pp", over a company whose own filing that
+// morning was a 10-year supply contract. Three separate faults, all in one sentence:
+//
+//   * The pattern name was already a chip directly beneath it ("Buying", "News behind it"), so
+//     the sentence spent its whole length restating a label the eye had already indexed — the
+//     same duplication the block above was deleted for, arrived at from the other side.
+//   * The figures came from `technicals` and `investors` ONLY, because those were the two feeds a
+//     phrase had been written for. A filing, a result and a story could never appear in it at all.
+//     Measured on the shipped capture: the card for a company whose strongest event was
+//     "Biocon Secures 10-Year Supply Contract for Pertuzumab in Brazil" said "An insider and a big
+//     holder moved the same way", and the contract appeared nowhere in the sentence.
+//   * With no pattern it fell back to our own tally — "Sources disagree — 8 good, 6 bad" — or to
+//     filler: "That is the strongest recent risk here." Neither is a thing that happened.
+//
+// So the sentence is now ONE CLAIM: what the strongest event on the card actually says, in the
+// source's own words where the words are theirs. The chip below it carries the correlation, the
+// rows below that carry the breadth, and nothing is said twice. FOUR RULES, every one of them a
+// rule this file already ran on:
+//
+// 1. NO NEW FACT, AND NO NEW NUMBER. Every figure is read from a field a collector wrote —
+//    `volumeX`, `movePct`, `deltaPp`, `tradeValue`, `tradePct`, `tradeShares`, `netProfit.pct` —
+//    never parsed back out of a sentence. Where the field is absent the phrase is absent; nothing
+//    is defaulted and nothing is derived twice.
+// 2. IT ONLY REWRITES WHAT WE WROTE. A publisher's headline, a filing's subject and the
+//    exchange's own description of a filing are somebody else's words and travel verbatim. Our own
+//    composed lines — "Volume 2.0x its 20-day average at the <date> close", "ACTIV PINE LLP —
+//    Sell", "YOY quarterly result filed" — are ours to shorten and to complete.
+// 3. SELECTING IS NOT EDITING, AND CLIPPING SAYS SO. Where NSE's description quotes the company's
+//    own title for a filing, that quotation IS the claim — chosen, not reworded. A statement too
+//    long for one line is cut on a word boundary with an ellipsis and the untouched text stays in
+//    the row's own tooltip. Neither is a paraphrase, which is the one thing not on offer here.
+// 4. PLAIN IS NOT VAGUE. Shortening the register must never cost the reader a specific: the
+//    investor's name, the size of the trade and the basis of a growth figure all stay.
 
 /**
  * The short label the evidence rows tag a feed with — long enough to be a word, short enough to
@@ -423,88 +427,190 @@ export const FEED_TAG = {
   'market-news': 'NEWS',
 };
 
+/** The longest claim a card's sentence or a row carries before it is clipped on a word boundary. */
+export const CLAIM_MAX = 150;
+const CRORE = 10_000_000;
+
+/** A claim too long for the line, cut where a word ends. The untouched text stays in the tooltip. */
+function clip(text, max = CLAIM_MAX) {
+  const value = String(text || '').replace(/\s+/g, ' ').trim();
+  if (value.length <= max) return value;
+  const cut = value.slice(0, max);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.–—-]+$/, '')}…`;
+}
+
 /**
- * The shortest true phrase for one event, or null where the event carries no figure worth a phrase.
+ * A filing subject that names the filing TYPE rather than the event.
  *
- * Pure and exported: these branches depend on which numbers a collector happened to write, and a
- * day's capture contains only some of them.
+ * This is the whole reason a card could announce "Press Release" over a ten-year supply contract.
+ * Measured on the retained NSE window: 1,995 of 15,506 rows carry one of these as their subject —
+ * 1,025 "General Updates", 707 "Updates", 251 "Press Release" — and 1,911 of those 1,995 carry a
+ * description that says what the filing actually is. BSE's side of it is the pointer subjects:
+ * "PFA", "Please refer the enclosed file.", "As per attachment".
+ *
+ * It is deliberately an EXACT-MATCH list of type words, not a length or a keyword heuristic.
+ * "Investor Presentation", "Record Date" and "Resignation of Director/KMP/SMP" are short and are
+ * real answers; the test is whether the subject names an event, and a pattern loose enough to
+ * catch a bad subject by its shape would discard those too.
  */
-export function shortFact(event) {
-  if (!event) return null;
-  if (event.feed === 'technicals') {
-    if (event.kind === 'breakout') return 'closed above its recent range';
-    if (Number.isFinite(event.volumeX) && event.kind === 'volume') return `${event.volumeX.toFixed(1)}x its normal volume`;
-    if (Number.isFinite(event.movePct) && event.kind === 'move') {
-      return `${event.movePct < 0 ? 'down' : 'up'} ${Math.abs(event.movePct).toFixed(1)}% at the close`;
-    }
-    return null;
+const TYPE_ONLY_SUBJECT = new RegExp(
+  '^(?:'
+  + 'updates?|general\\s+updates?|company\\s+updates?|press\\s+releases?|announcements?|'
+  + 'corporate\\s+announcements?|disclosures?|disclosure\\s+attached|intimations?|intimation\\s+of\\s+disclosure|'
+  + 'others?|news|filing|nse\\s+filing|pfa|na|n\\.?a\\.?|nil|none|attached|enclosed|media\\s+releases?|'
+  // THE POINTER PHRASES ARE BOUNDED TO POINTER WORDS, not left open with `.*`. Written greedily
+  // they swallowed a subject that says something: "Please find enclosed herewith the disclosure
+  // pertaining to incorporation of two Wholly-Owned Subsidiaries" is the whole event, and the card
+  // replaced it with BSE's one-word sub-category, "Acquisition". A pointer subject is a pointer
+  // and nothing else, so every word after "please find" has to be one of these to qualify.
+  + '(?:please|kindly)\\s+(?:refer|find|see)'
+  + '(?:\\s+(?:to|the|our|enclosed|attached|attachment|enclosure|annexure|file|document|herewith|below|copy))*|'
+  + 'as\\s+per\\s+(?:the\\s+)?attachments?|refer\\s+(?:the\\s+)?attach\\w*|-{1,2}|\\.'
+  + ')[\\s.]*$',
+  'i'
+);
+
+/**
+ * EVERY SEGMENT HAS TO BE A TYPE WORD, because the exchanges publish these as alternatives.
+ * "Press Release / Media Release" is BSE's sub-category for a press release and says no more than
+ * either half of it does, and an exact-match list of single words let it through — one card led
+ * with it while the filing beneath said what the release was. A subject with one real segment
+ * ("Record Date / Book Closure") still names an event and is kept.
+ */
+const isTypeOnly = (text) => {
+  const value = String(text || '').trim();
+  if (!value) return true;
+  return value.split(/\s*[/|]\s*/).filter(Boolean).every((part) => TYPE_ONLY_SUBJECT.test(part));
+};
+
+/**
+ * A clause the prefix strip exposed, opened as a sentence.
+ *
+ * "…has informed the exchange about the approval of Board of Directors for withdrawal of
+ * application of reclassification" is one sentence whose subject is the company, so removing that
+ * subject leaves the rest starting "the" — a line that reads as a rendering bug. Capitalising a
+ * letter is typography and not a change of claim.
+ *
+ * IT LEAVES A WORD THAT CAPITALISES ITSELF ALONE. The test is that the first word has no capital
+ * of its own, so "the approval…" opens and "iPhone launch" or "eSIM rollout" are untouched — a
+ * brand recapitalised would be this dashboard editing somebody's name, which the clip and the
+ * prefix strip both exist to avoid.
+ */
+const openingCase = (text) => {
+  const value = String(text || '');
+  const first = value.match(/^([a-z])([^\s]*)/);
+  if (!first || /[A-Z]/.test(first[2])) return value;
+  return value[0].toUpperCase() + value.slice(1);
+};
+
+const unquote = (text) => {
+  const value = String(text || '').trim().replace(/[.\s]+$/, '').trim();
+  const wrapped = value.match(/^["'‘“]([\s\S]+)["'’”]$/);
+  return (wrapped ? wrapped[1] : value).trim();
+};
+
+/**
+ * What a filing says, in the source's own words.
+ *
+ * Two mechanical removals and one selection, and none of them is a paraphrase:
+ *
+ *  * `|SUBJECT: …` is the feed's own duplicate of the subject, appended to every NSE description.
+ *  * `<Company> has informed the Exchange about/regarding` is an exchange-generated lead-in —
+ *    9,622 of 15,506 retained rows carry it — and what follows it is the filing's own text.
+ *  * Where they quote the company's own title for the filing ("…titled \"X\""), that quotation is
+ *    the claim. Choosing which of their sentences to print is not writing one.
+ */
+export function sourceStatement(text) {
+  const raw = String(text || '').replace(/\s*\|\s*SUBJECT\s*:[\s\S]*$/i, '').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  const titled = raw.match(/\btitled\s*["'‘“]([^"'’”]{12,})["'’”]/i);
+  if (titled) return titled[1].trim();
+  const body = raw
+    .replace(/^.{0,90}?\bhas\s+informed\s+the\s+Exchanges?\b[\s,]*(?:about|regarding|that)?\s*/i, '')
+    // BSE's own lead-in on a disclosure it received, the mirror of the one above.
+    .replace(/^the\s+Exchanges?\s+(?:has|have)\s+received\s*/i, '')
+    .trim();
+  return openingCase(unquote(body || raw));
+}
+
+/**
+ * A filing's claim: its own subject where that names an event, the source's own description where
+ * the subject only names a type, and the exchange's own sub-category as the floor.
+ *
+ * The order is what makes it honest. A subject that says something is never replaced — it is the
+ * shortest true answer and it is theirs. A description is used only where it says something the
+ * subject does not, because NSE repeats the subject as the description on some rows and sends
+ * `''.` on others, and "General Updates: General Updates" is not an improvement on either.
+ */
+export function filingClaim(event) {
+  const subject = String(event?.filingSubject || event?.headline || '').trim();
+  // THE SAME MECHANICAL LEAD-IN TURNS UP IN SUBJECTS, and there it costs the reader the answer.
+  // BSE carries no description, so the whole statement arrives as the subject: "Star Health and
+  // Allied Insurance Company Limited has informed the exchange about the approval of Board of
+  // Directors for withdrawal of application of…" spent 71 of 150 characters on a company name the
+  // card prints as its own heading, and clipped away the withdrawal. Removing a prefix the
+  // exchange generated is the same removal `sourceStatement` justifies, not a rewording of what
+  // follows it — and where the subject carries none, it comes back unchanged.
+  if (!isTypeOnly(subject)) return clip(sourceStatement(subject) || subject);
+  const stated = sourceStatement(event?.filingDescription);
+  if (stated.length >= 12 && stated.toLowerCase() !== subject.toLowerCase()) return clip(stated);
+  // BSE's own sub-category is their answer to "what kind of filing is this?" — "Award of Order /
+  // Receipt of Order", "Resignation of Director", "Credit Rating" — so it is a real claim where
+  // the subject was not. NSE publishes none, which is why this is a floor and not the first look.
+  return clip(event?.filingSubCategory || subject || 'Filing');
+}
+
+/**
+ * The measurable size of an insider or block-deal disclosure, from the fields the collector wrote.
+ *
+ * Value first because it is the figure the desk's own threshold is stated in (₹10 crore), then the
+ * percentage of the company (1%), then the share count, which is a real number that says nothing
+ * about size on its own. A disclosure that carried none of the three gets no phrase — never a zero.
+ */
+function insiderSize(event) {
+  if (Number.isFinite(event.tradeValue) && Math.abs(event.tradeValue) >= CRORE) {
+    return `₹${(Math.abs(event.tradeValue) / CRORE).toFixed(1)} crore`;
   }
-  if (event.feed === 'investors') {
-    const who = event.investor ? String(event.investor) : null;
-    if (!who) return null;
-    // `new` and `exited` deliberately carry NO size — see the collector: a first or last disclosure
-    // states a stake, never a change, and printing one as a delta would invent a trade.
-    if (event.action === 'new') return `${who} is a new holder`;
-    if (event.action === 'exited') return `${who} is off the register`;
-    if (Number.isFinite(event.deltaPp)) {
-      return `${who} ${event.action === 'added' ? 'up' : 'down'} ${Math.abs(event.deltaPp).toFixed(2)}pp`;
-    }
-    return null;
-  }
+  if (Number.isFinite(event.tradePct)) return `${Math.abs(event.tradePct).toFixed(2)}% of the company`;
+  if (Number.isFinite(event.tradeShares)) return `${Math.abs(event.tradeShares).toLocaleString('en-IN')} shares`;
+  if (Number.isFinite(event.tradeValue)) return `₹${Math.abs(event.tradeValue).toLocaleString('en-IN')}`;
   return null;
 }
 
-// THE FIGURES ARRIVE IN THE ORDER THE SENTENCE NAMES THEM. Every plain sentence above puts the
-// tape first — "Heavy trading, and a big holder has been selling" — but the events are in SCORE
-// order, so a fund book outranking a volume row produced "…has been selling — Cohesion MK Best
-// Ideas is off the register, 2.0x its normal volume": both facts true, read backwards against the
-// clause they belong to, which costs the reader a second pass over a card built to save one.
-const READ_ORDER = { technicals: 0, investors: 1, insider: 2 };
-const readRank = (event) => (event.feed in READ_ORDER ? READ_ORDER[event.feed] : 9);
-
 /**
- * One event's own claim, in ordinary English where this dashboard composed the sentence itself.
+ * The filed figures behind a result, worded for a sentence rather than a table cell.
  *
- * "Volume 2.0x its 20-day average at the 2026-09-02 close" and "Goldman Sachs: no longer disclosed"
- * are both our own wordings of a number, written for a chronological table where the column
- * headings supply the context. On a card they are the whole line, and a reader should not have to
- * decode one.
+ * `metricText` in `daily-alerts.js` is the table's rendering of the SAME fields and the same
+ * `kind` — one classifier, so the two cannot disagree about a number or about whether a period
+ * crossed zero. What differs is only the words a sign change takes: "Net Profit to profit" reads
+ * as a column heading and a stray word, and this is the whole of a card's sentence.
  *
- * IT ONLY REWRITES WHAT WE WROTE. A filing's subject, a con-call title and a publisher's headline
- * are somebody else's words and are returned untouched — putting our phrasing on a company's own
- * statement is the error the filings rules exist to prevent, and it would be a strictly worse trade
- * than a slightly longer line.
+ * A comparison the source did not carry contributes nothing, exactly as `metricText` refuses to
+ * turn one into a percentage — see *A percentage across a sign change is not a growth rate*.
  */
-export function plainHeadline(event) {
-  if (!event) return '';
-  if (event.feed === 'technicals') {
-    if (event.kind === 'volume' && Number.isFinite(event.volumeX)) return `Traded ${event.volumeX.toFixed(1)}x its normal volume`;
-    if (event.kind === 'breakout') return 'Closed above its recent trading range';
-    if (event.kind === 'move' && Number.isFinite(event.movePct)) {
-      return `${event.movePct < 0 ? 'Fell' : 'Rose'} ${Math.abs(event.movePct).toFixed(1)}% at the close`;
-    }
-  }
-  if (event.feed === 'investors' && event.investor) {
-    if (event.action === 'new') return `${event.investor} is a new holder`;
-    if (event.action === 'exited') return `${event.investor} is off the register`;
-    if (Number.isFinite(event.deltaPp)) {
-      return `${event.investor} ${event.action === 'added' ? 'raised' : 'cut'} its stake by ${Math.abs(event.deltaPp).toFixed(2)}pp`;
-    }
-  }
-  return event.headline || '';
-}
-
-/** The distinct short facts on a card, in reading order, without repeating a feed. */
-function factPhrases(card) {
+function resultFigures(event) {
+  const row = event.sourceRecord || {};
   const out = [];
-  const seenFeeds = new Set();
-  for (const event of [...(card.events || [])].sort((a, b) => readRank(a) - readRank(b))) {
-    if (seenFeeds.has(event.feed)) continue;
-    const phrase = shortFact(event);
-    if (!phrase) continue;
-    seenFeeds.add(event.feed);
-    out.push(phrase);
-    if (out.length === 2) break;
+  for (const metric of [row.netProfit, row.revenue]) {
+    if (!metric) continue;
+    const label = String(metric.label || '').toLowerCase() || 'figure';
+    // `Number(null)` IS 0 AND 0 IS FINITE, so a comparison the source did not carry arrived as
+    // "net profit −0.0%" — a measurement invented out of an absence, which is the one thing every
+    // rule in this file is written to prevent. `metricText` is safe because `numeric()` rejects a
+    // null first; this asks the same question before converting.
+    const raw = metric.pct == null || metric.pct === '' ? null : Number(metric.pct);
+    const pct = Number.isFinite(raw) ? raw : null;
+    const size = pct == null ? '' : ` ${Math.abs(pct).toFixed(1)}%`;
+    if (metric.kind === 'turnaround') out.push(`${label} swung to profit`);
+    else if (metric.kind === 'slipped-to-loss') out.push(`${label} swung to a loss`);
+    else if (metric.kind === 'loss-narrowed') out.push(`${label} loss narrowed${size}`);
+    else if (metric.kind === 'loss-widened') out.push(`${label} loss widened${size}`);
+    else if (metric.kind === 'loss-flat') out.push(`${label} loss flat`);
+    else if (metric.kind === 'flat') out.push(`${label} flat`);
+    // A FLAT FIGURE TAKES NO SIGN. Moneycontrol reports an unchanged net profit as `normal` with a
+    // pct of 0 — measured on a shipped row — and "−0.0%" reads as a fall that did not happen.
+    else if (metric.kind === 'normal' && pct != null) out.push(`${label} ${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct).toFixed(1)}%`);
   }
   return out;
 }
@@ -558,34 +664,106 @@ export function topEvidence(card, limit = 3, { maxPerSource = MAX_PER_SOURCE } =
 }
 
 /**
- * The card's whole finding, in one or two ordinary sentences.
+ * One event's own claim, in ordinary English where this dashboard composed the sentence itself.
  *
- * Where a cross-feed pattern fired it leads, in plain words, with the concrete figures behind it
- * appended — that is the finding. Where none fired the card says what it does have, and a
- * disagreement between sources is always stated because it changes what the reader should do next.
+ * "Volume 2.0x its 20-day average at the 2026-09-02 close" and "Goldman Sachs: no longer disclosed"
+ * are both our own wordings of a number, written for a chronological table where the column
+ * headings supply the context. On a card they are the whole line, and a reader should not have to
+ * decode one.
+ *
+ * IT ONLY REWRITES WHAT WE WROTE. A publisher's headline is somebody else's words and is returned
+ * untouched — putting our phrasing on a company's own statement is the error the filings rules
+ * exist to prevent. A filing goes through `filingClaim`, which never rewords the exchange either:
+ * it chooses between the subject, the exchange's own description and the exchange's own
+ * sub-category, and the reason it has to choose is that a third of a card's leading filings named
+ * a filing type and no event.
+ *
+ * COMPLETING OUR OWN LINE IS NOT REWRITING SOMEBODY ELSE'S. Three of these branches now add the
+ * figure the row was graded on and used to leave in the tooltip: a disclosure's size, a result's
+ * filed growth. That is the specific a reader opens the card for, and every one of them is read
+ * from a collector's field.
+ */
+export function plainHeadline(event) {
+  if (!event) return '';
+  if (event.feed === 'technicals') {
+    if (event.kind === 'volume' && Number.isFinite(event.volumeX)) return `Traded ${event.volumeX.toFixed(1)}x its normal volume`;
+    if (event.kind === 'breakout') return 'Closed above its recent trading range';
+    if (event.kind === 'move' && Number.isFinite(event.movePct)) {
+      return `${event.movePct < 0 ? 'Fell' : 'Rose'} ${Math.abs(event.movePct).toFixed(1)}% at the close`;
+    }
+  }
+  if (event.feed === 'investors' && event.investor) {
+    if (event.action === 'new') return `${event.investor} is a new holder`;
+    if (event.action === 'exited') return `${event.investor} is off the register`;
+    if (Number.isFinite(event.deltaPp)) {
+      return `${event.investor} ${event.action === 'added' ? 'raised' : 'cut'} its stake by ${Math.abs(event.deltaPp).toFixed(2)}pp`;
+    }
+  }
+  if (event.feed === 'insider') {
+    const size = insiderSize(event);
+    const base = event.headline || 'Insider disclosure';
+    // The upstream's own word for the kind of trade, appended only where it reads as one — a
+    // "Block deal" is a negotiated transfer rather than open-market accumulation, which changes
+    // what the figure means. "SAST" and "Insider" are filing regimes, not trade kinds, and are
+    // left to the row's own detail rather than made to read as an adjective.
+    const kind = /deal\b/i.test(String(event.tradeCategory || '')) ? ` ${String(event.tradeCategory).toLowerCase()}` : '';
+    return size ? clip(`${base} · ${size}${kind}`) : clip(base);
+  }
+  if (event.feed === 'earnings') {
+    const figures = resultFigures(event);
+    const basis = event.resultBasis ? ` (${event.resultBasis})` : '';
+    if (figures.length) return clip(`Result filed${basis} · ${figures.join(', ')}`);
+  }
+  if (feedFamily(event) === 'announcements') return filingClaim(event);
+  return clip(event.headline || '');
+}
+
+/**
+ * The event a card leads with: the strongest one that names something that happened.
+ *
+ * `card.events` is in score order and `topEvent` is its first, so this is the ranking's own answer
+ * almost always — what it adds is a skip past an event whose claim is still only a filing TYPE
+ * after every fallback in `filingClaim` (NSE repeats the subject as the description on some rows
+ * and publishes no sub-category, so "General Updates" can survive all three). The skipped event
+ * KEEPS ITS ROW: this chooses which of the card's facts leads the sentence and removes nothing.
+ * Nothing is reordered either — a lower-scoring event leading the sentence does not promote it.
+ */
+export function leadEvent(card) {
+  const events = card?.events || [];
+  return events.find((event) => !isTypeOnly(plainHeadline(event)))
+    || events.find((event) => plainHeadline(event).trim())
+    || card?.topEvent
+    || null;
+}
+
+const asSentence = (text) => {
+  const value = String(text || '').trim();
+  if (!value) return '';
+  return /[.!?…]$/.test(value) ? value : `${value}.`;
+};
+
+/**
+ * The card's whole finding: ONE CLAIM, and a warning where the sources disagree.
+ *
+ * It is the strongest event's own statement and nothing else. The correlation is a chip directly
+ * beneath this sentence, the other sources are the rows beneath that, and the count of them is in
+ * the list's own header — so a pattern name, a feed tally or a "that is the strongest recent risk
+ * here" in the sentence is a second copy of something already on the card, which is the failure
+ * this whole layer exists to remove.
+ *
+ * THE DISAGREEMENT STAYS, AND IS A SENTENCE RATHER THAN A SCORE. "Sources disagree — 8 good, 6
+ * bad" published our own arithmetic over somebody else's readings and left the reader to work out
+ * what to do with it; the badge already reads `Reconcile`, so what belongs here is the action.
  */
 export function plainInsight(card) {
   if (isRelatedNewsContext(card.topEvent)) return `Related-entity report: ${plainHeadline(card.topEvent)}. ${card.topEvent.attribution.reason}`;
-  const lead = card.confluence?.[0];
-  const conflict = card.mixed ? ' Sources disagree here, so check both before acting.' : '';
-  if (lead) {
-    const facts = factPhrases(card);
-    const tail = facts.length ? ` — ${facts.join(', ')}` : '';
-    return `${PLAIN_PATTERN[lead.id] || lead.label}${tail}.${conflict}`;
-  }
-  const latest = plainHeadline(card.topEvent);
-  if (card.mixed) {
-    return `Sources disagree — ${card.directions.positive} good, ${card.directions.negative} bad. Strongest: ${latest}.`;
-  }
-  if (card.directions.negative > 0 && card.feedCount > 1) {
-    return `Bad signs on ${card.feedCount} sources. Strongest: ${latest}.`;
-  }
-  if (card.directions.positive > 0 && card.feedCount > 1) {
-    return `Good signs on ${card.feedCount} sources. Strongest: ${latest}.`;
-  }
-  if (card.directions.negative > 0) return `${latest}. That is the strongest recent risk here.`;
-  if (card.directions.positive > 0) return `${latest}. That is the strongest recent good news here.`;
-  return `${latest}. It is here for how material, recent and relevant it is.`;
+  const claim = asSentence(plainHeadline(leadEvent(card)));
+  const conflict = card.mixed ? ' Sources disagree — check both directions below.' : '';
+  // A card with no statable event cannot be summarised, and inventing a summary for one is the
+  // one thing that would be worse than saying so. In practice every surfaced card has at least
+  // one event with a headline; this is the branch that keeps that a fact rather than a hope.
+  if (!claim) return `The evidence below is what this card holds; no source stated a headline for it.${conflict}`;
+  return `${claim}${conflict}`;
 }
 
 

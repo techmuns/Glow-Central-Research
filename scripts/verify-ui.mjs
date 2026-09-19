@@ -7997,27 +7997,39 @@ if (!aiCards) {
   ok('AI Alerts shows its cross-feed patterns, named', confluenceBlocks > 0 && order?.named.length > 0, `${confluenceBlocks} of ${aiCards} cards · ${order?.named.join(', ')}`);
   // The finding is read before its workings — that is the whole reason the block exists.
   ok('...above the evidence they were derived from', order?.beforeEvidence === true);
-  // And the card's own summary leads with the correlation rather than an arity of feeds — in
-  // ORDINARY ENGLISH. The old assertion looked for a colon, because the insight used to be
-  // `${label}: ${detail}` — the pattern's own technical sentence, reprinted verbatim inside the
-  // block below it. Punctuation is not the property worth asserting; what matters is that the
-  // first thing read is the finding, said plainly, and that it is not the feed-count fallback.
-  ok('...and the card leads with the correlation, not a feed count',
-    /^(Heavy trading|An insider and|Unusual trading|Results are out|Bad news showing up|A big move with)/.test(order?.insight || '') &&
-      !/^(Signals conflict across|Bad signs on|Good signs on|Sources disagree)/.test(order?.insight || ''),
-    (order?.insight || '').slice(0, 100));
+  // AND THE SENTENCE IS AN EVENT, NOT THE PATTERN AGAIN. The chip here names the correlation, so
+  // a sentence that also named it spent its whole length on a label the eye had already indexed —
+  // and the figures it appended came from two feeds only, so a card led by a filing, a result or a
+  // story could never state one. It now leads with the strongest event's own claim: the identity
+  // (`plainInsight` === the lead event's `plainHeadline`) is asserted on fixtures, because which
+  // shapes exist is a property of the day; what cannot come from a fixture is that the rendered
+  // sentence is neither the pattern nor our own tally nor filler.
+  const leadPatterns = /^(Heavy trading|An insider and a big holder|Unusual trading, and there is|Results are out|Bad news showing up|A big move with nothing)/;
+  const leadTallies = /^(Signals conflict across|Bad signs on \d|Good signs on \d|Sources disagree —? ?\d)/;
+  ok('...and the card leads with an event, not the pattern or a feed count',
+    !!(order?.insight || '').trim() && !leadPatterns.test(order?.insight || '') && !leadTallies.test(order?.insight || '') &&
+      !/(strongest recent (?:risk|good news)|material, recent and relevant)/i.test(order?.insight || ''),
+    (order?.insight || '').slice(0, 110));
   // No score anywhere on the card, exactly as before this layer existed.
   ok('...and still prints no score arithmetic', !/\b\d{1,3}\s*(?:\/\s*100|points)\b/i.test(order?.text || ''));
 }
 
-// --- the card's two labelled readings, driven on the shipped capture ---
-// The rule is asserted on fixtures above; what this cannot get from a fixture is that the section
-// reaches the screen, in the right place, with links that actually resolve.
-const cardShape = await page.evaluate(() => {
+// --- WHAT HAPPENED IS ONE SOURCE'S CLAIM, AND THE SOURCE IS NAMED ---
+//
+// This block used to assert the per-question paragraph, `[data-ai-drivers]`, which was deleted
+// when those readings became chips on the rows that back them. Nothing removed it, so it matched
+// nothing and SKIPPED on every run — a passing suite describing a block that no longer exists,
+// which is worse than an absent check because it reads as coverage. The chips are asserted where
+// they now live, with the rest of the card's shape, in section 5.
+//
+// What belongs here is the property that section cannot get from the DOM alone: the sentence is
+// ONE EVENT'S OWN CLAIM rather than a summary of several, so the wording it was built from — and
+// which feed it came from — is one hover away. `plainHeadline` chooses between a subject, the
+// exchange's own description and the exchange's own sub-category, and it clips a long statement
+// on a word boundary; every one of those needs the untouched text to stay reachable.
+const insightShape = await page.evaluate(() => {
   const cards = [...document.querySelectorAll('[data-ai-card]')];
   if (!cards.length) return null;
-  const withDrivers = cards.filter((c) => c.querySelector('[data-ai-drivers]'));
-  const card = withDrivers[0] || cards[0];
   // Cards are `content-visibility: auto`, and Chromium keeps a freshly painted one SKIPPED — empty
   // innerText — until the next rendering frame's intersection check unlocks it. scrollIntoView
   // activates a card's contents synchronously, so these reads cannot race that frame; the scroll
@@ -8025,70 +8037,50 @@ const cardShape = await page.evaluate(() => {
   const y = scrollY;
   const rendered = (node) => { node.scrollIntoView({ block: 'nearest' }); return node.innerText; };
   const everyCardLabelsItsInsight = cards.every((c) => /what happened/i.test(rendered(c)));
-  rendered(card);
   const kick = (node) => node?.querySelector('.uppercase')?.innerText.trim() || '';
-  const drivers = card.querySelector('[data-ai-drivers]');
-  const insight = card.querySelector('[data-ai-insight]');
-  const evidence = card.querySelector('[data-ai-evidence]');
-  const links = [...card.querySelectorAll('[data-ai-driver]')];
-  const readings = {
-    cards: cards.length,
-    withDrivers: withDrivers.length,
-    // Every card states what happened, under a kicker that says so.
-    everyCardLabelsItsInsight,
-    insightKicker: kick(insight?.closest('.flex')),
-    driverKicker: kick(drivers),
-    driverText: (drivers?.innerText || '').replace(/\s+/g, ' ').trim(),
-    // The finding is read before what it bears on, and both before the evidence.
-    insightBeforeDrivers: !!drivers && !!(insight.compareDocumentPosition(drivers) & Node.DOCUMENT_POSITION_FOLLOWING),
-    driversBeforeEvidence: !!drivers && !!evidence && !!(drivers.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING),
-    // EVERY DRIVER IS A LINK TO ITS OWN SOURCE. A classification of ours with no way to check it
-    // would be a judgement with no record behind it.
-    linkCount: links.length,
-    allLinked: links.length > 0 && links.every((a) => {
-      const href = a.getAttribute('href') || '';
-      return /^https?:\/\//.test(href) || href.startsWith('#/research/');
-    }),
-    externalsAreSafe: links.filter((a) => /^https?:\/\//.test(a.getAttribute('href') || ''))
-      .every((a) => a.getAttribute('target') === '_blank' && /noopener/.test(a.getAttribute('rel') || '')),
-    // ...and each one says what it is, rather than asserting the event happened.
-    titlesDisclaimVerification: links.every((a) => /does not verify|not confirmation/i.test(a.getAttribute('title') || '')),
-    // The driver links must point at evidence this card actually holds.
-    hrefsAreOnCard: (() => {
-      const evidenceHrefs = new Set([...card.querySelectorAll('[data-ai-evidence-link]')].map((a) => a.getAttribute('href')));
-      return links.every((a) => evidenceHrefs.has(a.getAttribute('href')));
-    })(),
-  };
+  const readings = cards.map((card) => {
+    rendered(card);
+    const insight = card.querySelector('[data-ai-insight]');
+    // textContent, not innerText: see the note in section 5 — a skipped card reports neither.
+    const text = (insight?.textContent || '').replace(/\s+/g, ' ').trim();
+    return {
+      ticker: card.dataset.ticker,
+      kicker: kick(insight?.closest('.flex')),
+      text,
+      // "<Feed> · <the source's own headline>", so a clipped or chosen claim keeps its original.
+      title: insight?.getAttribute('title') || '',
+      // The claim, with the conflict note this dashboard appends taken back off.
+      claim: text.replace(/\s*Sources disagree — check both directions below\.$/, '').trim(),
+    };
+  });
   scrollTo(0, y);
-  return readings;
+  return { everyCardLabelsItsInsight, kicker: readings[0]?.kicker || '', cards: readings };
 });
 
-if (!cardShape) {
-  skip('the AI Alerts card labels its two readings', 'no company reached the surfaced threshold in this capture');
+if (!insightShape) {
+  skip('every AI Alerts card states what happened, in one source\'s own words',
+    'no company reached the surfaced threshold in this capture');
 } else {
-  ok('every AI Alerts card labels what happened', cardShape.everyCardLabelsItsInsight && /what happened/i.test(cardShape.insightKicker),
-    `${cardShape.cards} card(s) · "${cardShape.insightKicker}"`);
-  if (!cardShape.withDrivers) {
-    // A real answer rather than a failure, exactly as the confluence skip above: no surfaced
-    // company carried a tracked topic today. The rule itself is asserted on fixtures.
-    skip('...and which investor question its evidence bears on', `${cardShape.cards} card(s), none carrying a tracked topic today`);
-  } else {
-    ok('...and which investor question its evidence bears on',
-      /earnings assumption, valuation or thesis/i.test(cardShape.driverKicker),
-      `${cardShape.withDrivers} of ${cardShape.cards} cards · "${cardShape.driverKicker}"`);
-    // The reading is a TOPIC, so the sentence is what a topic supports and no more. "Improves
-    // earnings" would be a direction this dashboard's own feeds refuse to assert.
-    ok('...worded as what the evidence COULD change, never as a verdict',
-      /^Could change /.test(cardShape.driverText.replace(/^.*?\?\s*/, '')) &&
-        !/\b(?:will|improves?|worsens?|beats?|misses?|undervalued|overvalued)\b/i.test(cardShape.driverText),
-      cardShape.driverText.slice(0, 140));
-    ok('...read after the finding and before the evidence', cardShape.insightBeforeDrivers && cardShape.driversBeforeEvidence);
-    // The point of the section: the classification is ours, so the record behind it is one click away.
-    ok('...and every driver links to the source behind it, on this card',
-      cardShape.allLinked && cardShape.hrefsAreOnCard && cardShape.externalsAreSafe,
-      `${cardShape.linkCount} link(s)`);
-    ok('...each saying it matched a topic rather than verifying the event', cardShape.titlesDisclaimVerification);
-  }
+  ok('every AI Alerts card labels what happened',
+    insightShape.everyCardLabelsItsInsight && /what happened/i.test(insightShape.kicker),
+    `${insightShape.cards.length} card(s) · "${insightShape.kicker}"`);
+  // A claim is a statement, so it ends as one. An empty sentence is the failure that matters here:
+  // the whole point of the card is that a reader does not have to open a row to learn what landed.
+  ok('...and the sentence is a claim rather than a label or a tally',
+    insightShape.cards.every((card) => card.claim.length >= 4 && /[.!?…]$/.test(card.claim)
+      && !/^(Updates|General Updates|Press Release|PFA|Filing)\.$/i.test(card.claim)),
+    insightShape.cards.map((card) => `${card.ticker}: ${card.claim}`).join(' | ').slice(0, 180));
+  // THE SOURCE'S OWN WORDING STAYS ONE HOVER AWAY. Three things in the sentence are derived from
+  // it — a subject chosen over a description, an exchange lead-in removed, a clip on a word
+  // boundary — and none of them may be the only copy a reader can reach.
+  ok('...with the feed and the source\'s own wording on the sentence itself',
+    insightShape.cards.every((card) => /\S\s·\s\S/.test(card.title)),
+    insightShape.cards.map((card) => card.title.split('·')[0].trim()).join(', ').slice(0, 140));
+  // A CLIPPED CLAIM SAYS IT WAS CLIPPED, and the text it was clipped from is longer than it.
+  const clipped = insightShape.cards.filter((card) => /…\.?$/.test(card.claim));
+  ok('...and a statement too long for the line is cut with an ellipsis, never silently',
+    clipped.every((card) => card.title.replace(/\s+/g, ' ').length > card.claim.length),
+    clipped.length ? `${clipped.length} clipped of ${insightShape.cards.length}` : 'nothing needed clipping today');
 }
 
 // ---------------------------------------------------------------------------------------
