@@ -52,6 +52,11 @@ checkout; the dashboard keeps its no-dependency, no-build application contract. 
 public page/API/file adapters run server-side; no browser challenge, proxy rotation, Trendlyne
 scrape or licensed Trendlyne API is introduced. There is no claim of contractual Trendlyne parity.
 
+Four isolated source processes run at a time, each with a two-minute budget. A blocked AMC cannot
+hold up all later AMCs. Only the coordinator writes the shared coverage checkpoint, while each
+child atomically replaces its own AMC file. Timeouts retain prior data and record an unavailable
+check. Company-denominator reads have a separate five-minute limit and save each verified result
+as it arrives, so that endpoint cannot indefinitely delay publication of fund disclosures.
 Each source finishes to a local checkpoint. A timed-out or failed source stage still runs the
 publication stage, marking unattempted AMCs unchecked and retaining good company data. A new run
 reconciles the overlapping months in the current source data. Bounded fragments carry individual fund/month observations, with all parts acknowledged before
@@ -60,6 +65,10 @@ revision references; no upload or database cell grows with the complete history.
 scheme inventories can correct removed holdings to nil; partial reports cannot. Source rechecks
 do not copy identical historical books. Upload receipts retain only the three newest runs;
 this does not remove observations, correction chains or the original capture start time. An
+initial universe upload keeps at most four companies in flight, with fragments ordered within
+each company and all acknowledgements awaited before completion. A failed company leaves the
+run partial while other successful company checkpoints survive. Temporary server errors or lost
+acknowledgements retry the exact idempotent request up to three times before the run remains partial. An
 interrupted publish stays `collecting` until every manifest company is acknowledged. A later run
 reconciles it, while older data remains readable. Signed GitHub OIDC claims restrict writes to this
 repository's main-branch collector workflow. Reader routes are read-only and ETagged.
@@ -68,7 +77,9 @@ All captured months and distinct corrections are retained in shared storage, inc
 that leave the portfolio. Initial history varies by AMC; months absent from the upstream snapshot
 cannot be claimed recovered. Storage is finite and no exhaustive industry archive is promised.
 The committed portfolio seed is a dated fallback for static/local operation and initial rollout;
-it is not the collection clock. All current companies, including future holdings, are matched
+its source observations also join durable capture, so a failed first download cannot discard
+already captured disclosures. Newer verified observations and confirmed removals take precedence;
+the seed is not the collection clock. All current companies, including future holdings, are matched
 against the complete captured stock universe on each collection.
 
 The visible tab revalidates on opening, every minute while visible, on return after inactivity,

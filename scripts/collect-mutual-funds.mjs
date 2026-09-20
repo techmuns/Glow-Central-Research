@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {companyFragments,reportBatches} from './lib/mutual-funds-transport.mjs';
+import {publishCompanies,reportBatches} from './lib/mutual-funds-transport.mjs';
 import {buildOwnership,seededPayload} from './lib/mutual-funds-build.mjs';
+import {retainSeedObservations} from './lib/mutual-funds-seed.mjs';
 import {MF_ENDPOINT,MF_ORIGIN,monthKey,targetMonth,projectCompany,companyRevision} from '../worker/mutual-funds-model.mjs';
 import {boundedJson} from '../public/js/data/family-book-contract.js';
 import {loadActivePortfolio} from './lib/active-portfolio.mjs';
-export function collectorClient({fetcher=fetch,env=process.env}={}) {
+export function collectorClient({fetcher=fetch,env=process.env,pause=ms=>new Promise(done=>setTimeout(done,ms))}={}) {
   let token=null,expires=0;
   return async body=>{
     if(!token||Date.now()>expires) {
@@ -16,8 +17,16 @@ export function collectorClient({fetcher=fetch,env=process.env}={}) {
       const reply=await boundedJson(await fetcher(url,{headers:{authorization:`Bearer ${env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}`},redirect:'error',signal:AbortSignal.timeout(15000)}),64000);
       token=reply.value;expires=Date.now()+240000;
     }
-    const reply=await boundedJson(await fetcher(MF_ENDPOINT,{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(60000)}),1024*1024);
-    if(!reply.ok)throw Error('Capture not acknowledged');return reply;
+    // Every action is idempotent for this run/fragment identity, including when
+    // the server committed a checkpoint but its acknowledgement was lost.
+    for(let attempt=0;attempt<4;attempt++) {
+      let response;
+      try {response=await fetcher(MF_ENDPOINT,{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(60000)});}
+      catch(error){if(attempt===3)throw error;await pause(1000*2**attempt);continue;}
+      if([500,502,503,504].includes(response.status)&&attempt<3){await response.body?.cancel();await pause(1000*2**attempt);continue;}
+      const reply=await boundedJson(response,1024*1024);
+      if(!reply.ok)throw Error('Capture not acknowledged');return reply;
+    }
   };
 }
 async function main() {
@@ -37,7 +46,11 @@ async function main() {
   const denomFile=process.env.MF_DENOMINATORS||'artifacts/mutual-funds-denominators.json';
   const denominators=fs.existsSync(denomFile)?JSON.parse(fs.readFileSync(denomFile)):{};
   const identities=Object.values(JSON.parse(fs.readFileSync('public/data/exchange-deals.json')).securityMap||{});
-  const {companies,warnings,reports}=buildOwnership(snapshots,{portfolio:book.holdings,identities,denominators});
+  const built=buildOwnership(snapshots,{portfolio:book.holdings,identities,denominators});
+  const {warnings,reports}=built;
+  const seedDir='public/data/mutual-funds/companies';
+  const seeds=fs.existsSync(seedDir)?fs.readdirSync(seedDir).filter(f=>f.endsWith('.json')).map(f=>JSON.parse(fs.readFileSync(path.join(seedDir,f)))):[];
+  const companies=retainSeedObservations(built.companies,seeds);
   const target=targetMonth();
   for(const amc of amcs) {
     const issues=warnings.filter(w=>w.startsWith(amc.slug+':')&&(w.includes(':'+target+':')||w.endsWith(':invalid-month'))).length;
@@ -56,12 +69,13 @@ async function main() {
     for(const row of known.values())if(!present.has(row.isin))companies.push({isin:row.isin,name:row.name,ticker:row.ticker,sector:row.sector,denominator:null,funds:[]});
     await client({action:'begin',manifest:{...meta,targets:companies.map(c=>c.isin),reportCount:reports.length}});
     for(const batch of reportBatches(reports))await client({action:'reports',reports:batch});
-    const unchanged=[];
+    const unchanged=[],changed=[];
     for(const company of companies) {
       const revision=companyRevision(company);
       if(known.get(company.isin)?.revision===revision){unchanged.push({isin:company.isin,revision});continue;}
-      for(const fragment of companyFragments(company))await client({action:'fragment',fragment});
+      changed.push(company);
     }
+    await publishCompanies(changed,client);
     // Confirmations still reconcile complete reports, including authoritative removals.
     for(let at=0;at<unchanged.length;at+=25)await client({action:'confirm',companies:unchanged.slice(at,at+25)});
     await client({action:'finish'});await client({action:'arm'});
