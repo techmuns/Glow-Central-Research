@@ -49,7 +49,7 @@ jobs:
       - name: Verify bounded memory, lossless saves and exact news reading windows
         run: node scripts/verify-memory-primitives.mjs && node scripts/verify-news-query-boundaries.mjs && node scripts/verify-news-working-set.mjs
       - name: Verify Mutual Fund calculations and resumable capture
-        run: node scripts/verify-mutual-funds.mjs && node scripts/verify-mutual-funds-sources.mjs
+        run: node scripts/verify-mutual-funds.mjs && node scripts/verify-mutual-funds-sources.mjs && node scripts/verify-mutual-funds-schedule.mjs
       - name: Verify hot-path caches are invisible (same answers, live edits, exact byte counts)
         run: node scripts/verify-hot-path-memo.mjs
       - name: Verify lossless news parts and deployable asset sizes
@@ -162,6 +162,10 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/family-browser" --no-save --package-lock=false playwright@1.62.1 exceljs@4.4.0
           node "$RUNNER_TEMP/family-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Verify All Alerts time horizons, source controls and portfolio calendar isolation
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-general-alerts-ui.mjs && node scripts/verify-all-alerts-restore-ui.mjs
       - name: Verify Sattva deals across scopes, automatic refresh and history
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
@@ -258,10 +262,6 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-filter-loading-ui.mjs
-      - name: Verify All Alerts time horizons, source controls and portfolio calendar isolation
-        env:
-          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-general-alerts-ui.mjs && node scripts/verify-all-alerts-restore-ui.mjs
       - name: Verify the precomputed alert pool paints the live rows and cards without the captures
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
