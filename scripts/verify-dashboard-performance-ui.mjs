@@ -43,6 +43,8 @@ const server = createServer((req, res) => {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__arrivalsRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
     } else if (pathname === '/js/core/app-updates.js') {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__performanceRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/js/data/alert-pool.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__poolRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
     } else res.end(readFileSync(path));
   } catch { res.writeHead(404); res.end(); }
 });
@@ -148,6 +150,8 @@ try {
   assert.equal(await page.evaluate(() => globalThis.__watchlistRelease), 'previous', 'the cached watchlist module belongs to the older release');
   await page.evaluate(() => import('/js/core/alert-arrivals.js'));
   assert.equal(await page.evaluate(() => globalThis.__arrivalsRelease), 'previous', 'returning session has the older arrivals module cached');
+  await page.evaluate(() => import('/js/data/alert-pool.js'));
+  assert.equal(await page.evaluate(() => globalThis.__poolRelease), 'previous', 'returning session has the older pool reader cached');
   offline = false;
   previousRelease = false;
   await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update(); });
@@ -155,6 +159,8 @@ try {
   await page.waitForFunction(() => globalThis.__watchlistRelease === 'current', null, { timeout: 30000 });
   await page.evaluate(() => import('/js/core/alert-arrivals.js'));
   assert.equal(await page.evaluate(() => globalThis.__arrivalsRelease), 'current', 'existing session receives the arrivals update');
+  await page.evaluate(() => import('/js/data/alert-pool.js'));
+  assert.equal(await page.evaluate(() => globalThis.__poolRelease), 'current', 'existing session receives the pool reader update');
   const upgradedCaches = await page.evaluate(() => caches.keys());
   assert(!upgradedCaches.some(name => name.includes('previous-fixture')), 'activation removes the superseded app cache');
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'automatic upgrade retains reader preferences');

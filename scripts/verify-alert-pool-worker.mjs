@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { existsSync, realpathSync } from 'node:fs';
 import { join, delimiter } from 'node:path';
+import { ALERT_POOL_CONTRACT } from '../public/js/data/alert-pool-shared.js';
 const location = process.env.WRANGLER_PACKAGE || process.env.PATH.split(delimiter).map((dir) => join(dir, 'wrangler')).find(existsSync);
 if (!location) throw new Error('Run with npx --package=wrangler@4.119.0 or set WRANGLER_PACKAGE');
 const require = createRequire(realpathSync(location));
@@ -35,8 +36,8 @@ function zip(members) {
   return Buffer.concat([...locals, directory, end]);
 }
 const day = '2026-09-18';
-const index = { version: 1, contract: 'alert-pool-v1', day, builtAt: `${day}T06:00:00Z`, captures: {}, feeds: {}, days: [{ day, member: `days/${day}.json.gz` }], ai: [{ span: day, member: `ai/${day}.json.gz` }] };
-const shard = { version: 1, contract: 'alert-pool-v1', day, feeds: { technicals: { events: [{ id: 'tech:X', feed: 'technicals', headline: 'x', day }], order: [0], companions: { events: [], order: [] } } } };
+const index = { version: 1, contract: ALERT_POOL_CONTRACT, day, builtAt: `${day}T06:00:00Z`, captures: {}, feeds: {}, days: [{ day, member: `days/${day}.json.gz` }], ai: [{ span: day, member: `ai/${day}.json.gz` }] };
+const shard = { version: 1, contract: ALERT_POOL_CONTRACT, day, feeds: { technicals: { events: [{ id: 'tech:X', feed: 'technicals', headline: 'x', day }], order: [0], companions: { events: [], order: [] } } } };
 const padding = Buffer.alloc(300 * 1024, 'p'); // pushes the directory past the tail read of a small archive
 const archive = zip([['index.json', Buffer.from(JSON.stringify(index))], ['padding.bin', padding], [`days/${day}.json.gz`, gzipSync(JSON.stringify(shard))], ['ai/oops.txt', Buffer.from('not json')], [`ai/${day}.json.gz`, Buffer.from('plain, not gzip')]]);
 

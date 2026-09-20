@@ -18,8 +18,22 @@ const now = Date.now();
 Date.now = () => now;
 
 const { offlineFetch, captureIdentities, captureStatusFor, writePoolMembers, verifyPoolMembers, jsonForm } = await import('./lib/alert-pool-build.mjs');
-const { POOL_FEEDS, POOL_FEED_CAPTURES } = await import('../public/js/data/alert-pool-shared.js');
-const { validateShard } = await import('../public/js/data/alert-pool-format.js');
+const { ALERT_POOL_CONTRACT, POOL_FEEDS, POOL_FEED_CAPTURES } = await import('../public/js/data/alert-pool-shared.js');
+const { validateShard, aiPoolKeep, buildAiShards, assembleFeedEvents } = await import('../public/js/data/alert-pool-format.js');
+
+// A market-wide story has no company identity until the reader applies its own book. It must
+// survive the pool across the trigger-window boundary to remain available as attributed context.
+const discoveryStory = { id: 'market:context', feed: 'market-news', headline: 'ICICI Bank receives approval',
+  day: '2026-09-05', ticker: null, entityId: null, sourceRecord: { title: 'ICICI Bank receives approval', summary: 'The bank received the approval.' } };
+for (const readingDay of ['2026-09-18', '2026-09-19', '2026-09-20']) {
+  assert(aiPoolKeep(discoveryStory, readingDay), 'the 14-day boundary must not discard older company-discovery context');
+  const shards = [...buildAiShards([{ id: 'market-news', events: [discoveryStory] }], readingDay).values()];
+  assert.deepEqual(assembleFeedEvents(shards, 'market-news'), [discoveryStory], 'context and its full discovery record survive encoding');
+}
+assert(!aiPoolKeep({ ...discoveryStory, day: '2026-03-01' }, '2026-09-20'), 'the documented context horizon stays bounded');
+assert(!aiPoolKeep({ ...discoveryStory, day: '2026-09-21' }, '2026-09-20'), 'future stories are not current context');
+assert(!aiPoolKeep({ ...discoveryStory, day: null }, '2026-09-20'), 'undated stories are not current context');
+console.log('PASS market-wide discovery context survives the trigger-window boundary');
 
 // THE ROUTES THE BROWSER READS, answered from the pool this test builds. `served` is what a test
 // step changes to make the pool disagree with the deployment in one particular way.
@@ -269,8 +283,8 @@ served.index = { ...index };
 }
 served.artifact = 4242001;
 // A shard that does not have the contract's shape is refused before any event is read.
-assert.throws(() => validateShard({ version: 1, contract: 'alert-pool-v1', day, feeds: { technicals: { events: [{ id: 'x', feed: 'technicals', headline: 'h', private: true }], order: [0] } } }), /invalid technicals event/);
-assert.throws(() => validateShard({ version: 1, contract: 'alert-pool-v1', day, feeds: { 'company-documents': { events: [], order: [] } } }), /invalid company-documents group/);
+assert.throws(() => validateShard({ version: 1, contract: ALERT_POOL_CONTRACT, day, feeds: { technicals: { events: [{ id: 'x', feed: 'technicals', headline: 'h', private: true }], order: [0] } } }), /invalid technicals event/);
+assert.throws(() => validateShard({ version: 1, contract: ALERT_POOL_CONTRACT, day, feeds: { 'company-documents': { events: [], order: [] } } }), /invalid company-documents group/);
 console.log('PASS unreadable members and invalid shards leave the collection to the live path; private feeds cannot enter a shard');
 
 // 6. A REASSEMBLY WITHOUT LOADING REUSES THE LAST POOL READ; A REFRESH READS THE INDEX AGAIN.

@@ -350,6 +350,12 @@ classifying a row. What arrived, and how each piece lands here:
 
 ## Future upgrades
 
+The [20 September performance audit](PERFORMANCE-PARITY-2026-09-20.md) checks the shared speed work
+through Sattva PR #230 and the later presentation changes. It adds content-hash reuse for unchanged
+pool members, cancellation isolation, metadata-only cold exchange verification and the v2 pool's
+market-wide discovery context. Preserve these on a later template merge. The v2 contract and its
+contract-scoped edge keys must advance together; a v1 pool cannot establish complete AI context.
+
 `Sync from Sattva` checks merged upstream changes every six hours and on manual invocation.
 Changes only to Sattva capture data are skipped. It prepares a `codex/sattva-sync-*` **merge commit and pull request**, preserving every existing
 Glow capture (including nested archives), applying product/repository substitutions, rebuilding

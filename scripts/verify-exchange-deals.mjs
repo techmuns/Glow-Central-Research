@@ -4,8 +4,8 @@ import { gzipSync, gunzipSync, deflateRawSync } from 'node:zlib';
 import { EXCHANGE_SOURCES, exchangeDealKey, exchangeRows, combineExchangeDeals, validateExchangeSnapshot } from '../public/js/data/exchange-deals-shared.js';
 import { parseExchange, applyExchangeSlice, emptyExchangeSnapshot, securityMap } from './lib/exchange-deals.mjs';
 import { captureExchanges } from './capture-exchange-deals.mjs';
-import { unzipCapture, latestExchangeArtifact, readLimited, ARTIFACT_FILE } from '../worker/exchange-artifact.mjs';
-import { handleExchangeDeals } from '../worker/exchange-deals.mjs';
+import { unzipCapture, latestExchangeArtifact, latestExchangeArtifactInfo, readLimited, ARTIFACT_FILE } from '../worker/exchange-artifact.mjs';
+import { handleExchangeDeals, exchangeCaptureStatus } from '../worker/exchange-deals.mjs';
 
 const at = '2026-09-09T12:00:00Z', nse = EXCHANGE_SOURCES[0], bse = EXCHANGE_SOURCES[2];
 const header = 'Date,Symbol,Security Name,Client Name,Buy / Sell,Quantity Traded,Trade Price / Wght. Avg. Price,Remarks\n';
@@ -84,13 +84,43 @@ assert.equal((await latestExchangeArtifact({ repo: 'org/repo', token: 'test-toke
 const cacheMap = new Map(), cache = { match: async (key) => cacheMap.get(key.url)?.clone(), put: async (key, value) => { cacheMap.set(key.url, value); } };
 const waits = [], ctx = { waitUntil: (p) => waits.push(p) }, request = new Request('https://local.example/api/bulk-block-deals');
 const env = { GH_REPO: 'org/repo', GH_DISPATCH_TOKEN: 'test-token', ASSETS: { fetch: async () => Response.json(before) } };
+calls.length = 0;
+assert.equal((await latestExchangeArtifactInfo({ repo: 'org/repo', token: 'test-token', fetchImpl })).id, 99);
+assert.equal(calls.length, 2, 'artifact identity requires only the run and artifact lists');
+assert(calls.every(call => !call.url.includes('/zip') && !call.url.startsWith('https://storage.')), 'metadata lookup never downloads the archive');
+calls.length = 0;
+assert.deepEqual(await exchangeCaptureStatus(request, env, { fetchImpl, cache }), { ok: true, capturedAt: null, artifactId: 99 }, 'a cold edge verifies the artifact without a full capture');
+assert.equal(calls.length, 2);
+assert(calls.every(call => call.options.signal instanceof AbortSignal), 'metadata requests have the status timeout/abort signal');
 const live = await handleExchangeDeals(request, env, ctx, { fetchImpl, cache });
 assert.equal(live.status, 200); assert.deepEqual(JSON.parse(gunzipSync(Buffer.from(await live.clone().arrayBuffer()))).records, before.records); await Promise.all(waits);
 const unchanged = await handleExchangeDeals(new Request(request.url, { headers: { 'if-none-match': live.headers.get('etag') } }), env, ctx, { fetchImpl: () => { throw new Error('cache missed'); }, cache });
 assert.equal(unchanged.status, 304);
+assert.deepEqual(await exchangeCaptureStatus(request, env, { fetchImpl: () => { throw new Error('warm status must not ask GitHub'); }, cache }),
+  { ok: true, capturedAt: null, artifactId: 99 }, 'warm status describes exactly the artifact the route serves');
 const fallback = await handleExchangeDeals(request, env, ctx, { fetchImpl: async () => { throw new Error('archive offline'); }, cache: { ...cache, match: async () => null } });
 assert.equal(fallback.headers.get('x-glow-exchange-fallback'), '1');
 assert.deepEqual((await fallback.json()).records, before.records);
+await Promise.all(waits);
+assert.equal((await exchangeCaptureStatus(request, env, { fetchImpl, cache })).reason, 'retained-fallback', 'a cached seed is not upgraded to an artifact claim');
+const coldCache = { match: async () => null };
+assert.deepEqual(await exchangeCaptureStatus(request, env, { cache: coldCache, fetchImpl: async () => { throw new Error('offline'); } }),
+  { ok: false, capturedAt: null, artifactId: null, reason: 'unverified' });
+assert.equal((await exchangeCaptureStatus(request, env, { cache: coldCache, fetchImpl: async () => Response.json({ workflow_runs: [] }) })).reason, 'no-artifact');
+assert.equal((await exchangeCaptureStatus(request, { ...env, GH_DISPATCH_TOKEN: '' }, { cache: coldCache, fetchImpl })).ok, false, 'missing credentials cannot verify a pool input');
+let trustedReads = 0;
+const untrustedFetch = async url => {
+  trustedReads++;
+  assert(url.includes('/workflows/'));
+  return Response.json({ workflow_runs: [
+    { id: 1, event: 'push', head_branch: 'other', head_repository: { full_name: 'org/repo' } },
+    { id: 2, event: 'push', head_branch: 'main', head_repository: { full_name: 'foreign/repo' } },
+    { id: 3, event: 'pull_request', head_branch: 'main', head_repository: { full_name: 'org/repo' } },
+  ] });
+};
+assert.equal(await latestExchangeArtifactInfo({ repo: 'org/repo', token: 'test-token', fetchImpl: untrustedFetch }), null);
+assert.equal(trustedReads, 1, 'foreign repositories, branches and PR runs cannot supply the pool identity');
+console.log('PASS cold/warm exchange identity, metadata-only reads, trusted origin and honest failure/fallback');
 assert.equal((await handleExchangeDeals(new Request(request.url, { method: 'POST' }), env, ctx, { cache })).status, 405);
 
 const shipped = validateExchangeSnapshot(JSON.parse(readFileSync(new URL('../public/data/exchange-deals.json', import.meta.url))));

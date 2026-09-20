@@ -83,7 +83,7 @@ import { SCREENER_INSIGHTS_FRESH_MS, SCREENER_INSIGHTS_WORKFLOW } from '../publi
 import { FEED_URL as NSE_FEED_URL, HEADERS as NSE_HEADERS, parseAnnouncements, assertShape as assertNseShape, buildResolver, resolveAll as resolveNse } from './nse-ann.mjs';
 import { isXbrlFilingUrl, parseXbrlFiling } from '../public/js/data/nse-xbrl-shared.js';
 
-import { handleExchangeDeals } from './exchange-deals.mjs';
+import { handleExchangeDeals, exchangeCaptureStatus } from './exchange-deals.mjs';
 import { handleAlertPool } from './alert-pool.mjs';
 import { POOL_CAPTURES, captureRevision } from '../public/js/data/alert-pool-shared.js';
 import { EXCHANGE_WORKFLOW } from './exchange-artifact.mjs';
@@ -2216,7 +2216,7 @@ async function handleCaptureStatus(request, env, ctx) {
   if (request.method !== 'GET') return json({ ok: false, reason: 'method', message: 'GET only.' }, 405);
 
   const cache = caches.default;
-  const key = edgeKey('capture-status-v3');
+  const key = edgeKey('capture-status-v4');
   const held = await cache.match(key);
   if (held) {
     return new Response(held.body, {
@@ -2226,6 +2226,9 @@ async function handleCaptureStatus(request, env, ctx) {
   }
 
   const captures = {};
+  // Start the small metadata check beside the asset reads, not after them. It performs no capture
+  // or archive download; a failed check leaves insider trades on the existing live path.
+  const exchangeIdentity = exchangeCaptureStatus(request, env, { cache });
   await Promise.all(
     Object.entries(CAPTURE_FILES).map(async ([name, path]) => {
       try {
@@ -2265,15 +2268,7 @@ async function handleCaptureStatus(request, env, ctx) {
     }),
   );
 
-  // THE EXCHANGE ARTIFACT THE INSIDER FEED FOLDS IN is not a file: its identity is the artifact
-  // id the bulk/block route is serving, read off that route's own edge entry. Not cached yet
-  // means not reported — the pool then keeps the live path for insider trades, which is the
-  // read that fills that entry.
-  try {
-    const exchange = await cache.match(new Request(new URL('/api/bulk-block-deals', request.url)));
-    const artifactId = Number(/^"exchange-(\d+)"$/.exec(exchange?.headers.get('etag') || '')?.[1]);
-    captures.exchangeDeals = Number.isSafeInteger(artifactId) ? { ok: true, capturedAt: null, artifactId } : { ok: false, capturedAt: null, artifactId: null, reason: 'not-cached' };
-  } catch { captures.exchangeDeals = { ok: false, capturedAt: null, artifactId: null, reason: 'not-cached' }; }
+  captures.exchangeDeals = await exchangeIdentity;
   const payload = { ok: true, captures, servedAt: new Date().toISOString() };
   const store = new Response(JSON.stringify(payload), {
     headers: { 'content-type': 'application/json', 'cache-control': `max-age=${CAPTURE_STATUS_TTL_S}` },

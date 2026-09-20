@@ -5163,6 +5163,10 @@ static origin), no build yet, or an unreadable member, the browser is on the liv
   evidence, context rows and market-wide count are identical to the full history's; only
   `meta.topFunnelEvents`, the count of events read, is smaller. A notebook snapshot taken from a
   compact event fetches the full record from the day shard first (`alertPool.fullRecord`).
+  Contract `alert-pool-v2` also retains market-wide stories throughout the context lookback:
+  the reader assigns their company identities against its current book after loading the pool.
+  Dropping them at the 14-day trigger boundary would lose older company context. Keeping them
+  does not bypass attribution, extend the trigger window or give context a priority score.
 - The `index.json` carries the build day (IST), the book signature, each capture's revision, each
   pooled feed's row as the runner read it (the company-news row's inputs to `companyNewsState`, so
   the browser recomputes its status against the reader's clock), and the member list.
@@ -5190,6 +5194,14 @@ the events the ranking read, and the AI tab reads their `status` and never a cou
 loading reuses the last pool read in memory. `alertPool.status()` reports, per feed, whether the
 last collection came from the pool and why not.
 
+An open reader reuses decoded members across artifact publications when the contract, member name
+and runner-published SHA-256 hash all match. Capture revisions, source health and book compatibility
+are still checked for the new index. Missing or invalid hashes retain the artifact-local fallback.
+Only the latest selected period and AI read stay decoded; a new artifact drops prior result/status
+objects. A reload can use the HTTP cache for the same artifact, but new artifact URLs require new
+downloads. Abandoning a view does not trigger the one-minute failure backoff; actual shard failures
+still do. An older in-flight read cannot replace the result of a newer adopted artifact.
+
 **Verification.** `scripts/verify-alert-pool.mjs` builds the pool from one full collection over the
 shipped captures and asserts, with no egress: every member carries exactly the collector's events;
 Today, Last 3/7/30 days from the pool equal the full history narrowed to the period (identities,
@@ -5204,6 +5216,19 @@ stands aside is checked on the read.
 range-serving storage; `scripts/verify-alert-pool-ui.mjs` paints All Alerts and AI Alerts from a
 built pool in Chromium, compares rows and cards with the live collection, and moves one capture's
 revision to see only that feed's capture downloaded.
+`scripts/verify-alert-pool-cache.mjs` checks unchanged/changed builds, revision and status changes,
+bounded memory, older indexes, concurrent reads, cancellation and recovery with offline fixtures.
+The browser check also publishes an unchanged artifact and verifies that a header refresh retains
+the same cards with no shard downloads while still checking capture revisions.
+
+`/api/capture-status` uses the bulk/block route's cached artifact identity when present. With a
+cold edge cache, it reads only the trusted main-branch workflow/artifact metadata under a five-second
+deadline, alongside the static capture checks; it never downloads or dispatches a capture. A cached
+seed fallback, unavailable metadata or absent artifact leaves the input unverified. Artifact identity
+is not a source-check timestamp or a claim of complete exchange coverage. Code changes under
+`public/js/` and changes to the pool builder/workflow automatically rebuild the pool on a main-branch
+push. An older pool contract is refused until the matching build arrives; the source readers remain
+the fallback during that transition. No production dispatch is needed for a format upgrade.
 
 The one thing the pool does not carry is a rule function: the technicals source record holds the
 scoring rules' functions and a field `Set`, which no serialisation keeps and no alert surface reads —

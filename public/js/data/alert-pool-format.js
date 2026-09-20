@@ -80,6 +80,11 @@ export function buildDayShards(sourceFeeds, day) {
 /** Whether the ranking can read an event at all, for a pool built for `day`. */
 export function aiPoolKeep(event, day, oldest = aiPoolOldestDay(day), firstDay = shiftDay(day, -(AI_POOL_WINDOW_DAYS - 1))) {
   if (!isDay(event.day) || event.day > day) return false;
+  // Market-wide stories acquire company identities in the reader's discovery mapping, AFTER the
+  // pool is read. A tickerless story outside the 14-day trigger window can still supply context
+  // for a company in the current book. Keep the full context window for this feed; the reader's
+  // normal attribution rules decide whether any story qualifies, without new priority or urgency.
+  if (event.feed === 'market-news' && event.day >= oldest) return true;
   if (event.day >= oldest && (newsCanSupportAI(event) || isRelatedNewsContext(event))) return true;
   return event.day >= firstDay && !event.ticker && !event.entityId;
 }
