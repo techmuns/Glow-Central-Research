@@ -53,8 +53,8 @@
       ]
     },
     "isin:INE679V01027|Aditya Vision": {
-      "lastAttemptAt": "2026-09-15T20:36:48+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-09-20T05:50:25+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 50,
       "lastSuccessAt": "2026-09-15T20:36:48+00:00",
       "targetThrough": null,
@@ -1630,6 +1630,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 219,
-    "checkedAt": "2026-09-20T05:15:53.311409+00:00"
+    "checkedAt": "2026-09-20T05:50:25.541840+00:00"
   }
 }
