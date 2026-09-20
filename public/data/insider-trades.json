@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-09-20T17:30:21.221Z",
+    "capturedAt": "2026-09-20T18:55:57.699Z",
     "from": "2026-08-05",
     "to": "2026-09-18",
     "rows": 8067,
@@ -12,10 +12,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-20T17:30:21.221Z",
-  "oldestDataAt": "2026-09-20T17:30:21.221Z",
-  "from": "2025-09-20",
-  "to": "2026-09-20",
+  "capturedAt": "2026-09-20T18:55:57.699Z",
+  "oldestDataAt": "2026-09-20T18:55:57.699Z",
+  "from": "2025-09-21",
+  "to": "2026-09-21",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-20T17:30:21.221Z",
+      "capturedAt": "2026-09-20T18:55:57.699Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-20T17:30:21.221Z",
+      "capturedAt": "2026-09-20T18:55:57.699Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +63,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-20T17:30:21.221Z",
+      "capturedAt": "2026-09-20T18:55:57.699Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,7 +76,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-20T17:30:21.221Z",
+      "capturedAt": "2026-09-20T18:55:57.699Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -84,7 +84,7 @@
   "covered": 4,
   "withRows": 1664,
   "emptyCount": 0,
-  "rowCount": 16694,
+  "rowCount": 16686,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -50213,28 +50213,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "FUSION",
-        "date": "2025-09-20",
-        "cells": {
-          "Company": "FUSION",
-          "Insider": "Devesh Sachdev",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "100000",
-          "Trade %": "0.08",
-          "Trade Value": "19000000",
-          "Post Holding Shares": "4633484",
-          "Post Holding %": "2.86",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-20",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "GCHOTELS": [
@@ -71611,28 +71589,6 @@
           "From Date": "2025-10-17",
           "To Date": "2025-10-17",
           "Broadcast Date": "2025-10-22",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ZENSARTECH",
-        "date": "2025-09-20",
-        "cells": {
-          "Company": "ZENSARTECH",
-          "Insider": "Ravi Thakur",
-          "Category": "Employee",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "16444",
-          "Trade %": "0.01",
-          "Trade Value": "13648520",
-          "Post Holding Shares": "6000",
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-17",
-          "To Date": "2025-09-17",
-          "Broadcast Date": "2025-09-20",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -158860,116 +158816,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "MANINFRA",
-        "date": "2025-09-20",
-        "cells": {
-          "Company": "Man Infraconstruction Ltd",
-          "Insider": "Ashish Nanchand Vora",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "10320",
-          "Trade %": "0",
-          "Trade Value": "1599600",
-          "Post Holding Shares": "10627",
-          "Post Holding %": "0",
-          "Mode": "Conversion of security",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-20",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "MANINFRA",
-        "date": "2025-09-20",
-        "cells": {
-          "Company": "Man Infraconstruction Ltd",
-          "Insider": "Ashok Manharlal Mehta",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "33900",
-          "Trade %": "0.01",
-          "Trade Value": "5254500",
-          "Post Holding Shares": "68055",
-          "Post Holding %": "0.02",
-          "Mode": "Conversion of security",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-20",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "MANINFRA",
-        "date": "2025-09-20",
-        "cells": {
-          "Company": "Man Infraconstruction Ltd",
-          "Insider": "Ayush Manish Shah",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "25000",
-          "Trade %": "0",
-          "Trade Value": "3875000",
-          "Post Holding Shares": "297952",
-          "Post Holding %": "0.07",
-          "Mode": "Conversion of security",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-20",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "MANINFRA",
-        "date": "2025-09-20",
-        "cells": {
-          "Company": "Man Infraconstruction Ltd",
-          "Insider": "Jay Navinchandra Desai",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "15000",
-          "Trade %": "0.01",
-          "Trade Value": "2325000",
-          "Post Holding Shares": "67500",
-          "Post Holding %": "0.02",
-          "Mode": "Conversion of security",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-20",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "MANINFRA",
-        "date": "2025-09-20",
-        "cells": {
-          "Company": "Man Infraconstruction Ltd",
-          "Insider": "Vishant Manish Shah",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "25000",
-          "Trade %": "0.01",
-          "Trade Value": "3875000",
-          "Post Holding Shares": "315452",
-          "Post Holding %": "0.08",
-          "Mode": "Conversion of security",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-20",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "NRBBEARING": [
@@ -191459,28 +191305,6 @@
           "Mode": "Market Purchase",
           "From Date": "2026-08-19",
           "To Date": "2026-08-19"
-        }
-      },
-      {
-        "ticker": "SHALBY",
-        "date": "2025-09-20",
-        "cells": {
-          "Company": "Shalby Ltd",
-          "Insider": "SHAH FAMILY TRUST THROUGH DR. VIKRAM I SHAH, TRUSTEE",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "60000",
-          "Trade %": "0.06",
-          "Trade Value": "14410686",
-          "Post Holding Shares": "37577132",
-          "Post Holding %": "34.79",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-20",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
         }
       }
     ],
