@@ -9788,9 +9788,9 @@
   "collection": {
     "version": 1,
     "optional": true,
-    "status": "partial",
-    "reason": "partial-read",
-    "lastAttemptAt": "2026-09-20T20:54:30.539Z",
+    "status": "unavailable",
+    "reason": "source-read-failed",
+    "lastAttemptAt": "2026-09-20T21:27:43.050Z",
     "lastSuccessAt": null
   }
 }
