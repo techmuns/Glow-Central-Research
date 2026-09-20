@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-20T18:09:41.898Z",
-  "oldestDataAt": "2026-09-20T18:09:41.898Z",
-  "from": "2025-09-20",
-  "to": "2026-09-20",
+  "capturedAt": "2026-09-20T18:59:57.372Z",
+  "oldestDataAt": "2026-09-20T18:59:57.372Z",
+  "from": "2025-09-21",
+  "to": "2026-09-21",
   "windowDays": 365,
   "coverageFrom": "2026-08-05",
   "scope": "exchange",
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-20T18:09:41.898Z",
+      "capturedAt": "2026-09-20T18:59:57.372Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-20T18:09:41.898Z",
+      "capturedAt": "2026-09-20T18:59:57.372Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-20T18:09:41.898Z",
+      "capturedAt": "2026-09-20T18:59:57.372Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-20T18:09:41.898Z",
+      "capturedAt": "2026-09-20T18:59:57.372Z",
       "coverageFrom": "2026-08-04"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 1543,
   "emptyCount": 0,
-  "rowCount": 15948,
+  "rowCount": 15946,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -59040,28 +59040,6 @@
           "To Date": "2025-09-19",
           "Broadcast Date": "2025-10-14",
           "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SHALBY",
-        "date": "2025-09-20",
-        "cells": {
-          "Company": "Shalby Ltd",
-          "Insider": "SHAH FAMILY TRUST THROUGH DR. VIKRAM I SHAH, TRUSTEE",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "60000",
-          "Trade %": "0.06",
-          "Trade Value": "14410686",
-          "Post Holding Shares": "37577132",
-          "Post Holding %": "34.79",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-20",
-          "Source": "BSE",
           "Trade Category": "Insider trade"
         }
       }
@@ -124055,28 +124033,6 @@
           "From Date": "2025-09-18",
           "To Date": "2025-09-22",
           "Broadcast Date": "2025-09-22",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "USHAMART",
-        "date": "2025-09-20",
-        "cells": {
-          "Company": "USHAMART",
-          "Insider": "Rajeev Jhawar",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "10000",
-          "Trade %": "0",
-          "Trade Value": "4248320",
-          "Post Holding Shares": "2835000",
-          "Post Holding %": "0.93",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-20",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
