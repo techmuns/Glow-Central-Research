@@ -217,79 +217,103 @@
       ]
     },
     "isin:INE067A01029|Cg Power and Ind Sol": {
-      "lastAttemptAt": "2026-09-16T07:54:13+00:00",
+      "lastAttemptAt": "2026-09-20T20:53:41+00:00",
       "lastResultCount": 0,
-      "error": "search-unavailable",
-      "lastSuccessAt": "2026-09-06T22:10:33+00:00",
+      "error": null,
+      "lastSuccessAt": "2026-09-20T20:53:41+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE067A01029|CG Power & Ind": {
-      "lastAttemptAt": "2026-09-16T08:36:51+00:00",
+      "lastAttemptAt": "2026-09-20T20:53:41+00:00",
       "lastResultCount": 0,
-      "error": "search-unavailable",
-      "lastSuccessAt": "2026-09-06T22:10:33+00:00",
+      "error": null,
+      "lastSuccessAt": "2026-09-20T20:53:41+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE067A01029|CGPOWER": {
-      "lastAttemptAt": "2026-09-16T09:10:00+00:00",
-      "lastResultCount": 87,
-      "error": "search-unavailable",
+      "lastAttemptAt": "2026-09-20T20:53:41+00:00",
+      "lastResultCount": 104,
+      "error": "result-cap-incomplete",
       "lastSuccessAt": "2026-09-06T22:10:33+00:00",
-      "targetThrough": null,
-      "pending": []
+      "targetThrough": "2026-09-20T20:53:41+00:00",
+      "pending": [
+        {
+          "from": "2026-09-04T22:10:33+00:00",
+          "to": "2026-09-12T21:32:07+00:00"
+        },
+        {
+          "from": "2026-09-12T21:32:07+00:00",
+          "to": "2026-09-20T20:53:41+00:00"
+        }
+      ]
     },
     "isin:INE522F01014|Coal India": {
-      "lastAttemptAt": "2026-09-16T09:48:13+00:00",
-      "lastResultCount": 100,
-      "error": "search-unavailable",
+      "lastAttemptAt": "2026-09-20T20:53:41+00:00",
+      "lastResultCount": 105,
+      "error": "result-cap-incomplete",
       "targetThrough": "2026-09-06T22:10:33+00:00",
       "pending": [
         {
-          "from": "2026-08-28T22:10:33.467294+00:00",
-          "to": "2026-09-02T10:10:33.233647+00:00"
-        },
-        {
           "from": "2026-09-02T10:10:33.233647+00:00",
           "to": "2026-09-06T22:10:33+00:00"
+        },
+        {
+          "from": "2026-08-28T22:10:33.467294+00:00",
+          "to": "2026-08-31T04:10:33.350470+00:00"
+        },
+        {
+          "from": "2026-08-31T04:10:33.350470+00:00",
+          "to": "2026-09-02T10:10:33.233647+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-09-20T20:53:41+00:00"
     },
     "isin:INE522F01014|COALINDIA": {
-      "lastAttemptAt": "2026-09-16T10:13:01+00:00",
-      "lastResultCount": 102,
-      "error": "search-unavailable",
+      "lastAttemptAt": "2026-09-20T20:53:41+00:00",
+      "lastResultCount": 108,
+      "error": "result-cap-incomplete",
       "targetThrough": "2026-09-06T22:10:33+00:00",
       "pending": [
         {
-          "from": "2026-08-28T22:10:33.467294+00:00",
-          "to": "2026-09-02T10:10:33.233647+00:00"
-        },
-        {
           "from": "2026-09-02T10:10:33.233647+00:00",
           "to": "2026-09-06T22:10:33+00:00"
+        },
+        {
+          "from": "2026-08-28T22:10:33.467294+00:00",
+          "to": "2026-08-31T04:10:33.350470+00:00"
+        },
+        {
+          "from": "2026-08-31T04:10:33.350470+00:00",
+          "to": "2026-09-02T10:10:33.233647+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-09-20T20:53:41+00:00"
     },
     "isin:INE591G01025|Coforge": {
-      "lastAttemptAt": "2026-09-16T10:54:18+00:00",
-      "lastResultCount": 105,
-      "error": "search-unavailable",
+      "lastAttemptAt": "2026-09-20T20:53:41+00:00",
+      "lastResultCount": 109,
+      "error": "result-cap-incomplete",
       "targetThrough": "2026-09-06T22:10:33+00:00",
       "pending": [
         {
-          "from": "2026-08-28T22:10:33.467294+00:00",
-          "to": "2026-09-02T10:10:33.233647+00:00"
-        },
-        {
           "from": "2026-09-02T10:10:33.233647+00:00",
           "to": "2026-09-06T22:10:33+00:00"
+        },
+        {
+          "from": "2026-08-28T22:10:33.467294+00:00",
+          "to": "2026-08-31T04:10:33.350470+00:00"
+        },
+        {
+          "from": "2026-08-31T04:10:33.350470+00:00",
+          "to": "2026-09-02T10:10:33.233647+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-09-20T20:53:41+00:00"
     },
     "isin:INE591G01025|COFORGE": {
-      "lastAttemptAt": "2026-09-16T11:24:28+00:00",
+      "lastAttemptAt": "2026-09-20T20:53:41+00:00",
       "lastResultCount": 106,
       "error": "search-unavailable",
       "targetThrough": "2026-09-06T22:10:33+00:00",
@@ -1628,8 +1652,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 226,
-    "checkedAt": "2026-09-20T20:21:11.096236+00:00"
+    "attempted": 7,
+    "incomplete": 224,
+    "checkedAt": "2026-09-20T20:53:41.773337+00:00"
   }
 }
