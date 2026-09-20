@@ -4,10 +4,92 @@ The daily technical score and the current price are separate measurements. The
 16-rule score still uses the completed daily series. Strong Breakouts recomputes
 its 30-session base breakout and volume classification from captured price and
 cumulative session volume. Table and popup share the same price and source time.
-A 15-minute capture is a periodic snapshot, not a streaming feed or a guarantee
-that every brief breakout will be observed.
+Upstox supplies one shared price/volume snapshot per minute in market hours.
+The existing 15-minute GitHub capture is the fallback and supplies daily bases
+and candle recovery. These are periodic snapshots, not a trade-by-trade stream.
 
-## Collection and delivery
+## Primary minute feed (20 September 2026)
+
+- The `breakout-upstox:v1` object has its own one-minute alarm; it does not dispatch
+  GitHub jobs. It runs without open dashboards, within 09:15–16:15 IST collection
+  hours, with the same holiday calendar. Its alarm is persisted before external I/O;
+  failures keep the next attempt armed and duplicate wakes do not collect twice.
+- Upstox full quotes are batched at 500 instruments. Approximately 592 mapped
+  targets need two quote requests per minute, shared by all readers. Exact NSE/BSE
+  identities are cached daily, with failed instrument lists retried after 15 minutes.
+  The large official gzip lists are streamed and only cash identities are retained.
+- Authenticated fallback runs publish the complete discovered inventory, including
+  portfolio ISINs, names and explicit symbol aliases. Bases come from the current
+  session's fallback history. Missing bases remain partial until that history arrives;
+  yesterday's breakout base is never silently relabelled as today's.
+  Inventory is published before an after-hours quote skip; newly added targets still
+  require a closing seed. Partial discovery preserves earlier identities and targets,
+  so a temporarily unavailable portfolio/watchlist cannot erase a renamed stock's ISIN.
+  An inventory check older than 20 minutes remains partial even if its known stocks
+  still have fresh quotes; primary collection continues through that discovery outage.
+- A successfully checked Upstox quote takes priority. After two minutes without a
+  successful primary check, a fresh fallback quote can take over. Last good prices
+  survive failures and still show their actual source/trade time. An old last trade
+  is never stamped with the time the dashboard was opened.
+- Visible readers check saved data every 15 seconds and immediately on opening,
+  focus, visibility return and reconnect. The shared edge cache lasts five seconds.
+  Opening a dashboard never exposes the token or starts another provider request.
+- Detailed minute observations expire after **four calendar days**, as approved by
+  the user on 20 September 2026. They stay in Cloudflare SQLite, not GitHub files or
+  the dashboard's browser cache. The latest-price index is separate; an outage can
+  retain the last known price with its true date after the detailed archive expires.
+  Cleanup runs every 15 minutes through the minute timer even on holidays, without
+  credentials, or during provider outages; a save also checks cleanup before writing.
+  A delayed alarm may delay physical cleanup. History reads enforce the four-day window.
+- Minute history stores only price, volume and source/check times alongside a compact
+  key. Company identity and breakout base are deduplicated in a daily dictionary;
+  complete payload comparison prevents hash collisions from mixing identities.
+  Sixteen indexed buckets per minute keep write counts down. Dictionary cleanup retains
+  the cutoff day until all of its possible observations have expired.
+- Observed breakout entries, exits and quality changes retain their complete supporting
+  quote separately after minute expiry. The first non-breakout establishes a baseline;
+  missing bases and regressed source times cannot invent a transition. Existing daily
+  and 15-minute history retain their previous policy. Failure-interval detail uses the same four-day
+  window, then compacts into durable per-company/reason counts with first/last bounds.
+  Lifetime missed-minute and missing-quote totals survive cleanup. Current-price reads
+  load a single summary record, never scan the growing failure journal.
+- Normal dashboard opening/polling reads only the latest-price index and coverage
+  summary. It never queries or downloads the minute/event archives. History is a separate
+  company-specific, 100-row paginated endpoint. Minute captures order by capture time;
+  source quote times remain unchanged. Breakout changes appear once, whether their
+  minute snapshot is still retained or has expired. Storage remains finite.
+- A local 600-company, 30-minute fixture stored 1,421,230 bytes versus 6,205,200 bytes
+  for full quote copies (77% smaller). Its current response was 211,981 bytes raw and
+  20,169 bytes gzip. These are synthetic measurements, not production transfer or
+  database-size guarantees; company names, values and breakout activity vary.
+- Missed minute intervals are counted separately in `primary.gaps`. The existing
+  15-minute candle recovery remains available; it does not reconstruct every missed
+  one-minute observation. Provider outages, absent symbols and shorter listing histories
+  remain explicit partial coverage. Consecutive failures with the same target/reason
+  set are retained as intervals, including the number of missing target-minute quotes;
+  successful recovery does not erase their missing-quote counts. `primary.captureStartedAt`
+  identifies when minute collection began, separately from older fallback history.
+- A usable fallback quote does not make a failed primary feed healthy. Missing server
+  credentials, instrument-list failures, failed quote batches, overdue checks and primary
+  storage failures remain partial in Sources and return 503 from the health endpoint.
+  Saved prices remain readable while either collector is impaired.
+
+### Server token setup
+
+The GitHub secret is available only inside GitHub jobs. Add the **same** Analytics
+Token as an encrypted Cloudflare Worker secret named `UPSTOX_ACCESS_TOKEN` on
+`sattva-central-research`. Do not add it as a plain-text variable. The Worker reads
+this secret only on the server; public status exposes only whether it is configured.
+The existing post-merge bootstrap arms both independent timers after publishing.
+Without the Worker secret, the 15-minute fallback remains active and Sources says
+that the primary feed awaits its server token. Saving the secret is a production
+configuration action and requires the user's authorization; tests use local fixtures.
+
+Renew this secret **and** the GitHub secret when the one-year token is replaced.
+No additional paid Upstox subscription is introduced. Existing Cloudflare storage,
+request and execution allowances still apply.
+
+## Fallback collection and delivery
 
 - `breakouts-refresh.yml` requests a run every 15 minutes. The collector only
   requests market data during regular-session collection hours (09:15–16:15 IST),
@@ -40,7 +122,7 @@ that every brief breakout will be observed.
   and requires no additional Cloudflare cron slot. Reads never activate it.
 - GitHub OIDC permits writes only from the fixed repository, main branch and
   this workflow. No browser credential or long-lived upload secret is needed.
-- Yahoo Finance is the primary quote/history source. Eight requests run at once;
+- Yahoo Finance is the fallback quote/history source. Eight requests run at once;
   a rate limit stops further primary requests. Numeric BSE codes and known SME
   suffix mappings follow the existing daily collector; the exchange is labelled. Each completed wave is checkpointed.
   All committed universe names, technical rows, live portfolio tickers and shared
@@ -58,9 +140,9 @@ that every brief breakout will be observed.
   the browser keeps its prior complete bundle or a labelled deployed fallback;
   it never mixes a new score file with old trend inputs. Publishing
   this new Worker and browser release still requires a successful deployment.
-- Visible dashboards read the saved capture every minute and on focus/return or
+- Visible dashboards read the saved capture every 15 seconds and on focus/return or
   reconnect. Daily data revalidates every 15 minutes and on return when due.
-  Public capture responses share a 30-second edge cache to reduce database reads;
+  Public capture responses share a five-second edge cache to reduce database reads;
   the health endpoint remains uncached. Browser reads do not spend Muns quote requests. An already-open popup updates
   with the table. Search, selected chips, sorting and scroll are retained during
   capture refresh. The service-worker release is advanced for returning readers.
@@ -68,14 +150,14 @@ that every brief breakout will be observed.
   the same date. Extra captured targets appear only in their selected scope;
   watchlist-only additions do not silently join Universe.
 
-## Optional free Upstox backup
+## Upstox token and fallback-job backup
 
 Upstox documents its [Analytics Token](https://upstox.com/developer/api-documentation/analytics-token/)
 as free, read-only and valid for one year. No static IP is required for market
 quotes/history. Configure the token as the GitHub Actions secret
 `UPSTOX_ACCESS_TOKEN`; set the repository variable `UPSTOX_BACKUP_ENABLED=true`
-only after the account and permitted customer-data use are confirmed. Until then
-this backup is **not active**. No paid subscription is requested by this change.
+only after the account and permitted customer-data use are confirmed. This controls the optional backup inside GitHub jobs; the primary minute feed
+uses the separate Worker secret described above. No paid subscription is requested by this change.
 Do not paste the token into issues, PRs, chat, browser storage or committed files.
 
 The [full-quote endpoint](https://upstox.com/developer/api-documentation/get-full-market-quote/)
@@ -127,7 +209,9 @@ must all be present for a company's breakout check to count as covered. The
 latest run must complete its entire manifest; discovery failures and calendar
 uncertainty prevent a complete-coverage claim.
 
-Every acknowledged quote is retained separately from the latest-quote index.
+Every acknowledged fallback quote is retained separately from the latest-quote index.
+Detailed primary minute quotes use the four-day policy above; detected breakout
+changes survive that expiry.
 A failed run keeps the old observation and adds the failure; it cannot make the
 old quote appear newly checked. Completed runs are idempotent; conflicting
 checkpoint replay is refused. No history is deleted when the date or scope changes.
@@ -143,12 +227,18 @@ remain disclosed. Recovery cannot reconstruct every trade or an intra-candle
 breakout that reversed before the candle closed.
 
 - `/api/breakouts`: current capture, per-ticker failures, recovery gaps and timer.
+- `/api/breakouts/fallback`: the persisted fallback capture used by GitHub closing
+  checks and recovery; healthy minute quotes cannot suppress fallback retries.
 - `/api/breakouts/health`: 503 for missing/partial/stale current coverage or an
   overdue timer; this is distinct from historical recovery completeness.
-- `/api/breakouts/history?ticker=...&before=...`: all saved observations with
+  `archiveStatus: incomplete`, `archiveIncomplete` and the archive counters disclose
+  known history gaps even after prices recover. Sources remains partial and explains
+  those gaps separately from current-price freshness.
+- `/api/breakouts/history?ticker=...&before=...`: retained minute observations, breakout changes and existing fallback history with
   keyset pagination (100 per page, follow `nextCursor`), including recovered candles.
 
-The response states capture start and finite storage. No exhaustive pre-capture
+The response states separate minute/fallback capture starts, `minuteRetentionDays: 4`,
+retained breakout changes and finite storage. No exhaustive pre-capture
 archive is claimed. Source records are retained in the existing durable database;
 30-day GitHub health artifacts are diagnostics, not the market-data archive.
 This change adds no paid product, but cannot promise infinite free storage or
@@ -157,7 +247,8 @@ ignore existing platform quotas. Storage failures surface as failed checkpoints.
 ## Validation and operations
 
 Local tests cover dates/holidays, stale quotes, missing bases, failure retention,
-large inventories, rate-limit stopping, fallback mapping/history, signed OIDC,
+large inventories, four-day expiry, retained breakout changes, dictionary collision
+safety, current-reader isolation from history, rate-limit stopping, fallback mapping/history, signed OIDC,
 replay, history pagination, interrupted recovery and delayed-run dispatch. A real
 local workerd test restarts between checkpoints and verifies SQLite/history/alarm
 persistence. Browser tests cover automatic updates, the open popup, future
