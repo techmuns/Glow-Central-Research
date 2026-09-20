@@ -1,7 +1,7 @@
 {
  "_provenance": "THE DATED EVIDENCE BEHIND THE BOOK — every trade, capital-gain lot and income row the family’s own statements carry, read from the statement archive in techmuns/GlowVentures (public/audit/) by scripts/lib/glow-archive.mjs with that repository’s own precedence and de-duplication rules. Nothing here is derived: each figure is the statement’s own, and a row that printed none keeps null. THE WINDOW IS THE STATEMENTS’ AND IS NOT A HOLDING PERIOD — the earliest buy on this tape is not when a holding was started. The rows are in book-ledger.json, fetched only by the view that reads them.",
  "source": "techmuns/GlowVentures src/data/glowData.ts",
- "builtFrom": "868cc88",
+ "builtFrom": "27fdf15",
  "asOf": "2026-08-29",
  "window": {
   "declaredFrom": "2026-04-01",
