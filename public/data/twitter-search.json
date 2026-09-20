@@ -165,7 +165,7 @@
       "error": "search-unavailable"
     },
     "isin:INE376G01013|Biocon": {
-      "lastAttemptAt": "2026-09-16T03:33:07+00:00",
+      "lastAttemptAt": "2026-09-20T16:22:33+00:00",
       "error": "search-unavailable"
     },
     "isin:INE376G01013|BIOCON": {
@@ -1630,6 +1630,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-20T15:51:59.493644+00:00"
+    "checkedAt": "2026-09-20T16:22:33.331053+00:00"
   }
 }
