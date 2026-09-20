@@ -1,9 +1,13 @@
+<<<<<<< HEAD
 import * as fundReturns from '../data/fund-returns.js';
 import * as mfWeekly from '../data/mf-weekly.js';
 import * as macroSeries from '../data/series.js';
 import * as fpiActivity from '../data/fpi-activity.js';
 import * as familyBook from '../data/book.js';
 import * as familyManagers from '../data/managers.js';
+=======
+import * as mutualFunds from '../data/mutual-funds.js';
+>>>>>>> sattva/main
 // ui/sources.js — the data-source registry behind the header's "Sources" button.
 //
 // This is presentation metadata, not a data source: it mirrors docs/DATA-CONTRACTS.md so a
@@ -228,7 +232,7 @@ export function sourceGroups() {
   const mfIndices = num(() => mfWeekly.meta()?.benchmarkCount);
   const breakoutCapture = breakoutLive.snapshot();
   const breakoutHealth = breakoutLive.coverageFor(breakoutCapture?.targets || []);
-  const breakoutState = breakoutLive.unavailable() ? 'unavailable' : !breakoutHealth.total ? 'unchecked' : breakoutHealth.partial ? 'partial' : 'read';
+  const breakoutState = breakoutLive.unavailable() ? 'unavailable' : !breakoutHealth.total ? 'unchecked' : breakoutHealth.partial || breakoutHealth.archiveIncomplete ? 'partial' : 'read';
   const uni = num(() => technicals.all().length);
   const reported = num(() => earningsLive.all().length);
   const calls = num(() => concalls.all().length);
@@ -256,6 +260,11 @@ export function sourceGroups() {
         .join(' and ');
 
     const groups = [
+    { title: 'Mutual Funds', icon: '📋', tabs: 'Mutual Funds', items: [{
+      name: 'AMC monthly portfolio disclosures', feeds: mutualFunds.health(), cadence: '15-minute collection target, server-side; monthly source publications',
+      status: 'live', readState: sourceReadState({at:mutualFunds.meta().checkedAt,failed:mutualFunds.meta().readFailed,partial:mutualFunds.health()!=='Latest reported disclosures',maxAgeMs:45*60000}),
+      note: 'AmfiBeas public AMC disclosures. Missing and stale AMC reports remain explicit; only adjacent, comparable months contribute to net change. Estimates of company shares outstanding are labelled. Every captured month is retained.'
+    }] },
     {
       // THE ALERT PAIR COMES FIRST because this is the only group whose whole point is that it
       // introduces NOTHING. A reader is owed "no new feed" before looking for a source that does
@@ -312,10 +321,10 @@ export function sourceGroups() {
           file: 'public/data/atr-history.json',
         },
         {
-          name: 'Saved price and volume capture — Yahoo Finance / optional Upstox',
+          name: 'Saved price and volume capture — Upstox / Yahoo Finance fallback',
           url: 'https://upstox.com/developer/api-documentation/analytics-token/',
-          feeds: 'One background capture covers the universe, live portfolio and shared watchlist. Yahoo Finance supplies the primary observations; Upstox is an optional credentialed backup. Saved price and cumulative session volume drive breakout checks, while the 16-rule score retains its daily close date. Every price carries its source time. Failures keep dated observations, and available historical candles can recover gaps.',
-          cadence: `15-minute schedule in market hours; GitHub delays and source failures remain visible. ${breakoutHealth.total ? `${breakoutHealth.checked} of ${breakoutHealth.total} companies have current usable observations.` : 'No shared capture has been read yet.'} Last completed source check: ${breakoutCapture?.completedAt ? breakoutLive.stamp(breakoutCapture.completedAt) : 'not available'}.`,
+          feeds: 'Upstox is the primary price and volume feed. A shared server collector runs independently of open dashboards. The existing Yahoo Finance capture supplies the 15-minute fallback and daily breakout bases. Breakout checks use current price and cumulative session volume; the 16-rule score retains its daily close date. Detailed minute history stays on Cloudflare for four days. Detected breakout changes and existing fallback history are retained; ordinary dashboard reads load current prices only.',
+          cadence: `${breakoutCapture?.primarySchedule?.configured ? 'Upstox every minute in market hours' : 'Upstox minute feed awaits the server token'}; 15-minute fallback. ${breakoutHealth.total ? `${breakoutHealth.checked} of ${breakoutHealth.total} companies have current usable observations.` : 'No shared capture has been read yet.'} Last completed source check: ${breakoutCapture?.completedAt ? breakoutLive.stamp(breakoutCapture.completedAt) : 'not available'}.${breakoutHealth.archiveIncomplete ? ` History has recorded gaps: ${breakoutHealth.archive.missedMinutes} missed minute checks, ${breakoutHealth.archive.missingMinuteQuotes} missing company-minute quotes and ${breakoutHealth.archive.fallbackGapIntervals} fallback intervals. Current-price freshness is separate.` : ''}`,
           status: 'live', readState: breakoutState,
           file: 'GET /api/breakouts · durable saved history',
         },
