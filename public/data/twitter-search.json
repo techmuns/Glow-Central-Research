@@ -1486,47 +1486,119 @@
       "error": "search-unavailable"
     },
     "isin:INE1CLE01013|Vedanta Iron and Steel": {
-      "lastAttemptAt": "2026-09-15T10:49:52+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-20T00:19:51+00:00",
+      "error": null,
+      "lastResultCount": 21,
+      "lastSuccessAt": "2026-09-20T00:19:51+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE1CLE01013|VISL": {
-      "lastAttemptAt": "2026-09-15T11:23:23+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-20T00:19:51+00:00",
+      "error": null,
+      "lastResultCount": 53,
+      "lastSuccessAt": "2026-09-20T00:19:51+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE205A01025|Vedanta": {
-      "lastAttemptAt": "2026-09-15T11:56:38+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-20T00:19:51+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 112,
+      "targetThrough": "2026-09-20T00:19:51+00:00",
+      "pending": [
+        {
+          "from": "2026-09-11T00:19:51.977725+00:00",
+          "to": "2026-09-15T12:19:51.488863+00:00"
+        },
+        {
+          "from": "2026-09-15T12:19:51.488863+00:00",
+          "to": "2026-09-20T00:19:51+00:00"
+        }
+      ]
     },
     "isin:INE205A01025|VEDL": {
-      "lastAttemptAt": "2026-09-15T12:27:10+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-20T00:19:51+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 103,
+      "targetThrough": "2026-09-20T00:19:51+00:00",
+      "pending": [
+        {
+          "from": "2026-09-11T00:19:51.977725+00:00",
+          "to": "2026-09-15T12:19:51.488863+00:00"
+        },
+        {
+          "from": "2026-09-15T12:19:51.488863+00:00",
+          "to": "2026-09-20T00:19:51+00:00"
+        }
+      ]
     },
     "isin:INE704J01044|Vedanta Oil and Gas": {
-      "lastAttemptAt": "2026-09-15T13:14:03+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-20T00:19:51+00:00",
+      "error": null,
+      "lastResultCount": 8,
+      "lastSuccessAt": "2026-09-20T00:19:51+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE704J01044|VOGL": {
-      "lastAttemptAt": "2026-09-15T13:45:19+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-20T00:19:51+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 104,
+      "targetThrough": "2026-09-20T00:19:51+00:00",
+      "pending": [
+        {
+          "from": "2026-09-11T00:19:51.977725+00:00",
+          "to": "2026-09-15T12:19:51.488863+00:00"
+        },
+        {
+          "from": "2026-09-15T12:19:51.488863+00:00",
+          "to": "2026-09-20T00:19:51+00:00"
+        }
+      ]
     },
     "isin:INE694L01019|Vedanta Power": {
-      "lastAttemptAt": "2026-09-15T14:15:41+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-20T00:19:51+00:00",
+      "error": null,
+      "lastResultCount": 29,
+      "lastSuccessAt": "2026-09-20T00:19:51+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE694L01019|VEDPOWER": {
-      "lastAttemptAt": "2026-09-15T14:54:13+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-20T00:19:51+00:00",
+      "error": null,
+      "lastResultCount": 11,
+      "lastSuccessAt": "2026-09-20T00:19:51+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE564S01019|Vikram Kamats Hospitality": {
-      "lastAttemptAt": "2026-09-15T15:27:20+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-20T00:19:51+00:00",
+      "error": null,
+      "lastResultCount": 0,
+      "lastSuccessAt": "2026-09-20T00:19:51+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE18UN01038|GAJA": {
-      "lastAttemptAt": "2026-09-15T16:00:47+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-20T00:19:51+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 105,
+      "targetThrough": "2026-09-20T00:19:51+00:00",
+      "pending": [
+        {
+          "from": "2026-09-11T00:19:51.977725+00:00",
+          "to": "2026-09-15T12:19:51.488863+00:00"
+        },
+        {
+          "from": "2026-09-15T12:19:51.488863+00:00",
+          "to": "2026-09-20T00:19:51+00:00"
+        }
+      ]
     },
     "isin:INE540H01012|Voltamp Transformers": {
-      "lastAttemptAt": "2026-09-15T16:39:50+00:00",
+      "lastAttemptAt": "2026-09-20T00:19:51+00:00",
       "error": "search-unavailable"
     },
     "isin:INE540H01012|VOLTAMP": {
@@ -1556,8 +1628,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 225,
-    "checkedAt": "2026-09-19T23:46:15.059818+00:00"
+    "attempted": 11,
+    "incomplete": 219,
+    "checkedAt": "2026-09-20T00:19:51.977725+00:00"
   }
 }
