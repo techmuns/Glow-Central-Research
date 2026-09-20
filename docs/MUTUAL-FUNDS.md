@@ -72,6 +72,9 @@ acknowledgements retry the exact idempotent request up to three times before the
 interrupted publish stays `collecting` until every manifest company is acknowledged. A later run
 reconciles it, while older data remains readable. Signed GitHub OIDC claims restrict writes to this
 repository's main-branch collector workflow. Reader routes are read-only and ETagged.
+Scoped summary reads bind the validated ISIN list as one JSON array, preserving
+the full 250-company response below Cloudflare's 100 SQL-parameter limit. The local
+Worker regression covers 100, 101, 118 and 250 requested companies and universe paging.
 
 All captured months and distinct corrections are retained in shared storage, including companies
 that leave the portfolio. Initial history varies by AMC; months absent from the upstream snapshot
@@ -107,3 +110,17 @@ large real-book RPC, conditional HTTP responses, portfolio weight sorting, group
 search beyond mounted rows, keyboard close, light/dark/mobile layouts and existing-session cache
 upgrade. Ask Research receives all selected portfolio summary rows before other topic samples,
 within its separately validated expanded evidence bound; source coverage remains explicit.
+
+## Quantum monthly disclosure adapter
+
+Quantum's public portfolio API is queried for the exact reporting year and month,
+including every returned page. A download is accepted only from its official
+FileCDN and only when each parsed scheme confirms the requested reporting month.
+The unfiltered page can list a much older September workbook above the current
+August report; link order is not evidence of freshness. FoF workbooks append a
+labelled "Monthly Portfolio Statement of the Underlying Schemes" section. The
+parser stops at that heading, preserving directly held fund units and excluding
+the underlying funds' equity portfolios from direct company ownership. Previously
+captured Quantum observations already exclude that appendix and remain retained.
+If a changed FoF layout still yields company equity, the check fails and retains
+the last good disclosure until its ownership context can be verified.
