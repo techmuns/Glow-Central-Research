@@ -204,6 +204,18 @@ try {
   await liveAi.context.close();
   served.pool = true;
 
+  // A capture check can publish a new artifact without changing any retained rows. Exercise the
+  // real header refresh: all AI shards stay decoded, while the new index/status are checked.
+  const fromRefresh = served.requests.length;
+  served.artifact++;
+  await pooled.page.locator('[data-header-refresh]').click();
+  await pooled.page.waitForFunction(async artifact => (await import('/js/data/alert-pool.js')).status().artifact === artifact,
+    served.artifact, { timeout: 120000 });
+  assert.deepEqual(await settledRanking(pooled.page, 180000), pooledCards, 'refresh keeps identical ranked cards');
+  assert.deepEqual(poolReads(fromRefresh).filter(path => /\/\d+\//.test(path)), [], 'unchanged shards are not downloaded from the new artifact');
+  assert(served.requests.slice(fromRefresh).includes('/api/capture-status'), 'refresh still checks live capture revisions');
+  console.log(`PASS new artifact reuses ${index.ai.length} unchanged AI shards: zero shard requests, identical cards`);
+
   const environment = (message) => /ExcelJS|fonts\.googleapis|exceljs|Failed to load resource|net::ERR|503/.test(message);
   const real = pooled.errors.filter((message) => !environment(message));
   assert.deepEqual(real, [], `zero console errors (${pooled.errors.length - real.length} environment failures dropped)`);

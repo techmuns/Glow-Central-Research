@@ -31,7 +31,7 @@ export const MAX_INDEX_BYTES = 4 * 1024 * 1024;
 const MAX_DIRECTORY_BYTES = 1024 * 1024;
 const TAIL_BYTES = 65_557 + 256 * 1024;
 
-const cacheKey = (path) => new Request(`https://cache.invalid/alert-pool/${path}`, { method: 'GET' });
+const cacheKey = (path) => new Request(`https://cache.invalid/glow-alert-pool/${ALERT_POOL_CONTRACT}/${path}`, { method: 'GET' });
 
 function github({ repo, token }) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo || '')) throw new Error('Alert pool delivery is not configured');
