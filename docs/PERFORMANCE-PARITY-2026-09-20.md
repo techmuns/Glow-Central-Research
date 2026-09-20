@@ -80,6 +80,10 @@ production latency guarantees and do not establish complete upstream source cove
   download**, warm-cache reuse, honest failure, gzip delivery, byte-range pool reads and 304s.
 - The existing-session test starts with an older service-worker/module cache and verifies that the
   open session receives the new alert-pool reader while retaining the selected theme.
+- CI exposed a dated breakout-runtime fixture crossing the real five-day recovery window. The
+  fixture now pins its store clock and separately advances past the window, verifying that retry
+  eligibility expires while the unrecovered gap and captured history remain. Production recovery
+  rules are unchanged.
 - A 24-view local iframe sweep completed without application exceptions, covering full-data search,
   sort, offscreen export, native scrolling, variable row heights, live updates and disposal. The
   static fallback's slower cases remain visible: All Alerts settled in about 4.5 s in that sweep;

@@ -19,9 +19,14 @@ const upstream=createServer((req,res)=>{
 await new Promise(done=>upstream.listen(0,'127.0.0.1',done));
 const upstreamOrigin=`http://127.0.0.1:${upstream.address().port}`;
 writeFileSync(join(scratch,'entry.mjs'),`
-import {CaptureRegistry} from ${JSON.stringify(resolve('worker/capture-registry-object.mjs'))};
+import {CaptureRegistry as ActualRegistry} from ${JSON.stringify(resolve('worker/capture-registry-object.mjs'))};
 import {handleTechnicals} from ${JSON.stringify(resolve('worker/breakouts.mjs'))};
-export {CaptureRegistry};
+// Pin only the store's fixture clock; the real alarm still uses the runtime clock. Otherwise
+// the dated recovery sample leaves the five-day retry window as the calendar advances.
+export class CaptureRegistry extends ActualRegistry {
+ constructor(ctx,env) { super(ctx,env); this.breakouts.now=()=>Date.parse('2026-09-15T06:05:00Z'); }
+ breakoutReadAt(now) { this.breakouts.now=()=>now; return this.breakoutRead(); }
+}
 export default {async fetch(request,env){const body=await request.json();
 if(body.action==='daily') {
  const fetcher=(url,options)=>{const source=new URL(url);if(!['api.github.com','raw.githubusercontent.com'].includes(source.hostname))throw Error('Unexpected source');
@@ -36,6 +41,7 @@ if(body.action==='checkpoint')return Response.json(await store.breakoutCheckpoin
 if(body.action==='finish')return Response.json(await store.breakoutFinish(body.run));
 if(body.action==='recovery')return Response.json(await store.breakoutRecovery(body.run,body.ticker,body.from,body.to,body.rows));
 if(body.action==='history')return Response.json(await store.breakoutHistory(body.ticker,body.before));
+if(body.action==='aged')return Response.json(await store.breakoutReadAt(body.now));
 return Response.json({capture:await store.breakoutRead(),schedule:await store.breakoutScheduleStatus()});}};`);
 writeFileSync(config,JSON.stringify({name:'breakout-local-test',main:join(scratch,'entry.mjs'),compatibility_date:'2026-05-23',durable_objects:{bindings:[{name:'STORE',class_name:'CaptureRegistry'}]},migrations:[{tag:'v1',new_sqlite_classes:['CaptureRegistry']}]}));
 let child,logs='';
@@ -65,5 +71,8 @@ try{
  state=await call();assert.equal(state.capture.state,'complete');assert.equal(state.capture.failures.length,1);assert.equal(state.capture.recoveryPending.length,1);
  const history=await call({action:'history',ticker:'TEST'});assert.equal(history.rows.length,2);assert(history.rows.some(row=>row.kind==='recovered-candle'));
  assert.equal(state.capture.rows[0].kind,'quote');
+ const aged=await call({action:'aged',now:Date.parse('2026-09-21T06:05:00Z')});
+ assert.equal(aged.recoveryPending.length,0);assert.equal(aged.gaps.find(gap=>gap.reason==='unrecovered').count,1);
+ assert.deepEqual((await call({action:'history',ticker:'TEST'})).rows,history.rows);
  console.log('PASS local workerd: native daily-file fetch and redirect refusal; breakout SQL/RPC, incremental capture, failed targets, independent alarm, recovered candles and history survive restarts');
 }finally{await stop();await new Promise(done=>upstream.close(done));rmSync(scratch,{recursive:true,force:true});}
