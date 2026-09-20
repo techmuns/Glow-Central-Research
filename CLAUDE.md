@@ -271,6 +271,9 @@ worker/muns.mjs               the AUTHENTICATED news / insider clients — same 
 worker/bse-ann.mjs            BSE's DATE-indexed announcement feed — open, no credential
 worker/nse-ann.mjs            NSE's LIVE announcements RSS — parser + name->symbol resolver, pure and
                               shared with the scraper. Browser can't read NSE (CORS null); Worker can
+worker/filing-page.mjs        ONE NSE XBRL ANNOUNCEMENT AS A PAGE — `GET /filing?src=`, server-rendered
+                              from the same parser the dashboard's panel uses. Where a team-brief
+                              link lands, because an email opens in a browser and not in the app
 worker/mc-news.mjs            Moneycontrol's market-wide news listing — parser only; nothing on
                               the edge can fetch it, so only the Action ever calls this
 worker/rss-news.mjs           the four RSS publishers behind the same tab — parser + feed list,
@@ -1277,11 +1280,20 @@ revalidates its sources on mount — moved, not deleted, and the age stays state
 
 The **Newsletter** button beside the header bell subscribes the desk to two Glow Ventures-branded
 emails a weekday, each leading with the portfolio companies (one block per company, every link
+<<<<<<< HEAD
 opening in a new tab) and following with the market scan: the **morning brief** at 08:00 IST (what happened overnight — the US close, Asia this
 morning, Brent, gold, silver, the dollar index and USD/JPY, plus every filing and story about a
 DIRECT holding since the previous evening) and the **evening brief** at 16:00 IST (the trading day).
 `docs/DATA-CONTRACTS.md` → *The team brief* has the routes, the shapes and the window rule. Seven
 rules, and every one of them is a rule this file already runs on:
+=======
+opening in a new tab) and following with the market scan: the **morning brief** at 08:00 IST (what
+happened overnight — the US close, Asia this morning, Brent, gold, silver, the dollar index and
+USD/JPY, plus every filing and story about a DIRECT holding since the previous evening) and the
+**evening brief** at 16:00 IST (the trading day). `docs/DATA-CONTRACTS.md` → *The team brief* has the
+routes, the shapes and the window rule. Twelve rules, and every one of them is a rule this file
+already runs on:
+>>>>>>> sattva/main
 
 1. **"Direct ones" means `portfolio-companies.json`**, the Portfolio scope's own file, and nothing
    wider. Fund units, AIFs and the ring-fenced line are outside it there and outside it here.
@@ -1319,6 +1331,50 @@ rules, and every one of them is a rule this file already runs on:
    would sanitise two addresses into one that never existed, silently.
 7. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
    origin is told it has no newsletter, never shown an error.
+<<<<<<< HEAD
+=======
+8. **It reads every capture the dashboard already keeps for the book, not the one that happens to
+   be live.** The live NSE RSS is the exchange's last ~40 items (measured: 40 spanning 39 minutes),
+   so for a while it was the brief's whole NSE coverage of a sixteen-hour window. The retained
+   history under `data/nse-filings/<day>.json` and BSE's capture are the announcements; the
+   publishers' head **and** `data/tradingview-news/latest.json` (headlines tagged to each holding,
+   every fifteen minutes) are the news — admitted only where `attributeNewsRow` confirms the story
+   names the company, the same gate the News tab and the AI ranking apply; and a holding that moved
+   `MOVE_PCT` or more on its last completed session is a story too, from the closes General Alerts
+   reads, dated by the session and marked whether the close was exchange-verified. Measured on the
+   18 September morning window: 15 updates across 11 companies went out; the same window against
+   the same captures builds 47 across 28.
+9. **One filing is one story, and two filings are two — never fold on a headline prefix.** The
+   sixty-character prefix key dropped 6 of 61 book filings in one three-day capture ("Please refer
+   the enclosed file." twice is two filings; two Regulation 30 intimations minutes apart are two
+   events). `foldAnnouncements()` never folds two rows from the same exchange; it folds an NSE XBRL
+   twin into its readable copy and NSE's copy of a BSE filing into the BSE row (identical text, or
+   the same `familyOf()` subject family minutes apart), which then names both venues.
+10. **A late capture is not a missed filing.** Every window is fixed and every source lands on its
+    own cadence, so a filing captured after its edition went out used to be sent by no edition at
+    all. Each brief now reads from `window.since` — the start of the previous edition's window —
+    and carries what it finds there that no earlier brief sent, marked *arrived after the previous
+    brief* on the row, on the summary line and in the sources line. `sent` is the story-key ledger
+    the last six sent deliveries recorded (`stories` in the delivery log; keys, never rows; a test
+    copy records none). A missed or failed edition records nothing, so its window travels with the
+    next brief. Rows inside an edition's own window are never suppressed.
+11. **Coverage that stops short says so.** The publishers' head is a bounded file; when its oldest
+    story is later than `since` the sources line says *reaching back only to HH:MM*, and a session
+    whose closes have not been captured yet is named as *not yet captured*, never implied quiet.
+12. **A category is not an event, and a filing is not its markup.** NSE writes many descriptions as
+    *"<company> has informed the Exchange regarding <category>"* and publishes about one
+    announcement in eleven as a raw XBRL file, so a story read *"Acquisition (including agreement
+    to acquire)"* and its link opened a tree of SEBI namespaces. Where stripping the preamble would
+    leave the exchange's own subject and nothing more, the WHOLE sentence stands — it names the
+    filer; the keyword and direction readings still come from the stripped event, so a company's
+    name can never reach a vocabulary written for events. The particulars come from the DOCUMENT
+    (`filingParticulars()` over `parseXbrlFiling()`, the dashboard's own filing parser), bounded per
+    send and spent first on the rows whose description says least, printed as the exchange's label
+    and the company's value with what did not fit counted. A filing that could not be read keeps its
+    headline unchanged, and the sources line states how many were read. The link lands on
+    `/filing?src=…` — the same document, rendered — and only for an XBRL file; every other link
+    still goes straight to the publisher or the exchange.
+>>>>>>> sattva/main
 
 **AND NOTHING FALLS BETWEEN TWO BRIEFS.** The window alone could not promise that: every portfolio
 source is a capture with a lag and NSE's live RSS is a few minutes deep, so a filing published at
@@ -3244,7 +3300,7 @@ and next action without ranking implementation detail.
 
 ### TIME TO INSIGHT IS THE PRODUCT'S ONLY JOB — the card's reading layer
 
-Everything above decides WHAT to surface. `plainInsight()`, `cardMetrics()`, `plainHeadline()` and
+Everything above decides WHAT to surface. `plainInsight()`, `plainHeadline()` and
 `topEvidence()` decide how fast a human can take it in, and that is a separate concern with its own
 failure mode: a card can be perfectly honest and still take twenty seconds to read, at which point a
 page whose whole promise is *here is what needs you this morning* has failed at the only thing it
@@ -3257,50 +3313,171 @@ tracked investor's latest book shows selling — President Of India: reduced by 
 said twice, in a vocabulary a reader has to decode, above three evidence rows carrying long
 timestamps, direction pills, importance pills and each rule's own reason sentence.
 
-What replaces it is: **one short sentence in ordinary English, the numbers behind it as numbers, and
-three evidence lines.** Six rules hold it up, and every one of them is a rule this codebase already
+What replaces it is: **one claim — what the strongest event on the card actually says — and four
+dated evidence rows.** Six rules hold it up, and every one of them is a rule this codebase already
 had:
 
 1. **No new fact, and no new number.** Every phrase rewords an event already on the card; every
    figure is read from a field the collector wrote — `volumeX`, `movePct`, `deltaPp`, `action`,
-   `investor`, added to the technicals and investor events in `daily-alerts.js` for exactly this —
+   `investor`, `tradeValue`, `tradePct`, `tradeShares`, `tradeCategory`, `resultBasis` and the
+   filed `netProfit`/`revenue` metrics, added to the events in `daily-alerts.js` for exactly this —
    never regexed back out of a sentence. A reworded headline must not silently become a missing
    number.
-2. **Co-occurrence stays co-occurrence.** *"Heavy trading, and a big holder has been selling"* is
-   two measurements inside one week joined by *and*. It is deliberately not *"sold into the tape"*,
-   which reads as one causing the other and would be the invented-trade-date error the confluence
-   rules already forbid, one layer up.
-3. **Plain is not vague.** *"A big holder"* replaces *"a tracked investor's latest book"* — shorter,
-   same claim. It does **not** replace the investor's NAME, which stays in the figures and in the
-   evidence row beneath. Simplifying the register may never cost the reader a specific.
+2. **Co-occurrence stays co-occurrence.** A card naming two feeds names two measurements inside one
+   week. Nothing here says *"sold into the tape"*, which reads as one causing the other and would be
+   the invented-trade-date error the confluence rules already forbid, one layer up.
+3. **Plain is not vague.** Shortening the register may never cost the reader a specific: the
+   investor's name, the size of a disclosure and the basis of a growth figure all stay on the card.
 4. **Only rewrite sentences this dashboard wrote.** `plainHeadline()` turns our own *"Volume 2.0x
    its 20-day average at the 2026-09-02 close"* into *"Traded 2.0x its normal volume"*, and leaves a
-   BSE filing's subject, a con-call title and a publisher's headline untouched. Putting our phrasing
-   on a company's own statement is the error the filings rules exist to prevent.
-5. **A sentence may not be more specific than its evidence.** `news-behind-the-move` and
-   `results-reaction` both fire on ANY technicals reading, so neither may say *"the price moved"* —
-   it read that way over a card whose only tape event was 2.0x volume on a barely-changed close.
-   They say *"Unusual trading"*.
-6. **Tone is a claim, so the volume cell has none.** The technicals feed states in its own words
-   that volume is participation and the tape does not say whether it was buying or selling.
+   publisher's headline and a con-call title untouched. Putting our phrasing on a company's own
+   statement is the error the filings rules exist to prevent. Completing one of **our** lines is not
+   that: *"ACTIV PINE LLP — Sell"* becomes *"ACTIV PINE LLP — Sell · ₹49.2 crore block deal"* and
+   *"YOY quarterly result filed"* becomes *"Result filed (YOY) · net profit +95.0%, revenue +55.0%"*,
+   because that figure is the specific a reader opens the card for and it used to sit only in the
+   tooltip.
+5. **A sentence may not be more specific than its evidence.** A participation reading is *"Traded
+   2.0x its normal volume"* and never *"the price moved"* — that read over a card whose only tape
+   event was 2.0x volume on a barely-changed close.
+6. **Tone is a claim, so a volume reading carries none.** The technicals feed states in its own
+   words that volume is participation and the tape does not say whether it was buying or selling.
    Colouring `4.4x` rose because it is large would be this dashboard asserting a direction its own
-   feed refuses to assert — a worse error than a dull cell. Day moves and book changes ARE
-   directional and are toned.
+   feed refuses to assert — a worse error than a dull cell, and the reason a participation row's
+   direction dot stays grey. Day moves and book changes ARE directional and are toned.
+
+**AND THEN THE SENTENCE ITSELF WAS THE PROBLEM, WHICH IS THE WORSE KIND, BECAUSE THE CARD LOOKED
+FINISHED (19 September 2026).** It led with the PATTERN and appended the figures behind it, so what
+a reader got was the SHAPE of the evidence and never the event: *"Heavy trading, and a big holder
+has been buying — 2.0x its normal volume, Vanguard Fund up 1.01pp"*, on a morning whose strongest
+filing for that company was its own. Three faults in one line, and the first is the one this file
+keeps having to un-write:
+
+- **The pattern name was already a chip directly beneath it** — *Buying*, *News behind it* — so the
+  sentence spent its whole length restating a label the eye had already indexed. The same
+  duplication the *"Signals lining up"* panel was deleted for, arrived at from the other side.
+- **The figures came from `technicals` and `investors` ONLY**, because those were the two feeds a
+  phrase had been written for. A filing, a result, a story and an insider disclosure could never
+  appear in the sentence at all. Measured on the shipped capture: the card for the company whose
+  own filing that day was *"Biocon Secures 10-Year Supply Contract for Pertuzumab in Brazil"* said
+  *"An insider and a big holder moved the same way"*, and the contract appeared nowhere in it.
+- **With no pattern it fell back to our own arithmetic** — *"Sources disagree — 8 good, 6 bad"* —
+  or to filler: *"That is the strongest recent risk here."* Neither is a thing that happened.
+
+So the sentence is now **one claim and nothing else**: `leadEvent()` takes the strongest event on
+the card and `plainHeadline()` states it. The chip below carries the correlation, the rows below
+that carry the breadth, the count of them is in the list's own header, and nothing is said twice. A
+disagreement between sources is still stated, because it changes what the reader does next — but as
+the action (*"Sources disagree — check both directions below."*) rather than as a tally of ours.
+
+**A THIRD OF THE LEADING FILINGS NAMED A FILING TYPE AND NO EVENT, WHICH IS WHY `filingClaim()`
+EXISTS.** *"Press Release"* over a ten-year supply contract was not a ranking failure — the ranking
+had the right record — it was the record's own subject naming the envelope instead of the letter.
+Measured on the retained NSE window: **1,995 of 15,506 rows** carry such a subject (1,025 *General
+Updates*, 707 *Updates*, 251 *Press Release*), and **1,911 of those 1,995** carry a description that
+says what the filing actually is. BSE's side of it is the pointer subjects — *PFA*, *Please refer
+the enclosed file.*, *As per attachment*. So a filing's claim is chosen, in this order, and nothing
+in it is reworded:
+
+1. **its own subject, wherever that names an event** — the shortest true answer, and theirs;
+2. **the source's own description**, where the subject is only a type and the description says
+   something the subject does not. NSE repeats the subject as the description on some rows and sends
+   `''.` on others, so *"General Updates: General Updates"* is refused as an improvement on either;
+3. **the exchange's own sub-category** as the floor — *"Award of Order / Receipt of Order"*,
+   *"Resignation of Director"*, *"Credit Rating"*. BSE publish one and NSE do not, which is why it
+   is the floor and not the first look.
+
+Four things about it are load-bearing, and each was a measured mistake first:
+
+- **Selecting is not editing.** Where NSE's description quotes the company's own title for the
+  filing (*"…titled \"X\""*), that quotation IS the claim. Choosing which of their sentences to
+  print is not writing one.
+- **A mechanical lead-in is removed and what follows it is not.** *"<Company> has informed the
+  Exchange about/regarding"* is exchange-generated — **9,622 of 15,506** retained rows carry it —
+  and *"The Exchange has received"* is its BSE mirror. One of them spent **71 of 150 characters** on
+  a company name the card already prints as its heading and clipped away the withdrawal it was
+  announcing. A clause the strip exposes opens as a sentence; a word that capitalises itself, like
+  *iPhone*, is left alone, because recapitalising a brand would be this dashboard editing a name.
+- **A pointer pattern is bounded to pointer words.** Written as `please\s+(?:refer|find)\b.*` it
+  swallowed a subject that says something — *"Please find enclosed herewith the disclosure
+  pertaining to incorporation of two Wholly-Owned Subsidiaries"* — and the card replaced the whole
+  event with BSE's one-word sub-category, *Acquisition*. Every word after *"please find"* has to be
+  a pointer word for the subject to qualify.
+- **Every segment has to be a type word.** *"Press Release / Media Release"* is BSE's own
+  sub-category for a press release and an exact-match list of single words let it straight through.
+  A subject with one real segment (*"Record Date / Book Closure"*) still names an event and is kept.
+
+**A CLIP IS NOT A PARAPHRASE, AND IT SAYS SO.** A statement longer than `CLAIM_MAX` (150) is cut on
+a word boundary with an ellipsis, and the untouched wording — with the feed that published it — is
+on the sentence's own `title`, exactly as every evidence row already carries its source's own words.
+A claim a reader cannot get back to in full is the one version of this that would be worse than the
+subject it replaced.
+
+**A LEAD WHOSE CLAIM IS STILL ONLY A TYPE WORD IS SKIPPED, AND ITS ROW IS KEPT.** NSE repeat the
+subject as the description on some rows and publish no sub-category, so *"General Updates"* can
+survive all three steps above; the card then leads with the next fact it holds. `leadEvent()`
+chooses which of the card's facts leads the sentence and removes nothing: the skipped event keeps
+its evidence row, and the ranking is untouched — a lower-scoring event leading the sentence does not
+promote it.
+
+**`Number(null)` IS 0 AND 0 IS FINITE**, which turned a comparison the source never carried into
+*"net profit −0.0%"* — a measurement invented out of an absence, the one thing every rule in this
+file exists to prevent. The fixture caught it before it shipped, which is the argument for asserting
+these branches on fixtures rather than on today's capture: a sign-flip result, a pointer subject and
+a block deal with a rupee value are properties of the day, not of the rule.
 
 Two shapes follow from the same reasoning and are asserted:
 
-- **The figures arrive in the order the sentence names them.** Every plain sentence puts the tape
-  first, but the events are in SCORE order, so a fund book outranking a volume row produced *"…has
-  been selling — Cohesion MK Best Ideas is off the register, 2.0x its normal volume"*: both facts
-  true, read backwards against the clause they belong to, costing a second pass over a card built
-  to save one. `READ_ORDER` fixes the sequence for the sentence and the strip together.
-- **Three evidence rows mean three DIFFERENT sources where the card has them.** Taking the top three
-  by score put three rows of one feed on a card whose strip announced four sources — *"Cohesion MK
-  Best Ideas: no longer disclosed"*, *"Life Insurance Corporation: no longer disclosed"*, *"Vanguard
+- **THE SENTENCE NO LONGER CARRIES A SECOND FACT, AND THAT CLOSED A SHAPE RATHER THAN DROPPING
+  ONE.** When it appended two figures they had to arrive in the order it named them: every plain
+  pattern sentence put the tape first while the events are in SCORE order, so a fund book
+  outranking a volume row produced *"…has been selling — Cohesion MK Best Ideas is off the
+  register, 2.0x its normal volume"* — both facts true, read backwards against the clause they
+  belong to, costing a second pass over a card built to save one. `READ_ORDER` and `factPhrases`
+  fixed that sequence and are both deleted with the clause they ordered: one claim has no order to
+  get wrong, and the second fact is the second evidence row, which carries its own source and date.
+- **Four evidence rows mean four DIFFERENT sources where the card has them.** Taking the top rows
+  by score alone put three rows of one feed on a card announcing four sources — *"Cohesion MK Best
+  Ideas: no longer disclosed"*, *"Life Insurance Corporation: no longer disclosed"*, *"Vanguard
   Fund: no longer disclosed"*. Every row was true and the card still showed a quarter of what it
   held, three times, while the reader's actual next question — *what do the OTHER sources say?* — is
-  the one thing three identical lines cannot answer. `topEvidence()` takes the strongest event per
-  feed first, then fills.
+  the one thing three identical lines cannot answer.
+
+  So `topEvidence()` hands out slots in **ROUNDS**: the strongest event from every source, then the
+  second from every source, and so on, stopping at **`MAX_PER_SOURCE` (3)** from any one of them.
+  Two sources share four rows two and two rather than three and one, and a card with ONE source
+  shows three rows rather than filling every slot from it. `byNewestFirst` in the tab then decides
+  the order they are READ in, because the header above them says *newest first* and that is a claim
+  about the list.
+
+  **IT COUNTS SOURCES THE WAY THE REST OF THE CARD DOES — `feedFamily`, not `event.feed`.** Keyed
+  on the feed id it spent one slot on `announcements` and another on `nse-filings`, which are one
+  source for corroboration (`feedCount`), one word on the row (`FEED_TAG`) and one family in the
+  dedupe. Measured on Sky Gold's 18 September board meeting: one approval, filed to both exchanges
+  under four different subjects — *General Updates*, *Outcome of Board Meeting* and two full
+  statements of the same resolution — took all four rows of a card whose own header read *1 source*.
+  Every row was a real record and the card still said one thing four times.
+
+  **The cap is a display rule, and it is not a dedupe.** Four filings of one event are four records
+  upstream; teaching the collector they are one changes what every reader of that feed sees, which
+  is a change to `dedupe()` and not to this card. The footer counts every row the cap left out.
+
+**AND THEN THE STRIP AND THE PARAGRAPH BOTH WENT, AT THE DESK'S REQUEST (19 September 2026).** The
+four-figure strip — `Holder Out · Bad signs 5 · Sources 5 · Events 214` — and the per-question
+paragraph beneath the sentence were the two blocks a reader crossed to reach the evidence, and both
+were restating what the card already said. `cardMetrics()` is deleted, `card.metrics` and
+`card.drivers` are no longer assembled, and the card is now the header, the sentence, and one list.
+
+**Every figure the strip carried still has a place, and that is the rule rather than the removal.**
+The leading fact was already the subject of the sentence (*"Abu Dhabi Investment Authority is off
+the register"* over a cell reading `Holder Out`); the direction split is the dot on each row, which
+says it per row with the row attached; `Sources` moved into the list's own header, where it
+describes the list rather than sitting in a cell of its own; and `Events` stays in the footer as
+*"211 more events →"*, where it is a door rather than a number. **A count that becomes unreachable
+is a different change from a count that moves**, and only the second one happened here.
+
+**Which left the row as the whole card, so the row carries the reading too** — see the section
+below. One consequence worth stating: the fourth row is only affordable because those two blocks
+went, and `EVIDENCE_ROWS` in the tab is where that trade is recorded.
 
 **`cardBadge()` names the action, not the band.** A directional disagreement reads `Reconcile`
 rather than `Must see`, because that is what changes the reader's next move; the band itself stays
@@ -3359,12 +3536,24 @@ assumption** (what the business earns), the **valuation** (what a share is worth
 are) and the **thesis** (whether it is still the business that was bought).
 
 `js/data/alert-drivers.js` is the one mapping from the desk's tracked vocabulary onto those three,
-and the card states it in a sentence under its own kicker: *"Could change **the earnings assumption**
-(Order in a filing; Partnership in the news) and **the valuation** (shareholder distribution in a
-filing). Nothing tracked here bears on the thesis."* **Every driver in it is a link to that event's
-own source** — the same destination, through the same `evidenceDestination`, as the evidence row
-below it. That is the point rather than a nicety: the bucketing is this dashboard's reading, so the
-record behind it has to be one click away, or it is a judgement with no way to check it.
+and **the card states it on the row that holds the record** — a chip reading *Valuation ·
+Shareholder distribution* under the dividend filing it came off, *Thesis · Resignation* under the
+resignation filing. `driverReadings()` in the tab asks `driversFromEvent` per event, which is the
+UNCAPPED primitive, so a chip can never be missing from a row that earned one.
+
+**The row IS the link to that record**, which is the point rather than a nicety: the bucketing is
+this dashboard's reading, so the record behind it has to be one click away, or it is a judgement
+with no way to check it. It used to be a paragraph of linked readings under an *"Earnings
+assumption, valuation or thesis?"* kicker, with a second anchor of its own to the same destination
+the row already opened.
+
+**THE PARAGRAPH WENT AT THE DESK'S REQUEST, AND THE REASON IS WORTH KEEPING (19 September 2026):**
+*"that the customer knows already"*. The three questions are the same three on every card, so
+naming them in prose above the evidence spent a block of the card telling a reader something they
+read yesterday and the day before. The READING is what they did not know, so it moved to the row
+and the prose went. Two things had to survive the move, and both are asserted: a chip sits only on
+a row whose own record backs it, and a second reading for the same question on one row prints as
+**+1** rather than disappearing.
 
 It is a separate file from `news-keywords.js` deliberately. **The keyword list is the desk's; a
 taxonomy of what a topic BEARS ON is ours.** Two different claims, two files, as `stockscans-shared`
@@ -3396,12 +3585,15 @@ Six rules, and every one is a rule this codebase already had:
    related-entity report is about a *different* company and the card already says so.
    `brokerage-research` is absent from the mapping for a third reason: an analyst's published view
    is a view OF the company, not an event AT it.
-6. **A question with nothing behind it is STATED; only the whole section is dropped.** *"Nothing
-   tracked here bears on the thesis"* is a real answer and is how a reader tells a card about a fund
-   book and a volume spike from one about a governance problem. What is omitted is the section
-   entirely, and only when no question has an answer — three negatives in a row is noise. A capped
-   bucket **counts** what it did not print, because a truncation nobody can see is the card claiming
-   fewer things bear on the company than its own evidence holds.
+6. **A truncation is COUNTED, and the card no longer speaks for a question it has nothing for.**
+   Two readings on one row for one question print as *"Thesis · Resignation +1"*, because a
+   truncation nobody can see is the card claiming fewer things bear on the company than its own
+   evidence holds. What is gone is the other half of this rule: *"Nothing tracked here bears on the
+   thesis"* used to be printed, on the reasoning that a stated negative is how a reader tells a
+   fund-book card from a governance one. The desk reads these three questions on every card and
+   asked for the prose back, so a question with nothing behind it is now simply not named, and the
+   complete per-question accounting is one click down in All Alerts. `driversOf()` still groups and
+   counts them and its rules are still asserted — nothing on a card calls it.
 
 Two bucket choices are worth stating because the obvious answer is the wrong one. **`stake-sale` is
 valuation, not deals**: a block changing hands does not alter what the business earns, it alters who
@@ -4448,7 +4640,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change which filings count as routine, or add a filing type | `ANNOUNCEMENT_TYPES` + `RE` in `public/js/data/announcement-types.js` — read *Routine filings are switched off by default* first. The order is the definition, a new type starts switched ON on every device, and `node scripts/verify-announcement-types.mjs` asserts the collisions |
 | Change the NSE live announcements feed | `worker/nse-ann.mjs` (pure parser + name->symbol resolver, shared) + `handleNseAnnouncements` in `worker/index.js` (live route, edge-cached) + `js/data/nse-filings.js` (browser) + `js/tabs/nse-filings.js` (the scoped table). The browser CANNOT read NSE (CORS null), so it must proxy through the Worker; a full desktop user-agent is required or Akamai 430s it. Resolve by NAME — the filename prefix is only 31% reliable |
 | Refresh the NSE snapshot fallback | `node scripts/scrape-nse-announcements.mjs` — reads NSE directly (no token), resolves, commits `public/data/nse-announcements.json`. The live route is the primary read; this is the floor beneath it |
-| Change how an NSE XBRL filing is READ, or which URLs may be fetched for one | `public/js/data/nse-xbrl-shared.js` (the pure parser + the `src` allow-list, imported by the Worker too) + `handleNseFiling` in `worker/index.js` (`GET /api/nse-filing`) + `public/js/ui/xbrl-filing.js` (the panel and the one delegated click listener, installed from `app.js`). About one NSE announcement in eleven is a raw XBRL file with no readable twin — read *An XBRL filing is a document* in `docs/DATA-CONTRACTS.md` first. A fact is an element with a `contextRef`, a repeated section is a context, values travel verbatim, `row.url` keeps NSE's own address, and a modified click still gets the raw file. `node scripts/verify-nse-xbrl.mjs` and `scripts/verify-nse-xbrl-ui.mjs` are the tests |
+| Change how an NSE XBRL filing is READ, or which URLs may be fetched for one | `public/js/data/nse-xbrl-shared.js` (the pure parser, the bounded `filingParticulars()` reading and the `src` allow-list, imported by the Worker too) + `readNseFiling` / `handleNseFiling` / `handleFilingPage` in `worker/index.js` (`GET /api/nse-filing` for the panel, `GET /filing` for the page an email links to) + `worker/filing-page.mjs` (that page) + `public/js/ui/xbrl-filing.js` (the panel and the one delegated click listener, installed from `app.js`). About one NSE announcement in eleven is a raw XBRL file with no readable twin — read *An XBRL filing is a document* in `docs/DATA-CONTRACTS.md` first. A fact is an element with a `contextRef`, a repeated section is a context, values travel verbatim, `row.url` keeps NSE's own address, and a modified click still gets the raw file. `node scripts/verify-nse-xbrl.mjs` and `scripts/verify-nse-xbrl-ui.mjs` are the tests |
 | Change how many days of announcements are kept | `ANN_KEEP_DAYS` in `scripts/scrape-bse-announcements.mjs` — a bytes ceiling, ~900 filings a weekday |
 | Change the tracked news keywords, or what a Topic filter offers | `public/js/data/news-keywords.js` — the whole vocabulary is one array; read *Thirty words that make a search feed usable* first. A keyword is a topic and must never become a direction, and `namesCompany` marks a row rather than dropping one |
 | Speed up a per-row helper on a hot path | memoise it on the row object in a `WeakMap`, validated on the fields it reads — read *A per-row cache is keyed on the row object* first; `scripts/verify-hot-path-memo.mjs` is the test |
@@ -4501,12 +4693,12 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the device mirror + sync) + `watchKey` on the table that stars it — read *The star marks a COMPANY* and *The watchlist is a list of COMPANIES, and ONE list for the whole desk* first |
 | Change the SHARED watchlist itself — its shape, its conflict rules or its route | `public/js/data/watchlist-shared.js` (the one definition, imported by the Worker too) + `worker/watchlist-store.mjs` + `worker/watchlist.mjs`. Edits are INTENTS, never a whole list; an `add` must name its contributor; a `seed` may not apply over any row that already exists. `node scripts/verify-shared-watchlist.mjs` and `node scripts/verify-shared-watchlist-ui.mjs` are the tests |
-| Change the team brief — what is in it, how it reads, when it sends | `worker/newsletter-brief.mjs` (the scan, the stories, the fold, the late-arrival look-back and the broadsheet), `worker/newsletter-schedule.mjs` (the alarm and the send), `worker/newsletter-store.mjs` (subscribers, settings, deliveries and the sent-story ledger), `public/js/data/newsletter-shared.js` (editions, windows, addresses — imported by both sides) and `public/js/ui/newsletter.js` (the header control). Read *The team brief* first. `node scripts/verify-newsletter.mjs` and `node scripts/verify-newsletter-ui.mjs` are the tests |
+| Change the team brief — what is in it, how it reads, when it sends | `worker/newsletter-brief.mjs` (the scan, the stories, the fold, the late-arrival look-back, the filing particulars and the broadsheet), `worker/newsletter-schedule.mjs` (the alarm and the send), `worker/newsletter-store.mjs` (subscribers, settings, deliveries and the sent-story ledger), `public/js/data/newsletter-shared.js` (editions, windows, addresses — imported by both sides) and `public/js/ui/newsletter.js` (the header control). Read *The team brief* first. `node scripts/verify-newsletter.mjs` and `node scripts/verify-newsletter-ui.mjs` are the tests |
 | Set up the team brief on a deployment | `MUNS_TOKEN` on the Worker sends it; `DASHBOARD_ORIGIN` and `NEWSLETTER_PRODUCT_NAME` are vars in `wrangler.jsonc`; the `NEWSLETTER` binding and `NEWSLETTER_LIMITER` are there too. Subscribe from the header and the alarm arms itself |
 | Change who is asked, or how the contributor dropdown behaves | `js/ui/watchlist-attribution.js` (the prompt) + `js/core/watchlist-people.js` (the roster and this device's own name) — read *An addition carries the name of whoever made it* first. Never preselect a name on a device nobody has identified themselves on |
 | Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book, and test `rankReport()` directly |
-| Change what an AI Alerts card SAYS, or the four figures on it | `plainInsight()` / `cardMetrics()` / `plainHeadline()` / `topEvidence()` in `js/data/ai-alerts.js` — all pure and exported. Read *Time to insight is the product's only job* first: no new number, only sentences we wrote may be reworded, the volume cell takes no tone, and the figures follow `READ_ORDER` rather than score order |
-| Change which investor question a topic bears on, or how a card states it | `js/data/alert-drivers.js` (the one mapping) + `driversMarkup()` in `js/tabs/ai-alerts.js` — read *Earnings assumption, valuation or thesis* first. A driver is a TOPIC reading, so the wording stays "could change"; every driver links to its own source; and the layer adds no score |
+| Change what an AI Alerts card SAYS, or how many rows it shows | `plainInsight()` / `leadEvent()` / `plainHeadline()` / `filingClaim()` / `sourceStatement()` / `CLAIM_MAX` / `topEvidence()` / `MAX_PER_SOURCE` in `js/data/ai-alerts.js` (pure and exported) + `EVIDENCE_ROWS` / `byNewestFirst` / `listHeadMarkup` in `js/tabs/ai-alerts.js` — read *Time to insight is the product's only job* first: the sentence is ONE claim, the strongest event's own, so no pattern name, feed tally or filler belongs in it; no new number, and every figure comes from a collector's field; only sentences we wrote may be reworded, and a filing's claim is CHOSEN between its subject, the exchange's description and the exchange's sub-category rather than paraphrased; a clip keeps the untouched wording on the sentence's `title`; a volume reading takes no tone; and the rows are read newest first because the header says so. There is no figure strip and no per-question paragraph: `cardMetrics` is deleted and every figure it held has a place named in that section |
+| Change which investor question a topic bears on, or how a card states it | `js/data/alert-drivers.js` (the one mapping) + `driverReadings()` / `driverChipsMarkup()` in `js/tabs/ai-alerts.js` — read *Earnings assumption, valuation or thesis* first. A reading is a chip on the row whose own record backs it, never a block of its own; it is a TOPIC reading, so the wording stays "could change" and the chip never borrows a direction colour; a second reading on one row prints `+1`; and the layer adds no score |
 | Change archiving on AI Alerts | `js/core/ai-mute.js` (the store) + the `archived` filter and the Archive / Restore buttons in `js/tabs/ai-alerts.js` — a record is keyed to the evidence it was given for, so a card returns on its own when stronger evidence arrives |
 | Change what the precomputed alert pool carries, or how a period is reassembled from it | `public/js/data/alert-pool-shared.js` (the feeds, the captures each reads, the revision rule, the members) + `public/js/data/alert-pool-format.js` (the shard encoding and decoding, shared by the builder and the browser) — read *The collection is done once, on the runner* first; `node scripts/verify-alert-pool.mjs` is the test |
 | Change when a pooled feed is taken from the pool, or why it is declined | `read()` / `verifyFeed()` / `deviceExtras()` in `public/js/data/alert-pool.js`, and the `pool` branch of `collect()` in `js/data/daily-alerts.js` — every check is per feed, per read, and a declined feed loads as before |
@@ -4711,10 +4903,20 @@ It covers, beyond the checklist below:
   is in that order — widest last
 - **the dashboard opens on Ask Research, in Portfolio scope**; AI Alerts has no sub-view picker and
   its cards are unique by ticker, score-descending and above the surfaced threshold, while score arithmetic stays hidden
-- **every AI Alerts card labels its two readings** — what happened, and which of the earnings
-  assumption / valuation / thesis its evidence bears on — with the second read after the first and
-  before the evidence, worded as what the evidence COULD change rather than as a verdict, and with
-  every driver linking to a source the card itself already holds
+- **every AI Alerts card is a labelled sentence and then up to four dated rows, newest first** — no
+  figure strip, no per-question paragraph, and the source count still reachable in the list's own
+  header; slots go one per source in rounds with **no more than three rows from any one source**,
+  counted on the family so NSE and BSE are the one source they are; each row opens its own record,
+  and where a reading rides one it names the earnings assumption / valuation / thesis on the row
+  that holds that record, worded as what the evidence COULD change rather than as a verdict, in the
+  brand indigo rather than a direction colour
+- **and that sentence is ONE CLAIM, the strongest event's own** — a statement rather than a label,
+  a pattern name, a feed tally (*"Bad signs on 3 sources"*) or filler; the feed and the source's
+  untouched wording are on the sentence's own `title`, so a claim chosen from an exchange's
+  description or clipped on a word boundary can always be read in full. The identity — the sentence
+  IS `plainHeadline(leadEvent(card))` — and every branch that builds one are asserted on fixtures,
+  because a sign-flip result, a pointer subject and a block deal with a rupee value are properties
+  of the day rather than of the rule
 - **Portfolio Analytics is gone and cannot be reached**: an old `#/portfolio/...` link lands on
   Research Central with the URL corrected and the tab bar back, every deleted ledger module and
   payload 404s on the served site, and no Ask Research source carries a ledger figure or a route
