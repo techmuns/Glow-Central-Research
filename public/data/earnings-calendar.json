@@ -1,11 +1,26 @@
 {
-  "capturedAt": "2026-09-18T06:12:18.285Z",
-  "from": "2026-09-15",
-  "to": "2026-10-09",
+  "capturedAt": "2026-09-21T02:12:41.207Z",
+  "from": "2026-09-18",
+  "to": "2026-10-12",
   "pageSize": 20,
   "source": "Moneycontrol — Earnings Calendar (all-exchange counts plus every earnings-widget pagination page)",
   "note": "The per-date counts and company lists both cover All exchanges. Every published pagination page is captured; counts are re-fetched live by the Worker and these lists are as of capturedAt.",
   "days": [
+    {
+      "date": "2026-10-12",
+      "displayDate": "12 Oct",
+      "count": 0
+    },
+    {
+      "date": "2026-10-11",
+      "displayDate": "11 Oct",
+      "count": 0
+    },
+    {
+      "date": "2026-10-10",
+      "displayDate": "10 Oct",
+      "count": 0
+    },
     {
       "date": "2026-10-09",
       "displayDate": "09 Oct",
@@ -115,21 +130,6 @@
       "date": "2026-09-18",
       "displayDate": "18 Sep",
       "count": 1
-    },
-    {
-      "date": "2026-09-17",
-      "displayDate": "17 Sep",
-      "count": 1
-    },
-    {
-      "date": "2026-09-16",
-      "displayDate": "16 Sep",
-      "count": 1
-    },
-    {
-      "date": "2026-09-15",
-      "displayDate": "15 Sep",
-      "count": 1
     }
   ],
   "byDate": {
@@ -143,16 +143,16 @@
           "displayDate": "21 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 1064.3,
-          "changePct": 1.79,
-          "marketCap": 6838.78,
+          "ltp": 1095.1,
+          "changePct": 4.73,
+          "marketCap": 7036.69,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/pharmaceuticals-drugs/symbiotecpharmalab/SPL14",
           "ticker": "SYMBIOTEC",
           "fullName": "Symbiotec Pharm",
           "industry": "Pharmaceuticals & Drugs",
           "shares": 64256112,
-          "mktCapAtBuild": 6838.78
+          "mktCapAtBuild": 7036.69
         },
         {
           "scId": "KJA",
@@ -162,9 +162,9 @@
           "displayDate": "21 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 7.96,
-          "changePct": 2.58,
-          "marketCap": 1272.41,
+          "ltp": 8,
+          "changePct": 3.09,
+          "marketCap": 1278.8,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cigarettes-tobacco/eliteconinternational/KJA"
         }
@@ -173,7 +173,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "18/09/2026"
+      "asOnDate": "21/09/2026"
     },
     "2026-09-18": {
       "rows": [
@@ -201,91 +201,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "18/09/2026"
-    },
-    "2026-09-17": {
-      "rows": [
-        {
-          "scId": "S26",
-          "name": "Skyways Air Services",
-          "shortName": null,
-          "resultDate": "2026-09-17",
-          "displayDate": "17 Sep",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 129.58,
-          "changePct": 9.83,
-          "marketCap": 1883.36,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/logistics/skywaysairservices/S28",
-          "ticker": "SKYWAYS",
-          "fullName": "Skyways Air Ser",
-          "industry": "Logistics",
-          "shares": 145343544,
-          "mktCapAtBuild": 1883.36
-        }
-      ],
-      "scheduledCount": 1,
-      "pageSize": 20,
-      "pagesFetched": 1,
-      "complete": true,
-      "asOnDate": "18/09/2026"
-    },
-    "2026-09-16": {
-      "rows": [
-        {
-          "scId": "TII02",
-          "name": "Tempsens Instruments India",
-          "shortName": null,
-          "resultDate": "2026-09-16",
-          "displayDate": "16 Sep",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 534,
-          "changePct": -1.39,
-          "marketCap": 4476.67,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/engineering-industrial-equipments/tempsensinstrumentsindia/TII02",
-          "ticker": "TEMPSENS",
-          "fullName": "Tempsens Instru",
-          "industry": "Engineering - Industrial Equipments",
-          "shares": 83832691,
-          "mktCapAtBuild": 4539.96
-        }
-      ],
-      "scheduledCount": 1,
-      "pageSize": 20,
-      "pagesFetched": 1,
-      "complete": true,
-      "asOnDate": "18/09/2026"
-    },
-    "2026-09-15": {
-      "rows": [
-        {
-          "scId": "SPL15",
-          "name": "Sunshine Pictures",
-          "shortName": null,
-          "resultDate": "2026-09-15",
-          "displayDate": "15 Sep",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 398.3,
-          "changePct": 1.09,
-          "marketCap": 1240.66,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/film-production-distribution-entertainment/sunshinepictures/SPL13",
-          "ticker": "SUNSHINE",
-          "fullName": "Sunshine Pict",
-          "industry": "Film Production, Distribution & Entertainment",
-          "shares": 31148784,
-          "mktCapAtBuild": 1240.66
-        }
-      ],
-      "scheduledCount": 1,
-      "pageSize": 20,
-      "pagesFetched": 1,
-      "complete": true,
-      "asOnDate": "18/09/2026"
+      "asOnDate": "21/09/2026"
     }
   }
 }
