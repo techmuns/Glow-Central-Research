@@ -1393,7 +1393,7 @@ its own identity, so late-arrival detection is unchanged.
 
 **Repeated news, updated 21 September 2026:** `newsletter-events.mjs` now checks reworded news
 before the separate AI-notes request, using the same module as Sattva. One bounded 30-second
-Bedrock call per built send examines at most 80 reports / 96,000 UTF-8 bytes, with whole-company
+Bedrock call per built send examines at most 80 reports / 96,000 UTF-8 bytes, with at most 24,000 bytes of HTML-escaped source rows per company to keep a merged update small enough for email, with whole-company
 selection and no truncated source text. Only complete, disjoint known-ID partitions pass;
 all-pairs company, attribution, 24-hour, figure and stage guards reject unsafe proposals. The
 model must keep new or conflicting developments separate. News-only groups no longer use token
