@@ -403,8 +403,9 @@ is a targeted update; it does not advance the whole template baseline above.
 - The service-worker cache advances so returning sessions load the new modules.
 
 Read-only setup check on 21 September: GitHub has `UPSTOX_ACCESS_TOKEN` and
-`UPSTOX_BACKUP_ENABLED=true`; the Glow Worker lacks `UPSTOX_ACCESS_TOKEN`. The
-primary feed needs that encrypted Worker secret before it can fetch quotes.
+`UPSTOX_BACKUP_ENABLED=true`. The operator then added `UPSTOX_ACCESS_TOKEN` to
+the Glow Worker; a second read-only name listing confirmed it is present. This
+confirms configuration only; successful primary quotes still need deployment verification.
 Manual credential changes or production-run dispatch are not authorized by this
 code update. The existing merge-triggered publishing/bootstrap pipeline is used.
 See [BREAKOUT-CAPTURE.md](BREAKOUT-CAPTURE.md) for setup and retention details.
