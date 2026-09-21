@@ -618,7 +618,7 @@
       "pending": []
     },
     "isin:INE530B01024|IIFL Finance": {
-      "lastAttemptAt": "2026-09-17T01:07:43+00:00",
+      "lastAttemptAt": "2026-09-21T12:10:40+00:00",
       "lastResultCount": 104,
       "error": "search-unavailable",
       "lastSuccessAt": "2026-09-07T15:18:18+00:00",
@@ -1668,6 +1668,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-21T10:54:05.354488+00:00"
+    "checkedAt": "2026-09-21T12:10:40.763919+00:00"
   }
 }
