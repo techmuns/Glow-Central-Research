@@ -4677,6 +4677,41 @@ test still builds against the shipped files and asserts structure and honesty on
 
 ---
 
+### Readable editions and PDF downloads (21 September 2026)
+
+Emails retain the Sattva masthead, use a fluid 760px sheet, and label optional AI summary and
+potential-impact notes. The existing Bedrock credential/configuration supplies at most 40 notes
+per build, with a 45-second deadline and a 128KB response ceiling. Failed/partial notes preserve
+source text and report coverage. Public previews never invoke paid AI; their notes explain that AI readings are added on sends.
+Preview source reads also use `NEWSLETTER_LIMITER`.
+Only matching syndicated headlines are grouped across publishers; all headlines, summaries, links and
+sent-story keys survive. Distinct filings are never grouped by the reading layer. Each related summary also reaches the AI
+input so qualifiers in another publisher’s standfirst remain part of the evidence.
+
+Manual sends reserve one of four desk-wide attempts per rolling 24 hours in
+`newsletter_manual_attempts` before source, AI, PDF or email work. A refusal returns
+`manual-send-budget` with `retryAt`; a different IP, recipient or edition does not bypass it.
+The budget survives object restarts. Scheduled editions remain independent and retain the existing
+once-per-edition delivery claims.
+
+The top-right **Download PDF** button in a sent email points to
+`GET /api/newsletter/pdf/<uuid>`. A delivery saves its PDF bytes in `newsletter_documents` before
+sending and shares that edition link across its recipients. UUIDs are opaque bearer links; PDFs
+contain no subscriber addresses or credentials and are not listed by the newsletter API. Saved
+PDFs survive delivery-log pruning and source refreshes, with no automatic expiration. Downloads
+read stored bytes only and return `application/pdf`, attachment disposition, private/no-store,
+noindex and no-referrer headers. Unknown/malformed IDs return 404; unsupported methods return 405.
+A storage/export failure is recorded as `pdf-failed` before any email is sent. Confirmed rejected
+sends delete their provisional document. Uncertain outcomes (timeouts, connection loss, 5xx or
+malformed responses) retain the link because a message may have been accepted; a separate
+`delivery_key` and `delivery_state` remain on the document even after delivery-log pruning.
+
+`GET /api/newsletter/preview?edition=morning&format=pdf` builds a current, unsent PDF preview. It
+does not invoke AI, persist a document or alter delivery/story ledgers. Both the HTML/text email footers and
+every PDF page say **Automated by Munshot**. PDF pages preserve source links, XBRL readable URLs,
+quoted source details, market timestamps and coverage notes. PDF base fonts render INR for the
+rupee sign and normalize punctuation; unsupported glyphs are displayed as Unicode code points.
+
 ## AI Alerts priority — DERIVED, no file and no route of its own
 
 `js/data/ai-alerts.js` consumes the retained report below and writes nothing. It takes company events
