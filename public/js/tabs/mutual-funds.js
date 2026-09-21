@@ -750,7 +750,7 @@ function referenceStrip(cat, benchmark, reason, alternatives, periods, chosen = 
 
   return `
     <div class="table-scroll-surface mb-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-mf-reference>
-      <table class="w-full min-w-[720px]">
+      <table data-column-layout="mutual-funds:1" class="w-full min-w-[720px]">
         <thead>
           <tr class="bg-slate-50">
             <th scope="col" class="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">Category reference</th>

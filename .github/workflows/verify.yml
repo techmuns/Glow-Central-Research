@@ -273,6 +273,10 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-performance-ownership-ui.mjs
+      - name: Verify persistent column moves, complete data and returning-session upgrades
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-column-order-ui.mjs && node scripts/verify-column-order-upgrade-ui.mjs
       - name: Verify filter transitions, loading placeholders and latest selection
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright

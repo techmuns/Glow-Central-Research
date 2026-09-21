@@ -362,7 +362,7 @@ const th = (label, align = 'left', title = '') => `<th scope="col"${title ? ` ti
 const td = (html, align = 'left', extra = '') => `<td class="px-3 py-2 text-${align} tabular-nums ${extra}">${html}</td>`;
 const table = (head, body, minWidth = 720) => `
   <div class="table-scroll-surface overflow-x-auto rounded-xl ring-1 ring-slate-200">
-    <table class="w-full text-sm" style="min-width:${minWidth}px">
+    <table data-column-layout="my-managers:1" class="w-full text-sm" style="min-width:${minWidth}px">
       <thead class="bg-slate-50"><tr>${head}</tr></thead>
       <tbody>${body}</tbody>
     </table>
@@ -1008,7 +1008,7 @@ function openCompanyDetail(securityKey) {
       <div class="px-6 py-5 sm:px-7">
         <p class="mb-4 text-xs leading-relaxed text-slate-500">Quantity and weight of the mandate on each manager’s prior and newest statement; the weight and its change are derived on the statements’ own market values. <strong class="text-slate-600">Value is the newest statement’s mark on the position, not an amount bought or sold</strong> — the trades column carries what was actually settled. A dash is a figure the statement does not carry, not zero.</p>
         <div class="table-scroll-surface overflow-x-auto rounded-xl ring-1 ring-slate-200">
-          <table class="w-full text-sm" style="min-width:900px">
+          <table data-column-layout="my-managers:2" class="w-full text-sm" style="min-width:900px">
             <thead class="bg-slate-50"><tr>${th('Manager')}${th('Status')}${th('Before', 'right', 'Quantity · weight of the mandate on the prior statement')}${th('Now', 'right', 'Quantity · weight of the mandate on the newest statement')}${th('Change (derived)', 'right')}${th('Trades in the window')}${th('Value now', 'right', 'The newest statement’s market value of the position')}</tr></thead>
             <tbody>${rows || `<tr><td colspan="7" class="px-4 py-10 text-center text-sm text-slate-500">No mandate’s comparison window contains this company.</td></tr>`}</tbody>
           </table>
