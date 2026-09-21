@@ -228,7 +228,7 @@ export function sourceGroups() {
   const mfIndices = num(() => mfWeekly.meta()?.benchmarkCount);
   const breakoutCapture = breakoutLive.snapshot();
   const breakoutHealth = breakoutLive.coverageFor(breakoutCapture?.targets || []);
-  const breakoutState = breakoutLive.unavailable() ? 'unavailable' : !breakoutHealth.total ? 'unchecked' : breakoutHealth.partial ? 'partial' : 'read';
+  const breakoutState = breakoutLive.unavailable() ? 'unavailable' : !breakoutHealth.total ? 'unchecked' : breakoutHealth.partial || breakoutHealth.archiveIncomplete ? 'partial' : 'read';
   const uni = num(() => technicals.all().length);
   const reported = num(() => earningsLive.all().length);
   const calls = num(() => concalls.all().length);
@@ -312,12 +312,13 @@ export function sourceGroups() {
           file: 'public/data/atr-history.json',
         },
         {
-          name: 'Saved price and volume capture — Yahoo Finance / optional Upstox',
+          name: 'Saved price and volume capture — Muns API',
           url: 'https://upstox.com/developer/api-documentation/analytics-token/',
-          feeds: 'One background capture covers the universe, live portfolio and shared watchlist. Yahoo Finance supplies the primary observations; Upstox is an optional credentialed backup. Saved price and cumulative session volume drive breakout checks, while the 16-rule score retains its daily close date. Every price carries its source time. Failures keep dated observations, and available historical candles can recover gaps.',
-          cadence: `15-minute schedule in market hours; GitHub delays and source failures remain visible. ${breakoutHealth.total ? `${breakoutHealth.checked} of ${breakoutHealth.total} companies have current usable observations.` : 'No shared capture has been read yet.'} Last completed source check: ${breakoutCapture?.completedAt ? breakoutLive.stamp(breakoutCapture.completedAt) : 'not available'}.`,
+          feeds: 'Muns API is the dashboard price service. Upstox is the primary price and volume feed. A shared server collector runs independently of open dashboards. The existing Yahoo Finance capture supplies the 15-minute fallback and daily breakout bases. Breakout checks use current price and cumulative session volume; the 16-rule score retains its daily close date. Detailed minute history stays on Cloudflare for four days. Detected breakout changes and existing fallback history are retained; ordinary dashboard reads load current prices only.',
+          cadence: `${breakoutCapture?.primarySchedule?.configured ? 'Upstox every minute in market hours' : 'Upstox minute feed awaits the server token'}; 15-minute fallback. ${breakoutHealth.total ? `${breakoutHealth.checked} of ${breakoutHealth.total} companies have current usable observations.` : 'No shared capture has been read yet.'} Last completed source check: ${breakoutCapture?.completedAt ? breakoutLive.stamp(breakoutCapture.completedAt) : 'not available'}.${breakoutHealth.archiveIncomplete ? ` History has recorded gaps: ${breakoutHealth.archive.missedMinutes} missed minute checks, ${breakoutHealth.archive.missingMinuteQuotes} missing company-minute quotes and ${breakoutHealth.archive.fallbackGapIntervals} fallback intervals. Current-price freshness is separate.` : ''}`,
           status: 'live', readState: breakoutState,
           file: 'GET /api/breakouts · durable saved history',
+          details: (breakoutCapture?.failures || []).map(row=>`${row.ticker}: ${row.reason==='suspended'?'not available for trading on Upstox':row.reason==='unmapped'?'exchange identity unavailable':row.reason==='stale'?'no current source observation':row.reason}`),
         },
         {
           name: 'NSE 500 constituent list (Screener export)',
