@@ -42,12 +42,15 @@ async function main() {
   const {snapshots,amcs}=loadSharedHoldings(source);
   const denomFile=process.env.MF_DENOMINATORS||'artifacts/mutual-funds-denominators.json';
   const denominators=fs.existsSync(denomFile)?JSON.parse(fs.readFileSync(denomFile)):{};
+  const checkFile='artifacts/mutual-funds-share-count-checks.json';
+  const shareCountChecks=fs.existsSync(checkFile)?JSON.parse(fs.readFileSync(checkFile)):{};
   const identities=Object.values(JSON.parse(fs.readFileSync('public/data/exchange-deals.json')).securityMap||{});
   const built=buildOwnership(snapshots,{portfolio:book.holdings,identities,denominators});
   const {warnings,reports}=built;
   const seedDir='public/data/mutual-funds/companies';
   const seeds=fs.existsSync(seedDir)?fs.readdirSync(seedDir).filter(f=>f.endsWith('.json')).map(f=>JSON.parse(fs.readFileSync(path.join(seedDir,f)))):[];
   const companies=retainSeedObservations(built.companies,seeds);
+  for(const c of companies)if(shareCountChecks[c.isin])c.shareCountCheck=shareCountChecks[c.isin];
   const target=targetMonth();
   for(const amc of amcs) {
     const issues=warnings.filter(w=>w.startsWith(amc.slug+':')&&(w.includes(':'+target+':')||w.endsWith(':invalid-month'))).length;
@@ -67,7 +70,7 @@ async function main() {
     fs.writeFileSync('artifacts/mutual-funds-health.json',JSON.stringify({meta,companies:companies.length,warnings},null,2));
     // Reconcile previously captured companies even after an upstream rolling window drops them.
     const present=new Set(companies.map(c=>c.isin));
-    for(const row of known.values())if(!present.has(row.isin))companies.push({isin:row.isin,name:row.name,ticker:row.ticker,sector:row.sector,denominator:null,funds:[]});
+    for(const row of known.values())if(!present.has(row.isin))companies.push({isin:row.isin,name:row.name,ticker:row.ticker,sector:row.sector,denominator:denominators[row.isin]||null,...(shareCountChecks[row.isin]?{shareCountCheck:shareCountChecks[row.isin]}:{}),funds:[]});
     await client({action:'begin',manifest:{...meta,targets:companies.map(c=>c.isin),reportCount:reports.length}});
     for(const batch of reportBatches(reports))await client({action:'reports',reports:batch});
     const unchanged=[],changed=[];
