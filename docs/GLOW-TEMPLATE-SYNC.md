@@ -372,3 +372,31 @@ pipeline may run on merge; other production actions require explicit authorizati
 Upstream operational documents retained in this repository describe the template's history.
 Their Sattva activation records, credential names and private workbook assumptions do not
 supersede this Glow deployment contract or authorize production changes here.
+
+
+## Targeted price-feed update: 21 September 2026
+
+Ports the minute-primary quote modules from Sattva commit
+`115c06b084ce5bb4935cd0cae14bb344c67be0e5`, including reviewed identity mappings,
+separate provider feed/last-trade timestamps, and safe exchange handover. This
+is a targeted update; it does not advance the whole template baseline above.
+
+- Upstox is primary every minute in market collection hours; the existing GitHub
+  capture remains the 15-minute fallback and supplies completed daily bases.
+- “Muns API” is the customer price-service label. Raw provider records, original
+  source times, missing coverage and detailed Sources provenance remain intact.
+- The minute alarm, four-day compact archive and latest-price index belong to
+  Glow's own Worker/objects. The browser reads current prices only, every 15 seconds
+  while visible and on opening/return/reconnection.
+- Glow's repo, OIDC ID, portfolio adapter, newsletter, existing rate-limit namespaces
+  and extra tabs remain unchanged. No Sattva captures, holdings or secrets are copied.
+- Glow's dated daily-grade fallback and `technicals.rowFor()` remain supported.
+  Daily grades never acquire a current-session date from a minute quote.
+- The service-worker cache advances so returning sessions load the new modules.
+
+Read-only setup check on 21 September: GitHub has `UPSTOX_ACCESS_TOKEN` and
+`UPSTOX_BACKUP_ENABLED=true`; the Glow Worker lacks `UPSTOX_ACCESS_TOKEN`. The
+primary feed needs that encrypted Worker secret before it can fetch quotes.
+Manual credential changes or production-run dispatch are not authorized by this
+code update. The existing merge-triggered publishing/bootstrap pipeline is used.
+See [BREAKOUT-CAPTURE.md](BREAKOUT-CAPTURE.md) for setup and retention details.

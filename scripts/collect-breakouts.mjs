@@ -5,10 +5,12 @@ import { pathToFileURL } from 'node:url';
 import { boundedJson } from '../public/js/data/family-book-contract.js';
 import { BREAKOUT_ENDPOINT, BREAKOUT_ORIGIN, BREAKOUT_BATCH, BREAKOUT_LIMIT, marketWindow, quoteFresh, tickerValid, validateQuote, recoverySlots } from '../public/js/data/breakout-live-shared.js';
 import { loadActivePortfolio } from './lib/active-portfolio.mjs';
+import { marketTicker } from '../public/js/data/market-identity.js';
+import { upstoxIdentity } from '../worker/upstox-market.mjs';
 import { yahooQuote, upstoxQuotes, recoverYahoo } from './lib/breakout-providers.mjs';
 
 export function captureTarget(company) {
-  const ticker = String(company.ticker || /\/company\/([^/]+)/.exec(company['Screener URL'] || '')?.[1] || '').trim().toUpperCase();
+  const ticker = marketTicker(company);
   return tickerValid(ticker) ? {ticker,name:company.name || company.Company || ticker,yahooTicker:company.yahooTicker,
     ...(/^IN[A-Z0-9]{10}$/.test(company.isin || '') ? {isin:company.isin} : {})} : null;
 }
@@ -16,6 +18,14 @@ export function closingSeedComplete(capture, now = Date.now()) {
   if (capture?.state !== 'complete' || capture.discoveryFailed || capture.failures?.length || !capture.targets?.length) return false;
   const rows = new Map((capture.rows || []).map(row => [row.ticker, row]));
   return capture.targets.every(ticker => quoteFresh(rows.get(ticker), now) && rows.get(ticker).base);
+}
+export async function prepareBreakoutCapture({targets,previous,client,discoveryFailed=false,now=Date.now()}) {
+  // Discovery must reach the minute collector even when closing quotes can be reused.
+  // A primary-service outage still permits the independent fallback capture.
+  const primaryInventoryUpdated=!!await client({action:'inventory',targets,discoveryFailed}).catch(()=>null);
+  const skipCapture=!marketWindow(now).collect && !discoveryFailed &&
+    closingSeedComplete({...previous,targets:targets.map(t=>t.ticker)},now);
+  return {primaryInventoryUpdated,skipCapture};
 }
 export function breakoutClient({ env = process.env, fetcher = fetch } = {}) {
   return async input => {
@@ -42,7 +52,8 @@ export async function collectBreakouts({ targets, previous = null, client, prima
   const rows = [], misses = [], bases = new Map();
   const retained = new Map((previous?.rows || []).map(row => [row.ticker, row]));
   const closingRetry = !marketWindow(now()).collect;
-  for (const row of previous?.rows || []) if (row.sessionDate === marketWindow(now()).day && row.base) bases.set(row.ticker, row.base);
+  const exchanges = new Map(targets.map(target=>[target.ticker,upstoxIdentity(target).exchange]));
+  for (const row of previous?.rows || []) if (row.sessionDate === marketWindow(now()).day && row.base && row.exchange===exchanges.get(row.ticker)) bases.set(row.ticker, row.base);
   let rateLimited = false;
   const captureDeadline = now() + 8*60000, recoveryDeadline = now() + 10*60000;
   // Small waves checkpoint independently. An interrupted run retains every acknowledged wave.
@@ -128,7 +139,7 @@ export async function collectBreakouts({ targets, previous = null, client, prima
 export async function bootstrapBreakouts({client=breakoutClient(),now=Date.now,sleep=ms=>new Promise(done=>setTimeout(done,ms))}={}) {
   const deadline=now()+8*60000;
   do {
-    try { const result=await client({action:'arm'}); if(result.schedule?.started && result.schedule.alarmAt) return result; }
+    try { const result=await client({action:'arm'}); if(result.schedule?.started && result.schedule.alarmAt && result.primary?.started && result.primary.alarmAt) return result; }
     catch { /* The new Worker may still be publishing. No source collection is needed. */ }
     await sleep(15000);
   } while(now()<deadline);
@@ -138,11 +149,8 @@ async function main() {
   if(process.argv.includes('--bootstrap')) { await bootstrapBreakouts(); console.log('Durable backup timer started.'); return; }
   const now = Date.now();
   let previous;
-  try { previous = await boundedJson(await fetch(`${BREAKOUT_ORIGIN}/api/breakouts`, {signal:AbortSignal.timeout(20000)}), 8*1024*1024); }
+  try { previous = await boundedJson(await fetch(`${BREAKOUT_ORIGIN}/api/breakouts/fallback`, {signal:AbortSignal.timeout(20000)}), 8*1024*1024); }
   catch { if (!marketWindow(now).collect) throw Error('Capture service unavailable'); }
-  if (!marketWindow(now).collect && closingSeedComplete(previous, now)) {
-    console.log('Outside market collection hours; no market-source requests.'); return;
-  }
   // The first scheduled run also seeds the latest closing observations after hours.
   // Otherwise a newly published dashboard could display the old CMP until next morning.
   if (!marketWindow(now).collect && previous?.version !== 1) throw Error('Capture service unavailable');
@@ -163,11 +171,18 @@ async function main() {
   } catch { discoveryFailed = true; }
   if (discoveryFailed) for (const ticker of previous?.targets || []) if (!targets.has(ticker)) targets.set(ticker, {ticker,name:previous?.rows?.find(row=>row.ticker===ticker)?.name || ticker});
   const client = breakoutClient();
+  const {primaryInventoryUpdated,skipCapture}=await prepareBreakoutCapture({targets:[...targets.values()],previous,client,discoveryFailed,now});
+  if(skipCapture) {
+    console.log(JSON.stringify({outsideMarketHours:true,primaryInventoryUpdated,targetCount:targets.size}));
+    if(!primaryInventoryUpdated)process.exitCode=1;
+    return;
+  }
   const summary = await collectBreakouts({ targets: [...targets.values()].sort((a,b)=>(Date.parse(previous?.rows?.find(row=>row.ticker===a.ticker)?.quoteAt)||0)-(Date.parse(previous?.rows?.find(row=>row.ticker===b.ticker)?.quoteAt)||0)), previous, client, discoveryFailed,
     token: process.env.UPSTOX_BACKUP_ENABLED === 'true' ? process.env.UPSTOX_ACCESS_TOKEN || '' : '' });
+  summary.primaryInventoryUpdated=primaryInventoryUpdated;
   mkdirSync('artifacts', { recursive: true });
   writeFileSync('artifacts/breakout-health.json', JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary));
-  if (summary.failures || summary.noBase || summary.discoveryFailed || !marketWindow(now).calendarKnown) process.exitCode = 1;
+  if (summary.failures || summary.noBase || summary.discoveryFailed || !primaryInventoryUpdated || !marketWindow(now).calendarKnown) process.exitCode = 1;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main().catch(() => { console.error('Breakout capture did not complete. Saved checkpoints are retained; inspect the capture health endpoint.'); process.exitCode = 1; });
