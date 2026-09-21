@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-09-21T00:17:43.541Z",
+    "capturedAt": "2026-09-21T05:10:54.046Z",
     "from": "2026-08-05",
     "to": "2026-09-18",
     "rows": 8067,
@@ -12,8 +12,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-21T00:17:43.541Z",
-  "oldestDataAt": "2026-09-21T00:17:43.541Z",
+  "capturedAt": "2026-09-21T05:10:54.046Z",
+  "oldestDataAt": "2026-09-21T05:10:54.046Z",
   "from": "2025-09-21",
   "to": "2026-09-21",
   "windowDays": 365,
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-21T00:17:43.541Z",
+      "capturedAt": "2026-09-21T05:10:54.046Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-21T00:17:43.541Z",
+      "capturedAt": "2026-09-21T05:10:54.046Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +63,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-21T00:17:43.541Z",
+      "capturedAt": "2026-09-21T05:10:54.046Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -71,20 +71,20 @@
       "label": "Insider trade",
       "url": "https://www.screener.in/trades/insiders/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-09-18",
+      "latestDate": "2026-09-19",
       "oldestDate": "2026-09-18",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-21T00:17:43.541Z",
+      "capturedAt": "2026-09-21T05:10:54.046Z",
       "coverageFrom": "2026-08-18"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1664,
+  "withRows": 1665,
   "emptyCount": 0,
-  "rowCount": 16686,
+  "rowCount": 16706,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -12396,6 +12396,40 @@
     "531176": [
       {
         "ticker": "531176",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Mefcom Capital",
+          "Insider": "Karan Mehta",
+          "Category": "Promoter",
+          "Security Type": "Equity",
+          "Transaction": "Inter-se-Transfer",
+          "Trade Shares": "2000000",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "531176",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Mefcom Capital",
+          "Insider": "Priyanka Mehta",
+          "Category": "Promoter",
+          "Security Type": "Equity",
+          "Transaction": "Inter-se-Transfer",
+          "Trade Shares": "2000000",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "531176",
         "date": "2026-08-20",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=120",
         "sourceId": "bulk",
@@ -23019,6 +23053,24 @@
     "539519": [
       {
         "ticker": "539519",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "TAVEXIA LIFECARE",
+          "Insider": "Roshan Dealmark Private Limited",
+          "Category": "Promoter Group",
+          "Security Type": "Equity",
+          "Transaction": "Sold",
+          "Trade Shares": "280000",
+          "Trade Value": "3.36 lacs",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "539519",
         "date": "2026-09-18",
         "url": "https://www.screener.in/trades/insiders/?o=-2",
         "sourceId": "insiders",
@@ -32672,6 +32724,24 @@
     "544406": [
       {
         "ticker": "544406",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Unified Data",
+          "Insider": "Hiren Rajendra Mehta",
+          "Category": "Promoter And Director",
+          "Security Type": "Equity",
+          "Transaction": "Sold",
+          "Trade Shares": "1000000",
+          "Trade Value": "40.05 crore",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "544406",
         "date": "2026-09-18",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=11",
         "sourceId": "bulk",
@@ -33384,6 +33454,24 @@
       }
     ],
     "544544": [
+      {
+        "ticker": "544544",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Telge Projects",
+          "Insider": "Vishal Uttam Telge",
+          "Category": "Promoter Immediate Relative",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "4800",
+          "Trade Value": "10.09 lacs",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "544544",
         "date": "2026-09-05",
@@ -111575,6 +111663,24 @@
     "360ONE": [
       {
         "ticker": "360ONE",
+        "date": "2026-09-18",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "360 ONE",
+          "Insider": "Anshuman Maheshwary",
+          "Category": "Designated Person",
+          "Security Type": "Equity",
+          "Transaction": "Pledge Creation",
+          "Trade Shares": "80000",
+          "Trade Value": "8.73 crore",
+          "Broadcast Date": "2026-09-18",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "360ONE",
         "date": "2026-09-09",
         "cells": {
           "Company": "360 ONE WAM LTD",
@@ -129530,6 +129636,24 @@
       }
     ],
     "USHAMART": [
+      {
+        "ticker": "USHAMART",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Usha Martin",
+          "Insider": "Nidhi Rajgarhia",
+          "Category": "Promoter Group",
+          "Security Type": "Equity",
+          "Transaction": "Sold",
+          "Trade Shares": "24000",
+          "Trade Value": "1.19 crore",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "USHAMART",
         "date": "2026-09-17",
@@ -202519,6 +202643,24 @@
     "ARIS": [
       {
         "ticker": "ARIS",
+        "date": "2026-09-18",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Arisinfra Solu.",
+          "Insider": "Mr. Siddharth Bhaskar Shah",
+          "Category": "Promoter",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "405000",
+          "Trade Value": "5.46 crore",
+          "Broadcast Date": "2026-09-18",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ARIS",
         "date": "2026-09-17",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=3",
         "sourceId": "bulk",
@@ -203764,6 +203906,24 @@
       }
     ],
     "STEL": [
+      {
+        "ticker": "STEL",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "STEL Holdings",
+          "Insider": "Lebnitze Real Estates Pvt Ltd, Lebnitze Real Estates Pvt Ltd",
+          "Category": "Promoter Group (2)",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "6488",
+          "Trade Value": "41.75 lacs",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "STEL",
         "date": "2026-09-18",
@@ -205284,6 +205444,42 @@
       }
     ],
     "BIL": [
+      {
+        "ticker": "BIL",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Bhartiya Intl.",
+          "Insider": "Chandan Rastogi",
+          "Category": "Employee",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "720",
+          "Trade Value": "7.3 lacs",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "BIL",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Bhartiya Intl.",
+          "Insider": "Neeraj Vinayak Huf",
+          "Category": "Designated Person",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "2500",
+          "Trade Value": "25.69 lacs",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "BIL",
         "date": "2026-09-14",
@@ -211691,6 +211887,24 @@
     "WCIL": [
       {
         "ticker": "WCIL",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Western Carriers",
+          "Insider": "Rajendra Sethia",
+          "Category": "Promoter And Director",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "100000",
+          "Trade Value": "97.5 lacs",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "WCIL",
         "date": "2026-06-30",
         "cells": {
           "Company": "Western Carriers (India) Ltd",
@@ -213411,6 +213625,42 @@
     "HEXAGON": [
       {
         "ticker": "HEXAGON",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Hexagon Nutri.",
+          "Insider": "Dr. Nikhil Kelkar, Dr. Nikhil Kelkar, Mr. Vikram Kelkar",
+          "Category": "Promoter And Director (3)",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "25000",
+          "Trade Value": "16.25 lacs",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "HEXAGON",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Hexagon Nutri.",
+          "Insider": "Ms. Anuradha Kelkar, Ms. Anuradha Kelkar, Ms Preet...",
+          "Category": "Promoter Group (3)",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "15000",
+          "Trade Value": "9.77 lacs",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "HEXAGON",
         "date": "2026-09-16",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=6",
         "sourceId": "bulk",
@@ -213841,6 +214091,24 @@
       }
     ],
     "NCLIND": [
+      {
+        "ticker": "NCLIND",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "NCL Industries",
+          "Insider": "Ncl Holdings A&S Ltd, Kakatiya Industries Pvt.Ltd",
+          "Category": "Promoter Group (2)",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "34343",
+          "Trade Value": "59.52 lacs",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "NCLIND",
         "date": "2026-09-17",
@@ -223424,6 +223692,24 @@
       }
     ],
     "AQYLON": [
+      {
+        "ticker": "AQYLON",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Aqylon Nexus",
+          "Insider": "Kurjibhai Premjibhai Rupareliya, Kurjibhai Premjib...",
+          "Category": "Promoter (2)",
+          "Security Type": "Equity",
+          "Transaction": "Sold",
+          "Trade Shares": "35473202",
+          "Trade Value": "63.71 crore",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "AQYLON",
         "date": "2026-09-18",
@@ -324543,6 +324829,24 @@
     "WSI": [
       {
         "ticker": "WSI",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "W S Inds.",
+          "Insider": "S. Aravindan, S. Aravindan",
+          "Category": "Promoter (2)",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "15341",
+          "Trade Value": "8.43 lacs",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "WSI",
         "date": "2026-09-17",
         "url": "https://www.screener.in/trades/insiders/?o=-2",
         "sourceId": "insiders",
@@ -327011,6 +327315,24 @@
       }
     ],
     "ALUFLUOR": [
+      {
+        "ticker": "ALUFLUOR",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Alufluoride",
+          "Insider": "Ahalya Meka",
+          "Category": "Immediate Relative",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "300",
+          "Trade Value": "1.48 lacs",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "ALUFLUOR",
         "date": "2026-09-16",
@@ -332382,6 +332704,24 @@
     "BMWVENTLTD": [
       {
         "ticker": "BMWVENTLTD",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "BMW Ventures",
+          "Insider": "Shivansh Kishorepuria",
+          "Category": "Promoter Group",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "56504",
+          "Trade Value": "29.59 lacs",
+          "Broadcast Date": "2026-09-19",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "BMWVENTLTD",
         "date": "2026-09-18",
         "url": "https://www.screener.in/trades/insiders/?o=-2",
         "sourceId": "insiders",
@@ -332470,6 +332810,26 @@
           "Transaction": "Gift",
           "Trade Shares": "25000",
           "Broadcast Date": "2026-09-18",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "DEEPAKSPIN": [
+      {
+        "ticker": "DEEPAKSPIN",
+        "date": "2026-09-19",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Deepak Spinners",
+          "Insider": "Amritesh Daga",
+          "Category": "Promoter Group",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "7322",
+          "Trade Value": "10.19 lacs",
+          "Broadcast Date": "2026-09-19",
           "Source": "Screener.in"
         }
       }
