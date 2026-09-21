@@ -1,11 +1,31 @@
 {
-  "capturedAt": "2026-09-17T10:12:50.795Z",
-  "from": "2026-09-14",
-  "to": "2026-10-08",
+  "capturedAt": "2026-09-21T06:31:09.972Z",
+  "from": "2026-09-18",
+  "to": "2026-10-12",
   "pageSize": 20,
   "source": "Moneycontrol — Earnings Calendar (all-exchange counts plus every earnings-widget pagination page)",
   "note": "The per-date counts and company lists both cover All exchanges. Every published pagination page is captured; counts are re-fetched live by the Worker and these lists are as of capturedAt.",
   "days": [
+    {
+      "date": "2026-10-12",
+      "displayDate": "12 Oct",
+      "count": 0
+    },
+    {
+      "date": "2026-10-11",
+      "displayDate": "11 Oct",
+      "count": 0
+    },
+    {
+      "date": "2026-10-10",
+      "displayDate": "10 Oct",
+      "count": 0
+    },
+    {
+      "date": "2026-10-09",
+      "displayDate": "09 Oct",
+      "count": 0
+    },
     {
       "date": "2026-10-08",
       "displayDate": "08 Oct",
@@ -110,26 +130,6 @@
       "date": "2026-09-18",
       "displayDate": "18 Sep",
       "count": 1
-    },
-    {
-      "date": "2026-09-17",
-      "displayDate": "17 Sep",
-      "count": 1
-    },
-    {
-      "date": "2026-09-16",
-      "displayDate": "16 Sep",
-      "count": 1
-    },
-    {
-      "date": "2026-09-15",
-      "displayDate": "15 Sep",
-      "count": 1
-    },
-    {
-      "date": "2026-09-14",
-      "displayDate": "14 Sep",
-      "count": 0
     }
   ],
   "byDate": {
@@ -143,16 +143,16 @@
           "displayDate": "21 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 1045.6,
-          "changePct": 0.27,
-          "marketCap": 6718.62,
+          "ltp": 1144.7,
+          "changePct": 4.53,
+          "marketCap": 7355.4,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/pharmaceuticals-drugs/symbiotecpharmalab/SPL14",
           "ticker": "SYMBIOTEC",
           "fullName": "Symbiotec Pharm",
           "industry": "Pharmaceuticals & Drugs",
           "shares": 64256112,
-          "mktCapAtBuild": 6718.62
+          "mktCapAtBuild": 7355.4
         },
         {
           "scId": "KJA",
@@ -162,9 +162,9 @@
           "displayDate": "21 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 7.76,
-          "changePct": -4.9,
-          "marketCap": 1240.44,
+          "ltp": 8.2,
+          "changePct": 2.5,
+          "marketCap": 1310.77,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cigarettes-tobacco/eliteconinternational/KJA"
         }
@@ -173,7 +173,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "17/09/2026"
+      "asOnDate": "21/09/2026"
     },
     "2026-09-18": {
       "rows": [
@@ -185,107 +185,23 @@
           "displayDate": "18 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 0.74,
-          "changePct": 4.23,
-          "marketCap": 42.76,
+          "ltp": 0.8,
+          "changePct": 3.9,
+          "marketCap": 46.23,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/finance-general/toyamsports/OAR",
           "ticker": "TOYAMSL",
           "fullName": "TOYAM SPORTS",
           "industry": "Finance - Stock Broking",
           "shares": 577815000,
-          "mktCapAtBuild": 42.76
+          "mktCapAtBuild": 46.23
         }
       ],
       "scheduledCount": 1,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "17/09/2026"
-    },
-    "2026-09-17": {
-      "rows": [
-        {
-          "scId": "S26",
-          "name": "Skyways Air Services",
-          "shortName": null,
-          "resultDate": "2026-09-17",
-          "displayDate": "17 Sep",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 117.98,
-          "changePct": 4.02,
-          "marketCap": 1714.76,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/logistics/skywaysairservices/S28",
-          "ticker": "SKYWAYS",
-          "fullName": "Skyways Air Ser",
-          "industry": "Logistics",
-          "shares": 145343544,
-          "mktCapAtBuild": 1714.76
-        }
-      ],
-      "scheduledCount": 1,
-      "pageSize": 20,
-      "pagesFetched": 1,
-      "complete": true,
-      "asOnDate": "17/09/2026"
-    },
-    "2026-09-16": {
-      "rows": [
-        {
-          "scId": "TII02",
-          "name": "Tempsens Instruments India",
-          "shortName": null,
-          "resultDate": "2026-09-16",
-          "displayDate": "16 Sep",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 541.55,
-          "changePct": 0.18,
-          "marketCap": 4539.96,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/engineering-industrial-equipments/tempsensinstrumentsindia/TII02",
-          "ticker": "TEMPSENS",
-          "fullName": "Tempsens Instru",
-          "industry": "Engineering - Industrial Equipments",
-          "shares": 83832691,
-          "mktCapAtBuild": 4539.96
-        }
-      ],
-      "scheduledCount": 1,
-      "pageSize": 20,
-      "pagesFetched": 1,
-      "complete": true,
-      "asOnDate": "17/09/2026"
-    },
-    "2026-09-15": {
-      "rows": [
-        {
-          "scId": "SPL15",
-          "name": "Sunshine Pictures",
-          "shortName": null,
-          "resultDate": "2026-09-15",
-          "displayDate": "15 Sep",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 394,
-          "changePct": 8.33,
-          "marketCap": 1227.26,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/film-production-distribution-entertainment/sunshinepictures/SPL13",
-          "ticker": "SUNSHINE",
-          "fullName": "Sunshine Pict",
-          "industry": "Film Production, Distribution & Entertainment",
-          "shares": 31148784,
-          "mktCapAtBuild": 1227.26
-        }
-      ],
-      "scheduledCount": 1,
-      "pageSize": 20,
-      "pagesFetched": 1,
-      "complete": true,
-      "asOnDate": "17/09/2026"
+      "asOnDate": "21/09/2026"
     }
   }
 }
