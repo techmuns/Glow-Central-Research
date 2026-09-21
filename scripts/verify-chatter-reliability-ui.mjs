@@ -133,6 +133,11 @@ try {
   assert.equal(postCalls, 2, 'all mention pages, including beyond 1000, are retained');
   assert.deepEqual(await page.locator('[data-mention-id]').evaluateAll(rows => rows.slice(0, 3).map(row => row.dataset.mentionId)), ['new-post', 'post-0', 'post-1'], 'publication instants, not timestamp text, sentiment or source pagination, determine newest first');
   const dialog = page.locator('[data-chatter-mentions-dialog]');
+  // Compare scroll anchors after the modal's scale transition, not between animation frames.
+  await page.waitForFunction(() => {
+    const container = document.querySelector('#modal-container');
+    return container.classList.contains('scale-100') && container.getAnimations().every(animation => animation.playState === 'finished');
+  });
   await dialog.evaluate(node => { node.scrollTop = node.scrollHeight; });
   await page.waitForFunction(() => document.querySelectorAll('[data-chatter-mention-row]').length === 80);
   assert.equal(await page.locator('[data-mention-id]').nth(40).getAttribute('data-mention-id'), 'post-39', 'scroll continues with the next older card');
