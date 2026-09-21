@@ -509,7 +509,7 @@
       "pending": []
     },
     "isin:INE741B01027|Glittke Granites": {
-      "lastAttemptAt": "2026-09-16T18:13:23+00:00",
+      "lastAttemptAt": "2026-09-21T03:47:17+00:00",
       "error": "search-unavailable"
     },
     "isin:INE077F01035|GOCL Corporation": {
@@ -1668,6 +1668,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-21T03:14:44.408609+00:00"
+    "checkedAt": "2026-09-21T03:47:17.740194+00:00"
   }
 }
