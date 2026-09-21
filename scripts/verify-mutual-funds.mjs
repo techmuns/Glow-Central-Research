@@ -61,11 +61,17 @@ try {
   const evidence=await buildResearchEvidence({question:'Which mutual funds added or sold stocks across the portfolio last month?',prepared:{deferred:{},loadErrors:new Map()}});
   const mf=evidence.sources.find(s=>s.id==='mutual-funds');assert.equal(mf.rows.length,book.holdings.length);assert.equal(mf.rowCount,book.holdings.length);
   const {validateResearchBody}=await import('../worker/research.mjs');assert(validateResearchBody({question:'Which mutual funds bought?',evidence}).ok);
+  const {fitEvidenceToBudget}=await import('../public/js/research/estate.js');
+  const enriched=structuredClone(evidence);const packet=enriched.sources.find(s=>s.id==='mutual-funds');
+  packet.source+='; private MF Scanner supplement';for(const row of packet.rows)row.mfScanner={source:'MF Scanner',month:'2026-08',checkedAt:'2026-09-21T01:00:00.000Z',checkState:'ok',unpublishedFunds:2,ambiguousFunds:1};
+  const fitted=fitEvidenceToBudget(enriched,37000);assert.equal(fitted.sources.find(s=>s.id==='mutual-funds').rows.length,book.holdings.length,'Backup provenance cannot crowd portfolio companies out of the answer');
+  assert(validateResearchBody({question:'Which mutual funds bought?',evidence:fitted}).ok);
   console.log(`PASS Ask Research: every ${book.holdings.length} portfolio company survives the provider evidence budget and Worker validation`);
 }finally{globalThis.fetch=originalFetch;}
 
 let dispatched=0;
 const fetcher=async(url,options={})=>{
+  if(url.includes('/mutual-funds-scanner.yml/'))return Response.json({total_count:1,workflow_runs:[{id:9000,event:'workflow_dispatch',status:'completed',conclusion:'success',created_at:new Date(clock).toISOString()}]});
   if(options.method==='POST'){if(url.includes('/Sattva-Central-Research/')){dispatched++;assert.match(url,/mutual-funds-refresh.yml\/dispatches$/);}else assert.match(url,/AmfiBeas\/actions\/workflows\/amc-factsheet-monthly.yml\/dispatches$/);return new Response(null,{status:204});}
   return Response.json({total_count:0,workflow_runs:[]});
 };
