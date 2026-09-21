@@ -137,7 +137,7 @@ try{
  assert((await page.locator('#drill-content').innerText()).includes('2026-09-10'));
  dailySha='b'.repeat(40);daily.generated_at='2026-09-15T06:31:00Z';daily.price_date=daily.companies[0].bar_date='2026-09-11';daily.companies[0].ema50=999;
  await page.clock.runFor(16*60000);
- await page.waitForFunction(()=>document.querySelector('#drill-content')?.textContent.includes('close 2026-09-11'));
+ await page.locator('#drill-content').filter({hasText:'close 2026-09-11'}).waitFor();
  assert((await page.locator('#drill-content').innerText()).includes('999'));
  assert((await popup.innerText()).includes('₹108'));
  await page.locator('[data-drill-close]').click();
