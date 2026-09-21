@@ -26,13 +26,13 @@ export function nseShareCount(data,company,checkedAt,url) {
   const match=/^(\d{2})-([A-Za-z]{3})-(\d{4}) (\d{2}:\d{2}:\d{2})$/.exec(stamp||'');
   const month=match?['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(match[2].toLowerCase())+1:0;
   const quoteAt=month?iso(Date.parse(`${match[3]}-${String(month).padStart(2,'0')}-${match[1]}T${match[4]}+05:30`)):null;
-  const value={shares,checkedAt,asOf:null,quoteAt,source:url,sourceName:'NSE',kind:'exchange',method:'NSE issued shares; exact ISIN match'};
+  const value={shares,checkedAt,asOf:null,quoteAt,source:url,sourceName:'NSE',kind:'exchange',method:'Issued shares reported by NSE'};
   return quoteAt&&freshShareCount(value,Date.parse(checkedAt))?value:null;
 }
 export function moneycontrolShareCount(body,company,checkedAt,url) {
   const d=body?.data,shares=integer(d?.SHRS),epoch=Number(d?.lastupd_epoch);
   if(String(body?.code)!=='200' || d?.isinid!==company.isin || !Number.isSafeInteger(shares) || shares<=0 || !Number.isFinite(epoch) || epoch<=0)return null;
-  const value={shares,checkedAt,asOf:null,quoteAt:iso(epoch*1000),source:url,sourceName:'Moneycontrol',kind:'reported',method:'Direct SHRS share count; exact ISIN match; share-count effective date not supplied'};
+  const value={shares,checkedAt,asOf:null,quoteAt:iso(epoch*1000),source:url,sourceName:'Moneycontrol',kind:'reported',method:'Company share count supplied directly by Moneycontrol'};
   return freshShareCount(value,Date.parse(checkedAt))?value:null;
 }
 export function moneycontrolCode(company,map,identities=[]) {
