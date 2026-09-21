@@ -1,3 +1,4 @@
+import { renderBriefPdf, pdfFilename } from './newsletter-pdf.mjs';
 import { buildBrief, briefStoryKeys, briefSubject, briefSummary, renderBriefHtml, renderBriefText, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
 import { EDITIONS, editionKey, istDay, nextScheduled, normaliseEmail, scheduledEditions } from '../public/js/data/newsletter-shared.js';
 
@@ -198,15 +199,23 @@ export class NewsletterSchedule {
       const reason = error?.code === 'book-unavailable' ? 'book-unavailable' : 'build-failed';
       return finish({ sent: 0, failed: list.length, reason, outcomes: list.map((r) => ({ email: r.email, ok: false, reason })) });
     }
+    let pdfUrl, documentId;
+    try {
+      documentId = this.store.saveDocument(renderBriefPdf(brief, this.renderOptions()), pdfFilename(brief), key);
+      pdfUrl = `${this.dashboardUrl()}/api/newsletter/pdf/${documentId}`;
+    } catch {
+      return finish({ sent: 0, failed: list.length, reason: 'pdf-failed', outcomes: list.map(r => ({ email: r.email, ok: false, reason: 'pdf-failed' })) });
+    }
     const subject = briefSubject(brief);
     const outcomes = [];
     await pooled(list, SEND_POOL, async (recipient) => {
-      const html = renderBriefHtml(brief, this.renderOptions(recipient));
+      const html = renderBriefHtml(brief, { ...this.renderOptions(recipient), pdfUrl });
       const result = await sendEmail({ fetcher: this.fetcher, token: credential, email: recipient.email, subject, html, signal: AbortSignal.timeout(SEND_TIMEOUT_MS) });
       outcomes.push({ email: recipient.email, ok: result.ok, status: result.status, reason: result.reason });
     });
     const sent = outcomes.filter((o) => o.ok).length;
     const failed = outcomes.length - sent;
+    this.store.finishDocument(documentId, outcomes);
     // The desk has read these once it was sent to the desk; a test copy to one person is not that.
     const stories = sent && source !== 'test' ? briefStoryKeys(brief) : null;
     return finish({ sent, failed, reason: sent ? null : outcomes[0]?.reason || 'failed', outcomes, subject, summary: briefSummary(brief), stories });
@@ -229,6 +238,8 @@ export class NewsletterSchedule {
     } else {
       return { ok: false, reason: 'invalid-target' };
     }
+    const budget = this.store.claimManualDelivery(now);
+    if (!budget.ok) return { ok: false, reason: 'manual-send-budget', retryAt: budget.retryAt };
     const key = `manual:${edition}:${day}:${now}:${to}`;
     return this.deliver({ edition, day, at: now, key, source: to === 'me' ? 'test' : 'button', now, recipients, token, to: now });
   }
@@ -239,13 +250,14 @@ export class NewsletterSchedule {
     const now = this.now();
     let brief;
     try {
-      brief = await buildBrief({ edition, day: istDay(now), settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to: now, sent: this.store.sentStoryKeys() });
+      brief = await buildBrief({ edition, day: istDay(now), settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to: now, sent: this.store.sentStoryKeys(), includeAi: false });
     } catch (error) {
       return { ok: false, reason: error?.code === 'book-unavailable' ? 'book-unavailable' : 'build-failed' };
     }
     return {
       ok: true, edition, subject: briefSubject(brief), builtAt: iso(now), summary: briefSummary(brief),
-      body: format === 'text' ? renderBriefText(brief, this.renderOptions()) : renderBriefHtml(brief, this.renderOptions()),
+      filename: format === 'pdf' ? pdfFilename(brief) : undefined,
+      body: format === 'pdf' ? renderBriefPdf(brief, this.renderOptions()) : format === 'text' ? renderBriefText(brief, this.renderOptions()) : renderBriefHtml(brief, this.renderOptions()),
     };
   }
 }

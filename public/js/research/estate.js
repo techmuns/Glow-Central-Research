@@ -1,4 +1,5 @@
 import * as mutualFunds from '../data/mutual-funds.js';
+import {mutualFundEvidenceRows} from '../data/mutual-funds-evidence.js';
 // research/estate.js — the bounded, runtime dashboard catalog behind Ask Research.
 //
 // Every source below is read through the same module the owning page uses. Adding a compatible
@@ -732,7 +733,8 @@ function chatterRow(row) {
     topic: clipped(row.name || row.slug, 80),
     mentions: row.mentions ?? null,
     mentionCountChangePct: row.mentionsChangePct ?? null,
-    sentiment: row.sentiment ?? row.sentimentLabel ?? null,
+    sentiment: row.sentimentReading || null,
+    sourceSentiment: row.sentiment ?? row.sentimentLabel ?? null,
     sentimentScore: row.sentimentScore ?? null,
     sources: row.sources || row.sourceTotals || null,
   };
@@ -960,7 +962,7 @@ const BUILDERS = [
         dataQuality: meta.health?.state === 'updated' ? 'source-reported' : 'partial',
         note: 'Public-source discovery does not establish complete company coverage. ' + (meta.health?.label || 'Source checks are unconfirmed.'),
         coverage: { coveredRowsInScope: rows.length, coveredCompanies: meta.companies, unresolvedTopics: unresolved.length, totalTopics: meta.total, window: meta.window, sourceChecks: meta.collection?.sources || null, archive: meta.collection?.archive || null },
-        definition: 'mentionCountChangePct is a change in mention count between scrapes, not a price return. Unresolved topics have no reliable ticker and are never assigned to a company.',
+        definition: 'Mention change is volume, not a price return. Sentiment describes whole-window keyword tags, not the latest post or an outlook. Opposing tags are Mixed. sourceSentiment is unverified provenance. Unresolved topics cannot be assigned to companies.',
         unresolvedTopics: {
           status: 'unresolved-company-mapping',
           rowCount: unresolved.length,
@@ -1072,12 +1074,10 @@ const BUILDERS = [
       await mutualFunds.load(plan.companies.length?'universe':scope,{holdings});
       const wanted = new Set(plan.companies.map(c=>c.isin || c.ticker));
       const all = plan.companies.length ? mutualFunds.all().filter(r=>wanted.has(r.isin)||wanted.has(r.ticker)) : mutualFunds.scopedRows(scope,holdings);
-      const rows = all.map(r=>({company:r.name,ticker:r.ticker,month:r.month || null,shares:r.totalShares ?? null,net:r.netChange ?? null,
-        buyer:r.topBuyer ? `${r.topBuyer.name}: +${r.topBuyer.change}` : null,
-        seller:r.topSeller ? `${r.topSeller.name}: ${r.topSeller.change}` : null,pending:r.pendingFunds ?? null}));
-      return sourcePacket(this.id,{source:'AMC monthly portfolio disclosures via AmfiBeas',asOf:mutualFunds.meta().checkedAt,
-        rowCount:rows.length,coverage:{companies:all.length,state:mutualFunds.health()},dataQuality:'partial',
-        definition:'Complete requested company list; only comparable adjacent months contribute to net. Each row states its actual month; older months do not answer last month. Share changes can reflect corporate actions. Missing data is not zero.',
+      const meta=mutualFunds.meta(),rows=mutualFundEvidenceRows(all,meta),supplemented=rows.some(r=>r.mfScanner);
+      return sourcePacket(this.id,{source:`AMC monthly portfolio disclosures via AmfiBeas${supplemented?'; private MF Scanner supplement':''}`,asOf:meta.checkedAt,
+        rowCount:rows.length,coverage:{companies:all.length,state:mutualFunds.health(),...(supplemented?{supplementReadFailed:!!meta.supplementReadFailed,scannerCurrentCompanies:meta.supplement?.currentCompanies,scannerExpectedCompanies:meta.supplement?.expectedCompanies}:{})},dataQuality:'partial',
+        definition:'Complete requested company list; only comparable adjacent months contribute to net. Each row states its actual month; older months do not answer last month. Source check dates and any MF Scanner contribution are recorded per row; the packet asOf is the primary check only. Share changes can reflect corporate actions. Missing data is not zero.',
         rows,rowTiers:rows.map(()=>0),rowPriorities:rows.map(()=>-2000000)});
     },
   },

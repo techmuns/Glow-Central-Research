@@ -33,6 +33,14 @@ filters, and test both recent delivery and older-history access. See the reliabi
 
 ## Hard rules
 
+Public Chatter correction (21 September 2026): `chatter-sentiment.js` owns the customer summary
+of source tags. Both directions present means Mixed; a single direction needs a majority of all
+mentions with no opposing tags; missing/inconsistent counts are Unconfirmed. Preserve the raw
+provider aggregate separately. This supersedes older instructions to repeat its company band.
+Chatter evidence on AI cards opens `public-chatter?open=mentions` with the exact topic and company.
+Snapshot dates must not be described as individual publication dates. Verify with
+`verify-chatter-sentiment.mjs` and `verify-chatter-reliability-ui.mjs`.
+
 1. **Follow `AGENTS.md`: create a `codex/*` branch and pull request for every change.**
    Never commit, push or reset directly on `main`. Address review feedback and merge after
    required checks pass, respecting review gates and the user's production-action limits.
@@ -812,7 +820,11 @@ already runs on:
    no macro series store, so there is no second reading to fall back to, and a stale close dressed
    as this morning's is the one thing the row may not become. A source that cannot be read says so
    in the email — `NSE feed could not be read (blocked)` — rather than going quiet.
-3. **The stories carry no new reading.** Topic is the desk's thirty keywords folded onto seven
+3. **Source headlines and particulars stay verbatim.** Optional AI summary and potential-impact
+   notes, adapted from Glow on 21 September 2026, are labelled separately and use only supplied
+   headlines/summaries. They never change the topic, mood, source rows or sent-story ledger.
+   Missing/partial AI responses retain source text and disclose coverage. Topic is the desk's
+   thirty keywords folded onto seven
    topics; mood is `announcementSignal()` over a filing's own subject, and a published headline is
    Neutral because nothing on this dashboard reads sentiment off one. The footer says so.
 4. **The alarm is the scheduler, and a claim precedes every send.** No cron slot exists on the
@@ -850,7 +862,7 @@ already runs on:
 10. **A late capture is not a missed filing.** Every window is fixed and every source lands on its
     own cadence, so a filing captured after its edition went out used to be sent by no edition at
     all. Each brief now reads from `window.since` — the start of the previous edition's window —
-    and carries what it finds there that no earlier brief sent, marked *arrived after the previous
+    and carries what it finds there that no earlier brief sent, marked *not in the previous
     brief* on the row, on the summary line and in the sources line. `sent` is the story-key ledger
     the last six sent deliveries recorded (`stories` in the delivery log; keys, never rows; a test
     copy records none). A missed or failed edition records nothing, so its window travels with the
@@ -871,6 +883,24 @@ already runs on:
     headline unchanged, and the sources line states how many were read. The link lands on
     `/filing?src=…` — the same document, rendered — and only for an XBRL file; every other link
     still goes straight to the publisher or the exchange.
+
+The reading layer groups only matching syndicated headlines from different publishers, retaining every
+source link and summary. Distinct filings remain distinct after the existing exchange-twin fold.
+The fluid email sheet and downloadable A4 PDF carry **Automated by Munshot** in their footers.
+Sent editions save one immutable PDF before sending, under an unguessable UUID link in
+`newsletter_documents`; those PDFs survive delivery-log pruning and contain no recipient data.
+`GET /api/newsletter/pdf/<uuid>` downloads the saved bytes without fetching sources or AI again.
+Preview `format=pdf` builds a current source-only preview; it does not call AI, send, or save an
+edition. Confirmed rejected sends delete their provisional PDF. Unknown delivery outcomes (timeouts,
+connection loss, 5xx or malformed responses) keep the link, with an independently retained delivery
+key/state so they remain identifiable after delivery-log pruning. Manual sends have a desk-wide
+limit of four attempts per rolling 24 hours, reserved durably before AI/PDF/email work; scheduled
+editions keep their existing independent once-per-edition claim. Links grant
+access to that edition to anyone holding them. PDF base fonts render rupees as INR, normalize
+punctuation/Latin accents, and display unsupported glyphs as Unicode code points rather than omit
+source text. The PDF exporter is dependency-free; `scripts/verify-newsletter-reading.mjs` tests the
+reading layer, source preservation, AI failures, saved bytes and download routes. Its
+`NEWSLETTER_LAYOUT=1` mode verifies mobile widths and the browser download.
 
 **The brief is asserted against FIXTURES, not against today's capture.** `scripts/fixtures/newsletter/`
 carries a small book, two small filing captures, an NSE history day, a TradingView snapshot and a
