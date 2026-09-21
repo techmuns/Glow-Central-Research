@@ -57,7 +57,7 @@ try{
  await page.goto(`${origin}/#/research/breakouts/strong-breakouts?scope=universe`);
  const cell=page.locator('[data-cmp="TEST"]');await cell.waitFor();
  assert.equal(await cell.textContent(),'₹106.00');
- assert((await cell.locator('..').innerText()).includes('Muns API'));
+ assert((await cell.locator('..').innerText()).includes('Muns API live price'));
  assert(!(await cell.locator('..').innerText()).match(/Yahoo|Upstox/));
  assert.equal(await page.evaluate(async()=>(await import('/js/data/breakout-live.js')).snapshot().rows[0].provider),'Upstox','retain underlying provider');
  assert.equal(await page.evaluate(async()=>(await import('/js/data/technicals.js')).byTicker('TEST').company.atr_history[0].atr_pct),1.23);
@@ -108,7 +108,7 @@ try{
    await page.clock.runFor(61000);
    for (const ticker of expected) {
     await page.waitForFunction(({ticker,price})=>document.querySelector(`[data-cmp="${ticker}"]`)?.textContent===`₹${price.toFixed(2)}`,{ticker,price});
-    assert((await page.locator(`[data-cmp="${ticker}"]`).locator('..').innerText()).includes('Muns API'),`${view}/${scope}/${ticker}: ${await page.locator(`[data-cmp="${ticker}"]`).locator('..').innerText()}`);
+    assert((await page.locator(`[data-cmp="${ticker}"]`).locator('..').innerText()).includes('Muns API live price'),`${view}/${scope}/${ticker}: ${await page.locator(`[data-cmp="${ticker}"]`).locator('..').innerText()}`);
    }
    await page.locator(`[data-row-key="${expected[0]}"]`).click();
    await page.locator('[data-stat="breakout-price"]').waitFor();
@@ -199,7 +199,7 @@ try{
  noTrades=false;provider='Yahoo Finance';at=Date.parse('2026-09-15T10:00:00Z');
  await page.evaluate(async()=>{location.hash='#/research/breakouts/technical-scanner?scope=universe';await (await import('/js/data/breakout-live.js')).refresh();});
  await quietCell.waitFor();
- assert((await quietCell.locator('..').innerText()).includes('Muns API'));
+ assert((await quietCell.locator('..').innerText()).includes('Muns API live price'));
  assert(!(await quietCell.locator('..').innerText()).match(/Yahoo|Upstox/));
  assert.equal(await page.evaluate(async()=>(await import('/js/data/breakout-live.js')).snapshot().rows[0].provider),'Yahoo Finance');
  assert.equal(historyReads,0,'normal dashboard use must not download minute archives');
