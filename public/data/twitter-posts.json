@@ -10262,9 +10262,9 @@
   "collection": {
     "version": 1,
     "optional": true,
-    "status": "partial",
-    "reason": "partial-read",
-    "lastAttemptAt": "2026-09-21T00:22:09.377Z",
+    "status": "unavailable",
+    "reason": "source-read-failed",
+    "lastAttemptAt": "2026-09-21T01:03:00.764Z",
     "lastSuccessAt": null
   }
 }
