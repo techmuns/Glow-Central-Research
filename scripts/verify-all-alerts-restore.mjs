@@ -21,6 +21,26 @@ const future = event('future', { day: '2028-01-01', kind: 'scheduled' });
 const original = event('correction', { headline: 'Original headline' });
 const saved = report([old, unknown, future, original]);
 const value = materializeAllAlerts(saved);
+const oldChatter = event(`chatter:tata-consultancy-services:${day}T01:00:00Z`, { feed: 'chatter', ticker: 'TCS',
+  headline: 'Bearish public chatter', direction: 'negative', sourceRecord: null });
+const legacyChatter = { ...value, events: [...value.events, oldChatter] };
+for (const queryWindow of [null, { from: day, to: day, includeUndated: false }]) {
+  const restored = restoreAllAlertSources({ ...legacyChatter, ...(queryWindow ? { queryWindow } : {}) }, FEEDS, day, queryWindow);
+  const chatter = restored.find(feed => feed.id === 'chatter').events[0];
+  assert.equal(chatter.direction, 'neutral');
+  assert.equal(chatter.chatterTopic, 'tata-consultancy-services');
+  assert.equal(chatter.day, day);
+  assert.doesNotMatch(chatter.headline, /Bearish/);
+  assert.equal(retainAlertSource({ id: 'chatter', status: 'failed', events: [] }, restored.find(feed => feed.id === 'chatter')).events[0], chatter,
+    'failed revalidation retains the migrated observation, not the old directional verdict');
+  const full = restoreAllAlertSources({ ...legacyChatter, ...(queryWindow ? { queryWindow } : {}),
+    events: [{ ...oldChatter, sourceRecord: { slug: 'tata-consultancy-services', mentions: 13, sentiment: { bullish: 1, bearish: 3, neutral: 9, label: 'bearish' } } }],
+  }, FEEDS, day, queryWindow).find(feed => feed.id === 'chatter');
+  assert.equal(full.events[0].headline, 'Mixed public chatter (30d snapshot)');
+  assert.match(full.events[0].signalReason, /Most mentions are tagged neutral/);
+  assert.equal(full.status, 'pending');
+  assert.equal(retainAlertSource({ id: 'chatter', status: 'failed', events: [] }, full).events[0], full.events[0]);
+}
 assert.deepEqual(value.events.map(row => row.id), [old.id, unknown.id, future.id, original.id]);
 assert.equal(value.events[0].sourceRecord.original.length, 600_000, 'export evidence is never clipped to a cache part size');
 assert(!value.feeds.some(feed => feed.portfolioOnly || /documents/.test(feed.id)));

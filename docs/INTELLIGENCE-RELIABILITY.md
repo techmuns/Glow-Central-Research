@@ -44,6 +44,26 @@ certify that no records have been missed.
 
 ## Alert evidence retention
 
+Public Chatter summaries describe the full source-tag split, not the provider's net-score band
+or the latest mention alone. Opposing bullish/bearish tags are Mixed; directional summaries
+require a majority of all mentions with no opposing tags. Missing, inconsistent or empty splits
+are Unconfirmed, never silently neutral. Neutral is no directional reading, not a verified
+neutral investment outlook. Preserve the original provider label/score for provenance and label
+individual keyword tags as source readings. AI chatter links open the exact topic's mentions
+dialog, including after delayed identity resolution. The dialog separates the complete window
+from the latest dated mention. Old cached directional summaries without verifiable counts retain
+their observations but lose their unsupported verdict until the source is re-read.
+This applies to both persisted alert caches and notification details; read/dismiss receipts and
+captured dates survive the upgrade. Legacy alert IDs recover their exact topic. Sentiment sorts
+follow the displayed summary, not the provider's superseded score.
+Where All Alerts retained complete source counts, rebuild the saved summary from those counts
+even during an outage. This confirms the historical split, never the current source check.
+Mention cards sort by source publication instant (including timezone offsets), newest first,
+with missing/invalid dates last. Scrolling reveals the next display batch and older captured
+months in history; it must not truncate retained posts or reorder by sentiment. New arrivals
+preserve the visible reading anchor. Failed older-month reads retain the list and require an
+explicit retry rather than repeatedly retrying on scroll.
+
 Material, company-attributed portfolio news and linked exchange disclosures remain eligible for
 AI Alerts throughout the existing 14-day window. Recency still reduces their ranking score;
 retention alone cannot create a Must see priority. A failed refresh does not retract known evidence.

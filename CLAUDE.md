@@ -40,6 +40,17 @@ filters, and test both recent delivery and older-history access. See the reliabi
 
 ## Hard rules
 
+Public Chatter correction (21 September 2026): `chatter-sentiment.js` owns the customer summary
+of source tags. Both directions present means Mixed; a single direction needs a majority of all
+mentions with no opposing tags; missing/inconsistent counts are Unconfirmed. Preserve the raw
+provider aggregate separately. This supersedes older instructions to repeat its company band.
+Chatter evidence on AI cards opens `public-chatter?open=mentions` with the exact topic and company.
+Snapshot dates must not be described as individual publication dates. Verify with
+`verify-chatter-sentiment.mjs` and `verify-chatter-reliability-ui.mjs`.
+Mention cards read newest first by parsed source publication time, with undated items last.
+Scrolling reveals older cards and, in captured history, older months; keep the buttons for
+keyboard access and explicit retries. Refreshes preserve the reader's visible mention.
+
 1. **Follow `AGENTS.md`: create a `codex/*` branch and pull request for every change.**
    Never commit, push or reset directly on `main`. Address review feedback and merge after
    required checks pass, respecting review gates and the user's production-action limits.
@@ -1390,6 +1401,21 @@ marked AI on their face**, in the footer and on the sources line with the model 
 the reason named, rather than guessed** — `no-key`, `refused`, `rate-limited`, `unreadable` — with
 the item keeping the source's own line instead. Every folded item still reaches the ledger under
 its own identity, so late-arrival detection is unchanged.
+
+**Repeated news, updated 21 September 2026:** `newsletter-events.mjs` now checks reworded news
+before the separate AI-notes request, using the same module as Sattva. One bounded 30-second
+Bedrock call per built send examines at most 80 reports / 96,000 UTF-8 bytes, with at most 24,000 bytes of HTML-escaped source rows per company to keep a merged update small enough for email, with whole-company
+selection and no truncated source text. Only complete, disjoint known-ID partitions pass;
+all-pairs company, attribution, 24-hour, figure and stage guards reject unsafe proposals. The
+model must keep new or conflicting developments separate. News-only groups no longer use token
+overlap; unchecked reports use exact syndication. The existing filing/exchange-copy path remains.
+Store the resulting event IDs on the brief rows before creating notes so every render has stable
+membership. All original headlines, summaries, links and ledger keys survive. The sources line
+and delivery summary disclose checked coverage or failure. Public previews invoke neither AI
+pass. This groups within an edition; it does not suppress later reworded reports semantically
+across editions. The existing confirmed-delivery ledger still owns that history. Run
+`verify-newsletter-events.mjs`; its public Engineers India fixture and model stubs check contracts
+and retention, not live model accuracy.
 
 **AND THE DESK'S NUMBERS COME BEFORE THE WORLD'S.** The customer's second ask: full tables and a
 summary of the portfolio's performance on the session and of the major Indian indices, above the
