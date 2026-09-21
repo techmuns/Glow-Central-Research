@@ -2,8 +2,8 @@ import { istDate, validateQuote } from '../public/js/data/breakout-live-shared.j
 
 export const yahooSymbol = target => {
   if (target.yahooTicker) return /\.(NS|BO)$/.test(target.yahooTicker) ? target.yahooTicker : `${target.yahooTicker}.NS`;
-  // Exact BSE identity verified in the exchange master; NSE's quote is inactive.
-  if (target.ticker === 'BENGALASM') return '533095.BO';
+  // BSE 533095 / INE083K01017. Yahoo uses the symbol, not the numeric BSE code.
+  if (target.ticker === 'BENGALASM') return 'BENGALASM.BO';
   return /^\d+$/.test(target.ticker) ? `${target.ticker}.BO` : `${target.ticker.replace(/-SM$/, '')}.NS`;
 };
 const number = value => typeof value === 'number' && Number.isFinite(value) ? value : null;

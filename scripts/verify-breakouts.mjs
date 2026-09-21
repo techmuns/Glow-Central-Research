@@ -35,7 +35,7 @@ test('equity lookup excludes same-symbol bonds while preserving SME and trust un
  const bengal=mapUpstoxTargets([{ticker:'BENGALASM',isin:'INE083K01017'}],[
   {...instrument('EQ','BENGALASM','INE083K01017')},
   {segment:'BSE_EQ',instrument_type:'B',trading_symbol:'BENGALASM',instrument_key:'BSE_EQ|INE083K01017',exchange_token:'533095'}]);
- assert.equal(bengal[0].exchange,'BSE');assert.equal(yahooSymbol({ticker:'BENGALASM'}),'533095.BO');
+ assert.equal(bengal[0].exchange,'BSE');assert.equal(yahooSymbol({ticker:'BENGALASM'}),'BENGALASM.BO');
 });
 test('a fresh Upstox feed preserves old last-trade times without making a new breakout',()=>{
  const target={ticker:'NHIT',instrumentKey:'NSE_EQ|INE0H7R23014',upstoxSymbol:'NHIT',exchange:'NSE'};
