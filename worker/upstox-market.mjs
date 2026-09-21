@@ -1,9 +1,10 @@
 import { istDate, validateQuote } from '../public/js/data/breakout-live-shared.js';
 
+// Verified against each provider's exact BSE identity, 21 September 2026.
+const YAHOO_BSE = {BENGALASM:'BENGALASM.BO','543225':'ALTIUSINVIT.BO','504375':'IDREAM.BO'};
 export const yahooSymbol = target => {
   if (target.yahooTicker) return /\.(NS|BO)$/.test(target.yahooTicker) ? target.yahooTicker : `${target.yahooTicker}.NS`;
-  // BSE 533095 / INE083K01017. Yahoo uses the symbol, not the numeric BSE code.
-  if (target.ticker === 'BENGALASM') return 'BENGALASM.BO';
+  if (YAHOO_BSE[target.ticker]) return YAHOO_BSE[target.ticker];
   return /^\d+$/.test(target.ticker) ? `${target.ticker}.BO` : `${target.ticker.replace(/-SM$/, '')}.NS`;
 };
 const number = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -32,7 +33,8 @@ export function upstoxRows(payload, targets, bases, now = Date.now()) {
 }
 export const upstoxIdentity = target => {
   const symbol = yahooSymbol(target);
-  return {exchange: symbol.endsWith('.BO') ? 'BSE' : 'NSE', symbol: symbol.slice(0,-3)};
+  const exchange = symbol.endsWith('.BO') ? 'BSE' : 'NSE';
+  return {exchange, symbol: exchange==='BSE' && /^\d+$/.test(target.ticker) ? target.ticker : symbol.slice(0,-3)};
 };
 export function mapUpstoxTargets(targets, instruments) {
   const index = new Map();

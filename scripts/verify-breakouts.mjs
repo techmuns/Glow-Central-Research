@@ -36,6 +36,10 @@ test('equity lookup excludes same-symbol bonds while preserving SME and trust un
   {...instrument('EQ','BENGALASM','INE083K01017')},
   {segment:'BSE_EQ',instrument_type:'B',trading_symbol:'BENGALASM',instrument_key:'BSE_EQ|INE083K01017',exchange_token:'533095'}]);
  assert.equal(bengal[0].exchange,'BSE');assert.equal(yahooSymbol({ticker:'BENGALASM'}),'BENGALASM.BO');
+ const bse=[{segment:'BSE_EQ',instrument_type:'IF',trading_symbol:'ALTIUSINVIT',exchange_token:'543225',instrument_key:'BSE_EQ|INE0BWS23018'},
+  {segment:'BSE_EQ',instrument_type:'P',trading_symbol:'IDREAM',exchange_token:'504375',instrument_key:'BSE_EQ|INE459E01012'}];
+ assert.deepEqual(['543225','504375'].map(ticker=>yahooSymbol({ticker})),['ALTIUSINVIT.BO','IDREAM.BO']);
+ assert.deepEqual(mapUpstoxTargets(['543225','504375'].map(ticker=>({ticker})),bse).map(t=>t.instrumentKey),bse.map(t=>t.instrument_key));
 });
 test('a fresh Upstox feed preserves old last-trade times without making a new breakout',()=>{
  const target={ticker:'NHIT',instrumentKey:'NSE_EQ|INE0H7R23014',upstoxSymbol:'NHIT',exchange:'NSE'};
