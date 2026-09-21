@@ -856,7 +856,7 @@
       "error": "search-unavailable"
     },
     "isin:INE237A01036|Kotak Mahindra Bank": {
-      "lastAttemptAt": "2026-09-17T11:31:30+00:00",
+      "lastAttemptAt": "2026-09-21T20:42:48+00:00",
       "error": "search-unavailable"
     },
     "isin:INE237A01036|KOTAKBANK": {
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 210,
-    "checkedAt": "2026-09-21T20:24:29.903370+00:00"
+    "checkedAt": "2026-09-21T20:42:48.757884+00:00"
   }
 }
