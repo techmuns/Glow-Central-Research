@@ -832,8 +832,8 @@
       "pending": []
     },
     "isin:INE303R01014|KALYANKJIL": {
-      "lastAttemptAt": "2026-09-17T09:01:32+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-09-21T18:08:49+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 82,
       "lastSuccessAt": "2026-09-17T09:01:32+00:00",
       "targetThrough": null,
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 210,
-    "checkedAt": "2026-09-21T17:35:24.470875+00:00"
+    "checkedAt": "2026-09-21T18:08:49.487392+00:00"
   }
 }
