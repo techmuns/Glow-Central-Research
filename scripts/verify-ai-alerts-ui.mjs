@@ -19,6 +19,13 @@ events.find((e) => e.ticker === 'A01').time = null;
 events.find((e) => e.id === 'A03-announcements').keywords = ['Buyback'];
 events.find((e) => e.id === 'A05-announcements').keywords = ['Resignation'];
 events.push({ ...events[30], id: 'hidden-event', importance: 'low', headline: 'Lithium supply agreement hidden beyond the evidence preview' });
+// THE PREVIEW IS FOUR ROWS, so a card needs five events for one to sit beyond it — and the search
+// below exists to prove a match off-screen still finds its card. Slots go one per SOURCE in rounds,
+// so the row left out is the second-weakest of some source rather than the weakest on the card:
+// this filler shares the earnings feed with the low-importance lithium row and outranks it, which
+// puts lithium third in that source's queue and so beyond the four slots. It adds no source breadth
+// and carries no tracked keyword, so it draws no reading of its own.
+events.push({ ...events[30], id: 'preview-filler', headline: 'Zenith Manufacturing: material risk 4' });
 events.push({ ...events[0], id: 'context-document', aiEligible: false, kind: 'document', importance: 'low', direction: 'neutral', headline: 'Material risk source document', detail: 'Underlying source record' });
 events.push(...eventsFor('OLD', 'Old signal', '2026-08-22'));
 events.push({ ...events[1], id: 'important-event', ticker: 'ZIMP', company: 'Important Company', direction: 'neutral' });
@@ -284,6 +291,7 @@ try {
   assert.equal(await page.locator('[data-ai-card]').count(), 8);
   console.log('PASS: search beyond pagination and preview, priority, archive/restore and clear search.');
 
+<<<<<<< HEAD
   // THE TWO BULLETS AND THE THREE TRIGGERS. "One bullet is what has happened; the second, will it
   // change the earnings assumption, valuation or thesis?" Every card carries both, the second names
   // the QUESTIONS the evidence bears on (could change, never will), and the trigger chips above count
@@ -357,6 +365,91 @@ try {
   assert.equal(await page.locator('[data-ai-impact][aria-pressed="true"]').count(), 0, 'pressing the chip again clears it');
   assert.equal(await page.locator('[data-ai-card]').count(), 8);
   console.log('PASS: two bullets on every card, and the three trigger chips narrow, count with the other group held fixed, clear and explain an empty view.');
+=======
+  // --- the reading, on the row that holds its record ---
+  //
+  // The bucketing rules are asserted on fixtures in verify-ai-alerts.mjs. What only a rendered card
+  // can show is that the reading REACHES THE SCREEN, on the row whose own source backs it — a
+  // classification of ours with no way to check it would be a judgement with no record behind it.
+  //
+  // This replaced a paragraph of its own above the evidence, so two of these assertions are about
+  // what is NO LONGER drawn: the desk reads the same three questions on every card, and restating
+  // them (and the ones with nothing behind them) cost a block of prose to say what they knew.
+  // A removal nothing asserts comes back by accident.
+  //
+  // Every card is `content-visibility: auto`, and Chromium keeps a freshly inserted one SKIPPED —
+  // placeholder height, empty innerText — until the next rendering frame's intersection check
+  // unlocks the ones near the viewport. Clearing the search re-inserts all eight, so a read that
+  // lands before that frame (likely on a busy runner: measured 3 of 6 local runs under load) finds
+  // no text on ANY card, on screen or off, while textContent still carries it. scrollIntoView
+  // activates a card's contents synchronously, so each card is read the way a reader would see it
+  // and the check no longer races the frame. The scroll position is put back afterwards.
+  const shape = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('[data-ai-card]')];
+    const card = cards.find((c) => c.querySelector('[data-ai-driver]'));
+    if (!card) return { withDrivers: 0 };
+    const y = scrollY;
+    const rendered = (node) => { node.scrollIntoView({ block: 'nearest' }); return node.innerText; };
+    const everyCardLabelsItsInsight = cards.every((c) => /what happened/i.test(rendered(c)));
+    rendered(card);
+    const insight = card.querySelector('[data-ai-insight]');
+    const evidence = card.querySelector('[data-ai-evidence]');
+    const chips = [...card.querySelectorAll('[data-ai-driver]')];
+    const rows = [...card.querySelectorAll('[data-ai-evidence] [data-ai-evidence-link]')];
+    const rowOf = (chip) => chip.closest('[data-ai-evidence-link]');
+    const readings = {
+      withDrivers: cards.filter((c) => c.querySelector('[data-ai-driver]')).length,
+      total: cards.length,
+      everyCardLabelsItsInsight,
+      cardText: card.innerText.replace(/\s+/g, ' ').trim(),
+      chipTexts: chips.map((chip) => chip.textContent.replace(/\s+/g, ' ').trim()),
+      chipTitles: chips.map((chip) => chip.getAttribute('title') || ''),
+      // The chip is a topic reading; the direction dot beside it is the direction. So the chip may
+      // never borrow the semantic colours, whatever the row it sits on reads.
+      chipClasses: chips.map((chip) => chip.className),
+      // A chip with no record behind it is the failure this replaced a paragraph to avoid.
+      chipsSitOnRows: chips.length > 0 && chips.every((chip) => !!rowOf(chip) && !!rowOf(chip).getAttribute('href')),
+      // The link's aria-label replaces its contents for assistive technology, so the questions have
+      // to be named in it or the chip is drawn for sighted readers only.
+      rowsNameTheQuestion: chips.every((chip) => /could change/i.test(rowOf(chip).getAttribute('aria-label') || '')),
+      insightBeforeEvidence: !!evidence && !!(insight.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING),
+      rowCount: rows.length,
+      rowKeys: rows.map((row) => row.querySelector('[data-ai-age]')?.getAttribute('datetime') || ''),
+      // Both blocks this replaced, asserted absent by their own hooks.
+      figureStrip: card.querySelectorAll('[data-ai-metrics]').length,
+      questionParagraph: card.querySelectorAll('[data-ai-drivers]').length,
+      scriptInjected: card.querySelectorAll('[data-ai-evidence] script, [data-ai-evidence] img').length,
+    };
+    scrollTo(0, y);
+    return readings;
+  });
+  assert.equal(shape.withDrivers, shape.total, 'every card with a tracked topic names the question on the row that carries it');
+  assert(shape.everyCardLabelsItsInsight, 'every card labels what happened');
+  // One filing in the fixture carries one tracked keyword, so one row carries one chip.
+  assert.deepEqual(shape.chipTexts, ['Thesis · Fraud']);
+  assert(shape.chipsSitOnRows, 'every reading sits on the row whose own source backs it');
+  assert(shape.rowsNameTheQuestion, 'the row a chip sits on names the question in its accessible label');
+  // A tracked keyword says what a source is ABOUT, so the chip says what the evidence COULD change.
+  // Strengthening it to a verdict would assert a direction the feeds themselves refuse to.
+  assert(shape.chipTitles.every((title) => /^Could change the thesis\./.test(title)), shape.chipTitles.join(' | '));
+  assert(shape.chipTitles.every((title) => /does not verify|not confirmation/i.test(title)),
+    'each reading says it matched a topic rather than verifying the event');
+  assert(shape.chipTitles.every((title) => !/\b(?:will|improves?|worsens?|undervalued|overvalued)\b/i.test(title)),
+    'no verdict word reaches the reading');
+  assert(shape.chipClasses.every((cls) => !/emerald|rose|amber/.test(cls)), 'a topic reading never borrows a direction colour');
+  // The two blocks this replaced, and why each is gone: the strip's figures are elsewhere on the
+  // card, and the desk already knows the three questions.
+  assert.equal(shape.figureStrip, 0, 'the four-figure strip is gone');
+  assert.equal(shape.questionParagraph, 0, 'the per-question paragraph is gone');
+  assert.doesNotMatch(shape.cardText, /earnings assumption, valuation or thesis/i);
+  assert.doesNotMatch(shape.cardText, /Nothing tracked here bears on/i);
+  assert(shape.insightBeforeEvidence, 'the finding is read before its evidence');
+  // Four rows, and the header above them claims newest first — so the rows have to be in that order.
+  assert(shape.rowCount > 0 && shape.rowCount <= 4, `rows: ${shape.rowCount}`);
+  assert.deepEqual(shape.rowKeys, [...shape.rowKeys].sort().reverse(), 'the rows are newest first, as the list header says');
+  assert.equal(shape.scriptInjected, 0, 'row text is escaped');
+  console.log('PASS: the card labels what happened and names the investor question on the row that carries the reading.');
+>>>>>>> sattva/main
 
   await page.evaluate(() => {
     window.savedFixture = window.fixtureEvents;
