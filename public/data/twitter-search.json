@@ -485,8 +485,8 @@
       "pending": []
     },
     "isin:INE18UN01038|Gaja Alternative Asset Management": {
-      "lastAttemptAt": "2026-09-16T18:13:23+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-09-21T02:08:53+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 37,
       "lastSuccessAt": "2026-09-16T18:13:23+00:00",
       "targetThrough": null,
@@ -1668,6 +1668,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-21T01:35:44.480931+00:00"
+    "checkedAt": "2026-09-21T02:08:53.405869+00:00"
   }
 }
