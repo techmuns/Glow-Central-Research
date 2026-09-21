@@ -1391,6 +1391,21 @@ the reason named, rather than guessed** — `no-key`, `refused`, `rate-limited`,
 the item keeping the source's own line instead. Every folded item still reaches the ledger under
 its own identity, so late-arrival detection is unchanged.
 
+**Repeated news, updated 21 September 2026:** `newsletter-events.mjs` now checks reworded news
+before the separate AI-notes request, using the same module as Sattva. One bounded 30-second
+Bedrock call per built send examines at most 80 reports / 96,000 UTF-8 bytes, with whole-company
+selection and no truncated source text. Only complete, disjoint known-ID partitions pass;
+all-pairs company, attribution, 24-hour, figure and stage guards reject unsafe proposals. The
+model must keep new or conflicting developments separate. News-only groups no longer use token
+overlap; unchecked reports use exact syndication. The existing filing/exchange-copy path remains.
+Store the resulting event IDs on the brief rows before creating notes so every render has stable
+membership. All original headlines, summaries, links and ledger keys survive. The sources line
+and delivery summary disclose checked coverage or failure. Public previews invoke neither AI
+pass. This groups within an edition; it does not suppress later reworded reports semantically
+across editions. The existing confirmed-delivery ledger still owns that history. Run
+`verify-newsletter-events.mjs`; its public Engineers India fixture and model stubs check contracts
+and retention, not live model accuracy.
+
 **AND THE DESK'S NUMBERS COME BEFORE THE WORLD'S.** The customer's second ask: full tables and a
 summary of the portfolio's performance on the session and of the major Indian indices, above the
 global market scan. **Portfolio today** (the morning brief: *previous session*) is every listed

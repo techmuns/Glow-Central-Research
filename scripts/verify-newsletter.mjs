@@ -801,6 +801,7 @@ await test('the AI notes: one bounded request per brief, JSON in and out, each n
     const url = String(input);
     if (!url.startsWith('https://bedrock-runtime.')) return makeFetcher({ nse: 'blocked' })(input, init);
     const body = JSON.parse(init.body);
+    if (JSON.parse(body.messages[0].content).REPORTS) return new Response('duplicate check unavailable in the notes-only fixture', { status: 503 });
     calls.push({ url, init, body });
     if (reply === 'refused') return Response.json({ message: 'private upstream text' }, { status: 403 });
     if (reply === 'garbled') return Response.json({ content: [{ type: 'text', text: 'Sorry — {not json' }] });
@@ -1122,12 +1123,19 @@ await test('sending to everyone cools down for five minutes and a second press w
 
 await test('a preview builds the edition up to now without sending, in html or text', async () => {
   clock = istInstant('2026-09-17', '10:30');
-  const { schedule, log } = makeSchedule();
+  const { schedule, log } = makeSchedule({ env: { CLAUDE_KEY: 'ABSKfixture-preview-key' } });
+  let paidCalls = 0;
+  const fetcher = schedule.fetcher;
+  schedule.fetcher = (url, init) => {
+    if (String(url).includes('bedrock-runtime.')) paidCalls++;
+    return fetcher(url, init);
+  };
   const html = await schedule.preview({ edition: 'morning' });
   assert.equal(html.ok, true); assert.ok(html.body.startsWith('<!doctype html>')); assert.match(html.subject, /^Glow Ventures ·/);
   const text = await schedule.preview({ edition: 'morning', format: 'text' });
   assert.ok(text.body.startsWith('GLOW VENTURES'));
   assert.equal(log.filter((l) => l.kind === 'email').length, 0);
+  assert.equal(paidCalls, 0, 'public previews cannot invoke either paid model pass');
   assert.equal((await schedule.preview({ edition: 'weekly' })).reason, 'invalid-edition');
 });
 

@@ -226,7 +226,7 @@ export class NewsletterSchedule {
     const now = this.now();
     let brief;
     try {
-      brief = await buildBrief({ edition, day: istDay(now), settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to: now, reported: this.store.reportedLookup() });
+      brief = await buildBrief({ edition, day: istDay(now), settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to: now, reported: this.store.reportedLookup(), includeAi: false });
     } catch (error) {
       return { ok: false, reason: error?.code === 'book-unavailable' ? 'book-unavailable' : 'build-failed' };
     }
