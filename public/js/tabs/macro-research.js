@@ -348,7 +348,7 @@ function fpiTableHtml(t) {
   };
   return `
     <div class="table-scroll-surface overflow-x-auto" data-fpi-scroll>
-      <table class="w-full min-w-[880px] border-collapse text-sm">
+      <table data-column-layout="macro-research:1" class="w-full min-w-[880px] border-collapse text-sm">
         <thead>
           <tr class="border-b border-slate-200">
             <th scope="col" class="sticky left-0 z-10 bg-white px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(t.currency)}</th>
