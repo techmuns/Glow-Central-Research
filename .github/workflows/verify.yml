@@ -25,6 +25,8 @@ jobs:
         run: node scripts/verify-super-investors.mjs
       - name: Verify refresh ownership and source targeting
         run: node scripts/verify-refresh.mjs
+      - name: Verify evidence-based public chatter summaries
+        run: node scripts/verify-chatter-sentiment.mjs
       - name: Verify personal notebook snapshot and backup contracts
         run: node scripts/verify-bookmarks.mjs
       - name: Verify notification receipts, retained unread items and private content isolation
@@ -94,7 +96,7 @@ jobs:
       - name: Verify the shared watchlist contract, attribution and conflicting edits
         run: node scripts/verify-shared-watchlist.mjs
       - name: Verify the team brief — contract, store, fixture-built editions and the sending alarm
-        run: node scripts/verify-newsletter.mjs
+        run: node scripts/verify-newsletter.mjs && node scripts/verify-newsletter-events.mjs
       - name: Verify operational filing health
         run: node scripts/verify-filings-health.mjs
       - name: Verify capture watchdog
@@ -244,7 +246,7 @@ jobs:
       - name: Verify chatter freshness, cached reloads and complete history
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-chatter-reliability-ui.mjs
+        run: node scripts/verify-chatter-reliability-ui.mjs && node scripts/verify-chatter-upgrade-ui.mjs
       - name: Verify Telegram and public chatter portfolio evidence
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright

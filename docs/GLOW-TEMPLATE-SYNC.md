@@ -350,6 +350,14 @@ classifying a row. What arrived, and how each piece lands here:
 
 ## Future upgrades
 
+Public Chatter received a targeted backport on 21 September 2026 of Sattva PRs #248 and #255:
+source-count-based Mixed/Neutral/Bullish/Bearish summaries, honest unknown readings, saved-alert
+and notification corrections, exact-topic AI-card dialog links, and newest-first mention cards
+that continue as the reader scrolls. Publication time determines ordering, including time-zone
+offsets; undated items remain last. The window summary stays separate from the latest mention.
+This does not advance the full template baseline or adopt Sattva captures. Glow's portfolio,
+AI impact controls, deployment cache markers and additional tabs remain its own.
+
 The [20 September performance audit](PERFORMANCE-PARITY-2026-09-20.md) checks the shared speed work
 through Sattva PR #230 and the later presentation changes. It adds content-hash reuse for unchanged
 pool members, cancellation isolation, metadata-only cold exchange verification and the v2 pool's
