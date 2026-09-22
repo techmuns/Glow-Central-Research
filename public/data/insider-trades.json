@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-09-22T00:08:29.578Z",
+    "capturedAt": "2026-09-22T04:59:33.888Z",
     "from": "2026-08-05",
     "to": "2026-09-21",
     "rows": 8355,
@@ -12,8 +12,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-22T00:08:29.578Z",
-  "oldestDataAt": "2026-09-22T00:08:29.578Z",
+  "capturedAt": "2026-09-22T04:59:33.888Z",
+  "oldestDataAt": "2026-09-22T04:59:33.888Z",
   "from": "2025-09-22",
   "to": "2026-09-22",
   "windowDays": 365,
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-22T00:08:29.578Z",
+      "capturedAt": "2026-09-22T04:59:33.888Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-22T00:08:29.578Z",
+      "capturedAt": "2026-09-22T04:59:33.888Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -58,12 +58,12 @@
       "label": "SAST",
       "url": "https://www.screener.in/trades/sast/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-09-16",
-      "oldestDate": "2026-08-27",
+      "latestDate": "2026-09-21",
+      "oldestDate": "2026-09-01",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-22T00:08:29.578Z",
+      "capturedAt": "2026-09-22T04:59:33.888Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,15 +76,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-22T00:08:29.578Z",
+      "capturedAt": "2026-09-22T04:59:33.888Z",
       "coverageFrom": "2026-08-18"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1690,
+  "withRows": 1693,
   "emptyCount": 0,
-  "rowCount": 17054,
+  "rowCount": 17074,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -245472,6 +245472,21 @@
     "CONNPLEX": [
       {
         "ticker": "CONNPLEX",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Connplex Cinemas",
+          "Insider": "Anish Tulshibhai Patel",
+          "Transaction": "Sell",
+          "Trade Shares": "324800",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "CONNPLEX",
         "date": "2026-09-04",
         "url": "https://www.screener.in/trades/bulk/?o=-2",
         "sourceId": "bulk",
@@ -276395,6 +276410,36 @@
     "SILGO": [
       {
         "ticker": "SILGO",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Silgo Retail",
+          "Insider": "Mrs. Bela Agrawal",
+          "Transaction": "Sell",
+          "Trade Shares": "200000",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SILGO",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Silgo Retail",
+          "Insider": "Nitin Jain",
+          "Transaction": "Acquisition",
+          "Trade Shares": "0",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SILGO",
         "date": "2026-09-15",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=16",
         "sourceId": "bulk",
@@ -276679,6 +276724,21 @@
       }
     ],
     "SANGINITA": [
+      {
+        "ticker": "SANGINITA",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Sanginita Chemi.",
+          "Insider": "Guttikonda Rajasekhar",
+          "Transaction": "Sell",
+          "Trade Shares": "1140470",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "SANGINITA",
         "date": "2026-09-02",
@@ -279465,6 +279525,36 @@
       }
     ],
     "MILTON": [
+      {
+        "ticker": "MILTON",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Milton Industri.",
+          "Insider": "Ajay Mahipalsingh Jain",
+          "Transaction": "Sell",
+          "Trade Shares": "270600",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MILTON",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Milton Industri.",
+          "Insider": "Preeti Abhaykumar Jain",
+          "Transaction": "Sell",
+          "Trade Shares": "336600",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "MILTON",
         "date": "2026-09-05",
@@ -296610,6 +296700,36 @@
     "SHREEKARNI": [
       {
         "ticker": "SHREEKARNI",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Shree Karni",
+          "Insider": "Mr. Radhe Shyam Daga, Mr. Rajiv Lakhotia, Mr. Manoj Kumar Karnani, Mr. Raj Kumar Agarwal",
+          "Transaction": "Acquisition",
+          "Trade Shares": "105000",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SHREEKARNI",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Shree Karni",
+          "Insider": "Mr. Radhe Shyam Daga",
+          "Transaction": "Acquisition",
+          "Trade Shares": "105000",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SHREEKARNI",
         "date": "2026-09-08",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -309111,6 +309231,21 @@
       }
     ],
     "JEYYAM": [
+      {
+        "ticker": "JEYYAM",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Jeyyam Global",
+          "Insider": "Siddharrth Mehta",
+          "Transaction": "Acquisition",
+          "Trade Shares": "4094030",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "JEYYAM",
         "date": "2026-09-03",
@@ -328374,6 +328509,21 @@
     "TECHLABS": [
       {
         "ticker": "TECHLABS",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Trident Techlabs",
+          "Insider": "Sarad Chandra Naithani",
+          "Transaction": "Acquisition",
+          "Trade Shares": "50000",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "TECHLABS",
         "date": "2026-09-08",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -328451,6 +328601,21 @@
       }
     ],
     "HINDCON": [
+      {
+        "ticker": "HINDCON",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Hindcon Chemical",
+          "Insider": "Sanjay Goenka",
+          "Transaction": "Acquisition",
+          "Trade Shares": "2500",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "HINDCON",
         "date": "2026-09-08",
@@ -329494,6 +329659,21 @@
       }
     ],
     "ARVINDPORT": [
+      {
+        "ticker": "ARVINDPORT",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Arvind Port &",
+          "Insider": "Vinit Arvind Shah",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3000",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "ARVINDPORT",
         "date": "2026-09-04",
@@ -334906,6 +335086,21 @@
     "KORE": [
       {
         "ticker": "KORE",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Jay Jalaram Tech",
+          "Insider": "Kamlesh Lalwani",
+          "Transaction": "Sell",
+          "Trade Shares": "3194247",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "KORE",
         "date": "2026-09-04",
         "url": "https://www.screener.in/trades/insiders/?o=-2&p=18",
         "sourceId": "insiders",
@@ -339131,6 +339326,117 @@
           "Transaction": "Sold",
           "Trade Shares": "69278",
           "Trade Value": "5.74 lacs",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "MANDEEP": [
+      {
+        "ticker": "MANDEEP",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Mandeep Auto",
+          "Insider": "Ishu Bhatia",
+          "Transaction": "Acquisition",
+          "Trade Shares": "48000",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "BEWLTD": [
+      {
+        "ticker": "BEWLTD",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "BEW Engg",
+          "Insider": "HImalaya Finance & Investment Co.",
+          "Transaction": "Sell",
+          "Trade Shares": "325500",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "AIROLAM": [
+      {
+        "ticker": "AIROLAM",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Airo Lam",
+          "Insider": "Jasavantbhai Amichandbhai Patel",
+          "Transaction": "Acquisition",
+          "Trade Shares": "837298",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AIROLAM",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Airo Lam",
+          "Insider": "Patel Premanshu Jayantibhai",
+          "Transaction": "Acquisition",
+          "Trade Shares": "111000",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AIROLAM",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Airo Lam",
+          "Insider": "Patel Vishvkumar Girishbhai",
+          "Transaction": "Acquisition",
+          "Trade Shares": "90000",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AIROLAM",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Airo Lam",
+          "Insider": "Pravinbhai Nathabhai Patel.",
+          "Transaction": "Sell",
+          "Trade Shares": "201000",
+          "Broadcast Date": "2026-09-21",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AIROLAM",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Airo Lam",
+          "Insider": "Pravinbhai Nathabhai Patel",
+          "Transaction": "Sell",
+          "Trade Shares": "837298",
           "Broadcast Date": "2026-09-21",
           "Source": "Screener.in"
         }
