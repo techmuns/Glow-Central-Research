@@ -1,9 +1,14 @@
 {
   "version": 1,
   "note": "Filings retained from successful NSE captures, not a complete exchange history. Dates are IST. Undated notices are kept separately.",
-  "capturedAt": "2026-09-21T16:18:24.124Z",
-  "count": 16643,
+  "capturedAt": "2026-09-22T09:08:19.987Z",
+  "count": 17360,
   "days": [
+    {
+      "day": "2026-09-22",
+      "count": 717,
+      "revision": "247eae1c56a80a3a"
+    },
     {
       "day": "2026-09-21",
       "count": 1137,
