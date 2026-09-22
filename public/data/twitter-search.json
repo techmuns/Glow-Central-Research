@@ -880,7 +880,7 @@
       "error": "search-unavailable"
     },
     "isin:INE101A01026|Mahindra & Mahindra": {
-      "lastAttemptAt": "2026-09-17T14:22:34+00:00",
+      "lastAttemptAt": "2026-09-22T00:22:50+00:00",
       "error": "search-unavailable"
     },
     "isin:INE774D01024|Mahindra & Mahindra Financial Services": {
@@ -1703,7 +1703,7 @@
   "coverage": {
     "planned": 232,
     "attempted": 1,
-    "incomplete": 210,
-    "checkedAt": "2026-09-21T23:44:47.650772+00:00"
+    "incomplete": 216,
+    "checkedAt": "2026-09-22T00:22:50.882367+00:00"
   }
 }
