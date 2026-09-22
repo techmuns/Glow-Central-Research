@@ -884,7 +884,7 @@
       "error": "search-unavailable"
     },
     "isin:INE774D01024|Mahindra & Mahindra Financial Services": {
-      "lastAttemptAt": "2026-09-17T14:59:11+00:00",
+      "lastAttemptAt": "2026-09-22T01:11:32+00:00",
       "error": "search-unavailable"
     },
     "isin:INE774D01024|M&MFIN": {
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 216,
-    "checkedAt": "2026-09-22T00:22:50.882367+00:00"
+    "checkedAt": "2026-09-22T01:11:32.966533+00:00"
   }
 }
