@@ -980,7 +980,7 @@
       ]
     },
     "isin:INE12F801023|OnEMI Technology Solutions": {
-      "lastAttemptAt": "2026-09-17T21:33:38+00:00",
+      "lastAttemptAt": "2026-09-22T07:51:32+00:00",
       "error": "search-unavailable",
       "lastResultCount": 3,
       "lastSuccessAt": "2026-09-13T11:04:59+00:00",
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 216,
-    "checkedAt": "2026-09-22T07:38:44.690338+00:00"
+    "checkedAt": "2026-09-22T07:51:32.766005+00:00"
   }
 }
