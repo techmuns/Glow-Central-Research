@@ -429,7 +429,11 @@ export function scoreTable(config) {
     countNoun = '',
     countLabel = null,
     columnLayoutKey = null,
+<<<<<<< HEAD
     exportName = 'glow-export',
+=======
+    exportName = 'sattva-export',
+>>>>>>> sattva/main
     onExport = null, // (visibleRows, exportName) => void — see ui/export.js
     // Drop the leading rank column. The watchlist star does NOT go with it — the watchlist filter
     // needs a per-row control — it moves inside the identity cell, ahead of the avatar. That frees
@@ -871,9 +875,15 @@ export function scoreTable(config) {
         </div>
       </div>
 
+<<<<<<< HEAD
       <div class="table-scroll-surface overflow-x-auto" data-table-scroll tabindex="0" role="region" aria-label="${escapeHtml(scrollLabel)}" ${stickyHead ? `style="max-height:${stickyHead};overflow-y:auto${isVirtual ? ';overflow-anchor:none' : ''}"` : ''}>
         <table data-column-layout="${escapeHtml(columnLayoutKey || `${exportName.replace(/\d{4}-\d{2}-\d{2}/g, 'date')}:${nameLabel}`)}" class="w-full text-sm"${isVirtual ? ` aria-rowcount="${initialList.length + 1}"` : ''}>
           <thead data-table-head class="sticky top-0 z-10 ${stickyHead ? 'bg-slate-50 table-sticky-head' : 'bg-slate-50/70'}">${headHtml()}</thead>
+=======
+      <div class="table-scroll-surface scrollbar-thin overflow-x-auto" data-table-scroll tabindex="0" role="region" aria-label="${escapeHtml(scrollLabel)}" ${stickyHead ? `style="max-height:${stickyHead};overflow-y:auto${isVirtual ? ';overflow-anchor:none' : ''}"` : ''}>
+        <table data-column-layout="${escapeHtml(columnLayoutKey || `${exportName.replace(/\d{4}-\d{2}-\d{2}/g, 'date')}:${nameLabel}`)}" class="w-full text-sm"${isVirtual ? ` aria-rowcount="${initialList.length + 1}"` : ''}>
+          <thead data-table-head class="sticky top-0 z-10 ${stickyHead ? 'bg-white shadow-sm' : 'bg-slate-50/70'}">${headHtml()}</thead>
+>>>>>>> sattva/main
           <tbody data-table-body>${isVirtual ? virtualBodyHtml(initialList, initialVirtualStart) : bodyHtml(initialList, 0, FIRST_PAINT_ROWS)}</tbody>
         </table>
       </div>
