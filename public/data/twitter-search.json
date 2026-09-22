@@ -1056,7 +1056,7 @@
       "pending": []
     },
     "isin:INE119201023|PARKHOSPS": {
-      "lastAttemptAt": "2026-09-18T02:58:15+00:00",
+      "lastAttemptAt": "2026-09-22T12:57:05+00:00",
       "lastResultCount": 9,
       "error": "search-unavailable",
       "lastSuccessAt": "2026-09-08T19:20:14+00:00",
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 216,
-    "checkedAt": "2026-09-22T12:39:28.358553+00:00"
+    "checkedAt": "2026-09-22T12:57:05.504354+00:00"
   }
 }
