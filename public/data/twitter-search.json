@@ -1184,8 +1184,8 @@
       "pending": []
     },
     "isin:INE004A01022|Protean eGov Technologies": {
-      "lastAttemptAt": "2026-09-18T06:26:21+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-09-22T22:08:15+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 3,
       "lastSuccessAt": "2026-09-18T06:26:21+00:00",
       "targetThrough": null,
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 218,
-    "checkedAt": "2026-09-22T21:35:32.582148+00:00"
+    "checkedAt": "2026-09-22T22:08:15.419721+00:00"
   }
 }
