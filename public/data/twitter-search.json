@@ -1072,7 +1072,7 @@
       "pending": []
     },
     "isin:INE417T01026|POLICYBZR": {
-      "lastAttemptAt": "2026-09-18T04:04:27+00:00",
+      "lastAttemptAt": "2026-09-22T14:11:32+00:00",
       "lastResultCount": 32,
       "error": "search-unavailable",
       "lastSuccessAt": "2026-09-08T19:20:14+00:00",
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 216,
-    "checkedAt": "2026-09-22T13:35:39.399226+00:00"
+    "checkedAt": "2026-09-22T14:11:32.771922+00:00"
   }
 }
