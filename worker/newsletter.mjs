@@ -40,26 +40,55 @@ async function guardWrite(request, env, url) {
   return null;
 }
 
+const pdfHeaders = filename => ({
+  'content-type': 'application/pdf',
+  'content-disposition': `attachment; filename="${/^sattva-[0-9-]+-(?:morning|evening)-brief\.pdf$/.test(filename || '') ? filename : 'sattva-portfolio-brief.pdf'}"`,
+  'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer', 'x-robots-tag': 'noindex, nofollow',
+});
+
 export async function handleNewsletter(request, env) {
   const url = new URL(request.url);
   if (!env.NEWSLETTER) return fail('newsletter-unavailable', 503);
   const object = env.NEWSLETTER.getByName(NEWSLETTER_OBJECT);
   const dashboardUrl = String(env.DASHBOARD_ORIGIN || url.origin).replace(/\/+$/, '');
 
+  // Opaque links identify one saved edition. This path never rebuilds, calls sources, or sends.
+  if (url.pathname.startsWith('/api/newsletter/pdf/')) {
+    if (request.method !== 'GET') return fail('method', 405);
+    const id = url.pathname.slice('/api/newsletter/pdf/'.length);
+    if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id)) return fail('not-found', 404);
+    let document;
+    try { document = await object.newsletterPdf(id); } catch { return fail('newsletter-unavailable', 503); }
+    if (!document) return fail('not-found', 404);
+    return new Response(document.body, { headers: pdfHeaders(document.filename) });
+  }
+
   if (url.pathname === '/api/newsletter/preview') {
     if (request.method !== 'GET') return fail('method', 405);
     const edition = url.searchParams.get('edition') || 'morning';
     if (!EDITION_IDS.includes(edition)) return fail('invalid-edition', 400);
-    const format = url.searchParams.get('format') === 'text' ? 'text' : 'html';
+    const requestedPart = url.searchParams.get('part') || '1';
+    if (!/^[1-9][0-9]?$/.test(requestedPart)) return fail('invalid-part', 400);
+    const part = Number(requestedPart);
+    // Bound preview feed reads. The preview builder never runs paid AI enrichment.
+    if (!env.NEWSLETTER_LIMITER) return fail('newsletter-unavailable', 503);
+    const allowance = await env.NEWSLETTER_LIMITER.limit({ key: request.headers.get('cf-connecting-ip') || 'unknown' });
+    if (!allowance.success) return fail('rate-limit', 429);
+    const requested = url.searchParams.get('format');
+    const format = ['text', 'pdf'].includes(requested) ? requested : 'html';
     let out;
-    try { out = await object.newsletterPreview({ edition, format }); } catch { return fail('newsletter-unavailable', 503); }
-    if (!out?.ok) return fail(out?.reason || 'preview-failed', 503);
+    try { out = await object.newsletterPreview({ edition, format, part }); } catch { return fail('newsletter-unavailable', 503); }
+    if (!out?.ok) return fail(out?.reason || 'preview-failed', out?.reason === 'invalid-part' ? 400 : 503);
+    if (format === 'pdf') return new Response(out.body, { headers: pdfHeaders(out.filename) });
     return new Response(out.body, {
       headers: {
         'content-type': format === 'text' ? 'text/plain; charset=utf-8' : 'text/html; charset=utf-8',
         'cache-control': 'no-store',
         'content-security-policy': "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'",
         'x-newsletter-subject': encodeURIComponent(out.subject || ''),
+        'x-newsletter-part': String(out.part || 1),
+        'x-newsletter-parts': String(out.parts || 1),
         ...CORS,
       },
     });

@@ -13,17 +13,28 @@ const daily={...original,generated_at:'2026-09-15T01:30:00Z',price_date:'2026-09
  {...seed,ticker:'NOBASE',name:'No Base Today',cmp:50,bar_date:'2026-09-10',price_date:undefined,sma200:40,high_52w:60,consolidation_breakout:{...seed.consolidation_breakout,quality:'weak_base',breaks_out:true,base_max:48,base_range_pct:15,today_volume_ratio:1.8}},
 ],company_count:2,failures:0};
 const deployedDaily=structuredClone(daily);
+<<<<<<< HEAD
 let price=106,volume=2000,at=AT,fail=false,revision=1,reads=0,muns=0,historyReads=0,noTrades=false,provider='Upstox',dailyFail=false,companionFail=false,dailySha='a'.repeat(40),noBase=true;
 const snapshot=()=>({version:1,state:'complete',targets:['TEST','FUTURE','WATCHONLY','NOBASE'],startedAt:new Date(at-1000).toISOString(),completedAt:new Date(at).toISOString(),captureStartedAt:'2026-09-15T03:45:00Z',failures:[],gaps:[{count:1,reason:'candles-unavailable',since:AT-3600000,until:AT}],rows:[
  ...['TEST','FUTURE','WATCHONLY'].map(ticker=>({ticker,name:ticker==='TEST'?'Test Company':'Future Holding',price,volume:noTrades?0:volume,prevClose:98,quoteAt:new Date(noTrades?AT-4*86400000:at).toISOString(),...(noTrades?{feedAt:new Date(at).toISOString()}:{}),checkedAt:new Date(at).toISOString(),sessionDate:'2026-09-15',provider,base:{high:100,low:95,average:97,averageVolume:1000,count:30,to:'2026-09-11'}})),
  {ticker:'NOBASE',name:'No Base Today',price:52,volume:500,prevClose:50,quoteAt:new Date(at).toISOString(),checkedAt:new Date(at).toISOString(),sessionDate:'2026-09-15',provider,base:noBase?null:{high:55,low:45,average:50,averageVolume:1000,count:30,to:'2026-09-11'}},
 ]});
+=======
+daily.companies.push({ticker:'ID',name:'Dhoot Transmission',screenerUrl:'https://www.screener.in/company/id/1286088/consolidated/',error:'Daily history pending'});
+daily.company_count++;
+let price=106,volume=2000,at=AT,fail=false,revision=1,reads=0,muns=0,historyReads=0,dailyFail=false,companionFail=false,dailySha='a'.repeat(40);
+let noTrades=false;
+const snapshot=()=>({version:1,state:'complete',targets:['TEST','FUTURE','WATCHONLY','DHOOTTRANS'],startedAt:new Date(at-1000).toISOString(),completedAt:new Date(at).toISOString(),captureStartedAt:'2026-09-15T03:45:00Z',failures:[],gaps:[{count:1,reason:'candles-unavailable',since:AT-3600000,until:AT}],rows:['TEST','FUTURE','WATCHONLY','DHOOTTRANS'].map(ticker=>({ticker,name:ticker==='TEST'?'Test Company':'Future Holding',price,volume:noTrades?0:volume,prevClose:98,quoteAt:new Date(noTrades?AT-4*86400000:at).toISOString(),...(noTrades?{feedAt:new Date(at).toISOString()}:{}),checkedAt:new Date(at).toISOString(),sessionDate:'2026-09-15',provider:'Upstox',base:{high:100,low:95,average:97,averageVolume:1000,count:30,to:'2026-09-11'}}))});
+>>>>>>> sattva/main
 const server=createServer((req,res)=>{
  const path=new URL(req.url,'http://localhost').pathname;
  res.setHeader('cache-control','no-cache');
  const json=value=>{res.setHeader('content-type','application/json');res.end(JSON.stringify(value));};
+<<<<<<< HEAD
  // Portfolio membership is injected below; the separate Glow parity suite tests its statement bridge.
  if(path==='/glow-bridge.html'){res.setHeader('content-type','text/html');res.end('<!doctype html><title>Local portfolio fixture</title>');return;}
+=======
+>>>>>>> sattva/main
  if(path==='/api/breakouts/history'){historyReads++;return json({rows:[],nextCursor:null});}
  if(path==='/api/breakouts'){reads++;if(fail){res.writeHead(503).end();return;}return json(snapshot());}
  if(path==='/api/technicals') { if(dailyFail){res.writeHead(503).end();return;} res.setHeader('x-sattva-revision',dailySha);return json(daily); }
@@ -56,10 +67,16 @@ try{
  await page.clock.install({time:AT});
  await page.goto(`${origin}/#/research/breakouts/strong-breakouts?scope=universe`);
  const cell=page.locator('[data-cmp="TEST"]');await cell.waitFor();
+<<<<<<< HEAD
  assert.equal(await cell.textContent(),'₹106.00');
  assert((await cell.locator('..').innerText()).includes('Muns API live price'));
  assert(!(await cell.locator('..').innerText()).match(/Yahoo|Upstox/));
  assert.equal(await page.evaluate(async()=>(await import('/js/data/breakout-live.js')).snapshot().rows[0].provider),'Upstox','retain underlying provider');
+=======
+ assert.equal(await cell.textContent(),'₹106.00');assert((await cell.locator('..').innerText()).includes('Muns API live price'));
+ await page.locator('[data-row-key="DHOOTTRANS"]').waitFor();
+ assert.equal(await page.locator('[data-row-key="ID"]').count(),0);
+>>>>>>> sattva/main
  assert.equal(await page.evaluate(async()=>(await import('/js/data/technicals.js')).byTicker('TEST').company.atr_history[0].atr_pct),1.23);
  await page.locator('[data-row-key="FUTURE"]').waitFor();
  assert.equal(await page.locator('[data-row-key="WATCHONLY"]').count(),0);
@@ -94,6 +111,7 @@ try{
  assert.equal(await page.locator('[data-capture-note]').count(),0);
  const sourceState=()=>page.evaluate(async()=>(await import('/js/ui/sources.js')).sourceGroups().flatMap(group=>group.items).find(item=>item.name.startsWith('Saved price and volume capture')).readState);
  assert.equal(await sourceState(),'partial');
+<<<<<<< HEAD
  // Both quote tables must update for every scope, with a shared service label.
  await page.evaluate(async()=>{
   (await import('/js/data/coverage.js')).useFamilyBook([{ticker:'TEST',name:'Test Company'},{ticker:'FUTURE',name:'Future Holding'}],'2026-09-15',Date.now());
@@ -121,6 +139,8 @@ try{
  await page.evaluate(async()=>{location.hash='#/research/breakouts/strong-breakouts?scope=universe';await (await import('/js/data/breakout-live.js')).refresh();});
  await cell.waitFor();
 
+=======
+>>>>>>> sattva/main
  await page.locator('[data-table-search]').fill('Test Company');
  await page.locator('[data-table-search]').evaluate(input=>input.setSelectionRange(0,input.value.length));
  await page.evaluate(async()=>{await (await import('/js/data/breakout-live.js')).refresh();});
@@ -187,11 +207,17 @@ try{
  await page.locator('[data-row-key="TEST"]').click();await popup.waitFor();
  assert((await popup.innerText()).includes('₹99'));assert((await popup.innerText()).includes('Daily close'));
  await page.locator('[data-drill-close]').click();
+<<<<<<< HEAD
+=======
+ // A provider update is current even without a new trade. Keep the actual old trade
+ // time visible and never turn yesterday's price into today's breakout candidate.
+>>>>>>> sattva/main
  noTrades=true;at=Date.parse('2026-09-15T14:00:00Z');
  await page.evaluate(async()=>{await (await import('/js/data/breakout-live.js')).refresh();});
  const quietCell=page.locator('[data-cmp="FUTURE"]');
  assert((await quietCell.locator('..').innerText()).includes('Last trade'));
  assert((await quietCell.locator('..').innerText()).includes('11 Sept'));
+<<<<<<< HEAD
  assert.equal(await cell.textContent(),'₹99.00','old trade cannot replace a newer daily close');
  await page.evaluate(()=>{location.hash='#/research/breakouts/strong-breakouts?scope=universe';});
  await page.waitForFunction(()=>!document.querySelector('[data-cmp="FUTURE"]'));
@@ -203,6 +229,12 @@ try{
  assert(!(await quietCell.locator('..').innerText()).match(/Yahoo|Upstox/));
  assert.equal(await page.evaluate(async()=>(await import('/js/data/breakout-live.js')).snapshot().rows[0].provider),'Yahoo Finance');
  assert.equal(historyReads,0,'normal dashboard use must not download minute archives');
+=======
+ assert.equal(await cell.textContent(),'₹99.00','an old trade must not replace a newer completed daily close');
+ await page.evaluate(()=>{location.hash='#/research/breakouts/strong-breakouts?scope=universe';});
+ await page.waitForFunction(()=>!document.querySelector('[data-cmp="TEST"]'));
+ assert.equal(historyReads,0,'opening, polling, popup and scope changes must never download minute history');
+>>>>>>> sattva/main
  assert.deepEqual(errors,[]);
  console.log('PASS breakout dashboard: automatic price/volume changes, matching open popup, daily score date, new holding, failure retention, filter/search preservation, no Muns calls, returning session release upgrade');
 }finally{await browser.close();await new Promise(done=>server.close(done));}
