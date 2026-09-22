@@ -892,7 +892,7 @@
       "error": "search-unavailable"
     },
     "isin:INE993A01026|Man Industries (India)": {
-      "lastAttemptAt": "2026-09-17T16:24:46+00:00",
+      "lastAttemptAt": "2026-09-22T02:20:07+00:00",
       "error": "search-unavailable"
     },
     "isin:INE993A01026|MANINDS": {
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 216,
-    "checkedAt": "2026-09-22T01:46:29.319609+00:00"
+    "checkedAt": "2026-09-22T02:20:07.228947+00:00"
   }
 }
