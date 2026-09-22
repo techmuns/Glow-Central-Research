@@ -896,7 +896,7 @@
       "error": "search-unavailable"
     },
     "isin:INE993A01026|MANINDS": {
-      "lastAttemptAt": "2026-09-17T16:57:24+00:00",
+      "lastAttemptAt": "2026-09-22T02:27:16+00:00",
       "error": "search-unavailable"
     },
     "isin:INE103A01014|Mangalore Petrochemicals and Refinery": {
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 216,
-    "checkedAt": "2026-09-22T02:20:07.228947+00:00"
+    "checkedAt": "2026-09-22T02:27:16.226180+00:00"
   }
 }
