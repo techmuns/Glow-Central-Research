@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-09-22T17:05:25.676Z",
+    "capturedAt": "2026-09-22T18:56:21.206Z",
     "from": "2026-08-05",
     "to": "2026-09-22",
     "rows": 8660,
@@ -12,10 +12,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-22T17:05:25.676Z",
-  "oldestDataAt": "2026-09-22T17:05:25.676Z",
-  "from": "2025-09-22",
-  "to": "2026-09-22",
+  "capturedAt": "2026-09-22T18:56:21.206Z",
+  "oldestDataAt": "2026-09-22T18:56:21.206Z",
+  "from": "2025-09-23",
+  "to": "2026-09-23",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -31,13 +31,13 @@
       "id": "bulk",
       "label": "Bulk deal",
       "url": "https://www.screener.in/trades/bulk/?o=-2",
-      "pagesRead": 12,
+      "pagesRead": 2,
       "latestDate": "2026-09-22",
-      "oldestDate": "2026-09-21",
+      "oldestDate": "2026-09-22",
       "bootstrapDays": null,
       "ok": true,
-      "rowCount": 300,
-      "capturedAt": "2026-09-22T17:05:25.676Z",
+      "rowCount": 50,
+      "capturedAt": "2026-09-22T18:56:21.206Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-22T17:05:25.676Z",
+      "capturedAt": "2026-09-22T18:56:21.206Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +63,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-22T17:05:25.676Z",
+      "capturedAt": "2026-09-22T18:56:21.206Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,7 +76,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-22T17:05:25.676Z",
+      "capturedAt": "2026-09-22T18:56:21.206Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -84,7 +84,7 @@
   "covered": 4,
   "withRows": 1716,
   "emptyCount": 0,
-  "rowCount": 17428,
+  "rowCount": 17422,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -54583,28 +54583,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "GHCLTEXTIL",
-        "date": "2025-09-22",
-        "cells": {
-          "Company": "GHCL Textiles Ltd",
-          "Insider": "Vibha Karnawat",
-          "Category": "Immediate Relative",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "189",
-          "Trade %": "0",
-          "Trade Value": "15355",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-22",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "GLAND": [
@@ -68810,28 +68788,6 @@
           "To Date": "2025-09-16",
           "Broadcast Date": "2025-10-15",
           "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SUPRAJIT",
-        "date": "2025-09-22",
-        "cells": {
-          "Company": "Suprajit Engineering Ltd-$",
-          "Insider": "Supriyajith Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "15841",
-          "Trade %": "0.01",
-          "Trade Value": null,
-          "Post Holding Shares": "52839246",
-          "Post Holding %": "38.52",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-15",
-          "To Date": "2025-09-16",
-          "Broadcast Date": "2025-09-22",
-          "Source": "BSE",
           "Trade Category": "Insider trade"
         }
       }
@@ -94309,28 +94265,6 @@
           "From Date": "2025-09-24",
           "To Date": "2025-09-24",
           "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-09-22",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "Lester Lam",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "13974",
-          "Trade %": "0",
-          "Trade Value": "20807286",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-22",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -130141,28 +130075,6 @@
           "From Date": "2025-11-17",
           "To Date": "2025-11-17",
           "Broadcast Date": "2025-11-20",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ABDL",
-        "date": "2025-09-22",
-        "cells": {
-          "Company": "Allied Blenders and Distillers Ltd",
-          "Insider": "Ratan Lal Jain",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "1000",
-          "Trade %": "0",
-          "Trade Value": "555070",
-          "Post Holding Shares": "15689",
-          "Post Holding %": "0",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-16",
-          "To Date": "2025-09-16",
-          "Broadcast Date": "2025-09-22",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -168329,28 +168241,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "MOSCHIP",
-        "date": "2025-09-22",
-        "cells": {
-          "Company": "Moschip Technologies Ltd",
-          "Insider": "Venkata Sudhakar Simhadri",
-          "Category": "Employees Immediate Relative",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "80000",
-          "Trade %": "0.04",
-          "Trade Value": "21586000",
-          "Post Holding Shares": "3885823",
-          "Post Holding %": "2.02",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-15",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-22",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "MAHLOG": [
@@ -189953,28 +189843,6 @@
           "From Date": "2026-06-17",
           "To Date": "2026-06-19",
           "Broadcast Date": "2026-06-19",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "KABRAEXTRU",
-        "date": "2025-09-22",
-        "cells": {
-          "Company": "Kabra Extrusiontechnik Ltd",
-          "Insider": "Ekta Kabra",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "100000",
-          "Trade %": "0.29",
-          "Trade Value": "27616560",
-          "Post Holding Shares": "3267600",
-          "Post Holding %": "9.35",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-22",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
