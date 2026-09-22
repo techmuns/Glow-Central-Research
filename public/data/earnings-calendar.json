@@ -1,15 +1,20 @@
 {
-  "capturedAt": "2026-09-21T07:02:49.982Z",
-  "from": "2026-09-18",
-  "to": "2026-10-12",
+  "capturedAt": "2026-09-22T03:12:27.222Z",
+  "from": "2026-09-19",
+  "to": "2026-10-13",
   "pageSize": 20,
   "source": "Moneycontrol — Earnings Calendar (all-exchange counts plus every earnings-widget pagination page)",
   "note": "The per-date counts and company lists both cover All exchanges. Every published pagination page is captured; counts are re-fetched live by the Worker and these lists are as of capturedAt.",
   "days": [
     {
+      "date": "2026-10-13",
+      "displayDate": "13 Oct",
+      "count": 1
+    },
+    {
       "date": "2026-10-12",
       "displayDate": "12 Oct",
-      "count": 0
+      "count": 1
     },
     {
       "date": "2026-10-11",
@@ -104,17 +109,17 @@
     {
       "date": "2026-09-23",
       "displayDate": "23 Sep",
-      "count": 0
+      "count": 1
     },
     {
       "date": "2026-09-22",
       "displayDate": "22 Sep",
-      "count": 0
+      "count": 2
     },
     {
       "date": "2026-09-21",
       "displayDate": "21 Sep",
-      "count": 2
+      "count": 4
     },
     {
       "date": "2026-09-20",
@@ -125,16 +130,151 @@
       "date": "2026-09-19",
       "displayDate": "19 Sep",
       "count": 0
-    },
-    {
-      "date": "2026-09-18",
-      "displayDate": "18 Sep",
-      "count": 1
     }
   ],
   "byDate": {
+    "2026-10-13": {
+      "rows": [
+        {
+          "scId": "STC",
+          "name": "State Trading Corporation of India",
+          "shortName": null,
+          "resultDate": "2026-10-13",
+          "displayDate": "13 Oct",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 111.04,
+          "changePct": -0.45,
+          "marketCap": 666.24,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/trading/statetradingcorporationindia/STC",
+          "ticker": "STCINDIA",
+          "fullName": "STC India",
+          "industry": "Trading",
+          "shares": 60000000,
+          "mktCapAtBuild": 666.24
+        }
+      ],
+      "scheduledCount": 1,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
+      "asOnDate": "22/09/2026"
+    },
+    "2026-10-12": {
+      "rows": [
+        {
+          "scId": "HCL02",
+          "name": "HCL Technologies",
+          "shortName": null,
+          "resultDate": "2026-10-12",
+          "displayDate": "12 Oct",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 1281,
+          "changePct": 2.54,
+          "marketCap": 347620.5,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/computers-software/hcltechnologies/HCL02",
+          "ticker": "HCLTECH",
+          "fullName": "HCL Tech",
+          "industry": "IT Services & Consulting",
+          "shares": 2713665096,
+          "mktCapAtBuild": 371799.25
+        }
+      ],
+      "scheduledCount": 1,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
+      "asOnDate": "22/09/2026"
+    },
+    "2026-09-23": {
+      "rows": [
+        {
+          "scId": "APL12",
+          "name": "Annu Projects",
+          "shortName": null,
+          "resultDate": "2026-09-23",
+          "displayDate": "23 Sep",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 52.69,
+          "changePct": 4.42,
+          "marketCap": 345.08,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-infrastructure/annuprojects/APL12",
+          "ticker": "ANNU",
+          "fullName": "Annu Projects",
+          "industry": "Construction - Infrastructure",
+          "shares": 65492670,
+          "mktCapAtBuild": 345.08
+        }
+      ],
+      "scheduledCount": 1,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
+      "asOnDate": "22/09/2026"
+    },
+    "2026-09-22": {
+      "rows": [
+        {
+          "scId": "OOL02",
+          "name": "Oswal Overseas",
+          "shortName": null,
+          "resultDate": "2026-09-22",
+          "displayDate": "22 Sep",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 116.3,
+          "changePct": -0.98,
+          "marketCap": 150.28,
+          "exchange": "B",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/sugar/oswaloverseas/OOL02"
+        },
+        {
+          "scId": "RPM",
+          "name": "Rama Paper Mills",
+          "shortName": null,
+          "resultDate": "2026-09-22",
+          "displayDate": "22 Sep",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 17,
+          "changePct": 0.47,
+          "marketCap": 16.43,
+          "exchange": "B",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/paper/ramapapermills/RPM"
+        }
+      ],
+      "scheduledCount": 2,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
+      "asOnDate": "22/09/2026"
+    },
     "2026-09-21": {
       "rows": [
+        {
+          "scId": "AEL14",
+          "name": "Augmont Enterprises",
+          "shortName": null,
+          "resultDate": "2026-09-21",
+          "displayDate": "21 Sep",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 887.2,
+          "changePct": 1.47,
+          "marketCap": 8106.66,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/trading/augmontenterprises/AEL13",
+          "ticker": "AUGMONT",
+          "fullName": "Augmont Enterpr",
+          "industry": "Trading",
+          "shares": 91373505,
+          "mktCapAtBuild": 8106.66
+        },
         {
           "scId": "SPL16",
           "name": "Symbiotec Pharmalab",
@@ -143,16 +283,35 @@
           "displayDate": "21 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 1150.2,
-          "changePct": 5.03,
-          "marketCap": 7390.74,
+          "ltp": 1156.05,
+          "changePct": 5.57,
+          "marketCap": 7428.33,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/pharmaceuticals-drugs/symbiotecpharmalab/SPL14",
           "ticker": "SYMBIOTEC",
           "fullName": "Symbiotec Pharm",
           "industry": "Pharmaceuticals & Drugs",
           "shares": 64256112,
-          "mktCapAtBuild": 7390.74
+          "mktCapAtBuild": 7428.33
+        },
+        {
+          "scId": "LIL08",
+          "name": "Lumino Industries",
+          "shortName": null,
+          "resultDate": "2026-09-21",
+          "displayDate": "21 Sep",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 113.36,
+          "changePct": 1.65,
+          "marketCap": 3452.42,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cables/luminoindustries/LIL08",
+          "ticker": "LUMINO",
+          "fullName": "Lumino Industri",
+          "industry": "Cables",
+          "shares": 304553705,
+          "mktCapAtBuild": 3452.42
         },
         {
           "scId": "KJA",
@@ -162,46 +321,18 @@
           "displayDate": "21 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 8.14,
-          "changePct": 1.75,
-          "marketCap": 1301.18,
+          "ltp": 8.38,
+          "changePct": 4.75,
+          "marketCap": 1339.54,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cigarettes-tobacco/eliteconinternational/KJA"
         }
       ],
-      "scheduledCount": 2,
+      "scheduledCount": 4,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "21/09/2026"
-    },
-    "2026-09-18": {
-      "rows": [
-        {
-          "scId": "OAR",
-          "name": "TOYAM SPORTS",
-          "shortName": null,
-          "resultDate": "2026-09-18",
-          "displayDate": "18 Sep",
-          "quarter": "NA",
-          "time": null,
-          "ltp": 0.8,
-          "changePct": 3.9,
-          "marketCap": 46.23,
-          "exchange": "N",
-          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/finance-general/toyamsports/OAR",
-          "ticker": "TOYAMSL",
-          "fullName": "TOYAM SPORTS",
-          "industry": "Finance - Stock Broking",
-          "shares": 577815000,
-          "mktCapAtBuild": 44.49
-        }
-      ],
-      "scheduledCount": 1,
-      "pageSize": 20,
-      "pagesFetched": 1,
-      "complete": true,
-      "asOnDate": "21/09/2026"
+      "asOnDate": "22/09/2026"
     }
   }
 }
