@@ -888,7 +888,7 @@
       "error": "search-unavailable"
     },
     "isin:INE774D01024|M&MFIN": {
-      "lastAttemptAt": "2026-09-17T15:51:28+00:00",
+      "lastAttemptAt": "2026-09-22T01:46:29+00:00",
       "error": "search-unavailable"
     },
     "isin:INE993A01026|Man Industries (India)": {
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 216,
-    "checkedAt": "2026-09-22T01:11:32.966533+00:00"
+    "checkedAt": "2026-09-22T01:46:29.319609+00:00"
   }
 }
