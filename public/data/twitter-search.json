@@ -904,7 +904,7 @@
       "error": "search-unavailable"
     },
     "isin:INE103A01014|MRPL": {
-      "lastAttemptAt": "2026-09-17T18:03:19+00:00",
+      "lastAttemptAt": "2026-09-22T03:47:35+00:00",
       "error": "search-unavailable"
     },
     "isin:INE071D01033|Menon Bearings": {
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 216,
-    "checkedAt": "2026-09-22T03:07:23.932090+00:00"
+    "checkedAt": "2026-09-22T03:47:35.900618+00:00"
   }
 }
