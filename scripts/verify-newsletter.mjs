@@ -104,7 +104,11 @@ function makeFetcher({ yahoo = 'ok', nse = 'ok', email = 'ok', log = [] } = {}) 
       log.push({ kind: 'yahoo', symbol });
       if (yahoo === 'down') return new Response('nope', { status: 503 });
       const file = CHARTS[symbol] || 'yahoo-sp500.json';
-      return new Response(fixture(file), { headers: { 'content-type': 'application/json' } });
+      const body = JSON.parse(fixture(file));
+      const meta = body.chart.result[0].meta;
+      meta.symbol = symbol; // Every mock response must identify the requested instrument.
+      meta.regularMarketTime = Math.min(meta.regularMarketTime, MORNING / 1000);
+      return Response.json(body);
     }
     if (url.startsWith('https://nsearchives.nseindia.com/')) {
       log.push({ kind: 'nse' });
@@ -265,7 +269,7 @@ await test('a Yahoo chart becomes a quote with its own session state and time', 
   assert.equal(sp.state, 'close', 'the US session is over at 08:00 IST');
   assert.ok(sp.last > 0 && sp.prev > 0 && Number.isFinite(sp.changePct));
   assert.equal(sp.timezone, 'America/New_York');
-  const nikkei = quoteFromChart(JSON.parse(fixture('yahoo-nikkei.json')), MARKET_ROWS[3], MORNING);
+  const nikkei = quoteFromChart(JSON.parse(fixture('yahoo-nikkei.json')), MARKET_ROWS[3], Date.parse('2026-09-17T06:00:00Z'));
   assert.equal(nikkei.state, 'live', 'Tokyo is trading at 08:00 IST');
   assert.throws(() => quoteFromChart({ chart: { result: [{ meta: {} }] } }, MARKET_ROWS[0], MORNING), /shape/);
 });
@@ -329,8 +333,8 @@ await test('the broadsheet carries the Glow Ventures masthead, escapes the excha
   assert.ok(html.includes('S&amp;P 500'));
   assert.ok(!html.includes('<script>'), 'exchange text is escaped');
   assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
-  assert.ok(/Close · \w{3} \d{2}:\d{2} \w+/.test(html), 'a closed market prints its close time');
-  assert.ok(/Live · \w{3} \d{2}:\d{2} \w+/.test(html), 'a trading market prints its last print');
+  assert.ok(/Close · \w{3} \d{2} \w{3,4} \d{4} \d{2}:\d{2} \w+/.test(html), 'a closed market prints its close time');
+  assert.ok(/Live · \w{3} \d{2} \w{3,4} \d{4} \d{2}:\d{2} \w+/.test(html), 'a trading market prints its last print');
   assert.ok(html.includes('color:#3b82f6;font-weight:bold'), 'the Orders topic colour appears');
   assert.ok(/\b1 watch-out\b/.test(html), 'the downgrade filing is counted as a watch-out on the stats line');
   assert.ok(html.includes('#f43f5e'), 'the watch-out colour appears');

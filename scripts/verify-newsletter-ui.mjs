@@ -40,7 +40,11 @@ const storage = {
 const emails = [];
 const fetcher = async (input, init = {}) => {
   const url = String(input);
-  if (url.startsWith('https://query1.finance.yahoo.com/')) return new Response(fixture('yahoo-sp500.json'), { headers: { 'content-type': 'application/json' } });
+  if (url.startsWith('https://query1.finance.yahoo.com/')) {
+    const body = JSON.parse(fixture('yahoo-sp500.json'));
+    body.chart.result[0].meta.symbol = decodeURIComponent(new URL(url).pathname.split('/').at(-1));
+    return Response.json(body);
+  }
   if (url.startsWith('https://nsearchives.nseindia.com/')) return new Response(fixture('nse-announcements.xml'), { headers: { 'content-type': 'application/xml' } });
   if (url === EMAIL_SEND_URL) {
     const body = JSON.parse(init.body);
