@@ -1364,7 +1364,7 @@
       "error": "search-unavailable"
     },
     "isin:INE597J01018|SHALBY": {
-      "lastAttemptAt": "2026-09-18T20:34:16+00:00",
+      "lastAttemptAt": "2026-09-23T12:28:28+00:00",
       "error": "search-unavailable"
     },
     "isin:INE024F01011|Shilchar Technologies": {
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-23T11:54:08.508399+00:00"
+    "checkedAt": "2026-09-23T12:28:28.858326+00:00"
   }
 }
