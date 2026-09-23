@@ -294,7 +294,7 @@ await test('the desk\'s keyword families fold onto the seven topics, and nothing
   assert.equal(topicOf({ keywordIds: ['capex'], keywordGroups: ['growth'] }).id, 'growth');
   assert.equal(topicOf({ keywordIds: ['credit-rating'], keywordGroups: ['risk'] }).id, 'trouble');
   assert.equal(topicOf({ keywordIds: [], keywordGroups: [] }).id, 'other');
-  assert.deepEqual(TOPICS.map((t) => t.label), ['Growth', 'Orders', 'Deals', 'Money', 'Approvals & IP', 'Trouble', 'Trades', 'Price', 'Other']);
+  assert.deepEqual(TOPICS.map((t) => t.label), ['Growth', 'Orders', 'Deals', 'Money', 'Approvals & IP', 'Trade policy', 'Trouble', 'Trades', 'Price', 'Other']);
   assert.equal(topicOf({ kind: 'trade', keywordIds: ['order'], keywordGroups: ['growth'] }).id, 'trades', 'a trade is a trade whatever its cells say');
   assert.equal(topicOf({ kind: 'move' }).id, 'price');
 });
