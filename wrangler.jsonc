@@ -44,6 +44,8 @@
     // secret is present. The key is never a build variable or browser credential.
     // The older CLAUDE_API_KEY name remains an alias; CLAUDE_KEY takes precedence.
     // Muns remains the route only for environments without a dedicated Claude key.
+    // News has its own durable $1/day, $25/month allowance. Missing OpenAI never falls back to uncapped Claude.
+    "NEWSLETTER_NEWS_AI_PROVIDER": "openai",
     "BEDROCK_REGION": "ap-south-1",
     "BEDROCK_MODEL_ID": "global.anthropic.claude-sonnet-5",
     "MUNS_LLM_BASE": "https://fastapi.muns.io",

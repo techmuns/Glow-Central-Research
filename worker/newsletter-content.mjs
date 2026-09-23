@@ -1,6 +1,8 @@
 // Source reading for the portfolio brief. Source bytes never carry credentials or instructions.
 import { isXbrlFilingUrl, parseXbrlFiling } from '../public/js/data/nse-xbrl-shared.js';
 import { announcementDocumentIdentity } from '../public/js/data/announcements-shared.js';
+import { newsAiEnabled } from './newsletter-openai.mjs';
+import { readNewsAi, NEWS_POLICY_VERSION } from './newsletter-news-ai.mjs';
 import { boundedJson } from '../public/js/data/family-book-contract.js';
 import { bedrockConfig, bedrockConfigured, claudeCredential } from './research-claude.mjs';
 
@@ -11,7 +13,7 @@ export const CONTENT_TEXT_CHARS = 80000;
 export const CONTENT_TIMEOUT_MS = 40000;
 const ARTICLE_HOSTS = ['moneycontrol.com', 'livemint.com', 'economictimes.indiatimes.com', 'business-standard.com',
   'tradingview.com', 'reuters.com', 'investing.com', 'businesswire.com', 'globenewswire.com', 'prnewswire.com',
-  'thehindubusinessline.com', 'financialexpress.com', 'cnbctv18.com'];
+  'thehindu.com', 'thehindubusinessline.com', 'financialexpress.com', 'cnbctv18.com'];
 const EXCHANGE_HOSTS = ['nsearchives.nseindia.com', 'archives.nseindia.com', 'www.bseindia.com', 'bseindia.com'];
 const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim();
 const normal = value => clean(value).normalize('NFKC').toLowerCase();
@@ -37,7 +39,7 @@ export async function digest(value) {
 
 /** Same URL with corrected source text is a new job; capture timestamps never are. */
 export async function contentIdentity(item) {
-  return digest(JSON.stringify([CONTENT_VERSION, item.ticker, item.kind,
+  return digest(JSON.stringify([item.kind === 'news' ? NEWS_POLICY_VERSION : CONTENT_VERSION, item.ticker, item.kind,
     announcementDocumentIdentity(item.url) || item.url || item.keys, item.at, item.headline, item.summary || '']));
 }
 
@@ -157,7 +159,7 @@ const base64 = bytes => {
   return btoa(value);
 };
 
-export async function readDocumentFacts({ item, env, fetcher = fetch, now = Date.now() }) {
+export async function readDocumentFacts({ item, env, fetcher = fetch, now = Date.now(), newsBudget = null }) {
   const base = { version: CONTENT_VERSION, checkedAt: now, sourceUrl: item.url, facts: [] };
   try {
     const source = await fetchContent(item, fetcher);
@@ -169,12 +171,18 @@ export async function readDocumentFacts({ item, env, fetcher = fetch, now = Date
     const pdf = /^%PDF-/.test(prefix);
     let content, bodyText = null, partial = false;
     if (pdf) {
+      if (item.kind === 'news' && newsAiEnabled(env)) throw failure('unsupported-format');
       content = [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64(source.bytes) } }];
     } else if (item.kind === 'news' && /html/i.test(source.contentType || prefix)) {
       const article = articleText(new TextDecoder().decode(source.bytes));
       if (!article || article.text.length < 160) throw failure('access-limited');
       if (article.text.length > CONTENT_TEXT_CHARS) throw failure('too-large');
       bodyText = article.text; partial = article.partial;
+      if (newsAiEnabled(env)) {
+        if (partial) return { ...base, state: 'partial', format: 'article', reason: 'access-limited' };
+        const news = await readNewsAi({ article: bodyText, item, env, fetcher, budget: newsBudget, now });
+        return { ...base, ...news, state: 'ready', format: 'article', version: NEWS_POLICY_VERSION };
+      }
       content = [{ type: 'text', text: JSON.stringify({ ARTICLE: bodyText }) }];
     } else throw failure('unsupported-format');
     if (!bedrockConfigured(env)) throw failure('no-key');
@@ -200,7 +208,7 @@ export async function readDocumentFacts({ item, env, fetcher = fetch, now = Date
 export function contentItems(brief) {
   return ['announcements', 'news'].flatMap(section => (brief[section]?.groups || []).flatMap(g => g.items.map(row => ({
     row, ticker: g.ticker, company: g.company, kind: section === 'announcements' ? 'filing' : 'news',
-    headline: row.headline, summary: row.summary || '', at: row.at, url: row.url, keys: row.keys || [],
+    headline: row.headline, summary: row.summary || '', related: row.attribution === 'related', at: row.at, url: row.url, keys: row.keys || [],
   }))));
 }
 

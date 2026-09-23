@@ -1,5 +1,10 @@
 # Newsletter source reading — first phase
 
+**News extension:** [Grounded news summaries and OpenAI cost control](NEWSLETTER-NEWS-AI.md)
+now adds company/product/role checks, optional reviewed impact, cached news notes and a separate
+news AI allowance. Its news-provider and writing rules supersede the first-phase news rules below.
+The filing/PDF rules remain unchanged.
+
 Implemented for the user's steps 1–5 (24 September 2026): automatic discovery, source reading,
 source facts, conservative event grouping and summaries of the actual development. This replaces
 the previous headline-only instruction. It does not add a second AI provider, an independent
@@ -129,6 +134,10 @@ Extra evidence joins the existing extraction queue. Overlapping story/price sour
 job and the same six-document foreground processing budget; queued work remains durable. The
 public preview only reads saved content. Cached extractions are reused, including older ones
 that may not have retained a price-specific passage; there is no implicit re-extraction/backfill.
+When the OpenAI news route is enabled, extra article reads use its existing company-grounding
+checks and spending ledger. A withheld or budget-limited article cannot become price evidence.
+The separate Claude price-writing request uses existing Bedrock credentials and is outside the
+OpenAI spending estimate; it is not a fallback for failed news extraction.
 
 The writer receives at most six whole sources per move, with 24,000 bytes per source and a
 120,000-byte aggregate evidence budget. Explicit directional reports are prioritized, then

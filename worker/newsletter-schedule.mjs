@@ -3,6 +3,7 @@ import { EMAIL_HTML_BYTES, emailBytes, renderBriefEmails, acceptedStoryKeys } fr
 import { buildBrief, briefSubject, briefSummary, readContentSources, renderBriefHtml, renderBriefText, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
 import { contentIdentity, contentItems } from './newsletter-content.mjs';
 import { NewsletterContentStore, CONTENT_SCAN_MS } from './newsletter-content-store.mjs';
+import { openaiConfigured } from './newsletter-openai.mjs';
 import { bedrockConfigured } from './research-claude.mjs';
 import { EDITIONS, editionKey, istDay, nextScheduled, normaliseEmail, scheduledEditions } from '../public/js/data/newsletter-shared.js';
 
@@ -94,7 +95,7 @@ export class NewsletterSchedule {
 
   contentEnabled() {
     const settings = this.store.settings();
-    return bedrockConfigured(this.env) && this.store.subscriberRows().length > 0 && Object.values(settings).some(s => s?.enabled);
+    return (bedrockConfigured(this.env) || openaiConfigured(this.env)) && this.store.subscriberRows().length > 0 && Object.values(settings).some(s => s?.enabled);
   }
 
   /** Independent of browser visits and email acknowledgements. Existing source collectors own
@@ -162,6 +163,7 @@ export class NewsletterSchedule {
       reason: state.reason || null,
       reported: this.store.reportedCount(),
       content: { enabled: this.contentEnabled(), ...this.content.status() },
+      newsAi: { configured: openaiConfigured(this.env), ...this.content.newsBudget.status(this.now()) },
     };
   }
 

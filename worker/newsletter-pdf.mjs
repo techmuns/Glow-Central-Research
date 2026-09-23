@@ -133,7 +133,7 @@ export function renderBriefPdf(brief, { dashboardUrl = PRODUCTION_ORIGIN, produc
       if (pdf.pages.length !== startPage) pdf.paragraph(`${c.company} / continued`, { font: 'F2', size: 9, color: ACCENT });
       pdf.paragraph(s.headline, { font: 'F3', size: 13, url: s.url, gap: 7 });
       if (s.dek) pdf.paragraph(s.dek, { size: 10, color: MUTED });
-      if (note) { pdf.ensure(noteHeight(note.summary) + noteHeight(note.impact)); pdf.note('AI SUMMARY', note.summary); pdf.note('POTENTIAL IMPACT / AI', note.impact); if (note.unknowns) pdf.note('STILL UNKNOWN', note.unknowns); }
+      if (note) { pdf.ensure(noteHeight(note.summary) + noteHeight(note.impact)); pdf.note('AI SUMMARY', note.summary); if (note.impact) pdf.note('POTENTIAL IMPACT / AI', note.impact); if (note.unknowns) pdf.note('STILL UNKNOWN', note.unknowns); }
       if (contentStatusText(k)) pdf.paragraph(contentStatusText(k), { size: 9, color: MUTED });
       if (s.kind === 'move') {
         pdf.paragraph(`Why it moved: ${priceReasonText(s.why)}`, { size: 10 });
