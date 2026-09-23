@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-23T16:59:25.767Z",
-  "oldestDataAt": "2026-09-23T16:59:25.767Z",
-  "from": "2025-09-23",
-  "to": "2026-09-23",
+  "capturedAt": "2026-09-23T18:34:14.140Z",
+  "oldestDataAt": "2026-09-23T18:34:14.140Z",
+  "from": "2025-09-24",
+  "to": "2026-09-24",
   "windowDays": 365,
   "coverageFrom": "2026-08-05",
   "scope": "exchange",
@@ -22,13 +22,13 @@
       "id": "bulk",
       "label": "Bulk deal",
       "url": "https://www.screener.in/trades/bulk/?o=-2",
-      "pagesRead": 13,
+      "pagesRead": 2,
       "latestDate": "2026-09-23",
-      "oldestDate": "2026-09-22",
+      "oldestDate": "2026-09-23",
       "bootstrapDays": null,
       "ok": true,
-      "rowCount": 325,
-      "capturedAt": "2026-09-23T16:59:25.767Z",
+      "rowCount": 50,
+      "capturedAt": "2026-09-23T18:34:14.140Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-23T16:59:25.767Z",
+      "capturedAt": "2026-09-23T18:34:14.140Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-23T16:59:25.767Z",
+      "capturedAt": "2026-09-23T18:34:14.140Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -67,15 +67,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-23T16:59:25.767Z",
+      "capturedAt": "2026-09-23T18:34:14.140Z",
       "coverageFrom": "2026-08-04"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1635,
+  "withRows": 1634,
   "emptyCount": 0,
-  "rowCount": 17077,
+  "rowCount": 17048,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -60488,94 +60488,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "M&M",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "M&M",
-          "Insider": "Abhay Kulkarni",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "1000",
-          "Trade %": "0",
-          "Trade Value": "3615550",
-          "Post Holding Shares": "66746",
-          "Post Holding %": "0.01",
-          "Mode": "ESOP",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "M&M",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "M&M",
-          "Insider": "Anish Dilip Shah",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "76357",
-          "Trade %": "0.01",
-          "Trade Value": "276072551",
-          "Post Holding Shares": "242050",
-          "Post Holding %": "0.02",
-          "Mode": "ESOP",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "M&M",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "M&M",
-          "Insider": "Mahindra & Mahindra Employees' Stock Option Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "121048",
-          "Trade %": "0.01",
-          "Trade Value": "604835",
-          "Post Holding Shares": "42204811",
-          "Post Holding %": "3.39",
-          "Mode": "ESOP",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "M&M",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "M&M",
-          "Insider": "Surendra Kalra",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "1670",
-          "Trade %": "0",
-          "Trade Value": "6037969",
-          "Post Holding Shares": "12053",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "M&MFIN": [
@@ -80375,226 +80287,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - ESOP Plan 2016 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1721",
-          "Trade %": "0",
-          "Trade Value": "1910310",
-          "Post Holding Shares": "3685774",
-          "Post Holding %": "0.15",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-17",
-          "To Date": "2025-09-17",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - JSWSL OPJ Samruddhi Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1418",
-          "Trade %": "0",
-          "Trade Value": "1585328",
-          "Post Holding Shares": "3602123",
-          "Post Holding %": "0.15",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - JSWSL OPJ Samruddhi Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "162976",
-          "Trade %": "0.01",
-          "Trade Value": "162976",
-          "Post Holding Shares": "3354692",
-          "Post Holding %": "0.14",
-          "Mode": "Off Market",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - JSWSL OPJ Samruddhi Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "704",
-          "Trade %": "0",
-          "Trade Value": "781448",
-          "Post Holding Shares": "3683997",
-          "Post Holding %": "0.15",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-17",
-          "To Date": "2025-09-17",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - JSWSL OPJ Samruddhi Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "78222",
-          "Trade %": "0",
-          "Trade Value": "78222",
-          "Post Holding Shares": "3605775",
-          "Post Holding %": "0.15",
-          "Mode": "Off Market",
-          "From Date": "2025-09-17",
-          "To Date": "2025-09-17",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - JSWSL OPJ Samruddhi Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "82638",
-          "Trade %": "0",
-          "Trade Value": "82638",
-          "Post Holding Shares": "3519485",
-          "Post Holding %": "0.14",
-          "Mode": "Off Market",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - JSWSL OPJ Samruddhi Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "97",
-          "Trade %": "0",
-          "Trade Value": "109086",
-          "Post Holding Shares": "3517668",
-          "Post Holding %": "0.14",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - OPJ ESOP Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1073",
-          "Trade %": "0",
-          "Trade Value": "1191095",
-          "Post Holding Shares": "3684701",
-          "Post Holding %": "0.15",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-17",
-          "To Date": "2025-09-17",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - OPJ ESOP Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1720",
-          "Trade %": "0",
-          "Trade Value": "1933839",
-          "Post Holding Shares": "3517765",
-          "Post Holding %": "0.14",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - OPJ ESOP Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "2234",
-          "Trade %": "0",
-          "Trade Value": "2497635",
-          "Post Holding Shares": "3603541",
-          "Post Holding %": "0.15",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "MACPOWER": [
@@ -87424,138 +87116,6 @@
           "From Date": "2025-11-12",
           "To Date": "2025-11-12",
           "Broadcast Date": "2025-11-14",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NAM-INDIA",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "NAM-INDIA",
-          "Insider": "Ashok Nanjundaraj",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "45329",
-          "Trade %": "0.01",
-          "Trade Value": "16981767",
-          "Post Holding Shares": "94426",
-          "Post Holding %": "0.02",
-          "Mode": "ESOP",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NAM-INDIA",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "NAM-INDIA",
-          "Insider": "Muneesh Sud",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "10000",
-          "Trade %": "0",
-          "Trade Value": "3727100",
-          "Post Holding Shares": "10000",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NAM-INDIA",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "NAM-INDIA",
-          "Insider": "Pallavi Chauhan",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "14741",
-          "Trade %": "0",
-          "Trade Value": "2985053",
-          "Post Holding Shares": "28619",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NAM-INDIA",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "NAM-INDIA",
-          "Insider": "Rahul Dighe",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "3555",
-          "Trade %": "0",
-          "Trade Value": "861342",
-          "Post Holding Shares": "5505",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NAM-INDIA",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "NAM-INDIA",
-          "Insider": "Sheetal Dogra",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "6965",
-          "Trade %": "0",
-          "Trade Value": "2595925",
-          "Post Holding Shares": "9975",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NAM-INDIA",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "NAM-INDIA",
-          "Insider": "Vivek Sharma",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "5673",
-          "Trade %": "0",
-          "Trade Value": "1148783",
-          "Post Holding Shares": "7008",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-23",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -102407,50 +101967,6 @@
           "From Date": "2025-09-24",
           "To Date": "2025-09-24",
           "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ECLERX",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "ECLERX",
-          "Insider": "Eclerx Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "5730",
-          "Trade %": "0.01",
-          "Trade Value": "25587820",
-          "Post Holding Shares": "715701",
-          "Post Holding %": "1.5",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ECLERX",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "ECLERX",
-          "Insider": "Eclerx Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1570",
-          "Trade %": "0",
-          "Trade Value": "6747850",
-          "Post Holding Shares": "714131",
-          "Post Holding %": "1.49",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-23",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -120620,28 +120136,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "ASIANPAINT",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "ASIANPAINT",
-          "Insider": "Smiti Holding and Trading Company Private Limited [Smiti Holding]",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Others",
-          "Trade Shares": "1750000",
-          "Trade %": null,
-          "Trade Value": null,
-          "Post Holding Shares": "35731000",
-          "Post Holding %": null,
-          "Mode": "Release",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "DOMS": [
@@ -124758,50 +124252,6 @@
           "From Date": "2025-11-06",
           "To Date": "2025-11-06",
           "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NAVINFLUOR",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "Navin Fluorine International Ltd-$",
-          "Insider": "Mr. Rajendra Kumar Sahu",
-          "Category": "Employee",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "5000",
-          "Trade %": "0",
-          "Trade Value": "16630000",
-          "Post Holding Shares": "5000",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-23",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NAVINFLUOR",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "Navin Fluorine International Ltd-$",
-          "Insider": "Mr. Sudipto Chakraborty",
-          "Category": "Employee",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "3250",
-          "Trade %": "0",
-          "Trade Value": "10809500",
-          "Post Holding Shares": "3250",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-23",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -149936,28 +149386,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "PARADEEP",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "PARADEEP",
-          "Insider": "Zuari Maroc Phosphates Private Limited",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Pledge",
-          "Trade Shares": "25000000",
-          "Trade %": null,
-          "Trade Value": null,
-          "Post Holding Shares": "40000000",
-          "Post Holding %": null,
-          "Mode": "Release",
-          "From Date": "2025-09-11",
-          "To Date": "2025-09-11",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "CHALET": [
@@ -153344,28 +152772,6 @@
           "From Date": "2025-09-29",
           "To Date": "2025-09-29",
           "Broadcast Date": "2025-09-30",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "AFFLE",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "AFFLE",
-          "Insider": "Affle (India) Limited Employees Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "4580",
-          "Trade %": "0",
-          "Trade Value": "9673017",
-          "Post Holding Shares": "155782",
-          "Post Holding %": "0.11",
-          "Mode": "ESOP",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-23",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -176239,28 +175645,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "COHANCE",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "COHANCE",
-          "Insider": "Jusmiral Holdings Limited",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Others",
-          "Trade Shares": "34148000",
-          "Trade %": null,
-          "Trade Value": null,
-          "Post Holding Shares": "92390578",
-          "Post Holding %": null,
-          "Mode": "Release",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-23",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "NTPC": [
@@ -182256,30 +181640,6 @@
           "From Date": "2025-10-27",
           "To Date": "2025-10-27",
           "Broadcast Date": "2025-10-30",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      }
-    ],
-    "YESBANK": [
-      {
-        "ticker": "YESBANK",
-        "date": "2025-09-23",
-        "cells": {
-          "Company": "YESBANK",
-          "Insider": "Sumitomo Mitsui Banking Corporation",
-          "Category": "Other",
-          "Security Type": null,
-          "Transaction": "Acquisition",
-          "Trade Shares": "1323958760",
-          "Trade %": "4.22",
-          "Trade Value": null,
-          "Post Holding Shares": "7595193954",
-          "Post Holding %": "24.22",
-          "Mode": "Off Market",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-23",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
