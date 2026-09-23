@@ -17,10 +17,10 @@ export async function newsModelCall({ env, fetcher = fetch, budget, job, now = D
   const body = { model, store: false, service_tier: 'default', reasoning: { effort: 'none' }, max_output_tokens: maxOutput,
     instructions, input: JSON.stringify(input), text: { format: { type: 'json_schema', name: 'news_result', strict: true, schema } } };
   // UTF-8 bytes are a conservative upper bound on text tokens. Include schema, framing and
-  // ample protocol allowance. Missing usage/timeouts retain this whole reservation forever.
+  // ample protocol allowance and the maximum cache-write input rate. Missing usage/timeouts retain this whole reservation forever.
   const inputBound = new TextEncoder().encode(JSON.stringify(body)).length + 4096;
   if (inputBound > 180000) throw failure('too-large');
-  const reservation = budget.reserve({ job, model, amount: Math.ceil(inputBound * prices[0] + maxOutput * prices[1]), now });
+  const reservation = budget.reserve({ job, model, amount: Math.ceil(inputBound * prices[0] * 1.25 + maxOutput * prices[1]), now });
   if (!reservation.ok) throw failure(reservation.reason);
   let response;
   try {
@@ -34,9 +34,13 @@ export async function newsModelCall({ env, fetcher = fetch, budget, job, now = D
   }
   const reply = await boundedJson(response, 100000);
   const inputTokens = reply.usage?.input_tokens, outputTokens = reply.usage?.output_tokens;
-  // Output usage includes reasoning tokens. Never charge only the visible answer.
-  if ([inputTokens, outputTokens].every(n => Number.isSafeInteger(n) && n >= 0))
-    budget.settle(reservation.id, { amount: Math.ceil(inputTokens * prices[0] + outputTokens * prices[1]), input: inputTokens, output: outputTokens });
+  // Output usage includes reasoning tokens. Cache writes cost 1.25x input for these models.
+  // Ignore read discounts; if cache-write detail is missing, price all input at the higher rate.
+  const writes = reply.usage?.input_tokens_details?.cache_write_tokens;
+  if ([inputTokens, outputTokens].every(n => Number.isSafeInteger(n) && n >= 0)) {
+    const writeTokens = Number.isSafeInteger(writes) && writes >= 0 && writes <= inputTokens ? writes : inputTokens;
+    budget.settle(reservation.id, { amount: Math.ceil((inputTokens + writeTokens * 0.25) * prices[0] + outputTokens * prices[1]), input: inputTokens, output: outputTokens });
+  }
   if (reply.status !== 'completed') throw failure('incomplete-response');
   const parts = (reply.output || []).flatMap(o => o.content || []);
   if (parts.some(p => p.type === 'refusal')) throw failure('model-refusal');

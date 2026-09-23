@@ -48,13 +48,14 @@ at most **$1 per IST day and $25 per IST calendar month** for news reading, revi
 grouping together. It reserves a conservative request cost in a transaction *before* network I/O,
 so concurrent wakes and restarts cannot each spend the whole allowance. Failed or interrupted
 requests without usage keep their full reservation. Completed requests use total input/output
-usage, including reasoning tokens; no cache discount is assumed. Three calls per request identity
+usage, including reasoning tokens and the 25% cache-write input premium. No cache-read discount
+is assumed; missing cache-write details conservatively price all input at the higher rate. Three calls per request identity
 per day bound retries. A missing budget fails closed. Budget-limited content jobs remain pending,
 retain their source links and retry automatically; news collection and history are unaffected.
 
 Prices checked 24 September 2026: Luna $0.10/$0.50 and Sol $2/$10 per million input/output tokens.
 Admission uses UTF-8 request bytes plus protocol allowance as an upper input-token bound and the
-maximum output allowance. Requests are limited below long-context pricing thresholds. The ledger
+maximum output allowance, with all input reserved at the 1.25x cache-write rate. Requests are limited below long-context pricing thresholds. The ledger
 is a conservative application estimate, not an invoice or an OpenAI account-wide spending cap.
 It excludes filing/PDF processing, Ask Research, hosting, taxes and unrelated API use. Price changes
 require updating the allow-listed rates before changing models. Unknown models fail closed.
@@ -79,9 +80,8 @@ accuracy across all articles, and source capture is not an exhaustive news archi
 Live validation on 24 September 2026: the stored key completed a minimal Luna request (13 input,
 5 output tokens). The full source-reading prompts were exercised on DCW and six additional
 accessible publisher reports. The final DCW run identified CPVC and applicant status, preserved
-that this was an investigation rather than a finding, and omitted impact ($0.010621 including
-review). An Engineers India contract case passed after adding source-defined abbreviation
-support ($0.009411 including review). A Jindal Stainless/Nasscom case used Luna alone; two Vedanta
+that this was an investigation rather than a finding, and omitted impact (approximately 1.1 cents at uncached input rates, before any cache-write adjustment). An Engineers India contract case passed after adding source-defined abbreviation
+support (approximately 0.9 cents at uncached input rates). A Jindal Stainless/Nasscom case used Luna alone; two Vedanta
 entity-mismatch cases were withheld. These are a small diagnostic sample, not an accuracy rate
 or an estimate of future daily volume. Test output and article bodies were kept outside the repo.
 
@@ -89,4 +89,5 @@ Official references:
 - https://developers.openai.com/api/docs/models/gpt-6-luna
 - https://developers.openai.com/api/docs/models/gpt-6-sol
 - https://developers.openai.com/api/docs/guides/structured-outputs
+- https://developers.openai.com/api/docs/guides/prompt-caching
 - https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/#transactionsync

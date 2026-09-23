@@ -112,7 +112,7 @@ await test('timeouts, refusals, incomplete replies and missing usage never becom
 await test('usage accounts for all output tokens, including reasoning; no cache discount assumed',async()=>{
  const b=budget();
  await newsModelCall({env,budget:b,job:'usage',now,instructions:'test',input:{},schema:objectSchema({}),fetcher:async()=>reply({},
- {input_tokens:1000,input_tokens_details:{cached_tokens:900},output_tokens:1000,output_tokens_details:{reasoning_tokens:900}})});
+ {input_tokens:1000,input_tokens_details:{cached_tokens:900,cache_write_tokens:0},output_tokens:1000,output_tokens_details:{reasoning_tokens:900}})});
  assert.equal(b.status(now).dayUsedUsd,0.0006);
 });
 await test('restricted/missing article bodies make no AI call; publisher requests never contain the key',async()=>{
@@ -176,5 +176,13 @@ await test('configured OpenAI route never falls back to unbudgeted Claude when t
 });
 await test('article identity with no company evidence makes no paid request',async()=>{
  await assert.rejects(readNewsAi({article:glycine,item,env,budget:budget(),now,fetcher:forbid}),/company-evidence-unconfirmed/);
+});
+await test('cache-write premiums and missing details cannot understate news spending',async()=>{
+ for(const details of [{cache_write_tokens:1000},undefined]) {
+  const b=budget();
+  await newsModelCall({env,budget:b,job:'cache-write',now,instructions:'test',input:{},schema:objectSchema({}),fetcher:async()=>reply({},
+   {input_tokens:1000,input_tokens_details:details,output_tokens:1000})});
+  assert.equal(b.status(now).dayUsedUsd,0.000625);
+ }
 });
 console.log(`${passed} OpenAI news checks passed; fixture replies do not certify live model accuracy.`);
