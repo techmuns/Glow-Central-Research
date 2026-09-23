@@ -106,3 +106,47 @@ No new key or infrastructure binding is required. Existing `CLAUDE_KEY`/Bedrock 
 reused. Normal merge-triggered publishing can install the code; the newsletter's next existing
 alarm starts the new work. There is no manual production deployment, send, run dispatch or
 credential change in this implementation.
+
+## Price-move explanations
+
+The additional customer request adds one short “Why it moved” line to each price card in HTML,
+plain text and the saved PDF. `newsletter-price-reasons.mjs` uses the existing Bedrock provider
+in one additional bounded writing request per built send; this is not the deferred independent
+answer-review pass. No second provider, new credential or manual production action is added.
+
+For holdings with a displayed move, read captured news and material filings without email caps
+or the sent-item ledger. A story previously emailed can still explain the session's move without
+being sent again as a separate story. Look from the previous trading session's 15:30 IST close
+through the earlier of the observation time and that session's 15:30 close, using the existing
+known exchange calendar. Morning editions therefore use the price session, not the build day.
+Unknown/special-session calendars yield an unavailable assessment. Day-only publications,
+related-entity matches, other issuers and later announcements are ineligible. This conservative
+window excludes later market recaps and older ongoing drivers; it is not a universal catalyst
+search. Source publication time does not establish event time: the writer must reject recapped
+older events and reports of a different session's move.
+
+Extra evidence joins the existing extraction queue. Overlapping story/price sources share one
+job and the same six-document foreground processing budget; queued work remains durable. The
+public preview only reads saved content. Cached extractions are reused, including older ones
+that may not have retained a price-specific passage; there is no implicit re-extraction/backfill.
+
+The writer receives at most six whole sources per move, with 24,000 bytes per source and a
+120,000-byte aggregate evidence budget. Explicit directional reports are prioritized, then
+material filings and recency. Omitted sources are counted. The request has a 45-second timeout,
+6,000 output tokens and a 50,000-byte response ceiling. Every usable answer names a supplied
+source and valid fact indexes; original links and literal support are retained. Unknown IDs,
+invented citations, overlong reasons and incomplete replies cannot become explanations.
+
+“Reported reason (AI)” means a news source explicitly linked the same-session directional move
+to the development; it is not proof of causation. A literal-passage guard rejects reported labels
+without stock/direction/linking language. “Possible driver (AI; unconfirmed)” is an inference,
+never a confirmed cause. No verified reason found, content pending, preview and failed assessment
+have distinct messages. Partial/unread/omitted evidence and failed source reads remain explicit;
+the source footer preserves capture times separately from the current check time. All coverage
+is limited to the captured sources. Sector/technical explanations cannot be invented from price.
+
+`node scripts/verify-newsletter-price-reasons.mjs` checks timing (including weekends/holidays),
+issuer exclusions, reported/inferred/unknown states, down moves, partial/failed sources, citation
+guards, budgets, shared extraction, morning price-only cards and all output formats. These use
+fixture model replies: passage/citation guards are not independent semantic verification or a
+live evaluation of the model's explanations.

@@ -1404,6 +1404,17 @@ queue, document transports, original CEAT facts and end-to-end output; keep the 
 and UI checks. The independent AI review pass, second provider and shared dashboard summaries
 remain outside this first phase. Do not claim live model/OCR accuracy from fixture-based tests.
 
+**PRICE-MOVE EXPLANATIONS (24 September 2026, GLOW-OWNED).** Each newsletter price card carries
+one short “Why it moved” line and, when supported, a dated source link. The separate bounded
+writer in `worker/newsletter-price-reasons.mjs` reuses the same Bedrock credentials and read
+document facts. Evidence retrieval is independent of the sent-story ledger and email caps;
+use the observed session, never the build date. Admit only timed, directly attributed company
+sources after the previous trading close and no later than the quote or cash-market close.
+Reported reasons require an explicit directional source passage; possible drivers remain
+unconfirmed. Unknown causes, unread documents, failed checks and omitted evidence stay visible.
+Do not infer buying interest or profit-booking from the return. The preview remains free of paid
+AI. Run `verify-newsletter-price-reasons.mjs` alongside the existing newsletter suites.
+
 **Repeated news, updated 21 September 2026:** `newsletter-events.mjs` now checks reworded news
 before the separate AI-notes request, using the same module as Sattva. One bounded 30-second
 Bedrock call per built send examines at most 80 reports / 96,000 UTF-8 bytes, with at most 24,000 bytes of HTML-escaped source rows per company to keep a merged update small enough for email, with whole-company

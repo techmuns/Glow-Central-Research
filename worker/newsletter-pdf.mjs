@@ -1,6 +1,7 @@
 // Dependency-free PDF export for Workers. The PDF standard's built-in fonts need no
 // network font service, browser, or deployment build. All dimensions are PDF points.
 import { BRAND, TAGLINES, briefStats, briefSupplementLines, contentStatusText, storyWhen, sourcesNote, formatLast, formatPct, formatChange, asOfLabel, MARKET_GROUPS, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
+import { priceReasonText } from './newsletter-price-reasons.mjs';
 import { istDateLong, istLabel } from '../public/js/data/newsletter-shared.js';
 
 const INK = '0.13 0.12 0.09', MUTED = '0.31 0.37 0.46', ACCENT = '0.55 0.41 0.10';
@@ -102,6 +103,7 @@ const updateHeight = (k, note) => {
   return paragraphHeight(s.headline, 13, 'F3', 7) + (s.dek ? paragraphHeight(s.dek, 10) : 0)
     + (note ? noteHeight(note.summary) + noteHeight(note.impact) + (note.unknowns ? noteHeight(note.unknowns) : 0) : 0)
     + (contentStatusText(k) ? paragraphHeight(contentStatusText(k), 9) : 0)
+    + (s.kind === 'move' ? paragraphHeight(`Why it moved: ${priceReasonText(s.why)}`, 10) + (s.why?.source ? 40 : 0) : 0)
     + 60 + k.others.reduce((n, r) => n + paragraphHeight(`Related: ${r.headline}`, 10) + 35 + (r.dek ? paragraphHeight(r.dek, 10) : 0), 0);
 };
 
@@ -133,6 +135,10 @@ export function renderBriefPdf(brief, { dashboardUrl = PRODUCTION_ORIGIN, produc
       if (s.dek) pdf.paragraph(s.dek, { size: 10, color: MUTED });
       if (note) { pdf.ensure(noteHeight(note.summary) + noteHeight(note.impact)); pdf.note('AI SUMMARY', note.summary); pdf.note('POTENTIAL IMPACT / AI', note.impact); if (note.unknowns) pdf.note('STILL UNKNOWN', note.unknowns); }
       if (contentStatusText(k)) pdf.paragraph(contentStatusText(k), { size: 9, color: MUTED });
+      if (s.kind === 'move') {
+        pdf.paragraph(`Why it moved: ${priceReasonText(s.why)}`, { size: 10 });
+        if (s.why?.source) pdf.paragraph(`Source: ${s.why.source.publisher} / ${storyWhen(s.why.source)}`, { size: 9, color: ACCENT, url: s.why.source.url });
+      }
       pdf.paragraph(`${s.topic.label} / ${s.mood.label} / ${s.source} / ${storyWhen(s)}${s.related ? ' / related entity' : ''}${s.late ? ' / not in the previous brief' : ''}`, { size: 8, color: MUTED });
       if (s.url) pdf.paragraph('Read original source ->', { font: 'F2', size: 9, color: ACCENT, url: s.url });
       for (const r of k.others) {
