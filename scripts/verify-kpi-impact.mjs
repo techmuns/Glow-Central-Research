@@ -224,8 +224,8 @@ reads({ id: 't1', feed: 'technicals', ticker: 'BHEL', kind: 'volume', volumeX: 4
 reads({ ...bse('BHEL', 'Receipt of order worth Rs. 2,500 crore for supply of boilers', 'Award of Order / Receipt of Order'), ticker: 'NOTACLASSIFIEDCO' }, null, 'no sector, no line');
 
 // A filed result is the one measured move, printed as the source reported it.
-reads({ id: 'r1', feed: 'earnings', ticker: 'BHEL', headline: 'YoY quarterly result filed', basis: 'YoY',
-  metrics: { revenue: { pct: 13, kind: 'normal' }, netProfit: { pct: null, kind: 'turnaround' } } }, ['Revenue +13%', 'PAT to profit']);
+reads({ id: 'r1', feed: 'earnings', ticker: 'BHEL', headline: 'YoY quarterly result filed', resultBasis: 'YoY',
+  metrics: { revenue: { label: 'Revenue', pct: 13, kind: 'normal' }, netProfit: { label: 'Net Profit', pct: null, kind: 'turnaround' } } }, ['Revenue +13%', 'PAT to profit']);
 assert.equal(kpi.resultValue({ pct: -4.25, kind: 'normal' }), '−4.3%');
 assert.equal(kpi.resultValue({ pct: null, kind: 'loss-widened' }), 'loss widened');
 assert.equal(kpi.resultValue({ pct: 12, kind: 'unknown-kind' }), null, 'an unknown comparison is not printed');

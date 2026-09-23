@@ -47,7 +47,7 @@ const events = [
   story('LUPIN', 'Lupin', 'Lupin receives USFDA approval for generic diabetes drug'),
   { id: 'earnings:LUPIN', feed: 'earnings', feedLabel: 'Earnings', ticker: 'LUPIN', company: 'Lupin', time: null, headline: 'YoY quarterly result filed',
     detail: 'Revenue +13.0% · Net Profit to profit', url: 'https://www.moneycontrol.com/fixture', importance: 'high', direction: 'positive',
-    basis: 'YoY', metrics: { revenue: { pct: 13, kind: 'normal' }, netProfit: { pct: null, kind: 'turnaround' } } },
+    resultBasis: 'YoY', metrics: { revenue: { label: 'Revenue', pct: 13, kind: 'normal' }, netProfit: { label: 'Net Profit', pct: null, kind: 'turnaround' } } },
   filing('ZZUNKNOWN', 'Unclassified Industries', 'Receipt of order worth Rs. 90 crore for supply of pumps', 'Award of Order / Receipt of Order'),
 ];
 const holdings = [...new Map(events.map((e) => [e.ticker, { ticker: e.ticker, name: e.company }])).values()]
@@ -113,8 +113,22 @@ try {
   const sbi = await chips('SBIN');
   for (const name of ['Capital Adequacy Ratio', 'EPS', 'Book Value Per Share', 'Net Interest Margin']) assert(sbi.includes(name), `SBI names ${name}: ${sbi.join(', ')}`);
   assert(!sbi.some((name) => /Order/.test(name)), 'a bank never shows an order KPI');
-  assert.deepEqual(await chips('LUPIN'), ['Revenue +13%', 'PAT to profit', 'US Revenue', 'ANDA Filings'],
-    'the filed result leads with its measured change, then the approval');
+  // NAMES, NOT FIGURES: the filed change is already the result row's own claim, so the chip names the
+  // KPI and carries the figure in its title rather than printing it a third time on one card.
+  assert.deepEqual(await chips('LUPIN'), ['Revenue', 'PAT', 'US Revenue', 'ANDA Filings'],
+    'the filed result names its KPIs first, then the approval');
+  assert.match(await card('LUPIN').locator('[data-ai-kpi="revenue"]').getAttribute('title'), /Revenue \+13%/, 'the figure is one hover away');
+  assert.match(await card('LUPIN').locator('[data-ai-evidence]').innerText(), /Result filed \(YoY\) · net profit swung to profit, revenue \+13\.0%/,
+    'and the row states it, from the event itself');
+
+  // WHERE IT SITS: directly under "What happened", above the list, drawn as that section is.
+  const order = await card('BHEL').evaluate((el) => {
+    const pos = (sel) => [...el.querySelectorAll('*')].indexOf(el.querySelector(sel));
+    return { insight: pos('[data-ai-insight]'), kpis: pos('[data-ai-kpis]'), head: pos('[data-ai-list-head]'), evidence: pos('[data-ai-evidence]') };
+  });
+  assert(order.insight < order.kpis && order.kpis < order.head && order.head < order.evidence, `section order: ${JSON.stringify(order)}`);
+  // ONE PLACE FOR THE READING: the card carries no figure strip, no question paragraph and no bullet list.
+  assert.equal(await page.locator('[data-ai-metrics], [data-ai-drivers], [data-ai-brief], [data-ai-impact-line]').count(), 0, 'the removed blocks stay removed');
   assert.equal(await card('ZZUNKNOWN').count(), 1, 'the unclassified company still has its card');
   assert.equal(await card('ZZUNKNOWN').locator('[data-ai-kpis]').count(), 0, 'no sector, no KPI row');
 

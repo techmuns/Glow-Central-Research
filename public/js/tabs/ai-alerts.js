@@ -18,6 +18,7 @@ import * as refresh from '../core/refresh.js';
 import * as alerts from '../data/ai-alerts.js';
 import { kpiLine } from '../data/kpi-impact.js';
 import { chatterTopic } from '../data/chatter-sentiment.js';
+import { driversFromEvent, QUESTIONS } from '../data/alert-drivers.js';
 import { alertWindowCache } from '../data/alert-window-cache.js';
 import * as screenerInsights from '../data/screener-insights.js';
 import { onCaptureLanded } from '../data/capture-watchdog.js';
@@ -36,6 +37,7 @@ export const meta = {
 
 const REFRESH_ID = 'ai-alerts';
 const PAGE_SIZE = 8;
+const EVIDENCE_ROWS = 4;
 const RECHECK_MS = 90_000;
 const SORT_KEY = 'sattva:ai-alerts:sort:v1';
 const SORTS = { newest: 'Newest first', holdings: 'Largest holdings', priority: 'Highest priority' };
@@ -51,8 +53,6 @@ let loadToken = 0;
 let cacheToken = 0;
 let unsubs = [];
 let filter = 'all';
-// The desk's trigger filter: null, or one of IMPACT_AXES' ids. Independent of the priority band above.
-let impactFilter = null;
 let visibleLimit = PAGE_SIZE;
 let query = '';
 let sizeController = null;
@@ -490,29 +490,14 @@ export function feedStatus(rep) {
   return { label: 'Updated', tone: 'positive', state: 'complete' };
 }
 
-const isArchived = (card) => mute.isHidden(card.key || card.ticker, card.evidenceKey || card.topEvent?.id || '');
-const hasImpact = (card, axis) => (card.impacts || []).some((hit) => hit.axis === axis);
-
 function controls(cards, visibleCount) {
-  // EACH CHIP GROUP COUNTS WITH THE OTHER GROUP HELD FIXED — the technical-filter rule. A priority
-  // count that ignored the selected trigger would read "Must see · 6" above a view showing two, and
-  // a trigger count that ignored the band would promise cards the band has already excluded.
-  const inImpact = (card) => !impactFilter || hasImpact(card, impactFilter);
-  const inPriority = (card) => filter === 'archived' ? isArchived(card) : !isArchived(card) && (filter === 'all' || card.priority === filter);
-  const active = cards.filter((card) => !isArchived(card) && inImpact(card));
+  const active = cards.filter((card) => !mute.isHidden(card.key || card.ticker, card.evidenceKey || card.topEvent?.id || ''));
   const mustSee = active.filter((card) => card.priority === 'must-see').length;
   const important = active.filter(card => card.priority === 'important').length;
   // Counted over what is ACTUALLY archived out of this view, not over the whole store: an entry
   // whose evidence has been overtaken is no longer hiding anything, and reporting it as archived
   // would send the reader looking for a card that is already back on the page.
-  const archived = cards.filter((card) => isArchived(card) && inImpact(card)).length;
-  const byPriority = cards.filter(inPriority);
-  // THE DESK'S THREE TRIGGERS AS A SECOND CHIP GROUP. "Will it change the earnings assumption, the
-  // valuation, or the thesis?" — each chip narrows to the cards whose second bullet names that
-  // question, and its count is measured over the cards the priority band already admits.
-  const triggers = alerts.IMPACT_AXES.map((axis) => ({
-    id: axis.id, label: `${axis.short} · ${byPriority.filter((card) => hasImpact(card, axis.id)).length}`, title: axis.question,
-  }));
+  const archived = cards.length - active.length;
   const options = [
     { id: 'all', label: `All priorities · ${active.length}` },
     { id: 'must-see', label: `Must see · ${mustSee}` },
@@ -524,16 +509,9 @@ function controls(cards, visibleCount) {
   ];
   return `
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3" data-ai-controls>
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div class="flex flex-wrap gap-2" role="group" aria-label="Filter AI Alerts by priority">
-          ${options.map((option) => `<button type="button" data-ai-filter="${option.id}" aria-pressed="${filter === option.id}"
-            class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${filter === option.id ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200 hover:text-indigo-700 hover:ring-indigo-200'}">${escapeHtml(option.label)}</button>`).join('')}
-        </div>
-        <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Filter AI Alerts by what the news could change" data-ai-triggers>
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400" title="The desk’s three triggers. Each chip keeps the cards whose events bear on that question — read from a tracked keyword, a filing rule or a feed’s own threshold, never a verdict. Click again to clear.">Could change</span>
-          ${triggers.map((trigger) => `<button type="button" data-ai-impact="${trigger.id}" aria-pressed="${impactFilter === trigger.id}" title="${escapeHtml(trigger.title)}"
-            class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${impactFilter === trigger.id ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200 hover:text-indigo-700 hover:ring-indigo-200'}">${escapeHtml(trigger.label)}</button>`).join('')}
-        </div>
+      <div class="flex flex-wrap gap-2" role="group" aria-label="Filter AI Alerts by priority">
+        ${options.map((option) => `<button type="button" data-ai-filter="${option.id}" aria-pressed="${filter === option.id}"
+          class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${filter === option.id ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200 hover:text-indigo-700 hover:ring-indigo-200'}">${escapeHtml(option.label)}</button>`).join('')}
       </div>
       <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
         <label class="flex items-center gap-2">Sort
@@ -577,135 +555,11 @@ function confluenceMarkup(card) {
   const found = card.confluence || [];
   if (!found.length) return '';
   return `
-    <div data-ai-confluence class="mt-3 flex flex-wrap items-center gap-1.5">
+    <div data-ai-confluence class="mt-2.5 flex flex-wrap items-center gap-1.5">
       ${found
         .map(
           (pattern) => `<span data-confluence="${escapeHtml(pattern.id)}" title="${escapeHtml(`${pattern.label} — ${pattern.detail}`)}"
             class="inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-indigo-700 ring-1 ring-indigo-100">${escapeHtml(pattern.short || pattern.label)}</span>`
-        )
-        .join('')}
-    </div>`;
-}
-
-/**
- * THE TWO BULLETS. "One bullet is basically what has happened. And second is, will it change the
- * earnings assumption, valuation, or thesis?" — the desk's brief, and the card's whole reading in
- * two lines. The first is `plainInsight`, exactly as before; the second is `impactParts`, which says
- * "could change", names the trigger it read and says in words which question nothing here bears on
- * (see data/ai-alerts.js — it is a reading of tracked keywords, filing rules and feed thresholds,
- * never a verdict). The axis names are set in bold so the eye can index the three questions, and
- * `data-axes` carries the same answer machine-readably for the chips above and the checks.
- *
- * EVERY TRIGGER THE BULLET NAMES IS A LINK TO THE RECORD IT WAS READ FROM. "Order in a filing" opens
- * that filing; "results filed" opens that result; "up 6.5% at the close" opens that session's row —
- * through `evidenceDestination`, the same door the evidence rows below use, so the upstream record
- * wins where the source carried a URL and the owning dashboard tab, seeded for the company, stands
- * in where it did not. A reason whose event is no longer on the card (it cannot happen on a freshly
- * ranked card, but a stale saved one could) renders as plain text rather than a link to nowhere.
- */
-function briefMarkup(card, scope) {
-  const impacts = card.impacts || [];
-  const parts = alerts.impactParts(impacts);
-  const eventsById = new Map((card.events || []).map((event) => [String(event.id), event]));
-  const reasonMarkup = (part) => {
-    const event = part.eventId != null ? eventsById.get(String(part.eventId)) : null;
-    if (!event) return escapeHtml(part.text);
-    const destination = evidenceDestination(event, scope);
-    const when = event.day ? ` · ${fmtDay(event.day)}${event.time ? ` · ${event.time} IST` : ''}` : '';
-    return `<a data-ai-impact-reason data-event-id="${escapeHtml(String(event.id))}" data-axis="${escapeHtml(part.axis)}" href="${escapeHtml(destination.href)}"
-      ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
-      aria-label="${escapeHtml(destination.ariaLabel)}" title="${escapeHtml(`${event.headline || ''} · ${event.feedLabel || event.feed}${when}`)}"
-      class="font-semibold text-indigo-700 underline decoration-indigo-200 underline-offset-2 transition hover:text-indigo-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${escapeHtml(part.text)}</a>`;
-  };
-  const title = impacts.length
-    ? impacts.map((hit) => `${hit.question} ${hit.reasons.map((reason) => reason.text).join('; ')}.`).join(' ')
-    : 'Read from each event’s tracked keyword, filing rule or feed threshold. No trigger matched here, which is not the same as no impact.';
-  return `
-    <ul data-ai-brief class="mt-3 space-y-2.5">
-      <li class="flex items-start gap-2.5">
-        <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" aria-hidden="true"></span>
-        <div class="min-w-0 flex-1">
-          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">What happened</div>
-          <p data-ai-insight class="font-display text-[17px] font-bold leading-snug text-slate-900">${escapeHtml(card.insight)}</p>
-        </div>
-      </li>
-      <li class="flex items-start gap-2.5" data-ai-impact-row data-axes="${escapeHtml(impacts.map((hit) => hit.axis).join(' '))}">
-        <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" aria-hidden="true"></span>
-        <div class="min-w-0 flex-1">
-          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Earnings assumption, valuation or thesis?</div>
-          <p data-ai-impact-line class="text-sm leading-snug text-slate-700" title="${escapeHtml(title)}">${parts
-            .map((part) => part.kind === 'axis'
-              ? `<strong data-ai-axis="${escapeHtml(part.axis)}" class="font-bold text-slate-900">${escapeHtml(part.text)}</strong>`
-              : part.kind === 'reason' ? reasonMarkup(part) : escapeHtml(part.text))
-            .join('')}</p>
-        </div>
-      </li>
-    </ul>
-    ${kpiMarkup(card, scope)}`;
-}
-
-/**
- * KPIs IN PLAY — which lines of THIS company's sector model the evidence names.
- *
- * It sits directly UNDER the desk's two bullets rather than inside their list, drawn the same way:
- * the brief is the desk's two questions and stays exactly two, and this is the answer beneath the
- * second one, one level more specific.
- *
- * One row of chips under the three questions, and nothing at all where the company's sector is not
- * resolved or nothing on the card names a KPI (see data/kpi-impact.js: no sector, no line). The
- * chips carry no colour, because a KPI being in play is not a direction; the only figure printed is
- * a FILED result's own change. Each chip is a door to the record it was read from, through the same
- * `evidenceDestination` the evidence rows use, and its tooltip says why in one sentence — the item,
- * the mechanism and the sector — so the card itself stays one line.
- */
-function kpiMarkup(card, scope) {
-  const impact = card.kpis;
-  if (!impact?.items?.length) return '';
-  const eventsById = new Map((card.events || []).map((event) => [String(event.id), event]));
-  const sectorPath = [impact.sector, impact.industry].filter(Boolean).join(' › ');
-  const chips = impact.items.map((item) => {
-    const label = item.value ? `${item.name} ${item.value}` : item.name;
-    const title = `${item.triggerLabel} → ${item.name}. ${item.why} ${impact.groupLabel}${sectorPath ? ` (${sectorPath})` : ''}. Source: ${item.source}${item.day ? ` · ${fmtDay(item.day)}` : ''}.`;
-    const event = item.eventId != null ? eventsById.get(String(item.eventId)) : null;
-    const chipClass = 'inline-flex items-center rounded-md bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200';
-    if (!event) return `<span data-ai-kpi="${escapeHtml(item.key)}" title="${escapeHtml(title)}" class="${chipClass}">${escapeHtml(label)}</span>`;
-    const destination = evidenceDestination(event, scope);
-    return `<a data-ai-kpi="${escapeHtml(item.key)}" data-kpi-trigger="${escapeHtml(item.trigger)}" href="${escapeHtml(destination.href)}"
-      ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
-      aria-label="${escapeHtml(`${label} — ${destination.ariaLabel}`)}" title="${escapeHtml(title)}"
-      class="${chipClass} transition hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${escapeHtml(label)}</a>`;
-  });
-  if (impact.overflow > 0) {
-    chips.push(`<span data-ai-kpi-more class="text-xs font-semibold text-slate-500" title="${escapeHtml(`${impact.overflow} more ${impact.overflow === 1 ? 'KPI' : 'KPIs'} named by this card's evidence. Every event is in All Alerts.`)}">+${escapeHtml(formatNumber(impact.overflow))}</span>`);
-  }
-  return `
-    <div class="mt-2.5 flex items-start gap-2.5" data-ai-kpis data-kpi-group="${escapeHtml(impact.group)}">
-      <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" aria-hidden="true"></span>
-      <div class="min-w-0 flex-1">
-        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400" title="${escapeHtml(`KPIs ${impact.groupLabel} companies report that this card's evidence names. Read from the sector → KPI ontology; not a forecast and not a direction.`)}">KPIs in play · ${escapeHtml(impact.groupLabel)}</div>
-        <div class="mt-1 flex flex-wrap items-center gap-1.5">${chips.join('')}</div>
-      </div>
-    </div>`;
-}
-
-const METRIC_TONE = {
-  positive: 'text-emerald-600',
-  negative: 'text-rose-600',
-  neutral: 'text-slate-900',
-};
-
-/** The four figures behind the sentence, as figures. See `cardMetrics` for why volume has no tone. */
-function metricsMarkup(card) {
-  const cells = card.metrics || [];
-  if (!cells.length) return '';
-  return `
-    <div data-ai-metrics class="mt-4 grid grid-cols-4 divide-x divide-slate-100 rounded-xl bg-slate-50/70 ring-1 ring-slate-100">
-      ${cells
-        .map(
-          (cell) => `<div data-metric="${escapeHtml(cell.id)}" title="${escapeHtml(cell.title || '')}" class="min-w-0 px-3 py-2.5">
-            <div class="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(cell.label)}</div>
-            <div class="truncate text-base font-extrabold tabular-nums ${METRIC_TONE[cell.tone] || METRIC_TONE.neutral}">${escapeHtml(cell.value)}</div>
-          </div>`
         )
         .join('')}
     </div>`;
@@ -736,64 +590,128 @@ function cardSection(kicker, bodyHtml, attrs = '') {
     <div ${attrs} class="mt-3 flex gap-2.5">
       <span class="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" aria-hidden="true"></span>
       <div class="min-w-0 flex-1">
-        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(kicker)}</div>
+        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(kicker)}</div>
         ${bodyHtml}
       </div>
     </div>`;
 }
 
-/** "a, b and c" — the list separator this dashboard's prose uses. */
-function joinPhrases(parts, conjunction = 'and') {
-  if (parts.length <= 1) return parts[0] || '';
-  return `${parts.slice(0, -1).join(', ')} ${conjunction} ${parts[parts.length - 1]}`;
+/**
+ * KPIs IN PLAY — which lines of THIS company's sector model the card's evidence names.
+ *
+ * One section directly under "What happened", drawn exactly as that section is (the same dot, the
+ * same kicker), so the card still reads as one sentence, one line of names and one list. It is
+ * absent where the company's sector is not resolved or nothing on the card names a KPI — see
+ * data/kpi-impact.js: no sector, no line.
+ *
+ * THE CHIPS ARE NAMES, NOT FIGURES. A filed result's change is already the sentence's subject
+ * and its row's own claim ("Result filed (YOY) · revenue +13.0%"), so printing it a third time
+ * here would be the repetition this card was rebuilt to remove. The figure is in the chip's title,
+ * with the mechanism and the sector, and the chip opens the record it came off — through the same
+ * `evidenceDestination` the rows use. No colour: a KPI being in play is not a direction.
+ */
+function kpiMarkup(card, scope) {
+  const impact = card.kpis;
+  if (!impact?.items?.length) return '';
+  const eventsById = new Map((card.events || []).map((event) => [String(event.id), event]));
+  const sectorPath = [impact.sector, impact.industry].filter(Boolean).join(' › ');
+  const chipClass = 'inline-flex items-center rounded-md bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200';
+  const chips = impact.items.map((item) => {
+    const title = `${item.triggerLabel} → ${item.name}. ${item.why} ${impact.groupLabel}${sectorPath ? ` (${sectorPath})` : ''}. Source: ${item.source}${item.day ? ` · ${fmtDay(item.day)}` : ''}.`;
+    const event = item.eventId != null ? eventsById.get(String(item.eventId)) : null;
+    if (!event) return `<span data-ai-kpi="${escapeHtml(item.key)}" title="${escapeHtml(title)}" class="${chipClass}">${escapeHtml(item.name)}</span>`;
+    const destination = evidenceDestination(event, scope);
+    return `<a data-ai-kpi="${escapeHtml(item.key)}" data-kpi-trigger="${escapeHtml(item.trigger)}" href="${escapeHtml(destination.href)}"
+      ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
+      aria-label="${escapeHtml(`${item.name} — ${destination.ariaLabel}`)}" title="${escapeHtml(title)}"
+      class="${chipClass} transition hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${escapeHtml(item.name)}</a>`;
+  });
+  if (impact.overflow > 0) {
+    chips.push(`<span data-ai-kpi-more class="text-xs font-semibold text-slate-500" title="${escapeHtml(`${impact.overflow} more ${impact.overflow === 1 ? 'KPI' : 'KPIs'} named by this card's evidence. Every event is in All Alerts.`)}">+${escapeHtml(formatNumber(impact.overflow))}</span>`);
+  }
+  const attrs = `data-ai-kpis data-kpi-group="${escapeHtml(impact.group)}" title="${escapeHtml(`KPIs ${impact.groupLabel} companies report that this card's evidence names. Read from the sector → KPI ontology; not a forecast and not a direction.`)}"`;
+  return cardSection(`KPIs in play · ${impact.groupLabel}`, `<div class="mt-1 flex flex-wrap items-center gap-1.5">${chips.join('')}</div>`, attrs);
 }
 
 /**
- * EARNINGS ASSUMPTION, VALUATION OR THESIS? — the question a reader opens a card with.
+ * WHAT A ROW COULD CHANGE — the reading, on the row that holds its record.
  *
- * Every driver is a topic reading `js/data/alert-drivers.js` took off an event that is already on
- * this card, and every one of them is A LINK TO THAT EVENT'S OWN SOURCE — the same destination the
- * evidence row beneath uses, through the same `evidenceDestination`. That is the point of the
- * section: the classification is ours, so the record behind it has to be one click away, or this is
- * a judgement with no way to check it.
+ * This was a paragraph of its own under an "Earnings assumption, valuation or thesis?" kicker: up
+ * to three linked readings per question, the questions with nothing behind them stated, and a
+ * counted overflow. Every word of it was true and the desk reads the same three questions on every
+ * card, so restating them cost a block of prose above the evidence to tell a reader something they
+ * already know. The READING is what they did not know, so it rides the row it came off as a chip.
  *
- * THE WORDING IS "COULD CHANGE", AND IT MAY NOT BE STRENGTHENED. A tracked keyword says what a
- * source is ABOUT — `news-keywords.js` rule 1 — so "Order in the news" means a story about this
- * company carried the word Order, not that an order was won. "Could change the earnings assumption"
- * is exactly as much as the evidence supports; "improves earnings" would be a direction this
- * dashboard's own feeds refuse to assert, and the every-figure-carries-its-claim rule one layer up.
+ * Three things the paragraph was carrying that the chip has to keep:
  *
- * A QUESTION WITH NOTHING BEHIND IT IS STATED, NOT OMITTED. "Nothing tracked here bears on the
- * thesis" is a real answer and a useful one — it is how a reader tells a card about a fund book and
- * a volume spike from one about a governance problem. What is omitted is the whole section, and
- * only when NO question has a driver: three negatives in a row is noise, not an answer.
+ * 1. **The record stays one click away.** The classification is ours, so a reader must be able to
+ *    check it — and now the row the chip sits on IS the link to that record, rather than a second
+ *    anchor to the same place. `driversFromEvent` is asked per event for exactly that reason: it
+ *    is the uncapped primitive, so a chip can never be missing from a row that earned one.
+ * 2. **It is a TOPIC reading, never a direction.** `news-keywords.js` rule 1 holds: "Order" means
+ *    a source carried the word, not that an order was won. So the chip is indigo — never the
+ *    emerald or rose the direction dot beside it uses — and its title says "Could change …",
+ *    with each rule's own non-verification sentence after it.
+ * 3. **A truncation is counted.** Two readings on one row for one question print as "+1" rather
+ *    than one of them vanishing. The chips are one per question and there are only three
+ *    questions, so nothing else needs capping.
+ *
+ * What the chip deliberately does NOT carry is the card-level total per question, or the "nothing
+ * tracked here bears on the valuation" statement. Both are the desk's own vocabulary rather than
+ * evidence, and the complete per-event accounting is in All Alerts, one click down in the footer.
  */
-function driversMarkup(card, scope) {
-  const drivers = card.drivers;
-  if (!drivers?.buckets?.length) return '';
+function driverReadings(event) {
+  const byQuestion = new Map();
+  for (const driver of driversFromEvent(event)) {
+    const found = byQuestion.get(driver.question);
+    if (found) found.push(driver);
+    else byQuestion.set(driver.question, [driver]);
+  }
+  // In the vocabulary's own order, so two rows never name the same pair of questions differently.
+  return QUESTIONS.filter((question) => byQuestion.has(question.id))
+    .map((question) => ({ question, drivers: byQuestion.get(question.id) }));
+}
 
-  const clauses = drivers.buckets.map((bucket) => {
-    const links = bucket.drivers.map((driver) => {
-      const destination = evidenceDestination(driver.event, scope);
-      return `<a data-ai-driver data-driver-question="${escapeHtml(bucket.id)}" href="${escapeHtml(destination.href)}"
-        ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
-        aria-label="${escapeHtml(`${driver.text} — ${destination.ariaLabel}`)}"
-        title="${escapeHtml(`${driver.why} Opens the source behind this reading.`)}"
-        class="font-semibold text-indigo-700 underline decoration-indigo-200 underline-offset-2 transition hover:text-indigo-900 hover:decoration-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${escapeHtml(driver.text)}</a>`;
-    });
-    // A capped bucket COUNTS what it did not print. Silently dropping the fourth driver would have
-    // the card claim fewer things bear on this company than its own evidence says.
-    if (bucket.overflow > 0) {
-      links.push(`<span class="text-slate-500" title="${escapeHtml(`${bucket.overflow} further tracked ${bucket.overflow === 1 ? 'reading' : 'readings'} on this question. Every event is in All Alerts.`)}">+${escapeHtml(formatNumber(bucket.overflow))} more</span>`);
-    }
-    return `<strong class="font-bold text-slate-900">${escapeHtml(bucket.label)}</strong> (${links.join('; ')})`;
+function driverChipsMarkup(readings) {
+  if (!readings.length) return '';
+  const chips = readings.map(({ question, drivers }) => {
+    const extra = drivers.length - 1;
+    const title = `Could change ${question.label}. ${drivers.map((driver) => driver.why).join(' ')}`;
+    return `<span data-ai-driver data-driver-question="${escapeHtml(question.id)}" title="${escapeHtml(title)}"
+      class="inline-flex items-center rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-700">${escapeHtml(`${question.short} · ${drivers[0].label}`)}${extra > 0 ? `&nbsp;+${escapeHtml(formatNumber(extra))}` : ''}</span>`;
   });
+  return `<span class="mt-1.5 flex flex-wrap items-center gap-1">${chips.join('')}</span>`;
+}
 
-  const silent = drivers.silent.length
-    ? ` Nothing tracked here bears on ${escapeHtml(joinPhrases(drivers.silent.map((q) => q.label), 'or'))}.`
-    : '';
-  const body = `<p class="mt-1 text-sm leading-relaxed text-slate-600">Could change ${joinPhrases(clauses)}.${silent}</p>`;
-  return cardSection('Earnings assumption, valuation or thesis?', body, 'data-ai-drivers');
+/**
+ * The list's own header, and the home of two figures the strip used to carry.
+ *
+ * "5 sources" is a property of the card's evidence rather than of any row, so it belongs to the
+ * list rather than to a cell of its own — and "newest first" is a claim about the order, which is
+ * why `byNewestFirst` sorts what `topEvidence` selected instead of trusting score order to read
+ * as recency. The window is named because an age of 9d means nothing without it.
+ */
+function listHeadMarkup(card) {
+  const sources = card.feedCount || 0;
+  return `
+    <div data-ai-list-head class="mt-4 flex items-baseline justify-between gap-3 border-t border-slate-100 pt-3">
+      <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Newest first</span>
+      <span class="text-[10px] font-bold uppercase tracking-wider tabular-nums text-slate-500"
+        title="${escapeHtml(`How many independent feeds carry something on this company in the last ${alerts.WINDOW_DAYS} days. Every event behind this card is in All Alerts.`)}"><span data-ai-sources>${escapeHtml(formatNumber(sources))}</span> ${sources === 1 ? 'source' : 'sources'} · ${alerts.WINDOW_DAYS} days</span>
+    </div>`;
+}
+
+/**
+ * Newest first, by the day and by the time where the feed published one.
+ *
+ * `topEvidence` chooses WHICH rows (one per source in rounds, capped per source, so a card never
+ * spends every row on one of them), and this decides the order they are read in. Keeping them in
+ * score order under a header that says "newest first" would be the header describing a different
+ * list.
+ */
+function byNewestFirst(events) {
+  return [...events].sort((a, b) =>
+    String(b.day || '').localeCompare(String(a.day || '')) || String(b.time || '').localeCompare(String(a.time || '')));
 }
 
 const cardSnapshots = new WeakMap();
@@ -803,8 +721,7 @@ function cardSnapshot(card) {
     kind: 'AI Alerts', source: 'Dashboard analysis', sourceId: `${card.key || card.ticker}:${card.evidenceKey || card.insight}`,
     eventDate: latestAlertEvent(card)?.day,
     body: card.events.map(event => [event.headline, event.detail, event.reason].filter(Boolean).join('\n')).join('\n\n'),
-    details: [{ label: 'Earnings assumption, valuation or thesis?', value: card.impactLine || alerts.impactLine(card.impacts || []) },
-      ...(card.kpis?.items?.length ? [{ label: 'KPIs in play', value: kpiLine(card.kpis) }] : []),
+    details: [...(card.kpis?.items?.length ? [{ label: 'KPIs in play', value: kpiLine(card.kpis) }] : []),
       ...card.events.map(event => ({ label: `${event.feedLabel || event.feed} · ${event.day || 'Date not supplied'}`, value: event.headline }))],
     links: card.events.filter(event => event.url).map(event => ({ label: event.headline, url: event.url })),
   });
@@ -819,9 +736,13 @@ function cardMarkup(card, scope, day, archived = false) {
     neutral: { edge: 'border-l-slate-300', badge: 'bg-white text-slate-600 ring-slate-200' },
   }[badge.tone] || { edge: 'border-l-slate-300', badge: 'bg-white text-slate-600 ring-slate-200' };
   const newest = latestAlertEvent(card);
-  const events = alerts.topEvidence(newest ? { ...card, events: [newest, ...card.events.filter(event => event !== newest)] } : card, 3);
+  const events = byNewestFirst(alerts.topEvidence(newest ? { ...card, events: [newest, ...card.events.filter(event => event !== newest)] } : card, EVIDENCE_ROWS));
   const rest = card.events.length - events.length;
   const signal = latestAlertSignal(card);
+  // The sentence is one source's own claim, sometimes chosen from the exchange's description and
+  // sometimes clipped on a word boundary — so the untouched wording, and which feed it came from,
+  // stay one hover away. See `plainHeadline` / `filingClaim`.
+  const lead = alerts.leadEvent(card);
   return `
     <article data-ai-card data-ai-key="${escapeHtml(card.key || card.ticker || card.entityId)}" data-ticker="${escapeHtml(card.ticker || '')}" data-entity-id="${escapeHtml(card.entityId || '')}" data-priority="${escapeHtml(card.priority)}" data-score="${card.score}"${Number.isFinite(card.holdingWeightPct) ? ` data-holding-weight="${card.holdingWeightPct}"` : ''}${archived ? ' data-ai-archived' : ''}
       class="flex h-full flex-col overflow-hidden rounded-2xl border-l-4 ${archived ? 'border-l-slate-200' : tone.edge} bg-white shadow-sm ring-1 ring-slate-100"
@@ -842,15 +763,14 @@ function cardMarkup(card, scope, day, archived = false) {
         </p>
         ${Number.isFinite(card.holdingWeightPct) ? `<p data-ai-holding-size class="mt-1 text-xs font-semibold text-indigo-700">${card.holdingWeightPct > 0 && card.holdingWeightPct < 0.01 ? '&lt;0.01' : card.holdingWeightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of equity statement book</p>` : ''}
 
-        ${briefMarkup(card, scope)}
-        ${contextMarkup(card, scope)}
+        ${cardSection('What happened', `<p data-ai-insight class="font-display mt-0.5 text-[17px] font-bold leading-snug text-slate-900"${lead ? ` title="${escapeHtml(`${lead.feedLabel || lead.feed} · ${lead.headline || ''}`)}"` : ''}>${escapeHtml(card.insight)}</p>${confluenceMarkup(card)}`)}
+        ${kpiMarkup(card, scope)}
 
-        ${confluenceMarkup(card)}
-        ${metricsMarkup(card)}
-
-        <ul data-ai-evidence class="mt-4 space-y-2">
+        ${listHeadMarkup(card)}
+        <ul data-ai-evidence class="mt-1 space-y-0.5">
           ${events.map((event) => eventMarkup(event, scope, day)).join('')}
         </ul>
+        ${contextMarkup(card, scope)}
       </div>
       <footer class="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3">
         ${rest > 0
@@ -897,15 +817,28 @@ function eventMarkup(event, scope, day) {
   // Plain where this dashboard wrote the sentence, verbatim where somebody else did — see
   // `plainHeadline`. The tooltip always carries the feed's own wording so nothing is lost.
   const claim = alerts.plainHeadline(event);
+  const readings = driverReadings(event);
+  // THE CHIP MUST REACH A SCREEN READER TOO. The link carries an aria-label, which replaces its
+  // own contents for assistive technology — so a chip rendered inside it would be silently dropped
+  // unless the questions are named in that label as well.
+  const ariaLabel = readings.length
+    ? `${destination.ariaLabel} — could change ${readings.map(({ question }) => question.label).join(', ')}`
+    : destination.ariaLabel;
+  // Today and yesterday darken. An age is the reason a reader looks at a card this morning, so the
+  // newest rows read at full strength and a nine-day-old book change recedes without being hidden.
+  const recent = age === 'today' || age === '1d' || age.startsWith('in ');
   return `
     <li class="flex items-start gap-2" data-ai-notebook-event="${escapeHtml(event.id)}">
-      <a data-ai-event data-ai-evidence-link data-feed-family="${escapeHtml(alerts.feedFamily(event))}" href="${escapeHtml(destination.href)}"
+      <a data-ai-event data-ai-evidence-link href="${escapeHtml(destination.href)}"
         ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
-        aria-label="${escapeHtml(destination.ariaLabel)}"
-        class="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-1.5 -mx-2 transition-colors hover:bg-indigo-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+        aria-label="${escapeHtml(ariaLabel)}"
+        class="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 transition-colors hover:bg-indigo-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
         <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${DOT_TONE[event.direction] || DOT_TONE.neutral}" aria-hidden="true"></span>
-        <span class="line-clamp-2 min-w-0 flex-1 text-sm leading-snug text-slate-700 group-hover:text-slate-900" title="${escapeHtml(event.headline || '')}">${escapeHtml(claim)}</span>
-        <span class="mt-0.5 shrink-0 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-slate-400" title="${escapeHtml(`${event.feedLabel || event.feed} · ${when}`)}">${escapeHtml(tag)} · <time data-ai-age data-day="${escapeHtml(event.day)}" datetime="${escapeHtml(event.day)}">${escapeHtml(age)}</time></span>
+        <span class="min-w-0 flex-1">
+          <span class="line-clamp-2 block text-sm font-medium leading-snug text-slate-800 group-hover:text-slate-900" title="${escapeHtml(event.headline || '')}">${escapeHtml(claim)}</span>
+          ${driverChipsMarkup(readings)}
+        </span>
+        <span data-ai-event-source class="mt-0.5 shrink-0 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider ${recent ? 'text-slate-600' : 'text-slate-400'}" title="${escapeHtml(`${event.feedLabel || event.feed} · ${when}`)}">${escapeHtml(tag)} · <time data-ai-age data-day="${escapeHtml(event.day)}" datetime="${escapeHtml(event.time ? `${event.day}T${event.time}+05:30` : event.day)}">${escapeHtml(age)}</time></span>
       </a>
       ${bookmarkButton(snapshotForRow(event, { section: 'daily-alerts' }))}
     </li>`;
@@ -967,12 +900,10 @@ export function safeSourceUrl(value) {
  * comes back on its own, so muting can hide what has been read and can never hide what has not.
  */
 function filteredCards(cards) {
-  // The trigger chip is a second, independent axis over the same cards: a card has to pass the
-  // priority band AND bear on the selected question. `null` means the chip is not narrowing at all.
-  const inImpact = (card) => !impactFilter || hasImpact(card, impactFilter);
-  if (filter === 'archived') return cards.filter(isArchived).filter(inImpact);
+  const archived = (card) => mute.isHidden(card.key || card.ticker, card.evidenceKey || card.topEvent?.id || '');
+  if (filter === 'archived') return cards.filter(archived);
   const byPriority = filter === 'all' ? cards : cards.filter((card) => card.priority === filter);
-  return byPriority.filter((card) => !isArchived(card)).filter(inImpact);
+  return byPriority.filter((card) => !archived(card));
 }
 
 function wire(ctx, total) {
@@ -1016,25 +947,9 @@ function wire(ctx, total) {
   click('[data-ai-unlock]', unlockPortfolio);
   click('[data-ai-empty-clear]', clearSearch);
   click('[data-ai-controls]', (event) => {
-    const trigger = event.target.closest('[data-ai-impact]');
-    if (trigger) {
-      // One chip at a time, and the pressed chip clears itself — a control that can only ever narrow
-      // leaves the reader hunting for the way back.
-      impactFilter = impactFilter === trigger.dataset.aiImpact ? null : trigger.dataset.aiImpact;
-      visibleLimit = PAGE_SIZE;
-      paint(ctxRef);
-      ctxRef?.root.querySelector(`[data-ai-impact="${trigger.dataset.aiImpact}"]`)?.focus({ preventScroll: true });
-      return;
-    }
     const button = event.target.closest('[data-ai-filter]');
     if (!button) return;
     filter = button.dataset.aiFilter;
-    visibleLimit = PAGE_SIZE;
-    paint(ctxRef);
-  });
-
-  click('[data-ai-impact-clear]', () => {
-    impactFilter = null;
     visibleLimit = PAGE_SIZE;
     paint(ctxRef);
   });
@@ -1086,20 +1001,6 @@ function emptyPanel(ctx) {
       <p class="mt-2 break-words text-sm text-slate-500">No results for “${escapeHtml(query.trim())}”. Try a company, symbol or keyword, or choose another priority filter.</p>
       <button type="button" data-ai-empty-clear class="mt-4 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">Clear search</button>
     </div>`;
-  }
-  // A TRIGGER CHIP THAT MATCHES NOTHING IS A STATEMENT ABOUT WHAT WAS TRACKED, not about the
-  // companies: "no card bears on the thesis" is a reading of keywords, filing rules and feed
-  // thresholds, and the panel says so rather than printing the threshold sentence below — which
-  // would claim, on the strength of a control the reader set, that nothing crossed the line.
-  if (impactFilter) {
-    const axis = alerts.IMPACT_AXES.find((candidate) => candidate.id === impactFilter);
-    return `
-      <div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100" data-ai-empty data-ai-empty-trigger="${escapeHtml(impactFilter)}">
-        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-xl text-indigo-600 ring-1 ring-indigo-100">✦</div>
-        <h3 class="font-display mt-4 text-lg font-bold text-slate-900">No card in this view bears on the ${escapeHtml(axis?.label.toLowerCase() || 'selected trigger')}</h3>
-        <p class="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">That is a reading of the tracked keywords, filing rules and feed thresholds on these cards, not a claim that nothing could change it. Clear the trigger, change the priority filter or open the complete stream.</p>
-        <button type="button" data-ai-impact-clear class="mt-5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Show all triggers</button>
-      </div>`;
   }
   // MUTING ITS OWN LIST EMPTY IS NOT THE SAME ANSWER AS NOTHING REACHING THE THRESHOLD, and the
   // panel must not print the second over the first — that would be a claim about the feeds made on

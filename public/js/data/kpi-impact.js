@@ -747,7 +747,7 @@ export function kpiImpactOf(card, onto = ontology, { limit = KPI_CHIP_LIMIT } = 
     const base = { eventId: event.id ?? null, feed: event.feed, day: event.day || null, source: eventLabel(event) };
 
     if (reading.family === 'result') {
-      const basis = event.basis ? ` ${event.basis}` : '';
+      const basis = event.resultBasis ? ` ${event.resultBasis}` : '';
       for (const { field, key } of RESULT_METRICS) {
         const value = resultValue(event.metrics?.[field]);
         if (!value) continue;
