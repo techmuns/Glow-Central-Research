@@ -8,6 +8,8 @@ const root=resolve('public');let upgraded=false;
 const html=`<!doctype html><main id="fixture"></main><script type="module">
 import { scoreTable } from '/js/ui/screener.js';
 import { watchWorkerChanges } from '/js/core/app-updates.js';
+import { NEWS_QUERY_INDEX_VERSION } from '/js/data/news-query-index.js';
+window.newsQueryIndexVersion = NEWS_QUERY_INDEX_VERSION;
 const table=scoreTable({columnLayoutKey:'upgrade',rows:[{name:'Company',value:123}],showRank:false,showAvatar:false,name:r=>r.name,key:r=>r.name,columns:[{label:'Shares',get:r=>r.value}]});
 fixture.innerHTML=table.html;table.wire(fixture);
 watchWorkerChanges(navigator.serviceWorker,()=>location.reload());
@@ -23,6 +25,7 @@ const server=createServer((req,res)=>{
    body=body.toString().replace(/const MUNSHOT_SDK = .*;/,"const MUNSHOT_SDK = new URL('/sdk-fixture.js', self.location).href;");
    if(!upgraded)body=body.replace(/const CACHE_NAME = .*;/,'const CACHE_NAME = `${CACHE_PREFIX}previous-column-release`;');
   }
+  if(path==='/js/data/news-query-index.js'&&!upgraded)body=body.toString().replace('NEWS_QUERY_INDEX_VERSION = 4','NEWS_QUERY_INDEX_VERSION = 3');
   if(path==='/js/ui/column-order.js'&&!upgraded)body='export function installColumnOrder() {}';
   res.setHeader('content-type',{'.js':'text/javascript','.json':'application/json','.css':'text/css','.svg':'image/svg+xml','.png':'image/png'}[extname(file)]||'application/octet-stream');res.end(body);
  }catch{res.writeHead(404).end();}
@@ -36,9 +39,11 @@ try{
  await page.goto(origin);await page.waitForFunction(()=>window.ready&&navigator.serviceWorker.controller);
  await page.reload();await page.waitForFunction(()=>window.ready);
  assert.equal(await page.locator('[data-column-reorder]').count(),0);
+ assert.equal(await page.evaluate(()=>window.newsQueryIndexVersion),3);
  const before=await page.evaluate(()=>caches.keys());assert(before.some(key=>key.includes('previous-column-release')));
  upgraded=true;await page.evaluate(async()=>(await navigator.serviceWorker.getRegistration()).update());
  await page.waitForSelector('[data-column-reorder]');
+ assert.equal(await page.evaluate(()=>window.newsQueryIndexVersion),4,'returning reader adopts the new story-companion query index');
  await page.locator('th').first().focus();await page.keyboard.press('Alt+ArrowRight');
  assert.deepEqual((await page.locator('th').allTextContents()).map(s=>s.trim()),['Shares','Company']);
  await page.reload();await page.waitForSelector('[data-column-reorder]');

@@ -8,6 +8,7 @@ import { writeNewsJson, readNewsJson } from './lib/news-json-storage.mjs';
 import { shardSpec, shardPath } from '../public/js/core/json-shards.js';
 import { createNewsWorkingSet } from '../public/js/data/news-working-set.js';
 import { newsQueryIndexRow, newsQueryIdentity } from '../public/js/data/news-query-index.js';
+import { dedupeArticles } from '../public/js/data/filings-shared.js';
 import { newsPeriodBounds } from '../public/js/data/news-window.js';
 const dir = mkdtempSync(join(tmpdir(), 'sattva-query-boundaries-'));
 const originalFetch = globalThis.fetch, originalNow = Date.now, originalDocument = globalThis.document, originalTimeout = globalThis.setTimeout;
@@ -118,6 +119,22 @@ try {
   assert.equal(newValue.queryWindow.from, window.from, 'in-flight old preparation cannot certify a new period');
   assert.deepEqual(newValue.byTicker.ALPHA, rows.filter(row => row.date === '2026-08-01' || row.url === rows[0].url || row.tradingViewId === 'same-story'));
   switching.release(); gate = null;
+
+  // Same publisher/day/headline at different URLs can straddle IST midnight.
+  // Full history chooses the earlier source-order row. The narrow reader must load
+  // that companion before deduplication, even though only its twin falls in Today.
+  const twins = [
+    { title: 'Ukraine Business Service Providers', source: 'International Trade Administration', date: '2026-09-22', publishedAt: '2026-09-22T15:48:24Z', url: 'https://trade.gov/ukraine-business-service-providers?anchor=5' },
+    { title: 'Ukraine Business Service Providers', source: 'International Trade Administration', date: '2026-09-22', publishedAt: '2026-09-22T22:07:38Z', url: 'https://trade.gov/ukraine-business-service-providers?anchor=1' },
+  ];
+  const twinReader = createNewsWorkingSet({ window: () => ({ from: '2026-09-23', to: '2026-09-23', includeUndated: false }),
+    read: async input => ({ value: { byTicker: input === 'data/news.json' ? { ALPHA: twins } : {} } }),
+    diskRead: async () => null, diskWrite: async () => {} });
+  await twinReader.prepare();
+  const twinsProjected = (await twinReader.read('data/news.json')).value.byTicker.ALPHA;
+  assert.deepEqual(twinsProjected, twins, 'same-story companions use the exact canonicalizer identity, not URL alone');
+  assert.deepEqual(dedupeArticles(twinsProjected), dedupeArticles(twins), 'date-limited and full-history choices agree');
+  twinReader.release();
 
   // Exercise the real facade and explicit live searches in separate windows. Empty Today
   // must not trigger a company walk; the changing IST day is evaluated on every refresh.

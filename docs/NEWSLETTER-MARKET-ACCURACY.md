@@ -76,3 +76,19 @@ future builds receive the correction through the existing merge-triggered deploy
 
 References: [Upstox full quotes](https://upstox.com/developer/api-documentation/get-full-market-quote-v3/)
 and [instrument identities](https://upstox.com/developer/api-documentation/instruments/).
+
+## Existing CI reliability gate
+
+The full-history versus bounded-news check also exposed a pre-existing failure in
+23 September captures: the same International Trade Administration headline and
+source date appeared at different URLs on either side of IST midnight. The
+canonicalizer deduplicated on publisher/date/headline, while the bounded index
+looked only for URL/TradingView companions. The narrow view therefore chose a
+record the full history had already deduplicated away.
+
+Index version 4 now includes the canonicalizer's shared story identity. Its
+fingerprints select extra source records only; they never delete or merge them.
+Existing company-scoped canonicalization still decides the output. Old indexes
+fall back to verified source parts and rebuild locally. The shipped-capture
+comparison stays intact, a small midnight fixture reproduces the bug, and the
+service-worker release advances with a returning-session module-upgrade test.

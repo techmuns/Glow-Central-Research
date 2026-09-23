@@ -391,6 +391,12 @@ export function articleUrlKey(row) {
   return key;
 }
 
+// Shared with the bounded reader: every identity used to choose a retained row must
+// also locate its out-of-window companions before the same deduplication runs.
+export const articleStoryKey = row => row?.title && row?.source
+  ? `${String(row.date || row.publishedAt || '').slice(0, 10)} :: ${String(row.source).trim().toLowerCase()} :: ${String(row.title).trim().toLowerCase()}`
+  : null;
+
 export function dedupeArticles(list = []) {
   const seenUrl = new Set();
   const seenStory = new Set();
@@ -401,9 +407,7 @@ export function dedupeArticles(list = []) {
       if (seenUrl.has(url)) return false;
       seenUrl.add(url);
     }
-    const story = row?.title && row?.source
-      ? `${String(row.date || row.publishedAt || '').slice(0, 10)} :: ${String(row.source).trim().toLowerCase()} :: ${String(row.title).trim().toLowerCase()}`
-      : null;
+    const story = articleStoryKey(row);
     if (story) {
       if (seenStory.has(story)) return false;
       seenStory.add(story);
