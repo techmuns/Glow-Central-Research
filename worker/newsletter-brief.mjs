@@ -81,6 +81,7 @@ import { readScreenerConcallCollector } from './screener-concalls-collector.mjs'
 import { bedrockConfig, bedrockConfigured, claudeCredential } from './research-claude.mjs';
 import { reviewNewsEvents, relatedNewsReports, newsEventsNote } from './newsletter-events.mjs';
 import { announcementDocumentIdentity } from '../public/js/data/announcements-shared.js';
+import { newsAiEnabled } from './newsletter-openai.mjs';
 import { attachContent, sameContentEvent } from './newsletter-content.mjs';
 import { boundedJson } from '../public/js/data/family-book-contract.js';
 import { EDITIONS, addDays, dayOnlyInstant, editionWindow, istDay, istDateLong, istInstant, istLabel, istTime, lateArrivalsFrom } from '../public/js/data/newsletter-shared.js';
@@ -937,12 +938,13 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
   // What a send of this brief would put in the ledger: every item it carries, by every identity it
   // was seen under.
   brief.reported = briefStories(brief).flatMap((s) => (s.keys || []).map((key) => ({ key, publishedAt: s.at })));
-  news.dedup = await reviewNewsEvents({ news, env, fetcher, enabled: includeAi });
+  news.dedup = await reviewNewsEvents({ news, env, fetcher, enabled: includeAi, budget: contentService?.newsBudget, now });
   // Read before grouping: generic exchange labels cannot identify the actual transaction.
-  brief.content = await attachContent(brief, { service: contentService, env, fetcher, now, process: includeAi && bedrockConfigured(env) });
+  brief.content = await attachContent(brief, { service: contentService, env, fetcher, now, process: includeAi && (bedrockConfigured(env) || newsAiEnabled(env)) });
   // Notes see the final groups, including every publisher's qualifications and source text.
   brief.ai = includeAi ? await readAiNotes({ env, fetcher, now, companies: briefStats(brief).companies, sectors: new Map(holdings.map((h) => [upper(h.ticker), h.sector && !/^unclassified$/i.test(h.sector) ? h.sector : null])) })
     : { ok: false, reason: 'preview', requested: 0, answered: 0, items: {} };
+  if (contentService && newsAiEnabled(env)) brief.newsAiBudget = contentService.newsBudget.status(now);
   return brief;
 }
 
@@ -978,6 +980,7 @@ export const TOPICS = [
   { id: 'deals', label: 'Deals', color: '#8b5cf6' },
   { id: 'money', label: 'Money', color: '#f59e0b' },
   { id: 'approvals', label: 'Approvals & IP', color: '#14b8a6' },
+  { id: 'policy', label: 'Trade policy', color: '#64748b' },
   { id: 'trouble', label: 'Trouble', color: '#f43f5e' },
   { id: 'trades', label: 'Trades', color: '#0ea5e9' },
   { id: 'price', label: 'Price', color: '#6366f1' },
@@ -992,9 +995,10 @@ export const MOODS = {
   neutral: { id: 'neutral', label: 'Neutral', color: '#94a3b8' },
 };
 
-export function topicOf({ kind = null, keywordIds = [], keywordGroups = [] } = {}) {
+export function topicOf({ kind = null, keywordIds = [], keywordGroups = [], headline = '', content = null } = {}) {
   if (kind === 'trade') return TOPIC_BY_ID.get('trades');
   if (kind === 'move') return TOPIC_BY_ID.get('price');
+  if (/anti[ -]?(?:dumping|circumvention)/i.test(`${headline} ${content?.facts?.map(f => f.value).join(' ') || ''}`)) return TOPIC_BY_ID.get('policy');
   if (keywordIds.some((id) => ORDER_KEYWORDS.has(id))) return TOPIC_BY_ID.get('orders');
   for (const group of keywordGroups) {
     const topic = TOPIC_BY_GROUP[group];
@@ -1260,17 +1264,35 @@ export function parseAiNotes(text, ids) {
 }
 
 export async function readAiNotes({ env, fetcher = fetch, now = Date.now(), companies, sectors = new Map() }) {
+  // News notes are produced with their source read and reused across editions. Never send
+  // an unconfirmed article back to the generic writer as a headline-only fallback.
+  const newsNotes = {}, newsModels = new Set();
+  if (newsAiEnabled(env)) for (const company of companies) for (const cluster of company.clusters) {
+    const content = cluster.main.content;
+    if (cluster.main.kind === 'news' && content?.state === 'ready' && content.note) {
+      newsNotes[cluster.id] = { ...content.note,
+        ...(cluster.others.length ? { unknowns: [content.note.unknowns, 'This summary covers the lead article; linked reports may add details.'].filter(Boolean).join(' ') } : {}) };
+      newsModels.add(content.model);
+    }
+  }
   const candidates = aiItemsFor(companies, sectors);
+  const requested = newsAiEnabled(env) ? companies.reduce((n,c) => n + c.clusters.filter(k => k.kind === 'story').length, 0) : candidates.length;
+  const mergeNews = result => ({ ...result, ok: result.ok || Object.keys(newsNotes).length > 0,
+    requested,
+    supplied: result.supplied + Object.keys(newsNotes).length, answered: result.answered + Object.keys(newsNotes).length, items: { ...result.items, ...newsNotes },
+    model: [...new Set([result.model, ...newsModels].filter(Boolean))].join(', ') || null,
+    ...(Object.keys(newsNotes).length ? { reason: result.answered + Object.keys(newsNotes).length < requested ? 'partial' : null } : {}) });
   const items = [];
   for (const item of candidates) {
+    if (newsAiEnabled(env) && item.kind === 'published story') continue;
     if (!item.SOURCE_EVIDENCE.some(s => ['ready', 'partial'].includes(s.state) && s.facts.length)) continue;
     if (new TextEncoder().encode(JSON.stringify([...items, item])).length > AI_REQUEST_BYTES) continue;
     items.push(item);
   }
   const base = { readAt: now, requested: candidates.length, supplied: items.length, answered: 0, items: {}, model: null };
-  if (!candidates.length) return { ...base, ok: true, reason: 'nothing-to-note' };
-  if (!bedrockConfigured(env)) return { ...base, ok: false, reason: 'no-key' };
-  if (!items.length) return { ...base, ok: false, reason: 'content-pending' };
+  if (!candidates.length) return mergeNews({ ...base, ok: true, reason: 'nothing-to-note' });
+  if (!bedrockConfigured(env)) return mergeNews({ ...base, ok: false, reason: 'no-key' });
+  if (!items.length) return mergeNews({ ...base, ok: false, reason: 'content-pending' });
   const config = bedrockConfig(env);
   try {
     const res = await fetcher(config.url, {
@@ -1279,15 +1301,15 @@ export async function readAiNotes({ env, fetcher = fetch, now = Date.now(), comp
       body: JSON.stringify(aiRequest(items, config.model)),
       signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     });
-    if (!res.ok) return { ...base, model: config.model, ok: false, reason: res.status === 401 || res.status === 403 ? 'refused' : res.status === 429 ? 'rate-limited' : 'upstream', status: res.status };
+    if (!res.ok) return mergeNews({ ...base, model: config.model, ok: false, reason: res.status === 401 || res.status === 403 ? 'refused' : res.status === 429 ? 'rate-limited' : 'upstream', status: res.status });
     const body = await boundedJson(res, 80000);
-    if (body.stop_reason !== 'end_turn') return { ...base, model: config.model, ok: false, reason: 'incomplete-response' };
+    if (body.stop_reason !== 'end_turn') return mergeNews({ ...base, model: config.model, ok: false, reason: 'incomplete-response' });
     const text = (Array.isArray(body?.content) ? body.content : []).filter((b) => b?.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n');
     const notes = parseAiNotes(text, new Set(items.map((i) => i.id)));
-    if (!notes) return { ...base, model: config.model, ok: false, reason: 'unreadable' };
-    return { ...base, model: config.model, ok: true, answered: Object.keys(notes).length, items: notes };
+    if (!notes) return mergeNews({ ...base, model: config.model, ok: false, reason: 'unreadable' });
+    return mergeNews({ ...base, model: config.model, ok: true, answered: Object.keys(notes).length, items: notes });
   } catch (error) {
-    return { ...base, model: config.model, ok: false, reason: reasonOf(error) };
+    return mergeNews({ ...base, model: config.model, ok: false, reason: reasonOf(error) });
   }
 }
 
@@ -1517,7 +1539,7 @@ export const storyWhen = (s) => `${storyDate(s.at)}, ${s.dayOnly ? 'day only' : 
 const relatedLine = (k) => (k.others.length ? `<div style="margin-top:5px;font-family:${SANS};font-size:11px;line-height:1.7;color:${META};">Related: ${k.others.map((r) => link(r.url, `${esc(r.source)} · ${esc(storyWhen(r))} · ${esc(r.headline)}${r.late ? ' · not in the previous brief' : ''}`, `color:${META};border-bottom:1px dotted ${RULE};`) + (r.dek ? `<div>${esc(r.dek)}</div>` : '')).join('<br>')}</div>` : '');
 
 /** The model's notes, marked as its own on their face. */
-const aiNoteHtml = (note) => `<div style="margin-top:7px;padding:7px 10px;background:${CREAM};border-left:3px solid ${GOLD_LIGHT};font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY};">${caps('AI summary', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.summary)}<br>${caps('Potential impact', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.impact)}${note.unknowns ? `<br>${caps('Still unknown', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.unknowns)}` : ''}</div>`;
+const aiNoteHtml = (note) => `<div style="margin-top:7px;padding:7px 10px;background:${CREAM};border-left:3px solid ${GOLD_LIGHT};font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY};">${caps('AI summary', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.summary)}${note.impact ? `<br>${caps('Potential impact', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.impact)}` : ''}${note.unknowns ? `<br>${caps('Still unknown', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.unknowns)}` : ''}</div>`;
 
 export function contentStatusText(cluster) {
   if (cluster.kind !== 'story') return null;
@@ -1790,7 +1812,7 @@ export function renderBriefText(brief, { productName = PRODUCT_NAME, brand = BRA
       const note = brief.ai?.items?.[k.id];
       lines.push(`  [${s.topic.label}] ${s.headline}`);
       if (s.dek) lines.push(`    ${s.dek}`);
-      if (note) lines.push(`    AI summary: ${note.summary}`, `    Potential impact: ${note.impact}`, ...(note.unknowns ? [`    Still unknown: ${note.unknowns}`] : []));
+      if (note) lines.push(`    AI summary: ${note.summary}`, ...(note.impact ? [`    Potential impact: ${note.impact}`] : []), ...(note.unknowns ? [`    Still unknown: ${note.unknowns}`] : []));
       if (contentStatusText(k)) lines.push(`    ${contentStatusText(k)}`);
       lines.push(`    ${s.mood.label} · ${s.source} · ${storyWhen(s)}${s.late ? ' · not in the previous brief' : ''}${s.url ? ` · ${s.url}` : ''}`);
       for (const r of k.others) {

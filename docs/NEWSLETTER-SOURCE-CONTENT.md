@@ -1,5 +1,10 @@
 # Newsletter source reading — first phase
 
+**News extension:** [Grounded news summaries and OpenAI cost control](NEWSLETTER-NEWS-AI.md)
+now adds company/product/role checks, optional reviewed impact, cached news notes and a separate
+news AI allowance. Its news-provider and writing rules supersede the first-phase news rules below.
+The filing/PDF rules remain unchanged.
+
 Implemented for the user's steps 1–5 (24 September 2026): automatic discovery, source reading,
 source facts, conservative event grouping and summaries of the actual development. This replaces
 the previous headline-only instruction. It does not add a second AI provider, an independent

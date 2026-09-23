@@ -1385,6 +1385,13 @@ string** — a dividend's amount, a split's ratio and a bonus's terms are reprod
 printed them. `readCalendar` / `readActions` in `worker/newsletter-brief.mjs`; the offline suite
 drives both with a Screener stub and constructed captures.
 
+**NEWS ACCURACY AND COST (24 September 2026, GLOW-OWNED).**
+[Grounded news summaries](docs/NEWSLETTER-NEWS-AI.md) adds OpenAI news-only extraction and saved
+notes, company/product/role grounding, stronger review for ambiguous cases, optional impact and
+a transactional $1/day, $25/month news allowance. Keep pending work, source links and history.
+The existing filing/PDF Claude path remains separate. Do not fallback to unbudgeted news calls
+when OpenAI fails. Run `verify-newsletter-openai.mjs` with the other newsletter checks.
+
 **SOURCE CONTENT BEFORE AI NOTES (24 September 2026, GLOW-OWNED).** The first five steps of
 [Newsletter source reading](docs/NEWSLETTER-SOURCE-CONTENT.md) supersede the earlier headline-only
 contract. The existing newsletter object discovers captured portfolio filings/news hourly and

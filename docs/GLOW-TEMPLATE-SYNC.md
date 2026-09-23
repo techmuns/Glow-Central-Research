@@ -486,3 +486,10 @@ Glow owns the source-reading queue and document-backed writing path in
 and source-read labels in HTML/text/PDF. Preserve these during template sync. The former rule
 that AI receives only headlines is superseded by [Newsletter source reading](NEWSLETTER-SOURCE-CONTENT.md).
 No upstream credentials, portfolio data or production activation records are adopted.
+
+## Grounded OpenAI news notes (24 September 2026)
+
+Glow owns the OpenAI news reader, independent review, cached notes and news spending ledger in
+`worker/newsletter-news-*.mjs` and `worker/newsletter-openai.mjs`. Its `OPENAI_API_KEY` stays in
+Glow’s Worker secrets. See [news AI](NEWSLETTER-NEWS-AI.md); do not copy credentials or assume
+the news allowance also caps filing/PDF or Ask Research costs.
