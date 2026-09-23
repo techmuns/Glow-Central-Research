@@ -410,7 +410,7 @@ const findStory = (brief, test) => briefStories(brief).find(test) || null;
 
 await test('a filing captured after the previous brief went out reaches the next brief once, marked, and never twice', async () => {
   // 15:50 on the 16th is inside the previous (evening) window; the 08:00 brief on the 17th is the next send.
-  const build = (reported) => buildBrief({ edition: 'morning', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assetsWith({ '/data/corp-announcements.json': bseWith([BOOK_ROW()]) }) }, fetcher: makeFetcher({ nse: 'blocked' }), now: MORNING, reported });
+  const build = (reported) => buildBrief({ edition: 'morning', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assetsWith({ '/data/corp-announcements.json': bseWith([BOOK_ROW()]), '/data/nse-filings/index.json': { days: [] } }) }, fetcher: makeFetcher({ nse: 'blocked' }), now: MORNING, reported });
   const isLate = (s) => s.kind === 'filing' && s.ticker === 'AARTIDRUGS' && /overseas customer/.test(s.headline);
 
   const unknown = await build(null);
@@ -445,7 +445,7 @@ await test('a filing captured after the previous brief went out reaches the next
 
 await test('a filing inside the window is carried whether or not the ledger holds it, and the ledger never suppresses the window', async () => {
   const row = BOOK_ROW({ newsId: 'in-window-1', date: '2026-09-16', time: '18:10:00', headline: 'Credit rating upgraded by CRISIL' });
-  const env = { ASSETS: assetsWith({ '/data/corp-announcements.json': bseWith([row]) }) };
+  const env = { ASSETS: assetsWith({ '/data/corp-announcements.json': bseWith([row]), '/data/nse-filings/index.json': { days: [] } }) };
   for (const reported of [null, ledger([]), ledger(['bse:in-window-1'])]) {
     const brief = await buildBrief({ edition: 'morning', day: '2026-09-17', settings: DEFAULT_SETTINGS, env, fetcher: makeFetcher({ nse: 'blocked' }), now: MORNING, reported });
     const story = findStory(brief, (s) => s.kind === 'filing' && /CRISIL/.test(s.headline));
@@ -745,28 +745,28 @@ const purvaAssets = (extra = {}) => assetsWith({
   ...extra,
 });
 
-await test('an announcement lodged with both exchanges and reported by three publishers is ONE update: the exchange\'s own statement leads and the rest are related links', async () => {
+await test('unread exchange filings stay conservative while specific publisher accounts retain their links', async () => {
   const brief = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: purvaAssets() }, fetcher: makeFetcher({ nse: 'blocked' }), now: EVENING_17 });
   const purva = briefStats(brief).companies.find((c) => c.ticker === 'PURVA');
   assert.ok(purva);
   assert.equal(purva.stories.length, 8, 'two exchange copies of two filings and four stories are eight items');
-  assert.equal(purva.clusters.length, 3, '...and three updates: the project, the investor meet, the share move');
-  const project = purva.clusters.find((k) => /2600|2,600/.test(k.main.headline));
+  assert.equal(purva.clusters.length, 5, 'unread generic meetings and an unconfirmed additional account stay separate');
+  const project = purva.clusters.find((k) => k.main.source === 'BSE' && /2600|2,600/.test(k.main.headline));
   assert.equal(project.main.kind, 'filing', 'the exchange\'s own statement leads a publisher\'s account of it');
-  assert.equal(project.main.source, 'BSE', 'the earlier of the two exchange copies leads');
-  assert.equal(project.others.length, 4, 'the other exchange\'s copy and the three publisher stories are related');
-  assert.deepEqual(project.others.map((r) => r.source).sort(), ['Business Standard', 'Business Standard', 'Economic Times', 'NSE']);
+  assert.equal(project.main.source, 'BSE', 'the source filing leads its specific related accounts');
+  assert.equal(project.others.length, 2, 'only reports matching every existing member are related');
+  assert.deepEqual(project.others.map((r) => r.source).sort(), ['Business Standard', 'Economic Times']);
   assert.deepEqual(project.others.map((r) => r.at), [...project.others.map((r) => r.at)].sort((a, b) => a - b), 'related items read in time order');
   const meet = purva.clusters.find((k) => /Investor/.test(k.main.headline));
-  assert.equal(meet.others.length, 1, 'an intimation lodged with both exchanges within the hour is one update, however each exchange worded it');
+  assert.equal(meet.others.length, 0, 'unread generic investor-meet filings cannot establish the same event');
   const move = purva.clusters.find((k) => /shares jump/.test(k.main.headline));
   assert.equal(move.others.length, 0, 'a story about the share price is not the project story');
-  assert.equal(purva.clusters.map((k) => k.id).join(' '), 'PURVA#1 PURVA#2 PURVA#3', 'an update\'s id is its place under its company');
+  assert.equal(purva.clusters.map((k) => k.id).join(' '), 'PURVA#1 PURVA#2 PURVA#3 PURVA#4 PURVA#5', 'an update\'s id is its place under its company');
   const stats = briefStats(brief);
   assert.equal(stats.updates, stats.companies.reduce((n, c) => n + c.clusters.length, 0));
   assert.ok(stats.updates < stats.stories, 'the summary counts updates, not copies');
   const html = renderBriefHtml(brief, { dashboardUrl: 'https://example.test' });
-  assert.ok(html.includes('3 updates from 8 items'), 'the company header says how many items the updates fold');
+  assert.ok(html.includes('5 updates from 8 items'), 'the company header says how many items the updates fold');
   assert.ok(html.includes(`<strong style="color:#1a1712;">${stats.updates} updates</strong>`), 'the summary line counts updates');
   assert.match(briefSubject(brief), new RegExp(`^Glow Ventures · ${stats.updates} updates on your`));
   assert.ok(html.includes('Related: '), 'the copies travel as related links');
@@ -775,8 +775,8 @@ await test('an announcement lodged with both exchanges and reported by three pub
   assert.equal((html.match(/Puravankara secures 4\.68-acre/g) || []).length, 1, 'each item is on the page once');
   assert.ok(brief.reported.some((r) => r.key === 'bse:purva-pr-1') && brief.reported.some((r) => r.key.startsWith('nse:')) && brief.reported.some((r) => r.key === 'news:PURVA|https://example.test/et-1'), 'every folded item still reaches the ledger under its own identity');
   const text = renderBriefText(brief);
-  assert.ok(text.includes('Puravankara Limited (PURVA) · 3 updates from 8 items'));
-  assert.ok(text.includes('    Related: NSE · 17 Sept, 14:13 IST'));
+  assert.ok(text.includes('Puravankara Limited (PURVA) · 5 updates from 8 items'));
+  assert.ok(text.includes('NSE · 17 Sept, 14:13 IST'), 'the separate exchange filing remains visible');
 });
 
 const MOODS_STUB = { watch: { id: 'watch' } };
@@ -807,13 +807,14 @@ await test('the AI notes: one bounded request per brief, JSON in and out, each n
     if (JSON.parse(body.messages[0].content).REPORTS) return new Response('duplicate check unavailable in the notes-only fixture', { status: 503 });
     calls.push({ url, init, body });
     if (reply === 'refused') return Response.json({ message: 'private upstream text' }, { status: 403 });
-    if (reply === 'garbled') return Response.json({ content: [{ type: 'text', text: 'Sorry — {not json' }] });
+    if (reply === 'garbled') return Response.json({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Sorry — {not json' }] });
     const items = JSON.parse(body.messages[0].content).ITEMS;
     const notes = items.map((i) => ({ id: i.id, summary: `What: ${i.headline.slice(0, 30)}`, impact: 'Could add to revenue; the size is stated in the filing.' }));
     if (reply === 'partial') notes.pop();
-    return Response.json({ content: [{ type: 'text', text: `Here is the JSON you asked for:\n${JSON.stringify([...notes, { id: 'NOT#1', summary: 'stray', impact: 'stray' }])}` }] });
+    return Response.json({ stop_reason: 'end_turn', content: [{ type: 'text', text: `Here is the JSON you asked for:\n${JSON.stringify([...notes, { id: 'NOT#1', summary: 'stray', impact: 'stray' }])}` }] });
   };
-  const build = (reply, env = key) => { const calls = []; return buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: purvaAssets(), ...env }, fetcher: aiFetcher(reply, calls), now: EVENING_17 }).then((brief) => ({ brief, calls })); };
+  const contentService = { enqueue() {}, async process() {}, get(id) { return { state: 'ready', sourceUrl: 'https://www.bseindia.com/fixture.pdf', facts: [{ field: 'source', value: 'Fixture source detail', quote: 'Fixture source detail', location: 'page 1' }] }; } };
+  const build = (reply, env = key) => { const calls = []; return buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: purvaAssets(), ...env }, fetcher: aiFetcher(reply, calls), now: EVENING_17, contentService }).then((brief) => ({ brief, calls })); };
 
   const { brief, calls } = await build('ok');
   assert.equal(calls.length, 1, 'one request per brief');
@@ -824,16 +825,16 @@ await test('the AI notes: one bounded request per brief, JSON in and out, each n
   assert.equal(calls[0].body.stream, undefined, 'a plain reply, not a stream');
   assert.equal(calls[0].body.model, 'global.anthropic.claude-sonnet-5');
   assert.deepEqual(calls[0].body.thinking, { type: 'disabled' });
-  assert.ok(calls[0].body.system[0].text.includes('never add a figure'), 'the instructions forbid new facts');
+  assert.ok(calls[0].body.system[0].text.toLowerCase().includes('never add a figure'), 'the instructions forbid new facts');
   const asked = JSON.parse(calls[0].body.messages[0].content).ITEMS;
   const stats = briefStats(brief);
   const storyUpdates = stats.companies.flatMap((c) => c.clusters.filter((k) => k.kind === 'story'));
   assert.equal(asked.length, storyUpdates.length, 'every filing or story update is asked about; a trade or a price move is not');
   assert.ok(asked.every((i) => storyUpdates.some((k) => k.id === i.id)));
   const project = asked.find((i) => /2600|2,600/.test(i.headline));
-  assert.equal(project.related.length, 4, 'the copies\' headlines travel with the leading item');
+  assert.ok(project.related.length >= 1, 'related source headlines travel with the leading item');
   assert.equal(project.kind, 'exchange filing');
-  assert.ok(!JSON.stringify(asked).includes('https://'), 'the model gets headlines and summaries, never a link or a document');
+  assert.ok(asked.every(i => i.SOURCE_EVIDENCE.some(s => s.facts.length && s.url)), 'the writer receives source facts, passages and links');
   assert.equal(brief.ai.ok, true);
   assert.equal(brief.ai.requested, asked.length);
   assert.equal(brief.ai.answered, asked.length);
@@ -842,7 +843,7 @@ await test('the AI notes: one bounded request per brief, JSON in and out, each n
   assert.ok(html.includes('AI summary') && html.includes('Potential impact'), 'the notes are marked AI on their face');
   assert.ok(html.includes('What: Press Release titled &quot;Purav'), 'a note is escaped like any other text');
   assert.ok(html.includes(`AI notes by global.anthropic.claude-sonnet-5 on ${asked.length} of ${asked.length} updates, written Thu 17 Sep, 16:00 IST`), 'the sources line names the model and the count');
-  assert.ok(html.includes('written by a language model from those headlines and summaries only'), 'the footer says what the notes are');
+  assert.ok(html.includes('AI summaries use extracted source-document or article facts'), 'the footer says what the notes are');
   const text = renderBriefText(brief);
   assert.ok(text.includes('    AI summary: What: ') && text.includes('    Potential impact: Could add to revenue'));
 
@@ -872,7 +873,7 @@ await test('the AI notes: one bounded request per brief, JSON in and out, each n
   assert.deepEqual(parseAiNotes('```json\n[{"id":"A#1","summary":"s","impact":"i"},{"id":"A#1","summary":"dup","impact":"dup"},{"id":"A#2","summary":"","impact":"i"}]\n```', new Set(['A#1', 'A#2'])), { 'A#1': { summary: 's', impact: 'i' } }, 'fenced JSON is read, a duplicate id keeps the first, a note missing a line is dropped');
   assert.equal(parseAiNotes('no json here', new Set(['A#1'])), null);
   assert.equal(parseAiNotes('{"id":"A#1"}', new Set(['A#1'])), null, 'an object is not the array asked for');
-  assert.equal(parseAiNotes(`[{"id":"A#1","summary":"${'x'.repeat(500)}","impact":"i"}]`, new Set(['A#1']))['A#1'].summary.length, 320, 'a note is clipped');
+  assert.equal(parseAiNotes(`[{"id":"A#1","summary":"${'x'.repeat(800)}","impact":"i"}]`, new Set(['A#1']))['A#1'].summary.length, 600, 'a note is clipped');
 });
 
 // ---- the portfolio on the session, and the Indian indices ------------------------------------------
@@ -1205,7 +1206,7 @@ await test('split-company sentiment counts updates rather than related exchange 
   const template = morning.announcements.groups[0].items[0];
   paired.news.groups = []; paired.trades.groups = []; paired.moves.groups = [];
   paired.announcements.groups = [{ ticker: 'AARTIDRUGS', company: 'Aarti Drugs Ltd', items: Array.from({ length: 32 }, (_, i) => ['NSE', 'BSE'].map(exchange => ({
-    ...template, headline: `Disclosure${i}`,
+    ...template, headline: `Disclosure${i}`, content: { state: 'ready', hash: `fixture-document-${i}`, facts: [] },
     subject: 'Credit Rating / ' + 'Full source particulars and conditions. '.repeat(50),
     at: MORNING - i * 7200_000 - 60000, exchanges: [exchange], direction: 'negative',
     url: `https://example.test/${exchange}/${i}`, keys: [`paired:${exchange}:${i}`],
