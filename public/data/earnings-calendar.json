@@ -1,11 +1,16 @@
 {
-  "capturedAt": "2026-09-22T06:31:14.426Z",
-  "from": "2026-09-19",
-  "to": "2026-10-13",
+  "capturedAt": "2026-09-23T04:30:43.311Z",
+  "from": "2026-09-20",
+  "to": "2026-10-14",
   "pageSize": 20,
   "source": "Moneycontrol — Earnings Calendar (all-exchange counts plus every earnings-widget pagination page)",
   "note": "The per-date counts and company lists both cover All exchanges. Every published pagination page is captured; counts are re-fetched live by the Worker and these lists are as of capturedAt.",
   "days": [
+    {
+      "date": "2026-10-14",
+      "displayDate": "14 Oct",
+      "count": 0
+    },
     {
       "date": "2026-10-13",
       "displayDate": "13 Oct",
@@ -125,11 +130,6 @@
       "date": "2026-09-20",
       "displayDate": "20 Sep",
       "count": 0
-    },
-    {
-      "date": "2026-09-19",
-      "displayDate": "19 Sep",
-      "count": 0
     }
   ],
   "byDate": {
@@ -143,23 +143,23 @@
           "displayDate": "13 Oct",
           "quarter": "NA",
           "time": null,
-          "ltp": 111.02,
-          "changePct": -0.02,
-          "marketCap": 666.12,
+          "ltp": 111.9,
+          "changePct": 0.76,
+          "marketCap": 671.4,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/trading/statetradingcorporationindia/STC",
           "ticker": "STCINDIA",
           "fullName": "STC India",
           "industry": "Trading",
           "shares": 60000000,
-          "mktCapAtBuild": 666.12
+          "mktCapAtBuild": 671.4
         }
       ],
       "scheduledCount": 1,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "22/09/2026"
+      "asOnDate": "23/09/2026"
     },
     "2026-10-12": {
       "rows": [
@@ -171,9 +171,9 @@
           "displayDate": "12 Oct",
           "quarter": "NA",
           "time": null,
-          "ltp": 1259,
-          "changePct": -1.72,
-          "marketCap": 341650.44,
+          "ltp": 1272.5,
+          "changePct": 0.17,
+          "marketCap": 345313.88,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/computers-software/hcltechnologies/HCL02",
           "ticker": "HCLTECH",
@@ -187,7 +187,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "22/09/2026"
+      "asOnDate": "23/09/2026"
     },
     "2026-09-23": {
       "rows": [
@@ -199,23 +199,23 @@
           "displayDate": "23 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 52.82,
-          "changePct": 0.25,
-          "marketCap": 345.93,
+          "ltp": 52.88,
+          "changePct": -2.38,
+          "marketCap": 346.33,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-infrastructure/annuprojects/APL12",
           "ticker": "ANNU",
           "fullName": "Annu Projects",
           "industry": "Construction - Infrastructure",
           "shares": 65492670,
-          "mktCapAtBuild": 345.93
+          "mktCapAtBuild": 346.33
         }
       ],
       "scheduledCount": 1,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "22/09/2026"
+      "asOnDate": "23/09/2026"
     },
     "2026-09-22": {
       "rows": [
@@ -227,9 +227,9 @@
           "displayDate": "22 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 17.6,
-          "changePct": 3.53,
-          "marketCap": 17.01,
+          "ltp": 17.48,
+          "changePct": null,
+          "marketCap": 16.89,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/paper/ramapapermills/RPM"
         }
@@ -238,7 +238,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "22/09/2026"
+      "asOnDate": "23/09/2026"
     },
     "2026-09-21": {
       "rows": [
@@ -250,16 +250,16 @@
           "displayDate": "21 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 858.9,
-          "changePct": -3.19,
-          "marketCap": 7848.07,
+          "ltp": 869.05,
+          "changePct": 1.84,
+          "marketCap": 7940.81,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/trading/augmontenterprises/AEL13",
           "ticker": "AUGMONT",
           "fullName": "Augmont Enterpr",
           "industry": "Trading",
           "shares": 91373505,
-          "mktCapAtBuild": 7848.07
+          "mktCapAtBuild": 7940.81
         },
         {
           "scId": "SPL16",
@@ -269,16 +269,16 @@
           "displayDate": "21 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 1160.9,
-          "changePct": 0.42,
-          "marketCap": 7459.49,
+          "ltp": 1088,
+          "changePct": -2.94,
+          "marketCap": 6991.06,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/pharmaceuticals-drugs/symbiotecpharmalab/SPL14",
           "ticker": "SYMBIOTEC",
           "fullName": "Symbiotec Pharm",
           "industry": "Pharmaceuticals & Drugs",
           "shares": 64256112,
-          "mktCapAtBuild": 7459.49
+          "mktCapAtBuild": 6991.06
         },
         {
           "scId": "LIL08",
@@ -288,16 +288,16 @@
           "displayDate": "21 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 108.1,
-          "changePct": -4.64,
-          "marketCap": 3292.23,
+          "ltp": 107.51,
+          "changePct": -0.7,
+          "marketCap": 3274.26,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cables/luminoindustries/LIL08",
           "ticker": "LUMINO",
           "fullName": "Lumino Industri",
           "industry": "Cables",
           "shares": 304553705,
-          "mktCapAtBuild": 3292.23
+          "mktCapAtBuild": 3274.26
         },
         {
           "scId": "KJA",
@@ -307,9 +307,9 @@
           "displayDate": "21 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 8.71,
-          "changePct": 3.94,
-          "marketCap": 1392.29,
+          "ltp": 9.18,
+          "changePct": 4.91,
+          "marketCap": 1467.42,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cigarettes-tobacco/eliteconinternational/KJA"
         }
@@ -318,7 +318,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "22/09/2026"
+      "asOnDate": "23/09/2026"
     }
   }
 }
