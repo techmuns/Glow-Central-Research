@@ -52,7 +52,9 @@ partial reads and failures appear in source coverage.
 
 Every HTML, text and PDF row retains its full source date/time and provider, plus
 single-source/cross-check status and any withheld-change reason. Earlier and
-delayed Indian observations stay labelled; an intraday observation cannot become
+delayed observations stay labelled. Global quotes older than four days or still
+preceding a provider session that opened more than 20 minutes ago are earlier
+quotes, excluded from the headline summary; an intraday observation cannot become
 a close just because the market shut. Section headings do not promise today's
 close. A macro-series fallback retains its own date and never conceals a known
 provider conflict. Stale or unverified rows are excluded from the headline glance.

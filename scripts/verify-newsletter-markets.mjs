@@ -45,6 +45,14 @@ test('captured global response uses prior daily bar and changes yields in basis 
   assert.equal(formatChange(quoteFromChart(fixture('yahoo-us10y.json'), yieldRow, at)), '+1.0 bp');
 });
 
+test('old global quotes cannot acquire a fresh close label from a new read', () => {
+  const row = MARKET_ROWS.find(r => r.id === 'sp500');
+  const body = fixture('yahoo-sp500.json');
+  assert.equal(quoteFromChart(body, row, at).state, 'stale');
+  assert.equal(quoteFromChart(body, row, Date.parse('2026-09-17T15:00:00Z')).state, 'stale', 'the next US session opened without a new print');
+  assert.equal(quoteFromChart(body, row, Date.parse('2026-09-17T08:00:00Z')).state, 'close', 'an overnight close remains valid before the next open');
+});
+
 test('actual Yahoo missing-close response cannot turn a two-day or five-day change into a daily gain', () => {
   const q = quoteFromChart(fixture('yahoo-nifty-missing-close.json'), nifty, at);
   assert.equal(q.last, 23446.8); assert.equal(q.prev, null); assert.equal(q.changePct, null);

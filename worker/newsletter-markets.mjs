@@ -60,6 +60,9 @@ export function quoteFromChart(body, row, now) {
   let state = inSession ? (now - asOf <= 20 * 60000 ? 'live' : 'delayed') : 'close';
   // A mid-session observation cannot become a close merely because the clock advanced.
   if (!inSession && asOf >= start && asOf < end - 60000) state = 'delayed';
+  // Provider session bounds detect a missed open; a long gap remains visibly dated
+  // even when a provider advances its next-session bounds during an outage.
+  if (now - asOf > 4 * 86400000 || (Number.isFinite(start) && now >= start + 20 * 60000 && asOf < start)) state = 'stale';
   if (row.group === 'india') {
     if (sessionDate !== expectedSession(now)) state = 'stale';
     else if (!marketWindow(now).open && asOf < Date.parse(`${sessionDate}T15:30:00+05:30`)) state = 'delayed';
