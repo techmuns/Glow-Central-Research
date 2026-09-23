@@ -19,6 +19,7 @@ import * as familyManagers from '../data/managers.js';
 // Roadmap-only entries and credential plumbing are not customer-facing data sources.
 
 import * as exchangeDeals from '../data/exchange-deals.js';
+import * as kpiImpact from '../data/kpi-impact.js';
 import { EXCHANGE_SOURCES } from '../data/exchange-deals-shared.js';
 import { companyCaptureStatus } from '../data/company-captures.js';
 import { escapeHtml } from '../core/dom.js';
@@ -274,6 +275,21 @@ export function sourceGroups() {
           cadence: 'All Alerts revalidates on visit, Refresh and every 90 seconds while visible. Source updates reuse loaded records; no per-company walks or upstream job dispatches.',
           status: 'derived',
           file: 'js/data/ai-alerts.js · js/tabs/ai-alerts.js · js/data/daily-alerts.js · js/tabs/daily-alerts.js',
+        },
+        {
+          name: 'Sector → KPI ontology — "KPIs in play" on AI Alerts',
+          url: 'https://www.screener.in/',
+          // Every figure is read from the loaded file when this opens; the ontology loads with AI
+          // Alerts, so before that the clauses simply drop out.
+          feeds: 'The desk\'s sector → KPI ontology (the same one the <code class="rounded bg-slate-100 px-1">sector_kpis</code> table is seeded from), reproduced unchanged, with each company filed under NSE\'s own industry classification as Screener prints it. An AI Alerts card names the KPIs of <em>its company\'s own sector</em> that its evidence bears on — an order win is Order Inflow and Order Book for a capital-goods company and Deal Wins for an IT company; a QIP is a bank\'s Capital Adequacy Ratio — read deterministically from the filing rule, the tracked keyword, a con-call highlight or a filed result. No model call and no score: a company whose sector is not resolved, and evidence that names no KPI, carry no line.' +
+            (() => {
+              const resolved = num(() => kpiImpact.snapshot()?.payload?.counts?.resolved);
+              const groupCount = num(() => Object.keys(kpiImpact.snapshot()?.groups || {}).length);
+              return resolved && groupCount ? ` ${formatNumber(resolved)} companies are resolved into ${formatNumber(groupCount)} KPI groups.` : '';
+            })(),
+          cadence: 'Loaded once with AI Alerts. Classification refreshed by scripts/classify-companies.mjs; the ontology changes only when the desk\'s file does.',
+          status: 'static',
+          file: 'public/data/sector-kpis.json · public/data/company-classification.json · scripts/fixtures/sector-kpi-ontology.yaml',
         },
       ],
     },

@@ -1,0 +1,144 @@
+#!/usr/bin/env node
+// scripts/verify-kpi-impact-ui.mjs — the "KPIs in play" row on real AI Alerts cards, in a browser.
+//
+// The real AI Alerts tab and ranking run over events built by the real collectors' own event
+// builders (announcementEvent, the news signal) for companies the committed sector file classifies,
+// with the General Alerts collector replaced by a fixture so nothing leaves the machine. It asserts
+// what a reader sees: the row, its chips in evidence order, each chip a door to its source with the
+// mechanism in its tooltip, no row for a company whose sector is not resolved, search by KPI name,
+// no sideways scroll at phone width, and zero page errors.
+//
+//   PLAYWRIGHT_ROOT=/path/to/node_modules/playwright node scripts/verify-kpi-impact-ui.mjs [screenshot.png]
+
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { dirname, extname, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
+const { announcementEvent } = await import('../public/js/data/daily-alerts.js');
+const { matchKeywords } = await import('../public/js/data/news-keywords.js');
+const { ATTRIBUTION_VERSION } = await import('../public/js/data/company-news-attribution.js');
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
+const screenshot = process.argv[2] || null;
+
+let seq = 0;
+const filing = (ticker, company, title, subCategory) => {
+  const event = announcementEvent({ newsId: `ui-${++seq}`, ticker, company, title, headline: title, subCategory, category: 'Company Update',
+    date: '2026-09-22', time: '10:30:00', url: `https://www.bseindia.com/fixture/${seq}.pdf`, source: 'BSE' });
+  const { sourceRecord, ...rest } = event;
+  return { ...rest, feed: 'announcements', feedLabel: 'Corporate Announcements', company };
+};
+const story = (ticker, company, headline) => {
+  const hits = matchKeywords(headline);
+  return { id: `news:${++seq}`, feed: 'news', feedLabel: 'Company News', ticker, company, time: '09:00', headline, detail: 'Published by Fixture Wire',
+    url: `https://news.example.test/${seq}`, importance: 'high', direction: 'neutral', keywordIds: hits.map((h) => h.id), keywords: hits.map((h) => h.label),
+    attribution: { version: ATTRIBUTION_VERSION, status: 'confirmed', reason: 'fixture' }, namesCompany: true, aiEligible: true };
+};
+const events = [
+  filing('BHEL', 'Bharat Heavy Electricals', 'Receipt of order worth Rs. 2,500 crore for supply of boilers', 'Award of Order / Receipt of Order'),
+  story('SBIN', 'State Bank of India', 'SBI raises Rs 10,000 crore via QIP'),
+  { id: 'call:SBIN', feed: 'concalls', feedLabel: 'Con-call', ticker: 'SBIN', company: 'State Bank of India', time: '17:00',
+    headline: 'Con-call analysis published', detail: 'Good result score 72.0 · ▲ NIM expanded 20bps QoQ', url: 'https://stockscans.example.test/call',
+    importance: 'high', direction: 'positive', tags: ['▲ NIM expanded 20bps QoQ'] },
+  story('LUPIN', 'Lupin', 'Lupin receives USFDA approval for generic diabetes drug'),
+  { id: 'earnings:LUPIN', feed: 'earnings', feedLabel: 'Earnings', ticker: 'LUPIN', company: 'Lupin', time: null, headline: 'YoY quarterly result filed',
+    detail: 'Revenue +13.0% · Net Profit to profit', url: 'https://www.moneycontrol.com/fixture', importance: 'high', direction: 'positive',
+    basis: 'YoY', metrics: { revenue: { pct: 13, kind: 'normal' }, netProfit: { pct: null, kind: 'turnaround' } } },
+  filing('ZZUNKNOWN', 'Unclassified Industries', 'Receipt of order worth Rs. 90 crore for supply of pumps', 'Award of Order / Receipt of Order'),
+];
+const holdings = [...new Map(events.map((e) => [e.ticker, { ticker: e.ticker, name: e.company }])).values()]
+  .map((h, i) => ({ ...h, isin: `INE${String(i).padStart(9, '0')}`, sector: 'Test' }));
+const feeds = ['announcements', 'news', 'concalls', 'earnings'].map((id) => ({ id, status: 'ok', reachesToday: true }));
+
+const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"></head>
+<body style="padding:16px;background:#f6f4fb;font-family:Arial,sans-serif"><main id="root" class="mx-auto max-w-7xl"></main>
+<script>window.fixtureEvents=${JSON.stringify(events)};</script>
+<script type="module">
+import * as tab from '/js/tabs/ai-alerts.js';
+import * as coverage from '/js/data/coverage.js';
+coverage.prime({holdings:${JSON.stringify(holdings)}});
+tab.render({root:document.querySelector('#root'),scope:'portfolio',params:{}});
+</script></body></html>`;
+const fixtureModule = `
+import { currentDay } from '../ui/ai-alert-utils.js';
+export { currentDay as today } from '../ui/ai-alert-utils.js';
+const listeners=new Set(); export const onChange=fn=>{listeners.add(fn);return()=>listeners.delete(fn);};
+export async function readCachedAlertWindow(){ return null; }
+export async function collect({scope,onPartial}) {
+  const day=currentDay();
+  const report={day,scope,events:window.fixtureEvents.map(e=>({...e,day,at:day})),feeds:${JSON.stringify(feeds)},pending:0};
+  onPartial?.(report);
+  return report;
+}`;
+const server = createServer((req, res) => {
+  const pathname = new URL(req.url, 'http://localhost').pathname;
+  try {
+    if (pathname === '/') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
+    if (pathname === '/js/data/daily-alerts.js') { res.setHeader('content-type', 'text/javascript'); res.end(fixtureModule); return; }
+    if (pathname === '/js/data/capture-watchdog.js') { res.setHeader('content-type', 'text/javascript'); res.end('export const onCaptureLanded=()=>()=>{};'); return; }
+    const path = resolve(root, `.${pathname}`);
+    if (!path.startsWith(root + sep)) throw Error('Invalid path');
+    res.setHeader('content-type', { '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' }[extname(path)] || 'application/octet-stream');
+    res.end(readFileSync(path));
+  } catch { res.writeHead(404); res.end('{}'); }
+});
+await new Promise((done) => server.listen(0, '127.0.0.1', done));
+const origin = `http://127.0.0.1:${server.address().port}`;
+const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
+const errors = [];
+try {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1600 } });
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.route('**/*', (route) => (route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' })));
+  await page.goto(origin);
+  const card = (ticker) => page.locator(`[data-ai-card][data-ticker="${ticker}"]`);
+  await card('BHEL').locator('[data-ai-kpis]').waitFor({ timeout: 15000 });
+
+  const chips = async (ticker) => card(ticker).locator('[data-ai-kpi]').allInnerTexts();
+  const bhel = card('BHEL').locator('[data-ai-kpis]');
+  assert.equal(await bhel.getAttribute('data-kpi-group'), 'capital_goods');
+  assert.match(await bhel.innerText(), /KPIs in play · Capital Goods/i);
+  assert.deepEqual(await chips('BHEL'), ['Order Inflow', 'Order Book', 'Book-to-Bill Ratio']);
+  const inflow = card('BHEL').locator('[data-ai-kpi="order_inflow"]');
+  assert.equal(await inflow.evaluate((a) => a.tagName), 'A', 'a chip is a door to its source');
+  assert.equal(await inflow.getAttribute('href'), events[0].url);
+  assert.equal(await inflow.getAttribute('target'), '_blank');
+  assert.match(await inflow.getAttribute('title'), /^Order win → Order Inflow\. A new order adds to order inflow/);
+  assert.match(await inflow.getAttribute('title'), /Capital Goods \(Capital Goods › Heavy Electrical Equipment\)/);
+
+  const sbi = await chips('SBIN');
+  for (const name of ['Capital Adequacy Ratio', 'EPS', 'Book Value Per Share', 'Net Interest Margin']) assert(sbi.includes(name), `SBI names ${name}: ${sbi.join(', ')}`);
+  assert(!sbi.some((name) => /Order/.test(name)), 'a bank never shows an order KPI');
+  assert.deepEqual(await chips('LUPIN'), ['Revenue +13%', 'PAT to profit', 'US Revenue', 'ANDA Filings'],
+    'the filed result leads with its measured change, then the approval');
+  assert.equal(await card('ZZUNKNOWN').count(), 1, 'the unclassified company still has its card');
+  assert.equal(await card('ZZUNKNOWN').locator('[data-ai-kpis]').count(), 0, 'no sector, no KPI row');
+
+  // Searching by a KPI name finds the card that names it.
+  await page.locator('[data-ai-search]').fill('order book');
+  await page.waitForFunction(() => document.querySelectorAll('[data-ai-card]').length === 1);
+  assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'BHEL');
+  await page.locator('[data-ai-search]').fill('');
+  await page.waitForFunction(() => document.querySelectorAll('[data-ai-card]').length >= 4);
+
+  if (screenshot) await card('BHEL').screenshot({ path: screenshot });
+
+  // Phone width: the chips wrap inside the card and the page never scrolls sideways.
+  await page.setViewportSize({ width: 390, height: 1400 });
+  await page.waitForTimeout(150);
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), 'no sideways scroll at 390px');
+  const row = await card('LUPIN').locator('[data-ai-kpis]').boundingBox();
+  const box = await card('LUPIN').boundingBox();
+  assert(row.x + row.width <= box.x + box.width + 1, 'the KPI row stays inside its card at 390px');
+  if (screenshot) await card('LUPIN').screenshot({ path: screenshot.replace(/\.png$/, '-390.png') });
+
+  assert.deepEqual(errors, [], 'zero page errors');
+  console.log('PASS KPI row: chips in evidence order linking to their sources, the mechanism in each tooltip, none for an unclassified company, search by KPI, 390px layout, zero page errors.');
+} finally {
+  await browser.close();
+  server.close();
+}

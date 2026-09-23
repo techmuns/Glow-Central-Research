@@ -16,6 +16,7 @@ import { getHostContext } from '../core/host-context.js';
 import { formatNumber } from '../core/format.js';
 import * as refresh from '../core/refresh.js';
 import * as alerts from '../data/ai-alerts.js';
+import { kpiLine } from '../data/kpi-impact.js';
 import { chatterTopic } from '../data/chatter-sentiment.js';
 import { alertWindowCache } from '../data/alert-window-cache.js';
 import * as screenerInsights from '../data/screener-insights.js';
@@ -639,7 +640,48 @@ function briefMarkup(card, scope) {
             .join('')}</p>
         </div>
       </li>
+      ${kpiMarkup(card, scope)}
     </ul>`;
+}
+
+/**
+ * KPIs IN PLAY — which lines of THIS company's sector model the evidence names.
+ *
+ * One row of chips under the three questions, and nothing at all where the company's sector is not
+ * resolved or nothing on the card names a KPI (see data/kpi-impact.js: no sector, no line). The
+ * chips carry no colour, because a KPI being in play is not a direction; the only figure printed is
+ * a FILED result's own change. Each chip is a door to the record it was read from, through the same
+ * `evidenceDestination` the evidence rows use, and its tooltip says why in one sentence — the item,
+ * the mechanism and the sector — so the card itself stays one line.
+ */
+function kpiMarkup(card, scope) {
+  const impact = card.kpis;
+  if (!impact?.items?.length) return '';
+  const eventsById = new Map((card.events || []).map((event) => [String(event.id), event]));
+  const sectorPath = [impact.sector, impact.industry].filter(Boolean).join(' › ');
+  const chips = impact.items.map((item) => {
+    const label = item.value ? `${item.name} ${item.value}` : item.name;
+    const title = `${item.triggerLabel} → ${item.name}. ${item.why} ${impact.groupLabel}${sectorPath ? ` (${sectorPath})` : ''}. Source: ${item.source}${item.day ? ` · ${fmtDay(item.day)}` : ''}.`;
+    const event = item.eventId != null ? eventsById.get(String(item.eventId)) : null;
+    const chipClass = 'inline-flex items-center rounded-md bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200';
+    if (!event) return `<span data-ai-kpi="${escapeHtml(item.key)}" title="${escapeHtml(title)}" class="${chipClass}">${escapeHtml(label)}</span>`;
+    const destination = evidenceDestination(event, scope);
+    return `<a data-ai-kpi="${escapeHtml(item.key)}" data-kpi-trigger="${escapeHtml(item.trigger)}" href="${escapeHtml(destination.href)}"
+      ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
+      aria-label="${escapeHtml(`${label} — ${destination.ariaLabel}`)}" title="${escapeHtml(title)}"
+      class="${chipClass} transition hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${escapeHtml(label)}</a>`;
+  });
+  if (impact.overflow > 0) {
+    chips.push(`<span data-ai-kpi-more class="text-xs font-semibold text-slate-500" title="${escapeHtml(`${impact.overflow} more ${impact.overflow === 1 ? 'KPI' : 'KPIs'} named by this card's evidence. Every event is in All Alerts.`)}">+${escapeHtml(formatNumber(impact.overflow))}</span>`);
+  }
+  return `
+      <li class="flex items-start gap-2.5" data-ai-kpis data-kpi-group="${escapeHtml(impact.group)}">
+        <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" aria-hidden="true"></span>
+        <div class="min-w-0 flex-1">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400" title="${escapeHtml(`KPIs ${impact.groupLabel} companies report that this card's evidence names. Read from the sector → KPI ontology; not a forecast and not a direction.`)}">KPIs in play · ${escapeHtml(impact.groupLabel)}</div>
+          <div class="mt-1 flex flex-wrap items-center gap-1.5">${chips.join('')}</div>
+        </div>
+      </li>`;
 }
 
 const METRIC_TONE = {
@@ -758,6 +800,7 @@ function cardSnapshot(card) {
     eventDate: latestAlertEvent(card)?.day,
     body: card.events.map(event => [event.headline, event.detail, event.reason].filter(Boolean).join('\n')).join('\n\n'),
     details: [{ label: 'Earnings assumption, valuation or thesis?', value: card.impactLine || alerts.impactLine(card.impacts || []) },
+      ...(card.kpis?.items?.length ? [{ label: 'KPIs in play', value: kpiLine(card.kpis) }] : []),
       ...card.events.map(event => ({ label: `${event.feedLabel || event.feed} · ${event.day || 'Date not supplied'}`, value: event.headline }))],
     links: card.events.filter(event => event.url).map(event => ({ label: event.headline, url: event.url })),
   });

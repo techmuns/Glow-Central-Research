@@ -1613,6 +1613,20 @@ an expression — flipping it to `true` restores the old behaviour exactly. **Di
 the narrow negative/positive rules over the filing text are unchanged, and the suite asserts a
 downgrade is still negative, a dividend still positive and an AGM still neutral.
 
+**AND TWO KEYWORD READINGS ARE CANCELLED BY THE FILING'S OWN WORDS** (`announcementSignal`,
+23 September 2026). Over three retained days, **108 filings were high-importance only because
+"Acquisition" matched the NAME of SEBI's (Substantial Acquisition of Shares and Takeovers)
+Regulations** — a holder's Regulation 29/31 shareholding disclosure, six of them on book companies —
+and **9 only because "Receipt of Order" matched an order a court, tribunal or tax officer passed**,
+filed under the exchange's own "Award of Order / Receipt of Order" label (Sasken's GST appeal twice).
+So `SAST_HOLDING_DISCLOSURE` drops Acquisition (an open offer, its public announcement or letter of
+offer keeps it — that IS a takeover) and `LEGAL_ORDER` drops Order and Receipt of Order; the reason
+string names what was dropped and why. A tax demand or penalty is still read, as a negative, by the
+enforcement rule, and "(excluding taxes)" on a supply order does not trip it. News is untouched: the
+same two traps measured 6 of 706 order headlines and no SAST headlines across 80,580 stories.
+`LEGAL_ORDER` is exported and is also the KPI layer's definition, so the alert and its KPI row
+cannot disagree about which filings are orders.
+
 **The Topic column took the Sub-category column's place**, exactly as News' took the Outlet
 column's: `rowSub` already prints the sub-category under every subject, so the column was a second
 copy of it. The sub-category keeps its own filter and its place in the export. **The strict
@@ -3516,6 +3530,47 @@ and a link to General Alerts with the existing table search seeded for the ticke
 pure and exported; test its policy branches with fixtures rather than waiting for today's capture
 to happen to contain every case.
 
+### KPIs IN PLAY — which lines of the company's OWN sector model the evidence names (GLOW-OWNED)
+
+The desk's ask (23 September 2026): when something genuinely comes up, say which KPIs it moves for
+THAT company, cleanly, with no garbage. `js/data/kpi-impact.js` answers it with a table of TRIGGERS
+(order win, order cancelled, order book, capacity, network expansion, launch, USFDA inspection,
+regulatory approval, equity raise, buyback, dividend, credit-rating action, plant disruption,
+acquisition, divestment, payment default, business update) crossed with the company's KPI GROUP from
+the desk's own sector → KPI ontology (`scripts/fixtures/sector-kpi-ontology.yaml` → `sector-kpis.json`,
+see `docs/DATA-CONTRACTS.md` → *Sector KPIs*), plus a filed result's measured change and the KPIs a
+con-call highlight names through the ontology's own aliases. The card gets one row of chips under its
+two bullets — *KPIs in play · Capital Goods: Order Inflow · Order Book · Book-to-Bill Ratio* — each a
+door to its source, the item and mechanism in the tooltip, at most four, the rest counted. No model
+call, no request per card, no score, no alert. Seven rules, every one asserted by
+`verify-kpi-impact.mjs`:
+
+1. **A KPI is named only from the company's own sector list** (its group's KPIs or the 40 globals).
+   The suite walks every (trigger, group) and fails on any other KPI; the engine drops it at run time.
+2. **No sector, no line.** An unresolved company, a feed with no topic (tape, fund books, insider,
+   chatter), market-wide news, a related-entity report and unconfirmed news name nothing.
+3. **The trigger must be the company's own item, and each trap is measured on the captures**: a SEBI
+   takeover-regulation disclosure is not an acquisition; a court or tax order is not an order win; a
+   broker's stock downgrade is not a credit rating; "commissioning" inside an EPC order and "EIL to
+   execute a greenfield refinery" are the CLIENT's plant; a hotel management contract is network, not
+   an order; a dividend a board will only "consider" sets no figure; an ESOP allotment is not a raise.
+4. **Operator KPIs need the operator's asset in the text.** NSE files telecom-equipment makers under
+   telecom and BLS (visa services) under travel, so a rule naming ARPU or room keys `requires` the
+   asset — plans, rooms, beds, MW, a refinery — or names nothing.
+5. **A mention is a mention.** Aliases match only for the company's group, two-to-four-letter acronyms
+   only in capitals ("NIM", not "nim"), never the stated generic words (sales, volume, yield, tariff,
+   NAV, CFO, MoU), and never a highlight about what was NOT disclosed.
+6. **No direction and no forecast** — chips carry no colour; the one figure printed is a filed result's
+   own change, sign changes in words ("PAT to profit").
+7. **Events carry what the card reads.** The AI pool drops `sourceRecord`, so the earnings event now
+   carries `basis` and `metrics` and the con-call event `tags`, as fields; nothing is parsed back out
+   of `detail`. A pool built before these fields existed simply yields fewer chips until its next build.
+
+Classification: `node scripts/classify-companies.mjs && node scripts/build-sector-kpis.mjs` — all
+166 listed book companies and the NSE-500 resolve today (623 exact pairs, 6 REITs by the one stated
+override). A company outside both carries no row until it is classified (`CLASSIFY_SCOPE=tracked`
+adds the ~1,900-name tracked universe).
+
 ## Ask Research — dashboard evidence, streamed immediately
 
 **Answer layout (6 September 2026):** use one compact toolbar, an on-demand native dialog for
@@ -4551,6 +4606,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change who is asked, or how the contributor dropdown behaves | `js/ui/watchlist-attribution.js` (the prompt) + `js/core/watchlist-people.js` (the roster and this device's own name) — read *An addition carries the name of whoever made it* first. Never preselect a name on a device nobody has identified themselves on |
 | Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book, and test `rankReport()` directly |
 | Change what an AI Alerts card SAYS, or the four figures on it | `plainInsight()` / `cardMetrics()` / `plainHeadline()` / `topEvidence()` in `js/data/ai-alerts.js` — all pure and exported. Read *Time to insight is the product's only job* first: no new number, only sentences we wrote may be reworded, the volume cell takes no tone, and the figures follow `READ_ORDER` rather than score order |
+| Change which KPIs an alert names, or add a trigger | `TRIGGERS` in `js/data/kpi-impact.js` (+ `kpiMarkup()` in `js/tabs/ai-alerts.js`) — read *KPIs in play* first; a rule may name only its group's own KPIs, and every new trap it closes gets a case in `node scripts/verify-kpi-impact.mjs` |
+| Refresh company sector classification, or change the KPI ontology | `node scripts/classify-companies.mjs` (Screener; `CLASSIFY_SCOPE=tracked` for the wider universe) then `node scripts/build-sector-kpis.mjs` (`SECTOR_KPIS_CSV=<sector_kpis export>` to reconcile a new ontology); the ontology itself is `scripts/fixtures/sector-kpi-ontology.yaml`, reproduced unchanged |
 | Change which investor question a topic bears on, or how a card states it | `js/data/alert-drivers.js` (the one mapping) + `driversMarkup()` in `js/tabs/ai-alerts.js` — read *Earnings assumption, valuation or thesis* first. A driver is a TOPIC reading, so the wording stays "could change"; every driver links to its own source; and the layer adds no score |
 | Change archiving on AI Alerts | `js/core/ai-mute.js` (the store) + the `archived` filter and the Archive / Restore buttons in `js/tabs/ai-alerts.js` — a record is keyed to the evidence it was given for, so a card returns on its own when stronger evidence arrives |
 | Change what the precomputed alert pool carries, or how a period is reassembled from it | `public/js/data/alert-pool-shared.js` (the feeds, the captures each reads, the revision rule, the members) + `public/js/data/alert-pool-format.js` (the shard encoding and decoding, shared by the builder and the browser) — read *The collection is done once, on the runner* first; `node scripts/verify-alert-pool.mjs` is the test |

@@ -409,3 +409,23 @@ confirms configuration only; successful primary quotes still need deployment ver
 Manual credential changes or production-run dispatch are not authorized by this
 code update. The existing merge-triggered publishing/bootstrap pipeline is used.
 See [BREAKOUT-CAPTURE.md](BREAKOUT-CAPTURE.md) for setup and retention details.
+
+## Glow-owned: KPIs in play on AI Alerts (23 September 2026)
+
+Glow's AI Alerts cards name which of the company's own sector KPIs their evidence bears on, from the
+desk's sector → KPI ontology. Preserve it on a template merge; Sattva does not carry it.
+
+- Glow-only files: `scripts/fixtures/sector-kpi-ontology.yaml`, `scripts/lib/yaml-lite.mjs`,
+  `scripts/lib/screener-classification.mjs`, `scripts/classify-companies.mjs`,
+  `scripts/build-sector-kpis.mjs`, `public/js/data/sector-kpis-shared.js`,
+  `public/js/data/kpi-impact.js`, `public/data/company-classification.json`,
+  `public/data/sector-kpis.json`, `scripts/verify-kpi-impact.mjs`, `scripts/verify-kpi-impact-ui.mjs`.
+- Hunks in shared files: `card.kpis` and the ontology load in `js/data/ai-alerts.js`; `kpiMarkup()`
+  and the bookmark detail in `js/tabs/ai-alerts.js`; KPI names in `matchesSearch`; the earnings
+  event's `basis`/`metrics` and the con-call event's `tags` in `js/data/daily-alerts.js`; the source
+  registry row; the two CI steps; the service-worker marker `glow-kpi-impact-v1`.
+- The same change fixes two false-alert readings in the shared `js/data/filing-signals.js` (SEBI
+  takeover-regulation disclosures read as Acquisition; court and tax orders read as orders won). It
+  is a template-quality fix and is a candidate to offer upstream; until then keep it on merge.
+- No credential, route, workflow schedule or capture was added. Classification is refreshed by the
+  script, run by hand or from a later workflow.

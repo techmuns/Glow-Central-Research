@@ -1438,6 +1438,14 @@ function fromEarnings({ day, wanted, includeHistory }) {
       headline: `${basis} quarterly result filed`,
       detail: [metricText(r.revenue), metricText(r.netProfit)].filter(Boolean).join(' · ') || 'Filed figures carried without a comparable percentage',
       url: r.mcUrl || null,
+      // The two filed comparisons as FIELDS, so a reader of this event (kpi-impact.js) takes the
+      // source's own change and kind rather than parsing them back out of `detail`. The AI pool
+      // drops `sourceRecord`, so anything the card reads has to travel on the event itself.
+      basis,
+      metrics: {
+        revenue: r.revenue ? { pct: numeric(r.revenue.pct), kind: r.revenue.kind || null } : null,
+        netProfit: r.netProfit ? { pct: numeric(r.netProfit.pct), kind: r.netProfit.kind || null } : null,
+      },
     };
   });
   return {
@@ -1486,6 +1494,9 @@ function fromConcalls({ day, wanted, includeHistory }) {
       headline: `Con-call ${analysed ? 'analysis published' : 'held; analysis pending'}`,
       detail: [result, ...(r.tags || [])].join(' · '),
       url: r.transcriptUrl || null,
+      // The research provider's own highlights, verbatim, as a field: kpi-impact.js reads the KPIs
+      // they name, and `sourceRecord` does not survive into the AI pool.
+      tags: Array.isArray(r.tags) ? r.tags.filter((tag) => typeof tag === 'string') : [],
     };
   });
   return {
