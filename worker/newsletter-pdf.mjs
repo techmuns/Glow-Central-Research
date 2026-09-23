@@ -1,6 +1,6 @@
 // Dependency-free PDF export for Workers. The PDF standard's built-in fonts need no
 // network font service, browser, or deployment build. All dimensions are PDF points.
-import { BRAND, TAGLINES, briefStats, briefSupplementLines, storyWhen, sourcesNote, formatLast, formatPct, formatChange, asOfLabel, MARKET_GROUPS, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
+import { BRAND, TAGLINES, briefStats, briefSupplementLines, contentStatusText, storyWhen, sourcesNote, formatLast, formatPct, formatChange, asOfLabel, MARKET_GROUPS, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
 import { istDateLong, istLabel } from '../public/js/data/newsletter-shared.js';
 
 const INK = '0.13 0.12 0.09', MUTED = '0.31 0.37 0.46', ACCENT = '0.55 0.41 0.10';
@@ -100,7 +100,8 @@ const noteHeight = text => 32 + wrap(text, CONTENT - 28, 'F1', 10).length * 14.5
 const updateHeight = (k, note) => {
   const s = k.main;
   return paragraphHeight(s.headline, 13, 'F3', 7) + (s.dek ? paragraphHeight(s.dek, 10) : 0)
-    + (note ? noteHeight(note.summary) + noteHeight(note.impact) : 0)
+    + (note ? noteHeight(note.summary) + noteHeight(note.impact) + (note.unknowns ? noteHeight(note.unknowns) : 0) : 0)
+    + (contentStatusText(k) ? paragraphHeight(contentStatusText(k), 9) : 0)
     + 60 + k.others.reduce((n, r) => n + paragraphHeight(`Related: ${r.headline}`, 10) + 35 + (r.dek ? paragraphHeight(r.dek, 10) : 0), 0);
 };
 
@@ -130,7 +131,8 @@ export function renderBriefPdf(brief, { dashboardUrl = PRODUCTION_ORIGIN, produc
       if (pdf.pages.length !== startPage) pdf.paragraph(`${c.company} / continued`, { font: 'F2', size: 9, color: ACCENT });
       pdf.paragraph(s.headline, { font: 'F3', size: 13, url: s.url, gap: 7 });
       if (s.dek) pdf.paragraph(s.dek, { size: 10, color: MUTED });
-      if (note) { pdf.ensure(noteHeight(note.summary) + noteHeight(note.impact)); pdf.note('AI SUMMARY', note.summary); pdf.note('POTENTIAL IMPACT / AI', note.impact); }
+      if (note) { pdf.ensure(noteHeight(note.summary) + noteHeight(note.impact)); pdf.note('AI SUMMARY', note.summary); pdf.note('POTENTIAL IMPACT / AI', note.impact); if (note.unknowns) pdf.note('STILL UNKNOWN', note.unknowns); }
+      if (contentStatusText(k)) pdf.paragraph(contentStatusText(k), { size: 9, color: MUTED });
       pdf.paragraph(`${s.topic.label} / ${s.mood.label} / ${s.source} / ${storyWhen(s)}${s.related ? ' / related entity' : ''}${s.late ? ' / not in the previous brief' : ''}`, { size: 8, color: MUTED });
       if (s.url) pdf.paragraph('Read original source ->', { font: 'F2', size: 9, color: ACCENT, url: s.url });
       for (const r of k.others) {
@@ -169,7 +171,7 @@ export function renderBriefPdf(brief, { dashboardUrl = PRODUCTION_ORIGIN, produc
   // Each source begins a readable paragraph instead of one dense block of fine print.
   for (const part of coverage.split(' · ')) pdf.paragraph(part, { size: 9, color: MUTED, gap: 5 });
   pdf.y += 8;
-  pdf.paragraph('AI notes use supplied headlines and summaries, not full documents. Possible impacts are not established facts. Mood follows stated filing, trade and price-move rules; publisher reports remain neutral. Rupee day changes are derived from statement quantities and session closes, not statement figures. This brief is informational, not investment advice.', { size: 9, color: MUTED });
+  pdf.paragraph('AI summaries use extracted source-document or article facts. Each update states whether its sources were read or remain pending. Possible impacts are interpretations, not established outcomes. Mood follows stated filing, trade and price-move rules; publisher reports remain neutral. Rupee day changes are derived from statement quantities and session closes, not statement figures. This brief is informational, not investment advice.', { size: 9, color: MUTED });
   pdf.paragraph(`Built ${istLabel(brief.builtAt, { year: true })}. Automated by Munshot.`, { font: 'F2', size: 9, color: ACCENT });
   return pdf.bytes(`${BRAND} / ${edition} / ${brief.day}`);
 }

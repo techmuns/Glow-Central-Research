@@ -478,3 +478,11 @@ Sattva in its own pull request; until that merges, preserve it here on a templat
   takeover-regulation disclosures read as Acquisition; court and tax orders read as orders won).
 - No credential or route was added. The one new schedule is the daily classification job above; it
   reads public Screener pages only for companies it has not classified, or classified 90+ days ago.
+
+## Newsletter source-content phase (24 September 2026)
+
+Glow owns the source-reading queue and document-backed writing path in
+`worker/newsletter-content*.mjs`, the newsletter alarm integration, conservative filing grouping,
+and source-read labels in HTML/text/PDF. Preserve these during template sync. The former rule
+that AI receives only headlines is superseded by [Newsletter source reading](NEWSLETTER-SOURCE-CONTENT.md).
+No upstream credentials, portfolio data or production activation records are adopted.
