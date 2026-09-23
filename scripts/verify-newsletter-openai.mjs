@@ -62,6 +62,7 @@ await test('unconfirmed reviewer results stay pending, never fall back to the ch
  const b=budget();
  await assert.rejects(readNewsAi({article,item,env,budget:b,now,fetcher:async()=>{calls++;return reply({...answer,issuerMatches:false});}}),/company-evidence-unconfirmed/);
  assert.equal(calls,2);
+ await assert.rejects(readNewsAi({article,item,env,budget:new NewsletterNewsBudget(b.storage),now:now+86400000,fetcher:forbid}),/company-evidence-unconfirmed/);
 });
 await test('simple company news uses one call; requesting impact requires review',async()=>{
  const text='Acme Limited has signed a contract to supply equipment to Beta Limited. The contract is subject to customer approval and its value has not been disclosed.';
@@ -172,5 +173,8 @@ await test('configured OpenAI route never falls back to unbudgeted Claude when t
  const out=await readDocumentFacts({item,env:{NEWSLETTER_NEWS_AI_PROVIDER:'openai',CLAUDE_KEY:'fixture'},newsBudget:budget(),now,
  fetcher:async(url)=>{calls++;assert.equal(url,item.url);return new Response(`<article>${article}</article>`,{headers:{'content-type':'text/html'}});}});
  assert.equal(out.state,'pending');assert.equal(out.reason,'no-key');assert.equal(calls,1);
+});
+await test('article identity with no company evidence makes no paid request',async()=>{
+ await assert.rejects(readNewsAi({article:glycine,item,env,budget:budget(),now,fetcher:forbid}),/company-evidence-unconfirmed/);
 });
 console.log(`${passed} OpenAI news checks passed; fixture replies do not certify live model accuracy.`);

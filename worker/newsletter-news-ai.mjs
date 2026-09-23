@@ -63,7 +63,9 @@ export async function readNewsAi({ article, item, env, fetcher = fetch, budget, 
   if (!budget) throw failure('news-budget-unavailable');
   const id = await sha(JSON.stringify([NEWS_POLICY_VERSION, NEWS_MODEL, NEWS_REVIEW_MODEL, item.ticker, item.company, item.headline, item.related === true, article]));
   const cached = budget.cached(id);
+  if (cached?.withheld) throw failure('company-evidence-unconfirmed');
   if (cached) return { ...cached, cached: true };
+  if (!hasCompany(article,item,article)) throw failure('company-evidence-unconfirmed');
   const input = { COMPANY: { ticker: item.ticker, name: item.company }, HEADLINE_CONTEXT_ONLY: item.headline, ARTICLE: article };
   const first = await newsModelCall({ env, fetcher, budget, job: `${id}:read`, now, instructions: NEWS_INSTRUCTIONS, input, schema: NEWS_SCHEMA });
   let result = validateNews(first.data,article,item), model = first.model, reviewed = false;
@@ -73,7 +75,10 @@ export async function readNewsAi({ article, item, env, fetcher = fetch, budget, 
       input: { ...input, CANDIDATE: first.data, VALIDATION: result ? 'Passed literal-quote checks; still check the meaning independently.' : 'Draft failed grounding checks. Check issuer name, exact product inside companyQuote AND summary, literal contiguous quotes, company/product in every fact quote, supported figures and length limits. Correct all failures.' }, schema: NEWS_SCHEMA });
     result = validateNews(review.data,article,item); model = review.model; reviewed = true;
   }
-  if (!result) throw failure('company-evidence-unconfirmed');
+  if (!result) {
+    budget.save(id, { withheld: true, policyVersion: NEWS_POLICY_VERSION });
+    throw failure('company-evidence-unconfirmed');
+  }
   const complete = { ...result, model, reviewed, policyVersion: NEWS_POLICY_VERSION };
   budget.save(id,complete);
   return complete;

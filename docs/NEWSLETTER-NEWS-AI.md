@@ -32,7 +32,9 @@ relevant connection explicit.
 
 News notes are saved with the durable source job and reused across editions. A separate cache
 keys the complete input article, issuer, headline, models and policy version; changed source text
-cannot reuse an old answer. The news identity version advances while filing identities remain
+cannot reuse an old answer. Completed but rejected company-evidence assessments are also cached,
+so an unchanged article does not repeatedly spend credits trying to produce a publishable answer.
+Provider failures remain retryable; changed article text or policy creates a fresh assessment. The news identity version advances while filing identities remain
 unchanged. Existing completed article jobs are not paid for again on every send. News-only grouped
 updates use the lead article's cached note and explicitly say linked reports may add details;
 all original sources remain visible. Filing writing continues to consider its grouped evidence.
