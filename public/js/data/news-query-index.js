@@ -11,14 +11,14 @@ function fingerprint(value) {
   return (hash >>> 0).toString(36);
 }
 export function newsQueryIdentities(row, { includeStory = true } = {}) {
-  const story = includeStory ? articleStoryKey(row) : null;
+  const story = includeStory && articleStoryKey(row);
   return [row?.url ? `url:${canonicalArticleUrl(row.url)}` : '',
     row?.tradingViewId ? `tv:${row.tradingViewId}` : '', story ? `story:${story}` : ''].filter(Boolean).map(fingerprint);
 }
 export const newsQueryIdentity = row => newsQueryIdentities(row)[0] || '';
-export function newsQueryIndexRow(row, options) {
+export function newsQueryIndexRow(row) {
   const day = newsPublicationDay(row), instantDay = row?.publishedAt ? newsDay(row.publishedAt) : null;
-  return [day, instantDay === day ? null : instantDay, newsQueryIdentities(row, options)];
+  return [day, instantDay === day ? null : instantDay, newsQueryIdentities(row)];
 }
 export const validNewsQueryIndex = (rows, count) => Array.isArray(rows) && rows.length === count && rows.every(row =>
   Array.isArray(row) && row.length === 3 && row.slice(0, 2).every(day => day === null || /^\d{4}-\d{2}-\d{2}$/.test(day)) && Array.isArray(row[2]) && row[2].length <= 3 && row[2].every(id => typeof id === 'string'));

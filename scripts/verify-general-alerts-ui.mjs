@@ -634,9 +634,25 @@ try {
 
   // Exercise the actual tab inside a short host iframe, with real wheel input. Measured rows
   // may have different natural heights; verify contiguous geometry across window replacements.
-  await page.goto(`${origin}/embed`);
-  const embedded = await (await page.locator('iframe').elementHandle()).contentFrame();
+  // Source-refresh tests above fast-forward a simulated clock. Native compositor input
+  // gets its own real-time context; receipt timers below install a clock only afterwards.
+  await page.close();
+  const inputPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  inputPage.on('pageerror', error => errors.push(error.message));
+  inputPage.on('console', message => { if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) errors.push(message.text()); });
+  await inputPage.route('**/*', route => route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
+  await inputPage.goto(`${origin}/embed`);
+  const embedded = await (await inputPage.locator('iframe').elementHandle()).contentFrame();
   await settled(embedded);
+  await embedded.evaluate(() => {
+    window.nativeWheelEvents = [];
+    addEventListener('wheel', event => {
+      const table = event.target.closest?.('[data-table-scroll]');
+      window.nativeWheelEvents.push({ target: event.target.tagName, inTable: !!table,
+        top: table?.scrollTop, deltaY: event.deltaY, prevented: event.defaultPrevented, trusted: event.isTrusted });
+      if (window.nativeWheelEvents.length > 3) window.nativeWheelEvents.shift();
+    }, { passive: true });
+  });
   assert.equal(await embedded.getByRole('combobox', { name: 'Date range' }).inputValue(), 'today', 'fresh embedded dashboard also defaults to Today');
   await embedded.getByRole('combobox', { name: 'Date range' }).selectOption('all');
   // All history starts a new source read after the bounded Today snapshot. Wait
@@ -644,24 +660,31 @@ try {
   await settled(embedded);
   await embedded.waitForFunction(() => !document.querySelector('[data-table-loading]'));
   for (const size of [{ width: 1440, height: 800 }, { width: 1024, height: 640 }]) {
-    await page.setViewportSize(size);
+    await inputPage.setViewportSize(size);
     const scroller = embedded.locator('[data-table-scroll]');
     await stableReadingSurface(embedded);
     await scroller.evaluate(el => { el.scrollTop = 0; el.scrollIntoView({ block: 'end' }); });
     await stableReadingSurface(embedded);
     const box = await scroller.boundingBox();
-    await page.mouse.move(box.x + 200, Math.min(size.height - 40, box.y + box.height / 2));
     let previous = 0;
     const starts = new Set();
     for (let step = 0; step < 24; step++) {
-      await page.mouse.wheel(0, 180);
+      // A wheel call returns before native scrolling and variable-row measurement finish.
+      // Settle the preceding gesture and hit-test the current rows before the next one;
+      // otherwise the browser can target the surrounding SECTION after row replacement.
+      await stableReadingSurface(embedded);
+      await scroller.hover({ position: { x: 200, y: Math.min(box.height - 40, box.height / 2) } });
+      await embedded.waitForFunction(() => document.querySelector('[data-table-scroll]').matches(':hover'));
+      const beforeWheel = await scroller.evaluate(el => el.scrollTop);
+      await inputPage.mouse.wheel(0, 180);
       try {
-        await embedded.waitForFunction(top => document.querySelector('[data-table-scroll]').scrollTop > top, previous);
+        await embedded.waitForFunction(top => document.querySelector('[data-table-scroll]').scrollTop > top, beforeWheel);
       } catch (error) {
         const state = await scroller.evaluate(el => ({ top: el.scrollTop, height: el.clientHeight,
           scrollHeight: el.scrollHeight, bounds: el.getBoundingClientRect().toJSON(),
-          documentScroll: window.scrollY, viewport: { width: innerWidth, height: innerHeight } }));
-        throw Error(`Native iframe wheel did not advance: ${JSON.stringify({ size, step, previous, box, state })}`, { cause: error });
+          documentScroll: window.scrollY, viewport: { width: innerWidth, height: innerHeight },
+          wheelEvents: window.nativeWheelEvents, connected: el.isConnected }));
+        throw Error(`Native iframe wheel did not advance: ${JSON.stringify({ size, step, previous, beforeWheel, box, state })}`, { cause: error });
       }
       const sample = await embedded.evaluate(async () => {
         await new Promise(requestAnimationFrame);
@@ -683,11 +706,13 @@ try {
       starts.add(sample.start);
     }
     assert(starts.size >= 2, 'wheel crosses multiple virtual windows');
+    console.log(`Verified 24 native wheel steps in ${size.width}px iframe`);
   }
   await embedded.evaluate(() => window.dispose());
 
   // Controlled receipts exercise queue boundaries without waiting for another source cycle.
-  await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
+  await inputPage.clock.install();
+  await inputPage.clock.pauseAt(new Date(await inputPage.evaluate(() => Date.now()) + 1000));
   await embedded.evaluate(async () => {
     const { scoreTable } = await import('/js/ui/screener.js');
     const { arrivalsHtml, createArrivalsUI } = await import('/js/ui/alert-arrivals.js');
@@ -714,19 +739,19 @@ try {
   await embedded.locator('[data-export]').dispatchEvent('click');
   assert.deepEqual(await embedded.evaluate(() => window.streamExport), ['third', 'second', 'first', 'existing'], 'export includes the entire batch during the entrance sequence');
   await embedded.locator('[data-table-search]').fill('second');
-  await page.clock.runFor(500);
+  await inputPage.clock.runFor(500);
   assert.deepEqual(await embedded.locator('tr[data-row-key]').evaluateAll(rows => rows.map(r => r.dataset.rowKey)), ['second'], 'a changed filter finishes the queue and shows only matching rows');
   await embedded.locator('[data-table-search]').fill('');
-  await page.clock.runFor(250);
+  await inputPage.clock.runFor(250);
   await embedded.evaluate(() => { window.streamFixture.add(['revoked-two', 'revoked-one']); window.streamFixture.remove(['revoked-two', 'revoked-one']); });
-  await page.clock.runFor(500);
+  await inputPage.clock.runFor(500);
   assert.equal(await embedded.locator('tr[data-row-key^="revoked-"]').count(), 0, 'removed records cannot return from an entrance timer');
-  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await inputPage.emulateMedia({ reducedMotion: 'reduce' });
   await embedded.evaluate(() => window.streamFixture.add(['quiet-two', 'quiet-one']));
   assert.equal(await embedded.locator('tr[data-row-key^="quiet-"]').count(), 2, 'reduced motion shows the complete batch immediately');
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await inputPage.emulateMedia({ reducedMotion: 'no-preference' });
   const updatesAtDispose = await embedded.evaluate(() => { window.streamFixture.add(['leave-two', 'leave-one']); return window.streamFixture.dispose(); });
-  await page.clock.runFor(500);
+  await inputPage.clock.runFor(500);
   assert.equal(await embedded.evaluate(() => window.streamFixture.updates()), updatesAtDispose, 'leaving the table cancels queued entrances');
   assert.deepEqual(errors, [], 'zero application errors');
   console.log('PASS: source updates, privacy, filters, cleanup and native iframe wheel scrolling with stable virtual geometry.');

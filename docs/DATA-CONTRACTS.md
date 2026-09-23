@@ -6187,3 +6187,16 @@ what it was asked to send.
 - Five manual send attempts per rolling hour are reserved durably before building documents
   or calling AI. Exhaustion returns `manual-send-budget` with `retryAt`. Existing schedule,
   subscriber list, edition claims and normal delivery cadence remain unchanged.
+
+## Glow newsletter source-content phase (24 September 2026)
+
+The source-content phase supersedes the earlier newsletter headline-only AI input and
+category/time-based filing grouping rules. See [Newsletter source reading](NEWSLETTER-SOURCE-CONTENT.md)
+for queue cadence, recovery/coverage limits, facts/passages, PDF and article transports, output
+provenance and regression checks. `brief.content` reports total/ready/partial/pending source rows;
+`brief.ai.supplied` is the number whose facts fit the writer request, separately from requested
+and answered. Notes may include `unknowns`. Each source row may carry a `content` record with
+version, state, sourceUrl, checkedAt, hash, format, optional model/reason and source facts.
+`/api/newsletter` schedule status includes enabled, queue counts, captureStartedAt, lastDiscoveryAt
+and the per-source checks. These are content-processing states, never proof of upstream freshness.
+No new public endpoint triggers extraction. The public preview remains free of paid AI calls.

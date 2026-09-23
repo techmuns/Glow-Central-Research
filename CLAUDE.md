@@ -1391,29 +1391,24 @@ string** — a dividend's amount, a split's ratio and a bonus's terms are reprod
 printed them. `readCalendar` / `readActions` in `worker/newsletter-brief.mjs`; the offline suite
 drives both with a Screener stub and constructed captures.
 
-**AND ONE ANNOUNCEMENT IS ONE UPDATE, WITH TWO AI LINES UNDER IT.** The customer's reading of the
-17 September evening brief: Puravankara's ₹2,600 crore redevelopment win was printed twice (the NSE
-copy and the BSE copy of one press release), with four publisher accounts of it due the next
-morning, and every item was the exchange's or the publisher's own wording with nothing saying what
-it meant. So `clusterStories()` in `worker/newsletter-brief.mjs` folds a company's items into
-UPDATES — exchange copies of one filing (same company, same filing type, lodged within the hour)
-and stories that share the words and figures of the filing or of each other (`storyTokens` /
-`sameStory`: a fifth of the content words in common, or a shared figure and two words; the
-company's own name, currency words and years identify nothing) — the strongest item leads, the
-exchange's own statement before a publisher's account of it, and the rest are **Related** links in
-small type under it. The summary line, the subject and the company header count updates, and the
-header says how many items they fold. A trade and a price move stay their own update: each is a
-measurement with its own stated reading. Under each filing or story update the model writes two
-lines — **AI summary** (what was announced) and **Potential impact** (what it could change) —
-and five rules keep that the one honest reading on the sheet: **one bounded request per brief**
-(`readAiNotes`, `AI_ITEM_LIMIT`, through the same Bedrock credential Ask Research holds on the
-Worker, JSON in and JSON out, never a stream); **the model gets headlines and summaries only**,
-never a link or a document, and is told to add no figure, date, name or claim; **the lines are
-marked AI on their face**, in the footer and on the sources line with the model and the count;
-**hedged as possibilities** — could, may, never will, never a share-price call; and **absent, with
-the reason named, rather than guessed** — `no-key`, `refused`, `rate-limited`, `unreadable` — with
-the item keeping the source's own line instead. Every folded item still reaches the ledger under
-its own identity, so late-arrival detection is unchanged.
+**SOURCE CONTENT BEFORE AI NOTES (24 September 2026, GLOW-OWNED).** The first five steps of
+[Newsletter source reading](docs/NEWSLETTER-SOURCE-CONTENT.md) supersede the earlier headline-only
+contract. The existing newsletter object discovers captured portfolio filings/news hourly and
+retains pending document jobs independently of browsers and the sent-item ledger. Read NSE XBRL
+facts directly; supply full official PDFs (including scans) to the existing Claude transport;
+extract supported accessible publisher article bodies. Keep supporting source passages and read
+states. Unread, restricted and oversized sources never masquerade as complete reads.
+
+Never fold filings on a headline prefix, category or time proximity alone. Preserve separate
+transactions, including CEAT's 23 September Lanka loan conversion and Tyresnmore investment.
+Document identity or matching specific evidence can establish copies; conflicting facts and
+uncertain generic filings stay separate. Every source link and delivery identity survives.
+The writer receives source facts and produces what happened, possible impact and relevant
+unknowns. HTML, text and PDF retain source-read coverage and actual document check times. Public
+previews never run paid extraction or summarisation. `verify-newsletter-content.mjs` covers the
+queue, document transports, original CEAT facts and end-to-end output; keep the existing newsletter
+and UI checks. The independent AI review pass, second provider and shared dashboard summaries
+remain outside this first phase. Do not claim live model/OCR accuracy from fixture-based tests.
 
 **Repeated news, updated 21 September 2026:** `newsletter-events.mjs` now checks reworded news
 before the separate AI-notes request, using the same module as Sattva. One bounded 30-second

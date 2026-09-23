@@ -3,7 +3,7 @@ import { dirname, basename, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { JSON_SHARD_BYTES, shardSpec, shardPath, parseShard, assembleShards } from '../../public/js/core/json-shards.js';
-import { newsQueryIndexRow, NEWS_QUERY_INDEX_VERSION } from '../../public/js/data/news-query-index.js';
+import { newsQueryIndexRow, newsQueryIdentities, NEWS_QUERY_INDEX_VERSION } from '../../public/js/data/news-query-index.js';
 
 const hash = text => createHash('sha256').update(text).digest('hex');
 const atomic = (path, text) => {
@@ -33,7 +33,13 @@ function verifyQueryIndex(path, part, field, items) {
     throw Error('News query index source mismatch');
   const body = readFileSync(shardPath(path, index.file), 'utf8');
   if (Buffer.byteLength(body) !== index.bytes || hash(body) !== index.sha256) throw Error('News query index integrity mismatch');
-  const expected = items.map(item => newsQueryIndexRow(field === 'byTicker' ? item[1] : item, { includeStory: index.version >= 4 }));
+  const expected = items.map(item => {
+    const row = field === 'byTicker' ? item[1] : item, value = newsQueryIndexRow(row);
+    // Retained v3 indexes are still checked against their exact original contract. Browsers
+    // rebuild v4 from verified source bytes; the next source publication writes v4 indexes.
+    if (index.version === 3) value[2] = newsQueryIdentities(row, { includeStory: false });
+    return value;
+  });
   if (!isDeepStrictEqual(parseShard(body, index), expected)) throw Error('News query index changed source dates or identities');
 }
 

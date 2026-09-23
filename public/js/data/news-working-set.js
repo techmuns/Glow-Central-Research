@@ -63,8 +63,8 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
       const next = new Map(), selectedUrls = new Set(), edges = new Map();
       const indexRow = item => {
         if (selected(item, window)) for (const id of item[2]) selectedUrls.add(id);
-        // The same TradingView story can change URLs. Close over both identities, including
-        // cross-route URL companions, before any of the existing deduplicators run.
+        // Close over every existing deduplication key: URLs, TradingView IDs and same-source
+        // dated headlines. A story's URL variants can fall on opposite sides of IST midnight.
         if (item[2].length > 1) for (const id of item[2]) {
           if (!edges.has(id)) edges.set(id, new Set());
           for (const other of item[2]) edges.get(id).add(other);

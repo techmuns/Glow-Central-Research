@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { writeNewsJson, readNewsJson } from './lib/news-json-storage.mjs';
 import { shardSpec, shardPath } from '../public/js/core/json-shards.js';
 import { createNewsWorkingSet } from '../public/js/data/news-working-set.js';
-import { newsQueryIndexRow, newsQueryIdentity } from '../public/js/data/news-query-index.js';
+import { newsQueryIndexRow, newsQueryIdentity, newsQueryIdentities } from '../public/js/data/news-query-index.js';
 import { dedupeArticles } from '../public/js/data/filings-shared.js';
 import { newsPeriodBounds } from '../public/js/data/news-window.js';
 const dir = mkdtempSync(join(tmpdir(), 'sattva-query-boundaries-'));
@@ -22,6 +22,12 @@ try {
   rows[3].tradingViewId = 'same-story';
   rows[4].tradingViewId = 'same-story';
   rows[1] = { ...rows[1], url: rows[0].url, lastSeenAt: '2026-09-16T17:00:00Z', title: 'Corrected publication day' };
+  // Same publisher/headline/date, different URLs and publication instants across IST midnight.
+  // The full reader keeps the first observation, which falls outside Today. A date query must
+  // fetch that companion too, rather than resurrecting the second URL as a new Today story.
+  rows.push(...['15:48:24', '22:07:38'].map((time, i) => ({ ticker: 'ALPHA', title: 'Same dated report',
+    source: 'Midnight News', date: '2026-09-15', publishedAt: `2026-09-15T${time}Z`,
+    url: `https://example.test/midnight/${i}` })));
   const value = { capturedAt: '2026-09-16T17:00:00Z', byTicker: { ALPHA: rows, EMPTY: [], FAILED: [{ ...rows[2], ticker: 'FAILED', url: 'https://example.test/failed' }], CHECKED: [] }, failed: { FAILED: { reason: 'source-down' } }, empty: ['CHECKED'] };
   const path = join(dir, 'news.json');
   writeNewsJson(path, value, { maxBytes: 32768 });
@@ -32,19 +38,6 @@ try {
   const duplicatedOrder = structuredClone(manifest);
   duplicatedOrder._jsonShards.parts[0].order[0] = duplicatedOrder._jsonShards.parts[0].order[1];
   assert.throws(() => shardSpec(duplicatedOrder), /order/, 'duplicate/missing original positions cannot pass');
-
-  // Already-published V3 indexes remain auditable while the next normal capture
-  // writes V4. Browser selection rebuilds these from original verified parts.
-  const legacyManifest = structuredClone(manifest);
-  for (const part of legacyManifest._jsonShards.parts) {
-    const items = JSON.parse(readFileSync(shardPath(path, part.file))).items;
-    const body = Buffer.from(JSON.stringify({ items: items.map(item => newsQueryIndexRow(item[1], { includeStory: false })) }));
-    part.queryIndex = { ...part.queryIndex, version: 3, sha256: digest(body), bytes: body.length, file: `news.parts/${digest(body)}.json` };
-    writeFileSync(shardPath(path, part.queryIndex.file), body);
-  }
-  writeFileSync(path, JSON.stringify(legacyManifest));
-  assert.deepEqual(readNewsJson(path, null, { verifyIndexes: true }), value, 'existing V3 publication remains verifiable');
-  writeFileSync(path, JSON.stringify(manifest));
   const index = spec.parts[0].queryIndex, indexPath = shardPath(path, index.file), originalIndex = readFileSync(indexPath);
   const wrongIndex = JSON.parse(originalIndex); wrongIndex.items[0][0] = '2020-01-01';
   const wrongBytes = Buffer.from(JSON.stringify(wrongIndex));
@@ -74,8 +67,10 @@ try {
   const projected = (await working.read('data/news.json')).value;
   assert.deepEqual(projected.empty, ['CHECKED'], 'the original source empty list remains unchanged');
   assert.deepEqual(projected.queryEmpty, [], 'failed or never-checked companies are not certified empty');
-  const selected = rows.filter(row => row.date === '2026-09-16' || row.url === rows[0].url || row.tradingViewId === 'same-story');
+  const selected = rows.filter(row => row.date === '2026-09-16' || row.url === rows[0].url || row.tradingViewId === 'same-story' || row.source === 'Midnight News');
   assert.deepEqual(projected.byTicker.ALPHA, selected, 'selected date includes corrected companions in their original order');
+  assert.deepEqual(dedupeArticles(projected.byTicker.ALPHA).filter(row => row.source === 'Midnight News'),
+    dedupeArticles(rows).filter(row => row.source === 'Midnight News'), 'the bounded view uses the same original observation as full history');
   const sourcePaths = new Set(spec.parts.map(part => 'data/'+part.file));
   assert(calls.filter(path => sourcePaths.has(path)).length < spec.parts.length, 'Today skips old source text');
   assert.equal(projected.byTicker.EMPTY.length, 0);
@@ -88,6 +83,21 @@ try {
   const before = calls.length; await working.read('data/news.json');
   assert.equal(calls.length, before, 'unchanged verified parts are reused');
   working.release();
+  const legacyIndexes = structuredClone(manifest);
+  for (const part of legacyIndexes._jsonShards.parts) {
+    const items = JSON.parse(readFileSync(shardPath(path, part.file))).items;
+    const body = JSON.stringify({ items: items.map(([, row]) => {
+      const value = newsQueryIndexRow(row); value[2] = newsQueryIdentities(row, { includeStory: false }); return value;
+    }) });
+    part.queryIndex = { ...part.queryIndex, version: 3, sha256: digest(body), bytes: Buffer.byteLength(body), file: `news.parts/${digest(body)}.json` };
+    writeFileSync(shardPath(path, part.queryIndex.file), body);
+  }
+  writeFileSync(path, JSON.stringify(legacyIndexes));
+  assert.deepEqual(readNewsJson(path, null, { verifyIndexes: true }), value, 'retained v3 index integrity remains verifiable');
+  disk.clear();
+  const upgradedIndex = make(); await upgradedIndex.prepare();
+  assert.deepEqual((await upgradedIndex.read('data/news.json')).value.byTicker.ALPHA, selected, 'v3 indexes rebuild from original bytes before serving v4 companions');
+  upgradedIndex.release(); writeFileSync(path, JSON.stringify(manifest));
   writeFileSync(path, JSON.stringify({...manifest,archive:{index:'../invalid-index.json'}}));
   const partial = make();
   await partial.prepare();
@@ -132,22 +142,6 @@ try {
   assert.equal(newValue.queryWindow.from, window.from, 'in-flight old preparation cannot certify a new period');
   assert.deepEqual(newValue.byTicker.ALPHA, rows.filter(row => row.date === '2026-08-01' || row.url === rows[0].url || row.tradingViewId === 'same-story'));
   switching.release(); gate = null;
-
-  // Same publisher/day/headline at different URLs can straddle IST midnight.
-  // Full history chooses the earlier source-order row. The narrow reader must load
-  // that companion before deduplication, even though only its twin falls in Today.
-  const twins = [
-    { title: 'Ukraine Business Service Providers', source: 'International Trade Administration', date: '2026-09-22', publishedAt: '2026-09-22T15:48:24Z', url: 'https://trade.gov/ukraine-business-service-providers?anchor=5' },
-    { title: 'Ukraine Business Service Providers', source: 'International Trade Administration', date: '2026-09-22', publishedAt: '2026-09-22T22:07:38Z', url: 'https://trade.gov/ukraine-business-service-providers?anchor=1' },
-  ];
-  const twinReader = createNewsWorkingSet({ window: () => ({ from: '2026-09-23', to: '2026-09-23', includeUndated: false }),
-    read: async input => ({ value: { byTicker: input === 'data/news.json' ? { ALPHA: twins } : {} } }),
-    diskRead: async () => null, diskWrite: async () => {} });
-  await twinReader.prepare();
-  const twinsProjected = (await twinReader.read('data/news.json')).value.byTicker.ALPHA;
-  assert.deepEqual(twinsProjected, twins, 'same-story companions use the exact canonicalizer identity, not URL alone');
-  assert.deepEqual(dedupeArticles(twinsProjected), dedupeArticles(twins), 'date-limited and full-history choices agree');
-  twinReader.release();
 
   // Exercise the real facade and explicit live searches in separate windows. Empty Today
   // must not trigger a company walk; the changing IST day is evaluated on every refresh.
