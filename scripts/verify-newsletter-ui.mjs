@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { NewsletterStore, NEWSLETTER_OBJECT } from '../worker/newsletter-store.mjs';
 import { NewsletterSchedule, EMAIL_SEND_URL } from '../worker/newsletter-schedule.mjs';
+import { MARKET_ROWS } from '../worker/newsletter-brief.mjs';
 import { handleNewsletter } from '../worker/newsletter.mjs';
 
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
@@ -43,6 +44,13 @@ const fetcher = async (input, init = {}) => {
   if (url.startsWith('https://query1.finance.yahoo.com/')) {
     const body = JSON.parse(fixture('yahoo-sp500.json'));
     body.chart.result[0].meta.symbol = decodeURIComponent(new URL(url).pathname.split('/').at(-1));
+    if (MARKET_ROWS.find(r => r.symbol === body.chart.result[0].meta.symbol)?.group === 'india') {
+      const r = body.chart.result[0], meta = r.meta;
+      const day = new Date(meta.regularMarketTime * 1000).toISOString().slice(0, 10);
+      meta.exchangeTimezoneName = 'Asia/Kolkata'; meta.currency = 'INR';
+      meta.regularMarketTime = Date.parse(`${day}T15:31:00+05:30`) / 1000;
+      r.timestamp = r.timestamp.map(t => Date.parse(`${new Date(t * 1000).toISOString().slice(0, 10)}T09:15:00+05:30`) / 1000);
+    }
     return Response.json(body);
   }
   if (url.startsWith('https://nsearchives.nseindia.com/')) return new Response(fixture('nse-announcements.xml'), { headers: { 'content-type': 'application/xml' } });

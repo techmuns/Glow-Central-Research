@@ -30,6 +30,7 @@ export function quoteFromChart(body, row, now) {
   if (!meta || body.chart.error || !positive(meta.regularMarketPrice)) fail('shape');
   const aliases = row.symbol === 'JPY=X' ? ['JPY=X', 'USDJPY=X'] : [row.symbol];
   if (!aliases.includes(meta.symbol)) fail('identity');
+  if (row.group === 'india' && (meta.exchangeTimezoneName !== 'Asia/Kolkata' || (meta.currency && meta.currency !== 'INR'))) fail('identity');
   const asOf = meta.regularMarketTime * 1000, timezone = meta.exchangeTimezoneName;
   if (!positive(meta.regularMarketTime) || asOf > now + 60000 || !timezone || !marketDay(asOf, timezone)) fail('timestamp');
   const sessionDate = marketDay(asOf, timezone), last = meta.regularMarketPrice;
@@ -67,17 +68,19 @@ export function quoteFromChart(body, row, now) {
     timezone, currency: meta.currency || null, origin: 'yahoo', checkedAt: now, changeReason };
 }
 
-/** net_change is documented by Upstox as last_price minus yesterday's close.
+/** V3 prev_close_price explicitly identifies the previous trading session's close.
+ * Check it against net_change; OHLC close can describe the current session.
  * Index last-trade time is required: a fresh HTTP/feed timestamp cannot date an old level.
  */
 export function quoteFromUpstox(data, row, now) {
   const identity = INDIA_INSTRUMENTS[row.id];
-  if (!identity || data?.instrument_token !== identity[0] || data.symbol !== identity[1]) fail('identity');
+  if (!identity || data?.instrument_token !== identity[0] ||
+      ![identity[1], identity[0].split('|')[1].toUpperCase()].includes(String(data.symbol || '').toUpperCase())) fail('identity');
   if (!positive(data.last_price) || !Number.isFinite(data.net_change)) fail('shape');
   const asOf = typeof data.last_trade_time === 'string' && /^\d+$/.test(data.last_trade_time)
     ? Number(data.last_trade_time) : data.last_trade_time;
   if (!positive(asOf) || asOf < 1e12 || asOf > now + 60000) fail('timestamp');
-  const sessionDate = marketDay(asOf, 'Asia/Kolkata'), last = data.last_price, prev = last - data.net_change;
+  const sessionDate = marketDay(asOf, 'Asia/Kolkata'), last = data.last_price, prev = data.prev_close_price;
   if (!positive(prev)) fail('previous-close-unverified');
   // Do not adopt a freshly dated feed at midnight / before the cash session starts.
   if (asOf < Date.parse(`${sessionDate}T09:15:00+05:30`)) fail('timestamp');
@@ -85,7 +88,7 @@ export function quoteFromUpstox(data, row, now) {
   const state = !current ? 'stale' : marketWindow(now).open
     ? (now - asOf <= 20 * 60000 ? 'live' : 'delayed')
     : asOf >= Date.parse(`${sessionDate}T15:30:00+05:30`) ? 'close' : 'delayed';
-  const conflict = positive(data.ohlc?.close) && differs(prev, data.ohlc.close);
+  const conflict = differs(last - data.net_change, prev);
   return { ...row, last, ...delta(last, conflict ? null : prev), asOf, sessionDate, state,
     timezone: 'Asia/Kolkata', currency: 'INR', origin: 'upstox', checkedAt: now,
     changeReason: conflict ? 'previous-close-conflict' : null };
@@ -93,7 +96,7 @@ export function quoteFromUpstox(data, row, now) {
 
 export async function readUpstoxIndices(rows, { token, fetcher, now, timeout = 8000 }) {
   if (!token) return { rows: new Map(), reason: 'not-configured' };
-  const url = new URL('https://api.upstox.com/v2/market-quote/quotes');
+  const url = new URL('https://api.upstox.com/v3/market-quote/quotes');
   url.searchParams.set('instrument_key', rows.map(r => INDIA_INSTRUMENTS[r.id][0]).join(','));
   try {
     const res = await fetcher(url.href, { headers: { authorization: `Bearer ${token}`, accept: 'application/json',

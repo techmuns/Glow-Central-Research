@@ -20,7 +20,7 @@ const chart = (row = nifty, last = 23446.8, prev = 23329) => ({ chart: { result:
 }] } });
 const primary = (row = nifty, last = 23446.8, prev = 23329) => ({
   instrument_token: INDIA_INSTRUMENTS[row.id][0], symbol: INDIA_INSTRUMENTS[row.id][1],
-  last_price: last, net_change: last - prev, ohlc: { close: prev }, last_trade_time: String(time('2026-09-23')),
+  last_price: last, net_change: last - prev, prev_close_price: prev, ohlc: { close: last }, last_trade_time: String(time('2026-09-23')),
 });
 
 test('23 September customer report: correct levels AND NSE daily changes, never the five-day reference', () => {
@@ -77,13 +77,13 @@ test('null current candle and weekends do not shift the comparison to the wrong 
 });
 
 test('wrong symbol, invalid zone, missing/future timestamps and non-finite prices are rejected', () => {
-  for (const changes of [{ symbol: '^NSEBANK' }, { exchangeTimezoneName: 'Mars' }, { regularMarketTime: null },
+  for (const changes of [{ symbol: '^NSEBANK' }, { exchangeTimezoneName: 'America/New_York' }, { currency: 'USD' }, { exchangeTimezoneName: 'Mars' }, { regularMarketTime: null },
     { regularMarketTime: at / 1000 + 120 }, { regularMarketPrice: NaN }, { regularMarketPrice: 0 }]) {
     const body = chart(); Object.assign(body.chart.result[0].meta, changes);
     assert.throws(() => quoteFromChart(body, nifty, at));
   }
   for (const changes of [{ symbol: 'BANKNIFTY' }, { instrument_token: 'NSE_FO|123' }, { last_trade_time: '' },
-    { last_trade_time: String(at + 120000) }, { last_trade_time: String(time('2026-09-23', '08:00')) }, { net_change: '117.8' }]) {
+    { last_trade_time: String(at + 120000) }, { last_trade_time: String(time('2026-09-23', '08:00')) }, { net_change: '117.8' }, { prev_close_price: null }]) {
     assert.throws(() => quoteFromUpstox({ ...primary(), ...changes }, nifty, at));
   }
 });
@@ -106,13 +106,14 @@ test('Upstox cross-checks intact rows, withholds conflicting changes/levels, nev
   assert.equal(priceConflict.last, null); assert.equal(priceConflict.state, 'unavailable');
   assert.equal(reconcileIndex(yahoo, { ...upstox, state: 'stale' }).origin, 'yahoo');
   assert.equal(reconcileIndex({ ...yahoo, state: 'unavailable', last: null }, upstox).origin, 'upstox');
-  assert.equal(quoteFromUpstox({ ...primary(), ohlc: { close: 100 } }, nifty, at).changePct, null);
+  assert.equal(quoteFromUpstox({ ...primary(), net_change: 100 }, nifty, at).changePct, null);
 });
 
 test('one bounded Upstox request uses only the existing secret and isolates missing/duplicate/bad index rows', async () => {
   const rows = MARKET_ROWS.filter(r => r.group === 'india'); let calls = 0;
   const fetcher = async (url, init) => {
     calls++; assert.equal(new URL(url).origin, 'https://api.upstox.com');
+    assert.equal(new URL(url).pathname, '/v3/market-quote/quotes');
     assert.equal(init.headers.authorization, 'Bearer fixture-secret'); assert.equal(init.redirect, 'manual');
     assert.deepEqual(new URL(url).searchParams.get('instrument_key').split(','), rows.map(r => INDIA_INSTRUMENTS[r.id][0]));
     return Response.json({ status: 'success', data: Object.fromEntries(rows.slice(0, 7).map(r => [r.id, primary(r)])) });

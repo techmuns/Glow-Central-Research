@@ -108,6 +108,13 @@ function makeFetcher({ yahoo = 'ok', nse = 'ok', email = 'ok', log = [] } = {}) 
       const meta = body.chart.result[0].meta;
       meta.symbol = symbol; // Every mock response must identify the requested instrument.
       meta.regularMarketTime = Math.min(meta.regularMarketTime, MORNING / 1000);
+      if (MARKET_ROWS.find(r => r.symbol === symbol)?.group === 'india') {
+        const r = body.chart.result[0];
+        const day = new Date(meta.regularMarketTime * 1000).toISOString().slice(0, 10);
+        meta.exchangeTimezoneName = 'Asia/Kolkata'; meta.currency = 'INR';
+        meta.regularMarketTime = Date.parse(`${day}T15:31:00+05:30`) / 1000;
+        r.timestamp = r.timestamp.map(t => Date.parse(`${new Date(t * 1000).toISOString().slice(0, 10)}T09:15:00+05:30`) / 1000);
+      }
       return Response.json(body);
     }
     if (url.startsWith('https://nsearchives.nseindia.com/')) {

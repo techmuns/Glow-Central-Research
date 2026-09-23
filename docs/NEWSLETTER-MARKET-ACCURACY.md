@@ -31,10 +31,12 @@ establish accuracy. The fixture retains these missing bars; its expected result 
 a dated level with no daily change until another valid source supplies one.
 
 Indian indices use the existing `UPSTOX_ACCESS_TOKEN` Worker secret. One bounded
-full-quote request reads all eight exact cash-index instrument keys, checked
+V3 full-quote request reads all eight exact cash-index instrument keys, checked
 against the public NSE/BSE instrument masters. The response must match both key
-and trading symbol. `net_change` is documented as last price minus yesterday's
-close; if supplied, OHLC close must agree. A valid last-trade time is required;
+and its master trading symbol or index name. `prev_close_price` explicitly supplies
+the previous trading session's close and must agree with last price minus
+`net_change`. OHLC close may be the current session's close and is never used
+as the previous-session reference. A valid last-trade time is required;
 request/feed time alone cannot date an old index level. No browser credential,
 new subscription, credential change or extra collection schedule is introduced.
 
@@ -72,5 +74,5 @@ gap, never a manufactured percentage. Existing delivered emails and saved PDFs
 are historical records; this change does not resend or rewrite them. Normal
 future builds receive the correction through the existing merge-triggered deploy.
 
-References: [Upstox full quotes](https://upstox.com/developer/api-documentation/get-full-market-quote/)
+References: [Upstox full quotes](https://upstox.com/developer/api-documentation/get-full-market-quote-v3/)
 and [instrument identities](https://upstox.com/developer/api-documentation/instruments/).
