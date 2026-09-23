@@ -97,6 +97,9 @@ try {
   payload = { ...payload, updatedAt: '2026-09-10T04:02:00Z', sources: payload.sources.map(s => s.id === 'bse-bulk' ? { ...s, ok: false, error: 'Test outage' } : s) };
   await page.clock.fastForward(61000);
   await page.waitForFunction(async () => (await import('/js/data/exchange-deals.js')).meta()?.summary?.includes('Test outage'));
+  // The snapshot is adopted before refresh finishes its dispatch check and notifies the UI.
+  // Await that same in-flight refresh so a fast click cannot open the previous paint's metadata.
+  await page.evaluate(async () => { await (await import('/js/data/exchange-deals.js')).refresh(); });
   await page.locator('[data-filings-method]').click();
   assert.match(await page.locator('#modal-content').innerText(), /Test outage/, 'a failed source is named in the provenance panel');
   await page.locator('[data-modal-close]').first().click();
