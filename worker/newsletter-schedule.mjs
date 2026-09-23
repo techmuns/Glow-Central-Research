@@ -1,3 +1,5 @@
+import { renderBriefPdf, pdfFilename } from './newsletter-pdf.mjs';
+import { EMAIL_HTML_BYTES, emailBytes, renderBriefEmails, acceptedStoryKeys } from './newsletter-email.mjs';
 import { buildBrief, briefSubject, briefSummary, renderBriefHtml, renderBriefText, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
 import { EDITIONS, editionKey, istDay, nextScheduled, normaliseEmail, scheduledEditions } from '../public/js/data/newsletter-shared.js';
 
@@ -53,6 +55,7 @@ async function pooled(items, size, fn) {
  */
 export async function sendEmail({ fetcher = fetch, token, email, subject, html = null, text = null, signal, base = EMAIL_SEND_URL }) {
   if ((html == null) === (text == null)) throw new Error('sendEmail takes exactly one of html or text');
+  if (emailBytes(html ?? text) > EMAIL_HTML_BYTES) return { ok: false, status: null, reason: 'email-too-large' };
   const body = html != null ? { email, subject, html } : { email, subject, text };
   let res;
   try {
@@ -88,6 +91,16 @@ export class NewsletterSchedule {
   dashboardUrl() {
     const origin = String(this.env?.DASHBOARD_ORIGIN || PRODUCTION_ORIGIN).replace(/\/+$/, '');
     return /^https:\/\/[a-z0-9.-]+$/i.test(origin) ? origin : PRODUCTION_ORIGIN;
+  }
+
+  renderOptions(recipient = null) {
+    const productName = String(this.env?.NEWSLETTER_PRODUCT_NAME || '').trim();
+    return {
+      dashboardUrl: this.dashboardUrl(),
+      settings: this.store.settings(),
+      ...(productName ? { productName } : {}),
+      ...(recipient ? { recipient } : {}),
+    };
   }
 
   async status() {
@@ -185,18 +198,67 @@ export class NewsletterSchedule {
       const reason = error?.code === 'book-unavailable' ? 'book-unavailable' : 'build-failed';
       return finish({ sent: 0, failed: list.length, reason, outcomes: list.map((r) => ({ email: r.email, ok: false, reason })) });
     }
-    const subject = briefSubject(brief);
-    const outcomes = [];
-    await pooled(list, SEND_POOL, async (recipient) => {
-      const html = renderBriefHtml(brief, { dashboardUrl: this.dashboardUrl(), recipient });
-      const result = await sendEmail({ fetcher: this.fetcher, token: credential, email: recipient.email, subject, html, signal: AbortSignal.timeout(SEND_TIMEOUT_MS) });
-      outcomes.push({ email: recipient.email, ok: result.ok, status: result.status, reason: result.reason });
+    // Plan for the longest personalised footer so all recipients receive identical boundaries.
+    // PDF UUIDs have a fixed length: use a placeholder to validate the complete plan before
+    // storing a document or sending anything. No render/oversize failure can send half a plan.
+    // All non-test footers share one sentence, plus optional escaped attribution. A test
+    // footer is always shorter. Avoid rendering the whole edition for each of 100 readers.
+    const footerBytes = r => r.test ? 0 : 100 + emailBytes(r.addedBy ? ` Added by ${String(r.addedBy).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))}.` : '');
+    const footerRecipient = list.reduce((largest, r) => footerBytes(r) > footerBytes(largest) ? r : largest, list[0]);
+    const placeholder = `${this.dashboardUrl()}/api/newsletter/pdf/00000000-0000-0000-0000-000000000000`;
+    let messages;
+    try {
+      messages = renderBriefEmails(brief, { ...this.renderOptions(footerRecipient), pdfUrl: placeholder });
+    } catch (error) {
+      const reason = error?.code === 'email-too-large' ? 'email-too-large' : 'build-failed';
+      return finish({ sent: 0, failed: list.length, reason, outcomes: list.map(r => ({ email: r.email, ok: false, reason })) });
+    }
+    let pdfUrl, documentId;
+    try {
+      documentId = this.store.saveDocument(renderBriefPdf(brief, this.renderOptions()), pdfFilename(brief), key);
+      pdfUrl = `${this.dashboardUrl()}/api/newsletter/pdf/${documentId}`;
+    } catch {
+      return finish({ sent: 0, failed: list.length, reason: 'pdf-failed', outcomes: list.map(r => ({ email: r.email, ok: false, reason: 'pdf-failed' })) });
+    }
+    const subject = briefSubject(brief, this.renderOptions());
+    const summary = { ...briefSummary(brief), emailParts: messages.length, htmlBytes: messages.map(m => m.bytes) };
+    const acceptedParts = new Set();
+    const deliveredStories = () => {
+      const keys = source !== 'test' ? acceptedStoryKeys(messages, acceptedParts) : [];
+      return keys.length ? keys : null;
+    };
+    const outcomes = list.map(recipient => ({ email: recipient.email, ok: false, status: null, reason: 'not-attempted',
+      parts: messages.map((message, i) => ({ part: i + 1, total: messages.length, bytes: message.bytes, ok: false, status: null, reason: 'not-attempted' })) }));
+    const published = new Map(brief.reported.map(item => [item.key, item.publishedAt]));
+    const progress = () => this.store.recordDeliveryProgress(key, { outcomes, subject, summary,
+      sent: outcomes.filter(o => o.ok).length, reason: 'sending',
+      reported: (deliveredStories() || []).map(key => ({ key, publishedAt: published.get(key) })), windowFrom: brief.window.from });
+    progress();
+    await pooled(list.map((recipient, i) => ({ recipient, outcome: outcomes[i] })), SEND_POOL, async ({ recipient, outcome }) => {
+      // Sequence parts for each reader; a failed part does not discard later updates. The
+      // edition claim prevents duplicate sends, including after uncertain upstream timeouts.
+      for (let i = 0; i < messages.length; i++) {
+        const message = messages[i], part = outcome.parts[i];
+        const html = renderBriefHtml(brief, { ...this.renderOptions(recipient), pdfUrl, part: message.part });
+        part.reason = 'sending';
+        part.bytes = emailBytes(html);
+        progress();
+        const result = await sendEmail({ fetcher: this.fetcher, token: credential, email: recipient.email, subject: message.subject, html, signal: AbortSignal.timeout(SEND_TIMEOUT_MS) });
+        Object.assign(part, result);
+        if (result.ok) acceptedParts.add(i);
+        outcome.ok = outcome.parts.every(p => p.ok);
+        const unfinished = outcome.parts.find(p => !p.ok);
+        outcome.status = unfinished ? unfinished.status : result.status;
+        outcome.reason = outcome.ok ? null : outcome.parts.some(p => p.ok) ? 'partial-send' : outcome.parts.find(p => !p.ok)?.reason;
+        progress();
+      }
     });
     const sent = outcomes.filter((o) => o.ok).length;
     const failed = outcomes.length - sent;
-    // "Reported" means the desk saw it: a list send that reached at least one address, never a test copy.
-    if (sent > 0 && ['timer', 'button'].includes(source)) this.store.markReported(brief.reported, key, { windowFrom: brief.window.from });
-    return finish({ sent, failed, reason: sent ? null : outcomes[0]?.reason || 'failed', outcomes, subject, summary: briefSummary(brief) });
+    const partOutcomes = outcomes.flatMap(o => o.parts);
+    this.store.finishDocument(documentId, partOutcomes);
+    const reason = !failed ? null : partOutcomes.some(p => p.ok) ? 'partial-send' : outcomes[0]?.reason || 'failed';
+    return finish({ sent, failed, reason, outcomes, subject, summary });
   }
 
   /** A send somebody pressed: a test copy to one address, or the edition to everyone, built now. */
@@ -216,12 +278,14 @@ export class NewsletterSchedule {
     } else {
       return { ok: false, reason: 'invalid-target' };
     }
+    const budget = this.store.claimManualDelivery(now);
+    if (!budget.ok) return { ok: false, reason: 'manual-send-budget', retryAt: budget.retryAt };
     const key = `manual:${edition}:${day}:${now}:${to}`;
     return this.deliver({ edition, day, at: now, key, source: to === 'me' ? 'test' : 'button', now, recipients, token, to: now });
   }
 
   /** The edition as it would be sent now, rendered but not sent. */
-  async preview({ edition, format = 'html' } = {}) {
+  async preview({ edition, format = 'html', part = 1 } = {}) {
     if (!EDITIONS[edition]) return { ok: false, reason: 'invalid-edition' };
     const now = this.now();
     let brief;
@@ -230,9 +294,19 @@ export class NewsletterSchedule {
     } catch (error) {
       return { ok: false, reason: error?.code === 'book-unavailable' ? 'book-unavailable' : 'build-failed' };
     }
+    if (format === 'html') {
+      let messages;
+      try { messages = renderBriefEmails(brief, this.renderOptions()); }
+      catch (error) { return { ok: false, reason: error?.code || 'build-failed' }; }
+      const message = messages[part - 1];
+      if (!message) return { ok: false, reason: 'invalid-part' };
+      return { ok: true, edition, subject: message.subject, builtAt: iso(now), summary: briefSummary(brief),
+        part, parts: messages.length, body: renderBriefHtml(brief, { ...this.renderOptions(), part: message.part, preview: true }) };
+    }
     return {
       ok: true, edition, subject: briefSubject(brief), builtAt: iso(now), summary: briefSummary(brief),
-      body: format === 'text' ? renderBriefText(brief) : renderBriefHtml(brief, { dashboardUrl: this.dashboardUrl() }),
+      filename: format === 'pdf' ? pdfFilename(brief) : undefined,
+      body: format === 'pdf' ? renderBriefPdf(brief, this.renderOptions()) : format === 'text' ? renderBriefText(brief, this.renderOptions()) : renderBriefHtml(brief, this.renderOptions()),
     };
   }
 }

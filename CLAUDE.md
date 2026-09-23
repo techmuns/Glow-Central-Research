@@ -1286,6 +1286,13 @@ revalidates its sources on mount — moved, not deleted, and the age stays state
 
 ### The team brief — two emails a weekday, built at the edge (GLOW-OWNED)
 
+**Delivery updated 23 September 2026:** size-bound the entire edition, including Glow’s extra
+calendar and holdings tables, using `newsletter-email.mjs`. Each part must stay within 90,000
+UTF-8 bytes and link to its saved complete PDF. Parts share a dated morning/evening subject;
+threading is best-effort because the sender has no documented reply-header controls. Preserve
+Glow’s reported ledger and commit only acknowledged part identities with delivery progress.
+See `docs/GLOW-TEMPLATE-SYNC.md` → *Newsletter delivery parity* for the full contract.
+
 The **Newsletter** button beside the header bell subscribes the desk to two Glow Ventures-branded
 emails a weekday, each leading with the portfolio companies (one block per company, every link
 opening in a new tab) and following with the market scan: the **morning brief** at 08:00 IST (what happened overnight — the US close, Asia this

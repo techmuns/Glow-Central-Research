@@ -75,6 +75,7 @@ export class CaptureRegistry extends DurableObject {
     return { ...out, snapshot: this.newsletter.snapshot(), schedule: await this.newsletterSchedule.status() };
   }
   newsletterSend(input, token) { return this.newsletterSchedule.sendNow(input, token); }
+  newsletterPdf(id) { return this.newsletter.document(id); }
   newsletterPreview(input) { return this.newsletterSchedule.preview(input); }
   async alarm() {
     if (await this.ctx.storage.get(PRIMARY_TIMER)) await this.breakoutPrimary.wake();

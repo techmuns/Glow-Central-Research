@@ -32,6 +32,8 @@ import {
 
 export const NEWSLETTER_OBJECT = 'team-brief:v1';
 export const DELIVERY_HISTORY = 12;
+export const MANUAL_SEND_LIMIT = 5;
+export const MANUAL_SEND_WINDOW_MS = 3600_000;
 
 const iso = (at) => new Date(at).toISOString();
 const parseJson = (text, fallback) => { try { return JSON.parse(text); } catch { return fallback; } };
@@ -59,6 +61,10 @@ export class NewsletterStore {
     this.storage.sql.exec(`CREATE TABLE IF NOT EXISTS newsletter_reported (
       item TEXT PRIMARY KEY, published_at TEXT, delivery TEXT NOT NULL, reported_at TEXT NOT NULL)`);
     this.storage.sql.exec('CREATE INDEX IF NOT EXISTS newsletter_reported_time ON newsletter_reported(reported_at)');
+    this.storage.sql.exec('CREATE TABLE IF NOT EXISTS newsletter_manual_attempts (id TEXT PRIMARY KEY, at INTEGER NOT NULL)');
+    this.storage.sql.exec(`CREATE TABLE IF NOT EXISTS newsletter_documents (
+      id TEXT PRIMARY KEY, filename TEXT NOT NULL, body BLOB NOT NULL, created_at TEXT NOT NULL,
+      delivery_key TEXT, delivery_state TEXT NOT NULL DEFAULT 'pending')`);
     this.initialised = true;
   }
 
@@ -195,12 +201,61 @@ export class NewsletterStore {
     });
   }
 
-  finishDelivery(key, { sent = 0, failed = 0, reason = null, outcomes = [], subject = null, summary = null } = {}) {
-    this.rows(
-      'UPDATE newsletter_deliveries SET finished_at = ?, sent = ?, failed = ?, reason = ?, subject = ?, outcomes = ?, summary = ? WHERE key = ?',
-      iso(this.now()), sent, failed, reason, subject, JSON.stringify(outcomes || []), summary ? JSON.stringify(summary) : null, key,
-    );
+  finishDelivery(key, values = {}) {
+    this.recordDeliveryProgress(key, values, true);
     this.pruneDeliveries();
+  }
+
+  recordDeliveryProgress(key, { sent = 0, failed = 0, reason = null, outcomes = [], subject = null, summary = null, reported = [], windowFrom = null } = {}, finished = false) {
+    this.storage.transactionSync(() => {
+      this.rows(
+        'UPDATE newsletter_deliveries SET finished_at = ?, sent = ?, failed = ?, reason = ?, subject = ?, outcomes = ?, summary = ? WHERE key = ?',
+        finished ? iso(this.now()) : null, sent, failed, reason, subject, JSON.stringify(outcomes), summary ? JSON.stringify(summary) : null, key,
+      );
+      // Write acknowledged identities in the same transaction as their part outcomes.
+      if (reported.length) this.markReportedRows(reported, key, { windowFrom });
+    });
+  }
+
+  // Reserve a manual attempt before any model, PDF, or email work. This desk-wide rolling
+  // budget survives object restarts and cannot be bypassed with another address or client IP.
+  // Scheduled editions use their existing once-per-edition claims and do not spend this budget.
+  claimManualDelivery(now = this.now()) {
+    return this.storage.transactionSync(() => {
+      this.rows('DELETE FROM newsletter_manual_attempts WHERE at <= ?', now - MANUAL_SEND_WINDOW_MS);
+      const budget = this.rows('SELECT COUNT(*) AS count, MIN(at) AS first FROM newsletter_manual_attempts')[0];
+      if (budget.count >= MANUAL_SEND_LIMIT) return { ok: false, retryAt: iso(budget.first + MANUAL_SEND_WINDOW_MS) };
+      this.rows('INSERT INTO newsletter_manual_attempts (id, at) VALUES (?, ?)', crypto.randomUUID(), now);
+      return { ok: true };
+    });
+  }
+
+  // Immutable PDFs have opaque bearer links and no subscriber addresses. Keep them independently
+  // of the short delivery log: pruning that log must not break a previously emailed download.
+  saveDocument(body, filename, deliveryKey) {
+    if (!(body instanceof Uint8Array) || body.byteLength > 1_500_000) throw new Error('Invalid newsletter PDF');
+    const id = crypto.randomUUID();
+    this.rows('INSERT INTO newsletter_documents (id, filename, body, created_at, delivery_key) VALUES (?, ?, ?, ?, ?)', id, filename, body, iso(this.now()), deliveryKey);
+    return id;
+  }
+
+  finishDocument(id, outcomes) {
+    if (outcomes.some(o => o.ok)) {
+      this.rows("UPDATE newsletter_documents SET delivery_state = 'sent' WHERE id = ?", id);
+    } else if (outcomes.length && outcomes.every(o => ['unauthorised', 'rate-limited', 'refused', 'no-token'].includes(o.reason))) {
+      this.rows('DELETE FROM newsletter_documents WHERE id = ?', id);
+    } else {
+      // A timeout, connection loss, 5xx or malformed response can follow an accepted email.
+      // Keep its link usable, but track that state and the delivery key independently of log
+      // pruning, so uncertain/interrupted documents remain identifiable rather than orphaned.
+      this.rows("UPDATE newsletter_documents SET delivery_state = 'delivery-uncertain' WHERE id = ?", id);
+    }
+  }
+
+  document(id) {
+    if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id || '')) return null;
+    const row = this.rows('SELECT filename, body FROM newsletter_documents WHERE id = ?', id)[0];
+    return row ? { filename: row.filename, body: new Uint8Array(row.body) } : null;
   }
 
   pruneDeliveries() {
@@ -243,21 +298,23 @@ export class NewsletterStore {
    * knowledge begins, and `reportedLookup().since` reports it.
    */
   markReported(items, delivery, { windowFrom = null } = {}) {
+    return this.storage.transactionSync(() => this.markReportedRows(items, delivery, { windowFrom }));
+  }
+
+  markReportedRows(items, delivery, { windowFrom = null } = {}) {
     const at = iso(this.now());
-    return this.storage.transactionSync(() => {
-      const meta = this.meta();
-      if (!meta.reportedSince && Number.isFinite(windowFrom)) this.putMeta({ ...meta, reportedSince: iso(windowFrom) });
-      let added = 0;
-      for (const item of items || []) {
-        const key = String(item?.key || '');
-        if (!key) continue;
-        const publishedAt = Number.isFinite(item.publishedAt) ? iso(item.publishedAt) : null;
-        this.rows('INSERT OR IGNORE INTO newsletter_reported (item, published_at, delivery, reported_at) VALUES (?, ?, ?, ?)', key, publishedAt, String(delivery || ''), at);
-        added += this.rows('SELECT changes() AS n')[0].n;
-      }
-      this.rows('DELETE FROM newsletter_reported WHERE reported_at < ?', iso(this.now() - REPORTED_RETENTION_MS));
-      return { added };
-    });
+    const meta = this.meta();
+    if (!meta.reportedSince && Number.isFinite(windowFrom)) this.putMeta({ ...meta, reportedSince: iso(windowFrom) });
+    let added = 0;
+    for (const item of items || []) {
+      const key = String(item?.key || '');
+      if (!key) continue;
+      const publishedAt = Number.isFinite(item.publishedAt) ? iso(item.publishedAt) : null;
+      this.rows('INSERT OR IGNORE INTO newsletter_reported (item, published_at, delivery, reported_at) VALUES (?, ?, ?, ?)', key, publishedAt, String(delivery || ''), at);
+      added += this.rows('SELECT changes() AS n')[0].n;
+    }
+    this.rows('DELETE FROM newsletter_reported WHERE reported_at < ?', iso(this.now() - REPORTED_RETENTION_MS));
+    return { added };
   }
 
   reportedCount() {

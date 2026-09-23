@@ -1342,10 +1342,10 @@ export const storyDate = (ms) => { const d = new Date(ms + 5.5 * 3600 * 1000); r
 /** "8:00 AM IST" from "08:00". */
 const clockLabel = (time) => { const [h, m] = String(time).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'} IST`; };
 
-/** "Glow Ventures · 12 updates on your portfolio companies — 17 Sep" */
+/** One subject per dated morning/evening edition; part numbers stay in the body. */
 export function briefSubject(brief, { brand = BRAND } = {}) {
   const n = briefStats(brief).updates;
-  return `${brand} · ${n} update${n === 1 ? '' : 's'} on your ${EDITION_NAME.toLowerCase()} — ${shortDate(brief.at)}`;
+  return `${brand} · ${n} update${n === 1 ? '' : 's'} on your ${EDITION_NAME.toLowerCase()} — ${shortDate(brief.at)} ${brief.day.slice(0, 4)} · ${brief.edition === 'morning' ? 'Morning' : 'Evening'}`;
 }
 
 const windowLine = (brief) => `${istLabel(brief.window.from)} → ${istLabel(brief.window.to)}`;
@@ -1470,7 +1470,7 @@ function marketSection(brief) {
 
 const topicTag = (topic) => caps(esc(topic.label), `color:${topic.color};font-weight:bold;letter-spacing:1px;`);
 /** "17 Sept, 19:09 IST", or "17 Sept, day only" for a disclosure that carries a broadcast day and no clock. */
-const storyWhen = (s) => `${storyDate(s.at)}, ${s.dayOnly ? 'day only' : `${istTime(s.at)} IST`}`;
+export const storyWhen = (s) => `${storyDate(s.at)}, ${s.dayOnly ? 'day only' : `${istTime(s.at)} IST`}`;
 
 /** The copies and accounts of one update, as small links under it: where, when, and the headline where it differs. */
 const relatedLine = (k) => (k.others.length ? `<div style="margin-top:5px;font-family:${SANS};font-size:11px;line-height:1.7;color:${META};">Related: ${k.others.map((r) => link(r.url, `${esc(r.source)} · ${esc(storyWhen(r))} · ${esc(r.headline)}${r.late ? ' · not in the previous brief' : ''}`, `color:${META};border-bottom:1px dotted ${RULE};`) + (r.dek ? `<div>${esc(r.dek)}</div>` : '')).join('<br>')}</div>` : '');
@@ -1502,7 +1502,7 @@ function companyBlock(c, dashboardUrl, ai = null) {
   return `<tr><td style="padding:20px 0 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
       <td valign="bottom" style="padding:0 8px 6px 0;border-bottom:2px solid ${INK};">
-        <div style="font-family:${SERIF};font-size:21px;line-height:1.2;font-weight:bold;color:${INK};">${link(href, esc(c.company), `color:${INK};`)}</div>
+        <div style="font-family:${SERIF};font-size:21px;line-height:1.2;font-weight:bold;color:${INK};">${link(href, esc(c.company) + (c.continued ? ' (continued)' : ''), `color:${INK};`)}</div>
         <div style="margin-top:3px;font-family:${SANS};font-size:10px;letter-spacing:1px;color:${META};${NUM}">${esc(c.ticker)} · ${counts}</div>
       </td>
       <td valign="bottom" align="right" style="padding:0 0 8px;border-bottom:2px solid ${INK};font-family:${SANS};font-size:11px;white-space:nowrap;">${href ? `<a href="${esc(href)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">On the dashboard →</a>` : ''}</td>
@@ -1624,12 +1624,19 @@ const routineNote = (n) => `${n} routine filing${n === 1 ? '' : 's'} (newspaper 
 /**
  * The email. `recipient` personalises the footer only, so one build serves every subscriber.
  */
-export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recipient = null, productName = PRODUCT_NAME, brand = BRAND, settings = null } = {}) {
+export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recipient = null, productName = PRODUCT_NAME, brand = BRAND, settings = null, pdfUrl = null, part = null, preview = false } = {}) {
   const subject = briefSubject(brief, { brand });
   const stats = briefStats(brief);
+  const companies = part?.companies ?? stats.companies;
+  const includeSection = name => !part || Object.hasOwn(part.sections, name);
   const sendTime = settings?.[brief.edition]?.time || EDITIONS[brief.edition].defaultTime;
   const unsubscribeUrl = `${dashboardUrl}/#/research/ask-research?newsletter=manage`;
   const parts = [];
+
+  const downloadUrl = pdfUrl || `${dashboardUrl}/api/newsletter/preview?edition=${brief.edition}&format=pdf`;
+  parts.push(`<tr><td align="right" style="padding:18px 34px 0;font-family:${SANS};"><a href="${esc(downloadUrl)}" ${NEW_TAB} style="display:inline-block;padding:10px 16px;background:${GOLD};border-radius:4px;color:#ffffff;font-size:12px;font-weight:bold;text-decoration:none;">Download PDF ↓</a></td></tr>`);
+  const partNote = part?.total > 1 ? `<tr><td style="padding:16px 34px;font-family:${SANS};font-size:13px;line-height:1.6;background:${CREAM};color:${BODY};"><strong>Part ${part.index} of ${part.total}</strong> · ${companies.reduce((n, c) => n + c.clusters.length, 0)} updates in this email.<br>${part.index === part.total ? 'This is the final part of this edition.' : `The next email continues with Part ${part.index + 1} of ${part.total}.`} The PDF contains the complete edition.${preview ? `<br>${Array.from({ length: part.total }, (_, i) => link(`${dashboardUrl}/api/newsletter/preview?edition=${brief.edition}&part=${i + 1}`, `Preview Part ${i + 1}`, `color:${GOLD};`)).join(' · ')}` : ''}</td></tr>` : '';
+  if (partNote) parts.push(partNote);
 
   parts.push(`<tr><td align="center" style="padding:30px 34px 0;">
     <div style="font-family:${SERIF};font-size:34px;line-height:1.1;font-weight:bold;letter-spacing:6px;color:${INK};">${esc(brand.toUpperCase())}</div>
@@ -1640,10 +1647,11 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
 
   const reported = stats.companies.length;
   parts.push(`<tr><td style="padding:14px 34px 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${BODY};">
+    ${part?.total > 1 ? '<div style="font-size:10px;letter-spacing:1px;">COMPLETE EDITION</div>' : ''}
     <strong style="color:${INK};">${stats.updates} ${stats.updates === 1 ? 'update' : 'updates'}</strong> across <strong style="color:${INK};">${reported} of ${brief.book.listed}</strong> portfolio compan${brief.book.listed === 1 ? 'y' : 'ies'} &nbsp;·&nbsp; ${dot(MOODS.good.color, 9)} ${stats.good} good &nbsp;·&nbsp; ${dot(MOODS.watch.color, 9)} ${stats.watch} watch-out${stats.watch === 1 ? '' : 's'}${stats.late ? ` &nbsp;·&nbsp; <span style="color:${GOLD};">${stats.late} not in the previous brief</span>` : ''}
   </td></tr>`);
 
-  parts.push(`<tr><td style="padding:24px 34px 0;">
+  if (companies.length || !stats.stories) parts.push(`<tr><td style="padding:24px 34px 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
       <td style="padding:0 0 4px;border-bottom:3px solid ${GOLD_LIGHT};">${caps('Your portfolio companies', `color:${INK};font-weight:bold;letter-spacing:3px;`)}</td>
       <td align="right" style="padding:0 0 4px;border-bottom:3px solid ${GOLD_LIGHT};">${caps(esc(windowLine(brief)), `color:${META};letter-spacing:1px;`)}</td>
@@ -1658,23 +1666,28 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
     </td></tr>`);
   } else {
     parts.push(`<tr><td style="padding:0 34px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${stats.companies.map((c) => companyBlock(c, dashboardUrl, brief.ai)).join('')}</table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${companies.map((c) => companyBlock(c, dashboardUrl, brief.ai)).join('')}</table>
     </td></tr>`);
     const more = brief.announcements.more + brief.news.more + (brief.trades?.more || 0) + (brief.moves?.more || 0);
-    if (more > 0) parts.push(`<tr><td style="padding:14px 34px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${more} more in this window on the <a href="${esc(`${dashboardUrl}/#/research/daily-alerts?scope=portfolio`)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">dashboard →</a>; whatever is not shown here reaches the next brief.</td></tr>`);
+    if (more > 0 && (!part || part.index === part.total)) parts.push(`<tr><td style="padding:14px 34px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${more} more in this window on the <a href="${esc(`${dashboardUrl}/#/research/daily-alerts?scope=portfolio`)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">dashboard →</a>; whatever is not shown here reaches the next brief.</td></tr>`);
   }
   if (brief.announcements.routineHidden) {
     parts.push(`<tr><td style="padding:${stats.stories ? 8 : 14}px 34px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${esc(routineNote(brief.announcements.routineHidden))}</td></tr>`);
   }
 
-  parts.push(calendarSection(brief, dashboardUrl));
-  parts.push(actionsSection(brief));
-  // The desk's own numbers before the world's: the portfolio on the session, the Indian indices, then the global scan.
-  parts.push(performanceSection(brief));
-  parts.push(indiaSection(brief));
-  parts.push(marketSection(brief));
+  // Only row selections change between emails; source coverage and edition totals stay intact.
+  for (const name of ['calendar', 'actions', 'performance', 'india', 'markets']) {
+    if (!includeSection(name)) continue;
+    const rows = part?.sections[name];
+    const selected = !rows ? brief : ['india', 'markets'].includes(name)
+      ? { ...brief, markets: { ...brief.markets, rows } }
+      : { ...brief, [name]: { ...brief[name], rows } };
+    if (part && rows?.length) parts.push(`<tr><td style="padding:14px 34px 0;font-family:${SANS};font-size:11px;color:${META};">${rows.length} rows from ${esc(name === 'performance' ? 'portfolio performance' : name)} in this part. Section totals describe the complete edition.</td></tr>`);
+    parts.push(name === 'calendar' ? calendarSection(selected, dashboardUrl) : name === 'actions' ? actionsSection(selected) : name === 'performance' ? performanceSection(selected) : name === 'india' ? indiaSection(selected) : marketSection(selected));
+  }
   parts.push(`<tr><td style="padding:22px 34px 0;font-family:${SANS};font-size:10px;line-height:1.6;color:${META};">${esc(sourcesNote(brief))}</td></tr>`);
 
+  if (partNote) parts.push(partNote);
   const subscribedLine = recipient?.test
     ? 'This is a test copy you asked for.'
     : `You're subscribed to the ${esc(brand)} brief on your ${esc(EDITION_NAME.toLowerCase())}, every weekday at ${esc(clockLabel(sendTime))}.${recipient?.addedBy ? ` Added by ${esc(recipient.addedBy)}.` : ''}`;
@@ -1730,6 +1743,24 @@ export function renderBriefText(brief, { productName = PRODUCT_NAME, brand = BRA
       }
     }
   }
+  lines.push(...briefSupplementLines(brief));
+  lines.push('', 'INDIAN MARKETS');
+  for (const r of brief.markets.rows.filter((row) => row.group === 'india')) lines.push(`    ${r.label.padEnd(20)} ${(formatLast(r) ?? '—').padStart(11)} ${(formatPct(r) ?? '—').padStart(8)}   ${asOfLabel(r)}`);
+  lines.push('', 'GLOBAL MARKET SCAN');
+  for (const g of MARKET_GROUPS) {
+    if (g.id === 'india') continue;
+    const members = brief.markets.rows.filter((r) => r.group === g.id);
+    if (!members.length) continue;
+    lines.push(`  ${g.label}`);
+    for (const r of members) lines.push(`    ${r.label.padEnd(20)} ${(formatLast(r) ?? '—').padStart(11)} ${(formatPct(r) ?? '—').padStart(8)}   ${asOfLabel(r)}`);
+  }
+  lines.push('', sourcesNote(brief));
+  return lines.join('\n');
+}
+
+/** Glow-specific calendar, actions and performance, shared by text and PDF exports. */
+export function briefSupplementLines(brief) {
+  const lines = [];
   if (brief.announcements.routineHidden) lines.push('', routineNote(brief.announcements.routineHidden));
   if (brief.calendar) {
     const c = brief.calendar;
@@ -1757,21 +1788,11 @@ export function renderBriefText(brief, { productName = PRODUCT_NAME, brand = BRA
     else {
       const s = p.summary;
       lines.push(`  ${p.quoted} of ${p.listed} listed holdings quoted · ${s.up} up · ${s.down} down · ${s.flat} flat · median ${signed(s.median, 2, '%')}`);
-      if (p.book?.ok && s.change != null) lines.push(`  Day change on statement quantities (derived): ${fmtInrCompact(s.change)} (${signed(s.changePct, 2, '%')}) across ${p.book.priced} holdings priced`);
-      for (const r of p.rows) lines.push(`    ${r.company.padEnd(40).slice(0, 40)} ${(r.last == null ? '—' : fmtNumber(r.last, 2)).padStart(11)} ${signed(r.pct, 2, '%').padStart(8)}${r.change != null ? `   ${fmtInrCompact(r.change)}` : ''}`);
+      if (p.book?.ok && s.change != null) lines.push(`  Day change on statement quantities (derived): ${fmtInrCompact(s.change)} (${signed(s.changePct, 2, '%')}) across ${p.book.priced} holdings priced. Statements dated ${p.book.statementFrom || 'unknown'} to ${p.book.statementTo || 'unknown'}; quantities times session close changes, not a statement figure. ${p.book.unpriced || 0} quoted holdings have no statement quantity.`);
+      lines.push('  Holding / Close INR / Day % / Day change (derived, where available)');
+      for (const r of p.rows) lines.push(`    ${r.company.padEnd(40)} ${(r.last == null ? '—' : fmtNumber(r.last, 2)).padStart(11)} ${signed(r.pct, 2, '%').padStart(8)}${r.change != null ? `   ${fmtInrCompact(r.change)}` : ''}`);
       if (p.unquoted) lines.push(`  ${p.unquoted} listed holdings had no quote for this session and are not listed.`);
     }
   }
-  lines.push('', 'INDIAN MARKETS');
-  for (const r of brief.markets.rows.filter((row) => row.group === 'india')) lines.push(`    ${r.label.padEnd(20)} ${(formatLast(r) ?? '—').padStart(11)} ${(formatPct(r) ?? '—').padStart(8)}   ${asOfLabel(r)}`);
-  lines.push('', 'GLOBAL MARKET SCAN');
-  for (const g of MARKET_GROUPS) {
-    if (g.id === 'india') continue;
-    const members = brief.markets.rows.filter((r) => r.group === g.id);
-    if (!members.length) continue;
-    lines.push(`  ${g.label}`);
-    for (const r of members) lines.push(`    ${r.label.padEnd(20)} ${(formatLast(r) ?? '—').padStart(11)} ${(formatPct(r) ?? '—').padStart(8)}   ${asOfLabel(r)}`);
-  }
-  lines.push('', sourcesNote(brief));
-  return lines.join('\n');
+  return lines;
 }
