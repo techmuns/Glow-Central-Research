@@ -3582,7 +3582,10 @@ threw, the packet was well-formed and under bound, and the suite asserted only i
    line each — and it may take at most `1 - ROW_RESERVE_SHARE` of the budget. Past that, summaries
    and then coverages are dropped from the largest sources first, recorded on the source as
    `trimmed`, before a single row is refused. Status, source, as-of, definition and data quality are
-   never trimmed: they are the honesty of the packet.
+   never trimmed: they are the honesty of the packet. A derived business context may take 65% of a
+   portfolio-reasoning budget, so beside it rows keep `ROW_FLOOR_SHARE` instead, and the context is
+   refitted smaller through `fitBusinessContext`'s own order when the skeleton leaves less. With
+   every source ready the two once filled 29,836 of 30,000 characters and not one row was sent.
 2. Rows are admitted tier by tier across every source — every source's company rows, then every
    source's token hits, then defaults — one row per source per pass, so a named company's fourth
    alert lands before another company's first result.
