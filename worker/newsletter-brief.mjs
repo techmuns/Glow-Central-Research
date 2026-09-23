@@ -941,14 +941,17 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
   news.dedup = await reviewNewsEvents({ news, env, fetcher, enabled: includeAi });
   // A price-only card still needs the session's evidence, including rows sent in an earlier
   // edition or hidden by email caps. These readings do not become additional newsletter stories.
-  const moverHoldings = holdings.filter(h => moves.groups.some(g => g.ticker === upper(h.ticker)));
+  const moverTickers = new Set(moves.groups.map(g => g.ticker));
   const priceWindows = moves.groups.flatMap(g => g.items.map(m => priceReasonWindow(moves.session, m.at))).filter(Boolean);
   const priceContext = {};
   if (priceWindows.length) {
     priceContext.window = { from: Math.min(...priceWindows.map(w => w.from)), to: Math.max(...priceWindows.map(w => w.to)) + 1 };
-    const priceCommon = { env, holdings: moverHoldings, window: priceContext.window, uncapped: true };
+    // Resolve against the complete book so narrowing to movers cannot make an ambiguous
+    // company name appear unique. Narrow only after the normal identity rules have run.
+    const priceCommon = { env, holdings, window: priceContext.window, uncapped: true };
     priceContext.announcements = await readAnnouncements({ ...priceCommon, fetcher, now });
     priceContext.news = await readNews(priceCommon);
+    for (const section of ['announcements', 'news']) priceContext[section].groups = priceContext[section].groups.filter(g => moverTickers.has(g.ticker));
   }
   // Read before grouping: generic exchange labels cannot identify the actual transaction.
   brief.content = await attachContent(brief, { service: contentService, env, fetcher, now, process: includeAi && bedrockConfigured(env),

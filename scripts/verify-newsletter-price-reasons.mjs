@@ -141,6 +141,23 @@ const fetcher = async (url, init) => {
   throw Error('Fixture source unavailable');
 };
 let full;
+await test('a relevant source beyond the email company cap still reaches the price assessment', async () => {
+  const original = captures['/data/market-news.json'];
+  const jobs = new Map();
+  captures['/data/market-news.json'] = { articles: [...original.articles, ...Array.from({ length: 10 }, (_, i) => ({
+    title: `Alpha Industries wins contract number ${i + 1}`, url: `${link}?new=${i}`, publishedAt: new Date(at('14:00') + i).toISOString(), publisher: 'Fixture News',
+  }))] };
+  try {
+    const b = await buildBrief({ edition: 'evening', day, now, settings: DEFAULT_SETTINGS, env: { ...env, ASSETS: assets }, fetcher,
+      contentService: { enqueue(list) { for (const j of list) jobs.set(j.id, j); }, async process() {},
+        get(id) { return jobs.get(id)?.url === link ? reading() : { state: 'pending', reason: 'queued' }; } } });
+    assert.equal(b.news.groups[0].items.length, 8);
+    assert.ok(!b.news.groups[0].items.some(r => r.url === link), 'the older report is outside the displayed eight stories');
+    assert.equal(move(b).why.state, 'reported'); assert.equal(move(b).why.source.url, link);
+    assert.equal(move(b).why.coverage.candidates, 11); assert.equal(move(b).why.coverage.pending, 10);
+  } finally { captures['/data/market-news.json'] = original; priceRequests = 0; }
+});
+
 await test('morning price-only cards reuse prior-session evidence already sent in an earlier brief', async () => {
   full = await buildBrief({ edition: 'morning', day: '2026-09-24', now: istInstant('2026-09-24', '08:00'), settings: DEFAULT_SETTINGS,
     env: { ...env, ASSETS: assets }, fetcher, contentService: service,
