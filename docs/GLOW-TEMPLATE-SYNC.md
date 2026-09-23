@@ -356,7 +356,8 @@ and notification corrections, exact-topic AI-card dialog links, and newest-first
 that continue as the reader scrolls. Publication time determines ordering, including time-zone
 offsets; undated items remain last. The window summary stays separate from the latest mention.
 This does not advance the full template baseline or adopt Sattva captures. Glow's portfolio,
-AI impact controls, deployment cache markers and additional tabs remain its own.
+AI impact controls (retired on 23 September, see the card-parity section), deployment cache markers
+and additional tabs remain its own.
 
 The [20 September performance audit](PERFORMANCE-PARITY-2026-09-20.md) checks the shared speed work
 through Sattva PR #230 and the later presentation changes. It adds content-hash reuse for unchanged
@@ -438,3 +439,42 @@ Verification: `verify-newsletter.mjs` covers byte limits, evidence/row preservat
 restarts, PDF routes, retention and budgets. `verify-newsletter-ui.mjs` exercises the preview
 and PDF download through the actual route. No production resends or manual deployments are
 part of this change. Future normal sends receive it after the existing deployment pipeline.
+
+## AI Alerts card parity with Sattva, and KPIs in play (23 September 2026)
+
+The owner asked for the two dashboards' AI Alerts cards to look the same. Glow's card now carries
+Sattva's 19 September card changes — the one-claim sentence (`leadEvent`, `filingClaim`,
+`sourceStatement`, `CLAIM_MAX`), evidence rows in rounds by source family (`MAX_PER_SOURCE`, four rows,
+newest first under a list header), and the earnings / valuation / thesis reading as a chip on the row
+that backs it — together with the event fields they read (`filingSubject`, `filingSubCategory`,
+`filingDescription`, the insider `trade*` fields, `resultBasis`, the exported `metricText`). This
+**supersedes** the 18 September note above that kept Glow's `briefMarkup`: the two bullets, the
+four-figure strip and the Could change trigger chips (`impactOf`, `impactLine`, `IMPACT_AXES`,
+`cardMetrics`) are deleted, so a later template merge of those files should now be close to clean.
+What stays Glow's own in the same files: the statement-book size sort (`effectiveSort`, the disabled
+Largest holdings option, *% of equity statement book*), the company-feed sector fallback
+(`companyMetadata`), and the KPI layer below.
+
+One fix travels both ways: `resultFigures` reads the event's own `metrics` before `sourceRecord`,
+because the AI pool drops the record and a pooled card otherwise lost a filed result's figures.
+
+Glow's AI Alerts cards name which of the company's own sector KPIs their evidence bears on, from the
+desk's sector → KPI ontology, in one section under *What happened*. The same layer is offered to
+Sattva in its own pull request; until that merges, preserve it here on a template merge.
+
+- Files: `scripts/fixtures/sector-kpi-ontology.yaml`, `scripts/lib/yaml-lite.mjs`,
+  `scripts/lib/screener-classification.mjs`, `scripts/classify-companies.mjs`,
+  `scripts/build-sector-kpis.mjs`, `public/js/data/sector-kpis-shared.js`,
+  `public/js/data/kpi-impact.js`, `public/data/company-classification.json`,
+  `public/data/sector-kpis.json`, `scripts/verify-kpi-impact.mjs`, `scripts/verify-kpi-impact-ui.mjs`,
+  `.github/workflows/sector-kpis-refresh.yml` (daily, commits to `main`, fails naming any listed
+  holding left without a KPI group). The two data files are each deployment's own (its own book is
+  classified).
+- Hunks in shared files: `card.kpis` and the ontology load in `js/data/ai-alerts.js`; `kpiMarkup()`
+  and the bookmark detail in `js/tabs/ai-alerts.js`; KPI names in `matchesSearch`; the earnings
+  event's `metrics` and the con-call event's `tags` in `js/data/daily-alerts.js`; the source
+  registry row; the two CI steps; the service-worker markers `glow-kpi-impact-v1` and `ai-card-parity-v1`.
+- The same change fixes two false-alert readings in the shared `js/data/filing-signals.js` (SEBI
+  takeover-regulation disclosures read as Acquisition; court and tax orders read as orders won).
+- No credential or route was added. The one new schedule is the daily classification job above; it
+  reads public Screener pages only for companies it has not classified, or classified 90+ days ago.

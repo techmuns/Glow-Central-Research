@@ -11,14 +11,21 @@ const feeds = ['earnings', 'announcements', 'insider'];
 const eventsFor = (ticker, company, day = '2026-09-04') => feeds.map((feed, i) => ({
   id: `${ticker}-${feed}`, ticker, company, day, time: ['09:15', '11:10', '14:42'][i], feed, feedLabel: feed,
   headline: `${company}: material risk ${i + 1}`, direction: 'negative', importance: 'high', tab: 'daily-alerts',
+  // The filing carries a tracked topic so the card's driver section has something to bucket. It
+  // supplies no url, so the driver resolves to the dashboard route rather than an upstream one.
+  ...(feed === 'announcements' ? { keywordIds: ['fraud'] } : {}),
 }));
 const events = Array.from({ length: 11 }, (_, i) => eventsFor(`A${String(i).padStart(2, '0')}`, i === 10 ? 'Zenith Manufacturing' : `Company ${String(i).padStart(2, '0')}`)).flat();
 events.filter(e => e.ticker === 'A10').forEach(e => { e.time = '08:00'; });
 events.find((e) => e.ticker === 'A01').time = null;
-// Two filings carry a tracked keyword each, so the valuation and thesis questions have exactly one card behind them.
-events.find((e) => e.id === 'A03-announcements').keywords = ['Buyback'];
-events.find((e) => e.id === 'A05-announcements').keywords = ['Resignation'];
 events.push({ ...events[30], id: 'hidden-event', importance: 'low', headline: 'Lithium supply agreement hidden beyond the evidence preview' });
+// THE PREVIEW IS FOUR ROWS, so a card needs five events for one to sit beyond it — and the search
+// below exists to prove a match off-screen still finds its card. Slots go one per SOURCE in rounds,
+// so the row left out is the second-weakest of some source rather than the weakest on the card:
+// this filler shares the earnings feed with the low-importance lithium row and outranks it, which
+// puts lithium third in that source's queue and so beyond the four slots. It adds no source breadth
+// and carries no tracked keyword, so it draws no reading of its own.
+events.push({ ...events[30], id: 'preview-filler', headline: 'Zenith Manufacturing: material risk 4' });
 events.push({ ...events[0], id: 'context-document', aiEligible: false, kind: 'document', importance: 'low', direction: 'neutral', headline: 'Material risk source document', detail: 'Underlying source record' });
 events.push(...eventsFor('OLD', 'Old signal', '2026-08-22'));
 events.push({ ...events[1], id: 'important-event', ticker: 'ZIMP', company: 'Important Company', direction: 'neutral' });
@@ -229,7 +236,6 @@ try {
   await waitFor(page, async () => (await import('/js/core/bookmarks.js')).all().length === 2);
   const savedCard = await page.evaluate(async () => (await import('/js/core/bookmarks.js')).all().find(entry => entry.kind === 'AI Alerts'));
   assert(savedCard.body && savedCard.details.length, 'The AI insight preserves its evidence after archiving');
-  assert.equal(savedCard.details[0]?.label, 'Earnings assumption, valuation or thesis?', 'a saved card keeps its second bullet');
   assert(!Object.hasOwn(savedCard, 'holdingWeightPct'), 'No private position object is copied into a saved insight');
   const sortControl = page.getByRole('combobox', { name: 'Sort AI Alerts' });
   assert.equal(await sortControl.inputValue(), 'newest');
@@ -284,79 +290,89 @@ try {
   assert.equal(await page.locator('[data-ai-card]').count(), 8);
   console.log('PASS: search beyond pagination and preview, priority, archive/restore and clear search.');
 
-  // THE TWO BULLETS AND THE THREE TRIGGERS. "One bullet is what has happened; the second, will it
-  // change the earnings assumption, valuation or thesis?" Every card carries both, the second names
-  // the QUESTIONS the evidence bears on (could change, never will), and the trigger chips above count
-  // exactly the cards whose second bullet names each question — with the priority band held fixed.
-  const briefs = async () => page.locator('[data-ai-card]').evaluateAll(els => els.map(el => ({
-    ticker: el.dataset.ticker,
-    kickers: [...el.querySelectorAll('[data-ai-brief] li > div > div:first-child')].map(n => n.textContent.trim()),
-    insight: el.querySelector('[data-ai-insight]')?.textContent.trim() || '',
-    line: el.querySelector('[data-ai-impact-line]')?.textContent.trim() || '',
-    axes: (el.querySelector('[data-ai-impact-row]')?.dataset.axes || '').split(' ').filter(Boolean),
-    bold: [...el.querySelectorAll('[data-ai-impact-line] [data-ai-axis]')].map(n => n.dataset.aiAxis),
-    reasons: [...el.querySelectorAll('[data-ai-impact-line] [data-ai-impact-reason]')].map(a => ({
-      tag: a.tagName, text: a.textContent.trim(), href: a.getAttribute('href') || '', id: a.dataset.eventId, axis: a.dataset.axis, title: a.getAttribute('title') || '' })),
-  })));
-  const firstPage = await briefs();
-  assert.equal(firstPage.length, 8);
-  for (const brief of firstPage) {
-    assert.deepEqual(brief.kickers, ['What happened', 'Earnings assumption, valuation or thesis?'], `${brief.ticker} carries the two bullets, in order`);
-    assert(brief.insight.length > 0 && brief.line.length > 0, `${brief.ticker} has both lines`);
-    assert.deepEqual(brief.bold, brief.axes, `${brief.ticker} sets in bold exactly the questions it bears on`);
-    assert(/^Could change /.test(brief.line) && !/\bwill\b/i.test(brief.line), `${brief.ticker} asks, never answers: ${brief.line}`);
-    // EVERY TRIGGER NAMED IS A LINK TO ITS OWN EVENT, exactly as the evidence rows are: the fixture
-    // events carry no upstream URL, so each link is the dashboard door seeded for that company.
-    assert(brief.reasons.length > 0 && brief.reasons.every(r => r.tag === 'A' && r.href === `#/research/daily-alerts?scope=portfolio&company=${brief.ticker}` &&
-      r.id.startsWith(`${brief.ticker}-`) && brief.axes.includes(r.axis) && r.title.length > 0), `${brief.ticker} links every trigger to the record it was read from: ${JSON.stringify(brief.reasons)}`);
-  }
-  const a00Brief = firstPage.find(brief => brief.ticker === 'A00');
-  assert.deepEqual(a00Brief.axes, ['earnings'], 'a result filed bears on earnings; a material insider trade is not one of the three questions');
-  assert.equal(a00Brief.line, 'Could change the earnings assumption (results filed). Nothing tracked here bears on the valuation and thesis.', 'the untouched questions are named in words');
-  assert.deepEqual(a00Brief.reasons.map(r => [r.text, r.id]), [['results filed', 'A00-earnings']], 'the result trigger opens the result event');
-  assert.match(a00Brief.reasons[0].title, /Company 00: material risk 1 · earnings · 04 Sept 2026 · 09:15 IST/, 'the link’s tooltip names the event, its feed and its time');
-  await search.fill('buyback in a filing');
-  assert.equal(await card('A03').count(), 1, 'search reaches the second bullet');
-  const a03Brief = (await briefs()).find(brief => brief.ticker === 'A03');
-  assert.deepEqual(a03Brief.axes, ['earnings', 'valuation'], 'a Buyback keyword on the filing adds the valuation question');
-  assert.match(a03Brief.line, /the valuation \(Buyback in a filing\)\. Nothing tracked here bears on the thesis\./);
-  assert.deepEqual(a03Brief.reasons.map(r => [r.text, r.id, r.axis]), [['results filed', 'A03-earnings', 'earnings'], ['Buyback in a filing', 'A03-announcements', 'valuation']], 'the buyback trigger opens the filing it was read from');
-  await page.locator('[data-ai-clear]').click();
-  const chipCounts = async () => page.locator('[data-ai-triggers] [data-ai-impact]').evaluateAll(els =>
-    Object.fromEntries(els.map(el => [el.dataset.aiImpact, Number(el.textContent.split('·')[1])])));
-  const allCount = Number((await page.locator('[data-ai-filter="all"]').innerText()).split('·')[1]);
-  const counts = await chipCounts();
-  assert.deepEqual(Object.keys(counts), ['earnings', 'valuation', 'thesis'], 'the three triggers, in the desk’s order');
-  // ZIMP carries one untracked announcement and nothing else, so it bears on none of the three.
-  assert.equal(counts.earnings, allCount - 1, 'every fixture company but the announcement-only one filed a result');
-  assert.equal(counts.valuation, 1, 'only the buyback filing bears on valuation');
-  assert.equal(counts.thesis, 1, 'only the resignation filing bears on the thesis; material insider trades do not');
-  const readsBeforeTrigger = await page.evaluate(() => window.reads);
-  await page.locator('[data-ai-impact="valuation"]').click();
-  assert.equal(await page.locator('[data-ai-card]').count(), 1);
-  assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A03');
-  assert.equal(await page.locator('[data-ai-impact="valuation"]').getAttribute('aria-pressed'), 'true');
-  assert(await page.evaluate(() => document.activeElement?.dataset.aiImpact === 'valuation'), 'the pressed chip keeps focus through the repaint');
-  assert.match(await page.locator('[data-ai-filter="all"]').innerText(), /· 1$/, 'priority counts hold the pressed trigger fixed');
-  assert.deepEqual(await chipCounts(), counts, 'trigger counts hold the priority band fixed, not the pressed trigger');
-  assert.equal(await page.evaluate(() => window.reads), readsBeforeTrigger, 'a trigger chip is a local view, not a network read');
-  await page.locator('[data-ai-filter="important"]').click();
-  assert.equal(await page.locator('[data-ai-card]').count(), 0);
-  assert.equal(await page.locator('[data-ai-empty][data-ai-empty-trigger="valuation"]').count(), 1, 'an empty trigger view names the trigger, not the threshold');
-  assert.match(await page.locator('[data-ai-empty]').innerText(), /No card in this view bears on the valuation/);
-  assert.match(await page.locator('[data-ai-impact="valuation"]').innerText(), /· 0$/, 'the trigger count follows the priority band');
-  await page.locator('[data-ai-impact-clear]').click();
-  assert.equal(await page.locator('[data-ai-impact][aria-pressed="true"]').count(), 0, 'Show all triggers clears the trigger');
-  assert.equal(await page.locator('[data-ai-filter="important"]').getAttribute('aria-pressed'), 'true', '…and keeps the priority band');
-  await page.locator('[data-ai-filter="all"]').click();
-  await page.locator('[data-ai-impact="thesis"]').click();
-  assert.equal(await page.locator('[data-ai-impact="thesis"]').getAttribute('aria-pressed'), 'true');
-  assert.equal(await page.locator('[data-ai-card]').count(), 1);
-  assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A05');
-  await page.locator('[data-ai-impact="thesis"]').click();
-  assert.equal(await page.locator('[data-ai-impact][aria-pressed="true"]').count(), 0, 'pressing the chip again clears it');
-  assert.equal(await page.locator('[data-ai-card]').count(), 8);
-  console.log('PASS: two bullets on every card, and the three trigger chips narrow, count with the other group held fixed, clear and explain an empty view.');
+  // --- the reading, on the row that holds its record ---
+  //
+  // The bucketing rules are asserted on fixtures in verify-ai-alerts.mjs. What only a rendered card
+  // can show is that the reading REACHES THE SCREEN, on the row whose own source backs it — a
+  // classification of ours with no way to check it would be a judgement with no record behind it.
+  //
+  // This replaced a paragraph of its own above the evidence, so two of these assertions are about
+  // what is NO LONGER drawn: the desk reads the same three questions on every card, and restating
+  // them (and the ones with nothing behind them) cost a block of prose to say what they knew.
+  // A removal nothing asserts comes back by accident.
+  //
+  // Every card is `content-visibility: auto`, and Chromium keeps a freshly inserted one SKIPPED —
+  // placeholder height, empty innerText — until the next rendering frame's intersection check
+  // unlocks the ones near the viewport. Clearing the search re-inserts all eight, so a read that
+  // lands before that frame (likely on a busy runner: measured 3 of 6 local runs under load) finds
+  // no text on ANY card, on screen or off, while textContent still carries it. scrollIntoView
+  // activates a card's contents synchronously, so each card is read the way a reader would see it
+  // and the check no longer races the frame. The scroll position is put back afterwards.
+  const shape = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('[data-ai-card]')];
+    const card = cards.find((c) => c.querySelector('[data-ai-driver]'));
+    if (!card) return { withDrivers: 0 };
+    const y = scrollY;
+    const rendered = (node) => { node.scrollIntoView({ block: 'nearest' }); return node.innerText; };
+    const everyCardLabelsItsInsight = cards.every((c) => /what happened/i.test(rendered(c)));
+    rendered(card);
+    const insight = card.querySelector('[data-ai-insight]');
+    const evidence = card.querySelector('[data-ai-evidence]');
+    const chips = [...card.querySelectorAll('[data-ai-driver]')];
+    const rows = [...card.querySelectorAll('[data-ai-evidence] [data-ai-evidence-link]')];
+    const rowOf = (chip) => chip.closest('[data-ai-evidence-link]');
+    const readings = {
+      withDrivers: cards.filter((c) => c.querySelector('[data-ai-driver]')).length,
+      total: cards.length,
+      everyCardLabelsItsInsight,
+      cardText: card.innerText.replace(/\s+/g, ' ').trim(),
+      chipTexts: chips.map((chip) => chip.textContent.replace(/\s+/g, ' ').trim()),
+      chipTitles: chips.map((chip) => chip.getAttribute('title') || ''),
+      // The chip is a topic reading; the direction dot beside it is the direction. So the chip may
+      // never borrow the semantic colours, whatever the row it sits on reads.
+      chipClasses: chips.map((chip) => chip.className),
+      // A chip with no record behind it is the failure this replaced a paragraph to avoid.
+      chipsSitOnRows: chips.length > 0 && chips.every((chip) => !!rowOf(chip) && !!rowOf(chip).getAttribute('href')),
+      // The link's aria-label replaces its contents for assistive technology, so the questions have
+      // to be named in it or the chip is drawn for sighted readers only.
+      rowsNameTheQuestion: chips.every((chip) => /could change/i.test(rowOf(chip).getAttribute('aria-label') || '')),
+      insightBeforeEvidence: !!evidence && !!(insight.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING),
+      rowCount: rows.length,
+      rowKeys: rows.map((row) => row.querySelector('[data-ai-age]')?.getAttribute('datetime') || ''),
+      // Both blocks this replaced, asserted absent by their own hooks.
+      figureStrip: card.querySelectorAll('[data-ai-metrics]').length,
+      questionParagraph: card.querySelectorAll('[data-ai-drivers]').length,
+      scriptInjected: card.querySelectorAll('[data-ai-evidence] script, [data-ai-evidence] img').length,
+    };
+    scrollTo(0, y);
+    return readings;
+  });
+  assert.equal(shape.withDrivers, shape.total, 'every card with a tracked topic names the question on the row that carries it');
+  assert(shape.everyCardLabelsItsInsight, 'every card labels what happened');
+  // One filing in the fixture carries one tracked keyword, so one row carries one chip.
+  assert.deepEqual(shape.chipTexts, ['Thesis · Fraud']);
+  assert(shape.chipsSitOnRows, 'every reading sits on the row whose own source backs it');
+  assert(shape.rowsNameTheQuestion, 'the row a chip sits on names the question in its accessible label');
+  // A tracked keyword says what a source is ABOUT, so the chip says what the evidence COULD change.
+  // Strengthening it to a verdict would assert a direction the feeds themselves refuse to.
+  assert(shape.chipTitles.every((title) => /^Could change the thesis\./.test(title)), shape.chipTitles.join(' | '));
+  assert(shape.chipTitles.every((title) => /does not verify|not confirmation/i.test(title)),
+    'each reading says it matched a topic rather than verifying the event');
+  assert(shape.chipTitles.every((title) => !/\b(?:will|improves?|worsens?|undervalued|overvalued)\b/i.test(title)),
+    'no verdict word reaches the reading');
+  assert(shape.chipClasses.every((cls) => !/emerald|rose|amber/.test(cls)), 'a topic reading never borrows a direction colour');
+  // The two blocks this replaced, and why each is gone: the strip's figures are elsewhere on the
+  // card, and the desk already knows the three questions.
+  assert.equal(shape.figureStrip, 0, 'the four-figure strip is gone');
+  assert.equal(shape.questionParagraph, 0, 'the per-question paragraph is gone');
+  assert.doesNotMatch(shape.cardText, /earnings assumption, valuation or thesis/i);
+  assert.doesNotMatch(shape.cardText, /Nothing tracked here bears on/i);
+  assert(shape.insightBeforeEvidence, 'the finding is read before its evidence');
+  // Four rows, and the header above them claims newest first — so the rows have to be in that order.
+  assert(shape.rowCount > 0 && shape.rowCount <= 4, `rows: ${shape.rowCount}`);
+  assert.deepEqual(shape.rowKeys, [...shape.rowKeys].sort().reverse(), 'the rows are newest first, as the list header says');
+  assert.equal(shape.scriptInjected, 0, 'row text is escaped');
+  console.log('PASS: the card labels what happened and names the investor question on the row that carries the reading.');
 
   await page.evaluate(() => {
     window.savedFixture = window.fixtureEvents;

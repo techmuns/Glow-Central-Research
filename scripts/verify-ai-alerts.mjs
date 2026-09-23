@@ -215,94 +215,6 @@ assert.notEqual(rankReport(publication, { holdings: publicIdentities }).allCards
 console.log('PASS: unchanged publications reuse derivations; corrections, source health, membership, dates, Insights and positions invalidate them.');
 
 // ---------------------------------------------------------------------------------------
-// THE TWO-BULLET READING. "One bullet is what has happened; the second, will it change the earnings
-// assumption, the valuation or the thesis?" The second bullet is a deterministic reading of which
-// QUESTION each event bears on — never an answer — so every branch is asserted on a fixture here,
-// because a day's capture rarely holds a buyback, a rating cut, a big move and a holder's exit on
-// one company.
-const { IMPACT_AXES, eventImpacts, impactOf, impactParts, impactLine } = await import('../public/js/data/ai-alerts.js');
-assert.deepEqual(IMPACT_AXES.map(axis => axis.id), ['earnings', 'valuation', 'thesis'], 'the three triggers, in the desk’s order');
-const base = { day: '2026-09-04', ticker: 'T', company: 'Test Co', direction: 'neutral', importance: 'high' };
-const orderFiling = { ...base, id: 'f1', feed: 'announcements', headline: 'Receipt of order worth Rs 135 crore', keywords: ['Order', 'Receipt of Order'], filingRule: 'order or contract award' };
-const buybackStory = { ...base, id: 'n1', feed: 'news', headline: 'Board approves buyback', keywords: ['Buyback', 'Approval'] };
-const fraudStory = { ...base, id: 'n2', feed: 'news', headline: 'Regulator probes alleged fraud', keywordIds: ['fraud', 'investigation'] };
-const nseDowngrade = { ...base, id: 'f2', feed: 'nse-filings', headline: 'Credit rating downgrade', keywords: [], filingRule: 'rating downgrade' };
-const result = { ...base, id: 'e1', feed: 'earnings', headline: 'YOY quarterly result filed' };
-const call = { ...base, id: 'c1', feed: 'concalls', headline: 'Con-call analysis published', direction: 'negative' };
-const quietCall = { ...call, id: 'c2', importance: 'low', direction: 'neutral' };
-const bigMove = { ...base, id: 't1', feed: 'technicals', kind: 'move', movePct: 6.5, direction: 'positive', headline: 'Rose 6.5% at the 2026-09-03 close' };
-const smallMove = { ...bigMove, id: 't2', movePct: 1.2, importance: 'low', aiEligible: false, kind: 'price-reading' };
-const volume = { ...base, id: 't3', feed: 'technicals', kind: 'volume', volumeX: 4.4 };
-const breakout = { ...base, id: 't4', feed: 'technicals', kind: 'breakout', direction: 'positive' };
-const holderCut = { ...base, id: 'i1', feed: 'investors', action: 'trimmed', investor: 'Life Insurance Corporation', deltaPp: -2, direction: 'negative' };
-const holderSmall = { ...holderCut, id: 'i2', deltaPp: -0.5, importance: 'low' };
-const insiderSell = { ...base, id: 's1', feed: 'insider', headline: 'Promoter — Disposal', direction: 'negative' };
-const insiderSmall = { ...insiderSell, id: 's2', importance: 'low' };
-const chatter = { ...base, id: 'ch1', feed: 'chatter', headline: 'Bearish public chatter', direction: 'negative' };
-const relatedStory = { ...buybackStory, id: 'n3', aiEligible: false,
-  attribution: { version: ATTRIBUTION_VERSION, status: 'related', relationships: [{ relationship: 'subsidiary of a related entity', evidenceUrl: 'https://example.test/relationship' }] } };
-const untracked = { ...base, id: 'n4', feed: 'news', headline: 'General coverage', keywords: [] };
-
-const axesOf = event => [...new Set(eventImpacts(event).map(hit => hit.axis))];
-assert.deepEqual(axesOf(orderFiling), ['earnings']);
-assert.deepEqual(eventImpacts(orderFiling).map(hit => hit.text), ['Order in a filing', 'Receipt of Order in a filing', 'order or contract award in a filing'],
-  'a filing names its keywords by the desk’s own labels and its rule by the rule’s own name');
-assert.deepEqual(axesOf(buybackStory).sort(), ['earnings', 'valuation'], 'labels resolve to keyword ids: Approval is an earnings question, Buyback a valuation one');
-assert.deepEqual(axesOf(fraudStory), ['thesis'], 'keyword ids are read directly where a row carries them');
-assert.deepEqual(axesOf(nseDowngrade), ['valuation', 'thesis'], 'NSE filings count as filings and a filing rule alone is enough');
-assert.deepEqual(eventImpacts(result), [{ axis: 'earnings', text: 'results filed' }]);
-assert.deepEqual(axesOf(call), ['earnings']);
-assert.deepEqual(axesOf(quietCall), [], 'a neutral, mid-band con-call is not an earnings trigger');
-assert.deepEqual(eventImpacts(bigMove), [{ axis: 'valuation', text: 'up 6.5% at the close' }], 'a move past the feed’s own threshold bears on valuation');
-assert.deepEqual(axesOf(smallMove), [], 'a move below MOVE_PCT bears on nothing — the feed’s threshold, not a second one');
-assert.deepEqual(axesOf(volume), [], 'volume is participation and bears on nothing by itself');
-assert.deepEqual(axesOf(breakout), [], 'a base break is a tape reading, not one of the three questions');
-assert.deepEqual(axesOf(holderCut), [], 'a holder’s move is somebody else’s decision, not one of the three questions — it is the first bullet’s business');
-assert.deepEqual(axesOf(holderSmall), []);
-assert.deepEqual(axesOf(insiderSell), [], 'an insider trade bears on none of the three by itself');
-assert.deepEqual(axesOf(insiderSmall), []);
-assert.deepEqual(axesOf(chatter), [], 'chatter bears on none of the three');
-assert.deepEqual(axesOf(relatedStory), [], 'a related-entity story never drives a company’s bullet');
-assert.deepEqual(axesOf(untracked), []);
-
-const all = impactOf([holderCut, chatter, fraudStory, bigMove, orderFiling, result, buybackStory, { ...result, id: 'e2' }]);
-assert.deepEqual(all.map(hit => hit.axis), ['earnings', 'valuation', 'thesis'], 'axes come out in the desk’s order whatever order the events arrived in');
-assert.deepEqual(all[0].reasons.map(r => r.text), ['Order in a filing', 'Receipt of Order in a filing', 'order or contract award in a filing', 'results filed', 'Approval in the news'],
-  'one reason per distinct trigger — a second result filing does not repeat “results filed”');
-assert.equal(all[0].reasons.find(r => r.text === 'results filed').eventId, 'e1', 'a reason keeps the id of the event it was read from');
-assert.deepEqual(all[2].reasons.map(r => r.text), ['Fraud in the news', 'Investigation in the news']);
-assert.deepEqual(impactOf([]), []);
-assert.deepEqual(impactOf([chatter, volume, untracked, holderCut, insiderSell]), [], 'no axis is present-and-empty');
-
-assert.equal(impactLine([]), 'Nothing here is a tracked trigger for the earnings assumption, the valuation or the thesis. Read the evidence before deciding.');
-assert.equal(impactLine(impactOf([result])), 'Could change the earnings assumption (results filed). Nothing tracked here bears on the valuation and thesis.');
-assert.equal(impactLine(impactOf([bigMove, nseDowngrade])),
-  'Could change the valuation (up 6.5% at the close; rating downgrade in a filing) and the thesis (rating downgrade in a filing). Nothing tracked here bears on the earnings assumption.',
-  'two axes present: the missing one is named in words');
-assert.equal(impactLine(all),
-  'Could change the earnings assumption (Order in a filing; Receipt of Order in a filing; order or contract award in a filing; results filed; Approval in the news), the valuation (up 6.5% at the close; Buyback in the news) and the thesis (Fraud in the news; Investigation in the news).',
-  'all three present: no “nothing bears on” tail, and every trigger is listed — none is folded into a count');
-for (const line of [impactLine([]), impactLine(all), impactLine(impactOf([result]))]) {
-  assert(!/\bwill\b/i.test(line) && !/\bEPS\b/.test(line), `the bullet never answers the question it asks: ${line}`);
-}
-const parts = impactParts(all);
-assert.deepEqual(parts.filter(part => part.kind === 'axis').map(part => part.axis), ['earnings', 'valuation', 'thesis']);
-assert.equal(parts.map(part => part.text).join(''), impactLine(all), 'the parts are the line, so a renderer cannot drift from it');
-const reasonParts = parts.filter(part => part.kind === 'reason');
-assert.equal(reasonParts.length, all.reduce((sum, hit) => sum + hit.reasons.length, 0), 'every trigger is its own part, so every one can be a link');
-assert(reasonParts.every(part => part.eventId && part.feed && part.axis), 'every trigger part carries the event it was read from');
-assert.deepEqual(reasonParts.find(part => part.text === 'results filed'), { kind: 'reason', axis: 'earnings', text: 'results filed', eventId: 'e1', feed: 'earnings' });
-assert.equal(reasonParts.find(part => part.text === 'up 6.5% at the close').eventId, 't1');
-assert.equal(reasonParts.find(part => part.text === 'Buyback in the news').eventId, 'n1');
-
-const twoBullets = rankReport({ day: '2026-09-04', scope: 'portfolio', feeds: [{ id: 'announcements', status: 'ok', reachesToday: true }, { id: 'technicals', status: 'ok', reachesToday: true }],
-  events: [orderFiling, bigMove] }, { holdings: [{ ticker: 'T', name: 'Test Co' }] });
-const bulletCard = twoBullets.cards.find(card => card.ticker === 'T');
-assert(bulletCard, 'the fixture surfaces');
-assert.deepEqual(bulletCard.impacts.map(hit => hit.axis), ['earnings', 'valuation']);
-assert.equal(bulletCard.impactLine, impactLine(bulletCard.impacts));
-assert(matchesSearch(bulletCard, 'thesis') && matchesSearch(bulletCard, 'order in a filing') && matchesSearch(bulletCard, 'valuation'), 'search reaches the second bullet');
-console.log('PASS: the second bullet reads which of earnings, valuation or thesis each event bears on, from the feeds’ own thresholds and the desk’s own keywords, and never answers it.');
 // THE DRIVER LAYER — "earnings assumption, valuation or thesis?"
 //
 // Fixtures rather than a capture, for the reason every rule block here uses them: the branches
@@ -386,9 +298,188 @@ const topicEvent = { id: 'd1', day: '2026-09-03', ticker: 'ZZTEST', company: 'ZZ
   direction: 'positive', importance: 'high', headline: 'Record date for Final Dividend', filingRule: 'shareholder distribution', keywordIds: ['buyback'], url: 'https://example.test/a' };
 assert.equal(scored(topicEvent).allCards[0].score, scored({ ...topicEvent, filingRule: null, keywordIds: [] }).allCards[0].score,
   'topics change no score');
-assert(scored(topicEvent).allCards[0].drivers.total > 0, '...while still reaching the card');
+// The reading now rides the ROW rather than the card object, so what has to be true is that the
+// event the card surfaced still answers `driversFromEvent` — that is what the row chip reads.
+assert(scored(topicEvent).allCards[0].events.flatMap((event) => driversFromEvent(event)).length > 0,
+  '...while still reaching the evidence the card surfaced');
 
 console.log('PASS: driver buckets, source phrases, excluded feeds, capped overflow and score neutrality.');
+
+
+// --- WHICH ROWS A CARD SHOWS: one per SOURCE, in rounds, capped per source -----------------------
+//
+// The rule exists so a card never answers "what do the other sources say?" with one source said
+// four times. It is asserted on fixtures because a day's capture decides which shapes exist, and
+// the shape that matters most — one board meeting filed to both exchanges under four subjects —
+// only shows up when a company happens to have filed one.
+const { topEvidence, MAX_PER_SOURCE } = await import('../public/js/data/ai-alerts.js');
+const row = (feed, id, importance = 'high') => ({ feed, id, headline: id, day: '2026-09-18', direction: 'neutral', importance });
+const ids = (card, limit) => topEvidence(card, limit).map((event) => event.id).join(',');
+
+// ONE SOURCE, FOUR SLOTS, THREE ROWS. `announcements` and `nse-filings` are one family, so keying
+// this on `event.feed` spent two slots before filling and printed the same event four times under
+// a header reading "1 source" — measured on Sky Gold's 18 September approval.
+const oneSource = { events: [row('announcements', 'a1'), row('nse-filings', 'a2'), row('announcements', 'a3'), row('nse-filings', 'a4')] };
+assert.equal(ids(oneSource, 4), 'a1,a2,a3', 'one source stops at the cap rather than filling every slot');
+assert.equal(MAX_PER_SOURCE, 3);
+
+// TWO SOURCES SHARE FOUR SLOTS TWO AND TWO, rather than three and one.
+assert.equal(ids({ events: [row('announcements', 'a1'), row('news', 'n1'), row('announcements', 'a2'), row('news', 'n2'), row('announcements', 'a3')] }, 4),
+  'a1,n1,a2,n2', 'slots go one per source in rounds');
+// AND EVERY SOURCE IS REPRESENTED BEFORE ANY SECOND ROW IS SPENT.
+assert.equal(ids({ events: [row('announcements', 'a1'), row('news', 'n1'), row('investors', 'f1'), row('announcements', 'a2')] }, 4),
+  'a1,n1,f1,a2', 'breadth first, then depth');
+// A source's own rows stay in score order, so the cap never promotes a weaker row over a stronger.
+assert.equal(ids({ events: [row('news', 'n1'), row('news', 'n2'), row('news', 'n3', 'low'), row('news', 'n4')] }, 4),
+  'n1,n2,n3', 'within one source the order is the score order it arrived in');
+// A card with fewer events than slots is unchanged by any of this.
+assert.equal(ids({ events: [row('news', 'n1')] }, 4), 'n1');
+assert.deepEqual(topEvidence({ events: [] }, 4), []);
+console.log('PASS: evidence rows go one per source in rounds, capped per source, counting NSE and BSE as one.');
+
+
+// --- WHAT THE CARD SAYS HAPPENED: one claim, the source's own -----------------------------------
+//
+// The sentence used to lead with the PATTERN and append the two figures a phrase had been written
+// for, so a card whose strongest event was a ten-year supply contract said "An insider and a big
+// holder moved the same way" and never mentioned the contract. It is now one claim — the strongest
+// event's own statement — and these are asserted on fixtures because which shapes a day contains
+// (a sign-flip result, a pointer subject, a block deal with a rupee value) is a property of the
+// capture and not of the rule.
+const { plainHeadline, plainInsight, leadEvent, filingClaim, sourceStatement, CLAIM_MAX } =
+  await import('../public/js/data/ai-alerts.js');
+
+// OUR OWN LINES ARE COMPLETED, because the figure a row was graded on is the specific a reader
+// opens the card for. Every one is read from a collector's field, never parsed out of a sentence.
+assert.equal(
+  plainHeadline({ feed: 'insider', headline: 'ACTIV PINE LLP — Sell', tradeValue: 491645000, tradeCategory: 'Block deal' }),
+  'ACTIV PINE LLP — Sell · ₹49.2 crore block deal');
+assert.equal(
+  plainHeadline({ feed: 'insider', headline: 'A PROMOTER — Sell', tradePct: 15 }),
+  'A PROMOTER — Sell · 15.00% of the company', 'a percentage of the company stands in for an absent value');
+assert.equal(
+  plainHeadline({ feed: 'insider', headline: 'A PROMOTER — Sell', tradeShares: 1277000 }),
+  'A PROMOTER — Sell · 12,77,000 shares', 'a share count is the last resort and is formatted, not summed');
+assert.equal(plainHeadline({ feed: 'insider', headline: 'A PROMOTER — Sell' }), 'A PROMOTER — Sell',
+  'a disclosure that carried no size gets no size — never a zero');
+// "SAST" and "Insider" are filing regimes rather than kinds of trade, so only a deal reads as one.
+assert.equal(
+  plainHeadline({ feed: 'insider', headline: 'X — Buy', tradeValue: 200000000, tradeCategory: 'SAST' }),
+  'X — Buy · ₹20.0 crore');
+
+// A RESULT SAYS WHAT WAS REPORTED, and a period that crossed zero is words rather than a rate —
+// the same rule as `classifyChange`, read off the same `kind`.
+const result = (netProfit, revenue) => plainHeadline({ feed: 'earnings', resultBasis: 'YOY', headline: 'YOY quarterly result filed', sourceRecord: { netProfit, revenue } });
+assert.equal(result({ label: 'Net Profit', kind: 'normal', pct: 95 }, { label: 'Revenue', kind: 'normal', pct: 55 }),
+  'Result filed (YOY) · net profit +95.0%, revenue +55.0%');
+assert.equal(result({ label: 'Net Profit', kind: 'turnaround', pct: null }, { label: 'Revenue', kind: 'normal', pct: 35 }),
+  'Result filed (YOY) · net profit swung to profit, revenue +35.0%');
+assert.equal(result({ label: 'Net Profit', kind: 'loss-widened', pct: -208 }, { label: 'Revenue', kind: 'normal', pct: -4 }),
+  'Result filed (YOY) · net profit loss widened 208.0%, revenue −4.0%');
+assert.equal(result({ label: 'Net Profit', kind: 'normal', pct: null }, null), 'YOY quarterly result filed',
+  'a comparison the source did not carry contributes nothing and the collector line stands');
+
+// SOMEBODY ELSE'S WORDS TRAVEL UNTOUCHED. A publisher's headline is the reference case.
+const story = 'Sona BLW Precision Forgings Ltd Downgraded to Hold Amid Mixed Technical Signals';
+assert.equal(plainHeadline({ feed: 'news', headline: story }), story);
+
+// A FILING'S SUBJECT IS NEVER REPLACED WHERE IT NAMES AN EVENT.
+assert.equal(filingClaim({ filingSubject: 'Resignation of Statutory Auditor', filingSubCategory: 'Resignation' }),
+  'Resignation of Statutory Auditor');
+// A greedy pointer pattern used to swallow one that does: measured on a real BSE filing.
+const enclosed = 'Please find enclosed herewith the disclosure pertaining to incorporation of two Wholly-Owned Subsidiaries';
+assert.equal(filingClaim({ filingSubject: enclosed, filingSubCategory: 'Acquisition' }), enclosed);
+// …and a subject that is only a pointer falls through to the source's own description.
+assert.equal(
+  filingClaim({ filingSubject: 'Press Release', filingSubCategory: null,
+    filingDescription: 'Biocon Limited has informed the Exchange regarding a press release dated September 08, 2026, titled "Biocon Secures 10-Year Supply Contract for Pertuzumab in Brazil". |SUBJECT: Press Release' }),
+  'Biocon Secures 10-Year Supply Contract for Pertuzumab in Brazil',
+  "their own quoted title for the filing is the claim — selected, not reworded");
+// EVERY SEGMENT HAS TO BE A TYPE WORD. "Press Release / Media Release" is BSE's own sub-category
+// for a press release and an exact-match list of single words let it through.
+assert.equal(filingClaim({ filingSubject: 'Press Release / Media Release', filingSubCategory: 'Press Release / Media Release',
+  filingDescription: 'Announcement under Regulation 30 on the commissioning of Unit II' }),
+  'Announcement under Regulation 30 on the commissioning of Unit II');
+// A description that only repeats the subject is not an improvement on it, and NSE sends both.
+assert.equal(filingClaim({ filingSubject: 'General Updates', filingDescription: 'General Updates |SUBJECT: General Updates', filingSubCategory: null }),
+  'General Updates');
+assert.equal(filingClaim({ filingSubject: 'Updates', filingDescription: "''. |SUBJECT: Updates", filingSubCategory: 'Company Update' }),
+  'Company Update', "the exchange's own sub-category is the floor, never our own invention");
+assert.equal(filingClaim({ filingSubject: 'PFA', filingSubCategory: 'Award of Order / Receipt of Order' }),
+  'Award of Order / Receipt of Order');
+
+// THE EXCHANGE'S MECHANICAL LEAD-IN IS REMOVED AND WHAT FOLLOWS IT IS NOT. It cost half the line.
+assert.equal(sourceStatement('Mazagon Dock Shipbuilders Limited has informed the Exchange regarding signing of MOU with NSHIPAP.'),
+  'Signing of MOU with NSHIPAP');
+assert.equal(sourceStatement('The Exchange has received Disclosure under Regulation 31(1) of SEBI (SAST) Regulations, 2011'),
+  'Disclosure under Regulation 31(1) of SEBI (SAST) Regulations, 2011');
+assert.equal(sourceStatement('Board Comments on fine levied by the Exchange'), 'Board Comments on fine levied by the Exchange',
+  'a statement with no lead-in comes back unchanged');
+// A clause the strip exposed opens as a sentence — but a word that capitalises itself is left be.
+assert.equal(sourceStatement('X Ltd has informed the exchange about the approval of the Board'), 'The approval of the Board');
+assert.equal(sourceStatement('X Ltd has informed the exchange about iPhone assembly beginning at Hosur'),
+  'iPhone assembly beginning at Hosur', 'a brand is not recapitalised by this dashboard');
+assert.equal(sourceStatement(''), '');
+assert.equal(sourceStatement(null), '');
+
+// A CLAIM TOO LONG FOR THE LINE IS CUT ON A WORD BOUNDARY, with an ellipsis that says so.
+const long = plainHeadline({ feed: 'news', headline: `${'Alpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota Kappa '.repeat(6)}end` });
+assert(long.length <= CLAIM_MAX + 1 && long.endsWith('…') && !/\s…$/.test(long), `clipped: ${long.length} chars`);
+assert(!long.includes('Zeta…'.slice(0, 2) + '…'), 'no word is cut in half');
+
+// THE SENTENCE IS THE LEAD EVENT'S CLAIM AND NOTHING ELSE — no pattern name, no feed tally.
+const ev = (over) => ({ feed: 'announcements', importance: 'high', direction: 'neutral', day: '2026-09-18', ...over });
+const contract = ev({ headline: 'Press Release', filingSubject: 'Press Release',
+  filingDescription: 'X Ltd has informed the Exchange regarding a press release titled "Ten-year supply contract signed".' });
+const tape = { feed: 'technicals', kind: 'volume', volumeX: 2.04, importance: 'high', direction: 'neutral', day: '2026-09-18' };
+const oneClaim = { events: [contract, tape], topEvent: contract, mixed: false, directions: { positive: 0, negative: 0, neutral: 2 },
+  feedCount: 2, confluence: [{ id: 'news-behind-the-move', label: 'The move has a story behind it', short: 'News behind it' }] };
+assert.equal(plainInsight(oneClaim), 'Ten-year supply contract signed.');
+assert.equal(leadEvent(oneClaim), contract);
+// A disagreement is still stated, because it changes what the reader does next — as an action.
+assert.equal(plainInsight({ ...oneClaim, mixed: true }),
+  'Ten-year supply contract signed. Sources disagree — check both directions below.');
+// AND THE TALLY AND THE FILLER ARE GONE. Neither was a thing that happened.
+for (const mixed of [true, false]) {
+  const text = plainInsight({ ...oneClaim, mixed, directions: { positive: 8, negative: 6, neutral: 1 } });
+  assert(!/\b8\b|\b6\b|good, |strongest recent|material, recent and relevant/i.test(text), `no tally or filler: ${text}`);
+  assert(!/^(Heavy trading|An insider and|Unusual trading|Results are out|Bad news showing up|A big move with)/.test(text),
+    `the pattern is the chip, not the sentence: ${text}`);
+}
+
+// A LEAD WHOSE CLAIM IS STILL ONLY A TYPE WORD IS SKIPPED, AND ITS ROW IS KEPT. NSE repeats the
+// subject as the description on some rows and publishes no sub-category, so this survives all
+// three fallbacks; the card then leads with the next fact it holds rather than with "Updates".
+const typeOnly = ev({ headline: 'General Updates', filingSubject: 'General Updates', filingDescription: 'General Updates' });
+const skipped = { events: [typeOnly, tape], topEvent: typeOnly, mixed: false, directions: { positive: 0, negative: 0, neutral: 2 }, feedCount: 2, confluence: [] };
+assert.equal(leadEvent(skipped), tape);
+assert.equal(plainInsight(skipped), 'Traded 2.0x its normal volume.');
+assert.equal(skipped.events.length, 2, 'the skipped event keeps its place in the evidence');
+assert.equal(topEvidence(skipped, 4)[0], typeOnly, '…and its row is still the first one shown');
+// Where every claim is a type word the card still says the one it has rather than inventing one.
+assert.equal(plainInsight({ events: [typeOnly], topEvent: typeOnly, mixed: false, directions: { positive: 0, negative: 0, neutral: 1 }, feedCount: 1, confluence: [] }),
+  'General Updates.');
+console.log('PASS: the card states one claim — the strongest event\'s own — completing our lines and reproducing theirs.');
+
+
+// THE FIGURES TRAVEL ON THE EVENT, so a card built from the AI pool states them too. The pool drops
+// `sourceRecord` (`compactAiEvent`), and a sentence that read the figures only off the record said
+// "Result filed (YOY) · …" from the full history and "YOY quarterly result filed" from the pool —
+// the pool's card-for-card check would have failed the first week a result landed in the window.
+const filedFields = { netProfit: { label: 'Net Profit', kind: 'turnaround', pct: null }, revenue: { label: 'Revenue', kind: 'normal', pct: 13 } };
+assert.equal(plainHeadline({ feed: 'earnings', resultBasis: 'YOY', headline: 'YOY quarterly result filed', metrics: filedFields }),
+  'Result filed (YOY) · net profit swung to profit, revenue +13.0%', 'the compact event states its own filed figures');
+assert.equal(plainHeadline({ feed: 'earnings', resultBasis: 'YOY', headline: 'YOY quarterly result filed', metrics: filedFields, sourceRecord: filedFields }),
+  plainHeadline({ feed: 'earnings', resultBasis: 'YOY', headline: 'YOY quarterly result filed', sourceRecord: filedFields }),
+  'the field and the record are one reading');
+// And through the pool's own compaction, which is the path that used to lose them.
+const { compactAiEvent } = await import('../public/js/data/alert-pool-format.js');
+const filedEvent = { id: 'earnings:X:2026-09-18:YOY', feed: 'earnings', resultBasis: 'YOY', headline: 'YOY quarterly result filed', metrics: filedFields,
+  sourceRecord: { ...filedFields, ticker: 'X' } };
+const compacted = compactAiEvent('earnings', filedEvent);
+assert.equal(compacted.sourceRecord, undefined, 'the pool drops the record');
+assert.equal(plainHeadline(compacted), plainHeadline(filedEvent), 'and the card still says what was filed');
+console.log('PASS: a filed result states its figures from the event itself, so the pool and the full history say the same.');
 
 
 // --- the sliced ranking is the synchronous ranking, spread over time --------------------------

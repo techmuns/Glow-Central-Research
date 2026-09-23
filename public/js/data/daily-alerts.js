@@ -1390,7 +1390,12 @@ const inScope = (wanted, ticker) => !wanted || (!!ticker && wanted.has(String(ti
 // a collector that finds nothing must say whether it LOOKED at today.
 // ---------------------------------------------------------------------------------------
 
-const metricText = (metric) => {
+/**
+ * One filed metric, in the words the sign change requires. EXPORTED because AI Alerts states a
+ * result on the card and must not regex the figures back out of the `detail` string this builds —
+ * one definition of "revenue +12.1%" versus "loss narrowed 8.0%", read by both surfaces.
+ */
+export const metricText = (metric) => {
   if (!metric) return null;
   const label = metric.label || 'Metric';
   const pct = numeric(metric.pct);
@@ -1437,7 +1442,19 @@ function fromEarnings({ day, wanted, includeHistory }) {
       company: r.company || r.fullName || r.name || r.ticker || '—',
       headline: `${basis} quarterly result filed`,
       detail: [metricText(r.revenue), metricText(r.netProfit)].filter(Boolean).join(' · ') || 'Filed figures carried without a comparable percentage',
+      // WHICH COMPARISON THESE FIGURES ARE AGAINST, as a field. +95% year on year and +95% against
+      // the previous quarter are different claims, and AI Alerts prints the figures on the card —
+      // recovering the basis by parsing the headline above would lose it the day that is reworded.
+      resultBasis: basis,
       url: r.mcUrl || null,
+      // THE TWO FILED COMPARISONS AS FIELDS — the source's own label, change and kind, unreworded.
+      // The card's sentence (`resultFigures`) and its KPI row (kpi-impact.js) both read them here,
+      // because the AI pool drops `sourceRecord`: a figure read only off the record reached the
+      // card from the full history and silently vanished from the same card built from the pool.
+      metrics: {
+        revenue: r.revenue ? { label: r.revenue.label || 'Revenue', pct: numeric(r.revenue.pct), kind: r.revenue.kind || null } : null,
+        netProfit: r.netProfit ? { label: r.netProfit.label || 'Net Profit', pct: numeric(r.netProfit.pct), kind: r.netProfit.kind || null } : null,
+      },
     };
   });
   return {
@@ -1486,6 +1503,9 @@ function fromConcalls({ day, wanted, includeHistory }) {
       headline: `Con-call ${analysed ? 'analysis published' : 'held; analysis pending'}`,
       detail: [result, ...(r.tags || [])].join(' · '),
       url: r.transcriptUrl || null,
+      // The research provider's own highlights, verbatim, as a field: kpi-impact.js reads the KPIs
+      // they name, and `sourceRecord` does not survive into the AI pool.
+      tags: Array.isArray(r.tags) ? r.tags.filter((tag) => typeof tag === 'string') : [],
     };
   });
   return {
@@ -1706,6 +1726,15 @@ export function announcementEvent(r) {
     headline: r.title || r.headline || 'Filing',
     detail: [...(r.sources || [r.source]), r.category, r.subCategory].filter(Boolean).join(' · ') || 'Category not carried',
     url: r.url || null,
+    // WHAT THE FILING IS, IN THE EXCHANGE'S OWN WORDS, as fields. A subject naming the filing TYPE
+    // rather than the event ("General Updates", "Press Release", "PFA") is common — measured on
+    // the retained NSE window, 1,995 of 15,506 rows — and BSE's sub-category is their answer to
+    // exactly that question ("Award of Order / Receipt of Order", "Resignation of Director"). It
+    // is already reproduced in `detail`; naming it separately is what lets the card fall back to
+    // it without splitting a joined string, and nothing here is reworded.
+    filingSubject: r.title || r.headline || null,
+    filingSubCategory: r.subCategory || null,
+    filingDescription: r.description || null,
   };
   announcementEvents.set(r, event);
   return event;
@@ -1728,7 +1757,19 @@ export function insiderEvent(r) {
     ticker: r.ticker || null,
     company: pick('Company') || r.ticker || '—',
     headline: [pick('Insider'), pick('Transaction', 'Acq/Disp', 'Mode')].filter(Boolean).join(' — ') || 'Insider disclosure',
-    detail: [pick('Category'), pick('Mode'), pick('Trade Shares') ? `${pick('Trade Shares')} shares` : null].filter(Boolean).join(' · ') || 'Details not carried',
+    detail: [pick('Trade Category', 'Category'), pick('Mode'), pick('Trade Shares') ? `${pick('Trade Shares')} shares` : null].filter(Boolean).join(' · ') || 'Details not carried',
+    // THE SIZE THIS ROW WAS GRADED ON, AS FIELDS — the same arrangement as `volumeX` / `movePct` on
+    // the technicals rows and `deltaPp` on the investor rows, and for the same reason: AI Alerts
+    // prints how big a disclosure is, and recovering ₹49.2 crore by parsing "≈ ₹49,16,45,000" out
+    // of a sentence is how a reworded line silently becomes a missing number. `insiderSignal`
+    // reads the identical cells to decide importance, so the card cannot disagree with the badge.
+    // `Trade Category` is the upstream's own word for the kind of trade ("Block deal") and travels
+    // verbatim; nothing here is summed, and a cell the source did not carry stays null.
+    tradeAction: pick('Transaction', 'Acq/Disp', 'Mode') || null,
+    tradeCategory: pick('Trade Category', 'Category') || null,
+    tradeShares: numeric(cells['Trade Shares']),
+    tradePct: numeric(cells['Trade %']),
+    tradeValue: numeric(cells['Trade Value']),
     // Prefer the exchange filing URL when one is carried; otherwise use the same exact-insider
     // public disclosure search as the Insider Trades tab. AI Alerts can then trace this evidence
     // to a public record instead of ending at a derived dashboard sentence.

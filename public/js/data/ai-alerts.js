@@ -16,14 +16,13 @@
 
 import * as generalAlerts from './daily-alerts.js';
 import { newsCanSupportAI, isRelatedNewsContext } from './company-news-attribution.js';
-import { driversOf } from './alert-drivers.js';
+import * as kpiImpact from './kpi-impact.js';
 import { defaultCompanyNewsEntityId, portfolioNewsEntities } from './company-news-identity.js';
 import * as coverage from './coverage.js';
 import * as screenerInsights from './screener-insights.js';
 import * as technicals from './technicals.js';
 import { enrichCardFromAllAlerts, indexAlertContext } from './intelligence-graph.js';
 import { canonicalArticleUrl } from './filings-shared.js';
-import { KEYWORDS } from './news-keywords.js';
 import { getHostContext } from '../core/host-context.js';
 import { AI_ALERT_WINDOW_DAYS as WINDOW_DAYS } from '../core/alert-window.js';
 import { runSteps, runStepsInSlices } from '../core/slices.js';
@@ -103,12 +102,7 @@ const normalizedHeadline = dayCache((value) => String(value || '')
   .trim()
   .slice(0, 140));
 
-// Two exchange-filing feeds are ONE independent source, and so are the two news routes: a company
-// filing the same thing to NSE and BSE is not two opinions. Exported so a card can tag each evidence
-// row with the family it counts as, rather than with the label it prints — the two legitimately
-// differ, and a check comparing printed labels against counted families reads that as a card
-// claiming fewer sources than it shows.
-export const feedFamily = (event) => event.feed === 'nse-filings' ? 'announcements' : event.feed === 'market-news' ? 'news' : event.feed;
+const feedFamily = (event) => event.feed === 'nse-filings' ? 'announcements' : event.feed === 'market-news' ? 'news' : event.feed;
 
 /** Syndicated links and duplicate exchange disclosures are not independent corroboration. */
 function dedupe(events) {
@@ -360,57 +354,73 @@ export function confluenceOf(events, { feedById = new Map() } = {}) {
 }
 
 // ---------------------------------------------------------------------------------------
-// THE READING LAYER — PLAIN WORDS, AND THE FEW NUMBERS THAT CARRY THE FINDING
+// THE READING LAYER — WHAT HAPPENED, IN THE FEWEST WORDS THAT STILL SAY IT
 //
 // Everything above decides WHAT to surface. This decides how fast a human can take it in, and it
 // is a separate concern with its own failure mode: a card can be perfectly honest and still take
 // twenty seconds to read, at which point a page whose whole promise is "here is what needs you
 // this morning" has failed at the only thing it does.
 //
-// The measured problem was repetition and register. The card printed a pattern's full sentence as
-// its insight AND again inside a "Signals lining up" block, in the feeds' own technical wording —
-// "Volume 4.4x its 20-day average at the 2026-09-02 close, and a tracked investor's latest book
-// shows selling — President Of India: reduced by 2.00pp." That is one fact, said twice, in a
-// vocabulary a reader has to decode.
+// THE MEASURED PROBLEM, TWICE OVER.
 //
-// So: one short sentence in ordinary English, then the two or three numbers behind it as figures
-// rather than prose, then the evidence rows. THREE RULES, and they are the file's existing rules:
+// First it was repetition: the card printed a pattern's full sentence as its insight AND again
+// inside a "Signals lining up" block, in the feeds' own technical wording. That block went.
 //
-// 1. NO NEW FACT, AND NO NEW NUMBER. Every phrase below is a rewording of an event already on the
-//    card, and every figure is read from a field the collector wrote (`volumeX`, `movePct`,
-//    `deltaPp`) rather than parsed back out of a sentence. Where the field is absent the cell is
-//    absent; nothing is defaulted and nothing is derived twice.
-// 2. CO-OCCURRENCE STAYS CO-OCCURRENCE. "Heavy trading, and a big holder has been selling" is two
-//    measurements inside one week joined by "and". It is deliberately not "sold into the tape",
-//    which reads as one causing the other and would be exactly the invented-trade-date error the
-//    confluence header warns about — a filed shareholding is a quarterly disclosure and the trade
-//    behind it may be months old.
-// 3. PLAIN IS NOT VAGUE. "A big holder" replaces "a tracked investor's latest book", which is
-//    shorter and says the same thing; it does not replace the investor's NAME, which stays in the
-//    figures and in the evidence row beneath. Simplifying the register must never cost the reader
-//    a specific.
+// Then the sentence itself was the problem, and it was worse, because it was a card that looked
+// finished. It led with the PATTERN and appended the two figures behind it, so what a reader got
+// was the SHAPE of the evidence and never the event: "Heavy trading, and a big holder has been
+// buying — 2.0x its normal volume, Vanguard Fund up 1.01pp", over a company whose own filing that
+// morning was a 10-year supply contract. Three separate faults, all in one sentence:
+//
+//   * The pattern name was already a chip directly beneath it ("Buying", "News behind it"), so
+//     the sentence spent its whole length restating a label the eye had already indexed — the
+//     same duplication the block above was deleted for, arrived at from the other side.
+//   * The figures came from `technicals` and `investors` ONLY, because those were the two feeds a
+//     phrase had been written for. A filing, a result and a story could never appear in it at all.
+//     Measured on the shipped capture: the card for a company whose strongest event was
+//     "Biocon Secures 10-Year Supply Contract for Pertuzumab in Brazil" said "An insider and a big
+//     holder moved the same way", and the contract appeared nowhere in the sentence.
+//   * With no pattern it fell back to our own tally — "Sources disagree — 8 good, 6 bad" — or to
+//     filler: "That is the strongest recent risk here." Neither is a thing that happened.
+//
+// So the sentence is now ONE CLAIM: what the strongest event on the card actually says, in the
+// source's own words where the words are theirs. The chip below it carries the correlation, the
+// rows below that carry the breadth, and nothing is said twice. FOUR RULES, every one of them a
+// rule this file already ran on:
+//
+// 1. NO NEW FACT, AND NO NEW NUMBER. Every figure is read from a field a collector wrote —
+//    `volumeX`, `movePct`, `deltaPp`, `tradeValue`, `tradePct`, `tradeShares`, `netProfit.pct` —
+//    never parsed back out of a sentence. Where the field is absent the phrase is absent; nothing
+//    is defaulted and nothing is derived twice.
+// 2. IT ONLY REWRITES WHAT WE WROTE. A publisher's headline, a filing's subject and the
+//    exchange's own description of a filing are somebody else's words and travel verbatim. Our own
+//    composed lines — "Volume 2.0x its 20-day average at the <date> close", "ACTIV PINE LLP —
+//    Sell", "YOY quarterly result filed" — are ours to shorten and to complete.
+// 3. SELECTING IS NOT EDITING, AND CLIPPING SAYS SO. Where NSE's description quotes the company's
+//    own title for a filing, that quotation IS the claim — chosen, not reworded. A statement too
+//    long for one line is cut on a word boundary with an ellipsis and the untouched text stays in
+//    the row's own tooltip. Neither is a paraphrase, which is the one thing not on offer here.
+// 4. PLAIN IS NOT VAGUE. Shortening the register must never cost the reader a specific: the
+//    investor's name, the size of the trade and the basis of a growth figure all stay.
 
-/** One short, ordinary-English phrase per named cross-feed pattern. */
-const PLAIN_PATTERN = {
-  accumulation: 'Heavy trading, and a big holder has been buying',
-  distribution: 'Heavy trading, and a big holder has been selling',
-  'insider-and-investor': 'An insider and a big holder moved the same way',
-  // BOTH OF THESE LEGS TAKE *ANY* TECHNICAL READING — a price move, a volume spike or a base
-  // breakout — so neither sentence may say "the price moved". It read that way over a card
-  // whose only tape event was 2.0x volume on a barely-changed close, which is a specific
-  // claim the evidence underneath it did not make.
-  'news-behind-the-move': 'Unusual trading, and there is news beside it',
-  'results-reaction': 'Results are out, and the trading was unusual',
-  'risk-cluster': 'Bad news showing up in more than one place',
-  'unexplained-move': 'A big move with nothing to explain it',
-};
-
-/** The short label the evidence rows tag a feed with. Long enough to be a word, short enough to skim. */
+/**
+ * The short label the evidence rows tag a feed with — long enough to be a word, short enough to
+ * skim. IT NAMES THE SOURCE FAMILY, NOT THE FEED ID: the same grouping `feedFamily` uses.
+ *
+ * `market-news` has always shared NEWS with `news` for exactly this reason, and `nse-filings`
+ * belongs with `announcements` the same way: an exchange filing reaching us through NSE and its
+ * twin through BSE are one source, which is why they are one family for corroboration. Left to
+ * fall through to its own label it printed NSE FILINGS beside FILING, so a card whose header
+ * counted two independent sources showed three different words for them — two numbers disagreeing
+ * on one screen, with the reader left to guess which is right. The venue is not lost: the row's
+ * title carries the feed's own label and its time, and the row opens that feed's own tab.
+ */
 export const FEED_TAG = {
   earnings: 'RESULT',
   concalls: 'CALL',
   'screener-insights': 'INSIGHT',
   announcements: 'FILING',
+  'nse-filings': 'FILING',
   insider: 'INSIDER',
   investors: 'FUND',
   technicals: 'TAPE',
@@ -419,44 +429,247 @@ export const FEED_TAG = {
   'market-news': 'NEWS',
 };
 
+/** The longest claim a card's sentence or a row carries before it is clipped on a word boundary. */
+export const CLAIM_MAX = 150;
+const CRORE = 10_000_000;
+
+/** A claim too long for the line, cut where a word ends. The untouched text stays in the tooltip. */
+function clip(text, max = CLAIM_MAX) {
+  const value = String(text || '').replace(/\s+/g, ' ').trim();
+  if (value.length <= max) return value;
+  const cut = value.slice(0, max);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.–—-]+$/, '')}…`;
+}
+
 /**
- * The shortest true phrase for one event, or null where the event carries no figure worth a phrase.
+ * A filing subject that names the filing TYPE rather than the event.
  *
- * Pure and exported: these branches depend on which numbers a collector happened to write, and a
- * day's capture contains only some of them.
+ * This is the whole reason a card could announce "Press Release" over a ten-year supply contract.
+ * Measured on the retained NSE window: 1,995 of 15,506 rows carry one of these as their subject —
+ * 1,025 "General Updates", 707 "Updates", 251 "Press Release" — and 1,911 of those 1,995 carry a
+ * description that says what the filing actually is. BSE's side of it is the pointer subjects:
+ * "PFA", "Please refer the enclosed file.", "As per attachment".
+ *
+ * It is deliberately an EXACT-MATCH list of type words, not a length or a keyword heuristic.
+ * "Investor Presentation", "Record Date" and "Resignation of Director/KMP/SMP" are short and are
+ * real answers; the test is whether the subject names an event, and a pattern loose enough to
+ * catch a bad subject by its shape would discard those too.
  */
-export function shortFact(event) {
-  if (!event) return null;
-  if (event.feed === 'technicals') {
-    if (event.kind === 'breakout') return 'closed above its recent range';
-    if (Number.isFinite(event.volumeX) && event.kind === 'volume') return `${event.volumeX.toFixed(1)}x its normal volume`;
-    if (Number.isFinite(event.movePct) && event.kind === 'move') {
-      return `${event.movePct < 0 ? 'down' : 'up'} ${Math.abs(event.movePct).toFixed(1)}% at the close`;
-    }
-    return null;
+const TYPE_ONLY_SUBJECT = new RegExp(
+  '^(?:'
+  + 'updates?|general\\s+updates?|company\\s+updates?|press\\s+releases?|announcements?|'
+  + 'corporate\\s+announcements?|disclosures?|disclosure\\s+attached|intimations?|intimation\\s+of\\s+disclosure|'
+  + 'others?|news|filing|nse\\s+filing|pfa|na|n\\.?a\\.?|nil|none|attached|enclosed|media\\s+releases?|'
+  // THE POINTER PHRASES ARE BOUNDED TO POINTER WORDS, not left open with `.*`. Written greedily
+  // they swallowed a subject that says something: "Please find enclosed herewith the disclosure
+  // pertaining to incorporation of two Wholly-Owned Subsidiaries" is the whole event, and the card
+  // replaced it with BSE's one-word sub-category, "Acquisition". A pointer subject is a pointer
+  // and nothing else, so every word after "please find" has to be one of these to qualify.
+  + '(?:please|kindly)\\s+(?:refer|find|see)'
+  + '(?:\\s+(?:to|the|our|enclosed|attached|attachment|enclosure|annexure|file|document|herewith|below|copy))*|'
+  + 'as\\s+per\\s+(?:the\\s+)?attachments?|refer\\s+(?:the\\s+)?attach\\w*|-{1,2}|\\.'
+  + ')[\\s.]*$',
+  'i'
+);
+
+/**
+ * EVERY SEGMENT HAS TO BE A TYPE WORD, because the exchanges publish these as alternatives.
+ * "Press Release / Media Release" is BSE's sub-category for a press release and says no more than
+ * either half of it does, and an exact-match list of single words let it through — one card led
+ * with it while the filing beneath said what the release was. A subject with one real segment
+ * ("Record Date / Book Closure") still names an event and is kept.
+ */
+const isTypeOnly = (text) => {
+  const value = String(text || '').trim();
+  if (!value) return true;
+  return value.split(/\s*[/|]\s*/).filter(Boolean).every((part) => TYPE_ONLY_SUBJECT.test(part));
+};
+
+/**
+ * A clause the prefix strip exposed, opened as a sentence.
+ *
+ * "…has informed the exchange about the approval of Board of Directors for withdrawal of
+ * application of reclassification" is one sentence whose subject is the company, so removing that
+ * subject leaves the rest starting "the" — a line that reads as a rendering bug. Capitalising a
+ * letter is typography and not a change of claim.
+ *
+ * IT LEAVES A WORD THAT CAPITALISES ITSELF ALONE. The test is that the first word has no capital
+ * of its own, so "the approval…" opens and "iPhone launch" or "eSIM rollout" are untouched — a
+ * brand recapitalised would be this dashboard editing somebody's name, which the clip and the
+ * prefix strip both exist to avoid.
+ */
+const openingCase = (text) => {
+  const value = String(text || '');
+  const first = value.match(/^([a-z])([^\s]*)/);
+  if (!first || /[A-Z]/.test(first[2])) return value;
+  return value[0].toUpperCase() + value.slice(1);
+};
+
+const unquote = (text) => {
+  const value = String(text || '').trim().replace(/[.\s]+$/, '').trim();
+  const wrapped = value.match(/^["'‘“]([\s\S]+)["'’”]$/);
+  return (wrapped ? wrapped[1] : value).trim();
+};
+
+/**
+ * What a filing says, in the source's own words.
+ *
+ * Two mechanical removals and one selection, and none of them is a paraphrase:
+ *
+ *  * `|SUBJECT: …` is the feed's own duplicate of the subject, appended to every NSE description.
+ *  * `<Company> has informed the Exchange about/regarding` is an exchange-generated lead-in —
+ *    9,622 of 15,506 retained rows carry it — and what follows it is the filing's own text.
+ *  * Where they quote the company's own title for the filing ("…titled \"X\""), that quotation is
+ *    the claim. Choosing which of their sentences to print is not writing one.
+ */
+export function sourceStatement(text) {
+  const raw = String(text || '').replace(/\s*\|\s*SUBJECT\s*:[\s\S]*$/i, '').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  const titled = raw.match(/\btitled\s*["'‘“]([^"'’”]{12,})["'’”]/i);
+  if (titled) return titled[1].trim();
+  const body = raw
+    .replace(/^.{0,90}?\bhas\s+informed\s+the\s+Exchanges?\b[\s,]*(?:about|regarding|that)?\s*/i, '')
+    // BSE's own lead-in on a disclosure it received, the mirror of the one above.
+    .replace(/^the\s+Exchanges?\s+(?:has|have)\s+received\s*/i, '')
+    .trim();
+  return openingCase(unquote(body || raw));
+}
+
+/**
+ * A filing's claim: its own subject where that names an event, the source's own description where
+ * the subject only names a type, and the exchange's own sub-category as the floor.
+ *
+ * The order is what makes it honest. A subject that says something is never replaced — it is the
+ * shortest true answer and it is theirs. A description is used only where it says something the
+ * subject does not, because NSE repeats the subject as the description on some rows and sends
+ * `''.` on others, and "General Updates: General Updates" is not an improvement on either.
+ */
+export function filingClaim(event) {
+  const subject = String(event?.filingSubject || event?.headline || '').trim();
+  // THE SAME MECHANICAL LEAD-IN TURNS UP IN SUBJECTS, and there it costs the reader the answer.
+  // BSE carries no description, so the whole statement arrives as the subject: "Star Health and
+  // Allied Insurance Company Limited has informed the exchange about the approval of Board of
+  // Directors for withdrawal of application of…" spent 71 of 150 characters on a company name the
+  // card prints as its own heading, and clipped away the withdrawal. Removing a prefix the
+  // exchange generated is the same removal `sourceStatement` justifies, not a rewording of what
+  // follows it — and where the subject carries none, it comes back unchanged.
+  if (!isTypeOnly(subject)) return clip(sourceStatement(subject) || subject);
+  const stated = sourceStatement(event?.filingDescription);
+  if (stated.length >= 12 && stated.toLowerCase() !== subject.toLowerCase()) return clip(stated);
+  // BSE's own sub-category is their answer to "what kind of filing is this?" — "Award of Order /
+  // Receipt of Order", "Resignation of Director", "Credit Rating" — so it is a real claim where
+  // the subject was not. NSE publishes none, which is why this is a floor and not the first look.
+  return clip(event?.filingSubCategory || subject || 'Filing');
+}
+
+/**
+ * The measurable size of an insider or block-deal disclosure, from the fields the collector wrote.
+ *
+ * Value first because it is the figure the desk's own threshold is stated in (₹10 crore), then the
+ * percentage of the company (1%), then the share count, which is a real number that says nothing
+ * about size on its own. A disclosure that carried none of the three gets no phrase — never a zero.
+ */
+function insiderSize(event) {
+  if (Number.isFinite(event.tradeValue) && Math.abs(event.tradeValue) >= CRORE) {
+    return `₹${(Math.abs(event.tradeValue) / CRORE).toFixed(1)} crore`;
   }
-  if (event.feed === 'investors') {
-    const who = event.investor ? String(event.investor) : null;
-    if (!who) return null;
-    // `new` and `exited` deliberately carry NO size — see the collector: a first or last disclosure
-    // states a stake, never a change, and printing one as a delta would invent a trade.
-    if (event.action === 'new') return `${who} is a new holder`;
-    if (event.action === 'exited') return `${who} is off the register`;
-    if (Number.isFinite(event.deltaPp)) {
-      return `${who} ${event.action === 'added' ? 'up' : 'down'} ${Math.abs(event.deltaPp).toFixed(2)}pp`;
-    }
-    return null;
-  }
+  if (Number.isFinite(event.tradePct)) return `${Math.abs(event.tradePct).toFixed(2)}% of the company`;
+  if (Number.isFinite(event.tradeShares)) return `${Math.abs(event.tradeShares).toLocaleString('en-IN')} shares`;
+  if (Number.isFinite(event.tradeValue)) return `₹${Math.abs(event.tradeValue).toLocaleString('en-IN')}`;
   return null;
 }
 
-// THE FIGURES ARRIVE IN THE ORDER THE SENTENCE NAMES THEM. Every plain sentence above puts the
-// tape first — "Heavy trading, and a big holder has been selling" — but the events are in SCORE
-// order, so a fund book outranking a volume row produced "…has been selling — Cohesion MK Best
-// Ideas is off the register, 2.0x its normal volume": both facts true, read backwards against the
-// clause they belong to, which costs the reader a second pass over a card built to save one.
-const READ_ORDER = { technicals: 0, investors: 1, insider: 2 };
-const readRank = (event) => (event.feed in READ_ORDER ? READ_ORDER[event.feed] : 9);
+/**
+ * The filed figures behind a result, worded for a sentence rather than a table cell.
+ *
+ * `metricText` in `daily-alerts.js` is the table's rendering of the SAME fields and the same
+ * `kind` — one classifier, so the two cannot disagree about a number or about whether a period
+ * crossed zero. What differs is only the words a sign change takes: "Net Profit to profit" reads
+ * as a column heading and a stray word, and this is the whole of a card's sentence.
+ *
+ * A comparison the source did not carry contributes nothing, exactly as `metricText` refuses to
+ * turn one into a percentage — see *A percentage across a sign change is not a growth rate*.
+ */
+function resultFigures(event) {
+  // THE EVENT'S OWN `metrics` FIELD FIRST. The AI pool drops `sourceRecord`, so reading the figures
+  // only off the record stated them on a card ranked from the full history and silently dropped
+  // them from the same card ranked from the pool — a difference the pool's card-for-card check
+  // would report the first week a company in the window filed a result. The record remains the
+  // reading for an event saved before the field existed; both carry the source's own label, change
+  // and kind, so the two cannot disagree.
+  const row = event.metrics || event.sourceRecord || {};
+  const out = [];
+  for (const metric of [row.netProfit, row.revenue]) {
+    if (!metric) continue;
+    const label = String(metric.label || '').toLowerCase() || 'figure';
+    // `Number(null)` IS 0 AND 0 IS FINITE, so a comparison the source did not carry arrived as
+    // "net profit −0.0%" — a measurement invented out of an absence, which is the one thing every
+    // rule in this file is written to prevent. `metricText` is safe because `numeric()` rejects a
+    // null first; this asks the same question before converting.
+    const raw = metric.pct == null || metric.pct === '' ? null : Number(metric.pct);
+    const pct = Number.isFinite(raw) ? raw : null;
+    const size = pct == null ? '' : ` ${Math.abs(pct).toFixed(1)}%`;
+    if (metric.kind === 'turnaround') out.push(`${label} swung to profit`);
+    else if (metric.kind === 'slipped-to-loss') out.push(`${label} swung to a loss`);
+    else if (metric.kind === 'loss-narrowed') out.push(`${label} loss narrowed${size}`);
+    else if (metric.kind === 'loss-widened') out.push(`${label} loss widened${size}`);
+    else if (metric.kind === 'loss-flat') out.push(`${label} loss flat`);
+    else if (metric.kind === 'flat') out.push(`${label} flat`);
+    // A FLAT FIGURE TAKES NO SIGN. Moneycontrol reports an unchanged net profit as `normal` with a
+    // pct of 0 — measured on a shipped row — and "−0.0%" reads as a fall that did not happen.
+    else if (metric.kind === 'normal' && pct != null) out.push(`${label} ${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct).toFixed(1)}%`);
+  }
+  return out;
+}
+
+/**
+ * The evidence rows a card shows (the view says how many): ONE PER SOURCE, IN ROUNDS.
+ *
+ * Taking the top rows by score alone put three rows of one feed on the card — "Cohesion MK Best
+ * Ideas: no longer disclosed", "Life Insurance Corporation: no longer disclosed", "Vanguard Fund:
+ * no longer disclosed" — under a strip announcing four sources. Every row was true and the card
+ * still showed a quarter of what it had, three times over, while the reader's next question ("what
+ * do the OTHER sources say?") was the one thing three identical lines cannot answer.
+ *
+ * So slots are handed out in ROUNDS: the strongest event from every source, then the second from
+ * every source, and so on. Two sources share four rows two and two rather than three and one, and
+ * a card with one source stops at `maxPerSource` instead of filling every slot from it.
+ *
+ * **IT COUNTS SOURCES THE WAY THE REST OF THE CARD DOES — `feedFamily`, not `event.feed`.** Keyed
+ * on the feed id it spent a slot on `announcements` and another on `nse-filings`, which are one
+ * source for corroboration (`feedCount`), one word on the row (`FEED_TAG`) and one family in the
+ * dedupe. Measured on Sky Gold's 18 September board meeting: one approval, filed to both exchanges
+ * under four different subjects, took all four rows of a card whose own header read "1 source" —
+ * the same event four times, which is the failure this function exists to prevent, arrived at
+ * through the one grouping that had not been brought in line.
+ *
+ * The cap is a display rule and nothing is lost to it: the footer counts every row it left out and
+ * opens General Alerts, which is the tab that holds the complete record. It is not a dedupe either
+ * — four filings of one event are four records upstream, and teaching the collector that they are
+ * one is a change to what every reader of that feed sees, not to this card.
+ */
+export const MAX_PER_SOURCE = 3;
+
+export function topEvidence(card, limit = 3, { maxPerSource = MAX_PER_SOURCE } = {}) {
+  // Grouped by FAMILY, in the order each family's strongest event appears — so the rounds below
+  // hand out slots by independent source, in score order within each one.
+  const bySource = new Map();
+  for (const event of card?.events || []) {
+    const family = feedFamily(event);
+    const found = bySource.get(family);
+    if (found) found.push(event);
+    else bySource.set(family, [event]);
+  }
+  const out = [];
+  for (let round = 0; round < maxPerSource && out.length < limit; round += 1) {
+    for (const list of bySource.values()) {
+      if (out.length >= limit) break;
+      if (list.length > round) out.push(list[round]);
+    }
+  }
+  return out;
+}
 
 /**
  * One event's own claim, in ordinary English where this dashboard composed the sentence itself.
@@ -466,10 +679,17 @@ const readRank = (event) => (event.feed in READ_ORDER ? READ_ORDER[event.feed] :
  * headings supply the context. On a card they are the whole line, and a reader should not have to
  * decode one.
  *
- * IT ONLY REWRITES WHAT WE WROTE. A filing's subject, a con-call title and a publisher's headline
- * are somebody else's words and are returned untouched — putting our phrasing on a company's own
- * statement is the error the filings rules exist to prevent, and it would be a strictly worse trade
- * than a slightly longer line.
+ * IT ONLY REWRITES WHAT WE WROTE. A publisher's headline is somebody else's words and is returned
+ * untouched — putting our phrasing on a company's own statement is the error the filings rules
+ * exist to prevent. A filing goes through `filingClaim`, which never rewords the exchange either:
+ * it chooses between the subject, the exchange's own description and the exchange's own
+ * sub-category, and the reason it has to choose is that a third of a card's leading filings named
+ * a filing type and no event.
+ *
+ * COMPLETING OUR OWN LINE IS NOT REWRITING SOMEBODY ELSE'S. Three of these branches now add the
+ * figure the row was graded on and used to leave in the tooltip: a disclosure's size, a result's
+ * filed growth. That is the specific a reader opens the card for, and every one of them is read
+ * from a collector's field.
  */
 export function plainHeadline(event) {
   if (!event) return '';
@@ -487,161 +707,73 @@ export function plainHeadline(event) {
       return `${event.investor} ${event.action === 'added' ? 'raised' : 'cut'} its stake by ${Math.abs(event.deltaPp).toFixed(2)}pp`;
     }
   }
-  return event.headline || '';
-}
-
-/** The distinct short facts on a card, in reading order, without repeating a feed. */
-function factPhrases(card) {
-  const out = [];
-  const seenFeeds = new Set();
-  for (const event of [...(card.events || [])].sort((a, b) => readRank(a) - readRank(b))) {
-    if (seenFeeds.has(event.feed)) continue;
-    const phrase = shortFact(event);
-    if (!phrase) continue;
-    seenFeeds.add(event.feed);
-    out.push(phrase);
-    if (out.length === 2) break;
+  if (event.feed === 'insider') {
+    const size = insiderSize(event);
+    const base = event.headline || 'Insider disclosure';
+    // The upstream's own word for the kind of trade, appended only where it reads as one — a
+    // "Block deal" is a negotiated transfer rather than open-market accumulation, which changes
+    // what the figure means. "SAST" and "Insider" are filing regimes, not trade kinds, and are
+    // left to the row's own detail rather than made to read as an adjective.
+    const kind = /deal\b/i.test(String(event.tradeCategory || '')) ? ` ${String(event.tradeCategory).toLowerCase()}` : '';
+    return size ? clip(`${base} · ${size}${kind}`) : clip(base);
   }
-  return out;
+  if (event.feed === 'earnings') {
+    const figures = resultFigures(event);
+    const basis = event.resultBasis ? ` (${event.resultBasis})` : '';
+    if (figures.length) return clip(`Result filed${basis} · ${figures.join(', ')}`);
+  }
+  if (feedFamily(event) === 'announcements') return filingClaim(event);
+  return clip(event.headline || '');
 }
 
 /**
- * The three evidence rows a card shows: THE STRONGEST EVENT FROM EACH DIFFERENT FEED FIRST.
+ * The event a card leads with: the strongest one that names something that happened.
  *
- * Taking the top three by score alone put three rows of one feed on the card — "Cohesion MK Best
- * Ideas: no longer disclosed", "Life Insurance Corporation: no longer disclosed", "Vanguard Fund:
- * no longer disclosed" — under a strip announcing four sources. Every row was true and the card
- * still showed a quarter of what it had, three times over, while the reader's next question ("what
- * do the OTHER sources say?") was the one thing three identical lines cannot answer.
- *
- * So one row per feed comes first, in score order, and only then are the remaining events used to
- * fill. The rest are never lost: the footer counts them and opens General Alerts, which is the tab
- * that holds the complete record.
+ * `card.events` is in score order and `topEvent` is its first, so this is the ranking's own answer
+ * almost always — what it adds is a skip past an event whose claim is still only a filing TYPE
+ * after every fallback in `filingClaim` (NSE repeats the subject as the description on some rows
+ * and publishes no sub-category, so "General Updates" can survive all three). The skipped event
+ * KEEPS ITS ROW: this chooses which of the card's facts leads the sentence and removes nothing.
+ * Nothing is reordered either — a lower-scoring event leading the sentence does not promote it.
  */
-export function topEvidence(card, limit = 3) {
+export function leadEvent(card) {
   const events = card?.events || [];
-  const firstOfFeed = [];
-  const rest = [];
-  const seen = new Set();
-  for (const event of events) {
-    // BY FAMILY, NOT BY FEED — the same question the `Sources` figure beside it answers. Dedupe on
-    // `event.feed` and the two exchange-filing routes each claim a "first of feed" slot, so a card
-    // reading "Sources 3" spent two of its three rows on one of them and never showed the third.
-    // Measured: PVRINOX, 3 sources, rows covering announcements and technicals only. Same rule as
-    // `feedCount`; two notions of "feed" on one card is what let the rows contradict the count.
-    const family = feedFamily(event);
-    if (seen.has(family)) rest.push(event);
-    else {
-      seen.add(family);
-      firstOfFeed.push(event);
-    }
-  }
-  return [...firstOfFeed, ...rest].slice(0, limit);
+  return events.find((event) => !isTypeOnly(plainHeadline(event)))
+    || events.find((event) => plainHeadline(event).trim())
+    || card?.topEvent
+    || null;
 }
 
+const asSentence = (text) => {
+  const value = String(text || '').trim();
+  if (!value) return '';
+  return /[.!?…]$/.test(value) ? value : `${value}.`;
+};
+
 /**
- * The card's whole finding, in one or two ordinary sentences.
+ * The card's whole finding: ONE CLAIM, and a warning where the sources disagree.
  *
- * Where a cross-feed pattern fired it leads, in plain words, with the concrete figures behind it
- * appended — that is the finding. Where none fired the card says what it does have, and a
- * disagreement between sources is always stated because it changes what the reader should do next.
+ * It is the strongest event's own statement and nothing else. The correlation is a chip directly
+ * beneath this sentence, the other sources are the rows beneath that, and the count of them is in
+ * the list's own header — so a pattern name, a feed tally or a "that is the strongest recent risk
+ * here" in the sentence is a second copy of something already on the card, which is the failure
+ * this whole layer exists to remove.
+ *
+ * THE DISAGREEMENT STAYS, AND IS A SENTENCE RATHER THAN A SCORE. "Sources disagree — 8 good, 6
+ * bad" published our own arithmetic over somebody else's readings and left the reader to work out
+ * what to do with it; the badge already reads `Reconcile`, so what belongs here is the action.
  */
 export function plainInsight(card) {
   if (isRelatedNewsContext(card.topEvent)) return `Related-entity report: ${plainHeadline(card.topEvent)}. ${card.topEvent.attribution.reason}`;
-  const lead = card.confluence?.[0];
-  const conflict = card.mixed ? ' Sources disagree here, so check both before acting.' : '';
-  if (lead) {
-    const facts = factPhrases(card);
-    const tail = facts.length ? ` — ${facts.join(', ')}` : '';
-    return `${PLAIN_PATTERN[lead.id] || lead.label}${tail}.${conflict}`;
-  }
-  const latest = plainHeadline(card.topEvent);
-  if (card.mixed) {
-    return `Sources disagree — ${card.directions.positive} good, ${card.directions.negative} bad. Strongest: ${latest}.`;
-  }
-  if (card.directions.negative > 0 && card.feedCount > 1) {
-    return `Bad signs on ${card.feedCount} sources. Strongest: ${latest}.`;
-  }
-  if (card.directions.positive > 0 && card.feedCount > 1) {
-    return `Good signs on ${card.feedCount} sources. Strongest: ${latest}.`;
-  }
-  if (card.directions.negative > 0) return `${latest}. That is the strongest recent risk here.`;
-  if (card.directions.positive > 0) return `${latest}. That is the strongest recent good news here.`;
-  return `${latest}. It is here for how material, recent and relevant it is.`;
+  const claim = asSentence(plainHeadline(leadEvent(card)));
+  const conflict = card.mixed ? ' Sources disagree — check both directions below.' : '';
+  // A card with no statable event cannot be summarised, and inventing a summary for one is the
+  // one thing that would be worse than saying so. In practice every surfaced card has at least
+  // one event with a headline; this is the branch that keeps that a fact rather than a hope.
+  if (!claim) return `The evidence below is what this card holds; no source stated a headline for it.${conflict}`;
+  return `${claim}${conflict}`;
 }
 
-/**
- * EXACTLY FOUR FIGURES, so the strip is one shape on every card and the eye can learn it.
- *
- * The first two are the facts this company actually has — a volume ratio, a day move, a change in
- * a disclosed book — and where it has fewer than two, the shape of the evidence fills in instead.
- * The last two never change: how many independent sources, and how many events they hold.
- *
- * TONE IS A CLAIM, SO VOLUME HAS NONE. A volume ratio is participation and the tape does not say
- * whether it was buying or selling — the technicals collector says so in those words — so the
- * volume cell is slate however large the number is. Colouring 4.4x red would be this dashboard
- * asserting a direction its own feed refuses to assert, which is a worse error than a dull cell.
- */
-export function cardMetrics(card) {
-  const cells = [];
-  const seenFeeds = new Set();
-  for (const event of [...(card.events || [])].sort((a, b) => readRank(a) - readRank(b))) {
-    if (cells.length === 2) break;
-    if (seenFeeds.has(event.feed)) continue;
-    if (event.feed === 'technicals') {
-      if (event.kind === 'volume' && Number.isFinite(event.volumeX)) {
-        seenFeeds.add(event.feed);
-        cells.push({ id: 'volume', label: 'Volume', value: `${event.volumeX.toFixed(1)}x`, tone: 'neutral', title: 'Volume against this company’s own 20-day average. Volume is participation, not direction.' });
-        continue;
-      }
-      if (event.kind === 'move' && Number.isFinite(event.movePct)) {
-        seenFeeds.add(event.feed);
-        cells.push({ id: 'move', label: 'Move', value: `${event.movePct < 0 ? '−' : '+'}${Math.abs(event.movePct).toFixed(1)}%`, tone: event.movePct < 0 ? 'negative' : 'positive', title: 'The move between the last two completed closes.' });
-        continue;
-      }
-      if (event.kind === 'breakout') {
-        seenFeeds.add(event.feed);
-        cells.push({ id: 'breakout', label: 'Tape', value: 'Breakout', tone: 'positive', title: 'Closed above its consolidation base.' });
-        continue;
-      }
-      continue;
-    }
-    if (event.feed === 'investors') {
-      const value = event.action === 'new' ? 'New' : event.action === 'exited' ? 'Out' : Number.isFinite(event.deltaPp) ? `${event.direction === 'negative' ? '−' : '+'}${Math.abs(event.deltaPp).toFixed(2)}pp` : null;
-      if (!value) continue;
-      seenFeeds.add(event.feed);
-      cells.push({ id: 'holder', label: 'Holder', value, tone: event.direction === 'negative' ? 'negative' : 'positive', title: 'The change in a tracked investor’s latest filed book. A filing is quarterly; the trade behind it may be older.' });
-    }
-  }
-
-  // THE FILLERS ARE TAKEN IN ORDER, direction first, because how the evidence READS is worth more
-  // to somebody scanning than how much of it there is. A cell is one label and one value: "2 bad ·
-  // 1 good" is two facts crammed into a figure and it truncated to "2 bad ·…" at 390px, so the
-  // dominant side names the cell and the count is the figure. The full split stays in the tooltip.
-  const bad = card.directions?.negative || 0;
-  const good = card.directions?.positive || 0;
-  const split = `${bad} negative and ${good} positive readings on this card. Neutral events are counted neither way.`;
-  const fillers = [
-    bad > good
-      ? { id: 'direction', label: 'Bad signs', value: String(bad), tone: 'negative', title: split }
-      : good > bad
-        ? { id: 'direction', label: 'Good signs', value: String(good), tone: 'positive', title: split }
-        : { id: 'direction', label: 'Direction', value: bad ? 'Split' : 'None', tone: 'neutral', title: bad ? split : 'Nothing on this card reads positive or negative.' },
-    {
-      id: 'high',
-      label: 'Big news',
-      value: String(card.highCount || 0),
-      tone: 'neutral',
-      title: 'Events that crossed their own source feed’s published threshold for mattering.',
-    },
-  ];
-  let filler = 0;
-  while (cells.length < 2 && filler < fillers.length) cells.push(fillers[filler++]);
-
-  cells.push({ id: 'feeds', label: 'Sources', value: String(card.feedCount || 0), tone: 'neutral', title: 'How many independent feeds carry something on this company.' });
-  cells.push({ id: 'events', label: 'Events', value: String((card.events || []).length), tone: 'neutral', title: `Events in the last ${WINDOW_DAYS} days.` });
-  return cells.slice(0, 4);
-}
 
 /**
  * The badge in the card's corner — what to DO, not what we scored it.
@@ -656,179 +788,6 @@ export function cardBadge(card) {
   if (card.mixed) return { id: 'reconcile', label: 'Reconcile', tone: 'caution' };
   if (card.priority === 'must-see') return { id: 'must-see', label: 'Must see', tone: 'negative' };
   return { id: 'important', label: 'Important', tone: 'neutral' };
-}
-
-// ---------------------------------------------------------------------------------------
-// THE TWO-BULLET READING — WHAT HAPPENED, AND COULD IT CHANGE THE EARNINGS ASSUMPTION, THE
-// VALUATION OR THE THESIS
-//
-// The desk's brief (17 September 2026): "there are three triggers here. One is, will it change the
-// earnings assumption? Second is, will it change the valuation? And third is whether it will make or
-// break the thesis which we have… we should have two bullet points. One bullet is basically what
-// has happened. And second is, will it change the three things?"
-//
-// The first bullet already exists — `plainInsight` is what happened, in ordinary English. This is
-// the second, and the whole difficulty is the verb. "Will it change the EPS" is an analyst's
-// judgement and no field in any feed here carries one, so this layer never answers it. What it CAN
-// answer deterministically is WHICH of the three questions an event bears on, read off structured
-// facts the collectors already wrote: a tracked keyword's family (an order win is an earnings
-// question, a buyback a valuation one, a fraud probe a thesis one), a filing rule's own name, a
-// result being filed, a close moving past the feed's own threshold, a big holder's move past the
-// feed's own threshold. So the bullet says "could change", names the trigger it read, and says in
-// words which of the three nothing here bears on — because "not tracked" and "no" are different
-// answers, and the reader is owed the first.
-//
-// FOUR RULES, ALL ALREADY IN THIS FILE:
-// 1. NO NEW FACT. Every reason names an event already on the card, by its keyword, its rule or its
-//    own figure. A keyword is a TOPIC (news-keywords.js, rule 1): "Lawsuit" bears on the thesis
-//    whichever side the company is on, and the bullet says which QUESTION, never which answer.
-// 2. EACH LEG KEYS ON THE OWNING FEED'S OWN THRESHOLD. A price move counts only past MOVE_PCT, an
-//    investor or insider move only past its feed's published bar — `importance === 'high'`, the
-//    same predicate the confluence layer uses, not a second one written here.
-// 3. A HOLDER'S MOVE BEARS ON NONE OF THE THREE BY ITSELF. A tracked investor cutting a stake or an
-//    insider selling is information about what somebody else did, not about the company's earnings,
-//    its value or the reason to own it; it is already the first bullet's business ("Heavy trading,
-//    and a big holder has been selling"). Measured on the shipped capture before this rule: insider
-//    disclosures alone put 31 of 60 cards under Thesis, which made that chip say nothing.
-// 4. VOLUME BEARS ON NOTHING. Participation has no sign and no price, so on its own it changes no
-//    assumption, valuation or thesis — the same reason `cardMetrics` gives it no tone.
-
-/** The three questions the desk asks of every piece of news, in the order it asks them. */
-export const IMPACT_AXES = [
-  { id: 'earnings', label: 'Earnings assumption', short: 'Earnings', question: 'Could it change the earnings assumption?' },
-  { id: 'valuation', label: 'Valuation', short: 'Valuation', question: 'Could it change the valuation?' },
-  { id: 'thesis', label: 'Thesis', short: 'Thesis', question: 'Could it make or break the thesis?' },
-];
-
-// Which question each tracked keyword bears on, by the keyword's id. A topic maps to a QUESTION,
-// not to an answer: "Approval" is an earnings question whether the approval was granted to this
-// company or to a rival, and the reader decides which. Keywords absent here (none today) bear on
-// nothing rather than on a nearest guess.
-const IMPACT_BY_KEYWORD = {
-  'capacity-expansion': ['earnings'], capex: ['earnings'], order: ['earnings'], orderbook: ['earnings'],
-  'receipt-of-order': ['earnings'], 'product-launch': ['earnings'], commissioning: ['earnings'],
-  'joint-venture': ['earnings'], partnership: ['earnings'],
-  'stake-sale': ['valuation'], merger: ['valuation', 'thesis'], acquisition: ['valuation', 'thesis'],
-  patent: ['earnings'], approval: ['earnings'], trial: ['earnings'],
-  earnings: ['earnings'],
-  qip: ['valuation'], 'qualified-institutional-placement': ['valuation'], 'preferential-issue': ['valuation'],
-  'rights-issue': ['valuation'], buyback: ['valuation'],
-  'corporate-governance': ['thesis'], fraud: ['thesis'], lawsuit: ['thesis'], resignation: ['thesis'],
-  investigation: ['thesis'], default: ['thesis'], downgrade: ['valuation', 'thesis'],
-  fire: ['earnings'], accident: ['earnings'],
-  'brokerage-research': ['valuation'],
-};
-
-// The directional filing rules in filing-signals.js, by the name each rule reports itself under.
-const IMPACT_BY_FILING_RULE = {
-  'rating downgrade': ['valuation', 'thesis'],
-  'default or insolvency': ['thesis'],
-  'fraud or enforcement action': ['thesis'],
-  'contract cancellation or suspension': ['earnings'],
-  'auditor resignation': ['thesis'],
-  'rating upgrade': ['valuation'],
-  'shareholder distribution': ['valuation'],
-  'order or contract award': ['earnings'],
-  'regulatory approval or patent grant': ['earnings'],
-  'commercial production start': ['earnings'],
-};
-
-// Events carry keyword LABELS (`keywords`) and, on newer rows, ids (`keywordIds`). The label is the
-// desk's own word and is unique in the vocabulary, so it resolves to the id without guessing.
-const KEYWORD_ID_BY_LABEL = new Map(KEYWORDS.map((k) => [k.label.toLowerCase(), k.id]));
-const keywordIdsOf = (event) => {
-  const ids = Array.isArray(event.keywordIds) ? event.keywordIds : [];
-  const fromLabels = (Array.isArray(event.keywords) ? event.keywords : []).map((label) => KEYWORD_ID_BY_LABEL.get(String(label).toLowerCase())).filter(Boolean);
-  return [...new Set([...ids, ...fromLabels])];
-};
-const keywordLabel = (id) => KEYWORDS.find((k) => k.id === id)?.label || id;
-
-/**
- * The questions ONE event bears on, each with the trigger it was read from.
- *
- * Pure and exported so every branch is testable on a fixture: a day's capture rarely holds a
- * buyback, a rating cut and a base breakout on one company.
- */
-export function eventImpacts(event) {
-  if (!event || event.aiEligible === false || isRelatedNewsContext(event)) return [];
-  const out = [];
-  const add = (axis, text) => {
-    if (!out.some((hit) => hit.axis === axis && hit.text === text)) out.push({ axis, text });
-  };
-  const family = feedFamily(event);
-  if (event.feed === 'earnings') add('earnings', 'results filed');
-  if (event.feed === 'concalls' && event.importance === 'high') add('earnings', 'the con-call analysis read off neutral');
-  if (event.feed === 'technicals' && event.kind === 'move' && event.importance === 'high') {
-    const fact = shortFact(event);
-    if (fact) add('valuation', fact);
-  }
-  if (family === 'news' || family === 'announcements') {
-    const noun = family === 'news' ? 'in the news' : 'in a filing';
-    for (const id of keywordIdsOf(event)) {
-      for (const axis of IMPACT_BY_KEYWORD[id] || []) add(axis, `${keywordLabel(id)} ${noun}`);
-    }
-    const rule = event.filingRule && IMPACT_BY_FILING_RULE[String(event.filingRule).toLowerCase()];
-    for (const axis of rule || []) add(axis, `${event.filingRule} in a filing`);
-  }
-  return out;
-}
-
-/**
- * The questions a card's events bear on, in the desk's order, each with every distinct reason.
- *
- * An axis with no reason is absent, never present-and-empty, so a consumer can count it; the
- * sentence below still names the absent ones in words.
- */
-export function impactOf(events = []) {
-  const byAxis = new Map(IMPACT_AXES.map((axis) => [axis.id, []]));
-  for (const event of events) {
-    for (const hit of eventImpacts(event)) {
-      const reasons = byAxis.get(hit.axis);
-      if (!reasons.some((reason) => reason.text === hit.text)) reasons.push({ eventId: event.id ?? null, feed: event.feed, text: hit.text });
-    }
-  }
-  return IMPACT_AXES.filter((axis) => byAxis.get(axis.id).length).map((axis) =>
-    ({ axis: axis.id, label: axis.label, short: axis.short, question: axis.question, reasons: byAxis.get(axis.id) }));
-}
-
-const listWords = (items) => items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
-
-/**
- * The second bullet as parts, so a renderer can set the axis names apart and link each trigger
- * without a second wording. `{ kind: 'axis' }` parts are the question names, `{ kind: 'reason' }`
- * parts are the triggers — each carrying the id of the event it was read from — and everything
- * else is prose. `impactLine` is the same sentence flattened.
- *
- * EVERY REASON IS A DOOR, AND NONE IS FOLDED AWAY. A bullet that says "Order in a filing" and offers
- * no way to the filing is a claim the reader cannot check, which is the one thing this card may
- * not be; and "+2 more" hides exactly the triggers a reader would want to open. So every trigger is
- * listed, in the order it was read, and the card links each to its own event — the same door the
- * evidence rows use.
- */
-export function impactParts(impacts = []) {
-  const missing = IMPACT_AXES.filter((axis) => !impacts.some((hit) => hit.axis === axis.id)).map((axis) => axis.label.toLowerCase());
-  if (!impacts.length) {
-    return [{ kind: 'text', text: 'Nothing here is a tracked trigger for the earnings assumption, the valuation or the thesis. Read the evidence before deciding.' }];
-  }
-  const parts = [{ kind: 'text', text: 'Could change ' }];
-  impacts.forEach((hit, i) => {
-    if (i > 0) parts.push({ kind: 'text', text: i === impacts.length - 1 ? ' and ' : ', ' });
-    parts.push({ kind: 'axis', axis: hit.axis, text: `the ${hit.label.toLowerCase()}` });
-    parts.push({ kind: 'text', text: ' (' });
-    hit.reasons.forEach((reason, j) => {
-      if (j > 0) parts.push({ kind: 'text', text: '; ' });
-      parts.push({ kind: 'reason', axis: hit.axis, text: reason.text, eventId: reason.eventId ?? null, feed: reason.feed || null });
-    });
-    parts.push({ kind: 'text', text: ')' });
-  });
-  parts.push({ kind: 'text', text: '.' });
-  if (missing.length) parts.push({ kind: 'text', text: ` Nothing tracked here bears on the ${listWords(missing)}.` });
-  return parts;
-}
-
-/** The second bullet, flat: "Could change the earnings assumption (…) and the valuation (…). …" */
-export function impactLine(impacts = []) {
-  return impactParts(impacts).map((part) => part.text).join('');
 }
 
 function directionSummary(events) {
@@ -872,7 +831,7 @@ export function clearRankingCache() { rankCache.length = 0; lastPositionIndex = 
 // Universe ranking (~1s of CPU here, once per partial publication) no longer lands as one task.
 // The generator yields once per card in each pass; a driver decides whether a yield costs
 // anything. Nothing about the result depends on the driver: same events, same order, same cards.
-function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = null, insightCompanies = screenerInsights.all(), companyMetadata = technicals.all().map(row => row.company) } = {}) {
+function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = null, insightCompanies = screenerInsights.all(), companyMetadata = technicals.all().map(row => row.company), sectorKpis = kpiImpact.snapshot() } = {}) {
   const day = report?.day || generalAlerts.today();
   const events = report?.events || [];
   const { token, email, orgId } = getHostContext().session;
@@ -882,10 +841,10 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
   const input = { day, scope: report?.scope || 'universe', events,
     health: JSON.stringify((report?.feeds || []).map(feed => [feed.id, feed.status, feed.reachesToday])),
     book: JSON.stringify(holdings), positions: JSON.stringify(positionSizes),
-    insights: insightCompanies, sectors: companyMetadata, session: JSON.stringify([token, email, orgId]) };
+    insights: insightCompanies, sectors: companyMetadata, kpis: sectorKpis, session: JSON.stringify([token, email, orgId]) };
   const cached = rankCache.find(entry => entry.input.day === day && entry.input.scope === input.scope &&
     entry.input.health === input.health && entry.input.book === input.book && entry.input.positions === input.positions &&
-    entry.input.session === input.session && sameRows(entry.input.events, events) &&
+    entry.input.session === input.session && entry.input.kpis === sectorKpis && sameRows(entry.input.events, events) &&
     sameRows(entry.input.insights, insightCompanies) && sameRows(entry.input.sectors, companyMetadata));
   if (cached) {
     const result = { ...cached.result, pending: report?.pending || 0, feeds: report?.feeds || [],
@@ -1021,15 +980,11 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     }
     card.priority = card.score >= MUST_SEE_SCORE ? 'must-see' : card.score >= MIN_SCORE || card.materialPortfolioEvent ? 'important' : 'watch';
     card.insight = plainInsight(card);
-    // The second bullet. `eventImpacts` excludes related-entity context and ineligible rows itself,
-    // so the card's whole event list is the right input — the same list the evidence rows draw.
-    card.impacts = impactOf(card.events);
-    card.impactLine = impactLine(card.impacts);
-    // Which of the three investor questions the card's own evidence bears on. Derived from topic
-    // readings already on those events — it adds no fact, no number and no score, and contributes
-    // nothing to the arithmetic above. See js/data/alert-drivers.js.
-    card.drivers = driversOf(card);
-    card.metrics = cardMetrics(card);
+    // WHICH OF THE COMPANY'S OWN SECTOR KPIs the evidence names — read off the same events, through
+    // the desk's sector → KPI ontology. Like the topic chips on the rows it adds no score and no
+    // alert; a company whose sector is not resolved, or whose evidence names no KPI, carries null.
+    // See js/data/kpi-impact.js.
+    card.kpis = kpiImpact.kpiImpactOf(card, sectorKpis);
     card.badge = cardBadge(card);
     enriched.push(enrichCardFromAllAlerts(card, supportedReport, { contextIndex }));
     yield;
@@ -1187,8 +1142,12 @@ export function withPositionSnapshot(report, snapshot) {
 /** A privacy-safe ready view while the live source modules revalidate. */
 export async function cached({ scope = 'portfolio', holdings = null, positionSizes = null, isCurrent = () => true } = {}) {
   const book = holdings || coverage.holdings();
+  // The sector → KPI file is small and static; it is read beside the cached window, never after it.
+  const kpis = kpiImpact.load();
   const report = await generalAlerts.readCachedAlertWindow({ scope, holdings: book });
   if (!report || !isCurrent()) return null;
+  await kpis;
+  if (!isCurrent()) return null;
   return rankReportAsync(report, { holdings: book, positionSizes, insightCompanies: screenerInsights.all() }, { isCurrent });
 }
 
@@ -1196,6 +1155,10 @@ export async function cached({ scope = 'portfolio', holdings = null, positionSiz
 export async function collect({ scope = 'portfolio', holdings = null, positionSizes = null, refresh = false, load = true, onPartial = null, isCurrent = () => true } = {}) {
   const book = holdings || coverage.holdings();
   const insightRead = load ? screenerInsights.load({ refresh }).catch(() => null) : Promise.resolve(null);
+  // Started with the collection and awaited before the first completed ranking, so a card that
+  // arrives with its evidence also arrives with its KPI line. A failed read resolves to null and the
+  // cards simply carry none — and `kpiImpact.status()` says the file could not be read.
+  const kpiRead = kpiImpact.load();
   const options = (insightCompanies = screenerInsights.all()) => ({ holdings: book, positionSizes, insightCompanies });
   // PARTIALS ARE RANKED IN SLICES, AND THE LATEST ONE WINS. Feeds settle over several seconds
   // and the general collector publishes progress as they do; ranking every publication of the
@@ -1233,6 +1196,7 @@ export async function collect({ scope = 'portfolio', holdings = null, positionSi
   closed = true;
   queued = null;
   if (publishing) await publishing;
+  await kpiRead;
   if (!isCurrent()) return null; // Shared collection/storage finishes; obsolete view work stops.
   if (!onPartial) {
     await insightRead;
