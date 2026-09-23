@@ -5,7 +5,7 @@
 // always network-only, so Family holdings, research answers and private document
 // lookups never cross the persistence boundary.
 
-// Advance a revision on every change under /js/. CACHE_KEY combines the shared release
+// Advance a revision on every change under /js/ OR /css/. CACHE_KEY combines the shared release
 // marker below with the separate module revision, so either change creates a fresh cache.
 // `revalidateInBackground` below deliberately excludes /js/ — modules are treated as immutable and
 // the service-worker file plus this name ARE the code version boundary. So a returning reader with
@@ -15,8 +15,19 @@
 // completely invisible to everyone who has visited before — which is exactly what would have
 // happened to the Telegram section, whose new module is reachable from app.js but would never have
 // been requested. Nothing fails and nothing looks wrong; the feature simply is not there.
+//
+// THE SAME IS TRUE OF /css/, WHICH THIS NOTE USED TO LEAVE OUT. `cacheable` stores it and
+// `revalidateInBackground` does NOT list it, so the compiled stylesheet is as immutable to a
+// returning reader as a module is — while `/index.html` and `/data/` refresh quietly and hide
+// that fact. A purely visual change lands in the worst version of this: the HTML updates, the
+// stylesheet it depends on does not, and the result is a half-applied design nobody can see a
+// fault in. Advancing a revision here is the whole mechanism; editing the CSS is not enough.
 const CACHE_PREFIX = 'sattva-dashboard-';
+<<<<<<< HEAD
 const CACHE_NAME = `${CACHE_PREFIX}2026-09-21-column-order-v3`;
+=======
+const CACHE_NAME = `${CACHE_PREFIX}2026-09-23-nse-original-link-v1`;
+>>>>>>> sattva/main
 const APP_ENTRY = '/js/app.js';
 const CORE = ['/', '/index.html', '/css/tailwind.css', '/css/theme.css', '/css/glow.css', '/glow-bridge.html', '/data/portfolio-companies.json',
   '/assets/brand/glow-ventures-wordmark.svg', '/assets/brand/favicon.svg'];
@@ -24,12 +35,19 @@ const MUNSHOT_SDK = 'https://munshot.s3.ap-south-1.amazonaws.com/SDK+script/muns
 const WARM_CONCURRENCY = 8;
 const MODULE_ENTRIES = [APP_ENTRY, '/js/research/glow-bridge.js'];
 
+<<<<<<< HEAD
 // Keep reader/content revisions separate from the shared marker: concurrent dashboard
 // releases can advance it without conflicting with these fixes. Every install,
 // read and eviction uses the same combined key, retaining atomic upgrades.
 // Glow's own reader markers lead; the template's follow, so a returning reader upgrades
 // once for both and neither side's revision can be dropped by the next sync.
 const CACHE_KEY = `${CACHE_NAME}-glow-research-row-floor-v1-glow-table-scrollbars-v1-glow-order-book-topic-v1-glow-alert-filters-v1-glow-portfolio-reader-v3-glow-investor-dates-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v1-all-alerts-restore-v2-ai-card-updates-v1-performance-ownership-v1-ai-impact-triggers-v1-mf-active-passive-v4-ai-impact-links-v1-glow-newsletter-simple-v1-glow-newsletter-multi-add-v1-glow-newsletter-coverage-v1-glow-research-settle-v1-sattva-newsletter-v2-bounded-history-memory-v5-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v1-glow-muns-minute-v1-muns-price-label-v2-glow-kpi-impact-v2-ai-card-parity-v1`;
+=======
+// Keep content revisions separate from the shared marker: concurrent dashboard
+// releases can update that marker without conflicting with these fixes. Every
+// install, read and eviction uses the same combined key, retaining atomic upgrades.
+const CACHE_KEY = `${CACHE_NAME}-news-story-companions-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v1-all-alerts-restore-v2-ai-card-updates-v1-performance-ownership-v1-sattva-newsletter-v2-bounded-history-memory-v5-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v2-scrollbar-grab-v1-filing-particulars-v1-table-drag-v2-mutual-funds-v10-upstox-minute-v2-muns-price-label-v2`;
+>>>>>>> sattva/main
 
 function moduleSpecifiers(source) {
   const found = new Set();

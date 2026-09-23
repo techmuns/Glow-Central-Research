@@ -16,7 +16,10 @@
 
 import * as generalAlerts from './daily-alerts.js';
 import { newsCanSupportAI, isRelatedNewsContext } from './company-news-attribution.js';
+<<<<<<< HEAD
 import * as kpiImpact from './kpi-impact.js';
+=======
+>>>>>>> sattva/main
 import { defaultCompanyNewsEntityId, portfolioNewsEntities } from './company-news-identity.js';
 import * as coverage from './coverage.js';
 import * as screenerInsights from './screener-insights.js';
@@ -592,6 +595,7 @@ function insiderSize(event) {
  * turn one into a percentage — see *A percentage across a sign change is not a growth rate*.
  */
 function resultFigures(event) {
+<<<<<<< HEAD
   // THE EVENT'S OWN `metrics` FIELD FIRST. The AI pool drops `sourceRecord`, so reading the figures
   // only off the record stated them on a card ranked from the full history and silently dropped
   // them from the same card ranked from the pool — a difference the pool's card-for-card check
@@ -599,6 +603,9 @@ function resultFigures(event) {
   // reading for an event saved before the field existed; both carry the source's own label, change
   // and kind, so the two cannot disagree.
   const row = event.metrics || event.sourceRecord || {};
+=======
+  const row = event.sourceRecord || {};
+>>>>>>> sattva/main
   const out = [];
   for (const metric of [row.netProfit, row.revenue]) {
     if (!metric) continue;
@@ -980,11 +987,14 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     }
     card.priority = card.score >= MUST_SEE_SCORE ? 'must-see' : card.score >= MIN_SCORE || card.materialPortfolioEvent ? 'important' : 'watch';
     card.insight = plainInsight(card);
+<<<<<<< HEAD
     // WHICH OF THE COMPANY'S OWN SECTOR KPIs the evidence names — read off the same events, through
     // the desk's sector → KPI ontology. Like the topic chips on the rows it adds no score and no
     // alert; a company whose sector is not resolved, or whose evidence names no KPI, carries null.
     // See js/data/kpi-impact.js.
     card.kpis = kpiImpact.kpiImpactOf(card, sectorKpis);
+=======
+>>>>>>> sattva/main
     card.badge = cardBadge(card);
     enriched.push(enrichCardFromAllAlerts(card, supportedReport, { contextIndex }));
     yield;

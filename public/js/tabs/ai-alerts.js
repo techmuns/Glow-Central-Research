@@ -16,7 +16,10 @@ import { getHostContext } from '../core/host-context.js';
 import { formatNumber } from '../core/format.js';
 import * as refresh from '../core/refresh.js';
 import * as alerts from '../data/ai-alerts.js';
+<<<<<<< HEAD
 import { KPI_CHIP_LIMIT, kpiLine, status as kpiStatus } from '../data/kpi-impact.js';
+=======
+>>>>>>> sattva/main
 import { chatterTopic } from '../data/chatter-sentiment.js';
 import { driversFromEvent, QUESTIONS } from '../data/alert-drivers.js';
 import { alertWindowCache } from '../data/alert-window-cache.js';
@@ -609,6 +612,7 @@ function cardSection(kicker, bodyHtml, attrs = '') {
 }
 
 /**
+<<<<<<< HEAD
  * KPIs IN PLAY — which lines of THIS company's sector model the card's evidence names.
  *
  * One section directly under "What happened", drawn exactly as that section is (the same dot, the
@@ -716,6 +720,75 @@ function listHeadMarkup(card) {
     </div>`;
 }
 
+=======
+ * WHAT A ROW COULD CHANGE — the reading, on the row that holds its record.
+ *
+ * This was a paragraph of its own under an "Earnings assumption, valuation or thesis?" kicker: up
+ * to three linked readings per question, the questions with nothing behind them stated, and a
+ * counted overflow. Every word of it was true and the desk reads the same three questions on every
+ * card, so restating them cost a block of prose above the evidence to tell a reader something they
+ * already know. The READING is what they did not know, so it rides the row it came off as a chip.
+ *
+ * Three things the paragraph was carrying that the chip has to keep:
+ *
+ * 1. **The record stays one click away.** The classification is ours, so a reader must be able to
+ *    check it — and now the row the chip sits on IS the link to that record, rather than a second
+ *    anchor to the same place. `driversFromEvent` is asked per event for exactly that reason: it
+ *    is the uncapped primitive, so a chip can never be missing from a row that earned one.
+ * 2. **It is a TOPIC reading, never a direction.** `news-keywords.js` rule 1 holds: "Order" means
+ *    a source carried the word, not that an order was won. So the chip is indigo — never the
+ *    emerald or rose the direction dot beside it uses — and its title says "Could change …",
+ *    with each rule's own non-verification sentence after it.
+ * 3. **A truncation is counted.** Two readings on one row for one question print as "+1" rather
+ *    than one of them vanishing. The chips are one per question and there are only three
+ *    questions, so nothing else needs capping.
+ *
+ * What the chip deliberately does NOT carry is the card-level total per question, or the "nothing
+ * tracked here bears on the valuation" statement. Both are the desk's own vocabulary rather than
+ * evidence, and the complete per-event accounting is in All Alerts, one click down in the footer.
+ */
+function driverReadings(event) {
+  const byQuestion = new Map();
+  for (const driver of driversFromEvent(event)) {
+    const found = byQuestion.get(driver.question);
+    if (found) found.push(driver);
+    else byQuestion.set(driver.question, [driver]);
+  }
+  // In the vocabulary's own order, so two rows never name the same pair of questions differently.
+  return QUESTIONS.filter((question) => byQuestion.has(question.id))
+    .map((question) => ({ question, drivers: byQuestion.get(question.id) }));
+}
+
+function driverChipsMarkup(readings) {
+  if (!readings.length) return '';
+  const chips = readings.map(({ question, drivers }) => {
+    const extra = drivers.length - 1;
+    const title = `Could change ${question.label}. ${drivers.map((driver) => driver.why).join(' ')}`;
+    return `<span data-ai-driver data-driver-question="${escapeHtml(question.id)}" title="${escapeHtml(title)}"
+      class="inline-flex items-center rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-700">${escapeHtml(`${question.short} · ${drivers[0].label}`)}${extra > 0 ? `&nbsp;+${escapeHtml(formatNumber(extra))}` : ''}</span>`;
+  });
+  return `<span class="mt-1.5 flex flex-wrap items-center gap-1">${chips.join('')}</span>`;
+}
+
+/**
+ * The list's own header, and the home of two figures the strip used to carry.
+ *
+ * "5 sources" is a property of the card's evidence rather than of any row, so it belongs to the
+ * list rather than to a cell of its own — and "newest first" is a claim about the order, which is
+ * why `byNewestFirst` sorts what `topEvidence` selected instead of trusting score order to read
+ * as recency. The window is named because an age of 9d means nothing without it.
+ */
+function listHeadMarkup(card) {
+  const sources = card.feedCount || 0;
+  return `
+    <div data-ai-list-head class="mt-4 flex items-baseline justify-between gap-3 border-t border-slate-100 pt-3">
+      <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Newest first</span>
+      <span class="text-[10px] font-bold uppercase tracking-wider tabular-nums text-slate-500"
+        title="${escapeHtml(`How many independent feeds carry something on this company in the last ${alerts.WINDOW_DAYS} days. Every event behind this card is in All Alerts.`)}"><span data-ai-sources>${escapeHtml(formatNumber(sources))}</span> ${sources === 1 ? 'source' : 'sources'} · ${alerts.WINDOW_DAYS} days</span>
+    </div>`;
+}
+
+>>>>>>> sattva/main
 /**
  * Newest first, by the day and by the time where the feed published one.
  *
@@ -779,7 +852,10 @@ function cardMarkup(card, scope, day, archived = false) {
         ${Number.isFinite(card.holdingWeightPct) ? `<p data-ai-holding-size class="mt-1 text-xs font-semibold text-indigo-700">${card.holdingWeightPct > 0 && card.holdingWeightPct < 0.01 ? '&lt;0.01' : card.holdingWeightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of equity statement book</p>` : ''}
 
         ${cardSection('What happened', `<p data-ai-insight class="font-display mt-0.5 text-[17px] font-bold leading-snug text-slate-900"${lead ? ` title="${escapeHtml(`${lead.feedLabel || lead.feed} · ${lead.headline || ''}`)}"` : ''}>${escapeHtml(card.insight)}</p>${confluenceMarkup(card)}`)}
+<<<<<<< HEAD
         ${kpiMarkup(card, scope)}
+=======
+>>>>>>> sattva/main
 
         ${listHeadMarkup(card)}
         <ul data-ai-evidence class="mt-1 space-y-0.5">
