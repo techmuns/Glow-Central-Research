@@ -89,6 +89,13 @@ conservative grouping, model-input grounding and all output formats. Model repli
 this does not certify live model accuracy, OCR fidelity, account access or complete source coverage.
 The existing newsletter, repeated-news and UI checks remain required.
 
+The required full-history equivalence check also exposed an existing midnight boundary issue in
+new captures: same-publisher dated headlines at different URLs could select a different winner
+in a bounded view. Query index v4 now includes that existing deduplication identity, preserving
+the full reader's result. Retained v3 indexes remain integrity-verifiable and rebuild from source
+bytes for queries. The service-worker revision advances; the warm-session upgrade check verifies
+that an existing reader receives v4 and its additional companion identity.
+
 The fixture XML originals are:
 - https://nsearchives.nseindia.com/corporate/xbrl/REG30_Restructuring_2711_WebXMLFile_20260923_155648372.xml
 - https://nsearchives.nseindia.com/corporate/xbrl/REG30_Restructuring_2711_WebXMLFile_20260923_162559488.xml
