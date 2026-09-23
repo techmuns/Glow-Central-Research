@@ -20,7 +20,7 @@ export async function newsModelCall({ env, fetcher = fetch, budget, job, now = D
   // ample protocol allowance and the maximum cache-write input rate. Missing usage/timeouts retain this whole reservation forever.
   const inputBound = new TextEncoder().encode(JSON.stringify(body)).length + 4096;
   if (inputBound > 180000) throw failure('too-large');
-  const reservation = budget.reserve({ job, model, amount: Math.ceil(inputBound * prices[0] * 1.25 + maxOutput * prices[1]), now });
+  const reservation = budget.reserve({ job, model, amount: Math.ceil(inputBound * prices[0] * 1.25 + maxOutput * prices[1]), now: budget.now ? budget.now() : now });
   if (!reservation.ok) throw failure(reservation.reason);
   let response;
   try {

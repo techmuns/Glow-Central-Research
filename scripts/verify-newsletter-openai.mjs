@@ -16,7 +16,7 @@ function storage() {
  return { sql: { exec(sql,...args) { const rows=db.prepare(sql).all(...args); return { toArray:()=>rows }; } },
   transactionSync(fn) { db.exec('BEGIN'); try { const out=fn(); db.exec('COMMIT'); return out; } catch(e) { db.exec('ROLLBACK'); throw e; } } };
 }
-const budget = () => new NewsletterNewsBudget(storage());
+const budget = () => new NewsletterNewsBudget(storage(), { now: () => now });
 const item = { ticker:'DCW', company:'DCW Limited', kind:'news', headline:'India starts anti-dumping probe into Chinese glycine imports',
  url:'https://www.tradingview.com/news/example', at:now, keys:['dcw-news'] };
 // Synthetic reproducer of the two-event confusion; no publisher article is copied into the repo.
@@ -184,5 +184,14 @@ await test('cache-write premiums and missing details cannot understate news spen
    {input_tokens:1000,input_tokens_details:details,output_tokens:1000})});
   assert.equal(b.status(now).dayUsedUsd,0.000625);
  }
+});
+await test('requests crossing midnight use their actual admission day, not a stale batch timestamp',async()=>{
+ let clock=istInstant('2026-09-24','23:59');const old=clock;
+ const b=new NewsletterNewsBudget(storage(),{now:()=>clock});
+ const request=()=>newsModelCall({env,budget:b,job:crypto.randomUUID(),now:old,instructions:'test',input:{},schema:objectSchema({}),fetcher:async()=>reply({},
+  {input_tokens:1000,input_tokens_details:{cache_write_tokens:0},output_tokens:1000})});
+ await request();clock=istInstant('2026-09-25','00:01');await request();
+ assert.equal(b.status(old).dayUsedUsd,0.0006);assert.equal(b.status(clock).dayUsedUsd,0.0006);
+ assert.equal(b.status(clock).monthUsedUsd,0.0012);
 });
 console.log(`${passed} OpenAI news checks passed; fixture replies do not certify live model accuracy.`);

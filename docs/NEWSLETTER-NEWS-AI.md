@@ -46,7 +46,8 @@ the underlying discovery queue; this change does not add universal article recra
 `NewsletterNewsBudget` uses the existing newsletter Durable Object's SQLite database. It admits
 at most **$1 per IST day and $25 per IST calendar month** for news reading, review and semantic
 grouping together. It reserves a conservative request cost in a transaction *before* network I/O,
-so concurrent wakes and restarts cannot each spend the whole allowance. Failed or interrupted
+so concurrent wakes and restarts cannot each spend the whole allowance. Each request uses the
+ledger’s current clock, so a batch crossing midnight cannot charge later calls to the prior day. Failed or interrupted
 requests without usage keep their full reservation. Completed requests use total input/output
 usage, including reasoning tokens and the 25% cache-write input premium. No cache-read discount
 is assumed; missing cache-write details conservatively price all input at the higher rate. Three calls per request identity

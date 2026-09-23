@@ -4,7 +4,7 @@ import { istDay } from '../public/js/data/newsletter-shared.js';
 export const NEWS_DAILY_MICRO_USD = 1_000_000;
 export const NEWS_MONTHLY_MICRO_USD = 25_000_000;
 export class NewsletterNewsBudget {
-  constructor(storage) { this.storage = storage; }
+  constructor(storage, { now = Date.now } = {}) { this.storage = storage; this.now = now; }
   rows(sql, ...args) {
     if (!this.initialised) {
       this.storage.sql.exec(`CREATE TABLE IF NOT EXISTS newsletter_news_ai_calls (
