@@ -103,7 +103,7 @@ const ai = await import('../public/js/data/ai-alerts.js');
 coverage.prime({ holdings: [{ ticker: 'STLTECH', name: 'Sterlite Technologies' }, { ticker: 'RELIANCE', name: 'Reliance Industries' }] });
 
 const expected = ['technicals', 'earnings', 'concalls', 'chatter', 'investors', 'announcements', 'insider', 'news', 'market-news',
-  'nse-filings', 'twitter', 'ipos', 'earnings-calendar', 'scheduled-concalls', 'screener-portfolio-upcoming', 'investor-positions', 'institutions', 'chatter-posts', 'company-documents', 'drhp-documents'];
+  'price-levels', 'nse-filings', 'twitter', 'ipos', 'earnings-calendar', 'scheduled-concalls', 'screener-portfolio-upcoming', 'investor-positions', 'institutions', 'chatter-posts', 'company-documents', 'drhp-documents'];
 assert.deepEqual(alerts.FEEDS.map((f) => f.id), expected, 'explicit registry parity: adding a tab/source must update the pool contract');
 assert.equal(nseRecords([nseRow])[0].day, '2026-09-04', 'timestamps use IST, not their UTC date prefix');
 assert.equal(nseRecords([undated])[0].day, null, 'no invented date');
@@ -316,7 +316,7 @@ const evidenceReads = calls.length;
 const evidenceRefresh = await alerts.refreshSources();
 assert(calls.slice(evidenceReads).includes('api/screener-insights'), 'Ask Research refresh includes company context outside the alert feed registry');
 assert(evidenceRefresh.failed > 0, 'unavailable context is reported instead of treating retained inputs as fresh');
-console.log(`PASS: 20 feed adapters; ${universe.events.length} retained records; scope parity, undated/upcoming, raw records, privacy, refresh/recovery and AI compatibility.`);
+console.log(`PASS: ${alerts.FEEDS.length} feed adapters; ${universe.events.length} retained records; scope parity, undated/upcoming, raw records, privacy, refresh/recovery and AI compatibility.`);
 
 // Selecting a smaller reading period must preserve the complete event contract: canonical
 // identity, corrections, discovery provenance and exported source fields, not just row counts.

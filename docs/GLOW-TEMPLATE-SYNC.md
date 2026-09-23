@@ -478,3 +478,30 @@ Sattva in its own pull request; until that merges, preserve it here on a templat
   takeover-regulation disclosures read as Acquisition; court and tax orders read as orders won).
 - No credential or route was added. The one new schedule is the daily classification job above; it
   reads public Screener pages only for companies it has not classified, or classified 90+ days ago.
+
+## The family's price levels from Glow Ventures (23 September 2026)
+
+The owner asked that a target price set in the Glow Ventures dashboard also reach this one, and that a
+level reached there show in All Alerts and AI Alerts. This is Glow's own feature — its producer is
+Glow Ventures — so it has no Sattva counterpart; **preserve it on a template merge.** How it works is
+in `CLAUDE.md` → *The family's price levels*; the contract is in `docs/DATA-CONTRACTS.md` →
+`/api/price-levels`.
+
+- Files: `public/js/data/price-levels-shared.js`, `public/js/data/price-levels.js`,
+  `worker/price-levels.mjs`, `worker/price-levels-store.mjs`, `worker/price-levels-schedule.mjs`,
+  `scripts/verify-price-levels.mjs`.
+- Hunks in shared files: the source row first in `ADDITIONAL_SOURCES` and its dependency entry in
+  `js/data/alert-sources.js`; `FEED_WEIGHT`, `FEED_TAG` and the `materialPortfolioEvent` clause in
+  `js/data/ai-alerts.js`; the route and its import in `worker/index.js`; the store, the schedule and
+  the alarm dispatch in `worker/capture-registry-object.mjs`; the feed order and count in the two
+  general-alerts suites; the CI step; the service-worker marker `glow-price-levels-v1`.
+- `wrangler.jsonc` gains the binding `PRICE_LEVELS` (the existing `CaptureRegistry` class, so no
+  migration) and the variable `PRICE_LEVEL_ORIGINS` — the production Glow Ventures address, the only
+  site allowed to write. **No new credential**: the minute check reads the `UPSTOX_ACCESS_TOKEN` the
+  Worker already holds (21 September note above). Rate limiting reuses the shared watchlist's limiter
+  under its own key prefix.
+- The one new schedule is the price-level object's own alarm: once a minute in market hours while a
+  level is waiting, every fifteen minutes otherwise, none while the list is empty. It calls Upstox for
+  the companies that have a waiting level and nothing else.
+- Deployment is the existing merge pipeline. Until it runs, Glow Ventures' saves have nowhere to go
+  and that dashboard says so on each alert.

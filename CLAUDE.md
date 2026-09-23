@@ -4062,6 +4062,56 @@ like that. Same rule, and the same failure, as the news Fetch button.
 
 ---
 
+## The family's price levels — set in Glow Ventures, checked here, raised as alerts
+
+*"When the user puts target price inside the dashboard, it should automatically also go to the Glow
+Central Research dashboard. When the target price is met, it should show in All Alerts as an alert,
+and automatically come to the AI Alert section."*
+
+The family set Buy at, Sell at, Stop loss, Target and Alert above levels on their holdings in the
+Glow Ventures dashboard — a separate app whose store is the reader's own browser. Every save there is
+now sent here, to ONE shared list, and this Worker does the rest. Contract and shapes:
+`docs/DATA-CONTRACTS.md` → `/api/price-levels`.
+
+- **`public/js/data/price-levels-shared.js`** — the ONE definition of a level, which way it fires
+  (Buy at and Stop loss DOWN; Sell at, Target and Alert above UP), what counts as reached (inclusive)
+  and on what evidence. Imported by the Worker and the browser alike, so they cannot drift.
+- **`worker/price-levels.mjs`** — `GET` / `POST /api/price-levels`. **The one write route here that
+  another site may call:** its own origin plus exactly the origins in `PRICE_LEVEL_ORIGINS`
+  (wrangler.jsonc) — the production Glow Ventures address only, so a branch preview there cannot
+  write test levels into the family's real list. Rate-limited on the shared watchlist's limiter under
+  its own key prefix. A refused origin gets no CORS header; an allowed one can read every failure's
+  reason.
+- **`worker/price-levels-store.mjs`** — SQLite on the fixed object `price-levels:v1` (binding
+  `PRICE_LEVELS`, the provisioned `CaptureRegistry` class, no migration). `set` replaces, `seed` adds
+  only what the list has never heard of, `clear` is kept as a record — the shared watchlist's three
+  rules, for the same reason: a stale device must not overwrite or resurrect a level. **Every time is
+  the Worker's**, a level fires ONCE, and every reached level is kept as history (500 rows) that
+  outlives a later clear.
+- **`worker/price-levels-schedule.mjs`** — the minute check, as that object's own ALARM, so an alert
+  fires whether or not anybody has the page open (the account has no free cron slot; the breakout
+  capture proves the arrangement). Upstox full quotes keyed on `NSE_EQ|<ISIN>`, gated on the key AND
+  the ticker, today's session only. **The day's high or low counts only for a level set before that
+  session opened** — a level set at 14:00 must not fire on a 10:00 high. No level waiting, no alarm;
+  the next save arms it, and a read re-arms a lost one.
+- **`public/js/data/price-levels.js`** — the All Alerts source `price-levels` (first among
+  `ADDITIONAL_SOURCES`): one high-importance, AI-eligible row per level reached, in the family's own
+  words ("Target reached — ₹250", "Stop loss hit — ₹400"). Up is positive, a Stop loss negative, and a
+  Buy at NEUTRAL — the family's own entry point is neither good nor bad news on its own. It decides
+  nothing about prices itself; the feed's note says how many levels wait and whether the check is
+  keeping up, and names a company that arrived with no ISIN rather than guessing it.
+- **AI Alerts** — `FEED_WEIGHT['price-levels'] = 18`, so a Target reached today on a book company
+  scores exactly `MUST_SEE_SCORE` (30 + 18 + 16 + 6 + 12 = 82) and a Stop loss hit more; and a level
+  on a book company is a `materialPortfolioEvent`, so it stays on the list for the whole review window
+  after its day has passed. Row tag `LEVEL`. No driver chip and no KPI line: the family's own level is
+  not new information about the company.
+
+`scripts/verify-price-levels.mjs` holds every part to its rule — the contract, the store, the minute
+check against a recorded Upstox answer, the cross-site route, the alert row and its rank. A bug pass
+reintroducing seventeen defects (a touch not firing, a day-range false alert, a quote taken without
+its symbol, a seed overwriting a decision, any origin writing, a failed read as an empty list, a
+level that is not material, …) found every one.
+
 ## PORTFOLIO MEANS A LIST OF NAMES — and Portfolio Analytics is deleted
 
 **The only portfolio information this dashboard holds is `public/data/portfolio-companies.json`:**
