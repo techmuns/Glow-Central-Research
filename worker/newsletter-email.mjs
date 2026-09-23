@@ -13,8 +13,8 @@ const tooLarge = () => Object.assign(new Error('Newsletter content cannot fit sa
 const sliceCompany = (company, clusters, continued = false) => {
   const stories = clusters.flatMap(k => [k.main, ...k.others]);
   return { ...company, clusters, stories, continued,
-    good: stories.filter(s => s.mood.id === 'good').length,
-    watch: stories.filter(s => s.mood.id === 'watch').length };
+    good: clusters.filter(k => k.main.mood.id === 'good').length,
+    watch: clusters.filter(k => k.main.mood.id === 'watch').length };
 };
 const keysFor = companies => [...new Set(companies.flatMap(c => c.stories.flatMap(s => s.keys || [])))];
 
@@ -85,14 +85,13 @@ export function renderBriefEmails(brief, options = {}, { maxBytes = EMAIL_HTML_B
   }
   flush();
   if (pages.length > MAX_PARTS || !pages.length) throw tooLarge();
-  // One date/edition subject encourages conversation grouping. The sender does not expose
-  // References/In-Reply-To, so mailbox threading remains best-effort, never a guarantee.
-  const subject = briefSubject(brief, options);
+  // Gmail can clip a combined same-subject conversation even when each body fits.
+  // Keep numbered subjects, as Sattva does; the PDF remains the single complete document.
   return pages.map((page, i) => {
     const part = { ...page, index: i + 1, total: pages.length };
     const html = renderBriefHtml(brief, { ...options, part });
     const bytes = emailBytes(html);
     if (bytes > maxBytes) throw tooLarge();
-    return { html, bytes, subject, keys: keysFor(page.companies), part };
+    return { html, bytes, subject: briefSubject(brief, { ...options, part }), keys: keysFor(page.companies), part };
   });
 }

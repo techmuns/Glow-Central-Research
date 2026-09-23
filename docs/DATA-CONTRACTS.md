@@ -6085,9 +6085,9 @@ what it was asked to send.
 - Packing and the final transport guard enforce 90,000 UTF-8 bytes per body. Companies stay
   together where possible; complete updates and supplemental table rows are indivisible.
   Impossible content returns `email-too-large` before sending, without truncating evidence.
-- The same dated edition subject is used for all parts. No reply/threading headers are claimed:
-  the current Muns raw-send API has no documented controls for them. Conversation grouping
-  remains dependent on the sender/mailbox. Part numbering is visible inside each message.
+- Each dated morning/evening subject includes its part number, preventing Gmail from combining
+  large parts into a clipped conversation. No reply/threading headers are claimed: the current
+  Muns raw-send API has no documented controls for them. The complete PDF provides one document.
 - Five manual send attempts per rolling hour are reserved durably before building documents
   or calling AI. Exhaustion returns `manual-send-budget` with `retryAt`. Existing schedule,
   subscriber list, edition claims and normal delivery cadence remain unchanged.

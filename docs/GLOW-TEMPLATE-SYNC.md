@@ -427,11 +427,12 @@ share a durable five-attempt/hour budget; scheduled edition claims and send time
 The existing Glow reported-item ledger is retained, with acknowledged part outcomes and only
 confirmed identities written atomically. Shared fallback keys cannot suppress unsent updates.
 
-All parts of a dated morning/evening edition share a subject; part numbers appear in the body.
-This encourages mailbox grouping but does not guarantee it. The Muns `/email/send/raw` API
+Parts use distinct dated morning/evening subjects with part numbers in both subject and body.
+Gmail can clip combined same-subject conversations even when individual emails fit (see
+[Mailchimp’s guidance](https://mailchimp.com/help/gmail-is-clipping-my-email/)). The Muns `/email/send/raw` API
 specification inspected on 23 September exposes subject/body/attachments, not Message-ID,
-References, In-Reply-To or thread IDs. Guaranteed threading requires sender support and the
-recipient's conversation view. No unsupported transport fields are sent.
+References, In-Reply-To or thread IDs. The conditional request for one thread is therefore not enabled: it would need sender support
+and end-to-end clipping verification. No unsupported transport fields are sent.
 
 Verification: `verify-newsletter.mjs` covers byte limits, evidence/row preservation, failures,
 restarts, PDF routes, retention and budgets. `verify-newsletter-ui.mjs` exercises the preview

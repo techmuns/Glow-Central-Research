@@ -1342,10 +1342,10 @@ export const storyDate = (ms) => { const d = new Date(ms + 5.5 * 3600 * 1000); r
 /** "8:00 AM IST" from "08:00". */
 const clockLabel = (time) => { const [h, m] = String(time).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'} IST`; };
 
-/** One subject per dated morning/evening edition; part numbers stay in the body. */
-export function briefSubject(brief, { brand = BRAND } = {}) {
+/** Numbered subjects keep Gmail from combining large parts and clipping the conversation. */
+export function briefSubject(brief, { brand = BRAND, part = null } = {}) {
   const n = briefStats(brief).updates;
-  return `${brand} · ${n} update${n === 1 ? '' : 's'} on your ${EDITION_NAME.toLowerCase()} — ${shortDate(brief.at)} ${brief.day.slice(0, 4)} · ${brief.edition === 'morning' ? 'Morning' : 'Evening'}`;
+  return `${brand} · ${n} update${n === 1 ? '' : 's'} on your ${EDITION_NAME.toLowerCase()} — ${shortDate(brief.at)} ${brief.day.slice(0, 4)} · ${brief.edition === 'morning' ? 'Morning' : 'Evening'}${part?.total > 1 ? ` · Part ${part.index} of ${part.total}` : ''}`;
 }
 
 const windowLine = (brief) => `${istLabel(brief.window.from)} → ${istLabel(brief.window.to)}`;
@@ -1625,7 +1625,7 @@ const routineNote = (n) => `${n} routine filing${n === 1 ? '' : 's'} (newspaper 
  * The email. `recipient` personalises the footer only, so one build serves every subscriber.
  */
 export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recipient = null, productName = PRODUCT_NAME, brand = BRAND, settings = null, pdfUrl = null, part = null, preview = false } = {}) {
-  const subject = briefSubject(brief, { brand });
+  const subject = briefSubject(brief, { brand, part });
   const stats = briefStats(brief);
   const companies = part?.companies ?? stats.companies;
   const includeSection = name => !part || Object.hasOwn(part.sections, name);

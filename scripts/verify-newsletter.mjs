@@ -1034,7 +1034,7 @@ await test('the alarm sends the morning brief to its subscribers once, with html
     assert.equal(e.method, 'POST');
     assert.equal(e.auth, 'Bearer team-secret-token');
     assert.ok(e.html && e.text === undefined, 'exactly one of html/text');
-    assert.match(e.subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep 2026 · Morning$/);
+    assert.match(e.subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep 2026 · Morning(?: · Part \d+ of \d+)?$/);
     assert.ok(e.html.includes('GLOW VENTURES'));
   }
   const delivery = store.delivery('2026-09-17:morning');
@@ -1168,7 +1168,7 @@ await test('busy editions preserve every source, AI note and supplemental row wi
   const options = { pdfUrl: 'https://example.test/api/newsletter/pdf/00000000-0000-0000-0000-000000000000' };
   const parts = renderBriefEmails(busy, options);
   assert.ok(parts.length > 3);
-  assert.equal(new Set(parts.map(p => p.subject)).size, 1, 'all parts use one date/edition subject');
+  assert.equal(new Set(parts.map(p => p.subject)).size, parts.length, 'numbered subjects prevent conversation-level clipping');
   assert.notEqual(parts[0].subject, briefSubject({ ...busy, edition: 'evening' }));
   assert.notEqual(parts[0].subject, briefSubject({ ...busy, day: '2027-09-17' }));
   assert.deepEqual(parts.flatMap(p => p.keys).sort(), briefStories(busy).flatMap(s => s.keys).sort());
@@ -1181,6 +1181,7 @@ await test('busy editions preserve every source, AI note and supplemental row wi
   for (const row of busy.performance.rows) assert.equal(parts.filter(p => p.html.includes(row.company)).length, 1);
   for (const [i, p] of parts.entries()) {
     assert.ok(p.bytes <= EMAIL_HTML_BYTES); assert.equal(p.bytes, Buffer.byteLength(p.html));
+    assert.ok(p.subject.endsWith(`Part ${i + 1} of ${parts.length}`));
     assert.ok(p.html.includes(`Part ${i + 1} of ${parts.length}`) && p.html.includes(options.pdfUrl));
   }
   assert.equal(emailBytes('₹漢😀'), Buffer.byteLength('₹漢😀'));
@@ -1196,6 +1197,28 @@ await test('busy editions preserve every source, AI note and supplemental row wi
     parts.forEach((p, i) => writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/part-${i + 1}.html`, p.html));
     writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/glow-full-brief.pdf`, renderBriefPdf(busy));
     writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/glow-short-brief.pdf`, renderBriefPdf(morning));
+  }
+});
+
+await test('split-company sentiment counts updates rather than related exchange copies', () => {
+  const paired = structuredClone(morning);
+  const template = morning.announcements.groups[0].items[0];
+  paired.news.groups = []; paired.trades.groups = []; paired.moves.groups = [];
+  paired.announcements.groups = [{ ticker: 'AARTIDRUGS', company: 'Aarti Drugs Ltd', items: Array.from({ length: 32 }, (_, i) => ['NSE', 'BSE'].map(exchange => ({
+    ...template, headline: `Disclosure${i}`,
+    subject: 'Credit Rating / ' + 'Full source particulars and conditions. '.repeat(50),
+    at: MORNING - i * 7200_000 - 60000, exchanges: [exchange], direction: 'negative',
+    url: `https://example.test/${exchange}/${i}`, keys: [`paired:${exchange}:${i}`],
+  }))).flat() }];
+  const parts = renderBriefEmails(paired);
+  assert.ok(parts.length > 1);
+  const companies = parts.flatMap(p => p.part.companies);
+  assert.ok(companies.length > 1 && companies.some(c => c.continued));
+  assert.ok(companies.some(c => c.clusters.some(k => k.others.length)), 'fixture includes paired reports');
+  for (const c of companies) {
+    assert.equal(c.watch, c.clusters.length, 'each negative update counts once');
+    assert.equal(c.good, 0);
+    assert.ok(c.stories.length > c.watch, 'related source copies are retained separately');
   }
 });
 
@@ -1224,7 +1247,7 @@ await test('saved PDFs and confirmed part outcomes survive failures, interruptio
   assert.equal(good.emails.length, result.summary.emailParts);
   const pdfIds = good.emails.map(e => e.html.match(/\/api\/newsletter\/pdf\/([a-f0-9-]+)/)[1]);
   assert.equal(new Set(pdfIds).size, 1, 'one complete PDF for every part');
-  assert.equal(new Set(good.emails.map(e => e.subject)).size, 1);
+  assert.equal(new Set(good.emails.map(e => e.subject)).size, good.emails.length);
   const saved = good.store.document(pdfIds[0]);
   assert.equal(new TextDecoder().decode(saved.body.slice(0, 8)), '%PDF-1.4');
   assert.equal(saved.filename, 'glow-2026-09-17-morning-brief.pdf');
