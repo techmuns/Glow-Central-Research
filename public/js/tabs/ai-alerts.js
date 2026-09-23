@@ -640,12 +640,16 @@ function briefMarkup(card, scope) {
             .join('')}</p>
         </div>
       </li>
-      ${kpiMarkup(card, scope)}
-    </ul>`;
+    </ul>
+    ${kpiMarkup(card, scope)}`;
 }
 
 /**
  * KPIs IN PLAY — which lines of THIS company's sector model the evidence names.
+ *
+ * It sits directly UNDER the desk's two bullets rather than inside their list, drawn the same way:
+ * the brief is the desk's two questions and stays exactly two, and this is the answer beneath the
+ * second one, one level more specific.
  *
  * One row of chips under the three questions, and nothing at all where the company's sector is not
  * resolved or nothing on the card names a KPI (see data/kpi-impact.js: no sector, no line). The
@@ -675,13 +679,13 @@ function kpiMarkup(card, scope) {
     chips.push(`<span data-ai-kpi-more class="text-xs font-semibold text-slate-500" title="${escapeHtml(`${impact.overflow} more ${impact.overflow === 1 ? 'KPI' : 'KPIs'} named by this card's evidence. Every event is in All Alerts.`)}">+${escapeHtml(formatNumber(impact.overflow))}</span>`);
   }
   return `
-      <li class="flex items-start gap-2.5" data-ai-kpis data-kpi-group="${escapeHtml(impact.group)}">
-        <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" aria-hidden="true"></span>
-        <div class="min-w-0 flex-1">
-          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400" title="${escapeHtml(`KPIs ${impact.groupLabel} companies report that this card's evidence names. Read from the sector → KPI ontology; not a forecast and not a direction.`)}">KPIs in play · ${escapeHtml(impact.groupLabel)}</div>
-          <div class="mt-1 flex flex-wrap items-center gap-1.5">${chips.join('')}</div>
-        </div>
-      </li>`;
+    <div class="mt-2.5 flex items-start gap-2.5" data-ai-kpis data-kpi-group="${escapeHtml(impact.group)}">
+      <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" aria-hidden="true"></span>
+      <div class="min-w-0 flex-1">
+        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400" title="${escapeHtml(`KPIs ${impact.groupLabel} companies report that this card's evidence names. Read from the sector → KPI ontology; not a forecast and not a direction.`)}">KPIs in play · ${escapeHtml(impact.groupLabel)}</div>
+        <div class="mt-1 flex flex-wrap items-center gap-1.5">${chips.join('')}</div>
+      </div>
+    </div>`;
 }
 
 const METRIC_TONE = {

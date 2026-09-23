@@ -1625,7 +1625,10 @@ string names what was dropped and why. A tax demand or penalty is still read, as
 enforcement rule, and "(excluding taxes)" on a supply order does not trip it. News is untouched: the
 same two traps measured 6 of 706 order headlines and no SAST headlines across 80,580 stories.
 `LEGAL_ORDER` is exported and is also the KPI layer's definition, so the alert and its KPI row
-cannot disagree about which filings are orders.
+cannot disagree about which filings are orders. **Measured on the ranking itself**, same captures,
+before and after: 7 fewer Portfolio cards (95 → 88) and 11 fewer Universe cards — every one a
+Regulation 29/31 disclosure, a promoter's own share purchase or Sasken's GST appeal — and no card
+added or lost for any other reason.
 
 **The Topic column took the Sub-category column's place**, exactly as News' took the Outlet
 column's: `rowSub` already prints the sub-category under every subject, so the column was a second
