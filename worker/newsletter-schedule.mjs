@@ -1,6 +1,11 @@
 import { renderBriefPdf, pdfFilename } from './newsletter-pdf.mjs';
+<<<<<<< HEAD
 import { EMAIL_HTML_BYTES, emailBytes, renderBriefEmails, acceptedStoryKeys } from './newsletter-email.mjs';
 import { buildBrief, briefSubject, briefSummary, renderBriefHtml, renderBriefText, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
+=======
+import { buildBrief, briefSubject, briefSummary, renderBriefHtml, renderBriefText, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
+import { EMAIL_HTML_BYTES, emailBytes, renderBriefEmails, acceptedStoryKeys } from './newsletter-email.mjs';
+>>>>>>> sattva/main
 import { EDITIONS, editionKey, istDay, nextScheduled, normaliseEmail, scheduledEditions } from '../public/js/data/newsletter-shared.js';
 
 // THE TIMER THAT SENDS THE BRIEF, AND THE ONE PLACE AN EMAIL LEAVES THIS DASHBOARD.
@@ -220,7 +225,11 @@ export class NewsletterSchedule {
     } catch {
       return finish({ sent: 0, failed: list.length, reason: 'pdf-failed', outcomes: list.map(r => ({ email: r.email, ok: false, reason: 'pdf-failed' })) });
     }
+<<<<<<< HEAD
     const subject = briefSubject(brief, this.renderOptions());
+=======
+    const subject = briefSubject(brief);
+>>>>>>> sattva/main
     const summary = { ...briefSummary(brief), emailParts: messages.length, htmlBytes: messages.map(m => m.bytes) };
     const acceptedParts = new Set();
     const deliveredStories = () => {
@@ -229,10 +238,16 @@ export class NewsletterSchedule {
     };
     const outcomes = list.map(recipient => ({ email: recipient.email, ok: false, status: null, reason: 'not-attempted',
       parts: messages.map((message, i) => ({ part: i + 1, total: messages.length, bytes: message.bytes, ok: false, status: null, reason: 'not-attempted' })) }));
+<<<<<<< HEAD
     const published = new Map(brief.reported.map(item => [item.key, item.publishedAt]));
     const progress = () => this.store.recordDeliveryProgress(key, { outcomes, subject, summary,
       sent: outcomes.filter(o => o.ok).length, reason: 'sending',
       reported: (deliveredStories() || []).map(key => ({ key, publishedAt: published.get(key) })), windowFrom: brief.window.from });
+=======
+    const progress = () => this.store.recordDeliveryProgress(key, { outcomes, subject, summary,
+      sent: outcomes.filter(o => o.ok).length, reason: 'sending',
+      stories: deliveredStories() });
+>>>>>>> sattva/main
     progress();
     await pooled(list.map((recipient, i) => ({ recipient, outcome: outcomes[i] })), SEND_POOL, async ({ recipient, outcome }) => {
       // Sequence parts for each reader; a failed part does not discard later updates. The
@@ -257,8 +272,14 @@ export class NewsletterSchedule {
     const failed = outcomes.length - sent;
     const partOutcomes = outcomes.flatMap(o => o.parts);
     this.store.finishDocument(documentId, partOutcomes);
+<<<<<<< HEAD
     const reason = !failed ? null : partOutcomes.some(p => p.ok) ? 'partial-send' : outcomes[0]?.reason || 'failed';
     return finish({ sent, failed, reason, outcomes, subject, summary });
+=======
+    const stories = deliveredStories();
+    const reason = !failed ? null : partOutcomes.some(p => p.ok) ? 'partial-send' : outcomes[0]?.reason || 'failed';
+    return finish({ sent, failed, reason, outcomes, subject, summary, stories });
+>>>>>>> sattva/main
   }
 
   /** A send somebody pressed: a test copy to one address, or the edition to everyone, built now. */
@@ -290,7 +311,11 @@ export class NewsletterSchedule {
     const now = this.now();
     let brief;
     try {
+<<<<<<< HEAD
       brief = await buildBrief({ edition, day: istDay(now), settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to: now, reported: this.store.reportedLookup(), includeAi: false });
+=======
+      brief = await buildBrief({ edition, day: istDay(now), settings: this.store.settings(), env: this.env, fetcher: this.fetcher, now, to: now, sent: this.store.sentStoryKeys(), includeAi: false });
+>>>>>>> sattva/main
     } catch (error) {
       return { ok: false, reason: error?.code === 'book-unavailable' ? 'book-unavailable' : 'build-failed' };
     }
