@@ -99,6 +99,13 @@ const MATCH_ROW_LIMIT = 14;
 export const RESEARCH_EVIDENCE_CHAR_BUDGET = 18_000;
 // The share of the budget that rows are guaranteed. The skeleton is trimmed before a row is refused.
 export const ROW_RESERVE_SHARE = 0.5;
+// The share literal rows keep beside a derived business context, which may take `businessContextShare`
+// of the budget — 65% for portfolio reasoning — so the reserve above cannot hold there. The skeleton
+// of every ready source is most of the rest: measured on 23 September 2026, a question with all but
+// three sources loaded came to 29,836 of 30,000 characters before a single row, and the same code
+// sent five rows when four slow sources had missed their deadline. Below this floor the context is
+// refitted smaller through `fitBusinessContext`'s own order, never a row refused for it.
+export const ROW_FLOOR_SHARE = 0.08;
 // The score a row earns when the question named its company. Above any number of token hits, so a
 // company question lists that company's rows from every source before anything else.
 const COMPANY_SCORE = 8;
@@ -507,6 +514,13 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
   };
   const measure = () => researchEvidenceChars(packet);
   trimSkeleton(packet.sources, measure, Math.floor(charBudget * (1 - ROW_RESERVE_SHARE)));
+  // A DERIVED MAP MAY NOT TAKE THE LAST ROW'S ROOM. The business context is built from these
+  // sources' own text, and a packet that carries it with no source row is a summary the model
+  // cannot check. See ROW_FLOOR_SHARE for the measurement.
+  const shortfall = Math.floor(charBudget * ROW_FLOOR_SHARE) - (charBudget - measure());
+  if (shortfall > 0 && packet.businessContext) {
+    packet.businessContext = fitBusinessContext(evidence.businessContext, JSON.stringify(packet.businessContext).length - shortfall);
+  }
 
   const candidates = [];
   sourceInputs.forEach((source, sourceIndex) => {

@@ -3,10 +3,10 @@
 import assert from 'node:assert/strict';
 import { reasoningReadings, portfolioReasoningContext, reasoningSourceSamples } from '../public/js/research/reasoning-context.js';
 import { fitBusinessContext } from '../public/js/research/business-context.js';
-import { researchEvidenceChars } from '../public/js/research/evidence-shared.js';
+import { researchEvidenceChars, PORTFOLIO_REASONING_CHAR_BUDGET, businessContextShare } from '../public/js/research/evidence-shared.js';
 import { buildMunsRequest } from '../worker/research.mjs';
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
-const { queryPlan, chooseRows, fitEvidenceToBudget, DASHBOARD_RESEARCH_SOURCES } = await import('../public/js/research/estate.js');
+const { queryPlan, chooseRows, fitEvidenceToBudget, DASHBOARD_RESEARCH_SOURCES, ROW_FLOOR_SHARE } = await import('../public/js/research/estate.js');
 const holdings = [
   { ticker: 'RESIN', isin: 'INE000000001', name: 'Resin Maker', sector: 'Polymers', weightPct: 50 },
   { ticker: 'PAINTCO', isin: 'INE000000002', name: 'Paint Maker', sector: 'Coatings', weightPct: 2 },
@@ -109,6 +109,37 @@ for (const business of ['zirconium crucibles', 'industrial enzymes', 'marine ins
   const c = portfolioReasoningContext({ plan: p, packets: [{ id: 'company-news', tab: 'News', status: 'ready', reasoningReadings: reasoningReadings(unknown, p) }] });
   assert(c.candidates.some(candidate => candidate.isin === holdings[5].isin), `Unlisted business vocabulary: ${business}`);
   assert.equal(c.businessProfiles.rows.length, holdings.length);
+  checks++;
+}
+// A DERIVED MAP MAY NOT TAKE THE LAST ROW'S ROOM (ROW_FLOOR_SHARE in estate.js). With every source
+// ready, the skeleton is about a third of the reasoning budget and the map may take 65% of it, which
+// on 23 September 2026 left a question with no source row at all. Built to those proportions here.
+{
+  const book = Array.from({ length: 142 }, (_, i) => ({ ticker: `CO${i}`, isin: `INE${String(i).padStart(9, '0')}`, name: `Company ${i} Limited` }));
+  const proofOf = i => ({ tab: 'Con-call', date: '2026-09-01', text: `Company ${i} Limited ${'reports operating detail '.repeat(13)}`, basis: 'company text', sourceStatus: 'ready' });
+  const map = { kind: 'portfolio-reasoning', theme: 'crude oil', definition: 'Open-vocabulary retrieval. '.repeat(12), holdingsBasis: 'dashboard scope/coverage only; ownership and weights not established',
+    holdingsExamined: book.length, candidatesFound: 6, referenceHoldingsExcluded: 0, otherHoldingsWithoutMatchingEvidence: book.length - 6,
+    businessProfiles: { columns: ['identity', 'name', 'industry', 'industrySourceIndex'], industrySources: ['Breakouts'], rows: book.map(h => [h.ticker, h.name, 'Industrial Products', 0]),
+      total: book.length, omitted: 0, analyses: { tab: 'Con-call', columns: ['identity', 'publicationDate', 'analysisExcerpt'], rows: book.slice(0, 92).map(h => [h.ticker, '2026-09-01', 'Capacity addition and order book']), omitted: 0 },
+      definition: 'Industry labels cite industrySources. '.repeat(8) },
+    references: [], candidatesOmitted: 0,
+    candidates: book.slice(0, 6).map((h, i) => ({ ticker: h.ticker, isin: h.isin, name: h.name, weightPct: null, overlapScore: 6 - i,
+      relationship: 'Question-relevant evidence candidate; business relationship and direction require interpretation', evidence: [0, 1, 2].map(() => proofOf(i)) })) };
+  const source = (s, status) => ({ ...s, status, source: 'Provider capture of the dashboard feed', asOf: '2026-09-23T07:00:00Z', rowCount: 3, dataQuality: 'complete',
+    definition: 'What this source measures, in the words its own tab uses. '.repeat(5), rows: [{ ticker: 'CO0', date: '2026-09-22', title: 'Company 0 Limited: a dated source row' }] });
+  const everyReady = fitEvidenceToBudget({ scope: 'portfolio', businessContext: map, sources: DASHBOARD_RESEARCH_SOURCES.map(s => source(s, 'ready')) }, PORTFOLIO_REASONING_CHAR_BUDGET);
+  const rowless = researchEvidenceChars({ ...everyReady, sources: everyReady.sources.map(s => ({ ...s, rows: [] })) });
+  assert(researchEvidenceChars(everyReady) <= PORTFOLIO_REASONING_CHAR_BUDGET);
+  assert(PORTFOLIO_REASONING_CHAR_BUDGET - rowless >= Math.floor(PORTFOLIO_REASONING_CHAR_BUDGET * ROW_FLOOR_SHARE), 'every ready source keeps the row floor beside the map');
+  assert.equal(everyReady.sources.filter(s => s.rows.length).length, DASHBOARD_RESEARCH_SOURCES.length, 'each ready source lands its row');
+  const kept = everyReady.businessContext;
+  assert.equal(kept.kind, 'portfolio-reasoning');
+  assert.equal(kept.businessProfiles.rows.length, book.length, 'the complete holdings map is not what gives way');
+  assert.equal(kept.businessProfiles.omitted, 0);
+  assert(kept.candidates.length >= 1 && kept.candidates.length + kept.candidatesOmitted === map.candidatesFound, 'what gives way is counted');
+  // No pressure, no change: one ready source leaves the map exactly as the share fits it.
+  const oneReady = fitEvidenceToBudget({ scope: 'portfolio', businessContext: map, sources: DASHBOARD_RESEARCH_SOURCES.map((s, i) => i ? { ...s, status: 'unavailable', rows: [] } : source(s, 'ready')) }, PORTFOLIO_REASONING_CHAR_BUDGET);
+  assert.deepEqual(oneReady.businessContext, fitBusinessContext(map, Math.floor(PORTFOLIO_REASONING_CHAR_BUDGET * businessContextShare({ businessContext: map }))));
   checks++;
 }
 console.log(`PASS ${checks} arbitrary portfolio scenarios plus source diversity, conflicts, tiny/tickerless holdings, scope, budgets and prompt boundaries`);
