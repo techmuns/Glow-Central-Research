@@ -1304,7 +1304,7 @@
       "pending": []
     },
     "isin:INE425Y01011|RPSGVENT": {
-      "lastAttemptAt": "2026-09-18T12:30:02+00:00",
+      "lastAttemptAt": "2026-09-23T04:23:12+00:00",
       "error": "search-unavailable",
       "lastResultCount": 3,
       "lastSuccessAt": "2026-09-13T23:47:09+00:00",
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-23T03:52:00.628872+00:00"
+    "checkedAt": "2026-09-23T04:23:12.462353+00:00"
   }
 }
