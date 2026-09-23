@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { INDIA_INSTRUMENTS, quoteFromChart, quoteFromUpstox, readUpstoxIndices, reconcileIndex } from '../worker/newsletter-markets.mjs';
+import { INDIA_INSTRUMENTS, quoteFromNse, readNseIndices, reconcileIndianIndex, quoteFromChart, quoteFromUpstox, readUpstoxIndices, reconcileIndex } from '../worker/newsletter-markets.mjs';
 import { MARKET_ROWS, readMarkets, asOfLabel, formatPct, formatChange, buildBrief, renderBriefHtml, renderBriefText } from '../worker/newsletter-brief.mjs';
 import { DEFAULT_SETTINGS } from '../public/js/data/newsletter-shared.js';
 import { renderBriefPdf } from '../worker/newsletter-pdf.mjs';
@@ -175,4 +175,47 @@ test('complete market reader and HTML/text/PDF preserve verified numbers, missin
   tokenRejected = true;
   const fallback = await readMarkets({ env, fetcher, now: at });
   assert.equal(fallback.upstox.reason, 'authentication'); assert.equal(fallback.rows.find(r => r.id === 'nifty').verification, 'single-source');
+});
+
+
+test('official NSE snapshot reproduces every published index change, including VIX rounding', async () => {
+  const body = fixture('nse-indices-2026-09-23.json');
+  const rows = MARKET_ROWS.filter(r => r.group === 'india');
+  const result = await readNseIndices(rows, { now: at, fetcher: async (url, init) => {
+    assert.equal(url, 'https://www.nseindia.com/api/allIndices');
+    assert.equal(init.headers.authorization, undefined); assert.equal(init.redirect, 'manual');
+    return Response.json(body);
+  } });
+  assert.equal(result.rows.size, 7); assert.equal(result.reason, null); assert(!result.rows.has('sensex'));
+  const complete = await readMarkets({ env: { UPSTOX_ACCESS_TOKEN: 'fixture' }, now: at, fetcher: async url => {
+    if (String(url).includes('nseindia.com/api/allIndices')) return Response.json(body);
+    if (String(url).includes('api.upstox.com')) return Response.json({ status: 'success', data: Object.fromEntries(rows.map(r => {
+      const q = result.rows.get(r.id); return [r.id, primary(r, q?.last || 74828.25, q?.prev || 74500)];
+    })) });
+    const symbol = decodeURIComponent(new URL(url).pathname.split('/').at(-1));
+    const row = MARKET_ROWS.find(r => r.symbol === symbol), q = result.rows.get(row.id);
+    return Response.json(chart(row, q?.last || 74828.25, row.id === 'nifty' ? 23270.6 : q?.prev || 74500));
+  } });
+  assert.equal(complete.rows.find(r => r.id === 'nifty').origin, 'nse');
+  assert.equal(formatPct(complete.rows.find(r => r.id === 'nifty')), '+0.50%');
+  assert.deepEqual(complete.outliers, ['nifty']);
+  assert.equal(complete.rows.find(r => r.id === 'sensex').origin, 'upstox');
+
+  assert.equal(formatPct(result.rows.get('nifty')), '+0.50%');
+  assert.equal(formatPct(result.rows.get('niftyit')), '−0.87%');
+  assert.equal(result.rows.get('indiavix').last, 10.29); assert.equal(formatPct(result.rows.get('indiavix')), '−6.41%');
+  const nse = result.rows.get('nifty'), good = quoteFromUpstox(primary(), nifty, at);
+  const wrongYahoo = quoteFromChart(chart(nifty, 23446.8, 23270.6), nifty, at);
+  const chosen = reconcileIndianIndex(wrongYahoo, good, nse);
+  assert.equal(chosen.origin, 'nse'); assert.equal(chosen.verification, 'cross-checked');
+  assert.equal(formatPct(chosen), '+0.50%'); assert.deepEqual(chosen.otherSourcesDisagree, ['yahoo']);
+  assert.equal(reconcileIndianIndex(wrongYahoo, null, nse).changePct, null, 'unresolved exchange/provider disagreement remains withheld');
+  assert.equal(reconcileIndianIndex({ ...wrongYahoo, state: 'unavailable', last: null }, null, nse).verification, 'single-source');
+  assert.equal(reconcileIndianIndex(quoteFromChart(chart(), nifty, at), good, { ...nse, state: 'stale' }).origin, 'upstox');
+  assert.throws(() => quoteFromNse(body.data[0], '31-Feb-2026 15:30', nifty, at));
+  assert.throws(() => quoteFromNse(body.data[0], '24-Sep-2026 15:30', nifty, at));
+  assert.equal(quoteFromNse({ ...body.data[0], percentChange: 20 }, body.timestamp, nifty, at).changePct, null);
+  assert.equal((await readNseIndices(rows, { now: at, fetcher: async () => new Response('', { status: 403 }) })).reason, 'blocked');
+  const duplicate = await readNseIndices(rows, { now: at, fetcher: async () => Response.json({ ...body, data: [...body.data, body.data[0]] }) });
+  assert.equal(duplicate.reason, 'partial'); assert.equal(duplicate.rows.size, 6);
 });

@@ -30,7 +30,7 @@ from the screenshot's NSE previous close. Switching to that field alone would no
 establish accuracy. The fixture retains these missing bars; its expected result is
 a dated level with no daily change until another valid source supplies one.
 
-Indian indices use the existing `UPSTOX_ACCESS_TOKEN` Worker secret. One bounded
+Indian indices also use the existing `UPSTOX_ACCESS_TOKEN` Worker secret. One bounded
 V3 full-quote request reads all eight exact cash-index instrument keys, checked
 against the public NSE/BSE instrument masters. The response must match both key
 and its master trading symbol or index name. `prev_close_price` explicitly supplies
@@ -40,7 +40,19 @@ as the previous-session reference. A valid last-trade time is required;
 request/feed time alone cannot date an old index level. No browser credential,
 new subscription, credential change or extra collection schedule is introduced.
 
-Each usable primary row is compared with Yahoo's same-session row. Preceding
+The official NSE `allIndices` snapshot supplies seven NSE indices in one bounded,
+unauthenticated request; Sensex is never substituted with an NSE instrument. Its
+own timestamp, previous close, point change and percentage are validated. The
+published percentage is retained only when consistent with the rounding interval
+of its two-decimal levels (material for India VIX). A read-only 23 September
+snapshot confirms Nifty IT −0.87% and India VIX 10.29 / −6.41%, additional Yahoo
+errors beyond the three screenshot comparisons. Both source fixtures are retained.
+Blocked/unavailable exchange reads fall back without access-control workarounds.
+
+A usable exchange row is preferred. If either independent provider corroborates
+it, a third-provider outlier is recorded without hiding the corroborated exchange
+figure. With no agreement, conflicting figures are withheld; an exchange-only row
+is explicitly single source. Each usable primary row is compared with Yahoo's same-session row. Preceding
 closes must agree within floating-point/quote-rounding tolerance: max(0.011,
 0.0001% of the reference). Closing levels use the same tolerance; intraday prices
 from different seconds are not compared. A prior-close disagreement withholds the

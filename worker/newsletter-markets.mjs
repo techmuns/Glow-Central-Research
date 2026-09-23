@@ -13,6 +13,8 @@ export const INDIA_INSTRUMENTS = {
   niftyit: ['NSE_INDEX|Nifty IT', 'NIFTY IT'],
   indiavix: ['NSE_INDEX|India VIX', 'INDIA VIX'],
 };
+export const NSE_INDICES = { nifty: 'NIFTY 50', niftybank: 'NIFTY BANK', niftymid100: 'NIFTY MIDCAP 100',
+  niftysmall100: 'NIFTY SMALLCAP 100', nifty500: 'NIFTY 500', niftyit: 'NIFTY IT', indiavix: 'INDIA VIX' };
 const positive = n => Number.isFinite(n) && n > 0;
 const fail = reason => { throw Object.assign(new Error(`Market quote ${reason}`), { reason }); };
 const differs = (a, b) => Math.abs(a - b) > Math.max(0.011, Math.abs(b) * 0.000001);
@@ -21,6 +23,51 @@ export function marketDay(at, timezone) {
   catch { return null; }
 }
 const delta = (last, prev) => ({ prev, change: prev == null ? null : last - prev, changePct: prev == null ? null : (last / prev - 1) * 100 });
+const usable = r => r && ['live', 'close'].includes(r.state) && r.last != null;
+
+export function quoteFromNse(data, timestamp, row, now) {
+  if (!NSE_INDICES[row.id] || data?.index !== NSE_INDICES[row.id]) fail('identity');
+  const match = /^(\d{2})-([A-Za-z]{3})-(\d{4}) (\d{2}):(\d{2})(?::(\d{2}))?$/.exec(timestamp || '');
+  const month = match && ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(match[2]);
+  if (!match || month < 0) fail('timestamp');
+  const sessionDate = `${match[3]}-${String(month + 1).padStart(2, '0')}-${match[1]}`;
+  const asOf = Date.parse(`${sessionDate}T${match[4]}:${match[5]}:${match[6] || '00'}+05:30`);
+  if (!positive(asOf) || asOf > now + 60000 || marketDay(asOf, 'Asia/Kolkata') !== sessionDate) fail('timestamp');
+  if (asOf < Date.parse(`${sessionDate}T09:15:00+05:30`)) fail('timestamp');
+  const last = data.last, prev = data.previousClose;
+  if (!positive(last) || !positive(prev) || !Number.isFinite(data.variation) || !Number.isFinite(data.percentChange)) fail('shape');
+  // Exchange levels are rounded to two decimals; VIX's published percent can use
+  // the unrounded values. Accept only a percent consistent with those intervals.
+  const pctLow = ((last - 0.005) / (prev + 0.005) - 1) * 100;
+  const pctHigh = ((last + 0.005) / (prev - 0.005) - 1) * 100;
+  const conflict = differs(last - prev, data.variation) || prev <= 0.005 ||
+    data.percentChange + 0.005 < pctLow || data.percentChange - 0.005 > pctHigh;
+  const state = sessionDate !== expectedSession(now) ? 'stale' : marketWindow(now).open
+    ? now - asOf <= 20 * 60000 ? 'live' : 'delayed'
+    : asOf >= Date.parse(`${sessionDate}T15:30:00+05:30`) ? 'close' : 'delayed';
+  return { ...row, last, prev: conflict ? null : prev, change: conflict ? null : data.variation,
+    changePct: conflict ? null : data.percentChange, asOf, sessionDate, state, timezone: 'Asia/Kolkata',
+    currency: 'INR', origin: 'nse', checkedAt: now, changeReason: conflict ? 'previous-close-conflict' : null };
+}
+
+export async function readNseIndices(rows, { fetcher, now, timeout = 8000 }) {
+  const requested = rows.filter(r => NSE_INDICES[r.id]);
+  try {
+    const res = await fetcher('https://www.nseindia.com/api/allIndices', { headers: { accept: 'application/json',
+      'user-agent': 'GlowCentralResearch/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(timeout) });
+    if (!res.ok) { await res.body?.cancel(); return { rows: new Map(), reason: [401, 403].includes(res.status) ? 'blocked' : res.status === 429 ? 'rate-limited' : 'unavailable' }; }
+    const body = await boundedJson(res, 1024 * 1024), found = new Map(), failures = {};
+    if (!Array.isArray(body?.data)) fail('shape');
+    for (const row of requested) {
+      try {
+        const matches = body.data.filter(q => q?.index === NSE_INDICES[row.id]);
+        if (matches.length !== 1) fail('missing-or-duplicate');
+        found.set(row.id, quoteFromNse(matches[0], body.timestamp, row, now));
+      } catch (e) { failures[row.id] = e.reason || 'shape'; }
+    }
+    return { rows: found, failures, reason: found.size === requested.length ? null : 'partial' };
+  } catch (e) { return { rows: new Map(), reason: /abort|timeout/i.test(e?.name) ? 'timeout' : 'unavailable' }; }
+}
 
 /** chartPreviousClose is the RANGE's starting reference, not yesterday's close.
  * Use the immediately preceding dated, unadjusted daily bar. Never skip a null bar.
@@ -120,7 +167,6 @@ export async function readUpstoxIndices(rows, { token, fetcher, now, timeout = 8
 }
 
 export function reconcileIndex(yahoo, primary, primaryReason) {
-  const usable = r => r && ['live', 'close'].includes(r.state) && r.last != null;
   if (!usable(primary)) return { ...yahoo, verification: 'single-source', primaryReason: primaryReason || primary?.state || 'unavailable' };
   const row = { ...primary, verification: 'single-source' };
   if (!usable(yahoo) || yahoo.sessionDate !== primary.sessionDate) return row;
@@ -133,6 +179,21 @@ export function reconcileIndex(yahoo, primary, primaryReason) {
   }
   if (yahoo.prev != null && primary.prev != null) row.verification = 'cross-checked';
   return row;
+}
+
+/** The exchange is preferred when usable. A corroborated exchange quote survives
+ * a third provider's bad reading; unresolved disagreement still withholds figures.
+ */
+export function reconcileIndianIndex(yahoo, upstox, nse, primaryReason) {
+  if (!usable(nse)) return reconcileIndex(yahoo, upstox, primaryReason);
+  const peers = [upstox, yahoo].filter(r => usable(r) && r.sessionDate === nse.sessionDate);
+  const comparisons = peers.map(peer => ({ peer, result: reconcileIndex(peer, nse) }));
+  const agreed = comparisons.find(c => c.result.verification === 'cross-checked');
+  const conflicts = comparisons.filter(c => c.result.verification === 'conflict');
+  if (agreed) return { ...agreed.result, corroboratedBy: agreed.peer.origin,
+    otherSourcesDisagree: conflicts.map(c => c.peer.origin) };
+  if (conflicts.length) return conflicts[0].result;
+  return { ...nse, verification: 'single-source' };
 }
 
 export const marketIssue = row => row.reason === 'source-conflict' ? 'sources disagree'
