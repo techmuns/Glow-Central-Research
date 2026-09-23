@@ -6134,3 +6134,33 @@ capture and from the daily bars with the same key), the week ahead (Screener's c
 `node scripts/verify-newsletter-ui.mjs` drives the real button and panel against the real route,
 store and schedule over an in-process server with stubbed upstreams — the email endpoint records
 what it was asked to send.
+
+
+## Glow newsletter delivery and PDFs (23 September 2026)
+
+- `GET /api/newsletter/preview?edition=morning|evening&part=N` renders a numbered email
+  preview and returns `X-Newsletter-Part` / `X-Newsletter-Parts`. Invalid/out-of-range parts
+  return 400. `format=text` returns the whole text edition; `format=pdf` downloads a newly
+  built, unsaved complete PDF. Public previews never request AI and use NEWSLETTER_LIMITER.
+- `GET /api/newsletter/pdf/<UUID>` retrieves the immutable saved edition without rebuilding,
+  reading sources or sending email. Responses are `application/pdf`, attachment,
+  `private, no-store`, `nosniff`, `no-referrer`, and `noindex, nofollow`. Bad/missing IDs are
+  404. An opaque URL is a bearer link: anyone receiving it can retrieve that edition.
+- `newsletter_documents` stores ID, filename, PDF bytes, creation time, delivery key and
+  pending/sent/delivery-uncertain state. Emailed PDFs are not pruned with the delivery log.
+  PDFs above 1.5 MB are rejected before sending; no new retention expiry is implied.
+- `summary.emailParts` and `summary.htmlBytes` describe the planned messages. Each recipient
+  outcome carries `parts[]` with part, total, actual bytes, ok, status and reason. `sent`
+  counts recipients whose every part was accepted; any mixed acceptance is `partial-send`.
+  Interrupted deliveries keep `finishedAt=null` and their acknowledged/not-attempted outcomes.
+  Atomic part progress adds only accepted identities to the existing reported-item ledger;
+  a shared identity still needed by an unaccepted part is withheld. Test sends do not mark it.
+- Packing and the final transport guard enforce 90,000 UTF-8 bytes per body. Companies stay
+  together where possible; complete updates and supplemental table rows are indivisible.
+  Impossible content returns `email-too-large` before sending, without truncating evidence.
+- Each dated morning/evening subject includes its part number, preventing Gmail from combining
+  large parts into a clipped conversation. No reply/threading headers are claimed: the current
+  Muns raw-send API has no documented controls for them. The complete PDF provides one document.
+- Five manual send attempts per rolling hour are reserved durably before building documents
+  or calling AI. Exhaustion returns `manual-send-budget` with `retryAt`. Existing schedule,
+  subscriber list, edition claims and normal delivery cadence remain unchanged.

@@ -66,6 +66,7 @@ const object = {
     return { ...out, snapshot: store.snapshot(), schedule: await schedule().status() };
   },
   newsletterSend: (input, token) => schedule().sendNow(input, token),
+  newsletterPdf: (id) => store.document(id),
   newsletterPreview: (input) => schedule().preview(input),
 };
 let offline = false;
@@ -217,6 +218,14 @@ try {
   const [preview] = await Promise.all([context.waitForEvent('page'), page.locator('[data-brief-action="preview"][data-edition="evening"]').click()]);
   await preview.waitForLoadState();
   ok('Preview Evening opens the edition as it would send now, in a new tab', /^Glow Ventures · \d+ updates?/.test(await preview.title()) && (await preview.locator('body').innerText()).includes('GLOW VENTURES') && new URL(preview.url()).searchParams.get('edition') === 'evening');
+  const download = preview.getByRole('link', { name: 'Download PDF' });
+  ok('the preview has a prominent PDF download', await download.isVisible() && (await download.boundingBox()).y < 160);
+  const downloadUrl = new URL(await download.getAttribute('href'));
+  const downloaded = await preview.request.get(new URL(downloadUrl.pathname + downloadUrl.search, preview.url()).href);
+  ok('the download returns a branded PDF without sending an email', downloaded.status() === 200
+    && downloaded.headers()['content-type'] === 'application/pdf'
+    && downloaded.headers()['content-disposition'].includes('glow-')
+    && (await downloaded.body()).subarray(0, 8).toString() === '%PDF-1.4');
   await preview.close();
   ok('...and nothing was emailed from the panel', emails.length === 0);
 

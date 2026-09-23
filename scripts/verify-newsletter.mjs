@@ -8,13 +8,16 @@
 // endpoint is a stub that records what it was asked to send.
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import {
   DEFAULT_SETTINGS, EDITION_IDS, NEWSLETTER_SUBSCRIBER_LIMIT, REPORTED_RETENTION_MS,
   dayOnlyInstant, editionWindow, istDay, istInstant, istLabel, lateArrivalsFrom, newsletterIntent, newsletterIntents, newsletterSettings,
   nextScheduled, normaliseEmail, normaliseEmailList, previousWeekday, scheduledEditions,
 } from '../public/js/data/newsletter-shared.js';
+import { renderBriefEmails, emailBytes, EMAIL_HTML_BYTES, acceptedStoryKeys } from '../worker/newsletter-email.mjs';
+import { renderBriefPdf, pdfFilename } from '../worker/newsletter-pdf.mjs';
+import { handleNewsletter } from '../worker/newsletter.mjs';
 import { NewsletterStore } from '../worker/newsletter-store.mjs';
 import {
   CALENDAR_DAYS, MARKET_ROWS, MOVE_PCT, TOPICS, bookQuantities, briefStats, briefStories, briefSubject, buildBrief, calendarDayLabel, clusterStories, fmtInrCompact, parseAiNotes, quoteFromChart, quoteFromSeries, renderBriefHtml, renderBriefText, sameStory, storyTokens, topicOf,
@@ -335,7 +338,7 @@ await test('the broadsheet carries the Glow Ventures masthead, escapes the excha
   assert.ok(!html.includes('<style') && !html.includes('<script'), 'no stylesheet, no script');
   assert.ok(html.length < 200000);
   const subject = briefSubject(morning);
-  assert.match(subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep$/, subject);
+  assert.match(subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep 2026 · Morning$/, subject);
   const text = renderBriefText(morning);
   assert.ok(text.startsWith('GLOW VENTURES') && text.includes('GLOBAL MARKET SCAN') && text.includes('Aarti Drugs'));
   assert.ok(text.indexOf('YOUR PORTFOLIO COMPANIES') < text.indexOf('GLOBAL MARKET SCAN'), 'the text copy leads with the companies too');
@@ -1026,12 +1029,12 @@ await test('the alarm sends the morning brief to its subscribers once, with html
   clock = MORNING + 5000;
   await schedule.wake();
   const emails = log.filter((l) => l.kind === 'email');
-  assert.deepEqual(emails.map((e) => e.to).sort(), ['meera@muns.io', 'pratik@muns.io'], 'only morning subscribers, ravi is evening-only');
+  assert.deepEqual([...new Set(emails.map((e) => e.to))].sort(), ['meera@muns.io', 'pratik@muns.io'], 'only morning subscribers, ravi is evening-only');
   for (const e of emails) {
     assert.equal(e.method, 'POST');
     assert.equal(e.auth, 'Bearer team-secret-token');
     assert.ok(e.html && e.text === undefined, 'exactly one of html/text');
-    assert.match(e.subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep$/);
+    assert.match(e.subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep 2026 · Morning(?: · Part \d+ of \d+)?$/);
     assert.ok(e.html.includes('GLOW VENTURES'));
   }
   const delivery = store.delivery('2026-09-17:morning');
@@ -1097,7 +1100,7 @@ await test('a test copy goes to one address only, covers up to now, and never cl
   const out = await schedule.sendNow({ edition: 'morning', to: 'me', email: 'Pratik@muns.io' }, 'reader-session-token');
   assert.equal(out.ok, true); assert.equal(out.sent, 1);
   const emails = log.filter((l) => l.kind === 'email');
-  assert.equal(emails.length, 1); assert.equal(emails[0].to, 'pratik@muns.io');
+  assert.equal(emails.length, out.summary.emailParts); assert.ok(emails.every(e => e.to === 'pratik@muns.io'));
   assert.equal(emails[0].auth, 'Bearer reader-session-token', 'the reader\'s own token stands in when the Worker has none');
   assert.ok(emails[0].html.includes('This is a test copy you asked for.'));
   assert.ok(emails[0].html.includes('built on request'));
@@ -1147,6 +1150,181 @@ await test('sendEmail sends exactly one body and names every failure without the
   assert.equal(log.at(-1).text, 'plain'); assert.equal(log.at(-1).html, undefined);
   assert.equal((await sendEmail({ fetcher: makeFetcher({ email: 'down' }), token: 't', email: 'a@muns.io', subject: 's', html: 'x' })).reason, 'upstream');
   assert.equal((await sendEmail({ fetcher: makeFetcher({ email: 'hang' }), token: 't', email: 'a@muns.io', subject: 's', html: 'x' })).reason, 'timeout');
+});
+
+
+await test('busy editions preserve every source, AI note and supplemental row within the UTF-8 email budget', () => {
+  const busy = structuredClone(morning);
+  busy.announcements.groups = []; busy.trades.groups = []; busy.moves.groups = [];
+  busy.news.groups = [{ ticker: 'AARTIDRUGS', company: 'Aarti Drugs Ltd', items: Array.from({ length: 32 }, (_, i) => ({
+    headline: `Distinct fixture development ${i}`, summary: `Source conditions ${i}: ` + '₹ & business conditions remain subject to approval. '.repeat(100),
+    url: `https://example.test/news/${i}`, at: MORNING - i * 1000 - 1000, publisher: 'Fixture News', keys: [`fixture:${i}`],
+    direction: 'neutral', keywords: [], eventId: `event:${i}`,
+  })) }];
+  busy.performance = { state: 'capture', session: '2026-09-16', quoted: 180, listed: 180, unquoted: 0, book: { ok: false },
+    summary: { up: 180, down: 0, flat: 0, median: 1 }, rows: Array.from({ length: 180 }, (_, i) => ({ ticker: `H${i}`, company: `Holding row ${i} END`, last: 100 + i, pct: 1, change: null })) };
+  const stats = briefStats(busy);
+  busy.ai = { ok: true, items: Object.fromEntries(stats.companies.flatMap(c => c.clusters.map(k => [k.id, { summary: `Summary ${k.id}`, impact: `Impact ${k.id}` }]))) };
+  const options = { pdfUrl: 'https://example.test/api/newsletter/pdf/00000000-0000-0000-0000-000000000000' };
+  const parts = renderBriefEmails(busy, options);
+  assert.ok(parts.length > 3);
+  assert.equal(new Set(parts.map(p => p.subject)).size, parts.length, 'numbered subjects prevent conversation-level clipping');
+  assert.notEqual(parts[0].subject, briefSubject({ ...busy, edition: 'evening' }));
+  assert.notEqual(parts[0].subject, briefSubject({ ...busy, day: '2027-09-17' }));
+  assert.deepEqual(parts.flatMap(p => p.keys).sort(), briefStories(busy).flatMap(s => s.keys).sort());
+  const html = parts.map(p => p.html).join('\n');
+  const escape = text => text.replace(/&/g, '&amp;');
+  for (const s of briefStories(busy)) {
+    assert.ok(html.includes(s.headline)); assert.ok(html.includes(escape(s.dek)), 'complete source text is retained');
+  }
+  for (const note of Object.values(busy.ai.items)) assert.ok(html.includes(note.summary) && html.includes(note.impact));
+  for (const row of busy.performance.rows) assert.equal(parts.filter(p => p.html.includes(row.company)).length, 1);
+  for (const [i, p] of parts.entries()) {
+    assert.ok(p.bytes <= EMAIL_HTML_BYTES); assert.equal(p.bytes, Buffer.byteLength(p.html));
+    assert.ok(p.subject.endsWith(`Part ${i + 1} of ${parts.length}`));
+    assert.ok(p.html.includes(`Part ${i + 1} of ${parts.length}`) && p.html.includes(options.pdfUrl));
+  }
+  assert.equal(emailBytes('₹漢😀'), Buffer.byteLength('₹漢😀'));
+  const full = renderBriefHtml(morning, options);
+  assert.equal(renderBriefEmails(morning, options, { maxBytes: emailBytes(full) }).length, 1);
+  assert.ok(renderBriefEmails(morning, options, { maxBytes: emailBytes(full) - 1 }).length > 1);
+  const impossible = structuredClone(busy); impossible.news.groups[0].items[0].summary = 'x'.repeat(100000);
+  assert.throws(() => renderBriefEmails(impossible, options), { code: 'email-too-large' });
+  const shared = [{ keys: ['url:one', 'shared'] }, { keys: ['url:two', 'shared'] }];
+  assert.deepEqual(acceptedStoryKeys(shared, new Set([0])), ['url:one']);
+  if (process.env.NEWSLETTER_PREVIEW_DIR) {
+    mkdirSync(process.env.NEWSLETTER_PREVIEW_DIR, { recursive: true });
+    parts.forEach((p, i) => writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/part-${i + 1}.html`, p.html));
+    writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/glow-full-brief.pdf`, renderBriefPdf(busy));
+    writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/glow-short-brief.pdf`, renderBriefPdf(morning));
+  }
+});
+
+await test('split-company sentiment counts updates rather than related exchange copies', () => {
+  const paired = structuredClone(morning);
+  const template = morning.announcements.groups[0].items[0];
+  paired.news.groups = []; paired.trades.groups = []; paired.moves.groups = [];
+  paired.announcements.groups = [{ ticker: 'AARTIDRUGS', company: 'Aarti Drugs Ltd', items: Array.from({ length: 32 }, (_, i) => ['NSE', 'BSE'].map(exchange => ({
+    ...template, headline: `Disclosure${i}`,
+    subject: 'Credit Rating / ' + 'Full source particulars and conditions. '.repeat(50),
+    at: MORNING - i * 7200_000 - 60000, exchanges: [exchange], direction: 'negative',
+    url: `https://example.test/${exchange}/${i}`, keys: [`paired:${exchange}:${i}`],
+  }))).flat() }];
+  const parts = renderBriefEmails(paired);
+  assert.ok(parts.length > 1);
+  const companies = parts.flatMap(p => p.part.companies);
+  assert.ok(companies.length > 1 && companies.some(c => c.continued));
+  assert.ok(companies.some(c => c.clusters.some(k => k.others.length)), 'fixture includes paired reports');
+  for (const c of companies) {
+    assert.equal(c.watch, c.clusters.length, 'each negative update counts once');
+    assert.equal(c.good, 0);
+    assert.ok(c.stories.length > c.watch, 'related source copies are retained separately');
+  }
+});
+
+function multipartHarness(response = () => Response.json({ success: true })) {
+  const holdings = [{ name: 'Aarti Drugs Ltd', ticker: 'AARTIDRUGS', isin: 'INE767A01016', listed: true },
+    { name: 'Capri Global Capital Ltd', ticker: 'CGCL', isin: 'INE180C01042', listed: true }];
+  const articles = holdings.flatMap(h => Array.from({ length: 12 }, (_, i) => ({
+    title: `${h.name} reports business development ${i}`, summary: `Full source detail ${i}: ` + 'Contract conditions and business details. '.repeat(200),
+    url: `https://example.test/${h.ticker}/${i}`, publishedAt: new Date(MORNING - (i + 1) * 60000).toISOString(), publisher: 'Fixture News',
+  })));
+  const h = makeSchedule({ now: () => MORNING, env: { ASSETS: assetsWith({ '/data/portfolio-companies.json': { holdings }, '/data/market-news.json': { articles } }) } });
+  h.store.apply([{ op: 'subscribe', email: 'reader@example.test', by: 'Fixture & <name>' }]);
+  const previous = h.schedule.fetcher; h.emails = [];
+  h.schedule.fetcher = async (url, init) => {
+    if (url !== EMAIL_SEND_URL) return previous(url, init);
+    const body = JSON.parse(init.body); h.emails.push(body); return response(body, h.emails.length);
+  };
+  return h;
+}
+const deliveryArgs = { edition: 'morning', day: '2026-09-17', at: MORNING, now: MORNING, key: 'multipart:fixture', source: 'timer' };
+
+await test('saved PDFs and confirmed part outcomes survive failures, interruptions and log pruning', async () => {
+  const good = multipartHarness();
+  const result = await good.schedule.deliver(deliveryArgs);
+  assert.equal(result.ok, true); assert.ok(result.summary.emailParts > 1);
+  assert.equal(good.emails.length, result.summary.emailParts);
+  const pdfIds = good.emails.map(e => e.html.match(/\/api\/newsletter\/pdf\/([a-f0-9-]+)/)[1]);
+  assert.equal(new Set(pdfIds).size, 1, 'one complete PDF for every part');
+  assert.equal(new Set(good.emails.map(e => e.subject)).size, good.emails.length);
+  const saved = good.store.document(pdfIds[0]);
+  assert.equal(new TextDecoder().decode(saved.body.slice(0, 8)), '%PDF-1.4');
+  assert.equal(saved.filename, 'glow-2026-09-17-morning-brief.pdf');
+  assert.equal((await good.schedule.deliver(deliveryArgs)).reason, 'already-sent');
+  assert.equal(good.emails.length, result.summary.emailParts);
+  const firstKeys = good.emails[0].html;
+  assert.ok(firstKeys.includes('business development'));
+
+  const partial = multipartHarness((_body, n) => n === 1 ? Response.json({ success: true }) : new Response('', { status: 403 }));
+  const failed = await partial.schedule.deliver(deliveryArgs);
+  assert.equal(failed.reason, 'partial-send'); assert.equal(failed.sent, 0); assert.equal(failed.failed, 1);
+  assert.ok(partial.store.reportedCount() > 0 && partial.store.reportedCount() < good.store.reportedCount());
+  const accepted = partial.store.rows('SELECT item FROM newsletter_reported').map(r => r.item).sort();
+  const fullBrief = await buildBrief({ edition: 'morning', day: '2026-09-17', now: MORNING, settings: DEFAULT_SETTINGS, env: partial.schedule.env, fetcher: partial.schedule.fetcher });
+  const plan = renderBriefEmails(fullBrief, { pdfUrl: 'https://glow-central-research.tech-441.workers.dev/api/newsletter/pdf/00000000-0000-0000-0000-000000000000', recipient: partial.store.recipients('morning')[0] });
+  assert.deepEqual(accepted, acceptedStoryKeys(plan, new Set([0])).sort());
+  assert.equal(partial.store.rows('SELECT delivery_state FROM newsletter_documents')[0].delivery_state, 'sent');
+
+  const interrupted = multipartHarness();
+  const record = interrupted.store.recordDeliveryProgress.bind(interrupted.store);
+  interrupted.store.recordDeliveryProgress = (...args) => {
+    record(...args);
+    if (args[1].outcomes.some(o => o.parts.some(p => p.ok))) throw new Error('simulated interruption');
+  };
+  await assert.rejects(interrupted.schedule.deliver(deliveryArgs), /simulated interruption/);
+  const restarted = new NewsletterStore(interrupted.storage);
+  assert.equal(restarted.delivery(deliveryArgs.key).finishedAt, null);
+  assert.deepEqual(restarted.rows('SELECT item FROM newsletter_reported').map(r => r.item).sort(), accepted);
+  assert.equal((await interrupted.schedule.deliver(deliveryArgs)).reason, 'already-sent');
+  assert.equal(interrupted.emails.length, 1);
+
+  for (const [reason, reply, expected] of [
+    ['rejected', () => new Response('', { status: 403 }), 0],
+    ['timeout', () => { throw new DOMException('timeout', 'TimeoutError'); }, 1],
+  ]) {
+    const h = multipartHarness(reply); await h.schedule.deliver(deliveryArgs);
+    assert.equal(h.store.reportedCount(), 0, reason);
+    assert.equal(h.store.rows('SELECT COUNT(*) AS n FROM newsletter_documents')[0].n, expected);
+  }
+  const testCopy = multipartHarness(); await testCopy.schedule.deliver({ ...deliveryArgs, source: 'test' });
+  assert.equal(testCopy.store.reportedCount(), 0);
+  for (let i = 0; i < 210; i++) { good.store.beginDelivery({ ...deliveryArgs, key: `old:${i}`, recipients: 0 }); good.store.finishDelivery(`old:${i}`); }
+  assert.deepEqual(good.store.document(pdfIds[0]).body, saved.body, 'emailed PDFs survive delivery log pruning');
+  assert.equal(good.store.document('invalid'), null);
+});
+
+await test('PDF download routes, preview limits and manual budgets are explicit and read-only', async () => {
+  const h = multipartHarness();
+  const pdf = renderBriefPdf(morning);
+  const id = h.store.saveDocument(pdf, pdfFilename(morning), 'fixture');
+  const apiEnv = { NEWSLETTER_LIMITER: { limit: async () => ({ success: true }) }, NEWSLETTER: { getByName: () => ({
+    newsletterPdf: id => h.store.document(id), newsletterPreview: input => h.schedule.preview(input),
+  }) } };
+  const base = 'https://example.test/api/newsletter';
+  const response = await handleNewsletter(new Request(`${base}/pdf/${id}`), apiEnv);
+  assert.equal(response.status, 200); assert.equal(response.headers.get('content-type'), 'application/pdf');
+  assert.ok(response.headers.get('content-disposition').includes('attachment; filename="glow-'));
+  assert.equal(response.headers.get('cache-control'), 'private, no-store');
+  assert.deepEqual(new Uint8Array(await response.arrayBuffer()), pdf);
+  assert.equal((await handleNewsletter(new Request(`${base}/pdf/00000000-0000-0000-0000-000000000000`), apiEnv)).status, 404);
+  assert.equal((await handleNewsletter(new Request(`${base}/pdf/${id}`, { method: 'POST' }), apiEnv)).status, 405);
+  const preview = await handleNewsletter(new Request(`${base}/preview`), apiEnv);
+  const count = Number(preview.headers.get('x-newsletter-parts')); assert.ok(count > 1);
+  for (let part = 1; part <= count; part++) {
+    const p = await handleNewsletter(new Request(`${base}/preview?part=${part}`), apiEnv);
+    assert.equal(p.status, 200); assert.ok((await p.text()).includes(`Part ${part} of ${count}`));
+  }
+  assert.equal((await handleNewsletter(new Request(`${base}/preview?part=${count + 1}`), apiEnv)).status, 400);
+  const previewPdf = await handleNewsletter(new Request(`${base}/preview?format=pdf`), apiEnv);
+  assert.equal(previewPdf.headers.get('content-type'), 'application/pdf');
+  assert.equal(h.emails.length, 0);
+  assert.equal(h.store.rows('SELECT COUNT(*) AS n FROM newsletter_documents')[0].n, 1, 'previews save no documents');
+  assert.equal((await handleNewsletter(new Request(`${base}/preview`), { ...apiEnv, NEWSLETTER_LIMITER: { limit: async () => ({ success: false }) } })).status, 429);
+  for (let i = 0; i < 5; i++) assert.equal(h.store.claimManualDelivery(MORNING).ok, true);
+  assert.equal(new NewsletterStore(h.storage).claimManualDelivery(MORNING).ok, false);
+  assert.equal(h.store.claimManualDelivery(MORNING + 3600_000).ok, true);
+  assert.equal((await sendEmail({ html: '₹'.repeat(EMAIL_HTML_BYTES), fetcher: () => { throw new Error('must not send'); } })).reason, 'email-too-large');
 });
 
 console.log(`\n${count - failures} of ${count} passed`);

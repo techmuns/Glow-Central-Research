@@ -410,6 +410,35 @@ Manual credential changes or production-run dispatch are not authorized by this
 code update. The existing merge-triggered publishing/bootstrap pipeline is used.
 See [BREAKOUT-CAPTURE.md](BREAKOUT-CAPTURE.md) for setup and retention details.
 
+## Newsletter delivery parity (23 September 2026)
+
+Glow now adapts Sattva PRs #250 and #252's saved PDF and size-bounded delivery paths.
+`worker/newsletter-email.mjs` extends packing to Glow's calendar, corporate actions,
+statement-based portfolio performance, Indian indices and global markets. Each outgoing
+HTML body is checked against 90,000 UTF-8 bytes; whole updates and their related evidence
+stay together. Large tables split at row boundaries with complete-edition totals labelled.
+An indivisible oversized update fails explicitly before any email is sent.
+
+Every part has a Download PDF button for the same immutable, Glow-branded complete edition.
+Its opaque bearer URL contains no subscriber address. Saved PDFs survive delivery-log pruning;
+confirmed rejection of every part removes an unused PDF, while uncertain/interrupted sends
+keep their links usable. Public previews run no paid AI and are rate-limited. Manual deliveries
+share a durable five-attempt/hour budget; scheduled edition claims and send times are unchanged.
+The existing Glow reported-item ledger is retained, with acknowledged part outcomes and only
+confirmed identities written atomically. Shared fallback keys cannot suppress unsent updates.
+
+Parts use distinct dated morning/evening subjects with part numbers in both subject and body.
+Gmail can clip combined same-subject conversations even when individual emails fit (see
+[Mailchimp’s guidance](https://mailchimp.com/help/gmail-is-clipping-my-email/)). The Muns `/email/send/raw` API
+specification inspected on 23 September exposes subject/body/attachments, not Message-ID,
+References, In-Reply-To or thread IDs. The conditional request for one thread is therefore not enabled: it would need sender support
+and end-to-end clipping verification. No unsupported transport fields are sent.
+
+Verification: `verify-newsletter.mjs` covers byte limits, evidence/row preservation, failures,
+restarts, PDF routes, retention and budgets. `verify-newsletter-ui.mjs` exercises the preview
+and PDF download through the actual route. No production resends or manual deployments are
+part of this change. Future normal sends receive it after the existing deployment pipeline.
+
 ## Glow-owned: KPIs in play on AI Alerts (23 September 2026)
 
 Glow's AI Alerts cards name which of the company's own sector KPIs their evidence bears on, from the
