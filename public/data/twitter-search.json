@@ -1392,7 +1392,7 @@
       "error": "search-unavailable"
     },
     "isin:INE1NPP01017|Siemens Energy India": {
-      "lastAttemptAt": "2026-09-19T00:19:48+00:00",
+      "lastAttemptAt": "2026-09-23T16:19:34+00:00",
       "error": "search-unavailable"
     },
     "isin:INE1NPP01017|ENRIN": {
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 232,
-    "checkedAt": "2026-09-23T15:33:54.583922+00:00"
+    "checkedAt": "2026-09-23T16:19:34.608163+00:00"
   }
 }
