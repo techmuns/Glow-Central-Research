@@ -1,8 +1,8 @@
 // data/kpi-impact.js — WHICH OF A COMPANY'S OWN SECTOR KPIs AN ALERT'S EVIDENCE COULD MOVE.
 //
-// An AI Alerts card says what happened and which of the desk's three questions it bears on
-// (ai-alerts.js → impactOf). The desk's next question is narrower and more useful: WHICH LINE OF THE
-// MODEL moves. An order win moves Order Inflow and the Order Book for a capital-goods company, Deal
+// An AI Alerts card says what happened, and each evidence row says which of the desk's three
+// questions it bears on (alert-drivers.js). The desk's next question is narrower and more useful:
+// WHICH LINE OF THE MODEL moves. An order win moves Order Inflow and the Order Book for a capital-goods company, Deal
 // Wins for an IT company, and nothing a bank reports; a QIP moves a bank's Capital Adequacy Ratio
 // and a manufacturer's EPS. The sector decides, and `public/data/sector-kpis.json` — the ontology the
 // desk supplied (scripts/fixtures/sector-kpi-ontology.yaml) with every classified company resolved
@@ -27,7 +27,8 @@
 //    all are SEBI takeover-regulation SHAREHOLDING disclosures ("Substantial Acquisition of
 //    Shares"), not a business being bought; "downgrade" in the news is mostly a broker cutting a
 //    stock rating, not a credit agency; "commissioning" in an EPC headline is the customer's plant
-//    in the scope of an order. Each trigger below states its own exclusions.
+//    in the scope of an order; a fire at the corporate office stops no production; a "digital capex
+//    programme" builds no capacity. Each trigger below states its own exclusions.
 // 4. OPERATOR KPIs NEED THE OPERATOR'S ASSET IN THE TEXT. NSE files telecom-equipment makers under
 //    telecom and a visa-services company under travel, so their groups carry an operator's KPIs
 //    (ARPU, room keys). A group rule that names an operating KPI therefore `requires` the asset —
@@ -37,8 +38,9 @@
 //    own aliases, restricted to the company's group, with short acronyms required in capitals and a
 //    stated list of words too generic to count ("sales", "volume", "yield", "tariff", "NAV").
 // 6. NO DIRECTION AND NO FORECAST. The line says which KPIs are IN PLAY, with the trigger and the
-//    mechanism in the tooltip. The one exception is a FILED result, whose change is a measurement
-//    and is printed as the source reported it — sign changes in words, as everywhere else here.
+//    mechanism in the tooltip. A FILED result's change is a measurement and travels as the source
+//    reported it — sign changes in words, as everywhere else here — in the item's `value`, which the
+//    card keeps to the chip's title because the result row already states it.
 //
 // It adds no score and no alert: a card is surfaced on its evidence (ai-alerts.js) and this only
 // explains it, exactly as `alert-drivers.js` does. What it may change is how FAST a reader sees what
@@ -51,7 +53,7 @@ import { KEYWORDS } from './news-keywords.js';
 import { LEGAL_ORDER } from './filing-signals.js';
 
 export const KPI_FILE = 'data/sector-kpis.json';
-/** The most KPI chips one card prints. The rest are COUNTED, never silently dropped. */
+/** The most KPI chips one card DRAWS. The model keeps every KPI; the rest are a "+N" that names them. */
 export const KPI_CHIP_LIMIT = 4;
 
 // ---------------------------------------------------------------------------------------
@@ -59,6 +61,10 @@ export const KPI_CHIP_LIMIT = 4;
 
 let ontology = null;
 let pending = null;
+// WHAT THE LAST READ OF THE FILE CAME TO, kept apart from the ontology itself. A card with no KPI
+// line means "nothing on it names a KPI" only while this says `ready`; after a failed read it means
+// "the sector file could not be read", and the source registry and the AI Alerts page say which.
+let readStatus = { state: 'idle', error: null, checkedAt: null };
 
 /** Validate and index a sector-kpis.json payload. Throws on a shape this module cannot read. */
 export function indexOntology(payload) {
@@ -78,6 +84,7 @@ export function indexOntology(payload) {
 /** Seed the module from a payload already in hand (tests, a bootstrap that loaded it). */
 export function prime(payload) {
   ontology = payload ? indexOntology(payload) : null;
+  if (ontology) readStatus = { state: 'ready', error: null, checkedAt: new Date().toISOString() };
   return ontology;
 }
 
@@ -85,15 +92,32 @@ export function prime(payload) {
 export const snapshot = () => ontology;
 
 /**
+ * `idle` (not asked for yet), `loading`, `ready` or `failed` — with the reason and when this browser
+ * last tried. A copy of the object, so a caller cannot edit the module's record of what happened.
+ */
+export const status = () => ({ ...readStatus, builtAt: ontology?.payload?.source?.classificationCapturedAt || null });
+
+/**
  * Read `sector-kpis.json` once. A failure resolves to null and is not cached, so a later call can
- * try again — the cards simply carry no KPI line meanwhile, which is the honest rendering.
+ * try again. Cards carry no KPI line meanwhile, and `status()` says the file could not be read — a
+ * missing line must never pass for "nothing here moves a KPI".
  */
 export function load() {
   if (ontology) return Promise.resolve(ontology);
   if (!pending) {
+    readStatus = { ...readStatus, state: 'loading' };
+    const settle = (state, error = null) => { readStatus = { state, error, checkedAt: new Date().toISOString() }; };
     pending = revalidatedJson(KPI_FILE, { optional: true })
-      .then((payload) => (payload ? prime(payload) : null))
-      .catch(() => null)
+      .then((payload) => {
+        if (!payload) throw new Error('the sector file is not published on this deployment');
+        const indexed = prime(payload);
+        settle('ready');
+        return indexed;
+      })
+      .catch((err) => {
+        settle('failed', String(err?.message || err || 'the sector file could not be read'));
+        return null;
+      })
       .finally(() => { pending = null; });
   }
   return pending;
@@ -219,6 +243,15 @@ const ORDER_SCOPE = /\b(?:supply|erection|installation|design|engineering|epc|ex
 // clearance for the expansion" is the company's own capacity and must still read as it.)
 const CLIENT_PROJECT = /\b(?:to execute|execution of|epc|pmc|project management consultan\w*|consultancy|for (?:the )?(?:client|customer)|on behalf of|letter of (?:award|intent))\b/;
 const PLANT = /\b(?:plant|factory|unit|facility|refinery|mill|works|warehouse|mine|smelter|kiln|furnace|boiler|reactor|godown|operations|production|manufacturing)\b/;
+// WHERE OUTPUT IS MADE. A fire, an accident or an explosion names an output KPI only at one of these:
+// "Fire breaks out at Jyothy Labs corporate office" is an incident, not a lost day of production,
+// and a warehouse or godown fire destroys stock rather than capacity. PLANT above stays wider,
+// because a suspension of "operations" does stop output wherever it happens.
+const PRODUCTION_SITE = /\b(?:plant|factory|unit|facility|refinery|mill|works|mine|smelter|kiln|furnace|boiler|reactor|production|manufacturing)\b/;
+// WHAT A CAPEX FIGURE HAS TO BE FOR before it names volumes and utilisation: capacity, a site where
+// output is made, or a unit of that output. A plan with none of these is spend and nothing more.
+const CAPACITY_WORDS = /\b(?:capacit\w*|plants?|factor(?:y|ies)|facilit(?:y|ies)|greenfield|brownfield|debottleneck\w*|mw|gw|mtpa|tpa|klpd|tpd|tonnes?|furnaces?|kilns?|mills?|refiner(?:y|ies)|smelters?|terminals?|beds?|hospitals?|rooms?|stores?|warehouses?|production|manufacturing)\b/;
+const NOT_A_SITE_INCIDENT = /\b(?:office|headquarters|head office|showroom|store|shop|mall|residence|residential|house|vehicle|truck|bus|car|tanker|train|ship|vessel|godown|warehouse)\b/;
 const NOT_A_PLANT_EVENT = /\bsuspension of trading\b|\btrading (?:in (?:the )?(?:shares|securities) )?(?:is |was |has been )?suspended\b|\bsuspended from trading\b|\btrading (?:window|halt)\b|\bsuspension of (?:the )?(?:director|employee|official|officer|ceo|md|cfo|auditor|kmp|registration)\b|\brevocation of suspension\b|\bbook closure\b|\bstrike price\b/;
 
 // An "order" a court, a tax officer or a regulator passes is not business won, and Indian companies
@@ -373,7 +406,11 @@ export const TRIGGERS = [
       const commissioned = e.filingRule === 'commercial production start' ||
         (ids.has('commissioning') && /\b(?:plant|unit|facility|line|capacity|mw|gw|mtpa|tpa|klpd|tpd|furnace|kiln|mill|refinery|terminal|warehouse|hospital|beds?|stores?)\b/.test(r.text));
       if (commissioned) return { kind: 'commissioned' };
-      if (ids.has('capacity-expansion') || ids.has('capex') || /\benvironment(?:al)? clearance\b|\bconsent to (?:establish|operate)\b/.test(r.text)) return { kind: 'planned' };
+      if (ids.has('capacity-expansion') || /\benvironment(?:al)? clearance\b|\bconsent to (?:establish|operate)\b/.test(r.text)) return { kind: 'planned' };
+      // A CAPEX FIGURE IS SPEND, AND IT IS CAPACITY ONLY WHERE THE TEXT SAYS WHAT IT BUILDS. "Rs 100
+      // crore digital capex programme" is money going out, not volumes coming in — maintenance,
+      // compliance, IT and office capex add no tonne — so it names the Capex KPI alone.
+      if (ids.has('capex')) return CAPACITY_WORDS.test(r.text) ? { kind: 'planned' } : { kind: 'spend' };
       return null;
     },
     groups: {
@@ -385,11 +422,14 @@ export const TRIGGERS = [
     },
     // Planned capacity is spend first; the capex KPI leads, then what the capacity is for. A lender or
     // an insurer "expanding capacity" is not building a plant, so the financial groups name nothing.
-    lead: { planned: { keys: ['capex'], except: Object.keys(FINANCIALS) } },
-    only: { commissioned: (group) => !['capital_goods', 'infrastructure', 'aerospace_defense'].includes(group) },
+    // Bare capex keeps the lead and nothing after it: `only` refuses the group's operating KPIs.
+    lead: { planned: { keys: ['capex'], except: Object.keys(FINANCIALS) }, spend: { keys: ['capex'], except: Object.keys(FINANCIALS) } },
+    only: { commissioned: (group) => !['capital_goods', 'infrastructure', 'aerospace_defense'].includes(group), spend: () => false },
+    labels: { spend: 'Capex plan' },
     why: {
       planned: 'New capacity is capex now, and volumes and utilisation once it runs.',
       commissioned: 'Capacity that starts production adds to volumes; utilisation dips while it ramps up.',
+      spend: 'A capex plan is spend now; the text names no capacity it builds, so no volume KPI is claimed.',
     },
   },
   {
@@ -505,7 +545,10 @@ export const TRIGGERS = [
     detect: (e, r, ids) => {
       if (NOT_A_PLANT_EVENT.test(r.text)) return null;
       if (/\b(?:resum\w+|restart\w*|restor\w*|recommenc\w+)\b[^.]{0,40}\b(?:operations?|production|plant|unit|manufacturing)\b/.test(r.text)) return { kind: 'resumed' };
-      const incident = ids.has('fire') || ((ids.has('accident') || /\bexplosion\b/.test(r.text)) && PLANT.test(r.text));
+      // An incident names an output KPI only where the text puts it at a production site — and a
+      // site word beside an office or a vehicle ("fire at the unit's office") is not enough on its own.
+      const incident = (ids.has('fire') || ids.has('accident') || /\bexplosion\b/.test(r.text)) &&
+        PRODUCTION_SITE.test(r.text) && !(NOT_A_SITE_INCIDENT.test(r.text) && !/\b(?:plant|factory|refinery|smelter|kiln|furnace|boiler|reactor)\b/.test(r.text));
       const stopped = /\b(?:suspen(?:d|ded|sion)|shut\s?down|shutdown|halt(?:s|ed)?|stoppage|closure|lock[- ]?out|strike)\b[^.]{0,60}\b(?:operations?|production|plant|factory|unit|facility|manufacturing|mine|refinery|smelter|kiln|furnace)\b|\b(?:operations?|production|plant|factory|unit|facility|manufacturing|mine|refinery)\b[^.]{0,40}\b(?:suspended|shut|halted|closed|stopped)\b/.test(r.text);
       return incident || stopped ? { kind: 'stopped' } : null;
     },
@@ -578,7 +621,10 @@ const TRIGGER_BY_ID = new Map(TRIGGERS.map((t) => [t.id, t]));
 /** The KPI keys one trigger names for one group, before the ontology filter. */
 function groupKpis(trigger, group, text, hit) {
   const entry = Object.prototype.hasOwnProperty.call(trigger.groups, group) ? trigger.groups[group] : trigger.groups.default;
-  if (trigger.only?.[hit.kind] && !trigger.only[hit.kind](group)) return NONE;
+  const lead = trigger.lead?.[hit.kind];
+  const leadKeys = lead && !lead.except.includes(group) ? lead.keys : NONE;
+  // `only` refuses the GROUP's own KPIs for a kind; a lead it carries (Capex, for bare capex) stays.
+  if (trigger.only?.[hit.kind] && !trigger.only[hit.kind](group)) return leadKeys;
   let keys = NONE;
   if (Array.isArray(entry)) keys = entry;
   else if (typeof entry === 'function') keys = entry(text) || NONE;
@@ -586,8 +632,7 @@ function groupKpis(trigger, group, text, hit) {
     const allowed = entry.test ? entry.test(text) : !entry.requires || entry.requires.test(text);
     keys = allowed ? entry.kpis : NONE;
   }
-  const lead = trigger.lead?.[hit.kind];
-  return lead && !lead.except.includes(group) ? [...lead.keys, ...keys] : keys;
+  return leadKeys.length ? [...leadKeys, ...keys] : keys;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -709,6 +754,9 @@ export function resultValue(metric) {
     case 'loss-narrowed': return 'loss narrowed';
     case 'loss-widened': return 'loss widened';
     case 'loss-flat': return 'loss flat';
+    // Nothing in the prior period: there is no growth rate, and the source's own transition is the
+    // honest wording. The filed result still reports the line, so it is still a KPI in play.
+    case 'from-zero': return 'from zero';
     default: return null;
   }
 }
@@ -723,10 +771,11 @@ const eventLabel = (event) => (event.feedLabel || event.feed || 'source');
  *
  * `events` is the card's evidence in score order, so the strongest item names its KPIs first and a
  * KPI is credited to the first event that names it. Returns null where the company has no resolved
- * sector or nothing on the card names a KPI; otherwise the group, the chips (at most `limit`) and
- * how many more there were.
+ * sector or nothing on the card names a KPI; otherwise the group and EVERY KPI named. The chip cap
+ * (`KPI_CHIP_LIMIT`) is the view's business: search, a bookmark and an export read the whole list,
+ * so a KPI past the fourth chip is still findable by name rather than reduced to a count.
  */
-export function kpiImpactOf(card, onto = ontology, { limit = KPI_CHIP_LIMIT } = {}) {
+export function kpiImpactOf(card, onto = ontology) {
   const company = companyContext(onto, card?.ticker);
   if (!company) return null;
   const allowed = onto.groupKpis.get(company.group);
@@ -776,7 +825,7 @@ export function kpiImpactOf(card, onto = ontology, { limit = KPI_CHIP_LIMIT } = 
       fired.add(trigger.id);
       const why = trigger.why[hit.kind] || trigger.why.default;
       for (const key of groupKpis(trigger, company.group, reading.text, hit)) {
-        add(key, { ...base, trigger: trigger.id, triggerLabel: trigger.label, why });
+        add(key, { ...base, trigger: trigger.id, triggerLabel: trigger.labels?.[hit.kind] || trigger.label, why });
       }
     }
     // A business update names its own figures; so can the filing that carries a trigger.
@@ -788,19 +837,14 @@ export function kpiImpactOf(card, onto = ontology, { limit = KPI_CHIP_LIMIT } = 
   }
 
   if (!items.length) return null;
-  return {
-    ...company,
-    items: items.slice(0, limit),
-    overflow: Math.max(0, items.length - limit),
-    total: items.length,
-  };
+  return { ...company, items, total: items.length };
 }
 
-/** The KPI line as plain text, for a bookmark or an export. */
+/** The KPI line as plain text, for a bookmark or an export — every KPI, with a filed result's figure. */
 export function kpiLine(impact) {
   if (!impact?.items?.length) return '';
   const chips = impact.items.map((item) => (item.value ? `${item.name} ${item.value}` : item.name));
-  return `${chips.join(' · ')}${impact.overflow ? ` · +${impact.overflow} more` : ''} (${impact.groupLabel})`;
+  return `${chips.join(' · ')} (${impact.groupLabel})`;
 }
 
 export const triggerById = (id) => TRIGGER_BY_ID.get(id) || null;

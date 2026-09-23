@@ -1157,7 +1157,7 @@ export async function collect({ scope = 'portfolio', holdings = null, positionSi
   const insightRead = load ? screenerInsights.load({ refresh }).catch(() => null) : Promise.resolve(null);
   // Started with the collection and awaited before the first completed ranking, so a card that
   // arrives with its evidence also arrives with its KPI line. A failed read resolves to null and the
-  // cards simply carry none.
+  // cards simply carry none — and `kpiImpact.status()` says the file could not be read.
   const kpiRead = kpiImpact.load();
   const options = (insightCompanies = screenerInsights.all()) => ({ holdings: book, positionSizes, insightCompanies });
   // PARTIALS ARE RANKED IN SLICES, AND THE LATEST ONE WINS. Feeds settle over several seconds

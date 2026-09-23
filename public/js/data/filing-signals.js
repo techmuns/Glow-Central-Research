@@ -16,6 +16,14 @@ const textOf = (...parts) => parts.filter(Boolean).join(' ').toLowerCase();
 // authorities and ministries PLACE orders — and matches "tax" only as a tax body or instrument, so
 // "order worth ₹120 crore (excluding taxes)" is still business won.
 export const SAST_HOLDING_DISCLOSURE = /\b(?:sast|substantial acquisition of shares)\b/;
+// …and only the DISCLOSURE half of those regulations: a holder reporting its own stake under
+// Regulations 29 and 31 (and the Regulation 10 exemption reports), a pledge or an inter-se transfer.
+// A filing that cites the regulations because an acquisition COMPLETED — "Completion of acquisition
+// of 51% stake pursuant to SEBI (SAST) Regulations, 2011" — is a change of control and keeps its
+// reading. Measured on the retained captures: all 108 disclosures carry one of these markers, and
+// none says an acquisition completed.
+export const SAST_DISCLOSURE_MARKER = /\breg(?:ulation)?s?\.?\s*(?:29|31|10)\b|\bdisclos\w*|\bshareholding\b|\bencumbr\w*|\bpledg\w*|\binter[- ]?se\b/;
+export const ACQUISITION_COMPLETED = /\bcomplet(?:ion|ed|es|ing)\b[^.]{0,20}\bacquisition\b|\bacquisition\b[^.]{0,60}\bcomplet(?:ed|ion)\b/;
 export const TAKEOVER_EVENT = /\bopen offer\b|\bpublic announcement\b|\bdetailed public statement\b|\bletter of offer\b/;
 export const LEGAL_ORDER = /\b(?:court|tribunal|nclt|nclat|sebi|income[- ]tax|gst|tax (?:demand|order|authorit\w*|department|notice|assessment)|demand (?:order|notice)|penalt(?:y|ies)|assessment order|adjudicat\w*|show[- ]cause|appellate|commissioner|customs|excise|enforcement directorate|arbitra\w*|under section|u\/s|stay order|interim order|order dated|order passed)\b/;
 
@@ -72,7 +80,8 @@ export function announcementSignal(row = {}) {
   //     a penalty is still read — by the enforcement rule above, as a negative — just not as business won.
   // The keyword stays in the vocabulary and on news; only these filings stop carrying it as a topic.
   const contradicted = new Set();
-  if (SAST_HOLDING_DISCLOSURE.test(text) && !TAKEOVER_EVENT.test(text)) contradicted.add('acquisition');
+  if (SAST_HOLDING_DISCLOSURE.test(text) && SAST_DISCLOSURE_MARKER.test(text) && !TAKEOVER_EVENT.test(text) &&
+    !ACQUISITION_COMPLETED.test(text)) contradicted.add('acquisition');
   if (LEGAL_ORDER.test(text)) { contradicted.add('order'); contradicted.add('receipt-of-order'); }
   const keptKeywords = story.keywords.filter((k) => !contradicted.has(k.id));
   const droppedIds = new Set(story.keywords.filter((k) => contradicted.has(k.id)).map((k) => k.id));

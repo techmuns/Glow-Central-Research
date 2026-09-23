@@ -187,9 +187,37 @@ function main() {
   return payload;
 }
 
+/**
+ * Every listed holding the built file cannot place, with the reason — for the scheduled job, which
+ * publishes what it read and then fails naming these. A holding with no KPI group looks, on a card,
+ * exactly like evidence that names no KPI, so the gap has to be a failed run rather than a quiet one.
+ */
+export function missingBook({ out = OUT, book = 'public/data/portfolio-companies.json' } = {}) {
+  const built = JSON.parse(readFileSync(out, 'utf8'));
+  const failed = existsSync(CLASSIFICATION) ? JSON.parse(readFileSync(CLASSIFICATION, 'utf8')).failed || {} : {};
+  const holdings = existsSync(book) ? JSON.parse(readFileSync(book, 'utf8')).holdings || [] : [];
+  return holdings
+    .map((holding) => String(holding.ticker || '').toUpperCase())
+    .filter((ticker) => ticker && !built.companies?.[ticker])
+    .map((ticker) => {
+      const unresolved = built.unresolved?.[ticker];
+      return { ticker, reason: unresolved ? `classified ${unresolved.sector} › ${unresolved.industry}, which the ontology maps to no group`
+        : failed[ticker]?.reason ? `page not read (${failed[ticker].reason})` : 'never classified' };
+    });
+}
+
 // Exported for the offline verifier, which rebuilds from the fixture and compares.
 export { main as buildSectorKpis, normaliseLabel };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  try { main(); } catch (err) { console.error(err.message || err); process.exit(1); }
+  try {
+    if (process.argv.includes('--check-book')) {
+      const missing = missingBook();
+      if (missing.length) {
+        console.error(`build-sector-kpis: ${missing.length} listed holding(s) carry no KPI group — ${missing.map((m) => `${m.ticker}: ${m.reason}`).join('; ')}`);
+        process.exit(1);
+      }
+      console.log('build-sector-kpis: every listed holding resolves to a KPI group.');
+    } else main();
+  } catch (err) { console.error(err.message || err); process.exit(1); }
 }

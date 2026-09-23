@@ -7,10 +7,17 @@
 //   1. public/data/universe.json — the NSE-500 screener export already carries all four levels
 //      (Broad Sector, Sector, Broad Industry, Industry). Read for free, every run.
 //   2. The company's public Screener page, for every company in scope the export does not carry —
-//      the book first, because 95 of its 166 listed lines are outside the NSE-500 and they are the
-//      companies whose alerts matter most. One GET per company, paced, and a company is re-read only
-//      once its classification is older than CLASSIFY_MAX_AGE_DAYS (it changes on a corporate
-//      restructuring, not on a price move).
+//      the book first, because a book's small and mid caps are often outside the NSE-500 and they
+//      are the companies whose alerts matter most. One GET per company, paced, and a company is
+//      re-read only once its classification is older than CLASSIFY_MAX_AGE_DAYS (it changes on a
+//      corporate restructuring, not on a price move). An SME symbol is read without its "-SM"
+//      series suffix, which Screener does not use; a company Screener files under another code is
+//      found by an EXACT name match on Screener's own search, never by a nearest one.
+//
+// A RUN THAT CHANGES NOTHING WRITES NOTHING, except a weekly heartbeat: the scheduled job runs daily
+// so a new holding is classified within a day, and rewriting an unchanged file would be a daily
+// commit that says nothing. `capturedAt` therefore means "last checked", at most a week old while
+// the job is healthy, and the source registry reads an older one as a refresh that is due.
 //
 // A FAILED READ IS NEVER AN EMPTY RESULT. A page that cannot be read keeps the company's previous
 // classification and is listed under `failed` with the reason; a company never classified stays
@@ -23,6 +30,7 @@
 //   CLASSIFY_MAX_AGE_DAYS=90                   re-read a page classification older than this
 //   CLASSIFY_PACE_MS=1500                      wait between page reads
 //   CLASSIFY_BUDGET_MS=1800000                 stop reading pages after this long, keep what landed
+//   CLASSIFY_HEARTBEAT_DAYS=7                  rewrite an unchanged file once it is this old
 //
 // Then run `node scripts/build-sector-kpis.mjs` to resolve the companies into KPI groups.
 
@@ -39,6 +47,7 @@ const MAX_AGE_MS = (Number(process.env.CLASSIFY_MAX_AGE_DAYS) || 90) * 86_400_00
 const PACE_RAW = Number(process.env.CLASSIFY_PACE_MS);
 const PACE_MS = process.env.CLASSIFY_PACE_MS && Number.isFinite(PACE_RAW) && PACE_RAW >= 0 ? PACE_RAW : 1500;
 const BUDGET_MS = Number(process.env.CLASSIFY_BUDGET_MS) || 30 * 60_000;
+const HEARTBEAT_MS = (Number(process.env.CLASSIFY_HEARTBEAT_DAYS) || 7) * 86_400_000;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const TICKER = /^[A-Z0-9&-]{1,30}$/;
 
@@ -76,6 +85,47 @@ function exportClassifications() {
     out.set(ticker, { ...entry, source: 'export' });
   }
   return out;
+}
+
+// NSE's SME board symbols carry a series suffix in the book ("ALPEXSOLAR-SM"); Screener files the
+// company under the bare symbol.
+const screenerSymbol = (ticker) => ticker.replace(/-(?:SM|ST)$/, '');
+
+/** Company names by ticker, from the files that name the tickers — for the exact-name search below. */
+function namesByTicker() {
+  const names = new Map();
+  for (const holding of readJson('public/data/portfolio-companies.json', { holdings: [] }).holdings || []) {
+    const ticker = String(holding.ticker || '').toUpperCase();
+    const name = holding.matchedName || holding.bookName || holding.name;
+    if (TICKER.test(ticker) && name) names.set(ticker, name);
+  }
+  for (const company of readJson('public/data/tracked-universe.json', { companies: [] }).companies || []) {
+    const ticker = String(company.ticker || '').toUpperCase();
+    if (TICKER.test(ticker) && company.name && !names.has(ticker)) names.set(ticker, company.name);
+  }
+  return names;
+}
+
+const plainName = (name) => String(name || '').toLowerCase().replace(/&/g, ' and ')
+  .replace(/\b(?:limited|ltd|the|pvt|private)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+
+/**
+ * The Screener path for a company whose symbol page does not exist, from Screener's own search —
+ * accepted only where exactly one result carries the company's name, word for word once "Ltd" and
+ * punctuation are set aside. Anything looser could file one company under another's sector.
+ */
+async function searchPath(name) {
+  if (!name) return null;
+  const { status, body } = await getPage(`https://www.screener.in/api/company/search/?q=${encodeURIComponent(name)}&v=3`);
+  if (status !== 200) return null;
+  let results;
+  try { results = JSON.parse(body); } catch { return null; }
+  const wanted = plainName(name);
+  const matches = (Array.isArray(results) ? results : [])
+    .filter((row) => typeof row?.url === 'string' && /^\/company\/[^/]+\//.test(row.url) && plainName(row.name) === wanted);
+  if (matches.length !== 1) return null;
+  const code = matches[0].url.match(/^\/company\/([^/]+)\//)[1];
+  return `/company/${code}/`;
 }
 
 function targets(exported) {
@@ -119,6 +169,7 @@ async function main() {
   });
   console.log(`classify: ${exported.size} from the NSE-500 export; ${queue.length} company pages to read (scope ${SCOPE}).`);
 
+  const names = namesByTicker();
   let read = 0;
   let refusedInARow = 0;
   for (const ticker of queue) {
@@ -126,10 +177,23 @@ async function main() {
     if (Date.now() - started > BUDGET_MS) { console.log('classify: page budget spent; keeping what landed.'); break; }
     if (read > 0 && PACE_MS) await sleep(PACE_MS);
     read += 1;
-    let page = await getPage(`https://www.screener.in/company/${encodeURIComponent(ticker)}/`);
-    for (let attempt = 1; (page.status === 429 || page.status >= 500) && attempt <= 2; attempt += 1) {
-      await sleep(20_000 * attempt);
-      page = await getPage(`https://www.screener.in/company/${encodeURIComponent(ticker)}/`);
+    let path = companies.get(ticker)?.screenerPath || `/company/${encodeURIComponent(screenerSymbol(ticker))}/`;
+    const fetchPage = async () => {
+      let page = await getPage(`https://www.screener.in${path}`);
+      for (let attempt = 1; (page.status === 429 || page.status >= 500) && attempt <= 2; attempt += 1) {
+        await sleep(20_000 * attempt);
+        page = await getPage(`https://www.screener.in${path}`);
+      }
+      return page;
+    };
+    let page = await fetchPage();
+    if (page.status === 404) {
+      const found = await searchPath(names.get(ticker));
+      if (found && found !== path) {
+        path = found;
+        if (PACE_MS) await sleep(PACE_MS);
+        page = await fetchPage();
+      }
     }
     const at = new Date().toISOString();
     if (page.status !== 200) {
@@ -146,7 +210,7 @@ async function main() {
       process.stdout.write(`${ticker}:? `);
       continue;
     }
-    companies.set(ticker, { ...parsed, source: 'page', checkedAt: at });
+    companies.set(ticker, { ...parsed, source: 'page', checkedAt: at, ...(path !== `/company/${encodeURIComponent(ticker)}/` ? { screenerPath: path } : {}) });
     failed.delete(ticker);
     process.stdout.write('.');
   }
@@ -157,6 +221,13 @@ async function main() {
   // and the reader of this file is owed the fact that the latest re-read did not land.
   const sortedFailed = Object.fromEntries([...failed].sort(([a], [b]) => a.localeCompare(b)));
   const values = Object.values(sortedCompanies);
+  const unchanged = JSON.stringify(sortedCompanies) === JSON.stringify(previous.companies || {}) &&
+    JSON.stringify(Object.keys(sortedFailed)) === JSON.stringify(Object.keys(previous.failed || {}).sort()) &&
+    Date.now() - Date.parse(previous.capturedAt || '') < HEARTBEAT_MS;
+  if (unchanged) {
+    console.log(`classify: nothing changed since ${previous.capturedAt}; ${OUT} left as it is (${values.length} companies, ${Object.keys(sortedFailed).length} unread).`);
+    return;
+  }
   const payload = {
     _provenance: 'NSE four-level industry classification as printed by Screener: the NSE-500 export for index members, each company\'s public page for the rest. Read by scripts/build-sector-kpis.mjs; see docs/DATA-CONTRACTS.md → Sector KPIs.',
     source: 'Screener (NSE industry classification)',

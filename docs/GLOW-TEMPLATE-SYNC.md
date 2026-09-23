@@ -466,13 +466,15 @@ Sattva in its own pull request; until that merges, preserve it here on a templat
   `scripts/lib/screener-classification.mjs`, `scripts/classify-companies.mjs`,
   `scripts/build-sector-kpis.mjs`, `public/js/data/sector-kpis-shared.js`,
   `public/js/data/kpi-impact.js`, `public/data/company-classification.json`,
-  `public/data/sector-kpis.json`, `scripts/verify-kpi-impact.mjs`, `scripts/verify-kpi-impact-ui.mjs`.
-  The two data files are each deployment's own (its own book is classified).
+  `public/data/sector-kpis.json`, `scripts/verify-kpi-impact.mjs`, `scripts/verify-kpi-impact-ui.mjs`,
+  `.github/workflows/sector-kpis-refresh.yml` (daily, commits to `main`, fails naming any listed
+  holding left without a KPI group). The two data files are each deployment's own (its own book is
+  classified).
 - Hunks in shared files: `card.kpis` and the ontology load in `js/data/ai-alerts.js`; `kpiMarkup()`
   and the bookmark detail in `js/tabs/ai-alerts.js`; KPI names in `matchesSearch`; the earnings
   event's `metrics` and the con-call event's `tags` in `js/data/daily-alerts.js`; the source
   registry row; the two CI steps; the service-worker markers `glow-kpi-impact-v1` and `ai-card-parity-v1`.
 - The same change fixes two false-alert readings in the shared `js/data/filing-signals.js` (SEBI
   takeover-regulation disclosures read as Acquisition; court and tax orders read as orders won).
-- No credential, route, workflow schedule or capture was added. Classification is refreshed by the
-  script, run by hand or from a later workflow.
+- No credential or route was added. The one new schedule is the daily classification job above; it
+  reads public Screener pages only for companies it has not classified, or classified 90+ days ago.

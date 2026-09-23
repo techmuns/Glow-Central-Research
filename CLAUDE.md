@@ -3676,7 +3676,7 @@ con-call highlight names through the ontology's own aliases. The card gets one s
 Book · Book-to-Bill Ratio* — each chip a door to its source, the item and mechanism in the tooltip, at
 most four, the rest counted. It is the only block the card adds to the template's one sentence and one
 list, and it is absent where there is nothing to name. No model call, no request per card, no score,
-no alert. Seven rules, every one asserted by `verify-kpi-impact.mjs`:
+no alert. Nine rules, every one asserted by `verify-kpi-impact.mjs` or `verify-kpi-impact-ui.mjs`:
 
 1. **A KPI is named only from the company's own sector list** (its group's KPIs or the 40 globals).
    The suite walks every (trigger, group) and fails on any other KPI; the engine drops it at run time.
@@ -3686,7 +3686,10 @@ no alert. Seven rules, every one asserted by `verify-kpi-impact.mjs`:
    takeover-regulation disclosure is not an acquisition; a court or tax order is not an order win; a
    broker's stock downgrade is not a credit rating; "commissioning" inside an EPC order and "EIL to
    execute a greenfield refinery" are the CLIENT's plant; a hotel management contract is network, not
-   an order; a dividend a board will only "consider" sets no figure; an ESOP allotment is not a raise.
+   an order; a dividend a board will only "consider" sets no figure; an ESOP allotment is not a raise;
+   a fire, accident or explosion names an output KPI only at a production site (an office, warehouse
+   or vehicle fire names none); and a capex figure names the Capex KPI alone unless the text says what
+   capacity it builds ("digital capex programme" is spend, "capex to add 2 MTPA" is capacity).
 4. **Operator KPIs need the operator's asset in the text.** NSE files telecom-equipment makers under
    telecom and BLS (visa services) under travel, so a rule naming ARPU or room keys `requires` the
    asset — plans, rooms, beds, MW, a refinery — or names nothing.
@@ -3698,17 +3701,28 @@ no alert. Seven rules, every one asserted by `verify-kpi-impact.mjs`:
    revenue +13.0%"*), so the chip names *Revenue* and keeps the figure — sign changes in words, *PAT
    to profit* — in its title. Saying it a third time on one card is the repetition the card was
    rebuilt to remove.
-7. **Events carry what the card reads.** The AI pool drops `sourceRecord`, so the earnings event
+7. **Every KPI stays in the model; the four-chip cap is the card's.** Search, a bookmark and an export
+   read the whole list, and the `+N` chip's title names the ones it holds, so a fifth KPI is never
+   reduced to a count. A filed comparison from zero (`from-zero`, 78 lines in the shipped feed) is
+   still a KPI in play, worded *from zero*; one the source could not make (`na`) names nothing.
+8. **A failed read of the sector file is a state, not an absence.** `kpiImpact.status()` records idle,
+   loading, ready or failed with the reason; a failure is said on the AI Alerts page and in the source
+   registry, which also reads a classification older than nine days as a refresh that is due.
+9. **Events carry what the card reads.** The AI pool drops `sourceRecord`, so the earnings event
    carries `resultBasis` and `metrics` (each metric's own label, change and kind) and the con-call
    event `tags`, as fields; nothing is parsed back out of `detail`. The card's sentence reads the same
    `metrics` (`resultFigures`), which is what lets a card ranked from the pool state a filed result's
    figures exactly as the full history does. A pool built before these fields existed simply yields
    fewer chips until its next build.
 
-Classification: `node scripts/classify-companies.mjs && node scripts/build-sector-kpis.mjs` — all
-166 listed book companies and the NSE-500 resolve today (623 exact pairs, 6 REITs by the one stated
-override). A company outside both carries no row until it is classified (`CLASSIFY_SCOPE=tracked`
-adds the ~1,900-name tracked universe).
+Classification: `.github/workflows/sector-kpis-refresh.yml` runs `node scripts/classify-companies.mjs
+&& node scripts/build-sector-kpis.mjs` daily, commits to `main`, and then fails naming any listed
+holding left without a KPI group (`--check-book`) — a quiet gap would look like evidence that names
+no KPI. An unchanged day writes nothing but a weekly heartbeat. All 166 listed book companies and the
+NSE-500 resolve today (623 exact pairs, 6 REITs by the one stated override); an SME symbol is read
+without its `-SM` suffix and a company Screener files under another code is found by an EXACT name
+match on Screener's own search. A company outside the book and the NSE-500 carries no row until it
+is classified (`CLASSIFY_SCOPE=tracked` adds the ~1,900-name tracked universe).
 
 ## Ask Research — dashboard evidence, streamed immediately
 

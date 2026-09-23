@@ -287,8 +287,20 @@ export function sourceGroups() {
               const groupCount = num(() => Object.keys(kpiImpact.snapshot()?.groups || {}).length);
               return resolved && groupCount ? ` ${formatNumber(resolved)} companies are resolved into ${formatNumber(groupCount)} KPI groups.` : '';
             })(),
-          cadence: 'Loaded once with AI Alerts. Classification refreshed by scripts/classify-companies.mjs; the ontology changes only when the desk\'s file does.',
+          cadence: 'Loaded once with AI Alerts. The company classification is checked daily by sector-kpis-refresh.yml — only a new holding, or a page older than 90 days, costs a request, and an unchanged week still records a check. The ontology changes only when the desk\'s file does.',
           status: 'static',
+          // THE LAST READ, NOT A PERMANENT "Reference data". A failed read is said here with its reason,
+          // because a card with no KPI line looks the same whether nothing named a KPI or the file
+          // could not be read; a classification older than its weekly rebuild allows reads as due.
+          ...(() => {
+            const state = kpiImpact.status();
+            if (state.state === 'failed') {
+              return { readState: 'unavailable', details: [`The sector file could not be read (${state.error || 'no reason given'}). AI Alerts cards carry no KPI line until it loads — that is not a finding that nothing moved a KPI.`] };
+            }
+            if (state.state !== 'ready') return {};
+            return { readState: sourceReadState({ at: state.builtAt, maxAgeMs: 9 * 86_400_000 }),
+              details: [state.builtAt ? `Classification built ${state.builtAt.slice(0, 10)}; read by this browser ${String(state.checkedAt || '').slice(0, 16).replace('T', ' ')} UTC.` : 'The classification carries no build time.'] };
+          })(),
           file: 'public/data/sector-kpis.json · public/data/company-classification.json · scripts/fixtures/sector-kpi-ontology.yaml',
         },
       ],

@@ -730,8 +730,10 @@ matched the 23 September 2026 export row for row; `SECTOR_KPIS_CSV=<export>` re-
 
 NSE's four-level industry classification as Screener prints it. The NSE-500 comes from
 `universe.json`'s own columns with no request; every other company in scope (the book first — 95 of
-its 166 listed lines are outside the NSE-500) is read from its public Screener page, where the Peer
-comparison header links Broad Sector › Sector › Broad Industry › Industry to stable market codes.
+Glow's 166 listed lines are outside the NSE-500) is read from its public Screener page, where the Peer
+comparison header links Broad Sector › Sector › Broad Industry › Industry to stable market codes. An
+SME symbol is read without its `-SM` series suffix; a company Screener files under another code is
+found by an exact name match on Screener's own search and keeps that path as `screenerPath`.
 
 ```jsonc
 {
@@ -742,7 +744,8 @@ comparison header links Broad Sector › Sector › Broad Industry › Industry 
     "BHEL": { "broadSector": "Industrials", "sector": "Capital Goods", "broadIndustry": "Electrical Equipment",
               "industry": "Heavy Electrical Equipment", "source": "export" },
     "AARTIDRUGS": { "broadSector": "Healthcare", "sector": "Healthcare", "broadIndustry": "Pharmaceuticals & Biotechnology",
-                    "industry": "Pharmaceuticals", "code": "IN060101001", "source": "page", "checkedAt": "2026-09-23T06:23:29.244Z" }
+                    "industry": "Pharmaceuticals", "code": "IN060101001", "source": "page", "checkedAt": "2026-09-23T06:23:29.244Z" },
+    "ASHIKA": { …, "source": "page", "screenerPath": "/company/ASHIKAG/" }   // only where the symbol page does not exist
   },
   "failed": { }                         // TICKER → { reason, at }; a failure keeps any earlier classification
 }
@@ -777,11 +780,23 @@ substituted; the industry alone **only** where it maps to one group across the w
 override is NSE's REIT industry, which the ontology maps to the developer group (pre-sales,
 collections) while carrying its own `reit` group; it is printed in the file with that reason.
 
-**Refresh** — `node scripts/classify-companies.mjs && node scripts/build-sector-kpis.mjs` whenever
-the book or the NSE-500 changes; `verify-kpi-impact.mjs` fails if the committed JSON is not what the
-fixture and the classification build. **Consumed by** — AI Alerts only, as a display reading: it adds
-no score and no alert. The rules that turn an event into KPIs, and the traps each rule is measured
-against, are in the header of `js/data/kpi-impact.js` and in `CLAUDE.md` → *KPIs in play*.
+**Refresh** — `.github/workflows/sector-kpis-refresh.yml`, daily at 01:37 UTC (after the morning
+book sync), runs `node scripts/classify-companies.mjs && node scripts/build-sector-kpis.mjs` and commits
+to `main`. It is cheap because only a company with no page classification, or one older than 90 days,
+costs a request, and **a run that changes nothing writes nothing** except a weekly heartbeat
+(`CLASSIFY_HEARTBEAT_DAYS`, 7) — so `capturedAt` means *last checked*, and the source registry reads a
+classification older than nine days as a refresh that is due. The job publishes what it read and then
+**fails** if any listed holding carries no KPI group (`node scripts/build-sector-kpis.mjs --check-book`,
+which names each one and why), because a card silently missing its KPI line looks exactly like one
+whose evidence names no KPI. `verify-kpi-impact.mjs` fails if the committed JSON is not what the
+fixture and the classification build.
+
+**Consumed by** — AI Alerts only, as a display reading: it adds no score and no alert. The browser's
+read of the file has a state of its own (`kpiImpact.status()`: idle, loading, ready or failed, with
+the reason and time); a failed read is said on the AI Alerts page and in the source registry rather
+than passing for cards whose evidence names nothing. The rules that turn an event into KPIs, and the
+traps each rule is measured against, are in the header of `js/data/kpi-impact.js` and in
+`CLAUDE.md` → *KPIs in play*.
 
 ---
 

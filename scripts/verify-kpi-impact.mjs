@@ -150,7 +150,7 @@ const news = (ticker, headline, attribution = 'confirmed') => {
     attribution: { version: ATTRIBUTION_VERSION, status: attribution, reason: 'fixture' },
   };
 };
-const names = (card) => kpi.kpiImpactOf(card, onto, { limit: 8 })?.items.map((item) => (item.value ? `${item.name} ${item.value}` : item.name)) ?? null;
+const names = (card) => kpi.kpiImpactOf(card, onto)?.items.map((item) => (item.value ? `${item.name} ${item.value}` : item.name)) ?? null;
 const one = (event) => names({ ticker: event.ticker, events: [event] });
 const reads = (event, expected, message) => assert.deepEqual(one(event), expected, message || `${event.ticker}: ${event.headline}`);
 
@@ -223,12 +223,30 @@ reads({ ...news('SBIN', 'SBI raises Rs 10,000 crore via QIP'), aiEligible: false
 reads({ id: 't1', feed: 'technicals', ticker: 'BHEL', kind: 'volume', volumeX: 4.2, headline: 'Volume 4.2x', importance: 'high' }, null, 'the tape names no KPI');
 reads({ ...bse('BHEL', 'Receipt of order worth Rs. 2,500 crore for supply of boilers', 'Award of Order / Receipt of Order'), ticker: 'NOTACLASSIFIEDCO' }, null, 'no sector, no line');
 
+// AN INCIDENT NAMES AN OUTPUT KPI ONLY AT A PRODUCTION SITE, and a capex figure is capacity only
+// where the text says what it builds. Both were live readings before: an office fire claimed an
+// outage cut output, and a digital capex programme claimed volume growth.
+reads(news('JYOTHYLAB', 'Fire breaks out at Jyothy Labs corporate office'), null, 'an office fire is not a lost day of production');
+reads(news('JYOTHYLAB', 'Fire at Jyothy Labs warehouse in Bhiwandi'), null, 'a warehouse fire destroys stock, not capacity');
+reads(news('JYOTHYLAB', 'Major fire at Jyothy Labs factory halts production'), ['Volume Growth']);
+reads(news('JYOTHYLAB', 'Jyothy Labs announces Rs 100 crore digital capex programme'), ['Capital Expenditure'], 'bare capex is spend: the Capex KPI and nothing it does not build');
+assert.equal(kpi.kpiImpactOf({ ticker: 'JYOTHYLAB', events: [news('JYOTHYLAB', 'Jyothy Labs announces Rs 100 crore digital capex programme')] }, onto).items[0].triggerLabel, 'Capex plan');
+reads(news('SHREDIGCEM', 'Shree Digvijay Cement plans Rs 500 crore capex to add 2 MTPA capacity'), ['Capital Expenditure', 'Volume', 'Capacity Utilization'],
+  'capex that names its capacity still reads as capacity');
+
 // A filed result is the one measured move, printed as the source reported it.
 reads({ id: 'r1', feed: 'earnings', ticker: 'BHEL', headline: 'YoY quarterly result filed', resultBasis: 'YoY',
   metrics: { revenue: { label: 'Revenue', pct: 13, kind: 'normal' }, netProfit: { label: 'Net Profit', pct: null, kind: 'turnaround' } } }, ['Revenue +13%', 'PAT to profit']);
 assert.equal(kpi.resultValue({ pct: -4.25, kind: 'normal' }), '−4.3%');
 assert.equal(kpi.resultValue({ pct: null, kind: 'loss-widened' }), 'loss widened');
 assert.equal(kpi.resultValue({ pct: 12, kind: 'unknown-kind' }), null, 'an unknown comparison is not printed');
+// NOTHING IN THE PRIOR PERIOD HAS NO GROWTH RATE, BUT THE LINE WAS STILL REPORTED. The feed files
+// 61 net-profit and 17 revenue comparisons as `from-zero`; dropping them lost the KPI altogether.
+assert.equal(kpi.resultValue({ pct: null, kind: 'from-zero' }), 'from zero');
+reads({ id: 'r2', feed: 'earnings', ticker: 'BHEL', headline: 'YoY quarterly result filed', resultBasis: 'YoY',
+  metrics: { revenue: { label: 'Revenue', pct: null, kind: 'from-zero' }, netProfit: { label: 'Net Profit', pct: 8, kind: 'normal' } } }, ['Revenue from zero', 'PAT +8.0%']);
+reads({ id: 'r3', feed: 'earnings', ticker: 'BHEL', headline: 'YoY quarterly result filed', resultBasis: 'YoY',
+  metrics: { revenue: { label: 'Revenue', pct: null, kind: 'na' }, netProfit: null } }, null, 'a comparison the source could not make names nothing');
 
 // Con-call highlights: the provider's words name a KPI — acronyms only in capitals, generic words never.
 const call = (ticker, tags) => ({ id: `c${++seq}`, feed: 'concalls', ticker, headline: 'Con-call analysis published', tags, importance: 'high' });
@@ -247,12 +265,17 @@ const card = { ticker: 'BHEL', events: [orderEvent, call('BHEL', ['▲ Record qu
 const impact = kpi.kpiImpactOf(card, onto);
 assert.equal(impact.group, 'capital_goods');
 assert.equal(impact.groupLabel, 'Capital Goods');
-assert.deepEqual(impact.items.map((item) => item.name), ['Order Inflow', 'Order Book', 'Book-to-Bill Ratio', 'Revenue']);
+assert.deepEqual(impact.items.map((item) => item.name), ['Order Inflow', 'Order Book', 'Book-to-Bill Ratio', 'Revenue', 'EBITDA', 'PAT']);
 assert.equal(impact.items[1].eventId, orderEvent.id, 'a KPI named twice is credited to the strongest event');
-assert.equal(impact.overflow, 2, 'EBITDA and PAT did not fit, and are counted');
+// EVERY KPI STAYS IN THE MODEL. The four-chip cap is the view's: search, a bookmark and an export
+// read the whole list, so EBITDA and PAT here are findable by name rather than reduced to "+2".
 assert.equal(impact.total, 6);
-assert.match(kpi.kpiLine(impact), /^Order Inflow · Order Book · Book-to-Bill Ratio · Revenue · \+2 more \(Capital Goods\)$/);
-const cement = kpi.kpiImpactOf({ ticker: 'SHREDIGCEM', events: [news('SHREDIGCEM', 'Shree Digvijay Cement announces capacity expansion of 2 MTPA'), call('SHREDIGCEM', ['▲ Cement volume up 12%'])] }, onto, { limit: 8 });
+assert.deepEqual(impact.items.slice(4).map((item) => item.name), ['EBITDA', 'PAT'], 'the KPIs past the fourth chip are kept, by name');
+assert.equal(impact.overflow, undefined, 'the model carries no display count');
+assert.match(kpi.kpiLine(impact), /^Order Inflow · Order Book · Book-to-Bill Ratio · Revenue · EBITDA · PAT \(Capital Goods\)$/);
+const { matchesSearch } = await import('../public/js/ui/ai-alert-utils.js');
+assert(matchesSearch({ ticker: 'BHEL', company: 'BHEL', events: [], kpis: impact }, 'ebitda'), 'search finds a card by a KPI past the chip cap');
+const cement = kpi.kpiImpactOf({ ticker: 'SHREDIGCEM', events: [news('SHREDIGCEM', 'Shree Digvijay Cement announces capacity expansion of 2 MTPA'), call('SHREDIGCEM', ['▲ Cement volume up 12%'])] }, onto);
 assert.equal(cement.items.filter((item) => item.name === 'Volume').length, 1, 'one chip per KPI name, however many keys carry it');
 console.log('PASS readings: orders, raises, ratings, approvals, operations, distributions, updates, results and con-call highlights name the right KPIs; every measured trap names none.');
 
@@ -265,6 +288,11 @@ const sast = announcementSignal({ category: 'Insider Trading / SAST', subCategor
 assert.equal(sast.importance, 'low', 'a takeover-regulation shareholding disclosure is not a high-importance acquisition');
 assert(!sast.keywords.includes('Acquisition'), 'and it carries no Acquisition topic');
 assert.match(sast.importanceReason, /Acquisition was not counted: this is a shareholding disclosure under SEBI's takeover regulations/);
+// …but a filing that cites the regulations because an acquisition COMPLETED is a change of control.
+const completed = announcementSignal({ category: 'Company Update', subCategory: 'Acquisition',
+  title: 'Completion of acquisition of 51% stake pursuant to SEBI (SAST) Regulations, 2011' });
+assert.equal(completed.importance, 'high', 'a completed acquisition citing SAST keeps its reading');
+assert(completed.keywordIds.includes('acquisition'));
 const openOffer = announcementSignal({ category: 'Company Update', subCategory: 'General', title: 'Public announcement of open offer for acquisition of up to 26% of the shares under SEBI (SAST) Regulations' });
 assert.equal(openOffer.importance, 'high', 'an open offer IS a takeover, and stays high');
 assert(openOffer.keywords.includes('Acquisition'));
