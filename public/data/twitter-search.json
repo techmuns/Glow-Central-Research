@@ -1368,7 +1368,7 @@
       "error": "search-unavailable"
     },
     "isin:INE024F01011|Shilchar Technologies": {
-      "lastAttemptAt": "2026-09-18T21:10:02+00:00",
+      "lastAttemptAt": "2026-09-23T12:36:45+00:00",
       "error": "search-unavailable"
     },
     "isin:INE024F01011|SHILCTECH": {
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-09-23T12:28:28.858326+00:00"
+    "checkedAt": "2026-09-23T12:36:45.183309+00:00"
   }
 }
