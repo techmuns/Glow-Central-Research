@@ -1224,7 +1224,7 @@
       "pending": []
     },
     "isin:INE855B01025|RAIN": {
-      "lastAttemptAt": "2026-09-18T08:37:01+00:00",
+      "lastAttemptAt": "2026-09-23T00:54:53+00:00",
       "error": "search-unavailable",
       "lastResultCount": 107,
       "targetThrough": "2026-09-13T23:47:09+00:00",
@@ -1703,7 +1703,7 @@
   "coverage": {
     "planned": 232,
     "attempted": 1,
-    "incomplete": 218,
-    "checkedAt": "2026-09-23T00:19:29.192362+00:00"
+    "incomplete": 221,
+    "checkedAt": "2026-09-23T00:54:53.470264+00:00"
   }
 }
