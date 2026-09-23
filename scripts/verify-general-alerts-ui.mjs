@@ -639,6 +639,10 @@ try {
   await settled(embedded);
   assert.equal(await embedded.getByRole('combobox', { name: 'Date range' }).inputValue(), 'today', 'fresh embedded dashboard also defaults to Today');
   await embedded.getByRole('combobox', { name: 'Date range' }).selectOption('all');
+  // All history starts a new source read after the bounded Today snapshot. Wait
+  // for that read and its filter paint before latching native wheel input to the table.
+  await settled(embedded);
+  await embedded.waitForFunction(() => !document.querySelector('[data-table-loading]'));
   for (const size of [{ width: 1440, height: 800 }, { width: 1024, height: 640 }]) {
     await page.setViewportSize(size);
     const scroller = embedded.locator('[data-table-scroll]');
