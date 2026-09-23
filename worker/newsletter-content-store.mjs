@@ -1,3 +1,4 @@
+import { NewsletterNewsBudget } from './newsletter-news-budget.mjs';
 import { CONTENT_BATCH, readDocumentFacts } from './newsletter-content.mjs';
 
 export const CONTENT_SCAN_MS = 60 * 60 * 1000;
@@ -9,7 +10,7 @@ const json = text => { try { return JSON.parse(text); } catch { return null; } }
 // data, credentials, PDF bytes or full publisher articles are stored here. Jobs and source
 // passages survive restarts and date rollovers; an email acknowledgement never deletes a job.
 export class NewsletterContentStore {
-  constructor(storage) { this.storage = storage; }
+  constructor(storage) { this.storage = storage; this.newsBudget = new NewsletterNewsBudget(storage); }
 
   rows(sql, ...args) {
     if (!this.initialised) {
@@ -60,7 +61,7 @@ export class NewsletterContentStore {
   }
 
   complete(job, result, now) {
-    const slow = ['unsupported-source', 'unsupported-format', 'missing-link', 'too-large', 'access-limited', 'issuer-mismatch'].includes(result.reason);
+    const slow = ['unsupported-source', 'unsupported-format', 'missing-link', 'too-large', 'access-limited', 'issuer-mismatch', 'news-budget', 'news-attempt-limit', 'company-evidence-unconfirmed', 'refused'].includes(result.reason);
     const retry = slow ? 86400000 : Math.min(6 * 3600000, CONTENT_TICK_MS * 2 ** Math.min(job.attempts, 12));
     this.rows('UPDATE newsletter_content SET state=?,result=?,next_at=?,lease=NULL WHERE id=? AND lease=?',
       result.state, JSON.stringify(result), now + retry, job.id, job.lease);
@@ -74,7 +75,7 @@ export class NewsletterContentStore {
     await Promise.all(Array.from({ length: Math.min(2, jobs.length) }, async () => {
       while (queue.length) {
         const job = queue.shift();
-        const result = await readDocumentFacts({ item: job.item, env, fetcher, now });
+        const result = await readDocumentFacts({ item: job.item, env, fetcher, now, newsBudget: this.newsBudget });
         this.complete(job, result, now);
       }
     }));
