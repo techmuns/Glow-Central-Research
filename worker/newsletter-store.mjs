@@ -32,8 +32,16 @@ import {
 
 export const NEWSLETTER_OBJECT = 'team-brief:v1';
 export const DELIVERY_HISTORY = 12;
+<<<<<<< HEAD
 export const MANUAL_SEND_LIMIT = 5;
 export const MANUAL_SEND_WINDOW_MS = 3600_000;
+=======
+export const MANUAL_SEND_LIMIT = 4;
+export const MANUAL_SEND_WINDOW_MS = 24 * 3600 * 1000;
+// Three weekdays of editions: a story that fell out of two consecutive windows is old news, and a
+// capture that lands later than that is an outage the sources line already reports.
+export const SENT_HISTORY = 6;
+>>>>>>> sattva/main
 
 const iso = (at) => new Date(at).toISOString();
 const parseJson = (text, fallback) => { try { return JSON.parse(text); } catch { return fallback; } };
@@ -56,8 +64,11 @@ export class NewsletterStore {
       started_at TEXT NOT NULL, finished_at TEXT, source TEXT NOT NULL,
       recipients INTEGER NOT NULL, sent INTEGER, failed INTEGER, reason TEXT,
       subject TEXT, outcomes TEXT, summary TEXT)`);
+    this.storage.sql.exec('CREATE TABLE IF NOT EXISTS newsletter_manual_attempts (id TEXT PRIMARY KEY, at INTEGER NOT NULL)');
+    this.storage.sql.exec('CREATE TABLE IF NOT EXISTS newsletter_documents (id TEXT PRIMARY KEY, filename TEXT NOT NULL, body BLOB NOT NULL, created_at TEXT NOT NULL)');
     this.storage.sql.exec('CREATE INDEX IF NOT EXISTS newsletter_state ON newsletter_subscribers(state, seq)');
     this.storage.sql.exec('CREATE INDEX IF NOT EXISTS newsletter_delivery_time ON newsletter_deliveries(started_at)');
+<<<<<<< HEAD
     this.storage.sql.exec(`CREATE TABLE IF NOT EXISTS newsletter_reported (
       item TEXT PRIMARY KEY, published_at TEXT, delivery TEXT NOT NULL, reported_at TEXT NOT NULL)`);
     this.storage.sql.exec('CREATE INDEX IF NOT EXISTS newsletter_reported_time ON newsletter_reported(reported_at)');
@@ -65,6 +76,14 @@ export class NewsletterStore {
     this.storage.sql.exec(`CREATE TABLE IF NOT EXISTS newsletter_documents (
       id TEXT PRIMARY KEY, filename TEXT NOT NULL, body BLOB NOT NULL, created_at TEXT NOT NULL,
       delivery_key TEXT, delivery_state TEXT NOT NULL DEFAULT 'pending')`);
+=======
+    // Added after the table shipped: a deployment whose log predates it gains the column in place.
+    const columns = this.storage.sql.exec('PRAGMA table_info(newsletter_deliveries)').toArray();
+    if (!columns.some((c) => c.name === 'stories')) this.storage.sql.exec('ALTER TABLE newsletter_deliveries ADD COLUMN stories TEXT');
+    const documentColumns = this.storage.sql.exec('PRAGMA table_info(newsletter_documents)').toArray();
+    if (!documentColumns.some(c => c.name === 'delivery_key')) this.storage.sql.exec('ALTER TABLE newsletter_documents ADD COLUMN delivery_key TEXT');
+    if (!documentColumns.some(c => c.name === 'delivery_state')) this.storage.sql.exec("ALTER TABLE newsletter_documents ADD COLUMN delivery_state TEXT NOT NULL DEFAULT 'pending'");
+>>>>>>> sattva/main
     this.initialised = true;
   }
 
@@ -201,6 +220,7 @@ export class NewsletterStore {
     });
   }
 
+<<<<<<< HEAD
   finishDelivery(key, values = {}) {
     this.recordDeliveryProgress(key, values, true);
     this.pruneDeliveries();
@@ -215,6 +235,69 @@ export class NewsletterStore {
       // Write acknowledged identities in the same transaction as their part outcomes.
       if (reported.length) this.markReportedRows(reported, key, { windowFrom });
     });
+  }
+
+  // Reserve a manual attempt before any model, PDF, or email work. This desk-wide rolling
+  // budget survives object restarts and cannot be bypassed with another address or client IP.
+  // Scheduled editions use their existing once-per-edition claims and do not spend this budget.
+  claimManualDelivery(now = this.now()) {
+    return this.storage.transactionSync(() => {
+      this.rows('DELETE FROM newsletter_manual_attempts WHERE at <= ?', now - MANUAL_SEND_WINDOW_MS);
+      const budget = this.rows('SELECT COUNT(*) AS count, MIN(at) AS first FROM newsletter_manual_attempts')[0];
+      if (budget.count >= MANUAL_SEND_LIMIT) return { ok: false, retryAt: iso(budget.first + MANUAL_SEND_WINDOW_MS) };
+      this.rows('INSERT INTO newsletter_manual_attempts (id, at) VALUES (?, ?)', crypto.randomUUID(), now);
+      return { ok: true };
+    });
+  }
+
+  // Immutable PDFs have opaque bearer links and no subscriber addresses. Keep them independently
+  // of the short delivery log: pruning that log must not break a previously emailed download.
+  saveDocument(body, filename, deliveryKey) {
+    if (!(body instanceof Uint8Array) || body.byteLength > 1_500_000) throw new Error('Invalid newsletter PDF');
+    const id = crypto.randomUUID();
+    this.rows('INSERT INTO newsletter_documents (id, filename, body, created_at, delivery_key) VALUES (?, ?, ?, ?, ?)', id, filename, body, iso(this.now()), deliveryKey);
+    return id;
+  }
+
+  finishDocument(id, outcomes) {
+    if (outcomes.some(o => o.ok)) {
+      this.rows("UPDATE newsletter_documents SET delivery_state = 'sent' WHERE id = ?", id);
+    } else if (outcomes.length && outcomes.every(o => ['unauthorised', 'rate-limited', 'refused', 'no-token'].includes(o.reason))) {
+      this.rows('DELETE FROM newsletter_documents WHERE id = ?', id);
+    } else {
+      // A timeout, connection loss, 5xx or malformed response can follow an accepted email.
+      // Keep its link usable, but track that state and the delivery key independently of log
+      // pruning, so uncertain/interrupted documents remain identifiable rather than orphaned.
+      this.rows("UPDATE newsletter_documents SET delivery_state = 'delivery-uncertain' WHERE id = ?", id);
+=======
+  finishDelivery(key, { sent = 0, failed = 0, reason = null, outcomes = [], subject = null, summary = null, stories = null } = {}) {
+    this.recordDeliveryProgress(key, { sent, failed, reason, outcomes, subject, summary, stories }, true);
+    this.pruneDeliveries();
+  }
+
+  // Persist each accepted part before the next external send. A restart leaves the edition
+  // unfinished with its actual part outcomes; only confirmed story keys become read history.
+  recordDeliveryProgress(key, { sent = 0, failed = 0, reason = null, outcomes = [], subject = null, summary = null, stories = null } = {}, finished = false) {
+    const keys = Array.isArray(stories) ? stories.filter((k) => typeof k === 'string' && k.length <= 512).slice(0, 2000) : null;
+    this.rows(
+      'UPDATE newsletter_deliveries SET finished_at = ?, sent = ?, failed = ?, reason = ?, subject = ?, outcomes = ?, summary = ?, stories = ? WHERE key = ?',
+      finished ? iso(this.now()) : null, sent, failed, reason, subject, JSON.stringify(outcomes || []), summary ? JSON.stringify(summary) : null, keys ? JSON.stringify(keys) : null, key,
+    );
+  }
+
+  /** The keys of every story the last few SENT deliveries carried — what the next brief may treat as read. */
+  sentStoryKeys(limit = SENT_HISTORY) {
+    const out = new Set();
+    for (const row of this.rows('SELECT stories FROM newsletter_deliveries WHERE stories IS NOT NULL ORDER BY started_at DESC LIMIT ?', limit)) {
+      for (const key of parseJson(row.stories, [])) if (typeof key === 'string') out.add(key);
+>>>>>>> sattva/main
+    }
+  }
+
+  document(id) {
+    if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id || '')) return null;
+    const row = this.rows('SELECT filename, body FROM newsletter_documents WHERE id = ?', id)[0];
+    return row ? { filename: row.filename, body: new Uint8Array(row.body) } : null;
   }
 
   // Reserve a manual attempt before any model, PDF, or email work. This desk-wide rolling

@@ -284,6 +284,26 @@ try {
   ok('...and the button is a 44px touch target', (await button().boundingBox()).height >= 44);
   await page.screenshot({ path: '/tmp/glow-newsletter-mobile.png' });
   await page.keyboard.press('Escape');
+<<<<<<< HEAD
+=======
+  // Ask Research is the landing tab and reserves its viewport for the answer, so at 560px and under
+  // the control cluster is flattened into the header row and this button is ordered up beside the
+  // scope toggle at 2rem. That is a deliberate trade against the 44px target above — a fourth 44px
+  // icon does not fit beside the status pill at 390px and wrapping the cluster costs the transcript
+  // a whole 44px row (scripts/verify-research-stream-ui.mjs asserts that reading space). Assert the
+  // exception rather than leaving it to hold by accident of which route this suite happens to open.
+  await page.goto(`${base}/#/research/ask-research?scope=portfolio`);
+  // The header mounts before the destination workspace; compact styling depends on that workspace.
+  await page.locator('.research-workspace').waitFor();
+  await button().waitFor();
+  const compact = await button().evaluate((n) => {
+    const r = n.getBoundingClientRect();
+    return { w: Math.round(r.width), h: Math.round(r.height), label: n.getAttribute('aria-label'), name: (n.textContent || '').trim() };
+  });
+  ok('on Ask Research at 390px it stays visible and named, at the compact size that keeps the answer its row',
+    compact.w >= 32 && compact.h >= 32 && compact.w <= 36 && /Newsletter/.test(compact.label || '') && /Newsletter/.test(compact.name),
+    JSON.stringify(compact));
+>>>>>>> sattva/main
   await page.setViewportSize({ width: 1440, height: 1000 });
   await button().click();
   await page.locator('[data-brief-form="me"]').waitFor();

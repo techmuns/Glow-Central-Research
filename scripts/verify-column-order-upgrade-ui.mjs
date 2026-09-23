@@ -3,15 +3,21 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { resolve, extname, sep } from 'node:path';
+<<<<<<< HEAD
 import { NEWS_QUERY_INDEX_VERSION } from '../public/js/data/news-query-index.js';
+=======
+>>>>>>> sattva/main
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root=resolve('public');let upgraded=false;
 const html=`<!doctype html><main id="fixture"></main><script type="module">
 import { scoreTable } from '/js/ui/screener.js';
 import { watchWorkerChanges } from '/js/core/app-updates.js';
+<<<<<<< HEAD
 import { NEWS_QUERY_INDEX_VERSION, newsQueryIdentities } from '/js/data/news-query-index.js';
 window.newsQueryVersion=NEWS_QUERY_INDEX_VERSION;
 window.newsQueryKeys=newsQueryIdentities({url:'https://example.test/article',tradingViewId:'report',date:'2026-09-22',source:'Publisher',title:'Same report'}).length;
+=======
+>>>>>>> sattva/main
 const table=scoreTable({columnLayoutKey:'upgrade',rows:[{name:'Company',value:123}],showRank:false,showAvatar:false,name:r=>r.name,key:r=>r.name,columns:[{label:'Shares',get:r=>r.value}]});
 fixture.innerHTML=table.html;table.wire(fixture);
 watchWorkerChanges(navigator.serviceWorker,()=>location.reload());
@@ -28,9 +34,12 @@ const server=createServer((req,res)=>{
    if(!upgraded)body=body.replace(/const CACHE_NAME = .*;/,'const CACHE_NAME = `${CACHE_PREFIX}previous-column-release`;');
   }
   if(path==='/js/ui/column-order.js'&&!upgraded)body='export function installColumnOrder() {}';
+<<<<<<< HEAD
   if(path==='/js/data/news-query-index.js'&&!upgraded)body=body.toString()
    .replace(/NEWS_QUERY_INDEX_VERSION = \d+/, 'NEWS_QUERY_INDEX_VERSION = 3')
    .replace('const story = includeStory && articleStoryKey(row);', 'const story = false;');
+=======
+>>>>>>> sattva/main
   res.setHeader('content-type',{'.js':'text/javascript','.json':'application/json','.css':'text/css','.svg':'image/svg+xml','.png':'image/png'}[extname(file)]||'application/octet-stream');res.end(body);
  }catch{res.writeHead(404).end();}
 });
@@ -43,6 +52,7 @@ try{
  await page.goto(origin);await page.waitForFunction(()=>window.ready&&navigator.serviceWorker.controller);
  await page.reload();await page.waitForFunction(()=>window.ready);
  assert.equal(await page.locator('[data-column-reorder]').count(),0);
+<<<<<<< HEAD
  assert.equal(await page.evaluate(()=>window.newsQueryVersion),3);
  assert.equal(await page.evaluate(()=>window.newsQueryKeys),2);
  const before=await page.evaluate(()=>caches.keys());assert(before.some(key=>key.includes('previous-column-release')));
@@ -50,6 +60,11 @@ try{
  await page.waitForSelector('[data-column-reorder]');
  assert.equal(await page.evaluate(()=>window.newsQueryVersion),NEWS_QUERY_INDEX_VERSION);
  assert.equal(await page.evaluate(()=>window.newsQueryKeys),3,'the returning session gains dated-headline companions');
+=======
+ const before=await page.evaluate(()=>caches.keys());assert(before.some(key=>key.includes('previous-column-release')));
+ upgraded=true;await page.evaluate(async()=>(await navigator.serviceWorker.getRegistration()).update());
+ await page.waitForSelector('[data-column-reorder]');
+>>>>>>> sattva/main
  await page.locator('th').first().focus();await page.keyboard.press('Alt+ArrowRight');
  assert.deepEqual((await page.locator('th').allTextContents()).map(s=>s.trim()),['Shares','Company']);
  await page.reload();await page.waitForSelector('[data-column-reorder]');
