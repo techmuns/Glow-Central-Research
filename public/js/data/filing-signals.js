@@ -20,8 +20,8 @@ export const SAST_HOLDING_DISCLOSURE = /\b(?:sast|substantial acquisition of sha
 // Regulations 29 and 31 (and the Regulation 10 exemption reports), a pledge or an inter-se transfer.
 // A filing that cites the regulations because an acquisition COMPLETED — "Completion of acquisition
 // of 51% stake pursuant to SEBI (SAST) Regulations, 2011" — is a change of control and keeps its
-// reading. Measured on the retained captures: all 108 disclosures carry one of these markers, and
-// none says an acquisition completed.
+// reading. Measured on both deployments' retained captures: every one of those disclosures carries
+// one of these markers, and none says an acquisition completed.
 export const SAST_DISCLOSURE_MARKER = /\breg(?:ulation)?s?\.?\s*(?:29|31|10)\b|\bdisclos\w*|\bshareholding\b|\bencumbr\w*|\bpledg\w*|\binter[- ]?se\b/;
 export const ACQUISITION_COMPLETED = /\bcomplet(?:ion|ed|es|ing)\b[^.]{0,20}\bacquisition\b|\bacquisition\b[^.]{0,60}\bcomplet(?:ed|ion)\b/;
 export const TAKEOVER_EVENT = /\bopen offer\b|\bpublic announcement\b|\bdetailed public statement\b|\bletter of offer\b/;
@@ -68,10 +68,11 @@ export function announcementSignal(row = {}) {
   // certain in a way a name-matched search result never is.
   const story = classifyStory({ title: row.title || row.headline, summary: textOf(row.subCategory, row.description) });
   // TWO KEYWORD READINGS THE FILING'S OWN WORDS CONTRADICT, and both were measured, not guessed.
-  // Over the three retained days of both exchanges' captures (23 September 2026):
-  //   • 108 filings were high-importance ONLY because "Acquisition" matched the NAME of SEBI's
+  // Over the three retained days of both exchanges' captures (23 September 2026 — 108 filings on
+  // Glow's capture, 106 on Sattva's, the two capture windows differing by a few hours):
+  //   • that many filings were high-importance ONLY because "Acquisition" matched the NAME of SEBI's
   //     (Substantial Acquisition of Shares and Takeovers) Regulations — a holder's shareholding
-  //     disclosure under Regulation 29 or 31, not a business being bought. Six were on book companies.
+  //     disclosure under Regulation 29 or 31, not a business being bought. A handful were on each book.
   //     Ownership disclosures have their own feed and thresholds (Insider Trades · SAST). A filing that
   //     is an actual takeover — an open offer, its public announcement or letter of offer — keeps it.
   //   • 9 were high-importance ONLY because "Receipt of Order" matched an order a court, tribunal or
