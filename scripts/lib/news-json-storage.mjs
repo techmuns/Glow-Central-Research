@@ -29,11 +29,11 @@ function pruneGeneratedParts(path, keep = new Set()) {
 function verifyQueryIndex(path, part, field, items) {
   const index = part.queryIndex;
   if (!index) return;
-  if (index.version !== NEWS_QUERY_INDEX_VERSION || index.sourceSha256 !== part.sha256 || index.rows !== part.rows)
+  if (![3, NEWS_QUERY_INDEX_VERSION].includes(index.version) || index.sourceSha256 !== part.sha256 || index.rows !== part.rows)
     throw Error('News query index source mismatch');
   const body = readFileSync(shardPath(path, index.file), 'utf8');
   if (Buffer.byteLength(body) !== index.bytes || hash(body) !== index.sha256) throw Error('News query index integrity mismatch');
-  const expected = items.map(item => newsQueryIndexRow(field === 'byTicker' ? item[1] : item));
+  const expected = items.map(item => newsQueryIndexRow(field === 'byTicker' ? item[1] : item, { includeStory: index.version >= 4 }));
   if (!isDeepStrictEqual(parseShard(body, index), expected)) throw Error('News query index changed source dates or identities');
 }
 

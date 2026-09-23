@@ -10,15 +10,15 @@ function fingerprint(value) {
   for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);
   return (hash >>> 0).toString(36);
 }
-export function newsQueryIdentities(row) {
-  const story = articleStoryKey(row);
+export function newsQueryIdentities(row, { includeStory = true } = {}) {
+  const story = includeStory ? articleStoryKey(row) : null;
   return [row?.url ? `url:${canonicalArticleUrl(row.url)}` : '',
     row?.tradingViewId ? `tv:${row.tradingViewId}` : '', story ? `story:${story}` : ''].filter(Boolean).map(fingerprint);
 }
 export const newsQueryIdentity = row => newsQueryIdentities(row)[0] || '';
-export function newsQueryIndexRow(row) {
+export function newsQueryIndexRow(row, options) {
   const day = newsPublicationDay(row), instantDay = row?.publishedAt ? newsDay(row.publishedAt) : null;
-  return [day, instantDay === day ? null : instantDay, newsQueryIdentities(row)];
+  return [day, instantDay === day ? null : instantDay, newsQueryIdentities(row, options)];
 }
 export const validNewsQueryIndex = (rows, count) => Array.isArray(rows) && rows.length === count && rows.every(row =>
   Array.isArray(row) && row.length === 3 && row.slice(0, 2).every(day => day === null || /^\d{4}-\d{2}-\d{2}$/.test(day)) && Array.isArray(row[2]) && row[2].length <= 3 && row[2].every(id => typeof id === 'string'));

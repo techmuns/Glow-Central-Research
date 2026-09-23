@@ -32,6 +32,19 @@ try {
   const duplicatedOrder = structuredClone(manifest);
   duplicatedOrder._jsonShards.parts[0].order[0] = duplicatedOrder._jsonShards.parts[0].order[1];
   assert.throws(() => shardSpec(duplicatedOrder), /order/, 'duplicate/missing original positions cannot pass');
+
+  // Already-published V3 indexes remain auditable while the next normal capture
+  // writes V4. Browser selection rebuilds these from original verified parts.
+  const legacyManifest = structuredClone(manifest);
+  for (const part of legacyManifest._jsonShards.parts) {
+    const items = JSON.parse(readFileSync(shardPath(path, part.file))).items;
+    const body = Buffer.from(JSON.stringify({ items: items.map(item => newsQueryIndexRow(item[1], { includeStory: false })) }));
+    part.queryIndex = { ...part.queryIndex, version: 3, sha256: digest(body), bytes: body.length, file: `news.parts/${digest(body)}.json` };
+    writeFileSync(shardPath(path, part.queryIndex.file), body);
+  }
+  writeFileSync(path, JSON.stringify(legacyManifest));
+  assert.deepEqual(readNewsJson(path, null, { verifyIndexes: true }), value, 'existing V3 publication remains verifiable');
+  writeFileSync(path, JSON.stringify(manifest));
   const index = spec.parts[0].queryIndex, indexPath = shardPath(path, index.file), originalIndex = readFileSync(indexPath);
   const wrongIndex = JSON.parse(originalIndex); wrongIndex.items[0][0] = '2020-01-01';
   const wrongBytes = Buffer.from(JSON.stringify(wrongIndex));
