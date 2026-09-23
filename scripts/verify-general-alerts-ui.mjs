@@ -644,6 +644,15 @@ try {
   await inputPage.goto(`${origin}/embed`);
   const embedded = await (await inputPage.locator('iframe').elementHandle()).contentFrame();
   await settled(embedded);
+  await embedded.evaluate(() => {
+    window.nativeWheelEvents = [];
+    addEventListener('wheel', event => {
+      const table = event.target.closest?.('[data-table-scroll]');
+      window.nativeWheelEvents.push({ target: event.target.tagName, inTable: !!table,
+        top: table?.scrollTop, deltaY: event.deltaY, prevented: event.defaultPrevented, trusted: event.isTrusted });
+      if (window.nativeWheelEvents.length > 3) window.nativeWheelEvents.shift();
+    }, { passive: true });
+  });
   assert.equal(await embedded.getByRole('combobox', { name: 'Date range' }).inputValue(), 'today', 'fresh embedded dashboard also defaults to Today');
   await embedded.getByRole('combobox', { name: 'Date range' }).selectOption('all');
   for (const size of [{ width: 1440, height: 800 }, { width: 1024, height: 640 }]) {
@@ -653,22 +662,25 @@ try {
     await scroller.evaluate(el => { el.scrollTop = 0; el.scrollIntoView({ block: 'end' }); });
     await stableReadingSurface(embedded);
     const box = await scroller.boundingBox();
-    // After resizing an iframe, layout can be stable before native pointer targeting catches
-    // up. A raw coordinate move sent the wheel to the surrounding SECTION. Use the real
-    // target's actionability check and require hover before measuring native table scrolling.
-    await scroller.hover({ position: { x: 200, y: Math.min(box.height - 40, box.height / 2) } });
-    await embedded.waitForFunction(() => document.querySelector('[data-table-scroll]').matches(':hover'));
     let previous = 0;
     const starts = new Set();
     for (let step = 0; step < 24; step++) {
+      // A wheel call returns before native scrolling and variable-row measurement finish.
+      // Settle the preceding gesture and hit-test the current rows before the next one;
+      // otherwise the browser can target the surrounding SECTION after row replacement.
+      await stableReadingSurface(embedded);
+      await scroller.hover({ position: { x: 200, y: Math.min(box.height - 40, box.height / 2) } });
+      await embedded.waitForFunction(() => document.querySelector('[data-table-scroll]').matches(':hover'));
+      const beforeWheel = await scroller.evaluate(el => el.scrollTop);
       await inputPage.mouse.wheel(0, 180);
       try {
-        await embedded.waitForFunction(top => document.querySelector('[data-table-scroll]').scrollTop > top, previous);
+        await embedded.waitForFunction(top => document.querySelector('[data-table-scroll]').scrollTop > top, beforeWheel);
       } catch (error) {
         const state = await scroller.evaluate(el => ({ top: el.scrollTop, height: el.clientHeight,
           scrollHeight: el.scrollHeight, bounds: el.getBoundingClientRect().toJSON(),
-          documentScroll: window.scrollY, viewport: { width: innerWidth, height: innerHeight } }));
-        throw Error(`Native iframe wheel did not advance: ${JSON.stringify({ size, step, previous, box, state })}`, { cause: error });
+          documentScroll: window.scrollY, viewport: { width: innerWidth, height: innerHeight },
+          wheelEvents: window.nativeWheelEvents, connected: el.isConnected }));
+        throw Error(`Native iframe wheel did not advance: ${JSON.stringify({ size, step, previous, beforeWheel, box, state })}`, { cause: error });
       }
       const sample = await embedded.evaluate(async () => {
         await new Promise(requestAnimationFrame);
@@ -690,6 +702,7 @@ try {
       starts.add(sample.start);
     }
     assert(starts.size >= 2, 'wheel crosses multiple virtual windows');
+    console.log(`Verified 24 native wheel steps in ${size.width}px iframe`);
   }
   await embedded.evaluate(() => window.dispose());
 
