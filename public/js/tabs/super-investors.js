@@ -53,6 +53,7 @@ let liveRouteCompany = null;
 // chose while scope changes and live-book arrivals repaint the tab; switching to Institutions or
 // leaving Super Investors resets it.
 let liveSection = 'investors';
+let changesView = { period: 'quarter' };
 // Institutions mirrors that contract: the fund tables remain the default, while Quarterly Changes
 // is a cross-book destination whose selection survives a scope repaint but not leaving the view.
 let filedSection = 'institutions';
@@ -70,7 +71,7 @@ export function render(ctx) {
   liveView = seeded.view;
   // A sub-view change does not destroy this module. Reset here when the reader leaves Superstar
   // Investors so returning from Institutions opens on the documented All Investors default.
-  if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') liveSection = 'investors';
+  if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') { liveSection = 'investors'; changesView = { period: 'quarter' }; }
   if (ctxRef?.subview === 'institutions' && ctx.subview !== 'institutions') filedSection = 'institutions';
   renderToken++;
   ctxRef = ctx;
@@ -100,6 +101,7 @@ export function destroy() {
   // Leaving is a deliberate exit; coming back should be a clean table rather than last visit's
   // half-applied filter. Only a repaint mid-load carries the view forward.
   liveView = null;
+  changesView = { period: 'quarter' };
   liveSection = 'investors';
   filedSection = 'institutions';
 }
@@ -175,6 +177,8 @@ function paintIndividuals(ctx) {
     disposers,
     section: liveSection,
     tableView: liveView,
+    changesView,
+    onChangesView: (view) => { changesView = view; },
     onView: (v) => (liveView = v),
     onSection: (section) => {
       if (section === liveSection || ctxRef?.subview !== 'superstar-investors') return;

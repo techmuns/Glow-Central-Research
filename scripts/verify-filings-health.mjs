@@ -31,6 +31,10 @@ categoryInventory.announcements.categoryInventoryVerified = false;
 assert(assess(categoryInventory).findings.some((finding) => finding.source === 'announcements' &&
   finding.code === 'category-inventory-unverified' && finding.severity === 'warning'));
 
+const identityOutage = structuredClone(healthy);
+identityOutage.announcements.identityDirectory = { ok: false, attemptedAt: recent, lastSuccessAt: recent, source: 'retained' };
+assert(assess(identityOutage).findings.some(f => f.code === 'identity-directory-unavailable'), 'fresh filings cannot mask an unavailable identity directory');
+
 const topLevelOk = { lastSuccessAt: recent, recentCheckedAt: recent, ranges: [{ from, to }] };
 const bseStatusIndex = { version: 1, requestedFrom: from, requestedTo: to, updatedAt: recent,
   companies: [

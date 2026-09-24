@@ -583,6 +583,7 @@ export function sourceGroups() {
           cadence:
             `Scheduled every two hours, including weekends; missed date windows are retried and older rows are archived.${clause(num(() => annFeed.meta().windowDays), ' Rolling <n>-day window.')}${clause(num(() => annFeed.meta().baseRowCount), ' <n> filings in the current file.')}${clause(num(() => annFeed.meta().baseCovered), ' <n> companies filed something.')}`,
           status: 'live',
+          details: annFeed.meta().identityDirectory?.ok === false ? ['The company directory could not be refreshed. Filings are retained; company matching is partial.', `Last successful directory check: ${annFeed.meta().identityDirectory?.lastSuccessAt || 'unavailable'}`] : [],
           file: 'worker/bse-ann.mjs · scripts/scrape-bse-announcements.mjs · scripts/capture-company-filings.mjs · .github/workflows/announcements-refresh.yml',
         },
         {
@@ -773,7 +774,7 @@ export function sourceGroups() {
     if (!item) continue;
     item.readState = sourceReadState({ at: meta?.fetchedAt || meta?.capturedAt || meta?.generated_at || meta?.checkedAt,
       failed: !!meta?.reason || !!meta?.degraded || !!meta?.lastReadFailed || !!meta?.error,
-      partial: Number(meta?.failed) > 0 || (Array.isArray(meta?.failures) ? meta.failures.length > 0 : Number(meta?.failures) > 0), maxAgeMs });
+      partial: meta?.identityDirectory?.ok === false || Number(meta?.failed) > 0 || (Array.isArray(meta?.failures) ? meta.failures.length > 0 : Number(meta?.failures) > 0), maxAgeMs });
   }
   const telegramSource = groups.flatMap(g => g.items).find(i => i.name === 'Telegram — a public research channel');
   const chatterSource = groups.flatMap(g => g.items).find(i => i.name === 'SentimentDash — mention counts and sentiment');

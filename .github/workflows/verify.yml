@@ -17,7 +17,7 @@ jobs:
           curl --fail --silent --show-error --location https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o "$RUNNER_TEMP/actionlint.tar.gz"
           echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
           tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
-          "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= .github/workflows/mutual-funds-refresh.yml .github/workflows/verify.yml
+          "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= .github/workflows/mutual-funds-refresh.yml .github/workflows/investor-disclosures-refresh.yml .github/workflows/verify.yml
   contracts:
     runs-on: ubuntu-latest
     # Full-history alert checks exceeded the former ten-minute job budget while
@@ -31,7 +31,7 @@ jobs:
       - name: Verify Telegram parsing, retention and resumable collection
         run: node scripts/verify-telegram.mjs && node scripts/verify-telegram-publishing.mjs && node scripts/verify-telegram-artifact.mjs && node scripts/verify-telegram-scheduler.mjs && node scripts/verify-telegram-health.mjs && python3 scripts/verify-telegram-api.py
       - name: Verify investor quarterly evidence and aggregation
-        run: node scripts/verify-super-investors.mjs
+        run: node scripts/verify-super-investors.mjs && node scripts/verify-holdings-integrity.mjs && node scripts/verify-investor-changes.mjs && node scripts/verify-public-holdings.mjs && node scripts/verify-investor-publishing.mjs
       - name: Verify refresh ownership and source targeting
         run: node scripts/verify-refresh.mjs
       - name: Verify evidence-based public chatter summaries
@@ -109,7 +109,7 @@ jobs:
       - name: Verify story grouping in the local Worker runtime
         run: npx --yes --package=wrangler@4.119.0 -c 'node scripts/verify-alert-stories-runtime.mjs'
       - name: Verify operational filing health
-        run: node scripts/verify-filings-health.mjs
+        run: node scripts/verify-filings-health.mjs && node scripts/verify-announcement-directory-fallback.mjs
       - name: Verify capture watchdog
         run: node scripts/verify-capture-watchdog.mjs
       - name: Verify retained combined corporate actions and dynamic scope
@@ -328,6 +328,10 @@ jobs:
       # Two browser contexts against one server: separate storage, one shared list. That pairing
       # is the only arrangement in which "everyone sees the same watchlist" is a claim about
       # anything, so the check runs the real store class behind an in-process route.
+      - name: Verify empty and populated Screener watchlist inventory without source requests
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-screener-watchlist-ui.mjs
       - name: Verify one shared watchlist across two devices, with named contributors
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
