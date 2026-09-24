@@ -5,7 +5,7 @@
       "error": "search-unavailable"
     },
     "isin:INE423A01024|ADANIENT": {
-      "lastAttemptAt": "2026-09-20T04:12:39+00:00",
+      "lastAttemptAt": "2026-09-24T23:16:12+00:00",
       "error": "search-unavailable",
       "lastResultCount": 105,
       "targetThrough": "2026-09-15T20:36:48+00:00",
@@ -1764,6 +1764,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-24T22:36:23.398962+00:00"
+    "checkedAt": "2026-09-24T23:16:12.508774+00:00"
   }
 }
