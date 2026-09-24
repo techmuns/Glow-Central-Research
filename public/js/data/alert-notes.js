@@ -12,7 +12,11 @@
 //
 // NOTHING HERE IS PERSISTED ON THE DEVICE. A note is a derived reading that the Worker already
 // keeps; holding a second copy in browser storage would be one more place for it to go stale.
+<<<<<<< HEAD
 import { noteItem, noteContent, acceptNote, NOTE_REQUEST_ITEMS, NOTE_REASON } from './alert-notes-shared.js';
+=======
+import { noteItem, noteContent, acceptNote, fiscalYearOf, NOTE_REQUEST_ITEMS, NOTE_REASON } from './alert-notes-shared.js';
+>>>>>>> sattva/main
 import { storyKindOf, developmentLine } from './alert-developments.js';
 import { sourceStatement } from './alert-claims.js';
 import * as coverage from './coverage.js';
@@ -43,10 +47,17 @@ let flushTimer = 0;
  * con-call's third-party analysis and a social post have no stated development to assess. */
 export function noteKindOf(dev) {
   const lead = dev?.lead;
+<<<<<<< HEAD
   if (!lead || !(lead.ticker || lead.entityId)) return null;
   const story = storyKindOf(lead);
   if (story === 'filing') return 'filing';
   if (story === 'news') return lead.feed === 'news' && lead.attribution?.status === 'confirmed' ? 'news' : null;
+=======
+  if (!lead || lead.private || lead.portfolioOnly || !(lead.ticker || lead.entityId)) return null;
+  const story = storyKindOf(lead);
+  if (story === 'filing') return 'filing';
+  if (story === 'news') return lead.attribution?.status === 'confirmed' ? 'news' : null;
+>>>>>>> sattva/main
   return KIND_OF_FEED[lead.feed] || null;
 }
 
@@ -77,7 +88,11 @@ export function noteRequestFor(dev, { fallback = null } = {}) {
   const item = noteItem({ id: 'q', kind, company: lead.company, ticker: lead.ticker, sector: noteSector(lead.ticker),
     day: dev.day || lead.day, line, headline: lead.headline, detail });
   if (!item) return null;
+<<<<<<< HEAD
   const key = noteContent(item);
+=======
+  const key = JSON.stringify([noteContent(item),fiscalYearOf(new Date(Date.now()+19800000).toISOString().slice(0,10))]);
+>>>>>>> sattva/main
   return { key, item, handle: handleOf(key) };
 }
 

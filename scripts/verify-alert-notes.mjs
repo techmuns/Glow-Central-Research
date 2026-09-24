@@ -51,6 +51,12 @@ const sent = JSON.parse(body.messages[0].content);
 assert.match(sent.CONTEXT.fiscalYears.current, /^FY27 \(April 2026 – March 2027\)$/);
 assert.equal(sent.ITEMS[0].statement, item.line, 'the model is shown the line the card prints');
 assert.equal(Object.hasOwn(sent.ITEMS[0], 'url'), false, 'no link or document is sent — headlines and statements only');
+<<<<<<< HEAD
+=======
+assert.equal(ok('Revenue increases substantially.').ok,false);
+assert.equal(ok('It could add 27 crore revenue.').ok,false,'FY27 does not authorise a 27-crore claim');
+assert.equal(shared.parseNotes(JSON.stringify([{id:'x',note:{}}]),new Set(['x'])).x,undefined);
+>>>>>>> sattva/main
 console.log('PASS the contract: bounded items, content-keyed, fiscal-year context, and every refusal the line runs on.');
 
 // ---------------------------------------------------------------------------------------
@@ -61,7 +67,11 @@ function sqlStorage() {
   return { sql: { exec: (sql, ...args) => { const rows = db.prepare(sql).all(...args); return { toArray: () => rows }; } } };
 }
 const KEY_ENV = { CLAUDE_KEY: 'ABSK-test-key-for-stub-only', BEDROCK_REGION: 'ap-south-1', BEDROCK_MODEL_ID: 'global.anthropic.claude-sonnet-5' };
+<<<<<<< HEAD
 const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ type: 'text', text: JSON.stringify(list) }] }), { status, headers: { 'content-type': 'application/json' } });
+=======
+const reply = (list, status = 200) => new Response(JSON.stringify({ stop_reason:'end_turn', content: [{ type: 'text', text: JSON.stringify(list) }] }), { status, headers: { 'content-type': 'application/json' } });
+>>>>>>> sattva/main
 {
   const calls = [];
   let answer = (items) => reply(items.map((i) => ({ id: i.id, note: 'Unlikely to move FY27 revenue at once; it could add to the development pipeline.' })));
@@ -156,7 +166,11 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
     headline: 'Puravankara bags ₹2,600-crore redevelopment project in Goregaon', attribution: confirmed, importance: 'high', direction: 'neutral', aiEligible: true, detail: 'Published by Mint' };
   const uncertain = { ...report, id: 'news:2', headline: 'Goregaon redevelopment: Puravankara ₹2,600 crore project explained', attribution: { ...confirmed, status: 'uncertain' } };
   // The card sees what the ranking admits; the stream sees everything. Same development, same question.
+<<<<<<< HEAD
   const cardDev = dev.foldDevelopments([report, filing], { companyNames: ['Puravankara Limited'] }).find((d) => d.lead === filing);
+=======
+  const cardDev = dev.foldDevelopments([report, filing], { companyNames: ['Puravankara Limited'] }).find((d) => d.lead.id === filing.id);
+>>>>>>> sattva/main
   const rowDev = dev.developmentOfRow(dev.foldAlertRows([uncertain, report, filing]).find((row) => row.id === filing.id));
   const fromCard = notes.noteRequestFor(cardDev, { fallback: ai.plainHeadline(filing) });
   const fromRow = notes.noteRequestFor(rowDev, { fallback: ai.plainHeadline(filing) });

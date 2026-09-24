@@ -10,6 +10,7 @@ import { createNewsWorkingSet } from '../public/js/data/news-working-set.js';
 import { newsQueryIndexRow, newsQueryIdentity, newsQueryIdentities } from '../public/js/data/news-query-index.js';
 import { dedupeArticles } from '../public/js/data/filings-shared.js';
 import { newsPeriodBounds } from '../public/js/data/news-window.js';
+import { dedupeArticles } from '../public/js/data/filings-shared.js';
 const dir = mkdtempSync(join(tmpdir(), 'sattva-query-boundaries-'));
 const originalFetch = globalThis.fetch, originalNow = Date.now, originalDocument = globalThis.document, originalTimeout = globalThis.setTimeout;
 const digest = data => createHash('sha256').update(data).digest('hex');
@@ -82,6 +83,14 @@ try {
   writeFileSync(path, JSON.stringify(manifest));
   const before = calls.length; await working.read('data/news.json');
   assert.equal(calls.length, before, 'unchanged verified parts are reused');
+  const laterCapture = '2026-09-16T17:30:00Z';
+  writeFileSync(path, JSON.stringify({ ...manifest, capturedAt: laterCapture, failed: { CHECKED: { reason: 'new-failure' } } }));
+  await working.prepare();
+  const checkedAgain = (await working.read('data/news.json')).value;
+  assert.equal(checkedAgain.byTicker, projected.byTicker, 'a rechecked unchanged selection reuses its complete original rows');
+  assert.equal(checkedAgain.capturedAt, laterCapture, 'reusing rows must still report the newly checked capture');
+  assert.deepEqual(checkedAgain.failed, { CHECKED: { reason: 'new-failure' } }, 'a new source failure cannot be concealed by projection reuse');
+  writeFileSync(path, JSON.stringify(manifest));
   working.release();
   const legacyIndexes = structuredClone(manifest);
   for (const part of legacyIndexes._jsonShards.parts) {
@@ -142,6 +151,36 @@ try {
   assert.equal(newValue.queryWindow.from, window.from, 'in-flight old preparation cannot certify a new period');
   assert.deepEqual(newValue.byTicker.ALPHA, rows.filter(row => row.date === '2026-08-01' || row.url === rows[0].url || row.tradingViewId === 'same-story'));
   switching.release(); gate = null;
+
+  // A REPUBLISHED COPY IS FOLDED ON ITS HEADLINE, SO THE HEADLINE IS A COMPANION. TradingView
+  // republishes an outlet's story under its own address with that outlet's name, headline and date,
+  // and `dedupeArticles` folds the pair on exactly that. Past midnight IST the copy lands on the
+  // next day, and a one-day read that could not see the original kept a copy the full history drops
+  // (Mint's Pine Labs story, 21 September 2026, republished at 00:06 IST on the 22nd).
+  {
+    const synDir = join(dir, 'syndication');
+    mkdirSync(synDir, { recursive: true });
+    const original = { title: 'Mastercard to exit Alpha in a block deal', ticker: 'ALPHA', source: 'Mint', date: '2026-09-15',
+      publishedAt: '2026-09-15T15:15:53Z', url: 'https://publisher.test/alpha-block-deal', description: 'Original detail. '.repeat(150) };
+    const copy = { ...original, publishedAt: '2026-09-15T18:36:26Z', url: 'https://tradingview.test/news/alpha-block-deal', tradingViewId: 'tv-copy' };
+    const otherOutlet = { ...original, source: 'Business Standard', url: 'https://other.test/alpha-block-deal' };
+    const synValue = { capturedAt: value.capturedAt, byTicker: { ALPHA: [original, otherOutlet, copy] } };
+    const synPath = join(synDir, 'news.json');
+    for (const maxBytes of [32768, 4096]) {
+      writeNewsJson(synPath, synValue, { maxBytes });
+      const synWorking = createNewsWorkingSet({ window: () => ({ from: '2026-09-16', to: '2026-09-16', includeUndated: false }),
+        read: async input => input === 'data/news.json' ? { value: JSON.parse(readFileSync(synPath)), checkedAt: now }
+          : { value: { capturedAt: value.capturedAt, byTicker: {} } },
+        fetcher: async input => new Response(readFileSync(join(synDir, String(input).replace(/^data\//, '')))),
+        diskRead: () => undefined, diskWrite: () => {} });
+      assert.equal(!!shardSpec(JSON.parse(readFileSync(synPath))), maxBytes < 32768, 'both the inline and the partitioned index are read');
+      await synWorking.prepare();
+      assert.deepEqual((await synWorking.read('data/news.json')).value.byTicker.ALPHA, [original, copy],
+        `${maxBytes}: a copy published past midnight IST brings the original it folds into, and nothing another outlet printed`);
+      synWorking.release();
+    }
+    assert.deepEqual(dedupeArticles([original, otherOutlet, copy]), [original, otherOutlet], 'the pair folds as the full history folds it');
+  }
 
   // Exercise the real facade and explicit live searches in separate windows. Empty Today
   // must not trigger a company walk; the changing IST day is evaluated on every refresh.
@@ -220,6 +259,54 @@ try {
   await reopened.load(['ALPHA']);
   assert(reopened.rows().some(row=>row.url==='https://example.test/manual'), 'releasing a reading window cannot lose an uncheckpointed manual arrival');
   reopened.release(); live.dispose();
+  // Force the verified-part RAM cache to evict earlier parts. A small fixture would hide the
+  // old double-index walk and repeated projection downloads behind that cache.
+  const largePath = join(dir, 'large.json');
+  const large = { articles: Array.from({ length: 12 }, (_, i) => ({ title: `Retained original ${i}`,
+    date: '2026-09-17', url: `https://example.test/large/${i}`, description: 'Original detail. '.repeat(65536) })) };
+  writeNewsJson(largePath, large, { maxBytes: 1.5 * 1024 * 1024 });
+  let largeManifest = JSON.parse(readFileSync(largePath));
+  const largeCalls = [];
+  const largeRead = createNewsWorkingSet({ window: () => emptyPeriod,
+    read: async input => {
+      if (input === 'data/news.json') return { value: largeManifest };
+      throw Error('Optional independent family unavailable');
+    },
+    fetcher: async input => {
+      largeCalls.push(input);
+      // This fixture serves a news head from the standalone large.parts directory.
+      return new Response(readFileSync(join(dir, String(input).replace(/^data\/news.parts\//, 'large.parts/'))));
+    }, diskRead: async () => null, diskWrite: async () => {} });
+  // References must remain beside the owning manifest, including under the fixture route.
+  largeManifest._jsonShards.parts.forEach(part => {
+    part.file = part.file.replace('large.parts/', 'news.parts/');
+    part.queryIndex.file = part.queryIndex.file.replace('large.parts/', 'news.parts/');
+  });
+  await largeRead.prepare();
+  const largeProjection = (await largeRead.read('data/news.json')).value;
+  assert.deepEqual(largeProjection.articles, large.articles, 'every large original record survives the selection plan');
+  for (const part of largeManifest._jsonShards.parts)
+    assert.equal(largeCalls.filter(path => path.endsWith(part.queryIndex.file)).length, 1,
+      'projection never rereads an index evicted by a large source part');
+  const readsBeforeReuse = largeCalls.length;
+  assert.equal((await largeRead.read('data/news.json')).value.articles, largeProjection.articles);
+  assert.equal(largeCalls.length, readsBeforeReuse, 'a completed projection does not redownload evicted source parts');
+  const originals = new Set(largeManifest._jsonShards.parts.map(part => `data/${part.file}`));
+  await largeRead.prepare();
+  assert.equal((await largeRead.read('data/news.json')).value.articles, largeProjection.articles);
+  assert.equal(largeCalls.slice(readsBeforeReuse).filter(path => originals.has(path)).length, 0,
+    'rechecking unchanged manifests reuses the complete selection after RAM eviction');
+  large.articles[0].title = 'Corrected retained original';
+  writeNewsJson(largePath, large, { maxBytes: 1.5 * 1024 * 1024 });
+  largeManifest = JSON.parse(readFileSync(largePath));
+  largeManifest._jsonShards.parts.forEach(part => {
+    part.file = part.file.replace('large.parts/', 'news.parts/');
+    part.queryIndex.file = part.queryIndex.file.replace('large.parts/', 'news.parts/');
+  });
+  await largeRead.prepare();
+  assert.deepEqual((await largeRead.read('data/news.json')).value.articles, large.articles,
+    'a corrected source invalidates the saved projection without losing any originals');
+  largeRead.release();
   console.log('PASS date-part skipping, source order, correction companions, optional-index recovery, rapid switching, midnight and manual-arrival retention.');
 } finally {
   Date.now = originalNow; globalThis.fetch = originalFetch; globalThis.document = originalDocument; globalThis.setTimeout = originalTimeout;

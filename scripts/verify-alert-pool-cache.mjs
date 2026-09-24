@@ -3,7 +3,11 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
+<<<<<<< HEAD
 import { ALERT_POOL_CONTRACT, POOL_CAPTURES, POOL_FEEDS, shiftDay } from '../public/js/data/alert-pool-shared.js';
+=======
+import { ALERT_POOL_CONTRACT, ALERT_POOL_POLICY, POOL_CAPTURES, POOL_FEEDS, shiftDay } from '../public/js/data/alert-pool-shared.js';
+>>>>>>> sattva/main
 
 const storage = new Map();
 globalThis.localStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
@@ -29,7 +33,11 @@ function descriptor(kind, date, suffix = '') {
 }
 function reset() {
   pool.resetForTest(); requests = []; failedMember = null; gate = null; onRequest = null;
+<<<<<<< HEAD
   served = { version: 1, contract: ALERT_POOL_CONTRACT, artifact: 1, day, captures: structuredClone(captures), feeds: structuredClone(feeds),
+=======
+  served = { version: 1, contract: ALERT_POOL_CONTRACT, policy: ALERT_POOL_POLICY, artifact: 1, day, captures: structuredClone(captures), feeds: structuredClone(feeds),
+>>>>>>> sattva/main
     days: days.map(date => descriptor('days', date)), ai: days.map(date => descriptor('ai', date)) };
 }
 globalThis.fetch = async input => {

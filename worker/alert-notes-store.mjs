@@ -1,3 +1,8 @@
+<<<<<<< HEAD
+=======
+import { boundedJson } from '../public/js/data/family-book-contract.js';
+import { fiscalYearOf } from '../public/js/data/alert-notes-shared.js';
+>>>>>>> sattva/main
 // THE "SO WHAT?" NOTES — one fixed object (alert-notes:v1) on the provisioned CaptureRegistry class.
 //
 // A note is written once per development and kept, so what a reader pays for is one model request
@@ -83,19 +88,32 @@ export class AlertNotesStore {
    */
   async read(rawItems, { day = istDay(this.now()) } = {}) {
     if (!Array.isArray(rawItems) || rawItems.length > NOTE_REQUEST_ITEMS) throw new Error('Invalid notes request');
+<<<<<<< HEAD
     const notes = {};
     const missing = {};
+=======
+    const notes = Object.create(null);
+    const missing = Object.create(null);
+>>>>>>> sattva/main
     const wanted = [];
     const seenIds = new Set();
     for (const raw of rawItems) {
       const item = noteItem(raw);
       if (!item || seenIds.has(item.id)) { if (raw?.id) missing[String(raw.id).slice(0, 120)] = 'invalid'; continue; }
       seenIds.add(item.id);
+<<<<<<< HEAD
       wanted.push({ item, key: await sha256(noteContent(item)) });
     }
     const pending = [];
     for (const entry of wanted) {
       const found = this.rows('SELECT note, model FROM alert_notes WHERE key = ?', entry.key)[0];
+=======
+      wanted.push({ item, key: await sha256(JSON.stringify([noteContent(item),fiscalYearOf(day)])) });
+    }
+    const pending = [];
+    for (const entry of wanted) {
+      const found = this.rows('SELECT note, model FROM alert_notes WHERE key = ? AND created_at >= ?', entry.key, new Date(this.now()-NOTE_KEEP_DAYS*86400000).toISOString())[0];
+>>>>>>> sattva/main
       if (found) notes[entry.item.id] = { note: found.note, model: found.model, stored: true };
       else pending.push(entry);
     }
@@ -103,7 +121,11 @@ export class AlertNotesStore {
 
     // Somebody else's identical question is already with the model: wait for their answer. Nothing
     // between this check and the `set` below awaits, so two requests cannot both miss it.
+<<<<<<< HEAD
     const fresh = pending.filter((entry) => !this.inflight.has(entry.key));
+=======
+    const fresh = [...new Map(pending.filter((entry) => !this.inflight.has(entry.key)).map(entry=>[entry.key,entry])).values()];
+>>>>>>> sattva/main
     if (fresh.length) {
       const batch = this.generate(fresh, day);
       for (const entry of fresh) this.inflight.set(entry.key, batch.then((result) => result[entry.key]));
@@ -120,7 +142,11 @@ export class AlertNotesStore {
 
   /** One model request for every fresh item; resolves to `{ [key]: { note, model } | { reason } }`. */
   async generate(entries, day) {
+<<<<<<< HEAD
     const out = {};
+=======
+    const out = Object.create(null);
+>>>>>>> sattva/main
     const refuse = (reason) => { for (const entry of entries) out[entry.key] = { reason }; return out; };
     if (!bedrockConfigured(this.env)) return refuse('no-key');
     const { used } = this.budget();
@@ -141,11 +167,20 @@ export class AlertNotesStore {
       });
       if (!response.ok) {
         const reason = response.status === 401 || response.status === 403 ? 'refused' : response.status === 429 ? 'rate-limited' : 'upstream';
+<<<<<<< HEAD
+=======
+        await response.body?.cancel();
+>>>>>>> sattva/main
         for (const entry of asked) out[entry.key] = { reason };
         return out;
       }
       // A reply that is not the provider's JSON is unreadable, not an outage.
+<<<<<<< HEAD
       const body = await response.json().catch(() => null);
+=======
+      const body = await boundedJson(response, 32000).catch(() => null);
+      if (body?.stop_reason !== 'end_turn') { for (const entry of asked) out[entry.key] = {reason:'unreadable'}; return out; }
+>>>>>>> sattva/main
       reply = (Array.isArray(body?.content) ? body.content : []).filter((block) => block?.type === 'text' && typeof block.text === 'string').map((block) => block.text).join('\n');
     } catch (error) {
       for (const entry of asked) out[entry.key] = { reason: failureOf(error) };

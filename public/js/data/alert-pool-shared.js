@@ -11,8 +11,14 @@
 // so the Worker can import it without dragging the browser's data modules into its bundle.
 import { AI_ALERT_WINDOW_DAYS } from '../core/alert-window.js';
 
+<<<<<<< HEAD
 // v2 retains market-wide discovery context before the reader assigns company identities.
 export const ALERT_POOL_CONTRACT = 'alert-pool-v2';
+=======
+export const ALERT_POOL_CONTRACT = 'alert-pool-v3';
+// Derived classifications must match the reader even when source captures did not change.
+export const ALERT_POOL_POLICY = '2026-09-24-orderbook-v1';
+>>>>>>> sattva/main
 export const ALERT_POOL_ARTIFACT = 'alert-pool';
 export const ALERT_POOL_WORKFLOW = 'alert-pool-refresh.yml';
 export const ALERT_POOL_INDEX_MEMBER = 'index.json';
@@ -75,12 +81,16 @@ export function captureRevision(body) {
 }
 
 export const dayMember = (day) => `days/${day}.json.gz`;
-// The AI pool is cut the way it changes: one shard per day for the pool's thirty-one days, which
-// is where every build adds events, and one per calendar month before them, which a build leaves
-// byte-identical — so a returning reader re-downloads a day, never six months.
+// The AI pool uses one shard per day for the pool's thirty-one days, then one per older month.
+// Members are reusable within an artifact; a new artifact gives even unchanged spans new URLs.
 export const aiMember = (span) => `ai/${span}.json.gz`;
-export const MEMBER_PATTERN = /^(days\/\d{4}-\d{2}-\d{2}|ai\/\d{4}-\d{2}(?:-\d{2})?)\.json\.gz$/;
+export const MEMBER_PATTERN = /^(days\/\d{4}-\d{2}-\d{2}|ai\/\d{4}-\d{2}(?:-\d{2})?)(?:\.(technicals|announcements|insider|news|market-news))?\.json\.gz$/;
 export const isPoolMember = (name) => MEMBER_PATTERN.test(String(name || ''));
+export function feedMember(member, feedId) {
+  if (!POOL_FEEDS.includes(feedId) || !isPoolMember(member) || MEMBER_PATTERN.exec(member)[2])
+    throw Error('Invalid alert pool feed member');
+  return member.replace(/\.json\.gz$/, `.${feedId}.json.gz`);
+}
 
 export const shiftDay = (day, amount) => {
   const date = new Date(`${day}T00:00:00Z`);

@@ -80,10 +80,16 @@ export function buildDayShards(sourceFeeds, day) {
 /** Whether the ranking can read an event at all, for a pool built for `day`. */
 export function aiPoolKeep(event, day, oldest = aiPoolOldestDay(day), firstDay = shiftDay(day, -(AI_POOL_WINDOW_DAYS - 1))) {
   if (!isDay(event.day) || event.day > day) return false;
+<<<<<<< HEAD
   // Market-wide stories acquire company identities in the reader's discovery mapping, AFTER the
   // pool is read. A tickerless story outside the 14-day trigger window can still supply context
   // for a company in the current book. Keep the full context window for this feed; the reader's
   // normal attribution rules decide whether any story qualifies, without new priority or urgency.
+=======
+  // Market-wide source events acquire their company attribution during assembly,
+  // after the pool is read. Older stories can still become card context for the
+  // reader's book; judging their raw attribution here silently drops that context.
+>>>>>>> sattva/main
   if (event.feed === 'market-news' && event.day >= oldest) return true;
   if (event.day >= oldest && (newsCanSupportAI(event) || isRelatedNewsContext(event))) return true;
   return event.day >= firstDay && !event.ticker && !event.entityId;
@@ -148,10 +154,12 @@ const validColumns = (group) => !!group && Array.isArray(group.events) && Array.
   group.events.length === group.order.length && group.order.every((n) => Number.isSafeInteger(n) && n >= 0);
 
 /** A shard that does not have the contract's shape, so a caller never reads a partial one. */
-export function validateShard(shard, { day = null, span = null } = {}) {
+export function validateShard(shard, { day = null, span = null, feedId: expectedFeed = null } = {}) {
   if (!validShard(shard)) throw new Error('Alert pool shard has an unfamiliar shape');
   if (day && shard.day !== day) throw new Error(`Alert pool shard is for ${shard.day}, not ${day}`);
   if (span && shard.span !== span) throw new Error(`Alert pool shard is for ${shard.span}, not ${span}`);
+  if (expectedFeed && (Object.keys(shard.feeds).length !== 1 || !Object.hasOwn(shard.feeds, expectedFeed)))
+    throw new Error(`Alert pool shard does not contain exactly ${expectedFeed}`);
   for (const [feedId, group] of Object.entries(shard.feeds)) {
     if (!POOL_FEEDS.includes(feedId) || !validColumns(group) || (group.companions && !validColumns(group.companions)))
       throw new Error(`Alert pool shard carries an invalid ${feedId} group`);
