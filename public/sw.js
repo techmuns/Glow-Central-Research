@@ -29,7 +29,7 @@ const MODULE_ENTRIES = [APP_ENTRY, '/js/research/glow-bridge.js'];
 // read and eviction uses the same combined key, retaining atomic upgrades.
 // Glow's own reader markers lead; the template's follow, so a returning reader upgrades
 // once for both and neither side's revision can be dropped by the next sync.
-const CACHE_KEY = `${CACHE_NAME}-glow-price-levels-v1-glow-research-row-floor-v1-glow-table-scrollbars-v1-glow-order-book-topic-v1-glow-alert-filters-v1-glow-portfolio-reader-v3-glow-investor-dates-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v1-all-alerts-restore-v2-ai-card-updates-v1-performance-ownership-v1-ai-impact-triggers-v1-mf-active-passive-v4-ai-impact-links-v1-glow-newsletter-simple-v1-glow-newsletter-multi-add-v1-glow-newsletter-coverage-v1-glow-research-settle-v1-sattva-newsletter-v2-bounded-history-memory-v6-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v1-glow-muns-minute-v1-muns-price-label-v2-glow-kpi-impact-v2-ai-card-parity-v1-glow-alert-developments-v1-news-story-companions-v1-document-query-priority-v1`;
+const CACHE_KEY = `${CACHE_NAME}-glow-price-levels-v1-glow-research-row-floor-v1-glow-table-scrollbars-v1-glow-order-book-topic-v1-glow-alert-filters-v1-glow-portfolio-reader-v3-glow-investor-dates-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v1-all-alerts-restore-v2-ai-card-updates-v1-performance-ownership-v1-ai-impact-triggers-v1-mf-active-passive-v4-ai-impact-links-v1-glow-newsletter-simple-v1-glow-newsletter-multi-add-v1-glow-newsletter-coverage-v1-glow-research-settle-v1-sattva-newsletter-v2-bounded-history-memory-v6-news-query-performance-v1-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v1-glow-muns-minute-v1-muns-price-label-v2-glow-kpi-impact-v2-ai-card-parity-v1-glow-alert-developments-v1-news-story-companions-v1-document-query-priority-v1`;
 
 // This UI revision composes with the shared release without competing for its version line.
 const RELEASE_CACHE_KEY = `${CACHE_KEY}-ai-alerts-clean-search-v1`;
@@ -169,13 +169,32 @@ function cacheable(request, url) {
     url.pathname.startsWith('/js/') || url.pathname.startsWith('/css/') || url.pathname.startsWith('/data/') || url.pathname.startsWith('/assets/brand/');
 }
 
+const newsPartHash = url => /^\/data\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.parts\/([a-f0-9]{64})\.json$/.exec(url.pathname)?.[1];
+
 function revalidateInBackground(request, url) {
   // The service-worker file and cache name are the version boundary for code.
   // Rechecking a hundred immutable modules on every navigation creates the very
   // network/CPU burst this cache is meant to remove. Public data and the HTML
   // shell are mutable, so those still refresh quietly behind the retained view.
+  // A news part's address IS its SHA-256. Its manifest is rechecked normally and names a new
+  // address for every correction; re-downloading this unchanged body on each filter only
+  // competes with the selected period. The reader still verifies every part's hash and size.
   return request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html' ||
-    url.pathname.startsWith('/data/');
+    url.pathname.startsWith('/data/') && !newsPartHash(url);
+}
+
+async function validImmutablePart(response, request) {
+  const expected = newsPartHash(new URL(request.url));
+  if (!expected) return true;
+  // A corrupt success response must not become permanent. Only correctly addressed public
+  // part bytes enter this immutable tier; the caller also verifies its manifest's size/shape.
+  try {
+    const bytes = await response.clone().arrayBuffer();
+    if (!bytes.byteLength || bytes.byteLength > 4 * 1024 * 1024) return false;
+    const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))]
+      .map(byte => byte.toString(16).padStart(2, '0')).join('');
+    return digest === expected;
+  } catch { return false; }
 }
 
 async function fetchAndCache(cache, request, key) {
@@ -186,7 +205,7 @@ async function fetchAndCache(cache, request, key) {
     return null;
   }
   const control = response.headers.get('cache-control') || '';
-  if (response.ok && !/\b(?:private|no-store)\b/i.test(control)) {
+  if (response.ok && !/\b(?:private|no-store)\b/i.test(control) && await validImmutablePart(response, request)) {
     try {
       // Background document revalidation must preserve the same redirect-free
       // navigation response as installation (Cloudflare redirects .html URLs).
