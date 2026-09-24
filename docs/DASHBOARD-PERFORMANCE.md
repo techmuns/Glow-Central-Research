@@ -1,5 +1,42 @@
 # Dashboard-wide performance, 6 September 2026
 
+## Date-filter loading follow-up, 24 September 2026
+
+This release changes loading and computation only; dashboard markup, controls, wording and
+styles are unchanged. The shared News/All Alerts/AI Alerts raw-news reader now computes the
+transitive story-companion selection once per checked revision. It retains one selection byte
+per source row instead of rereading all compact indexes during each projection. Every original
+record, source order and cross-date correction still reaches the existing deduplicators.
+
+The precomputed pool additionally publishes optional per-feed members beside the original
+complete day/AI members. When current capture checks decline a feed, the browser downloads only
+the other usable feeds. All-feed reads keep their single complete member; old artifacts remain
+usable and original records remain available to bookmarks. Every new member is compared with its
+complete counterpart, including source records, order and correction companions. An explicit null
+descriptor means a verified empty feed/day; missing descriptors fall back to the complete member,
+and invalid member content fails into the original source-reading path. Private feeds are outside
+the route allowlist. Scheduled collection, history retention and revision checks are unchanged.
+
+Each reader has a 32 MiB budget for reusable verified projections. Manifest checks and companion
+selection still run on refresh; changed source hashes, original order, dates or companion sets
+invalidate reuse. Coverage/failure metadata is rebuilt from the latest check even when rows can
+be reused. Oversized projections remain readable without acquiring another cache owner, and
+releasing a reader drops its selections and projections. Exact text normalization uses a separate
+2 MiB cache shared by the news consumers. All Alerts now supplies its existing current-view guard
+to skip obsolete progress assembly; shared collection, final assembly and storage still finish.
+
+Content-addressed public `.parts/<sha256>.json` files no longer trigger redundant service-worker
+background revalidations. Mutable manifests retain their existing checks and changed data gets a
+new part address. Explicit reloads still reach the server; hash/size verification is unchanged.
+API, authorized and private response exclusions are unchanged.
+
+Glow retains its existing content-hash reuse across pool builds, including the new per-feed
+members, and its obsolete-build cancellation guard. Its portfolio adapter, extra tabs, credentials,
+source collection and theme remain unchanged. The release checks compare IDs and every field
+against Glow's complete captured history, exercise source corrections/failures and legacy artifacts,
+and verify automatic upgrades of returning sessions. These checks do not certify exhaustive
+upstream coverage or promise that cold full-history reads are instantaneous.
+
 ## Cold Universe follow-up, 15 September 2026
 
 The first complete Universe normalization now avoids four repeated costs: scanning every
