@@ -23,11 +23,11 @@ async function fixture({ fail = 'schedule', hasSnapshot = true, hasDocuments = t
   const entries = new Map();
   const jobs = [];
   const upstream = [];
-  const put = (key, value) => entries.set(`https://cache.invalid/concalls/${key}`, value);
+  const put = (key, value) => entries.set(`https://cache.invalid/sattva-central-research/concalls/${key}`, value);
   put('head', { rows: [scan], meta: { fetchedAt: '2026-09-20T11:00:00Z' } });
   put('tail', { rows: [], meta: { truncated: false } });
   put('schedule', { upcoming: [], today: { day: null, rows: [] } });
-  if (fail) entries.delete(`https://cache.invalid/concalls/${fail}`);
+  if (fail) entries.delete(`https://cache.invalid/sattva-central-research/concalls/${fail}`);
   put('screener-documents-v1', { capture: hasDocuments ? { rows: sourceRows, portfolioUpcoming: calendar } : null,
     source: { status: hasDocuments ? 'ok' : 'failed', checkedAt: new Date().toISOString(), records: hasDocuments ? 3 : 0 } });
   globalThis.caches = { default: {

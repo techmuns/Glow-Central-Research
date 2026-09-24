@@ -43,11 +43,16 @@ export async function unzipCapture(bytes) {
   const file = await unzipMember(bytes);
   return new TextDecoder().decode(await readLimited(new Response(new Blob([file]).stream().pipeThrough(new DecompressionStream('gzip')))));
 }
-export async function latestExchangeArtifact({ repo, token, fetchImpl = fetch, compressed = false }) {
+function github(repo, token) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo || '') || !token) throw new Error('Exchange archive delivery is not configured');
   const base = `https://api.github.com/repos/${repo}`;
-  const signal = AbortSignal.timeout(25000);
   const headers = { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'user-agent': 'Sattva-exchange-capture', 'x-github-api-version': '2022-11-28' };
+  return { base, headers };
+}
+
+/** The same trusted artifact selection as delivery, without downloading the trade history. */
+export async function latestExchangeArtifactInfo({ repo, token, fetchImpl = fetch, signal = AbortSignal.timeout(25000) }) {
+  const { base, headers } = github(repo, token);
   // Workers supports manual/follow only. readLimited rejects unexpected redirect responses.
   const get = async (path) => JSON.parse(new TextDecoder().decode(await readLimited(await fetchImpl(base + path, { headers, signal, redirect: 'manual' }), 1024 * 1024)));
   const runs = await get(`/actions/workflows/${EXCHANGE_WORKFLOW}/runs?branch=main&status=completed&per_page=5`);
@@ -57,19 +62,27 @@ export async function latestExchangeArtifact({ repo, token, fetchImpl = fetch, c
     const { artifacts } = await get(`/actions/runs/${run.id}/artifacts?per_page=20`);
     const artifact = artifacts?.find((a) => a.name === ARTIFACT_NAME && !a.expired);
     if (!artifact) continue;
-    if (!Number.isSafeInteger(artifact.id) || artifact.size_in_bytes > MAX_CAPTURE_BYTES) throw new Error('Invalid capture artifact');
-    const redirect = await fetchImpl(`${base}/actions/artifacts/${artifact.id}/zip`, { headers, redirect: 'manual', signal });
-    const location = redirect.headers.get('location');
-    await redirect.body?.cancel();
-    if (redirect.status !== 302 || !location || new URL(location).protocol !== 'https:') throw new Error('Capture archive download unavailable');
-    // Signed storage URL: NEVER send the GitHub credential to the redirect destination.
-    const download = await fetchImpl(location, { signal, redirect: 'manual' });
-    const bytes = await readLimited(download);
-    if (artifact.digest?.startsWith('sha256:')) {
-      const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((v) => v.toString(16).padStart(2, '0')).join('');
-      if (`sha256:${hash}` !== artifact.digest) throw new Error('Capture archive checksum mismatch');
-    }
-    return compressed ? { gzip: await unzipMember(bytes), id: artifact.id } : { text: await unzipCapture(bytes), id: artifact.id };
+    if (!Number.isSafeInteger(artifact.id) || artifact.id <= 0 || artifact.size_in_bytes > MAX_CAPTURE_BYTES) throw new Error('Invalid capture artifact');
+    return artifact;
   }
   return null;
+}
+
+export async function latestExchangeArtifact({ repo, token, fetchImpl = fetch, compressed = false }) {
+  const signal = AbortSignal.timeout(25000);
+  const artifact = await latestExchangeArtifactInfo({ repo, token, fetchImpl, signal });
+  if (!artifact) return null;
+  const { base, headers } = github(repo, token);
+  const redirect = await fetchImpl(`${base}/actions/artifacts/${artifact.id}/zip`, { headers, redirect: 'manual', signal });
+  const location = redirect.headers.get('location');
+  await redirect.body?.cancel();
+  if (redirect.status !== 302 || !location || new URL(location).protocol !== 'https:') throw new Error('Capture archive download unavailable');
+  // Signed storage URL: NEVER send the GitHub credential to the redirect destination.
+  const download = await fetchImpl(location, { signal, redirect: 'manual' });
+  const bytes = await readLimited(download);
+  if (artifact.digest?.startsWith('sha256:')) {
+    const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((v) => v.toString(16).padStart(2, '0')).join('');
+    if (`sha256:${hash}` !== artifact.digest) throw new Error('Capture archive checksum mismatch');
+  }
+  return compressed ? { gzip: await unzipMember(bytes), id: artifact.id } : { text: await unzipCapture(bytes), id: artifact.id };
 }

@@ -19,9 +19,11 @@
 //     read recomputes it on every pass.
 //
 // Members are addressed by artifact id, so a shard URL is immutable and the browser's HTTP cache
-// answers it without a request within that build. A new artifact has new URLs. Optional per-feed
-// members avoid downloading feeds whose revisions cannot be used. Decoded shards are kept in
-// memory for the current artifact only.
+// answers it without a request. Optional per-feed members avoid downloading declined feeds.
+// Across builds, an open reader reuses decoded shards only when
+// their member name and runner-published content hash still match. Capture revisions and source
+// status are checked again even when the shard bytes did not change. A reload uses HTTP caching
+// for the same artifact; another artifact has different URLs and must be downloaded again.
 import { authHeaders } from '../core/host-context.js';
 import { readEntry, KEYS } from '../core/store.js';
 import { validateShard, assembleFeedEvents } from './alert-pool-format.js';
@@ -49,7 +51,7 @@ export function bookSignature(holdings = []) {
 let indexRead = null; // { at, refresh, promise }
 let statusRead = null;
 let lastIndex = null; // the newest adopted index, with its artifact id
-const shards = new Map(); // member url -> { artifact, promise }
+const shards = new Map(); // contract/member/hash (or artifact URL without a hash) -> { promise }
 const results = new Map(); // read key -> the last successful read
 let disabledUntil = 0;
 
@@ -85,8 +87,11 @@ function readIndex(refresh) {
     entry.pending = false;
     if (!out.ok || !validIndex(out.value)) return null;
     if (lastIndex?.artifact !== out.value.artifact) {
-      // A new build: nothing decoded from the previous artifact is addressed by the new members.
-      for (const [url, held] of shards) if (held.artifact !== out.value.artifact) shards.delete(url);
+      // Artifact URLs change on every upload, including byte-identical history. Keep only the
+      // content identities this build still advertises; never reuse its predecessor's status.
+      const keep = new Set(memberDescriptors(out.value).map(({ member }) => shardKey(out.value, member)));
+      for (const key of shards.keys()) if (!keep.has(key)) shards.delete(key);
+      results.clear();
     }
     lastIndex = out.value;
     return out.value;
@@ -154,17 +159,29 @@ export async function deviceExtras(sessionRows = () => null) {
 
 function memberUrl(index, member) { return `api/alert-pool/${index.artifact}/${member}`; }
 
+function memberDescriptors(index) {
+  return [...index.days, ...index.ai].flatMap(entry => [entry, ...Object.values(entry.feedMembers || {}).filter(Boolean)]);
+}
+
+function shardKey(index, member) {
+  const entry = memberDescriptors(index).find((entry) => entry.member === member);
+  // Older indexes without a valid digest remain safe: their cache identity is the artifact URL.
+  return /^[a-f0-9]{64}$/.test(entry?.hash || '')
+    ? `${index.contract}/${index.policy}/${member}/${entry.hash}` : memberUrl(index, member);
+}
+
 function readShard(index, member, expected) {
   const url = memberUrl(index, member);
-  const held = shards.get(url);
+  const key = shardKey(index, member);
+  const held = shards.get(key);
   if (held) return held.promise;
-  const entry = { artifact: index.artifact, promise: (async () => {
+  const entry = { promise: (async () => {
     const out = await ask(url);
     if (!out.ok) throw new Error(`Alert pool member ${member} could not be read (${out.reason}${out.status ? ` ${out.status}` : ''})`);
     return validateShard(out.value, expected);
   })() };
-  entry.promise.then(() => { entry.settled = true; }, () => { if (shards.get(url) === entry) shards.delete(url); });
-  shards.set(url, entry);
+  entry.promise.then(() => { entry.settled = true; }, () => { if (shards.get(key) === entry) shards.delete(key); });
+  shards.set(key, entry);
   return entry.promise;
 }
 
@@ -186,7 +203,7 @@ function membersFor(mode, index, queryWindow, wanted = POOL_FEEDS) {
     const full = [{ member: entry.member, expected }];
     // Older artifacts remain usable. All-feed reads still use the single complete member;
     // a complete member already held in this session costs no extra request either.
-    if (wanted.length === POOL_FEEDS.length || shards.has(memberUrl(index, entry.member)) ||
+    if (wanted.length === POOL_FEEDS.length || shards.has(shardKey(index, entry.member)) ||
         !entry.feedMembers || !POOL_FEEDS.every(id => Object.hasOwn(entry.feedMembers, id) &&
           (entry.feedMembers[id] === null || entry.feedMembers[id]?.member === feedMember(entry.member, id)))) return full;
     return wanted.flatMap(id => entry.feedMembers[id] === null ? [] :
@@ -215,11 +232,12 @@ export async function read({ mode, day, queryWindow = null, refresh = false, isC
   if (Date.now() < disabledUntil && !refresh) return null;
   const index = await readIndex(refresh);
   if (!index || !isCurrent()) return null;
+  const active = () => isCurrent() && lastIndex?.artifact === index.artifact;
   if (index.day !== day) return null;
   const fullMembers = membersFor(mode, index, queryWindow);
   if (!fullMembers) return null;
   const [status, extras] = await Promise.all([readStatus(refresh), deviceExtras(sessionRows)]);
-  if (!status || !isCurrent()) return null;
+  if (!status || !active()) return null;
   const declined = new Map();
   const wanted = [];
   for (const feedId of POOL_FEEDS) {
@@ -231,17 +249,17 @@ export async function read({ mode, day, queryWindow = null, refresh = false, isC
   if (!wanted.length) return { feeds: new Map(), declined, index, mode, day, queryWindow };
   const members = wanted.length === POOL_FEEDS.length ? fullMembers : membersFor(mode, index, queryWindow, wanted);
   let decoded;
-  try { decoded = await readShards(index, members, isCurrent); }
+  try { decoded = await readShards(index, members, active); }
   catch (error) {
-    // Moving to another period is not an outage. Do not disable the fast path for the next
-    // selection (or another tab) for a minute because this view no longer needs its result.
-    if (!isCurrent()) return null;
+    // Navigating away or adopting a newer build is not an outage. In particular, it must not
+    // disable the pool for the next view for a minute or let an old read replace a new result.
+    if (!active()) return null;
     // Shards that do not read are the pool failing, not the captures: hold off briefly rather
     // than asking on every partial, and let every feed take its live path this time.
     disabledUntil = Date.now() + 60_000;
     throw error;
   }
-  if (!isCurrent()) return null;
+  if (!active()) return null;
   const feeds = new Map();
   for (const feedId of wanted) {
     const events = assembleFeedEvents(decoded, feedId);
@@ -264,7 +282,7 @@ export async function read({ mode, day, queryWindow = null, refresh = false, isC
     }
     feeds.set(feedId, { ...row, events });
   }
-  const result = { feeds, declined, index, mode, day, queryWindow, at: Date.now(), members: members.map((entry) => memberUrl(index, entry.member)) };
+  const result = { feeds, declined, index, mode, day, queryWindow, at: Date.now(), members: members.map((entry) => shardKey(index, entry.member)) };
   results.set(readKey(mode, day, queryWindow), result);
   // WHAT STAYS DECODED: the shards behind the latest read of each mode, and nothing else. A
   // reader who looked at Last 30 days and came back to Today would otherwise keep thirty decoded

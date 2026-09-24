@@ -1,5 +1,29 @@
-import { latestExchangeArtifact } from './exchange-artifact.mjs';
+import { latestExchangeArtifact, latestExchangeArtifactInfo } from './exchange-artifact.mjs';
 import { CORS, revalidate } from './http.mjs';
+
+/** Verify the input a cold bulk/block read would select without transferring its entire archive. */
+export async function exchangeCaptureStatus(request, env, { fetchImpl = fetch, cache = caches.default } = {}) {
+  try {
+    const held = await cache.match(new Request(new URL('/api/bulk-block-deals', request.url)));
+    if (held) {
+      const artifactId = Number(/^"exchange-(\d+)"$/.exec(held.headers.get('etag') || '')?.[1]);
+      // A cached Response may be a tee (for example in a local cache adapter); cancellation of
+      // one branch need not settle until its sibling is consumed. Do not hold status behind it.
+      void held.body?.cancel().catch(() => {});
+      // A cached fallback is exactly what the route is serving. It cannot stand in for an artifact.
+      return Number.isSafeInteger(artifactId) && artifactId > 0
+        ? { ok: true, capturedAt: null, artifactId }
+        : { ok: false, capturedAt: null, artifactId: null, reason: 'retained-fallback' };
+    }
+    const artifact = await latestExchangeArtifactInfo({ repo: env.GH_REPO, token: env.GH_DISPATCH_TOKEN, fetchImpl,
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(5000)]) });
+    return artifact ? { ok: true, capturedAt: null, artifactId: artifact.id }
+      : { ok: false, capturedAt: null, artifactId: null, reason: 'no-artifact' };
+  } catch {
+    // Status is a small, bounded check. Failure cannot make the pool current or advance a date.
+    return { ok: false, capturedAt: null, artifactId: null, reason: 'unverified' };
+  }
+}
 
 export async function handleExchangeDeals(request, env, ctx, { fetchImpl = fetch, cache = caches.default } = {}) {
   if (request.method !== 'GET') return new Response('Use GET', { status: 405, headers: { allow: 'GET' } });

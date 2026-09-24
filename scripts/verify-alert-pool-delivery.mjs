@@ -17,6 +17,7 @@ const sourceFeeds = POOL_FEEDS.map(id => ({ id, status: 'ok', count: 10, events:
 })) }));
 const captures = Object.fromEntries([...new Set(Object.values(POOL_FEED_CAPTURES).flat())].map(name =>
   [name, name === 'exchangeDeals' ? { artifactId: 42 } : { revision: 'original' }]));
+let artifact = 7;
 let servedIndex, status, corrupt = false, calls = [], bytes = 0;
 try {
   const index = writePoolMembers({ outDir, sourceFeeds, day, now: Date.parse(`${day}T12:00:00Z`), book: [], newsMeta: {}, captures });
@@ -24,9 +25,9 @@ try {
   servedIndex = index; status = structuredClone(captures);
   globalThis.fetch = async input => {
     const path = String(input);
-    if (path === 'api/alert-pool/index') return Response.json({ ...servedIndex, artifact: 7 });
+    if (path === 'api/alert-pool/index') return Response.json({ ...servedIndex, artifact });
     if (path === 'api/capture-status') return Response.json({ captures: status });
-    const member = path.replace('api/alert-pool/7/', '');
+    const member = path.replace(`api/alert-pool/${artifact}/`, '');
     assert(isPoolMember(member), `unexpected request ${path}`);
     calls.push(member);
     const raw = gunzipSync(readFileSync(join(outDir, member))); bytes += raw.length;
@@ -50,6 +51,10 @@ try {
     'no declined feed or complete member is downloaded');
   for (const [id, feed] of selective.feeds) assert.deepEqual(feed, complete.feeds.get(id), `${id}: every event, field and source status survives`);
   assert(selectiveBytes < fullBytes / 10, 'a large declined feed does not dominate the remaining download');
+  artifact++; calls = [];
+  const reusedSelective = await read({ ...options, refresh: true });
+  assert.equal(calls.length, 0, 'selective shards with unchanged content survive artifact rollover');
+  assert.deepEqual([...reusedSelective.feeds], [...selective.feeds]);
   assert.deepEqual(await fullRecord(complete.feeds.get('news').events[0]), sourceFeeds.find(f => f.id === 'news').events[0].sourceRecord,
     'the original complete member still supplies full bookmark evidence');
 

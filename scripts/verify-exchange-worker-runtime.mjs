@@ -17,23 +17,36 @@ const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50); local.writeUInt
 const central = Buffer.alloc(46); central.writeUInt32LE(0x02014b50); central.writeUInt32LE(file.length, 20); central.writeUInt32LE(file.length, 24); central.writeUInt16LE(name.length, 28);
 const end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50); end.writeUInt16LE(1, 10); end.writeUInt32LE(30 + name.length + file.length, 16);
 const archive = Buffer.concat([local, name, file, central, name, end]);
-const bundle = await build({ stdin: { contents: `import {handleExchangeDeals} from './worker/exchange-deals.mjs'; export default { fetch: handleExchangeDeals };`, resolveDir: fileURLToPath(new URL('../', import.meta.url)) }, bundle: true, write: false, format: 'esm', platform: 'browser' });
-let calls = 0;
+const bundle = await build({ stdin: { contents: `import {handleExchangeDeals, exchangeCaptureStatus} from './worker/exchange-deals.mjs';
+  export default { fetch: (request, env, ctx) => new URL(request.url).pathname === '/api/capture-status'
+    ? exchangeCaptureStatus(request, env).then(value => Response.json(value)) : handleExchangeDeals(request, env, ctx) };`,
+  resolveDir: fileURLToPath(new URL('../', import.meta.url)) }, bundle: true, write: false, format: 'esm', platform: 'browser' });
+let calls = 0, archiveReads = 0, metadataAvailable = true;
 const mf = new Miniflare({ workers: [{ name: 'exchange-delivery-test', modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2026-05-23',
   bindings: { GH_REPO: 'org/repo', GH_DISPATCH_TOKEN: 'test-token' },
   serviceBindings: { ASSETS: () => Response.json({ error: 'unexpected fallback' }) },
   outboundService: (request) => {
     calls++;
     const url = request.url;
-    if (url.includes('/workflows/')) return Response.json({ workflow_runs: [{ id: 42, event: 'push', head_branch: 'main', head_repository: { full_name: 'org/repo' } }] });
+    if (url.includes('/workflows/')) return metadataAvailable
+      ? Response.json({ workflow_runs: [{ id: 42, event: 'push', head_branch: 'main', head_repository: { full_name: 'org/repo' } }] })
+      : new Response('unavailable', { status: 503 });
     if (url.includes('/runs/42/')) return Response.json({ artifacts: [{ id: 99, name: 'exchange-deals', size_in_bytes: archive.length, expired: false }] });
     if (url.endsWith('/99/zip')) return new Response(null, { status: 302, headers: { location: 'https://storage.example/capture.zip' } });
     assert.equal(request.headers.get('authorization'), null, 'no credential reaches storage');
+    archiveReads++;
     return new Response(archive);
   },
 }] });
 try {
   const url = new URL('/api/bulk-block-deals', await mf.ready);
+  const statusUrl = new URL('/api/capture-status', url);
+  assert.deepEqual(await (await fetch(statusUrl)).json(), { ok: true, capturedAt: null, artifactId: 99 });
+  assert.equal(calls, 2, 'cold status reads only trusted GitHub metadata');
+  assert.equal(archiveReads, 0, 'cold status never downloads the trade history');
+  metadataAvailable = false;
+  assert.deepEqual(await (await fetch(statusUrl)).json(), { ok: false, capturedAt: null, artifactId: null, reason: 'unverified' });
+  metadataAvailable = true;
   const response = await fetch(url);
   assert.equal(response.headers.get('x-sattva-exchange-fallback'), null);
   assert.deepEqual(await response.json(), payload, 'gzip must be decoded exactly once by HTTP clients');
@@ -45,6 +58,9 @@ try {
     cached = next.headers.get('x-sattva-cache') === 'hit';
   }
   assert(cached, 'waitUntil must save the response in the edge cache');
+  const beforeStatus = calls;
+  assert.deepEqual(await (await fetch(statusUrl)).json(), { ok: true, capturedAt: null, artifactId: 99 });
+  assert.equal(calls, beforeStatus, 'warm status reports the actual served artifact without another upstream read');
   const beforeConditional = calls;
   const unchanged = await fetch(url, { headers: { 'if-none-match': response.headers.get('etag') } });
   assert.equal(unchanged.status, 304);
