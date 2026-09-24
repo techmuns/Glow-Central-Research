@@ -4442,3 +4442,5 @@ checkpoint-first capture publication through PRs. Preserve the All Investors def
 Sattva's existing Institutions/MF ownership product. Unknown cells never establish trades or
 new/removed disclosures; a zero valuation is not evidence of an exit. Original source dates,
 partial coverage and retained versions must survive every refresh and export.
+
+Source collection safeguards follow `docs/SOURCE-COLLECTION-RELIABILITY.md`: a directory failure cannot erase source filings or become a fresh identity check, and an empty Screener watchlist requires independent management and list verification.

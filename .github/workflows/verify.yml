@@ -109,7 +109,7 @@ jobs:
       - name: Verify story grouping in the local Worker runtime
         run: npx --yes --package=wrangler@4.119.0 -c 'node scripts/verify-alert-stories-runtime.mjs'
       - name: Verify operational filing health
-        run: node scripts/verify-filings-health.mjs
+        run: node scripts/verify-filings-health.mjs && node scripts/verify-announcement-directory-fallback.mjs
       - name: Verify capture watchdog
         run: node scripts/verify-capture-watchdog.mjs
       - name: Verify retained combined corporate actions and dynamic scope
@@ -328,6 +328,10 @@ jobs:
       # Two browser contexts against one server: separate storage, one shared list. That pairing
       # is the only arrangement in which "everyone sees the same watchlist" is a claim about
       # anything, so the check runs the real store class behind an in-process route.
+      - name: Verify empty and populated Screener watchlist inventory without source requests
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-screener-watchlist-ui.mjs
       - name: Verify one shared watchlist across two devices, with named contributors
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
