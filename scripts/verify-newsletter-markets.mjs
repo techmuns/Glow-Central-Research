@@ -36,8 +36,15 @@ const globalQuote = (id = 'sp500', at = '2026-09-23T16:36:00-04:00') => ({
   last_price: 7706.03, prev_close_price: 7764.64, net_change: -58.61, last_trade_time: String(Date.parse(at)),
 });
 
+// Exercise the history fallback with a provider response that lacks quote changes.
+// The untouched captured response is tested separately below.
+const nasdaqHistoryOnlyChart = () => {
+  const body = fixture('yahoo-nasdaq-missing-close.json');
+  for (const key of ['fulldayPrice', 'fulldayChange', 'fulldayChangePercent', 'regularMarketChangePercent']) delete body.chart.result[0].meta[key];
+  return body;
+};
 const enrichmentNow = Date.parse('2026-09-24T08:00:00+05:30');
-const nasdaqRow = () => quoteFromChart(fixture('yahoo-nasdaq-missing-close.json'), MARKET_ROWS.find(r => r.id === 'nasdaq'), enrichmentNow);
+const nasdaqRow = () => quoteFromChart(nasdaqHistoryOnlyChart(), MARKET_ROWS.find(r => r.id === 'nasdaq'), enrichmentNow);
 const nasdaqHistory = () => fixture('nasdaq-comp-eod-2026-09-23.json');
 
 test('captured Nasdaq history fills the exact missing session without replacing the quote or its clock', () => {
@@ -105,7 +112,7 @@ test('Nasdaq reader bounds the exact public EOD request and leaves outages expli
   assert.equal(conflict.reason, 'close-conflict'); assert.equal(conflict.row.last, null); assert.equal(conflict.row.reason, 'source-conflict');
   const pennyConflict = await readNasdaqEnrichment({ ...row, last: 26936.045 }, { now: enrichmentNow, fetcher: async () => Response.json(nasdaqHistory()) });
   assert.equal(pennyConflict.reason, 'close-conflict', 'displayed levels must agree, even within the arithmetic tolerance');
-  const body = fixture('yahoo-nasdaq-missing-close.json'); body.chart.result[0].meta.previousClose = 27000;
+  const body = nasdaqHistoryOnlyChart(); body.chart.result[0].meta.previousClose = 27000;
   const priorConflict = await readNasdaqEnrichment(quoteFromChart(body, MARKET_ROWS.find(r => r.id === 'nasdaq'), enrichmentNow),
     { now: enrichmentNow, fetcher: async () => Response.json(nasdaqHistory()) });
   assert.equal(priorConflict.reason, 'previous-close-conflict'); assert.equal(priorConflict.row.prev, null);
@@ -115,7 +122,7 @@ test('Nasdaq reader bounds the exact public EOD request and leaves outages expli
 test('email HTML, plain text, PDF and delivery summary expose the enriched comparison and provenance', async () => {
   const fetcher = async url => {
     if (url === NASDAQ_HISTORY_URL) return Response.json(nasdaqHistory());
-    if (String(url).includes('/chart/%5EIXIC')) return Response.json(fixture('yahoo-nasdaq-missing-close.json'));
+    if (String(url).includes('/chart/%5EIXIC')) return Response.json(nasdaqHistoryOnlyChart());
     return new Response('', { status: 503 });
   };
   const env = { ASSETS: { fetch: async request => {
@@ -135,13 +142,133 @@ test('email HTML, plain text, PDF and delivery summary expose the enriched compa
   assert.match(pdf, /26,936.04/); assert.match(pdf, /1.13%/); assert.match(pdf, /Nasdaq history/);
   const conflicted = await readMarkets({ env, now: enrichmentNow, fetcher: async url => {
     if (String(url).includes('/chart/%5EIXIC')) {
-      const body = fixture('yahoo-nasdaq-missing-close.json'); body.chart.result[0].meta.regularMarketPrice += 10;
+      const body = nasdaqHistoryOnlyChart(); body.chart.result[0].meta.regularMarketPrice += 10;
       return Response.json(body);
     }
     return fetcher(url);
   } });
   assert.equal(conflicted.rows.find(r => r.id === 'nasdaq').state, 'unavailable');
   assert(!conflicted.stored.includes('nasdaq')); assert(conflicted.conflicts.includes('nasdaq'));
+});
+
+const publishedAt = Date.parse('2026-09-24T09:00:00Z');
+const publishedCharts = () => fixture('yahoo-published-global-2026-09-24.json');
+const publishedRow = (id, body = publishedCharts()[id], now = publishedAt) =>
+  quoteFromChart(body, MARKET_ROWS.find(r => r.id === id), now);
+
+test('published daily quotes fill every captured global comparison, without range references or double rounding', () => {
+  for (const [id, body] of Object.entries(publishedCharts())) {
+    const row = publishedRow(id, body);
+    assert.equal(row.changeOrigin, 'yahoo-quote', id);
+    assert.equal(row.comparisonBasis, 'provider-reported', id);
+    assert.equal(row.changeReason, null, id);
+    assert.equal(row.previousSession, null, 'a derived reference has no independently observed date');
+    assert.equal(row.last, body.chart.result[0].meta.regularMarketPrice, id);
+    assert.equal(row.asOf, body.chart.result[0].meta.regularMarketTime * 1000, id);
+    assert.match(asOfLabel(row), /Yahoo.*quoted daily change/);
+    assert.doesNotMatch(asOfLabel(row), /cross-checked/);
+  }
+  for (const [id, change, pct] of [
+    ['sp500', '−58.61', '−0.75%'], ['nasdaq', '−308.24', '−1.13%'], ['dow', '−352.10', '−0.68%'],
+    ['kospi', '+63.01', '+0.90%'], ['usdjpy', '+0.14', '+0.09%'], ['usdinr', '+0.21', '+0.22%'],
+    ['us10y', '+14.6 bp', '+2.94%'], ['brent', '+2.28', '+2.32%'], ['silver', '−0.77', '−1.18%'],
+  ]) { assert.equal(formatChange(publishedRow(id)), change, id); assert.equal(formatPct(publishedRow(id)), pct, id); }
+});
+
+test('currency fixings and rolling futures use their quoted comparison even when chart references differ', () => {
+  for (const id of ['usdjpy', 'usdinr', 'brent', 'silver']) {
+    const body = publishedCharts()[id], result = body.chart.result[0];
+    // Charts can have null, duplicate and differently fixed daily bars. None is
+    // needed to repeat a complete quote's own internally consistent daily move.
+    result.timestamp = []; result.indicators.quote[0].close = [];
+    assert.equal(formatPct(publishedRow(id, body)), formatPct(publishedRow(id)), id);
+    delete result.meta.fulldayChange;
+    assert.equal(publishedRow(id, body).changePct, null, 'no calculation from a different fixing');
+  }
+  const brent = publishedCharts().brent;
+  delete brent.chart.result[0].meta.fulldayChange;
+  assert.equal(publishedRow('brent', brent).change, null, 'do not fall back to the captured opposite-sign rolling chart change');
+});
+
+test('published quote enrichment rejects mismatched prices, contradictory percentages, non-finite numbers and impossible references', () => {
+  for (const mutate of [
+    m => { m.fulldayPrice += 0.01; }, m => { m.fulldayChangePercent += 0.01; },
+    m => { m.regularMarketChangePercent += 0.01; }, m => { m.fulldayChange = null; },
+    m => { m.fulldayChange = '-58.61'; }, m => { m.fulldayChange = Infinity; },
+    m => { m.fulldayChange = m.regularMarketPrice; }, m => { m.fulldayChangePercent = NaN; },
+    m => { m.previousClose = 7000; },
+  ]) {
+    const body = publishedCharts().sp500; mutate(body.chart.result[0].meta);
+    const row = publishedRow('sp500', body);
+    assert.equal(row.last, 7706.03); assert.equal(row.change, null); assert.equal(row.changePct, null);
+    assert.equal(row.changeOrigin, null);
+  }
+  const zero = publishedCharts().sp500, m = zero.chart.result[0].meta;
+  m.fulldayChange = m.fulldayChangePercent = m.regularMarketChangePercent = 0;
+  assert.equal(publishedRow('sp500', zero).change, 0, 'a genuinely published zero is valid');
+});
+
+test('published changes never bypass exact identity, timestamp, cash-close conflicts or the Indian exchange rules', () => {
+  for (const mutate of [
+    m => { m.symbol = '^NDX'; }, m => { m.instrumentType = 'ETF'; }, m => { m.currency = 'CAD'; },
+    m => { m.exchangeTimezoneName = 'Europe/London'; }, m => { m.regularMarketTime = publishedAt / 1000 + 120; },
+    m => { m.regularMarketTime = null; },
+  ]) {
+    const body = publishedCharts().nasdaq; mutate(body.chart.result[0].meta);
+    assert.throws(() => publishedRow('nasdaq', body));
+  }
+  const body = publishedCharts().sp500;
+  const result = body.chart.result[0]; result.indicators.quote[0].close[result.timestamp.length - 2] = 8000;
+  assert.equal(publishedRow('sp500', body).changeReason, 'previous-close-conflict');
+  const indian = quoteFromChart(fixture('yahoo-nifty-missing-close.json'), nifty, at);
+  assert.equal(indian.change, null, 'captured Yahoo +32.50 conflicts with NSE +117.80 and must not be adopted');
+});
+
+test('absent published cash comparisons retain the dated-bar fallback and do not revive stale observations', () => {
+  const body = fixture('yahoo-sp500.json');
+  for (const key of ['fulldayPrice', 'fulldayChange', 'fulldayChangePercent']) delete body.chart.result[0].meta[key];
+  const row = quoteFromChart(body, MARKET_ROWS.find(r => r.id === 'sp500'), at);
+  assert.equal(formatPct(row), '−0.45%'); assert.equal(row.comparisonBasis, 'dated-close');
+  assert.equal(row.changeOrigin, null);
+  const stale = publishedRow('sp500', publishedCharts().sp500, publishedAt + 7 * 86400000);
+  assert.equal(stale.state, 'stale'); assert.match(asOfLabel(stale), /^Earlier quote/);
+});
+
+test('published feed delays remain visible even when the quote time is recent', () => {
+  for (const [id, minutes] of [['brent', 30], ['silver', 30], ['dxy', 30]]) {
+    const body = publishedCharts()[id], now = body.chart.result[0].meta.regularMarketTime * 1000 + 60000;
+    const row = publishedRow(id, body, now);
+    assert.equal(row.state, 'delayed'); assert.equal(row.delayMinutes, minutes);
+    assert.match(asOfLabel(row), /Delayed quote.*30-minute feed delay/);
+  }
+  assert.equal(publishedRow('usdjpy').state, 'live');
+  assert.equal(publishedRow('sp500').state, 'close');
+  assert.equal(publishedRow('us10y').delayMinutes, 15);
+});
+
+test('all fifteen published global daily changes reach HTML, text, PDF and summary without another provider request', async () => {
+  const bodies = publishedCharts(), requests = [];
+  const fetcher = async url => {
+    requests.push(String(url));
+    const symbol = /\/chart\/([^?]+)/.exec(String(url))?.[1];
+    const row = MARKET_ROWS.find(r => r.symbol === decodeURIComponent(symbol || ''));
+    return row && bodies[row.id] ? Response.json(bodies[row.id]) : new Response('', { status: 503 });
+  };
+  const env = { ASSETS: { fetch: async request => new URL(request.url).pathname === '/data/portfolio-companies.json'
+    ? Response.json({ holdings: [] }) : new Response('', { status: 404 }) } };
+  const brief = await buildBrief({ edition: 'morning', day: '2026-09-24', settings: DEFAULT_SETTINGS, env, fetcher, now: publishedAt });
+  assert.deepEqual(brief.markets.unverified, []);
+  assert.equal(brief.markets.reportedChanges.length, 15);
+  assert.deepEqual(brief.markets.enrichment.attempted, [], 'complete quotes do not need extra history requests');
+  assert(!requests.includes(NASDAQ_HISTORY_URL));
+  assert.equal(briefSummary(brief).quotesReportedChanges.length, 15);
+  for (const output of [renderBriefHtml(brief), renderBriefText(brief)]) {
+    assert.match(output, /7,706.03/); assert.match(output, /−0.75%/); assert.match(output, /26,936.04/);
+    assert.match(output, /quoted daily change/); assert.doesNotMatch(output, /daily change unavailable/);
+    assert.match(output, /currencies and futures can use different references/);
+  }
+  const pdf = Buffer.from(renderBriefPdf(brief)).toString('latin1');
+  assert.match(pdf, /7,706.03/); assert.match(pdf, /0.75%/); assert.match(pdf, /quoted daily change/);
 });
 
 test('captured BSE chart dates the cash point, ignores the wrong header clock and validates its previous close', async () => {

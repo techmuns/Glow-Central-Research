@@ -1321,9 +1321,13 @@ rules, and every one of them is a rule this file already runs on:
    futures and spot instruments are never substituted to fill a gap. Provider delays remain visible.
    Yahoo supplies an additional cross-check/fallback. A corroborated exchange quote survives
    a third-provider outlier; unresolved disagreements withhold affected figures.
-   Yahoo daily changes use the immediately preceding dated, unadjusted session bar, never
-   `chartPreviousClose` from a five-day range. Null/missing prior bars and inconsistent source
-   figures withhold the affected change rather than guess. Closed-provider disagreements
+   Yahoo global daily changes prefer the internally consistent published quote tuple, with an
+   exact price/identity/currency/timezone match. Mark it quoted daily change, never independently
+   cross-checked or a dated historical reference. Cash indices retain a dated-bar fallback and
+   contradiction check; currencies and rolling futures must not substitute a differently fixed
+   historical bar. Indian indices retain exchange/calendar validation (Yahoo's reported Nifty
+   change was also wrong). Never use `chartPreviousClose` from a five-day range. Missing or
+   inconsistent comparisons remain withheld. Published feed delays cannot be labelled Live. Closed-provider disagreements
    withhold the level too. Dates, providers, delayed/earlier observations, single-source coverage
    and failures stay visible in HTML, text and PDF. A stored fallback retains its own date.
    Nasdaq Composite's missing closing comparison may be enriched from the public Nasdaq COMP

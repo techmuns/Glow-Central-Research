@@ -15,14 +15,36 @@ The screenshot supplies these regression cases:
 
 ## Source and comparison rules
 
-`worker/newsletter-markets.mjs` owns quote validation. Yahoo comparisons require
-the immediately preceding dated unadjusted daily bar in an ordered daily series.
-The quote's session must be represented in that series. A null prior bar, missing
-session, invalid value or conflicting explicit previous close withholds the
-daily change. For Indian indices, the existing known exchange calendar also
-checks the predecessor date. Unknown calendars are not certified. No range
-reference, older non-null bar, opening price or adjusted close substitutes for it.
+`worker/newsletter-markets.mjs` owns quote validation. Global rows first use Yahoo's
+published daily quote comparison from the same response: `fulldayPrice`,
+`fulldayChange` and `fulldayChangePercent`. The price must exactly equal the dated
+`regularMarketPrice`; identity, instrument type, currency and timezone must match
+the configured instrument. The implied reference must be positive and both supplied
+percentages must agree with the arithmetic within 0.00051 percentage points. The
+final percent is calculated from price and point change to avoid double rounding
+(S&P's reported −0.755% represents −58.61 / 7,764.64 = −0.75% at two decimals).
+Missing numbers never become zero; extended-session/mismatched prices, non-finite
+values and contradictions cannot supply a change.
 
+This is **provider-reported**, not an independent cross-check or an observed dated
+previous close. Rows say “quoted daily change”; delivery summaries retain the
+identities in `quotesReportedChanges`. No additional request is needed. For cash
+indices, an available preceding dated close is still checked for contradiction.
+Currencies and rolling futures use their quoted comparison because a historical
+bar can use a different fixing or contract. If their quote comparison is missing,
+we do not substitute a chart-based daily move. In the captured 24 September Brent
+response, that substitution would incorrectly show −2.60% instead of +2.32%.
+
+Indian indices continue to require the exchange/calendar rules below. A captured
+Nifty quote's otherwise coherent +32.50 / +0.139% also uses the wrong reference,
+so global quote enrichment must never override India's verified exchange path.
+Where global cash quote fields are absent, the immediately preceding dated,
+unadjusted daily bar can supply the comparison. The quote's session must be
+represented in an ordered daily series. A null prior bar, missing session,
+invalid value or conflicting explicit previous close withholds that fallback.
+For India, the known exchange calendar also checks the predecessor date. Unknown
+calendars are not certified. No range reference, older non-null bar, opening price
+or adjusted close substitutes for a daily comparison.
 The captured `yahoo-nifty-missing-close.json` is an actual public-source response
 read during this investigation. Its 22 and 23 September daily closes are null.
 A separate one-day/minute request returned `previousClose: 23414.3`, also different
@@ -63,6 +85,13 @@ Missing/invalid/stale primary rows fall back individually and say single source.
 An unavailable cross-check does not claim verification. Provider authentication,
 partial reads and failures appear in source coverage.
 
+Yahoo's published feed delays are recorded separately from observation age:
+Nikkei/Shanghai/NYMEX/COMEX/ICE Futures US 30 minutes, Taiwan/Korea 20 minutes,
+Hang Seng/Cboe/Sensex 15 minutes. An intraday delayed feed cannot say Live just
+because its observation is recent. Completed quotes retain Close and the feed
+delay. Source: [Yahoo exchange coverage](https://help.yahoo.com/kb/SLN2310.html),
+checked 24 September 2026; provider terms and entitlements still apply.
+
 Every HTML, text and PDF row retains its full source date/time and provider, plus
 single-source/cross-check status and any withheld-change reason. Earlier and
 delayed observations stay labelled. Global quotes older than four days or still
@@ -76,7 +105,7 @@ Delivery summaries retain unavailable, unverified and conflict identities.
 ## Verification and limits
 
 Run `node scripts/verify-newsletter-markets.mjs`, `verify-newsletter.mjs` and
-`verify-newsletter-ui.mjs`. The first covers the customer figures, captured global
+`verify-newsletter-ui.mjs`. The first covers all fifteen captured published global quote comparisons, the original customer figures, captured global
 and incomplete Yahoo responses, session/date boundaries, identity validation,
 partial/error/duplicate Upstox responses, credential isolation and HTML/text/PDF
 output. It runs in the existing Verify workflow. The UI suite drives the real
@@ -202,3 +231,24 @@ Existing company-scoped canonicalization still decides the output. Old indexes
 fall back to verified source parts and rebuild locally. The shipped-capture
 comparison stays intact, a small midnight fixture reproduces the bug, and the
 service-worker release advances with a returning-session module-upgrade test.
+
+
+## Published-quote regression evidence
+
+`yahoo-published-global-2026-09-24.json` retains the fifteen actual global chart
+responses captured around 08:49 UTC. The fixture verifies S&P 500 −58.61 / −0.75%,
+Dow −352.10 / −0.68%, Nasdaq −308.24 / −1.13%, Kospi +63.01 / +0.90%, USD/JPY
++0.14 / +0.09%, USD/INR +0.21 / +0.22%, and US 10-year yield +14.6 bp / +2.94%.
+The currency/commodity values describe their own captured times, not permanent
+expected current values. Tests cover all fifteen rows through HTML, text, PDF and
+the delivery summary, plus malformed/contradictory fields, exact identities,
+stale/future timestamps, published zero, cash-reference conflicts and the original
+NSE regressions. Nasdaq history remains a fallback when the quote fields are absent;
+tests explicitly remove those fields from a copy of the original capture to exercise
+that path. A complete quote avoids the extra history request.
+
+A read-only Cloudflare development-preview check at 08:56 UTC on 24 September
+returned all 23 market rows with prices and comparisons: seven NSE, one BSE and
+fifteen Yahoo published quotes, no missing comparisons, stored substitutes or
+conflicts. The actual source timestamps and documented delays remained on each
+row. This is a point-in-time source check, not a guarantee of future availability.

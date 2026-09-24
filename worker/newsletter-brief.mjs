@@ -10,7 +10,7 @@
 // I would just send for direct ones". So:
 //
 //   1. GLOBAL MARKET SCAN — quotes read at send time, NSE/BSE exchange snapshots and Upstox for Indian indices,
-//      with Yahoo cross-check/fallback. Daily changes use dated preceding-session closes, never a
+//      with Yahoo cross-check/fallback. Daily changes use published quote comparisons or dated closes, never a
 //      chart range's reference. Four exact global cash indices also use Upstox. Missing/conflicting comparisons are withheld. Yahoo has one
 //      symbol per request, each row carrying its OWN state and time: `Close · Wed 16:00 EDT` for a
 //      market that has shut, `Live · 07:58 JST` for one still trading. The series store under
@@ -263,6 +263,7 @@ export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {
     nse: { reason: nse.reason, checked: nse.rows.size },
     bse: { reason: bse.reason, checked: bse.rows.size },
     enrichment,
+    reportedChanges: rows.filter(r => r.changeOrigin === 'yahoo-quote').map(r => r.id),
     rows: MARKET_ROWS.map((r) => byId.get(r.id)),
     failed: rows.filter((r) => r.state === 'unavailable').map((r) => r.id),
     stored,
@@ -1347,6 +1348,7 @@ export function briefSummary(brief) {
     indexSource: brief.markets.upstox || null, exchangeSource: brief.markets.nse || null,
     bseIndexSource: brief.markets.bse || null, globalIndexSource: brief.markets.globalUpstox || null,
     marketEnrichment: brief.markets.enrichment || null,
+    quotesReportedChanges: brief.markets.reportedChanges || [],
     quotesOutliers: brief.markets.outliers || [],
     announcements: brief.announcements.count,
     news: brief.news.count,
@@ -1413,7 +1415,8 @@ export function asOfLabel(row) {
   const provider = row.origin === 'nse' ? 'NSE' : row.origin === 'bse' ? 'BSE Indices' : row.origin === 'upstox' ? 'Upstox' : 'Yahoo';
   const verification = row.verification === 'cross-checked' ? ' · cross-checked' : row.verification === 'level-cross-checked' ? ' · level cross-checked' : row.verification === 'single-source' || row.group === 'india' ? ' · single source' : '';
   const delay = row.delayMinutes ? ` · ${row.delayMinutes}-minute feed delay` : '';
-  const enrichment = row.changeOrigin === 'nasdaq-history' ? ' · daily change: Nasdaq history' : '';
+  const enrichment = row.changeOrigin === 'nasdaq-history' ? ' · daily change: Nasdaq history'
+    : row.changeOrigin === 'yahoo-quote' ? ' · quoted daily change' : '';
   return `${status} · ${when} · ${provider}${delay}${enrichment}${verification}${marketIssue(row) ? ` · ${marketIssue(row)}` : ''}`;
 }
 
@@ -1626,7 +1629,8 @@ export function sourcesNote(brief) {
   const bits = [];
   if (brief.markets) {
     const market = brief.markets;
-    bits.push(`market source checks started ${istLabel(market.readAt)}; each row carries its own source time; daily changes use the preceding session close`);
+    bits.push(`market source checks started ${istLabel(market.readAt)}; each row carries its own source time; daily changes use published quote comparisons or verified preceding-session closes`);
+    if (market.reportedChanges?.length) bits.push('Yahoo quoted daily changes follow the comparison published with that quote; currencies and futures can use different references from historical charts');
     if (market.nse?.reason) bits.push(`NSE index check ${market.nse.reason}; usable alternative sources are labelled on each row`);
     if (market.bse?.reason) bits.push(`BSE Sensex check ${market.bse.reason}; usable alternative sources are labelled on each row`);
     if (market.outliers?.length) bits.push(`${market.outliers.length} exchange quote(s) corroborated by another provider despite a third-source disagreement`);
