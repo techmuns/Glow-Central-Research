@@ -21,7 +21,7 @@
       ]
     },
     "isin:INE674K01013|Aditya Birla Capital": {
-      "lastAttemptAt": "2026-09-20T04:45:50+00:00",
+      "lastAttemptAt": "2026-09-24T23:41:32+00:00",
       "error": "search-unavailable",
       "lastResultCount": 103,
       "targetThrough": "2026-09-15T20:36:48+00:00",
@@ -1764,6 +1764,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-24T23:16:12.508774+00:00"
+    "checkedAt": "2026-09-24T23:41:32.169149+00:00"
   }
 }
