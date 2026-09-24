@@ -1740,7 +1740,7 @@
       "error": "search-unavailable"
     },
     "isin:INE377N01017|Waaree Energies": {
-      "lastAttemptAt": "2026-09-20T01:19:59+00:00",
+      "lastAttemptAt": "2026-09-24T20:25:26+00:00",
       "error": "search-unavailable"
     },
     "isin:INE377N01017|WAAREEENER": {
@@ -1764,6 +1764,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-24T19:52:17.447332+00:00"
+    "checkedAt": "2026-09-24T20:25:26.724862+00:00"
   }
 }
