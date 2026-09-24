@@ -9,6 +9,7 @@ export const onChange = (fn) => { listeners.add(fn); return () => listeners.dele
 export const forPerson = (id, kind = 'investor') => (data?.holdings || []).filter((h) => h.personId === id && h.kind === kind);
 const CACHE_KEY = 'holdings:public';
 function validate(next) {
+  if (next?.status === 'not-started') throw new Error('Exchange capture has not started');
   if (next?.version !== 1 || !['holdings', 'issues', 'sources', 'profiles', 'candidates'].every((key) => Array.isArray(next[key])) ||
     !['indexed', 'parsed', 'pending', 'partial', 'securities', 'profiles'].every((key) => Number.isSafeInteger(next.coverage?.[key]) && next.coverage[key] >= 0) ||
     !Number.isFinite(Date.parse(next.checkedAt)) || !Number.isFinite(Date.parse(next.captureCheckedAt)) ||
