@@ -57,7 +57,8 @@ closes must agree within floating-point/quote-rounding tolerance: max(0.011,
 0.0001% of the reference). Closing levels use the same tolerance; intraday prices
 from different seconds are not compared. A prior-close disagreement withholds the
 change; a closing-level disagreement withholds the level and changes. Never
-average providers or combine one's level with the other's previous close.
+average providers or combine unmatched providers' levels and previous closes. The
+strictly matched Nasdaq EOD enrichment below is the sole explicit exception.
 Missing/invalid/stale primary rows fall back individually and say single source.
 An unavailable cross-check does not claim verification. Provider authentication,
 partial reads and failures appear in source coverage.
@@ -130,10 +131,50 @@ comparison but never becomes a close or enters the headline glance.
 `IXIX` in that master is US Tech 100, **not Nasdaq Composite**. Its Brent indicator
 is also a different product from Yahoo's Brent futures contract. Neither is used
 as a substitute. USD/INR feeds can have different daily fixing boundaries, so that
-indicator is not silently interchanged either. Nasdaq Composite, Kospi, DXY,
+indicator is not silently interchanged either. Kospi, DXY,
 USD/JPY, USD/INR and US 10-year yield therefore still depend on their existing
 validated feeds. Broader coverage needs a source with those exact instruments,
 dated previous closes and appropriate access; no source guarantees perfect data.
+
+## Nasdaq closing-comparison enrichment
+
+`worker/newsletter-market-enrichment.mjs` reads the public
+[Nasdaq Composite history table](https://indexes.nasdaq.com/Index/History/COMP)
+using the same read-only `POST /Index/HistoryData` form as that page: `id=COMP`,
+`timeOfDay=EOD`, and seven calendar days ending on the quote's session. COMP is
+the price-return Nasdaq Composite, not NDX/Nasdaq-100. The fixed request establishes
+the instrument identity (the response does not echo its symbol); USD, the quote's
+identity and the matching current close are also mandatory. No credentials,
+redirect following or additional subscription is introduced. One request, an
+eight-second timeout and a 64 KiB body limit bound its cost and failure impact.
+
+This is enrichment of a missing closing comparison, not replacement of a quote.
+Yahoo must still supply the Nasdaq quote, its full timestamp, a closing observation
+at or after 16:00 New York, and the exact immediately preceding daily-series date.
+The null bar is never skipped. Nasdaq's complete, descending EOD records must begin
+with those same two dates, have valid positive levels, coherent high/low values,
+and agree with its own published net change. The two current closes must match
+at their displayed two-decimal precision. Any explicit Yahoo previous close must
+also agree; known conflicts cannot be repaired away. Missing, duplicate, future,
+out-of-range, partial and out-of-order history is rejected. Its midnight date
+markers never replace the original market observation's time.
+
+Only after these checks is the previous close normalized to the index's published
+two-decimal precision and the missing daily change filled. The level, original
+provider and source timestamp stay intact. HTML, text and PDF say `daily change:
+Nasdaq history` and `level cross-checked`; this does not claim that two independent
+sources supplied the daily change. Coverage and delivery summaries record attempts,
+successful enrichment and failures. An outage leaves the existing dated quote and
+unverified-change label; a confirmed closing-level disagreement withholds the level
+and cannot fall through to an older series-store value.
+
+The captured 23 September fixtures reproduce 26,936.04 versus 27,244.28, a daily
+change of −308.24 / −1.13%. Both the public endpoint and the same request from an
+isolated Cloudflare development preview returned these records on 24 September.
+This is evidence for the integration, not a guarantee of perpetual source coverage.
+The regression suite covers dates, DST/weekends, failures, contradictory values,
+credential isolation and all three customer output formats. Other instruments are
+not substituted or inferred from this feed, and their remaining gaps stay explicit.
 
 Session references: [NYSE](https://www.nyse.com/trade/trading-information),
 [JPX](https://www.jpx.co.jp/english/equities/trading/domestic/01.html),
