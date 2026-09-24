@@ -470,7 +470,7 @@ function renderLatest(ctx) {
 
       { label: 'Market Cap', get: (r) => (r.marketCap == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatCroreCompact(r.marketCap))), html: true, align: 'right', sortValue: (r) => r.marketCap ?? -1 },
       { label: 'Basis', get: (r) => basisPill(r.basis), html: true, align: 'right', sortValue: (r) => r.basis || '' },
-      { label: 'Filings', get: (r) => r.ticker ? `<button type="button" data-norow data-earnings-report="${escapeHtml(r.ticker)}" data-report-period="${escapeHtml(m?.currentPeriod || '')}" class="font-semibold text-indigo-600" aria-label="Open ${escapeHtml(r.company)} ${escapeHtml(m?.currentPeriod || '')} filing">Reports</button>` : '—', html: true, sortable: false },
+      { label: 'Filings', get: (r) => r.ticker ? `<button type="button" data-norow data-earnings-report="${escapeHtml(r.ticker)}" data-report-period="${escapeHtml(m?.currentPeriod || '')}" data-report-date="${escapeHtml(r.resultDate || '')}" class="font-semibold text-indigo-600" aria-label="Open ${escapeHtml(r.company)} ${escapeHtml(m?.currentPeriod || '')} filing">Reports</button>` : '—', html: true, sortable: false },
     ],
     // Two dropdowns, not one: "PAT grew" and "Consolidated only" are different questions and a
     // reader should be able to ask both at once.

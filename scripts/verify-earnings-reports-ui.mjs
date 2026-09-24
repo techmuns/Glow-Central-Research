@@ -11,9 +11,9 @@ const results = { meta: { currentPeriod: 'Jun 26', priorPeriod: 'Jun 25', subTyp
     revenue: { current: 42, prior: 31, kind: 'normal', pct: 35, direction: 1 },
     netProfit: { current: 63, prior: -12, kind: 'turnaround', pct: null, direction: 1 },
   })) };
-let upgraded = false, mode = 'captured', sourceReads = 0, captureReads = 0;
+let upgraded = false, mode = 'exchange', sourceReads = 0, captureReads = 0;
 const oldReport = ticker => ({ ticker, form: 'earnings_report', date: 'Mar 2026', url: `${origin}/documents/old` });
-const currentReport = ticker => ({ ticker, form: 'earnings_report', date: 'Jun 2026', url: `${origin}/documents/${ticker}` });
+const currentReport = ticker => ({ ticker, form: 'earnings_report', date: 'Jun 2026', url: `${origin}/documents/${ticker}.pdf` });
 const entry = `
 import * as tab from '/js/tabs/earnings-hub.js';
 import * as coverage from '/js/data/coverage.js';
@@ -41,6 +41,11 @@ const server = createServer((req, res) => {
   if (pathname.startsWith('/documents/')) return send('text/html', `<h1>Original filing ${pathname}</h1>`);
   if (pathname === '/api/earnings' || pathname === '/data/earnings-live.json') return json(results);
   if (pathname === '/data/filing-capture/index.json') return json({ version: 1, sources: { domestic: {} } });
+  if (pathname.startsWith('/data/filing-capture/announcements/')) {
+    const ticker = pathname.split('/').at(-1).replace('.json', '');
+    return json({ rows: mode === 'exchange' ? [{ ticker, date: '2026-09-11', category: 'Result',
+      title: 'Unaudited financial results for the quarter ended June 30, 2026', url: `${origin}/documents/${ticker}.pdf` }] : [] });
+  }
   if (pathname.startsWith('/data/filing-capture/domestic/')) {
     captureReads++;
     const ticker = pathname.split('/').at(-1).replace('.json', '');
@@ -101,7 +106,7 @@ try {
   assert(!after.some(key => key.includes('previous-earnings-release')));
   assert.equal(captureReads, 0, 'opening earnings does not fetch every company document');
   const filing = await clickReport(returning);
-  await filing.waitForURL(`${origin}/documents/HORIZONIND`);
+  await filing.waitForURL(`${origin}/documents/HORIZONIND.pdf`);
   assert.equal(await filing.evaluate(() => window.opener), null);
   assert.equal(await returning.evaluate(() => ctx.params.period), undefined, 'opening a report must not change the YoY/QoQ comparison');
   assert.equal(sourceReads, 0, 'a matching saved report opens without an upstream request');
@@ -110,13 +115,13 @@ try {
   await returning.context().close();
   console.log('PASS returning reader loses Company Filings tab automatically and Reports opens the matching filing');
 
-  for (const scenario of ['live', 'missing', 'failed']) {
+  for (const scenario of ['captured', 'live', 'missing', 'failed']) {
     mode = scenario;
     const page = await open();
     await page.evaluate(() => { ctx.scope = 'universe'; tab.render(ctx); });
     await page.locator('[data-earnings-report="RELIANCE"]').waitFor();
     const popup = await clickReport(page, 'RELIANCE');
-    if (scenario === 'live') await popup.waitForURL(`${origin}/documents/RELIANCE`);
+    if (['captured', 'live'].includes(scenario)) await popup.waitForURL(`${origin}/documents/RELIANCE.pdf`);
     else {
       await popup.waitForFunction(() => !document.body.textContent.includes('Opening'));
       assert.equal(popup.url(), 'about:blank', 'a different quarter is never opened');

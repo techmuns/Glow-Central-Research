@@ -1,12 +1,21 @@
 import { loadCapturedDomesticFilings, loadDomesticFilings } from '../data/domestic-filings.js';
-import { earningsReportDocument, documentUrl } from '../data/domestic-filings-shared.js';
+import { earningsReportDocument, earningsAnnouncementDocument, earningsDocumentUrl } from '../data/domestic-filings-shared.js';
 
-export async function resolveEarningsReport(ticker, period, { signal } = {}) {
+import { capturedCompany } from '../data/company-captures.js';
+
+export async function resolveEarningsReport(ticker, period, { signal, resultDate } = {}) {
+  try {
+    const captured = await capturedCompany('announcements', ticker);
+    signal?.throwIfAborted();
+    const filing = earningsAnnouncementDocument(captured.value.rows, ticker, period, resultDate);
+    if (filing) return earningsDocumentUrl(filing.url);
+  } catch (error) { if (error.name === 'AbortError') throw error; }
+
   let captured;
   try { captured = await loadCapturedDomesticFilings(ticker, 'earnings_report'); } catch { /* Try the source when the capture is unavailable. */ }
   signal?.throwIfAborted();
   const saved = earningsReportDocument(captured?.documents, ticker, period);
-  if (saved) return documentUrl(saved.url);
+  if (saved) return earningsDocumentUrl(saved.url);
   let live;
   try { live = await loadDomesticFilings(ticker, 'earnings_report', { signal }); }
   catch (error) {
@@ -14,7 +23,7 @@ export async function resolveEarningsReport(ticker, period, { signal } = {}) {
     throw new Error('The filing could not be checked. Please try again later.');
   }
   const report = earningsReportDocument(live.documents, ticker, period);
-  if (report) return documentUrl(report.url);
+  if (report) return earningsDocumentUrl(report.url);
   if (live.stale) throw new Error('The filing could not be checked. Please try again later.');
   throw new Error(`The ${period || 'selected quarter'} filing for ${ticker} is not available yet. Please check back.`);
 }
@@ -42,7 +51,7 @@ export function wireEarningsReports(root) {
     pending.add(request);
     const timer = setTimeout(() => controller.abort(), 30000);
     try {
-      const url = await resolveEarningsReport(ticker, period, { signal: controller.signal });
+      const url = await resolveEarningsReport(ticker, period, { signal: controller.signal, resultDate: button.dataset.reportDate });
       if (!controller.signal.aborted && !popup.closed) popup.location.replace(url);
     } catch (error) {
       if (!popup.closed) status.textContent = error.name === 'AbortError'
