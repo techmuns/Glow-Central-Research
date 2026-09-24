@@ -1460,7 +1460,7 @@
       "error": "search-unavailable"
     },
     "isin:INE239C01020|Stylam Industries": {
-      "lastAttemptAt": "2026-09-19T09:56:47+00:00",
+      "lastAttemptAt": "2026-09-24T02:32:19+00:00",
       "error": "search-unavailable"
     },
     "isin:INE239C01020|STYLAMIND": {
@@ -1704,6 +1704,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 232,
-    "checkedAt": "2026-09-24T01:32:49.306956+00:00"
+    "checkedAt": "2026-09-24T02:32:19.999925+00:00"
   }
 }
