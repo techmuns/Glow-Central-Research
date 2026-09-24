@@ -559,3 +559,45 @@ in `CLAUDE.md` → *The family's price levels*; the contract is in `docs/DATA-CO
   the companies that have a waiting level and nothing else.
 - Deployment is the existing merge pipeline. Until it runs, Glow Ventures' saves have nowhere to go
   and that dashboard says so on each alert.
+
+### Mutual funds: saved reads and public company holdings (24 September 2026)
+
+Glow retains its All Schemes default and Category Performance workbook. Company
+Holdings adds the company ownership comparison requested for Glow alongside them.
+Only that view applies Portfolio / Watchlist / Universe; its company identities
+and portfolio weights come from Glow's own coverage and bridge.
+
+`public/js/data/mutual-fund-holdings.js` reads the shared **public market** API at
+`https://sattva-central-research.tech-441.workers.dev/api/mutual-funds` and its
+`/company` detail route directly from the browser. This is an explicit public-data
+exception to deployment-host rewriting, like the existing bulk/block fallback.
+These responses contain AMC disclosures, precomputed adjacent-month comparisons,
+source check states and retained public history. No Sattva portfolio, private
+Scanner endpoint, session token or collection credential is read or copied.
+The browser's existing authentication allow-list sends no credentials to this
+host. Glow therefore needs no additional expiring token or duplicate collector
+for this feature. Preserve the source host when adapting future template updates.
+
+The independent shared collector owns source discovery, retries and publication;
+Glow does not dispatch production runs. Availability of this shared service is a
+dependency, not evidence of full coverage. A current month, successful source check
+and complete capture are necessary for green Coverage status. Saved copies keep
+original dates and failure/partial states; missing adjacent reports say comparison
+unavailable, never imply a calculation still running or zero ownership. All
+captured source months remain selectable. A source gap cannot be fixed by a browser
+cache. The table discloses each AMC's latest month, status and check/attempt times.
+
+Both daily returns and company holdings paint their durable saved response before
+waiting for the network. Returns revalidate on opening, return/focus and while
+visible at a 15-minute target (one minute after failure); comparisons revalidate
+once per visible minute. Source ETags avoid parsing and normalising unchanged
+returns. Failed or malformed reads retain the last good table; partial pagination
+never replaces a complete saved scope. Existing returns, benchmarks, taxonomy,
+filters and exports keep their published meaning. The holdings cache is namespaced
+by source and company scope; source dates never advance merely from reading cache.
+
+Verification: `scripts/verify-glow-mf-reliability-ui.mjs` exercises real browser
+storage with gated offline fixtures, changed and malformed payloads, a growing
+portfolio, paginated/looping responses, source identity rejection, saved drilldowns,
+Coverage tables/themes, deduplicated requests and focus refresh/cleanup. The normal
+Glow parity suite preserves both return views and source/portfolio isolation.

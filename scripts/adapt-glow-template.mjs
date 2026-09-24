@@ -5,6 +5,11 @@ import { join, resolve, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 export function adaptGlowText(old, path = '') {
   if (/^(<<<<<<<|=======|>>>>>>>)/m.test(old)) return old;
+  // This constant identifies the shared public AMC service, not Glow's deployment.
+  // Preserve only the source declaration; all other deployment substitutions still apply.
+  const sharedMfSource = basename(path) === 'mutual-fund-holdings.js'
+    ? "export const SOURCE = 'https://sattva-central-research.tech-441.workers.dev';" : null;
+  if (sharedMfSource) old = old.replace(sharedMfSource, '__GLOW_PUBLIC_MF_SOURCE__');
   let next = old.replaceAll('techmuns/Sattva-Central-Research', 'techmuns/Glow-Central-Research')
     .replaceAll('sattva-central-research.tech-441.workers.dev', 'glow-central-research.tech-441.workers.dev')
     .replaceAll('1329567087', '1339395437').replaceAll('Sattva Central Research', 'Glow Central Research')
@@ -33,7 +38,7 @@ export function adaptGlowText(old, path = '') {
   if (basename(path) === 'wrangler.jsonc') next = next
     .replace(/("name"\s*:\s*")sattva-central-research(")/g, '$1glow-central-research$2')
     .replace(/("namespace_id"\s*:\s*")17(\d{2})(")/g, (_, prefix, suffix, end) => `${prefix}18${suffix}${end}`);
-  return next;
+  return sharedMfSource ? next.replace('__GLOW_PUBLIC_MF_SOURCE__', sharedMfSource) : next;
 }
 export function adaptGlowTemplate(root = process.cwd()) {
   const adapt = path => {

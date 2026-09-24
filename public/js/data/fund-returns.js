@@ -1,9 +1,9 @@
 // data/fund-returns.js — the AmfiBeas "Returns & Ranking" feed: per-scheme point-to-point returns,
-// same-cohort peer rank AND the cohort's own published average and median. Loaded once, cached,
+// same-cohort peer rank AND the cohort's own published average and median. Saved first, revalidated,
 // called DIRECT from the browser.
 //
 //   load()        fetch, resolve, cache — every failure is a NAMED state, never a thrown error
-//   reload()      forget the cache and fetch again (the "Try again" control)
+//   reload()      revalidate while keeping the last successful table
 //   all()         the schemes the tab shows — DIRECT PLAN, one row per scheme (see below)
 //   allPlans()    every row the source returned, both plans, for counting and for the provenance
 //   meta()        asOfDate, periods, counts, provenance, and a named `reason` on failure
@@ -73,7 +73,7 @@
 // and chatter feeds follow. A null `return` is "no return for that period", never a zero; a null
 // `rank` is "the cohort was too small to rank" and may sit beside a non-null return.
 
-import { conditionalJson, KEYS, isPersistent } from '../core/store.js';
+import { conditionalJson, readEntry, KEYS, isPersistent } from '../core/store.js';
 import { factorsOf, classifyLive } from './mf-taxonomy.js';
 
 export const PERIODS = ['1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y'];
@@ -101,27 +101,64 @@ function baseUrl() {
 
 let cache = null;
 let loadPromise = null;
+let loadedBase = null, lastAttempt = 0, lastTag = null;
+const listeners = new Set();
+export const onUpdate = fn => { listeners.add(fn); return () => listeners.delete(fn); };
+const notify = () => { for (const fn of listeners) { try { fn(); } catch (error) { console.error('Fund returns repaint failed', error); } } };
+const storeKey = base => `${STORE_KEY}:${base}`;
+// The source publishes daily. Recheck while visible and after returning, without
+// downloading/normalising the same multi-megabyte snapshot on every tab switch.
+export const REFRESH_MS = 15 * 60000;
 
-export function load() {
-  if (cache) return Promise.resolve(cache);
+export function load({ force = false } = {}) {
+  const base = baseUrl();
+  if (loadedBase !== base) { cache = null; lastTag = null; lastAttempt = 0; loadPromise = null; loadedBase = base; }
   if (loadPromise) return loadPromise;
-  loadPromise = build().catch((err) => {
-    loadPromise = null; // a thrown (not named) failure may retry on a later mount
-    throw err;
+  if (!force && cache && Date.now() - lastAttempt < (cache.meta.readFailed || cache.meta.reason ? 60000 : REFRESH_MS)) return Promise.resolve(cache);
+  const request = build(base).finally(() => {
+    if (loadPromise === request) { loadPromise = null; lastAttempt = Date.now(); notify(); }
   });
+  loadPromise = request;
   return loadPromise;
 }
 
-/** Forget everything and fetch again — the retry control behind the "Try again" button. */
+/** Revalidate without discarding the last successful table. Concurrent reads coalesce. */
 export function reload() {
-  cache = null;
-  loadPromise = null;
-  return load();
+  return load({ force: true });
 }
 
-async function build() {
-  ingest(await fetchFeed());
+async function build(base) {
+  if (!cache) {
+    // Migrate the historical single-source cache only for its actual public host.
+    const saved = await readEntry(storeKey(base)) || (base === 'https://amfibeas.tech-441.workers.dev' ? await readEntry(STORE_KEY) : null);
+    if (base !== loadedBase) return cache;
+    if (saved?.value) {
+      try {
+        validateFeed(saved.value);
+        ingest({ ok: true, body: saved.value, url: `${base}/api/returns-ranking?fields=full`, saved: true });
+        lastTag = saved.tag;
+        notify();
+      } catch { /* An invalid saved response is a cache miss. */ }
+    }
+  }
+  const res = await fetchFeed(base);
+  if (base !== loadedBase) return cache;
+  if (!res.ok && cache && !cache.meta.reason) {
+    cache.meta = { ...cache.meta, readFailed: true, failureReason: res.reason, origin: 'saved' };
+  } else if (res.ok && res.tag && res.tag === lastTag && cache && !cache.meta.reason) {
+    // Keep the normalised rows, taxonomy and return cells when the source is unchanged.
+    cache.meta = { ...cache.meta, readFailed: false, failureReason: null, checkedAt: res.checkedAt, origin: 'store' };
+  } else {
+    ingest(res);
+    lastTag = res.ok ? res.tag : null;
+  }
   return cache;
+}
+
+function validateFeed(value) {
+  if (!value || !Array.isArray(value.funds) || !value.funds.length ||
+    value.funds.some(f => !f || f.schemecode == null || typeof f.fundName !== 'string' || !f.returns || typeof f.returns !== 'object'))
+    throw Error('Invalid returns feed');
 }
 
 /**
@@ -131,8 +168,7 @@ async function build() {
  * `shape` means the contract moved. The requested URL travels with every failure, so it can be
  * diagnosed from its own artefact.
  */
-async function fetchFeed() {
-  const base = baseUrl();
+async function fetchFeed(base) {
   if (!/^https?:\/\//i.test(base)) return { ok: false, reason: 'no-url' };
   // `fields=full` → the cohort's own `categoryAverage` / `categoryMedian` and the excess over each,
   // beside every return. `fields=compact` carries none of them, and a return with nothing to compare
@@ -140,7 +176,7 @@ async function fetchFeed() {
   const url = `${base}/api/returns-ranking?fields=full`;
   let out;
   try {
-    out = await conditionalJson(url, { key: STORE_KEY, optional: true });
+    out = await conditionalJson(url, { key: storeKey(base), optional: true, signal: AbortSignal.timeout(20000), validate: validateFeed });
   } catch {
     return { ok: false, reason: 'unreachable', url };
   }
@@ -150,7 +186,7 @@ async function fetchFeed() {
     return { ok: false, reason: 'upstream', status: out.status, url };
   }
   if (!out.value || !Array.isArray(out.value.funds)) return { ok: false, reason: 'shape', url };
-  return { ok: true, body: out.value, checkedAt: out.checkedAt, fromStore: out.status === 304, url };
+  return { ok: true, body: out.value, checkedAt: out.checkedAt, fromStore: out.status === 304, tag: out.tag, url };
 }
 
 function baseMeta(extra) {
@@ -345,8 +381,8 @@ function ingest(res) {
       active: kept.filter((r) => r.taxonomy.management === 'active').length,
       passive: kept.filter((r) => r.taxonomy.management === 'passive').length,
       refiled: kept.filter((r) => r.taxonomy.refiled).length,
-      checkedAt: res.checkedAt || Date.now(),
-      origin: res.fromStore ? 'store' : 'live',
+      checkedAt: res.checkedAt || null,
+      origin: res.saved ? 'saved' : res.fromStore ? 'store' : 'live',
     }),
   };
 }
@@ -355,5 +391,5 @@ export const isLoaded = () => !!cache;
 export const all = () => (cache ? cache.funds : []);
 /** Every row the source returned, both plans — for counts and provenance, never for the table. */
 export const allPlans = () => (cache ? cache.allPlans : []);
-export const meta = () => (cache ? cache.meta : null);
+export const meta = () => (cache ? { ...cache.meta, revalidating: !!loadPromise } : null);
 export const periods = () => (cache ? cache.meta.periods : PERIODS);

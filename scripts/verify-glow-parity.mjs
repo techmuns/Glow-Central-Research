@@ -128,7 +128,15 @@ const scan = dir => {
     assert(!source.includes('https://sattva-family.pages.dev'), `foreign portfolio URL in ${path}`);
     assert(!source.includes('techmuns/Sattva-Central-Research'), `foreign collector repo in ${path}`);
     assert(!source.includes("'Sattva-Central-Research'"), `foreign deployment repository in ${path}`);
-    assert(!source.includes('sattva-central-research.tech-441'), `foreign Worker host in ${path}`);
+    // Explicit public market-data reader, like the bulk/block fallback above.
+    // Keep every private host/repository/portfolio assertion active for these files.
+    const publicMfReader = path === 'public/js/data/mutual-fund-holdings.js' || path === 'scripts/verify-glow-mf-reliability-ui.mjs';
+    if (!publicMfReader) assert(!source.includes('sattva-central-research.tech-441'), `foreign Worker host in ${path}`);
+    if (path === 'public/js/data/mutual-fund-holdings.js') {
+      assert.equal(adaptGlowText(source, path), source, 'template sync preserves the public AMC source');
+      assert(!/authHeaders|hostToken|\/private|GH_.*TOKEN/.test(source), 'public MF reader must never access private data or credentials');
+      assert.deepEqual([...source.matchAll(/\$\{SOURCE\}(\/api\/[^?`]+)/g)].map(m => m[1]), ['/api/mutual-funds', '/api/mutual-funds/company']);
+    }
     assert(!source.includes('1329567087'), `foreign repository id in ${path}`);
     assert(!source.includes('/assets/brand/sattva-ventures-'), `foreign product artwork in ${path}`);
   }
