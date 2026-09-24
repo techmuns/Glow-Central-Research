@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "status": "not-started",
+  "checkedAt": null,
+  "captureCheckedAt": null,
+  "holdings": [],
+  "issues": [],
+  "sources": [],
+  "profiles": [],
+  "candidates": [],
+  "coverage": {
+    "indexed": 0,
+    "parsed": 0,
+    "pending": 0,
+    "partial": 0,
+    "securities": 0,
+    "profiles": 0
+  }
+}

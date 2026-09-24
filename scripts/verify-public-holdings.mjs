@@ -143,8 +143,20 @@ if (existsSync(archivePath)) {
   const feed = await import('../public/js/data/public-holdings.js');
   const originalFetch = globalThis.fetch;
   try {
-    let payload = structuredClone(published);
+    let payload = JSON.parse(read('../public/data/public-holdings.json'));
     globalThis.fetch = async () => Response.json(payload);
+    if (payload.status === 'not-started') {
+      await feed.refresh();
+      assert.equal(feed.report(), null, 'an unstarted capture does not become a checked empty portfolio');
+      assert.equal(feed.lastError(), 'Exchange capture has not started');
+    }
+    payload = structuredClone(published);
+    await feed.refresh();
+    const retainedReport = feed.report();
+    payload = {version:1,status:'not-started'};
+    await feed.refresh();
+    assert.equal(feed.report(), retainedReport, 'an unstarted deployment cannot erase captured evidence');
+    payload = structuredClone(published);
     await feed.refresh();
     assert.equal(feed.newArrivals().length, 0, 'initial backlog is quiet');
     payload = { ...payload, checkedAt: new Date().toISOString(), holdings: [...payload.holdings, { ...payload.holdings.find((h) => h.state === 'latest-disclosure' && h.shares > 0), id: 'new-associated-disclosure', associated: true }] };

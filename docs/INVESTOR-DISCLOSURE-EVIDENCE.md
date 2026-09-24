@@ -47,3 +47,5 @@ service-worker check also imports the changed investor view before and after cac
 Publication currently enforces a 24 MiB compressed static-asset ceiling and a 256 MiB expanded
 restore limit. Exceeding a limit fails publication and retains the checkpoint; it never prunes
 older disclosures to make the file fit. Storage must be expanded before further publication.
+
+Before the first scheduled capture, `public-holdings.json` is an explicit `not-started` manifest with null source-check dates and no records. Readers expose that state without a missing asset request, and never adopt it as a successful empty disclosure capture or overwrite previously saved evidence.
