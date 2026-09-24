@@ -22,7 +22,6 @@ import { driversFromEvent, QUESTIONS } from '../data/alert-drivers.js';
 import { developmentSource, foldedSummary, foldedList, KIND_LABEL } from '../data/alert-developments.js';
 import { noteRequestFor, requestNotes, onNotes } from '../data/alert-notes.js';
 import { noteBodyHtml, NOTE_DISCLOSURE } from '../ui/alert-note.js';
-import { alertWindowCache } from '../data/alert-window-cache.js';
 import * as screenerInsights from '../data/screener-insights.js';
 import { onCaptureLanded } from '../data/capture-watchdog.js';
 import * as coverage from '../data/coverage.js';
@@ -131,7 +130,6 @@ export function render(ctx) {
   if (!unsubs.length) {
     unsubs.push(watchCalendar());
     unsubs.push(watchFreshness());
-    unsubs.push(alertWindowCache.onChange(() => { if (ctxRef) paint(ctxRef); }));
     // A "So what?" note landing repaints through `reconcileMarkup`, which replaces only the note.
     unsubs.push(onNotes(() => { if (ctxRef) paint(ctxRef); }));
     unsubs.push(onCaptureLanded(sourceChanged));
@@ -352,9 +350,7 @@ function paint(ctx) {
     ctx.root.querySelector('[data-ai-clear]')?.addEventListener('click', clearSearch);
   }
   reconcileMarkup(ctx.root.querySelector('[data-ai-heading]'), head(ctx));
-  const cache = alertWindowCache.status();
-  reconcileMarkup(ctx.root.querySelector('[data-ai-position-status]'), positionStatus(ctx) + (cache.message
-    ? `<p data-ai-cache-status role="status" class="mb-4 text-xs text-slate-500">${escapeHtml(cache.message)}</p>` : '') + kpiStatusMarkup());
+  reconcileMarkup(ctx.root.querySelector('[data-ai-position-status]'), positionStatus(ctx) + kpiStatusMarkup());
   ctx.root.querySelector('[data-ai-clear]').hidden = !query.length;
   // Identical results keep their DOM, expanded evidence and keyboard focus.
   for (const [selector, markup] of [
@@ -391,11 +387,7 @@ function positionStatus(ctx) {
   const sizes = report?.meta?.positionSizes;
   if ((sizesLoading || awaitingBook !== null) && !sizes) return sortOrder === 'holdings'
     ? `<p class="mb-4 text-xs text-slate-500" role="status">Loading portfolio sizes · Showing newest first until Largest holdings is ready.</p>` : '';
-  if (sizes?.complete && !sizeError) {
-    return `<p data-ai-size-note class="mb-4 text-xs text-slate-500" title="${escapeHtml(`Portfolio checked ${sizes.checkedAt}. ${['workbook', 'statements'].includes(sizes.valuation) ? 'Weights use the source statement marks.' : 'Weights use available prices; quote freshness varies.'} Percentages use the complete equity statement book; other asset classes and the ring-fenced holding are excluded.`)}">
-      Statement period · ${fmtDay(sizes.bookAsOf)}${['workbook', 'statements'].includes(sizes.valuation) ? ' · Snapshot weights' : ''}
-    </p>`;
-  }
+  if (sizes?.complete && !sizeError) return '';
   return portfolioConnectionState() === 'locked' ? `<p class="mb-4 text-xs text-slate-500"><button type="button" data-ai-unlock class="font-semibold text-indigo-700 hover:underline">Unlock portfolio to include holding sizes</button></p>`
     : sortOrder === 'holdings' || sizes?.complete === false ? `<p class="mb-4 text-xs text-slate-500" role="status">Portfolio sizes unavailable${sizes?.complete === false ? ' · Statement values could not be fully reconciled' : ''} · ${effectiveSort(ctx) === 'priority' ? 'Showing highest priority' : 'Showing newest first'}.</p>` : '';
 }
@@ -405,10 +397,9 @@ function searchMarkup() {
     <label for="ai-alert-search" class="sr-only">Search AI Alerts</label>
     <div class="flex items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-500">
       <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
-      <input id="ai-alert-search" data-ai-search type="search" autocomplete="off" aria-describedby="ai-search-help" placeholder="Search company, symbol or alert…" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-slate-900 outline-none placeholder:text-slate-400">
+      <input id="ai-alert-search" data-ai-search type="search" autocomplete="off" placeholder="Search company, symbol or alert…" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-slate-900 outline-none placeholder:text-slate-400">
       <button type="button" data-ai-clear class="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 focus-visible:outline-indigo-500">Clear</button>
     </div>
-    <p id="ai-search-help" class="mt-2 text-xs text-slate-500">Search all events behind these alerts · Last ${alerts.WINDOW_DAYS} days · Dates in IST</p>
   </div>`;
 }
 
@@ -817,6 +808,8 @@ function soWhatMarkup(card) {
 }
 
 function cardMarkup(card, scope, day, archived = false) {
+  const sizes = report?.meta?.positionSizes;
+  const sizeTitle = sizes ? `Statement period · ${fmtDay(sizes.bookAsOf)}. Portfolio checked ${sizes.checkedAt}. ${['workbook', 'statements'].includes(sizes.valuation) ? 'Weights use the source statement marks.' : 'Weights use available prices; quote freshness varies.'} Percentages use the complete equity statement book; other asset classes and the ring-fenced holding are excluded.` : '';
   const badge = card.badge || { id: 'important', label: 'Important', tone: 'neutral' };
   const tone = {
     negative: { edge: 'border-l-rose-500', badge: 'bg-rose-600 text-white ring-rose-600' },
@@ -849,7 +842,7 @@ function cardMarkup(card, scope, day, archived = false) {
         <p data-ai-date class="mt-2 text-xs leading-relaxed text-slate-500" title="Date of the newest noteworthy source event behind this alert. Source dates and times use IST; refreshing the page does not make an old event new.">
           ${signal ? `Latest signal · <time datetime="${escapeHtml(signal.datetime)}"><span data-ai-age data-day="${signal.day}" class="font-semibold capitalize text-slate-600">${relativeAge(signal.day, day)}</span> · ${fmtDay(signal.day)}${signal.time ? ` · ${signal.time} IST` : ''}</time>` : 'Signal date unavailable'}
         </p>
-        ${Number.isFinite(card.holdingWeightPct) ? `<p data-ai-holding-size class="mt-1 text-xs font-semibold text-indigo-700">${card.holdingWeightPct > 0 && card.holdingWeightPct < 0.01 ? '&lt;0.01' : card.holdingWeightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of equity statement book</p>` : ''}
+        ${Number.isFinite(card.holdingWeightPct) ? `<p data-ai-holding-size title="${escapeHtml(sizeTitle)}" class="mt-1 text-xs font-semibold text-indigo-700">${card.holdingWeightPct > 0 && card.holdingWeightPct < 0.01 ? '&lt;0.01' : card.holdingWeightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of equity statement book</p>` : ''}
 
         ${cardSection('What happened', `${whatHappenedMarkup(card, scope)}${confluenceMarkup(card)}`)}
         ${soWhatMarkup(card)}
