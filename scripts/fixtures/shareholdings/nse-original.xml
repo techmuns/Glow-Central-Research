@@ -1,0 +1,16 @@
+<!-- Original exchange excerpt: only required shareholding facts retained; personal identifiers excluded. -->
+<xbrli:xbrl>
+<xbrli:context id="MainD"><xbrli:entity><xbrli:identifier scheme="http://www.bseindia.com/in-bse-shp/Symbol">SONUINFRA</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:startDate>2026-05-21</xbrli:startDate><xbrli:endDate>2026-08-20</xbrli:endDate></xbrli:period></xbrli:context>
+<xbrli:context id="MainI"><xbrli:entity><xbrli:identifier scheme="http://www.bseindia.com/in-bse-shp/Symbol">SONUINFRA</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:instant>2026-08-20</xbrli:instant></xbrli:period></xbrli:context>
+<xbrli:context id="D_IndividualsOrHUF_Context15"><xbrli:entity><xbrli:identifier scheme="http://www.bseindia.com/in-bse-shp/Symbol">SONUINFRA</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:startDate>2026-05-21</xbrli:startDate><xbrli:endDate>2026-08-20</xbrli:endDate></xbrli:period><xbrli:scenario><xbrldi:typedMember dimension="in-bse-shp:DetailsSharesHeldByIndividualsOrHUFAxis"><in-bse-shp:IndividualsOrHUFDomain>IndividualsOrHUF_Context15</in-bse-shp:IndividualsOrHUFDomain></xbrldi:typedMember></xbrli:scenario></xbrli:context>
+<xbrli:context id="IndividualsOrHUF_Context15"><xbrli:entity><xbrli:identifier scheme="http://www.bseindia.com/in-bse-shp/Symbol">SONUINFRA</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:instant>2026-08-20</xbrli:instant></xbrli:period><xbrli:scenario><xbrldi:typedMember dimension="in-bse-shp:DetailsSharesHeldByIndividualsOrHUFAxis"><in-bse-shp:IndividualsOrHUFDomain>IndividualsOrHUF_Context15</in-bse-shp:IndividualsOrHUFDomain></xbrldi:typedMember></xbrli:scenario></xbrli:context>
+<in-bse-shp:ScripCode contextRef="MainD">000000</in-bse-shp:ScripCode>
+<in-bse-shp:Symbol contextRef="MainD">SONUINFRA</in-bse-shp:Symbol>
+<in-bse-shp:ISIN contextRef="MainD">INE0JZA01018</in-bse-shp:ISIN>
+<in-bse-shp:NameOfTheCompany contextRef="MainD">Sonu Infratech Limited</in-bse-shp:NameOfTheCompany>
+<in-bse-shp:DateOfReport contextRef="MainI">2026-09-08</in-bse-shp:DateOfReport>
+<in-bse-shp:DateOfAllotment contextRef="MainI">2026-08-20</in-bse-shp:DateOfAllotment>
+<in-bse-shp:NameOfTheShareholder contextRef="D_IndividualsOrHUF_Context15">RAMJI SHRINARAYAN PANDEY</in-bse-shp:NameOfTheShareholder>
+<in-bse-shp:NumberOfShares contextRef="IndividualsOrHUF_Context15" decimals="INF" unitRef="shares">2472000</in-bse-shp:NumberOfShares>
+<in-bse-shp:ShareholdingAsAPercentageOfTotalNumberOfShares contextRef="IndividualsOrHUF_Context15" decimals="INF" unitRef="pure">0.194</in-bse-shp:ShareholdingAsAPercentageOfTotalNumberOfShares>
+</xbrli:xbrl>

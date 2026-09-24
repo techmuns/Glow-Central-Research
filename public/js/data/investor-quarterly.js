@@ -27,7 +27,7 @@ export function summariseQuarter(books, { include = null, limit = 5, investors =
       if (change) moves.push({ ...h, ...change, investor: names.get(b.slug) || b.name, slug: b.slug, latest: l, prior: p });
     }
   }
-  const counts = { new: 0, exited: 0, added: 0, trimmed: 0, held: 0, awaiting: 0 };
+  const counts = { new: 0, exited: 0, added: 0, trimmed: 0, held: 0, awaiting: 0, unknown: 0 };
   for (const m of moves) counts[m.action]++;
   const group = (actions) => {
     const byCompany = new Map();

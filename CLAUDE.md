@@ -4435,3 +4435,10 @@ never describe an attachment filename as a document reading.
 
 Alert-pool content reuse and streamed Telegram delivery follow `docs/ALERT-DELIVERY-REUSE.md`.
 Capture identity and source health must be rechecked even when decoded content is unchanged.
+
+Investor evidence parity (24 September 2026): `docs/INVESTOR-DISCLOSURE-EVIDENCE.md`
+defines public-only Changes, explicit disclosure states, original filing reconciliation and
+checkpoint-first capture publication through PRs. Preserve the All Investors default and
+Sattva's existing Institutions/MF ownership product. Unknown cells never establish trades or
+new/removed disclosures; a zero valuation is not evidence of an exit. Original source dates,
+partial coverage and retained versions must survive every refresh and export.

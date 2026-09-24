@@ -1,0 +1,16 @@
+<!-- Original exchange excerpt: only required shareholding facts retained; personal identifiers excluded. -->
+<xbrli:xbrl>
+<xbrli:context id='MainD' xmlns:xbrli='http://www.xbrl.org/2003/instance'><xbrli:entity><xbrli:identifier scheme='http://www.bseindia.com/in-bse-shp/ScripCode'>543542</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:startDate>2026-06-02</xbrli:startDate><xbrli:endDate>2026-09-01</xbrli:endDate></xbrli:period></xbrli:context>
+<xbrli:context id='MainI' xmlns:xbrli='http://www.xbrl.org/2003/instance'><xbrli:entity><xbrli:identifier scheme='http://www.bseindia.com/in-bse-shp/ScripCode'>543542</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:instant>2026-09-01</xbrli:instant></xbrli:period></xbrli:context>
+<xbrli:context id='D_IndividualsOrHUF_Context15' xmlns:xbrli='http://www.xbrl.org/2003/instance'><xbrli:entity><xbrli:identifier scheme='http://www.bseindia.com/in-bse-shp/ScripCode'>543542</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:startDate>2026-06-02</xbrli:startDate><xbrli:endDate>2026-09-01</xbrli:endDate></xbrli:period><xbrli:scenario><xbrldi:typedMember  dimension='in-bse-shp:DetailsSharesHeldByIndividualsOrHUFAxis'><in-bse-shp:IndividualsOrHUFDomain>IndividualsOrHUF_Context15</in-bse-shp:IndividualsOrHUFDomain></xbrldi:typedMember></xbrli:scenario></xbrli:context>
+<xbrli:context id='IndividualsOrHUF_Context15' xmlns:xbrli='http://www.xbrl.org/2003/instance'><xbrli:entity><xbrli:identifier scheme='http://www.bseindia.com/in-bse-shp/ScripCode'>543542</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:instant>2026-09-01</xbrli:instant></xbrli:period><xbrli:scenario><xbrldi:typedMember  dimension='in-bse-shp:DetailsSharesHeldByIndividualsOrHUFAxis'><in-bse-shp:IndividualsOrHUFDomain>IndividualsOrHUF_Context15</in-bse-shp:IndividualsOrHUFDomain></xbrldi:typedMember></xbrli:scenario></xbrli:context>
+<ix:nonNumeric name='in-bse-shp:NameOfTheCompany' contextRef='MainD'>KESAR INDIA LIMITED</ix:nonNumeric>
+<ix:nonNumeric name='in-bse-shp:ScripCode' contextRef='MainD'>543542</ix:nonNumeric>
+<ix:nonNumeric name='in-bse-shp:Symbol' contextRef='MainD'>NOTLISTED</ix:nonNumeric>
+<ix:nonNumeric name='in-bse-shp:ISIN' contextRef='MainD'>INE0L1C01019</ix:nonNumeric>
+<ix:nonNumeric name='in-bse-shp:DateOfReport' contextRef='MainI' format='ixt2:datedaymonthyear'>09-09-2026</ix:nonNumeric>
+<ix:nonNumeric name='in-bse-shp:DateOfAllotment' contextRef='MainI' format='ixt2:datedaymonthyear'>01-09-2026</ix:nonNumeric>
+<ix:nonNumeric name='in-bse-shp:NameOfTheShareholder' contextRef='D_IndividualsOrHUF_Context15'>GOPAL  GUPTA</ix:nonNumeric>
+<ix:nonFraction name='in-bse-shp:NumberOfShares' contextRef='IndividualsOrHUF_Context15' decimals='INF' unitRef='shares'>18585747</ix:nonFraction>
+<ix:nonFraction name='in-bse-shp:ShareholdingAsAPercentageOfTotalNumberOfShares' contextRef='IndividualsOrHUF_Context15' decimals='INF' unitRef='pure' scale='-2'>57.13</ix:nonFraction>
+</xbrli:xbrl>
