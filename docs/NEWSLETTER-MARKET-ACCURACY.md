@@ -91,6 +91,58 @@ future builds receive the correction through the existing merge-triggered deploy
 References: [Upstox full quotes](https://upstox.com/developer/api-documentation/get-full-market-quote-v3/)
 and [instrument identities](https://upstox.com/developer/api-documentation/instruments/).
 
+## Additional source coverage
+
+The public [BSE Indices Sensex page](https://www.bseindices.com/indices-details/code/16)
+uses `AsiaIndicesGraphData` with index code 16 and the daily (`flag=1`) series.
+The newsletter now reads this same public feed once, with an eight-second timeout,
+a 256 KiB response cap and no credentials or redirects. Its `Scrip` must be exactly
+`BSE SENSEX`. The chart's `PreClose` and `LatestVal` must be positive, and LatestVal
+must agree with the last dated cash-session `value`. Pre-open `value1` observations
+are never used. Dates must be ordered, unique and in one session; future points,
+missing cash values and incoherent headers are rejected.
+
+The captured 24 September response exposes why its header clock must not date a
+quote: `LatestTime` still says 09:00:59 while the last cash point is 09:38:38.
+The parser uses the point's full date/time in IST. At that point Sensex is 74,267.72
+against 74,828.25, or −560.53 / −0.75%. BSE participates in the same exchange-first
+reconciliation as NSE, including withholding unresolved disagreements. A local
+read of the public feeds also verified all eight Indian indices with current
+exchange quotes; this is a dated observation, not a perpetual availability claim.
+
+Upstox's [global instrument master](https://assets.upstox.com/market-quote/instruments/exchange/global.json.gz)
+and [API announcement](https://upstox.com/developer/api-documentation/announcements/global-instruments/)
+identify four exact additional cash benchmarks in this newsletter: `^GSPC`, `^DJI`,
+`^N225` and `^HSI`. A separate four-key full-quote request prevents a global API
+failure from invalidating the existing eight-key Indian request. No new token or
+subscription is installed. The key, symbol, last-trade timestamp, previous close
+and point-change arithmetic are checked for every row. Failed row identities and
+reasons are retained in delivery summaries; customer outputs keep source coverage.
+
+Global dates use the exchange timezone, including US daylight saving. The standard
+cash-session close thresholds are 16:00 New York, 15:30 Tokyo and 16:10 Hong Kong
+(after its closing auction). A preceding weekday quote becomes earlier once the
+next ordinary session opens. This is conservative: unknown holidays and shortened
+sessions are not certified as current closes. Upstox's documented 15-minute Nikkei
+and Hang Seng delay stays visible. A delayed quote can fill an otherwise missing
+comparison but never becomes a close or enters the headline glance.
+
+`IXIX` in that master is US Tech 100, **not Nasdaq Composite**. Its Brent indicator
+is also a different product from Yahoo's Brent futures contract. Neither is used
+as a substitute. USD/INR feeds can have different daily fixing boundaries, so that
+indicator is not silently interchanged either. Nasdaq Composite, Kospi, DXY,
+USD/JPY, USD/INR and US 10-year yield therefore still depend on their existing
+validated feeds. Broader coverage needs a source with those exact instruments,
+dated previous closes and appropriate access; no source guarantees perfect data.
+
+Session references: [NYSE](https://www.nyse.com/trade/trading-information),
+[JPX](https://www.jpx.co.jp/english/equities/trading/domestic/01.html),
+[HKEX](https://www.hkex.com.hk/Services/Trading-hours-and-Severe-Weather-Arrangements/Trading-Hours/Securities-Market).
+
+The market suite additionally exercises the actual BSE response, pre-open exclusion,
+malformed and oversized replies, date rollover/DST, exact global identities,
+independent batch failure, conflict handling and HTML/text/PDF provenance.
+
 ## Existing CI reliability gate
 
 The full-history versus bounded-news check also exposed a pre-existing failure in

@@ -9,9 +9,9 @@
 // like the dollar index, and USDJPY" — plus "corporate announcements and news", and "in the email,
 // I would just send for direct ones". So:
 //
-//   1. GLOBAL MARKET SCAN — quotes read at send time, NSE exchange snapshots and Upstox for Indian indices,
+//   1. GLOBAL MARKET SCAN — quotes read at send time, NSE/BSE exchange snapshots and Upstox for Indian indices,
 //      with Yahoo cross-check/fallback. Daily changes use dated preceding-session closes, never a
-//      chart range's reference. Missing/conflicting comparisons are withheld. Yahoo has one
+//      chart range's reference. Four exact global cash indices also use Upstox. Missing/conflicting comparisons are withheld. Yahoo has one
 //      symbol per request, each row carrying its OWN state and time: `Close · Wed 16:00 EDT` for a
 //      market that has shut, `Live · 07:58 JST` for one still trading. The series store under
 //      public/data/series/ is the fallback for a symbol Yahoo would not answer, and a row filled
@@ -69,7 +69,7 @@
 // source was read, and a source that could not be read says so in the email rather than going quiet.
 
 import { FEED_URL as NSE_FEED_URL, HEADERS as NSE_HEADERS, assertShape as assertNseShape, buildResolver, parseAnnouncements, resolveAll, resolveRow } from './nse-ann.mjs';
-import { quoteFromChart, readUpstoxIndices, readNseIndices, reconcileIndianIndex, marketIssue } from './newsletter-markets.mjs';
+import { quoteFromChart, readUpstoxIndices, readNseIndices, readBseSensex, GLOBAL_INSTRUMENTS, reconcileIndianIndex, reconcileGlobalIndex, marketIssue } from './newsletter-markets.mjs';
 export { quoteFromChart } from './newsletter-markets.mjs';
 import { filingKey as nseFilingKey } from '../public/js/data/nse-history-shared.js';
 import { portfolioNewsEntities } from '../public/js/data/company-news-identity.js';
@@ -221,7 +221,10 @@ export function quoteFromSeries(manifest, row) {
 export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {}) {
   const rows = [];
   const exchange = readNseIndices(MARKET_ROWS, { fetcher, now });
+  const bseExchange = readBseSensex(MARKET_ROWS.find(r => r.id === 'sensex'), { fetcher, now });
   const primary = readUpstoxIndices(MARKET_ROWS.filter(r => r.group === 'india'), { token: env?.UPSTOX_ACCESS_TOKEN, fetcher, now });
+  // Separate bounded batches: unsupported global instruments must not take down India's feed.
+  const globalPrimary = readUpstoxIndices(MARKET_ROWS.filter(r => GLOBAL_INSTRUMENTS[r.id]), { token: env?.UPSTOX_ACCESS_TOKEN, fetcher, now });
   await pooled(MARKET_ROWS, QUOTE_POOL, async (row) => {
     try {
       const url = `${YAHOO_CHART_BASE}${encodeURIComponent(row.symbol)}?range=5d&interval=1d`;
@@ -232,9 +235,11 @@ export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {
       rows.push({ ...row, last: null, prev: null, change: null, changePct: null, asOf: null, state: 'unavailable', origin: null, reason: reasonOf(error) });
     }
   });
-  const [upstox, nse] = await Promise.all([primary, exchange]);
-  for (let i = 0; i < rows.length; i++) if (rows[i].group === 'india') {
-    rows[i] = reconcileIndianIndex(rows[i], upstox.rows.get(rows[i].id), nse.rows.get(rows[i].id), upstox.failures?.[rows[i].id] || upstox.reason);
+  const [upstox, nse, bse, globalUpstox] = await Promise.all([primary, exchange, bseExchange, globalPrimary]);
+  for (let i = 0; i < rows.length; i++) {
+    const id = rows[i].id;
+    if (rows[i].group === 'india') rows[i] = reconcileIndianIndex(rows[i], upstox.rows.get(id), nse.rows.get(id) || bse.rows.get(id), upstox.failures?.[id] || upstox.reason);
+    else if (GLOBAL_INSTRUMENTS[id]) rows[i] = reconcileGlobalIndex(rows[i], globalUpstox.rows.get(id), globalUpstox.failures?.[id] || globalUpstox.reason);
   }
   const failed = rows.filter((r) => r.state === 'unavailable' && r.reason !== 'source-conflict');
   let stored = [];
@@ -247,8 +252,10 @@ export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {
   }
   const byId = new Map(rows.map((r) => [r.id, r]));
   return {
-    readAt: now, upstox: { configured: !!env?.UPSTOX_ACCESS_TOKEN, reason: upstox.reason, checked: upstox.rows.size },
+    readAt: now, upstox: { configured: !!env?.UPSTOX_ACCESS_TOKEN, reason: upstox.reason, checked: upstox.rows.size, failures: upstox.failures || {} },
+    globalUpstox: { configured: !!env?.UPSTOX_ACCESS_TOKEN, reason: globalUpstox.reason, checked: globalUpstox.rows.size, failures: globalUpstox.failures || {} },
     nse: { reason: nse.reason, checked: nse.rows.size },
+    bse: { reason: bse.reason, checked: bse.rows.size },
     rows: MARKET_ROWS.map((r) => byId.get(r.id)),
     failed: rows.filter((r) => r.state === 'unavailable').map((r) => r.id),
     stored,
@@ -1331,6 +1338,7 @@ export function briefSummary(brief) {
     quotesStored: brief.markets.stored,
     quotesUnverified: brief.markets.unverified || [], quotesConflicts: brief.markets.conflicts || [],
     indexSource: brief.markets.upstox || null, exchangeSource: brief.markets.nse || null,
+    bseIndexSource: brief.markets.bse || null, globalIndexSource: brief.markets.globalUpstox || null,
     quotesOutliers: brief.markets.outliers || [],
     announcements: brief.announcements.count,
     news: brief.news.count,
@@ -1394,9 +1402,10 @@ export function asOfLabel(row) {
   if (row.state === 'stored') return `Series store · ${row.storedDay}`;
   const when = row.timezone ? zoneShort(row.asOf, row.timezone) : istLabel(row.asOf);
   const status = { live: 'Live', close: 'Close', delayed: 'Delayed quote', stale: 'Earlier quote' }[row.state] || 'Quote';
-  const provider = row.origin === 'nse' ? 'NSE' : row.origin === 'upstox' ? 'Upstox' : 'Yahoo';
-  const verification = row.verification === 'cross-checked' ? ' · cross-checked' : row.group === 'india' ? ' · single source' : '';
-  return `${status} · ${when} · ${provider}${verification}${marketIssue(row) ? ` · ${marketIssue(row)}` : ''}`;
+  const provider = row.origin === 'nse' ? 'NSE' : row.origin === 'bse' ? 'BSE Indices' : row.origin === 'upstox' ? 'Upstox' : 'Yahoo';
+  const verification = row.verification === 'cross-checked' ? ' · cross-checked' : row.verification === 'single-source' || row.group === 'india' ? ' · single source' : '';
+  const delay = row.delayMinutes ? ` · ${row.delayMinutes}-minute feed delay` : '';
+  return `${status} · ${when} · ${provider}${delay}${verification}${marketIssue(row) ? ` · ${marketIssue(row)}` : ''}`;
 }
 
 export function glanceLine(brief) {
@@ -1610,8 +1619,10 @@ export function sourcesNote(brief) {
     const market = brief.markets;
     bits.push(`market source checks started ${istLabel(market.readAt)}; each row carries its own source time; daily changes use the preceding session close`);
     if (market.nse?.reason) bits.push(`NSE index check ${market.nse.reason}; usable alternative sources are labelled on each row`);
+    if (market.bse?.reason) bits.push(`BSE Sensex check ${market.bse.reason}; usable alternative sources are labelled on each row`);
     if (market.outliers?.length) bits.push(`${market.outliers.length} exchange quote(s) corroborated by another provider despite a third-source disagreement`);
     if (market.upstox?.reason) bits.push(`Upstox index check ${market.upstox.reason}; fallback rows are marked single source`);
+    if (market.globalUpstox?.reason) bits.push(`Upstox global index check ${market.globalUpstox.reason}; usable alternative sources are labelled on each row`);
     if (market.conflicts?.length) bits.push(`${market.conflicts.length} market source disagreement(s); affected figures withheld`);
     if (market.unverified?.length) bits.push(`${market.unverified.length} daily change(s) could not be verified`);
   }

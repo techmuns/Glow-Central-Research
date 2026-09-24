@@ -1315,8 +1315,10 @@ rules, and every one of them is a rule this file already runs on:
 
 1. **"Direct ones" means `portfolio-companies.json`**, the Portfolio scope's own file, and nothing
    wider. Fund units, AIFs and the ring-fenced line are outside it there and outside it here.
-2. **Every figure carries its own state and time.** Indian indices prefer the official NSE snapshot where available (Sensex remains
-   Upstox/BSE), with the existing server-side Upstox token and exact cash-index identities.
+2. **Every figure carries its own state and time.** Indian indices prefer the official NSE snapshot and BSE Indices' dated Sensex chart,
+   with the existing server-side Upstox token and exact cash-index identities.
+   A separate Upstox batch covers S&P 500, Dow, Nikkei and Hang Seng; other index families,
+   futures and spot instruments are never substituted to fill a gap. Provider delays remain visible.
    Yahoo supplies an additional cross-check/fallback. A corroborated exchange quote survives
    a third-provider outlier; unresolved disagreements withhold affected figures.
    Yahoo daily changes use the immediately preceding dated, unadjusted session bar, never

@@ -13,6 +13,17 @@ export const INDIA_INSTRUMENTS = {
   niftyit: ['NSE_INDEX|Nifty IT', 'NIFTY IT'],
   indiavix: ['NSE_INDEX|India VIX', 'INDIA VIX'],
 };
+// Exact cash benchmarks from Upstox's global.json.gz master (24 Sep 2026).
+// IXIX is US Tech 100, not Nasdaq Composite; BZUSD is not the BZ=F futures contract.
+export const GLOBAL_INSTRUMENTS = {
+  sp500: ['GLOBAL_INDEX|^GSPC', '^GSPC'], dow: ['GLOBAL_INDEX|^DJI', '^DJI'],
+  nikkei: ['GLOBAL_INDEX|^N225', '^N225'], hangseng: ['GLOBAL_INDEX|^HSI', '^HSI'],
+};
+const GLOBAL_SESSIONS = {
+  sp500: ['America/New_York', 'USD', 570, 960, 0], dow: ['America/New_York', 'USD', 570, 960, 0],
+  nikkei: ['Asia/Tokyo', 'JPY', 540, 930, 15], hangseng: ['Asia/Hong_Kong', 'HKD', 570, 970, 15],
+};
+const instrument = id => INDIA_INSTRUMENTS[id] || GLOBAL_INSTRUMENTS[id];
 export const NSE_INDICES = { nifty: 'NIFTY 50', niftybank: 'NIFTY BANK', niftymid100: 'NIFTY MIDCAP 100',
   niftysmall100: 'NIFTY SMALLCAP 100', nifty500: 'NIFTY 500', niftyit: 'NIFTY IT', indiavix: 'INDIA VIX' };
 const positive = n => Number.isFinite(n) && n > 0;
@@ -24,6 +35,70 @@ export function marketDay(at, timezone) {
 }
 const delta = (last, prev) => ({ prev, change: prev == null ? null : last - prev, changePct: prev == null ? null : (last / prev - 1) * 100 });
 const usable = r => r && ['live', 'close'].includes(r.state) && r.last != null;
+
+// Ordinary cash-session hours only. Unknown holidays/early closes stay visibly
+// earlier/delayed rather than certifying a close from an intraday observation.
+function globalState(asOf, now, config) {
+  const [zone, , open, close, delayMinutes] = config;
+  const minute = at => {
+    const p = new Intl.DateTimeFormat('en-GB', { timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(at);
+    return Number(p.find(p => p.type === 'hour').value) * 60 + Number(p.find(p => p.type === 'minute').value);
+  };
+  const day = marketDay(asOf, zone), today = marketDay(now, zone);
+  let expected = Date.parse(`${today}T12:00:00Z`);
+  if (minute(now) < open) expected -= 86400000;
+  while ([0, 6].includes(new Date(expected).getUTCDay())) expected -= 86400000;
+  if (day !== new Date(expected).toISOString().slice(0, 10) || now - asOf > 4 * 86400000) return 'stale';
+  if (minute(asOf) < open) fail('timestamp');
+  if (minute(asOf) >= close) return 'close';
+  return day === today && minute(now) < close && !delayMinutes && now - asOf <= 2 * 60000 ? 'live' : 'delayed';
+}
+
+export const BSE_SENSEX_URL = 'https://www.bseindices.com/AsiaIndexAPI/api/AsiaIndicesGraphData/w?index=16&flag=1&sector=&seriesid=R&frd=null&tod=null';
+/** The public BSE Indices Sensex chart carries dated cash observations and its
+ * own PreClose. value1 is pre-open and must never be substituted for value.
+ * Its header clock is unreliable (09:00 on a 09:38 response); date the point.
+ */
+export function quoteFromBse(body, row, now) {
+  if (row.id !== 'sensex' || row.symbol !== '^BSESN' || typeof body !== 'string') fail('identity');
+  const parts = body.split('#@#');
+  if (parts.length !== 2) fail('shape');
+  const [headers, points] = parts.map(p => JSON.parse(p.replace(/\\"/g, '"')));
+  if (!Array.isArray(headers) || headers.length !== 1 || headers[0]?.Scrip !== 'BSE SENSEX') fail('identity');
+  if (!Array.isArray(points) || !points.length || points.length > 2000) fail('shape');
+  const number = v => typeof v === 'string' && /^\d+(?:\.\d+)?$/.test(v) ? Number(v) : v;
+  const prev = number(headers[0].PreClose), last = number(headers[0].LatestVal);
+  if (!positive(prev) || !positive(last)) fail('shape');
+  let asOf = null, sessionDate = null, previousAt = 0, pointLast = null;
+  for (const point of points) {
+    const m = /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat) ([A-Z][a-z]{2}) (\d{2}) (\d{4}) (\d{2}:\d{2}:\d{2})$/.exec(point?.date || '');
+    const month = m && ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(m[2]);
+    if (!m || month < 0) fail('timestamp');
+    const day = `${m[4]}-${String(month + 1).padStart(2, '0')}-${m[3]}`;
+    const at = Date.parse(`${day}T${m[5]}+05:30`);
+    if (!positive(at) || at > now + 60000 || at <= previousAt || marketDay(at, 'Asia/Kolkata') !== day || (sessionDate && sessionDate !== day)) fail('timestamp');
+    previousAt = at; sessionDate = day;
+    if (point.value === undefined) continue;
+    if (at < Date.parse(`${day}T09:15:00+05:30`) || !positive(number(point.value))) fail('shape');
+    asOf = at; pointLast = number(point.value);
+  }
+  if (!asOf || asOf !== previousAt || differs(pointLast, last)) fail('shape');
+  const state = sessionDate !== expectedSession(now) ? 'stale' : marketWindow(now).open
+    ? now - asOf <= 2 * 60000 ? 'live' : 'delayed'
+    : asOf >= Date.parse(`${sessionDate}T15:30:00+05:30`) ? 'close' : 'delayed';
+  return { ...row, last, ...delta(last, prev), asOf, sessionDate, state,
+    timezone: 'Asia/Kolkata', currency: 'INR', origin: 'bse', checkedAt: now, changeReason: null };
+}
+
+export async function readBseSensex(row, { fetcher, now, timeout = 8000 }) {
+  try {
+    const res = await fetcher(BSE_SENSEX_URL, { headers: { accept: 'application/json', 'user-agent': 'GlowCentralResearch/1.0' },
+      redirect: 'manual', signal: AbortSignal.timeout(timeout) });
+    if (!res.ok) { await res.body?.cancel(); return { rows: new Map(), reason: [401, 403].includes(res.status) ? 'blocked' : res.status === 429 ? 'rate-limited' : 'unavailable' }; }
+    const quote = quoteFromBse(await boundedJson(res, 256 * 1024), row, now);
+    return { rows: new Map([[row.id, quote]]), reason: null };
+  } catch (e) { return { rows: new Map(), reason: /abort|timeout/i.test(e?.name) ? 'timeout' : e.reason || 'unavailable' }; }
+}
 
 export function quoteFromNse(data, timestamp, row, now) {
   if (!NSE_INDICES[row.id] || data?.index !== NSE_INDICES[row.id]) fail('identity');
@@ -123,31 +198,34 @@ export function quoteFromChart(body, row, now) {
  * Index last-trade time is required: a fresh HTTP/feed timestamp cannot date an old level.
  */
 export function quoteFromUpstox(data, row, now) {
-  const identity = INDIA_INSTRUMENTS[row.id];
-  if (!identity || data?.instrument_token !== identity[0] ||
+  const identity = instrument(row.id), global = GLOBAL_SESSIONS[row.id];
+  if (!identity || (global && row.symbol !== identity[1]) || data?.instrument_token !== identity[0] ||
       ![identity[1], identity[0].split('|')[1].toUpperCase()].includes(String(data.symbol || '').toUpperCase())) fail('identity');
   if (!positive(data.last_price) || !Number.isFinite(data.net_change)) fail('shape');
   const asOf = typeof data.last_trade_time === 'string' && /^\d+$/.test(data.last_trade_time)
     ? Number(data.last_trade_time) : data.last_trade_time;
   if (!positive(asOf) || asOf < 1e12 || asOf > now + 60000) fail('timestamp');
-  const sessionDate = marketDay(asOf, 'Asia/Kolkata'), last = data.last_price, prev = data.prev_close_price;
+  const timezone = global?.[0] || 'Asia/Kolkata';
+  const sessionDate = marketDay(asOf, timezone), last = data.last_price, prev = data.prev_close_price;
   if (!positive(prev)) fail('previous-close-unverified');
   // Do not adopt a freshly dated feed at midnight / before the cash session starts.
-  if (asOf < Date.parse(`${sessionDate}T09:15:00+05:30`)) fail('timestamp');
+  if (!global && asOf < Date.parse(`${sessionDate}T09:15:00+05:30`)) fail('timestamp');
   const current = sessionDate === expectedSession(now);
-  const state = !current ? 'stale' : marketWindow(now).open
+  const state = global ? globalState(asOf, now, global) : !current ? 'stale' : marketWindow(now).open
     ? (now - asOf <= 20 * 60000 ? 'live' : 'delayed')
     : asOf >= Date.parse(`${sessionDate}T15:30:00+05:30`) ? 'close' : 'delayed';
   const conflict = differs(last - data.net_change, prev);
   return { ...row, last, ...delta(last, conflict ? null : prev), asOf, sessionDate, state,
-    timezone: 'Asia/Kolkata', currency: 'INR', origin: 'upstox', checkedAt: now,
+    timezone, currency: global?.[1] || 'INR', origin: 'upstox', checkedAt: now, delayMinutes: global?.[4] || 0,
     changeReason: conflict ? 'previous-close-conflict' : null };
 }
 
 export async function readUpstoxIndices(rows, { token, fetcher, now, timeout = 8000 }) {
   if (!token) return { rows: new Map(), reason: 'not-configured' };
+  rows = rows.filter(r => instrument(r.id));
+  if (!rows.length) return { rows: new Map(), reason: null };
   const url = new URL('https://api.upstox.com/v3/market-quote/quotes');
-  url.searchParams.set('instrument_key', rows.map(r => INDIA_INSTRUMENTS[r.id][0]).join(','));
+  url.searchParams.set('instrument_key', rows.map(r => instrument(r.id)[0]).join(','));
   try {
     const res = await fetcher(url.href, { headers: { authorization: `Bearer ${token}`, accept: 'application/json',
       'user-agent': 'GlowCentralResearch/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(timeout) });
@@ -157,7 +235,7 @@ export async function readUpstoxIndices(rows, { token, fetcher, now, timeout = 8
     const values = Object.values(body.data), found = new Map(), failures = {};
     for (const row of rows) {
       try {
-        const matches = values.filter(q => q?.instrument_token === INDIA_INSTRUMENTS[row.id][0]);
+        const matches = values.filter(q => q?.instrument_token === instrument(row.id)[0]);
         if (matches.length !== 1) fail('missing-or-duplicate');
         found.set(row.id, quoteFromUpstox(matches[0], row, now));
       } catch (e) { failures[row.id] = e.reason || 'shape'; }
@@ -168,8 +246,12 @@ export async function readUpstoxIndices(rows, { token, fetcher, now, timeout = 8
 
 export function reconcileIndex(yahoo, primary, primaryReason) {
   if (!usable(primary)) return { ...yahoo, verification: 'single-source', primaryReason: primaryReason || primary?.state || 'unavailable' };
+  return compareIndex(yahoo, primary);
+}
+
+function compareIndex(yahoo, primary) {
   const row = { ...primary, verification: 'single-source' };
-  if (!usable(yahoo) || yahoo.sessionDate !== primary.sessionDate) return row;
+  if (!(usable(yahoo) || yahoo?.state === 'delayed' && yahoo.last != null) || yahoo.sessionDate !== primary.sessionDate) return row;
   // Closing levels can be compared; intraday quotes from different seconds can legitimately differ.
   if (yahoo.state === 'close' && primary.state === 'close' && differs(yahoo.last, primary.last)) {
     return { ...row, last: null, ...delta(null, null), state: 'unavailable', reason: 'source-conflict', verification: 'conflict' };
@@ -179,6 +261,16 @@ export function reconcileIndex(yahoo, primary, primaryReason) {
   }
   if (yahoo.prev != null && primary.prev != null) row.verification = 'cross-checked';
   return row;
+}
+
+export function reconcileGlobalIndex(yahoo, primary, primaryReason) {
+  if (usable(primary)) return compareIndex(yahoo, primary);
+  if (primary?.state === 'delayed' && primary.last != null) {
+    // A timestamped delayed quote can fill a gap, but keeps its delay label and
+    // never displaces a complete current quote or claims to be a closing value.
+    return usable(yahoo) && yahoo.prev != null ? compareIndex(primary, yahoo) : compareIndex(yahoo, primary);
+  }
+  return { ...yahoo, verification: 'single-source', primaryReason: primaryReason || primary?.state || 'unavailable' };
 }
 
 /** The exchange is preferred when usable. A corroborated exchange quote survives
