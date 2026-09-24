@@ -91,3 +91,24 @@ export function domesticFilingsHref(ticker, { form = 'all', scope = 'universe' }
   const params = new URLSearchParams({ scope, view: 'filings', form, company: ticker });
   return `#/research/earnings-hub?${params}`;
 }
+
+// Compare the reported period, never the publication day or array order. A missing
+// quarter cannot silently send a reader to an older report or an annual document.
+function reportPeriod(value) {
+  const text = String(value || '').trim();
+  const named = /^(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4}|\d{2})$/i.exec(text);
+  if (named) {
+    const month = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(named[1].slice(0, 3).toLowerCase()) + 1;
+    const year = named[2].length === 2 ? `20${named[2]}` : named[2];
+    return `${year}-${String(month).padStart(2, '0')}`;
+  }
+  return /^(\d{4})-(0[1-9]|1[0-2])(?:-\d{2})?$/.exec(text)?.slice(1, 3).join('-') || null;
+}
+
+export function earningsReportDocument(documents, ticker, period) {
+  const wanted = reportPeriod(period);
+  if (!wanted) return null;
+  return [...(documents || [])].reverse().find(row =>
+    row.ticker === ticker && row.form === 'earnings_report' &&
+    reportPeriod(row.date) === wanted && documentUrl(row.url)) || null;
+}

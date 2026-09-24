@@ -49,7 +49,7 @@ import * as calendar from '../data/earnings-calendar.js';
 import * as coverage from '../data/coverage.js';
 import { filterByScope, scopePossessive } from '../data/scope.js';
 import { renderCompanyFilings } from './company-filings.js';
-import { domesticFilingsHref } from '../data/domestic-filings-shared.js';
+import { wireEarningsReports } from '../ui/earnings-report.js';
 import { safeDocumentUrl } from '../data/screener-concalls-shared.js';
 
 export const meta = {
@@ -60,11 +60,10 @@ export const meta = {
   subviews: [],
 };
 
-// Filed results, scheduled results, and original company documents.
+// Filed results and scheduled results. Old document links remain readable.
 const VIEWS = [
   { value: 'reported', label: 'Earnings Reported', help: 'Companies that have already filed this quarter' },
   { value: 'calendar', label: 'Earnings Calendar', help: 'Scheduled results and upcoming con-calls, by date' },
-  { value: 'filings', label: 'Company Filings', help: 'Annual reports, earnings reports and concall transcripts' },
 ];
 
 let disposers = [];
@@ -115,6 +114,7 @@ function renderFeed(ctx) {
     disposers.push(renderCompanyFilings(ctx, { controls: viewToggle('filings'), wireControls: wireViewToggle }));
     return;
   }
+  disposers.push(wireEarningsReports(ctx.root));
   // The schedule has its own route and recovery policy. An unavailable or slow filed-results
   // feed must not delay this view or prevent its automatic retries from starting.
   if (viewOf(ctx) === 'calendar') {
@@ -469,7 +469,7 @@ function renderLatest(ctx) {
 
       { label: 'Market Cap', get: (r) => (r.marketCap == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatCroreCompact(r.marketCap))), html: true, align: 'right', sortValue: (r) => r.marketCap ?? -1 },
       { label: 'Basis', get: (r) => basisPill(r.basis), html: true, align: 'right', sortValue: (r) => r.basis || '' },
-      { label: 'Filings', get: (r) => r.ticker ? `<a data-norow class="font-semibold text-indigo-600" href="${escapeHtml(domesticFilingsHref(r.ticker, { form: 'earnings_report', scope: ctx.scope }))}">Reports</a>` : '—', html: true, sortable: false },
+      { label: 'Filings', get: (r) => r.ticker ? `<button type="button" data-norow data-earnings-report="${escapeHtml(r.ticker)}" data-period="${escapeHtml(m?.currentPeriod || '')}" class="font-semibold text-indigo-600" aria-label="Open ${escapeHtml(r.company)} ${escapeHtml(m?.currentPeriod || '')} filing">Reports</button>` : '—', html: true, sortable: false },
     ],
     // Two dropdowns, not one: "PAT grew" and "Consolidated only" are different questions and a
     // reader should be able to ask both at once.
