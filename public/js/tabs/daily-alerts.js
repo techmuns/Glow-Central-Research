@@ -1,3 +1,7 @@
+import { readableFilingUrl } from '../data/nse-xbrl-shared.js';
+import { storyGrouping } from '../data/alert-stories.js';
+import { foldAlertRowsAsync, membersOf, developmentOfRow, developmentLine } from '../data/alert-developments.js';
+import { alertReadingHtml, watchAlertReadings } from '../ui/alert-reading.js';
 // tabs/daily-alerts.js — ALL ALERTS, THE COMPLETE CHRONOLOGICAL STREAM.
 //
 // Every other tab here is organised by SOURCE: this is what the results feed holds, this is what
@@ -178,6 +182,11 @@ export function render(ctx) {
   if (cachedReadKey !== readKey) { cachedRead = null; cachedReadKey = readKey; }
 
   if (!unsubs.length) {
+    void storyGrouping.load();
+    unsubs.push(storyGrouping.onChange(()=>{ if(ctxRef) paint(ctxRef); }));
+    unsubs.push(watchAlertReadings(ctx.root,{onVisible:rows=>{
+      if(ctxRef&&horizon===HORIZON.THROUGH) void storyGrouping.review(rows.flatMap(membersOf),{isCurrent:()=>!!ctxRef});
+    }}));
     unsubs.push(alerts.onChange(sourceChanged));
     unsubs.push(coverage.onChange(({ changed }) => { if (changed) membershipChanged(); }));
     unsubs.push(watchlist.onChange(membershipChanged));
@@ -463,10 +472,13 @@ function paint(ctx) {
   const partition = partitionEvents(events, day);
   const allUpcoming = partition.calendar, allThrough = partition.through;
   const selection = JSON.stringify([day, horizon, picked && [...picked].sort()]);
-  if (lastVisible?.events !== events || lastVisible.selection !== selection) {
+  if (lastVisible?.events !== events || lastVisible.selection !== selection || lastVisible.storyRevision !== storyGrouping.revision()) {
     const period = horizon === HORIZON.UPCOMING ? partition.upcoming : allThrough;
     const selected = picked ? period.filter(event => picked.has(event.feed)) : period;
-    lastVisible = { events, selection, rows: horizon === HORIZON.UPCOMING ? collapseUpcoming(selected) : selected };
+    const pending = lastVisible = { events, selection, storyRevision:storyGrouping.revision(), rows: horizon === HORIZON.UPCOMING ? collapseUpcoming(selected) : selected };
+    if(horizon===HORIZON.THROUGH) void foldAlertRowsAsync(selected,{isCurrent:()=>!!ctxRef&&lastVisible===pending&&pending.storyRevision===storyGrouping.revision()}).then(rows=>{
+      if(rows&&ctxRef&&lastVisible===pending){pending.rows=rows;paint(ctxRef);}
+    });
   }
   const visible = lastVisible.rows;
   const displayFeeds = shown.map(feed => {
@@ -552,6 +564,7 @@ function paint(ctx) {
         book: coverage.meta(),
       })}${horizon === HORIZON.UPCOMING ? calendarPill(allUpcoming) : historyPill(m)}</div>`,
     })}
+    ${horizon===HORIZON.THROUGH?`<p data-alerts-reading-count class="mb-2 text-xs text-slate-500">${formatNumber(visible.length)} items · ${formatNumber(visible.reduce((n,e)=>n+membersOf(e).length,0))} source reports. Checked equivalents share an item; unchecked reports stay separate. Export includes every original report.</p>`:''}
     <div class="alerts-controls" data-alerts-controls>
       ${horizonToggle(allThrough.length, allUpcoming.length, day, !!report)}
       <div class="alerts-view-controls">
@@ -1097,6 +1110,12 @@ export function collapseUpcoming(events) {
   return [...merged.values()];
 }
 
+function sourceReportsHtml(event) {
+  const reports=membersOf(event);
+  if(reports.length<2)return '';
+  return `<details data-norow data-alert-originals class="mt-1 text-xs text-slate-500"><summary class="cursor-pointer text-indigo-700">${reports.length} original source reports</summary>${reports.map(r=>`<div class="mt-1 break-words">${escapeHtml(r.feedLabel||r.feed)} · ${escapeHtml(r.day||'Date unavailable')} · ${/^https?:\/\//i.test(r.url||'')?`<a class="text-indigo-700 hover:underline" target="_blank" rel="noopener noreferrer" href="${escapeHtml(readableFilingUrl(r.url))}">${escapeHtml(r.headline)}</a>`:escapeHtml(r.headline)}</div>`).join('')}</details>`;
+}
+
 function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, warmSearch = false) {
   const matchesDate = dateRangeMatcher(day);
   const dateColumn = {
@@ -1114,9 +1133,9 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     get: (e) => `
       <div class="max-w-[560px]">
         ${e.feed === 'news' ? `<div data-news-attribution="${escapeHtml(e.attribution?.status || 'uncertain')}" class="text-xs font-semibold text-slate-600" title="${escapeHtml(e.attribution?.reason || 'Company relationship unverified')}">${escapeHtml(attributionLabel(e))}</div>` : ''}
-        <div class="truncate font-medium text-slate-800" title="${escapeHtml(e.headline)}">${escapeHtml(e.headline)}</div>
+        <div class="truncate font-medium text-slate-800" title="${escapeHtml(e.headline)}">${escapeHtml(mode===HORIZON.UPCOMING?e.headline:developmentLine(developmentOfRow(e),{fallback:e.headline}))}</div>
         <div class="truncate text-xs text-slate-500" title="${escapeHtml(e.detail || '')}">${escapeHtml(e.detail || '')}</div>
-        ${mode === HORIZON.UPCOMING ? '' : `<div class="mt-0.5 truncate text-xs font-semibold ${(DIR[e.direction] || DIR.neutral).reason}" title="${escapeHtml(e.signalReason || '')}"><span class="text-slate-400">Signal ·</span> ${escapeHtml(e.signalReason || '')}</div>
+        ${mode === HORIZON.UPCOMING ? '' : `${sourceReportsHtml(e)}${alertReadingHtml(e)}<div class="mt-0.5 truncate text-xs font-semibold ${(DIR[e.direction] || DIR.neutral).reason}" title="${escapeHtml(e.signalReason || '')}"><span class="text-slate-400">Signal ·</span> ${escapeHtml(e.signalReason || '')}</div>
         <div class="truncate text-[11px] ${e.importance === 'high' ? 'font-semibold text-violet-700' : 'text-slate-400'}" title="${escapeHtml(e.importanceReason || '')}"><span class="text-slate-400">Priority ·</span> ${escapeHtml(e.importanceReason || '')}</div>`}
       </div>`,
     html: true,
@@ -1163,7 +1182,13 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     virtualRowHeight: mode === HORIZON.UPCOMING ? 72 : 120,
     preindexSearch: warmSearch,
     onScrollActivity: noteTableScroll,
-    onVisibleRowsChange: mode === HORIZON.THROUGH ? rows => arrivalsUI.setRows(rows) : null,
+    onVisibleRowsChange: mode === HORIZON.THROUGH ? rows => {
+      arrivalsUI.setRows(rows);
+      const count=rows.reduce((n,e)=>n+membersOf(e).length,0);
+      ctx.root.dataset.alertsSourceCount=String(count);
+      const label=ctx.root.querySelector('[data-alerts-reading-count]');
+      if(label) label.textContent=`${formatNumber(rows.length)} items · ${formatNumber(count)} source reports. Checked equivalents share an item; unchecked reports stay separate. Export includes every original report.`;
+    } : null,
     onFilterChange: mode === HORIZON.THROUGH ? (_view, index) => {
       if (index === 2 && ctxRef && alertWindowKey(report?.queryWindow) !== alertWindowKey(currentContext().queryWindow)) render(ctxRef);
     } : null,
@@ -1199,7 +1224,7 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     },
     // Query identity remains searchable as a possible match, not publisher evidence. The explicit
     // relationship filter can separate those leads without silently deleting retained coverage.
-    searchable: alerts.eventSearchText,
+    searchable: e => membersOf(e).map(alerts.eventSearchText).join(' '),
     filters,
     initialSort: { key: 'Date / time', dir: mode === HORIZON.UPCOMING ? 'asc' : 'desc' },
     initialView,
@@ -1221,7 +1246,7 @@ function buildTableFilters(events, day, mode, matchesDate) {
         { value: 'high', label: 'High priority only' },
         { value: 'low', label: 'Low priority only' },
       ],
-      match: (e, v) => e.importance === v,
+      match: (e, v) => membersOf(e).some(m=>m.importance===v),
     },
     {
       label: 'Direction',
@@ -1231,9 +1256,9 @@ function buildTableFilters(events, day, mode, matchesDate) {
         { value: 'negative', label: 'Negative only' },
         { value: 'neutral', label: 'Neutral only' },
       ],
-      match: (e, v) => e.direction === v,
+      match: (e, v) => membersOf(e).some(m=>m.direction===v),
     },
-    { label: 'Date range', value: 'today', options: dateRangeOptions(events, day, mode), match: (e, v) => matchesDate(e.day, v) },
+    { label: 'Date range', value: 'today', options: dateRangeOptions(events, day, mode), match: (e, v) => membersOf(e).some(m=>matchesDate(m.day,v)) },
     {
       label: 'Company relationship',
       options: [
@@ -1243,7 +1268,7 @@ function buildTableFilters(events, day, mode, matchesDate) {
         { value: 'uncertain', label: 'Possible news matches' },
         { value: 'unrelated', label: 'Reviewed unrelated news' },
       ],
-      match: matchesCompanyRelationship,
+      match: (e,v)=>membersOf(e).some(m=>matchesCompanyRelationship(m,v)),
     },
   ];
 }
@@ -1368,6 +1393,6 @@ function exportStream(visible, day, scope, mode = HORIZON.THROUGH) {
       ] : []),
       { header: 'Source link', key: 'url', width: 44, get: cell((r) => r.url || '') },
     ],
-    rows: [banner, ...visible],
+    rows: [banner, ...visible.flatMap(membersOf)],
   });
 }

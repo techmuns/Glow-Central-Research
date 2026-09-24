@@ -4419,3 +4419,12 @@ observation into a fresh close. Keep conflicts/missing comparisons explicit in H
 and delivery summaries. Sattva has no macro-series fallback. See
 `docs/NEWSLETTER-MARKET-ACCURACY.md`; run `scripts/verify-newsletter-markets.mjs` with the newsletter
 regressions. Historical sent editions and PDFs remain unchanged.
+
+### Shared development reading on both alert views
+
+`docs/ALERT-DEVELOPMENT-READING.md` defines the presentation and optional excerpt-note contracts.
+Keep Sattva's semantic story IDs/history and material resurfacing authoritative. All Alerts filters,
+search and exports must retain every original member; choosing an exchange lead cannot advance
+publication time. Distinct filing documents need document identity. Visible AI notes read supplied
+excerpts only, with a separate durable attempt limit, and never replace source evidence or private
+Family permissions. The shared claim helper is `public/js/data/alert-claims.js`.

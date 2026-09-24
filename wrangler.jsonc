@@ -21,7 +21,8 @@
       // The team brief: the subscriber list, the two send times and the delivery log, on one fixed
       // object (team-brief:v1) whose alarm is what sends the morning and evening emails. Same
       // provisioned class, its own storage; see worker/newsletter-schedule.mjs.
-      { "name": "NEWSLETTER", "class_name": "CaptureRegistry" }
+      { "name": "NEWSLETTER", "class_name": "CaptureRegistry" },
+      { "name": "ALERT_NOTES", "class_name": "CaptureRegistry" }
     ]
   },
   "migrations": [{ "tag": "capture-registry-v1", "new_sqlite_classes": ["CaptureRegistry"] }],
@@ -91,9 +92,13 @@
       "simple": { "limit": 60, "period": 60 }
     },
     {
-      // The brief's edits and sends. A send costs somebody else's email service one message per
-      // subscriber, so this is deliberately tighter than the watchlist's ceiling; the object adds a
-      // five-minute cooldown on "send to everyone" behind it.
+      // Visible alert excerpts; the shared object also enforces its durable daily allowance.
+      "name": "ALERT_NOTES_LIMITER",
+      "namespace_id": "1705",
+      "simple": { "limit": 30, "period": 60 }
+    },
+    {
+      // Brief edits/sends; the object also enforces manual-send cooldowns and daily attempts.
       "name": "NEWSLETTER_LIMITER",
       "namespace_id": "1704",
       "simple": { "limit": 12, "period": 60 }

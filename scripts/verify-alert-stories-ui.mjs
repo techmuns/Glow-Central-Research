@@ -12,7 +12,7 @@ const event = (id, headline, extra = {}) => ({ id, headline, ticker: 'ALPHA', co
   url: `https://${id}.example/merger`, detail: '', sourceRecord: { publisher: id.toUpperCase() }, keywords: ['Merger'],
   attribution: { version: ATTRIBUTION_VERSION, status: 'confirmed' }, ...extra });
 const initial = [event('et', 'Alpha Bank proposes merger with Beta Bank'), event('reuters', 'Alpha Bank plans merger with Beta Bank')];
-let upgraded = false, apiCalls = 0, debugPage;
+let upgraded = false, apiCalls = 0, noteCalls = 0, debugPage;
 // An already-cached pre-grouping reader, with the real immutable-cache/update lifecycle.
 const oldFiles = new Map([['/js/data/alert-stories.js', `export const storyGrouping={project:e=>e,revision:()=>0,
  status:()=>({total:0}),onChange:()=>()=>{},load:async()=>{},review:async()=>{}};`]]);
@@ -47,6 +47,11 @@ const server = createServer(async (req, res) => {
   res.setHeader('cache-control', 'no-cache');
   try {
     if (pathname === '/' || pathname === '/index.html') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
+    if (pathname === '/api/alert-notes') {
+      let body='';for await(const part of req)body+=part;
+      const items=JSON.parse(body).items;assert.ok(items.length<=8);noteCalls++;
+      res.setHeader('content-type','application/json');res.end(JSON.stringify({ok:true,notes:Object.fromEntries(items.map(i=>[i.id,{note:'The merger could change the business scope; its financial effect is not stated.',model:'fixture'}])),missing:{}}));return;
+    }
     if (pathname === '/api/alert-stories') {
       let text='';for await(const part of req)text+=part;apiCalls++;
       res.setHeader('content-type','application/json');res.end(JSON.stringify({ok:true,stories:classify(JSON.parse(text).reports)}));return;
@@ -80,11 +85,18 @@ try {
   assert.equal(await card.locator('[data-ai-story-source]').count(),2);
   assert(!(await page.evaluate(()=>caches.keys())).some(k=>k.includes('before-story-grouping')));
   assert.equal(await page.evaluate(()=>window.newsletterBatchAvailable),true,'the automatic upgrade replaces the cached newsletter module too');
+  await page.evaluate(e=>{window.fixtureEvents.push(e);window.changed();},event('filing','Alpha Bank proposes merger with Beta Bank',{
+    feed:'announcements',feedLabel:'Corporate announcements',url:'https://www.bseindia.com/alpha-merger.pdf',time:'09:30'}));
+  await page.waitForFunction(()=>document.querySelectorAll('[data-ai-story-source]').length===3);
+  assert.match(await card.locator('[data-ai-event-source]').first().innerText(),/FILING/,'the company filing leads the same checked development');
+  await card.locator('[data-alert-reading] [data-note-state="ready"]').first().waitFor();
+  assert.ok(noteCalls>0,'visible material evidence receives a bounded fixture note');
+  assert.match(await card.locator('[data-alert-reading]').first().getAttribute('title'),/Linked documents have not been read/);
   const initialScore=await card.getAttribute('data-score');
   await card.locator('[data-ai-mute]').click();assert.equal(await card.count(),0);
   await page.evaluate(e=>{window.fixtureEvents.push(e);window.changed();},event('bse','Alpha Bank plans merger with Beta Bank',{time:'10:00'}));
   // Wait for the NEW input's review; the previous paint can still say grouped before recollection.
-  await page.waitForFunction(async()=>{const {storyGrouping}=await import('/js/data/alert-stories.js');const state=storyGrouping.status(window.fixtureEvents);return state.reviewed===3&&!state.checking;});
+  await page.waitForFunction(async()=>{const {storyGrouping}=await import('/js/data/alert-stories.js');const state=storyGrouping.status(window.fixtureEvents);return state.reviewed===4&&!state.checking;});
   await page.waitForFunction(()=>document.querySelector('[data-ai-story-status]')?.textContent==='Repeated coverage grouped');
   await card.waitFor({state:'detached'});
   assert.equal(await card.count(),0,'more coverage remains archived');
@@ -92,9 +104,9 @@ try {
   await card.locator('[data-ai-updated]').waitFor();
   assert.match(await card.locator('[data-ai-insight]').innerText(),/RBI approves/);
   assert.equal(await card.locator('[data-ai-evidence] > li').count(),1);
-  await card.locator('[data-ai-story-history] summary').click();
+  await card.locator('[data-ai-story-history] > summary').click();
   assert.match(await card.locator('[data-ai-story-history]').innerText(),/proposes|plans/);
-  assert.equal(await card.locator('[data-ai-story-source]').count(),4,'new and earlier source links are accessible');
+  assert.equal(await card.locator('[data-ai-story-source]').count(),5,'new and earlier source links are accessible');
   const calls=apiCalls;await page.evaluate(()=>window.changed());await page.waitForTimeout(700);assert.equal(apiCalls,calls,'unchanged refresh does not request the model');
   assert(await card.locator('[data-ai-story-history]').getAttribute('open')!==null,'background paint keeps history open');
   await page.locator('[data-ai-search]').fill('proposes');assert.equal(await card.count(),1,'older evidence stays searchable');

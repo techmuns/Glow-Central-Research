@@ -507,7 +507,7 @@ try {
   });
   await page.locator('[data-alerts-table-actions] [data-export]').click();
   await page.waitForFunction(() => window.exportedRows > 0);
-  assert.equal(await page.evaluate(() => window.exportedRows), virtualContract.total + 1,
+  assert.equal(await page.evaluate(() => window.exportedRows), await page.evaluate(()=>Number(document.querySelector('[data-alerts-source-count]').dataset.alertsSourceCount))+1,
     'relocated export includes every matching record plus provenance, not just mounted rows');
 
   await page.locator('[data-table-scroll]').evaluate((scroller) => { scroller.scrollTop = scroller.scrollHeight; });

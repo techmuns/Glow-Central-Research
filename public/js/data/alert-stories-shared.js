@@ -1,3 +1,4 @@
+import { announcementDocumentIdentity } from './announcements-shared.js';
 // Story grouping is a reading, never a replacement for captured source records.
 // The browser and the server validate the same complete partition and material-fact guards.
 export const STORY_VERSION = 1;
@@ -80,6 +81,10 @@ export const genericStory = r => /^(?:general updates?|updates?|press release|me
 export function sameDevelopmentSafe(a, b) {
   if (a.company !== b.company || a.relation !== b.relation || a.direction !== b.direction) return false;
   if ((genericStory(a) || genericStory(b)) && a.url !== b.url) return false;
+  // Distinct filings need actual document identity; generic exchange wording cannot prove a twin.
+  const filing = r => ['announcements', 'nse-filings'].includes(r.feed);
+  if (filing(a) && filing(b) && a.url !== b.url &&
+      (!announcementDocumentIdentity(a.url) || announcementDocumentIdentity(a.url) !== announcementDocumentIdentity(b.url))) return false;
   const x = `${a.headline} ${a.text}`, y = `${b.headline} ${b.text}`;
   // A newly supplied figure/stage is a fact too: absence is never treated as agreement.
   return figures(x) === figures(y) && stages(x) === stages(y);
