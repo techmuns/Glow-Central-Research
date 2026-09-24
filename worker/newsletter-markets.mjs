@@ -36,6 +36,15 @@ export function marketDay(at, timezone) {
 const delta = (last, prev) => ({ prev, change: prev == null ? null : last - prev, changePct: prev == null ? null : (last / prev - 1) * 100 });
 const usable = r => r && ['live', 'close'].includes(r.state) && r.last != null;
 
+function indianState(asOf, now, maxAgeMinutes = 20) {
+  const day = marketDay(asOf, 'Asia/Kolkata');
+  if (day !== expectedSession(now)) return 'stale';
+  if (marketWindow(now).open) return now - asOf <= maxAgeMinutes * 60000 ? 'live' : 'delayed';
+  // The calendar deliberately leaves Muhurat hours and future years unknown.
+  // Passing the ordinary 15:30 cutoff cannot certify those sessions' close.
+  return marketWindow(asOf).calendarKnown && asOf >= Date.parse(`${day}T15:30:00+05:30`) ? 'close' : 'delayed';
+}
+
 // Ordinary cash-session hours only. Unknown holidays/early closes stay visibly
 // earlier/delayed rather than certifying a close from an intraday observation.
 function globalState(asOf, now, config) {
@@ -83,9 +92,7 @@ export function quoteFromBse(body, row, now) {
     asOf = at; pointLast = number(point.value);
   }
   if (!asOf || asOf !== previousAt || differs(pointLast, last)) fail('shape');
-  const state = sessionDate !== expectedSession(now) ? 'stale' : marketWindow(now).open
-    ? now - asOf <= 2 * 60000 ? 'live' : 'delayed'
-    : asOf >= Date.parse(`${sessionDate}T15:30:00+05:30`) ? 'close' : 'delayed';
+  const state = indianState(asOf, now, 2);
   return { ...row, last, ...delta(last, prev), asOf, sessionDate, state,
     timezone: 'Asia/Kolkata', currency: 'INR', origin: 'bse', checkedAt: now, changeReason: null };
 }
@@ -117,9 +124,7 @@ export function quoteFromNse(data, timestamp, row, now) {
   const pctHigh = ((last + 0.005) / (prev - 0.005) - 1) * 100;
   const conflict = differs(last - prev, data.variation) || prev <= 0.005 ||
     data.percentChange + 0.005 < pctLow || data.percentChange - 0.005 > pctHigh;
-  const state = sessionDate !== expectedSession(now) ? 'stale' : marketWindow(now).open
-    ? now - asOf <= 20 * 60000 ? 'live' : 'delayed'
-    : asOf >= Date.parse(`${sessionDate}T15:30:00+05:30`) ? 'close' : 'delayed';
+  const state = indianState(asOf, now);
   return { ...row, last, prev: conflict ? null : prev, change: conflict ? null : data.variation,
     changePct: conflict ? null : data.percentChange, asOf, sessionDate, state, timezone: 'Asia/Kolkata',
     currency: 'INR', origin: 'nse', checkedAt: now, changeReason: conflict ? 'previous-close-conflict' : null };
@@ -188,6 +193,7 @@ export function quoteFromChart(body, row, now) {
   if (row.group === 'india') {
     if (sessionDate !== expectedSession(now)) state = 'stale';
     else if (!marketWindow(now).open && asOf < Date.parse(`${sessionDate}T15:30:00+05:30`)) state = 'delayed';
+    else if (state === 'close' && !marketWindow(asOf).calendarKnown) state = 'delayed';
   }
   return { ...row, last, ...delta(last, prev), asOf, sessionDate, previousSession, state,
     timezone, currency: meta.currency || null, origin: 'yahoo', checkedAt: now, changeReason };
@@ -210,10 +216,7 @@ export function quoteFromUpstox(data, row, now) {
   if (!positive(prev)) fail('previous-close-unverified');
   // Do not adopt a freshly dated feed at midnight / before the cash session starts.
   if (!global && asOf < Date.parse(`${sessionDate}T09:15:00+05:30`)) fail('timestamp');
-  const current = sessionDate === expectedSession(now);
-  const state = global ? globalState(asOf, now, global) : !current ? 'stale' : marketWindow(now).open
-    ? (now - asOf <= 20 * 60000 ? 'live' : 'delayed')
-    : asOf >= Date.parse(`${sessionDate}T15:30:00+05:30`) ? 'close' : 'delayed';
+  const state = global ? globalState(asOf, now, global) : indianState(asOf, now);
   const conflict = differs(last - data.net_change, prev);
   return { ...row, last, ...delta(last, conflict ? null : prev), asOf, sessionDate, state,
     timezone, currency: global?.[1] || 'INR', origin: 'upstox', checkedAt: now, delayMinutes: global?.[4] || 0,

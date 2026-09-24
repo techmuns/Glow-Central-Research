@@ -142,6 +142,9 @@ Session references: [NYSE](https://www.nyse.com/trade/trading-information),
 The market suite additionally exercises the actual BSE response, pre-open exclusion,
 malformed and oversized replies, date rollover/DST, exact global identities,
 independent batch failure, conflict handling and HTML/text/PDF provenance.
+Indian close labels also require a known session calendar: unknown Muhurat hours
+or future-year calendars cannot turn an intraday point into the next morning's
+close merely because it occurred after the ordinary 15:30 cutoff.
 
 ## Existing CI reliability gate
 

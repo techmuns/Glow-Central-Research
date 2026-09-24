@@ -108,6 +108,20 @@ test('global fallback repairs missing changes without mixing prices and withhold
   assert.equal(reconcileGlobalIndex(yahoo, { ...upstox, state: 'delayed' }).state, 'delayed');
 });
 
+test('unknown Indian special-session hours cannot certify an intraday observation as the next morning close', () => {
+  const asOf = time('2026-11-08', '18:20'), now = time('2026-11-09', '08:00');
+  assert.equal(quoteFromUpstox({ ...primary(), last_trade_time: String(asOf) }, nifty, now).state, 'delayed');
+  const nse = fixture('nse-indices-2026-09-23.json').data.find(r => r.index === 'NIFTY 50');
+  assert.equal(quoteFromNse(nse, '08-Nov-2026 18:20:00', nifty, now).state, 'delayed');
+  const bse = JSON.stringify([{ Scrip: 'BSE SENSEX', PreClose: '74828.25', LatestVal: '75000' }]) +
+    '#@#' + JSON.stringify([{ date: 'Sun Nov 08 2026 18:20:00', value: '75000' }]);
+  assert.equal(quoteFromBse(bse, sensex, now).state, 'delayed');
+  const body = chart(), r = body.chart.result[0];
+  r.meta.regularMarketTime = asOf / 1000;
+  r.meta.currentTradingPeriod.regular = { start: time('2026-11-09', '09:15') / 1000, end: time('2026-11-09', '15:30') / 1000 };
+  assert.equal(quoteFromChart(body, nifty, now).state, 'delayed');
+});
+
 test('source expansion isolates global failures, recovers Sensex with BSE and keeps provenance in every output', async () => {
   let globalFail = false;
   const fetcher = async (url, init) => {
