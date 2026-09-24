@@ -90,7 +90,8 @@
 // single plan of every scheme that has one — an ETF has no plan to choose, and a blanket "drop
 // regular" would have deleted all 234 of them.
 //
-// SCOPE DOES NOT APPLY, AND THE HEAD SAYS SO. These are schemes, not companies: the Portfolio /
+// Scope does not apply to the two fund-return views. Company Holdings is scoped separately.
+// These are schemes, not companies: the Portfolio /
 // Watchlist / Universe toggle narrows nothing here, no row carries a watchlist star, and
 // `allowEmptyScope` keeps an empty watchlist from replacing the tab with the shell's "add
 // companies" panel — the same opt-out the two macro tabs and Ask Research take.
@@ -107,6 +108,7 @@ import { buildTree, FACTORS, factorsOf, factorLabel, MANAGEMENT, managementOf } 
 import * as router from '../core/router.js';
 import { loadMfFilters, saveMfFilters, reconcileHierarchy } from '../data/mf-filter-memory.js';
 import { categoryOf } from '../ui/fund-search.js';
+import * as holdings from './mutual-fund-holdings.js';
 
 export const meta = {
   id: 'mutual-funds',
@@ -117,6 +119,7 @@ export const meta = {
     // The shell opens the first subview when the tab is selected or no subview is named.
     { id: 'all-schemes', label: 'All Schemes' },
     { id: 'category-performance', label: 'Category Performance' },
+    { id: 'company-holdings', label: 'Company Holdings' },
   ],
   // Scope does not narrow a list of schemes, so an EMPTY watchlist must not replace the tab with
   // the shell's "add companies" panel.
@@ -248,7 +251,10 @@ const measureFor = (level) => (measuresFor(level).some(([id]) => id === measure)
 // Entry
 // ---------------------------------------------------------------------------------------
 
+let stopLiveUpdates = null;
 export function render(ctx) {
+  stopLiveUpdates?.(); stopLiveUpdates = null;
+  holdings.destroy();
   renderToken++;
   // Leaving Category Performance resets its drill, so returning opens on the comparison rather
   // than inside whichever category was last read.
@@ -257,11 +263,18 @@ export function render(ctx) {
     schemeView = null;
   }
   ctxRef = ctx;
-  if (ctx.subview === 'all-schemes') renderAllSchemes(ctx);
+  if (ctx.subview === 'company-holdings') {
+    releaseDisposers();
+    ctx.root.innerHTML = `${viewSwitch('company-holdings')}<div data-mf-holdings></div>`;
+    wireViewSwitch(ctx.root);
+    holdings.render({ ...ctx, root: ctx.root.querySelector('[data-mf-holdings]') });
+  } else if (ctx.subview === 'all-schemes') renderAllSchemes(ctx);
   else renderCategoryPerformance(ctx);
 }
 
 export function destroy() {
+  stopLiveUpdates?.(); stopLiveUpdates = null;
+  holdings.destroy();
   renderToken++;
   ctxRef = null;
   disposers.forEach((d) => d && d());
@@ -877,14 +890,23 @@ function renderAllSchemes(ctx) {
     fitTableToViewport(ctx.root);
   };
 
-  if (fundReturns.isLoaded()) {
-    paint();
-    return;
-  }
-  ctx.root.innerHTML = loadingHtml('Reading the daily scheme feed…');
-  fundReturns.load().then(() => {
-    if (token === renderToken) paint();
-  });
+  // This subscription belongs to the mounted subview, not an individual repaint.
+  // Cache-first updates and scheduled revalidation preserve the saved table view.
+  const offUpdate = fundReturns.onUpdate(paint);
+  const refresh = () => { if (!document.hidden && token === renderToken) fundReturns.load(); };
+  const timer = setInterval(refresh, 60000);
+  window.addEventListener('focus', refresh);
+  window.addEventListener('online', refresh);
+  document.addEventListener('visibilitychange', refresh);
+  stopLiveUpdates = () => {
+    offUpdate(); clearInterval(timer);
+    window.removeEventListener('focus', refresh);
+    window.removeEventListener('online', refresh);
+    document.removeEventListener('visibilitychange', refresh);
+  };
+  if (fundReturns.isLoaded()) paint();
+  else ctx.root.innerHTML = loadingHtml('Reading the daily scheme feed…');
+  fundReturns.load();
 }
 
 /**
@@ -1209,7 +1231,7 @@ function wireMeasure(root, repaint) {
 function viewSwitch(current) {
   return pillGroup('data-mf-views', 'View', meta.subviews.map((v) => ({
     attr: `data-mf-view="${escapeHtml(v.id)}"`, label: v.label, active: v.id === current,
-    title: v.id === 'all-schemes'
+    title: v.id === 'company-holdings' ? 'Saved monthly mutual-fund ownership and changes for companies in the selected scope.' : v.id === 'all-schemes'
       ? 'Every tracked scheme’s daily return and peer rank, from the live AmfiBeas feed.'
       : 'Every category’s published median against the index the weekly workbook pairs it with.',
   })));

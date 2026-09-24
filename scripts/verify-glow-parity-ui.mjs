@@ -147,7 +147,7 @@ try {
   // tray in the heading row that routes exactly as the picker did, and the table takes the
   // height the chrome leaves rather than a guessed calc().
   assert(await page.evaluate(() => { const m = document.getElementById('subview-mount'); return !m || m.classList.contains('hidden') || !m.innerText.trim(); }), 'the shell’s sub-view picker card is hidden for Mutual Funds');
-  assert.equal(await page.locator('[data-mf-views] [data-mf-view]').count(), 2, 'the heading row carries the two-view switch');
+  assert.equal(await page.locator('[data-mf-views] [data-mf-view]').count(), 3, 'the heading preserves both fund-return views alongside Company Holdings');
   assert.equal(await page.locator('[data-mf-view="all-schemes"]').getAttribute('aria-pressed'), 'true');
   assert((await page.locator('[data-mf-views]').boundingBox()).y < (await page.locator('[data-mf-filters]').boundingBox()).y, 'the switch sits in the heading row above the toolbar');
   assert.equal(await page.locator('#content-host [data-section-head] p').count(), 0, 'All Schemes carries no description paragraph');

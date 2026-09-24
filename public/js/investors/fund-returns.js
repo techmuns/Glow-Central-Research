@@ -312,12 +312,15 @@ const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">�
 /** The green Live pill — the always-visible statement of what the figures are and how fresh. */
 function livePill(m) {
   const freshness = originLabel(m);
+  const navAge = Date.now() - Date.parse(m.asOfDate);
+  const healthy = !m.readFailed && m.origin !== 'saved' && Number.isFinite(navAge) && navAge >= -86400000 && navAge <= 4 * 86400000;
+  const colour = healthy ? 'bg-emerald-50 text-emerald-700 ring-emerald-100' : 'bg-amber-50 text-amber-700 ring-amber-100';
   return `
     <button type="button" data-fund-returns-info title="Where these figures come from, what the benchmark is, and what the rank measures"
-      class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
-      <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+      class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${colour} transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+      <span class="h-1.5 w-1.5 rounded-full" style="background:currentColor"></span>
       <span>${escapeHtml(freshness)}</span>
-      <span class="font-medium text-emerald-600">${escapeHtml(formatNumber(m.total || m.count))} schemes${m.asOfDate ? ` · as of ${escapeHtml(formatDateLabel(m.asOfDate))}` : ''}</span>
+      <span class="font-medium">${escapeHtml(formatNumber(m.total || m.count))} schemes${m.asOfDate ? ` · as of ${escapeHtml(formatDateLabel(m.asOfDate))}` : ''}</span>
     </button>`;
 }
 
@@ -328,7 +331,9 @@ function livePill(m) {
  * tell which via the modal.
  */
 function originLabel(m) {
-  return m.origin === 'store' ? 'Cached' : 'Live';
+  if (m.readFailed) return 'Saved · check failed';
+  if (m.origin === 'saved') return 'Saved · checking';
+  return m.origin === 'store' ? 'Cached · checked' : 'Source checked';
 }
 
 function openProvenance(m, extra = '') {
@@ -385,7 +390,8 @@ function openProvenance(m, extra = '') {
 function provenanceFreshness(m) {
   const asOf = m.asOfDate ? `As of <strong>${escapeHtml(formatDateLabel(m.asOfDate))}</strong> (the AMFI NAV date the returns were computed to). ` : '';
   const origin =
-    m.origin === 'store'
+    m.readFailed ? 'The latest check failed; your last saved figures remain available' : m.origin === 'saved'
+      ? 'Showing your saved figures while checking the source; this visit has not confirmed freshness yet' : m.origin === 'store'
       ? 'This paint came from your device’s cache, revalidated against the upstream’s ETag'
       : 'This paint was read live from the upstream this session';
   const checked = m.checkedAt ? `, last confirmed ${escapeHtml(formatRelativeTime(new Date(m.checkedAt)))}` : '';

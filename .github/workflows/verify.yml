@@ -188,6 +188,10 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-screener-watchlist-ui.mjs
+      - name: Verify Glow mutual-fund cache, failed refreshes and public holdings
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-glow-mf-reliability-ui.mjs && node scripts/verify-glow-mf-upgrade-ui.mjs
       - name: Verify Sattva deals across scopes, automatic refresh and history
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
