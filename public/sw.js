@@ -33,7 +33,7 @@ const WARM_CONCURRENCY = 8;
 // Keep content revisions separate from the shared marker: concurrent dashboard
 // releases can update that marker without conflicting with these fixes. Every
 // install, read and eviction uses the same combined key, retaining atomic upgrades.
-const CACHE_KEY = `${CACHE_NAME}-news-story-companions-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v2-dated-grades-all-alerts-restore-v2-ai-card-updates-v1-story-updates-v2-shared-reading-performance-ownership-v1-sattva-newsletter-v3-source-evidence-bounded-history-memory-v5-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v3-content-reuse-investor-evidence-v1-scrollbar-grab-v2-measured-anchor-filing-particulars-v1-table-drag-v2-mutual-funds-v12-upstox-minute-v2-muns-price-label-v2-kpi-impact-v2`;
+const CACHE_KEY = `${CACHE_NAME}-news-story-companions-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v2-dated-grades-all-alerts-restore-v2-ai-card-updates-v1-story-updates-v2-shared-reading-performance-ownership-v1-sattva-newsletter-v3-source-evidence-bounded-history-memory-v5-news-query-performance-v1-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v3-content-reuse-investor-evidence-v1-scrollbar-grab-v2-measured-anchor-filing-particulars-v1-table-drag-v2-mutual-funds-v12-upstox-minute-v2-muns-price-label-v2-kpi-impact-v2`;
 
 function moduleSpecifiers(source) {
   const found = new Set();
@@ -126,9 +126,12 @@ async function cacheModuleGraph(cache, entry) {
   }
 }
 
+// This UI revision composes with the shared release without competing for its version line.
+const RELEASE_CACHE_KEY = `${CACHE_KEY}-ai-alerts-clean-search-v1-direct-earnings-reports-v2`;
+
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
-    const cache = await caches.open(CACHE_KEY);
+    const cache = await caches.open(RELEASE_CACHE_KEY);
     // A new version activates only when its whole required shell is complete;
     // otherwise the previous worker/cache remains the safe fallback.
     await Promise.all(CORE.map((asset) => cacheRequired(cache, asset)));
@@ -143,7 +146,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_KEY).map((key) => caches.delete(key)));
+    await Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== RELEASE_CACHE_KEY).map((key) => caches.delete(key)));
     await self.clients.claim();
   })());
 });
@@ -164,13 +167,32 @@ function cacheable(request, url) {
     url.pathname.startsWith('/js/') || url.pathname.startsWith('/css/') || url.pathname.startsWith('/data/') || url.pathname.startsWith('/assets/brand/');
 }
 
+const newsPartHash = url => /^\/data\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.parts\/([a-f0-9]{64})\.json$/.exec(url.pathname)?.[1];
+
 function revalidateInBackground(request, url) {
   // The service-worker file and cache name are the version boundary for code.
   // Rechecking a hundred immutable modules on every navigation creates the very
   // network/CPU burst this cache is meant to remove. Public data and the HTML
   // shell are mutable, so those still refresh quietly behind the retained view.
+  // A news part's address IS its SHA-256. Its manifest is rechecked normally and names a new
+  // address for every correction; re-downloading this unchanged body on each filter only
+  // competes with the selected period. The reader still verifies every part's hash and size.
   return request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html' ||
-    url.pathname.startsWith('/data/');
+    url.pathname.startsWith('/data/') && !newsPartHash(url);
+}
+
+async function validImmutablePart(response, request) {
+  const expected = newsPartHash(new URL(request.url));
+  if (!expected) return true;
+  // A corrupt success response must not become permanent. Only correctly addressed public
+  // part bytes enter this immutable tier; the caller also verifies its manifest's size/shape.
+  try {
+    const bytes = await response.clone().arrayBuffer();
+    if (!bytes.byteLength || bytes.byteLength > 4 * 1024 * 1024) return false;
+    const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))]
+      .map(byte => byte.toString(16).padStart(2, '0')).join('');
+    return digest === expected;
+  } catch { return false; }
 }
 
 async function fetchAndCache(cache, request, key) {
@@ -181,7 +203,7 @@ async function fetchAndCache(cache, request, key) {
     return null;
   }
   const control = response.headers.get('cache-control') || '';
-  if (response.ok && !/\b(?:private|no-store)\b/i.test(control)) {
+  if (response.ok && !/\b(?:private|no-store)\b/i.test(control) && await validImmutablePart(response, request)) {
     try { await cache.put(key, response.clone()); } catch { /* A storage failure must not fail the network read. */ }
   }
   return response;
@@ -193,7 +215,7 @@ self.addEventListener('fetch', (event) => {
   if (!cacheable(request, url)) return;
 
   event.respondWith((async () => {
-    const cache = await caches.open(CACHE_KEY);
+    const cache = await caches.open(RELEASE_CACHE_KEY);
     const key = cacheKey(request, url);
     // Explicit data revalidation must reach the server in THIS request. Returning
     // the held body while updating it behind the scenes made Refresh one capture
