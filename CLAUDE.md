@@ -1326,6 +1326,10 @@ rules, and every one of them is a rule this file already runs on:
    figures withhold the affected change rather than guess. Closed-provider disagreements
    withhold the level too. Dates, providers, delayed/earlier observations, single-source coverage
    and failures stay visible in HTML, text and PDF. A stored fallback retains its own date.
+   Nasdaq Composite's missing closing comparison may be enriched from the public Nasdaq COMP
+   EOD history only when its current level and both session dates match Yahoo, and the history's
+   own net change agrees. Keep the original quote/clock and label the change's source separately;
+   this confirms the level across providers, not an independent second reading of the change.
    See `docs/NEWSLETTER-MARKET-ACCURACY.md`; run `verify-newsletter-markets.mjs` with the existing
    newsletter and browser suites. This supersedes the older Yahoo-only market-scan contract.
 3. **The stories carry no new reading.** Topic is the desk's thirty keywords folded onto the seven

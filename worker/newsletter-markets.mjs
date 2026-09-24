@@ -169,8 +169,11 @@ export function quoteFromChart(body, row, now) {
     if (days.every((day, i) => day && (!i || day > days[i - 1]))) {
       const current = days.indexOf(sessionDate);
       const previous = current - 1;
-      if (previous >= 0 && positive(closes[previous]) && Date.parse(sessionDate) - Date.parse(days[previous]) <= 7 * 86400000) {
-        prev = closes[previous]; previousSession = days[previous]; changeReason = null;
+      if (previous >= 0 && Date.parse(sessionDate) - Date.parse(days[previous]) <= 7 * 86400000) {
+        // Keep the known comparison date even when its value is missing. An EOD
+        // enrichment must match this exact session, never skip the null bar.
+        previousSession = days[previous];
+        if (positive(closes[previous])) { prev = closes[previous]; changeReason = null; }
       }
     }
   }
@@ -196,7 +199,8 @@ export function quoteFromChart(body, row, now) {
     else if (state === 'close' && !marketWindow(asOf).calendarKnown) state = 'delayed';
   }
   return { ...row, last, ...delta(last, prev), asOf, sessionDate, previousSession, state,
-    timezone, currency: meta.currency || null, origin: 'yahoo', checkedAt: now, changeReason };
+    timezone, currency: meta.currency || null, origin: 'yahoo', checkedAt: now, changeReason,
+    reportedPreviousClose: positive(meta.previousClose) ? meta.previousClose : null };
 }
 
 /** V3 prev_close_price explicitly identifies the previous trading session's close.

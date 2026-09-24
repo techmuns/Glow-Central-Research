@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { INDIA_INSTRUMENTS, GLOBAL_INSTRUMENTS, BSE_SENSEX_URL, quoteFromBse, readBseSensex, reconcileGlobalIndex, quoteFromNse, readNseIndices, reconcileIndianIndex, quoteFromChart, quoteFromUpstox, readUpstoxIndices, reconcileIndex } from '../worker/newsletter-markets.mjs';
-import { MARKET_ROWS, readMarkets, asOfLabel, formatPct, formatChange, buildBrief, renderBriefHtml, renderBriefText } from '../worker/newsletter-brief.mjs';
+import { MARKET_ROWS, readMarkets, asOfLabel, formatPct, formatChange, buildBrief, briefSummary, renderBriefHtml, renderBriefText } from '../worker/newsletter-brief.mjs';
 import { DEFAULT_SETTINGS } from '../public/js/data/newsletter-shared.js';
 import { renderBriefPdf } from '../worker/newsletter-pdf.mjs';
+import { NASDAQ_HISTORY_URL, enrichNasdaqClose, readNasdaqEnrichment } from '../worker/newsletter-market-enrichment.mjs';
 
 const at = Date.parse('2026-09-23T16:00:00+05:30');
 const time = (day, clock = '15:30') => Date.parse(`${day}T${clock}:00+05:30`);
@@ -33,6 +34,114 @@ const alterBse = fn => {
 const globalQuote = (id = 'sp500', at = '2026-09-23T16:36:00-04:00') => ({
   instrument_token: GLOBAL_INSTRUMENTS[id][0], symbol: GLOBAL_INSTRUMENTS[id][1],
   last_price: 7706.03, prev_close_price: 7764.64, net_change: -58.61, last_trade_time: String(Date.parse(at)),
+});
+
+const enrichmentNow = Date.parse('2026-09-24T08:00:00+05:30');
+const nasdaqRow = () => quoteFromChart(fixture('yahoo-nasdaq-missing-close.json'), MARKET_ROWS.find(r => r.id === 'nasdaq'), enrichmentNow);
+const nasdaqHistory = () => fixture('nasdaq-comp-eod-2026-09-23.json');
+
+test('captured Nasdaq history fills the exact missing session without replacing the quote or its clock', () => {
+  const original = nasdaqRow();
+  assert.equal(original.prev, null); assert.equal(original.previousSession, '2026-09-22');
+  const row = enrichNasdaqClose(original, nasdaqHistory(), enrichmentNow);
+  assert.equal(row.last, original.last); assert.equal(row.asOf, original.asOf); assert.equal(row.origin, 'yahoo');
+  assert.equal(row.prev, 27244.28); assert.equal(formatChange(row), '−308.24'); assert.equal(formatPct(row), '−1.13%');
+  assert.equal(row.enrichment.sessionDate, '2026-09-23'); assert.equal(row.enrichment.previousSession, '2026-09-22');
+  assert.equal(row.verification, 'level-cross-checked'); assert.equal(row.changeReason, null);
+  assert.match(asOfLabel(row), /Yahoo.*daily change: Nasdaq history.*level cross-checked/);
+});
+
+test('Nasdaq enrichment refuses omitted/null/duplicate sessions, incomplete replies and contradictory numbers', () => {
+  for (const mutate of [
+    b => { b.aaData[1].Value = null; }, b => { b.aaData.splice(1, 1); b.iTotalRecords--; b.iTotalDisplayRecords--; },
+    b => { b.aaData[1] = b.aaData[0]; }, b => { b.aaData.reverse(); },
+    b => { b.aaData[0].Value = 100; }, b => { b.aaData[0].NetChange = 0; },
+    b => { b.aaData[0].PreviousClose = 100; }, b => { b.aaData[0].High = 100; },
+    b => { b.aaData[1].Currency = 'CAD'; }, b => { b.aaData[0].TradeDate = b.aaData[1].TradeDate; },
+    b => { b.aaData[0].TimeStamp = '/Date(1790139600000)/'; b.aaData[0].TradeDate = b.aaData[0].TimeStamp; },
+    b => { b.iTotalRecords++; }, b => { b.iTotalDisplayRecords = 1; },
+  ]) { const body = nasdaqHistory(); mutate(body); assert.throws(() => enrichNasdaqClose(nasdaqRow(), body, enrichmentNow)); }
+  assert.throws(() => enrichNasdaqClose({ ...nasdaqRow(), previousSession: '2026-09-21' }, nasdaqHistory(), enrichmentNow));
+  assert.throws(() => enrichNasdaqClose({ ...nasdaqRow(), asOf: Date.parse('2026-09-23T12:00:00-04:00') }, nasdaqHistory(), enrichmentNow));
+  assert.throws(() => enrichNasdaqClose(nasdaqRow(), nasdaqHistory(), enrichmentNow - 86400000));
+});
+
+test('enrichment preserves valid comparisons, other instruments, delays and existing conflicts without extra requests', async () => {
+  for (const patch of [{ id: 'sp500' }, { symbol: '^NDX' }, { currency: 'CAD' }, { timezone: 'UTC' },
+    { state: 'live' }, { state: 'stale' }, { state: 'delayed' }, { prev: 27244.28 }, { previousSession: null },
+    { changeReason: 'previous-close-conflict' }, { verification: 'conflict' }]) {
+    const row = { ...nasdaqRow(), ...patch };
+    const result = await readNasdaqEnrichment(row, { now: enrichmentNow, fetcher: () => { throw Error('must not fetch'); } });
+    assert.equal(result.attempted, false); assert.equal(result.row, row);
+  }
+});
+
+test('Nasdaq dates handle winter daylight saving and weekend boundaries without inventing a quote timestamp', () => {
+  for (const [current, previous, offset] of [['2026-12-01', '2026-11-30', '-05:00'], ['2026-09-21', '2026-09-18', '-04:00']]) {
+    const body = nasdaqHistory(); body.aaData = body.aaData.slice(0, 2); body.iTotalRecords = body.iTotalDisplayRecords = 2;
+    [current, previous].forEach((d, i) => { body.aaData[i].TimeStamp = body.aaData[i].TradeDate = `/Date(${Date.parse(`${d}T00:00:00${offset}`)})/`; });
+    const row = { ...nasdaqRow(), sessionDate: current, previousSession: previous, asOf: Date.parse(`${current}T17:00:00${offset}`) };
+    const enriched = enrichNasdaqClose(row, body, row.asOf + 3600000);
+    assert.equal(enriched.asOf, row.asOf); assert.equal(enriched.previousSession, previous);
+  }
+});
+
+test('Nasdaq reader bounds the exact public EOD request and leaves outages explicit', async () => {
+  const row = nasdaqRow();
+  const ok = await readNasdaqEnrichment(row, { now: enrichmentNow, fetcher: async (url, init) => {
+    assert.equal(url, NASDAQ_HISTORY_URL); assert.equal(init.method, 'POST'); assert.equal(init.redirect, 'manual');
+    assert.equal(init.headers.authorization, undefined); assert(init.signal);
+    assert.deepEqual(Object.fromEntries(new URLSearchParams(init.body)), { id: 'COMP', startDate: '2026-09-16T00:00:00', endDate: '2026-09-23T00:00:00', timeOfDay: 'EOD' });
+    return Response.json(nasdaqHistory());
+  } });
+  assert.equal(ok.row.changeOrigin, 'nasdaq-history'); assert.equal(ok.reason, null);
+  for (const [status, reason] of [[401, 'blocked'], [403, 'blocked'], [302, 'unavailable'], [429, 'rate-limited'], [503, 'unavailable']]) {
+    const result = await readNasdaqEnrichment(row, { now: enrichmentNow, fetcher: async () => new Response('', { status }) });
+    assert.equal(result.reason, reason); assert.equal(result.row, row);
+  }
+  assert.equal((await readNasdaqEnrichment(row, { now: enrichmentNow, fetcher: async () => Response.json('x'.repeat(70000)) })).row, row);
+  assert.equal((await readNasdaqEnrichment(row, { now: enrichmentNow, fetcher: async () => { throw new DOMException('timed out', 'TimeoutError'); } })).reason, 'timeout');
+  const conflict = await readNasdaqEnrichment({ ...row, last: row.last + 10 }, { now: enrichmentNow, fetcher: async () => Response.json(nasdaqHistory()) });
+  assert.equal(conflict.reason, 'close-conflict'); assert.equal(conflict.row.last, null); assert.equal(conflict.row.reason, 'source-conflict');
+  const pennyConflict = await readNasdaqEnrichment({ ...row, last: 26936.045 }, { now: enrichmentNow, fetcher: async () => Response.json(nasdaqHistory()) });
+  assert.equal(pennyConflict.reason, 'close-conflict', 'displayed levels must agree, even within the arithmetic tolerance');
+  const body = fixture('yahoo-nasdaq-missing-close.json'); body.chart.result[0].meta.previousClose = 27000;
+  const priorConflict = await readNasdaqEnrichment(quoteFromChart(body, MARKET_ROWS.find(r => r.id === 'nasdaq'), enrichmentNow),
+    { now: enrichmentNow, fetcher: async () => Response.json(nasdaqHistory()) });
+  assert.equal(priorConflict.reason, 'previous-close-conflict'); assert.equal(priorConflict.row.prev, null);
+  assert.equal(priorConflict.row.verification, 'conflict');
+});
+
+test('email HTML, plain text, PDF and delivery summary expose the enriched comparison and provenance', async () => {
+  const fetcher = async url => {
+    if (url === NASDAQ_HISTORY_URL) return Response.json(nasdaqHistory());
+    if (String(url).includes('/chart/%5EIXIC')) return Response.json(fixture('yahoo-nasdaq-missing-close.json'));
+    return new Response('', { status: 503 });
+  };
+  const env = { ASSETS: { fetch: async request => {
+    try { return new Response(readFileSync(new URL(`../public${new URL(request.url).pathname}`, import.meta.url))); }
+    catch { return new Response('', { status: 404 }); }
+  } } };
+  const brief = await buildBrief({ edition: 'morning', day: '2026-09-24', settings: DEFAULT_SETTINGS, env, fetcher, now: enrichmentNow });
+  const row = brief.markets.rows.find(r => r.id === 'nasdaq');
+  assert.equal(formatPct(row), '−1.13%'); assert.equal(row.last, nasdaqRow().last);
+  assert.deepEqual(brief.markets.enrichment.applied, ['nasdaq']); assert(!brief.markets.unverified.includes('nasdaq'));
+  assert.deepEqual(briefSummary(brief).marketEnrichment.applied, ['nasdaq']);
+  for (const output of [renderBriefHtml(brief), renderBriefText(brief)]) {
+    assert.match(output, /Nasdaq Composite/); assert.match(output, /26,936.04/); assert.match(output, /−1.13%/);
+    assert.match(output, /daily change: Nasdaq history/); assert.match(output, /level cross-checked/);
+  }
+  const pdf = Buffer.from(renderBriefPdf(brief)).toString('latin1');
+  assert.match(pdf, /26,936.04/); assert.match(pdf, /1.13%/); assert.match(pdf, /Nasdaq history/);
+  const conflicted = await readMarkets({ env, now: enrichmentNow, fetcher: async url => {
+    if (String(url).includes('/chart/%5EIXIC')) {
+      const body = fixture('yahoo-nasdaq-missing-close.json'); body.chart.result[0].meta.regularMarketPrice += 10;
+      return Response.json(body);
+    }
+    return fetcher(url);
+  } });
+  assert.equal(conflicted.rows.find(r => r.id === 'nasdaq').state, 'unavailable');
+  assert(!conflicted.stored.includes('nasdaq')); assert(conflicted.conflicts.includes('nasdaq'));
 });
 
 test('captured BSE chart dates the cash point, ignores the wrong header clock and validates its previous close', async () => {
@@ -306,7 +415,12 @@ test('complete market reader and HTML/text/PDF preserve verified numbers, missin
   const brief = await buildBrief({ edition: 'evening', day: '2026-09-23', settings: DEFAULT_SETTINGS, env, fetcher, now: at });
   const html = renderBriefHtml(brief), text = renderBriefText(brief);
   assert.match(html, /daily change withheld: sources disagree/); assert.match(text, /daily change withheld: sources disagree/);
-  assert(!html.includes("today&#39;s close")); assert.equal(occurrences(text), agreed, 'the withheld Nifty change never reaches the text brief');
+  assert(!html.includes("today&#39;s close"));
+  // The regression concerns Nifty's comparison, not unrelated holdings whose
+  // captured daily move can legitimately be +0.76% as the repository advances.
+  const niftyLine = text.split('\n').find(line => /^\s+Nifty 50\s/.test(line));
+  assert(niftyLine); assert(!niftyLine.includes('+0.76%')); assert.match(niftyLine, /daily change withheld: sources disagree/);
+  assert.equal(occurrences(text), agreed, 'the withheld Nifty change never reaches the text brief');
   assert.match(Buffer.from(renderBriefPdf(brief)).toString('latin1'), /daily change withheld/);
   disagree = false; missing = true;
   const partial = await readMarkets({ env, fetcher, now: at });
