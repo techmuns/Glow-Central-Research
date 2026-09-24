@@ -103,6 +103,7 @@ try {
   const filing = await clickReport(returning);
   await filing.waitForURL(`${origin}/documents/HORIZONIND`);
   assert.equal(await filing.evaluate(() => window.opener), null);
+  assert.equal(await returning.evaluate(() => ctx.params.period), undefined, 'opening a report must not change the YoY/QoQ comparison');
   assert.equal(sourceReads, 0, 'a matching saved report opens without an upstream request');
   assert.equal(await returning.locator('[data-view="filings"]').count(), 0);
   await filing.close();
