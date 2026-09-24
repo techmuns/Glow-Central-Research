@@ -1633,7 +1633,7 @@ export function sourcesNote(brief) {
     if (market.upstox?.reason) bits.push(`Upstox index check ${market.upstox.reason}; fallback rows are marked single source`);
     if (market.globalUpstox?.reason) bits.push(`Upstox global index check ${market.globalUpstox.reason}; usable alternative sources are labelled on each row`);
     if (market.enrichment?.applied?.length) bits.push('Nasdaq Composite daily change enriched from Nasdaq official history after matching the closing level and both trading dates');
-    if (market.enrichment?.reason) bits.push(`Nasdaq history enrichment ${market.enrichment.reason}; unverified changes remain withheld`);
+    if (market.enrichment?.reason) bits.push('Nasdaq history could not verify the comparison; unverified changes remain withheld');
     if (market.conflicts?.length) bits.push(`${market.conflicts.length} market source disagreement(s); affected figures withheld`);
     if (market.unverified?.length) bits.push(`${market.unverified.length} daily change(s) could not be verified`);
   }
