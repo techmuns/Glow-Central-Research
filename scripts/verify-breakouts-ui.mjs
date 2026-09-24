@@ -36,7 +36,7 @@ const server=createServer((req,res)=>{
  try{
  let body=readFileSync(file);
  if(path==='/sw.js')body=body.toString().replace(/const CACHE_NAME = [^;]+;/, `const CACHE_NAME = 'sattva-dashboard-breakout-test-${revision}';`);
- if(['/js/data/breakout-live.js','/js/tabs/ai-alerts.js'].includes(path))body=`export const testRelease=${revision};\n`+body.toString();
+ if(['/js/data/breakout-live.js','/js/tabs/ai-alerts.js','/js/data/alert-pool.js'].includes(path))body=`export const testRelease=${revision};\n`+body.toString();
  res.setHeader('content-type',{'.js':'text/javascript','.json':'application/json','.html':'text/html','.css':'text/css','.svg':'image/svg+xml'}[extname(file)]||'application/octet-stream');res.end(body);
  }catch{res.writeHead(404).end();}
 });
@@ -130,12 +130,14 @@ try{
  await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
  await page.reload();await cell.waitFor();
  assert.equal(await page.evaluate(async()=>(await import('/js/data/breakout-live.js')).testRelease),1);
+ assert.equal(await page.evaluate(async()=>(await import('/js/data/alert-pool.js')).testRelease),1);
  assert.equal(await page.evaluate(async()=>(await import('/js/tabs/ai-alerts.js')).testRelease),1);
  revision=2;
  const upgraded=page.waitForEvent('framenavigated',{predicate:frame=>frame===page.mainFrame(),timeout:30000});
  await page.evaluate(async()=>{await (await navigator.serviceWorker.getRegistration()).update();});
  await upgraded;await cell.waitFor();
  assert.equal(await page.evaluate(async()=>(await import('/js/data/breakout-live.js')).testRelease),2);
+ assert.equal(await page.evaluate(async()=>(await import('/js/data/alert-pool.js')).testRelease),2,'returning reader adopts the updated pool module');
  assert.equal(await page.evaluate(async()=>(await import('/js/tabs/ai-alerts.js')).testRelease),2,
   'the returning session also adopts the AI Alerts module and its new reconciliation dependency');
  await cell.waitFor();assert.equal(await cell.textContent(),'₹110.00');await page.clock.runFor(1000);

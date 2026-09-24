@@ -4432,3 +4432,6 @@ Family permissions. The shared claim helper is `public/js/data/alert-claims.js`.
 Research retrieval, forced Family reads, dated breakout fallback and measured list anchors follow
 `docs/RESEARCH-READING-RELIABILITY.md`. Keep source rows represented under budget pressure and
 never describe an attachment filename as a document reading.
+
+Alert-pool content reuse and streamed Telegram delivery follow `docs/ALERT-DELIVERY-REUSE.md`.
+Capture identity and source health must be rechecked even when decoded content is unchanged.

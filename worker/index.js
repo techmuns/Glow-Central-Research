@@ -40,6 +40,7 @@ import { handleMutualFunds } from './mutual-funds.mjs';
 // arrives with a matching `If-None-Match` gets a 304 with no body at all.
 
 import { readTelegramCollector } from './telegram-collector.mjs';
+import { TELEGRAM_DELIVERY_NAME } from './telegram-delivery.mjs';
 import { handleBreakouts, handleTechnicals } from './breakouts.mjs';
 import { TELEGRAM_SCHEDULER_NAME, TELEGRAM_PRODUCTION_HOST } from './telegram-scheduler.mjs';
 import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_PAGE_SIZE } from './mc.mjs';
@@ -87,7 +88,7 @@ import { FEED_URL as NSE_FEED_URL, HEADERS as NSE_HEADERS, parseAnnouncements, a
 import { isXbrlFilingUrl, parseXbrlFiling } from '../public/js/data/nse-xbrl-shared.js';
 import { renderFilingFailure, renderFilingPage } from './filing-page.mjs';
 
-import { handleExchangeDeals } from './exchange-deals.mjs';
+import { handleExchangeDeals, exchangeCaptureStatus } from './exchange-deals.mjs';
 import { handleAlertPool } from './alert-pool.mjs';
 import { POOL_CAPTURES, captureRevision } from '../public/js/data/alert-pool-shared.js';
 import { EXCHANGE_WORKFLOW } from './exchange-artifact.mjs';
@@ -2284,7 +2285,7 @@ async function handleCaptureStatus(request, env, ctx) {
   if (request.method !== 'GET') return json({ ok: false, reason: 'method', message: 'GET only.' }, 405);
 
   const cache = caches.default;
-  const key = edgeKey('capture-status-v3');
+  const key = edgeKey('capture-status-v4');
   const held = await cache.match(key);
   if (held) {
     return new Response(held.body, {
@@ -2294,6 +2295,7 @@ async function handleCaptureStatus(request, env, ctx) {
   }
 
   const captures = {};
+  const exchangeIdentity = exchangeCaptureStatus(request, env, { cache });
   await Promise.all(
     Object.entries(CAPTURE_FILES).map(async ([name, path]) => {
       try {
@@ -2333,15 +2335,7 @@ async function handleCaptureStatus(request, env, ctx) {
     }),
   );
 
-  // THE EXCHANGE ARTIFACT THE INSIDER FEED FOLDS IN is not a file: its identity is the artifact
-  // id the bulk/block route is serving, read off that route's own edge entry. Not cached yet
-  // means not reported — the pool then keeps the live path for insider trades, which is the
-  // read that fills that entry.
-  try {
-    const exchange = await cache.match(new Request(new URL('/api/bulk-block-deals', request.url)));
-    const artifactId = Number(/^"exchange-(\d+)"$/.exec(exchange?.headers.get('etag') || '')?.[1]);
-    captures.exchangeDeals = Number.isSafeInteger(artifactId) ? { ok: true, capturedAt: null, artifactId } : { ok: false, capturedAt: null, artifactId: null, reason: 'not-cached' };
-  } catch { captures.exchangeDeals = { ok: false, capturedAt: null, artifactId: null, reason: 'not-cached' }; }
+  captures.exchangeDeals = await exchangeIdentity;
   const payload = { ok: true, captures, servedAt: new Date().toISOString() };
   const store = new Response(JSON.stringify(payload), {
     headers: { 'content-type': 'application/json', 'cache-control': `max-age=${CAPTURE_STATUS_TTL_S}` },
@@ -2365,20 +2359,21 @@ function json(obj, status = 200) {
 
 /** Cache keys live on a hostname that cannot resolve, so an entry can never be confused for a fetch. */
 function edgeKey(path) {
-  return new Request(`https://cache.invalid/${path}`, { method: 'GET' });
+  return new Request(`https://cache.invalid/sattva-central-research/${path}`, { method: 'GET' });
 }
 
 // Fresh immutable captures do not wait for an archive PR or a static-site rebuild.
 async function handleTelegramPosts(request, env, ctx) {
   if (request.method !== 'GET') return json({ ok: false, reason: 'method' }, 405);
-  const key = edgeKey('telegram/posts-v1');
+  const key = edgeKey('telegram/posts-v2');
   const hit = await caches.default.match(key);
   if (hit) return revalidate(request, hit, 'hit');
   try {
-    const result = await readTelegramCollector({ token: env.GH_DISPATCH_TOKEN,
-      signal: AbortSignal.any([request.signal, AbortSignal.timeout(20000)]) });
-    const body = JSON.stringify({ ...result.capture, delivery: result.source });
-    const response = tagged(body, contentTag(body), 60);
+    if (!env.TELEGRAM_SCHEDULER) throw Error('Telegram delivery binding unavailable');
+    const response = await env.TELEGRAM_SCHEDULER.getByName(TELEGRAM_DELIVERY_NAME).telegramPosts();
+    // Forward the prepared stream; archive decompression, validation and encoding happen
+    // in the durable delivery object, independently of collection and its timer.
+    if (!response.ok) return response;
     ctx.waitUntil(caches.default.put(key, response.clone()));
     return revalidate(request, response, 'live');
   } catch {
