@@ -127,7 +127,7 @@ async function cacheModuleGraph(cache, entry) {
 }
 
 // This UI revision composes with the shared release without competing for its version line.
-const RELEASE_CACHE_KEY = `${CACHE_KEY}-ai-alerts-clean-search-v1`;
+const RELEASE_CACHE_KEY = `${CACHE_KEY}-ai-alerts-clean-search-v1-direct-earnings-reports-v2`;
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
