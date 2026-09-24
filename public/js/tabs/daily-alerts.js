@@ -317,8 +317,9 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true } = {
   const token = ++loadToken;
   const context = currentContext();
   const contextKey = alerts.alertContextKey(context.scope, context.holdings, context.day);
-  const current = () => token === loadToken && ctxRef && contextKey === alerts.alertContextKey(ctxRef.scope) &&
+  const viewCurrent = () => ctxRef && contextKey === alerts.alertContextKey(ctxRef.scope) &&
     alertWindowKey(context.queryWindow) === alertWindowKey(currentContext().queryWindow);
+  const current = () => token === loadToken && viewCurrent();
   collecting++;
   if (load && forceRefresh) lastRevalidatedAt = Date.now();
   try {
@@ -330,6 +331,8 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true } = {
       includeHistory: true,
       refresh: forceRefresh,
       load,
+      // A newer partial paint in this same view must not abandon its shared pool read.
+      isCurrent: viewCurrent,
       // A selected period may be answered from the precomputed pool; All history and the
       // Upcoming horizon keep reading the sources themselves.
       pool: context.queryWindow ? 'window' : null,
@@ -564,7 +567,7 @@ function paint(ctx) {
         book: coverage.meta(),
       })}${horizon === HORIZON.UPCOMING ? calendarPill(allUpcoming) : historyPill(m)}</div>`,
     })}
-    ${horizon===HORIZON.THROUGH?`<p data-alerts-reading-count class="mb-2 text-xs text-slate-500">${formatNumber(visible.length)} items · ${formatNumber(visible.reduce((n,e)=>n+membersOf(e).length,0))} source reports. Checked equivalents share an item; unchecked reports stay separate. Export includes every original report.</p>`:''}
+    ${horizon===HORIZON.THROUGH?`<p data-alerts-reading-count class="mb-1 text-xs text-slate-500" title="Checked equivalent reports share one item. Unchecked reports remain separate; every original is available in the item and export.">${formatNumber(visible.length)} items · ${formatNumber(visible.reduce((n,e)=>n+membersOf(e).length,0))} source reports · All originals remain available in each item and export.</p>`:''}
     <div class="alerts-controls" data-alerts-controls>
       ${horizonToggle(allThrough.length, allUpcoming.length, day, !!report)}
       <div class="alerts-view-controls">
@@ -1187,7 +1190,7 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
       const count=rows.reduce((n,e)=>n+membersOf(e).length,0);
       ctx.root.dataset.alertsSourceCount=String(count);
       const label=ctx.root.querySelector('[data-alerts-reading-count]');
-      if(label) label.textContent=`${formatNumber(rows.length)} items · ${formatNumber(count)} source reports. Checked equivalents share an item; unchecked reports stay separate. Export includes every original report.`;
+      if(label) label.textContent=`${formatNumber(rows.length)} items · ${formatNumber(count)} source reports · All originals remain available in each item and export.`;
     } : null,
     onFilterChange: mode === HORIZON.THROUGH ? (_view, index) => {
       if (index === 2 && ctxRef && alertWindowKey(report?.queryWindow) !== alertWindowKey(currentContext().queryWindow)) render(ctxRef);
