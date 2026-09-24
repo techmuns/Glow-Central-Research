@@ -1744,7 +1744,7 @@
       "error": "search-unavailable"
     },
     "isin:INE377N01017|WAAREEENER": {
-      "lastAttemptAt": "2026-09-20T01:50:29+00:00",
+      "lastAttemptAt": "2026-09-24T20:39:22+00:00",
       "error": "search-unavailable"
     },
     "isin:INE049B01025|Wockhardt": {
@@ -1764,6 +1764,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-24T20:25:26.724862+00:00"
+    "checkedAt": "2026-09-24T20:39:22.743857+00:00"
   }
 }
