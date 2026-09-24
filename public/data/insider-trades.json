@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-09-24T17:13:36.807Z",
+    "capturedAt": "2026-09-24T18:29:30.499Z",
     "from": "2026-08-05",
     "to": "2026-09-24",
     "rows": 9355,
@@ -12,8 +12,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-24T17:13:36.807Z",
-  "oldestDataAt": "2026-09-24T17:13:36.807Z",
+  "capturedAt": "2026-09-24T18:29:30.499Z",
+  "oldestDataAt": "2026-09-24T18:29:30.499Z",
   "from": "2025-09-24",
   "to": "2026-09-24",
   "windowDays": 365,
@@ -31,26 +31,26 @@
       "id": "bulk",
       "label": "Bulk deal",
       "url": "https://www.screener.in/trades/bulk/?o=-2",
-      "pagesRead": 12,
+      "pagesRead": 2,
       "latestDate": "2026-09-24",
-      "oldestDate": "2026-09-23",
+      "oldestDate": "2026-09-24",
       "bootstrapDays": null,
       "ok": true,
-      "rowCount": 300,
-      "capturedAt": "2026-09-24T17:13:36.807Z",
+      "rowCount": 50,
+      "capturedAt": "2026-09-24T18:29:30.499Z",
       "coverageFrom": "2026-09-08"
     },
     {
       "id": "block",
       "label": "Block deal",
       "url": "https://www.screener.in/trades/block/?o=-2",
-      "pagesRead": 3,
+      "pagesRead": 2,
       "latestDate": "2026-09-24",
-      "oldestDate": "2026-09-23",
+      "oldestDate": "2026-09-24",
       "bootstrapDays": null,
       "ok": true,
-      "rowCount": 75,
-      "capturedAt": "2026-09-24T17:13:36.807Z",
+      "rowCount": 50,
+      "capturedAt": "2026-09-24T18:29:30.499Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,28 +63,28 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-24T17:13:36.807Z",
+      "capturedAt": "2026-09-24T18:29:30.499Z",
       "coverageFrom": "2026-08-18"
     },
     {
       "id": "insiders",
       "label": "Insider trade",
       "url": "https://www.screener.in/trades/insiders/?o=-2",
-      "pagesRead": 3,
+      "pagesRead": 2,
       "latestDate": "2026-09-24",
-      "oldestDate": "2026-09-23",
+      "oldestDate": "2026-09-24",
       "bootstrapDays": null,
       "ok": true,
-      "rowCount": 75,
-      "capturedAt": "2026-09-24T17:13:36.807Z",
+      "rowCount": 50,
+      "capturedAt": "2026-09-24T18:29:30.499Z",
       "coverageFrom": "2026-08-18"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1776,
+  "withRows": 1777,
   "emptyCount": 0,
-  "rowCount": 18233,
+  "rowCount": 18234,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -360263,6 +360263,23 @@
           "Trade Shares": "7469",
           "Trade Value": "10.95 lacs",
           "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "AGASTYAEN": [
+      {
+        "ticker": "AGASTYAEN",
+        "date": "2026-09-21",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Sanginita Chemi.",
+          "Insider": "Guttikonda Rajasekhar",
+          "Transaction": "Sell",
+          "Trade Shares": "1140470",
+          "Broadcast Date": "2026-09-21",
           "Source": "Screener.in"
         }
       }
