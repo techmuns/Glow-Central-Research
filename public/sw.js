@@ -31,6 +31,9 @@ const MODULE_ENTRIES = [APP_ENTRY, '/js/research/glow-bridge.js'];
 // once for both and neither side's revision can be dropped by the next sync.
 const CACHE_KEY = `${CACHE_NAME}-glow-price-levels-v1-glow-research-row-floor-v1-glow-table-scrollbars-v1-glow-order-book-topic-v1-glow-alert-filters-v1-glow-portfolio-reader-v3-glow-investor-dates-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v1-all-alerts-restore-v2-ai-card-updates-v1-performance-ownership-v1-ai-impact-triggers-v1-mf-active-passive-v4-ai-impact-links-v1-glow-newsletter-simple-v1-glow-newsletter-multi-add-v1-glow-newsletter-coverage-v1-glow-research-settle-v1-sattva-newsletter-v2-bounded-history-memory-v6-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v1-glow-muns-minute-v1-muns-price-label-v2-glow-kpi-impact-v2-ai-card-parity-v1-glow-alert-developments-v1-news-story-companions-v1-document-query-priority-v1`;
 
+// This UI revision composes with the shared release without competing for its version line.
+const RELEASE_CACHE_KEY = `${CACHE_KEY}-ai-alerts-clean-search-v1`;
+
 function moduleSpecifiers(source) {
   const found = new Set();
   const pattern = /(?:import|export)\s+(?:[^'";]*?\s+from\s*)?['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
@@ -123,7 +126,7 @@ async function cacheModuleGraph(cache, entries) {
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
-    const cache = await caches.open(CACHE_KEY);
+    const cache = await caches.open(RELEASE_CACHE_KEY);
     // A new version activates only when its whole required shell is complete;
     // otherwise the previous worker/cache remains the safe fallback.
     await Promise.all(CORE.map((asset) => cacheRequired(cache, asset)));
@@ -138,7 +141,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_KEY).map((key) => caches.delete(key)));
+    await Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== RELEASE_CACHE_KEY).map((key) => caches.delete(key)));
     await self.clients.claim();
   })());
 });
@@ -202,7 +205,7 @@ self.addEventListener('fetch', (event) => {
   if (!cacheable(request, url)) return;
 
   event.respondWith((async () => {
-    const cache = await caches.open(CACHE_KEY);
+    const cache = await caches.open(RELEASE_CACHE_KEY);
     const key = cacheKey(request, url);
     // Explicit data revalidation must reach the server in THIS request. Returning
     // the held body while updating it behind the scenes made Refresh one capture
