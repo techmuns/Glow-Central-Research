@@ -6,6 +6,7 @@ import { readableOwnership } from './mutual-funds-ownership.js';
 import * as coverage from './coverage.js';
 import * as watchlist from '../core/watchlist.js';
 import { filterByScope } from './scope.js';
+import { filingTicker } from './announcement-identity.js';
 
 export const SOURCE = 'https://sattva-central-research.tech-441.workers.dev';
 const prefix = `glow:public-mf:v1:${SOURCE}:`;
@@ -26,8 +27,8 @@ export function scopedRows(scope = 'portfolio', holdings = coverage.holdings()) 
   }
   const scoped = filterByScope(rows, scope, holdings);
   if (scope !== 'watchlist') return scoped;
-  const byTicker = new Map(scoped.map(r => [r.ticker, r]));
-  return watchlist.all().map(h => byTicker.get(h.ticker) || { ...h, name: h.name || h.ticker, missing: true });
+  const byTicker = new Map(scoped.map(r => [filingTicker(r.ticker), r]));
+  return watchlist.all().map(h => byTicker.get(filingTicker(h.ticker)) || { ...h, name: h.name || h.ticker, missing: true });
 }
 
 function validatePage(value, wanted) {

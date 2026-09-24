@@ -17,7 +17,7 @@ const server=createServer((req,res)=>{
     watchWorkerChanges(navigator.serviceWorker,()=>{sessionStorage.setItem('mf-upgraded','yes');location.reload();});
     navigator.serviceWorker.register('/sw.js');
   </script>`);
-  if(path==='/sw.js')return send(worker.replace(/const MUNSHOT_SDK = '[^']+';/,`const MUNSHOT_SDK = '${origin}/sdk-fixture';`).replace('glow-mf-reliability-v1',upgraded?'glow-mf-reliability-v1':'glow-mf-before-upgrade'),'text/javascript');
+  if(path==='/sw.js')return send(worker.replace(/const MUNSHOT_SDK = '[^']+';/,`const MUNSHOT_SDK = '${origin}/sdk-fixture';`).replace('glow-mf-reliability-v2',upgraded?'glow-mf-reliability-v2':'glow-mf-before-upgrade'),'text/javascript');
   if(path.startsWith('/api/'))return send('{"error":"offline fixture"}','application/json',503);
   const file=resolve(root,'.'+(path==='/'?'/index.html':path));
   if(!file.startsWith(root+sep))return send('Missing','text/plain',404);
@@ -43,7 +43,7 @@ try {
   await page.evaluate(()=>navigator.serviceWorker.getRegistration().then(r=>r.update()));
   await page.waitForFunction(()=>sessionStorage.getItem('mf-upgraded')==='yes'&&document.querySelector('#views').textContent.includes('Company Holdings'));
   const names=await page.evaluate(()=>caches.keys());
-  assert(names.some(k=>k.includes('glow-mf-reliability-v1')));
+  assert(names.some(k=>k.includes('glow-mf-reliability-v2')));
   assert(!names.some(k=>k.includes('glow-mf-before-upgrade')));
   console.log('PASS existing session upgrades its immutable modules, retains both return views and exposes Company Holdings');
 } finally {await browser.close();await new Promise(done=>server.close(done));}

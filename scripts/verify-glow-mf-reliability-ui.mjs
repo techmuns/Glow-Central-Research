@@ -117,7 +117,11 @@ try {
   summary={rows:[{...row,isin:other}],meta:sourceMeta};
   await page.evaluate(()=>feed.load());
   assert.equal(await page.evaluate(()=>feed.all()[0].totalShares),250,'a wrong-company response cannot poison the scoped cache');
-  console.log('PASS large scope, full pagination, repeated cursor and wrong-company rejection');
+  // Watchlist entries can retain an SME exchange alias while the source uses its reviewed symbol.
+  summary={rows:[{...row,ticker:'ALPEXSOLAR'}],meta:sourceMeta};
+  await page.evaluate(async()=>{const watch=await import('/js/core/watchlist.js');watch.add('ALPEXSOLAR-SM','Alpex Solar');await feed.load('watchlist');});
+  assert.equal(await page.evaluate(()=>feed.scopedRows('watchlist').find(r=>r.ticker==='ALPEXSOLAR')?.totalShares),120);
+  console.log('PASS large scope, full pagination, repeated cursor, wrong-company rejection and Watchlist exchange aliases');
 
   await page.evaluate(()=>{tab.destroy();return funds.load();});
   await page.evaluate(()=>{window.previous=funds.all();return funds.reload();});
