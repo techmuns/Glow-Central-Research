@@ -94,6 +94,8 @@ const MATCH_ROW_LIMIT = 14;
 export const RESEARCH_EVIDENCE_CHAR_BUDGET = 18_000;
 // The share of the budget that rows are guaranteed. The skeleton is trimmed before a row is refused.
 export const ROW_RESERVE_SHARE = 0.5;
+// Reserve literal evidence beside derived business descriptions.
+export const ROW_FLOOR_SHARE = 0.08;
 // The score a row earns when the question named its company. Above any number of token hits, so a
 // company question lists that company's rows from every source before anything else.
 const COMPANY_SCORE = 8;
@@ -475,6 +477,13 @@ function trimSkeleton(sources, measure, ceiling) {
  * rows it has in scope and how many are present, so a row that is not shown can never be read as
  * an absent fact.
  */
+/** The prose a row can give up under budget pressure, in place; identity, dates and links stay. */
+function shrinkRow(row) {
+  for (const field of ['detail', 'summary', 'headline', 'text']) {
+    if (row[field] && typeof row[field] === 'string' && row[field].length > 120) row[field] = clipped(row[field], 120);
+  }
+}
+
 export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHAR_BUDGET) {
   const sourceInputs = Array.isArray(evidence?.sources) ? evidence.sources : [];
   const packet = {
@@ -495,6 +504,13 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
   };
   const measure = () => researchEvidenceChars(packet);
   trimSkeleton(packet.sources, measure, Math.floor(charBudget * (1 - ROW_RESERVE_SHARE)));
+  // A DERIVED MAP MAY NOT TAKE THE LAST ROW'S ROOM. The business context is built from these
+  // sources' own text, and a packet that carries it with no source row is a summary the model
+  // cannot check. See ROW_FLOOR_SHARE for the measurement.
+  const shortfall = Math.floor(charBudget * ROW_FLOOR_SHARE) - (charBudget - measure());
+  if (shortfall > 0 && packet.businessContext) {
+    packet.businessContext = fitBusinessContext(evidence.businessContext, JSON.stringify(packet.businessContext).length - shortfall);
+  }
 
   const candidates = [];
   sourceInputs.forEach((source, sourceIndex) => {
@@ -528,16 +544,34 @@ export function fitEvidenceToBudget(evidence, charBudget = RESEARCH_EVIDENCE_CHA
     const sample = candidate.target === 'rows' ? source : source?.unresolvedTopics;
     if (!sample) continue;
     sample.rows.push(candidate.row);
+    // A fixed row reserve can still be too small when many feeds have long
+    // first rows. Optional metadata must yield before a source loses its only
+    // representative; provenance, dates and definitions remain intact.
+    if (candidate.rowIndex === 0 && measure() > charBudget) trimSkeleton(packet.sources, measure, charBudget);
     if (measure() > charBudget) {
       if (candidate.rowIndex === 0 && sample.rows.length === 1) {
-        for (const field of ['detail', 'summary', 'headline', 'text']) {
-          if (candidate.row[field] && typeof candidate.row[field] === 'string' && candidate.row[field].length > 120) {
-            candidate.row[field] = clipped(candidate.row[field], 120);
-          }
-        }
+        shrinkRow(candidate.row);
         if (measure() > charBudget) {
           delete candidate.row.detail;
           delete candidate.row.summary;
+        }
+        // A SOURCE'S ONLY REPRESENTATIVE OUTRANKS ANOTHER SOURCE'S PROSE. Every first row is
+        // admitted before any second row, so when this one does not fit, what is in the way is
+        // other sources' first rows — and the packet promises every source with company rows at
+        // least one of them. Measured on the 17 September 2026 capture: an earnings question's
+        // first General Alerts row ran to 1,316 characters, the fixed part of the packet to
+        // 10,200, and the source listed eighteenth landed nothing. So before this row is dropped,
+        // the other first rows give up the same optional prose, largest first; provenance, dates,
+        // titles and links stay, and a row that still does not fit is dropped as before.
+        if (measure() > charBudget) {
+          const firstRows = packet.sources.flatMap((s) => [s, s.unresolvedTopics].filter(Boolean))
+            .map((s) => s.rows?.[0]).filter((row) => row && row !== candidate.row)
+            .sort((a, b) => JSON.stringify(b).length - JSON.stringify(a).length);
+          for (const row of firstRows) {
+            if (measure() <= charBudget) break;
+            shrinkRow(row);
+            if (measure() > charBudget) { delete row.detail; delete row.summary; }
+          }
         }
         if (measure() > charBudget) {
           sample.rows.pop();

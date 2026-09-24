@@ -1,3 +1,4 @@
+import { alertReadingHtml, watchAlertReadings } from '../ui/alert-reading.js';
 // tabs/ai-alerts.js — THE SMALL, EXPLAINABLE READING LIST ABOVE ALL ALERTS.
 //
 // All Alerts is the complete chronological record. This tab deliberately is not: it groups
@@ -126,6 +127,7 @@ export function render(ctx) {
   ctxRef = ctx;
 
   if (!unsubs.length) {
+    unsubs.push(watchAlertReadings(ctx.root));
     unsubs.push(watchCalendar());
     unsubs.push(watchFreshness());
     unsubs.push(onCaptureLanded(sourceChanged));
@@ -848,6 +850,7 @@ function eventMarkup(event, scope, day) {
       </a>
       ${bookmarkButton(snapshotForRow(event, { section: 'daily-alerts' }))}
       </div>
+      ${alertReadingHtml(event)}
       ${storySourcesMarkup(event.storyReports || [])}
       ${storyHistoryMarkup(event)}
     </li>`;

@@ -252,7 +252,7 @@ export function needsPortfolioAnalysis(question, history = []) {
 
 export async function readResearchPortfolio(question, signal, history = []) {
   if (needsPortfolioAnalysis(question, history)) return readPortfolio(question, signal);
-  // Recheck the workbook revision, coalescing with an already-running check.
+  // Recheck the workbook after this question; share only a read that has not started.
   // A failed read never falls back to cached ownership or an extra model call.
   const reply = await readPositionSizes(signal, { force: true });
   if (!reply) throw new Error(state === 'locked' ? 'Unlock your portfolio above to answer with your holdings.' : 'Your portfolio connection is unavailable. Please try again; no old holdings were used.');
@@ -276,6 +276,13 @@ export function readPositionSizes(signal, { force = false } = {}) {
     useFamilyBook(cached.holdings, cached.sizes.bookAsOf, cached.sizes.checkedAt);
     return Promise.resolve(cached);
   }
-  if (!pendingSizes) pendingSizes = enqueueRead(readPositionSizesNow).finally(() => { pendingSizes = null; });
-  return forConsumer(pendingSizes, signal);
+  // Callers may share a queued read, but a forced caller cannot accept a source
+  // check already in progress. Keep state per operation: an older queued read
+  // must not change the state of a newer one waiting behind it.
+  if (pendingSizes && (!force || !pendingSizes.started)) return forConsumer(pendingSizes.promise, signal);
+  const entry = { started: false, promise: null };
+  entry.promise = enqueueRead(() => { entry.started = true; return readPositionSizesNow(); });
+  pendingSizes = entry;
+  entry.promise.catch(() => {}).finally(() => { if (pendingSizes === entry) pendingSizes = null; });
+  return forConsumer(entry.promise, signal);
 }

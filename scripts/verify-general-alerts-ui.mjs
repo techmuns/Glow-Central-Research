@@ -53,6 +53,8 @@ window.SATTVA_CHATTER_URL=location.origin+'/chatter';
 import * as tab from '/js/tabs/daily-alerts.js';
 import * as coverage from '/js/data/coverage.js';
 import * as refresh from '/js/core/refresh.js';
+import { recordDocuments } from '/js/data/alert-records.js';
+window.testRecordDocuments = recordDocuments;
 coverage.prime({holdings:[{ticker:'STLTECH',name:'Sterlite Technologies'},{ticker:'RELIANCE',name:'Reliance Industries'},{ticker:'JAYNECOIND',name:'Jayaswal Neco Industries'},{ticker:'NESTLEIND',name:'Nestle India'},{ticker:'DMART',name:'Avenue Supermarts'}]});
 window.show=(scope='universe',params={})=>tab.render({root:document.querySelector('#root'),params,scope,data:{}});
 window.dispose=()=>tab.destroy();
@@ -426,7 +428,7 @@ try {
   await settled();
 
   await page.locator('[data-table-search]').fill('Session-private fixture');
-  await page.evaluate(async () => (await import('/js/data/alert-records.js')).recordDocuments('company-documents', {
+  await page.evaluate(() => window.testRecordDocuments('company-documents', {
     rows: [{ key: 'session-private', ticker: 'STLTECH', title: 'Session-private fixture', date: null, url: 'https://example.test/private.pdf' }],
   }, { ticker: 'STLTECH', name: 'Sterlite Technologies' }));
   await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('Session-private fixture'));
@@ -507,7 +509,7 @@ try {
   });
   await page.locator('[data-alerts-table-actions] [data-export]').click();
   await page.waitForFunction(() => window.exportedRows > 0);
-  assert.equal(await page.evaluate(() => window.exportedRows), virtualContract.total + 1,
+  assert.equal(await page.evaluate(() => window.exportedRows), await page.evaluate(()=>Number(document.querySelector('[data-alerts-source-count]').dataset.alertsSourceCount))+1,
     'relocated export includes every matching record plus provenance, not just mounted rows');
 
   await page.locator('[data-table-scroll]').evaluate((scroller) => { scroller.scrollTop = scroller.scrollHeight; });

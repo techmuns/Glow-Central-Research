@@ -270,6 +270,13 @@ const declineReasons = async (options = {}) => {
   return read ? Object.fromEntries([...read.declined]) : null;
 };
 assert.deepEqual(await declineReasons(), {}, 'a current pool declines nothing');
+served.index = { ...index };
+delete served.index.policy;
+assert.equal(await declineReasons(), null, 'an older unversioned classification pool leaves every feed on the source path');
+served.index = { ...index, policy: 'old-classification-policy' };
+assert.equal(await declineReasons(), null, 'a superseded classification policy cannot supply stale grades');
+served.index = index;
+assert.deepEqual(await declineReasons(), {}, 'the current classification policy is adopted again');
 served.status = { ...served.status, captures: { ...served.status.captures, insider: { ...served.status.captures.insider, revision: 'moved' } } };
 assert.deepEqual(await declineReasons(), { insider: 'insider: moved' }, 'a capture that moved sends only its feed down the live path');
 {

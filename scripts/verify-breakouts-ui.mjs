@@ -11,8 +11,8 @@ const deployedDaily=structuredClone(daily);
 daily.companies.push({ticker:'ID',name:'Dhoot Transmission',screenerUrl:'https://www.screener.in/company/id/1286088/consolidated/',error:'Daily history pending'});
 daily.company_count++;
 let price=106,volume=2000,at=AT,fail=false,revision=1,reads=0,muns=0,historyReads=0,dailyFail=false,companionFail=false,dailySha='a'.repeat(40);
-let noTrades=false;
-const snapshot=()=>({version:1,state:'complete',targets:['TEST','FUTURE','WATCHONLY','DHOOTTRANS'],startedAt:new Date(at-1000).toISOString(),completedAt:new Date(at).toISOString(),captureStartedAt:'2026-09-15T03:45:00Z',failures:[],gaps:[{count:1,reason:'candles-unavailable',since:AT-3600000,until:AT}],rows:['TEST','FUTURE','WATCHONLY','DHOOTTRANS'].map(ticker=>({ticker,name:ticker==='TEST'?'Test Company':'Future Holding',price,volume:noTrades?0:volume,prevClose:98,quoteAt:new Date(noTrades?AT-4*86400000:at).toISOString(),...(noTrades?{feedAt:new Date(at).toISOString()}:{}),checkedAt:new Date(at).toISOString(),sessionDate:'2026-09-15',provider:'Upstox',base:{high:100,low:95,average:97,averageVolume:1000,count:30,to:'2026-09-11'}}))});
+let noTrades=false, missingTestBase=false;
+const snapshot=()=>({version:1,state:'complete',targets:['TEST','FUTURE','WATCHONLY','DHOOTTRANS'],startedAt:new Date(at-1000).toISOString(),completedAt:new Date(at).toISOString(),captureStartedAt:'2026-09-15T03:45:00Z',failures:[],gaps:[{count:1,reason:'candles-unavailable',since:AT-3600000,until:AT}],rows:['TEST','FUTURE','WATCHONLY','DHOOTTRANS'].map(ticker=>({ticker,name:ticker==='TEST'?'Test Company':'Future Holding',price,volume:noTrades?0:volume,prevClose:98,quoteAt:new Date(noTrades?AT-4*86400000:at).toISOString(),...(noTrades?{feedAt:new Date(at).toISOString()}:{}),checkedAt:new Date(at).toISOString(),sessionDate:'2026-09-15',provider:'Upstox',base:missingTestBase&&ticker==='TEST'?null:{high:100,low:95,average:97,averageVolume:1000,count:30,to:'2026-09-11'}}))});
 const server=createServer((req,res)=>{
  const path=new URL(req.url,'http://localhost').pathname;
  res.setHeader('cache-control','no-cache');
@@ -50,6 +50,24 @@ try{
  await page.goto(`${origin}/#/research/breakouts/strong-breakouts?scope=universe`);
  const cell=page.locator('[data-cmp="TEST"]');await cell.waitFor();
  assert.equal(await cell.textContent(),'₹106.00');assert((await cell.locator('..').innerText()).includes('Muns API live price'));
+ // A valid quote with missing candles retains the daily grade, with its real date.
+ missingTestBase=true;
+ await page.evaluate(async()=>{await (await import('/js/data/breakout-live.js')).refresh();});
+ const dailyNote=page.locator('[data-row-key="TEST"] [data-grade-source="daily"]');
+ await dailyNote.waitFor();
+ assert.equal(await dailyNote.innerText(),'Graded at 2026-09-10 close');
+ assert.equal(await cell.textContent(),'₹106.00');
+ const basis=await page.evaluate(async()=>{const [live,technicals]=await Promise.all([import('/js/data/breakout-live.js'),import('/js/data/technicals.js')]);return live.decorate([technicals.byTicker('TEST')])[0].company.consolidation_breakout;});
+ assert.equal(basis.grade_source,'daily');assert.equal(basis.graded_on,'2026-09-10');
+ missingTestBase=false;
+ await page.evaluate(async()=>{await (await import('/js/data/breakout-live.js')).refresh();});
+ await page.waitForFunction(()=>!document.querySelector('[data-row-key="TEST"] [data-grade-source="daily"]'));
+ await page.evaluate(()=>{location.hash='#/research/breakouts/strong-breakouts?scope=universe&near=retired&vol=invalid&bo=unknown';});
+ await cell.waitFor();
+ const activeDefaults=await page.locator('[data-chip-id="all"].border-indigo-500').count();
+ assert(activeDefaults>=3,'unsupported filter IDs visibly fall back to supported defaults');
+ await page.evaluate(()=>{location.hash='#/research/breakouts/strong-breakouts?scope=universe';});
+ await cell.waitFor();
  await page.locator('[data-row-key="DHOOTTRANS"]').waitFor();
  assert.equal(await page.locator('[data-row-key="ID"]').count(),0);
  assert.equal(await page.evaluate(async()=>(await import('/js/data/technicals.js')).byTicker('TEST').company.atr_history[0].atr_pct),1.23);

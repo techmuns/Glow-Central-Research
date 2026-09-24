@@ -1,3 +1,4 @@
+import { runSteps, runStepsInSlices } from '../core/slices.js';
 import { readEntry, writeEntry } from '../core/store.js';
 import { boundedJson } from './family-book-contract.js';
 import { STORY_VERSION, STORY_BATCH, STORY_BYTES, STORY_HISTORY_DAYS, STORY_FEEDS, storyBytes, storyRecord, storyKey, storyDigest,
@@ -137,7 +138,8 @@ export function createStoryGrouping({ read = readEntry, write = writeEntry, fetc
     })();
     return running;
   }
-  function project(events) {
+  function* projectSteps(events) {
+    let walked=0;
     if (historyRevision !== revision) {
       histories = new Map();
       for (const entry of decisions.values()) {
@@ -150,25 +152,31 @@ export function createStoryGrouping({ read = readEntry, write = writeEntry, fetc
     }
     const groups = new Map(), untouched = [];
     for (const event of events) {
+      if(++walked%200===0) yield;
       const record = storyRecord(event);
       if (!record) { untouched.push(event); continue; }
       const entry = decision(record);
       // Exact copies can be collapsed offline. Different summaries and same-URL corrections stay.
       const key = entry?.development || JSON.stringify([record.company, record.relation, record.day,
-        record.headline.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim(), record.text, record.direction, genericStory(record) ? record.url : null]);
+        record.headline.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim(), record.text, record.direction, genericStory(record) || ['announcements', 'nse-filings'].includes(record.feed) ? record.url : null]);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ event, record, entry });
     }
     for (const group of groups.values()) {
+      if(++walked%200===0) yield;
       group.sort((a, b) => order(a.record, b.record));
       const entry = group[0].entry;
-      const selected = group.find(item => entry?.lead && storyKey(item.record) === storyKey(entry.lead)) || group[0];
+      // Presentation may prefer the company's filing without changing the checked development,
+      // its first publication, material-update sequence or archive identity.
+      const filing = group.find(item => item.record.feed === 'announcements') || group.find(item => item.record.feed === 'nse-filings');
+      const selected = filing || group.find(item => entry?.lead && storyKey(item.record) === storyKey(entry.lead)) || group[0];
+      const displayLead = filing?.record || entry?.lead;
       const event = selected.event;
       const sources = group.map(item => item.event);
       const first = entry?.first || { day: event.day, time: event.time };
       untouched.push({ ...event,
-        ...(entry?.lead ? { feed: entry.lead.feed, headline: entry.lead.headline, storyText: entry.lead.text, url: entry.lead.url, direction: entry.lead.direction,
-          ...(['announcements', 'nse-filings'].includes(entry.lead.feed) ? { filingSubject: entry.lead.headline, filingDescription: entry.lead.text } : {}) } : {}),
+        ...(displayLead ? { feed: displayLead.feed, headline: displayLead.headline, storyText: displayLead.text, url: displayLead.url, direction: displayLead.direction,
+          ...(['announcements', 'nse-filings'].includes(displayLead.feed) ? { filingSubject: displayLead.headline, filingDescription: displayLead.text } : {}) } : {}),
         day: first.day, time: first.time || null,
         storyReports: sources, storyId: entry?.story || null, developmentId: entry?.development || null,
         storySequence: entry?.sequence || 0,
@@ -179,6 +187,11 @@ export function createStoryGrouping({ read = readEntry, write = writeEntry, fetc
     }
     return untouched;
   }
-  return { load, review, project, status, revision: () => revision, onChange: fn => { listeners.add(fn); return () => listeners.delete(fn); } };
+  const project = events => runSteps(projectSteps(events));
+  const projectAsync = (events,options={}) => {
+    const keepGoing=options.isCurrent || options.keepGoing || (()=>true);
+    return keepGoing() ? runStepsInSlices(projectSteps(events),{...options,keepGoing}) : Promise.resolve(undefined);
+  };
+  return { load, review, project, projectAsync, status, revision: () => revision, onChange: fn => { listeners.add(fn); return () => listeners.delete(fn); } };
 }
 export const storyGrouping = createStoryGrouping();

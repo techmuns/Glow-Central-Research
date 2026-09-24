@@ -102,7 +102,7 @@ export const KEYWORDS = [
     test: /\b(?:order|contract)s?\s+(?:worth|valued|of|for|from)\b|\b(?:(?:bags?|bagged|bagging|wins?|won|winning|secures?|secured|securing|receives?|received|receiving|lands|landed|gets|got)\b|(?:rs\.?|₹|inr)\s?[\d,.]+)[^.!?]{0,40}?\b(?<!\b(?:court|interim|adjudicat\w{0,3}|final|sebi|tribunal|nclt|restraining|stay|penalty in a?|against the)\s)(?:order|contract)s?\b|\b(?:order|contract)s?\s+(?:win|wins|award\w*|inflow\w*)\b|\bletter of (?:intent|award)\b|\bloa\b/,
     note: 'The bare word is not enough: "in order to" is not business won, and a court, interim or SEBI order is a different event that shares the word. A commercial verb or a stated value has to sit beside it.',
   },
-  { id: 'orderbook', label: 'Orderbook', group: 'growth', test: /\border[\s-]?book\b|\border\s+backlog\b|\bunexecuted order\w*\b/ },
+  { id: 'orderbook', label: 'Orderbook', group: 'growth', test: /\border[\s-]?book\b|\border\s+backlog\b|\bunexecuted order\w*\b|\border\s+(?:intakes?|bookings?|pipelines?)\b/ },
   {
     id: 'receipt-of-order',
     label: 'Receipt of Order',

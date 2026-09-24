@@ -98,8 +98,8 @@
 /* All Alerts is a reading workspace: spend the viewport on records, not chrome. Other tabs
    retain their existing framing. No row typography, virtual stride or data policy changes. */
 [data-reading-layout="table"] [data-app-header] { padding-top: 12px; padding-bottom: 4px; }
-[data-reading-layout="table"] [data-app-content] { max-width: 1800px; padding-left: 24px; padding-right: 24px; padding-top: 12px; padding-bottom: 0; }
-.alerts-workspace [data-section-head] { margin-bottom: 8px; }
+[data-reading-layout="table"] [data-app-content] { max-width: 1800px; padding-left: 24px; padding-right: 24px; padding-top: 8px; padding-bottom: 0; }
+.alerts-workspace [data-section-head] { margin-bottom: 4px; }
 .alerts-workspace [data-section-head] > div { align-items: center; gap: 8px; }
 .alerts-workspace [data-section-head] h2 { font-size: 20px; }
 .alerts-controls { position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 8px; }
@@ -129,7 +129,7 @@
 .alerts-source-picker[open] .alerts-source-chevron { transform: rotate(180deg); }
 .alerts-source-panel { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; width: min(820px, 100%); max-height: min(440px, 55vh); overflow-y: auto; overscroll-behavior: contain; padding: 16px; border: 1px solid rgb(var(--edge-slate-200, 226 232 240) / 1); border-radius: 14px; background: rgb(var(--surface-white, 255 255 255) / 1); box-shadow: 0 16px 48px #0f172a26; }
 .alerts-source-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 14px; font-size: 14px; }
-.alerts-workspace [data-table-toolbar] { padding: 10px 12px; gap: 8px; }
+.alerts-workspace [data-table-toolbar] { padding: 8px 12px; gap: 8px; }
 .alerts-workspace [data-table-toolbar] > div:first-child > div:first-child { min-width: 180px; }
 html[data-alerts-focus-mode="true"] [data-reading-layout="table"] [data-app-header],
 html[data-alerts-focus-mode="true"] [data-reading-layout="table"] [data-app-nav] { display: none; }
