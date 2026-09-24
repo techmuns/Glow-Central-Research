@@ -24,7 +24,7 @@
 import { authHeaders } from '../core/host-context.js';
 import { readEntry, KEYS } from '../core/store.js';
 import { validateShard, assembleFeedEvents } from './alert-pool-format.js';
-import { ALERT_POOL_CONTRACT, POOL_FEEDS, POOL_FEED_CAPTURES, isDay, windowDays, dayMember } from './alert-pool-shared.js';
+import { ALERT_POOL_CONTRACT, ALERT_POOL_POLICY, POOL_FEEDS, POOL_FEED_CAPTURES, isDay, windowDays, dayMember } from './alert-pool-shared.js';
 
 export const INDEX_ROUTE = 'api/alert-pool/index';
 export const STATUS_ROUTE = 'api/capture-status';
@@ -68,7 +68,7 @@ async function ask(path, { noCache = false } = {}) {
 }
 
 function validIndex(value) {
-  return !!value && value.ok !== false && value.version === 1 && value.contract === ALERT_POOL_CONTRACT && isDay(value.day) &&
+  return !!value && value.ok !== false && value.version === 1 && value.contract === ALERT_POOL_CONTRACT && value.policy === ALERT_POOL_POLICY && isDay(value.day) &&
     Number.isSafeInteger(value.artifact) && value.artifact > 0 && value.captures && typeof value.captures === 'object' &&
     value.feeds && typeof value.feeds === 'object' && Array.isArray(value.days) && Array.isArray(value.ai) &&
     value.days.every((entry) => isDay(entry?.day) && typeof entry.member === 'string') &&

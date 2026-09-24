@@ -66,3 +66,5 @@ The real browser suites cover cached-session upgrades, changed leads, archived c
 resurfacing, All Alerts source conservation/export, filters, scrolling and mobile layouts. These
 checks do not send live model requests or establish live inference accuracy. A deployment check
 must stay read-only; it must not generate paid notes just to verify the release.
+
+The precomputed pool keeps contract v3 and records a separate classification-policy marker. A reader declines old/unmarked policies and uses the complete source path until the normal main-branch pool workflow publishes the new policy. Updating vocabulary does not silently retain grades from an older rule set.

@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
-import { captureRevision, captureStamp, POOL_CAPTURES, POOL_FEEDS, ALERT_POOL_CONTRACT, ALERT_POOL_INDEX_MEMBER, dayMember } from '../../public/js/data/alert-pool-shared.js';
+import { captureRevision, captureStamp, POOL_CAPTURES, POOL_FEEDS, ALERT_POOL_CONTRACT, ALERT_POOL_POLICY, ALERT_POOL_INDEX_MEMBER, dayMember } from '../../public/js/data/alert-pool-shared.js';
 import { buildDayShards, buildAiShards, validateShard, compactAiEvent } from '../../public/js/data/alert-pool-format.js';
 import { newsStateInputs, bookSignature } from '../../public/js/data/alert-pool.js';
 
@@ -86,7 +86,7 @@ export function writePoolMembers({ outDir, sourceFeeds, day, now, book, newsMeta
   const days = [...buildDayShards(sourceFeeds, day).values()].map((shard) => ({ day: shard.day, ...write(dayMember(shard.day), shard) }));
   const ai = [...buildAiShards(sourceFeeds, day).entries()].map(([member, shard]) => ({ span: shard.span, from: shard.from, to: shard.to, ...write(member, shard) }));
   const index = {
-    version: 1, contract: ALERT_POOL_CONTRACT, builtAt: new Date(now).toISOString(), day,
+    version: 1, contract: ALERT_POOL_CONTRACT, policy: ALERT_POOL_POLICY, builtAt: new Date(now).toISOString(), day,
     bookSignature: bookSignature(book), pooledFeeds: POOL_FEEDS, captures, feeds, days, ai,
     sourceEvents: Object.fromEntries(pooled.map((feed) => [feed.id, feed.events.length])),
   };
