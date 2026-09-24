@@ -64,7 +64,13 @@
     // family office's own, "Sattva Ventures". Read by NewsletterSchedule.renderOptions().
     "NEWSLETTER_PRODUCT_NAME": "Research Central",
     // News fails closed if its existing OpenAI secret becomes unavailable.
-    "NEWSLETTER_NEWS_AI_PROVIDER": "openai"
+    "NEWSLETTER_NEWS_AI_PROVIDER": "openai",
+    // The "So what? · AI excerpt reading" line on AI Alerts and All Alerts is one hedged sentence
+    // per development, so it is written by OpenAI's lowest-cost model, gpt-6-luna, on the same
+    // OPENAI_API_KEY secret. Pinned so that if the secret goes missing the cards say "no key"
+    // rather than the notes quietly moving to the costlier Bedrock model. See
+    // noteProvider() in worker/alert-notes-store.mjs.
+    "ALERT_NOTES_AI_PROVIDER": "openai"
   },
 
   // The dashboard has no account system to key this on today, so the route uses the authenticated

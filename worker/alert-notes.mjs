@@ -6,14 +6,17 @@ import { ALERT_NOTES_OBJECT } from './alert-notes-store.mjs';
 //
 // THE ALERTS' SECOND BULLET. The page asks about the developments on screen — at most
 // `NOTE_REQUEST_ITEMS` in one request — and the object answers from its store where a note was
-// already written and asks the model once for the rest (worker/alert-notes-store.mjs). The model's
-// credential is the Worker's `CLAUDE_KEY`, the same Bedrock key Ask Research and the brief use; it
-// never reaches the browser.
+// already written and asks the model once for the rest (worker/alert-notes-store.mjs). The model is
+// OpenAI's gpt-6-luna on the Worker's `OPENAI_API_KEY` (the key the brief's news reader already
+// uses), pinned by `ALERT_NOTES_AI_PROVIDER`; the store's `noteProvider()` is the one rule. No key
+// ever reaches the browser.
 //
 // A FAILURE IS NEVER AN EMPTY NOTE. `ok: false` carries a reason and no `notes` key, and an item the
 // model could not be asked about travels under `missing` with its own reason — so a card can say why
 // its second bullet is absent instead of drawing nothing, and a reader never mistakes "we could not
-// ask" for "there is nothing to say".
+// ask" for "there is nothing to say". A deployment missing the store is `notes-unconfigured`; a store
+// that failed is `notes-unavailable` — two causes, two words, because the page tells the reader
+// which one it is.
 //
 // ONLY POST, AND ONLY FROM THE DASHBOARD'S OWN PAGE. The answer costs a model request, so nothing a
 // prefetcher or a link preview can fire may start one; the same-origin test is the watchlist's.
@@ -28,10 +31,10 @@ export async function handleAlertNotes(request, env) {
   const url = new URL(request.url);
   if (request.method !== 'POST') return fail('method', 405);
   if (!sameOrigin(request, url)) return fail('origin', 403);
-  if (!env.ALERT_NOTES) return fail('notes-unavailable', 503);
+  if (!env.ALERT_NOTES) return fail('notes-unconfigured', 503);
   // Unauthenticated, as every write-like route here is: a per-address ceiling well above what a
   // reader scrolling a screen of cards produces, and the object's daily allowance behind it.
-  if (!env.ALERT_NOTES_LIMITER) return fail('notes-unavailable', 503);
+  if (!env.ALERT_NOTES_LIMITER) return fail('notes-unconfigured', 503);
   const limit = await env.ALERT_NOTES_LIMITER.limit({ key: request.headers.get('cf-connecting-ip') || 'unknown' });
   if (!limit.success) {
     return new Response(JSON.stringify({ ok: false, reason: 'rate-limited' }), {
@@ -53,6 +56,9 @@ export async function handleAlertNotes(request, env) {
     result = await env.ALERT_NOTES.getByName(ALERT_NOTES_OBJECT).alertNotesRead(items);
   } catch (error) {
     if (/Invalid notes request/.test(String(error?.message || ''))) return fail('invalid-request', 400);
+    // The reader only learns "unavailable"; the operator's log says what actually failed. This was
+    // silent once, and a store that could not return a single answer looked like a missing service.
+    console.error('[alert-notes] the note store failed:', error?.message || error);
     return fail('notes-unavailable', 503);
   }
   return Response.json({ ok: true, ...result, checkedAt: new Date().toISOString() }, { headers: { 'cache-control': 'no-store' } });

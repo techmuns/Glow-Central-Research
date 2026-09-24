@@ -106,8 +106,8 @@ jobs:
         run: node scripts/verify-newsletter-markets.mjs && node scripts/verify-newsletter.mjs && node scripts/verify-newsletter-reading.mjs && node scripts/verify-newsletter-email.mjs && node scripts/verify-newsletter-events.mjs && node scripts/verify-newsletter-content.mjs && node scripts/verify-newsletter-openai.mjs && node scripts/verify-newsletter-price-reasons.mjs && node scripts/verify-newsletter-upgrade.mjs && node scripts/verify-announcement-types.mjs
       - name: Verify story grouping, material updates, history and durable review budget
         run: node scripts/verify-alert-stories.mjs && node scripts/verify-alert-development-view.mjs && node scripts/verify-alert-notes.mjs
-      - name: Verify story grouping in the local Worker runtime
-        run: npx --yes --package=wrangler@4.119.0 -c 'node scripts/verify-alert-stories-runtime.mjs'
+      - name: Verify story grouping and alert notes across real Durable Object RPC in the local Worker runtime
+        run: npx --yes --package=wrangler@4.119.0 -c 'node scripts/verify-alert-stories-runtime.mjs && node scripts/verify-alert-notes-runtime.mjs'
       - name: Verify operational filing health
         run: node scripts/verify-filings-health.mjs && node scripts/verify-announcement-directory-fallback.mjs
       - name: Verify capture watchdog
