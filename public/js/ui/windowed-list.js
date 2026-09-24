@@ -57,6 +57,31 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
     if (top) top.style.height = `${geometry.offset(start)}px`;
     if (bottom) bottom.style.height = `${geometry.offset(rows.length) - geometry.offset(end)}px`;
   }
+  function restore(held) {
+    const target = head() + geometry.offset(held.index) + held.inside;
+    if (Math.abs(target - scroller.scrollTop) >= 0.5) scroller.scrollTop = target;
+  }
+  function measureBoxes(boxes) {
+    let changed = false;
+    boxes.forEach(({ height }, n) => {
+      const index = start + n, row = rows[index];
+      if (!row || height <= 0) return;
+      measured.set(String(key(row)), { row, height });
+      changed = geometry.set(index, height) || changed;
+    });
+    if (changed) spacers();
+    return changed;
+  }
+  // Adopt natural heights before another task can read an estimated anchor.
+  // During a thumb drag, retain the frozen scroll range until release.
+  function settle(index, { force = false, held = null } = {}) {
+    if (!paint(index, force)) return;
+    if (!draggingScrollbar) {
+      const changed = measureBoxes([...content.querySelectorAll(rowSelector)].map(el => el.getBoundingClientRect()));
+      if (held) restore(held);
+      if (changed) scheduleViewport();
+    }
+  }
   function measure() {
     measureFrame = 0;
     // Native thumb dragging maps pointer movement to the scroll range at grab time. Changing
@@ -74,17 +99,8 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
       if (visible >= 0) held = { index: start + visible, inside: top - boxes[visible].top };
       settleScrollbar = false;
     }
-    let changed = false;
-    boxes.forEach(({ height }, n) => {
-      const index = start + n, row = rows[index];
-      if (!row || height <= 0) return;
-      measured.set(String(key(row)), { row, height });
-      changed = geometry.set(index, height) || changed;
-    });
-    if (changed) {
-      spacers();
-      if (scroller.scrollTop > 0) scroller.scrollTop = head() + geometry.offset(held.index) + held.inside;
-    }
+    const changed = measureBoxes(boxes);
+    if (changed && scroller.scrollTop > 0) restore(held);
     onWindow?.(start, pendingRows?.length ?? rows.length);
     // Measuring shorter rows can expose an unpainted part of the viewport without another
     // user scroll. Recheck coverage on the next frame after the spacer/anchor correction.
@@ -121,7 +137,7 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
   function paint(index, force = false) {
     const count = Math.max(40, Math.min(100, Math.ceil(scroller.clientHeight / 40) + overscan * 2));
     const next = Math.max(0, Math.min(Math.max(0, rows.length - count), index - overscan));
-    if (!force && next === start && end === Math.min(rows.length, next + count)) return;
+    if (!force && next === start && end === Math.min(rows.length, next + count)) return false;
     start = next; end = Math.min(rows.length, start + count);
     const active = content.contains(document.activeElement) ? document.activeElement : null;
     const activeRow = active?.closest(rowSelector);
@@ -173,6 +189,7 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
     }
     onWindow?.(start, pendingRows?.length ?? rows.length);
     scheduleMeasure();
+    return true;
   }
   function scheduleViewport() {
     if (frame || disposed) return;
@@ -180,7 +197,7 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
       frame = 0;
       const index = geometry.indexAt(rowTop());
       const lastVisible = geometry.indexAt(rowTop() + scroller.clientHeight);
-      if (index < start + overscan / 2 || lastVisible >= end - overscan / 2) paint(index);
+      if (index < start + overscan / 2 || lastVisible >= end - overscan / 2) settle(index, { held: draggingScrollbar ? null : anchor() });
     });
   }
   function onScroll() { onScrollActivity?.(); scheduleViewport(); }
@@ -212,10 +229,8 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
     if (nextIndex >= 0) {
       // Source updates can insert rows or replace their objects without changing the record
       // being read. Preserve that record and its within-row offset across new measurements.
-      const top = head() + geometry.offset(nextIndex) + held.inside;
-      paint(nextIndex, true);
-      scroller.scrollTop = top;
-    } else paint(geometry.indexAt(rowTop()), true);
+      settle(nextIndex, { force: true, held: { index: nextIndex, inside: held.inside } });
+    } else settle(geometry.indexAt(rowTop()), { force: true });
   }
   resetGeometry();
   scroller.style.overflowAnchor = 'none';
@@ -226,14 +241,13 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
   window.addEventListener('blur', endScrollbarDrag);
   const initialIndex = initialKey == null ? -1 : rows.findIndex(row => String(key(row)) === initialKey);
   if (initialIndex >= 0) scroller.scrollTop = geometry.offset(initialIndex);
-  paint(initialIndex >= 0 ? initialIndex : geometry.indexAt(rowTop()), true);
+  settle(initialIndex >= 0 ? initialIndex : geometry.indexAt(rowTop()), { force: true });
   if (initialIndex >= 0) scroller.scrollTop = head() + geometry.offset(initialIndex);
   const observer = new ResizeObserver(() => {
     if (width !== scroller.clientWidth) {
       const held = anchor(); width = scroller.clientWidth;
       measured.clear(); resetGeometry();
-      scroller.scrollTop = head() + geometry.offset(held.index) + held.inside;
-      paint(held.index, true);
+      settle(held.index, { force: true, held });
     }
     scheduleMeasure();
     scheduleViewport();
@@ -241,7 +255,7 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
   observer.observe(scroller); observer.observe(content);
   return {
     update,
-    refresh() { paint(geometry.indexAt(rowTop()), true); },
+    refresh() { settle(geometry.indexAt(rowTop()), { force: true, held: scroller.scrollTop > 0 ? anchor() : null }); },
     destroy() {
       disposed = true;
       pendingRows = null;

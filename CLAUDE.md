@@ -4428,3 +4428,7 @@ search and exports must retain every original member; choosing an exchange lead 
 publication time. Distinct filing documents need document identity. Visible AI notes read supplied
 excerpts only, with a separate durable attempt limit, and never replace source evidence or private
 Family permissions. The shared claim helper is `public/js/data/alert-claims.js`.
+
+Research retrieval, forced Family reads, dated breakout fallback and measured list anchors follow
+`docs/RESEARCH-READING-RELIABILITY.md`. Keep source rows represented under budget pressure and
+never describe an attachment filename as a document reading.
