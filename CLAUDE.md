@@ -4429,6 +4429,14 @@ publication time. Distinct filing documents need document identity. Visible AI n
 excerpts only, with a separate durable attempt limit, and never replace source evidence or private
 Family permissions. The shared claim helper is `public/js/data/alert-claims.js`.
 
+The notes are written by OpenAI `gpt-6-luna` on `OPENAI_API_KEY` with the newsletter's low-cost
+settings; `ALERT_NOTES_AI_PROVIDER=openai` pins it and fails closed rather than moving to a
+costlier model (`noteProvider()` in `worker/alert-notes-store.mjs`). **Anything a Durable Object
+RPC method returns must be ordinary objects and arrays: workerd refuses `Object.create(null)`
+("Could not serialize object of type Object").** That made every note request fail with a 503,
+shown as "no AI service", while every Node test passed; `verify-alert-notes-runtime.mjs` checks the
+real boundary. "No AI service here" means a copy without the Worker, never a Worker's own failure.
+
 Research retrieval, forced Family reads, dated breakout fallback and measured list anchors follow
 `docs/RESEARCH-READING-RELIABILITY.md`. Keep source rows represented under budget pressure and
 never describe an attachment filename as a document reading.

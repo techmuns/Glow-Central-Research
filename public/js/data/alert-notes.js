@@ -6,9 +6,14 @@
 // Worker keeps every note it writes, so reopening a card, or a second reader, costs no model call.
 //
 // FOUR STATES, AND ONLY ONE OF THEM IS A NOTE. `ready` carries the note; `pending` is a question on
-// its way; `missing` carries the reason the note is absent (no AI service on this copy, no key, the
-// day's allowance spent, a refusal, a withheld answer — `NOTE_REASON` words each); and no entry at
-// all means nobody has asked. A failed read is never an empty note, and a reason is never a note.
+// its way; `missing` carries the reason the note is absent (no AI service on this copy, a note
+// service that failed, no key, the day's allowance spent, a refusal, a withheld answer —
+// `NOTE_REASON` words each); and no entry at all means nobody has asked. A failed read is never an
+// empty note, and a reason is never a note.
+//
+// "NO AI SERVICE" IS ONLY EVER A COPY WITH NO WORKER. It once also covered the Worker's own 503, so
+// a note store that failed on every call read, on the live deployment, as a dashboard with no AI at
+// all — and, being permanent, never asked again. A Worker that answers says which failure it is.
 //
 // NOTHING HERE IS PERSISTED ON THE DEVICE. A note is a derived reading that the Worker already
 // keeps; holding a second copy in browser storage would be one more place for it to go stale.
@@ -24,10 +29,15 @@ const ROUTE = 'api/alert-notes';
 const REQUEST_TIMEOUT_MS = 45_000;
 // How long a reason holds before the same question may be asked again this session.
 const RETRY_MS = { 'rate-limited': 60_000, budget: 30 * 60_000, 'no-key': 10 * 60_000, refused: 10 * 60_000,
+  quota: 10 * 60_000, unavailable: 2 * 60_000,
   upstream: 2 * 60_000, timeout: 2 * 60_000, error: 2 * 60_000, unreadable: 5 * 60_000, empty: 5 * 60_000 };
 // Reasons that are about the deployment rather than the item: every other question would get the
 // same answer, so none is sent until the hold lapses.
-const DEPLOYMENT_REASONS = new Set(['no-worker', 'no-key', 'refused', 'budget', 'rate-limited']);
+const DEPLOYMENT_REASONS = new Set(['no-worker', 'no-service', 'unavailable', 'no-key', 'refused', 'quota', 'budget', 'rate-limited']);
+// Reasons nothing this session can change: a copy served without the Worker, a Worker without the store.
+const PERMANENT_REASONS = new Set(['no-worker', 'no-service']);
+// The Worker's own failure words (worker/alert-notes.mjs), as a card states them.
+const SERVER_REASON = { 'notes-unavailable': 'unavailable', 'notes-unconfigured': 'no-service' };
 const KIND_OF_FEED = { earnings: 'result', insider: 'insider', investors: 'investor' };
 
 const states = new Map(); // content key -> { state, note?, model?, reason?, retryAt? }
@@ -161,7 +171,7 @@ async function flush() {
 async function ask(batch) {
   const keys = batch.map(([key]) => key);
   const fail = (reason) => {
-    const retryAt = reason === 'no-worker' ? Infinity : Date.now() + (RETRY_MS[reason] ?? RETRY_MS.error);
+    const retryAt = PERMANENT_REASONS.has(reason) ? Infinity : Date.now() + (RETRY_MS[reason] ?? RETRY_MS.error);
     if (DEPLOYMENT_REASONS.has(reason)) hold = { reason, until: retryAt };
     settle(keys, { state: 'missing', reason, retryAt });
   };
@@ -184,7 +194,7 @@ async function ask(batch) {
   try { body = await response.json(); } catch { body = null; }
   if (!body || typeof body !== 'object') { fail(response.ok ? 'no-worker' : 'error'); return; }
   if (response.status === 429 || body.reason === 'rate-limited') { fail('rate-limited'); return; }
-  if (!response.ok || body.ok !== true) { fail(body.reason === 'notes-unavailable' ? 'no-worker' : 'error'); return; }
+  if (!response.ok || body.ok !== true) { fail(SERVER_REASON[body.reason] || 'error'); return; }
   const changed = [];
   batch.forEach(([key, item], index) => {
     const id = String(index);
