@@ -23,7 +23,11 @@
       // The alerts' AI "So what?" notes: one fixed object (alert-notes:v1) keeps every note written,
       // keyed by the text it was written from, and the day's allowance of new ones. Same provisioned
       // class, its own storage; see worker/alert-notes-store.mjs.
-      { "name": "ALERT_NOTES", "class_name": "CaptureRegistry" }
+      { "name": "ALERT_NOTES", "class_name": "CaptureRegistry" },
+      // The family's price levels, sent from the Glow Ventures dashboard: the list, every level
+      // reached, and the minute price check that finds them, on one fixed object (price-levels:v1).
+      // Same provisioned class, its own storage and its own alarm; see worker/price-levels-schedule.mjs.
+      { "name": "PRICE_LEVELS", "class_name": "CaptureRegistry" }
     ]
   },
   "migrations": [{ "tag": "capture-registry-v1", "new_sqlite_classes": ["CaptureRegistry"] }],
@@ -64,7 +68,12 @@
     // no request in hand, so the origin cannot be read off one; this is the public dashboard.
     "DASHBOARD_ORIGIN": "https://glow-central-research.tech-441.workers.dev",
     // The dashboard name on the brief's tagline and caption; the masthead and subject are Glow Ventures.
-    "NEWSLETTER_PRODUCT_NAME": "Research Central"
+    "NEWSLETTER_PRODUCT_NAME": "Research Central",
+
+    // WHICH OTHER SITES MAY WRITE THE FAMILY'S PRICE LEVELS (POST /api/price-levels), comma-separated.
+    // Only the PRODUCTION Glow Ventures dashboard: a branch preview there must never be able to write
+    // test levels into the family's real list. Not a secret — an origin is public by nature.
+    "PRICE_LEVEL_ORIGINS": "https://glowventures-1xw.pages.dev"
   },
 
   // The dashboard has no account system to key this on today, so the route uses the authenticated

@@ -296,13 +296,17 @@ test('complete market reader and HTML/text/PDF preserve verified numbers, missin
   const markets = await readMarkets({ env, fetcher, now: at });
   assert.equal(markets.rows.length, MARKET_ROWS.length); assert.equal(markets.upstox.checked, 8);
   assert.equal(markets.rows.find(r => r.id === 'nifty').verification, 'cross-checked');
+  // The brief also lists the book's own movers from committed data, and a real holding can move +0.76% on
+  // any day (on 23 Sept two did). So the check is that the disagreement adds no +0.76%: same data, with and without it.
+  const conflictPct = '+0.76%', occurrences = s => s.split(conflictPct).length - 1;
+  const agreed = occurrences(renderBriefText(await buildBrief({ edition: 'evening', day: '2026-09-23', settings: DEFAULT_SETTINGS, env, fetcher, now: at })));
   disagree = true;
   const conflicted = await readMarkets({ env, fetcher, now: at });
   assert.deepEqual(conflicted.conflicts, ['nifty']);
   const brief = await buildBrief({ edition: 'evening', day: '2026-09-23', settings: DEFAULT_SETTINGS, env, fetcher, now: at });
   const html = renderBriefHtml(brief), text = renderBriefText(brief);
   assert.match(html, /daily change withheld: sources disagree/); assert.match(text, /daily change withheld: sources disagree/);
-  assert(!html.includes("today&#39;s close")); assert(!text.includes('+0.76%'));
+  assert(!html.includes("today&#39;s close")); assert.equal(occurrences(text), agreed, 'the withheld Nifty change never reaches the text brief');
   assert.match(Buffer.from(renderBriefPdf(brief)).toString('latin1'), /daily change withheld/);
   disagree = false; missing = true;
   const partial = await readMarkets({ env, fetcher, now: at });
