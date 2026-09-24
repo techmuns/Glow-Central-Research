@@ -83,6 +83,7 @@ import { reviewNewsEvents, relatedNewsReports, newsEventsNote } from './newslett
 import { announcementDocumentIdentity } from '../public/js/data/announcements-shared.js';
 import { newsAiEnabled } from './newsletter-openai.mjs';
 import { attachContent, sameContentEvent } from './newsletter-content.mjs';
+import { attachPriceReasons, priceEvidenceItems, priceReasonWindow, priceReasonText, priceReasonSourcesNote } from './newsletter-price-reasons.mjs';
 import { boundedJson } from '../public/js/data/family-book-contract.js';
 import { EDITIONS, addDays, dayOnlyInstant, editionWindow, istDay, istDateLong, istInstant, istLabel, istTime, lateArrivalsFrom } from '../public/js/data/newsletter-shared.js';
 
@@ -939,8 +940,24 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
   // was seen under.
   brief.reported = briefStories(brief).flatMap((s) => (s.keys || []).map((key) => ({ key, publishedAt: s.at })));
   news.dedup = await reviewNewsEvents({ news, env, fetcher, enabled: includeAi, budget: contentService?.newsBudget, now });
+  // A price-only card still needs the session's evidence, including rows sent in an earlier
+  // edition or hidden by email caps. These readings do not become additional newsletter stories.
+  const moverTickers = new Set(moves.groups.map(g => g.ticker));
+  const priceWindows = moves.groups.flatMap(g => g.items.map(m => priceReasonWindow(moves.session, m.at))).filter(Boolean);
+  const priceContext = {};
+  if (priceWindows.length) {
+    priceContext.window = { from: Math.min(...priceWindows.map(w => w.from)), to: Math.max(...priceWindows.map(w => w.to)) + 1 };
+    // Resolve against the complete book so narrowing to movers cannot make an ambiguous
+    // company name appear unique. Narrow only after the normal identity rules have run.
+    const priceCommon = { env, holdings, window: priceContext.window, uncapped: true };
+    priceContext.announcements = await readAnnouncements({ ...priceCommon, fetcher, now });
+    priceContext.news = await readNews(priceCommon);
+    for (const section of ['announcements', 'news']) priceContext[section].groups = priceContext[section].groups.filter(g => moverTickers.has(g.ticker));
+  }
   // Read before grouping: generic exchange labels cannot identify the actual transaction.
-  brief.content = await attachContent(brief, { service: contentService, env, fetcher, now, process: includeAi && (bedrockConfigured(env) || newsAiEnabled(env)) });
+  brief.content = await attachContent(brief, { service: contentService, env, fetcher, now, process: includeAi && (bedrockConfigured(env) || newsAiEnabled(env)),
+    extraItems: priceEvidenceItems(priceContext, moves) });
+  brief.priceReasons = await attachPriceReasons({ brief, context: priceContext, env, fetcher, now, enabled: includeAi });
   // Notes see the final groups, including every publisher's qualifications and source text.
   brief.ai = includeAi ? await readAiNotes({ env, fetcher, now, companies: briefStats(brief).companies, sectors: new Map(holdings.map((h) => [upper(h.ticker), h.sector && !/^unclassified$/i.test(h.sector) ? h.sector : null])) })
     : { ok: false, reason: 'preview', requested: 0, answered: 0, items: {} };
@@ -1063,6 +1080,7 @@ export function briefStories(brief) {
       ].filter(Boolean).join(' · '),
       url: null, source: item.provider || 'Yahoo Finance',
       direction: item.direction, importance: 'high', pct: item.pct,
+      why: item.why,
     });
   }
   const stories = rows.map((row) => {
@@ -1560,6 +1578,7 @@ const companyUpdate = (k, note, isFirst) => {
   <div style="font-family:${SERIF};font-size:15px;line-height:1.4;font-weight:bold;color:${INK};">${link(s.url, esc(s.headline), `color:${INK};`)}</div>
   ${s.dek ? `<div style="margin-top:4px;font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY2};">${esc(s.dek)}</div>` : ''}
   ${note ? aiNoteHtml(note) : ''}
+  ${s.kind === 'move' ? `<div style="margin-top:7px;font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY};"><strong>Why it moved:</strong> ${esc(priceReasonText(s.why))}${s.why?.source ? ` ${link(s.why.source.url, `Source · ${esc(storyWhen(s.why.source))}`, `color:${GOLD};`)}` : ''}</div>` : ''}
   ${contentStatusText(k) ? `<div style="margin-top:5px;font-family:${SANS};font-size:11px;color:${META};">${esc(contentStatusText(k))}</div>` : ''}
   <div style="margin-top:6px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${topicTag(s.topic)} &nbsp;·&nbsp; ${dot(s.mood.color)} ${esc(s.mood.label)} · ${esc(s.source)} · ${esc(storyWhen(s))}${s.late ? ` · <span style="color:${GOLD};font-weight:bold;">not in the previous brief</span>` : ''}${s.related ? ' · related entity' : ''}${s.url ? ` · <a href="${esc(s.url)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">Read →</a>` : ''}</div>
   ${relatedLine(k)}
@@ -1621,6 +1640,8 @@ export function sourcesNote(brief) {
   if (p?.book) bits.push(p.book.ok ? `statement quantities from the family book (statements dated ${p.book.statementFrom || 'unknown'} to ${p.book.statementTo || 'unknown'})` : 'family book unavailable, so no rupee day change');
   const ai = brief.ai;
   if (brief.content) bits.push(`source content: ${brief.content.ready} fully read, ${brief.content.partial} partial, ${brief.content.pending} pending`);
+  const priceNote = priceReasonSourcesNote(brief.priceReasons);
+  if (priceNote) bits.push(priceNote);
   const eventNote = newsEventsNote(n.dedup);
   if (eventNote) bits.push(eventNote);
   if (ai) bits.push(ai.ok ? (ai.requested ? `AI notes by ${ai.model} on ${ai.answered} of ${ai.requested} updates, written ${istLabel(ai.readAt)}` : 'no update for the AI notes') : `AI notes unavailable (${ai.reason || 'unavailable'})`);
@@ -1813,6 +1834,7 @@ export function renderBriefText(brief, { productName = PRODUCT_NAME, brand = BRA
       lines.push(`  [${s.topic.label}] ${s.headline}`);
       if (s.dek) lines.push(`    ${s.dek}`);
       if (note) lines.push(`    AI summary: ${note.summary}`, ...(note.impact ? [`    Potential impact: ${note.impact}`] : []), ...(note.unknowns ? [`    Still unknown: ${note.unknowns}`] : []));
+      if (s.kind === 'move') lines.push(`    Why it moved: ${priceReasonText(s.why)}${s.why?.source ? ` Source: ${s.why.source.publisher} · ${storyWhen(s.why.source)} · ${s.why.source.url}` : ''}`);
       if (contentStatusText(k)) lines.push(`    ${contentStatusText(k)}`);
       lines.push(`    ${s.mood.label} · ${s.source} · ${storyWhen(s)}${s.late ? ' · not in the previous brief' : ''}${s.url ? ` · ${s.url}` : ''}`);
       for (const r of k.others) {

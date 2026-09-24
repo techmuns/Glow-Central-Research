@@ -6309,3 +6309,12 @@ version, state, sourceUrl, checkedAt, hash, format, optional model/reason and so
 `/api/newsletter` schedule status includes enabled, queue counts, captureStartedAt, lastDiscoveryAt
 and the per-source checks. These are content-processing states, never proof of upstream freshness.
 No new public endpoint triggers extraction. The public preview remains free of paid AI calls.
+
+Newsletter move rows also carry `why`: state (`reported`, `possible`, `unknown`, `unavailable`),
+optional reason code/text/model, assessment time, session window and coverage counts
+(candidates/read/supplied/pending/partial/omitted/sourceIncomplete). A supported explanation
+retains its source URL, publisher, publication/check times, read state and cited literal facts.
+`brief.priceReasons` records requested/answered counts and original source statuses/timestamps.
+This evidence does not enter the sent-story ledger. The PDF and email preserve the explanation
+and source link; older saved editions without it explicitly say that the move was not assessed.
+See the price-move section of `NEWSLETTER-SOURCE-CONTENT.md` for timing and inference limits.
