@@ -3610,9 +3610,10 @@ these; a real Universe history (263k events) folds in ~1.3s warm, a day in ~30ms
 ### THE "SO WHAT?" LINE — the alerts' one AI reading (`/api/alert-notes`)
 
 The second bullet: one line, at most 220 characters, on the likely earnings or valuation implication
-— *"Unlikely to move FY27 revenue at once; mainly adds to the development pipeline."* Written by the
-model the brief's notes use (Bedrock through the Worker's `CLAUDE_KEY`), and held to the brief's
-rules, enforced in code on both sides of the wire (`acceptNote`), not only asked for in the prompt:
+— *"Unlikely to move FY27 revenue at once; mainly adds to the development pipeline."* Written by
+Claude on Bedrock through the Worker's `CLAUDE_KEY` (the credential Ask Research and the brief's
+filing notes use; the brief's news notes are OpenAI's and do not share this path), and held to the
+brief's rules, enforced in code on both sides of the wire (`acceptNote`), not only in the prompt:
 
 1. **The model sees what the card shows and nothing else** — the lead's statement, headline and
    detail, company, sector, day, and the current and next fiscal-year labels. No link, no document.

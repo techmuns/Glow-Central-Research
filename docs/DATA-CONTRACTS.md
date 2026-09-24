@@ -5104,8 +5104,8 @@ source record, folds exactly as the full event does. `node scripts/verify-alert-
 ### The alerts' "So what?" line — `POST /api/alert-notes`
 
 The second bullet of an alert: the likely earnings or valuation implication of the development, one
-line, written by the model the brief's notes use (Bedrock, `CLAUDE_KEY` on the Worker; never the
-browser). It is the one reading on either alert surface that is not a stated rule, so it carries the
+line, written by Claude on Bedrock (`CLAUDE_KEY` on the Worker, the credential Ask Research and the
+brief's filing notes use; never the browser). It is the one reading on either alert surface that is not a stated rule, so it carries the
 brief's constraints and is refused rather than repaired when it breaks one.
 
 Request (same origin only, `ALERT_NOTES_LIMITER` 30/min per address, ≤ `NOTE_REQUEST_ITEMS` (8) items,
