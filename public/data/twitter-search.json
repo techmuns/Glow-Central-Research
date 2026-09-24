@@ -1600,7 +1600,7 @@
       "error": "search-unavailable"
     },
     "isin:INE879I01012|Valor Estate": {
-      "lastAttemptAt": "2026-09-19T21:42:06+00:00",
+      "lastAttemptAt": "2026-09-24T09:17:49+00:00",
       "error": "search-unavailable"
     },
     "isin:INE879I01012|DB Realty": {
@@ -1756,14 +1756,14 @@
       "error": "search-unavailable"
     },
     "isin:INE685T01010|HORIZONIND": {
-      "lastAttemptAt": "2026-09-19T20:52:40+00:00",
+      "lastAttemptAt": "2026-09-24T08:42:50+00:00",
       "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 232,
-    "attempted": 10,
+    "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-24T08:08:20.544103+00:00"
+    "checkedAt": "2026-09-24T09:17:49.336945+00:00"
   }
 }
