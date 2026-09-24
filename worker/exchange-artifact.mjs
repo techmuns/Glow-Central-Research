@@ -46,7 +46,11 @@ export async function unzipCapture(bytes) {
 function github(repo, token) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo || '') || !token) throw new Error('Exchange archive delivery is not configured');
   const base = `https://api.github.com/repos/${repo}`;
+<<<<<<< HEAD
   const headers = { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'user-agent': 'Glow-exchange-capture', 'x-github-api-version': '2022-11-28' };
+=======
+  const headers = { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'user-agent': 'Sattva-exchange-capture', 'x-github-api-version': '2022-11-28' };
+>>>>>>> sattva/main
   return { base, headers };
 }
 

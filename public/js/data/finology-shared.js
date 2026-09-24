@@ -242,7 +242,11 @@ export function disclosureStatus(h, q) {
   const n = num(raw);
   if (n != null && n >= 0 && n <= 100) return 'reported';
   if (['filing_due', 'not_disclosed', 'unknown'].includes(h?.quarterlyStatus?.[q])) return h.quarterlyStatus[q];
+<<<<<<< HEAD
   if (/^(-|—|not disclosed)$/i.test(String(raw ?? '').trim())) return 'not_disclosed';
+=======
+  if (/^not disclosed$/i.test(String(note || '').trim()) || /^(-|—|not disclosed)$/i.test(String(raw ?? '').trim())) return 'not_disclosed';
+>>>>>>> sattva/main
   return 'unknown';
 }
 
@@ -271,7 +275,11 @@ export function periodEnd(label) {
 }
 export function closedQuarters(portfolio, today = new Date().toISOString().slice(0, 10)) {
   return orderedQuarters((portfolio?.quarters || []).filter((q) =>
+<<<<<<< HEAD
     [3, 6, 9, 12].includes(quarterOrder(q) % 100) && periodEnd(q) <= today));
+=======
+    [3, 6, 9, 12].includes(quarterOrder(q) % 100) && periodEnd(q) < today));
+>>>>>>> sattva/main
 }
 
 /** Consecutive, completed calendar quarters; an August event is not a portfolio-wide quarter. */
@@ -314,9 +322,15 @@ export function deriveMoves(portfolio, today) {
  */
 export function summarise(portfolio, today) {
   const latest = closedQuarters(portfolio, today)[0] || null;
+<<<<<<< HEAD
   const disclosed = latest ? portfolio.holdings.filter((h) => num(h.quarterlyHoldings[latest]) != null) : [];
   // Positive disclosed stakes with a zero valuation are an upstream valuation gap, not a zero book.
   const valued = disclosed.filter((h) => h.valueCr != null && (h.valueCr > 0 || num(h.quarterlyHoldings[latest]) === 0));
+=======
+  const disclosed = latest ? portfolio.holdings.filter((h) => disclosureStatus(h, latest) === 'reported' && num(h.quarterlyHoldings[latest]) > 0) : [];
+  // Positive disclosed stakes with a zero valuation are an upstream valuation gap, not a zero book.
+  const valued = disclosed.filter((h) => Number.isFinite(h.valueCr) && h.valueCr > 0);
+>>>>>>> sattva/main
   const missingValues = disclosed.length - valued.length;
   return {
     latestQuarter: latest,
@@ -328,4 +342,25 @@ export function summarise(portfolio, today) {
     offCycleCount: portfolio.holdings.filter((h) => (portfolio.quarters || []).some((q) =>
       quarterOrder(q) > quarterOrder(latest) && ![3, 6, 9, 12].includes(quarterOrder(q) % 100) && num(h.quarterlyHoldings[q]) != null)).length,
   };
+}
+
+// Retain older columns when the upstream rolling window drops them. A missing company in the
+// incoming response is history, not an invented current position or a confirmed sale.
+export function retainPortfolioHistory(incoming, previous) {
+  const book = normalisePortfolio(incoming, incoming.slug);
+  if (!previous) return { ...incoming, ...book };
+  const old = normalisePortfolio(previous, previous.slug);
+  const key = (h) => h.companySlug || h.company;
+  const rows = new Map(book.holdings.map((h) => [key(h), h]));
+  const older = old.quarters.filter((q) => !book.quarters.includes(q));
+  for (const h of old.holdings) {
+    let next = rows.get(key(h));
+    if (!next) {
+      next = { ...h, valueCr: null, quarterlyHoldings: { ...h.quarterlyHoldings }, quarterlyStatus: { ...h.quarterlyStatus } };
+      for (const q of book.quarters.filter((q) => !old.quarters.includes(q))) { next.quarterlyHoldings[q] = null; next.quarterlyStatus[q] = 'unknown'; }
+      rows.set(key(h), next);
+    }
+    for (const q of older) { next.quarterlyHoldings[q] = h.quarterlyHoldings[q]; next.quarterlyStatus[q] = h.quarterlyStatus[q]; }
+  }
+  return { ...incoming, ...book, quarters: [...book.quarters, ...older].sort((a, b) => quarterOrder(b) - quarterOrder(a)), holdings: [...rows.values()] };
 }
