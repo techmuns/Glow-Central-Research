@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import worker from '../worker/index.js';
 import { fetchDomesticFilings } from '../worker/muns.mjs';
-import { normaliseDomesticFilings, documentUrl, domesticFilingsHref } from '../public/js/data/domestic-filings-shared.js';
+import { normaliseDomesticFilings, documentUrl, domesticFilingsHref, earningsReportDocument } from '../public/js/data/domestic-filings-shared.js';
 import { loadDomesticFilings } from '../public/js/data/domestic-filings.js';
 import { clearAll } from '../public/js/core/store.js';
 import * as legacyEarnings from '../public/js/data/earnings.js';
@@ -34,6 +34,19 @@ assert.equal(partial.skipped, 2);
 assert.equal(documentUrl('javascript:alert(1)'), null);
 assert.equal(documentUrl('https://user:password@example.com/report.pdf'), null);
 assert(domesticFilingsHref('M&M', { scope: 'portfolio', form: 'concalls' }).includes('company=M%26M'));
+
+const reportRows = [
+  { ticker: 'TEST', form: 'earnings_report', date: 'Mar 2026', url: 'https://example.com/march.pdf' },
+  { ticker: 'OTHER', form: 'earnings_report', date: 'Jun 2026', url: 'https://example.com/other.pdf' },
+  { ticker: 'TEST', form: 'annual_report', date: 'Jun 2026', url: 'https://example.com/annual.pdf' },
+  { ticker: 'TEST', form: 'earnings_report', date: 'June 2026', url: 'https://example.com/june.pdf' },
+  { ticker: 'TEST', form: 'earnings_report', date: 'Jun 2026', url: 'javascript:alert(1)' },
+];
+assert.equal(earningsReportDocument(reportRows, 'TEST', 'Jun 26')?.url, 'https://example.com/june.pdf');
+assert.equal(earningsReportDocument(reportRows, 'TEST', '2026-06-30')?.url, 'https://example.com/june.pdf');
+assert.equal(earningsReportDocument(reportRows, 'TEST', 'Sep 26'), null, 'no fallback to the wrong quarter');
+assert.equal(earningsReportDocument(reportRows, 'TEST', 'Current'), null, 'unknown period is never guessed');
+assert.equal(earningsReportDocument(reportRows, 'MISSING', 'Jun 26'), null, 'company identity is exact');
 
 const realFetch = globalThis.fetch;
 const realCaches = globalThis.caches;
