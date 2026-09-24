@@ -43,6 +43,18 @@ const specificRole = chooseRows([
 ], plan, r => r, byDate);
 assert.equal(specificRole.rows[0].title, chiefExecutive.title, 'CEO questions prefer the equivalent executive role over a different management change');
 
+const documentPlan = planFor('Show Telegram PDF attachments for Hexaware');
+const attachment = { ticker: 'HEXT', messageId: 18, publishedAt: '2026-09-04T08:00:00Z',
+  attachments: [{ name: 'Hexaware research.pdf', type: 'document' }], url: 'https://t.me/researchreportss/18' };
+const documents = chooseRows([...routine, attachment], documentPlan, r => r, byDate);
+assert.equal(documents.rows[0].messageId, 18, 'a requested attachment outranks newer generic posts before the shared evidence limit is applied');
+const documentBudget = fitEvidenceToBudget({ generatedAt: now, selection: { sourceIds: ['telegram'] },
+  sources: [{ id: 'telegram', status: 'ready', ...documents }] }, 1500);
+const retainedAttachment = documentBudget.sources[0].rows.find(row => row.messageId === 18);
+assert.equal(retainedAttachment?.attachments?.[0]?.name, 'Hexaware research.pdf');
+assert.equal(retainedAttachment?.text, undefined, 'a filename cannot manufacture unread document contents');
+assert(researchEvidenceChars(documentBudget) <= 1500);
+
 for (const [question, title] of [
   ['Did Hexaware win any new orders?', 'Awarded a large multi-year contract'],
   ['What changed in Hexaware earnings?', 'Operating EBITDA revised following quarterly results'],
