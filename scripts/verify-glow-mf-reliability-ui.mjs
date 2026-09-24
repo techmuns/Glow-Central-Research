@@ -8,6 +8,7 @@ const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const browser = await chromium.launch();
 const origin = 'https://glow-mf.test', source = 'https://sattva-central-research.tech-441.workers.dev';
 const root = resolve('public'), errors = [], reads = [];
+const shellStyles = readFileSync(resolve(root, 'index.html'), 'utf8').match(/<style>([\s\S]*?)<\/style>/)[1];
 const isin = 'INE090A01021', other = 'INE040A01034';
 const now = new Date(), monthDate = new Date(now); monthDate.setUTCDate(1); monthDate.setUTCMonth(monthDate.getUTCMonth()-1);
 const month = monthDate.toISOString().slice(0,7);
@@ -47,7 +48,7 @@ try {
       return send(value,fail?503:200);
     }
     if(u.origin!==origin)return route.fulfill({status:503,body:'External sources disabled'});
-    if(u.pathname==='/')return route.fulfill({contentType:'text/html',body:`<!doctype html><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"><link rel="stylesheet" href="/css/glow.css"><main id="root"></main><div id="modal-overlay" class="hidden"><div id="modal-container"><div id="modal-content"></div></div></div><script type="module">
+    if(u.pathname==='/')return route.fulfill({contentType:'text/html',body:`<!doctype html><style>${shellStyles}</style><script>window.MunshotDashboardSDK={createDashboardClientSdk:()=>({getContext:()=>({session:{token:"fixture-private-session"}}),onMessage:()=>()=>{},getChannelId:()=>"fixture"})};</script><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"><link rel="stylesheet" href="/css/glow.css"><main id="root" class="p-6"></main><div id="modal-overlay" class="fixed inset-0 z-[60] hidden items-center justify-center overflow-y-auto bg-slate-900/60 p-4 sm:p-8"><div id="modal-container" class="relative my-8 w-full max-w-4xl scale-95 overflow-hidden rounded-3xl bg-white opacity-0 shadow-2xl transition-all duration-200"><div id="modal-content"></div></div></div><script type="module">
       import * as feed from '/js/data/mutual-fund-holdings.js'; import * as funds from '/js/data/fund-returns.js';
       import * as tab from '/js/tabs/mutual-funds.js'; import * as coverage from '/js/data/coverage.js'; import * as store from '/js/core/store.js';
       localStorage.setItem('sattva:amfibeas-base','https://returns.fixture');
@@ -61,7 +62,7 @@ try {
     try {return route.fulfill({contentType:{'.js':'text/javascript','.json':'application/json','.css':'text/css'}[extname(file)]||'text/plain',body:readFileSync(file)});}catch{return route.fulfill({status:404,body:'Missing'});}
   });
   const page=await context.newPage(); page.on('pageerror',e=>errors.push(e.message));
-  const open=async()=>{await page.goto(origin);await page.waitForFunction(()=>window.ready);};
+  const open=async()=>{await page.goto(origin);await page.waitForFunction(()=>window.ready);assert.equal(await page.evaluate(async()=>(await import('/js/core/host-context.js')).hostToken()),'fixture-private-session');};
   await open(); await page.evaluate(()=>feed.load());
   // New visit with a slow source: real IndexedDB supplies the table immediately.
   holdGate=gate();summary={rows:[{...row,totalShares:250,revision:'two'}],meta:{...sourceMeta,run:'two'}};
@@ -89,6 +90,7 @@ try {
       await page.setViewportSize({width,height:900});
       assert(await page.locator('.mf-coverage-table').isVisible());
       assert(await page.locator('.mf-detail-scroll').evaluate(el=>el.scrollWidth>=el.clientWidth));
+      if(process.env.MF_SCREENSHOTS)await page.screenshot({animations:'disabled',path:`${process.env.MF_SCREENSHOTS}/glow-mf-${scheme}-${width}.png`});
     }
   }
   await page.setViewportSize({width:1440,height:1000});
