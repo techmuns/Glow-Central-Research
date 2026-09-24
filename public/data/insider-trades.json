@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-09-24T18:29:30.499Z",
+    "capturedAt": "2026-09-24T18:52:46.246Z",
     "from": "2026-08-05",
     "to": "2026-09-24",
     "rows": 9355,
@@ -12,10 +12,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-24T18:29:30.499Z",
-  "oldestDataAt": "2026-09-24T18:29:30.499Z",
-  "from": "2025-09-24",
-  "to": "2026-09-24",
+  "capturedAt": "2026-09-24T18:52:46.246Z",
+  "oldestDataAt": "2026-09-24T18:52:46.246Z",
+  "from": "2025-09-25",
+  "to": "2026-09-25",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-24T18:29:30.499Z",
+      "capturedAt": "2026-09-24T18:52:46.246Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-24T18:29:30.499Z",
+      "capturedAt": "2026-09-24T18:52:46.246Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +63,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-24T18:29:30.499Z",
+      "capturedAt": "2026-09-24T18:52:46.246Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,15 +76,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-24T18:29:30.499Z",
+      "capturedAt": "2026-09-24T18:52:46.246Z",
       "coverageFrom": "2026-08-18"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1777,
+  "withRows": 1776,
   "emptyCount": 0,
-  "rowCount": 18234,
+  "rowCount": 18201,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -54452,50 +54452,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "ECLERX",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "ECLERX",
-          "Insider": "Eclerx Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "2950",
-          "Trade %": "0.01",
-          "Trade Value": "12724779",
-          "Post Holding Shares": "717081",
-          "Post Holding %": "1.5",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ECLERX",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "ECLERX",
-          "Insider": "Eclerx Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "11484",
-          "Trade %": "0.02",
-          "Trade Value": "46851049",
-          "Post Holding Shares": "708547",
-          "Post Holding %": "1.48",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-24",
-          "To Date": "2025-09-24",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "ESTER": [
@@ -65715,204 +65671,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "M&M",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "M&M",
-          "Insider": "Ameet Shanbhag",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "282",
-          "Trade %": "0",
-          "Trade Value": "1019585",
-          "Post Holding Shares": "1052",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "M&M",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "M&M",
-          "Insider": "Damodhar Tota",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "1003",
-          "Trade %": "0",
-          "Trade Value": "3626397",
-          "Post Holding Shares": "12745",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "M&M",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "M&M",
-          "Insider": "Ramesh Ramachandran",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "2497",
-          "Trade %": "0",
-          "Trade Value": "9028028",
-          "Post Holding Shares": "13036",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "M&M",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "M&M",
-          "Insider": "Sameer Desai",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "650",
-          "Trade %": "0",
-          "Trade Value": "2350108",
-          "Post Holding Shares": "6224",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "M&M",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "M&M",
-          "Insider": "Samir Rawte",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "1130",
-          "Trade %": "0",
-          "Trade Value": "4085572",
-          "Post Holding Shares": "19270",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "M&M",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "M&M",
-          "Insider": "Surojit Kundu",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "277",
-          "Trade %": "0",
-          "Trade Value": "1001507",
-          "Post Holding Shares": "5661",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "M&M",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "M&M",
-          "Insider": "Surojit Kundu",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "50",
-          "Trade %": "0",
-          "Trade Value": "179495",
-          "Post Holding Shares": "5384",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-12",
-          "To Date": "2025-09-12",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "M&M",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "M&M",
-          "Insider": "Vinod Sahay",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "1039",
-          "Trade %": "0",
-          "Trade Value": "3756556",
-          "Post Holding Shares": "1039",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "M&M",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "M&M",
-          "Insider": "Vinod Sahay",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "301",
-          "Trade %": "0",
-          "Trade Value": "1087816",
-          "Post Holding Shares": "738",
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-24",
-          "To Date": "2025-09-24",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "MASTEK": [
@@ -66588,72 +66346,6 @@
           "From Date": "2025-12-16",
           "To Date": "2025-12-17",
           "Broadcast Date": "2025-12-17",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NEULANDLAB",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Neuland Laboratories Ltd",
-          "Insider": "Mr.Gannabathula Veeravenkata Satyanarayanamurty",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "10000",
-          "Trade %": "0.07",
-          "Trade Value": null,
-          "Post Holding Shares": "31222",
-          "Post Holding %": "0.24",
-          "Mode": "Gift",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NEULANDLAB",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Neuland Laboratories Ltd",
-          "Insider": "Mr. Gannabathula Venkata Krishna Rama Rao",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "19000",
-          "Trade %": "0.24",
-          "Trade Value": null,
-          "Post Holding Shares": "12827",
-          "Post Holding %": "0.01",
-          "Mode": "Gift",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NEULANDLAB",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Neuland Laboratories Ltd",
-          "Insider": "Ms. Gannabathula Venkata Vani Sriranganayakamma",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "9000",
-          "Trade %": "0.01",
-          "Trade Value": null,
-          "Post Holding Shares": "9000",
-          "Post Holding %": "0.01",
-          "Mode": "Gift",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -70522,28 +70214,6 @@
           "From Date": "2025-12-29",
           "To Date": "2025-12-30",
           "Broadcast Date": "2025-12-31",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SONATSOFTW",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "SONATSOFTW",
-          "Insider": "Sonata Software Limited Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "30058",
-          "Trade %": "0.01",
-          "Trade Value": "12000213",
-          "Post Holding Shares": "3018453",
-          "Post Holding %": "1.08",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-24",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -96876,138 +96546,6 @@
           "From Date": "2025-09-22",
           "To Date": "2025-09-22",
           "Broadcast Date": "2025-09-26",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "HCL Technologies Stock Options Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "300000",
-          "Trade %": "0.01",
-          "Trade Value": "431801730",
-          "Post Holding Shares": "7245730",
-          "Post Holding %": "0.27",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "HCL Technologies Stock Options Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "500000",
-          "Trade %": "0.02",
-          "Trade Value": "746896000",
-          "Post Holding Shares": "6645730",
-          "Post Holding %": "0.24",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "HCL Technologies Stock Options Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "531251",
-          "Trade %": "0.02",
-          "Trade Value": "764559970",
-          "Post Holding Shares": "8230970",
-          "Post Holding %": "0.3",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-24",
-          "To Date": "2025-09-24",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "HCL Technologies Stock Options Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "21433",
-          "Trade %": "0",
-          "Trade Value": "30953539",
-          "Post Holding Shares": "7699719",
-          "Post Holding %": "0.28",
-          "Mode": "ESOS",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "HCL Technologies Stock Options Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "24578",
-          "Trade %": "0",
-          "Trade Value": "34974494",
-          "Post Holding Shares": "7221152",
-          "Post Holding %": "0.27",
-          "Mode": "ESOS",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-24",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "HCL Technologies Stock Options Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "34289",
-          "Trade %": "0",
-          "Trade Value": "48865254",
-          "Post Holding Shares": "8196681",
-          "Post Holding %": "0.3",
-          "Mode": "ESOS",
-          "From Date": "2025-09-24",
-          "To Date": "2025-09-24",
-          "Broadcast Date": "2025-09-24",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -125791,28 +125329,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "ASAHIINDIA",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Asahi India Glass Ltd",
-          "Insider": "LANS Business LLP",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "25000",
-          "Trade %": "0.01",
-          "Trade Value": "22346750",
-          "Post Holding Shares": "60000",
-          "Post Holding %": "0.02",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "HATSUN": [
@@ -133145,30 +132661,6 @@
         }
       }
     ],
-    "JSWCEMENT": [
-      {
-        "ticker": "JSWCEMENT",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "JSW Cement Ltd",
-          "Insider": "JSW Cement Employees ESOP Trust",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "218265",
-          "Trade %": "0.02",
-          "Trade Value": "32259567",
-          "Post Holding Shares": "32288427",
-          "Post Holding %": "2.36",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-09-24",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      }
-    ],
     "PARADEEP": [
       {
         "ticker": "PARADEEP",
@@ -139583,28 +139075,6 @@
           "From Date": "2025-09-29",
           "To Date": "2025-09-29",
           "Broadcast Date": "2025-09-30",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JUBLPHARMA",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Jubilant Pharmova Ltd",
-          "Insider": "Jubilant Employees Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "35000",
-          "Trade %": "0.02",
-          "Trade Value": "38774208",
-          "Post Holding Shares": "879589",
-          "Post Holding %": "0.55",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-24",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -154310,94 +153780,6 @@
           "From Date": "2025-09-29",
           "To Date": "2025-09-29",
           "Broadcast Date": "2025-10-01",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BENGALASM",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Bengal & Assam Company Ltd",
-          "Insider": "Anshuman Singhania, Karta of Shripati Singhania HUF",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "638000",
-          "Trade %": "5.59",
-          "Trade Value": null,
-          "Post Holding Shares": "793332",
-          "Post Holding %": "6.96",
-          "Mode": "Inter-se Transfer",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-24",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BENGALASM",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Bengal & Assam Company Ltd",
-          "Insider": "Bharat Hari Singhania",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "653810",
-          "Trade %": "5.73",
-          "Trade Value": null,
-          "Post Holding Shares": "261352",
-          "Post Holding %": "2.29",
-          "Mode": "Inter-se Transfer",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-24",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BENGALASM",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Bengal & Assam Company Ltd",
-          "Insider": "Raghupati Singhania",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "653809",
-          "Trade %": "5.87",
-          "Trade Value": null,
-          "Post Holding Shares": "974101",
-          "Post Holding %": "8.54",
-          "Mode": "Inter-se Transfer",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-24",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BENGALASM",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Bengal & Assam Company Ltd",
-          "Insider": "YPL Enterprises Private Limited",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "1945619",
-          "Trade %": "17.06",
-          "Trade Value": null,
-          "Post Holding Shares": "1945619",
-          "Post Holding %": "17.06",
-          "Mode": "Inter-se Transfer",
-          "From Date": "2025-09-19",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-09-24",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -179126,28 +178508,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "CARYSIL",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Carysil Ltd",
-          "Insider": "Satilal Baburao Patkari",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "5221",
-          "Trade %": "0.02",
-          "Trade Value": "4699856",
-          "Post Holding Shares": "11654",
-          "Post Holding %": "0.04",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-24",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "NIITMTS": [
@@ -180849,50 +180209,6 @@
           "From Date": "2025-11-14",
           "To Date": "2025-11-14",
           "Broadcast Date": "2025-11-19",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "PARAGMILK",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Parag Milk Foods Ltd",
-          "Insider": "Sixth Sense India Opportunities III",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "244000",
-          "Trade %": "0.21",
-          "Trade Value": "71957418",
-          "Post Holding Shares": "6197415",
-          "Post Holding %": "5.19",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-24",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "PARAGMILK",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Parag Milk Foods Ltd",
-          "Insider": "Sixth Sense India Opportunities III",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "60000",
-          "Trade %": "0.05",
-          "Trade Value": "17459764",
-          "Post Holding Shares": "6137415",
-          "Post Holding %": "5.14",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -201160,28 +200476,6 @@
           "From Date": "2025-09-25",
           "To Date": "2025-09-25",
           "Broadcast Date": "2025-09-30",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HITECH",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Hi-Tech Pipes Ltd",
-          "Insider": "MANOJ KUMAR GUPTA, TRUSTEE HI-TECH PIPES EMPLOYEES WELFARE TRUST",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "20000",
-          "Trade %": "0.01",
-          "Trade Value": "2451400",
-          "Post Holding Shares": "377500",
-          "Post Holding %": "0.19",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -226552,28 +225846,6 @@
           "From Date": "2025-09-24",
           "To Date": "2025-09-24",
           "Broadcast Date": "2025-09-25",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SARLAPOLY",
-        "date": "2025-09-24",
-        "cells": {
-          "Company": "Sarla Performance Fibers Ltd-$",
-          "Insider": "Hindustan Cotton Company",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "2000",
-          "Trade %": "0",
-          "Trade Value": "198400",
-          "Post Holding Shares": "47529166",
-          "Post Holding %": "56.92",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-09-24",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
