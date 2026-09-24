@@ -16,6 +16,7 @@ let upgraded = false, apiCalls = 0, debugPage;
 // An already-cached pre-grouping reader, with the real immutable-cache/update lifecycle.
 const oldFiles = new Map([['/js/data/alert-stories.js', `export const storyGrouping={project:e=>e,revision:()=>0,
  status:()=>({total:0}),onChange:()=>()=>{},load:async()=>{},review:async()=>{}};`]]);
+oldFiles.set('/js/data/newsletter-shared.js', 'export const normaliseEmailList = undefined;');
 const fixture = `const listeners=new Set(); export const onChange=fn=>{listeners.add(fn);return()=>listeners.delete(fn);};
 window.changed=()=>listeners.forEach(fn=>fn());
 export {currentDay as today} from '../ui/ai-alert-utils.js';
@@ -24,6 +25,7 @@ export async function readCachedAlertWindow(){return null;}
 export async function collect({scope,onPartial}) { const r={scope,day:currentDay(),events:window.fixtureEvents,feeds:[{id:'news',status:'ok',reachesToday:true}],pending:0};onPartial?.(r);return r; }`;
 const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"></head>
 <body style="padding:24px;background:#f6f4fb"><main id="root" class="mx-auto max-w-7xl"></main><script>window.fixtureEvents=${JSON.stringify(initial)};</script><script type="module">
+import {normaliseEmailList} from '/js/data/newsletter-shared.js';window.newsletterBatchAvailable=typeof normaliseEmailList==='function';
 import * as tab from '/js/tabs/ai-alerts.js';import * as coverage from '/js/data/coverage.js';import {watchWorkerChanges} from '/js/core/app-updates.js';
 coverage.prime({holdings:[{ticker:'ALPHA',name:'Alpha Bank'}]});
 window.show=()=>tab.render({root:document.querySelector('#root'),scope:'universe',params:{}});window.show();
@@ -71,11 +73,13 @@ try {
   await page.reload();await page.waitForFunction(()=>window.ready);
   const card=page.locator('[data-ai-card]');await card.waitFor();
   assert.equal(await card.locator('[data-ai-evidence] > li').count(),2);
+  assert.equal(await page.evaluate(()=>window.newsletterBatchAvailable),false,'the returning session starts with its old newsletter module');
   const before=await page.evaluate(()=>caches.keys());assert(before.some(k=>k.includes('before-story-grouping')));
   upgraded=true;await page.evaluate(async()=>await(await navigator.serviceWorker.getRegistration()).update());
   await page.waitForFunction(()=>document.querySelectorAll('[data-ai-story-source]').length===2&&document.querySelectorAll('[data-ai-evidence] > li').length===1);
   assert.equal(await card.locator('[data-ai-story-source]').count(),2);
   assert(!(await page.evaluate(()=>caches.keys())).some(k=>k.includes('before-story-grouping')));
+  assert.equal(await page.evaluate(()=>window.newsletterBatchAvailable),true,'the automatic upgrade replaces the cached newsletter module too');
   const initialScore=await card.getAttribute('data-score');
   await card.locator('[data-ai-mute]').click();assert.equal(await card.count(),0);
   await page.evaluate(e=>{window.fixtureEvents.push(e);window.changed();},event('bse','Alpha Bank plans merger with Beta Bank',{time:'10:00'}));
