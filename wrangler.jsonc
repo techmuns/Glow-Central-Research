@@ -20,6 +20,10 @@
       // object (team-brief:v1) whose alarm is what sends the morning and evening emails. Same
       // provisioned class, its own storage; see worker/newsletter-schedule.mjs.
       { "name": "NEWSLETTER", "class_name": "CaptureRegistry" },
+      // The alerts' AI "So what?" notes: one fixed object (alert-notes:v1) keeps every note written,
+      // keyed by the text it was written from, and the day's allowance of new ones. Same provisioned
+      // class, its own storage; see worker/alert-notes-store.mjs.
+      { "name": "ALERT_NOTES", "class_name": "CaptureRegistry" },
       // The family's price levels, sent from the Glow Ventures dashboard: the list, every level
       // reached, and the minute price check that finds them, on one fixed object (price-levels:v1).
       // Same provisioned class, its own storage and its own alarm; see worker/price-levels-schedule.mjs.
@@ -48,6 +52,8 @@
     // secret is present. The key is never a build variable or browser credential.
     // The older CLAUDE_API_KEY name remains an alias; CLAUDE_KEY takes precedence.
     // Muns remains the route only for environments without a dedicated Claude key.
+    // News has its own durable $1/day, $25/month allowance. Missing OpenAI never falls back to uncapped Claude.
+    "NEWSLETTER_NEWS_AI_PROVIDER": "openai",
     "BEDROCK_REGION": "ap-south-1",
     "BEDROCK_MODEL_ID": "global.anthropic.claude-sonnet-5",
     "MUNS_LLM_BASE": "https://fastapi.muns.io",
@@ -101,6 +107,14 @@
       "name": "NEWSLETTER_LIMITER",
       "namespace_id": "1804",
       "simple": { "limit": 12, "period": 60 }
+    },
+    {
+      // The alerts' AI notes. A page asks once per screen of cards, and a stored note costs nothing
+      // to serve, so this is set for a reader paging and scrolling, well below a script; the object's
+      // daily allowance of NEW notes is what bounds the spend behind it.
+      "name": "ALERT_NOTES_LIMITER",
+      "namespace_id": "1805",
+      "simple": { "limit": 30, "period": 60 }
     }
   ]
 

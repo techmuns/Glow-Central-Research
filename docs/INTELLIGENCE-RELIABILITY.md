@@ -370,3 +370,12 @@ Before release, verify:
 If any data-integrity check fails, block release even if performance improves. Rollbacks must preserve collected history.
 
 **The customer should receive the same complete data, with smoother interaction and honest freshness status. Fewer visible DOM rows must never mean fewer available records.**
+
+## Newsletter document reading
+
+The newsletter's source-reading queue retains pending work separately from its sent-item ledger.
+Discovery and extraction are not proof of complete upstream capture. Preserve source capture times,
+document check times, full/partial/pending states, original links and distinct transactions through
+failures, restarts and rollover. Generic acquisition or other filing categories cannot establish
+that two documents describe one event. See [Newsletter source reading](NEWSLETTER-SOURCE-CONTENT.md)
+for the first-phase scope, coverage limits and regression checks.

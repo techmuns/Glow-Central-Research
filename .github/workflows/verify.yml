@@ -97,10 +97,12 @@ jobs:
         run: node scripts/verify-capture-registration.mjs
       - name: Verify the shared watchlist contract, attribution and conflicting edits
         run: node scripts/verify-shared-watchlist.mjs
+      - name: Verify daily market changes and exchange source reconciliation
+        run: node scripts/verify-newsletter-markets.mjs
       - name: Verify the family's price levels — contract, store, minute check, cross-site route and alert rank
         run: node scripts/verify-price-levels.mjs
       - name: Verify the team brief — contract, store, fixture-built editions and the sending alarm
-        run: node scripts/verify-newsletter.mjs && node scripts/verify-newsletter-events.mjs
+        run: node scripts/verify-newsletter.mjs && node scripts/verify-newsletter-events.mjs && node scripts/verify-newsletter-content.mjs && node scripts/verify-newsletter-openai.mjs && node scripts/verify-newsletter-price-reasons.mjs
       - name: Verify operational filing health
         run: node scripts/verify-filings-health.mjs
       - name: Verify capture watchdog
@@ -143,6 +145,8 @@ jobs:
         run: node scripts/verify-ai-alerts.mjs && node scripts/verify-alert-capacity.mjs && node scripts/verify-kpi-impact.mjs
       - name: Verify material alert lifecycle and optional social coverage
         run: node scripts/verify-alert-reliability.mjs && python3 scripts/verify-twitter-collection.py
+      - name: Verify one development per alert and the AI "So what?" contract
+        run: node scripts/verify-alert-developments.mjs && node scripts/verify-alert-notes.mjs
       - name: Verify investor changes and bulk/block ingestion
         run: node scripts/verify-investor-changes.mjs
       - name: Verify holdings integrity and snapshot retention
@@ -359,9 +363,9 @@ jobs:
         run: node scripts/verify-shared-watchlist-ui.mjs
   portfolio-research:
     runs-on: ubuntu-latest
-    # Keep all 426 cases. Setup once consumed 14 minutes; budget it separately so the
-    # complete evidence suite still gets 30 minutes, plus bounded checkout/setup headroom.
-    timeout-minutes: 50
+    # Keep every configured company: 510 packets now exceed the old 30-minute suite limit.
+    # Allow the complete suite 45 minutes, separate from setup and bounded job overhead.
+    timeout-minutes: 65
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -373,7 +377,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/research-browser" --no-save --package-lock=false playwright@1.62.1
           node "$RUNNER_TEMP/research-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Verify evidence and previews across the complete saved portfolio
-        timeout-minutes: 30
+        timeout-minutes: 45
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/research-browser/node_modules/playwright
         run: node scripts/verify-research-portfolio.mjs

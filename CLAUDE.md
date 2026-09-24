@@ -141,6 +141,7 @@ public/
       host-ticker.js          the company the HOST has selected, as one header chip. Absent, not
                               empty-stated, when it has selected none — this app is not ticker-bound
       notifications.js        the header bell and notification inbox
+      alert-note.js           how the AI "So what?" line reads on a card, a row and an export cell
       export.js               generic exceljs-from-CDN "Export Excel" helper
       components.js           chrome primitives (tab bar, toggle, search…)
       shell.js                header + tabs + sub-view picker + content host + tab registry
@@ -162,6 +163,14 @@ public/
       ai-alerts.js            EXPLAINABLE seven-day company priority over Daily/General readings
       alert-drivers.js        WHICH INVESTOR QUESTION a tracked topic bears on — earnings assumption,
                               valuation or thesis. One mapping, read by the AI Alerts card
+      alert-developments.js   ONE DEVELOPMENT, ONE ITEM — folds a filing's exchange copies and the
+                              publishers' reports of it into one item led by the filing; read by
+                              AI Alerts (cards) and All Alerts (rows). See the section below
+      alert-claims.js         a filing's own claim (`filingClaim`, `sourceStatement`, `clip`,
+                              `isTypeOnly`) — shared by the card sentence and the fold
+      alert-notes-shared.js   THE "SO WHAT?" LINE'S CONTRACT — items, fiscal-year context, the
+                              refusals; imported by worker/alert-notes-store.mjs too
+      alert-notes.js          the browser half: batches the on-screen questions to /api/alert-notes
       coverage.js             THE BOOK — the 142 companies the Portfolio toggle means, and the
                               19 it cannot cover. NOT the ledger; see the section below
       technicals.js           loads + scores the live feed once, caches it
@@ -268,6 +277,9 @@ scripts/
 worker/watchlist-store.mjs    THE SHARED WATCHLIST'S durable record — SQLite in the provisioned
                               CaptureRegistry class under one fixed object name. Intents, not lists
 worker/watchlist.mjs          GET/POST /api/watchlist — private-cacheable, ETagged, same-origin writes
+worker/alert-notes.mjs        POST /api/alert-notes — the alerts' AI "So what?" line, same-origin, bounded
+worker/alert-notes-store.mjs  THE NOTES' durable record — SQLite in the provisioned CaptureRegistry class
+                              under alert-notes:v1, keyed by the text each note was written from
 worker/index.js               asset serving + POST /api/live-prices + GET /api/earnings
                               (+ ?fields=prices) + /api/earnings-calendar + /api/concalls
                               + /api/super-investors (+ /{slug})
@@ -1303,11 +1315,17 @@ rules, and every one of them is a rule this file already runs on:
 
 1. **"Direct ones" means `portfolio-companies.json`**, the Portfolio scope's own file, and nothing
    wider. Fund units, AIFs and the ring-fenced line are outside it there and outside it here.
-2. **Every figure carries its own state and time.** Quotes are read from Yahoo's chart endpoint at
-   send time and Yahoo's own session bounds decide `Close · Wed 16:00 EDT` versus `Live · Thu 07:58
-   JST`; a symbol Yahoo refuses is filled from the macro series store and says `Series store ·
-   2026-09-08` on the row, never a stale close dressed as this morning's. A source that cannot be
-   read says so in the email — `NSE feed could not be read (blocked)` — rather than going quiet.
+2. **Every figure carries its own state and time.** Indian indices prefer the official NSE snapshot where available (Sensex remains
+   Upstox/BSE), with the existing server-side Upstox token and exact cash-index identities.
+   Yahoo supplies an additional cross-check/fallback. A corroborated exchange quote survives
+   a third-provider outlier; unresolved disagreements withhold affected figures.
+   Yahoo daily changes use the immediately preceding dated, unadjusted session bar, never
+   `chartPreviousClose` from a five-day range. Null/missing prior bars and inconsistent source
+   figures withhold the affected change rather than guess. Closed-provider disagreements
+   withhold the level too. Dates, providers, delayed/earlier observations, single-source coverage
+   and failures stay visible in HTML, text and PDF. A stored fallback retains its own date.
+   See `docs/NEWSLETTER-MARKET-ACCURACY.md`; run `verify-newsletter-markets.mjs` with the existing
+   newsletter and browser suites. This supersedes the older Yahoo-only market-scan contract.
 3. **The stories carry no new reading.** Topic is the desk's thirty keywords folded onto the seven
    Munshot topics; mood is `announcementSignal()` over a filing's own subject, and a published
    headline is Neutral because nothing on this dashboard reads sentiment off one. The footer says so.
@@ -1385,29 +1403,42 @@ string** — a dividend's amount, a split's ratio and a bonus's terms are reprod
 printed them. `readCalendar` / `readActions` in `worker/newsletter-brief.mjs`; the offline suite
 drives both with a Screener stub and constructed captures.
 
-**AND ONE ANNOUNCEMENT IS ONE UPDATE, WITH TWO AI LINES UNDER IT.** The customer's reading of the
-17 September evening brief: Puravankara's ₹2,600 crore redevelopment win was printed twice (the NSE
-copy and the BSE copy of one press release), with four publisher accounts of it due the next
-morning, and every item was the exchange's or the publisher's own wording with nothing saying what
-it meant. So `clusterStories()` in `worker/newsletter-brief.mjs` folds a company's items into
-UPDATES — exchange copies of one filing (same company, same filing type, lodged within the hour)
-and stories that share the words and figures of the filing or of each other (`storyTokens` /
-`sameStory`: a fifth of the content words in common, or a shared figure and two words; the
-company's own name, currency words and years identify nothing) — the strongest item leads, the
-exchange's own statement before a publisher's account of it, and the rest are **Related** links in
-small type under it. The summary line, the subject and the company header count updates, and the
-header says how many items they fold. A trade and a price move stay their own update: each is a
-measurement with its own stated reading. Under each filing or story update the model writes two
-lines — **AI summary** (what was announced) and **Potential impact** (what it could change) —
-and five rules keep that the one honest reading on the sheet: **one bounded request per brief**
-(`readAiNotes`, `AI_ITEM_LIMIT`, through the same Bedrock credential Ask Research holds on the
-Worker, JSON in and JSON out, never a stream); **the model gets headlines and summaries only**,
-never a link or a document, and is told to add no figure, date, name or claim; **the lines are
-marked AI on their face**, in the footer and on the sources line with the model and the count;
-**hedged as possibilities** — could, may, never will, never a share-price call; and **absent, with
-the reason named, rather than guessed** — `no-key`, `refused`, `rate-limited`, `unreadable` — with
-the item keeping the source's own line instead. Every folded item still reaches the ledger under
-its own identity, so late-arrival detection is unchanged.
+**NEWS ACCURACY AND COST (24 September 2026, GLOW-OWNED).**
+[Grounded news summaries](docs/NEWSLETTER-NEWS-AI.md) adds OpenAI news-only extraction and saved
+notes, company/product/role grounding, stronger review for ambiguous cases, optional impact and
+a transactional $1/day, $25/month news allowance. Keep pending work, source links and history.
+The existing filing/PDF Claude path remains separate. Do not fallback to unbudgeted news calls
+when OpenAI fails. Run `verify-newsletter-openai.mjs` with the other newsletter checks.
+
+**SOURCE CONTENT BEFORE AI NOTES (24 September 2026, GLOW-OWNED).** The first five steps of
+[Newsletter source reading](docs/NEWSLETTER-SOURCE-CONTENT.md) supersede the earlier headline-only
+contract. The existing newsletter object discovers captured portfolio filings/news hourly and
+retains pending document jobs independently of browsers and the sent-item ledger. Read NSE XBRL
+facts directly; supply full official PDFs (including scans) to the existing Claude transport;
+extract supported accessible publisher article bodies. Keep supporting source passages and read
+states. Unread, restricted and oversized sources never masquerade as complete reads.
+
+Never fold filings on a headline prefix, category or time proximity alone. Preserve separate
+transactions, including CEAT's 23 September Lanka loan conversion and Tyresnmore investment.
+Document identity or matching specific evidence can establish copies; conflicting facts and
+uncertain generic filings stay separate. Every source link and delivery identity survives.
+The writer receives source facts and produces what happened, possible impact and relevant
+unknowns. HTML, text and PDF retain source-read coverage and actual document check times. Public
+previews never run paid extraction or summarisation. `verify-newsletter-content.mjs` covers the
+queue, document transports, original CEAT facts and end-to-end output; keep the existing newsletter
+and UI checks. The independent AI review pass, second provider and shared dashboard summaries
+remain outside this first phase. Do not claim live model/OCR accuracy from fixture-based tests.
+
+**PRICE-MOVE EXPLANATIONS (24 September 2026, GLOW-OWNED).** Each newsletter price card carries
+one short “Why it moved” line and, when supported, a dated source link. The separate bounded
+writer in `worker/newsletter-price-reasons.mjs` reuses the same Bedrock credentials and read
+document facts. Evidence retrieval is independent of the sent-story ledger and email caps;
+use the observed session, never the build date. Admit only timed, directly attributed company
+sources after the previous trading close and no later than the quote or cash-market close.
+Reported reasons require an explicit directional source passage; possible drivers remain
+unconfirmed. Unknown causes, unread documents, failed checks and omitted evidence stay visible.
+Do not infer buying interest or profit-booking from the return. The preview remains free of paid
+AI. Run `verify-newsletter-price-reasons.mjs` alongside the existing newsletter suites.
 
 **Repeated news, updated 21 September 2026:** `newsletter-events.mjs` now checks reworded news
 before the separate AI-notes request, using the same module as Sattva. One bounded 30-second
@@ -2885,6 +2916,10 @@ Three things to take from it:
    Alerts re-read the whole history — a 4.7-second main-thread task with every per-row cache in
    place. `withTradeCategory` returns a row that already carries its category unchanged for the
    same reason: a cumulative archive merge that copies every row it keeps can never hit twice.
+   **`toFeedRow`'s projection is the third** (`projectedEvent`, 23 September 2026): it spread every
+   event of every feed into a new object on each collection, so the development fold re-read a
+   124,000-row All Alerts stream from nothing on every partial publication — 0.4–1.2s of sliced
+   work per update, long enough for a new filing to reach the table after the reader had looked.
 3. **A property of an object's shape is cached on the object, and the value is read live.**
    `pickField` rebuilt a flattened key map on every call — 1,920ms on one cold open of Insider
    Trades, five filter dropdowns asking ~48,000 rows five times each.
@@ -3513,6 +3548,112 @@ record (`driverReadings()` / `driverChipsMarkup()`, from `alert-drivers.js`), pl
 deleted with the bullet they explained: a filter whose reason is no longer printed on the card
 would narrow to cards that cannot say why they are there. **A later sync must not bring either
 block back**, and the owner's desk brief behind them now reads off the row chips and the KPI line.
+
+**Superseded the same evening by the customer's own request (23 September 2026):** every alert reads
+as TWO bullets again — **What happened** (the lead development's LINE 1, e.g. *"Secures ₹2,600 Cr
+redevelopment project in Goregaon"*) and **So what? · AI reading** (the likely earnings or valuation
+implication). The retired blocks stay retired: the topic paragraph, the figure strip and the trigger
+chips do not come back. The new second bullet is a different thing — an AI line under its own
+contract, below — and a template sync must preserve it (see `docs/GLOW-TEMPLATE-SYNC.md`).
+
+### ONE DEVELOPMENT, ONE ITEM — `js/data/alert-developments.js`
+
+The customer's reading of Puravankara (September 2026): one ₹2,600 crore redevelopment win reached
+the desk as its BSE announcement, the NSE copies and a stream of publisher write-ups — seven or eight
+items — and the card led with a write-up, so a corporate announcement read as generic news. Measured
+on the shipped captures for its Greater Noida deal five days later: one press release, two exchange
+copies and thirty reports, every one a separate All Alerts row. **Aggressive dedupe is the ask: one
+event, one item, whoever reports it.** Both surfaces fold through this one module:
+
+1. **Nothing is dropped.** Folding is presentation. Every member stays in the report, the pool, the
+   search text and the export (listed with source, time and link); feed chips count what each source
+   holds; `topEvidence`'s footer counts developments, never hides one.
+2. **The company's own statement leads.** Where a filing is among the members it is the lead: the
+   item is labelled **Corporate announcement**, names the exchanges, and opens the filing — never a
+   publisher's account of it. BSE before NSE; the richer statement first.
+3. **Different developments stay apart.** One company only; related-entity and reviewed-unrelated
+   reports never fold; an uncertain search match may JOIN but never OPEN a development; a denial,
+   cancellation or clarification never joins what it answers; disagreeing rupee figures need four
+   shared words; a second filing folds only as an exchange copy; reports are matched against what the
+   development is ABOUT (its first row and its filings), so one broad story cannot chain two. The
+   loose copy rules (NSE's category form, the other exchange's twin sharing a word) need the source's
+   own TIME on both rows and both exchanges NAMED — two day-only rows are "the same noon" only by our
+   reading, and a row naming no exchange is no exchange's twin.
+4. **Only compact fields are read**, so an AI-pool event (no source record) folds exactly as the full
+   one; `verify-alert-developments.mjs` asserts it.
+
+On the AI card: the counts behind the score read developments (thirty write-ups are one
+high-importance event), evidence rows go one per development, the card's date is its newest material
+development's LEAD (a late write-up does not make last week's win today's news), and the archive
+identity is one per development — a further report of an archived development never revives the card;
+a new development, a corrected headline or the company's filing arriving after the news does. In All
+Alerts: one Till Today row per development — a filing row reads as its own shortest sufficient
+statement (the company name kept; the raw subject in the title and the export), any other row as the
+source's headline — with *Also · 1 exchange copy · 30 news reports* listing the members in its title,
+and member-aware Date range / relationship filters and search. LINE 1 for a filing is SELECTED, never
+reworded: the shortest of the lead's own texts that names four things, keeps half of what the richest
+names and every rupee amount, *Intimation of* dropped (`shortStatement`). A report that joins a
+development already on screen is not an arrival: no NEW badge and no announcement, only the row's
+*Also* count moves; the company's own filing arriving after the news of it is a new row, because the
+row is keyed by its lead. Each company's fold is kept while its rows are unchanged, so a live update
+re-folds only the companies it touched (the full 263k-event history: ~3s once, ~0.3s per update). **A large stream folds in slices**
+(`foldAlertRowsInSlices`, past 2,500 rows), and what the table shows while a fold is in flight
+depends on why it is folding:
+
+- **A background update over a view whose folded rows are on screen** (`settledView`) is held: the
+  WHOLE view (rows, source chips and counts) stays as it was until the fold lands, then the new one
+  paints whole. The race this closes was chips announcing a settled read over rows that did not yet
+  hold it.
+- **A change the reader made is never held** (`renderedView`: source ticks, horizon, day, scope,
+  period). The control shows their choice at once and the table its loading rows until the fold
+  lands, because a chip that ignores a click reads as broken.
+- **A view's first rows are never held by its fold.** Until one fold of the view has landed, rows
+  show unfolded as they arrive (`showingProvisional`: no "So what?" is requested for them) and fold
+  in place when it does. A company's complete history is re-published as each source settles. Each
+  publication restarted a cold fold, and the rows a "See all" link opens reached the screen 6.3
+  seconds after they had arrived.
+
+**A new array of the same rows is the same fold** (`sameRowSequence`): the newest completed fold
+answers it, and a fold in flight for the same rows is left to finish rather than restarted.
+
+**The fold is bounded, and the bounds are the performance contract.** Per-row readings are lazy
+(`Reading`: text, tokens, claim and copy keys on first use); a filing never walks other filings'
+word lists (it can join them only as a copy, found by document and time); a common word offers its
+newest `CANDIDATES_PER_TOKEN` (16) developments; the best candidate is chosen without sorting; a
+company's developments are reused between rankings while its rows are unchanged. Measured: the
+100,005-filing AI Alerts stress fixture went 5.0s → 10.8s on the first draft and back to ~6s with
+these; a real Universe history (263k events) folds in ~1.3s warm, a day in ~30ms.
+
+### THE "SO WHAT?" LINE — the alerts' one AI reading (`/api/alert-notes`)
+
+The second bullet: one line, at most 220 characters, on the likely earnings or valuation implication
+— *"Unlikely to move FY27 revenue at once; mainly adds to the development pipeline."* Written by
+Claude on Bedrock through the Worker's `CLAUDE_KEY` (the credential Ask Research and the brief's
+filing notes use; the brief's news notes are OpenAI's and do not share this path), and held to the
+brief's rules, enforced in code on both sides of the wire (`acceptNote`), not only in the prompt:
+
+1. **The model sees what the card shows and nothing else** — the lead's statement, headline and
+   detail, company, sector, day, and the current and next fiscal-year labels. No link, no document.
+2. **It adds no fact.** A number the input does not state is refused (`unsupported-figure`); only the
+   two fiscal-year labels given may be added. A share-price call, advice or a "will" is refused too.
+3. **Marked AI on its face** (*So what? · AI reading*, the disclosure in the title, a column and the
+   banner in the export), hedged, and **absent with its reason in words** rather than guessed:
+   `no-worker` on a static origin, `no-key`, `budget`, `refused`, `rate-limited`, a withheld note.
+4. **One development costs one model request, whoever reads it.** The Durable Object `alert-notes:v1`
+   stores each note under the hash of everything the model was given — never the caller's id, so a
+   note cannot be filed against somebody else's text — shares a question already in flight, and caps
+   NEW notes at 1,200 per Indian day. The page asks only for what is on screen (the visible cards;
+   the material rows mounted in All Alerts), batched eight at a time, and never twice in a session.
+   The question is built from the development's LEAD alone, so the card and the row share one note.
+5. **Which developments get one:** filings, confirmed company news, filed results, insider/deal
+   disclosures and fund-holding changes. Never a price or volume reading (the tape says who traded,
+   not why), chatter, a con-call's third-party analysis, a social post or a possible match.
+
+This is the one place a model call starts from a page view, and it is a deliberate narrowing of the
+Deep Dive rule for the same reasons the market-news auto-fetch is: the reader opening the tab is the
+demand, the cost is bounded (a stored note is free, the day is capped), and a failure is a named
+state. `verify-alert-notes.mjs` drives the contract, the store (node:sqlite, stub model), the route
+and the client.
 
 ### ARCHIVING IS A PLACE, NOT A DELETION — `js/core/ai-mute.js`
 
@@ -4829,6 +4970,8 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change which KPIs an alert names, or add a trigger | `TRIGGERS` in `js/data/kpi-impact.js` (+ `kpiMarkup()` in `js/tabs/ai-alerts.js`) — read *KPIs in play* first; a rule may name only its group's own KPIs, and every new trap it closes gets a case in `node scripts/verify-kpi-impact.mjs` |
 | Refresh company sector classification, or change the KPI ontology | `.github/workflows/sector-kpis-refresh.yml` does it daily and fails naming any listed holding left without a KPI group; by hand, `node scripts/classify-companies.mjs` (Screener; `CLASSIFY_SCOPE=tracked` for the wider universe) then `node scripts/build-sector-kpis.mjs` (`--check-book` to list holdings with no group; `SECTOR_KPIS_CSV=<sector_kpis export>` to reconcile a new ontology); the ontology itself is `scripts/fixtures/sector-kpi-ontology.yaml`, reproduced unchanged |
 | Change which investor question a topic bears on, or how a card states it | `js/data/alert-drivers.js` (the one mapping) + `driverReadings()` / `driverChipsMarkup()` in `js/tabs/ai-alerts.js` — read *Earnings assumption, valuation or thesis* first. A reading is a chip on the row whose own record backs it, never a block of its own; it is a TOPIC reading, so the wording stays "could change" and the chip never borrows a direction colour; a second reading on one row prints `+1`; and the layer adds no score |
+| Change what folds into one development, or how an item is labelled and led | `js/data/alert-developments.js` (the fold, LINE 1, the labels) — read *One development, one item* first; `node scripts/verify-alert-developments.mjs` is the test. The AI card reads it through `card.developments` / `leadDevelopment` / `topEvidence` in `js/data/ai-alerts.js`; All Alerts through `foldedStream` in `js/tabs/daily-alerts.js` |
+| Change the AI "So what?" line — what the model sees, what it may say, the daily cap | `public/js/data/alert-notes-shared.js` (the contract, shared with the Worker) + `worker/alert-notes-store.mjs` / `worker/alert-notes.mjs` + `public/js/data/alert-notes.js` (the client) + `public/js/ui/alert-note.js` (the drawing) — read *The "So what?" line* first; `node scripts/verify-alert-notes.mjs` is the test |
 | Change archiving on AI Alerts | `js/core/ai-mute.js` (the store) + the `archived` filter and the Archive / Restore buttons in `js/tabs/ai-alerts.js` — a record is keyed to the evidence it was given for, so a card returns on its own when stronger evidence arrives |
 | Change what the precomputed alert pool carries, or how a period is reassembled from it | `public/js/data/alert-pool-shared.js` (the feeds, the captures each reads, the revision rule, the members) + `public/js/data/alert-pool-format.js` (the shard encoding and decoding, shared by the builder and the browser) — read *The collection is done once, on the runner* first; `node scripts/verify-alert-pool.mjs` is the test |
 | Change when a pooled feed is taken from the pool, or why it is declined | `read()` / `verifyFeed()` / `deviceExtras()` in `public/js/data/alert-pool.js`, and the `pool` branch of `collect()` in `js/data/daily-alerts.js` — every check is per feed, per read, and a declined feed loads as before |
@@ -5044,9 +5187,15 @@ It covers, beyond the checklist below:
   a pattern name, a feed tally (*"Bad signs on 3 sources"*) or filler; the feed and the source's
   untouched wording are on the sentence's own `title`, so a claim chosen from an exchange's
   description or clipped on a word boundary can always be read in full. The identity — the sentence
-  IS `plainHeadline(leadEvent(card))` — and every branch that builds one are asserted on fixtures,
+  IS `whatHappened(card)`, the lead DEVELOPMENT's LINE 1 (`plainHeadline(leadEvent(card))` on a card
+  built without developments) — and every branch that builds one are asserted on fixtures,
   because a sign-flip result, a pointer subject and a block deal with a rupee value are properties
   of the day rather than of the rule
+- **one development is one item on both alert surfaces**: a filing's exchange copies and the
+  reports of it fold under the filing, labelled *Corporate announcement* and opening it; nothing is
+  dropped (search, filters and the export read every member); and the AI *So what?* line is marked
+  AI, refused rather than repaired when it names a figure the source does not state, and absent with
+  its reason in words — `verify-alert-developments.mjs` and `verify-alert-notes.mjs`
 - **Portfolio Analytics is gone and cannot be reached**: an old `#/portfolio/...` link lands on
   Research Central with the URL corrected and the tab bar back, every deleted ledger module and
   payload 404s on the served site, and no Ask Research source carries a ledger figure or a route

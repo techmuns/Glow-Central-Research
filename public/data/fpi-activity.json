@@ -8,10 +8,10 @@
     "financialYear": "https://www.fpi.nsdl.co.in/web/Reports/Yearwise.aspx?RptType=5"
   },
   "generator": "scripts/scrape-fpi-activity.mjs",
-  "capturedAt": "2026-09-22T20:18:06.116Z",
+  "capturedAt": "2026-09-23T20:34:30.234Z",
   "currency": "INR crore",
-  "asOn": "2026-09-22",
-  "flowsAsOn": "2026-09-22",
+  "asOn": "2026-09-23",
+  "flowsAsOn": "2026-09-23",
   "reportingDates": [
     "2024-01-01",
     "2024-01-02",
@@ -684,12 +684,13 @@
     "2026-09-17",
     "2026-09-18",
     "2026-09-21",
-    "2026-09-22"
+    "2026-09-22",
+    "2026-09-23"
   ],
   "archive": {
-    "count": 3303,
+    "count": 3304,
     "oldest": "2011-09-30",
-    "newest": "2026-09-22"
+    "newest": "2026-09-23"
   },
   "levels": [
     {
@@ -920,6 +921,17 @@
       "gsecVrr": 1030.525,
       "sdlVrr": 0,
       "corpBondVrr": 154718,
+      "gsecLongTerm": null,
+      "layout": "single-line"
+    },
+    {
+      "date": "2026-09-23",
+      "gsec": 69813.41,
+      "sdl": 2530.952,
+      "corpBond": 126495,
+      "gsecVrr": 1030.525,
+      "sdlVrr": 0,
+      "corpBondVrr": 154616,
       "gsecLongTerm": null,
       "layout": "single-line"
     }
@@ -1309,6 +1321,17 @@
       "mutualFunds": -100.7,
       "aifs": 0,
       "total": -2039.89
+    },
+    {
+      "date": "2026-09-23",
+      "equity": -2593.45,
+      "debtGeneral": -277.14,
+      "debtVrr": -184.53,
+      "debtFar": 222.98,
+      "hybrid": -0.53,
+      "mutualFunds": 50.1,
+      "aifs": 0,
+      "total": -2782.57
     }
   ],
   "months": [
@@ -1635,18 +1658,18 @@
     {
       "period": "2026-09",
       "partial": true,
-      "equity": -17235,
-      "debtGeneral": -2083,
-      "debtVrr": -1991,
-      "debtFar": -6199,
+      "equity": -19829,
+      "debtGeneral": -2360,
+      "debtVrr": -2175,
+      "debtFar": -5976,
       "hybrid": -2277,
-      "mfEquity": 52,
+      "mfEquity": 56,
       "mfDebt": 3,
-      "mfHybrid": 0,
+      "mfHybrid": 49,
       "mfSolutionOriented": 0,
-      "mfOther": -117,
+      "mfOther": -119,
       "aifs": 0,
-      "total": -29846
+      "total": -32628
     }
   ],
   "calendarYears": [
@@ -1669,18 +1692,18 @@
     {
       "period": "2026",
       "partial": true,
-      "equity": -241676,
-      "debtGeneral": 52130,
-      "debtVrr": -14778,
-      "debtFar": 33363,
+      "equity": -244270,
+      "debtGeneral": 51853,
+      "debtVrr": -14962,
+      "debtFar": 33586,
       "hybrid": -6504,
-      "mfEquity": 930,
+      "mfEquity": 934,
       "mfDebt": -350,
-      "mfHybrid": -377,
+      "mfHybrid": -328,
       "mfSolutionOriented": 0,
-      "mfOther": 60,
+      "mfOther": 58,
       "aifs": 6,
-      "total": -177195
+      "total": -179977
     }
   ],
   "financialYears": [
@@ -1863,18 +1886,18 @@
     {
       "period": "2026-27",
       "partial": true,
-      "equity": -110556,
-      "debtGeneral": 47754,
-      "debtVrr": -16382,
-      "debtFar": 23009,
-      "hybrid": -4708,
-      "mfEquity": 474,
+      "equity": -113150,
+      "debtGeneral": 47477,
+      "debtVrr": -16566,
+      "debtFar": 23232,
+      "hybrid": -4709,
+      "mfEquity": 477,
       "mfDebt": -72,
-      "mfHybrid": -78,
+      "mfHybrid": -29,
       "mfSolutionOriented": 0,
-      "mfOther": 526,
+      "mfOther": 523,
       "aifs": 10,
-      "total": -60023
+      "total": -62806
     }
   ],
   "monthlyCoverage": [
@@ -1980,7 +2003,7 @@
     },
     {
       "period": "2026-09",
-      "days": 15,
+      "days": 16,
       "reconciles": true
     }
   ],

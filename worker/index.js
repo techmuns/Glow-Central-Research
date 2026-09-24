@@ -15,6 +15,7 @@
 //   POST /api/watchlist                        ->  apply add/remove edits, attributed by name
 //   GET  /api/price-levels                     ->  the family's price levels, every one reached, the check
 //   POST /api/price-levels                     ->  set / seed / clear levels (this site and Glow Ventures)
+//   POST /api/alert-notes                      ->  the alerts' AI "So what?" notes, stored per development
 //   GET  /api/newsletter                       ->  the team brief's list, schedule, timer and log
 //   POST /api/newsletter                       ->  subscribe / unsubscribe / edition edits
 //   POST /api/newsletter/send                  ->  build an edition now and send it
@@ -77,6 +78,7 @@ import { handleIpoFilings } from './ipo-filings.mjs';
 import { handleCaptureRegistration } from './capture-registration.mjs';
 import { handleWatchlist } from './watchlist.mjs';
 import { handlePriceLevels } from './price-levels.mjs';
+import { handleAlertNotes } from './alert-notes.mjs';
 import { readPlatformCollector } from './ipo-platform-collector.mjs';
 import { readScreenerConcallCollector, readScreenerConcallCollection } from './screener-concalls-collector.mjs';
 import { enrichConcallScans, SCREENER_CONCALL_FRESH_MS, SCREENER_CONCALL_WORKFLOW } from '../public/js/data/screener-concalls-shared.js';
@@ -158,6 +160,7 @@ export default {
     if (['/api/technicals','/api/technicals/atr-history','/api/technicals/source'].includes(url.pathname)) return handleTechnicals(request, env);
     if (url.pathname === '/api/watchlist') return handleWatchlist(request, env);
     if (url.pathname === '/api/price-levels') return handlePriceLevels(request, env);
+    if (url.pathname === '/api/alert-notes') return handleAlertNotes(request, env);
     if (url.pathname === '/api/newsletter' || url.pathname.startsWith('/api/newsletter/')) return handleNewsletter(request, env);
     if (url.pathname === '/api/concall-summaries' || url.pathname === '/api/concall-summaries/collector')
       return handleConcallSummaries(request, env);

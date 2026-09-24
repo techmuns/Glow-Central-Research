@@ -11,6 +11,7 @@ import { NewsletterStore } from './newsletter-store.mjs';
 import { NewsletterSchedule, NEWSLETTER_TIMER_KEY } from './newsletter-schedule.mjs';
 import { PriceLevelStore } from './price-levels-store.mjs';
 import { PriceLevelSchedule, PRICE_LEVEL_TIMER } from './price-levels-schedule.mjs';
+import { AlertNotesStore } from './alert-notes-store.mjs';
 import { CAPTURE_REGISTRY_LIMIT, CAPTURE_REGISTRATION_BATCH, registeredCompany } from '../public/js/data/capture-registration-shared.js';
 
 // Each shard coordinates one bounded set of issuer registrations. No reader identity is stored.
@@ -39,6 +40,9 @@ export class CaptureRegistry extends DurableObject {
     // this object's alarm. See worker/price-levels-store.mjs and worker/price-levels-schedule.mjs.
     this.priceLevels = new PriceLevelStore(ctx.storage);
     this.priceLevelSchedule = new PriceLevelSchedule(ctx.storage, env, this.priceLevels);
+    // The alerts' "So what?" notes live in their own fixed object (alert-notes:v1); its tables are
+    // created on first use there and nowhere else. See worker/alert-notes-store.mjs.
+    this.notes = new AlertNotesStore(ctx.storage, env);
     this.ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS companies (isin TEXT PRIMARY KEY, ticker TEXT NOT NULL, name TEXT NOT NULL)');
   }
   status() { return this.schedule.status(); }
@@ -90,6 +94,8 @@ export class CaptureRegistry extends DurableObject {
   newsletterSend(input, token) { return this.newsletterSchedule.sendNow(input, token); }
   newsletterPdf(id) { return this.newsletter.document(id); }
   newsletterPreview(input) { return this.newsletterSchedule.preview(input); }
+  alertNotesRead(items) { return this.notes.read(items); }
+  alertNotesStatus() { return this.notes.status(); }
   async alarm() {
     if (await this.ctx.storage.get(PRIMARY_TIMER)) await this.breakoutPrimary.wake();
     else if (await this.ctx.storage.get(NEWSLETTER_TIMER_KEY)) await this.newsletterSchedule.wake();
