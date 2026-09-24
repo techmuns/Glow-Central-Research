@@ -1315,11 +1315,17 @@ rules, and every one of them is a rule this file already runs on:
 
 1. **"Direct ones" means `portfolio-companies.json`**, the Portfolio scope's own file, and nothing
    wider. Fund units, AIFs and the ring-fenced line are outside it there and outside it here.
-2. **Every figure carries its own state and time.** Quotes are read from Yahoo's chart endpoint at
-   send time and Yahoo's own session bounds decide `Close · Wed 16:00 EDT` versus `Live · Thu 07:58
-   JST`; a symbol Yahoo refuses is filled from the macro series store and says `Series store ·
-   2026-09-08` on the row, never a stale close dressed as this morning's. A source that cannot be
-   read says so in the email — `NSE feed could not be read (blocked)` — rather than going quiet.
+2. **Every figure carries its own state and time.** Indian indices prefer the official NSE snapshot where available (Sensex remains
+   Upstox/BSE), with the existing server-side Upstox token and exact cash-index identities.
+   Yahoo supplies an additional cross-check/fallback. A corroborated exchange quote survives
+   a third-provider outlier; unresolved disagreements withhold affected figures.
+   Yahoo daily changes use the immediately preceding dated, unadjusted session bar, never
+   `chartPreviousClose` from a five-day range. Null/missing prior bars and inconsistent source
+   figures withhold the affected change rather than guess. Closed-provider disagreements
+   withhold the level too. Dates, providers, delayed/earlier observations, single-source coverage
+   and failures stay visible in HTML, text and PDF. A stored fallback retains its own date.
+   See `docs/NEWSLETTER-MARKET-ACCURACY.md`; run `verify-newsletter-markets.mjs` with the existing
+   newsletter and browser suites. This supersedes the older Yahoo-only market-scan contract.
 3. **The stories carry no new reading.** Topic is the desk's thirty keywords folded onto the seven
    Munshot topics; mood is `announcementSignal()` over a filing's own subject, and a published
    headline is Neutral because nothing on this dashboard reads sentiment off one. The footer says so.

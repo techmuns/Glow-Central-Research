@@ -9,7 +9,9 @@
 // like the dollar index, and USDJPY" — plus "corporate announcements and news", and "in the email,
 // I would just send for direct ones". So:
 //
-//   1. GLOBAL MARKET SCAN — live quotes read at send time from Yahoo's public chart endpoint, one
+//   1. GLOBAL MARKET SCAN — quotes read at send time, NSE exchange snapshots and Upstox for Indian indices,
+//      with Yahoo cross-check/fallback. Daily changes use dated preceding-session closes, never a
+//      chart range's reference. Missing/conflicting comparisons are withheld. Yahoo has one
 //      symbol per request, each row carrying its OWN state and time: `Close · Wed 16:00 EDT` for a
 //      market that has shut, `Live · 07:58 JST` for one still trading. The series store under
 //      public/data/series/ is the fallback for a symbol Yahoo would not answer, and a row filled
@@ -67,6 +69,8 @@
 // source was read, and a source that could not be read says so in the email rather than going quiet.
 
 import { FEED_URL as NSE_FEED_URL, HEADERS as NSE_HEADERS, assertShape as assertNseShape, buildResolver, parseAnnouncements, resolveAll, resolveRow } from './nse-ann.mjs';
+import { quoteFromChart, readUpstoxIndices, readNseIndices, reconcileIndianIndex, marketIssue } from './newsletter-markets.mjs';
+export { quoteFromChart } from './newsletter-markets.mjs';
 import { filingKey as nseFilingKey } from '../public/js/data/nse-history-shared.js';
 import { portfolioNewsEntities } from '../public/js/data/company-news-identity.js';
 import { matchPortfolioNews } from '../public/js/data/portfolio-news-matching.js';
@@ -199,34 +203,11 @@ export async function readAsset(env, path) {
 
 // ---- 1. the market scan -------------------------------------------------------------------------
 
-/**
- * One quote from a Yahoo chart response. `live` is decided by Yahoo's own session bounds: the
- * last print fell inside the current regular session and that session has not yet ended.
- */
-export function quoteFromChart(body, row, now) {
-  const meta = body?.chart?.result?.[0]?.meta;
-  if (!meta || !Number.isFinite(meta.regularMarketPrice)) throw Object.assign(new Error('Yahoo chart shape'), { reason: 'shape' });
-  const last = meta.regularMarketPrice;
-  const prev = Number.isFinite(meta.chartPreviousClose) ? meta.chartPreviousClose : null;
-  const asOf = Number.isFinite(meta.regularMarketTime) ? meta.regularMarketTime * 1000 : null;
-  const regular = meta.currentTradingPeriod?.regular;
-  const live = !!regular && asOf != null && asOf >= regular.start * 1000 && now < regular.end * 1000;
-  return {
-    ...row, last, prev,
-    change: prev != null ? last - prev : null,
-    changePct: prev ? ((last - prev) / prev) * 100 : null,
-    asOf, state: live ? 'live' : 'close',
-    timezone: typeof meta.exchangeTimezoneName === 'string' ? meta.exchangeTimezoneName : null,
-    currency: typeof meta.currency === 'string' ? meta.currency : null,
-    origin: 'yahoo',
-  };
-}
-
 /** The same row filled from the macro series store, dated to the store, for a symbol Yahoo refused. */
 export function quoteFromSeries(manifest, row) {
   const series = (manifest?.series || []).find((s) => s?.id === row.series);
-  if (!series || !Number.isFinite(series.last_value) || !series.last) return null;
-  const d1 = Number.isFinite(series.returns?.d1) ? series.returns.d1 : null;
+  if (!series || !Number.isFinite(series.last_value) || series.last_value <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(series.last || '') || !Number.isFinite(Date.parse(`${series.last}T00:00:00Z`))) return null;
+  const d1 = Number.isFinite(series.returns?.d1) && series.returns.d1 > -100 ? series.returns.d1 : null;
   const last = series.last_value;
   return {
     ...row, last,
@@ -239,17 +220,23 @@ export function quoteFromSeries(manifest, row) {
 
 export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {}) {
   const rows = [];
+  const exchange = readNseIndices(MARKET_ROWS, { fetcher, now });
+  const primary = readUpstoxIndices(MARKET_ROWS.filter(r => r.group === 'india'), { token: env?.UPSTOX_ACCESS_TOKEN, fetcher, now });
   await pooled(MARKET_ROWS, QUOTE_POOL, async (row) => {
     try {
       const url = `${YAHOO_CHART_BASE}${encodeURIComponent(row.symbol)}?range=5d&interval=1d`;
       const res = await fetcher(url, { headers: { 'user-agent': YAHOO_USER_AGENT, accept: 'application/json' }, signal: AbortSignal.timeout(QUOTE_TIMEOUT_MS), redirect: 'manual' });
-      if (!res.ok) throw Object.assign(new Error(`Yahoo HTTP ${res.status}`), { reason: res.status === 429 ? 'rate-limited' : 'upstream' });
-      rows.push(quoteFromChart(await res.json(), row, now));
+      if (!res.ok) { await res.body?.cancel(); throw Object.assign(new Error(`Yahoo HTTP ${res.status}`), { reason: res.status === 429 ? 'rate-limited' : 'upstream' }); }
+      rows.push(quoteFromChart(await boundedJson(res, 256 * 1024), row, now));
     } catch (error) {
       rows.push({ ...row, last: null, prev: null, change: null, changePct: null, asOf: null, state: 'unavailable', origin: null, reason: reasonOf(error) });
     }
   });
-  const failed = rows.filter((r) => r.state === 'unavailable');
+  const [upstox, nse] = await Promise.all([primary, exchange]);
+  for (let i = 0; i < rows.length; i++) if (rows[i].group === 'india') {
+    rows[i] = reconcileIndianIndex(rows[i], upstox.rows.get(rows[i].id), nse.rows.get(rows[i].id), upstox.failures?.[rows[i].id] || upstox.reason);
+  }
+  const failed = rows.filter((r) => r.state === 'unavailable' && r.reason !== 'source-conflict');
   let stored = [];
   if (failed.length && env?.ASSETS) {
     const manifest = await readAsset(env, SERIES_INDEX_PATH);
@@ -260,10 +247,14 @@ export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {
   }
   const byId = new Map(rows.map((r) => [r.id, r]));
   return {
-    readAt: now,
+    readAt: now, upstox: { configured: !!env?.UPSTOX_ACCESS_TOKEN, reason: upstox.reason, checked: upstox.rows.size },
+    nse: { reason: nse.reason, checked: nse.rows.size },
     rows: MARKET_ROWS.map((r) => byId.get(r.id)),
     failed: rows.filter((r) => r.state === 'unavailable').map((r) => r.id),
     stored,
+    unverified: rows.filter(r => r.last != null && r.changePct == null).map(r => r.id),
+    outliers: rows.filter(r => r.otherSourcesDisagree?.length).map(r => r.id),
+    conflicts: rows.filter(r => r.verification === 'conflict' || r.changeReason === 'previous-close-conflict').map(r => r.id),
   };
 }
 
@@ -1338,6 +1329,9 @@ export function briefSummary(brief) {
     quotes: brief.markets.rows.filter((r) => r.last != null).length,
     quotesFailed: brief.markets.failed,
     quotesStored: brief.markets.stored,
+    quotesUnverified: brief.markets.unverified || [], quotesConflicts: brief.markets.conflicts || [],
+    indexSource: brief.markets.upstox || null, exchangeSource: brief.markets.nse || null,
+    quotesOutliers: brief.markets.outliers || [],
     announcements: brief.announcements.count,
     news: brief.news.count,
     newsReviewed: brief.news.dedup?.reviewed || 0, newsCombined: brief.news.dedup?.combined || 0, newsReviewReason: brief.news.dedup?.reason || null,
@@ -1386,20 +1380,23 @@ export const formatPct = (row) => (row.changePct == null ? null : signed(row.cha
 
 const zoneShort = (ms, timezone) => {
   try {
-    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, weekday: 'short', hour: '2-digit', minute: '2-digit', timeZoneName: 'short', hour12: false }).formatToParts(ms);
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short', hour12: false }).formatToParts(ms);
     const get = (t) => parts.find((p) => p.type === t)?.value || '';
-    return `${get('weekday')} ${get('hour')}:${get('minute')} ${get('timeZoneName')}`.trim();
+    return `${get('weekday')} ${get('day')} ${get('month')} ${get('year')} ${get('hour')}:${get('minute')} ${get('timeZoneName')}`.trim();
   } catch {
     return istLabel(ms);
   }
 };
 
-/** "Close · Wed 16:00 EDT", "Live · Thu 07:58 JST", "Series store · 2026-09-08" or "unavailable". */
+/** Each figure carries the full source date, time, provider and any verification gap. */
 export function asOfLabel(row) {
-  if (row.state === 'unavailable') return 'unavailable';
+  if (row.state === 'unavailable') return marketIssue(row) || 'unavailable';
   if (row.state === 'stored') return `Series store · ${row.storedDay}`;
   const when = row.timezone ? zoneShort(row.asOf, row.timezone) : istLabel(row.asOf);
-  return `${row.state === 'live' ? 'Live' : 'Close'} · ${when}`;
+  const status = { live: 'Live', close: 'Close', delayed: 'Delayed quote', stale: 'Earlier quote' }[row.state] || 'Quote';
+  const provider = row.origin === 'nse' ? 'NSE' : row.origin === 'upstox' ? 'Upstox' : 'Yahoo';
+  const verification = row.verification === 'cross-checked' ? ' · cross-checked' : row.group === 'india' ? ' · single source' : '';
+  return `${status} · ${when} · ${provider}${verification}${marketIssue(row) ? ` · ${marketIssue(row)}` : ''}`;
 }
 
 export function glanceLine(brief) {
@@ -1407,7 +1404,7 @@ export function glanceLine(brief) {
   const parts = [];
   for (const id of GLANCE[brief.edition] || []) {
     const row = byId.get(id);
-    if (!row || row.last == null) continue;
+    if (!row || row.last == null || ['stale', 'delayed', 'stored'].includes(row.state) || marketIssue(row)) continue;
     const pct = formatPct(row);
     if (row.kind === 'price') parts.push(`${row.label} $${formatLast(row)}`);
     else if (row.kind === 'fx') parts.push(`${row.label} ${formatLast(row)}`);
@@ -1430,12 +1427,7 @@ export function briefSubject(brief, { brand = BRAND, part = null } = {}) {
 }
 
 const windowLine = (brief) => `${istLabel(brief.window.from)} → ${istLabel(brief.window.to)}`;
-const groupNote = (brief, groupId) => {
-  if (groupId === 'us') return brief.edition === 'morning' ? 'previous session' : 'last close';
-  if (groupId === 'asia') return brief.edition === 'morning' ? 'this morning' : 'today';
-  if (groupId === 'india') return brief.edition === 'morning' ? 'previous close' : "today's close";
-  return null;
-};
+const groupNote = (brief, groupId) => groupId === 'india' ? 'daily move vs previous close' : 'source times below';
 
 // ---- the email -----------------------------------------------------------------------------------
 //
@@ -1462,7 +1454,7 @@ const marketRowHtml = (r) => {
         <td align="right" style="padding:5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;color:${INK};${NUM}">${last == null ? `<span style="color:${META};">—</span>` : esc(last)}</td>
         <td align="right" style="padding:5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:11px;color:${META};${NUM}">${r.change == null ? '' : esc(formatChange(r))}</td>
         <td align="right" style="padding:5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;font-weight:bold;color:${tone};${NUM}">${pct == null ? `<span style="color:${META};font-weight:normal;">—</span>` : esc(pct)}</td>
-        <td align="right" style="padding:5px 0 5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:10px;color:${META};white-space:nowrap;">${esc(asOfLabel(r))}</td>
+        <td align="right" style="padding:5px 0 5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:10px;color:${META};">${esc(asOfLabel(r))}</td>
       </tr>`;
 };
 
@@ -1614,6 +1606,15 @@ export function sourcesNote(brief) {
   const t = brief.trades;
   const m = brief.moves;
   const bits = [];
+  if (brief.markets) {
+    const market = brief.markets;
+    bits.push(`market source checks started ${istLabel(market.readAt)}; each row carries its own source time; daily changes use the preceding session close`);
+    if (market.nse?.reason) bits.push(`NSE index check ${market.nse.reason}; usable alternative sources are labelled on each row`);
+    if (market.outliers?.length) bits.push(`${market.outliers.length} exchange quote(s) corroborated by another provider despite a third-source disagreement`);
+    if (market.upstox?.reason) bits.push(`Upstox index check ${market.upstox.reason}; fallback rows are marked single source`);
+    if (market.conflicts?.length) bits.push(`${market.conflicts.length} market source disagreement(s); affected figures withheld`);
+    if (market.unverified?.length) bits.push(`${market.unverified.length} daily change(s) could not be verified`);
+  }
   bits.push(a.nse.ok ? `NSE live feed read ${istLabel(a.nse.readAt)}` : `NSE live feed could not be read (${a.nse.reason || 'unavailable'})`);
   bits.push(a.nseHistory?.ok
     ? `NSE history ${a.nseHistory.days.length ? `${a.nseHistory.days.length} day file${a.nseHistory.days.length === 1 ? '' : 's'} (${a.nseHistory.days.join(', ')})` : 'no day file for this window'}, captured ${capturedLabel(a.nseHistory.capturedAt)}`

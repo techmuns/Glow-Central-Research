@@ -97,6 +97,8 @@ jobs:
         run: node scripts/verify-capture-registration.mjs
       - name: Verify the shared watchlist contract, attribution and conflicting edits
         run: node scripts/verify-shared-watchlist.mjs
+      - name: Verify daily market changes and exchange source reconciliation
+        run: node scripts/verify-newsletter-markets.mjs
       - name: Verify the team brief — contract, store, fixture-built editions and the sending alarm
         run: node scripts/verify-newsletter.mjs && node scripts/verify-newsletter-events.mjs && node scripts/verify-newsletter-content.mjs && node scripts/verify-newsletter-openai.mjs && node scripts/verify-newsletter-price-reasons.mjs
       - name: Verify operational filing health

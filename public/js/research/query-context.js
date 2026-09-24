@@ -2,6 +2,9 @@
 const DAY = 86_400_000;
 const IST = 19_800_000;
 const TOPICS = [
+  // A document request needs the named attachment ahead of generic issuer posts.
+  // This ranks the available filename/text; it does not claim its contents were read.
+  ['documents', /\b(pdfs?|attachments?|documents?)\b/i, /\b(pdfs?|attachments?|documents?)\b/i],
   ['chief-executive', /\b(ceo|chief executive)\b/i, /\b(ceo|chief executive)\b/i],
   ['chief-financial', /\b(cfo|chief financial)\b/i, /\b(cfo|chief financial)\b/i],
   ['leadership', /\b(ceo|cfo|coo|md|chief executive|chief financial|managing director|management|leadership|succession|resign\w*|appoint\w*)\b/i,
