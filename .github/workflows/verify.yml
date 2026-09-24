@@ -100,7 +100,7 @@ jobs:
       - name: Verify daily market changes and exchange source reconciliation
         run: node scripts/verify-newsletter-markets.mjs
       - name: Verify the team brief — contract, store, fixture-built editions and the sending alarm
-        run: node scripts/verify-newsletter.mjs && node scripts/verify-newsletter-events.mjs && node scripts/verify-newsletter-content.mjs && node scripts/verify-newsletter-openai.mjs
+        run: node scripts/verify-newsletter.mjs && node scripts/verify-newsletter-events.mjs && node scripts/verify-newsletter-content.mjs && node scripts/verify-newsletter-openai.mjs && node scripts/verify-newsletter-price-reasons.mjs
       - name: Verify operational filing health
         run: node scripts/verify-filings-health.mjs
       - name: Verify capture watchdog
@@ -143,6 +143,8 @@ jobs:
         run: node scripts/verify-ai-alerts.mjs && node scripts/verify-alert-capacity.mjs && node scripts/verify-kpi-impact.mjs
       - name: Verify material alert lifecycle and optional social coverage
         run: node scripts/verify-alert-reliability.mjs && python3 scripts/verify-twitter-collection.py
+      - name: Verify one development per alert and the AI "So what?" contract
+        run: node scripts/verify-alert-developments.mjs && node scripts/verify-alert-notes.mjs
       - name: Verify investor changes and bulk/block ingestion
         run: node scripts/verify-investor-changes.mjs
       - name: Verify holdings integrity and snapshot retention

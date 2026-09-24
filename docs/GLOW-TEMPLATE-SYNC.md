@@ -493,3 +493,42 @@ Glow owns the OpenAI news reader, independent review, cached notes and news spen
 `worker/newsletter-news-*.mjs` and `worker/newsletter-openai.mjs`. Its `OPENAI_API_KEY` stays in
 Glow’s Worker secrets. See [news AI](NEWSLETTER-NEWS-AI.md); do not copy credentials or assume
 the news allowance also caps filing/PDF or Ask Research costs.
+
+## One development per alert, and the "So what?" line (23 September 2026)
+
+The customer's reading of Puravankara: one ₹2,600 crore Goregaon redevelopment win appeared as seven
+or eight alerts (its BSE announcement, the NSE copies and publisher write-ups), the card led with a
+write-up so a corporate announcement read as generic news, and neither surface said what the win
+meant for the numbers. Glow's AI Alerts and All Alerts now fold each development into one item led by
+the company's own filing (labelled **Corporate announcement**, linking to that filing), print a short
+**What happened** line, and add an AI **So what?** line — the likely earnings or valuation implication.
+This deliberately brings back a two-bullet card: the 23 September *card parity* note above retired
+Glow's deterministic topic bullets; these two bullets are the customer's explicit request, and the
+second is an AI reading with its own contract (see `docs/DATA-CONTRACTS.md`). Offer it to Sattva in
+its own pull request; until then, preserve it on a template merge.
+
+- New files: `public/js/data/alert-developments.js` (the fold), `public/js/data/alert-claims.js`
+  (`filingClaim` / `sourceStatement` / `clip` / `isTypeOnly`, moved out of `ai-alerts.js` and
+  re-exported from it unchanged), `public/js/data/alert-notes-shared.js`, `public/js/data/alert-notes.js`,
+  `public/js/ui/alert-note.js`, `worker/alert-notes.mjs`, `worker/alert-notes-store.mjs`,
+  `scripts/verify-alert-developments.mjs`, `scripts/verify-alert-notes.mjs`.
+- Hunks in shared files: `card.developments`, `leadDevelopment`, `developmentOfEvent`,
+  `developmentClaim`, `whatHappened`, the per-development `materialEvidence` and counts and the
+  `first` option of `topEvidence` in `js/data/ai-alerts.js`; `whatHappenedMarkup`, `soWhatMarkup` and
+  the folded count on evidence rows in `js/tabs/ai-alerts.js`; development leads in `alertSignals`
+  (`js/ui/ai-alert-utils.js`); the folded stream, row kind line, member-aware filters, search, notes
+  and export columns, and the fold-aware paint rules (`renderedView`, `settledView`,
+  `showingProvisional`: hold a background update over a folded view, never hold the reader's own
+  change, never hold a view's first rows) in `js/tabs/daily-alerts.js`; the filing fields
+  (`filingHeadline`, `documentHash`) on announcement events and the memoised projection
+  (`projectedEvent`) in `toFeedRow` in `js/data/daily-alerts.js`; the route in `worker/index.js`, the
+  store on `worker/capture-registry-object.mjs`; the service-worker marker
+  `glow-alert-developments-v1`; one CI step; and, in `scripts/verify-general-alerts-ui.mjs`, the wait
+  for the All history read to finish (`settled()`, then no loading rows) before the embedded wheel
+  step. Until it lands the table keeps Today's rows, and with Today nearly empty (late night IST) there
+  was nothing to scroll.
+- Settings: the `ALERT_NOTES` Durable Object alias and the `ALERT_NOTES_LIMITER` rate limit
+  (namespace `1805`, Glow's 18xx range) in `wrangler.jsonc`. No new secret: the notes use the existing
+  `CLAUDE_KEY` Bedrock credential; without it every card says the model key is not configured.
+- Spend: one model request per development ever asked about (notes are stored by the text they were
+  written from and shared by every reader), at most 1,200 new notes per Indian day.

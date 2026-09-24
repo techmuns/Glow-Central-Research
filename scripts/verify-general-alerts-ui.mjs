@@ -655,8 +655,12 @@ try {
   });
   assert.equal(await embedded.getByRole('combobox', { name: 'Date range' }).inputValue(), 'today', 'fresh embedded dashboard also defaults to Today');
   await embedded.getByRole('combobox', { name: 'Date range' }).selectOption('all');
-  // All history starts a new source read after the bounded Today snapshot. Wait
-  // for that read and its filter paint before latching native wheel input to the table.
+  // WAIT FOR THE HISTORY THIS STEP SCROLLS, NOT FOR A STILL SURFACE. Choosing All history starts a
+  // read of the whole retained history, and until it lands the table keeps the rows it has (Today's
+  // — four at 02:00 IST, when nothing overflows) or shows loading rows over an inert scroller. Either
+  // is as still as a settled table, so a stability check alone let the wheel reach a table with
+  // nothing to scroll whenever Today was short. Wait for the sources to finish reading, as on entry,
+  // and for the table's own loading state to clear, as `selectPeriod` does.
   await settled(embedded);
   await embedded.waitForFunction(() => !document.querySelector('[data-table-loading]'));
   for (const size of [{ width: 1440, height: 800 }, { width: 1024, height: 640 }]) {
