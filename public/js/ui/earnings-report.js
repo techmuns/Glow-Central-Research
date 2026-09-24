@@ -26,7 +26,7 @@ export function wireEarningsReports(root) {
     const button = event.target.closest('[data-earnings-report]');
     if (!button || !root.contains(button)) return;
     event.preventDefault();
-    const ticker = button.dataset.earningsReport, period = button.dataset.period;
+    const ticker = button.dataset.earningsReport, period = button.dataset.reportPeriod;
     const popup = window.open('about:blank', '_blank');
     if (!popup) { window.alert('Please allow a new tab to open this filing, then click Reports again.'); return; }
     popup.opener = null;
