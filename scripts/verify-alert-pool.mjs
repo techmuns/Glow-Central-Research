@@ -90,8 +90,8 @@ console.log('PASS older unattributed market news becomes identical company conte
 
 // 1. THE ORACLE: the full-history collection the browser performs without any pool.
 console.log(`collecting the full history for ${day} (the oracle)`);
-const full = await alerts.collect({ scope: 'universe', day, includeHistory: true });
-const sourceFeeds = full.sourceFeeds.filter(publicAlertFeed);
+let full = await alerts.collect({ scope: 'universe', day, includeHistory: true });
+let sourceFeeds = full.sourceFeeds.filter(publicAlertFeed);
 assert(full.feeds.find((feed) => feed.id === 'news').count > 0, 'the oracle must actually load retained news');
 const index = writePoolMembers({ outDir, sourceFeeds, day, now, book: coverage.holdings(), newsMeta: news.meta(), captures: captureIdentities({ root, exchange }) });
 verifyPoolMembers({ outDir, sourceFeeds, index });
@@ -213,7 +213,7 @@ alertPool.resetForTest();
 // THE NARROWED WEEK is the reference for the fallbacks below — the full history assembled to the
 // period, the same code path a period takes over settled sources. It is built here, after the
 // ranking, so that it is not held beside two rankings and the AI pool.
-const narrowedWeek = alerts.assemble({ day, scope: 'universe', holdings: coverage.holdings(), includeHistory: true, queryWindow: week, settledFeeds: new Map(full.sourceFeeds.map((feed) => [feed.id, feed])) });
+let narrowedWeek = alerts.assemble({ day, scope: 'universe', holdings: coverage.holdings(), includeHistory: true, queryWindow: week, settledFeeds: new Map(full.sourceFeeds.map((feed) => [feed.id, feed])) });
 
 // 4. EVERY REASON THE POOL STANDS ASIDE. Each one is checked on the read itself, and each leaves
 // the collection to the live path for that feed — the same records, read the way they always were.
@@ -307,7 +307,7 @@ console.log('PASS unreadable members and invalid shards leave the collection to 
 alertPool.resetForTest();
 await alerts.collect({ scope: 'universe', day, includeHistory: true, queryWindow: week, pool: 'window' });
 served.requests = [];
-const reassembled = await alerts.collect({ scope: 'universe', day, includeHistory: true, queryWindow: week, pool: 'window', load: false });
+let reassembled = await alerts.collect({ scope: 'universe', day, includeHistory: true, queryWindow: week, pool: 'window', load: false });
 assertEvents(reassembled.events, narrowedWeek.events, 'a reassembly without loading yields the same period');
 assert.deepEqual(served.requests.filter((path) => path.startsWith('api/alert-pool/')), [], 'a reassembly reads no member');
 console.log('PASS a reassembly without loading reuses the pool read in memory');
@@ -324,6 +324,15 @@ console.log('PASS a reassembly without loading reuses the pool read in memory');
   assert(!marketWide || !alertPool.needsFullRecord(marketWide), 'a market-wide story keeps its record in the AI pool');
 }
 console.log('PASS a compact event resolves its full source record from the pool for a notebook snapshot');
+// The full-history oracle and its derived views have now served every assertion.
+// Release their references before re-seeding the feeds: growing retained history
+// must not make the harness hold both generations of every capture at once.
+full = null;
+sourceFeeds = null;
+narrowedWeek = null;
+reassembled = null;
+alertPool.resetForTest();
+clearRankingCache();
 
 // 8. ROWS THIS SESSION HOLDS BEYOND THE CAPTURE DO DECLINE — through the feed modules themselves,
 // last because they cannot be taken back. A device copy that a tab loads for a company (a
