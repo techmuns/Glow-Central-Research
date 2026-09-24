@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { INDIA_INSTRUMENTS, quoteFromNse, readNseIndices, reconcileIndianIndex, quoteFromChart, quoteFromUpstox, readUpstoxIndices, reconcileIndex } from '../worker/newsletter-markets.mjs';
+import { INDIA_INSTRUMENTS, GLOBAL_INSTRUMENTS, BSE_SENSEX_URL, quoteFromBse, readBseSensex, reconcileGlobalIndex, quoteFromNse, readNseIndices, reconcileIndianIndex, quoteFromChart, quoteFromUpstox, readUpstoxIndices, reconcileIndex } from '../worker/newsletter-markets.mjs';
 import { MARKET_ROWS, readMarkets, asOfLabel, formatPct, formatChange, buildBrief, renderBriefHtml, renderBriefText } from '../worker/newsletter-brief.mjs';
 import { DEFAULT_SETTINGS } from '../public/js/data/newsletter-shared.js';
 import { renderBriefPdf } from '../worker/newsletter-pdf.mjs';
@@ -21,6 +21,142 @@ const chart = (row = nifty, last = 23446.8, prev = 23329) => ({ chart: { result:
 const primary = (row = nifty, last = 23446.8, prev = 23329) => ({
   instrument_token: INDIA_INSTRUMENTS[row.id][0], symbol: INDIA_INSTRUMENTS[row.id][1],
   last_price: last, net_change: last - prev, prev_close_price: prev, ohlc: { close: last }, last_trade_time: String(time('2026-09-23')),
+});
+const sensex = MARKET_ROWS.find(r => r.id === 'sensex');
+const bseBody = fixture('bse-sensex-2026-09-24.json');
+const bseNow = time('2026-09-24', '09:39');
+const alterBse = fn => {
+  const [head, points] = bseBody.split('#@#').map(p => JSON.parse(p.replace(/\\"/g, '"')));
+  fn(head[0], points);
+  return `${JSON.stringify(head)}#@#${JSON.stringify(points)}`;
+};
+const globalQuote = (id = 'sp500', at = '2026-09-23T16:36:00-04:00') => ({
+  instrument_token: GLOBAL_INSTRUMENTS[id][0], symbol: GLOBAL_INSTRUMENTS[id][1],
+  last_price: 7706.03, prev_close_price: 7764.64, net_change: -58.61, last_trade_time: String(Date.parse(at)),
+});
+
+test('captured BSE chart dates the cash point, ignores the wrong header clock and validates its previous close', async () => {
+  const q = quoteFromBse(bseBody, sensex, bseNow);
+  assert.equal(q.last, 74267.72); assert.equal(q.prev, 74828.25); assert.equal(q.state, 'live');
+  assert.equal(q.asOf, Date.parse('2026-09-24T09:38:38+05:30'));
+  assert.equal(formatPct(q), '−0.75%'); assert.equal(formatChange(q), '−560.53');
+  assert.match(asOfLabel(q), /24 Sept? 2026 09:38.*BSE Indices/);
+  assert.equal(quoteFromBse(bseBody, sensex, time('2026-09-24', '16:00')).state, 'delayed');
+  assert.equal(quoteFromBse(bseBody, sensex, time('2026-09-25', '10:00')).state, 'stale');
+  const read = await readBseSensex(sensex, { now: bseNow, fetcher: async (url, init) => {
+    assert.equal(url, BSE_SENSEX_URL); assert.equal(init.headers.authorization, undefined);
+    assert.equal(init.redirect, 'manual'); assert(init.signal);
+    return Response.json(bseBody);
+  } });
+  assert.equal(read.rows.get('sensex').prev, 74828.25);
+});
+
+test('BSE refuses pre-open, missing/duplicate/future/mixed-day points and incoherent or wrong-index headers', async () => {
+  for (const mutate of [
+    (h, p) => { p.splice(15); },
+    (h, p) => { p.push(p.at(-1)); },
+    (h, p) => { p.reverse(); },
+    (h, p) => { p.at(-1).date = 'Fri Sep 25 2026 09:38:38'; },
+    (h, p) => { p.at(-1).date = 'Thu Sep 24 2026 09:45:38'; },
+    (h, p) => { p.at(-1).value = null; },
+    (h, p) => { p.at(-1).value = 'invalid'; },
+    (h, p) => { delete p.at(-1).value; },
+    h => { h.LatestVal = '1'; }, h => { h.PreClose = '0'; }, h => { h.Scrip = 'BSE SENSEX NEXT 30'; },
+  ]) assert.throws(() => quoteFromBse(alterBse(mutate), sensex, bseNow));
+  assert.throws(() => quoteFromBse(bseBody, nifty, bseNow));
+  for (const [status, reason] of [[403, 'blocked'], [302, 'unavailable'], [429, 'rate-limited'], [503, 'unavailable']]) {
+    assert.equal((await readBseSensex(sensex, { now: bseNow, fetcher: async () => new Response('', { status }) })).reason, reason);
+  }
+  assert.equal((await readBseSensex(sensex, { now: bseNow, fetcher: async () => Response.json('x'.repeat(270000)) })).rows.size, 0);
+});
+
+test('global Upstox uses exact cash-index identities, previous-close arithmetic and exchange-local dates', () => {
+  const now = Date.parse('2026-09-24T08:00:00+05:30'), row = MARKET_ROWS.find(r => r.id === 'sp500');
+  const q = quoteFromUpstox(globalQuote(), row, now);
+  assert.equal(q.state, 'close'); assert.equal(q.sessionDate, '2026-09-23');
+  assert.equal(q.timezone, 'America/New_York'); assert.equal(formatPct(q), '−0.75%');
+  assert.equal(formatChange(q), '−58.61');
+  for (const data of [{ ...globalQuote(), symbol: 'IXIX' }, { ...globalQuote(), instrument_token: 'GLOBAL_INDEX|DOW FUTURES' },
+    { ...globalQuote(), last_trade_time: '0', timestamp: new Date(now).toISOString() }]) assert.throws(() => quoteFromUpstox(data, row, now));
+  assert.throws(() => quoteFromUpstox(globalQuote(), { ...row, symbol: '^IXIC' }, now));
+  assert.equal(quoteFromUpstox({ ...globalQuote(), net_change: 0 }, row, now).changePct, null);
+  assert(!GLOBAL_INSTRUMENTS.nasdaq); assert(!GLOBAL_INSTRUMENTS.brent); assert(!GLOBAL_INSTRUMENTS.usdinr);
+});
+
+test('global source timestamps survive DST/weekends, missed opens and intraday/delayed observations', () => {
+  const row = MARKET_ROWS.find(r => r.id === 'sp500');
+  const q = (at, now) => quoteFromUpstox(globalQuote('sp500', at), row, Date.parse(now));
+  assert.equal(q('2026-09-25T16:00:00-04:00', '2026-09-28T09:00:00-04:00').state, 'close');
+  assert.equal(q('2026-09-25T16:00:00-04:00', '2026-09-28T09:31:00-04:00').state, 'stale');
+  assert.equal(q('2026-09-23T13:00:00-04:00', '2026-09-23T17:00:00-04:00').state, 'delayed');
+  assert.equal(q('2026-09-23T13:00:00-04:00', '2026-09-23T13:01:00-04:00').state, 'live');
+  assert.equal(q('2026-12-01T16:00:00-05:00', '2026-12-02T09:00:00-05:00').state, 'close');
+  const hk = quoteFromUpstox(globalQuote('hangseng', '2026-09-24T10:00:00+08:00'), MARKET_ROWS.find(r => r.id === 'hangseng'), Date.parse('2026-09-24T10:15:00+08:00'));
+  assert.equal(hk.state, 'delayed'); assert.match(asOfLabel(hk), /15-minute feed delay/);
+});
+
+test('global fallback repairs missing changes without mixing prices and withholds unresolved disagreements', () => {
+  const row = MARKET_ROWS.find(r => r.id === 'sp500');
+  const upstox = quoteFromUpstox(globalQuote(), row, Date.parse('2026-09-24T08:00:00+05:30'));
+  const yahoo = { ...upstox, origin: 'yahoo', prev: null, change: null, changePct: null, changeReason: 'previous-close-unverified' };
+  assert.equal(reconcileGlobalIndex(yahoo, upstox).origin, 'upstox');
+  assert.equal(reconcileGlobalIndex(yahoo, upstox).verification, 'single-source');
+  assert.equal(reconcileGlobalIndex({ ...yahoo, prev: upstox.prev }, upstox).verification, 'cross-checked');
+  assert.equal(reconcileGlobalIndex({ ...yahoo, prev: 100 }, upstox).changePct, null);
+  assert.equal(reconcileGlobalIndex({ ...yahoo, last: 7700 }, upstox).last, null);
+  assert.equal(reconcileGlobalIndex(yahoo, { ...upstox, state: 'stale' }).origin, 'yahoo');
+  assert.equal(reconcileGlobalIndex(yahoo, { ...upstox, state: 'delayed' }).state, 'delayed');
+});
+
+test('unknown Indian special-session hours cannot certify an intraday observation as the next morning close', () => {
+  const asOf = time('2026-11-08', '18:20'), now = time('2026-11-09', '08:00');
+  assert.equal(quoteFromUpstox({ ...primary(), last_trade_time: String(asOf) }, nifty, now).state, 'delayed');
+  const nse = fixture('nse-indices-2026-09-23.json').data.find(r => r.index === 'NIFTY 50');
+  assert.equal(quoteFromNse(nse, '08-Nov-2026 18:20:00', nifty, now).state, 'delayed');
+  const bse = JSON.stringify([{ Scrip: 'BSE SENSEX', PreClose: '74828.25', LatestVal: '75000' }]) +
+    '#@#' + JSON.stringify([{ date: 'Sun Nov 08 2026 18:20:00', value: '75000' }]);
+  assert.equal(quoteFromBse(bse, sensex, now).state, 'delayed');
+  const body = chart(), r = body.chart.result[0];
+  r.meta.regularMarketTime = asOf / 1000;
+  r.meta.currentTradingPeriod.regular = { start: time('2026-11-09', '09:15') / 1000, end: time('2026-11-09', '15:30') / 1000 };
+  assert.equal(quoteFromChart(body, nifty, now).state, 'delayed');
+});
+
+test('source expansion isolates global failures, recovers Sensex with BSE and keeps provenance in every output', async () => {
+  let globalFail = false;
+  const fetcher = async (url, init) => {
+    if (url === BSE_SENSEX_URL) return Response.json(bseBody);
+    if (String(url).startsWith('https://api.upstox.com/')) {
+      assert.equal(init.headers.authorization, 'Bearer fixture');
+      const keys = new URL(url).searchParams.get('instrument_key').split(',');
+      if (keys[0].startsWith('GLOBAL')) {
+        assert.deepEqual(keys, Object.keys(GLOBAL_INSTRUMENTS).map(id => GLOBAL_INSTRUMENTS[id][0]));
+        if (globalFail) return new Response('', { status: 400 });
+        return Response.json({ status: 'success', data: { sp500: globalQuote(), dow: globalQuote('dow') } });
+      }
+      assert.equal(keys.length, 8);
+      return Response.json({ status: 'success', data: { nifty: { ...primary(), last_trade_time: String(bseNow) } } });
+    }
+    assert.equal(init.headers?.authorization, undefined);
+    return new Response('', { status: 503 });
+  };
+  const env = { UPSTOX_ACCESS_TOKEN: 'fixture', ASSETS: { fetch: async request => {
+    try { return new Response(readFileSync(new URL(`../public${new URL(request.url).pathname}`, import.meta.url))); }
+    catch { return new Response('', { status: 404 }); }
+  } } };
+  const markets = await readMarkets({ env, fetcher, now: bseNow });
+  assert.equal(markets.bse.checked, 1); assert.equal(markets.globalUpstox.checked, 2);
+  assert.equal(markets.rows.find(r => r.id === 'sensex').origin, 'bse');
+  assert.equal(markets.rows.find(r => r.id === 'sp500').origin, 'upstox');
+  assert.notEqual(markets.rows.find(r => r.id === 'nasdaq').origin, 'upstox');
+  const brief = await buildBrief({ edition: 'morning', day: '2026-09-24', settings: DEFAULT_SETTINGS, env, fetcher, now: bseNow });
+  for (const output of [renderBriefHtml(brief), renderBriefText(brief), Buffer.from(renderBriefPdf(brief)).toString('latin1')]) {
+    assert.match(output, /BSE Indices/); assert.match(output, /Upstox/); assert.match(output, /single source/);
+  }
+  globalFail = true;
+  const failed = await readMarkets({ env, fetcher, now: bseNow });
+  assert.equal(failed.globalUpstox.reason, 'unavailable'); assert.equal(failed.upstox.checked, 1);
+  assert.equal(failed.rows.find(r => r.id === 'sensex').origin, 'bse');
 });
 
 test('23 September customer report: correct levels AND NSE daily changes, never the five-day reference', () => {
