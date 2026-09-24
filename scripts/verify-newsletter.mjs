@@ -107,6 +107,15 @@ function makeFetcher({ yahoo = 'ok', nse = 'ok', email = 'ok', log = [] } = {}) 
       const body = JSON.parse(fixture(file));
       const meta = body.chart.result[0].meta;
       meta.symbol = symbol; // Every mock response must identify the requested instrument.
+      // Reused numeric fixtures still need the requested instrument's identity.
+      const identities = {
+        '^IXIC': ['USD', 'America/New_York', 'INDEX'], '^DJI': ['USD', 'America/New_York', 'INDEX'],
+        '^TWII': ['TWD', 'Asia/Taipei', 'INDEX'], '000001.SS': ['CNY', 'Asia/Shanghai', 'INDEX'],
+        '^HSI': ['HKD', 'Asia/Hong_Kong', 'INDEX'], '^KS11': ['KRW', 'Asia/Seoul', 'INDEX'],
+        'GC=F': ['USD', 'America/New_York', 'FUTURE'], 'SI=F': ['USD', 'America/New_York', 'FUTURE'],
+        'DX-Y.NYB': ['USD', 'America/New_York', 'INDEX'], 'INR=X': ['INR', 'Europe/London', 'CURRENCY'],
+      };
+      if (identities[symbol]) [meta.currency, meta.exchangeTimezoneName, meta.instrumentType] = identities[symbol];
       meta.regularMarketTime = Math.min(meta.regularMarketTime, MORNING / 1000);
       if (MARKET_ROWS.find(r => r.symbol === symbol)?.group === 'india') {
         const r = body.chart.result[0];
@@ -277,7 +286,8 @@ await test('a Yahoo chart becomes a quote with its own session state and time', 
   assert.ok(sp.last > 0 && sp.prev > 0 && Number.isFinite(sp.changePct));
   assert.equal(sp.timezone, 'America/New_York');
   const nikkei = quoteFromChart(JSON.parse(fixture('yahoo-nikkei.json')), MARKET_ROWS[3], Date.parse('2026-09-17T06:00:00Z'));
-  assert.equal(nikkei.state, 'live', 'Tokyo is trading at 08:00 IST');
+  assert.equal(nikkei.state, 'delayed', 'an open Tokyo session does not make the Yahoo feed real-time');
+  assert.equal(nikkei.delayMinutes, 30);
   assert.throws(() => quoteFromChart({ chart: { result: [{ meta: {} }] } }, MARKET_ROWS[0], MORNING), /shape/);
 });
 

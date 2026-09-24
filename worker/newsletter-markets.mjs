@@ -23,6 +23,25 @@ const GLOBAL_SESSIONS = {
   sp500: ['America/New_York', 'USD', 570, 960, 0], dow: ['America/New_York', 'USD', 570, 960, 0],
   nikkei: ['Asia/Tokyo', 'JPY', 540, 930, 15], hangseng: ['Asia/Hong_Kong', 'HKD', 570, 970, 15],
 };
+// Exact Yahoo quote identities and published feed delays (Yahoo Help SLN2310,
+// checked 24 Sep 2026). A recent observation is not necessarily a real-time feed.
+const YAHOO_GLOBAL_QUOTES = {
+  sp500: ['^GSPC', 'INDEX', 'USD', 'America/New_York', 0],
+  nasdaq: ['^IXIC', 'INDEX', 'USD', 'America/New_York', 0],
+  dow: ['^DJI', 'INDEX', 'USD', 'America/New_York', 0],
+  nikkei: ['^N225', 'INDEX', 'JPY', 'Asia/Tokyo', 30],
+  taiex: ['^TWII', 'INDEX', 'TWD', 'Asia/Taipei', 20],
+  shanghai: ['000001.SS', 'INDEX', 'CNY', 'Asia/Shanghai', 30],
+  hangseng: ['^HSI', 'INDEX', 'HKD', 'Asia/Hong_Kong', 15],
+  kospi: ['^KS11', 'INDEX', 'KRW', 'Asia/Seoul', 20],
+  brent: ['BZ=F', 'FUTURE', 'USD', 'America/New_York', 30],
+  gold: ['GC=F', 'FUTURE', 'USD', 'America/New_York', 30],
+  silver: ['SI=F', 'FUTURE', 'USD', 'America/New_York', 30],
+  dxy: ['DX-Y.NYB', 'INDEX', 'USD', 'America/New_York', 30],
+  usdjpy: ['JPY=X', 'CURRENCY', 'JPY', 'Europe/London', 0],
+  usdinr: ['INR=X', 'CURRENCY', 'INR', 'Europe/London', 0],
+  us10y: ['^TNX', 'INDEX', 'USD', 'America/Chicago', 15],
+};
 const instrument = id => INDIA_INSTRUMENTS[id] || GLOBAL_INSTRUMENTS[id];
 export const NSE_INDICES = { nifty: 'NIFTY 50', niftybank: 'NIFTY BANK', niftymid100: 'NIFTY MIDCAP 100',
   niftysmall100: 'NIFTY SMALLCAP 100', nifty500: 'NIFTY 500', niftyit: 'NIFTY IT', indiavix: 'INDIA VIX' };
@@ -149,8 +168,34 @@ export async function readNseIndices(rows, { fetcher, now, timeout = 8000 }) {
   } catch (e) { return { rows: new Map(), reason: /abort|timeout/i.test(e?.name) ? 'timeout' : 'unavailable' }; }
 }
 
-/** chartPreviousClose is the RANGE's starting reference, not yesterday's close.
- * Use the immediately preceding dated, unadjusted daily bar. Never skip a null bar.
+/** Use Yahoo's published daily quote change only as a coherent same-response
+ * tuple. fulldayPrice must equal the regular quote exactly, so an extended-hours
+ * move cannot be attached to a regular-session price. The derived reference is
+ * an arithmetic check, not an independently observed or dated previous close.
+ */
+function publishedComparison(meta, row) {
+  const identity = YAHOO_GLOBAL_QUOTES[row.id];
+  if (!identity) return null; // Indian indices retain exchange/calendar validation.
+  const fields = ['fulldayPrice', 'fulldayChange', 'fulldayChangePercent'];
+  if (fields.some(key => meta[key] == null)) return null;
+  if (row.symbol !== identity[0] || meta.instrumentType !== identity[1] ||
+      meta.currency !== identity[2] || meta.exchangeTimezoneName !== identity[3]) fail('identity');
+  const prev = meta.regularMarketPrice - meta.fulldayChange;
+  const pct = meta.fulldayChange / prev * 100;
+  // The feed publishes percent to at least three decimal places; calculate the
+  // final display from price/change to avoid double rounding (−0.755 -> −0.75%).
+  if (!fields.every(key => Number.isFinite(meta[key])) || !positive(prev) ||
+      meta.fulldayPrice !== meta.regularMarketPrice || !Number.isFinite(pct) ||
+      Math.abs(pct - meta.fulldayChangePercent) > 0.00051 ||
+      (meta.regularMarketChangePercent != null && (!Number.isFinite(meta.regularMarketChangePercent) ||
+        Math.abs(pct - meta.regularMarketChangePercent) > 0.00051))) return { conflict: true };
+  return { prev, change: meta.fulldayChange, changePct: pct };
+}
+
+/** chartPreviousClose is the RANGE's starting reference, never a daily change.
+ * Global quotes prefer a validated published daily change. Cash indices may
+ * fall back to the immediately preceding dated daily bar, never skip a null bar.
+ * FX fixings and rolling futures bars are not interchangeable quote references.
  */
 export function quoteFromChart(body, row, now) {
   const result = body?.chart?.result?.[0], meta = result?.meta;
@@ -181,8 +226,22 @@ export function quoteFromChart(body, row, now) {
       previousSession !== expectedSession(Date.parse(`${sessionDate}T09:14:00+05:30`))) {
     prev = null; changeReason = 'previous-close-unverified';
   }
+  const reported = publishedComparison(meta, row);
+  const quoteBasisOnly = row.kind === 'fx' || row.group === 'commodities';
+  let comparisonBasis = 'dated-close', comparison = delta(last, prev);
+  if (reported?.conflict || (reported && !quoteBasisOnly && prev != null && differs(reported.prev, prev))) {
+    prev = null; changeReason = 'previous-close-conflict'; comparison = delta(last, null);
+  } else if (reported) {
+    comparison = reported; prev = reported.prev; changeReason = null;
+    comparisonBasis = 'provider-reported';
+    // Do not present an inferred reference as a dated historical observation.
+    previousSession = null;
+  } else if (quoteBasisOnly) {
+    prev = null; previousSession = null; changeReason = 'previous-close-unverified'; comparison = delta(last, null);
+  }
   if (prev != null && positive(meta.previousClose) && differs(meta.previousClose, prev)) {
     prev = null; changeReason = 'previous-close-conflict';
+    comparison = delta(last, null);
   }
   const regular = meta.currentTradingPeriod?.regular;
   const start = regular?.start * 1000, end = regular?.end * 1000;
@@ -198,8 +257,12 @@ export function quoteFromChart(body, row, now) {
     else if (!marketWindow(now).open && asOf < Date.parse(`${sessionDate}T15:30:00+05:30`)) state = 'delayed';
     else if (state === 'close' && !marketWindow(asOf).calendarKnown) state = 'delayed';
   }
-  return { ...row, last, ...delta(last, prev), asOf, sessionDate, previousSession, state,
+  const delayMinutes = YAHOO_GLOBAL_QUOTES[row.id]?.[4] || (row.id === 'sensex' ? 15 : 0);
+  if (delayMinutes && state === 'live') state = 'delayed';
+  return { ...row, last, ...comparison, asOf, sessionDate, previousSession, state, delayMinutes,
     timezone, currency: meta.currency || null, origin: 'yahoo', checkedAt: now, changeReason,
+    comparisonBasis: changeReason ? null : comparisonBasis,
+    changeOrigin: !changeReason && comparisonBasis === 'provider-reported' ? 'yahoo-quote' : null,
     reportedPreviousClose: positive(meta.previousClose) ? meta.previousClose : null };
 }
 
