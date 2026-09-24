@@ -3,8 +3,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-24T01:24:07.605Z",
-  "oldestDataAt": "2026-09-24T01:24:07.605Z",
+  "capturedAt": "2026-09-24T05:14:46.906Z",
+  "oldestDataAt": "2026-09-24T05:14:46.906Z",
   "from": "2025-09-24",
   "to": "2026-09-24",
   "windowDays": 365,
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-24T01:24:07.605Z",
+      "capturedAt": "2026-09-24T05:14:46.906Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-24T01:24:07.605Z",
+      "capturedAt": "2026-09-24T05:14:46.906Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -49,12 +49,12 @@
       "label": "SAST",
       "url": "https://www.screener.in/trades/sast/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-09-21",
-      "oldestDate": "2026-09-01",
+      "latestDate": "2026-09-23",
+      "oldestDate": "2026-09-03",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-24T01:24:07.605Z",
+      "capturedAt": "2026-09-24T05:14:46.906Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -67,15 +67,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-24T01:24:07.605Z",
+      "capturedAt": "2026-09-24T05:14:46.906Z",
       "coverageFrom": "2026-08-04"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1634,
+  "withRows": 1638,
   "emptyCount": 0,
-  "rowCount": 17048,
+  "rowCount": 17064,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -238079,6 +238079,36 @@
     "SILGO": [
       {
         "ticker": "SILGO",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Silgo Retail",
+          "Insider": "Mr. Nitin Jain",
+          "Transaction": "Acquisition",
+          "Trade Shares": "200000",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SILGO",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Silgo Retail",
+          "Insider": "Mrs. Bela Agrawal",
+          "Transaction": "Sell",
+          "Trade Shares": "200000",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SILGO",
         "date": "2026-09-21",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -279110,6 +279140,21 @@
     "OMFURN": [
       {
         "ticker": "OMFURN",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Omfurn India",
+          "Insider": "Jayesh Mahendra Vishwakarma",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1200",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "OMFURN",
         "date": "2026-08-21",
         "url": "https://www.screener.in/trades/sast/?o=-2&p=5",
         "sourceId": "sast",
@@ -279992,6 +280037,36 @@
       }
     ],
     "JEYYAM": [
+      {
+        "ticker": "JEYYAM",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Jeyyam Global",
+          "Insider": "Shrreyan Mehta",
+          "Transaction": "Sell",
+          "Trade Shares": "4094030",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "JEYYAM",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Jeyyam Global",
+          "Insider": "Siddharrth Mehta",
+          "Transaction": "Acquisition",
+          "Trade Shares": "4094030",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "JEYYAM",
         "date": "2026-09-21",
@@ -292760,6 +292835,21 @@
     "LIBAS": [
       {
         "ticker": "LIBAS",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Libas Consumer",
+          "Insider": "Riyaz Ganji",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3550",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "LIBAS",
         "date": "2026-09-03",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -293021,6 +293111,21 @@
       }
     ],
     "HINDCON": [
+      {
+        "ticker": "HINDCON",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Hindcon Chemical",
+          "Insider": "HINDCON SOLUTIONS PRIVATE LIMITED",
+          "Transaction": "Acquisition",
+          "Trade Shares": "2000",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "HINDCON",
         "date": "2026-09-21",
@@ -296975,6 +297080,21 @@
       }
     ],
     "AAKASH": [
+      {
+        "ticker": "AAKASH",
+        "date": "2026-09-23",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Aakash Explor.",
+          "Insider": "Pravin Vershibhai Haria",
+          "Transaction": "Sell",
+          "Trade Shares": "7277950",
+          "Broadcast Date": "2026-09-23",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "AAKASH",
         "date": "2026-08-18",
@@ -330059,6 +330179,21 @@
     "KORE": [
       {
         "ticker": "KORE",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Jay Jalaram Tech",
+          "Insider": "Kamlesh Varjivandas Thakkar",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3194247",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "KORE",
         "date": "2026-09-21",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -332775,6 +332910,119 @@
           "Trade Value": "1.23 crore",
           "Price": "82.2",
           "Broadcast Date": "2026-09-23",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "GPECO": [
+      {
+        "ticker": "GPECO",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "GP Eco Solutions",
+          "Insider": "Anju Dubey",
+          "Transaction": "Release",
+          "Trade Shares": "3600000",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "AKG": [
+      {
+        "ticker": "AKG",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "AKG Exim",
+          "Insider": "Kalapi Vinit Nagada",
+          "Transaction": "Acquisition",
+          "Trade Shares": "7339200",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AKG",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "AKG Exim",
+          "Insider": "Mahima Goel",
+          "Transaction": "Sell",
+          "Trade Shares": "7339200",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "TIRUPATIFL": [
+      {
+        "ticker": "TIRUPATIFL",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Tirupati Forge",
+          "Insider": "Bhargavi Manojbhai Thummar",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1387500",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "TIRUPATIFL",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Tirupati Forge",
+          "Insider": "Chetna Mukeshbhai Thumar",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1387500",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "TIRUPATIFL",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Tirupati Forge",
+          "Insider": "Hiteshkumar Gordhanbhai Thummar",
+          "Transaction": "Acquisition",
+          "Trade Shares": "925000",
+          "Broadcast Date": "2026-09-22",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "CONTI": [
+      {
+        "ticker": "CONTI",
+        "date": "2026-09-22",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Continental Seed",
+          "Insider": "Pine Oak Global Fund",
+          "Transaction": "Acquisition",
+          "Trade Shares": "233310",
+          "Broadcast Date": "2026-09-22",
           "Source": "Screener.in"
         }
       }
