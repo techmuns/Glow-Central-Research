@@ -5215,7 +5215,7 @@ shipped capture, 40 of 603 companies clear 2x and 16 clear 3x.
 ## All Alerts history — DERIVED, no file and no route of its own
 
 `js/data/daily-alerts.js` writes nothing and introduces no route of its own. It normalizes all
-twenty supported dashboard categories and returns readings in one of two modes: the default one-day report, or `includeHistory: true`
+twenty-one supported dashboard categories and returns readings in one of two modes: the default one-day report, or `includeHistory: true`
 for every retained row through the requested **Indian trading date**. All Alerts and AI Alerts use history
 mode; its table progressively paints the rows inside one fixed-height scroller, newest first.
 
@@ -5230,6 +5230,7 @@ mode; its table progressively paints the rows inside one fixed-height scroller, 
 | `insider` | Insider Trades | retained insider and promoter disclosures (up to 365 days in the current source contract) |
 | `news` | News | retained stories about a company in scope (30-day source window) |
 | `market-news` | News | retained market-wide stories — no company, so Universe only; bounded by the capture's keep limit |
+| `price-levels` | Breakouts / Technical | a price level the family set in Glow Ventures, reached — dated to the minute this Worker's check first saw it; see `/api/price-levels` below |
 | `nse-filings` | NSE Filings | all retained NSE filings, including unresolved and undated rows |
 | `twitter` | News | captured posts from monitored X accounts; no inferred company mapping |
 | `ipos` | IPOs | retained official-source IPO filings and explicitly dated market observations |
@@ -6318,3 +6319,58 @@ retains its source URL, publisher, publication/check times, read state and cited
 This evidence does not enter the sent-story ledger. The PDF and email preserve the explanation
 and source link; older saved editions without it explicitly say that the move was not assessed.
 See the price-move section of `NEWSLETTER-SOURCE-CONTENT.md` for timing and inference limits.
+
+## `/api/price-levels` — the family's price levels, and every one reached
+
+**Owner:** `worker/price-levels.mjs` (route), `worker/price-levels-store.mjs` (the list and the
+history, SQLite on the fixed Durable Object `price-levels:v1`, binding `PRICE_LEVELS`),
+`worker/price-levels-schedule.mjs` (the minute check, that object's alarm) and
+`public/js/data/price-levels-shared.js` (the contract both sides import).
+
+The levels are set in the Glow Ventures dashboard — a different app, on a different origin — and
+sent here with every save. This Worker checks each waiting level against Upstox's live price once a
+minute from 09:15 to 16:15 IST on a trading day (every fifteen minutes otherwise, and not at all when
+nothing is waiting), and records the minute it first saw a level reached.
+
+```jsonc
+// POST /api/price-levels — from this dashboard, or from an origin in PRICE_LEVEL_ORIGINS (wrangler.jsonc)
+{ "intents": [
+  { "op": "set",   "ticker": "ABCAPITAL", "isin": "INE674K01013", "name": "Aditya Birla Capital Ltd",
+    "levels": { "buyAt": null, "sellAt": null, "stopLoss": 180, "target": 250, "alertAbove": null } },
+  { "op": "seed",  "ticker": "…", "isin": "…", "name": "…", "levels": { … } },   // added only if never heard of
+  { "op": "clear", "ticker": "…" }                                               // every level; kept as a record
+] }
+// -> { "ok": true, ...the GET body, "outcomes": [{ "ticker", "op", "outcome": "set|seeded|cleared|unchanged|full" }] }
+
+// GET /api/price-levels   (private, max-age=0, must-revalidate; ETag/304)
+{
+  "ok": true, "version": 1, "revision": 7, "updatedAt": "…", "count": 1, "limit": 600,
+  "pending": 1,                                  // levels still waiting for the price
+  "companies": [{ "ticker": "ABCAPITAL", "isin": "INE674K01013", "name": "…", "updatedAt": "…",
+    "levels": { "target": { "value": 250, "setAt": "…", "reached": { "at": "…", "price": 251.4,
+      "basis": "last-price", "session": "2026-09-23" } }, "stopLoss": { "value": 180, "setAt": "…", "reached": null },
+      "buyAt": null, "sellAt": null, "alertAbove": null } }],
+  "hits": [{ "id": "price-level|ABCAPITAL|target|250|<setAt>", "ticker": "ABCAPITAL", "isin": "…", "name": "…",
+    "level": "target", "value": 250, "setAt": "…", "reachedAt": "…", "price": 251.4,
+    "basis": "last-price",                       // last-price | day-high | day-low
+    "session": "2026-09-23", "quoteAt": "…" }],  // newest first, up to 200 of 500 kept
+  "check": { "configured": true, "state": "ok", // waiting|ok|partial|closed|idle|not-configured|authentication|rate-limited|unavailable|overdue
+    "failed": false, "lastAttemptAt": "…", "checkedAt": "…", "session": "2026-09-23",
+    "current": true,                             // every waiting level checked in the latest session that has happened
+    "nextAt": "…", "failures": [{ "ticker": "…", "reason": "no-isin|no-quote-today|…" }] }
+}
+// A failure is { "ok": false, "reason": "…" } with NO companies and NO hits — never an empty list.
+```
+
+Rules worth keeping:
+
+- **Every time is the Worker's.** `setAt` and `reachedAt` are the moments this object accepted the edit
+  or saw the price, so two readers see one time and a reload never makes an old alert new.
+- **A level fires once.** The same value resent keeps its set time and its reached state; a new value is
+  a new level and may fire again.
+- **The day's high or low counts only for a level set before that session opened.** A level set at 14:00
+  must not fire on a high the market made at 10:00.
+- **A quote proves the company or is ignored:** it must echo the `NSE_EQ|<ISIN>` key asked for AND the
+  ticker, and its last trade must fall on today's IST session. A company that arrived with no ISIN is
+  reported unchecked by name, never matched on its name.
+- **A reached level outlives its clear** — the history is the feed's record, bounded at 500 rows.

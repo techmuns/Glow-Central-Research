@@ -9,6 +9,8 @@ import { BreakoutSchedule } from './breakout-schedule.mjs';
 import { BreakoutPrimary, PRIMARY_OBJECT, PRIMARY_TIMER } from './breakout-primary.mjs';
 import { NewsletterStore } from './newsletter-store.mjs';
 import { NewsletterSchedule, NEWSLETTER_TIMER_KEY } from './newsletter-schedule.mjs';
+import { PriceLevelStore } from './price-levels-store.mjs';
+import { PriceLevelSchedule, PRICE_LEVEL_TIMER } from './price-levels-schedule.mjs';
 import { AlertNotesStore } from './alert-notes-store.mjs';
 import { CAPTURE_REGISTRY_LIMIT, CAPTURE_REGISTRATION_BATCH, registeredCompany } from '../public/js/data/capture-registration-shared.js';
 
@@ -33,6 +35,11 @@ export class CaptureRegistry extends DurableObject {
     // log in SQLite, the send timer in KV, and the alarm below is what actually emails the desk.
     this.newsletter = new NewsletterStore(ctx.storage);
     this.newsletterSchedule = new NewsletterSchedule(ctx.storage, env, this.newsletter);
+    // The family's price levels, sent from the Glow Ventures dashboard, live in their own fixed object
+    // (price-levels:v1): the list and every level reached in SQLite, and the minute price check as
+    // this object's alarm. See worker/price-levels-store.mjs and worker/price-levels-schedule.mjs.
+    this.priceLevels = new PriceLevelStore(ctx.storage);
+    this.priceLevelSchedule = new PriceLevelSchedule(ctx.storage, env, this.priceLevels);
     // The alerts' "So what?" notes live in their own fixed object (alert-notes:v1); its tables are
     // created on first use there and nowhere else. See worker/alert-notes-store.mjs.
     this.notes = new AlertNotesStore(ctx.storage, env);
@@ -50,6 +57,12 @@ export class CaptureRegistry extends DurableObject {
   summaryRead(ids) { return this.summaries.read(ids); }
   watchlistSnapshot() { return this.watchlist.watchlistSnapshot(); }
   watchlistApply(intents) { return this.watchlist.watchlistApply(intents); }
+  priceLevelsSnapshot() { return this.priceLevelSchedule.snapshot(); }
+  async priceLevelsApply(intents) {
+    const out = this.priceLevels.apply(intents);
+    await this.priceLevelSchedule.arm();
+    return { outcomes: out.outcomes, snapshot: { ...out.snapshot, check: await this.priceLevelSchedule.status() } };
+  }
   request(source) { return this.schedule.request(source); }
   async breakoutArm() {
     await this.breakoutSchedule.arm();
@@ -88,6 +101,7 @@ export class CaptureRegistry extends DurableObject {
     else if (await this.ctx.storage.get(NEWSLETTER_TIMER_KEY)) await this.newsletterSchedule.wake();
     else if (await this.ctx.storage.get('breakout-timer')) await this.breakoutSchedule.wake();
     else if (await this.ctx.storage.get('summary-timer')) await this.summarySchedule.wake();
+    else if (await this.ctx.storage.get(PRICE_LEVEL_TIMER)) await this.priceLevelSchedule.wake();
     else await this.schedule.request('cron');
   }
   list() {

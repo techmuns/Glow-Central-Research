@@ -56,6 +56,14 @@ const FEED_WEIGHT = {
   // material portfolio disclosures remain visible for the whole 14-day review window.
   news: 6,
   'market-news': 6,
+  // THE FAMILY'S OWN PRICE LEVELS WEIGH THE MOST, AND THE ARITHMETIC SAYS WHY. A level they set in
+  // Glow Ventures and asked to be told about is not a signal this desk inferred — it is an
+  // instruction, and the day it is reached it must read MUST SEE. A Target reached today on a book
+  // company scores 30 (high importance) + 18 + 16 (today) + 6 (positive) + 12 (in the book) = 82,
+  // exactly MUST_SEE_SCORE; a Stop loss hit scores more (negative +10, and +4 consistent negative).
+  // After the day it ages like everything else; `materialPortfolioEvent` below keeps it on the list
+  // for the whole review window.
+  'price-levels': 18,
 };
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
@@ -446,6 +454,7 @@ export const FEED_TAG = {
   chatter: 'CHATTER',
   news: 'NEWS',
   'market-news': 'NEWS',
+  'price-levels': 'LEVEL',
 };
 
 const CRORE = 10_000_000;
@@ -870,8 +879,11 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     const feedLabels = [...new Set(events.map((event) => event.feedLabel || event.feed))];
     const highCount = developments.filter((dev) => dev.importance === 'high').length;
     const hasMaterialNegative = events.some((event) => event.importance === 'high' && event.direction === 'negative');
-    const materialPortfolioEvent = !!holding && events.some((event) => event.importance === 'high' &&
-      !!event.url && (materialFiling(event) || (feedFamily(event) === 'news' && event.namesCompany === true) || isRelatedNewsContext(event)));
+    // A LEVEL THE FAMILY SET AND ASKED TO BE TOLD ABOUT is material by construction — they chose the
+    // company, the price and the reason. It carries no document link (it is this Worker's own
+    // observation), so it is named here rather than being made to pass a filing's test.
+    const materialPortfolioEvent = !!holding && events.some((event) => event.importance === 'high' && (event.feed === 'price-levels' ||
+      (!!event.url && (materialFiling(event) || (feedFamily(event) === 'news' && event.namesCompany === true) || isRelatedNewsContext(event)))));
     const mixed = directions.positive > 0 && directions.negative > 0;
     const scoreBreakdown = [...(top?.score.parts || [])];
 

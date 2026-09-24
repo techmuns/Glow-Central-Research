@@ -241,7 +241,7 @@ try {
   await page.locator('[data-feed-toggle="__all"]').press('Escape');
   assert.equal(await picker.getAttribute('open'), null);
   assert(await sourceSummary.evaluate(node => node === document.activeElement), 'Escape returns focus to the source control');
-  assert.equal(await page.locator('[data-feed]').count(), 19, 'Universe hides the portfolio-only calendar');
+  assert.equal(await page.locator('[data-feed]').count(), 20, 'Universe hides the portfolio-only calendar (21 sources, one of them portfolio-only)');
   assert.equal(await page.locator('[data-horizon-toggle]').count(), 2);
   assert.equal(await page.locator('[data-horizon-toggle="through"]').getAttribute('aria-selected'), 'true');
   const sourceControl = await page.locator('[data-feed]').first().evaluate((node) => {
