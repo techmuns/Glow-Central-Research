@@ -78,6 +78,15 @@ const route = (view) => `${BASE}/#/research/macro-research/${view}`;
 const main = async () => {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  // This is a test of the committed capture. External SDK/font/Worker requests
+  // are already excluded below; stop them here so an unavailable synchronous
+  // startup script cannot hold DOMContentLoaded past the navigation deadline.
+  // Keep every request to the tested origin observable, including missing assets.
+  await page.route('**/*', (r) => {
+    const url = r.request().url();
+    return new URL(url).origin !== new URL(BASE).origin && isEnvironmentUrl(url)
+      ? r.abort('blockedbyclient') : r.continue();
+  });
   const errors = [];
   let dropped = 0;
   let cancelled = 0;
