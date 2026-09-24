@@ -1,5 +1,8 @@
 // A reading-only partition of published news. Never remove a source row or a delivery key.
+<<<<<<< HEAD
 import { newsAiEnabled, newsModelCall, objectSchema } from './newsletter-openai.mjs';
+=======
+>>>>>>> sattva/main
 import { boundedJson } from '../public/js/data/family-book-contract.js';
 import { bedrockConfig, bedrockConfigured, claudeCredential } from './research-claude.mjs';
 
@@ -78,7 +81,11 @@ export function parseEventGroups(text, reports) {
 }
 
 /** One bounded request per built send, before summary generation. Public previews never call it. */
+<<<<<<< HEAD
 export async function reviewNewsEvents({ news, env, fetcher = fetch, enabled = true, budget = null, now = Date.now() }) {
+=======
+export async function reviewNewsEvents({ news, env, fetcher = fetch, enabled = true }) {
+>>>>>>> sattva/main
   // Never reuse stale annotations if the same input object is rebuilt or a check fails.
   for (const group of news.groups || []) for (const item of group.items) delete item.eventId;
   const { reports, rows, eligible } = eventCandidates(news);
@@ -86,6 +93,7 @@ export async function reviewNewsEvents({ news, env, fetcher = fetch, enabled = t
   if (!enabled) return { ...base, ok: false, reason: 'preview' };
   if (!eligible) return { ...base, ok: true, reason: 'nothing-to-check' };
   if (!reports.length) return { ...base, ok: false, reason: 'limit' };
+<<<<<<< HEAD
   if (newsAiEnabled(env)) {
     try {
       const input = JSON.stringify(reports);
@@ -103,6 +111,8 @@ export async function reviewNewsEvents({ news, env, fetcher = fetch, enabled = t
       return { ...base, ok: true, reviewed: reports.length, combined: reports.length - groups.length, partial: reports.length < eligible };
     } catch (error) { return { ...base, ok: false, reason: error.reason || 'unreadable' }; }
   }
+=======
+>>>>>>> sattva/main
   if (!bedrockConfigured(env)) return { ...base, ok: false, reason: 'not-configured' };
   try {
     const config = bedrockConfig(env);

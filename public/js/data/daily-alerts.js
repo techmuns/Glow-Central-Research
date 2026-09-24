@@ -1749,6 +1749,7 @@ export function announcementEvent(r) {
     // is already reproduced in `detail`; naming it separately is what lets the card fall back to
     // it without splitting a joined string, and nothing here is reworded.
     filingSubject: r.title || r.headline || null,
+<<<<<<< HEAD
     // A row lodged on both exchanges is merged keeping the first exchange's subject — NSE's bare
     // "Press Release" — and BSE's full title arrives as `headline` beside it. It is the same filing's
     // other statement of itself, kept so the alert surfaces can print the one that says what happened.
@@ -1763,6 +1764,10 @@ export function announcementEvent(r) {
     // rows are one filing (js/data/alert-developments.js). A top-level field, because the AI pool
     // carries events without their source record.
     documentHash: r.documentHash || null,
+=======
+    filingSubCategory: r.subCategory || null,
+    filingDescription: r.description || null,
+>>>>>>> sattva/main
   };
   announcementEvents.set(r, event);
   return event;
@@ -1981,6 +1986,7 @@ function companyNewsEvent(r) {
     entityId: r.entityId || null,
     company: attributionFor(r).status === 'unrelated' ? 'Unrelated search result' : r.company || attributionFor(r).queryCompany || coverage.holdings().find((h) => h.ticker === r.ticker)?.name || r.ticker || 'Unresolved company',
     headline: r.title || 'Story',
+    storyText: r.summary || r.description || '',
     detail: [r.source ? `Published by ${r.source}` : 'Publisher not carried',
       attributionFor(r).status === 'related' ? attributionFor(r).reason : null].filter(Boolean).join(' · '),
     url: r.url || null,

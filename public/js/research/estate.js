@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 import * as book from '../data/book.js';
 import { bookEvidence } from './book-packet.js';
+=======
+import * as mutualFunds from '../data/mutual-funds.js';
+import {mutualFundEvidenceRows} from '../data/mutual-funds-evidence.js';
+>>>>>>> sattva/main
 // research/estate.js — the bounded, runtime dashboard catalog behind Ask Research.
 //
 // Every source below is read through the same module the owning page uses. Adding a compatible
@@ -60,6 +65,7 @@ import { reasoningReadings, portfolioReasoningContext, reasoningSourceSamples } 
 import { businessIntent, holdingForBusinessRow, businessReadings, portfolioBusinessContext, fitBusinessContext, businessPeerSamples } from './business-context.js';
 
 export const DASHBOARD_RESEARCH_SOURCES = [
+  { id: 'mutual-funds', tab: 'Mutual Funds', route: '#/research/mutual-funds', description: 'Portfolio-wide monthly mutual fund shares, comparable additions and reductions, net changes and largest fund buyers/sellers.' },
   { id: 'ai-alerts', tab: 'AI Alerts', route: '#/research/ai-alerts', description: 'The dashboard\'s deterministic seven-day company priority over All Alerts: which companies carry the most material, corroborated recent evidence.' },
   { id: 'daily-alerts', tab: 'All Alerts', route: '#/research/daily-alerts', description: 'The complete normalized top-of-funnel pool across all twenty dashboard feed categories, including raw filings, schedules, snapshots, documents, posts and market events.' },
   { id: 'screener-insights', tab: 'AI Alerts', route: '#/research/ai-alerts', description: 'Source-backed yearly and quarterly operating metrics extracted by Screener from company filings and presentations; context only, never an alert trigger by itself.' },
@@ -1129,6 +1135,22 @@ const BUILDERS = [
     },
   },
   {
+    id: 'mutual-funds',
+    load: () => undefined,
+    async read({question,scope,holdings,plan}) {
+      const requested = /\b(mutual funds?|mfs?|funds? (?:added|bought|sold|reduced)|(?:added|bought|sold|reduced).*fund)\b/i.test(question);
+      if (!requested) return sourcePacket(this.id,{source:'AMC monthly disclosures via AmfiBeas',status:'not-requested',rowCount:null,rows:[]});
+      await mutualFunds.load(plan.companies.length?'universe':scope,{holdings});
+      const wanted = new Set(plan.companies.map(c=>c.isin || c.ticker));
+      const all = plan.companies.length ? mutualFunds.all().filter(r=>wanted.has(r.isin)||wanted.has(r.ticker)) : mutualFunds.scopedRows(scope,holdings);
+      const meta=mutualFunds.meta(),rows=mutualFundEvidenceRows(all,meta),supplemented=rows.some(r=>r.mfScanner);
+      return sourcePacket(this.id,{source:`AMC monthly portfolio disclosures via AmfiBeas${supplemented?'; private MF Scanner supplement':''}`,asOf:meta.checkedAt,
+        rowCount:rows.length,coverage:{companies:all.length,state:mutualFunds.health(),...(supplemented?{supplementReadFailed:!!meta.supplementReadFailed,scannerCurrentCompanies:meta.supplement?.currentCompanies,scannerExpectedCompanies:meta.supplement?.expectedCompanies}:{})},dataQuality:'partial',
+        definition:'Complete requested company list; only comparable adjacent months contribute to net. Each row states its actual month; older months do not answer last month. Source check dates and any MF Scanner contribution are recorded per row; the packet asOf is the primary check only. Share changes can reflect corporate actions. Missing data is not zero.',
+        rows,rowTiers:rows.map(()=>0),rowPriorities:rows.map(()=>-2000000)});
+    },
+  },
+  {
     id: 'institutions',
     load: () => institutions.load(),
     read({ scope, holdings, plan }) {
@@ -1443,6 +1465,7 @@ export async function buildResearchEvidence({ question, scope = 'portfolio', por
   const general = plan.business && (plan.business.mode === 'portfolio-reasoning' || !comparison?.candidates?.length);
   const reasoningPackets = general ? packets.map(packet => ({ ...packet, reasoningReadings: reasoningReadings(packet.reasoningRows || [], plan) })) : packets;
   const businessContext = general ? portfolioReasoningContext({ plan, packets: reasoningPackets, technicalRows }) : comparison;
+  if (/\b(mutual funds?|mfs?|funds? (?:added|bought|sold|reduced)|(?:added|bought|sold|reduced).*fund)\b/i.test(question)) charBudget ??= 37_000;
   charBudget ??= general ? PORTFOLIO_REASONING_CHAR_BUDGET : RESEARCH_EVIDENCE_CHAR_BUDGET;
   const fittedBusiness = fitBusinessContext(businessContext, Math.floor(charBudget * businessContextShare({ businessContext })));
   return fitEvidenceToBudget({

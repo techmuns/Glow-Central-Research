@@ -11,13 +11,14 @@ import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '../public');
+const root = process.env.ALERT_POOL_CAPTURE_ROOT ? resolve(process.env.ALERT_POOL_CAPTURE_ROOT) : resolve(here, '../public');
 const storage = new Map();
 globalThis.localStorage = { getItem: (key) => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) };
 const now = Date.now();
 Date.now = () => now;
 
 const { offlineFetch, captureIdentities, captureStatusFor, writePoolMembers, verifyPoolMembers, jsonForm } = await import('./lib/alert-pool-build.mjs');
+<<<<<<< HEAD
 const { ALERT_POOL_CONTRACT, POOL_FEEDS, POOL_FEED_CAPTURES } = await import('../public/js/data/alert-pool-shared.js');
 const { validateShard, aiPoolKeep, buildAiShards, assembleFeedEvents } = await import('../public/js/data/alert-pool-format.js');
 
@@ -34,6 +35,10 @@ assert(!aiPoolKeep({ ...discoveryStory, day: '2026-03-01' }, '2026-09-20'), 'the
 assert(!aiPoolKeep({ ...discoveryStory, day: '2026-09-21' }, '2026-09-20'), 'future stories are not current context');
 assert(!aiPoolKeep({ ...discoveryStory, day: null }, '2026-09-20'), 'undated stories are not current context');
 console.log('PASS market-wide discovery context survives the trigger-window boundary');
+=======
+const { ALERT_POOL_CONTRACT, POOL_FEEDS, POOL_FEED_CAPTURES, shiftDay } = await import('../public/js/data/alert-pool-shared.js');
+const { validateShard, buildAiShards } = await import('../public/js/data/alert-pool-format.js');
+>>>>>>> sattva/main
 
 // THE ROUTES THE BROWSER READS, answered from the pool this test builds. `served` is what a test
 // step changes to make the pool disagree with the deployment in one particular way.
@@ -86,6 +91,24 @@ const assertEvents = (actual, expected, message) => {
     assert.deepEqual(jsonForm(actual[i]), jsonForm(expected[i]), `${message}: event ${i + 1} (${expected[i].id})`);
   }
 };
+<<<<<<< HEAD
+=======
+
+// A raw publisher story gains company attribution after the pool is decoded.
+// It must survive outside the ranking week because the card still reads it as context.
+const contextDay = shiftDay(day, -14);
+const contextArticle = { title: 'Coforge announces a dividend record date', summary: 'Coforge Limited published its dividend record date.', url: 'https://example.test/coforge-context', publishedAt: `${contextDay}T06:00:00Z` };
+const rawContext = { id: 'mcnews:context-regression', feed: 'market-news', day: contextDay, ticker: null, company: 'Market-wide', headline: contextArticle.title, url: contextArticle.url, sourceRecord: contextArticle };
+const contextBook = [{ ticker: 'COFORGE', name: 'Coforge Limited', isin: 'INE591G01025', entityId: 'isin:INE591G01025' }];
+const mappedContext = alerts.mapPortfolioDiscoveryEvents('market-news', [rawContext], contextBook);
+assert.equal(mappedContext[0].ticker, 'COFORGE');
+assert.equal(mappedContext[0].attribution.status, 'confirmed');
+const restoredContext = [...buildAiShards([{ id: 'market-news', events: [rawContext] }], day).values()].flatMap(shard => shard.feeds['market-news'].events);
+assert.deepEqual(alerts.mapPortfolioDiscoveryEvents('market-news', restoredContext, contextBook), mappedContext, 'Older market news retains the same company context after the pool round trip');
+assert.throws(() => validateShard({ version: 1, contract: 'alert-pool-v1', day, feeds: {} }), /unfamiliar shape/);
+assert.doesNotThrow(() => validateShard({ version: 1, contract: ALERT_POOL_CONTRACT, day, feeds: {} }));
+console.log('PASS older unattributed market news becomes identical company context after pooling; old contracts are rejected');
+>>>>>>> sattva/main
 
 // 1. THE ORACLE: the full-history collection the browser performs without any pool.
 console.log(`collecting the full history for ${day} (the oracle)`);

@@ -429,9 +429,11 @@ try {
   assert(jayaswalResults.includes('Indian manufacturer shares a business update'), 'snippet-only coverage remains in company search');
   assert(jayaswalResults.includes('Possible match — unverified'), 'uncertainty is visible without a hover');
   if (process.env.NEWS_ATTRIBUTION_SCREENSHOT) await page.screenshot({ path: process.env.NEWS_ATTRIBUTION_SCREENSHOT });
+  // Read through `searchedText` for the reason given above it: on 23 September 2026 the NESTLEIND
+  // search matched 58 rows, the window drew 40 of them down to 7 September, and this 4 September
+  // fixture sat below it — a check on the capture's size that had turned red on its own.
   for (const [query, title] of [['NESTLEIND', 'Nestlé India'], ['Avenue Supermarts', 'DMart reports']]) {
-    await page.locator('[data-table-search]').fill(query);
-    await page.waitForFunction(text => document.querySelector('tbody')?.textContent.includes(text), title);
+    assert((await searchedText(query)).includes(title), `a ${query} search finds "${title}" wherever the capture places it`);
   }
   await page.evaluate(() => window.show('universe'));
   await settled();
@@ -634,6 +636,7 @@ try {
 
   // Exercise the actual tab inside a short host iframe, with real wheel input. Measured rows
   // may have different natural heights; verify contiguous geometry across window replacements.
+<<<<<<< HEAD
   // Source-refresh tests above fast-forward a simulated clock. Native compositor input
   // gets its own real-time context; receipt timers below install a clock only afterwards.
   await page.close();
@@ -689,8 +692,63 @@ try {
           documentScroll: window.scrollY, viewport: { width: innerWidth, height: innerHeight },
           wheelEvents: window.nativeWheelEvents, connected: el.isConnected }));
         throw Error(`Native iframe wheel did not advance: ${JSON.stringify({ size, step, previous, beforeWheel, box, state })}`, { cause: error });
+=======
+  // Native gestures must use the browser's real animation clock. Earlier
+  // inactivity checks installed a context-wide fake requestAnimationFrame.
+  const wheelPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  wheelPage.on('pageerror', error => errors.push(error.message));
+  wheelPage.on('console', message => { if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) errors.push(message.text()); });
+  await wheelPage.route('**/*', route => route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
+  await wheelPage.goto(`${origin}/embed`);
+  const wheelFrame = await (await wheelPage.locator('iframe').elementHandle()).contentFrame();
+  await settled(wheelFrame);
+  assert.equal(await wheelFrame.getByRole('combobox', { name: 'Date range' }).inputValue(), 'today', 'fresh embedded dashboard also defaults to Today');
+  await wheelFrame.getByRole('combobox', { name: 'Date range' }).selectOption('all');
+  // Switching from Today starts a separate historical source read. The old
+  // four-row table can remain geometrically stable while that read is pending.
+  await settled(wheelFrame);
+  await wheelFrame.waitForFunction(() =>
+    document.querySelector('.alerts-horizon-caption')?.textContent.includes('Retained events through') &&
+    Number(document.querySelector('[data-score-table]')?.dataset.virtualTotal) > 1000 &&
+    !document.querySelector('[data-table-loading]'));
+  await settled(wheelFrame);
+  for (const size of [{ width: 1440, height: 800 }, { width: 1024, height: 640 }]) {
+    await wheelPage.setViewportSize(size);
+    const scroller = wheelFrame.locator('[data-table-scroll]');
+    await stableReadingSurface(wheelFrame);
+    await scroller.evaluate(el => { el.scrollTop = 0; el.scrollIntoView({ block: 'end' }); });
+    await stableReadingSurface(wheelFrame);
+    // Measured virtual rows can rebase pixel offsets while preserving the
+    // record under the reader's eyes. Assert logical reading progress instead.
+    const readingPosition = (previous = null) => {
+      const el = document.querySelector('[data-table-scroll]');
+      const boundary = el.getBoundingClientRect().top + el.querySelector('thead').offsetHeight;
+      const row = [...el.querySelectorAll('tr[data-row-key]')].find(r => r.getBoundingClientRect().bottom > boundary);
+      if (!row) return null;
+      const box = row.getBoundingClientRect();
+      const position = Number(row.getAttribute('aria-rowindex')) + (boundary - box.top) / box.height;
+      return previous === null ? position : position > previous;
+    };
+    let previous = await wheelFrame.evaluate(readingPosition);
+    assert(Number.isFinite(previous), 'a visible record establishes the initial reading position');
+    const starts = new Set();
+    for (let step = 0; step < 24; step++) {
+      // Locator hover waits for a stable, hittable target after iframe resize
+      // and window replacement; a cached bounding-box point does not.
+      await scroller.hover({ position: { x: 4, y: 100 } });
+      await wheelPage.mouse.wheel(0, 180);
+      try {
+        await wheelFrame.waitForFunction(readingPosition, previous);
+      } catch (error) {
+        const state = await scroller.evaluate(el => ({ top: el.scrollTop, height: el.clientHeight,
+          scrollHeight: el.scrollHeight, bounds: el.getBoundingClientRect().toJSON(),
+          documentScroll: window.scrollY, virtualTotal: el.closest('[data-score-table]')?.dataset.virtualTotal, viewport: { width: innerWidth, height: innerHeight } }));
+        throw Error(`Native iframe wheel did not advance: ${JSON.stringify({ size, step, previous, state })}`, { cause: error });
+>>>>>>> sattva/main
       }
-      const sample = await embedded.evaluate(async () => {
+      await stableReadingSurface(wheelFrame);
+      const position = await wheelFrame.evaluate(readingPosition);
+      const sample = await wheelFrame.evaluate(async () => {
         await new Promise(requestAnimationFrame);
         await new Promise(requestAnimationFrame);
         const el = document.querySelector('[data-table-scroll]');
@@ -703,15 +761,23 @@ try {
           gaps: boxes.slice(1).map((box, i) => Math.abs(box.top - boxes[i].bottom)),
           visible: !!visible && visible.getBoundingClientRect().top < el.getBoundingClientRect().bottom };
       });
-      assert(sample.top > previous && sample.visible, `wheel advances through visible records inside ${size.width}px iframe (step ${step}, previous ${previous}): ${JSON.stringify(sample)}`);
+      assert(position > previous && sample.visible, `wheel advances through visible records inside ${size.width}px iframe (step ${step}, previous ${previous}, position ${position}): ${JSON.stringify(sample)}`);
       assert(sample.count <= 64 && sample.heights.every(height => height > 0), 'natural-height rows remain visible and bounded');
       assert(Math.max(0, ...sample.gaps) <= 2, `window replacement keeps rows contiguous: ${Math.max(0, ...sample.gaps)}px gap/overlap`);
-      previous = sample.top;
+      previous = position;
       starts.add(sample.start);
     }
     assert(starts.size >= 2, 'wheel crosses multiple virtual windows');
     console.log(`Verified 24 native wheel steps in ${size.width}px iframe`);
   }
+  await wheelFrame.evaluate(() => window.dispose());
+
+  await wheelPage.close();
+
+  // Return to the clock-controlled context for receipt timing assertions.
+  await page.goto(`${origin}/embed`);
+  const embedded = await (await page.locator('iframe').elementHandle()).contentFrame();
+  await settled(embedded);
   await embedded.evaluate(() => window.dispose());
 
   // Controlled receipts exercise queue boundaries without waiting for another source cycle.

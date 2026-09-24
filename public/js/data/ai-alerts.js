@@ -14,6 +14,8 @@
 // from the authenticated Family parent can order cards by holding size. Size changes ordering
 // within the selected filter; the materiality threshold and alert priority remain evidence-based.
 
+import { storyGrouping } from './alert-stories.js';
+import { STORY_FEEDS, storyRecord, storyKey, isMaterialStoryUpdate, compareStoryRecency } from './alert-stories-shared.js';
 import * as generalAlerts from './daily-alerts.js';
 import { newsCanSupportAI, isRelatedNewsContext } from './company-news-attribution.js';
 import * as kpiImpact from './kpi-impact.js';
@@ -33,7 +35,8 @@ export { AI_ALERT_WINDOW_DAYS as WINDOW_DAYS } from '../core/alert-window.js';
 
 export const MIN_SCORE = 64;
 export const MUST_SEE_SCORE = 82;
-export const onChange = generalAlerts.onChange;
+export const onChange = fn => { const a = generalAlerts.onChange(fn), b = storyGrouping.onChange(fn); return () => { a(); b(); }; };
+export const storyStatus = report => storyGrouping.status(report?.allCards?.flatMap(card => card.sourceEvents || card.events) || []);
 // Keep ranking inputs in memory only; private position sizes must never enter a saved report.
 const rankingOptions = new WeakMap();
 const rankingEvidence = new WeakMap();
@@ -110,10 +113,12 @@ const feedFamily = (event) => event.feed === 'nse-filings' ? 'announcements' : e
 /** Syndicated links and duplicate exchange disclosures are not independent corroboration. */
 function dedupe(events) {
   const seen = new Set();
+  events = storyGrouping.project(events);
   // Prefer the useful copy when one exchange supplied a generic label and the other a full
   // subject. Stable ordering also stops equivalent source arrival order changing read state.
   return [...events].sort((a, b) => Number(b.importance === 'high') - Number(a.importance === 'high') ||
     String(a.feed).localeCompare(String(b.feed)) || String(a.id).localeCompare(String(b.id))).filter((event) => {
+    if (STORY_FEEDS.has(event.feed)) return true;
     const family = feedFamily(event);
     const key = `${family}:${event.day}:${normalizedHeadline(event.headline) || event.id}`;
     const link = event.url && ['announcements', 'news'].includes(family) ? `${family}:url:${canonicalArticleUrl(event.url)}` : null;
@@ -125,6 +130,7 @@ function dedupe(events) {
 
 // Stable content identities for read/dismiss state. A new material item must resurface a company
 // even when an older, higher-scoring item remains on top. Routine observations do not wake it.
+<<<<<<< HEAD
 //
 // ONE IDENTITY PER DEVELOPMENT, NOT PER ROW. Puravankara's Goregaon win reached the desk as a BSE
 // filing, two NSE rows and a stream of publisher write-ups over the following days; keyed per row,
@@ -146,6 +152,18 @@ function evidenceIdentity(dev) {
 export function materialEvidence(events = [], developments = foldDevelopments(events)) {
   const material = developments.filter((dev) => dev.importance === 'high');
   return [...new Set((material.length ? material : developments).map(evidenceIdentity))].sort();
+=======
+export function materialEvidence(events = []) {
+  const material = events.filter((event) => event.importance === 'high' || isMaterialStoryUpdate(event));
+  const identity = event => {
+    const record = storyRecord(event);
+    return record ? JSON.stringify(['story-source', storyKey(record)])
+      : JSON.stringify([feedFamily(event), event.id || null, event.day, event.headline, event.direction, event.importance]);
+  };
+  return [...new Set((material.length ? material : events).map(event => event.developmentId
+    ? JSON.stringify(['story-development', event.developmentId, event.direction, event.importance,
+      (event.storyReports || [event]).map(identity).sort()]) : identity(event.storyReports?.[0] || event)))].sort();
+>>>>>>> sattva/main
 }
 
 function eventScore(event, day, feedState) {
@@ -448,6 +466,7 @@ export const FEED_TAG = {
   'market-news': 'NEWS',
 };
 
+<<<<<<< HEAD
 const CRORE = 10_000_000;
 
 /**
@@ -457,6 +476,149 @@ const CRORE = 10_000_000;
  * percentage of the company (1%), then the share count, which is a real number that says nothing
  * about size on its own. A disclosure that carried none of the three gets no phrase — never a zero.
  */
+=======
+/** The longest claim a card's sentence or a row carries before it is clipped on a word boundary. */
+export const CLAIM_MAX = 150;
+const CRORE = 10_000_000;
+
+/** A claim too long for the line, cut where a word ends. The untouched text stays in the tooltip. */
+function clip(text, max = CLAIM_MAX) {
+  const value = String(text || '').replace(/\s+/g, ' ').trim();
+  if (value.length <= max) return value;
+  const cut = value.slice(0, max);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.–—-]+$/, '')}…`;
+}
+
+/**
+ * A filing subject that names the filing TYPE rather than the event.
+ *
+ * This is the whole reason a card could announce "Press Release" over a ten-year supply contract.
+ * Measured on the retained NSE window: 1,995 of 15,506 rows carry one of these as their subject —
+ * 1,025 "General Updates", 707 "Updates", 251 "Press Release" — and 1,911 of those 1,995 carry a
+ * description that says what the filing actually is. BSE's side of it is the pointer subjects:
+ * "PFA", "Please refer the enclosed file.", "As per attachment".
+ *
+ * It is deliberately an EXACT-MATCH list of type words, not a length or a keyword heuristic.
+ * "Investor Presentation", "Record Date" and "Resignation of Director/KMP/SMP" are short and are
+ * real answers; the test is whether the subject names an event, and a pattern loose enough to
+ * catch a bad subject by its shape would discard those too.
+ */
+const TYPE_ONLY_SUBJECT = new RegExp(
+  '^(?:'
+  + 'updates?|general\\s+updates?|company\\s+updates?|press\\s+releases?|announcements?|'
+  + 'corporate\\s+announcements?|disclosures?|disclosure\\s+attached|intimations?|intimation\\s+of\\s+disclosure|'
+  + 'others?|news|filing|nse\\s+filing|pfa|na|n\\.?a\\.?|nil|none|attached|enclosed|media\\s+releases?|'
+  // THE POINTER PHRASES ARE BOUNDED TO POINTER WORDS, not left open with `.*`. Written greedily
+  // they swallowed a subject that says something: "Please find enclosed herewith the disclosure
+  // pertaining to incorporation of two Wholly-Owned Subsidiaries" is the whole event, and the card
+  // replaced it with BSE's one-word sub-category, "Acquisition". A pointer subject is a pointer
+  // and nothing else, so every word after "please find" has to be one of these to qualify.
+  + '(?:please|kindly)\\s+(?:refer|find|see)'
+  + '(?:\\s+(?:to|the|our|enclosed|attached|attachment|enclosure|annexure|file|document|herewith|below|copy))*|'
+  + 'as\\s+per\\s+(?:the\\s+)?attachments?|refer\\s+(?:the\\s+)?attach\\w*|-{1,2}|\\.'
+  + ')[\\s.]*$',
+  'i'
+);
+
+/**
+ * EVERY SEGMENT HAS TO BE A TYPE WORD, because the exchanges publish these as alternatives.
+ * "Press Release / Media Release" is BSE's sub-category for a press release and says no more than
+ * either half of it does, and an exact-match list of single words let it through — one card led
+ * with it while the filing beneath said what the release was. A subject with one real segment
+ * ("Record Date / Book Closure") still names an event and is kept.
+ */
+const isTypeOnly = (text) => {
+  const value = String(text || '').trim();
+  if (!value) return true;
+  return value.split(/\s*[/|]\s*/).filter(Boolean).every((part) => TYPE_ONLY_SUBJECT.test(part));
+};
+
+/**
+ * A clause the prefix strip exposed, opened as a sentence.
+ *
+ * "…has informed the exchange about the approval of Board of Directors for withdrawal of
+ * application of reclassification" is one sentence whose subject is the company, so removing that
+ * subject leaves the rest starting "the" — a line that reads as a rendering bug. Capitalising a
+ * letter is typography and not a change of claim.
+ *
+ * IT LEAVES A WORD THAT CAPITALISES ITSELF ALONE. The test is that the first word has no capital
+ * of its own, so "the approval…" opens and "iPhone launch" or "eSIM rollout" are untouched — a
+ * brand recapitalised would be this dashboard editing somebody's name, which the clip and the
+ * prefix strip both exist to avoid.
+ */
+const openingCase = (text) => {
+  const value = String(text || '');
+  const first = value.match(/^([a-z])([^\s]*)/);
+  if (!first || /[A-Z]/.test(first[2])) return value;
+  return value[0].toUpperCase() + value.slice(1);
+};
+
+const unquote = (text) => {
+  const value = String(text || '').trim().replace(/[.\s]+$/, '').trim();
+  const wrapped = value.match(/^["'‘“]([\s\S]+)["'’”]$/);
+  return (wrapped ? wrapped[1] : value).trim();
+};
+
+/**
+ * What a filing says, in the source's own words.
+ *
+ * Two mechanical removals and one selection, and none of them is a paraphrase:
+ *
+ *  * `|SUBJECT: …` is the feed's own duplicate of the subject, appended to every NSE description.
+ *  * `<Company> has informed the Exchange about/regarding` is an exchange-generated lead-in —
+ *    9,622 of 15,506 retained rows carry it — and what follows it is the filing's own text.
+ *  * Where they quote the company's own title for the filing ("…titled \"X\""), that quotation is
+ *    the claim. Choosing which of their sentences to print is not writing one.
+ */
+export function sourceStatement(text) {
+  const raw = String(text || '').replace(/\s*\|\s*SUBJECT\s*:[\s\S]*$/i, '').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  const titled = raw.match(/\btitled\s*["'‘“]([^"'’”]{12,})["'’”]/i);
+  if (titled) return titled[1].trim();
+  const body = raw
+    .replace(/^.{0,90}?\bhas\s+informed\s+the\s+Exchanges?\b[\s,]*(?:about|regarding|that)?\s*/i, '')
+    // BSE's own lead-in on a disclosure it received, the mirror of the one above.
+    .replace(/^the\s+Exchanges?\s+(?:has|have)\s+received\s*/i, '')
+    .trim();
+  return openingCase(unquote(body || raw));
+}
+
+/**
+ * A filing's claim: its own subject where that names an event, the source's own description where
+ * the subject only names a type, and the exchange's own sub-category as the floor.
+ *
+ * The order is what makes it honest. A subject that says something is never replaced — it is the
+ * shortest true answer and it is theirs. A description is used only where it says something the
+ * subject does not, because NSE repeats the subject as the description on some rows and sends
+ * `''.` on others, and "General Updates: General Updates" is not an improvement on either.
+ */
+export function filingClaim(event) {
+  const subject = String(event?.filingSubject || event?.headline || '').trim();
+  // THE SAME MECHANICAL LEAD-IN TURNS UP IN SUBJECTS, and there it costs the reader the answer.
+  // BSE carries no description, so the whole statement arrives as the subject: "Star Health and
+  // Allied Insurance Company Limited has informed the exchange about the approval of Board of
+  // Directors for withdrawal of application of…" spent 71 of 150 characters on a company name the
+  // card prints as its own heading, and clipped away the withdrawal. Removing a prefix the
+  // exchange generated is the same removal `sourceStatement` justifies, not a rewording of what
+  // follows it — and where the subject carries none, it comes back unchanged.
+  if (!isTypeOnly(subject)) return clip(sourceStatement(subject) || subject);
+  const stated = sourceStatement(event?.filingDescription);
+  if (stated.length >= 12 && stated.toLowerCase() !== subject.toLowerCase()) return clip(stated);
+  // BSE's own sub-category is their answer to "what kind of filing is this?" — "Award of Order /
+  // Receipt of Order", "Resignation of Director", "Credit Rating" — so it is a real claim where
+  // the subject was not. NSE publishes none, which is why this is a floor and not the first look.
+  return clip(event?.filingSubCategory || subject || 'Filing');
+}
+
+/**
+ * The measurable size of an insider or block-deal disclosure, from the fields the collector wrote.
+ *
+ * Value first because it is the figure the desk's own threshold is stated in (₹10 crore), then the
+ * percentage of the company (1%), then the share count, which is a real number that says nothing
+ * about size on its own. A disclosure that carried none of the three gets no phrase — never a zero.
+ */
+>>>>>>> sattva/main
 function insiderSize(event) {
   if (Number.isFinite(event.tradeValue) && Math.abs(event.tradeValue) >= CRORE) {
     return `₹${(Math.abs(event.tradeValue) / CRORE).toFixed(1)} crore`;
@@ -538,6 +700,7 @@ function resultFigures(event) {
  */
 export const MAX_PER_SOURCE = 3;
 
+<<<<<<< HEAD
 export function topEvidence(card, limit = 3, { maxPerSource = MAX_PER_SOURCE, first = null } = {}) {
   // ONE ROW PER DEVELOPMENT. A card ranked here carries its developments (see
   // data/alert-developments.js), and each is offered once, by its lead: the company's own filing
@@ -555,6 +718,22 @@ export function topEvidence(card, limit = 3, { maxPerSource = MAX_PER_SOURCE, fi
   // hand out slots by independent source, in score order within each one.
   const bySource = new Map();
   for (const event of rows) {
+=======
+export function topEvidence(card, limit = 3, { maxPerSource = MAX_PER_SOURCE } = {}) {
+  // Grouped by FAMILY, in the order each family's strongest event appears — so the rounds below
+  // hand out slots by independent source, in score order within each one.
+  const bySource = new Map();
+  const latest = new Map();
+  for (const event of card?.events || []) if (event.storyId) {
+    const held = latest.get(event.storyId);
+    if (!held || compareStoryRecency(event, held) > 0) latest.set(event.storyId, event);
+  }
+  const emitted = new Set();
+  for (const source of card?.events || []) {
+    const event = source.storyId ? latest.get(source.storyId) : source;
+    if (emitted.has(event)) continue;
+    emitted.add(event);
+>>>>>>> sattva/main
     const family = feedFamily(event);
     const found = bySource.get(family);
     if (found) found.push(event);
@@ -636,22 +815,38 @@ export function plainHeadline(event) {
  * Nothing is reordered either — a lower-scoring event leading the sentence does not promote it.
  */
 export function leadEvent(card) {
+<<<<<<< HEAD
   const dev = leadDevelopment(card);
   if (dev) return dev.lead;
   const events = card?.events || [];
+=======
+  const events = card?.events || [];
+  const newest = [...events].filter(e => e.importance === 'high' || isMaterialStoryUpdate(e)).sort((a, b) => compareStoryRecency(b, a))[0];
+  if (newest?.storyId && newest.storyChange !== 'new' && !isTypeOnly(plainHeadline(newest))) return newest;
+>>>>>>> sattva/main
   return events.find((event) => !isTypeOnly(plainHeadline(event)))
     || events.find((event) => plainHeadline(event).trim())
     || card?.topEvent
     || null;
+<<<<<<< HEAD
 }
 
 /** The development `event` belongs to on this card — every member answers, not only its lead. */
 export function developmentOfEvent(card, event) {
   if (!event) return null;
   return (card?.developments || []).find((dev) => dev.lead === event || dev.members.includes(event)) || null;
+=======
+>>>>>>> sattva/main
 }
 
+const asSentence = (text) => {
+  const value = String(text || '').trim();
+  if (!value) return '';
+  return /[.!?…]$/.test(value) ? value : `${value}.`;
+};
+
 /**
+<<<<<<< HEAD
  * LINE 1 of a development — see `developmentLine`. A measurement (a price move, a book change, an
  * insider disclosure, a filed result) has no statement of its own to shorten, so it keeps the line
  * `plainHeadline` writes for it.
@@ -706,6 +901,10 @@ const asSentence = (text) => {
 /**
  * The card's whole finding: ONE CLAIM, and a warning where the sources disagree.
  *
+=======
+ * The card's whole finding: ONE CLAIM, and a warning where the sources disagree.
+ *
+>>>>>>> sattva/main
  * It is the strongest event's own statement and nothing else. The correlation is a chip directly
  * beneath this sentence, the other sources are the rows beneath that, and the count of them is in
  * the list's own header — so a pattern name, a feed tally or a "that is the strongest recent risk
@@ -718,7 +917,11 @@ const asSentence = (text) => {
  */
 export function plainInsight(card) {
   if (isRelatedNewsContext(card.topEvent)) return `Related-entity report: ${plainHeadline(card.topEvent)}. ${card.topEvent.attribution.reason}`;
+<<<<<<< HEAD
   const claim = asSentence(whatHappened(card));
+=======
+  const claim = asSentence(plainHeadline(leadEvent(card)));
+>>>>>>> sattva/main
   const conflict = card.mixed ? ' Sources disagree — check both directions below.' : '';
   // A card with no statable event cannot be summarised, and inventing a summary for one is the
   // one thing that would be worse than saying so. In practice every surfaced card has at least
@@ -797,21 +1000,33 @@ function cardDevelopments(key, events, names) {
 // Universe ranking (~1s of CPU here, once per partial publication) no longer lands as one task.
 // The generator yields once per card in each pass; a driver decides whether a yield costs
 // anything. Nothing about the result depends on the driver: same events, same order, same cards.
+<<<<<<< HEAD
 function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = null, insightCompanies = screenerInsights.all(), companyMetadata = technicals.all().map(row => row.company), sectorKpis = kpiImpact.snapshot() } = {}) {
+=======
+function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = null, insightCompanies = screenerInsights.all(), sectorKpis = kpiImpact.snapshot() } = {}) {
+>>>>>>> sattva/main
   const day = report?.day || generalAlerts.today();
   const events = report?.events || [];
   const { token, email, orgId } = getHostContext().session;
   // Source records are immutable publications. Compare every reference, not counts/timestamps;
   // a same-ID correction publishes a new record. Copy arrays so in-place additions/removals
   // cannot defeat the comparison. Small membership and health values are compared by content.
-  const input = { day, scope: report?.scope || 'universe', events,
+  const input = { storyRevision: storyGrouping.revision(), day, scope: report?.scope || 'universe', events,
     health: JSON.stringify((report?.feeds || []).map(feed => [feed.id, feed.status, feed.reachesToday])),
     book: JSON.stringify(holdings), positions: JSON.stringify(positionSizes),
+<<<<<<< HEAD
     insights: insightCompanies, sectors: companyMetadata, kpis: sectorKpis, session: JSON.stringify([token, email, orgId]) };
   const cached = rankCache.find(entry => entry.input.day === day && entry.input.scope === input.scope &&
     entry.input.health === input.health && entry.input.book === input.book && entry.input.positions === input.positions &&
     entry.input.session === input.session && entry.input.kpis === sectorKpis && sameRows(entry.input.events, events) &&
     sameRows(entry.input.insights, insightCompanies) && sameRows(entry.input.sectors, companyMetadata));
+=======
+    insights: insightCompanies, kpis: sectorKpis, session: JSON.stringify([token, email, orgId]) };
+  const cached = rankCache.find(entry => entry.input.storyRevision === input.storyRevision && entry.input.day === day && entry.input.scope === input.scope &&
+    entry.input.health === input.health && entry.input.book === input.book && entry.input.positions === input.positions &&
+    entry.input.session === input.session && entry.input.kpis === sectorKpis && sameRows(entry.input.events, events) &&
+    sameRows(entry.input.insights, insightCompanies));
+>>>>>>> sattva/main
   if (cached) {
     const result = { ...cached.result, pending: report?.pending || 0, feeds: report?.feeds || [],
       meta: { ...cached.result.meta, cacheSavedAt: report?.cacheSavedAt || null } };
@@ -851,7 +1066,8 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
   for (const [key, rawEvents] of grouped) {
     const ticker = rawEvents.find(e => e.ticker)?.ticker || null;
     const entityId = rawEvents.find(e => e.entityId)?.entityId || null;
-    const events = dedupe(rawEvents);
+    const events = dedupe(rawEvents).filter(event => event.day >= firstDay && event.day <= day);
+    if (!events.length) { yield; continue; }
     const scoredEvents = events
       .map((event) => ({ event, score: eventScore(event, day, feedById.get(event.feed)) }))
       .sort((a, b) => b.score.points - a.score.points || String(b.event.day).localeCompare(String(a.event.day)) || String(b.event.time || '').localeCompare(String(a.event.time || '')));
@@ -908,13 +1124,22 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
       holdingWeightPct: weights.get(key) ?? weights.get(entityId) ?? null,
       // Cards show the strongest evidence first. General Alerts remains the chronological record.
       events: scoredEvents.map((entry) => entry.event),
+<<<<<<< HEAD
       developments,
+=======
+      sourceEvents: rawEvents,
+>>>>>>> sattva/main
       topEvent: top?.event || events[0],
       directions,
       mixed,
       highCount,
       materialPortfolioEvent,
+<<<<<<< HEAD
       evidenceKey: JSON.stringify(materialEvidence(events, developments)),
+=======
+      materialStoryUpdate: events.some(isMaterialStoryUpdate),
+      evidenceKey: JSON.stringify(materialEvidence(events)),
+>>>>>>> sattva/main
       hasMaterialNegative,
       feedCount: feeds.length,
       feeds,
@@ -952,7 +1177,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
       // would push a company above the deliberately bounded 100-point scale.
       card.scoreBreakdown.push({ label: '100-point priority scale cap', points: card.score - unclamped });
     }
-    card.priority = card.score >= MUST_SEE_SCORE ? 'must-see' : card.score >= MIN_SCORE || card.materialPortfolioEvent ? 'important' : 'watch';
+    card.priority = card.score >= MUST_SEE_SCORE ? 'must-see' : card.score >= MIN_SCORE || card.materialPortfolioEvent || card.materialStoryUpdate ? 'important' : 'watch';
     card.insight = plainInsight(card);
     // WHICH OF THE COMPANY'S OWN SECTOR KPIs the evidence names — read off the same events, through
     // the desk's sector → KPI ontology. Like the topic chips on the rows it adds no score and no
@@ -968,7 +1193,9 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
   cards.sort(
     (a, b) => (weights.size ? (b.holdingWeightPct ?? -1) - (a.holdingWeightPct ?? -1) : 0) || b.score - a.score || b.highCount - a.highCount || String(b.topEvent?.day || '').localeCompare(String(a.topEvent?.day || '')) || a.company.localeCompare(b.company)
   );
-  const surfaced = cards.filter((card) => card.score >= MIN_SCORE || card.materialPortfolioEvent);
+  // A new checked development must stand on its own after the original evidence ages out.
+  // Keep the measured score and the source's importance tag; neither is a new-facts gate.
+  const surfaced = cards.filter((card) => card.score >= MIN_SCORE || card.materialPortfolioEvent || card.materialStoryUpdate);
   const marketWide = (report?.events || []).filter(
     (event) => !event.ticker && !event.entityId && event.day && event.day >= firstDay && event.day <= day
   ).length;
@@ -1043,13 +1270,13 @@ function mergePlan(previous, next) {
   if (!previous || previous.scope !== next.scope || previous.day !== next.day) return null;
   const eventKey = event => `${event.feed}:${event.id || JSON.stringify([event.ticker, event.entityId, event.day, event.url, event.headline])}`;
   const nextEvidence = new Set((rankingEvidence.get(next) || []).map(eventKey));
-  for (const card of next.allCards) for (const event of [...card.events, ...(card.contextEvents || []), ...(card.upcomingEvents || [])]) nextEvidence.add(eventKey(event));
+  for (const card of next.allCards) for (const event of [...(card.sourceEvents || card.events), ...(card.contextEvents || []), ...(card.upcomingEvents || [])]) nextEvidence.add(eventKey(event));
   // Union EVIDENCE, not whole cards. Keeping the old card until every prior source answers
   // hides a new material story about that same company behind an unrelated slow feed.
   const evidence = new Map();
   let needsMerge = false;
   for (const report of [previous, next]) for (const card of report.allCards) {
-    for (const event of [...card.events, ...(card.contextEvents || []), ...(card.upcomingEvents || [])]) {
+    for (const event of [...(card.sourceEvents || card.events), ...(card.contextEvents || []), ...(card.upcomingEvents || [])]) {
       const id = eventKey(event);
       if (report === previous && !nextEvidence.has(id)) needsMerge = true;
       evidence.set(id, event); // New source corrections win under their stable identity.
@@ -1117,10 +1344,17 @@ export function withPositionSnapshot(report, snapshot) {
 export async function cached({ scope = 'portfolio', holdings = null, positionSizes = null, isCurrent = () => true } = {}) {
   const book = holdings || coverage.holdings();
   // The sector → KPI file is small and static; it is read beside the cached window, never after it.
+<<<<<<< HEAD
   const kpis = kpiImpact.load();
   const report = await generalAlerts.readCachedAlertWindow({ scope, holdings: book });
   if (!report || !isCurrent()) return null;
   await kpis;
+=======
+  const readings = Promise.all([kpiImpact.load(), storyGrouping.load()]);
+  const report = await generalAlerts.readCachedAlertWindow({ scope, holdings: book });
+  if (!report || !isCurrent()) return null;
+  await readings;
+>>>>>>> sattva/main
   if (!isCurrent()) return null;
   return rankReportAsync(report, { holdings: book, positionSizes, insightCompanies: screenerInsights.all() }, { isCurrent });
 }
@@ -1169,6 +1403,11 @@ export async function collect({ scope = 'portfolio', holdings = null, positionSi
   });
   closed = true;
   queued = null;
+  if (typeof window !== 'undefined' && isCurrent()) {
+    const first = shiftDay(report.day || generalAlerts.today(), -(WINDOW_DAYS - 1));
+    void storyGrouping.review(report.events.filter(event => event.day >= first && event.day <= report.day &&
+      (newsCanSupportAI(event) || isRelatedNewsContext(event))), { isCurrent });
+  }
   if (publishing) await publishing;
   await kpiRead;
   if (!isCurrent()) return null; // Shared collection/storage finishes; obsolete view work stops.

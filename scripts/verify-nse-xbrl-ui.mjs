@@ -12,7 +12,8 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseXbrlFiling } from '../public/js/data/nse-xbrl-shared.js';
+import { filingFacts, parseXbrlFiling } from '../public/js/data/nse-xbrl-shared.js';
+import { renderFilingPage } from '../worker/filing-page.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../public');
@@ -34,6 +35,7 @@ const rows = [
 // `workerDown` is the static-origin case: `python3 -m http.server` and the sandbox both answer a
 // route that does not exist, and the panel must say THAT rather than blaming the exchange.
 let workerDown = false;
+let filingReads = 0;
 
 const html = `<!doctype html><html><head><link rel="stylesheet" href="/css/tailwind.css"></head>
 <body class="bg-slate-50 p-6">
@@ -61,6 +63,7 @@ const server = createServer((req, res) => {
   if (url.pathname === '/') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
 
   if (url.pathname === '/api/nse-filing') {
+    filingReads += 1;
     if (workerDown) { res.writeHead(404); res.end('not found'); return; }
     const src = url.searchParams.get('src') || '';
     // The stub reproduces the route's own allow-list, so a test that stopped refusing a foreign URL
@@ -68,6 +71,16 @@ const server = createServer((req, res) => {
     if (src !== XBRL_URL) { res.writeHead(400, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: false, reason: 'unsupported', url: src })); return; }
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify({ ok: true, url: src, fetchedAt: new Date().toISOString(), ...parseXbrlFiling(xml) }));
+    return;
+  }
+
+  // THE PAGE A LINK OUT OF THE TEAM BRIEF LANDS ON. The Worker serves it from the same parsed
+  // filing as the JSON route above, so the stub renders it the same way — what is under test is
+  // that a reader with nothing but a browser can READ the filing, which is the whole complaint.
+  if (url.pathname === '/filing') {
+    const src = url.searchParams.get('src') || '';
+    res.setHeader('content-type', 'text/html; charset=utf-8');
+    res.end(renderFilingPage({ filing: parseXbrlFiling(xml), url: src, dashboardUrl: 'https://example.test' }));
     return;
   }
 
@@ -91,7 +104,10 @@ const browser = await chromium.launch();
 const context = await browser.newContext();
 // Nothing here may reach the internet. A check that quietly fetched NSE would be testing the
 // exchange's availability rather than this code.
-await context.route('**', (route) => (route.request().url().startsWith(base) ? route.continue() : route.abort()));
+await context.route('**', (route) => {
+  if (route.request().url() === XBRL_URL) return route.fulfill({ contentType: 'text/plain', body: xml });
+  return route.request().url().startsWith(base) ? route.continue() : route.abort();
+});
 const page = await context.newPage();
 // Keep the dated filing fixture inside the view's default recent-date window.
 await page.clock.setFixedTime(new Date('2026-09-10T14:00:00Z'));
@@ -104,6 +120,24 @@ let checks = 0;
 const check = async (label, fn) => { await fn(); checks += 1; console.log(`PASS ${label}`); };
 const panel = () => page.locator('[data-xbrl-panel]');
 const closePanel = () => page.keyboard.press('Escape');
+const openOriginal = async ({ keyboard = false } = {}) => {
+  const original = panel().locator(`a[href="${XBRL_URL}"]`);
+  const textBefore = await panel().innerText();
+  const readsBefore = filingReads;
+  const sourcePage = page.url();
+  const [opened] = await Promise.all([
+    page.waitForEvent('popup', { timeout: 5000 }),
+    keyboard ? original.press('Enter') : original.click(),
+  ]);
+  try {
+    await opened.waitForLoadState('domcontentloaded');
+    assert.equal(opened.url(), XBRL_URL, 'the new tab uses the original NSE URL');
+    assert.equal(await opened.evaluate(() => window.opener), null, 'the new tab has no opener access');
+    assert.equal(page.url(), sourcePage, 'the dashboard stays in its original tab');
+    assert.equal(await panel().innerText(), textBefore, 'the filing popup stays intact');
+    assert.equal(filingReads, readsBefore, 'opening the original does not fetch and reopen the reader');
+  } finally { await opened.close(); }
+};
 
 await page.goto(base, { waitUntil: 'networkidle' });
 await page.waitForSelector('[data-table-scroll] tbody tr');
@@ -149,6 +183,7 @@ await check('the original document stays one click away', async () => {
   assert.equal(await original.count(), 1);
   assert.equal(await original.getAttribute('target'), '_blank');
   assert.equal(await original.getAttribute('rel'), 'noopener noreferrer');
+  await openOriginal();
   await closePanel();
   await panel().waitFor({ state: 'detached' });
 });
@@ -190,9 +225,32 @@ await check('with no Worker the panel says so and still hands over the document'
   assert.match(text, /The filing itself is fine/i);
   assert.doesNotMatch(text, /unreachable/i);
   assert.equal(await panel().locator(`a[href="${XBRL_URL}"]`).count(), 1);
+  await openOriginal({ keyboard: true });
   await closePanel();
   await panel().waitFor({ state: 'detached' });
   workerDown = false;
+});
+
+await check('the filing page opens as a filing, not as XML, with the original one click away', async () => {
+  // This is the email's destination: no dashboard, no script, no stylesheet — just the document.
+  const filing = parseXbrlFiling(xml);
+  const reader = await context.newPage();
+  await reader.goto(`${base}filing?src=${encodeURIComponent(XBRL_URL)}`, { waitUntil: 'load' });
+  const text = await reader.locator('body').innerText();
+  assert.match(text, /Man Industries \(India\) Limited/);
+  assert.doesNotMatch(text, /does not appear to have any style information/i, 'the reader never sees the XML tree');
+  assert.doesNotMatch(text, /<in-capmkt:/, 'no markup reaches the page as text');
+  // Every field the filing carries is on the page, under the exchange's own label.
+  for (const fact of filingFacts(filing)) {
+    assert.ok(text.includes(fact.label), `missing label ${fact.label}`);
+    assert.ok(text.includes(fact.value), `missing value ${fact.value}`);
+  }
+  assert.equal(await reader.locator(`a[href="${XBRL_URL}"]`).count(), 1, 'the original document stays reachable');
+  assert.equal(await reader.locator('script').count(), 0);
+  // It must be legible on the phone an email is read on, without sideways scrolling.
+  await reader.setViewportSize({ width: 390, height: 800 });
+  assert.equal(await reader.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'no sideways scroll at 390px');
+  await reader.close();
 });
 
 await check('the whole run produced no console errors', () => {
