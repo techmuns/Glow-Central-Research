@@ -9,9 +9,17 @@ export const onChange = (fn) => { listeners.add(fn); return () => listeners.dele
 export const forPerson = (id, kind = 'investor') => (data?.holdings || []).filter((h) => h.personId === id && h.kind === kind);
 const CACHE_KEY = 'holdings:public';
 function validate(next) {
+<<<<<<< HEAD
   if (next?.version !== 1 || !['holdings', 'issues', 'sources', 'profiles', 'candidates'].every((key) => Array.isArray(next[key])) ||
     !['indexed', 'parsed', 'pending', 'partial', 'securities', 'profiles'].every((key) => Number.isSafeInteger(next.coverage?.[key]) && next.coverage[key] >= 0) ||
     !Number.isFinite(Date.parse(next.checkedAt)) || !Number.isFinite(Date.parse(next.captureCheckedAt)) ||
+=======
+  if (next?.status === 'not-started') throw new Error('Exchange capture has not started');
+  if (next?.version !== 1 || !['holdings', 'issues', 'sources', 'profiles', 'candidates'].every((key) => Array.isArray(next[key])) ||
+    !['indexed', 'parsed', 'pending', 'partial', 'securities', 'profiles'].every((key) => Number.isSafeInteger(next.coverage?.[key]) && next.coverage[key] >= 0) ||
+    !Number.isFinite(Date.parse(next.checkedAt)) || !Number.isFinite(Date.parse(next.captureCheckedAt)) ||
+    Date.parse(next.checkedAt) > Date.now() + 600000 || Date.parse(next.captureCheckedAt) > Date.now() + 600000 ||
+>>>>>>> sattva/main
     next.holdings.some((h) => !h.id || !h.personId || !h.company || !h.legalHolder || !/^IN[A-Z0-9]{10}$/.test(h.isin) || !Number.isFinite(Date.parse(h.asOf)) ||
       !Number.isSafeInteger(h.shares) || h.shares < 0 || !Number.isFinite(h.stakePct) || h.stakePct < 0 || h.stakePct > 100 || !h.sources?.length ||
       h.sources.some((s) => !/^https:\/\/(?:www\.bseindia\.com|(?:nsearchives|archives)\.nseindia\.com)\//.test(s.url) || !Number.isFinite(Date.parse(s.checkedAt))))) throw new Error('Unreadable public holdings capture');
@@ -40,7 +48,11 @@ export async function refresh() {
       if (data?.checkedAt !== next.checkedAt) writeEntry(CACHE_KEY, { value: next, tag: next.checkedAt });
       data = next; error = null; readAt = Date.now();
     } catch (e) { error = e.message; }
+<<<<<<< HEAD
     for (const fn of listeners) fn();
+=======
+    for (const fn of [...listeners]) fn();
+>>>>>>> sattva/main
     return data;
   })().finally(() => { loading = null; });
   return loading;
@@ -51,3 +63,15 @@ export function startLive(live) {
   live.register(LIVE_ID, { intervalMs: 300000, fetcher: refresh }); live.start(LIVE_ID);
   return () => live.stop(LIVE_ID);
 }
+<<<<<<< HEAD
+=======
+
+// Opening, resuming and visible reading revalidate independently of modal usage.
+export function watchFreshness() {
+  const tick = () => { if (!document.hidden) load().catch(() => {}); };
+  const timer = setInterval(tick, 60000);
+  document.addEventListener('visibilitychange', tick); window.addEventListener('focus', tick);
+  tick();
+  return () => { clearInterval(timer); document.removeEventListener('visibilitychange', tick); window.removeEventListener('focus', tick); };
+}
+>>>>>>> sattva/main

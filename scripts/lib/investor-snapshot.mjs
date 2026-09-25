@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { normalisePortfolio, quarterOrder } from '../../public/js/data/finology-shared.js';
+=======
+import { normalisePortfolio, quarterOrder, retainPortfolioHistory } from '../../public/js/data/finology-shared.js';
+>>>>>>> sattva/main
 
 export function validateBook(body, slug, previous = null) {
   if (!body || body.ok === false || body.stale === true) throw new Error('Book unavailable or served stale');
@@ -10,6 +14,7 @@ export function validateBook(body, slug, previous = null) {
   return body;
 }
 
+<<<<<<< HEAD
 // Retain older columns when the upstream rolling window drops them. A missing company in the
 // incoming response is history, not an invented current position or a confirmed sale.
 export function retainHistory(incoming, previous) {
@@ -30,6 +35,9 @@ export function retainHistory(incoming, previous) {
   }
   return { ...incoming, ...book, quarters: [...book.quarters, ...older].sort((a, b) => quarterOrder(b) - quarterOrder(a)), holdings: [...rows.values()] };
 }
+=======
+export { retainPortfolioHistory as retainHistory } from '../../public/js/data/finology-shared.js';
+>>>>>>> sattva/main
 
 // `attempt` is what THIS run tried and how it went — separate from `capturedAt`, which every
 // consumer reads as "when this file was written", and from each book's own `fetchedAt`, which is
@@ -42,10 +50,17 @@ export function assembleSnapshot({ list, books, failed, previous = {}, capturedA
   for (const investor of missing) failed[investor.slug] = { reason: 'missing-from-list', message: 'Previously tracked investor disappeared from the source list; retained pending review.' };
   for (const investor of investors) {
     const slug = investor.slug;
+<<<<<<< HEAD
     if (books[slug]) merged[slug] = retainHistory(books[slug], previous.books?.[slug]);
     else if (previous.books?.[slug]) { merged[slug] = previous.books[slug]; retained.push(slug); }
   }
   return { capturedAt, source: 'Ticker Finology via the dashboard Worker; scheduled every six hours',
+=======
+    if (books[slug]) merged[slug] = retainPortfolioHistory(books[slug], previous.books?.[slug]);
+    else if (previous.books?.[slug]) { merged[slug] = previous.books[slug]; retained.push(slug); }
+  }
+  return { capturedAt, source: 'Ticker Finology via the dashboard Worker; scheduled daily',
+>>>>>>> sattva/main
     count: investors.length, dropped: list.dropped || 0, investors,
     covered: Object.keys(merged).length, refreshed: Object.keys(books).length, retained,
     positions: Object.values(merged).reduce((n, b) => n + b.holdings.length, 0),

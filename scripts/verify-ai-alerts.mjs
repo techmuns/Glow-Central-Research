@@ -462,6 +462,7 @@ assert.equal(plainInsight({ events: [typeOnly], topEvent: typeOnly, mixed: false
 console.log('PASS: the card states one claim — the strongest event\'s own — completing our lines and reproducing theirs.');
 
 
+<<<<<<< HEAD
 // THE FIGURES TRAVEL ON THE EVENT, so a card built from the AI pool states them too. The pool drops
 // `sourceRecord` (`compactAiEvent`), and a sentence that read the figures only off the record said
 // "Result filed (YOY) · …" from the full history and "YOY quarterly result filed" from the pool —
@@ -482,6 +483,8 @@ assert.equal(plainHeadline(compacted), plainHeadline(filedEvent), 'and the card 
 console.log('PASS: a filed result states its figures from the event itself, so the pool and the full history say the same.');
 
 
+=======
+>>>>>>> sattva/main
 // --- the sliced ranking is the synchronous ranking, spread over time --------------------------
 // One generator, two drivers: `rankReportAsync` must resolve to exactly what `rankReport` returns,
 // must yield to input between slices on a large input, and must resolve null — never a partial

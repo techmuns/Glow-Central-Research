@@ -212,6 +212,7 @@ export function assessFilingsHealth(captures, { now = Date.now(), sources = Obje
       const failures = object(body.failed) ? Object.keys(body.failed) : Array.isArray(body.failed) ? body.failed.map((f) => typeof f === 'string' ? f : f?.ticker || 'unknown') : [];
       if (failures.length || body.failedCount > 0) add(source, 'source-read-failed', 'critical', failures, Math.max(failures.length, body.failedCount || 0));
       if (source === 'announcements') {
+        if (body.identityDirectory && body.identityDirectory.ok !== true) add(source, 'identity-directory-unavailable', 'critical');
         if (Array.isArray(body.shortfall) && body.shortfall.length) add(source, 'pagination-shortfall', 'critical', body.shortfall.map((s) => s?.category || 'unknown'));
         else if (body.shortfall != null && !Array.isArray(body.shortfall)) add(source, 'invalid-capture', 'critical');
         if (Object.keys(body.unknownCategories || {}).length) add(source, 'unknown-source-categories', 'critical', Object.keys(body.unknownCategories));

@@ -1,9 +1,13 @@
+<<<<<<< HEAD
 import * as fundReturns from '../data/fund-returns.js';
 import * as mfWeekly from '../data/mf-weekly.js';
 import * as macroSeries from '../data/series.js';
 import * as fpiActivity from '../data/fpi-activity.js';
 import * as familyBook from '../data/book.js';
 import * as familyManagers from '../data/managers.js';
+=======
+import * as mutualFunds from '../data/mutual-funds.js';
+>>>>>>> sattva/main
 // ui/sources.js — the data-source registry behind the header's "Sources" button.
 //
 // This is presentation metadata, not a data source: it mirrors docs/DATA-CONTRACTS.md so a
@@ -44,6 +48,7 @@ import * as superInvestors from '../data/super-investors.js';
 // three read the same constant, so changing it cannot leave one of them describing the old filter.
 import * as dailyAlerts from '../data/daily-alerts.js';
 import * as aiAlerts from '../data/ai-alerts.js';
+import * as kpiImpact from '../data/kpi-impact.js';
 import { ipoSourceGroup } from './ipo-sources.js';
 import { newsSourceItems, newsSourceMeta, screenerInsightsSource } from './news-sources.js';
 import { sourceConnection, sourceSummary, sourceReadState } from './source-connections.js';
@@ -257,6 +262,11 @@ export function sourceGroups() {
         .join(' and ');
 
     const groups = [
+    { title: 'Mutual Funds', icon: '📋', tabs: 'Mutual Funds', items: [{
+      name: 'AMC monthly portfolio disclosures', feeds: mutualFunds.health(), cadence: '15-minute collection target, server-side; monthly source publications',
+      status: 'live', readState: sourceReadState({at:mutualFunds.meta().checkedAt,failed:mutualFunds.meta().readFailed,partial:mutualFunds.health()!=='Latest reported disclosures',maxAgeMs:45*60000}),
+      note: 'AmfiBeas public AMC disclosures. Missing and stale AMC reports remain explicit; only adjacent, comparable months contribute to net change. Estimates of company shares outstanding are labelled. Every captured month is retained.'
+    }] },
     {
       // THE ALERT PAIR COMES FIRST because this is the only group whose whole point is that it
       // introduces NOTHING. A reader is owed "no new feed" before looking for a source that does
@@ -577,6 +587,7 @@ export function sourceGroups() {
           cadence:
             `Scheduled every two hours, including weekends; missed date windows are retried and older rows are archived.${clause(num(() => annFeed.meta().windowDays), ' Rolling <n>-day window.')}${clause(num(() => annFeed.meta().baseRowCount), ' <n> filings in the current file.')}${clause(num(() => annFeed.meta().baseCovered), ' <n> companies filed something.')}`,
           status: 'live',
+          details: annFeed.meta().identityDirectory?.ok === false ? ['The company directory could not be refreshed. Filings are retained; company matching is partial.', `Last successful directory check: ${annFeed.meta().identityDirectory?.lastSuccessAt || 'unavailable'}`] : [],
           file: 'worker/bse-ann.mjs · scripts/scrape-bse-announcements.mjs · scripts/capture-company-filings.mjs · .github/workflows/announcements-refresh.yml',
         },
         {
@@ -880,7 +891,7 @@ export function sourceGroups() {
     if (!item) continue;
     item.readState = sourceReadState({ at: meta?.fetchedAt || meta?.capturedAt || meta?.generated_at || meta?.checkedAt,
       failed: !!meta?.reason || !!meta?.degraded || !!meta?.lastReadFailed || !!meta?.error,
-      partial: Number(meta?.failed) > 0 || (Array.isArray(meta?.failures) ? meta.failures.length > 0 : Number(meta?.failures) > 0), maxAgeMs });
+      partial: meta?.identityDirectory?.ok === false || Number(meta?.failed) > 0 || (Array.isArray(meta?.failures) ? meta.failures.length > 0 : Number(meta?.failures) > 0), maxAgeMs });
   }
   const telegramSource = groups.flatMap(g => g.items).find(i => i.name === 'Telegram — a public research channel');
   const chatterSource = groups.flatMap(g => g.items).find(i => i.name === 'SentimentDash — mention counts and sentiment');
