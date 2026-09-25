@@ -85,7 +85,7 @@
       ]
     },
     "isin:INE914E01040|Alankit": {
-      "lastAttemptAt": "2026-09-20T07:36:48+00:00",
+      "lastAttemptAt": "2026-09-25T02:33:00+00:00",
       "error": "search-unavailable",
       "lastResultCount": 21,
       "lastSuccessAt": "2026-09-15T20:36:48+00:00",
@@ -1764,6 +1764,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-25T02:17:37.175194+00:00"
+    "checkedAt": "2026-09-25T02:33:00.504506+00:00"
   }
 }
