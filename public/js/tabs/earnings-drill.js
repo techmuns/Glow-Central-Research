@@ -105,7 +105,11 @@ function quarterTableHtml(quarters) {
   return `
     <div class="mb-5">
       <div class="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Eight-quarter series</div>
+<<<<<<< HEAD
       <div class="table-scroll-surface overflow-x-auto rounded-xl ring-1 ring-slate-100" tabindex="0" role="region" aria-label="Eight-quarter earnings table">
+=======
+      <div class="table-scroll-surface scrollbar-thin overflow-x-auto rounded-xl ring-1 ring-slate-100" tabindex="0" role="region" aria-label="Eight-quarter earnings table">
+>>>>>>> sattva/main
         <table data-column-layout="earnings-drill:1" class="w-full text-[11px]">
           <thead class="bg-slate-50/70">
             <tr>

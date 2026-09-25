@@ -201,7 +201,7 @@ export function validateResearchBody(body) {
       return { ok: false, status: 409, error: 'invalid_portfolio_positions', message: 'Fresh, complete holdings context is required. Please ask again.' };
     }
   }
-  if (researchEvidenceChars(evidence) > (evidence.businessContext?.kind === 'portfolio-reasoning' ? PORTFOLIO_REASONING_MAX_CHARS : MAX_EVIDENCE_CHARS)) {
+  if (researchEvidenceChars(evidence) > ((evidence.businessContext?.kind === 'portfolio-reasoning' || evidence.sources?.some(source => source.id === 'mutual-funds' && source.status === 'ready')) ? PORTFOLIO_REASONING_MAX_CHARS : MAX_EVIDENCE_CHARS)) {
     return { ok: false, status: 413, error: 'evidence_too_large', message: 'The dashboard evidence packet is too large. Narrow the question and try again.' };
   }
 
@@ -375,10 +375,15 @@ function researchStream(request, env, input) {
         try { ndjson(controller, event); terminated = true; }
         catch { /* The reader is already gone; `finally` closes what is left of the body. */ }
       };
+<<<<<<< HEAD
       ndjson(controller, { type: 'start', provider: researchProvider(env) });
       ndjson(controller, { type: 'phase', phase: 'Writing from dashboard evidence' });
 
+=======
+>>>>>>> sattva/main
       try {
+        ndjson(controller, { type: 'start', provider: researchProvider(env) });
+        ndjson(controller, { type: 'phase', phase: 'Writing from dashboard evidence' });
         if (researchProvider(env) === 'bedrock') {
           const result = await streamClaudeChat(request, env, input, researchInstructions(input), upstreamCancellation.signal,
             text => ndjson(controller, { type: 'text', text }));

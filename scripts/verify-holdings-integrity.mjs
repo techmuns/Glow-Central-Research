@@ -53,12 +53,20 @@ assert.equal(historical.holdings[0].quarterlyHoldings['Mar 2026'], 3);
 const report = assessCoverage({ snapshot: { ...retained, capturedAt: '2026-10-01' }, now: '2026-10-01T00:00:00Z',
   managers: { syncedAt: '2026-10-01', managers: [{ id: 'pms', name: 'PMS', kind: 'pms', asOf: '2026-07-31', statements: [{}] },
     { id: 'aif', name: 'Fund', kind: 'aif', asOf: '2026-10-01' }] } });
+<<<<<<< HEAD
 assert.equal(report.total, 4);
+=======
+assert.equal(report.total, 2, 'Only public investor books belong to this coverage review');
+>>>>>>> sattva/main
 assert(report.rows[0].issues.includes('Source check overdue'), 'a fresh file cannot rejuvenate an old source check');
 assert(!report.rows.some((r) => r.issues.some((s) => /statement.*needed|portfolio feed needed/i.test(s))), 'customer document requests are outside this feature');
 assert.equal(report.complete, false);
 
+<<<<<<< HEAD
 const evidence = JSON.parse(readFileSync(new URL('../public/data/holding-evidence.json', import.meta.url)));
+=======
+const evidence = { relations: [{ entityId: 'fixture-fund', legalName: 'Singularity Equity Fund I', investorSlugs: ['madhusudan-kela'], sourceUrl: 'https://example.test/official-team', verifiedAt: today }] };
+>>>>>>> sattva/main
 const people = withVerifiedEntities([{ id: 'madhusudan-kela', name: 'Madhusudan Kela' }], evidence, 'investor', today);
 const deal = { ticker: 'TIL', date: today, cells: { 'Trade Category': 'Bulk deal', Insider: 'Singularity Equity Fund I', Transaction: 'Buy', 'Trade Shares': '100' } };
 const match = matchedDeals([deal], people)[0];
@@ -94,8 +102,28 @@ try {
   // failure stays visible through `uncheckedFor` and the coverage audit reads both.
   assert.equal(cacheFeed.uncheckedFor('example').reason, 'test-outage');
   assert.equal(cacheFeed.failureFor('example'), null, 'a book on screen is never reported as a gap');
+<<<<<<< HEAD
   await cacheFeed.loadBook('example', { force: true });
   assert(cacheFeed.book('example'), 'a live outage must not erase a cached portfolio');
   assert(cacheFeed.uncheckedFor('example'), 'a failed revalidation of a retained book remains visible');
 } finally { globalThis.fetch = realFetch; }
 console.log('PASS holdings integrity: partial months, source states, unknown gaps, zero valuations, completed adjacent quarters, retained failures/history, source age, managers and strict legal-entity attribution');
+=======
+  serverSnapshot = { ...serverSnapshot, capturedAt: '2026-09-11T00:00:00Z', investors: [{ slug: 'new-entry', name: 'New Entry' }], books: {} };
+  await cacheFeed.refreshSnapshot();
+  assert(cacheFeed.list().some((i) => i.slug === 'example'), 'a directory omission retains the known investor and history');
+  assert(cacheFeed.book('example').quarters.includes('Mar 2026'));
+  await cacheFeed.loadBook('example', { force: true });
+  assert(cacheFeed.book('example'), 'a live outage must not erase a cached portfolio');
+  assert(cacheFeed.uncheckedFor('example'), 'a failed revalidation of a retained book remains visible');
+  const rolled = { ...raw, fetchedAt: '2026-10-01T00:00:00Z', quarters: ['Sep 2026', 'Jun 2026'], holdings: [{ ...raw.holdings[0], quarterlyHoldings: { 'Sep 2026': 5, 'Jun 2026': 4 } }] };
+  globalThis.fetch = async () => Response.json(rolled);
+  await cacheFeed.loadBook('example', { force: true });
+  assert(cacheFeed.book('example').quarters.includes('Mar 2026'), 'live revalidation preserves older captured columns');
+  assert.equal(cacheFeed.book('example').holdings[0].quarterlyHoldings['Mar 2026'], 3);
+  const saved = await store.readEntry(store.KEYS.investorBook('example'));
+  assert(saved.value.quarters.includes('Mar 2026'), 'retained live history survives device reload');
+
+} finally { globalThis.fetch = realFetch; }
+console.log('PASS holdings integrity: partial months, source states, unknown gaps, zero valuations, completed adjacent quarters, retained failures/history, source age and strict legal-entity attribution');
+>>>>>>> sattva/main

@@ -3,10 +3,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { INDIA_INSTRUMENTS, GLOBAL_INSTRUMENTS, BSE_SENSEX_URL, quoteFromBse, readBseSensex, reconcileGlobalIndex, quoteFromNse, readNseIndices, reconcileIndianIndex, quoteFromChart, quoteFromUpstox, readUpstoxIndices, reconcileIndex } from '../worker/newsletter-markets.mjs';
+<<<<<<< HEAD
 import { MARKET_ROWS, readMarkets, asOfLabel, formatPct, formatChange, buildBrief, briefSummary, renderBriefHtml, renderBriefText } from '../worker/newsletter-brief.mjs';
 import { DEFAULT_SETTINGS } from '../public/js/data/newsletter-shared.js';
 import { renderBriefPdf } from '../worker/newsletter-pdf.mjs';
 import { NASDAQ_HISTORY_URL, enrichNasdaqClose, readNasdaqEnrichment } from '../worker/newsletter-market-enrichment.mjs';
+=======
+import { MARKET_ROWS, readMarkets, asOfLabel, formatPct, formatChange, buildBrief, renderBriefHtml, renderBriefText } from '../worker/newsletter-brief.mjs';
+import { DEFAULT_SETTINGS } from '../public/js/data/newsletter-shared.js';
+import { renderBriefPdf } from '../worker/newsletter-pdf.mjs';
+>>>>>>> sattva/main
 
 const at = Date.parse('2026-09-23T16:00:00+05:30');
 const time = (day, clock = '15:30') => Date.parse(`${day}T${clock}:00+05:30`);
@@ -36,6 +42,7 @@ const globalQuote = (id = 'sp500', at = '2026-09-23T16:36:00-04:00') => ({
   last_price: 7706.03, prev_close_price: 7764.64, net_change: -58.61, last_trade_time: String(Date.parse(at)),
 });
 
+<<<<<<< HEAD
 // Exercise the history fallback with a provider response that lacks quote changes.
 // The untouched captured response is tested separately below.
 const nasdaqHistoryOnlyChart = () => {
@@ -271,6 +278,8 @@ test('all fifteen published global daily changes reach HTML, text, PDF and summa
   assert.match(pdf, /7,706.03/); assert.match(pdf, /0.75%/); assert.match(pdf, /quoted daily change/);
 });
 
+=======
+>>>>>>> sattva/main
 test('captured BSE chart dates the cash point, ignores the wrong header clock and validates its previous close', async () => {
   const q = quoteFromBse(bseBody, sensex, bseNow);
   assert.equal(q.last, 74267.72); assert.equal(q.prev, 74828.25); assert.equal(q.state, 'live');
@@ -542,12 +551,16 @@ test('complete market reader and HTML/text/PDF preserve verified numbers, missin
   const brief = await buildBrief({ edition: 'evening', day: '2026-09-23', settings: DEFAULT_SETTINGS, env, fetcher, now: at });
   const html = renderBriefHtml(brief), text = renderBriefText(brief);
   assert.match(html, /daily change withheld: sources disagree/); assert.match(text, /daily change withheld: sources disagree/);
+<<<<<<< HEAD
   assert(!html.includes("today&#39;s close"));
   // The regression concerns Nifty's comparison, not unrelated holdings whose
   // captured daily move can legitimately be +0.76% as the repository advances.
   const niftyLine = text.split('\n').find(line => /^\s+Nifty 50\s/.test(line));
   assert(niftyLine); assert(!niftyLine.includes('+0.76%')); assert.match(niftyLine, /daily change withheld: sources disagree/);
   assert.equal(occurrences(text), agreed, 'the withheld Nifty change never reaches the text brief');
+=======
+  assert(!html.includes("today&#39;s close")); assert.equal(occurrences(text), agreed, 'the withheld Nifty change never reaches the text brief');
+>>>>>>> sattva/main
   assert.match(Buffer.from(renderBriefPdf(brief)).toString('latin1'), /daily change withheld/);
   disagree = false; missing = true;
   const partial = await readMarkets({ env, fetcher, now: at });
