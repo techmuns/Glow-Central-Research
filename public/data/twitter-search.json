@@ -361,8 +361,8 @@
       "pending": []
     },
     "isin:INE532F01054|EDELWEISS": {
-      "lastAttemptAt": "2026-09-21T00:21:30+00:00",
-      "error": "result-cap-incomplete",
+      "lastAttemptAt": "2026-09-25T23:59:36+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 109,
       "targetThrough": "2026-09-12T07:47:49+00:00",
       "pending": [
@@ -1764,6 +1764,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-25T23:26:56.493234+00:00"
+    "checkedAt": "2026-09-25T23:59:36.038731+00:00"
   }
 }
