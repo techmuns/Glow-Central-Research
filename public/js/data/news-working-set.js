@@ -76,6 +76,7 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
         if (!groups.has(id)) {
           const group = parents.length;
           groups.set(id, group); parents.push(group); ranks.push(0); picked.push(false);
+<<<<<<< HEAD
         }
         return groups.get(id);
       };
@@ -92,6 +93,24 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
           parents[other] = group; picked[group] ||= picked[other];
           if (ranks[group] === ranks[other]) ranks[group]++;
         }
+=======
+        }
+        return groups.get(id);
+      };
+      const indexRow = item => {
+        // The same TradingView story can change URLs. Close over both identities, including
+        // cross-route URL companions, before any of the existing deduplicators run.
+        const inWindow = selected(item, window);
+        if (!item[2].length) return inWindow ? 1 : 0;
+        let group = root(groupFor(item[2][0]));
+        for (const id of item[2].slice(1)) {
+          let other = root(groupFor(id));
+          if (group === other) continue;
+          if (ranks[group] < ranks[other]) [group, other] = [other, group];
+          parents[other] = group; picked[group] ||= picked[other];
+          if (ranks[group] === ranks[other]) ranks[group]++;
+        }
+>>>>>>> sattva/main
         picked[group] ||= inWindow;
         return group;
       };

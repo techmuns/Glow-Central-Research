@@ -62,8 +62,12 @@ try {
     }
     assert(r.context.candidates.every(c => c.weightPct === null));
     assert.match(r.context.holdingsBasis, /ownership and weights not established/);
+<<<<<<< HEAD
     assert(r.sources.some(s => s.id === 'portfolio'), 'the shared sources include Glow Family Book');
     assert(!r.sources.some(s => s.id === 'earnings-surprise'), 'the retired estimates view is not a research source');
+=======
+    assert.equal(r.sources.length, 21);
+>>>>>>> sattva/main
     assert(r.sources.some(s => s.count));
     assert(r.chars <= 30000);
     assert(r.preview.items.every(p => p.kind === 'excerpt' || p.kind === 'headline'));
