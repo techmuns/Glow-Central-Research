@@ -225,9 +225,9 @@
       "pending": []
     },
     "isin:INE067A01029|CG Power & Ind": {
-      "lastAttemptAt": "2026-09-20T20:53:41+00:00",
+      "lastAttemptAt": "2026-09-25T16:30:42+00:00",
       "lastResultCount": 0,
-      "error": null,
+      "error": "search-unavailable",
       "lastSuccessAt": "2026-09-20T20:53:41+00:00",
       "targetThrough": null,
       "pending": []
@@ -1764,6 +1764,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-25T15:57:27.427638+00:00"
+    "checkedAt": "2026-09-25T16:30:42.073082+00:00"
   }
 }
