@@ -271,9 +271,9 @@
       "lastDiscoveryAt": "2026-09-20T20:53:41+00:00"
     },
     "isin:INE522F01014|COALINDIA": {
-      "lastAttemptAt": "2026-09-20T20:53:41+00:00",
+      "lastAttemptAt": "2026-09-25T18:09:56+00:00",
       "lastResultCount": 108,
-      "error": "result-cap-incomplete",
+      "error": "search-unavailable",
       "targetThrough": "2026-09-06T22:10:33+00:00",
       "pending": [
         {
@@ -1764,6 +1764,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-25T17:37:02.273232+00:00"
+    "checkedAt": "2026-09-25T18:09:56.165362+00:00"
   }
 }
