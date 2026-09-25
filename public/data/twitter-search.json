@@ -37,7 +37,7 @@
       ]
     },
     "isin:INE674K01013|ABCAPITAL": {
-      "lastAttemptAt": "2026-09-20T05:15:53+00:00",
+      "lastAttemptAt": "2026-09-25T00:13:01+00:00",
       "error": "search-unavailable",
       "lastResultCount": 101,
       "targetThrough": "2026-09-15T20:36:48+00:00",
@@ -1764,6 +1764,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-24T23:41:32.169149+00:00"
+    "checkedAt": "2026-09-25T00:13:01.564484+00:00"
   }
 }
