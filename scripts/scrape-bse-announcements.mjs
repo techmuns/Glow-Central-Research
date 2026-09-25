@@ -33,7 +33,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchAnnouncements, CATEGORIES, HEADERS } from '../worker/bse-ann.mjs';
 import { archiveFilings } from './lib/filing-archive.mjs';
-import { fetchBseIdentityMaster, buildAnnouncementIdentities } from './lib/announcement-identities.mjs';
+import { readAnnouncementIdentityDirectory, retainedBseScripIndex } from './lib/announcement-identities.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA = (f) => resolve(__dirname, '../public/data', f);
@@ -90,18 +90,20 @@ async function buildScripIndex() {
   const confirmed = byCode.size;
 
   const identityPath = DATA('announcement-identities.json');
-  const previousIdentities = existsSync(identityPath) ? JSON.parse(readFileSync(identityPath, 'utf8')) : null;
-  const master = await fetchBseIdentityMaster(previousIdentities, { headers: HEADERS });
-  for (const s of master) {
+  let previousIdentities = null;
+  try { previousIdentities = JSON.parse(readFileSync(identityPath, 'utf8')); } catch { /* Preserve raw filings even without a usable registry. */ }
+  const mc = existsSync(mcPath) ? JSON.parse(readFileSync(mcPath, 'utf8')).map : {};
+  const directory = await readAnnouncementIdentityDirectory(previousIdentities, mc, { headers: HEADERS });
+  const master = directory.master;
+  for (const [code, value] of retainedBseScripIndex(directory.identities)) if (!byCode.has(code)) byCode.set(code, value);
+  for (const s of master || []) {
     const code = String(s?.SCRIP_CD || '').trim();
-    if (!code || byCode.has(code)) continue;
+    if (!code || byCode.get(code)?.source === 'confirmed') continue;
     const id = String(s?.scrip_id || '').trim().toUpperCase();
     byCode.set(code, { ticker: id || null, name: s?.Scrip_Name || null, source: id ? 'bse' : null });
   }
 
-  const mc = existsSync(mcPath) ? JSON.parse(readFileSync(mcPath, 'utf8')).map : {};
-  const identities = buildAnnouncementIdentities(master, mc);
-  return { byCode, confirmed, masterRows: master.length, identities };
+  return { byCode, confirmed, masterRows: master?.length || null, ...directory };
 }
 
 function loadExisting() {
@@ -121,7 +123,8 @@ function loadExisting() {
 async function main() {
   console.log(`BSE corporate announcements — ${FROM} to ${TO} (${MERGE ? 'merging into' : 'replacing'} the committed file)`);
 
-  const { byCode, confirmed, masterRows, identities } = await buildScripIndex();
+  const { byCode, confirmed, masterRows, identities, publish, health: identityDirectory } = await buildScripIndex();
+  if (!identityDirectory.ok) console.warn('Company directory unavailable; preserving filings with explicitly partial identity coverage.');
   console.log(`  scrip index: ${num(byCode.size)} codes (${num(confirmed)} confirmed from mc-ticker-map, master ${num(masterRows)})`);
 
   const started = Date.now();
@@ -156,7 +159,7 @@ async function main() {
     process.exit(1);
   }
 
-  writeFileSync(DATA('announcement-identities.json'), `${JSON.stringify(identities)}\n`);
+  if (publish) writeFileSync(DATA('announcement-identities.json'), `${JSON.stringify(identities)}\n`);
 
   // Resolve, then merge on NEWSID. BSE's own identifier, so a re-run of an overlapping window
   // updates rather than duplicates — and a row with no id falls back to its content, never to a
@@ -231,7 +234,8 @@ async function main() {
     scope: 'exchange',
     // Every company is covered on the company axis for the named category requests. This endpoint
     // exposes no independently verified category inventory, so that separate limitation is explicit.
-    coversUniverse: shortfall.length === 0 && Object.keys(unknownCategories).length === 0,
+    coversUniverse: identityDirectory.ok && shortfall.length === 0 && Object.keys(unknownCategories).length === 0,
+    identityDirectory,
     categoryCoverage: 'configured',
     categoryInventoryVerified: false,
     categories: CATEGORIES,

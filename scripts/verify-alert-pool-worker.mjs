@@ -3,6 +3,7 @@
 // gzip members passed through unchanged, immutable member caching, the index's short cache and
 // every refusal a storage or archive can earn. No credential ever reaches storage.
 import assert from 'node:assert/strict';
+import { ALERT_POOL_CONTRACT } from '../public/js/data/alert-pool-shared.js';
 import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
