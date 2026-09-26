@@ -736,8 +736,8 @@
       "pending": []
     },
     "isin:INE168A01041|J&KBANK": {
-      "lastAttemptAt": "2026-09-21T14:54:36+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-09-26T19:42:58+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 3,
       "lastSuccessAt": "2026-09-21T14:54:36+00:00",
       "targetThrough": null,
@@ -1764,6 +1764,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 232,
-    "checkedAt": "2026-09-26T19:08:59.640332+00:00"
+    "checkedAt": "2026-09-26T19:42:58.160004+00:00"
   }
 }
