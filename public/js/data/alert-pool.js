@@ -19,6 +19,7 @@
 //     read recomputes it on every pass.
 //
 // Members are addressed by artifact id, so a shard URL is immutable and the browser's HTTP cache
+<<<<<<< HEAD
 // answers it without a request. Across builds, an open reader reuses decoded shards only when
 // their member name and runner-published content hash still match. Capture revisions and source
 // status are checked again even when the shard bytes did not change. A reload uses HTTP caching
@@ -28,6 +29,17 @@ import { authHeaders } from '../core/host-context.js';
 import { readEntry, KEYS } from '../core/store.js';
 import { validateShard, assembleFeedEvents } from './alert-pool-format.js';
 import { ALERT_POOL_CONTRACT, POOL_FEEDS, POOL_FEED_CAPTURES, isDay, windowDays, dayMember, feedMember } from './alert-pool-shared.js';
+=======
+// answers it without a request. Optional per-feed members avoid downloading declined feeds.
+// Across builds, an open reader reuses decoded shards only when
+// their member name and runner-published content hash still match. Capture revisions and source
+// status are checked again even when the shard bytes did not change. A reload uses HTTP caching
+// for the same artifact; another artifact has different URLs and must be downloaded again.
+import { authHeaders } from '../core/host-context.js';
+import { readEntry, KEYS } from '../core/store.js';
+import { validateShard, assembleFeedEvents } from './alert-pool-format.js';
+import { ALERT_POOL_CONTRACT, ALERT_POOL_POLICY, POOL_FEEDS, POOL_FEED_CAPTURES, isDay, windowDays, dayMember, feedMember } from './alert-pool-shared.js';
+>>>>>>> sattva/main
 
 export const INDEX_ROUTE = 'api/alert-pool/index';
 export const STATUS_ROUTE = 'api/capture-status';
@@ -71,7 +83,7 @@ async function ask(path, { noCache = false } = {}) {
 }
 
 function validIndex(value) {
-  return !!value && value.ok !== false && value.version === 1 && value.contract === ALERT_POOL_CONTRACT && isDay(value.day) &&
+  return !!value && value.ok !== false && value.version === 1 && value.contract === ALERT_POOL_CONTRACT && value.policy === ALERT_POOL_POLICY && isDay(value.day) &&
     Number.isSafeInteger(value.artifact) && value.artifact > 0 && value.captures && typeof value.captures === 'object' &&
     value.feeds && typeof value.feeds === 'object' && Array.isArray(value.days) && Array.isArray(value.ai) &&
     value.days.every((entry) => isDay(entry?.day) && typeof entry.member === 'string') &&
@@ -89,7 +101,11 @@ function readIndex(refresh) {
     if (lastIndex?.artifact !== out.value.artifact) {
       // Artifact URLs change on every upload, including byte-identical history. Keep only the
       // content identities this build still advertises; never reuse its predecessor's status.
+<<<<<<< HEAD
       const keep = new Set(memberEntries(out.value).map(({ member }) => shardKey(out.value, member)));
+=======
+      const keep = new Set(memberDescriptors(out.value).map(({ member }) => shardKey(out.value, member)));
+>>>>>>> sattva/main
       for (const key of shards.keys()) if (!keep.has(key)) shards.delete(key);
       results.clear();
     }
@@ -159,6 +175,7 @@ export async function deviceExtras(sessionRows = () => null) {
 
 function memberUrl(index, member) { return `api/alert-pool/${index.artifact}/${member}`; }
 
+<<<<<<< HEAD
 function memberEntries(index) {
   return [...index.days, ...index.ai].flatMap(entry => [entry,
     ...Object.values(entry.feedMembers || {}).filter(part => part && typeof part.member === 'string')]);
@@ -169,6 +186,17 @@ function shardKey(index, member) {
   // Older indexes without a valid digest remain safe: their cache identity is the artifact URL.
   return /^[a-f0-9]{64}$/.test(entry?.hash || '')
     ? `${index.contract}/${member}/${entry.hash}` : memberUrl(index, member);
+=======
+function memberDescriptors(index) {
+  return [...index.days, ...index.ai].flatMap(entry => [entry, ...Object.values(entry.feedMembers || {}).filter(Boolean)]);
+}
+
+function shardKey(index, member) {
+  const entry = memberDescriptors(index).find((entry) => entry.member === member);
+  // Older indexes without a valid digest remain safe: their cache identity is the artifact URL.
+  return /^[a-f0-9]{64}$/.test(entry?.hash || '')
+    ? `${index.contract}/${index.policy}/${member}/${entry.hash}` : memberUrl(index, member);
+>>>>>>> sattva/main
 }
 
 function readShard(index, member, expected) {
