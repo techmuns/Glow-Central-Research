@@ -1,11 +1,20 @@
 // Dependency-free PDF export for Workers. The PDF standard's built-in fonts need no
 // network font service, browser, or deployment build. All dimensions are PDF points.
+<<<<<<< HEAD
 import { BRAND, TAGLINES, briefStats, briefSupplementLines, contentStatusText, storyWhen, sourcesNote, formatLast, formatPct, formatChange, asOfLabel, MARKET_GROUPS, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
 import { priceReasonText } from './newsletter-price-reasons.mjs';
 import { istDateLong, istLabel } from '../public/js/data/newsletter-shared.js';
 
 const INK = '0.13 0.12 0.09', MUTED = '0.31 0.37 0.46', ACCENT = '0.55 0.41 0.10';
 const RULE = '0.87 0.89 0.93', TINT = '0.96 0.94 0.88';
+=======
+import { BRAND, TAGLINES, readableUrl, briefStats, briefSupplementLines, contentStatusText, storyWhen, sourcesNote, formatLast, formatPct, formatChange, asOfLabel, MARKET_GROUPS, PRODUCTION_ORIGIN } from './newsletter-brief.mjs';
+import { priceReasonText } from './newsletter-price-reasons.mjs';
+import { istDateLong, istLabel } from '../public/js/data/newsletter-shared.js';
+
+const INK = '0.06 0.09 0.16', MUTED = '0.31 0.37 0.46', ACCENT = '0.31 0.27 0.90';
+const RULE = '0.87 0.89 0.93', TINT = '0.93 0.95 1.00';
+>>>>>>> sattva/main
 const WIDTH = 595.28, HEIGHT = 841.89, MARGIN = 46, CONTENT = WIDTH - MARGIN * 2, BOTTOM = 778;
 // PDF base-font metrics, in thousandths of an em, for ASCII 32..126 (Adobe AFM).
 const METRICS = {
@@ -41,7 +50,11 @@ class BriefPdf {
   page() {
     this.current = { commands: [], links: [] }; this.pages.push(this.current); this.y = 75;
     if (this.pages.length > 1) {
+<<<<<<< HEAD
       this.text('GLOW VENTURES', MARGIN, 38, { font: 'F2', size: 9, color: INK });
+=======
+      this.text('SATTVA VENTURES', MARGIN, 38, { font: 'F2', size: 9, color: INK });
+>>>>>>> sattva/main
       this.text(`${this.edition} / ${this.date}`, MARGIN, 53, { size: 8, color: MUTED });
       this.rule(62);
     }
@@ -76,7 +89,11 @@ class BriefPdf {
     this.pages.forEach((p, i) => {
       this.current = p;
       this.rule(796);
+<<<<<<< HEAD
       this.text('GLOW VENTURES  /  Automated by Munshot', MARGIN, 807, { size: 8, color: MUTED });
+=======
+      this.text('SATTVA VENTURES  /  Automated by Munshot', MARGIN, 807, { size: 8, color: MUTED });
+>>>>>>> sattva/main
       this.text(`${i+1} / ${this.pages.length}`, WIDTH - MARGIN - 38, 807, { size: 8, color: MUTED });
       const stream = p.commands.join('\n');
       const content = add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
@@ -85,7 +102,11 @@ class BriefPdf {
     });
     objects[0] = '<< /Type /Catalog /Pages 2 0 R >>';
     objects[1] = `<< /Type /Pages /Count ${pages.length} /Kids [${pages.map(id => `${id} 0 R`).join(' ')}] >>`;
+<<<<<<< HEAD
     const info = add(`<< /Title ${literal(printable(title))} /Author (Glow Ventures) /Creator (Automated by Munshot) >>`);
+=======
+    const info = add(`<< /Title ${literal(printable(title))} /Author (Sattva Ventures) /Creator (Automated by Munshot) >>`);
+>>>>>>> sattva/main
     let output = '%PDF-1.4\n', offsets = [0];
     objects.forEach((body, i) => { offsets.push(output.length); output += `${i+1} 0 obj\n${body}\nendobj\n`; });
     const xref = output.length;
@@ -94,7 +115,11 @@ class BriefPdf {
   }
 }
 
+<<<<<<< HEAD
 export const pdfFilename = brief => `glow-${brief.day}-${brief.edition}-brief.pdf`;
+=======
+export const pdfFilename = brief => `sattva-${brief.day}-${brief.edition}-brief.pdf`;
+>>>>>>> sattva/main
 
 const paragraphHeight = (text, size, font = 'F1', gap = 6) => wrap(text, CONTENT, font, size).length * size * 1.45 + gap;
 const noteHeight = text => 32 + wrap(text, CONTENT - 28, 'F1', 10).length * 14.5;
@@ -131,7 +156,11 @@ export function renderBriefPdf(brief, { dashboardUrl = PRODUCTION_ORIGIN, produc
       const startPage = pdf.pages.length;
       if (k !== c.clusters[0]) pdf.ensure(Math.min(650, needed) + 23);
       if (pdf.pages.length !== startPage) pdf.paragraph(`${c.company} / continued`, { font: 'F2', size: 9, color: ACCENT });
+<<<<<<< HEAD
       pdf.paragraph(s.headline, { font: 'F3', size: 13, url: s.url, gap: 7 });
+=======
+      pdf.paragraph(s.headline, { font: 'F3', size: 13, url: readableUrl(s.url, dashboardUrl), gap: 7 });
+>>>>>>> sattva/main
       if (s.dek) pdf.paragraph(s.dek, { size: 10, color: MUTED });
       if (note) { pdf.ensure(noteHeight(note.summary) + noteHeight(note.impact)); pdf.note('AI SUMMARY', note.summary); if (note.impact) pdf.note('POTENTIAL IMPACT / AI', note.impact); if (note.unknowns) pdf.note('STILL UNKNOWN', note.unknowns); }
       if (contentStatusText(k)) pdf.paragraph(contentStatusText(k), { size: 9, color: MUTED });
@@ -140,9 +169,15 @@ export function renderBriefPdf(brief, { dashboardUrl = PRODUCTION_ORIGIN, produc
         if (s.why?.source) pdf.paragraph(`Source: ${s.why.source.publisher} / ${storyWhen(s.why.source)}`, { size: 9, color: ACCENT, url: s.why.source.url });
       }
       pdf.paragraph(`${s.topic.label} / ${s.mood.label} / ${s.source} / ${storyWhen(s)}${s.related ? ' / related entity' : ''}${s.late ? ' / not in the previous brief' : ''}`, { size: 8, color: MUTED });
+<<<<<<< HEAD
       if (s.url) pdf.paragraph('Read original source ->', { font: 'F2', size: 9, color: ACCENT, url: s.url });
       for (const r of k.others) {
         pdf.paragraph(`Related: ${r.headline}`, { size: 10, url: r.url });
+=======
+      if (s.url) pdf.paragraph('Read original source ->', { font: 'F2', size: 9, color: ACCENT, url: readableUrl(s.url, dashboardUrl) });
+      for (const r of k.others) {
+        pdf.paragraph(`Related: ${r.headline}`, { size: 10, url: readableUrl(r.url, dashboardUrl) });
+>>>>>>> sattva/main
         pdf.paragraph(`${r.source} / ${storyWhen(r)}${r.related ? ' / related entity' : ''}${r.late ? ' / not in the previous brief' : ''}`, { size: 8, color: MUTED });
         if (r.dek) pdf.paragraph(r.dek, { size: 10, color: MUTED });
       }
@@ -178,7 +213,11 @@ export function renderBriefPdf(brief, { dashboardUrl = PRODUCTION_ORIGIN, produc
   // Each source begins a readable paragraph instead of one dense block of fine print.
   for (const part of coverage.split(' · ')) pdf.paragraph(part, { size: 9, color: MUTED, gap: 5 });
   pdf.y += 8;
+<<<<<<< HEAD
   pdf.paragraph('AI summaries use extracted source-document or article facts. Each update states whether its sources were read or remain pending. Possible impacts are interpretations, not established outcomes. Mood follows stated filing, trade and price-move rules; publisher reports remain neutral. Rupee day changes are derived from statement quantities and session closes, not statement figures. This brief is informational, not investment advice.', { size: 9, color: MUTED });
+=======
+  pdf.paragraph('AI summaries use extracted source-document or article facts. Each update states whether its sources were read or remain pending. Possible impacts are interpretations, not established outcomes. Mood follows stated filing, trade and price-move rules; publisher reports remain neutral. This brief is informational, not investment advice.', { size: 9, color: MUTED });
+>>>>>>> sattva/main
   pdf.paragraph(`Built ${istLabel(brief.builtAt, { year: true })}. Automated by Munshot.`, { font: 'F2', size: 9, color: ACCENT });
   return pdf.bytes(`${BRAND} / ${edition} / ${brief.day}`);
 }

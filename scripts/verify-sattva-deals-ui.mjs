@@ -34,11 +34,15 @@ try {
   await page.route('**/api/bulk-block-deals/refresh*', route => route.fulfill({ json: { ok: true, dispatched: false } }));
   await page.route('**/*', route => new URL(route.request().url()).origin === base ? route.fallback() : route.abort());
   await page.goto(`${base}/#/research/insider-trades?scope=portfolio`);
+<<<<<<< HEAD
   // This deployment keeps the Bulk/Block head to one quiet freshness label, so there is no
   // `[data-exchange-status]` line on this tab to read the source names off — `verify-exchange-
   // deals-ui.mjs` asserts its absence. Wait on the rows themselves instead, which is the thing
   // this check is actually about, and read source health where it lives here: the provenance panel.
   await page.waitForFunction(() => document.querySelectorAll('[data-insider-source-link]').length > 0);
+=======
+  await page.locator('[data-insider-source-link]').first().waitFor();
+>>>>>>> sattva/main
   const period = () => page.getByRole('combobox', { name: 'Trade period', exact: true });
   assert.equal(await period().inputValue(), '30');
   for (const name of ['Trade category', 'Exchange', 'Category', 'Transaction type', 'Mode']) assert(await page.getByRole('combobox', { name, exact: true }).isVisible());
@@ -96,6 +100,7 @@ try {
   assert(Object.values(exported.at(-1)).includes('NSE'), 'Excel includes exchange');
   payload = { ...payload, updatedAt: '2026-09-10T04:02:00Z', sources: payload.sources.map(s => s.id === 'bse-bulk' ? { ...s, ok: false, error: 'Test outage' } : s) };
   await page.clock.fastForward(61000);
+<<<<<<< HEAD
   await page.waitForFunction(async () => (await import('/js/data/exchange-deals.js')).meta()?.summary?.includes('Test outage'));
   // The snapshot is adopted before refresh finishes its dispatch check and notifies the UI.
   // Await that same in-flight refresh so a fast click cannot open the previous paint's metadata.
@@ -103,6 +108,13 @@ try {
   await page.locator('[data-filings-method]').click();
   assert.match(await page.locator('#modal-content').innerText(), /Test outage/, 'a failed source is named in the provenance panel');
   await page.locator('[data-modal-close]').first().click();
+=======
+  await page.waitForFunction(async () => (await import('/js/data/filings.js')).insider.meta().exchanges?.summary.includes('Test outage'));
+  await page.locator('[data-filings-method]').click();
+  await page.getByRole('dialog').getByText(/Test outage/).waitFor();
+  await page.getByRole('dialog').getByText(/Muns insider disclosures/).waitFor();
+  await page.getByRole('dialog').locator('[data-modal-close]').click();
+>>>>>>> sattva/main
   assert(await page.getByText('NEW SATTVA DEAL', { exact: true }).count(), 'failed source retains visible evidence');
   await search().fill(''); await period().selectOption('30');
   await page.screenshot({ path: '/tmp/sattva-deals-desktop.png', fullPage: true });
