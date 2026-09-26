@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-09-26T18:04:34.282Z",
+    "capturedAt": "2026-09-26T21:12:23.706Z",
     "from": "2026-08-05",
     "to": "2026-09-25",
     "rows": 9689,
@@ -12,10 +12,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-26T18:04:34.282Z",
-  "oldestDataAt": "2026-09-26T18:04:34.282Z",
-  "from": "2025-09-26",
-  "to": "2026-09-26",
+  "capturedAt": "2026-09-26T21:12:23.706Z",
+  "oldestDataAt": "2026-09-26T21:12:23.706Z",
+  "from": "2025-09-27",
+  "to": "2026-09-27",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-26T18:04:34.282Z",
+      "capturedAt": "2026-09-26T21:12:23.706Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-26T18:04:34.282Z",
+      "capturedAt": "2026-09-26T21:12:23.706Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +63,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-26T18:04:34.282Z",
+      "capturedAt": "2026-09-26T21:12:23.706Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,15 +76,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-26T18:04:34.282Z",
+      "capturedAt": "2026-09-26T21:12:23.706Z",
       "coverageFrom": "2026-08-18"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1808,
+  "withRows": 1806,
   "emptyCount": 0,
-  "rowCount": 18633,
+  "rowCount": 18620,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -84902,28 +84902,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "BAJFINANCE",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "BAJFINANCE",
-          "Insider": "Bajaj Allianz General Insurance Company Limited",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "97000",
-          "Trade %": "0",
-          "Trade Value": "100014655",
-          "Post Holding Shares": "577000",
-          "Post Holding %": "0.01",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-24",
-          "To Date": "2025-09-24",
-          "Broadcast Date": "2025-09-26",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "PUNJABCHEM": [
@@ -98513,50 +98491,6 @@
           "From Date": "2025-09-23",
           "To Date": "2025-09-23",
           "Broadcast Date": "2025-09-29",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "Santosh Vithal Rao Mokashi",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "6337",
-          "Trade %": "0",
-          "Trade Value": "9017551",
-          "Post Holding Shares": "19974",
-          "Post Holding %": "0",
-          "Mode": "ESOS",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-26",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "Vineet Ved Prakash Sood",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "743",
-          "Trade %": "0",
-          "Trade Value": "1057289",
-          "Post Holding Shares": "993",
-          "Post Holding %": "0",
-          "Mode": "ESOS",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-26",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -139559,50 +139493,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "APOLLO",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "Apollo Micro Systems Ltd",
-          "Insider": "Sudarshan Chileveru",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "200000",
-          "Trade %": "0.06",
-          "Trade Value": "22800000",
-          "Post Holding Shares": "200500",
-          "Post Holding %": "0.06",
-          "Mode": "Allotment",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-26",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "APOLLO",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "Apollo Micro Systems Ltd",
-          "Insider": "Varada Madhusudhan Rao",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "10000",
-          "Trade %": "0",
-          "Trade Value": "1140000",
-          "Post Holding Shares": "10000",
-          "Post Holding %": "0",
-          "Mode": "Allotment",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-26",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "VGUARD": [
@@ -140283,28 +140173,6 @@
           "To Date": "2025-09-24",
           "Broadcast Date": "2025-09-30",
           "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWDULUX",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "JSW Dulux Ltd",
-          "Insider": "Imperial Chemical Industries Limited",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "2277015",
-          "Trade %": "5",
-          "Trade Value": "7648037982",
-          "Post Holding Shares": "20700529",
-          "Post Holding %": "45.46",
-          "Mode": "Block Deal",
-          "From Date": "2025-09-24",
-          "To Date": "2025-09-24",
-          "Broadcast Date": "2025-09-26",
-          "Source": "BSE",
           "Trade Category": "Insider trade"
         }
       }
@@ -182864,28 +182732,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "MANGLMCEM",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "Mangalam Cement Ltd",
-          "Insider": "Vidula Consultancy Services Limited",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "50000",
-          "Trade %": "0.18",
-          "Trade Value": "36994850",
-          "Post Holding Shares": "4541920",
-          "Post Holding %": "16.52",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-25",
-          "To Date": "2025-09-25",
-          "Broadcast Date": "2025-09-26",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "GLOBUSSPR": [
@@ -204101,28 +203947,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "MBEL",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "M & B Engineering Ltd",
-          "Insider": "Birju Maheshbhai Patel",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "5000",
-          "Trade %": "0.01",
-          "Trade Value": "2000000",
-          "Post Holding Shares": "5000",
-          "Post Holding %": "0.01",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-25",
-          "To Date": "2025-09-25",
-          "Broadcast Date": "2025-09-26",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "MENONBE": [
@@ -212453,28 +212277,6 @@
           "Broadcast Date": "2026-08-17",
           "Source": "Screener.in"
         }
-      },
-      {
-        "ticker": "EIMCOELECO",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "Eimco Elecon (India) Ltd",
-          "Insider": "TAMROCK GREAT BRITAIN HOLDINGS LIMITED",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1423875",
-          "Trade %": "24.68",
-          "Trade Value": "2339575181",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-24",
-          "To Date": "2025-09-25",
-          "Broadcast Date": "2025-09-26",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "PANORAMA": [
@@ -212954,30 +212756,6 @@
           "From Date": "2026-07-31",
           "To Date": "2026-07-31",
           "Broadcast Date": "2026-08-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      }
-    ],
-    "BLKASHYAP": [
-      {
-        "ticker": "BLKASHYAP",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "B. L. Kashyap and Sons Ltd",
-          "Insider": "Saurabh Kashyap",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "18176",
-          "Trade %": "0.01",
-          "Trade Value": "1072386",
-          "Post Holding Shares": "387300",
-          "Post Holding %": "0.17",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-26",
-          "To Date": "2025-09-26",
-          "Broadcast Date": "2025-09-26",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -221933,52 +221711,6 @@
         }
       }
     ],
-    "DHARMAJ": [
-      {
-        "ticker": "DHARMAJ",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "Dharmaj Crop Guard Ltd",
-          "Insider": "BHUPATBHAI D KHUNT (HUF)",
-          "Category": "Connected Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "11000",
-          "Trade %": "0.04",
-          "Trade Value": "3580272",
-          "Post Holding Shares": "32966",
-          "Post Holding %": "0.1",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-25",
-          "To Date": "2025-09-25",
-          "Broadcast Date": "2025-09-26",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "DHARMAJ",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "Dharmaj Crop Guard Ltd",
-          "Insider": "SIDDHARTH SAVALIYA",
-          "Category": "Connected Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "11000",
-          "Trade %": "0.03",
-          "Trade Value": "3602163",
-          "Post Holding Shares": "31933",
-          "Post Holding %": "0.09",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-25",
-          "To Date": "2025-09-25",
-          "Broadcast Date": "2025-09-26",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      }
-    ],
     "TIRUPATIFL": [
       {
         "ticker": "TIRUPATIFL",
@@ -225369,28 +225101,6 @@
           "From Date": "2025-09-29",
           "To Date": "2025-09-29",
           "Broadcast Date": "2025-10-02",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "DBOL",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "Dhampur Bio Organics Ltd",
-          "Insider": "DBO Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "62376",
-          "Trade %": "0.1",
-          "Trade Value": "5280626",
-          "Post Holding Shares": "528376",
-          "Post Holding %": "0.8",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-25",
-          "To Date": "2025-09-25",
-          "Broadcast Date": "2025-09-26",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
