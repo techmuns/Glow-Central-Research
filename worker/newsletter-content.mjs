@@ -69,7 +69,11 @@ export async function fetchContent(item, fetcher = fetch) {
   const signal = AbortSignal.timeout(15000);
   for (let hops = 0; hops <= 3; hops++) {
     const response = await fetcher(url, { redirect: 'manual', signal,
+<<<<<<< HEAD
       headers: { accept: 'application/pdf,application/xml,text/html;q=0.9,*/*;q=0.1', 'user-agent': 'Mozilla/5.0 (compatible; GlowResearch/1.0)' } });
+=======
+      headers: { accept: 'application/pdf,application/xml,text/html;q=0.9,*/*;q=0.1', 'user-agent': 'Mozilla/5.0 (compatible; SattvaResearch/1.0)' } });
+>>>>>>> sattva/main
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get('location'); await response.body?.cancel();
       const next = location && contentUrl(new URL(location, url).href, item.kind);

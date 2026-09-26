@@ -1,3 +1,5 @@
+import { insiderSignal, INSIDER_HIGH_PCT, INSIDER_HIGH_VALUE } from './insider-signal.js';
+export { insiderSignal, INSIDER_HIGH_PCT, INSIDER_HIGH_VALUE } from './insider-signal.js';
 // data/daily-alerts.js — A NEWEST-FIRST TIMELINE ACROSS THIS DASHBOARD'S RESEARCH FEEDS.
 //
 //   const day = today();                     // the IST trading date
@@ -239,9 +241,12 @@ function istDay(value) {
 // A material day move. This is an importance threshold, no longer a collection threshold:
 // below-threshold measurements remain in the pool and do not change the existing AI policy.
 export const MOVE_PCT = 5;
+<<<<<<< HEAD
 // The insider thresholds and the reading over a trade row live in `insider-signal.js` (pure, shared
 // with the team brief) and are re-exported here for every consumer that reads them from this module.
 export { INSIDER_HIGH_PCT, INSIDER_HIGH_VALUE, insiderSignal };
+=======
+>>>>>>> sattva/main
 export const INVESTOR_HIGH_PP = 1;
 export const CHATTER_HIGH_MENTIONS = 10;
 export const CHATTER_HIGH_CHANGE_PCT = 100;
@@ -381,7 +386,10 @@ export function eventSearchText(event = {}) {
 
 const numeric = parseIndianAmount;
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> sattva/main
 // ---------------------------------------------------------------------------------------
 // Feed registry — id, label, which tab owns it, and what it can contribute
 // ---------------------------------------------------------------------------------------
@@ -1749,6 +1757,7 @@ export function announcementEvent(r) {
     // is already reproduced in `detail`; naming it separately is what lets the card fall back to
     // it without splitting a joined string, and nothing here is reworded.
     filingSubject: r.title || r.headline || null,
+<<<<<<< HEAD
     // A row lodged on both exchanges is merged keeping the first exchange's subject — NSE's bare
     // "Press Release" — and BSE's full title arrives as `headline` beside it. It is the same filing's
     // other statement of itself, kept so the alert surfaces can print the one that says what happened.
@@ -1763,6 +1772,10 @@ export function announcementEvent(r) {
     // rows are one filing (js/data/alert-developments.js). A top-level field, because the AI pool
     // carries events without their source record.
     documentHash: r.documentHash || null,
+=======
+    filingSubCategory: r.subCategory || null,
+    filingDescription: r.description || null,
+>>>>>>> sattva/main
   };
   announcementEvents.set(r, event);
   return event;
@@ -1981,6 +1994,7 @@ function companyNewsEvent(r) {
     entityId: r.entityId || null,
     company: attributionFor(r).status === 'unrelated' ? 'Unrelated search result' : r.company || attributionFor(r).queryCompany || coverage.holdings().find((h) => h.ticker === r.ticker)?.name || r.ticker || 'Unresolved company',
     headline: r.title || 'Story',
+    storyText: r.summary || r.description || '',
     detail: [r.source ? `Published by ${r.source}` : 'Publisher not carried',
       attributionFor(r).status === 'related' ? attributionFor(r).reason : null].filter(Boolean).join(' · '),
     url: r.url || null,

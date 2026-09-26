@@ -22,12 +22,12 @@ ipo.sources.find(s => s.id === 'nse-equity').checkedAt = '2026-09-05T00:00:00Z';
 const styles = [...readFileSync(resolve(root, 'index.html'), 'utf8').matchAll(/<style[^>]*>[\s\S]*?<\/style>/g)].map(m => m[0]).join('');
 const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/style.css">${styles}</head>
 <body style="background:#f5f4fc"><main style="padding:36px;color:#475569"><h1>Portfolio research</h1><p>Source connection verification</p></main><script type="module">
-import { news } from '/js/data/filings.js';
+import { news, announcements } from '/js/data/filings.js';
 import * as market from '/js/data/market-news.js';
 import * as ipo from '/js/data/ipo-filings.js';
 import { mount, openBeacon } from '/js/ui/source-beacon.js';
 window.news = news; window.openBeacon = openBeacon;
-await Promise.all([news.seed(), market.load(), ipo.load()]);
+await Promise.all([news.seed(), announcements.seed(), market.load(), ipo.load()]);
 window.disposeBeacon = mount(); window.ready = true;
 </script></body></html>`;
 const requests = [], errors = [];
@@ -37,7 +37,7 @@ const server = createServer((req, res) => {
     requests.push({ path, method: req.method }); res.setHeader('cache-control', 'no-store');
     if (path === '/') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
     const fixture = { '/data/news.json': core, '/data/tradingview-news/latest.json': tv, '/data/market-news.json': market,
-      '/data/ipo-filings.json': ipo, '/api/ipo-filings': ipo }[path];
+      '/data/ipo-filings.json': ipo, '/api/ipo-filings': ipo, '/data/corp-announcements.json': { capturedAt: at, byTicker: {}, coversUniverse: false, identityDirectory: { ok: false, attemptedAt: at, lastSuccessAt: '2026-09-05T00:00:00Z', source: 'retained' } } }[path];
     if (fixture) {
       res.setHeader('content-type', 'application/json');
       res.statusCode = path.includes('/tradingview-news/') && tvFailure ? 503 : 200;
@@ -61,6 +61,11 @@ try {
   await page.route('**/*', route => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort());
   await page.clock.install({ time: new Date(at) });
   await page.goto(origin); await page.waitForFunction(() => window.ready);
+  check('fresh filing capture cannot conceal an unavailable identity directory', await page.evaluate(async () => {
+    const { sourceGroups } = await import('/js/ui/sources.js');
+    const source = sourceGroups().flatMap(g=>g.items).find(s=>s.name==='BSE — corporate announcements, indexed by date');
+    return source.readState === 'partial' && source.details.some(s=>s.includes('2026-09-05')) && source.details.some(s=>s.includes('matching is partial'));
+  }));
   const dataReads = () => requests.filter(r => /^\/(api|data)\//.test(r.path)).length;
   const before = dataReads();
   await page.evaluate(() => window.openBeacon({ group: 'portfolio-news' }));

@@ -5,7 +5,7 @@
 // always network-only, so Family holdings, research answers and private document
 // lookups never cross the persistence boundary.
 
-// Advance a revision on every change under /js/. CACHE_KEY combines the shared release
+// Advance a revision on every change under /js/ OR /css/. CACHE_KEY combines the shared release
 // marker below with the separate module revision, so either change creates a fresh cache.
 // `revalidateInBackground` below deliberately excludes /js/ — modules are treated as immutable and
 // the service-worker file plus this name ARE the code version boundary. So a returning reader with
@@ -15,8 +15,19 @@
 // completely invisible to everyone who has visited before — which is exactly what would have
 // happened to the Telegram section, whose new module is reachable from app.js but would never have
 // been requested. Nothing fails and nothing looks wrong; the feature simply is not there.
+//
+// THE SAME IS TRUE OF /css/, WHICH THIS NOTE USED TO LEAVE OUT. `cacheable` stores it and
+// `revalidateInBackground` does NOT list it, so the compiled stylesheet is as immutable to a
+// returning reader as a module is — while `/index.html` and `/data/` refresh quietly and hide
+// that fact. A purely visual change lands in the worst version of this: the HTML updates, the
+// stylesheet it depends on does not, and the result is a half-applied design nobody can see a
+// fault in. Advancing a revision here is the whole mechanism; editing the CSS is not enough.
 const CACHE_PREFIX = 'sattva-dashboard-';
+<<<<<<< HEAD
 const CACHE_NAME = `${CACHE_PREFIX}2026-09-24-direct-earnings-reports-v2`;
+=======
+const CACHE_NAME = `${CACHE_PREFIX}2026-09-24-clean-bulk-block-header-v2`;
+>>>>>>> sattva/main
 const APP_ENTRY = '/js/app.js';
 const CORE = ['/', '/index.html', '/css/tailwind.css', '/css/theme.css', '/css/glow.css', '/glow-bridge.html', '/data/portfolio-companies.json',
   '/assets/brand/glow-ventures-wordmark.svg', '/assets/brand/favicon.svg'];
@@ -24,6 +35,7 @@ const MUNSHOT_SDK = 'https://munshot.s3.ap-south-1.amazonaws.com/SDK+script/muns
 const WARM_CONCURRENCY = 8;
 const MODULE_ENTRIES = [APP_ENTRY, '/js/research/glow-bridge.js'];
 
+<<<<<<< HEAD
 // Keep reader/content revisions separate from the shared marker: concurrent dashboard
 // releases can advance it without conflicting with these fixes. Every install,
 // read and eviction uses the same combined key, retaining atomic upgrades.
@@ -33,6 +45,12 @@ const CACHE_KEY = `${CACHE_NAME}-glow-mf-reliability-v2-glow-price-levels-v1-glo
 
 // This UI revision composes with the shared release without competing for its version line.
 const RELEASE_CACHE_KEY = `${CACHE_KEY}-ai-alerts-clean-search-v1`;
+=======
+// Keep content revisions separate from the shared marker: concurrent dashboard
+// releases can update that marker without conflicting with these fixes. Every
+// install, read and eviction uses the same combined key, retaining atomic upgrades.
+const CACHE_KEY = `${CACHE_NAME}-news-story-companions-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v2-dated-grades-all-alerts-restore-v2-ai-card-updates-v1-story-updates-v2-shared-reading-performance-ownership-v1-sattva-newsletter-v3-source-evidence-bounded-history-memory-v5-news-query-performance-v1-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v3-content-reuse-investor-evidence-v2-initial-state-source-reliability-v1-scrollbar-grab-v2-measured-anchor-filing-particulars-v1-table-drag-v2-mutual-funds-v12-upstox-minute-v2-muns-price-label-v2-kpi-impact-v2-alert-notes-luna-v1`;
+>>>>>>> sattva/main
 
 function moduleSpecifiers(source) {
   const found = new Set();
@@ -124,6 +142,9 @@ async function cacheModuleGraph(cache, entries) {
   }
 }
 
+// This UI revision composes with the shared release without competing for its version line.
+const RELEASE_CACHE_KEY = `${CACHE_KEY}-ai-alerts-clean-search-v1-direct-earnings-reports-v2`;
+
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(RELEASE_CACHE_KEY);
@@ -165,6 +186,9 @@ function cacheable(request, url) {
   if (request.method !== 'GET' || request.headers.has('authorization') || request.cache === 'no-store') return false;
   if (url.href === MUNSHOT_SDK) return true;
   if (url.origin !== self.location.origin || url.pathname === '/sw.js' || url.pathname.startsWith('/api/')) return false;
+  // A filing is server-rendered and keyed by its source, not the dashboard shell. Treating its
+  // navigation as /index.html both hid the document and could overwrite the cached dashboard.
+  if (url.pathname === '/filing' || url.pathname.startsWith('/filing/')) return false;
   return request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html' ||
     url.pathname.startsWith('/js/') || url.pathname.startsWith('/css/') || url.pathname.startsWith('/data/') || url.pathname.startsWith('/assets/brand/');
 }
@@ -206,6 +230,7 @@ async function fetchAndCache(cache, request, key) {
   }
   const control = response.headers.get('cache-control') || '';
   if (response.ok && !/\b(?:private|no-store)\b/i.test(control) && await validImmutablePart(response, request)) {
+<<<<<<< HEAD
     try {
       // Background document revalidation must preserve the same redirect-free
       // navigation response as installation (Cloudflare redirects .html URLs).
@@ -214,6 +239,9 @@ async function fetchAndCache(cache, request, key) {
         ? new Response(copy.body, { status: copy.status, statusText: copy.statusText, headers: copy.headers })
         : copy);
     } catch { /* A storage failure must not fail the network read. */ }
+=======
+    try { await cache.put(key, response.clone()); } catch { /* A storage failure must not fail the network read. */ }
+>>>>>>> sattva/main
   }
   return response;
 }
