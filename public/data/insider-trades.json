@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-26T18:02:42.536Z",
-  "oldestDataAt": "2026-09-26T18:02:42.536Z",
-  "from": "2025-09-26",
-  "to": "2026-09-26",
+  "capturedAt": "2026-09-26T21:10:32.985Z",
+  "oldestDataAt": "2026-09-26T21:10:32.985Z",
+  "from": "2025-09-27",
+  "to": "2026-09-27",
   "windowDays": 365,
   "coverageFrom": "2026-08-05",
   "scope": "exchange",
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-26T18:02:42.536Z",
+      "capturedAt": "2026-09-26T21:10:32.985Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-26T18:02:42.536Z",
+      "capturedAt": "2026-09-26T21:10:32.985Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-26T18:02:42.536Z",
+      "capturedAt": "2026-09-26T21:10:32.985Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-26T18:02:42.536Z",
+      "capturedAt": "2026-09-26T21:10:32.985Z",
       "coverageFrom": "2026-08-04"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 1705,
   "emptyCount": 0,
-  "rowCount": 17880,
+  "rowCount": 17869,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -112193,50 +112193,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "Santosh Vithal Rao Mokashi",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "6337",
-          "Trade %": "0",
-          "Trade Value": "9017551",
-          "Post Holding Shares": "19974",
-          "Post Holding %": "0",
-          "Mode": "ESOS",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-26",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "Vineet Ved Prakash Sood",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "743",
-          "Trade %": "0",
-          "Trade Value": "1057289",
-          "Post Holding Shares": "993",
-          "Post Holding %": "0",
-          "Mode": "ESOS",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-26",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "ANTHEM": [
@@ -123610,28 +123566,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "JSWDULUX",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "JSW Dulux Ltd",
-          "Insider": "Imperial Chemical Industries Limited",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "2277015",
-          "Trade %": "5",
-          "Trade Value": "7648037982",
-          "Post Holding Shares": "20700529",
-          "Post Holding %": "45.46",
-          "Mode": "Block Deal",
-          "From Date": "2025-09-24",
-          "To Date": "2025-09-24",
-          "Broadcast Date": "2025-09-26",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "PRIVISCL": [
@@ -131374,50 +131308,6 @@
           "From Date": "2025-09-29",
           "To Date": "2025-09-29",
           "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "USHAMART",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "USHAMART",
-          "Insider": "Suraj Ratan Lakhotia",
-          "Category": "Employees Immediate Relative",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "10500",
-          "Trade %": "0",
-          "Trade Value": "8907242",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-26",
-          "To Date": "2025-09-26",
-          "Broadcast Date": "2025-09-26",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "USHAMART",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "USHAMART",
-          "Insider": "Suraj Ratan Lakhotia",
-          "Category": "Employees Immediate Relative",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "20014",
-          "Trade %": "0.01",
-          "Trade Value": "8907242",
-          "Post Holding Shares": "10500",
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-25",
-          "Broadcast Date": "2025-09-26",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -152392,28 +152282,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "PARADEEP",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "PARADEEP",
-          "Insider": "Zuari Maroc Phosphates Private Limited",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "10000000",
-          "Trade %": "1.23",
-          "Trade Value": "1823433000",
-          "Post Holding Shares": "466942507",
-          "Post Holding %": "57.2",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-24",
-          "To Date": "2025-09-24",
-          "Broadcast Date": "2025-09-26",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "CHALET": [
@@ -161522,50 +161390,6 @@
           "From Date": "2025-11-26",
           "To Date": "2025-11-26",
           "Broadcast Date": "2025-11-29",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "APOLLO",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "Apollo Micro Systems Ltd",
-          "Insider": "Sudarshan Chileveru",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "200000",
-          "Trade %": "0.06",
-          "Trade Value": "22800000",
-          "Post Holding Shares": "200500",
-          "Post Holding %": "0.06",
-          "Mode": "Allotment",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-26",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "APOLLO",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "Apollo Micro Systems Ltd",
-          "Insider": "Varada Madhusudhan Rao",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "10000",
-          "Trade %": "0",
-          "Trade Value": "1140000",
-          "Post Holding Shares": "10000",
-          "Post Holding %": "0",
-          "Mode": "Allotment",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-09-26",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -172727,28 +172551,6 @@
           "From Date": "2025-09-29",
           "To Date": "2025-09-29",
           "Broadcast Date": "2025-09-30",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJFINANCE",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "BAJFINANCE",
-          "Insider": "Bajaj Allianz General Insurance Company Limited",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "97000",
-          "Trade %": "0",
-          "Trade Value": "100014655",
-          "Post Holding Shares": "577000",
-          "Post Holding %": "0.01",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-24",
-          "To Date": "2025-09-24",
-          "Broadcast Date": "2025-09-26",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -191071,50 +190873,6 @@
           "From Date": "2025-09-25",
           "To Date": "2025-09-25",
           "Broadcast Date": "2025-09-30",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NAUKRI",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "NAUKRI",
-          "Insider": "Info Edge Employees Stock Option Plan Trust",
-          "Category": "Trust",
-          "Security Type": "Equity",
-          "Transaction": "Sell",
-          "Trade Shares": "1470",
-          "Trade %": "0",
-          "Trade Value": "2940",
-          "Post Holding Shares": "990445",
-          "Post Holding %": "0.15",
-          "Mode": "ESOP",
-          "From Date": "2025-09-25",
-          "To Date": "2025-09-25",
-          "Broadcast Date": "2025-09-26",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NAUKRI",
-        "date": "2025-09-26",
-        "cells": {
-          "Company": "NAUKRI",
-          "Insider": "M Prabin Meitei",
-          "Category": "Designated Person",
-          "Security Type": "Equity",
-          "Transaction": "Sell",
-          "Trade Shares": "1000",
-          "Trade %": "0",
-          "Trade Value": "1405000",
-          "Post Holding Shares": "6130",
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-24",
-          "To Date": "2025-09-24",
-          "Broadcast Date": "2025-09-26",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
