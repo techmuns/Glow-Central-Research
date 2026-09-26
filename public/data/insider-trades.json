@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-09-26T05:32:45.199Z",
+    "capturedAt": "2026-09-26T10:17:56.565Z",
     "from": "2026-08-05",
     "to": "2026-09-25",
     "rows": 9689,
@@ -12,8 +12,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-26T05:32:45.199Z",
-  "oldestDataAt": "2026-09-26T05:32:45.199Z",
+  "capturedAt": "2026-09-26T10:17:56.565Z",
+  "oldestDataAt": "2026-09-26T10:17:56.565Z",
   "from": "2025-09-26",
   "to": "2026-09-26",
   "windowDays": 365,
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-26T05:32:45.199Z",
+      "capturedAt": "2026-09-26T10:17:56.565Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-26T05:32:45.199Z",
+      "capturedAt": "2026-09-26T10:17:56.565Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -58,12 +58,12 @@
       "label": "SAST",
       "url": "https://www.screener.in/trades/sast/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-09-23",
-      "oldestDate": "2026-09-03",
+      "latestDate": "2026-09-25",
+      "oldestDate": "2026-09-22",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-26T05:32:45.199Z",
+      "capturedAt": "2026-09-26T10:17:56.565Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,15 +76,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-26T05:32:45.199Z",
+      "capturedAt": "2026-09-26T10:17:56.565Z",
       "coverageFrom": "2026-08-18"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1802,
+  "withRows": 1808,
   "emptyCount": 0,
-  "rowCount": 18594,
+  "rowCount": 18633,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -288824,6 +288824,66 @@
     "SILGO": [
       {
         "ticker": "SILGO",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Silgo Retail",
+          "Insider": "Bela Agrawal",
+          "Transaction": "Sell",
+          "Trade Shares": "200000",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SILGO",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Silgo Retail",
+          "Insider": "Nitin Jain",
+          "Transaction": "Acquisition",
+          "Trade Shares": "200000",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SILGO",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Silgo Retail",
+          "Insider": "Mrs. Bela Agrawal",
+          "Transaction": "Sell",
+          "Trade Shares": "200000",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SILGO",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Silgo Retail",
+          "Insider": "Nitin Jain",
+          "Transaction": "Acquisition",
+          "Trade Shares": "200000",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SILGO",
         "date": "2026-09-22",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -311410,6 +311470,21 @@
     "VCL": [
       {
         "ticker": "VCL",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Vaxtex Cotfab",
+          "Insider": "Zeal Global Opportunities Fund",
+          "Transaction": "Acquisition",
+          "Trade Shares": "6879125",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "VCL",
         "date": "2026-09-22",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=4",
         "sourceId": "bulk",
@@ -326838,6 +326913,21 @@
       },
       {
         "ticker": "MAGSON",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Magson Retail",
+          "Insider": "Rajesh Emmanuel Francis along with pac",
+          "Transaction": "Sell",
+          "Trade Shares": "114000",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MAGSON",
         "date": "2026-09-24",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=4",
         "sourceId": "bulk",
@@ -326868,6 +326958,36 @@
           "Trade Shares": "75000",
           "Trade Value": "1.35 crore",
           "Price": "180",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MAGSON",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Magson Retail",
+          "Insider": "Ashita Gordhanbhai Pansheriya along with pac",
+          "Transaction": "Acquisition",
+          "Trade Shares": "263400",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MAGSON",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Magson Retail",
+          "Insider": "Beenaben Jigneshkumar Bhuva",
+          "Transaction": "Acquisition",
+          "Trade Shares": "263400",
           "Broadcast Date": "2026-09-24",
           "Source": "Screener.in"
         }
@@ -346399,6 +346519,36 @@
     "GGBL": [
       {
         "ticker": "GGBL",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Ganesh Green",
+          "Insider": "Ketanbhai Narsinhbhai Patel",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3000",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "GGBL",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Ganesh Green",
+          "Insider": "Ketanbhai Narsinhbhai Patel",
+          "Transaction": "Acquisition",
+          "Trade Shares": "2400",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "GGBL",
         "date": "2026-09-08",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -346508,6 +346658,21 @@
       }
     ],
     "HINDCON": [
+      {
+        "ticker": "HINDCON",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Hindcon Chemical",
+          "Insider": "HINDCON SOLUTIONS PRIVATE LIMITED",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1859",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "HINDCON",
         "date": "2026-09-22",
@@ -347442,6 +347607,81 @@
     "ACTIVEINFR": [
       {
         "ticker": "ACTIVEINFR",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Active Infra.",
+          "Insider": "Riaan Ventures Private Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3600",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ACTIVEINFR",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Active Infra.",
+          "Insider": "Riaan Ventures Private Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "4200",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ACTIVEINFR",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Active Infra.",
+          "Insider": "SGR VENTURES PRIVATE LIMITED",
+          "Transaction": "Acquisition",
+          "Trade Shares": "4200",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ACTIVEINFR",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Active Infra.",
+          "Insider": "SGR VENTURES PRIVATE LIMITED",
+          "Transaction": "Acquisition",
+          "Trade Shares": "6000",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ACTIVEINFR",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Active Infra.",
+          "Insider": "RIAAN VENTURES PRIVATE LIMITED",
+          "Transaction": "Acquisition",
+          "Trade Shares": "4200",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ACTIVEINFR",
         "date": "2026-09-11",
         "url": "https://www.screener.in/trades/insiders/?o=-2&p=5",
         "sourceId": "insiders",
@@ -347632,6 +347872,36 @@
       }
     ],
     "ARVINDPORT": [
+      {
+        "ticker": "ARVINDPORT",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Arvind Port &",
+          "Insider": "Vinit Arvind Shah",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1500",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ARVINDPORT",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Arvind Port &",
+          "Insider": "Vinit Arvind Shah",
+          "Transaction": "Acquisition",
+          "Trade Shares": "4500",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "ARVINDPORT",
         "date": "2026-09-21",
@@ -352496,6 +352766,21 @@
     "SHUBHLAXMI": [
       {
         "ticker": "SHUBHLAXMI",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Shubhlaxmi Jewel",
+          "Insider": "Jignasha Ranjitsinh Solanki",
+          "Transaction": "Sell",
+          "Trade Shares": "2000",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SHUBHLAXMI",
         "date": "2026-09-10",
         "url": "https://www.screener.in/trades/insiders/?o=-2&p=8",
         "sourceId": "insiders",
@@ -353251,6 +353536,21 @@
       }
     ],
     "AAKASH": [
+      {
+        "ticker": "AAKASH",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Aakash Explor.",
+          "Insider": "Navinchandra Vershibhai Haria",
+          "Transaction": "Acquisition",
+          "Trade Shares": "7277950",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "AAKASH",
         "date": "2026-09-23",
@@ -361497,6 +361797,36 @@
     "DHARIWAL": [
       {
         "ticker": "DHARIWAL",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Dhariwalcorp",
+          "Insider": "Green X Wealth Multihorizons opportunity Fund",
+          "Transaction": "Sell",
+          "Trade Shares": "258000",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "DHARIWAL",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Dhariwalcorp",
+          "Insider": "Yagnik Bharatkumar Tank",
+          "Transaction": "Sell",
+          "Trade Shares": "924000",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "DHARIWAL",
         "date": "2026-09-23",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=4",
         "sourceId": "bulk",
@@ -363611,6 +363941,36 @@
       }
     ],
     "GPECO": [
+      {
+        "ticker": "GPECO",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "GP Eco Solutions",
+          "Insider": "Anju Dubey",
+          "Transaction": "Release",
+          "Trade Shares": "3600000",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "GPECO",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "GP Eco Solutions",
+          "Insider": "Deepak Pandey",
+          "Transaction": "Release",
+          "Trade Shares": "3273600",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "GPECO",
         "date": "2026-09-22",
@@ -366548,6 +366908,243 @@
           "Security Type": "Equity",
           "Transaction": "Sold",
           "Trade Shares": "150002",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "AARON": [
+      {
+        "ticker": "AARON",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Aaron Industries",
+          "Insider": "AMAR CHINUBHAI DOSHI along with pac",
+          "Transaction": "Acquisition",
+          "Trade Shares": "4270",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AARON",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Aaron Industries",
+          "Insider": "AMAR CHINUBHAI DOSHI",
+          "Transaction": "Acquisition",
+          "Trade Shares": "4270",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "SIKKO": [
+      {
+        "ticker": "SIKKO",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Sikko Industries",
+          "Insider": "Jayantibhai Mohanbhai Kumbhani",
+          "Transaction": "Acquisition",
+          "Trade Shares": "10320480",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "FONEBOX": [
+      {
+        "ticker": "FONEBOX",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Fonebox Retail",
+          "Insider": "Rajesh Ujamshibhai Shah",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1000000",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "FONEBOX",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Fonebox Retail",
+          "Insider": "Dhrumil Pradipbhai Shah",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1000000",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "FONEBOX",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Fonebox Retail",
+          "Insider": "Pankaj Kailashnath Vasudeva",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1000000",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "DENTALKART": [
+      {
+        "ticker": "DENTALKART",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Vasa Denticity",
+          "Insider": "Solidarity Advisors Private Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "363000",
+          "Broadcast Date": "2026-09-25",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "JAINIK": [
+      {
+        "ticker": "JAINIK",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Jainik Power",
+          "Insider": "M/s Subhash Jain & Sons HUF",
+          "Transaction": "Acquisition",
+          "Trade Shares": "112800",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "JAINIK",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Jainik Power",
+          "Insider": "Mr. Prateek Jai",
+          "Transaction": "Acquisition",
+          "Trade Shares": "622800",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "JAINIK",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Jainik Power",
+          "Insider": "Mr. Shashank Jain",
+          "Transaction": "Acquisition",
+          "Trade Shares": "112800",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "JAINIK",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Jainik Power",
+          "Insider": "Mr. Subhash Chand Jain",
+          "Transaction": "Acquisition",
+          "Trade Shares": "112800",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "JAINIK",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Jainik Power",
+          "Insider": "Ms. Anju Jain",
+          "Transaction": "Acquisition",
+          "Trade Shares": "112800",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "JAINIK",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Jainik Power",
+          "Insider": "Ms. Kanika Jain",
+          "Transaction": "Acquisition",
+          "Trade Shares": "112800",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "JAINIK",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Jainik Power",
+          "Insider": "Ms. Shivangi Jain",
+          "Transaction": "Acquisition",
+          "Trade Shares": "613200",
+          "Broadcast Date": "2026-09-24",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "ICEMAKE": [
+      {
+        "ticker": "ICEMAKE",
+        "date": "2026-09-24",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "ICE Make Refrig.",
+          "Insider": "Galilei Holdings Co. Ltd. (formerly known as Galilei Co. Ltd.)",
+          "Transaction": "Acquisition",
+          "Trade Shares": "2242963",
           "Broadcast Date": "2026-09-24",
           "Source": "Screener.in"
         }
