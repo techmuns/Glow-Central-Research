@@ -390,8 +390,8 @@
       "pending": []
     },
     "isin:INE1C6T01020|EMMVEE": {
-      "lastAttemptAt": "2026-09-21T00:21:30+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-09-26T01:09:44+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 21,
       "targetThrough": "2026-09-12T07:47:49+00:00",
       "pending": [
@@ -1764,6 +1764,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-09-26T00:16:35.865997+00:00"
+    "checkedAt": "2026-09-26T01:09:44.108331+00:00"
   }
 }
