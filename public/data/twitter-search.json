@@ -744,8 +744,8 @@
       "pending": []
     },
     "isin:INE0SMY01017|Jay Bee Laminations": {
-      "lastAttemptAt": "2026-09-21T14:54:36+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-09-26T20:14:52+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 1,
       "lastSuccessAt": "2026-09-21T14:54:36+00:00",
       "targetThrough": null,
@@ -1764,6 +1764,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 232,
-    "checkedAt": "2026-09-26T19:42:58.160004+00:00"
+    "checkedAt": "2026-09-26T20:14:52.078260+00:00"
   }
 }
