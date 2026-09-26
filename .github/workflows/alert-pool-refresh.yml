@@ -22,6 +22,7 @@ name: Alert pool refresh
 # one artifact it reads (the exchange deals the insider feed folds in) is this repository's own.
 
 on:
+<<<<<<< HEAD
   # A changed collector/format needs a matching pool even if no capture has moved yet.
   push:
     branches: [main]
@@ -29,6 +30,14 @@ on:
       - 'public/js/**'
       - 'scripts/build-alert-pool.mjs'
       - 'scripts/lib/alert-pool-build.mjs'
+=======
+  push:
+    branches: [main]
+    paths:
+      - 'public/js/data/alert-pool-*.js'
+      - 'scripts/lib/alert-pool-build.mjs'
+      - 'scripts/build-alert-pool.mjs'
+>>>>>>> sattva/main
       - '.github/workflows/alert-pool-refresh.yml'
   workflow_run:
     workflows:

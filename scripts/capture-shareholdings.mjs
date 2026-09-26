@@ -6,8 +6,28 @@ import { gzipSync, gunzipSync } from 'node:zlib';
 import { parseIndex, parseFiling, mergeFilings } from './lib/shareholding-filings.mjs';
 import { csvRows, SECURITY_URLS } from './lib/exchange-deals.mjs';
 
+<<<<<<< HEAD
 async function fetchOnce(url, maxBytes) {
   const response = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0', accept: '*/*', referer: url.includes('bseindia') ? 'https://www.bseindia.com/' : 'https://www.nseindia.com/' }, signal: AbortSignal.timeout(60000) });
+=======
+export function publicRequestUrl(value) {
+  const url = new URL(value);
+  if (url.protocol !== 'https:' || url.username || url.password || url.port ||
+      !['www.bseindia.com', 'api.bseindia.com', 'www.nseindia.com', 'nsearchives.nseindia.com', 'archives.nseindia.com'].includes(url.hostname))
+    throw new Error('Unexpected public source host');
+  return url.href;
+}
+async function fetchOnce(input, maxBytes) {
+  let url = publicRequestUrl(input), response;
+  for (let redirects = 0; redirects <= 3; redirects++) {
+    response = await fetch(url, { redirect: 'manual', headers: { 'user-agent': 'Mozilla/5.0', accept: '*/*', referer: url.includes('bseindia') ? 'https://www.bseindia.com/' : 'https://www.nseindia.com/' }, signal: AbortSignal.timeout(60000) });
+    if (![301, 302, 303, 307, 308].includes(response.status)) break;
+    const location = response.headers.get('location'); await response.body?.cancel();
+    if (!location || redirects === 3) throw new Error('Invalid public source redirect');
+    url = publicRequestUrl(new URL(location, url).href);
+  }
+
+>>>>>>> sattva/main
   if (!response.ok) { await response.body?.cancel(); throw new Error(`HTTP ${response.status}`); }
   const reader = response.body.getReader(), parts = []; let length = 0;
   try { for (;;) { const { done, value } = await reader.read(); if (done) break; length += value.length; if (length > maxBytes) throw new Error('Public response exceeds size limit'); parts.push(value); } }
@@ -18,7 +38,11 @@ export async function fetchPublic(url, maxBytes = 25000000) {
   for (let attempt = 0; ; attempt++) {
     try { return await fetchOnce(url, maxBytes); }
     catch (error) {
+<<<<<<< HEAD
       if (attempt >= 2 || /HTTP 40[134]|size limit/.test(error.message)) throw new Error(`${error.message}${error.cause?.code ? ` (${error.cause.code})` : ''}`);
+=======
+      if (attempt >= 2 || /HTTP 40[134]|size limit|Unexpected public|Invalid public source/.test(error.message)) throw new Error(`${error.message}${error.cause?.code ? ` (${error.cause.code})` : ''}`);
+>>>>>>> sattva/main
       await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
     }
   }
@@ -65,15 +89,26 @@ export async function captureShareholdings(previous = {}, { now = new Date().toI
   }
   const retained = new Map((previous.filings || []).map((f) => [f.id, f]));
   const readable = new Map(entries.map((e) => [e.id, e]));
+<<<<<<< HEAD
   for (const f of retained.values()) if (!readable.has(f.id) && !f.supersededBy && f.sourceUrl && f.indexAsOf >= from && f.indexAsOf <= to) readable.set(f.id, f);
   // Refresh a rotating sample after seven days to catch corrections at unchanged URLs.
   const unread = [...readable.values()].filter((e) => { const f = retained.get(e.id); return !f?.holders || f.status === 'partial' || f.parserVersion !== 1 || Date.parse(now) - Date.parse(f.checkedAt) > 7 * 86400000; })
     .sort((a, b) => Number(!!retained.get(a.id)?.holders) - Number(!!retained.get(b.id)?.holders) || b.indexAsOf.localeCompare(a.indexAsOf) || a.id.localeCompare(b.id));
+=======
+  for (const f of retained.values()) if (!readable.has(f.id) && !f.supersededBy && f.sourceUrl && (!f.holders || f.status === 'partial' || f.indexAsOf >= from && f.indexAsOf <= to)) readable.set(f.id, f);
+  // Refresh a rotating sample after seven days to catch corrections at unchanged URLs.
+  const unread = [...readable.values()].filter((e) => { const f = retained.get(e.id); return !f?.holders || f.status === 'partial' || f.parserVersion !== 1 || Date.parse(now) - Date.parse(f.checkedAt) > 7 * 86400000; })
+    .sort((a, b) => Number(!!retained.get(a.id)?.holders) - Number(!!retained.get(b.id)?.holders) || (Date.parse(retained.get(a.id)?.lastAttemptAt || retained.get(a.id)?.checkedAt || '') || 0) - (Date.parse(retained.get(b.id)?.lastAttemptAt || retained.get(b.id)?.checkedAt || '') || 0) || b.indexAsOf.localeCompare(a.indexAsOf) || a.id.localeCompare(b.id));
+>>>>>>> sattva/main
   const queue = unread.slice(0, maxFiles);
   const results = []; let cursor = 0, consecutiveTransportFailures = 0;
   const snapshot = () => ({ ...mergeFilings(previous, entries, results, sources, now), securityMaster, window: { from, to } });
   console.log(`Shareholdings: ${entries.length} indexed filings for ${from} – ${to}; ${queue.length} reads this run`);
   for (const source of sources) console.log(`${source.id}: ${source.ok ? `${source.indexed} index rows, ${source.selected} selected` : source.error}`);
+<<<<<<< HEAD
+=======
+  checkpoint(snapshot());
+>>>>>>> sattva/main
   await Promise.all(Array.from({ length: concurrency }, async () => {
     while (cursor < queue.length && consecutiveTransportFailures < 20) {
       const entry = queue[cursor++];
@@ -88,7 +123,11 @@ export async function captureShareholdings(previous = {}, { now = new Date().toI
         if (/fetch failed|HTTP|timeout|terminated|aborted/i.test(error.message)) consecutiveTransportFailures++;
         results.push({ ...entry, status: 'failed', lastAttemptAt: now, error: error.message });
       }
+<<<<<<< HEAD
       if (results.length % 100 === 0) { checkpoint(snapshot()); console.log(`Read ${results.length}/${queue.length}; ${results.filter((f) => f.status === 'failed').length} failed`); }
+=======
+      if (results.length % 25 === 0) { checkpoint(snapshot()); console.log(`Read ${results.length}/${queue.length}; ${results.filter((f) => f.status === 'failed').length} failed`); }
+>>>>>>> sattva/main
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }));
@@ -107,7 +146,12 @@ async function main() {
   const read = process.env.SHAREHOLDINGS_PREVIOUS || output;
   const previous = existsSync(read) ? JSON.parse(read.endsWith('.gz') ? gunzipSync(readFileSync(read)) : readFileSync(read, 'utf8')) : {};
   const save = (data) => { mkdirSync(dirname(output), { recursive: true }); const text = JSON.stringify(data); writeFileSync(`${output}.tmp`, output.endsWith('.gz') ? gzipSync(text) : text); renameSync(`${output}.tmp`, output); };
+<<<<<<< HEAD
   const securityMap = JSON.parse(readFileSync(new URL('../public/data/exchange-deals.json', import.meta.url), 'utf8')).securityMap || {};
+=======
+  const exchangeFile = new URL('../public/data/exchange-deals.json', import.meta.url);
+  const securityMap = existsSync(exchangeFile) ? JSON.parse(readFileSync(exchangeFile, 'utf8')).securityMap || {} : {};
+>>>>>>> sattva/main
   const snapshot = await captureShareholdings(previous, { maxFiles: Number(process.env.SHAREHOLDINGS_LIMIT || 16000), checkpoint: save, securityMap });
   save(snapshot);
   console.log(`Saved ${snapshot.filings.length} filings; ${snapshot.pending} pending/failed, ${snapshot.errors} exceptions`);

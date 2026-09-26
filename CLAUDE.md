@@ -294,6 +294,9 @@ worker/muns.mjs               the AUTHENTICATED news / insider clients — same 
 worker/bse-ann.mjs            BSE's DATE-indexed announcement feed — open, no credential
 worker/nse-ann.mjs            NSE's LIVE announcements RSS — parser + name->symbol resolver, pure and
                               shared with the scraper. Browser can't read NSE (CORS null); Worker can
+worker/filing-page.mjs        ONE NSE XBRL ANNOUNCEMENT AS A PAGE — `GET /filing?src=`, server-rendered
+                              from the same parser the dashboard's panel uses. Where a team-brief
+                              link lands, because an email opens in a browser and not in the app
 worker/mc-news.mjs            Moneycontrol's market-wide news listing — parser only; nothing on
                               the edge can fetch it, so only the Action ever calls this
 worker/rss-news.mjs           the four RSS publishers behind the same tab — parser + feed list,
@@ -840,6 +843,7 @@ resolves it from the list for every derived view, so one person is one string on
 **not** a regex that strips the suffix: the list is the authoritative display name, and a pattern
 match would quietly fail the day they reword it.
 
+<<<<<<< HEAD
 
 ### Two fund feeds on two dates — the Mutual Funds rule (GLOW-OWNED)
 
@@ -1484,6 +1488,50 @@ indices, the global scan, the sources line. Measured on the 18 September morning
 grew from about 130 KB to about 200 KB; Gmail clips a message above roughly 100 KB behind *View
 entire message*, which the old sheet already crossed — if the desk reads in Gmail, cap the table
 before shrinking anything else.
+=======
+### The team brief — two editions a weekday, built at the edge
+
+The Newsletter button manages Sattva Ventures' direct-portfolio briefs at 08:00 and 16:00 IST
+on weekdays. The authoritative reading, budget, migration and email contracts are in
+[Newsletter source evidence](docs/NEWSLETTER-SOURCE-EVIDENCE.md); market comparison rules are
+in [Newsletter markets](docs/NEWSLETTER-MARKET-ACCURACY.md). The route/store contract remains in
+`docs/DATA-CONTRACTS.md` → *The team brief*.
+
+- Scope follows `portfolio-companies.json`, including the listed denominator when a source is
+  missing. Never copy Glow's private-book quantities or public book endpoint. Session prices and
+  an unweighted median are not portfolio P&L.
+- Source headlines, particulars, dates and links survive AI failure. Facts come from complete
+  bounded documents/articles, with labelled partial/pending/unreadable states. Generic filing
+  categories and nearby timestamps do not prove two documents describe one event. News retains
+  Sattva's conservative company attribution and its original source rows.
+- Source reading has a durable, independently scheduled queue: initial seven-day capture,
+  overlapping discovery, held-back watermarks on required-source failures, bounded claims,
+  leases and retries. Saved jobs outlive email sends. A successful deployment or browser check
+  does not establish complete upstream history.
+- OpenAI news uses a durable USD 1/day and USD 25/month ledger for news reading/review/grouping,
+  with reservations before I/O, quote/issuer/product checks and policy-versioned caches. This is
+  not a cap on filing/PDF, other AI notes or Ask Research. Missing news credentials fail closed.
+- Public previews do no paid reading, enqueue/process no jobs, send no email and save no PDF.
+  An actual send uses saved source facts and a bounded additional read batch. AI coverage counts
+  all eligible updates, including those outside its batch; headlines alone never become notes.
+- The alarm advances its clock and pre-arms before I/O. Durable edition claims prevent replay;
+  over-three-hour late editions are marked missed. `MUNS_TOKEN` is the send credential and a
+  missing token is explicit. No unknown send is automatically retried.
+- The ten-day reported-item ledger migrates retained acknowledged legacy keys in place and
+  records confirmed parts atomically. Preview/test sends mark nothing. Preserve subscribers,
+  claims, settings, PDFs and the four-attempt rolling daily manual-send budget.
+- Every part stays within 90,000 final UTF-8 HTML bytes. Split at company, complete-update or
+  supplementary-row boundaries; preserve all sources and notes. A single unfit item fails
+  before PDF creation or delivery. Parts share a complete immutable PDF; confirmed rejected
+  sends delete their provisional PDF while uncertain outcomes retain it. Saved PDFs survive
+  delivery-log pruning and contain no recipient information.
+- Keep the panel simple: subscribe/unsubscribe, addresses (multi-address paste), previews.
+  No subscriber reads on page load, manual-send buttons or operational detail in ordinary flow.
+  Email/PDF footers say **Automated by Munshot**, and XBRL links retain `/filing?src=…`.
+- Fixture tests cover behavior; a source-only shipped-data smoke test asserts structure rather
+  than changing counts. Test mobile email, multipart acknowledgements, migration/restarts and
+  returning-session module upgrades. Stub all model and delivery calls during tests.
+>>>>>>> sattva/main
 
 ### Two disclosures that look identical — the Institutions rule
 
@@ -1662,6 +1710,7 @@ the narrow negative/positive rules over the filing text are unchanged, and the s
 downgrade is still negative, a dividend still positive and an AGM still neutral.
 
 **AND TWO KEYWORD READINGS ARE CANCELLED BY THE FILING'S OWN WORDS** (`announcementSignal`,
+<<<<<<< HEAD
 23 September 2026). Over three retained days, **108 filings were high-importance only because
 "Acquisition" matched the NAME of SEBI's (Substantial Acquisition of Shares and Takeovers)
 Regulations** — a holder's Regulation 29/31 shareholding disclosure, six of them on book companies —
@@ -1679,6 +1728,22 @@ cannot disagree about which filings are orders. **Measured on the ranking itself
 before and after: 7 fewer Portfolio cards (95 → 88) and 11 fewer Universe cards — every one a
 Regulation 29/31 disclosure, a promoter's own share purchase or Sasken's GST appeal — and no card
 added or lost for any other reason.
+=======
+23 September 2026). Over three retained days, **106 filings were high-importance only because
+"Acquisition" matched the NAME of SEBI's (Substantial Acquisition of Shares and Takeovers)
+Regulations** — a holder's Regulation 29/31 shareholding disclosure; four were on book companies
+(Hindustan Zinc, Groww twice, Vedanta) — and **9 only because "Receipt of Order" matched an order a
+court, tribunal or tax officer passed**, filed under the exchange's own "Award of Order / Receipt of
+Order" label (a GST appeal order, for one). So `SAST_HOLDING_DISCLOSURE` drops Acquisition — only on
+the DISCLOSURE half of the regulations (`SAST_DISCLOSURE_MARKER`: Regulations 29/31/10, a
+disclosure, shareholding, pledge or inter-se transfer), never where `ACQUISITION_COMPLETED` says an
+acquisition completed, and never on an open offer, its public announcement or letter of offer, which
+IS a takeover — and `LEGAL_ORDER` drops Order and Receipt of Order; the reason string names what was
+dropped and why. A tax demand or penalty is still read, as a negative, by the enforcement rule, and
+"(excluding taxes)" on a supply order does not trip it. News is untouched. `LEGAL_ORDER` is exported
+and is also the KPI layer's definition, so the alert and its KPI line cannot disagree about which
+filings are orders. The same fix shipped on the Glow deployment first, where it measured 108 and 9.
+>>>>>>> sattva/main
 
 **The Topic column took the Sub-category column's place**, exactly as News' took the Outlet
 column's: `rowSub` already prints the sub-category under every subject, so the column was a second
@@ -2784,6 +2849,23 @@ Verify with `verify-column-order-ui.mjs` and `verify-column-order-upgrade-ui.mjs
 
 ### Performance on large tables
 
+Large scrollable tables now use the measured window in `ui/windowed-list.js` (the legacy
+progressive-fill contract below still applies to explicit idle/scroll modes). During a native
+scrollbar drag, keep rendering the current window but defer height-estimate corrections until
+release: changing the scroll range or writing `scrollTop` during the gesture makes the thumb
+fall behind the pointer. On release, preserve the actual visible row and offset. Pointer release,
+cancellation, window blur and disposal must all release the gesture state/listeners.
+Live updates keep existing row corrections visible while queuing only additions/reordering until
+release; counts, search and export adopt the complete current model immediately. Explicit filters
+and removed/revoked records interrupt the gesture and apply immediately. Overlay thumbs are inside
+the client box, so scrollbar hit detection cannot rely on a reserved layout gutter alone.
+
+The table scrollbar's 14px track and 48px thumb floor require `scrollbar-color: auto` in browsers
+supporting `::-webkit-scrollbar`; a non-auto standard colour disables those pseudo-element rules.
+Firefox retains the standard colour fallback. `scripts/verify-table-drag-ui.mjs` uses native
+pointer gestures with visible browser scrollbars to verify real geometry, down/up dragging,
+stable release, light/dark themes and complete search/export. Resolved CSS alone is insufficient.
+
 `scoreTable` handles 1,700+ rows because of four things — keep them if you touch it:
 - listeners are **delegated** on `<thead>` / `<tbody>`, never per row;
 - row markup is **position-independent** (rank comes from a CSS counter, the click target carries
@@ -3349,6 +3431,34 @@ contract does not cover: a tab the shell decided not to mount.
 
 ## AI Alerts — the explainable priority layer
 
+**Story evolution (23 September 2026):** `alert-stories.js` groups public company news and
+exchange disclosures across publishers, keeping every original record in `card.sourceEvents`.
+`card.events` contains distinct developments for ranking; one story row opens its earlier
+developments and source links. A new material fact must resurface an archived alert, even if
+an older event is stronger. Another outlet's equivalent report must not add a ranking bonus or
+advance the event's source date. `materialEvidence` and `ai-mute.js` recognise development
+identities and pre-review receipts; review completion itself is not a new fact.
+
+The same-origin `/api/alert-stories` route uses the existing server-only Bedrock transport and
+validates a complete partition, attribution, figures and stages. Exact request results are cached
+on the separately named `ai-alert-story-reviews:v1` CaptureRegistry object; reservations enforce
+300 requests per rolling day across callers, including failures. No namespace migration or extra
+collector is needed. The reader checks in bounded batches of 80 reports (120 KB), continuing
+large groups against one representative of each known development. It preserves all reports if
+limits, incomplete model replies, unavailable service or ambiguity prevent a safe grouping.
+The grouping status is separate from source freshness. Do not turn a failed grouping into an
+empty feed or a claim that all duplicates were removed.
+
+Public decisions persist in the device cache for up to 180 source days. These are reading
+annotations, not an exhaustive story archive; original source history remains in All Alerts.
+An input correction invalidates its annotation. Never send private records/holdings to this route,
+truncate source text to force a match, or discard members after picking a lead. Compact alert
+pools must retain `storyText`; the v3 contract prevents adopting older pools that lack it.
+Verification: `verify-alert-stories`, `verify-alert-stories-ui` (including a warm-session upgrade),
+`verify-alert-stories-runtime`, the existing AI/retention/alert-pool checks. Model replies are
+fixture-controlled; deterministic safety and integration checks do not certify live model accuracy.
+
+
 `js/data/ai-alerts.js` reads `daily-alerts.js` once in retained-history mode, then groups the last
 seven Indian dates by ticker. It adds no source and generates no fact. The ranking is deliberately
 deterministic: importance, source materiality, recency, explicit direction, real Portfolio
@@ -3815,7 +3925,11 @@ and a link to General Alerts with the existing table search seeded for the ticke
 pure and exported; test its policy branches with fixtures rather than waiting for today's capture
 to happen to contain every case.
 
+<<<<<<< HEAD
 ### KPIs IN PLAY — which lines of the company's OWN sector model the evidence names (GLOW-OWNED)
+=======
+### KPIs IN PLAY — which lines of the company's OWN sector model the evidence names
+>>>>>>> sattva/main
 
 The desk's ask (23 September 2026): when something genuinely comes up, say which KPIs it moves for
 THAT company, cleanly, with no garbage. `js/data/kpi-impact.js` answers it with a table of TRIGGERS
@@ -3827,7 +3941,11 @@ see `docs/DATA-CONTRACTS.md` → *Sector KPIs*), plus a filed result's measured 
 con-call highlight names through the ontology's own aliases. The card gets one section directly under
 *What happened*, drawn exactly as that section is — *KPIs in play · Capital Goods: Order Inflow · Order
 Book · Book-to-Bill Ratio* — each chip a door to its source, the item and mechanism in the tooltip, at
+<<<<<<< HEAD
 most four, the rest counted. It is the only block the card adds to the template's one sentence and one
+=======
+most four, the rest counted. It is the only block the card adds to its one sentence and one
+>>>>>>> sattva/main
 list, and it is absent where there is nothing to name. No model call, no request per card, no score,
 no alert. Nine rules, every one asserted by `verify-kpi-impact.mjs` or `verify-kpi-impact-ui.mjs`:
 
@@ -3883,8 +4001,13 @@ no alert. Nine rules, every one asserted by `verify-kpi-impact.mjs` or `verify-k
 Classification: `.github/workflows/sector-kpis-refresh.yml` runs `node scripts/classify-companies.mjs
 && node scripts/build-sector-kpis.mjs` daily, commits to `main`, and then fails naming any listed
 holding left without a KPI group, or kept on a classification whose latest re-read failed
+<<<<<<< HEAD
 (`--check-book`) — a quiet gap would look like evidence that names no KPI. An unchanged day writes nothing but a weekly heartbeat. All 166 listed book companies and the
 NSE-500 resolve today (623 exact pairs, 6 REITs by the one stated override); an SME symbol is read
+=======
+(`--check-book`) — a quiet gap would look like evidence that names no KPI. An unchanged day writes nothing but a weekly heartbeat. All 107 listed book companies and the
+NSE-500 resolve today (593 exact pairs, 6 REITs by the one stated override); an SME symbol is read
+>>>>>>> sattva/main
 without its `-SM` suffix and a company Screener files under another code is found by an EXACT name
 match on Screener's own search. A company outside the book and the NSE-500 carries no row until it
 is classified (`CLASSIFY_SCOPE=tracked` adds the ~1,900-name tracked universe).
@@ -4919,7 +5042,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change which filings count as routine, or add a filing type | `ANNOUNCEMENT_TYPES` + `RE` in `public/js/data/announcement-types.js` — read *Routine filings are switched off by default* first. The order is the definition, a new type starts switched ON on every device, and `node scripts/verify-announcement-types.mjs` asserts the collisions |
 | Change the NSE live announcements feed | `worker/nse-ann.mjs` (pure parser + name->symbol resolver, shared) + `handleNseAnnouncements` in `worker/index.js` (live route, edge-cached) + `js/data/nse-filings.js` (browser) + `js/tabs/nse-filings.js` (the scoped table). The browser CANNOT read NSE (CORS null), so it must proxy through the Worker; a full desktop user-agent is required or Akamai 430s it. Resolve by NAME — the filename prefix is only 31% reliable |
 | Refresh the NSE snapshot fallback | `node scripts/scrape-nse-announcements.mjs` — reads NSE directly (no token), resolves, commits `public/data/nse-announcements.json`. The live route is the primary read; this is the floor beneath it |
-| Change how an NSE XBRL filing is READ, or which URLs may be fetched for one | `public/js/data/nse-xbrl-shared.js` (the pure parser + the `src` allow-list, imported by the Worker too) + `handleNseFiling` in `worker/index.js` (`GET /api/nse-filing`) + `public/js/ui/xbrl-filing.js` (the panel and the one delegated click listener, installed from `app.js`). About one NSE announcement in eleven is a raw XBRL file with no readable twin — read *An XBRL filing is a document* in `docs/DATA-CONTRACTS.md` first. A fact is an element with a `contextRef`, a repeated section is a context, values travel verbatim, `row.url` keeps NSE's own address, and a modified click still gets the raw file. `node scripts/verify-nse-xbrl.mjs` and `scripts/verify-nse-xbrl-ui.mjs` are the tests |
+| Change how an NSE XBRL filing is READ, or which URLs may be fetched for one | `public/js/data/nse-xbrl-shared.js` (the pure parser, the bounded `filingParticulars()` reading and the `src` allow-list, imported by the Worker too) + `readNseFiling` / `handleNseFiling` / `handleFilingPage` in `worker/index.js` (`GET /api/nse-filing` for the panel, `GET /filing` for the page an email links to) + `worker/filing-page.mjs` (that page) + `public/js/ui/xbrl-filing.js` (the panel and the one delegated click listener, installed from `app.js`). About one NSE announcement in eleven is a raw XBRL file with no readable twin — read *An XBRL filing is a document* in `docs/DATA-CONTRACTS.md` first. A fact is an element with a `contextRef`, a repeated section is a context, values travel verbatim, `row.url` keeps NSE's own address, and all navigation including modified clicks opens a readable filing. Raw XML is an explicitly labelled technical source under Source file details. `node scripts/verify-nse-xbrl.mjs` and `scripts/verify-nse-xbrl-ui.mjs` are the tests |
 | Change how many days of announcements are kept | `ANN_KEEP_DAYS` in `scripts/scrape-bse-announcements.mjs` — a bytes ceiling, ~900 filings a weekday |
 | Change the tracked news keywords, or what a Topic filter offers | `public/js/data/news-keywords.js` — the whole vocabulary is one array; read *Thirty words that make a search feed usable* first. A keyword is a topic and must never become a direction, and `namesCompany` marks a row rather than dropping one |
 | Speed up a per-row helper on a hot path | memoise it on the row object in a `WeakMap`, validated on the fields it reads — read *A per-row cache is keyed on the row object* first; `scripts/verify-hot-path-memo.mjs` is the test |
@@ -4972,17 +5095,23 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the device mirror + sync) + `watchKey` on the table that stars it — read *The star marks a COMPANY* and *The watchlist is a list of COMPANIES, and ONE list for the whole desk* first |
 | Change the SHARED watchlist itself — its shape, its conflict rules or its route | `public/js/data/watchlist-shared.js` (the one definition, imported by the Worker too) + `worker/watchlist-store.mjs` + `worker/watchlist.mjs`. Edits are INTENTS, never a whole list; an `add` must name its contributor; a `seed` may not apply over any row that already exists. `node scripts/verify-shared-watchlist.mjs` and `node scripts/verify-shared-watchlist-ui.mjs` are the tests |
-| Change the team brief — what is in it, how it reads, when it sends | `worker/newsletter-brief.mjs` (the scan, the stories, the fold, the late-arrival look-back and the broadsheet), `worker/newsletter-schedule.mjs` (the alarm and the send), `worker/newsletter-store.mjs` (subscribers, settings, deliveries and the sent-story ledger), `public/js/data/newsletter-shared.js` (editions, windows, addresses — imported by both sides) and `public/js/ui/newsletter.js` (the header control). Read *The team brief* first. `node scripts/verify-newsletter.mjs` and `node scripts/verify-newsletter-ui.mjs` are the tests |
+| Change the team brief — what is in it, how it reads, when it sends | `worker/newsletter-brief.mjs` (the scan, the stories, the fold, the late-arrival look-back, the filing particulars and the broadsheet), `worker/newsletter-schedule.mjs` (the alarm and the send), `worker/newsletter-store.mjs` (subscribers, settings, deliveries and the sent-story ledger), `public/js/data/newsletter-shared.js` (editions, windows, addresses — imported by both sides) and `public/js/ui/newsletter.js` (the header control). Read *The team brief* first. `node scripts/verify-newsletter.mjs` and `node scripts/verify-newsletter-ui.mjs` are the tests |
 | Set up the team brief on a deployment | `MUNS_TOKEN` on the Worker sends it; `DASHBOARD_ORIGIN` and `NEWSLETTER_PRODUCT_NAME` are vars in `wrangler.jsonc`; the `NEWSLETTER` binding and `NEWSLETTER_LIMITER` are there too. Subscribe from the header and the alarm arms itself |
 | Change who is asked, or how the contributor dropdown behaves | `js/ui/watchlist-attribution.js` (the prompt) + `js/core/watchlist-people.js` (the roster and this device's own name) — read *An addition carries the name of whoever made it* first. Never preselect a name on a device nobody has identified themselves on |
 | Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book, and test `rankReport()` directly |
 | Change what an AI Alerts card SAYS, or how many rows it shows | `plainInsight()` / `leadEvent()` / `plainHeadline()` / `filingClaim()` / `sourceStatement()` / `CLAIM_MAX` / `topEvidence()` / `MAX_PER_SOURCE` in `js/data/ai-alerts.js` (pure and exported) + `EVIDENCE_ROWS` / `byNewestFirst` / `listHeadMarkup` in `js/tabs/ai-alerts.js` — read *Time to insight is the product's only job* first: the sentence is ONE claim, the strongest event's own, so no pattern name, feed tally or filler belongs in it; no new number, and every figure comes from a collector's field; only sentences we wrote may be reworded, and a filing's claim is CHOSEN between its subject, the exchange's description and the exchange's sub-category rather than paraphrased; a clip keeps the untouched wording on the sentence's `title`; a volume reading takes no tone; and the rows are read newest first because the header says so. There is no figure strip and no per-question paragraph: `cardMetrics` is deleted and every figure it held has a place named in that section |
+<<<<<<< HEAD
 | Change which KPIs an alert names, or add a trigger | `TRIGGERS` in `js/data/kpi-impact.js` (+ `kpiMarkup()` in `js/tabs/ai-alerts.js`) — read *KPIs in play* first; a rule may name only its group's own KPIs, and every new trap it closes gets a case in `node scripts/verify-kpi-impact.mjs` |
 | Refresh company sector classification, or change the KPI ontology | `.github/workflows/sector-kpis-refresh.yml` does it daily and fails naming any listed holding left without a KPI group; by hand, `node scripts/classify-companies.mjs` (Screener; `CLASSIFY_SCOPE=tracked` for the wider universe) then `node scripts/build-sector-kpis.mjs` (`--check-book` to list holdings with no group; `SECTOR_KPIS_CSV=<sector_kpis export>` to reconcile a new ontology); the ontology itself is `scripts/fixtures/sector-kpi-ontology.yaml`, reproduced unchanged |
 | Change which investor question a topic bears on, or how a card states it | `js/data/alert-drivers.js` (the one mapping) + `driverReadings()` / `driverChipsMarkup()` in `js/tabs/ai-alerts.js` — read *Earnings assumption, valuation or thesis* first. A reading is a chip on the row whose own record backs it, never a block of its own; it is a TOPIC reading, so the wording stays "could change" and the chip never borrows a direction colour; a second reading on one row prints `+1`; and the layer adds no score |
 | Change what folds into one development, or how an item is labelled and led | `js/data/alert-developments.js` (the fold, LINE 1, the labels) — read *One development, one item* first; `node scripts/verify-alert-developments.mjs` is the test. The AI card reads it through `card.developments` / `leadDevelopment` / `topEvidence` in `js/data/ai-alerts.js`; All Alerts through `foldedStream` in `js/tabs/daily-alerts.js` |
 | Change the AI "So what?" line — what the model sees, what it may say, the daily cap | `public/js/data/alert-notes-shared.js` (the contract, shared with the Worker) + `worker/alert-notes-store.mjs` / `worker/alert-notes.mjs` + `public/js/data/alert-notes.js` (the client) + `public/js/ui/alert-note.js` (the drawing) — read *The "So what?" line* first; `node scripts/verify-alert-notes.mjs` is the test |
+=======
+| Change which investor question a topic bears on, or how a card states it | `js/data/alert-drivers.js` (the one mapping) + `driverReadings()` / `driverChipsMarkup()` in `js/tabs/ai-alerts.js` — read *Earnings assumption, valuation or thesis* first. A reading is a chip on the row whose own record backs it, never a block of its own; it is a TOPIC reading, so the wording stays "could change" and the chip never borrows a direction colour; a second reading on one row prints `+1`; and the layer adds no score |
+>>>>>>> sattva/main
 | Change archiving on AI Alerts | `js/core/ai-mute.js` (the store) + the `archived` filter and the Archive / Restore buttons in `js/tabs/ai-alerts.js` — a record is keyed to the evidence it was given for, so a card returns on its own when stronger evidence arrives |
+| Change which KPIs an alert names, or add a trigger | `TRIGGERS` in `js/data/kpi-impact.js` (+ `kpiMarkup()` in `js/tabs/ai-alerts.js`) — read *KPIs in play* first; a rule may name only its group's own KPIs, and every new trap it closes gets a case in `node scripts/verify-kpi-impact.mjs` |
+| Refresh company sector classification, or change the KPI ontology | `.github/workflows/sector-kpis-refresh.yml` does it daily and fails naming any listed holding left without a KPI group; by hand, `node scripts/classify-companies.mjs` (Screener; `CLASSIFY_SCOPE=tracked` for the wider universe) then `node scripts/build-sector-kpis.mjs` (`--check-book` to list holdings with no group; `SECTOR_KPIS_CSV=<sector_kpis export>` to reconcile a new ontology); the ontology itself is `scripts/fixtures/sector-kpi-ontology.yaml`, reproduced unchanged |
 | Change what the precomputed alert pool carries, or how a period is reassembled from it | `public/js/data/alert-pool-shared.js` (the feeds, the captures each reads, the revision rule, the members) + `public/js/data/alert-pool-format.js` (the shard encoding and decoding, shared by the builder and the browser) — read *The collection is done once, on the runner* first; `node scripts/verify-alert-pool.mjs` is the test |
 | Change when a pooled feed is taken from the pool, or why it is declined | `read()` / `verifyFeed()` / `deviceExtras()` in `public/js/data/alert-pool.js`, and the `pool` branch of `collect()` in `js/data/daily-alerts.js` — every check is per feed, per read, and a declined feed loads as before |
 | Build or publish the pool | `scripts/build-alert-pool.mjs` (`ALERT_POOL_VERIFY=1` re-reads every member) + `.github/workflows/alert-pool-refresh.yml`; the Worker route is `worker/alert-pool.mjs` and `scripts/verify-alert-pool-worker.mjs` drives it in workerd |
@@ -5197,6 +5326,7 @@ It covers, beyond the checklist below:
   a pattern name, a feed tally (*"Bad signs on 3 sources"*) or filler; the feed and the source's
   untouched wording are on the sentence's own `title`, so a claim chosen from an exchange's
   description or clipped on a word boundary can always be read in full. The identity — the sentence
+<<<<<<< HEAD
   IS `whatHappened(card)`, the lead DEVELOPMENT's LINE 1 (`plainHeadline(leadEvent(card))` on a card
   built without developments) — and every branch that builds one are asserted on fixtures,
   because a sign-flip result, a pointer subject and a block deal with a rupee value are properties
@@ -5206,6 +5336,11 @@ It covers, beyond the checklist below:
   dropped (search, filters and the export read every member); and the AI *So what?* line is marked
   AI, refused rather than repaired when it names a figure the source does not state, and absent with
   its reason in words — `verify-alert-developments.mjs` and `verify-alert-notes.mjs`
+=======
+  IS `plainHeadline(leadEvent(card))` — and every branch that builds one are asserted on fixtures,
+  because a sign-flip result, a pointer subject and a block deal with a rupee value are properties
+  of the day rather than of the rule
+>>>>>>> sattva/main
 - **Portfolio Analytics is gone and cannot be reached**: an old `#/portfolio/...` link lands on
   Research Central with the URL corrected and the tab bar back, every deleted ledger module and
   payload 404s on the served site, and no Ask Research source carries a ledger figure or a route
@@ -5376,3 +5511,80 @@ one inline action joined by exact source summary IDs. The live Family Office por
 every discovery, including future additions/exits. Preserve the durable rolling quota, failure
 cooldowns, retained history, reader verification and source coverage gaps. Collection is opt-in;
 merging this implementation does not enable the production gates or establish live compatibility.
+
+### Shared AMC collection watchdog (20 September 2026)
+
+The Mutual Funds durable timer also watches `techmuns/AmfiBeas`'s fixed
+`amc-factsheet-monthly.yml` workflow every 15 minutes. It does not depend on GitHub
+cron delivery or an open browser. A completed source run prompts the downstream
+import; source failures do not block importing retained disclosures. Completion
+means a run finished, not that its source coverage is complete. Both source and
+importer dispatch health remain visible at the existing health endpoint.
+
+`GH_AMFI_DISPATCH_TOKEN`, when configured, is a separate Actions-write credential
+for AmfiBeas. Otherwise the timer uses `GH_DISPATCH_TOKEN`; this only works if its
+existing scope covers AmfiBeas. Permission failures are reported explicitly. Do
+not broaden credentials or configure production secrets without authorization.
+Targets and workflow inputs are fixed server-side; no reader can redirect them.
+Persisted dispatch attempts and the run-list guard avoid immediate duplicate
+dispatch after a lost response or object eviction. Neither task's failure cancels
+an active upstream run. Verification: `node scripts/verify-mutual-funds-schedule.mjs`.
+Definitive dispatch refusals retain their failure state and retry after the normal
+15-minute interval across object eviction and intervening collector wakes. Only
+accepted or uncertain dispatches use the short awaiting-run window. Scanner
+cadence is measured from completion, matching primary collection and imports.
+Coverage opens directly to its source table. Green requires a complete current
+month and a source check within 45 minutes; failed reads, partial checks and old
+reports stay amber. Successful checks and latest attempts have separate IST dates.
+
+
+
+The alert pool's v2 contract preserves raw market-news records across the existing
+180-day context window: company attribution happens when the reader's book is
+applied, so raw unattributed records cannot be discarded at the seven-day ranking
+boundary. Older v1 pools are rejected, and changes to the pool builder/format
+trigger a new shared build. The module cache revision advances with this change;
+verification covers an existing session receiving the replacement module.
+
+## Newsletter market comparisons (24 September 2026)
+
+`worker/newsletter-markets.mjs` validates exact NSE/BSE/Upstox/Yahoo index identities, actual
+quote timestamps and immediately preceding daily closes. Never use chartPreviousClose from a
+multi-day range, combine one provider’s level with another’s close, or turn an intraday/stale
+observation into a fresh close. Keep conflicts/missing comparisons explicit in HTML, text, PDF
+and delivery summaries. Sattva has no macro-series fallback. See
+`docs/NEWSLETTER-MARKET-ACCURACY.md`; run `scripts/verify-newsletter-markets.mjs` with the newsletter
+regressions. Historical sent editions and PDFs remain unchanged.
+
+### Shared development reading on both alert views
+
+`docs/ALERT-DEVELOPMENT-READING.md` defines the presentation and optional excerpt-note contracts.
+Keep Sattva's semantic story IDs/history and material resurfacing authoritative. All Alerts filters,
+search and exports must retain every original member; choosing an exchange lead cannot advance
+publication time. Distinct filing documents need document identity. Visible AI notes read supplied
+excerpts only, with a separate durable attempt limit, and never replace source evidence or private
+Family permissions. The shared claim helper is `public/js/data/alert-claims.js`.
+
+The notes are written by OpenAI `gpt-6-luna` on `OPENAI_API_KEY` with the newsletter's low-cost
+settings; `ALERT_NOTES_AI_PROVIDER=openai` pins it and fails closed rather than moving to a
+costlier model (`noteProvider()` in `worker/alert-notes-store.mjs`). **Anything a Durable Object
+RPC method returns must be ordinary objects and arrays: workerd refuses `Object.create(null)`
+("Could not serialize object of type Object").** That made every note request fail with a 503,
+shown as "no AI service", while every Node test passed; `verify-alert-notes-runtime.mjs` checks the
+real boundary. "No AI service here" means a copy without the Worker, never a Worker's own failure.
+
+Research retrieval, forced Family reads, dated breakout fallback and measured list anchors follow
+`docs/RESEARCH-READING-RELIABILITY.md`. Keep source rows represented under budget pressure and
+never describe an attachment filename as a document reading.
+
+Alert-pool content reuse and streamed Telegram delivery follow `docs/ALERT-DELIVERY-REUSE.md`.
+Capture identity and source health must be rechecked even when decoded content is unchanged.
+
+Investor evidence parity (24 September 2026): `docs/INVESTOR-DISCLOSURE-EVIDENCE.md`
+defines public-only Changes, explicit disclosure states, original filing reconciliation and
+checkpoint-first capture publication through PRs. Preserve the All Investors default and
+Sattva's existing Institutions/MF ownership product. Unknown cells never establish trades or
+new/removed disclosures; a zero valuation is not evidence of an exit. Original source dates,
+partial coverage and retained versions must survive every refresh and export.
+
+Source collection safeguards follow `docs/SOURCE-COLLECTION-RELIABILITY.md`: a directory failure cannot erase source filings or become a fresh identity check, and an empty Screener watchlist requires independent management and list verification.
