@@ -29,8 +29,13 @@ try {
   assert.equal(action(row('Example', 'X', null, 1, null)), 'unknown');
   assert.equal(action(row('Example', 'X', null, 1, 10)), 'unknown');
   for (const invalid of [true, false, -1, 101, 'N/A', 'Filing Due', {}, 'Pending']) {
+<<<<<<< HEAD
     assert.equal(action(row('Example', 'X', invalid, 1, 0)), /Filing Due|Pending/.test(String(invalid)) ? 'awaiting' : 'unknown', String(invalid));
     assert.equal(action(row('Example', 'X', 1, invalid, 10)), /Filing Due|Pending/.test(String(invalid)) ? 'awaiting' : 'unknown', `prior ${String(invalid)}`);
+=======
+    assert.equal(action(row('Example', 'X', invalid, 1, 0)), ['Filing Due', 'Pending'].includes(invalid) ? 'awaiting' : 'unknown', String(invalid));
+    assert.equal(action(row('Example', 'X', 1, invalid, 10)), ['Filing Due', 'Pending'].includes(invalid) ? 'awaiting' : 'unknown', `prior ${String(invalid)}`);
+>>>>>>> sattva/main
   }
   const absent = row(); delete absent.quarterlyHoldings['Mar 2026'];
   assert.equal(action(absent), 'unknown');
@@ -92,7 +97,12 @@ try {
     book('adia', [row('Aavas Financiers Ltd.', 'AAVAS', 2.13, 1.65)]),
     book('mit', [row('Aavas Financiers Ltd.', 'AAVAS', 1.10, null)]),
   ]);
+<<<<<<< HEAD
   assert.equal(observed.consensusBuys.length, 0, 'an unknown prior source cell cannot establish a new disclosure or a consensus vote');
+=======
+  assert.equal(observed.consensusBuyCount, 0, 'An unconfirmed prior quarter cannot establish a second investor increase');
+  assert.equal(observed.counts.unknown, 1);
+>>>>>>> sattva/main
   assert(actual.consensusBuys.every((c) => new Set(c.investors.map((i) => i.slug)).size === c.count));
   console.log(JSON.stringify({ status: 'passed', books: actual.loadedBooks, missingBooks: actual.missingBooks, comparable: actual.comparableBooks, excluded: actual.excludedBooks.length, sharedCompanies: actual.consensusBuyCount, counts: actual.counts }));
 } finally { Date.now = now; }
