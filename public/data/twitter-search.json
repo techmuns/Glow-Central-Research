@@ -784,7 +784,7 @@
       "pending": []
     },
     "isin:INE854B01010|Datasel": {
-      "lastAttemptAt": "2026-09-21T14:54:36+00:00",
+      "lastAttemptAt": "2026-09-26T22:40:41+00:00",
       "error": "search-unavailable",
       "lastResultCount": 20,
       "lastSuccessAt": "2026-09-17T09:01:32+00:00",
@@ -1764,6 +1764,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 232,
-    "checkedAt": "2026-09-26T22:08:13.603953+00:00"
+    "checkedAt": "2026-09-26T22:40:41.256971+00:00"
   }
 }
