@@ -880,51 +880,87 @@
       "error": "search-unavailable"
     },
     "isin:INE101A01026|Mahindra & Mahindra": {
-      "lastAttemptAt": "2026-09-22T00:22:50+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-27T08:32:05+00:00",
+      "error": null,
+      "lastResultCount": 85,
+      "lastSuccessAt": "2026-09-27T08:32:05+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE774D01024|Mahindra & Mahindra Financial Services": {
-      "lastAttemptAt": "2026-09-22T01:11:32+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-27T08:32:05+00:00",
+      "error": null,
+      "lastResultCount": 12,
+      "lastSuccessAt": "2026-09-27T08:32:05+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE774D01024|M&MFIN": {
-      "lastAttemptAt": "2026-09-22T01:46:29+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-27T08:32:05+00:00",
+      "error": null,
+      "lastResultCount": 6,
+      "lastSuccessAt": "2026-09-27T08:32:05+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE993A01026|Man Industries (India)": {
-      "lastAttemptAt": "2026-09-22T02:20:07+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-27T08:32:05+00:00",
+      "error": null,
+      "lastResultCount": 15,
+      "lastSuccessAt": "2026-09-27T08:32:05+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE993A01026|MANINDS": {
-      "lastAttemptAt": "2026-09-22T02:27:16+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-27T08:32:05+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 118,
+      "targetThrough": "2026-09-27T08:32:05+00:00",
+      "pending": [
+        {
+          "from": "2026-09-18T08:32:05.939582+00:00",
+          "to": "2026-09-22T20:32:05.469791+00:00"
+        },
+        {
+          "from": "2026-09-22T20:32:05.469791+00:00",
+          "to": "2026-09-27T08:32:05+00:00"
+        }
+      ]
     },
     "isin:INE103A01014|Mangalore Petrochemicals and Refinery": {
-      "lastAttemptAt": "2026-09-22T03:07:23+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-27T08:32:05+00:00",
+      "error": null,
+      "lastResultCount": 0,
+      "lastSuccessAt": "2026-09-27T08:32:05+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE103A01014|MRPL": {
-      "lastAttemptAt": "2026-09-22T03:47:35+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-27T08:32:05+00:00",
+      "error": null,
+      "lastResultCount": 92,
+      "lastSuccessAt": "2026-09-27T08:32:05+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE071D01033|Menon Bearings": {
-      "lastAttemptAt": "2026-09-22T04:31:48+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 27,
-      "lastSuccessAt": "2026-09-13T11:04:59+00:00",
+      "lastAttemptAt": "2026-09-27T08:32:05+00:00",
+      "error": null,
+      "lastResultCount": 22,
+      "lastSuccessAt": "2026-09-27T08:32:05+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE071D01033|MENONBE": {
-      "lastAttemptAt": "2026-09-22T05:02:43+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 9,
-      "lastSuccessAt": "2026-09-13T11:04:59+00:00",
+      "lastAttemptAt": "2026-09-27T08:32:05+00:00",
+      "error": null,
+      "lastResultCount": 3,
+      "lastSuccessAt": "2026-09-27T08:32:05+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE338I01027|Motilal Oswal Financial Services": {
-      "lastAttemptAt": "2026-09-22T05:59:37+00:00",
+      "lastAttemptAt": "2026-09-27T08:32:05+00:00",
       "error": "search-unavailable",
       "lastResultCount": 100,
       "targetThrough": "2026-09-13T11:04:59+00:00",
@@ -1762,8 +1798,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 232,
-    "checkedAt": "2026-09-27T07:59:37.006070+00:00"
+    "attempted": 10,
+    "incomplete": 224,
+    "checkedAt": "2026-09-27T08:32:05.939582+00:00"
   }
 }
