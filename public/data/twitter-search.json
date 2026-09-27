@@ -1134,7 +1134,7 @@
       "pending": []
     },
     "isin:INE15B701018|Pine Labs": {
-      "lastAttemptAt": "2026-09-22T14:53:44+00:00",
+      "lastAttemptAt": "2026-09-27T13:11:19+00:00",
       "lastResultCount": 106,
       "error": "search-unavailable",
       "targetThrough": "2026-09-08T19:20:14+00:00",
@@ -1818,6 +1818,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-09-27T12:57:03.909500+00:00"
+    "checkedAt": "2026-09-27T13:11:19.178098+00:00"
   }
 }
