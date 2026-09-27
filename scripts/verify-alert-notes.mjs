@@ -7,13 +7,22 @@
 // whoever asks, that every absence carries its reason, and that the card and the row ask the same
 // question about the same development.
 import assert from 'node:assert/strict';
+<<<<<<< HEAD
+=======
+import { readFileSync } from 'node:fs';
+>>>>>>> sattva/main
 import { DatabaseSync } from 'node:sqlite';
 
 const storage = new Map();
 globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: (k) => storage.delete(k) };
 
 const shared = await import('../public/js/data/alert-notes-shared.js');
+<<<<<<< HEAD
 const { AlertNotesStore, NOTE_DAILY_LIMIT } = await import('../worker/alert-notes-store.mjs');
+=======
+const { AlertNotesStore, NOTE_DAILY_LIMIT, NOTE_OPENAI_MODEL, noteProvider } = await import('../worker/alert-notes-store.mjs');
+const { NEWS_PRICES } = await import('../worker/newsletter-openai.mjs');
+>>>>>>> sattva/main
 const { handleAlertNotes } = await import('../worker/alert-notes.mjs');
 const notes = await import('../public/js/data/alert-notes.js');
 const dev = await import('../public/js/data/alert-developments.js');
@@ -51,17 +60,57 @@ const sent = JSON.parse(body.messages[0].content);
 assert.match(sent.CONTEXT.fiscalYears.current, /^FY27 \(April 2026 – March 2027\)$/);
 assert.equal(sent.ITEMS[0].statement, item.line, 'the model is shown the line the card prints');
 assert.equal(Object.hasOwn(sent.ITEMS[0], 'url'), false, 'no link or document is sent — headlines and statements only');
+<<<<<<< HEAD
+=======
+const openBody = shared.noteOpenAIRequest([item], 'gpt-6-luna', '2026-09-23');
+assert.equal(openBody.model, 'gpt-6-luna');
+assert.equal(openBody.store, false, 'nothing is kept at OpenAI');
+assert.equal(openBody.service_tier, 'default');
+assert.deepEqual(openBody.reasoning, { effort: 'none' }, 'the newsletter\'s low-cost settings: reasoning off');
+assert.deepEqual(openBody.text.format, { type: 'json_schema', name: 'alert_notes', strict: true, schema: shared.NOTE_SCHEMA });
+assert.equal(Object.hasOwn(openBody, 'tools'), false, 'no tools: the model reads only what it is given');
+const openSent = JSON.parse(openBody.input);
+assert.deepEqual(openSent.ITEMS, sent.ITEMS, 'both providers are shown the identical items');
+assert.deepEqual(openSent.CONTEXT, sent.CONTEXT);
+const rules = shared.NOTE_INSTRUCTIONS.slice(0, shared.NOTE_INSTRUCTIONS.indexOf('Return ONLY'));
+assert.ok(rules.length > 500 && shared.NOTE_OPENAI_INSTRUCTIONS.startsWith(rules), 'both providers get the same rules word for word');
+assert.deepEqual(shared.parseNotes(JSON.stringify({ notes: [{ id: '0', note: 'May add to the pipeline.' }, { id: '7', note: 'stray' }] }), new Set(['0'])),
+  { 0: 'May add to the pipeline.' }, 'the strict-schema object is read, and only ids that were asked about');
+assert.match(shared.NOTE_REASON.unavailable, /will be retried/);
+for (const reason of ['unavailable', 'no-service', 'quota', 'declined']) assert.doesNotMatch(shared.NOTE_REASON[reason], /no AI service/, `${reason} is not "no AI service"`);
+assert.equal(ok('Revenue increases substantially.').ok,false);
+assert.equal(ok('It could add 27 crore revenue.').ok,false,'FY27 does not authorise a 27-crore claim');
+assert.equal(shared.parseNotes(JSON.stringify([{id:'x',note:{}}]),new Set(['x'])).x,undefined);
+>>>>>>> sattva/main
 console.log('PASS the contract: bounded items, content-keyed, fiscal-year context, and every refusal the line runs on.');
 
 // ---------------------------------------------------------------------------------------
 // 2. The Worker store
 // ---------------------------------------------------------------------------------------
+<<<<<<< HEAD
+=======
+// What `read()` returns crosses Workers RPC, which refuses an object without Object.prototype
+// ("Could not serialize object of type Object"). Node's structuredClone accepts one, so the shape is
+// asserted on every read in this file; scripts/verify-alert-notes-runtime.mjs proves it in workerd.
+function assertRpcSafe(value, path = 'read()') {
+  if (value === null || typeof value !== 'object') return;
+  if (Array.isArray(value)) { value.forEach((entry, index) => assertRpcSafe(entry, `${path}[${index}]`)); return; }
+  assert.equal(Object.getPrototypeOf(value), Object.prototype, `${path} is an ordinary object`);
+  for (const [key, entry] of Object.entries(value)) assertRpcSafe(entry, `${path}.${key}`);
+}
+const realRead = AlertNotesStore.prototype.read;
+AlertNotesStore.prototype.read = async function read(...args) { const out = await realRead.apply(this, args); assertRpcSafe(out); return out; };
+>>>>>>> sattva/main
 function sqlStorage() {
   const db = new DatabaseSync(':memory:');
   return { sql: { exec: (sql, ...args) => { const rows = db.prepare(sql).all(...args); return { toArray: () => rows }; } } };
 }
 const KEY_ENV = { CLAUDE_KEY: 'ABSK-test-key-for-stub-only', BEDROCK_REGION: 'ap-south-1', BEDROCK_MODEL_ID: 'global.anthropic.claude-sonnet-5' };
+<<<<<<< HEAD
 const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ type: 'text', text: JSON.stringify(list) }] }), { status, headers: { 'content-type': 'application/json' } });
+=======
+const reply = (list, status = 200) => new Response(JSON.stringify({ stop_reason:'end_turn', content: [{ type: 'text', text: JSON.stringify(list) }] }), { status, headers: { 'content-type': 'application/json' } });
+>>>>>>> sattva/main
 {
   const calls = [];
   let answer = (items) => reply(items.map((i) => ({ id: i.id, note: 'Unlikely to move FY27 revenue at once; it could add to the development pipeline.' })));
@@ -99,6 +148,10 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
   assert.equal((await store.read([{ ...item, line: 'Unreadable reply', id: 'u' }])).missing.u, 'unreadable');
   const status = store.status();
   assert.equal(status.limit, NOTE_DAILY_LIMIT);
+<<<<<<< HEAD
+=======
+  assert.equal(status.provider, 'bedrock', 'with only the Bedrock key and no pin, Claude writes the notes');
+>>>>>>> sattva/main
   assert(status.used >= 6 && status.stored === 2, `the day's spend and the stored notes are counted (${JSON.stringify(status)})`);
   const unconfigured = new AlertNotesStore(sqlStorage(), {}, { fetcher: () => { throw new Error('must not be called'); } });
   assert.equal((await unconfigured.read([{ ...item, id: 'n' }])).missing.n, 'no-key', 'no key is a named state, never a call');
@@ -109,10 +162,79 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
   await assert.rejects(() => store.read(Array.from({ length: 9 }, (_, i) => ({ ...item, id: String(i) }))), /Invalid notes request/);
   const invalid = await store.read([{ id: 'bad', kind: 'nope' }]);
   assert.equal(invalid.missing.bad, 'invalid');
+<<<<<<< HEAD
+=======
+  const odd = await store.read([{ id: '__proto__', kind: 'nope' }]);
+  assert.equal(Object.hasOwn(odd.missing, '__proto__') && odd.missing.__proto__, 'invalid', "a caller's id is an ordinary key, never a prototype");
+>>>>>>> sattva/main
   console.log('PASS the store: one request per development, shared in flight, refusals unstored, every absence named, the day bounded.');
 }
 
 // ---------------------------------------------------------------------------------------
+<<<<<<< HEAD
+=======
+// 2b. gpt-6-luna on OpenAI, and which provider writes the notes
+// ---------------------------------------------------------------------------------------
+{
+  const OPENAI_ENV = { OPENAI_API_KEY: ' sk-test-openai-stub ', ALERT_NOTES_AI_PROVIDER: 'openai' };
+  const completed = (list) => Response.json({ status: 'completed', output: [{ type: 'message', role: 'assistant',
+    content: [{ type: 'output_text', text: JSON.stringify({ notes: list }) }] }], usage: { input_tokens: 900, output_tokens: 80 } });
+  const calls = [];
+  let answer = (items) => completed(items.map((i) => ({ id: i.id, note: 'Unlikely to move FY27 revenue at once; it could add to the development pipeline.' })));
+  const fetcher = async (url, init) => {
+    const sentBody = JSON.parse(init.body);
+    calls.push({ url, headers: init.headers, body: sentBody });
+    return answer(JSON.parse(sentBody.input).ITEMS);
+  };
+  const store = new AlertNotesStore(sqlStorage(), { ...KEY_ENV, ...OPENAI_ENV }, { fetcher, now: () => Date.parse('2026-09-23T06:00:00Z') });
+  const first = await store.read([{ ...item, id: 'a' }]);
+  assert.equal(first.notes.a.model, 'gpt-6-luna');
+  assert.match(first.notes.a.note, /development pipeline/);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://api.openai.com/v1/responses', 'the OpenAI key goes only to OpenAI');
+  assert.equal(calls[0].headers.authorization, 'Bearer sk-test-openai-stub', 'the key is sent trimmed');
+  assert.equal(Object.hasOwn(calls[0].headers, 'x-api-key'), false, 'the Bedrock key never travels to OpenAI');
+  assert.deepEqual({ model: calls[0].body.model, store: calls[0].body.store, reasoning: calls[0].body.reasoning },
+    { model: 'gpt-6-luna', store: false, reasoning: { effort: 'none' } });
+  assert.equal((await store.read([{ ...item, id: 'b' }])).notes.b.stored, true, 'kept, whoever asks next');
+  assert.equal(calls.length, 1);
+  const cases = [
+    [() => new Response('{}', { status: 401 }), 'refused'],
+    [() => Response.json({ error: { type: 'requests', code: 'rate_limit_exceeded' } }, { status: 429 }), 'rate-limited'],
+    [() => Response.json({ error: { type: 'insufficient_quota', code: 'insufficient_quota' } }, { status: 429 }), 'quota'],
+    [() => new Response('{}', { status: 500 }), 'upstream'],
+    [() => Response.json({ status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, output: [] }), 'unreadable'],
+    [() => Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'No.' }] }] }), 'declined'],
+    [() => { throw Object.assign(new Error('slow'), { name: 'TimeoutError' }); }, 'timeout'],
+    [() => completed([{ id: 'nobody', note: 'Could add to the pipeline.' }]), 'empty'],
+    [(items) => completed(items.map((i) => ({ id: i.id, note: 'This will lift FY27 profit.' }))), 'unhedged'],
+  ];
+  for (const [index, [reply, reason]] of cases.entries()) {
+    answer = reply;
+    const read = await store.read([{ ...item, line: `OpenAI case ${index}`, id: 'c' }]);
+    assert.equal(read.missing.c, reason, `OpenAI failure case ${index} is ${reason}`);
+  }
+  const status = store.status();
+  assert.deepEqual({ configured: status.configured, provider: status.provider, model: status.model }, { configured: true, provider: 'openai', model: 'gpt-6-luna' });
+
+  assert.equal(noteProvider({}), null);
+  assert.deepEqual(noteProvider(KEY_ENV), { id: 'bedrock', model: KEY_ENV.BEDROCK_MODEL_ID }, 'only a Bedrock key, no pin: Claude');
+  assert.deepEqual(noteProvider({ ...KEY_ENV, OPENAI_API_KEY: 'sk' }), { id: 'openai', model: 'gpt-6-luna' }, 'both keys, no pin: the low-cost model');
+  assert.equal(noteProvider({ ...KEY_ENV, ALERT_NOTES_AI_PROVIDER: 'openai' }), null, 'pinned to OpenAI without its key: no note, never a costlier model');
+  assert.equal(noteProvider({ OPENAI_API_KEY: 'sk', ALERT_NOTES_AI_PROVIDER: 'bedrock' }), null);
+  assert.equal(noteProvider({ OPENAI_API_KEY: 'sk', ALERT_NOTES_AI_PROVIDER: 'claude' }), null, 'an unrecognised pin fails closed');
+  assert.equal(noteProvider({ OPENAI_API_KEY: '   ' }), null, 'a blank key is no key');
+  assert.deepEqual(noteProvider({ OPENAI_API_KEY: 'sk', ALERT_NOTES_AI_PROVIDER: ' OpenAI ' }), { id: 'openai', model: 'gpt-6-luna' });
+  const cheapest = Math.min(...Object.values(NEWS_PRICES).map(([input]) => input));
+  assert.equal(NEWS_PRICES[NOTE_OPENAI_MODEL]?.[0], cheapest, 'the note model is a priced one, and the lowest-priced the Worker knows');
+  assert.match(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8'), /"ALERT_NOTES_AI_PROVIDER":\s*"openai"/, 'the deployment pins the notes to OpenAI');
+  const pinned = new AlertNotesStore(sqlStorage(), { ...KEY_ENV, ALERT_NOTES_AI_PROVIDER: 'openai' }, { fetcher: () => { throw new Error('must not be called'); } });
+  assert.equal((await pinned.read([{ ...item, id: 'n' }])).missing.n, 'no-key');
+  console.log('PASS gpt-6-luna: the newsletter\'s low-cost settings, one request per development, every OpenAI failure named, and a pin that fails closed.');
+}
+
+// ---------------------------------------------------------------------------------------
+>>>>>>> sattva/main
 // 3. The route
 // ---------------------------------------------------------------------------------------
 {
@@ -127,7 +249,25 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
   };
   assert.equal((await handleAlertNotes(new Request(`${origin}/api/alert-notes`), env)).status, 405, 'GET never starts a model request');
   assert.equal((await handleAlertNotes(post({ items: [item] }, { origin: 'https://evil.example' }), env)).status, 403, 'another origin is refused');
+<<<<<<< HEAD
   assert.equal((await handleAlertNotes(post({ items: [item] }), {})).status, 503, 'a deployment without the store says so');
+=======
+  const unconfigured = await handleAlertNotes(post({ items: [item] }), {});
+  assert.equal(unconfigured.status, 503, 'a deployment without the store says so');
+  assert.equal((await unconfigured.json()).reason, 'notes-unconfigured');
+  const logged = [];
+  const realError = console.error;
+  console.error = (...args) => logged.push(args.join(' '));
+  try {
+    const failing = await handleAlertNotes(post({ items: [{ ...item, id: '0' }] }), { ...env,
+      ALERT_NOTES: { getByName: () => ({ alertNotesRead: async () => { throw new Error('Could not serialize object of type "Object".'); } }) } });
+    assert.equal(failing.status, 503);
+    assert.equal((await failing.json()).reason, 'notes-unavailable', 'a store that failed is not a store that is missing');
+    assert.match(logged.join('\n'), /Could not serialize/, "the store's real failure reaches the operator's log");
+  } finally {
+    console.error = realError;
+  }
+>>>>>>> sattva/main
   assert.equal((await handleAlertNotes(post({ items: [] }), env)).status, 400);
   assert.equal((await handleAlertNotes(post({ items: Array.from({ length: 9 }, () => item) }), env)).status, 400);
   const limited = await handleAlertNotes(post({ items: [item] }), { ...env, ALERT_NOTES_LIMITER: { limit: async () => ({ success: false }) } });
@@ -156,7 +296,11 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
     headline: 'Puravankara bags ₹2,600-crore redevelopment project in Goregaon', attribution: confirmed, importance: 'high', direction: 'neutral', aiEligible: true, detail: 'Published by Mint' };
   const uncertain = { ...report, id: 'news:2', headline: 'Goregaon redevelopment: Puravankara ₹2,600 crore project explained', attribution: { ...confirmed, status: 'uncertain' } };
   // The card sees what the ranking admits; the stream sees everything. Same development, same question.
+<<<<<<< HEAD
   const cardDev = dev.foldDevelopments([report, filing], { companyNames: ['Puravankara Limited'] }).find((d) => d.lead === filing);
+=======
+  const cardDev = dev.foldDevelopments([report, filing], { companyNames: ['Puravankara Limited'] }).find((d) => d.lead.id === filing.id);
+>>>>>>> sattva/main
   const rowDev = dev.developmentOfRow(dev.foldAlertRows([uncertain, report, filing]).find((row) => row.id === filing.id));
   const fromCard = notes.noteRequestFor(cardDev, { fallback: ai.plainHeadline(filing) });
   const fromRow = notes.noteRequestFor(rowDev, { fallback: ai.plainHeadline(filing) });
@@ -182,6 +326,22 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
     off();
 
     notes.resetNotes();
+<<<<<<< HEAD
+=======
+    globalThis.fetch = async () => new Response(JSON.stringify({ ok: false, reason: 'notes-unavailable' }), { status: 503, headers: { 'content-type': 'application/json' } });
+    notes.requestNotes([fromCard]);
+    await new Promise((done) => setTimeout(done, 250));
+    const failed = notes.noteState(fromCard);
+    assert.equal(failed.reason, 'unavailable', 'a Worker that answered with a failure is never "no AI service"');
+    assert.ok(Number.isFinite(failed.retryAt), 'and it is asked again once the hold lapses');
+    notes.resetNotes();
+    globalThis.fetch = async () => new Response(JSON.stringify({ ok: false, reason: 'notes-unconfigured' }), { status: 503, headers: { 'content-type': 'application/json' } });
+    notes.requestNotes([fromCard]);
+    await new Promise((done) => setTimeout(done, 250));
+    assert.deepEqual(notes.noteState(fromCard), { state: 'missing', reason: 'no-service', retryAt: Infinity }, 'a Worker without the store says so, once');
+
+    notes.resetNotes();
+>>>>>>> sattva/main
     const seen = [];
     globalThis.fetch = async (url, init) => {
       const items = JSON.parse(init.body).items;

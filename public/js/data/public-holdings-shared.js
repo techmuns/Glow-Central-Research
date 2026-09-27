@@ -126,7 +126,11 @@ export function reconcilePublicHoldings({ archive = {}, snapshot = {}, managers 
   // Reverse check: known source positions also need a matching primary holder at that date.
   for (const person of registry.people.filter((p) => p.kind === 'investor')) {
     const book = snapshot.books?.[person.id];
+<<<<<<< HEAD
     const latest = (book?.quarters || []).filter((q) => [3,6,9,12].includes(quarterOrder(q) % 100) && periodEnd(q) <= now.slice(0,10)).sort((a,b) => quarterOrder(b)-quarterOrder(a))[0];
+=======
+    const latest = (book?.quarters || []).filter((q) => [3,6,9,12].includes(quarterOrder(q) % 100) && periodEnd(q) < now.slice(0,10)).sort((a,b) => quarterOrder(b)-quarterOrder(a))[0];
+>>>>>>> sattva/main
     for (const h of book?.holdings || []) {
       if (!(h.quarterlyHoldings?.[latest] > 0)) continue;
       const at = periodEnd(latest);
