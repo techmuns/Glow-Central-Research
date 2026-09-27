@@ -1254,7 +1254,7 @@
       "error": "search-unavailable"
     },
     "isin:INE0SII01026|QPOWER": {
-      "lastAttemptAt": "2026-09-22T23:38:54+00:00",
+      "lastAttemptAt": "2026-09-27T21:29:17+00:00",
       "error": "search-unavailable",
       "lastResultCount": 102,
       "targetThrough": "2026-09-13T23:47:09+00:00",
@@ -1818,6 +1818,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-09-27T20:37:05.693942+00:00"
+    "checkedAt": "2026-09-27T21:29:17.792750+00:00"
   }
 }
