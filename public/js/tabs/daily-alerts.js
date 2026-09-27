@@ -1,3 +1,7 @@
+import { readableFilingUrl } from '../data/nse-xbrl-shared.js';
+import { storyGrouping } from '../data/alert-stories.js';
+import { foldAlertRowsAsync, membersOf, developmentOfRow, developmentLine } from '../data/alert-developments.js';
+import { alertReadingHtml, watchAlertReadings } from '../ui/alert-reading.js';
 // tabs/daily-alerts.js — ALL ALERTS, THE COMPLETE CHRONOLOGICAL STREAM.
 //
 // Every other tab here is organised by SOURCE: this is what the results feed holds, this is what
@@ -39,7 +43,7 @@ import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { attributionLabel } from '../data/company-news-attribution.js';
 import { NEWS_PERIODS, newsPeriodBounds } from '../data/news-window.js';
-import { isXbrlFilingUrl, openFilingReader } from '../ui/xbrl-filing.js';
+import { openFilingSource } from '../ui/xbrl-filing.js';
 import { createAlertArrivals } from '../core/alert-arrivals.js';
 import { arrivalsHtml, createArrivalsUI } from '../ui/alert-arrivals.js';
 import { alertWindowKey } from '../data/all-alerts-cache.js';
@@ -189,6 +193,11 @@ export function render(ctx) {
   if (cachedReadKey !== readKey) { cachedRead = null; cachedReadKey = readKey; }
 
   if (!unsubs.length) {
+    void storyGrouping.load();
+    unsubs.push(storyGrouping.onChange(()=>{ if(ctxRef) paint(ctxRef); }));
+    unsubs.push(watchAlertReadings(ctx.root,{onVisible:rows=>{
+      if(ctxRef&&horizon===HORIZON.THROUGH) void storyGrouping.review(rows.flatMap(membersOf),{isCurrent:()=>!!ctxRef});
+    }}));
     unsubs.push(alerts.onChange(sourceChanged));
     // A note landing redraws only the rows that draw it; the reader's row and scroll stay put.
     unsubs.push(onNotes((handles) => {
@@ -589,10 +598,13 @@ function paint(ctx) {
   const partition = partitionEvents(events, day);
   const allUpcoming = partition.calendar, allThrough = partition.through;
   const selection = JSON.stringify([day, horizon, picked && [...picked].sort()]);
-  if (lastVisible?.events !== events || lastVisible.selection !== selection) {
+  if (lastVisible?.events !== events || lastVisible.selection !== selection || lastVisible.storyRevision !== storyGrouping.revision()) {
     const period = horizon === HORIZON.UPCOMING ? partition.upcoming : allThrough;
     const selected = picked ? period.filter(event => picked.has(event.feed)) : period;
-    lastVisible = { events, selection, rows: horizon === HORIZON.UPCOMING ? collapseUpcoming(selected) : selected };
+    const pending = lastVisible = { events, selection, storyRevision:storyGrouping.revision(), rows: horizon === HORIZON.UPCOMING ? collapseUpcoming(selected) : selected };
+    if(horizon===HORIZON.THROUGH) void foldAlertRowsAsync(selected,{isCurrent:()=>!!ctxRef&&lastVisible===pending&&pending.storyRevision===storyGrouping.revision()}).then(rows=>{
+      if(rows&&ctxRef&&lastVisible===pending){pending.rows=rows;paint(ctxRef);}
+    });
   }
   // Till Today reads one row per development; a large stream still folding keeps the rows on screen
   // (or the table's placeholders) and says it is loading, never an empty result.
@@ -703,6 +715,7 @@ function paint(ctx) {
         book: coverage.meta(),
       })}${horizon === HORIZON.UPCOMING ? calendarPill(allUpcoming) : historyPill(m)}</div>`,
     })}
+    ${horizon===HORIZON.THROUGH?`<p data-alerts-reading-count class="mb-1 text-xs text-slate-500" title="Checked equivalent reports share one item. Unchecked reports remain separate; every original is available in the item and export.">${formatNumber(visible.length)} items · ${formatNumber(visible.reduce((n,e)=>n+membersOf(e).length,0))} source reports · All originals remain available in each item and export.</p>`:''}
     <div class="alerts-controls" data-alerts-controls>
       ${horizonToggle(allThrough.length, allUpcoming.length, day, !!report)}
       <div class="alerts-view-controls">
@@ -1249,6 +1262,7 @@ export function collapseUpcoming(events) {
   return [...merged.values()];
 }
 
+<<<<<<< HEAD
 // What a row IS, in the desk's words: the company's own filing is a Corporate announcement, with
 // the exchanges that carry it; anything else keeps the label its feed has always had.
 function kindLine(e, dev) {
@@ -1273,6 +1287,15 @@ function rowSearchText(e) {
 }
 
 function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, warmSearch = false, folding = false) {
+=======
+function sourceReportsHtml(event) {
+  const reports=membersOf(event);
+  if(reports.length<2)return '';
+  return `<details data-norow data-alert-originals class="mt-1 text-xs text-slate-500"><summary class="cursor-pointer text-indigo-700">${reports.length} original source reports</summary>${reports.map(r=>`<div class="mt-1 break-words">${escapeHtml(r.feedLabel||r.feed)} · ${escapeHtml(r.day||'Date unavailable')} · ${/^https?:\/\//i.test(r.url||'')?`<a class="text-indigo-700 hover:underline" target="_blank" rel="noopener noreferrer" href="${escapeHtml(readableFilingUrl(r.url))}">${escapeHtml(r.headline)}</a>`:escapeHtml(r.headline)}</div>`).join('')}</details>`;
+}
+
+function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, warmSearch = false) {
+>>>>>>> sattva/main
   const matchesDate = dateRangeMatcher(day);
   const dateColumn = {
     label: 'Date / time',
@@ -1301,9 +1324,15 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
       <div class="max-w-[560px]">
         ${kindLine(e, dev)}
         ${e.feed === 'news' ? `<div data-news-attribution="${escapeHtml(e.attribution?.status || 'uncertain')}" class="text-xs font-semibold text-slate-600" title="${escapeHtml(e.attribution?.reason || 'Company relationship unverified')}">${escapeHtml(attributionLabel(e))}</div>` : ''}
+<<<<<<< HEAD
         <div class="truncate font-medium text-slate-800" data-alert-line title="${escapeHtml(e.headline)}">${escapeHtml(line)}</div>
         <div class="truncate text-xs text-slate-500" title="${escapeHtml(e.detail || '')}">${escapeHtml(e.detail || '')}</div>
         ${mode === HORIZON.UPCOMING ? '' : `${foldedLine(dev)}${noteRowHtml(drawnNoteRequest(e))}<div class="mt-0.5 truncate text-xs font-semibold ${(DIR[e.direction] || DIR.neutral).reason}" title="${escapeHtml(e.signalReason || '')}"><span class="text-slate-400">Signal ·</span> ${escapeHtml(e.signalReason || '')}</div>
+=======
+        <div class="truncate font-medium text-slate-800" title="${escapeHtml(e.headline)}">${escapeHtml(mode===HORIZON.UPCOMING?e.headline:developmentLine(developmentOfRow(e),{fallback:e.headline}))}</div>
+        <div class="truncate text-xs text-slate-500" title="${escapeHtml(e.detail || '')}">${escapeHtml(e.detail || '')}</div>
+        ${mode === HORIZON.UPCOMING ? '' : `${sourceReportsHtml(e)}${alertReadingHtml(e)}<div class="mt-0.5 truncate text-xs font-semibold ${(DIR[e.direction] || DIR.neutral).reason}" title="${escapeHtml(e.signalReason || '')}"><span class="text-slate-400">Signal ·</span> ${escapeHtml(e.signalReason || '')}</div>
+>>>>>>> sattva/main
         <div class="truncate text-[11px] ${e.importance === 'high' ? 'font-semibold text-violet-700' : 'text-slate-400'}" title="${escapeHtml(e.importanceReason || '')}"><span class="text-slate-400">Priority ·</span> ${escapeHtml(e.importanceReason || '')}</div>`}
       </div>`;
     },
@@ -1350,8 +1379,19 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     fillMode: 'windowed',
     virtualRowHeight: mode === HORIZON.UPCOMING ? 72 : 120,
     preindexSearch: warmSearch,
+<<<<<<< HEAD
     onScrollActivity: () => { noteTableScroll(); requestMountedNotes(); },
     onVisibleRowsChange: mode === HORIZON.THROUGH ? rows => arrivalsUI.setRows(rows) : null,
+=======
+    onScrollActivity: noteTableScroll,
+    onVisibleRowsChange: mode === HORIZON.THROUGH ? rows => {
+      arrivalsUI.setRows(rows);
+      const count=rows.reduce((n,e)=>n+membersOf(e).length,0);
+      ctx.root.dataset.alertsSourceCount=String(count);
+      const label=ctx.root.querySelector('[data-alerts-reading-count]');
+      if(label) label.textContent=`${formatNumber(rows.length)} items · ${formatNumber(count)} source reports · All originals remain available in each item and export.`;
+    } : null,
+>>>>>>> sattva/main
     onFilterChange: mode === HORIZON.THROUGH ? (_view, index) => {
       if (index === 2 && ctxRef && alertWindowKey(report?.queryWindow) !== alertWindowKey(currentContext().queryWindow)) render(ctxRef);
     } : null,
@@ -1369,15 +1409,7 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     // article, which is the rule that actually matters (see the con-call link rule in CLAUDE.md).
     onRowClick: (e) => {
       if (e.url) {
-        // AN NSE XBRL FILING IS A DOCUMENT, NOT A PAGE. Opening one in a tab shows the reader SEBI's
-        // namespaces; `openFilingReader` lays out the same filing's own fields. Every other URL is
-        // somebody's page and still opens as one. The Link column's anchor is intercepted centrally
-        // (see js/ui/xbrl-filing.js); a row click never becomes an anchor, so it asks here.
-        if (isXbrlFilingUrl(e.url)) {
-          void openFilingReader(e.url, { company: e.company, ticker: e.ticker, subject: e.headline });
-          return;
-        }
-        window.open(e.url, '_blank', 'noopener,noreferrer');
+        void openFilingSource(e.url, { company: e.company, ticker: e.ticker, subject: e.headline });
         return;
       }
       // FALL BACK TO THE TAB, ON THE COMPANY — not just the tab. A row with no source URL (public
@@ -1395,7 +1427,11 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     },
     // Query identity remains searchable as a possible match, not publisher evidence. The explicit
     // relationship filter can separate those leads without silently deleting retained coverage.
+<<<<<<< HEAD
     searchable: rowSearchText,
+=======
+    searchable: e => membersOf(e).map(alerts.eventSearchText).join(' '),
+>>>>>>> sattva/main
     filters,
     initialSort: { key: 'Date / time', dir: mode === HORIZON.UPCOMING ? 'asc' : 'desc' },
     initialView,
@@ -1417,7 +1453,7 @@ function buildTableFilters(events, day, mode, matchesDate) {
         { value: 'high', label: 'High priority only' },
         { value: 'low', label: 'Low priority only' },
       ],
-      match: (e, v) => e.importance === v,
+      match: (e, v) => membersOf(e).some(m=>m.importance===v),
     },
     {
       label: 'Direction',
@@ -1427,12 +1463,16 @@ function buildTableFilters(events, day, mode, matchesDate) {
         { value: 'negative', label: 'Negative only' },
         { value: 'neutral', label: 'Neutral only' },
       ],
-      match: (e, v) => e.direction === v,
+      match: (e, v) => membersOf(e).some(m=>m.direction===v),
     },
+<<<<<<< HEAD
     // A folded row is in a period when its lead is, or when anything folded under it is: a filing
     // from yesterday with today's reports of it is still something that reached the desk today.
     { label: 'Date range', value: 'today', options: dateRangeOptions(events, day, mode),
       match: (e, v) => matchesDate(e.day, v) || !!e.development?.others.some((m) => m.day !== e.day && matchesDate(m.day, v)) },
+=======
+    { label: 'Date range', value: 'today', options: dateRangeOptions(events, day, mode), match: (e, v) => membersOf(e).some(m=>matchesDate(m.day,v)) },
+>>>>>>> sattva/main
     {
       label: 'Company relationship',
       options: [
@@ -1442,7 +1482,11 @@ function buildTableFilters(events, day, mode, matchesDate) {
         { value: 'uncertain', label: 'Possible news matches' },
         { value: 'unrelated', label: 'Reviewed unrelated news' },
       ],
+<<<<<<< HEAD
       match: (e, v) => matchesCompanyRelationship(e, v) || !!e.development?.others.some((m) => matchesCompanyRelationship(m, v)),
+=======
+      match: (e,v)=>membersOf(e).some(m=>matchesCompanyRelationship(m,v)),
+>>>>>>> sattva/main
     },
   ];
 }
@@ -1574,6 +1618,6 @@ function exportStream(visible, day, scope, mode = HORIZON.THROUGH) {
       ] : []),
       { header: 'Source link', key: 'url', width: 44, get: cell((r) => r.url || '') },
     ],
-    rows: [banner, ...visible],
+    rows: [banner, ...visible.flatMap(membersOf)],
   });
 }

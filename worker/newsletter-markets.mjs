@@ -23,6 +23,7 @@ const GLOBAL_SESSIONS = {
   sp500: ['America/New_York', 'USD', 570, 960, 0], dow: ['America/New_York', 'USD', 570, 960, 0],
   nikkei: ['Asia/Tokyo', 'JPY', 540, 930, 15], hangseng: ['Asia/Hong_Kong', 'HKD', 570, 970, 15],
 };
+<<<<<<< HEAD
 // Exact Yahoo quote identities and published feed delays (Yahoo Help SLN2310,
 // checked 24 Sep 2026). A recent observation is not necessarily a real-time feed.
 const YAHOO_GLOBAL_QUOTES = {
@@ -42,6 +43,8 @@ const YAHOO_GLOBAL_QUOTES = {
   usdinr: ['INR=X', 'CURRENCY', 'INR', 'Europe/London', 0],
   us10y: ['^TNX', 'INDEX', 'USD', 'America/Chicago', 15],
 };
+=======
+>>>>>>> sattva/main
 const instrument = id => INDIA_INSTRUMENTS[id] || GLOBAL_INSTRUMENTS[id];
 export const NSE_INDICES = { nifty: 'NIFTY 50', niftybank: 'NIFTY BANK', niftymid100: 'NIFTY MIDCAP 100',
   niftysmall100: 'NIFTY SMALLCAP 100', nifty500: 'NIFTY 500', niftyit: 'NIFTY IT', indiavix: 'INDIA VIX' };
@@ -118,7 +121,11 @@ export function quoteFromBse(body, row, now) {
 
 export async function readBseSensex(row, { fetcher, now, timeout = 8000 }) {
   try {
+<<<<<<< HEAD
     const res = await fetcher(BSE_SENSEX_URL, { headers: { accept: 'application/json', 'user-agent': 'GlowCentralResearch/1.0' },
+=======
+    const res = await fetcher(BSE_SENSEX_URL, { headers: { accept: 'application/json', 'user-agent': 'SattvaCentralResearch/1.0' },
+>>>>>>> sattva/main
       redirect: 'manual', signal: AbortSignal.timeout(timeout) });
     if (!res.ok) { await res.body?.cancel(); return { rows: new Map(), reason: [401, 403].includes(res.status) ? 'blocked' : res.status === 429 ? 'rate-limited' : 'unavailable' }; }
     const quote = quoteFromBse(await boundedJson(res, 256 * 1024), row, now);
@@ -153,7 +160,11 @@ export async function readNseIndices(rows, { fetcher, now, timeout = 8000 }) {
   const requested = rows.filter(r => NSE_INDICES[r.id]);
   try {
     const res = await fetcher('https://www.nseindia.com/api/allIndices', { headers: { accept: 'application/json',
+<<<<<<< HEAD
       'user-agent': 'GlowCentralResearch/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(timeout) });
+=======
+      'user-agent': 'SattvaCentralResearch/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(timeout) });
+>>>>>>> sattva/main
     if (!res.ok) { await res.body?.cancel(); return { rows: new Map(), reason: [401, 403].includes(res.status) ? 'blocked' : res.status === 429 ? 'rate-limited' : 'unavailable' }; }
     const body = await boundedJson(res, 1024 * 1024), found = new Map(), failures = {};
     if (!Array.isArray(body?.data)) fail('shape');
@@ -168,6 +179,7 @@ export async function readNseIndices(rows, { fetcher, now, timeout = 8000 }) {
   } catch (e) { return { rows: new Map(), reason: /abort|timeout/i.test(e?.name) ? 'timeout' : 'unavailable' }; }
 }
 
+<<<<<<< HEAD
 /** Use Yahoo's published daily quote change only as a coherent same-response
  * tuple. fulldayPrice must equal the regular quote exactly, so an extended-hours
  * move cannot be attached to a regular-session price. The derived reference is
@@ -196,6 +208,10 @@ function publishedComparison(meta, row) {
  * Global quotes prefer a validated published daily change. Cash indices may
  * fall back to the immediately preceding dated daily bar, never skip a null bar.
  * FX fixings and rolling futures bars are not interchangeable quote references.
+=======
+/** chartPreviousClose is the RANGE's starting reference, not yesterday's close.
+ * Use the immediately preceding dated, unadjusted daily bar. Never skip a null bar.
+>>>>>>> sattva/main
  */
 export function quoteFromChart(body, row, now) {
   const result = body?.chart?.result?.[0], meta = result?.meta;
@@ -214,11 +230,16 @@ export function quoteFromChart(body, row, now) {
     if (days.every((day, i) => day && (!i || day > days[i - 1]))) {
       const current = days.indexOf(sessionDate);
       const previous = current - 1;
+<<<<<<< HEAD
       if (previous >= 0 && Date.parse(sessionDate) - Date.parse(days[previous]) <= 7 * 86400000) {
         // Keep the known comparison date even when its value is missing. An EOD
         // enrichment must match this exact session, never skip the null bar.
         previousSession = days[previous];
         if (positive(closes[previous])) { prev = closes[previous]; changeReason = null; }
+=======
+      if (previous >= 0 && positive(closes[previous]) && Date.parse(sessionDate) - Date.parse(days[previous]) <= 7 * 86400000) {
+        prev = closes[previous]; previousSession = days[previous]; changeReason = null;
+>>>>>>> sattva/main
       }
     }
   }
@@ -226,6 +247,7 @@ export function quoteFromChart(body, row, now) {
       previousSession !== expectedSession(Date.parse(`${sessionDate}T09:14:00+05:30`))) {
     prev = null; changeReason = 'previous-close-unverified';
   }
+<<<<<<< HEAD
   const reported = publishedComparison(meta, row);
   const quoteBasisOnly = row.kind === 'fx' || row.group === 'commodities';
   let comparisonBasis = 'dated-close', comparison = delta(last, prev);
@@ -242,6 +264,10 @@ export function quoteFromChart(body, row, now) {
   if (prev != null && positive(meta.previousClose) && differs(meta.previousClose, prev)) {
     prev = null; changeReason = 'previous-close-conflict';
     comparison = delta(last, null);
+=======
+  if (prev != null && positive(meta.previousClose) && differs(meta.previousClose, prev)) {
+    prev = null; changeReason = 'previous-close-conflict';
+>>>>>>> sattva/main
   }
   const regular = meta.currentTradingPeriod?.regular;
   const start = regular?.start * 1000, end = regular?.end * 1000;
@@ -257,6 +283,7 @@ export function quoteFromChart(body, row, now) {
     else if (!marketWindow(now).open && asOf < Date.parse(`${sessionDate}T15:30:00+05:30`)) state = 'delayed';
     else if (state === 'close' && !marketWindow(asOf).calendarKnown) state = 'delayed';
   }
+<<<<<<< HEAD
   const delayMinutes = YAHOO_GLOBAL_QUOTES[row.id]?.[4] || (row.id === 'sensex' ? 15 : 0);
   if (delayMinutes && state === 'live') state = 'delayed';
   return { ...row, last, ...comparison, asOf, sessionDate, previousSession, state, delayMinutes,
@@ -264,6 +291,10 @@ export function quoteFromChart(body, row, now) {
     comparisonBasis: changeReason ? null : comparisonBasis,
     changeOrigin: !changeReason && comparisonBasis === 'provider-reported' ? 'yahoo-quote' : null,
     reportedPreviousClose: positive(meta.previousClose) ? meta.previousClose : null };
+=======
+  return { ...row, last, ...delta(last, prev), asOf, sessionDate, previousSession, state,
+    timezone, currency: meta.currency || null, origin: 'yahoo', checkedAt: now, changeReason };
+>>>>>>> sattva/main
 }
 
 /** V3 prev_close_price explicitly identifies the previous trading session's close.
@@ -298,7 +329,11 @@ export async function readUpstoxIndices(rows, { token, fetcher, now, timeout = 8
   url.searchParams.set('instrument_key', rows.map(r => instrument(r.id)[0]).join(','));
   try {
     const res = await fetcher(url.href, { headers: { authorization: `Bearer ${token}`, accept: 'application/json',
+<<<<<<< HEAD
       'user-agent': 'GlowCentralResearch/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(timeout) });
+=======
+      'user-agent': 'SattvaCentralResearch/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(timeout) });
+>>>>>>> sattva/main
     if (!res.ok) { await res.body?.cancel(); return { rows: new Map(), reason: [401, 403].includes(res.status) ? 'authentication' : res.status === 429 ? 'rate-limited' : 'unavailable' }; }
     const body = await boundedJson(res, 256 * 1024);
     if (body?.status !== 'success' || !body.data || typeof body.data !== 'object') fail('shape');

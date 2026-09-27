@@ -11,6 +11,17 @@ env:
   SCREENER_WATCHLIST_ID: '99000001'
   SCREENER_WATCHLIST_NAME: 'Glow test watchlist'
 jobs:
+  workflow-syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate collector and verification workflow contexts
+        run: |
+          curl --fail --silent --show-error --location https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o "$RUNNER_TEMP/actionlint.tar.gz"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= .github/workflows/mutual-funds-refresh.yml .github/workflows/investor-disclosures-refresh.yml .github/workflows/verify.yml
   contracts:
     runs-on: ubuntu-latest
     # Full-history alert checks exceeded the former ten-minute job budget while
@@ -24,7 +35,7 @@ jobs:
       - name: Verify Telegram parsing, retention and resumable collection
         run: node scripts/verify-telegram.mjs && node scripts/verify-telegram-publishing.mjs && node scripts/verify-telegram-artifact.mjs && node scripts/verify-telegram-scheduler.mjs && node scripts/verify-telegram-health.mjs && python3 scripts/verify-telegram-api.py
       - name: Verify investor quarterly evidence and aggregation
-        run: node scripts/verify-super-investors.mjs
+        run: node scripts/verify-super-investors.mjs && node scripts/verify-holdings-integrity.mjs && node scripts/verify-investor-changes.mjs && node scripts/verify-public-holdings.mjs && node scripts/verify-investor-publishing.mjs
       - name: Verify refresh ownership and source targeting
         run: node scripts/verify-refresh.mjs
       - name: Verify evidence-based public chatter summaries
@@ -49,6 +60,8 @@ jobs:
         run: node scripts/verify-news-window.mjs
       - name: Verify bounded memory, lossless saves and exact news reading windows
         run: node scripts/verify-memory-primitives.mjs && node scripts/verify-news-query-boundaries.mjs && node scripts/verify-news-working-set.mjs
+      - name: Verify Mutual Fund calculations and resumable capture
+        run: node scripts/verify-mutual-funds.mjs && node scripts/verify-mutual-funds-denominators.mjs && node scripts/verify-mutual-funds-sources.mjs && node scripts/verify-mutual-funds-schedule.mjs && node scripts/verify-mutual-funds-scanner.mjs
       - name: Verify hot-path caches are invisible (same answers, live edits, exact byte counts)
         run: node scripts/verify-hot-path-memo.mjs
       - name: Verify lossless news parts and deployable asset sizes
@@ -78,7 +91,7 @@ jobs:
       - name: Verify exchange reports, supplementary insiders and artifact delivery
         run: node scripts/verify-exchange-deals.mjs && node scripts/verify-muns-insider-capture.mjs
       - name: Verify exchange gzip delivery in the local Worker runtime
-        run: npx --yes --package=wrangler@4.119.0 -c 'node scripts/verify-exchange-worker-runtime.mjs'
+        run: npx --yes --package=wrangler@4.119.0 -c 'node scripts/verify-exchange-worker-runtime.mjs && node scripts/verify-telegram-delivery-runtime.mjs'
       - name: Verify alert pool delivery by byte range in the local Worker runtime
         run: npx --yes --package=wrangler@4.119.0 -c 'node scripts/verify-alert-pool-worker.mjs'
       - name: Verify additive insider trades
@@ -102,9 +115,17 @@ jobs:
       - name: Verify the family's price levels — contract, store, minute check, cross-site route and alert rank
         run: node scripts/verify-price-levels.mjs
       - name: Verify the team brief — contract, store, fixture-built editions and the sending alarm
+<<<<<<< HEAD
         run: node scripts/verify-newsletter.mjs && node scripts/verify-newsletter-events.mjs && node scripts/verify-newsletter-content.mjs && node scripts/verify-newsletter-openai.mjs && node scripts/verify-newsletter-price-reasons.mjs
+=======
+        run: node scripts/verify-newsletter-markets.mjs && node scripts/verify-newsletter.mjs && node scripts/verify-newsletter-reading.mjs && node scripts/verify-newsletter-email.mjs && node scripts/verify-newsletter-events.mjs && node scripts/verify-newsletter-content.mjs && node scripts/verify-newsletter-openai.mjs && node scripts/verify-newsletter-price-reasons.mjs && node scripts/verify-newsletter-upgrade.mjs && node scripts/verify-announcement-types.mjs
+      - name: Verify story grouping, material updates, history and durable review budget
+        run: node scripts/verify-alert-stories.mjs && node scripts/verify-alert-development-view.mjs && node scripts/verify-alert-notes.mjs
+      - name: Verify story grouping and alert notes across real Durable Object RPC in the local Worker runtime
+        run: npx --yes --package=wrangler@4.119.0 -c 'node scripts/verify-alert-stories-runtime.mjs && node scripts/verify-alert-notes-runtime.mjs'
+>>>>>>> sattva/main
       - name: Verify operational filing health
-        run: node scripts/verify-filings-health.mjs
+        run: node scripts/verify-filings-health.mjs && node scripts/verify-announcement-directory-fallback.mjs
       - name: Verify capture watchdog
         run: node scripts/verify-capture-watchdog.mjs
       - name: Verify retained combined corporate actions and dynamic scope
@@ -132,7 +153,7 @@ jobs:
       - name: Verify IPOPlatform pagination, archive integrity and repeat collection
         run: node scripts/verify-ipo-platform.mjs
       - name: Verify Screener concall pagination, deduplication and artifact integrity
-        run: node scripts/verify-screener-concalls.mjs
+        run: node scripts/verify-screener-concalls.mjs && node scripts/verify-concall-delivery.mjs
       - name: Verify private summaries, dynamic portfolio queue, durable quota and authorisation
         run: node scripts/verify-concall-summaries.mjs
       - name: Verify Screener Insights capture and context-only correlation
@@ -168,7 +189,11 @@ jobs:
       - name: Verify durable company registry in the local Worker runtime
         run: node scripts/verify-capture-registry-runtime.mjs && node scripts/verify-telegram-scheduler-runtime.mjs
       - name: Verify saved breakout capture and recovery
+<<<<<<< HEAD
         run: node scripts/verify-breakouts.mjs && node scripts/verify-breakout-primary.mjs && node scripts/verify-breakouts-runtime.mjs
+=======
+        run: node scripts/verify-breakouts.mjs && node scripts/verify-breakout-primary.mjs && node scripts/verify-breakouts-runtime.mjs && node scripts/verify-mutual-funds-runtime.mjs
+>>>>>>> sattva/main
       - name: Verify private summary persistence in the local Worker runtime
         run: node scripts/verify-concall-summaries-runtime.mjs
   browser:
@@ -184,6 +209,7 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/family-browser" --no-save --package-lock=false playwright@1.62.1 exceljs@4.4.0
           node "$RUNNER_TEMP/family-browser/node_modules/playwright/cli.js" install --with-deps chromium
+<<<<<<< HEAD
       - name: Verify empty and populated Screener watchlists offline
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
@@ -192,6 +218,16 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-glow-mf-reliability-ui.mjs && node scripts/verify-glow-mf-upgrade-ui.mjs
+=======
+      - name: Verify All Alerts time horizons, source controls and portfolio calendar isolation
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-general-alerts-ui.mjs && node scripts/verify-all-alerts-restore-ui.mjs
+      - name: Verify AI story updates, sources and returning-session upgrade
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-alert-stories-ui.mjs
+>>>>>>> sattva/main
       - name: Verify Sattva deals across scopes, automatic refresh and history
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
@@ -203,7 +239,7 @@ jobs:
       - name: Verify the newsletter control beside the bell, its list, sends and states
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-newsletter-ui.mjs
+        run: node scripts/verify-newsletter-ui.mjs && NEWSLETTER_LAYOUT=1 node scripts/verify-newsletter-reading.mjs && NEWSLETTER_LAYOUT=1 node scripts/verify-newsletter-email.mjs
       - name: Verify light and dark appearance across dashboard surfaces
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
@@ -223,7 +259,7 @@ jobs:
       - name: Verify technical and institutional filters across scopes and refreshes
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-technical-filters-ui.mjs && node scripts/verify-breakouts-ui.mjs
+        run: node scripts/verify-windowed-list-ui.mjs && node scripts/verify-technical-filters-ui.mjs && node scripts/verify-breakouts-ui.mjs
       - name: Verify inline private summary reader and source parser offline
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
@@ -271,11 +307,19 @@ jobs:
       - name: Verify stable alert refresh, portfolio failures and navigation
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+<<<<<<< HEAD
         run: node scripts/verify-ai-alerts-ui.mjs && node scripts/verify-alert-capacity-ui.mjs && node scripts/verify-ai-alert-cache-ui.mjs && node scripts/verify-kpi-impact-ui.mjs
+=======
+        run: node scripts/verify-ai-alerts-ui.mjs && node scripts/verify-alert-capacity-ui.mjs && node scripts/verify-kpi-impact-ui.mjs
+>>>>>>> sattva/main
       - name: Verify explicit refresh through the service worker
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-refresh-ui.mjs
+      - name: Verify Mutual Fund portfolio table and grouped detail
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-mutual-funds-ui.mjs && node scripts/verify-mutual-funds-cache-ui.mjs && node scripts/verify-mutual-funds-upgrade-ui.mjs
       - name: Verify instant repeat visits and interaction cache boundaries
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
@@ -292,10 +336,18 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-column-order-ui.mjs && node scripts/verify-column-order-upgrade-ui.mjs
+<<<<<<< HEAD
+=======
+      - name: Verify native table scrollbar dragging and reading position
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-table-drag-ui.mjs
+>>>>>>> sattva/main
       - name: Verify filter transitions, loading placeholders and latest selection
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-filter-loading-ui.mjs
+<<<<<<< HEAD
       - name: Verify the windowed list keeps the reader's row through replaced rows and a caller re-anchor
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
@@ -304,6 +356,8 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-general-alerts-ui.mjs && node scripts/verify-all-alerts-restore-ui.mjs
+=======
+>>>>>>> sattva/main
       - name: Verify the precomputed alert pool paints the live rows and cards without the captures
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
@@ -332,10 +386,10 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-nse-history-ui.mjs && node scripts/verify-combined-filings-ui.mjs
-      - name: Verify an NSE XBRL filing opens readable, with the original still one click away
+      - name: Verify readable NSE filings in every scope and returning-session upgrades
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-nse-xbrl-ui.mjs
+        run: node scripts/verify-nse-xbrl-ui.mjs && node scripts/verify-nse-xbrl-upgrade-ui.mjs
       - name: Verify Telegram dates, restricted posts, search and retained refresh
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
@@ -361,6 +415,10 @@ jobs:
       # Two browser contexts against one server: separate storage, one shared list. That pairing
       # is the only arrangement in which "everyone sees the same watchlist" is a claim about
       # anything, so the check runs the real store class behind an in-process route.
+      - name: Verify empty and populated Screener watchlist inventory without source requests
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-screener-watchlist-ui.mjs
       - name: Verify one shared watchlist across two devices, with named contributors
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
