@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-09-27T18:26:08.654Z",
+    "capturedAt": "2026-09-27T18:47:21.565Z",
     "from": "2026-08-05",
     "to": "2026-09-25",
     "rows": 9689,
@@ -12,10 +12,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-27T18:26:08.654Z",
-  "oldestDataAt": "2026-09-27T18:26:08.654Z",
-  "from": "2025-09-27",
-  "to": "2026-09-27",
+  "capturedAt": "2026-09-27T18:47:21.565Z",
+  "oldestDataAt": "2026-09-27T18:47:21.565Z",
+  "from": "2025-09-28",
+  "to": "2026-09-28",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-27T18:26:08.654Z",
+      "capturedAt": "2026-09-27T18:47:21.565Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-27T18:26:08.654Z",
+      "capturedAt": "2026-09-27T18:47:21.565Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +63,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-27T18:26:08.654Z",
+      "capturedAt": "2026-09-27T18:47:21.565Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,7 +76,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-27T18:26:08.654Z",
+      "capturedAt": "2026-09-27T18:47:21.565Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -84,7 +84,7 @@
   "covered": 4,
   "withRows": 1806,
   "emptyCount": 0,
-  "rowCount": 18620,
+  "rowCount": 18616,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -48469,28 +48469,6 @@
           "From Date": "2025-10-13",
           "To Date": "2025-10-13",
           "Broadcast Date": "2025-10-13",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ARVINDFASN",
-        "date": "2025-09-27",
-        "cells": {
-          "Company": "Arvind Fashions Ltd",
-          "Insider": "Preeti Kaushik",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "3000",
-          "Trade %": "0",
-          "Trade Value": "1550850",
-          "Post Holding Shares": "10000",
-          "Post Holding %": "0.01",
-          "Mode": "ESOP",
-          "From Date": "2025-09-27",
-          "To Date": "2025-09-27",
-          "Broadcast Date": "2025-09-27",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -171788,28 +171766,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "AVANTEL",
-        "date": "2025-09-27",
-        "cells": {
-          "Company": "Avantel Ltd",
-          "Insider": "PSV Ramakrishna",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "7950",
-          "Trade %": "0",
-          "Trade Value": "1470710",
-          "Post Holding Shares": "17000",
-          "Post Holding %": "0.01",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-15",
-          "To Date": "2025-09-26",
-          "Broadcast Date": "2025-09-27",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "ROSSTECH": [
@@ -182707,28 +182663,6 @@
           "From Date": "2025-09-29",
           "To Date": "2025-09-29",
           "Broadcast Date": "2025-09-29",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "MANGLMCEM",
-        "date": "2025-09-27",
-        "cells": {
-          "Company": "Mangalam Cement Ltd",
-          "Insider": "Vidula Consultancy Services Limited",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "45000",
-          "Trade %": "0.16",
-          "Trade Value": "33130404",
-          "Post Holding Shares": "4586920",
-          "Post Holding %": "16.68",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-26",
-          "To Date": "2025-09-26",
-          "Broadcast Date": "2025-09-27",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -205530,28 +205464,6 @@
           "From Date": "2025-11-10",
           "To Date": "2025-11-10",
           "Broadcast Date": "2025-11-10",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "UDS",
-        "date": "2025-09-27",
-        "cells": {
-          "Company": "Updater Services Ltd",
-          "Insider": "RAGHUNANDANA TANGIRALA",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "20000",
-          "Trade %": "0.02",
-          "Trade Value": "4931700",
-          "Post Holding Shares": "16033579",
-          "Post Holding %": "23.94",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-26",
-          "To Date": "2025-09-26",
-          "Broadcast Date": "2025-09-27",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
