@@ -71,6 +71,8 @@ try {
   assert.equal(await card('ROUTINE').count(), 0);
   assert.match(await card('MIXED').locator('[data-ai-insight]').textContent(), /Resignation/);
   assert(!/Loss of share/.test(await card('MIXED').textContent()));
+  await card('MIXED').locator('[data-ai-notebook-card] button').click();
+  await page.waitForFunction(async () => (await import('/js/core/bookmarks.js')).all().length === 1);
   await pick('resignation');
   await pick('warrants');
   assert.equal(await page.locator('[data-ai-remove-type]').count(), 2);
@@ -94,6 +96,11 @@ try {
   assert.equal(await page.locator('[data-ai-card]').count(), 2);
   assert.match(await card('MIXED').locator('[data-ai-insight]').textContent(), /Loss of share/);
   assert(!/Resignation/.test(await card('MIXED').locator('[data-ai-evidence]').textContent()));
+  await card('MIXED').locator('[data-ai-notebook-card] button').click();
+  await page.waitForFunction(async () => (await import('/js/core/bookmarks.js')).all().length === 2);
+  const saved = await page.evaluate(async () => (await import('/js/core/bookmarks.js')).all());
+  assert(saved.some(entry => /Resignation/.test(entry.body) && !/Loss of share/.test(entry.body)));
+  assert(saved.some(entry => /Loss of share/.test(entry.body) && !/Resignation/.test(entry.body)));
   await page.locator('[data-ai-hide-routine]').check();
   assert.equal(await page.locator('[data-ai-remove-type="routine"]').count(), 0);
   await pick('scheme'); await close();

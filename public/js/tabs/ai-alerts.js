@@ -780,8 +780,11 @@ function byNewestFirst(events) {
 const cardSnapshots = new WeakMap();
 function cardSnapshot(card) {
   if (cardSnapshots.has(card)) return cardSnapshots.get(card);
+  const evidence = card.filteredEvents
+    ? `${card.evidenceKey}:filtered:${JSON.stringify(card.events.map(event => event.id))}`
+    : card.evidenceKey || card.insight;
   const snapshot = normalizeBookmark({ title: card.insight, company: card.company, ticker: card.ticker, entityId: card.entityId,
-    kind: 'AI Alerts', source: 'Dashboard analysis', sourceId: `${card.key || card.ticker}:${card.evidenceKey || card.insight}`,
+    kind: 'AI Alerts', source: 'Dashboard analysis', sourceId: `${card.key || card.ticker}:${evidence}`,
     eventDate: latestAlertEvent(card)?.day,
     body: card.events.map(event => [event.headline, event.detail, event.reason].filter(Boolean).join('\n')).join('\n\n'),
     details: [...(card.kpis?.items?.length ? [{ label: 'KPIs in play', value: kpiLine(card.kpis) }] : []),
