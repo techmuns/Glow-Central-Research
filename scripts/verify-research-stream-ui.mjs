@@ -22,6 +22,26 @@ newsFixture.byTicker = Object.fromEntries(Object.entries(newsFixture.byTicker).f
 newsFixture.rowCount = Object.values(newsFixture.byTicker).reduce((sum, rows) => sum + rows.length, 0);
 newsFixture._provenance = 'Bounded UI test fixture; not a source completeness or live latency claim.';
 const newsFixtureJson = JSON.stringify(newsFixture);
+// The other retained event feeds grow too. Keep conversation/stream deadlines independent of
+// archive size, just as above for company news. Full-volume evidence is covered by the separate
+// complete-portfolio suite; do not relax this suite's first-text or stalled-source deadlines.
+const captureFixtures = new Map();
+for (const [name, field] of [
+  ['insider-trades', 'byTicker'], ['corp-announcements', 'byTicker'],
+  ['corporate-actions', 'rows'], ['exchange-deals', 'records'], ['market-news', 'articles'],
+  ['public-holdings', 'holdings'], ['ipo-filings', 'rows'], ['technicals', 'companies'],
+  ['earnings-live', 'rows'], ['nse-announcements', 'rows'], ['concall-scans', 'rows'],
+]) {
+  const capture = JSON.parse(readFileSync(resolve(root, `data/${name}.json`), 'utf8'));
+  capture[field] = field === 'byTicker'
+    ? Object.fromEntries(Object.entries(capture[field]).filter(([ticker]) => ['JAYNECOIND', 'IIFL', 'SAIL'].includes(ticker)).map(([ticker, rows]) => [ticker, rows.slice(0, 12)]))
+    : capture[field].slice(0, 24);
+  if (field === 'rows' && capture.rowCount != null) capture.rowCount = capture.rows.length;
+  if (name === 'corporate-actions') capture.companyCount = new Set(capture.rows.map(row => row.ticker || row.company)).size;
+  if (name === 'market-news') { capture.archive = []; capture.archivedCount = capture.articles.length; }
+  capture._provenance = 'Bounded conversation UI fixture; full source history is tested separately.';
+  captureFixtures.set(`/data/${name}.json`, JSON.stringify(capture));
+}
 const questions = [], timings = [], errors = [];
 let holdAnswer = false;
 let failAnswer = false;
@@ -51,6 +71,11 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/data/news.json' || url.pathname === '/data/company-news/index.json') {
     res.setHeader('content-type', 'application/json');
     res.end(url.pathname.endsWith('/news.json') ? newsFixtureJson : '{"archive":[],"queries":{},"entities":[],"articleCount":0,"_provenance":"UI fixture: archive checked in the complete-portfolio suite"}');
+    return;
+  }
+  if (captureFixtures.has(url.pathname)) {
+    res.setHeader('content-type', 'application/json');
+    res.end(captureFixtures.get(url.pathname));
     return;
   }
   if (url.pathname === '/api/research') {
@@ -138,9 +163,11 @@ try {
     return route.continue();
   });
   const page = await context.newPage();
+  // Each navigation waits for the actual workspace/connection below; optional image and feed
+  // loads do not define when an already interactive local fixture is ready.
   observedPage = page;
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(`${origin}/#/research/ask-research?scope=portfolio`);
+  await page.goto(`${origin}/#/research/ask-research?scope=portfolio`, { waitUntil: 'domcontentloaded' });
   await page.locator('.research-workspace.is-disabled-coming-soon').waitFor();
   await page.locator('.research-coming-soon-overlay').waitFor();
   assert(await page.locator('.research-coming-soon-title').innerText().then(t => t.includes('Merging with Munshot Chat')));
@@ -148,7 +175,7 @@ try {
   assert.equal(await page.locator('[data-research-input]').isDisabled(), true);
   assert.equal(await page.locator('[data-research-send]').isDisabled(), true);
 
-  await page.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`);
+  await page.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`, { waitUntil: 'domcontentloaded' });
   await page.getByText('Portfolio connected', { exact: false }).waitFor();
   if (process.env.SCREENSHOT_PATH) {
     await page.locator('.research-opening-brand').evaluate(image => image.decode());
@@ -247,10 +274,11 @@ try {
   // A cold source that never resolves must not hold every other source hostage.
   failAnswer = false;
   const slow = await context.newPage();
+  observedPage = slow;
   slow.on('pageerror', error => errors.push(error.message));
   const parked = [];
   await slow.route('**/api/screener-insights', route => { parked.push(route); });
-  await slow.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`);
+  await slow.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`, { waitUntil: 'domcontentloaded' });
   await slow.getByText('Portfolio connected', { exact: false }).waitFor();
   const slowStart = Date.now();
   await slow.getByRole('textbox', { name: 'Ask about the dashboard' }).fill(exactQuestion);
@@ -267,6 +295,7 @@ try {
   assert(questions.at(-1).evidence.sources.some(s => s.rows.some(r => r.ticker === 'JAYNECOIND')), 'other evidence survives a stalled feed');
   for (const route of parked) await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
   await slow.close();
+  observedPage = page;
 
   // Exact customer screenshot: HTTP 200 closes without text or done. Recover
   // once before any answer; a second closure must stop, not retry forever.
@@ -526,7 +555,7 @@ try {
   let configFailures = 1;
   await disconnected.route('**/api/research', route => configFailures-- > 0
     ? route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }) : route.continue());
-  await disconnected.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`);
+  await disconnected.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`, { waitUntil: 'domcontentloaded' });
   await disconnected.getByRole('button', { name: 'Reconnect', exact: true }).waitFor();
   await disconnected.getByRole('textbox', { name: 'Ask about the dashboard' }).fill(screenshotQuestion);
   await disconnected.getByRole('button', { name: 'Reconnect', exact: true }).click();
