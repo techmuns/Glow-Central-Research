@@ -31,7 +31,8 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchAnnouncements, CATEGORIES, HEADERS } from '../worker/bse-ann.mjs';
+import { CATEGORIES, HEADERS } from '../worker/bse-ann.mjs';
+import { collectBseAnnouncements } from './lib/bse-collection.mjs';
 import { archiveFilings } from './lib/filing-archive.mjs';
 import { fetchBseIdentityMaster, buildAnnouncementIdentities } from './lib/announcement-identities.mjs';
 
@@ -125,9 +126,10 @@ async function main() {
   console.log(`  scrip index: ${num(byCode.size)} codes (${num(confirmed)} confirmed from mc-ticker-map, master ${num(masterRows)})`);
 
   const started = Date.now();
-  const { rows, byCategory, unknownCategories, requests, shortfall } = await fetchAnnouncements(
+  const { rows, byCategory, unknownCategories, requests, shortfall } = await collectBseAnnouncements(
     { from: FROM, to: TO },
     {
+      onRetry: ({ nextAttempt, error }) => console.warn(`\n  ${error.message} Restarting that category (attempt ${nextAttempt}/3).`),
       onProgress: ({ category, page, got, declared }) => {
         process.stdout.write(`\r  ${category.padEnd(20)} page ${String(page).padStart(3)}  ${String(got).padStart(5)}/${declared ?? '?'}   `);
       },
