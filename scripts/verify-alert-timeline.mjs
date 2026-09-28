@@ -18,14 +18,14 @@ assert.equal((await prepareTimeline(card, { history, day, filters: { selected: [
 assert.equal((await prepareTimeline(card, { history, day, filters: { hideRoutine: false } })).length, 20002, 'routine history is available when explicitly included');
 assert.equal(await prepareTimeline(card, { history, day, isCurrent: () => false }), null, 'abandoned preparations never publish');
 let calls = 0, release, currentView = true;
-let next = { events: [event('public'), event('private', { feed: 'company-documents', private: true }), event('removed-ok', { feed: 'insider' })],
+let next = { events: [event('public'), event('public', { ticker: 'OTHER' }), event('private', { feed: 'company-documents', private: true }), event('removed-ok', { feed: 'insider' })],
   feeds: [{ id: 'earnings', status: 'ok' }, { id: 'company-documents', status: 'ok' }, { id: 'insider', status: 'ok' }] };
 const reader = createTimelineHistory({ options: () => ({ scope: 'universe' }), isCurrent: () => currentView,
   collect: async opts => { calls++; assert(opts.includeHistory); await new Promise(done => { release = done; }); return next; } });
 const a = reader.read(), b = reader.read(); assert.equal(a, b, 'cards share one pending read'); release(); await a;
 assert.equal(await reader.read(), await a); assert.equal(calls, 1, 'later cards share the saved history');
-next = { events: [event('new')], pending: 0, feeds: [{ id: 'earnings', status: 'failed' }, { id: 'insider', status: 'ok' }] };
+next = { events: [event('new'), event('new', { ticker: 'OTHER' })], pending: 0, feeds: [{ id: 'earnings', status: 'failed' }, { id: 'insider', status: 'ok' }] };
 const retry = reader.read({ refresh: true }); release();
-assert.deepEqual((await retry).events.map(e => e.id), ['public', 'new'], 'failed public records survive; successful removals and revoked private records do not');
+assert.deepEqual((await retry).events.map(e => e.id), ['public', 'public', 'new', 'new'], 'failed public identity groups survive; current groups remain complete; successful removals and revoked private records do not');
 const obsolete = reader.read({ memoryOnly: true }); currentView = false; release(); assert.equal(await obsolete, null);
 console.log('PASS 20,000-row history, company/eligibility/filter isolation, cancellation, shared lazy reads and source-specific failure retention without revoked private data.');

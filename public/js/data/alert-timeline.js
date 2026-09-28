@@ -59,20 +59,29 @@ export async function prepareTimeline(card, { history = null, day, filters, isCu
 
 function* retainFailedHistory(previous, report) {
   const states = new Map((report.feeds || []).map(feed => [feed.id, feed.status]));
-  const events = new Map();
+  const incomingIds = new Map(), events = [];
+  for (let i = 0; i < report.events.length; i++) {
+    const event = report.events[i];
+    if (!incomingIds.has(event.feed)) incomingIds.set(event.feed, new Set());
+    incomingIds.get(event.feed).add(String(event.id));
+    if ((i & 511) === 511) yield;
+  }
   for (let i = 0; i < previous.events.length; i++) {
     const event = previous.events[i], status = states.get(event.feed);
     // A successful source can remove/correct a record. Revoked private records must disappear
     // even if an unrelated public source failed; never revive them from the old view.
     if (!event.private && !event.portfolioOnly && publicAlertFeed({ id: event.feed }) &&
-        (['pending', 'failed'].includes(status) || !status && report.pending)) events.set(String(event.id), event);
+        (['pending', 'failed'].includes(status) || !status && report.pending) &&
+        !incomingIds.get(event.feed)?.has(String(event.id))) events.push(event);
     if ((i & 511) === 511) yield;
   }
+  // Several company matches can legitimately share an id. Replace whole identity groups,
+  // preserving all records inside the current group instead of collapsing it into one Map entry.
   for (let i = 0; i < report.events.length; i++) {
-    const event = report.events[i]; events.set(String(event.id), event);
+    events.push(report.events[i]);
     if ((i & 511) === 511) yield;
   }
-  return [...events.values()];
+  return events;
 }
 
 /** One shared, on-demand archive read per open view; repeated cards share its source work. */
