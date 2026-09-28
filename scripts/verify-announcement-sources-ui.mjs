@@ -154,6 +154,7 @@ try {
     await reader.clock.install({time:'2026-09-28T08:00:00Z'});
     const before = noteRequests.length;
     await reader.goto(`${origin}/?case=${scenario === 'skipped' ? 'summary' : scenario}`);
+    if (scenario === 'routine') await reader.locator('[data-ai-hide-routine]').uncheck();
     await reader.locator('[data-ai-card]').waitFor();
     if (scenario === 'summary') {
       await reader.locator('[data-note-state="ready"]').waitFor();
