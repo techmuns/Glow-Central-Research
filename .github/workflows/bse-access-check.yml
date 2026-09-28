@@ -1,0 +1,36 @@
+name: BSE read-only access check
+
+on:
+  workflow_dispatch:
+    inputs:
+      completed_day:
+        description: 'Completed Indian calendar day with filings (YYYY-MM-DD; default yesterday)'
+        required: false
+  pull_request:
+    paths:
+      - '.github/workflows/bse-access-check.yml'
+      - 'worker/bse-ann.mjs'
+      - 'scripts/check-bse-access.mjs'
+      - 'scripts/check-bse-request-profile.mjs'
+      - 'scripts/lib/bse-collection.mjs'
+      - 'scripts/lib/announcement-identities.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  access:
+    # Standard runners on this public repository are free. No paid runner, artifact or cache.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Compare request profiles and validate complete public BSE reads
+        env:
+          BSE_PROBE_TO: ${{ inputs.completed_day || '' }}
+        run: node scripts/check-bse-request-profile.mjs
