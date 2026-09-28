@@ -1,8 +1,10 @@
 import { BseAnnError, CATEGORIES, annUrl, compact, fetchAnnouncements, fetchCompanyAnnouncements } from '../../worker/bse-ann.mjs';
 
+export const bseIndiaDay = (now = Date.now()) => new Date(Number(now) + 330 * 60000).toISOString().slice(0, 10);
+
 // A multi-day backlog must not keep restarting because today's total changes. Validate the
 // original interval first, then keep closed history and the live day in disjoint windows.
-export function bseCollectionWindows(range, today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10)) {
+export function bseCollectionWindows(range, today = bseIndiaDay()) {
   annUrl({ ...range, category: CATEGORIES[0] });
   annUrl({ from: today, to: today, category: CATEGORIES[0] });
   const current = compact(today);

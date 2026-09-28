@@ -5,13 +5,13 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CATEGORIES, HEADERS } from '../worker/bse-ann.mjs';
 import { fetchBseIdentityMaster } from './lib/announcement-identities.mjs';
-import { collectBseAnnouncements, collectBseCompanyAnnouncements } from './lib/bse-collection.mjs';
+import { collectBseAnnouncements, collectBseCompanyAnnouncements, bseIndiaDay } from './lib/bse-collection.mjs';
 
 const shiftDay = (day, offset) => new Date(Date.parse(`${day}T00:00:00Z`) + offset * 86400000).toISOString().slice(0, 10);
 
 export async function checkBseAccess({ previousIdentities, to, scripCode = '522287', now = Date.now(),
   fetchImpl = fetch, gapMs = 500 } = {}) {
-  const today = new Date(now + 330 * 60000).toISOString().slice(0, 10);
+  const today = bseIndiaDay(now);
   to ||= shiftDay(today, -1);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(to) || !Number.isFinite(Date.parse(`${to}T00:00:00Z`))
     || shiftDay(to, 0) !== to || to >= today) {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { bseCollectionWindows, bseCaptureCoverage, bseLastCompleteTo, collectBseAnnouncements, collectBseCompanyAnnouncements } from './lib/bse-collection.mjs';
+import { bseIndiaDay, bseCollectionWindows, bseCaptureCoverage, bseLastCompleteTo, collectBseAnnouncements, collectBseCompanyAnnouncements } from './lib/bse-collection.mjs';
 import { checkBseAccess } from './check-bse-access.mjs';
 import { BSE_MASTER_URL } from './lib/announcement-identities.mjs';
 import { CATEGORIES } from '../worker/bse-ann.mjs';
@@ -14,6 +14,9 @@ const row = (id, category = 'Company Update') => ({ NEWSID: `filing-${id}`, SCRI
 const page = (rows, count = rows.length) => Response.json({ Table: rows, Table1: [{ ROWCNT: count }] });
 const batch = (offset = 0) => Array.from({ length: 50 }, (_, i) => row(offset + i));
 const opts = { gapMs: 0, retryDelayMs: 0 };
+
+assert.equal(bseIndiaDay(Date.parse('2026-09-27T18:29:59Z')), '2026-09-27');
+assert.equal(bseIndiaDay(Date.parse('2026-09-27T18:30:00Z')), '2026-09-28', 'collection dates turn over at Indian midnight');
 
 assert.deepEqual(bseCollectionWindows({ from: '2026-08-30', to: '2026-09-01' }, '2026-09-01'),
   [{ from: '2026-08-30', to: '2026-08-31' }, { from: '2026-09-01', to: '2026-09-01' }]);
