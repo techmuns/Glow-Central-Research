@@ -64,6 +64,12 @@ const close = async () => { await page.locator('[data-ai-types-menu] summary').f
 try {
   await page.goto(origin); await page.waitForFunction(() => window.ready && navigator.serviceWorker.controller);
   await page.reload(); await page.waitForSelector('[data-ai-card]');
+  // register() on this reload also checks for an update. Let that old-version check finish
+  // before changing the fixture, or update() can join it and never request the new worker.
+  await page.waitForFunction(() => window.ready);
+  await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+  // This case upgrades an already warm visit; let its initial reads and cache writes settle.
+  await page.waitForLoadState('networkidle');
   assert.equal(await page.locator('[data-ai-types-menu]').count(), 0);
   legacy = false;
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
@@ -98,11 +104,15 @@ try {
   assert.equal(await page.locator('[data-ai-card]').count(), 2);
   assert.match(await card('MIXED').locator('[data-ai-insight]').textContent(), /Loss of share/);
   assert(!/Resignation/.test(await card('MIXED').locator('[data-ai-evidence]').textContent()));
-  await card('MIXED').locator('[data-ai-notebook-card] button').click();
+  const routineSave = card('MIXED').locator('[data-ai-notebook-card] button');
+  const routineKey = await routineSave.getAttribute('data-bookmark-key');
+  await routineSave.click();
+  await page.waitForFunction(async key => !!(await import('/js/core/bookmarks.js')).get(key), routineKey);
   await page.waitForFunction(async () => (await import('/js/core/bookmarks.js')).all().length === 2);
   const saved = await page.evaluate(async () => (await import('/js/core/bookmarks.js')).all());
-  assert(saved.some(entry => /Resignation/.test(entry.body) && !/Loss of share/.test(entry.body)));
-  assert(saved.some(entry => /Loss of share/.test(entry.body) && !/Resignation/.test(entry.body)));
+  const savedBodies = JSON.stringify(saved.map(({ title, body }) => ({ title, body })));
+  assert(saved.some(entry => /Resignation/.test(entry.body) && !/Loss of share/.test(entry.body)), savedBodies);
+  assert(saved.some(entry => /Loss of share/.test(entry.body) && !/Resignation/.test(entry.body)), savedBodies);
   await page.locator('[data-ai-hide-routine]').check();
   assert.equal(await page.locator('[data-ai-remove-type="routine"]').count(), 0);
   await pick('scheme'); await close();
