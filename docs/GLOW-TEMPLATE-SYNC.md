@@ -601,3 +601,14 @@ storage with gated offline fixtures, changed and malformed payloads, a growing
 portfolio, paginated/looping responses, source identity rejection, saved drilldowns,
 Coverage tables/themes, deduplicated requests and focus refresh/cleanup. The normal
 Glow parity suite preserves both return views and source/portfolio isolation.
+
+
+## Optional factual AI summaries (28 September 2026)
+
+The latest Glow instruction supersedes the 23 September “So what?” line: use **Headline** and an
+optional short **AI summary**, guided by substantive document type and available detail. News,
+routine notices and headline-only records make no summary request. Preserve the shared browser/
+Worker eligibility gate, factual prompt, omitted unnecessary summaries and all durable cost controls
+on template sync. Factual summaries have their own `alert-summary:v1` key version; historical
+investment implications remain stored and must not be relabelled as summaries. Source records,
+related coverage, collection, retention, scope and refresh behavior remain unchanged.

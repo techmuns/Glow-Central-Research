@@ -42,10 +42,31 @@ export async function collect({scope,onPartial}){
  if(window.failed)onPartial?.({...report,events:[],pending:1});
  return report;
 }`;
-const server = createServer((req, res) => {
+const summaryFiling = { ...filing, filingSubCategory: 'Award of Order / Receipt of Order',
+  filingDescription: 'Received a letter of acceptance for Rs 2,500 crore from Metro Rail in Mumbai. The contract covers civil construction and station infrastructure, with completion scheduled in 36 months. The award remains subject to the customer issuing the final notice to proceed.' };
+const routineFiling = { ...filing, headline: 'Trading window closure', filingSubject: 'Trading window closure',
+  filingDescription: 'The trading window remains closed for designated persons and their immediate relatives from 1 October 2026 until publication of the quarterly results and completion of the required waiting period.' };
+const noteRequests = [];
+let skipSummary = false;
+const server = createServer(async (req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
   res.setHeader('cache-control', 'no-store');
-  if (pathname === '/') { res.setHeader('content-type','text/html'); res.end(html); return; }
+  if (pathname === '/') {
+    const scenario = new URL(req.url, 'http://localhost').searchParams.get('case');
+    const events = { news: [report], routine: [routineFiling], summary: [summaryFiling] }[scenario];
+    res.setHeader('content-type','text/html');
+    res.end(events ? html.replace(JSON.stringify([report, copy, filing]), JSON.stringify(events)) : html); return;
+  }
+  if (pathname === '/api/alert-notes') {
+    let body = ''; for await (const chunk of req) body += chunk;
+    const { items } = JSON.parse(body); noteRequests.push(...items);
+    res.setHeader('content-type','application/json');
+    res.end(JSON.stringify({ ok: true,
+      notes: skipSummary ? {} : Object.fromEntries(items.map(item => [item.id, { note: 'The contract covers civil construction and station infrastructure, with completion scheduled in 36 months.' }])),
+      missing: skipSummary ? Object.fromEntries(items.map(item => [item.id, 'not-needed'])) : {},
+      retryAt: skipSummary ? Object.fromEntries(items.map(item => [item.id, null])) : {},
+    })); return;
+  }
   if (pathname === '/js/data/daily-alerts.js') { res.setHeader('content-type','text/javascript'); res.end(feedModule); return; }
   if (pathname === '/js/data/capture-watchdog.js') { res.setHeader('content-type','text/javascript'); res.end('export const onCaptureLanded=()=>()=>{};'); return; }
   if (pathname.startsWith('/api/')) { res.setHeader('content-type','application/json'); res.end('{}'); return; }
@@ -73,9 +94,10 @@ try {
   assert.equal(await card.locator('[data-ai-kind="filing"]').count(), 1);
   assert.equal(await card.locator('[data-ai-lead-link]').getAttribute('href'), filing.url);
   assert.equal(await card.locator('[data-ai-evidence] > li').count(), 1, 'one event row, not an announcement and two reports');
+  assert.equal(await card.locator('[data-ai-summary]').count(), 0, 'a sufficient filing headline needs no summary');
   const sources = card.locator('[data-ai-development-sources]').first();
   const toggle = sources.locator('summary');
-  assert.match(await toggle.innerText(), /1 exchange copy · 1 news report/);
+  assert.match(await toggle.textContent(), /1 exchange copy · 1 news report/);
   assert.equal(await sources.getAttribute('open'), null);
   await toggle.focus(); await page.keyboard.press('Enter');
   assert.equal(await sources.getAttribute('open'), '', 'keyboard click expands related coverage');
@@ -123,6 +145,37 @@ try {
       if(process.env.ANNOUNCEMENT_SCREENSHOT && width!==320) await page.screenshot({path:`${process.env.ANNOUNCEMENT_SCREENSHOT}-${width}-${theme}.png`,fullPage:true});
     }
   }
+  assert.equal(noteRequests.length, 0, 'headlines and related news make no model requests');
+  for (const scenario of ['news', 'routine', 'summary', 'skipped']) {
+    skipSummary = scenario === 'skipped';
+    const reader = await browser.newPage({ viewport: { width: 390, height: 1000 } });
+    await reader.context().route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.fulfill({status:200,body:'{}'}));
+    reader.on('pageerror', error => errors.push(error.message));
+    await reader.clock.install({time:'2026-09-28T08:00:00Z'});
+    const before = noteRequests.length;
+    await reader.goto(`${origin}/?case=${scenario === 'skipped' ? 'summary' : scenario}`);
+    if (scenario === 'routine') await reader.locator('[data-ai-hide-routine]').uncheck();
+    await reader.locator('[data-ai-card]').waitFor();
+    if (scenario === 'summary') {
+      await reader.locator('[data-note-state="ready"]').waitFor();
+      assert.match(await reader.locator('[data-ai-summary]').innerText(), /AI summary.*36 months/is);
+      assert.equal(noteRequests.length, before + 1);
+      assert.equal(noteRequests.at(-1).documentType, 'orders');
+      if (process.env.ANNOUNCEMENT_SCREENSHOT) await reader.screenshot({path:`${process.env.ANNOUNCEMENT_SCREENSHOT}-summary.png`,fullPage:true});
+    } else {
+      await reader.waitForTimeout(500);
+      assert.equal(await reader.locator('[data-ai-summary]').count(), 0, `${scenario} omits the summary section`);
+      assert.equal(noteRequests.length, before + (scenario === 'skipped' ? 1 : 0));
+    }
+    const content = await reader.locator('[data-ai-card]').textContent();
+    assert.match(content, /Headline/);
+    assert(!/So what\?|AI reading/.test(content));
+    const after = noteRequests.length;
+    await reader.evaluate(() => window.refreshAlerts());
+    await reader.waitForTimeout(250);
+    assert.equal(noteRequests.length, after, 'refresh does not retry a saved or unnecessary summary');
+    await reader.close();
+  }
   assert.deepEqual(errors,[]);
-  console.log('PASS primary announcement, single event row, clickable/keyboard source list, original links, refresh/failure retention, distinct orders and responsive light/dark UI.');
+  console.log('PASS primary announcement, source retention, responsive UI and optional factual summaries; news/routine/headline-only cases make no AI request.');
 } finally { await browser.close(); await new Promise(done=>server.close(done)); }

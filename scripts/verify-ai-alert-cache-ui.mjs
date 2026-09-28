@@ -32,9 +32,11 @@ export async function readCachedAlertWindow() { return null; }
 export async function collect({scope,holdings,onPartial}) {
   const day=currentDay();
   const feeds=['earnings','announcements','insider'].map(id=>({id,status:'ok',reachesToday:true}));
-  const events=holdings.filter(h=>${JSON.stringify(tickers)}.includes(h.ticker)).flatMap(h=>feeds.map(({id})=>({
+  const events=holdings.filter(h=>${JSON.stringify(tickers)}.includes(h.ticker)).flatMap(h=>feeds.filter(({id})=>id==='announcements').map(({id})=>({
     id:h.ticker+'-'+id,ticker:h.ticker,company:h.name,day,time:h.ticker==='INDIANB'?'15:00':'10:00',
-    feed:id,feedLabel:id,importance:'high',direction:'negative',headline:h.name+': material risk',tab:'daily-alerts'
+    feed:id,feedLabel:id,importance:'high',direction:'negative',headline:id==='announcements'?'Dividend recommendation':h.name+': material risk',tab:'daily-alerts',
+    ...(id==='announcements'?{time:h.ticker==='INDIANB'?'15:01':'10:01',filingSubject:'Dividend recommendation',filingSubCategory:'Dividend',
+      filingDescription:'The board recommended a dividend of Rs 5 per share for FY26. The record date is 1 October 2026 and payment is proposed for 15 October 2026. Shareholder approval is required before payment; the proposal covers all fully paid equity shares.'}:{})
   })));
   const report={scope,day,feeds,events,pending:0}; onPartial?.({...report,pending:1}); return report;
 }`;
@@ -52,7 +54,7 @@ const server = createServer(async (req, res) => {
     const notes = {};
     for (const raw of JSON.parse(body).items) {
       const item = noteItem(raw), key = noteContent(item), stored = savedNotes.has(key);
-      if (!stored) savedNotes.set(key, 'May affect earnings; the financial effect is not stated.');
+      if (!stored) savedNotes.set(key, 'The dividend is proposed, with shareholder approval still required.');
       notes[item.id] = { note: savedNotes.get(key), stored, model: 'offline-fixture' };
     }
     res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ ok: true, notes, missing: {} })); return;
@@ -140,10 +142,12 @@ try {
   assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'INDIANB');
   await sort.selectOption('holdings');
   await page.waitForFunction(() => [...document.querySelectorAll('[data-ai-note]')].every(node => node.querySelector('[data-note-state="ready"]')));
+  assert(await page.locator('[data-ai-summary]').count() > 0, 'substantive filings have an AI summary after the returning-session upgrade');
+  assert(!/So what\?|AI reading/.test(await page.locator('#root').textContent()));
   const beforeRefresh = notePosts, savedBeforeRefresh = savedNotes.size;
   await page.evaluate(async () => (await import('/js/core/refresh.js')).refreshAll());
   await page.waitForTimeout(300);
-  assert.equal(notePosts, beforeRefresh, 'unchanged source refresh does not request the AI reading again');
+  assert.equal(notePosts, beforeRefresh, 'unchanged source refresh does not request the AI summary again');
   assert.equal(savedNotes.size, savedBeforeRefresh);
   const beforeReload = bookReads;
   await page.reload();

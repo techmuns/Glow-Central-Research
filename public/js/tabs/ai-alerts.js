@@ -22,7 +22,7 @@ import { chatterTopic } from '../data/chatter-sentiment.js';
 import { driversFromEvent, QUESTIONS } from '../data/alert-drivers.js';
 import { developmentSource, foldedSummary, publisherOf, venuesOf, storyKindOf, KIND_LABEL } from '../data/alert-developments.js';
 import { noteRequestFor, requestNotes, onNotes } from '../data/alert-notes.js';
-import { noteBodyHtml, NOTE_DISCLOSURE } from '../ui/alert-note.js';
+import { noteBodyHtml, noteIsSkipped, NOTE_DISCLOSURE } from '../ui/alert-note.js';
 import * as screenerInsights from '../data/screener-insights.js';
 import { onCaptureLanded } from '../data/capture-watchdog.js';
 import * as coverage from '../data/coverage.js';
@@ -134,7 +134,7 @@ export function render(ctx) {
   if (!unsubs.length) {
     unsubs.push(watchCalendar());
     unsubs.push(watchFreshness());
-    // A "So what?" note landing repaints through `reconcileMarkup`, which replaces only the note.
+    // An AI summary landing repaints through `reconcileMarkup`, which replaces only the note.
     unsubs.push(onNotes(() => { if (ctxRef) paint(ctxRef); }));
     unsubs.push(onCaptureLanded(sourceChanged));
     unsubs.push(alerts.onChange(sourceChanged));
@@ -659,7 +659,7 @@ function cardSection(kicker, bodyHtml, attrs = '') {
 /**
  * KPIs IN PLAY — which lines of THIS company's sector model the card's evidence names.
  *
- * One section directly under "What happened", drawn exactly as that section is (the same dot, the
+ * One section directly under "Headline", drawn exactly as that section is (the same dot, the
  * same kicker), so the card still reads as one sentence, one line of names and one list. It is
  * absent where the company's sector is not resolved or nothing on the card names a KPI — see
  * data/kpi-impact.js: no sector, no line.
@@ -795,7 +795,7 @@ function cardSnapshot(card) {
   return snapshot;
 }
 /**
- * The "So what?" question for a card: its lead development's, built from that development's lead
+ * The "AI summary" question for a card: its lead development's, built from that development's lead
  * alone so the row in All Alerts asks the identical question and shares the note. Kept per card.
  */
 const cardNoteRequests = new WeakMap();
@@ -847,14 +847,14 @@ function whatHappenedMarkup(card, scope) {
 }
 
 /**
- * THE SECOND BULLET: so what — the likely earnings or valuation implication, written by the model
- * and marked AI on its face. Absent (with its reason) rather than guessed; see ui/alert-note.js.
+ * OPTIONAL AI SUMMARY: factual detail from substantive filing text. News, routine notices and
+ * already sufficient headlines omit the entire section; see ui/alert-note.js.
  */
-function soWhatMarkup(card) {
+function summaryMarkup(card) {
   const request = cardNoteRequest(card);
-  if (!request) return '';
-  return cardSection('So what? · AI reading', `<p data-ai-note="${escapeHtml(request.handle)}" class="mt-0.5 text-[15px] font-medium leading-snug text-slate-800">${noteBodyHtml(request)}</p>`,
-    `data-ai-sowhat title="${escapeHtml(NOTE_DISCLOSURE)}"`);
+  if (noteIsSkipped(request)) return '';
+  return cardSection('AI summary', `<p data-ai-note="${escapeHtml(request.handle)}" class="mt-0.5 text-[15px] font-medium leading-snug text-slate-800">${noteBodyHtml(request)}</p>`,
+    `data-ai-summary title="${escapeHtml(NOTE_DISCLOSURE)}"`);
 }
 
 function cardMarkup(card, scope, day, archived = false) {
@@ -894,8 +894,8 @@ function cardMarkup(card, scope, day, archived = false) {
         </p>
         ${Number.isFinite(card.holdingWeightPct) ? `<p data-ai-holding-size title="${escapeHtml(sizeTitle)}" class="mt-1 text-xs font-semibold text-indigo-700">${card.holdingWeightPct > 0 && card.holdingWeightPct < 0.01 ? '&lt;0.01' : card.holdingWeightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of equity statement book</p>` : ''}
 
-        ${cardSection('What happened', `${whatHappenedMarkup(card, scope)}${confluenceMarkup(card)}`)}
-        ${soWhatMarkup(card)}
+        ${cardSection('Headline', `${whatHappenedMarkup(card, scope)}${confluenceMarkup(card)}`)}
+        ${summaryMarkup(card)}
         ${kpiMarkup(card, scope)}
 
         ${listHeadMarkup(card)}

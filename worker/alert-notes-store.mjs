@@ -1,4 +1,4 @@
-// THE "SO WHAT?" NOTES — one fixed object (alert-notes:v1) on the provisioned CaptureRegistry class.
+// OPTIONAL AI SUMMARIES — one fixed object (alert-notes:v1) on the provisioned CaptureRegistry class.
 //
 // A successful note is written once per content version and retained. Failed attempts have durable
 // receipts and bounded retries, never a fresh allowance per paint, reader or object restart.
@@ -91,9 +91,9 @@ export class AlertNotesStore {
 
   /**
    * Notes for up to `NOTE_REQUEST_ITEMS` items: `{ notes: { id: { note, model, stored } },
-   * missing: { id: reason } }`. An item this contract does not accept is missing as `invalid`.
+   * missing: { id: reason } }`. Valid but ineligible items are `not-needed`; malformed items are `invalid`.
    */
-  async read(rawItems, { day = istDay(this.now()) } = {}) {
+  async read(rawItems) {
     if (!Array.isArray(rawItems) || rawItems.length > NOTE_REQUEST_ITEMS) throw new Error('Invalid notes request');
     const notes = {};
     const missing = {};
@@ -102,7 +102,16 @@ export class AlertNotesStore {
     const seenIds = new Set();
     for (const raw of rawItems) {
       const item = noteItem(raw);
-      if (!item || seenIds.has(item.id)) { if (raw?.id) missing[String(raw.id).slice(0, 120)] = 'invalid'; continue; }
+      if (!item || seenIds.has(item.id)) {
+        if (raw?.id) {
+          const id = String(raw.id).slice(0, 120);
+          const recognized = ['filing', 'result', 'news', 'insider', 'investor'].includes(raw.kind)
+            && typeof raw.company === 'string' && raw.company.trim() && typeof raw.line === 'string' && raw.line.trim();
+          missing[id] = !item && recognized ? 'not-needed' : 'invalid';
+          retryAt[id] = null;
+        }
+        continue;
+      }
       seenIds.add(item.id);
       wanted.push({ item, key: await sha256(noteContent(item)) });
     }
@@ -126,7 +135,7 @@ export class AlertNotesStore {
     // between this check and the `set` below awaits, so two requests cannot both miss it.
     const fresh = [...new Map(pending.filter((entry) => !this.inflight.has(entry.key)).map(entry => [entry.key, entry])).values()];
     if (fresh.length) {
-      const batch = this.generate(fresh, day);
+      const batch = this.generate(fresh);
       for (const entry of fresh) this.inflight.set(entry.key, batch.then((result) => result[entry.key]));
       batch.catch(() => {}).finally(() => { for (const entry of fresh) this.inflight.delete(entry.key); });
     }
@@ -143,7 +152,7 @@ export class AlertNotesStore {
   }
 
   /** One model request for every fresh item; resolves to `{ [key]: { note, model } | { reason } }`. */
-  async generate(entries, day) {
+  async generate(entries) {
     const out = {};
     const refuse = (reason) => { for (const entry of entries) out[entry.key] = { reason }; return out; };
     if (!bedrockConfigured(this.env)) return refuse('no-key');
@@ -172,7 +181,7 @@ export class AlertNotesStore {
         method: 'POST',
         redirect: 'manual',
         headers: { 'x-api-key': claudeCredential(this.env), 'anthropic-version': '2023-06-01', accept: 'application/json', 'content-type': 'application/json' },
-        body: JSON.stringify(noteRequest(asked.map((entry) => entry.item), config.model, day)),
+        body: JSON.stringify(noteRequest(asked.map((entry) => entry.item), config.model)),
         signal: AbortSignal.timeout(NOTE_TIMEOUT_MS),
       });
       if (!response.ok) {
@@ -191,8 +200,9 @@ export class AlertNotesStore {
     }
     for (const entry of asked) {
       const raw = parsed[entry.item.id];
+      if (raw === null) { out[entry.key] = this.failure(entry, 'not-needed'); continue; }
       if (!raw) { out[entry.key] = this.failure(entry, 'empty'); continue; }
-      const checked = acceptNote(raw, entry.item, day);
+      const checked = acceptNote(raw, entry.item);
       if (!checked.ok) { out[entry.key] = this.failure(entry, checked.reason); continue; }
       this.rows('INSERT INTO alert_notes(key, note, model, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(key) DO NOTHING',
         entry.key, checked.note, config.model, createdAt);

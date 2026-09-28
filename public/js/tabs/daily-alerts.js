@@ -489,7 +489,7 @@ function foldedStream(rows) {
   return null;
 }
 
-// THE "SO WHAT?" LINE ON A ROW. Asked for the material developments mounted on screen, never the
+// THE OPTIONAL AI SUMMARY ON A ROW. Asked for the material developments mounted on screen, never the
 // whole stream (data/alert-notes.js), and drawn once a note has landed (ui/alert-note.js). The
 // question is built from the development's lead alone, so a row here and its company's card in AI
 // Alerts ask the identical question and share one stored note.
@@ -1285,10 +1285,10 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
     sortValue: (e) => `${e.day || '0000-00-00'}T${e.time || (mode === HORIZON.UPCOMING ? '99:99' : '')}`,
   };
   const eventColumn = {
-    label: mode === HORIZON.UPCOMING ? 'What is scheduled' : 'What happened',
+    label: mode === HORIZON.UPCOMING ? 'What is scheduled' : 'Headline',
     get: (e) => {
       // Till Today rows are developments: the kind, the shortest line of the lead's own statement
-      // (its untouched wording in the title), what folded under it, and the AI "So what?" once it
+      // (its untouched wording in the title), what folded under it, and the AI summary once it
       // has landed. Upcoming rows are schedules and read exactly as they always did.
       const dev = mode === HORIZON.UPCOMING ? null : developmentOfRow(e);
       // A filing reads as its own statement — the shortest of the company's and the exchange's
@@ -1529,7 +1529,7 @@ function exportStream(visible, day, scope, mode = HORIZON.THROUGH) {
   const upcoming = mode === HORIZON.UPCOMING;
   const modeNote = upcoming
     ? 'Every row is scheduled evidence, not confirmation that an event occurred; no directional inference is shown in this view. '
-    : `Includes captured records, explicitly labelled snapshots and undated records. ONE ROW PER DEVELOPMENT: exchange copies of one filing and publishers' reports of it are folded into the row of their lead (the company's own filing where there is one), and every folded item is listed with its source, date and link in "Also reported". The "So what? (AI)" column is written by an AI model from the row's own source statement only — a possibility, not a forecast, a price call or a recommendation; it may be wrong — and is blank where no note was requested. Direction (positive/negative/neutral) and Importance (high/low) are independent; every row carries both reasons. High thresholds: price ±${alerts.MOVE_PCT}%; insider ${alerts.INSIDER_HIGH_PCT}% or ₹${alerts.INSIDER_HIGH_VALUE / 10_000_000} crore; investor presence change or ${alerts.INVESTOR_HIGH_PP}pp; chatter ${alerts.CHATTER_HIGH_MENTIONS} mentions or ${alerts.CHATTER_HIGH_CHANGE_PCT}% mention change. Announcement direction is rule-derived and unmatched filings stay neutral; news stays neutral. `;
+    : `Includes captured records, explicitly labelled snapshots and undated records. ONE ROW PER DEVELOPMENT: exchange copies of one filing and publishers' reports of it are folded into the row of their lead (the company's own filing where there is one), and every folded item is listed with its source, date and link in "Also reported". An optional AI summary condenses the available text of substantive filings. News, routine notices and headlines with no additional detail do not request a summary. Original documents remain linked. Direction (positive/negative/neutral) and Importance (high/low) are independent; every row carries both reasons. High thresholds: price ±${alerts.MOVE_PCT}%; insider ${alerts.INSIDER_HIGH_PCT}% or ₹${alerts.INSIDER_HIGH_VALUE / 10_000_000} crore; investor presence change or ${alerts.INVESTOR_HIGH_PP}pp; chatter ${alerts.CHATTER_HIGH_MENTIONS} mentions or ${alerts.CHATTER_HIGH_CHANGE_PCT}% mention change. Announcement direction is rule-derived and unmatched filings stay neutral; news stays neutral. `;
   const banner = {
     __banner: true,
     line:
@@ -1557,11 +1557,11 @@ function exportStream(visible, day, scope, mode = HORIZON.THROUGH) {
       { header: 'News relationship', key: 'newsRelationship', width: 26, get: cell((r) => r.feed === 'news' ? attributionLabel(r) : '') },
       { header: 'Searched company (not attribution)', key: 'queryCompany', width: 32, get: cell((r) => r.attribution?.queryCompany || '') },
       { header: 'News attribution evidence', key: 'newsEvidence', width: 60, get: cell((r) => r.attribution ? JSON.stringify(r.attribution) : '') },
-      { header: upcoming ? 'What is scheduled' : 'What happened', key: 'headline', width: 60, get: cell((r) => r.headline) },
+      { header: upcoming ? 'What is scheduled' : 'Headline', key: 'headline', width: 60, get: cell((r) => r.headline) },
       ...(!upcoming ? [
         { header: 'Kind', key: 'developmentKind', width: 22, get: cell((r) => KIND_LABEL[developmentOfRow(r)?.kind] || r.feedLabel || '') },
         { header: 'Development (short line)', key: 'developmentLine', width: 60, get: cell((r) => { const dev = developmentOfRow(r); return dev?.kind ? developmentLine(dev) : ''; }) },
-        { header: 'So what? (AI — not a forecast or advice)', key: 'soWhat', width: 60, get: cell((r) => noteExportText(rowNoteRequest(r))) },
+        { header: 'AI summary', key: 'aiSummary', width: 60, get: cell((r) => noteExportText(rowNoteRequest(r))) },
         { header: 'Also reported (count)', key: 'foldedCount', width: 14, get: cell((r) => developmentOfRow(r)?.others.length || 0) },
         { header: 'Also reported (source · date — headline — link)', key: 'folded', width: 80, get: cell((r) => { const dev = developmentOfRow(r); return dev?.others.length ? foldedList(dev, { limit: 500, withLinks: true }) : ''; }) },
       ] : []),

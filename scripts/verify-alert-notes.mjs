@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// THE "SO WHAT?" LINE — contract, Worker store, route and browser client, with stub model replies.
+// OPTIONAL AI SUMMARY — contract, Worker store, route and browser client, with stub model replies.
 //
 // No request leaves this process: the model is a stub fetcher, the Durable Object's SQLite is
 // node:sqlite, and the browser client's `fetch` is replaced. What is asserted is the contract the
@@ -23,35 +23,47 @@ const ai = await import('../public/js/data/ai-alerts.js');
 // 1. The contract
 // ---------------------------------------------------------------------------------------
 const item = shared.noteItem({
-  id: 'x', kind: 'filing', company: 'Puravankara Ltd', ticker: 'PURVA', sector: 'Realty', day: '2026-09-17',
+  id: 'x', kind: 'filing', documentType: 'orders', company: 'Puravankara Ltd', ticker: 'PURVA', sector: 'Realty', day: '2026-09-17',
   line: 'Secures ₹2,600 Cr redevelopment project in Goregaon', headline: 'Puravankara Limited secures Rs. 2600 Crore redevelopment project in Goregaon',
-  detail: 'BSE · Press Release', related: ['a', 'b', 'c', 'd'],
+  detail: 'The company secured the Goregaon redevelopment project worth Rs 2600 crore. It covers 12 acres and the agreement provides for completion in 48 months. The work includes residential construction, site preparation and associated infrastructure; approvals remain pending.', related: ['a', 'b', 'c', 'd'],
 });
 assert.equal(item.related.length, 3, 'at most three related headlines');
 assert.equal(shared.noteItem({ id: 'x', kind: 'tape', company: 'A', line: 'B' }), null, 'a price or volume reading is not an item');
-assert.equal(shared.noteItem({ id: 'x', kind: 'filing', company: 'A', line: '' }), null, 'an item needs its line');
+assert.equal(shared.noteItem({ id: 'x', kind: 'filing', documentType: 'orders', company: 'A', line: '' }), null, 'an item needs its line');
 assert.equal(shared.noteContent({ ...item, id: 'other' }), shared.noteContent(item), 'the id is not part of what a note is stored under');
 assert.notEqual(shared.noteContent({ ...item, line: 'Something else' }), shared.noteContent(item));
-assert.deepEqual(shared.fiscalYearOf('2026-09-23'), { label: 'FY27', next: 'FY28', endYear: 2027 }, 'April 2026 – March 2027 is FY27');
-assert.equal(shared.fiscalYearOf('2026-03-31').label, 'FY26');
-const ok = (note) => shared.acceptNote(note, item, '2026-09-23');
-assert.equal(ok('Unlikely to move FY27 revenue at once; the ₹2,600 Cr project mainly adds to the development pipeline for later years.').ok, true,
-  'a hedged note naming the given figure and fiscal year is kept');
-assert.equal(ok('This will lift FY27 profit.').reason, 'unhedged', '"will" is refused');
+assert.equal(shared.noteContent({ ...item, sector: 'Changed classification', related: ['A new news report'] }), shared.noteContent(item), 'irrelevant metadata does not repurchase the summary');
+const ok = (note) => shared.acceptNote(note, item);
+assert.equal(ok('The ₹2,600 Cr project covers 12 acres, with completion scheduled in 48 months.').ok, true);
+assert.equal(ok('The project will be completed in 48 months.').ok, true, 'source-stated future actions are factual summaries');
+assert.equal(shared.acceptNote('The board recommended a dividend of Rs 5 per share.', { ...item, detail: 'The board recommended a dividend of Rs 5 per share.' }).ok, true, 'a dividend recommendation is a corporate action, not investment advice');
 assert.equal(ok('Investors should buy the stock on this win.').reason, 'advice');
+for (const advice of ['We recommend a buy.', 'Recommend selling the shares.', 'Recommend to hold.']) assert.equal(ok(advice).reason, 'advice');
 assert.equal(ok('Shares could rally on the news.').reason, 'price-call');
-assert.equal(ok('Could add ₹400 crore of revenue in FY28.').reason, 'unsupported-figure', 'a figure the source does not state is refused');
-assert.equal(ok('Could add to FY29 bookings.').reason, 'unsupported-figure', 'only the two fiscal years given may be named');
+assert.equal(ok('Could add ₹400 crore of revenue in FY28.').reason, 'unsupported-figure');
+assert.equal(ok('The project supports FY27 bookings.').reason, 'unsupported-figure', 'summaries cannot add an unstated fiscal year');
+assert.equal(ok(item.line).reason, 'not-needed', 'a repeated headline adds no summary');
+assert.equal(shared.noteItem({ ...item, kind: 'news' }), null, 'news cannot trigger generation even from an old client');
+assert.equal(shared.noteItem({ ...item, documentType: 'routine' }), null);
+assert.equal(shared.noteItem({ ...item, detail: item.line }), null, 'no call for repeated headline text');
+assert.equal(shared.noteItem({ ...item, detail: 'BSE · Corporate action' }), null, 'a type label is not document content');
+for (const type of shared.SUMMARY_TYPES) assert(shared.noteItem({ ...item, documentType: type }), type);
+assert.equal(shared.summaryTypeOf({ kind: 'filing', headline: 'Press Release', detail: 'Receipt of order worth Rs 2600 crore' }), 'orders');
+assert.equal(shared.summaryTypeOf({ kind: 'filing', subCategory: 'Newspaper Publication', headline: 'Financial results', detail: item.detail }), null);
+assert.equal(shared.summaryTypeOf({ kind: 'filing', headline: 'Board Meeting Intimation', detail: 'Board meeting scheduled next week.' }), null);
 const parsed = shared.parseNotes('```json\n[{"id":"0","note":"May add to the pipeline."},{"id":"9","note":"stray"},{"id":"0","note":"dup"}]\n```', new Set(['0']));
 assert.deepEqual(parsed, { 0: 'May add to the pipeline.' }, 'fences are tolerated; unknown and repeated ids are dropped');
 assert.equal(shared.parseNotes('no json here', new Set(['0'])), null);
 const body = shared.noteRequest([item], 'model-x', '2026-09-23');
 assert.equal(body.thinking.type, 'disabled');
 const sent = JSON.parse(body.messages[0].content);
-assert.match(sent.CONTEXT.fiscalYears.current, /^FY27 \(April 2026 – March 2027\)$/);
+assert.equal(Object.hasOwn(sent, 'CONTEXT'), false, 'no current date or fiscal-year facts are injected');
+assert.equal(sent.ITEMS[0].documentType, 'orders');
+assert.match(shared.NOTE_INSTRUCTIONS, /Do not infer earnings, valuation/);
+assert.match(shared.NOTE_INSTRUCTIONS, /note: null/);
 assert.equal(sent.ITEMS[0].statement, item.line, 'the model is shown the line the card prints');
 assert.equal(Object.hasOwn(sent.ITEMS[0], 'url'), false, 'no link or document is sent — headlines and statements only');
-console.log('PASS the contract: bounded items, content-keyed, fiscal-year context, and every refusal the line runs on.');
+console.log('PASS the contract: bounded items, content-keyed, optional document types, source-only facts, and every refusal the line runs on.');
 
 // ---------------------------------------------------------------------------------------
 // 2. The Worker store
@@ -65,16 +77,20 @@ const KEY_ENV = { CLAUDE_KEY: 'ABSK-test-key-for-stub-only', BEDROCK_REGION: 'ap
 const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ type: 'text', text: JSON.stringify(list) }] }), { status, headers: { 'content-type': 'application/json' } });
 {
   const calls = [];
-  let answer = (items) => reply(items.map((i) => ({ id: i.id, note: 'Unlikely to move FY27 revenue at once; it could add to the development pipeline.' })));
+  let answer = (items) => reply(items.map((i) => ({ id: i.id, note: 'The ₹2,600 Cr project covers 12 acres, with completion scheduled in 48 months.' })));
   const fetcher = async (url, init) => {
     const parsedBody = JSON.parse(init.body);
     calls.push({ url, headers: init.headers, items: JSON.parse(parsedBody.messages[0].content).ITEMS });
     return answer(JSON.parse(parsedBody.messages[0].content).ITEMS);
   };
   const store = new AlertNotesStore(sqlStorage(), KEY_ENV, { fetcher, now: () => Date.parse('2026-09-23T06:00:00Z') });
+  for (const raw of [{ ...item, kind: 'news' }, { ...item, documentType: 'routine' }, { ...item, detail: item.line }]) {
+    assert.equal((await store.read([{ ...raw, id: 'skip' }])).missing.skip, 'not-needed');
+  }
+  assert.equal(calls.length, 0, 'the server also skips news, routine and headline-only requests');
   const first = await store.read([{ ...item, id: 'a' }]);
   assert.equal(first.notes.a.stored, false);
-  assert.match(first.notes.a.note, /development pipeline/);
+  assert.match(first.notes.a.note, /12 acres/);
   assert.equal(calls.length, 1);
   assert.match(calls[0].url, /^https:\/\/bedrock-runtime\.ap-south-1\.amazonaws\.com\//, 'the key goes only to the AWS endpoint');
   assert.equal(calls[0].headers['x-api-key'], KEY_ENV.CLAUDE_KEY);
@@ -120,14 +136,15 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
 {
   let clock = Date.parse('2026-09-28T08:00:00Z'), calls = 0;
   const disk = sqlStorage();
-  let answer = (items) => reply(items.map(i => ({ id: i.id, note: 'May affect governance; the financial effect is not stated.' })));
+  let answer = (items) => reply(items.map(i => ({ id: i.id, note: 'Asha Rao resigned as director for personal reasons, effective 23 September 2026.' })));
   const options = { now: () => clock, fetcher: async (_url, init) => {
     calls++;
     return answer(JSON.parse(JSON.parse(init.body).messages[0].content).ITEMS);
   } };
   let store = new AlertNotesStore(disk, KEY_ENV, options);
   const event = { ...item, company: 'Fractal Analytics Limited', ticker: 'FRACTAL', sector: 'Information Technology',
-    day: '2026-09-23', line: 'Resignation of Director/KMP/SMP.', headline: 'Resignation', detail: 'Resignation of Director/KMP/SMP.', related: [] };
+    documentType: 'management', day: '2026-09-23', line: 'Resignation of Director/KMP/SMP.', headline: 'Resignation',
+    detail: 'Director Asha Rao resigned effective 23 September 2026 for personal reasons. The company stated that there were no other material reasons for her resignation.', related: [] };
   const first = await store.read([{ ...event, id: 'card' }, { ...event, id: 'row' }]);
   assert.equal(calls, 1);
   assert.equal(store.status().used, 1, 'duplicates in one batch consume one allowance item');
@@ -144,6 +161,7 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
   for (const [reason, makeReply] of [
     ['unsupported-figure', items => reply(items.map(i => ({ id: i.id, note: 'Could add 999 crore revenue.' })))],
     ['empty', () => reply([])],
+    ['not-needed', items => reply(items.map(i => ({ id: i.id, note: null })))],
     ['unreadable', () => new Response('not json')],
   ]) {
     answer = makeReply;
@@ -176,7 +194,7 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
   store = new AlertNotesStore(disk, KEY_ENV, options);
   assert.equal((await store.read([{ ...outage, id: 'later' }])).missing.later, 'retry-exhausted');
   assert.equal(calls, before + NOTE_MAX_ATTEMPTS, 'the cap survives day rollover and old history');
-  answer = items => reply(items.map(i => ({ id: i.id, note: 'May affect governance; the financial effect is not stated.' })));
+  answer = items => reply(items.map(i => ({ id: i.id, note: 'Asha Rao resigned as director for personal reasons, effective 23 September 2026.' })));
   assert((await store.read([{ ...outage, line: 'Corrected source statement', id: 'correction' }])).notes.correction);
   assert.equal(calls, before + NOTE_MAX_ATTEMPTS + 1, 'a genuine source correction is eligible');
 
@@ -192,7 +210,7 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
   assert.equal(held.missing.returned, 'timeout');
   assert(held.retryAt.returned > clock);
   assert.equal(calls, callsInFlight, 'an interrupted request cannot be immediately charged again');
-  release(reply([{ id: 'waiting', note: 'May affect governance; the financial effect is not stated.' }]));
+  release(reply([{ id: 'waiting', note: 'Asha Rao resigned as director for personal reasons, effective 23 September 2026.' }]));
   await pending;
   assert.equal((await restarted.read([{ ...interrupted, id: 'saved' }])).notes.saved.stored, true);
   console.log('PASS FRACTAL refresh/reload, batch dedupe, retained history, terminal outcomes, bounded retries, corrections and interrupted requests.');
@@ -237,7 +255,7 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
   const confirmed = { version: ATTRIBUTION_VERSION, status: 'confirmed' };
   const filing = { id: 'ann:1', feed: 'announcements', ticker: 'PURVA', company: 'Puravankara Ltd', day: '2026-09-17', time: '18:05',
     headline: 'Puravankara Limited secures Rs. 2600 Crore redevelopment project in Goregaon', filingSubject: 'Puravankara Limited secures Rs. 2600 Crore redevelopment project in Goregaon',
-    detail: 'BSE · Press Release', url: 'https://www.bseindia.com/g.pdf', importance: 'high', direction: 'neutral', aiEligible: true };
+    filingSubCategory: 'Award of Order / Receipt of Order', filingDescription: item.detail, detail: 'BSE · Press Release', url: 'https://www.bseindia.com/g.pdf', importance: 'high', direction: 'neutral', aiEligible: true };
   const report = { id: 'news:1', feed: 'news', ticker: 'PURVA', company: 'Puravankara Ltd', day: '2026-09-18', time: '08:00',
     headline: 'Puravankara bags ₹2,600-crore redevelopment project in Goregaon', attribution: confirmed, importance: 'high', direction: 'neutral', aiEligible: true, detail: 'Published by Mint' };
   const uncertain = { ...report, id: 'news:2', headline: 'Goregaon redevelopment: Puravankara ₹2,600 crore project explained', attribution: { ...confirmed, status: 'uncertain' } };
@@ -247,6 +265,9 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
   const fromCard = notes.noteRequestFor(cardDev, { fallback: ai.plainHeadline(filing) });
   const fromRow = notes.noteRequestFor(rowDev, { fallback: ai.plainHeadline(filing) });
   assert.equal(fromCard.key, fromRow.key, 'AI Alerts and All Alerts ask the identical question about one development');
+  assert.equal(notes.noteRequestFor(dev.foldDevelopments([report])[0]), null, 'confirmed news needs no summary');
+  assert.equal(notes.noteRequestFor(dev.foldDevelopments([{ ...filing, filingDescription: null }])[0]), null, 'a headline alone is sufficient');
+  assert.equal(notes.noteRequestFor(dev.foldDevelopments([{ ...filing, filingSubCategory: 'Resignation of Director', headline: 'Resignation', filingSubject: 'Resignation of Director/KMP/SMP.', filingDescription: 'Resignation of Director/KMP/SMP.' }])[0]), null, 'the reported FRACTAL-style category-only notice has no summary request');
   assert.equal(notes.noteRequestFor(dev.foldDevelopments([uncertain])[0]), null, 'a possible match is never asked about');
   assert.equal(notes.noteRequestFor(dev.foldDevelopments([{ ...report, id: 't', feed: 'technicals', kind: 'volume' }])[0]), null, 'a volume reading is never asked about');
 
@@ -272,7 +293,7 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
     globalThis.fetch = async (url, init) => {
       const items = JSON.parse(init.body).items;
       seen.push(items);
-      return new Response(JSON.stringify({ ok: true, notes: { 0: { note: 'Unlikely to move FY27 revenue at once; it could add to the development pipeline.', model: 'm', stored: false } },
+      return new Response(JSON.stringify({ ok: true, notes: { 0: { note: 'The ₹2,600 Cr project covers 12 acres, with completion scheduled in 48 months.', model: 'm', stored: false } },
         missing: Object.fromEntries(items.slice(1).map((_, i) => [String(i + 1), 'budget'])) }), { status: 200, headers: { 'content-type': 'application/json' } });
     };
     const other = notes.noteRequestFor(dev.foldDevelopments([{ ...filing, id: 'ann:3', headline: 'Allotment of shares', filingSubject: 'Allotment of shares under ESOP' }])[0], {});
@@ -282,7 +303,7 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
     assert.equal(seen[0].length, 2);
     assert.equal(Object.hasOwn(seen[0][0], 'url'), false, 'the page sends no link');
     assert.equal(notes.noteState(fromCard).state, 'ready');
-    assert.match(notes.noteState(fromCard).note, /development pipeline/);
+    assert.match(notes.noteState(fromCard).note, /12 acres/);
     assert.equal(notes.noteState(other).reason, 'budget', "the day's allowance is said on the card");
     notes.requestNotes([fromCard, other]);
     await new Promise((done) => setTimeout(done, 250));
@@ -311,11 +332,30 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
       notes.resetNotes();
       now = Date.parse('2027-04-02T08:00:00Z');
       globalThis.fetch = async () => Response.json({ ok: true, notes: { 0: {
-        note: 'May add to FY27 bookings.', generatedAt: '2026-09-28T08:00:00Z', stored: true,
+        note: 'The project covers 12 acres with completion scheduled in 48 months.', generatedAt: '2026-09-28T08:00:00Z', stored: true,
       } }, missing: {} });
       notes.requestNotes([fromCard]);
       await new Promise(done => setTimeout(done, 250));
-      assert.equal(notes.noteState(fromCard).state, 'ready', 'a saved reading retains its original fiscal-year context after rollover');
+      assert.equal(notes.noteState(fromCard).state, 'ready', 'a saved factual summary is reused after date rollover');
+      const ui = await import('../public/js/ui/alert-note.js');
+      assert.match(ui.noteRowHtml(fromCard), /AI summary/);
+      assert.equal(ui.noteExportText(fromCard), notes.noteState(fromCard).note);
+      notes.resetNotes();
+      let skippedCalls = 0;
+      globalThis.fetch = async () => {
+        skippedCalls++;
+        return Response.json({ ok: true, notes: {}, missing: { 0: 'not-needed' }, retryAt: { 0: null } });
+      };
+      notes.requestNotes([fromCard]);
+      await new Promise(done => setTimeout(done, 250));
+      assert.equal(notes.noteState(fromCard).state, 'skipped');
+      assert.equal(ui.noteIsSkipped(fromCard), true);
+      assert.equal(ui.noteBodyHtml(fromCard), '');
+      assert.equal(ui.noteRowHtml(fromCard), '');
+      assert.equal(ui.noteExportText(fromCard), '');
+      notes.requestNotes([fromCard]);
+      await new Promise(done => setTimeout(done, 250));
+      assert.equal(skippedCalls, 1, 'a no-summary result is never retried on refresh');
     } finally { Date.now = realNow; }
   } finally {
     globalThis.fetch = realFetch;

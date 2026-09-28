@@ -413,3 +413,18 @@ corrections remain eligible, and all source collection, retention and refresh ca
 All Alerts historical access reuses saved readings beyond 60 days, with their original generation
 context. Local tests cover unchanged refresh, reload, concurrent readers, object interruption,
 day rollover, failed/withheld responses and changed evidence; they do not establish past charges.
+
+
+## Optional factual AI summaries (28 September 2026)
+
+Headline and optional AI summary supersede the earlier investment-implication line. News makes no
+summary request. A conservative shared document-type/detail gate skips routine, unclassified and
+headline-only records without hiding them or altering capture, ranking or retention. Summaries
+condense only available filing text; the linked document is not fetched. Do not invent financial
+implications, current fiscal years, dates, figures or completed status for a proposed action.
+
+An explicit no-summary result is remembered and removes the optional section, without retries.
+Actual failures remain distinguishable. Use the new summary prompt version so old speculative
+readings are never presented as factual summaries; retain their stored records and the existing
+cost ledger. Each eligible source version reuses its saved summary and keeps the existing bounded
+failure retries. Irrelevant sector/related-news changes and refresh times cannot change its key.
