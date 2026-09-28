@@ -22,7 +22,8 @@ function patch(node, next) {
     (node.hasAttribute('data-bookmark-key') && node.getAttribute('aria-busy') === 'true' && ['aria-busy', 'disabled'].includes(name));
   for (const { name } of [...node.attributes]) if (!next.hasAttribute(name) && !keep(name)) node.removeAttribute(name);
   for (const { name, value } of next.attributes) if (node.getAttribute(name) !== value && !keep(name)) node.setAttribute(name, value);
-  children(node, next);
+  // The timeline owns a bounded, virtualized row window. Its controller updates this content.
+  if (!node.hasAttribute('data-ai-timeline-content')) children(node, next);
 }
 
 function children(parent, next) {

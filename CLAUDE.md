@@ -36,6 +36,12 @@ Only overlapping archive months load, and a verified archive-derived head can av
 monthly downloads. Keep capture/retention unchanged, preserve failed-refresh data and reader
 filters, and test both recent delivery and older-history access. See the reliability contract.
 
+AI Alerts' Newest first section is a bounded scrolling timeline. It shows all current card
+records, loads older retained evidence on demand through one shared history read, and keeps a
+reader's row anchored when new events arrive. Preserve the recent ranking window, source/type
+filters, view/account cleanup and no-model-work-on-scroll contract. See the 28 September timeline
+section in `docs/INTELLIGENCE-RELIABILITY.md`; it supersedes the older four-row preview notes.
+
 ---
 
 ## Hard rules

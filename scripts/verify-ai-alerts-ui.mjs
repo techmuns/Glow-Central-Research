@@ -19,13 +19,8 @@ const events = Array.from({ length: 11 }, (_, i) => eventsFor(`A${String(i).padS
 events.filter(e => e.ticker === 'A10').forEach(e => { e.time = '08:00'; });
 events.find((e) => e.ticker === 'A01').time = null;
 events.push({ ...events[30], id: 'hidden-event', importance: 'low', headline: 'Lithium supply agreement hidden beyond the evidence preview' });
-// THE PREVIEW IS FOUR ROWS, so a card needs five events for one to sit beyond it — and the search
-// below exists to prove a match off-screen still finds its card. Slots go one per SOURCE in rounds,
-// so the row left out is the second-weakest of some source rather than the weakest on the card:
-// this filler shares the earnings feed with the low-importance lithium row and outranks it, which
-// puts lithium third in that source's queue and so beyond the four slots. It adds no source breadth
-// and carries no tracked keyword, so it draws no reading of its own.
-events.push({ ...events[30], id: 'preview-filler', headline: 'Zenith Manufacturing: material risk 4' });
+// More than one DOM window proves search still includes evidence beyond the mounted rows.
+for (let i = 0; i < 24; i++) events.push({ ...events[30], id: `preview-filler-${i}`, time: '08:01', headline: `Zenith Manufacturing: material risk ${i + 4}` });
 events.push({ ...events[0], id: 'context-document', aiEligible: false, kind: 'document', importance: 'low', direction: 'neutral', headline: 'Material risk source document', detail: 'Underlying source record' });
 events.push(...eventsFor('OLD', 'Old signal', '2026-08-22'));
 events.push({ ...events[1], id: 'important-event', ticker: 'ZIMP', company: 'Important Company', direction: 'neutral' });
@@ -367,8 +362,8 @@ try {
   assert.doesNotMatch(shape.cardText, /earnings assumption, valuation or thesis/i);
   assert.doesNotMatch(shape.cardText, /Nothing tracked here bears on/i);
   assert(shape.insightBeforeEvidence, 'the finding is read before its evidence');
-  // Four rows, and the header above them claims newest first — so the rows have to be in that order.
-  assert(shape.rowCount > 0 && shape.rowCount <= 4, `rows: ${shape.rowCount}`);
+  // Bounded timeline rows, and the header above them claims newest first — so the rows have to be in that order.
+  assert(shape.rowCount > 0 && shape.rowCount <= 20, `rows: ${shape.rowCount}`);
   assert.deepEqual(shape.rowKeys, [...shape.rowKeys].sort().reverse(), 'the rows are newest first, as the list header says');
   assert.equal(shape.scriptInjected, 0, 'row text is escaped');
   console.log('PASS: the card labels its headline and names the investor question on the row that carries the reading.');
@@ -382,7 +377,7 @@ try {
   });
   await waitFor(page, () => !!window.releaseRead);
   assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A09', 'newest material event reaches the top before a slow feed finishes');
-  assert.match(await renderedText(card('A09').locator('[data-ai-evidence] li').first()), /A09 new material disclosure/, 'the new event is visible in the preview');
+  assert.match(await renderedText(card('A09').locator('[data-ai-timeline-row]').first()), /A09 new material disclosure/, 'the new event is visible in the preview');
   assert.equal(await card('A00').count(), 1, 'new live evidence does not erase the previous card');
   await page.evaluate(() => { window.holdRead = false; window.releaseRead(); });
   await settled();

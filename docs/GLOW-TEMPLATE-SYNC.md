@@ -612,3 +612,13 @@ Worker eligibility gate, factual prompt, omitted unnecessary summaries and all d
 on template sync. Factual summaries have their own `alert-summary:v1` key version; historical
 investment implications remain stored and must not be relabelled as summaries. Source records,
 related coverage, collection, retention, scope and refresh behavior remain unchanged.
+
+
+## AI card scrolling history (28 September 2026)
+
+Glow's Newest first card section now uses `data/alert-timeline.js` and `ui/alert-timeline.js` with
+bounded variable-height rows. Preserve lazy shared history reads, source-specific failure
+retention and view/account revocation, anchored live updates, inline citations and optional
+summaries during template sync. The existing 14-day ranking is unchanged. History is retained
+source evidence, not an exhaustive historical AI-promotion ledger. See the timeline section in
+`INTELLIGENCE-RELIABILITY.md` for the behavior and browser checks.
