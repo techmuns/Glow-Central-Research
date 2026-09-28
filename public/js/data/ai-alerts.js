@@ -999,7 +999,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
   cards = enriched;
 
   cards.sort(
-    (a, b) => (weights.size ? (b.holdingWeightPct ?? -1) - (a.holdingWeightPct ?? -1) : 0) || b.score - a.score || b.highCount - a.highCount || String(b.topEvent?.day || '').localeCompare(String(a.topEvent?.day || '')) || a.company.localeCompare(b.company)
+    (a, b) => (report?.scope === 'portfolio' && weights.size ? (b.holdingWeightPct ?? -1) - (a.holdingWeightPct ?? -1) : 0) || b.score - a.score || b.highCount - a.highCount || String(b.topEvent?.day || '').localeCompare(String(a.topEvent?.day || '')) || a.company.localeCompare(b.company)
   );
   const surfaced = cards.filter((card) => card.score >= MIN_SCORE || card.materialPortfolioEvent);
   const marketWide = (report?.events || []).filter(
@@ -1015,7 +1015,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     allCards: cards,
     meta: {
       positionSizes: positionSizes?.sizes || null,
-      sortedByHolding: weights.size > 0,
+      sortedByHolding: report?.scope === 'portfolio' && weights.size > 0,
       firstDay,
       rawEvents: recent.length,
       topFunnelEvents: (report?.events || []).length,
@@ -1116,6 +1116,15 @@ function finishMerge(previous, next, merged) {
   rankingOptions.set(result, rankingOptions.get(merged));
   rankingEvidence.set(result, rankingEvidence.get(merged));
   return result;
+}
+
+/** Remove unavailable weights without discarding retained public source evidence. */
+export function withoutPositionSnapshot(report, holdings = coverage.holdings()) {
+  if (!report) return report;
+  const events = [...new Set([...(rankingEvidence.get(report) || []), ...report.allCards.flatMap(card =>
+    [...card.events, ...(card.contextEvents || []), ...(card.upcomingEvents || [])])])];
+  return rankReport({ ...report, events, cacheSavedAt: report.meta?.cacheSavedAt },
+    { ...rankingOptions.get(report), holdings, positionSizes: null });
 }
 
 /** Apply a newly checked private snapshot without another feed read or ranking pass. */

@@ -125,7 +125,10 @@ await page.route('**/*', route => route.request().url() === `${familyOrigin}/glo
 const waitFor = async (target, condition) => {
   const deadline = Date.now() + 10000;
   while (!await target.evaluate(condition)) {
-    assert(Date.now() < deadline, `Timed out: ${condition}`);
+    if (Date.now() >= deadline) {
+      const state = await target.evaluate(() => ({ status: document.querySelector('[data-ai-feed-status]')?.textContent, cards: document.querySelectorAll('[data-ai-card]').length }));
+      assert.fail(`Timed out: ${condition}; ${JSON.stringify(state)}`);
+    }
     await new Promise(done => setTimeout(done, 20));
   }
 };
@@ -492,7 +495,27 @@ try {
     assert.equal(await page.locator('[data-ai-feed-status]').innerText(), 'Latest available');
     assert.equal(await card('A00').count(), 1, 'a repeated background failure preserves the evidence');
   }
+  for (const scope of ['universe', 'watchlist']) {
+    await page.evaluate(scope => {
+      window.fixtureEvents = window.fixtureEvents.map(e => e.id === 'context-document' ? { ...e, keywordIds: ['fraud'] } : e);
+      window.failedFeed = 'insider'; window.show(scope);
+    }, scope);
+    await page.evaluate(() => window.refreshAlerts());
+    assert.equal(await page.locator('[data-ai-feed-status]').getAttribute('data-state'), 'partial', 'a size failure cannot hide a failed public feed');
+    assert.match(await page.locator('[data-ai-feed-status]').innerText(), /Partial coverage/);
+    const contextBefore = await card('A00').locator('[data-ai-context]').textContent();
+    assert.match(contextBefore, /Material risk source document/);
+    await peer.evaluate(() => window.invalidate());
+    await page.evaluate(async () => { try { await (await import('/js/research/portfolio-bridge.js')).readPositionSizes(); } catch {} });
+    assert.equal(await card('A00').locator('[data-ai-context]').textContent(), contextBefore, 'background size failures retain public context');
+    assert.equal(await page.locator('[data-ai-feed-status]').getAttribute('data-state'), 'partial');
+    await page.evaluate(() => { window.holdRead = true; window.pendingRefresh = window.refreshAlerts(); });
+    await waitFor(page, () => !!window.releaseRead && document.querySelector('[data-ai-feed-status]')?.dataset.state === 'pending');
+    await page.evaluate(async () => { window.holdRead = false; window.releaseRead(); await window.pendingRefresh; });
+    assert.equal(await page.locator('[data-ai-feed-status]').getAttribute('data-state'), 'partial');
+  }
   await peer.evaluate(() => { window.failed = false; });
+  await page.evaluate(() => { window.failedFeed = null; window.show(); });
   await page.evaluate(() => window.refreshAlerts());
   await settled();
   assert.equal(await page.locator('[data-ai-error]').count(), 0);

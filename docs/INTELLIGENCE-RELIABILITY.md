@@ -152,7 +152,11 @@ newest evidence when complete valuations are unavailable. Period-only source dat
 All three sort choices remain visible in Portfolio, Watchlist and Universe. Largest holdings
 orders matching companies by their verified share of the complete statement book, followed by
 companies outside the book; it never reduces a Watchlist or Universe view to portfolio members.
-Scope and event filters preserve the chosen sort. The sort control displays the ordering actually applied. A saved Largest holdings preference
+Scope and event filters preserve the chosen sort. Holding weights in Watchlist and Universe
+do not change the base evidence-priority order consumed by Ask Research. A failed size read
+preserves context and scheduled source records, and cannot conceal partial public-feed coverage.
+
+The sort control displays the ordering actually applied. A saved Largest holdings preference
 waits for complete valuations with Newest first visibly selected; pending, failed and incomplete
 size reads keep Largest holdings disabled. Its saved preference resumes once verified weights
 arrive. Independent HTML documents, including Glow's portfolio reader, keep separate service-worker

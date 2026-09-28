@@ -119,8 +119,7 @@ function portfolioUnavailable() {
   awaitingBook = null;
   sizeError = 'Family Office is temporarily unavailable.';
   if (report) {
-    report = alerts.rankReport({ scope: report.scope, day: report.day,
-      feeds: report.feeds, events: report.allCards.flatMap(card => card.events) }, { holdings: coverage.holdings() });
+    report = alerts.withoutPositionSnapshot(report);
     paint(ctxRef);
   } else {
     void recollect(ctxRef);
@@ -461,10 +460,13 @@ function watchFreshness() {
 
 function head(ctx) {
   const m = report?.meta || {};
-  // Connector and refresh failures stay available to the refresh controller for diagnostics, but
-  // this customer-facing queue falls back quietly instead of turning infrastructure into an alert.
-  const status = (loadError || sizeError) ? { label: report ? 'Latest available' : 'AI Alerts', tone: 'neutral', state: 'complete' }
-    : report && (collecting || awaitingBook !== null) ? { label: 'Ready · checking quietly', tone: 'neutral', state: 'pending' } : feedStatus(report);
+  // Position availability is independent of public source coverage. A failed optional
+  // size read must never make partial, pending or stale evidence look complete.
+  const health = feedStatus(report);
+  const status = loadError ? { label: 'Partial coverage · retained evidence shown', tone: 'neutral', state: 'partial' }
+    : health.state !== 'complete' || m.staleFeeds > 0 ? health
+    : sizeError ? { label: 'Latest available', tone: 'neutral', state: 'complete' }
+    : report && (collecting || awaitingBook !== null) ? { label: 'Ready · checking quietly', tone: 'neutral', state: 'pending' } : health;
   return sectionHead({
     title: 'AI Alerts',
     description: `Important company signals from the last ${alerts.WINDOW_DAYS} days.`,

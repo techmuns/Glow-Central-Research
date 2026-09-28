@@ -57,7 +57,7 @@ assert.equal(sorting[0].key, 'OLDER', 'sorting is a view and does not mutate sou
 assert.deepEqual(sortAlertCards(sorting.map(c => ({ ...c, holdingWeightPct: null })), 'holdings').map(c => c.key), ['NEWER', 'NEW', 'OLDER', 'UNKNOWN']);
 
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
-const { rankReport, mergePartialReport, withPositionSnapshot, clearRankingCache } = await import('../public/js/data/ai-alerts.js');
+const { rankReport, mergePartialReport, withPositionSnapshot, withoutPositionSnapshot, clearRankingCache } = await import('../public/js/data/ai-alerts.js');
 const { enrichCardFromAllAlerts, indexAlertContext } = await import('../public/js/data/intelligence-graph.js');
 const sizeHoldings = [
   { ticker: 'LARGE', name: 'Large holding', weightPct: 20 },
@@ -95,6 +95,8 @@ for (const scope of ['universe', 'watchlist']) {
   const ranked = rankReport(broader, { holdings: sizeHoldings, positionSizes: sizes });
   assert.deepEqual(sortAlertCards(ranked.cards, 'holdings').map(c => c.ticker), ['LARGE', 'SMALL', 'OUTSIDE']);
   assert.equal(ranked.meta.positionSizes.complete, true);
+  assert.deepEqual(ranked.cards.map(c => c.ticker), rankReport(broader, { holdings: sizeHoldings }).cards.map(c => c.ticker), 'Ask Research retains evidence-priority order in broad scopes');
+  assert.equal(ranked.meta.sortedByHolding, false);
   const projected = withPositionSnapshot(rankReport(broader, { holdings: sizeHoldings }), sizes);
   assert.deepEqual(sortAlertCards(projected.cards, 'holdings').map(c => c.ticker), ['LARGE', 'SMALL', 'OUTSIDE']);
   assert.equal(projected.cards.find(c => c.ticker === 'OUTSIDE').holdingWeightPct, null);
@@ -165,6 +167,23 @@ assert.equal(largeAfter.contextEvents[0].id, context.id, 'the raw top-of-funnel 
 assert.equal(largeAfter.contextEvents.some((event) => event.id === routineSnapshot.id), false, 'an unrelated routine snapshot does not clutter the alert');
 assert.equal(contextual.allCards.some((card) => card.ticker === 'CONTEXT'), false, 'context-only data cannot manufacture an AI alert');
 assert.equal(contextual.meta.topFunnelEvents, report.events.length + 3);
+for (const scope of ['portfolio', 'watchlist', 'universe']) {
+  const scheduled = { ...context, id: 'LARGE-next-meeting', day: '2026-09-05', kind: 'scheduled', headline: 'LARGE upcoming board meeting' };
+  const beforeFailure = rankReport({ ...report, scope, pending: 1,
+    events: [...report.events, context, contextOnly, scheduled],
+    feeds: [...feeds, { id: 'news', status: 'failed' }] }, { holdings: publicIdentities, positionSizes: sizes });
+  assert(beforeFailure.cards.find(c => c.ticker === 'LARGE').upcomingEvents.some(e => e.id === scheduled.id));
+  const afterFailure = withoutPositionSnapshot(beforeFailure, publicIdentities);
+  assert.equal(afterFailure.meta.positionSizes, null);
+  assert.equal(afterFailure.pending, 1);
+  assert.deepEqual(afterFailure.feeds, beforeFailure.feeds);
+  for (const card of beforeFailure.cards) {
+    const retained = afterFailure.cards.find(c => c.ticker === card.ticker);
+    assert.deepEqual(retained.contextEvents, card.contextEvents, 'size failure keeps context-only records');
+    assert.deepEqual(retained.upcomingEvents, card.upcomingEvents, 'size failure keeps scheduled records');
+    assert.equal(retained.holdingWeightPct, null);
+  }
+}
 const indexedReport = { ...report, events: [...report.events, context, contextOnly, routineSnapshot] };
 const contextIndex = indexAlertContext(indexedReport);
 for (const candidate of byAuthenticatedPayload.cards) {
