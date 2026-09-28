@@ -31,7 +31,8 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchAnnouncements, CATEGORIES, HEADERS } from '../worker/bse-ann.mjs';
+import { CATEGORIES, HEADERS } from '../worker/bse-ann.mjs';
+import { collectBseAnnouncements, bseLastCompleteTo, bseCaptureCoverage, bseIndiaDay } from './lib/bse-collection.mjs';
 import { archiveFilings } from './lib/filing-archive.mjs';
 import { fetchBseIdentityMaster, buildAnnouncementIdentities } from './lib/announcement-identities.mjs';
 
@@ -40,7 +41,7 @@ const DATA = (f) => resolve(__dirname, '../public/data', f);
 const OUT = DATA('corp-announcements.json');
 
 const iso = (d) => new Date(d).toISOString().slice(0, 10);
-const daysAgo = (n) => iso(Date.now() - n * 86400000);
+const daysAgo = (n) => bseIndiaDay(Date.now() - n * 86400000);
 
 const DAYS = Number(process.env.ANN_DAYS || 1);
 // How many days the merged file keeps. THIS IS A SIZE LIMIT, NOT AN EDITORIAL ONE, and it is why
@@ -51,12 +52,12 @@ const DAYS = Number(process.env.ANN_DAYS || 1);
 // today's filings, and Saturday and Sunday cost almost nothing because the exchange is shut.
 const KEEP_DAYS = Number(process.env.ANN_KEEP_DAYS || 3);
 const previousCapture = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : null;
-const lastCompleteTo = previousCapture?.lastCompleteTo || (!previousCapture?.shortfall?.length ? previousCapture?.to : null);
+const lastCompleteTo = bseLastCompleteTo(previousCapture);
 // Overlap late filings and recover dates missed while a scheduled job did not run.
 const defaultFrom = daysAgo(Math.max(2, DAYS - 1));
 const recoveryFrom = lastCompleteTo ? iso(Date.parse(lastCompleteTo) - 2 * 86400000) : defaultFrom;
 const FROM = process.env.ANN_FROM || (recoveryFrom < defaultFrom ? recoveryFrom : defaultFrom);
-const TO = process.env.ANN_TO || iso(Date.now());
+const TO = process.env.ANN_TO || daysAgo(0);
 const MERGE = process.env.ANN_MERGE !== '0';
 
 const num = (n) => Number(n).toLocaleString('en-IN');
@@ -125,15 +126,22 @@ async function main() {
   console.log(`  scrip index: ${num(byCode.size)} codes (${num(confirmed)} confirmed from mc-ticker-map, master ${num(masterRows)})`);
 
   const started = Date.now();
-  const { rows, byCategory, unknownCategories, requests, shortfall } = await fetchAnnouncements(
+  const capture = await collectBseAnnouncements(
     { from: FROM, to: TO },
     {
+      allowPartial: true,
+      onRetry: ({ nextAttempt, error }) => console.warn(`\n  ${error.message} Restarting this date window (attempt ${nextAttempt}/3).`),
       onProgress: ({ category, page, got, declared }) => {
         process.stdout.write(`\r  ${category.padEnd(20)} page ${String(page).padStart(3)}  ${String(got).padStart(5)}/${declared ?? '?'}   `);
       },
     },
   );
+  const { rows, byCategory, unknownCategories, requests, shortfall, failedWindows } = capture;
   process.stdout.write('\n');
+
+  for (const failure of failedWindows) {
+    console.error(`  !! Incomplete ${failure.category} (${failure.from} to ${failure.to}): ${failure.message}`);
+  }
 
   for (const c of CATEGORIES) {
     const b = byCategory[c] || {};
@@ -186,7 +194,7 @@ async function main() {
     merged.set(key, r);
   }
   archiveFilings(DATA('announcements-archive'), 'announcements', [...merged.values()]);
-  const cutoff = iso(Date.now() - (KEEP_DAYS - 1) * 86400000);
+  const cutoff = daysAgo(KEEP_DAYS - 1);
   const kept = [...merged.values()].filter((r) => !r.date || r.date >= cutoff);
   const pruned = merged.size - kept.length;
   const all = kept.sort((a, b) => `${b.date || ''}${b.time || ''}`.localeCompare(`${a.date || ''}${a.time || ''}`));
@@ -231,11 +239,10 @@ async function main() {
     scope: 'exchange',
     // Every company is covered on the company axis for the named category requests. This endpoint
     // exposes no independently verified category inventory, so that separate limitation is explicit.
-    coversUniverse: shortfall.length === 0 && Object.keys(unknownCategories).length === 0,
+    ...bseCaptureCoverage(capture, previousCapture),
     categoryCoverage: 'configured',
     categoryInventoryVerified: false,
     categories: CATEGORIES,
-    lastCompleteTo: shortfall.length || Object.keys(unknownCategories).length ? lastCompleteTo : TO,
     exchangeCompanies: masterRows,
     companies: Object.keys(byTicker).length,
     namedCompanies: Object.keys(byTicker).filter((k) => !k.startsWith('BSE:') && k !== 'UNKNOWN').length,
@@ -249,7 +256,6 @@ async function main() {
     byCategory,
     unknownCategories,
     shortfall,
-    failed: [],
     byTicker,
   };
 

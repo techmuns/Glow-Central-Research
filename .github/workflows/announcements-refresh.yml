@@ -31,7 +31,8 @@ concurrency:
 
 jobs:
   scrape:
-    runs-on: ubuntu-latest
+    # Set only after the target passes check-bse-access.mjs; see docs/BSE-COLLECTION.md.
+    runs-on: ${{ vars.BSE_COLLECTION_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       contents: write

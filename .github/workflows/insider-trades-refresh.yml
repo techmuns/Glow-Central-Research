@@ -29,7 +29,9 @@ concurrency:
 
 jobs:
   scrape:
-    runs-on: ubuntu-latest
+    # Company history reads BSE directly too. Keep both BSE callers on the same verified host.
+    # This combined job also needs Chrome for Screener; see docs/BSE-COLLECTION.md.
+    runs-on: ${{ vars.BSE_COLLECTION_RUNNER || 'ubuntu-latest' }}
     # The trade lane can use 45 minutes and company recovery 25. Leave time to publish both.
     timeout-minutes: 90
     permissions:
