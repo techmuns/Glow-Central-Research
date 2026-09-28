@@ -8,7 +8,11 @@ import { escapeHtml } from '../core/dom.js';
 import { noteState, reasonText } from '../data/alert-notes.js';
 
 /** The disclosure every surface carries beside an AI note — in a title, a banner or an export. */
+<<<<<<< HEAD
 export const NOTE_DISCLOSURE = 'Written by an AI model from the source statement shown, and nothing else. It is a possibility, not a forecast, a price call or a recommendation, and it may be wrong — the source is one click away.';
+=======
+export const NOTE_DISCLOSURE = 'Written by AI from the displayed source excerpt. Linked documents have not been read for this note. It is a possibility, not a forecast, a price call or a recommendation, and it may be wrong — the source is one click away.';
+>>>>>>> sattva/main
 
 /** The note's body for a card. `request` is `noteRequestFor(...)`; null draws nothing. */
 export function noteBodyHtml(request) {
@@ -27,7 +31,11 @@ export function noteBodyHtml(request) {
 export function noteRowHtml(request) {
   const state = request ? noteState(request) : null;
   if (state?.state !== 'ready') return '';
+<<<<<<< HEAD
   return `<div data-alert-note="${escapeHtml(request.handle)}" class="mt-0.5 truncate text-xs text-indigo-900" title="${escapeHtml(`So what? (AI) — ${state.note}\n\n${NOTE_DISCLOSURE}`)}"><span class="font-bold text-indigo-700">So what? · AI</span> ${escapeHtml(state.note)}</div>`;
+=======
+  return `<div data-alert-note="${escapeHtml(request.handle)}" class="mt-1 break-words text-xs text-indigo-900" title="${escapeHtml(`So what? (AI) — ${state.note}\n\n${NOTE_DISCLOSURE}`)}"><span class="font-bold text-indigo-700">So what? · AI</span> ${escapeHtml(state.note)}</div>`;
+>>>>>>> sattva/main
 }
 
 /** The note's text for an export cell, or its reason in brackets, or empty when nobody asked. */

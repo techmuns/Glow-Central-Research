@@ -6,6 +6,7 @@
 // Worker keeps every note it writes, so reopening a card, or a second reader, costs no model call.
 //
 // FOUR STATES, AND ONLY ONE OF THEM IS A NOTE. `ready` carries the note; `pending` is a question on
+<<<<<<< HEAD
 // its way; `missing` carries the reason the note is absent (no AI service on this copy, no key, the
 // day's allowance spent, a refusal, a withheld answer — `NOTE_REASON` words each); and no entry at
 // all means nobody has asked. A failed read is never an empty note, and a reason is never a note.
@@ -13,6 +14,20 @@
 // NOTHING HERE IS PERSISTED ON THE DEVICE. A note is a derived reading that the Worker already
 // keeps; holding a second copy in browser storage would be one more place for it to go stale.
 import { noteItem, noteContent, acceptNote, NOTE_REQUEST_ITEMS, NOTE_REASON } from './alert-notes-shared.js';
+=======
+// its way; `missing` carries the reason the note is absent (no AI service on this copy, a note
+// service that failed, no key, the day's allowance spent, a refusal, a withheld answer —
+// `NOTE_REASON` words each); and no entry at all means nobody has asked. A failed read is never an
+// empty note, and a reason is never a note.
+//
+// "NO AI SERVICE" IS ONLY EVER A COPY WITH NO WORKER. It once also covered the Worker's own 503, so
+// a note store that failed on every call read, on the live deployment, as a dashboard with no AI at
+// all — and, being permanent, never asked again. A Worker that answers says which failure it is.
+//
+// NOTHING HERE IS PERSISTED ON THE DEVICE. A note is a derived reading that the Worker already
+// keeps; holding a second copy in browser storage would be one more place for it to go stale.
+import { noteItem, noteContent, acceptNote, fiscalYearOf, NOTE_REQUEST_ITEMS, NOTE_REASON } from './alert-notes-shared.js';
+>>>>>>> sattva/main
 import { storyKindOf, developmentLine } from './alert-developments.js';
 import { sourceStatement } from './alert-claims.js';
 import * as coverage from './coverage.js';
@@ -24,10 +39,22 @@ const ROUTE = 'api/alert-notes';
 const REQUEST_TIMEOUT_MS = 45_000;
 // How long a reason holds before the same question may be asked again this session.
 const RETRY_MS = { 'rate-limited': 60_000, budget: 30 * 60_000, 'no-key': 10 * 60_000, refused: 10 * 60_000,
+<<<<<<< HEAD
   upstream: 2 * 60_000, timeout: 2 * 60_000, error: 2 * 60_000, unreadable: 5 * 60_000, empty: 5 * 60_000 };
 // Reasons that are about the deployment rather than the item: every other question would get the
 // same answer, so none is sent until the hold lapses.
 const DEPLOYMENT_REASONS = new Set(['no-worker', 'no-key', 'refused', 'budget', 'rate-limited']);
+=======
+  quota: 10 * 60_000, unavailable: 2 * 60_000,
+  upstream: 2 * 60_000, timeout: 2 * 60_000, error: 2 * 60_000, unreadable: 5 * 60_000, empty: 5 * 60_000 };
+// Reasons that are about the deployment rather than the item: every other question would get the
+// same answer, so none is sent until the hold lapses.
+const DEPLOYMENT_REASONS = new Set(['no-worker', 'no-service', 'unavailable', 'no-key', 'refused', 'quota', 'budget', 'rate-limited']);
+// Reasons nothing this session can change: a copy served without the Worker, a Worker without the store.
+const PERMANENT_REASONS = new Set(['no-worker', 'no-service']);
+// The Worker's own failure words (worker/alert-notes.mjs), as a card states them.
+const SERVER_REASON = { 'notes-unavailable': 'unavailable', 'notes-unconfigured': 'no-service' };
+>>>>>>> sattva/main
 const KIND_OF_FEED = { earnings: 'result', insider: 'insider', investors: 'investor' };
 
 const states = new Map(); // content key -> { state, note?, model?, reason?, retryAt? }
@@ -43,10 +70,17 @@ let flushTimer = 0;
  * con-call's third-party analysis and a social post have no stated development to assess. */
 export function noteKindOf(dev) {
   const lead = dev?.lead;
+<<<<<<< HEAD
   if (!lead || !(lead.ticker || lead.entityId)) return null;
   const story = storyKindOf(lead);
   if (story === 'filing') return 'filing';
   if (story === 'news') return lead.feed === 'news' && lead.attribution?.status === 'confirmed' ? 'news' : null;
+=======
+  if (!lead || lead.private || lead.portfolioOnly || !(lead.ticker || lead.entityId)) return null;
+  const story = storyKindOf(lead);
+  if (story === 'filing') return 'filing';
+  if (story === 'news') return lead.attribution?.status === 'confirmed' ? 'news' : null;
+>>>>>>> sattva/main
   return KIND_OF_FEED[lead.feed] || null;
 }
 
@@ -77,7 +111,11 @@ export function noteRequestFor(dev, { fallback = null } = {}) {
   const item = noteItem({ id: 'q', kind, company: lead.company, ticker: lead.ticker, sector: noteSector(lead.ticker),
     day: dev.day || lead.day, line, headline: lead.headline, detail });
   if (!item) return null;
+<<<<<<< HEAD
   const key = noteContent(item);
+=======
+  const key = JSON.stringify([noteContent(item),fiscalYearOf(new Date(Date.now()+19800000).toISOString().slice(0,10))]);
+>>>>>>> sattva/main
   return { key, item, handle: handleOf(key) };
 }
 
@@ -161,7 +199,11 @@ async function flush() {
 async function ask(batch) {
   const keys = batch.map(([key]) => key);
   const fail = (reason) => {
+<<<<<<< HEAD
     const retryAt = reason === 'no-worker' ? Infinity : Date.now() + (RETRY_MS[reason] ?? RETRY_MS.error);
+=======
+    const retryAt = PERMANENT_REASONS.has(reason) ? Infinity : Date.now() + (RETRY_MS[reason] ?? RETRY_MS.error);
+>>>>>>> sattva/main
     if (DEPLOYMENT_REASONS.has(reason)) hold = { reason, until: retryAt };
     settle(keys, { state: 'missing', reason, retryAt });
   };
@@ -184,7 +226,11 @@ async function ask(batch) {
   try { body = await response.json(); } catch { body = null; }
   if (!body || typeof body !== 'object') { fail(response.ok ? 'no-worker' : 'error'); return; }
   if (response.status === 429 || body.reason === 'rate-limited') { fail('rate-limited'); return; }
+<<<<<<< HEAD
   if (!response.ok || body.ok !== true) { fail(body.reason === 'notes-unavailable' ? 'no-worker' : 'error'); return; }
+=======
+  if (!response.ok || body.ok !== true) { fail(SERVER_REASON[body.reason] || 'error'); return; }
+>>>>>>> sattva/main
   const changed = [];
   batch.forEach(([key, item], index) => {
     const id = String(index);
