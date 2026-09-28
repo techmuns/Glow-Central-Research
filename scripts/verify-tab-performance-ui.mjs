@@ -70,7 +70,7 @@ try {
     'super-investors/superstar-investors?scope=universe', 'super-investors/institutions?scope=universe',
     'ipos?scope=universe', 'ipos?scope=universe|directory', 'corp-announcements?scope=universe', 'corp-announcements/corporate-actions?scope=universe',
     'nse-filings?scope=universe', 'insider-trades?scope=universe', 'news?scope=universe',
-    'ai-alerts?scope=universe', 'daily-alerts?scope=universe', 'ask-research?scope=universe', 'news?scope=portfolio'];
+    'ai-alerts?scope=universe', 'daily-alerts?scope=universe', 'news?scope=portfolio'];
   for (const route of routes) {
     const [path, section] = route.split('|');
     const profiler = process.env.TAB_PERF_PROFILE ? await context.newCDPSession(page) : null;

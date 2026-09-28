@@ -15,6 +15,7 @@
 // Tailwind is a committed same-origin stylesheet, so layout and visual checks still exercise the
 // shipped UI; unavailable fonts fall back to the system stack and export checks report SKIP.
 
+import { installResearchFixture } from './lib/research-ui-fixture.mjs';
 import { readFileSync } from 'node:fs';
 import { verifyTechnicalFiltersUI } from './verify-technical-filters-context.mjs';
 
@@ -137,6 +138,7 @@ const context = await browser.newContext({
   acceptDownloads: true,
   serviceWorkers: 'block',
 });
+await installResearchFixture(context);
 const page = await context.newPage();
 
 // Research requires a fresh private-portfolio exchange before submitting. Exercise the real
@@ -1165,7 +1167,7 @@ await go('/#/research/breakouts?scope=universe', 2500);
 }
 
 // ---------------------------------------------------------------------------------------
-// 3d. Ask Research is the landing tab; AI Alerts and All Alerts retain their focused checks
+// 3d. AI Alerts is the landing tab; All Alerts retains its focused checks
 // ---------------------------------------------------------------------------------------
 console.log('\n— AI alerts —');
 {
@@ -1245,9 +1247,9 @@ console.log('\n— AI alerts —');
   });
   await page.goto(`${BASE}/?fresh=${Date.now() + 1}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4500);
-  await page.locator('[data-research-workspace]').waitFor({ state: 'visible', timeout: 15000 });
-  ok('the dashboard opens on Ask Research', /ask-research/.test(page.url()), page.url().split('#')[1]);
-  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'Ask Research');
+  await page.locator('#content-host[data-active-tab="ai-alerts"]').waitFor({ state: 'visible', timeout: 15000 });
+  ok('the dashboard opens on AI Alerts', /ai-alerts/.test(page.url()), page.url().split('#')[1]);
+  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'AI Alerts');
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
   // `?scope=`, so a failure printed a string that looked identical to a pass.
   ok('...in the Portfolio scope by default', /scope=portfolio/.test(page.url()), page.url());
@@ -1526,9 +1528,8 @@ console.log('\n— AI alerts —');
 // 3e. Ask Research — dashboard-wide evidence through the streaming Muns LLM provider
 // ---------------------------------------------------------------------------------------
   console.log('\n— ask research —');
-  // Ask Research is stood down by default on this deployment (`isComingSoon` in the tab), so a
-  // section that checks the real workspace asks for it explicitly rather than reading the
-  // stand-down overlay and reporting the switch as a broken tab.
+  // The local-only shell fixture retains shared research-component coverage. This flag enables
+  // its composer inside the fixture; the shipped customer shell has no research registration.
   await go('/#/research/ask-research?scope=portfolio&enable_research=1', 500);
 
   const askText = await hostText();

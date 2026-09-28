@@ -1,6 +1,7 @@
 // Start Research on localhost:8080 and the companion Family Vite app on
 // localhost:5173. All external APIs and both model endpoints are intercepted:
 // this test cannot send portfolio data to production or start a production run.
+import { researchFixtureAsset } from './lib/research-ui-fixture.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
@@ -54,7 +55,7 @@ await context.route('**/*', async (route) => {
   if (url.port === '8080') {
     const path = resolve(publicRoot, '.' + (url.pathname === '/' ? '/index.html' : url.pathname));
     if (!path.startsWith(publicRoot.endsWith(sep) ? publicRoot : publicRoot + sep)) return route.abort();
-    try { return route.fulfill({ body: await readFile(path), contentType: { '.html':'text/html', '.js':'text/javascript', '.json':'application/json', '.css':'text/css' }[extname(path)] || 'application/octet-stream' }); }
+    try { return route.fulfill({ body: researchFixtureAsset(url.pathname, await readFile(path)), contentType: { '.html':'text/html', '.js':'text/javascript', '.json':'application/json', '.css':'text/css' }[extname(path)] || 'application/octet-stream' }); }
     catch { return json(route, {}, 404); }
   }
   // Both loopback apps use the fixture transport. Otherwise Chromium treats a

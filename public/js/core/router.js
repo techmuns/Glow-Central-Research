@@ -5,7 +5,7 @@
 import { getLastRoute } from './state.js';
 import { isScope } from '../data/scope.js';
 
-export const DEFAULT_ROUTE = { workspace: 'research', tab: 'ask-research', subview: null };
+export const DEFAULT_ROUTE = { workspace: 'research', tab: 'ai-alerts', subview: null };
 
 // "#/research/breakouts/strong-breakouts?scope=portfolio&vol=1.5"
 //   -> { workspace, tab, subview, scope, params }

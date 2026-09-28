@@ -27,7 +27,6 @@ import * as notifications from './notifications.js';
 import * as newsletter from './newsletter.js';
 
 import * as aiAlerts from '../tabs/ai-alerts.js';
-import * as askResearch from '../tabs/ask-research.js';
 import * as dailyAlerts from '../tabs/daily-alerts.js';
 import * as earningsHub from '../tabs/earnings-hub.js';
 import * as concall from '../tabs/concall.js';
@@ -65,11 +64,11 @@ import * as familyBook from '../tabs/family-book.js';
 // regression to guard against. The four modules, the FIFO engine and the mock ledger are in git
 // history at d3bba30 if a REAL ledger is ever wired.
 //
-// ASK RESEARCH IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
+// AI ALERTS IS FIRST, AND FIRST IS LOAD-BEARING. `handleRoute` falls back to `ws.tabs[0]` for
 // an unknown or absent tab, so the order of this array IS the default landing page — there is no
 // second place recording it that could disagree.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [askResearch, aiAlerts, dailyAlerts, bookmarks, earningsHub, concall, publicChatter, breakouts, superInvestors, news, ipos, corpAnnouncements, nseFilings, insiderTrades, mutualFunds, macroResearch, economyMacro, familyBook] },
+  { id: 'research', label: 'Research Central', tabs: [aiAlerts, dailyAlerts, bookmarks, earningsHub, concall, publicChatter, breakouts, superInvestors, news, ipos, corpAnnouncements, nseFilings, insiderTrades, mutualFunds, macroResearch, economyMacro, familyBook] },
 ];
 
 // A TAB THAT BECAME A SUB-VIEW KEEPS ITS OLD ADDRESS WORKING. Corporate Actions was its own tab in
@@ -79,6 +78,7 @@ const WORKSPACES = [
 // the view having moved. So the retired id resolves to the view it became, and `replaceRoute` below
 // corrects the URL, exactly as an old `#/portfolio/…` link lands on Research Central.
 const LEGACY_TABS = {
+  'ask-research': { tab: 'ai-alerts', subview: null },
   'corporate-actions': { tab: 'corp-announcements', subview: 'corporate-actions' },
 };
 

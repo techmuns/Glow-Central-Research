@@ -247,12 +247,12 @@ them by taking the template side again:
    failed companies, so its loader legitimately rejects on every collection; gating the normalised
    feed cache on success alone left All Alerts re-sorting the whole retained pool on every scope
    change. See the note above `settledLoads` in `js/data/daily-alerts.js`.
-6. **Ask Research keeps its stand-down, through ONE switch.** It was already off here, by hard-coded
-   `opacity-30 select-none pointer-events-none` on `.research-layout` — invisible, unnamed and
-   unrevivable. The template's flag now owns that decision alone: `isComingSoon()` in
-   `js/tabs/ask-research.js`, with `enable_research=1` or `__ENABLE_RESEARCH__` turning the real tab
-   on, which is how the checks that drive the live composer ask for it. What a reader sees is
-   unchanged. Turning the tab back on for customers is a deployment decision, not a code change.
+6. **Ask Research is removed from customer navigation (28 September 2026).** This supersedes
+   the former stand-down flag. AI Alerts is first/default, and old Ask Research URLs redirect there
+   with scope and query parameters retained. Neither `enable_research=1` nor `__ENABLE_RESEARCH__`
+   may register the tab. Preserve this removal during template sync. The research module and shared
+   APIs remain for compatibility; retained component tests use a local-only shell fixture from
+   `scripts/lib/research-ui-fixture.mjs`.
 7. **The per-tab live-quote button is gone with the template's own change**, replaced by the Refresh
    registry over one collected `/api/breakouts` capture. Glow's filter check asserted that a price
    refresh named exactly the chip selection; there is no per-row request left to narrow, so it

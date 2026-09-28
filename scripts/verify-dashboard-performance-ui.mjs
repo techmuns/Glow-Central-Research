@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Real service worker + browser cache behavior. All data is local; external calls are blocked.
 import assert from 'node:assert/strict';
+import { researchFixtureAsset } from './lib/research-ui-fixture.mjs';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
@@ -46,6 +47,9 @@ const server = createServer((req, res) => {
     if (pathname === '/sw.js') {
       const source = readFileSync(path, 'utf8');
       res.end(previousRelease ? source.replace(/const CACHE_NAME = ([^;\n]+);/, 'const CACHE_NAME = $1 + "-previous-fixture";') : source);
+    } else if (pathname === '/js/ui/shell.js') {
+      const source = readFileSync(path, 'utf8');
+      res.end(previousRelease ? researchFixtureAsset(pathname, source, { first: true }) : source);
     } else if (pathname === '/js/core/watchlist.js') {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__watchlistRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
     } else if (pathname === '/js/core/alert-arrivals.js') {
@@ -141,6 +145,7 @@ try {
   });
   assert(scrollMs != null && scrollMs < 500, 'tab-strip scroll button responds locally');
 
+  // The previous cached release still includes Ask Research; the upgrade below must remove it.
   const tabIds = ['ask-research', 'ai-alerts', 'daily-alerts', 'earnings-hub', 'concall', 'public-chatter',
     'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'nse-filings', 'insider-trades',
     'mutual-funds', 'macro-research', 'economy-macro', 'family-book'];
@@ -188,6 +193,9 @@ try {
   assert.equal(await page.evaluate(() => globalThis.__poolRelease), 'previous', 'returning session has the older pool reader cached');
   await page.evaluate(() => import('/js/data/news-working-set.js'));
   assert.equal(await page.evaluate(() => globalThis.__newsQueryRelease), 'previous', 'returning reader starts with the older news query module');
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=universe&company=TEST'; });
+  await page.locator('#content-host[data-active-tab="ask-research"]').waitFor();
+  assert.equal(await page.locator('[data-tab-id]').first().getAttribute('data-tab-id'), 'ask-research');
   offline = false;
   previousRelease = false;
   await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update(); });
@@ -202,8 +210,31 @@ try {
   const upgradedCaches = await page.evaluate(() => caches.keys());
   assert(!upgradedCaches.some(name => name.includes('previous-fixture')), 'activation removes the superseded app cache');
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'automatic upgrade retains reader preferences');
+  await page.locator('#content-host[data-active-tab="ai-alerts"]').waitFor();
+  assert.equal(await page.locator('[data-tab-id="ask-research"]').count(), 0, 'the existing session loses the retired tab after upgrade');
+  assert.equal(await page.locator('[data-tab-id]').first().getAttribute('data-tab-id'), 'ai-alerts');
+  assert(page.url().includes('/ai-alerts?') && page.url().includes('scope=universe') && page.url().includes('company=TEST'), 'the old open route redirects with scope and parameters intact');
+
+  const currentRequests = requests.length;
+  await page.evaluate(() => {
+    globalThis.__ENABLE_RESEARCH__ = true;
+    location.hash = '#/research/ask-research?scope=watchlist&enable_research=1&test_stream=1';
+  });
+  await page.waitForFunction(() => location.hash.startsWith('#/research/ai-alerts?') && location.hash.includes('scope=watchlist'));
+  assert.equal(await page.locator('[data-research-workspace]').count(), 0, 'old feature flags cannot revive the retired tab');
+  assert.equal(await page.locator('[data-tab-id="ask-research"]').count(), 0);
+
+  await page.evaluate(() => localStorage.setItem('sattva:lastRoute', '#/research/ask-research?scope=universe'));
+  await page.goto(origin);
+  await page.locator('#content-host[data-active-tab="ai-alerts"]').waitFor();
+  assert(page.url().includes('scope=universe'), 'a saved Ask Research route opens AI Alerts with its scope');
+  await page.evaluate(() => localStorage.removeItem('sattva:lastRoute'));
+  await page.goto(origin);
+  await page.locator('#content-host[data-active-tab="ai-alerts"]').waitFor();
+  assert.equal(await page.locator('[data-tab-id]').first().getAttribute('data-tab-id'), 'ai-alerts', 'a fresh landing starts on AI Alerts');
+  assert(!requests.slice(currentRequests).some(path => path === '/api/research'), 'retired routes and fresh landings do not contact the research API');
   assert.deepEqual(errors, []);
-  console.log('PASS: app-shell cache, offline repeat paint, immediate tab/popup actions, private-cache boundary, freshness-aware poll restart and automatic warm-session release upgrade.');
+  console.log('PASS: app-shell cache, offline repeat paint, immediate tab/popup actions, private-cache boundary, freshness-aware poll restart and automatic warm-session release upgrade, retired-tab removal and legacy-route redirects.');
 } finally {
   await browser.close();
   await new Promise((done) => server.close(done));

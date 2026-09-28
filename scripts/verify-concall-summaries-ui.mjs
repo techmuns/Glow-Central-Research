@@ -179,8 +179,8 @@ try {
   }
   await page.setViewportSize({width:1440,height:1000});await page.keyboard.press('Escape');
   // Logging out after navigating away still clears bodies; the next account cannot inherit them.
-  await page.evaluate(()=>location.hash='#/research/ask-research?scope=universe');
-  await page.locator('.research-workspace').waitFor();
+  await page.evaluate(()=>location.hash='#/research/bookmarks?scope=universe');
+  await page.locator('#content-host[data-active-tab="bookmarks"]').waitFor();
   await page.evaluate(()=>{window.fixtureSession(null);window.fixtureSession('local-test-token');});
   denied=true;
   const result=await page.evaluate(async()=>{try {await (await import('/js/data/concall-summaries.js')).read(['123']);return 'leaked';}catch{return 'refused';}});

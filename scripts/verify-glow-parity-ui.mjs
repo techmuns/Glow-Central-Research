@@ -56,9 +56,9 @@ await context.route('**/*', route => {
 const page = await context.newPage();
 page.on('pageerror', error => { errors.push(error.message); console.error(error.message); });
 try {
-  // Ask Research is stood down by default here; this suite drives the live tab, so it says so.
-  await page.goto(`${origin}/#/research/ask-research?scope=portfolio&enable_research=1`);
-  await page.locator('.research-workspace').waitFor();
+  // Start on the current customer landing tab; the portfolio bridge remains shared.
+  await page.goto(`${origin}/#/research/ai-alerts?scope=portfolio`);
+  await page.locator('#content-host[data-active-tab="ai-alerts"]').waitFor();
   const result = await page.evaluate(async () => {
     const bridge = await import('/js/research/portfolio-bridge.js');
     const reply = await bridge.readResearchPortfolio('What are my largest holdings?');
@@ -301,8 +301,8 @@ try {
     assert.equal(await page.locator('#content-host th[data-sort]').last().innerText(), sortedHead, `the sort is remembered ${how}`);
     assert.equal(await fundRows.count(), 1, `the table is narrowed the same way ${how}`);
   };
-  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=universe&enable_research=1'; });
-  await page.locator('.research-workspace').waitFor();
+  await page.evaluate(() => { location.hash = '#/research/ai-alerts?scope=universe'; });
+  await page.locator('#content-host[data-active-tab="ai-alerts"]').waitFor();
   await page.evaluate(() => { location.hash = '#/research/mutual-funds/all-schemes?scope=universe'; });
   await fundInput.waitFor();
   await expectRemembered('after leaving the tab and returning');
@@ -338,8 +338,8 @@ try {
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), `fund search fits ${width}px`);
     if (process.env.GLOW_SCREENSHOT_PREFIX) await page.screenshot({ path: `${process.env.GLOW_SCREENSHOT_PREFIX}-fund-search-${width}.png` });
   }
-  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio&enable_research=1'; });
-  await page.locator('.research-workspace').waitFor();
+  await page.evaluate(() => { location.hash = '#/research/ai-alerts?scope=portfolio'; });
+  await page.locator('#content-host[data-active-tab="ai-alerts"]').waitFor();
   assert.equal(await page.locator('[data-fund-search-menu]').count(), 0, 'leaving the table removes the category portal');
   assert.deepEqual(foreignPortfolio, []);
   await verifyChangesUI(page, { base: origin });

@@ -7,9 +7,7 @@ const BASE = (process.argv[2] || 'http://localhost:8080').replace(/\/$/, '');
 assert(['localhost', '127.0.0.1', '[::1]'].includes(new URL(BASE).hostname), 'Use a local test server');
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
 const { chromium } = await import(`${PW_ROOT}/index.mjs`);
-const browser = await chromium.launch({
-  executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-});
+const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
 const context = await browser.newContext({ viewport: { width: 1100, height: 800 } });
 await context.route('**/*', (route) => {
   const url = new URL(route.request().url());
@@ -52,7 +50,8 @@ try {
   await page.locator(active).waitFor();
   await visibleInStrip(active);
   await noOverflow();
-  pass('News deep link reveals the active tab without either scrollbar');
+  assert.equal(await page.locator('[data-tab-id="ask-research"]').count(), 0);
+  pass('News deep link reveals the active tab without either scrollbar; Ask Research is absent');
 
   // The actual shell must preserve the element, its scroll position, and focus across routes.
   await page.evaluate((selector) => { window.navigationList = document.querySelector(selector); }, strip);
@@ -72,18 +71,18 @@ try {
   pass('Keyboard activation preserves the mounted strip, focus, and horizontal position');
 
   await page.keyboard.press('End');
-  await visibleInStrip(`${strip} [data-tab-id="insider-trades"]`);
-  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'insider-trades');
+  await visibleInStrip(`${strip} [data-tab-id="family-book"]`);
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'family-book');
   await page.keyboard.press('ArrowRight');
-  await visibleInStrip(`${strip} [data-tab-id="ask-research"]`);
-  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'ask-research');
+  await visibleInStrip(`${strip} [data-tab-id="ai-alerts"]`);
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'ai-alerts');
   await page.keyboard.press('ArrowLeft');
-  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'insider-trades');
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'family-book');
   await page.keyboard.press('Home');
-  await visibleInStrip(`${strip} [data-tab-id="ask-research"]`);
+  await visibleInStrip(`${strip} [data-tab-id="ai-alerts"]`);
   await page.keyboard.press('Space');
-  await page.waitForFunction(() => location.hash.includes('/ask-research'));
-  await page.locator(`${strip} [data-tab-id="ask-research"][aria-selected="true"]`).waitFor();
+  await page.waitForFunction(() => location.hash.includes('/ai-alerts'));
+  await page.locator(`${strip} [data-tab-id="ai-alerts"][aria-selected="true"]`).waitFor();
   pass('Home, End, wrapping arrow keys, Enter and Space work with manual activation');
 
   await page.waitForFunction(() => document.querySelector('#tabbar-mount [data-tab-scroll="-1"]').disabled);
@@ -114,7 +113,7 @@ try {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.locator(active).focus();
   await page.keyboard.press('End');
-  await visibleInStrip(`${strip} [data-tab-id="insider-trades"]`);
+  await visibleInStrip(`${strip} [data-tab-id="family-book"]`);
   assert((await page.locator(active).evaluate((button) => parseFloat(getComputedStyle(button).transitionDuration))) <= 0.00001);
   pass('Reduced motion removes the animation while keeping navigation functional');
 
