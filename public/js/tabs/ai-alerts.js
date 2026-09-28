@@ -150,7 +150,7 @@ onPortfolioInvalidation((version) => {
     void recollect(ctxRef);
     return;
   } else {
-    if (ctxRef?.scope !== 'portfolio') { if (ctxRef) paint(ctxRef); return; }
+    if (!ctxRef) return;
     // A positions read already in flight will return the checked book. Otherwise
     // wait for Family to adopt it before asking for a new reading.
     if (!sizesLoading) { loadToken++; collecting = false; awaitingBook = version; sizeError = loadError = ''; }
@@ -159,7 +159,7 @@ onPortfolioInvalidation((version) => {
 });
 
 function portfolioUnavailable() {
-  if (ctxRef?.scope !== 'portfolio' || sizesLoading || (sizeError && awaitingBook === null)) return;
+  if (!ctxRef || sizesLoading || (sizeError && awaitingBook === null)) return;
   // Background checks can fail without positions-ready, including repeated
   // failures while the connection is already unavailable.
   loadToken++;
@@ -167,8 +167,7 @@ function portfolioUnavailable() {
   awaitingBook = null;
   sizeError = 'Family Office is temporarily unavailable.';
   if (report) {
-    report = alerts.rankReport({ scope: report.scope, day: report.day,
-      feeds: report.feeds, events: report.allCards.flatMap(card => card.events) }, { holdings: coverage.holdings() });
+    report = alerts.withoutPositionSnapshot(report);
     paint(ctxRef);
   } else {
     void recollect(ctxRef);
@@ -188,14 +187,14 @@ export function render(ctx) {
     unsubs.push(onCaptureLanded(sourceChanged));
     unsubs.push(alerts.onChange(sourceChanged));
     unsubs.push(onPortfolioConnection((connected) => {
-      if (connected && ctxRef?.scope === 'portfolio' && !sizesLoading) void recollect(ctxRef);
+      if (connected && ctxRef && !sizesLoading) void recollect(ctxRef);
       else if (!connected && portfolioConnectionState() === 'unavailable') portfolioUnavailable();
     }));
     unsubs.push(coverage.onChange(() => {
       if (coverage.meta().syncStatus === 'family-unavailable') portfolioUnavailable();
     }));
     unsubs.push(onPortfolioReady((version) => {
-      if (ctxRef?.scope === 'portfolio' && awaitingBook !== null && version >= awaitingBook && !sizesLoading) {
+      if (ctxRef && awaitingBook !== null && version >= awaitingBook && !sizesLoading) {
         awaitingBook = null;
         void recollect(ctxRef);
       }
@@ -297,7 +296,7 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
   // refresh checks it again. Failure handling removes unverified sizes below.
   let checkedSnapshot = previousSnapshot;
   let positions = Promise.resolve(heldSizes);
-  if (ctx.scope === 'portfolio' && privatePortfolioContext()) {
+  if (privatePortfolioContext() && portfolioConnectionState() !== 'locked') {
     if (!heldSizes) {
       const controller = new AbortController();
       sizeController = controller;
@@ -311,9 +310,11 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
     }
   }
   positions = positions.then(snapshot => {
-    if (current() && snapshot) {
+    if (current()) {
+      // A public-feed exception can settle Promise.all before this read finishes.
+      // Clear failed verification here too, even if no replacement report will arrive.
       checkedSnapshot = snapshot;
-      report = alerts.withPositionSnapshot(report, snapshot);
+      report = snapshot ? alerts.withPositionSnapshot(report, snapshot) : alerts.withoutPositionSnapshot(report);
       paint(ctxRef);
     }
     return snapshot;
@@ -377,8 +378,8 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
   }
 }
 
-function effectiveSort(ctx) {
-  return sortOrder === 'holdings' && (ctx.scope !== 'portfolio' || !report?.meta?.positionSizes?.complete || sizeError)
+function effectiveSort() {
+  return sortOrder === 'holdings' && (!report?.meta?.positionSizes?.complete || sizeError)
     ? 'newest' : sortOrder;
 }
 
@@ -391,7 +392,7 @@ function paint(ctx) {
   const candidates = query.trim() || eventFilters.selected.length ? report?.allCards || [] : report?.cards || [];
   const matches = candidates.map(eventView).filter(card => card && matchesSearch(card, query));
   displayedCards = matches;
-  const cards = sortAlertCards(filteredCards(matches), effectiveSort(ctx));
+  const cards = sortAlertCards(filteredCards(matches), effectiveSort());
   const shown = cards.slice(0, visibleLimit);
   // Keep the input node mounted while typing and while independent feeds deliver partials.
   // Replacing the whole root loses the caret, keyboard focus and IME composition.
@@ -407,7 +408,7 @@ function paint(ctx) {
     ctx.root.querySelector('[data-ai-clear]')?.addEventListener('click', clearSearch);
   }
   reconcileMarkup(ctx.root.querySelector('[data-ai-heading]'), head(ctx));
-  reconcileMarkup(ctx.root.querySelector('[data-ai-position-status]'), positionStatus(ctx) + kpiStatusMarkup());
+  reconcileMarkup(ctx.root.querySelector('[data-ai-position-status]'), positionStatus() + kpiStatusMarkup());
   ctx.root.querySelector('[data-ai-clear]').hidden = !query.length;
   // Identical results keep their DOM, expanded evidence and keyboard focus.
   for (const [selector, markup] of [
@@ -440,14 +441,13 @@ function kpiStatusMarkup() {
   return `<p data-ai-kpi-status role="status" class="mb-4 text-xs text-slate-500" title="${escapeHtml(`${state.error || 'The sector file could not be read.'} Checked ${state.checkedAt || 'just now'}.`)}">KPIs in play unavailable · the sector file could not be read, so no card names its KPIs until it loads.</p>`;
 }
 
-function positionStatus(ctx) {
-  if (ctx.scope !== 'portfolio') return '';
+function positionStatus() {
   const sizes = report?.meta?.positionSizes;
   if ((sizesLoading || awaitingBook !== null) && !sizes) return sortOrder === 'holdings'
     ? `<p class="mb-4 text-xs text-slate-500" role="status">Loading portfolio sizes · Showing newest first until Largest holdings is ready.</p>` : '';
   if (sizes?.complete && !sizeError) return '';
   return portfolioConnectionState() === 'locked' ? `<p class="mb-4 text-xs text-slate-500"><button type="button" data-ai-unlock class="font-semibold text-indigo-700 hover:underline">Unlock portfolio to include holding sizes</button></p>`
-    : sortOrder === 'holdings' || sizes?.complete === false ? `<p class="mb-4 text-xs text-slate-500" role="status">Portfolio sizes unavailable${sizes?.complete === false ? ' · Statement values could not be fully reconciled' : ''} · ${effectiveSort(ctx) === 'priority' ? 'Showing highest priority' : 'Showing newest first'}.</p>` : '';
+    : sortOrder === 'holdings' || sizes?.complete === false ? `<p class="mb-4 text-xs text-slate-500" role="status">Portfolio sizes unavailable${sizes?.complete === false ? ' · Statement values could not be fully reconciled' : ''} · ${effectiveSort() === 'priority' ? 'Showing highest priority' : 'Showing newest first'}.</p>` : '';
 }
 
 function searchMarkup() {
@@ -514,10 +514,15 @@ function watchFreshness() {
 
 function head(ctx) {
   const m = report?.meta || {};
-  // Connector and refresh failures stay available to the refresh controller for diagnostics, but
-  // this customer-facing queue falls back quietly instead of turning infrastructure into an alert.
-  const status = (loadError || sizeError) ? { label: report ? 'Latest available' : 'AI Alerts', tone: 'neutral', state: 'complete' }
-    : report && (collecting || awaitingBook !== null) ? { label: 'Ready · checking quietly', tone: 'neutral', state: 'pending' } : feedStatus(report);
+  // Position availability is independent of public source coverage. A failed optional
+  // size read must never make partial, pending or stale evidence look complete.
+  const health = feedStatus(report);
+  const status = loadError ? report?.allCards.length
+    ? { label: 'Partial coverage · retained evidence shown', tone: 'neutral', state: 'partial' }
+    : { label: 'Alert sources unavailable', tone: 'neutral', state: 'failed' }
+    : health.state !== 'complete' || m.staleFeeds > 0 ? health
+    : sizeError ? { label: 'Latest available', tone: 'neutral', state: 'complete' }
+    : report && (collecting || awaitingBook !== null) ? { label: 'Ready · checking quietly', tone: 'neutral', state: 'pending' } : health;
   return sectionHead({
     title: 'AI Alerts',
     description: `Important company signals from the last ${alerts.WINDOW_DAYS} days.`,
@@ -629,9 +634,9 @@ function controls(cards, visibleCount) {
         ${eventTypesControl()}
         <label class="flex items-center gap-2">Sort
           <select data-ai-sort aria-label="Sort AI Alerts" class="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
-            ${Object.entries(SORTS).filter(([value]) => value !== 'holdings' || ctxRef?.scope === 'portfolio').map(([value, label]) => {
+            ${Object.entries(SORTS).map(([value, label]) => {
               const unavailable = value === 'holdings' && (!report?.meta?.positionSizes?.complete || sizeError);
-              return `<option value="${value}" ${value === effectiveSort(ctxRef) ? 'selected' : ''} ${unavailable ? 'disabled' : ''}>${label}${unavailable ? sizesLoading || awaitingBook !== null ? ' (loading…)' : ' (unavailable)' : ''}</option>`;
+              return `<option value="${value}" ${value === effectiveSort() ? 'selected' : ''} ${unavailable ? 'disabled' : ''}>${label}${unavailable ? sizesLoading || awaitingBook !== null ? ' (loading…)' : ' (unavailable)' : ''}</option>`;
             }).join('')}
           </select>
         </label>

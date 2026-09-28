@@ -33,6 +33,12 @@ const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   served.requests.push(url.pathname);
   if (req.method !== 'GET') { res.writeHead(503); res.end('{}'); return; }
+  // Keep the pool's committed names-only book stable. Authenticated statement handoffs and
+  // holdings weights have their own browser suite; they must not race this public-pool fixture.
+  if (url.pathname === '/glow-bridge.html') {
+    res.setHeader('content-type', 'text/html');
+    res.end(`<script>addEventListener('message', e => { if (e.data.channel === 'sattva-portfolio-v1') parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'}, '*'); });</script>`); return;
+  }
   if (url.pathname === '/api/alert-pool/index') {
     if (!served.pool) { res.writeHead(404, { 'content-type': 'application/json' }); res.end('{"ok":false,"reason":"no-pool"}'); return; }
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' });

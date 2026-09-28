@@ -67,6 +67,11 @@ const server = createServer(async (req, res) => {
       retryAt: skipSummary ? Object.fromEntries(items.map(item => [item.id, null])) : {},
     })); return;
   }
+  // This source-link fixture injects portfolio membership; statement weights are tested separately.
+  if (pathname === '/glow-bridge.html') {
+    res.setHeader('content-type', 'text/html');
+    res.end(`<script>addEventListener('message', e => { if (e.data.channel === 'sattva-portfolio-v1') parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'}, '*'); });</script>`); return;
+  }
   if (pathname === '/js/data/daily-alerts.js') { res.setHeader('content-type','text/javascript'); res.end(feedModule); return; }
   if (pathname === '/js/data/capture-watchdog.js') { res.setHeader('content-type','text/javascript'); res.end('export const onCaptureLanded=()=>()=>{};'); return; }
   if (pathname.startsWith('/api/')) { res.setHeader('content-type','application/json'); res.end('{}'); return; }

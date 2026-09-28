@@ -57,7 +57,7 @@ assert.equal(sorting[0].key, 'OLDER', 'sorting is a view and does not mutate sou
 assert.deepEqual(sortAlertCards(sorting.map(c => ({ ...c, holdingWeightPct: null })), 'holdings').map(c => c.key), ['NEWER', 'NEW', 'OLDER', 'UNKNOWN']);
 
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
-const { rankReport, mergePartialReport, withPositionSnapshot, clearRankingCache } = await import('../public/js/data/ai-alerts.js');
+const { rankReport, mergePartialReport, withPositionSnapshot, withoutPositionSnapshot, clearRankingCache } = await import('../public/js/data/ai-alerts.js');
 const { enrichCardFromAllAlerts, indexAlertContext } = await import('../public/js/data/intelligence-graph.js');
 const sizeHoldings = [
   { ticker: 'LARGE', name: 'Large holding', weightPct: 20 },
@@ -89,7 +89,26 @@ assert.equal(rankReport(report, { holdings: sizeHoldings.map(h => ({ ...h, secto
   'a known statement classification takes precedence over the company feed');
 assert.equal(byPriority.cards[0].ticker, 'SMALL', 'public identities cannot activate size ordering');
 assert(byPriority.cards.every(c => c.holdingWeightPct === null));
-assert.equal(rankReport({ ...report, scope: 'universe' }, { holdings: sizeHoldings, positionSizes: sizes }).cards[0].ticker, 'SMALL');
+for (const scope of ['universe', 'watchlist']) {
+  const broader = { ...report, scope, events: [...report.events, ...report.events.filter(e => e.ticker === 'SMALL')
+    .map(e => ({ ...e, id: `outside-${e.id}`, ticker: 'OUTSIDE', company: 'Outside the book' }))] };
+  const ranked = rankReport(broader, { holdings: sizeHoldings, positionSizes: sizes });
+  assert.deepEqual(sortAlertCards(ranked.cards, 'holdings').map(c => c.ticker), ['LARGE', 'SMALL', 'OUTSIDE']);
+  assert.equal(ranked.meta.positionSizes.complete, true);
+  assert.deepEqual(ranked.cards.map(c => c.ticker), rankReport(broader, { holdings: sizeHoldings }).cards.map(c => c.ticker), 'Ask Research retains evidence-priority order in broad scopes');
+  assert.equal(ranked.meta.sortedByHolding, false);
+  const projected = withPositionSnapshot(rankReport(broader, { holdings: sizeHoldings }), sizes);
+  assert.deepEqual(sortAlertCards(projected.cards, 'holdings').map(c => c.ticker), ['LARGE', 'SMALL', 'OUTSIDE']);
+  assert.equal(projected.cards.find(c => c.ticker === 'OUTSIDE').holdingWeightPct, null);
+  assert.equal(projected.cards.find(c => c.ticker === 'OUTSIDE').holding, false);
+  const exitedInScope = withPositionSnapshot(projected, { ...sizes, holdings: sizes.holdings.filter(h => h.ticker !== 'SMALL') });
+  assert.equal(exitedInScope.cards.length, 3, 'verified exits remain in broader scopes');
+  assert.equal(exitedInScope.cards.find(c => c.ticker === 'SMALL').holding, false);
+  assert.equal(exitedInScope.cards.find(c => c.ticker === 'SMALL').holdingWeightPct, null);
+  const partial = rankReport({ ...broader, events: [], pending: 1 }, { holdings: sizeHoldings });
+  assert(mergePartialReport(projected, partial).cards.some(c => c.ticker === 'OUTSIDE'), 'partial updates retain non-portfolio evidence');
+  assert(withPositionSnapshot(projected, { ...sizes, sizes: { complete: false } }).cards.every(c => c.holdingWeightPct === null));
+}
 assert.equal(rankReport(report, { holdings: sizeHoldings, positionSizes: { sizes: { complete: false } } }).cards[0].ticker, 'SMALL');
 const publicIdentities = sizeHoldings.map(({ weightPct: _weightPct, ...holding }) => holding);
 const byAuthenticatedPayload = rankReport(report, { holdings: publicIdentities, positionSizes: sizes });
@@ -126,6 +145,22 @@ const retractedEligibility = rankReport({ ...report, pending: 1,
 assert.equal(mergePartialReport(byPriority, retractedEligibility).cards.length, 0,
   'a source correction removing AI eligibility cannot resurrect old material evidence during a partial refresh');
 
+for (const scope of ['universe', 'watchlist']) {
+  const unheldReport = { ...report, scope, events: report.events.filter(e => e.ticker === 'SMALL' && e.feed === 'earnings')
+    .map(e => ({ ...e, ticker: 'UNHELD', company: 'Unheld company' })) };
+  const healthy = rankReport(unheldReport, { holdings: publicIdentities, positionSizes: sizes });
+  const failed = rankReport({ ...unheldReport, feeds: feeds.map(feed => ({ ...feed, status: 'failed' })) },
+    { holdings: publicIdentities, positionSizes: sizes });
+  assert.equal(healthy.cards.length, 1);
+  assert.equal(failed.cards.length, 0, 'unhealthy source weights lower this fixture below the threshold');
+  const retained = mergePartialReport(healthy, failed);
+  assert.equal(retained.cards.length, 1);
+  const withoutSizes = withoutPositionSnapshot(retained);
+  assert.equal(withoutSizes.cards.length, 1, 'size failures retain already-visible below-threshold cards');
+  assert.equal(withoutSizes.meta.surfacedCompanies, 1);
+  assert.equal(withoutSizes.cards[0].holdingWeightPct, null);
+}
+
 const context = {
   id: 'LARGE-raw-filing', ticker: 'LARGE', company: 'Large holding', feed: 'announcements',
   day: '2026-09-04', headline: 'LARGE signal source document', detail: 'Underlying source record',
@@ -148,6 +183,26 @@ assert.equal(largeAfter.contextEvents[0].id, context.id, 'the raw top-of-funnel 
 assert.equal(largeAfter.contextEvents.some((event) => event.id === routineSnapshot.id), false, 'an unrelated routine snapshot does not clutter the alert');
 assert.equal(contextual.allCards.some((card) => card.ticker === 'CONTEXT'), false, 'context-only data cannot manufacture an AI alert');
 assert.equal(contextual.meta.topFunnelEvents, report.events.length + 3);
+for (const scope of ['portfolio', 'watchlist', 'universe']) {
+  const scheduled = { ...context, id: 'LARGE-next-meeting', day: '2026-09-05', kind: 'scheduled', headline: 'LARGE upcoming board meeting' };
+  const beforeFailure = rankReport({ ...report, scope, pending: 1,
+    events: [...report.events, context, contextOnly, scheduled],
+    feeds: [...feeds, { id: 'news', status: 'failed' }] }, { holdings: publicIdentities, positionSizes: sizes });
+  assert(beforeFailure.cards.find(c => c.ticker === 'LARGE').upcomingEvents.some(e => e.id === scheduled.id));
+  const afterFailure = withoutPositionSnapshot(beforeFailure);
+  assert.equal(afterFailure.meta.positionSizes, null);
+  assert.equal(afterFailure.pending, 1);
+  assert.deepEqual(afterFailure.feeds, beforeFailure.feeds);
+  for (const card of beforeFailure.cards) {
+    const retained = afterFailure.cards.find(c => c.ticker === card.ticker);
+    assert.deepEqual(retained.contextEvents, card.contextEvents, 'size failure keeps context-only records');
+    assert.deepEqual(retained.upcomingEvents, card.upcomingEvents, 'size failure keeps scheduled records');
+    assert.equal(retained.holdingWeightPct, null);
+    assert.equal(retained.events, card.events, 'clearing weights projects cards without rereading or reranking source events');
+    assert.equal(retained.score, card.score);
+  }
+  assert.equal(withoutPositionSnapshot(afterFailure), afterFailure, 'repeated size failures reuse the cleared view');
+}
 const indexedReport = { ...report, events: [...report.events, context, contextOnly, routineSnapshot] };
 const contextIndex = indexAlertContext(indexedReport);
 for (const candidate of byAuthenticatedPayload.cards) {

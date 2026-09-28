@@ -71,6 +71,7 @@ export async function readCachedAlertWindow({scope,holdings,day=currentDay()}){
   return {...saved.value,day,scope,events:saved.value.events.filter(e=>scope==='universe'||wanted.has(e.ticker)),cacheSavedAt:saved.savedAt};
 }
 export async function collect({scope,onPartial,holdings,load=true}) {
+  if (window.throwCollection || new URLSearchParams(location.search).has('throwFirst')) throw new Error('Fixture initial collection failed');
   if(load) window.reads++;
   if(load && window.holdStart) await new Promise(done=>window.releaseStart=done);
   const wanted=new Set(holdings.map(h=>h.ticker));
@@ -120,7 +121,10 @@ await page.route('**/*', route => route.request().url() === `${familyOrigin}/glo
 const waitFor = async (target, condition) => {
   const deadline = Date.now() + 10000;
   while (!await target.evaluate(condition)) {
-    assert(Date.now() < deadline, `Timed out: ${condition}`);
+    if (Date.now() >= deadline) {
+      const state = await target.evaluate(() => ({ status: document.querySelector('[data-ai-feed-status]')?.textContent, cards: document.querySelectorAll('[data-ai-card]').length }));
+      assert.fail(`Timed out: ${condition}; ${JSON.stringify(state)}`);
+    }
     await new Promise(done => setTimeout(done, 20));
   }
 };
@@ -133,6 +137,18 @@ const renderedText = async locator => {
   return locator.innerText();
 };
 try {
+  const failedContext = await browser.newContext();
+  const failedPage = await failedContext.newPage();
+  failedPage.on('pageerror', error => errors.push(error.message));
+  await failedPage.route('**/*', route => route.request().url() === `${origin}/glow-bridge.html`
+    ? route.fulfill({ contentType:'text/html', body:familyHtml })
+    : route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status:503, body:'{}' }));
+  await failedPage.goto(`${origin}/?throwFirst=1`);
+  await waitFor(failedPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'failed');
+  assert.equal(await failedPage.locator('[data-ai-feed-status]').innerText(), 'Alert sources unavailable');
+  assert.equal(await failedPage.locator('[data-ai-card]').count(), 0);
+  assert(!/retained evidence/i.test(await failedPage.locator('#root').innerText()), 'a failed first load cannot claim retained evidence');
+  await failedContext.close();
   // Empty sources often settle before a useful feed. Neither that early empty
   // report nor a slow context/positions request may hold useful cards offscreen.
   const loadingContext = await browser.newContext();
@@ -486,10 +502,47 @@ try {
     assert.equal(await page.locator('[data-ai-feed-status]').innerText(), 'Latest available');
     assert.equal(await card('A00').count(), 1, 'a repeated background failure preserves the evidence');
   }
+  for (const scope of ['universe', 'watchlist']) {
+    await page.evaluate(scope => {
+      window.fixtureEvents = window.fixtureEvents.map(e => e.id === 'context-document' ? { ...e, keywordIds: ['fraud'] } : e);
+      window.failedFeed = 'insider'; window.show(scope);
+    }, scope);
+    await page.evaluate(() => window.refreshAlerts());
+    assert.equal(await page.locator('[data-ai-feed-status]').getAttribute('data-state'), 'partial', 'a size failure cannot hide a failed public feed');
+    assert.match(await page.locator('[data-ai-feed-status]').innerText(), /Partial coverage/);
+    const contextBefore = await card('A00').locator('[data-ai-context]').textContent();
+    assert.match(contextBefore, /Material risk source document/);
+    await peer.evaluate(() => window.invalidate());
+    await page.evaluate(async () => { try { await (await import('/js/research/portfolio-bridge.js')).readPositionSizes(); } catch {} });
+    assert.equal(await card('A00').locator('[data-ai-context]').textContent(), contextBefore, 'background size failures retain public context');
+    assert.equal(await page.locator('[data-ai-feed-status]').getAttribute('data-state'), 'partial');
+    await page.evaluate(() => { window.holdRead = true; window.pendingRefresh = window.refreshAlerts(); });
+    await waitFor(page, () => !!window.releaseRead && document.querySelector('[data-ai-feed-status]')?.dataset.state === 'pending');
+    await page.evaluate(async () => { window.holdRead = false; window.releaseRead(); await window.pendingRefresh; });
+    assert.equal(await page.locator('[data-ai-feed-status]').getAttribute('data-state'), 'partial');
+  }
   await peer.evaluate(() => { window.failed = false; });
+  await page.evaluate(() => { window.failedFeed = null; window.show(); });
   await page.evaluate(() => window.refreshAlerts());
   await settled();
   assert.equal(await page.locator('[data-ai-error]').count(), 0);
+  for (const scope of ['universe', 'watchlist']) {
+    await page.evaluate(scope => window.show(scope), scope);
+    await settled();
+    assert.equal(await card('A00').locator('[data-ai-holding-size]').count(), 1);
+    await peer.evaluate(() => { window.failed = true; window.holdPositions = true; });
+    await page.evaluate(() => { window.throwCollection = true; void window.refreshAlerts(); });
+    await waitFor(page, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'partial');
+    await waitFor(peer, () => !!window.releasePositions);
+    await peer.evaluate(() => window.releasePositions());
+    await waitFor(page, () => !document.querySelector('[data-ai-holding-size]'));
+    assert.equal(await card('A00').count(), 1, 'simultaneous failures keep retained public evidence');
+    assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').evaluate(option => option.disabled), true);
+    await peer.evaluate(() => { window.failed = false; });
+    await page.evaluate(() => { window.throwCollection = false; return window.refreshAlerts(); });
+    await settled();
+    assert.equal(await card('A00').locator('[data-ai-holding-size]').count(), 1);
+  }
   // Clear the short-lived position cache so the existing late-reply/scope-race
   // check still exercises a genuine read.
   await peer.evaluate(() => { window.holdPositions = true; window.invalidate(); });
@@ -498,10 +551,11 @@ try {
   assert.equal(await search.inputValue(), 'A00');
   await waitFor(peer, () => !!window.releasePositions);
   await page.evaluate(() => window.show('universe'));
-  await settled();
   await peer.evaluate(() => window.releasePositions());
+  await settled();
   assert.match(await page.locator('[data-ai-heading]').innerText(), /Universe/);
-  assert.equal(await page.locator('[data-ai-holding-size]').count(), 0, 'late portfolio replies cannot overwrite another scope');
+  assert.equal(await page.locator('[data-ai-holding-size]').count(), 1, 'the active Universe view receives verified sizes after a scope change');
+  assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').evaluate(option => option.disabled), false);
   await page.evaluate(() => window.show());
   await settled();
   await peer.evaluate(() => {
@@ -519,6 +573,8 @@ try {
   await waitFor(page, async () => (await import('/js/research/portfolio-bridge.js')).portfolioConnectionState() === 'locked');
   await settled();
   assert(/in portfolio/i.test(await renderedText(card('A00'))), 'sign-out recomputes Universe membership from the public book');
+  assert.equal(await page.locator('[data-ai-holding-size]').count(), 0, 'sign-out revokes weights in Universe too');
+  assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').evaluate(option => option.disabled), true, 'Largest holdings stays visible when access is unavailable');
   await page.evaluate(() => window.show());
   await settled();
   await page.evaluate(() => { window.dispose(); document.querySelector('#root').innerHTML = ''; });
@@ -554,6 +610,10 @@ try {
   assert.match(await page.locator('[data-ai-feed-status]').innerText(), /Ready/i);
   assert.equal(await page.evaluate(() => !!window.releaseStart), true, 'live collection is still blocked while cached cards are ready');
   console.log('PASS: reload restores a ready privacy-safe alert view before live collection completes.');
+  // The following public/tickerless cases use a separate coverage fixture.
+  const reloadedPeer = await (await page.locator('iframe').elementHandle()).contentFrame();
+  await reloadedPeer.evaluate(() => window.lock());
+  await waitFor(page, async () => (await import('/js/research/portfolio-bridge.js')).portfolioConnectionState() === 'locked');
   await page.evaluate(() => {
     window.holdStart = false; window.releaseStart(); window.dispose();
     const currentDay = window.currentDay;
@@ -616,7 +676,9 @@ try {
   const capacityContext = await browser.newContext();
   const capacityPage = await capacityContext.newPage();
   capacityPage.on('pageerror', error => errors.push(error.message));
-  await capacityPage.route('**/*', route => route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
+  await capacityPage.route('**/*', route => route.request().url() === `${origin}/glow-bridge.html`
+    ? route.fulfill({ contentType:'text/html', body:`<script>addEventListener('message', e => { if (e.data.channel === 'sattva-portfolio-v1') parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'}, '*'); });</script>` })
+    : route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
   await capacityPage.clock.install({ time: '2026-09-04T08:00:00Z' });
   await capacityPage.goto(`${origin}/?scope=universe`);
   await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');

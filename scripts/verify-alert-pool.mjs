@@ -335,6 +335,30 @@ console.log('PASS every reason the pool stands aside is checked on the read, per
   assert.equal(next?.feeds.size, POOL_FEEDS.length, 'the next selection immediately retains the healthy pool without a cooldown');
 }
 
+// Session changes (including a locked private connector) can replace an AI Alerts read while
+// its public pool is loading. The obsolete collector must not treat that cancellation as an
+// outage and start every capture loader, or overwrite the saved window with unfinished feeds.
+{
+  alertPool.resetForTest();
+  const servedFetch = globalThis.fetch;
+  let current = true;
+  served.requests = [];
+  globalThis.fetch = async (input, init) => {
+    if (String(input).split('?')[0] === 'api/capture-status') current = false;
+    return servedFetch(input, init);
+  };
+  try {
+    assert.equal(await alerts.collect({ scope: 'universe', day, includeHistory: true,
+      queryWindow: week, pool: 'window', refresh: true, isCurrent: () => current }), null,
+    'the superseded collector returns no incomplete replacement report');
+    assert.deepEqual(served.requests.filter(path => /^\/?data\/(technicals|corp-announcements|insider-trades|news)\.json$/.test(path) ||
+      /^\/?data\/(news\.parts|company-news|insider-archive|announcements-archive|market-news|tradingview-news)\//.test(path)), [],
+    'abandoning a pooled read starts no fallback capture downloads');
+  } finally { globalThis.fetch = servedFetch; }
+  assert.equal((await alertPool.read({ mode: 'window', day, queryWindow: week, book: coverage.holdings() }))?.feeds.size,
+    POOL_FEEDS.length, 'the replacement view can still use the pool');
+}
+
 // 5. A SHARD THAT DOES NOT READ IS THE POOL FAILING, NOT A FEED'S ANSWER. The index names a build
 // whose members the route no longer answers for — an artifact expired between the two reads —
 // so every feed takes the live path this time and the period is still exact.
