@@ -1566,7 +1566,7 @@
       "error": "search-unavailable"
     },
     "isin:INE958L01034|String Metaverse": {
-      "lastAttemptAt": "2026-09-24T01:32:49+00:00",
+      "lastAttemptAt": "2026-09-28T17:40:29+00:00",
       "error": "search-unavailable"
     },
     "isin:INE239C01020|Stylam Industries": {
@@ -1874,6 +1874,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 212,
-    "checkedAt": "2026-09-28T17:04:31.852815+00:00"
+    "checkedAt": "2026-09-28T17:40:29.826579+00:00"
   }
 }
