@@ -1366,7 +1366,7 @@
       "pending": []
     },
     "isin:INE500L01026|S H Kelkar & Company": {
-      "lastAttemptAt": "2026-09-23T04:57:58+00:00",
+      "lastAttemptAt": "2026-09-28T03:22:36+00:00",
       "error": "search-unavailable"
     },
     "isin:INE08U801020|Samhi Hotels": {
@@ -1818,6 +1818,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-09-28T02:49:47.855648+00:00"
+    "checkedAt": "2026-09-28T03:22:36.313345+00:00"
   }
 }
