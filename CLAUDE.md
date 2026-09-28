@@ -3601,8 +3601,11 @@ projects/places and periods; conflicting facts keep events separate. A near-in-t
 match a differently worded letter of acceptance without equal headlines. Missing detail stays
 unknown, so incomplete descriptions can remain separate. Every member must be compatible; a
 broad article cannot bridge contradictory reports. The same rules serve All Alerts.
-AI cards expose related coverage through keyboard/touch-accessible source lists, with the filing
-first, each publisher/date/original link retained, and open state/focus preserved on refresh.
+AI cards expose coverage as inline numbered source links (1, 2, 3) beside each headline and
+evidence claim. The filing leads; each distinct destination appears once, with original
+publisher/date/headline on hover and in accessible names. Duplicate capture routes share a number.
+Links open their source directly; there is no expandable exchange-copy box. Refresh preserves
+focus on the same source URL even when a newly arrived report changes the numbering.
 A corrected filing description changes its archive identity even if its generic subject is unchanged.
 `verify-announcement-sources-ui.mjs` checks this path; `verify-alert-developments.mjs` checks matching.
 

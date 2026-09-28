@@ -1345,7 +1345,7 @@ console.log('\n— AI alerts —');
     // and never an anchor of its own to the place the row already opens.
     chips: [...el.querySelectorAll('[data-ai-driver]')].map((n) => ({
       text: n.textContent.replace(/\s+/g, ' ').trim(),
-      onRow: !!n.closest('[data-ai-evidence-link][href]'),
+      onRow: !!n.closest('[data-ai-event]')?.querySelector('[data-ai-evidence-link][href]'),
       says: /^Could change the (?:earnings assumption|valuation|thesis)\./.test(n.getAttribute('title') || ''),
       disclaims: /does not verify|not confirmation/i.test(n.getAttribute('title') || ''),
       toned: /emerald|rose|amber/.test(n.className),

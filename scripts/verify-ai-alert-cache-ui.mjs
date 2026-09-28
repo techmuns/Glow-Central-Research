@@ -144,6 +144,8 @@ try {
   await page.waitForFunction(() => [...document.querySelectorAll('[data-ai-note]')].every(node => node.querySelector('[data-note-state="ready"]')));
   assert(await page.locator('[data-ai-summary]').count() > 0, 'substantive filings have an AI summary after the returning-session upgrade');
   assert(!/So what\?|AI reading/.test(await page.locator('#root').textContent()));
+  assert(await page.locator('[data-ai-insight] [data-ai-source-id]').count() > 0, 'returning sessions receive inline source citations');
+  assert.equal(await page.locator('details[data-ai-development-sources]').count(), 0);
   const beforeRefresh = notePosts, savedBeforeRefresh = savedNotes.size;
   await page.evaluate(async () => (await import('/js/core/refresh.js')).refreshAll());
   await page.waitForTimeout(300);

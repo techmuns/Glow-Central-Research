@@ -22,7 +22,7 @@ const copy = { ...filing, id: 'kalp:nse', feed: 'nse-filings', feedLabel: 'NSE F
   url: 'https://nsearchives.nseindia.com/kalpataru-order.pdf' };
 const holdings = [{ ticker: 'KPIL', name: filing.company }];
 const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"></head>
+<link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"><link rel="stylesheet" href="/css/glow.css"></head>
 <body style="padding:16px"><main id="root"></main><script type="module">
 import * as coverage from '/js/data/coverage.js';
 import * as tab from '/js/tabs/ai-alerts.js';
@@ -96,35 +96,38 @@ try {
   assert.equal(await card.locator('[data-ai-evidence] > li').count(), 1, 'one event row, not an announcement and two reports');
   assert.equal(await card.locator('[data-ai-summary]').count(), 0, 'a sufficient filing headline needs no summary');
   const sources = card.locator('[data-ai-development-sources]').first();
-  const toggle = sources.locator('summary');
-  assert.match(await toggle.textContent(), /1 exchange copy · 1 news report/);
-  assert.equal(await sources.getAttribute('open'), null);
-  await toggle.focus(); await page.keyboard.press('Enter');
-  assert.equal(await sources.getAttribute('open'), '', 'keyboard click expands related coverage');
-  assert.equal(await sources.locator('[data-ai-related-source]').count(), 3);
-  assert((await sources.innerText()).includes('₹25 billion'), 'original Unicode source text is preserved');
-  assert.equal(await sources.locator('[data-ai-related-source]').first().getAttribute('href'), filing.url);
-  assert.match(await sources.locator('[data-ai-related-source]').last().innerText(), /Related news · Mint.*28 Sept 2026/s);
-  for (const link of await sources.locator('a').all()) assert.equal(await link.getAttribute('rel'), 'noopener noreferrer');
+  assert.equal(await card.locator('details[data-ai-development-sources]').count(), 0, 'source boxes are replaced by inline links');
+  assert.deepEqual(await sources.locator('a').allTextContents(), ['1', '2', '3']);
+  assert(await sources.evaluate(node => !!node.closest('[data-ai-insight]')), 'headline citations sit inline with the headline');
+  assert.equal(await card.locator('[data-ai-evidence] [data-ai-development-sources] a').count(), 3, 'event row has the same inline sources');
+  assert.equal(await sources.locator('a').first().getAttribute('href'), filing.url);
+  assert.match(await sources.locator('a').last().getAttribute('title'), /Mint.*28 Sept 2026.*₹25 billion/s);
+  for (const link of await sources.locator('a').all()) {
+    assert.equal(await link.getAttribute('rel'), 'noopener noreferrer');
+    assert.equal(await link.evaluate(node => !!node.parentElement.closest('a')), false, 'source links are never nested inside the headline link');
+  }
+  const newsLink = sources.locator(`a[href="${report.url}"]`);
+  await newsLink.focus();
   const popupPromise = page.waitForEvent('popup');
-  await sources.locator('a').last().click();
+  await page.keyboard.press('Enter');
   const popup = await popupPromise; await popup.waitForLoadState();
-  assert.equal(popup.url(), report.url, 'article opens its own original source'); await popup.close();
-  await toggle.focus();
+  assert.equal(popup.url(), report.url, 'keyboard activation opens the numbered source directly'); await popup.close();
+  await newsLink.focus();
   await page.evaluate(async () => {
     window.originalSourceList=document.querySelector('[data-ai-development-sources]');
+    window.originalSourceLink=document.activeElement;
     const news=window.events.find(e=>e.feed==='news');
     window.events=[...window.events,{...news,id:'kalp:later-news',url:'https://news.example/kalpataru',detail:'Published by Business Standard',time:'12:00'}];
     await window.refreshAlerts();
   });
-  await page.waitForFunction(()=>document.querySelector('[data-ai-development-sources] summary')?.textContent.includes('2 news reports'));
+  await page.waitForFunction(()=>document.querySelector('[data-ai-development-sources]')?.querySelectorAll('a').length===4);
   assert(await page.evaluate(()=>document.querySelector('[data-ai-development-sources]')===window.originalSourceList));
-  assert.equal(await sources.getAttribute('open'), '', 'refresh preserves expansion');
-  assert(await toggle.evaluate(node=>document.activeElement===node), 'refresh preserves keyboard focus');
+  assert(await newsLink.evaluate(node=>document.activeElement===node && node===window.originalSourceLink), 'a new citation preserves focus on the original URL');
+  assert.deepEqual(await sources.locator('a').allTextContents(), ['1', '2', '3', '4']);
+  assert.equal(await newsLink.innerText(), '4', 'number follows displayed order while the focused source stays the same');
   assert.equal(await card.locator('[data-ai-evidence] > li').count(), 1, 'another publisher stays under the existing event');
   await page.evaluate(async () => { window.failed=true; await window.refreshAlerts(); });
   assert.equal(await sources.locator('a').count(),4,'partial source failure retains every captured link');
-  assert.equal(await sources.getAttribute('open'),'');
   await page.evaluate(async () => {
     window.failed=false;
     const filing=window.events.find(e=>e.id==='kalp:announcement');
@@ -135,14 +138,13 @@ try {
   await page.waitForFunction(()=>document.querySelectorAll('[data-ai-evidence] > li').length===2);
   assert.equal(await card.locator('[data-ai-evidence-link][href="https://www.bseindia.com/another-order.pdf"]').count(),1,
     'a separate announcement with the same subject remains visible');
-  await card.locator('[data-ai-evidence] details summary').click();
   await page.mouse.move(0,0);
   for(const width of [1280,390,320]) {
     await page.setViewportSize({width,height:1000});
     for(const theme of ['light','dark']) {
       await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
       assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${theme} at ${width}px fits`);
-      if(process.env.ANNOUNCEMENT_SCREENSHOT && width!==320) await page.screenshot({path:`${process.env.ANNOUNCEMENT_SCREENSHOT}-${width}-${theme}.png`,fullPage:true});
+      if(process.env.ANNOUNCEMENT_SCREENSHOT && width!==320) await page.screenshot({path:`${process.env.ANNOUNCEMENT_SCREENSHOT}-${width}-${theme}.png`,fullPage:true,animations:'disabled'});
     }
   }
   assert.equal(noteRequests.length, 0, 'headlines and related news make no model requests');
@@ -161,7 +163,7 @@ try {
       assert.match(await reader.locator('[data-ai-summary]').innerText(), /AI summary.*36 months/is);
       assert.equal(noteRequests.length, before + 1);
       assert.equal(noteRequests.at(-1).documentType, 'orders');
-      if (process.env.ANNOUNCEMENT_SCREENSHOT) await reader.screenshot({path:`${process.env.ANNOUNCEMENT_SCREENSHOT}-summary.png`,fullPage:true});
+      if (process.env.ANNOUNCEMENT_SCREENSHOT) await reader.screenshot({path:`${process.env.ANNOUNCEMENT_SCREENSHOT}-summary.png`,fullPage:true,animations:'disabled'});
     } else {
       await reader.waitForTimeout(500);
       assert.equal(await reader.locator('[data-ai-summary]').count(), 0, `${scenario} omits the summary section`);
@@ -169,6 +171,9 @@ try {
     }
     const content = await reader.locator('[data-ai-card]').textContent();
     assert.match(content, /Headline/);
+    const singleSource = reader.locator('[data-ai-insight] [data-ai-related-source]');
+    assert.deepEqual(await singleSource.allTextContents(), ['1'], 'one source is a single numbered link');
+    assert.equal(await singleSource.getAttribute('href'), scenario === 'news' ? report.url : filing.url);
     assert(!/So what\?|AI reading/.test(content));
     const after = noteRequests.length;
     await reader.evaluate(() => window.refreshAlerts());
@@ -177,5 +182,5 @@ try {
     await reader.close();
   }
   assert.deepEqual(errors,[]);
-  console.log('PASS primary announcement, source retention, responsive UI and optional factual summaries; news/routine/headline-only cases make no AI request.');
+  console.log('PASS inline numbered source links, primary announcement, source retention, responsive UI and optional factual summaries; news/routine/headline-only cases make no AI request.');
 } finally { await browser.close(); await new Promise(done=>server.close(done)); }
