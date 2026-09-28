@@ -130,6 +130,19 @@ The browser uses the same anonymous content identity to avoid expanding legacy d
 the next normal capture rewrites them; distinct content and attribution remain separate.
 
 AI Alerts defaults to **Newest first**, using the latest noteworthy source event's IST date/time.
+
+AI Alerts' Event types filter reads compact source filing fields, never the AI commentary.
+Schemes, resignations, preferential issues and warrants have explicit choices; a preferential
+warrant issue may match both. Multiple choices combine by OR, then intersect search, scope and
+priority. Explicit type searches, like text searches, include lower-priority company updates
+within the existing 14-day window. Routine notices are hidden by default with a visible toggle;
+unknown updates remain visible. Device-local choices survive refreshes and return visits.
+The card's headline, date, evidence, source count, bookmark and AI note use matching events.
+Company priority and archive identity still describe its complete evidence; filtering never
+deletes, recollects or promotes a record. All Alerts retains the complete company history.
+`verify-ai-alert-types.mjs` and `verify-ai-alert-types-ui.mjs` cover classification, retained
+evidence, filter composition, returning-session upgrades, arrivals and responsive controls.
+
 Routine observations and refresh timestamps cannot make an older material event new. That event
 leads the evidence preview even when older evidence has a higher score. **Largest holdings** and
 **Highest priority** are explicit local sort choices; only the choice persists, never private sizes.
