@@ -2,8 +2,8 @@
 //
 // AI Alerts and All Alerts ask here for the second bullet of the developments on screen, and this
 // batches the question to `POST /api/alert-notes` (worker/alert-notes.mjs): at most
-// `NOTE_REQUEST_ITEMS` per request, one request in flight, nothing asked twice in a session. The
-// Worker keeps every note it writes, so reopening a card, or a second reader, costs no model call.
+// `NOTE_REQUEST_ITEMS` per request, one request in flight, answered content never asked twice in a
+// session. The Worker retains notes and attempt receipts across readers and restarts.
 //
 // FOUR STATES, AND ONLY ONE OF THEM IS A NOTE. `ready` carries the note; `pending` is a question on
 // its way; `missing` carries the reason the note is absent (no AI service on this copy, no key, the
@@ -192,13 +192,21 @@ async function ask(batch) {
     if (found && typeof found.note === 'string') {
       // The Worker checked the note against the item; checking again here costs nothing and means a
       // note this page prints has passed the contract on the page's own side of the wire too.
-      const checked = acceptNote(found.note, item, new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10));
+      // A retained note keeps the fiscal-year context it was written in, even after April rollover.
+      const generatedAt = Date.parse(found.generatedAt);
+      const contextAt = Number.isFinite(generatedAt) ? generatedAt : Date.now();
+      const checked = acceptNote(found.note, item, new Date(contextAt + 5.5 * 3_600_000).toISOString().slice(0, 10));
       states.set(key, checked.ok
         ? { state: 'ready', note: checked.note, model: typeof found.model === 'string' ? found.model : null }
         : { state: 'missing', reason: checked.reason, retryAt: Infinity });
     } else {
       const reason = typeof body.missing?.[id] === 'string' ? body.missing[id] : 'empty';
-      const retryAt = RETRY_MS[reason] ? Date.now() + RETRY_MS[reason] : Infinity;
+      // The server owns paid-attempt retries across browsers. null is terminal for this exact
+      // evidence, not zero; omitted values retain compatibility with older deployments.
+      const savedRetry = body.retryAt?.[id];
+      const retryAt = savedRetry === null ? Infinity
+        : typeof savedRetry === 'number' && Number.isFinite(savedRetry) ? savedRetry
+          : RETRY_MS[reason] ? Date.now() + RETRY_MS[reason] : Infinity;
       if (DEPLOYMENT_REASONS.has(reason)) hold = { reason, until: retryAt };
       states.set(key, { state: 'missing', reason, retryAt });
     }

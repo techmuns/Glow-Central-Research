@@ -3655,6 +3655,13 @@ brief's rules, enforced in code on both sides of the wire (`acceptNote`), not on
    NEW notes at 1,200 per Indian day. The page asks only for what is on screen (the visible cards;
    the material rows mounted in All Alerts), batched eight at a time, and never twice in a session.
    The question is built from the development's LEAD alone, so the card and the row share one note.
+   **28 September cost correction:** successful notes no longer expire after 60 days: All Alerts
+   can reopen older history. Durable attempt receipts also survive reloads, restarts and day
+   rollover. Rejected/empty/unreadable output is not purchased again; transient failures share a
+   backoff and three-attempt ceiling. Reserve budget and receipts before provider I/O, deduplicate
+   identical input within a batch, and honor the server's `retryAt` (`null` means terminal).
+   Saved readings retain their generation date for fiscal-year validation. Preserve existing
+   content keys and notes on deployment; source refresh never resets this cost ledger.
 5. **Which developments get one:** filings, confirmed company news, filed results, insider/deal
    disclosures and fund-holding changes. Never a price or volume reading (the tape says who traded,
    not why), chatter, a con-call's third-party analysis, a social post or a possible match.

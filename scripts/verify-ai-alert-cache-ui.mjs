@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { glowPortfolio, glowPositionReply } from '../public/js/data/glow-book-contract.js';
+import { noteContent, noteItem } from '../public/js/data/alert-notes-shared.js';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = fileURLToPath(new URL('../public', import.meta.url));
 const companies = JSON.parse(readFileSync(resolve(root, 'data/portfolio-companies.json')));
@@ -38,11 +39,24 @@ export async function collect({scope,holdings,onPartial}) {
   const report={scope,day,feeds,events,pending:0}; onPartial?.({...report,pending:1}); return report;
 }`;
 let legacy = true, releaseBook, holdBook = false, bookReads = 0, unavailable = false, incompleteBook = false;
+let notePosts = 0;
+const savedNotes = new Map();
 const server = createServer(async (req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
   res.setHeader('cache-control', 'public, max-age=0, must-revalidate');
   if (pathname === '/' || pathname === '/index.html') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
   if (pathname === '/sdk-fixture') { res.setHeader('content-type', 'text/javascript'); res.end('// Local public SDK'); return; }
+  if (pathname === '/api/alert-notes') {
+    notePosts++;
+    let body = ''; for await (const chunk of req) body += chunk;
+    const notes = {};
+    for (const raw of JSON.parse(body).items) {
+      const item = noteItem(raw), key = noteContent(item), stored = savedNotes.has(key);
+      if (!stored) savedNotes.set(key, 'May affect earnings; the financial effect is not stated.');
+      notes[item.id] = { note: savedNotes.get(key), stored, model: 'offline-fixture' };
+    }
+    res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ ok: true, notes, missing: {} })); return;
+  }
   if (pathname.startsWith('/api/')) { res.writeHead(503); res.end('{}'); return; }
   if (pathname === '/data/book.json') {
     bookReads++;
@@ -125,12 +139,21 @@ try {
   await sort.selectOption('newest');
   assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'INDIANB');
   await sort.selectOption('holdings');
+  await page.waitForFunction(() => [...document.querySelectorAll('[data-ai-note]')].every(node => node.querySelector('[data-note-state="ready"]')));
+  const beforeRefresh = notePosts, savedBeforeRefresh = savedNotes.size;
+  await page.evaluate(async () => (await import('/js/core/refresh.js')).refreshAll());
+  await page.waitForTimeout(300);
+  assert.equal(notePosts, beforeRefresh, 'unchanged source refresh does not request the AI reading again');
+  assert.equal(savedNotes.size, savedBeforeRefresh);
   const beforeReload = bookReads;
   await page.reload();
   await page.waitForFunction(() => document.querySelector('[data-ai-sort]')?.value === 'holdings');
   assert.equal(await page.title(), 'Alert filter fixture', 'the reader cannot overwrite the main dashboard cache');
   assert(bookReads > beforeReload, 'a returning session rechecks the statement book');
   assert.equal(page.frames().length, 2, 'only one portfolio reader exists after reload');
+  await page.waitForFunction(() => [...document.querySelectorAll('[data-ai-note]')].every(node => node.querySelector('[data-note-state="ready"]')));
+  assert(notePosts > beforeRefresh, 'reload checks the server for saved readings');
+  assert.equal(savedNotes.size, savedBeforeRefresh, 'reload uses identical evidence keys and reuses saved readings');
   unavailable = true;
   await page.evaluate(async () => (await import('/js/core/refresh.js')).refreshAll());
   assert.equal(await sort.inputValue(), 'newest', 'failed statement refresh cannot claim a holdings ordering');
