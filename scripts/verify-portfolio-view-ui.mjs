@@ -1,6 +1,7 @@
 // Full Research shell with a synthetic authenticated Family peer. All network
 // traffic is intercepted locally; no customer book or production action.
 import assert from 'node:assert/strict';
+import { researchFixtureAsset } from './lib/research-ui-fixture.mjs';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
@@ -13,7 +14,7 @@ const server = createServer((req, res) => {
   if (!file.startsWith(root + sep)) { res.writeHead(404); res.end(); return; }
   try {
     res.setHeader('content-type', { '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png' }[extname(file)] || 'application/octet-stream');
-    res.end(readFileSync(file));
+    res.end(researchFixtureAsset(path, readFileSync(file)));
   } catch { res.writeHead(404); res.end(); }
 });
 await new Promise(done => server.listen(0, '127.0.0.1', done));
@@ -196,9 +197,9 @@ try {
   await page.getByRole('button', { name:'Done',exact:true }).click();
   await page.getByText('NEWCO announces dividend', { exact:true }).waitFor();
   assert.equal(await page.getByText('EDELWEISS announces dividend', { exact:true }).count(), 0);
-  // Every tab shares the same identity set, including direct links and empty feeds.
-  for (const tab of ['daily-alerts','earnings-hub','concall','public-chatter','breakouts','super-investors','ipos','corp-announcements','nse-filings','insider-trades','ai-alerts']) {
-    await page.evaluate(tab => { location.hash = `#/research/${tab}?scope=portfolio`; }, tab);
+  // Customer tabs and the retained local-only research fixture share the same identity set.
+  for (const tab of ['daily-alerts','earnings-hub','concall','public-chatter','breakouts','super-investors','ipos','corp-announcements','nse-filings','insider-trades','ai-alerts','ask-research']) {
+    await page.evaluate(tab => { location.hash = `#/research/${tab}?scope=portfolio${tab === 'ask-research' ? '&test_stream=1' : ''}`; }, tab);
     await page.waitForFunction(async tab => (await import('/js/core/state.js')).state.tab === tab, tab);
     await page.getByRole('button', { name:'View Portfolio',exact:true }).click();
     assert.equal(await page.locator('[data-scope-count]').innerText(), '3', tab);
