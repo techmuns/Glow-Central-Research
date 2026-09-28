@@ -20,6 +20,7 @@
       // object (team-brief:v1) whose alarm is what sends the morning and evening emails. Same
       // provisioned class, its own storage; see worker/newsletter-schedule.mjs.
       { "name": "NEWSLETTER", "class_name": "CaptureRegistry" },
+<<<<<<< HEAD
       // The alerts' AI "So what?" notes: one fixed object (alert-notes:v1) keeps every note written,
       // keyed by the text it was written from, and the day's allowance of new ones. Same provisioned
       // class, its own storage; see worker/alert-notes-store.mjs.
@@ -28,6 +29,9 @@
       // reached, and the minute price check that finds them, on one fixed object (price-levels:v1).
       // Same provisioned class, its own storage and its own alarm; see worker/price-levels-schedule.mjs.
       { "name": "PRICE_LEVELS", "class_name": "CaptureRegistry" }
+=======
+      { "name": "ALERT_NOTES", "class_name": "CaptureRegistry" }
+>>>>>>> sattva/main
     ]
   },
   "migrations": [{ "tag": "capture-registry-v1", "new_sqlite_classes": ["CaptureRegistry"] }],
@@ -66,6 +70,7 @@
 
     // Where the brief's links and its unsubscribe route point. The email is built on the edge with
     // no request in hand, so the origin cannot be read off one; this is the public dashboard.
+<<<<<<< HEAD
     "DASHBOARD_ORIGIN": "https://glow-central-research.tech-441.workers.dev",
     // The dashboard name on the brief's tagline and caption; the masthead and subject are Glow Ventures.
     "NEWSLETTER_PRODUCT_NAME": "Research Central",
@@ -74,6 +79,20 @@
     // Only the PRODUCTION Glow Ventures dashboard: a branch preview there must never be able to write
     // test levels into the family's real list. Not a secret — an origin is public by nature.
     "PRICE_LEVEL_ORIGINS": "https://glowventures-1xw.pages.dev"
+=======
+    "DASHBOARD_ORIGIN": "https://sattva-central-research.tech-441.workers.dev",
+    // The dashboard name on the brief's tagline and caption; the masthead and subject are the
+    // family office's own, "Sattva Ventures". Read by NewsletterSchedule.renderOptions().
+    "NEWSLETTER_PRODUCT_NAME": "Research Central",
+    // News fails closed if its existing OpenAI secret becomes unavailable.
+    "NEWSLETTER_NEWS_AI_PROVIDER": "openai",
+    // The "So what? · AI excerpt reading" line on AI Alerts and All Alerts is one hedged sentence
+    // per development, so it is written by OpenAI's lowest-cost model, gpt-6-luna, on the same
+    // OPENAI_API_KEY secret. Pinned so that if the secret goes missing the cards say "no key"
+    // rather than the notes quietly moving to the costlier Bedrock model. See
+    // noteProvider() in worker/alert-notes-store.mjs.
+    "ALERT_NOTES_AI_PROVIDER": "openai"
+>>>>>>> sattva/main
   },
 
   // The dashboard has no account system to key this on today, so the route uses the authenticated
@@ -101,9 +120,13 @@
       "simple": { "limit": 60, "period": 60 }
     },
     {
-      // The brief's edits and sends. A send costs somebody else's email service one message per
-      // subscriber, so this is deliberately tighter than the watchlist's ceiling; the object adds a
-      // five-minute cooldown on "send to everyone" behind it.
+      // Visible alert excerpts; the shared object also enforces its durable daily allowance.
+      "name": "ALERT_NOTES_LIMITER",
+      "namespace_id": "1705",
+      "simple": { "limit": 30, "period": 60 }
+    },
+    {
+      // Brief edits/sends; the object also enforces manual-send cooldowns and daily attempts.
       "name": "NEWSLETTER_LIMITER",
       "namespace_id": "1804",
       "simple": { "limit": 12, "period": 60 }
