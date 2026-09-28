@@ -25,6 +25,7 @@ export async function collect({scope,onPartial}) {
  const event=(ticker,headline,i=0)=>({id:ticker+headline,ticker,company:ticker+' Limited',headline,filingSubject:headline,
   feed:'announcements',feedLabel:'NSE',day:currentDay(),time:'10:00',importance:'high',direction:'negative',url:'https://example.test/'+ticker+i+'.pdf'});
  const events=[event('MIXED','Loss of share certificates'),event('MIXED','Resignation of Director',1),
+  {...event('MIXED','Newspaper advertisement for buyback',2),filingSubCategory:'Buyback'},
   event('ROUTINE','Loss of share certificates'),event('WARRANT','Preferential issue of warrants'),
   event('SCHEME','Scheme of arrangement'),event('UNKNOWN','General Updates'),
   ...Array.from({length:10},(_,i)=>event('R'+i,'Resignation of auditor'))];
@@ -71,6 +72,7 @@ try {
   assert.equal(await card('ROUTINE').count(), 0);
   assert.match(await card('MIXED').locator('[data-ai-insight]').textContent(), /Resignation/);
   assert(!/Loss of share/.test(await card('MIXED').textContent()));
+  assert(!/Newspaper/.test(await card('MIXED').textContent()), 'a coarse Buyback label cannot reveal a hidden newspaper copy');
   await card('MIXED').locator('[data-ai-notebook-card] button').click();
   await page.waitForFunction(async () => (await import('/js/core/bookmarks.js')).all().length === 1);
   await pick('resignation');

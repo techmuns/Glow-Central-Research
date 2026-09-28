@@ -19,6 +19,8 @@ for (const [headline, expected] of [
 ]) assert.deepEqual(aiEventTypes(filing(headline)), expected);
 assert.deepEqual(aiEventTypes(filing('Board meeting outcome', { filingDescription: 'Approved a preferential issue of warrants' })), ['preferential', 'warrants', 'board-meeting']);
 assert.deepEqual(aiEventTypes(filing('Newspaper publication of scheme of arrangement')), ['routine']);
+assert.deepEqual(aiEventTypes(filing('Newspaper advertisement pertaining to dispatch of Letter of Offer for Buyback', { filingSubCategory: 'Buyback' })), ['routine']);
+assert.deepEqual(aiEventTypes(filing('General Updates', { filingSubCategory: 'Financial Results', filingDescription: 'Newspaper publication of financial results' })), ['routine']);
 assert.deepEqual(aiEventTypes(filing('General Updates', { filingDescription: 'Resignation of auditor' })), ['resignation', 'management']);
 assert.deepEqual(aiEventTypes(filing('General Updates', { reason: 'AI suggests a resignation or warrants issue' })), ['other']);
 assert.deepEqual(aiEventTypes({ feed: 'news', headline: 'Warrants issued' }), ['news']);

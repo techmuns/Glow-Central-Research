@@ -29,7 +29,10 @@ export function aiEventTypes(event) {
   if (['announcements', 'nse-filings'].includes(event.feed)) {
     const row = { title: event.filingSubject || event.headline, subCategory: event.filingSubCategory,
       description: event.filingDescription };
-    const base = announcementTypeOf(row).id;
+    // An exchange may label a newspaper copy merely "Buyback" or "Results". Read an
+    // explicit administrative wrapper in the subject before accepting that broader label.
+    const subjectType = announcementTypeOf({ title: row.title, description: row.description });
+    const base = subjectType.routine ? 'routine' : announcementTypeOf(row).id;
     // A newspaper copy about results remains routine. Specific material types can refine broad
     // exchange labels (e.g. a board outcome approving a preferential issue of warrants).
     const text = [row.title, row.subCategory, row.description].filter(Boolean).join(' ');
