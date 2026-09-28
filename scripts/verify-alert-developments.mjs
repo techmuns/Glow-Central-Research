@@ -293,6 +293,14 @@ const events = [...reports, bse, nse, unrelatedSameCompany, clarification, other
     assert.equal(dev.foldDevelopments([{ ...report, id: 'period:a', headline: left },
       { ...report, id: 'period:b', headline: right }]).length, 2, `${left} differs from ${right}`);
   }
+  const otherCustomer = { ...filing, id: 'kalp:equal-order', time: '18:20',
+    filingDescription: filing.filingDescription.replace('Metro Rail', 'Eastern Rail') };
+  const unspecific = { ...report, id: 'kalp:ambiguous', headline: 'Kalpataru bags a Rs 2,500 crore contract' };
+  assert.equal(dev.foldDevelopments([filing, otherCustomer, unspecific]).length, 3,
+    'a vague article cannot choose between two equally priced orders');
+  const categoryOnly = { ...filing, id: 'kalp:category', filingDescription: null, headline: 'Receipt of order', filingSubject: 'Receipt of order' };
+  assert.equal(dev.foldDevelopments([categoryOnly, { ...categoryOnly, id: 'kalp:category-2', url: 'https://www.bseindia.com/another.pdf' }]).length, 2,
+    'generic order categories cannot establish identical documents');
   const later = { ...report, id: 'kalp:later', day: '2026-09-27' };
   assert.equal(dev.foldDevelopments([filing, later]).length, 2, 'old awards do not absorb a later order');
   const earlierNews = { ...report, time: '17:00' };

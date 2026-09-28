@@ -291,6 +291,8 @@ const ROLE_WORDS = new Set(['director', 'kmp', 'smp', 'auditor', 'rta', 'secreta
   'executive', 'independent', 'additional', 'managing', 'whole', 'time', 'designated', 'person', 'key', 'managerial', 'personnel',
   'senior', 'management', 'statutory', 'internal', 'secretarial', 'cost', 'registrar', 'transfer', 'agent']);
 
+// Category labels do not identify which order was awarded, even when both feeds repeat them.
+const ORDER_CATEGORY = /^(?:(?:award|receipt) of (?:an? )?orders?|orders?(?: win)?|contracts?)(?:\s*[/|]\s*(?:award|receipt) of orders?)?[. ]*$/i;
 const readings = new WeakMap();
 const NO_VENUES = Object.freeze([]);
 
@@ -354,7 +356,7 @@ class Reading {
       this._claimKeys = this.kind === 'filing'
         ? [...new Set([event.filingHeadline ? filingClaim({ ...event, filingSubject: event.filingHeadline, filingDescription: null }) : null,
           filingClaim(event), sourceStatement(event.filingDescription), event.headline]
-          .filter((line) => line && !isTypeOnly(line)).map(compactKey).filter((key) => key.length >= 8))]
+          .filter((line) => line && !isTypeOnly(line) && !ORDER_CATEGORY.test(line)).map(compactKey).filter((key) => key.length >= 8))]
         : [];
     }
     return this._claimKeys;
@@ -634,8 +636,13 @@ function clusterCompany(group, extraNames, out) {
     // could not win anyway.
     let home = null;
     for (const dev of scratch) {
-      if (home && byPreference(dev, home) >= 0) continue;
-      if (joins(item, dev, own)) home = dev;
+      const competingFilings = !filing && home?.hasFiling && dev.hasFiling;
+      if (home && byPreference(dev, home) >= 0 && !competingFilings) continue;
+      if (!joins(item, dev, own)) continue;
+      // An underspecified story compatible with two distinct filings cannot choose its order
+      // by recency alone. Keep its source as a separate event until more facts identify it.
+      if (competingFilings) { home = null; break; }
+      home = dev;
     }
     let dev = home;
     if (home) {
