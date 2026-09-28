@@ -758,6 +758,26 @@ function directionSummary(events) {
   return count;
 }
 
+/** A display-only slice: company priority and archive identity keep their complete evidence,
+ * while every statement, date, source count and AI note reads only the matching events. */
+export function cardWithEvents(card, events) {
+  if (!events.length) return null;
+  if (events.length === card.events.length) return card;
+  const directions = directionSummary(events.filter(newsCanSupportAI));
+  const feeds = [...new Set(events.map(feedFamily))];
+  const view = { ...card, events, topEvent: events[0], directions,
+    mixed: directions.positive > 0 && directions.negative > 0,
+    developments: foldDevelopments(events, { companyNames: [card.company, card.ticker].filter(Boolean) }),
+    feeds, feedCount: feeds.length, feedLabels: [...new Set(events.map(event => event.feedLabel || event.feed))],
+    // Broad cross-feed context belongs to the complete company reading, not a filtered claim.
+    confluence: [], contextEvents: [], upcomingEvents: [], contextSummary: '',
+    filteredEvents: true };
+  view.insight = plainInsight(view);
+  view.kpis = kpiImpact.kpiImpactOf(view, kpiImpact.snapshot());
+  view.badge = cardBadge(view);
+  return view;
+}
+
 // Both the first checked snapshot and the completed rank use the same identity
 // aliases, including tickerless securities and grouped warrant ISINs.
 let lastPositionIndex = null;

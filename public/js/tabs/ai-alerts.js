@@ -16,6 +16,7 @@ import { getHostContext } from '../core/host-context.js';
 import { formatNumber } from '../core/format.js';
 import * as refresh from '../core/refresh.js';
 import * as alerts from '../data/ai-alerts.js';
+import { AI_EVENT_TYPES, aiEventTypes, matchesAIEvent, loadAIEventFilters, saveAIEventFilters } from '../data/ai-alert-types.js';
 import { KPI_CHIP_LIMIT, kpiLine, status as kpiStatus } from '../data/kpi-impact.js';
 import { chatterTopic } from '../data/chatter-sentiment.js';
 import { driversFromEvent, QUESTIONS } from '../data/alert-drivers.js';
@@ -55,6 +56,9 @@ let loadToken = 0;
 let cacheToken = 0;
 let unsubs = [];
 let filter = 'all';
+let eventFilters = loadAIEventFilters();
+let eventViews = new WeakMap();
+let displayedCards = [];
 let visibleLimit = PAGE_SIZE;
 let query = '';
 let sizeController = null;
@@ -333,7 +337,9 @@ function paint(ctx) {
     const rect = node.getBoundingClientRect(); return rect.bottom > 0 && rect.top < innerHeight;
   });
   const anchorTop = anchor?.getBoundingClientRect().top;
-  const matches = (query.trim() ? report?.allCards || [] : report?.cards || []).filter((card) => matchesSearch(card, query));
+  const candidates = query.trim() || eventFilters.selected.length ? report?.allCards || [] : report?.cards || [];
+  const matches = candidates.map(eventView).filter(card => card && matchesSearch(card, query));
+  displayedCards = matches;
   const cards = sortAlertCards(filteredCards(matches), effectiveSort(ctx));
   const shown = cards.slice(0, visibleLimit);
   // Keep the input node mounted while typing and while independent feeds deliver partials.
@@ -354,7 +360,7 @@ function paint(ctx) {
   ctx.root.querySelector('[data-ai-clear]').hidden = !query.length;
   // Identical results keep their DOM, expanded evidence and keyboard focus.
   for (const [selector, markup] of [
-    ['[data-ai-toolbar]', report ? controls(matches, cards.length) : ''],
+    ['[data-ai-toolbar]', report ? controls(matches, cards.length) + eventFilterSummary() : ''],
     ['[data-ai-results]', report ? cardsPanel(ctx, shown, cards.length) : loadError ? quietFallbackPanel() : loadingPanel()],
   ]) {
     const node = ctx.root.querySelector(selector);
@@ -501,6 +507,48 @@ export function feedStatus(rep) {
   return { label: 'Updated', tone: 'positive', state: 'complete' };
 }
 
+function eventView(card) {
+  if (eventViews.has(card)) return eventViews.get(card);
+  const view = alerts.cardWithEvents(card, card.events.filter(event => matchesAIEvent(event, eventFilters)));
+  eventViews.set(card, view);
+  return view;
+}
+
+function changeEventFilters(ctx) {
+  saveAIEventFilters(eventFilters);
+  eventViews = new WeakMap();
+  visibleLimit = PAGE_SIZE;
+  paint(ctx);
+}
+
+function eventTypesControl() {
+  const counts = new Map(AI_EVENT_TYPES.map(type => [type.id, 0]));
+  for (const card of filteredCards(report?.allCards || [])) {
+    for (const id of new Set(card.events.flatMap(aiEventTypes))) counts.set(id, (counts.get(id) || 0) + 1);
+  }
+  return `<details data-ai-types-menu>
+    <summary class="cursor-pointer rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">Event types${eventFilters.selected.length ? ` · ${eventFilters.selected.length}` : ''}</summary>
+    <div class="absolute right-0 z-20 mt-2 rounded-xl bg-white p-4 text-slate-700 shadow-lg ring-1 ring-slate-200" style="width:min(26rem,calc(100vw - 3rem))">
+      <div class="mb-3 flex items-center justify-between gap-3"><span class="font-semibold">Match any selected type</span><button type="button" data-ai-types-clear class="font-semibold text-indigo-700">Clear types</button></div>
+      <div class="grid grid-cols-1 gap-1 sm:grid-cols-2" style="max-height:320px;overflow:auto" role="group" aria-label="AI alert event types">
+        ${AI_EVENT_TYPES.map(type => `<label title="${escapeHtml(type.hint)}" class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 hover:bg-slate-50">
+          <input type="checkbox" data-ai-type="${type.id}" ${eventFilters.selected.includes(type.id) ? 'checked' : ''} class="accent-indigo-600">
+          <span class="flex-1">${escapeHtml(type.label)}</span><span class="tabular-nums text-slate-400">${counts.get(type.id)}</span>
+        </label>`).join('')}
+      </div>
+      <p class="mt-3 text-xs leading-relaxed text-slate-500">Counts show companies by type in this scope and priority. Search narrows the results. Types use source wording across ${alerts.WINDOW_DAYS} days; priority describes the company’s complete evidence.</p>
+    </div>
+  </details>`;
+}
+
+function eventFilterSummary() {
+  return `<div data-ai-event-summary class="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+    <label class="mr-2 flex cursor-pointer items-center gap-2"><input type="checkbox" data-ai-hide-routine ${eventFilters.hideRoutine ? 'checked' : ''} class="accent-indigo-600">Hide routine notices</label>
+    ${eventFilters.selected.map(id => `<button type="button" data-ai-remove-type="${id}" aria-label="Remove ${escapeHtml(AI_EVENT_TYPES.find(type => type.id === id).label)} filter" class="rounded-full bg-indigo-50 px-3 py-1.5 font-semibold text-indigo-700 ring-1 ring-indigo-100">${escapeHtml(AI_EVENT_TYPES.find(type => type.id === id).label)} ×</button>`).join('')}
+    ${eventFilters.selected.length ? '<span>Showing matching events · Company priority unchanged</span>' : ''}
+  </div>`;
+}
+
 function controls(cards, visibleCount) {
   const active = cards.filter((card) => !mute.isHidden(card.key || card.ticker, card.evidenceKey || card.topEvent?.id || ''));
   const mustSee = active.filter((card) => card.priority === 'must-see').length;
@@ -519,12 +567,13 @@ function controls(cards, visibleCount) {
     { id: 'archived', label: `Archived · ${archived}` },
   ];
   return `
-    <div class="mb-4 flex flex-wrap items-center justify-between gap-3" data-ai-controls>
+    <div class="relative mb-4 flex flex-wrap items-center justify-between gap-3" data-ai-controls>
       <div class="flex flex-wrap gap-2" role="group" aria-label="Filter AI Alerts by priority">
         ${options.map((option) => `<button type="button" data-ai-filter="${option.id}" aria-pressed="${filter === option.id}"
           class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${filter === option.id ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200 hover:text-indigo-700 hover:ring-indigo-200'}">${escapeHtml(option.label)}</button>`).join('')}
       </div>
       <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+        ${eventTypesControl()}
         <label class="flex items-center gap-2">Sort
           <select data-ai-sort aria-label="Sort AI Alerts" class="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
             ${Object.entries(SORTS).filter(([value]) => value !== 'holdings' || ctxRef?.scope === 'portfolio').map(([value, label]) => {
@@ -836,7 +885,7 @@ function cardMarkup(card, scope, day, archived = false) {
               ${escapeHtml(card.ticker || 'No exchange ticker')}${card.sector ? ` · ${escapeHtml(card.sector)}` : ''}${card.holding ? ' · In portfolio' : ''}
             </div>
           </div>
-          <span class="shrink-0 rounded-md px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider ring-1 ${tone.badge}">${escapeHtml(badge.label)}</span>
+          <span title="Company priority reflects all recent evidence, including events hidden by your filters." class="shrink-0 rounded-md px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider ring-1 ${tone.badge}">${escapeHtml(badge.label)}</span>
         </div>
 
         <p data-ai-date class="mt-2 text-xs leading-relaxed text-slate-500" title="Date of the newest noteworthy source event behind this alert. Source dates and times use IST; refreshing the page does not make an old event new.">
@@ -857,7 +906,7 @@ function cardMarkup(card, scope, day, archived = false) {
       <footer class="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3">
         ${rest > 0
           ? `<button type="button" data-open-general data-ticker="${escapeHtml(card.ticker || card.company)}" class="text-xs font-bold text-indigo-700 hover:text-indigo-900">${escapeHtml(formatNumber(rest))} more ${rest === 1 ? 'event' : 'events'} →</button>`
-          : `<span class="text-xs text-slate-400">Everything on this company is above</span>`}
+          : `<span class="text-xs text-slate-400">${card.filteredEvents ? 'All matching events are above' : 'Everything on this company is above'}</span>`}
         <div class="flex shrink-0 items-center gap-2">
           <span data-ai-notebook-card="${escapeHtml(card.key || card.ticker)}">${bookmarkButton(cardSnapshot(card), { compact: false })}</span>
           ${archived
@@ -997,7 +1046,7 @@ function wire(ctx, total) {
     bookmarkRoot = ctx.root;
     offBookmarks = wireBookmarks(ctx.root, button => {
       if (ctxRef?.root !== ctx.root || !ctx.root.contains(button)) return null;
-      const model = report?.allCards || report?.cards || [];
+      const model = displayedCards;
       const owner = button.closest('[data-ai-key]')?.dataset.aiKey;
       const card = model.find(card => String(card.key || card.ticker || card.entityId) === owner);
       if (!card) return null;
@@ -1029,6 +1078,38 @@ function wire(ctx, total) {
     ctxRef?.root.querySelector('[data-ai-sort]')?.focus({ preventScroll: true });
   };
   const click = (selector, handler) => { const node = ctx.root.querySelector(selector); if (node) node.onclick = handler; };
+  const menu = ctx.root.querySelector('[data-ai-types-menu]');
+  if (menu) {
+    menu.onkeydown = event => { if (event.key === 'Escape') { menu.open = false; menu.querySelector('summary').focus(); } };
+    menu.onchange = event => {
+      const input = event.target.closest('[data-ai-type]');
+      if (!input) return;
+      const selected = new Set(eventFilters.selected);
+      if (input.checked) selected.add(input.dataset.aiType); else selected.delete(input.dataset.aiType);
+      eventFilters.selected = [...selected];
+      if (input.checked && input.dataset.aiType === 'routine') eventFilters.hideRoutine = false;
+      changeEventFilters(ctxRef);
+    };
+    // Reconciliation preserves input nodes; sync live properties as well as default attributes.
+    menu.querySelectorAll('[data-ai-type]').forEach(input => { input.checked = eventFilters.selected.includes(input.dataset.aiType); });
+  }
+  const routine = ctx.root.querySelector('[data-ai-hide-routine]');
+  if (routine) {
+    routine.checked = eventFilters.hideRoutine;
+    routine.onchange = () => {
+      eventFilters.hideRoutine = routine.checked;
+      if (routine.checked) eventFilters.selected = eventFilters.selected.filter(id => id !== 'routine');
+      changeEventFilters(ctxRef);
+    };
+  }
+  click('[data-ai-types-clear]', () => { eventFilters.selected = []; changeEventFilters(ctxRef); });
+  click('[data-ai-event-summary]', event => {
+    const button = event.target.closest('[data-ai-remove-type]');
+    if (!button) return;
+    eventFilters.selected = eventFilters.selected.filter(id => id !== button.dataset.aiRemoveType);
+    changeEventFilters(ctxRef);
+  });
+  click('[data-ai-reset-events]', () => { eventFilters = { selected: [], hideRoutine: false }; changeEventFilters(ctxRef); });
   click('[data-ai-unlock]', unlockPortfolio);
   click('[data-ai-empty-clear]', clearSearch);
   click('[data-ai-controls]', (event) => {
@@ -1080,6 +1161,13 @@ function wire(ctx, total) {
 
 function emptyPanel(ctx) {
   const m = report?.meta || {};
+  if (eventFilters.selected.length || (eventFilters.hideRoutine && (report?.cards || []).some(card => !eventView(card)))) {
+    return `<div data-ai-empty class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
+      <h3 class="font-display text-lg font-bold text-slate-900">No alerts match these filters</h3>
+      <p class="mt-2 text-sm text-slate-500">Try another event type, search or priority. Hidden notices remain available in All Alerts.</p>
+      <button type="button" data-ai-reset-events class="mt-4 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">Clear event filters</button>
+    </div>`;
+  }
   if (query.trim()) {
     return `<div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100" data-ai-empty>
       <h3 class="font-display text-lg font-bold text-slate-900">No matching alerts in this view</h3>
