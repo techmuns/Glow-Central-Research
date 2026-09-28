@@ -3583,14 +3583,25 @@ event, one item, whoever reports it.** Both surfaces fold through this one modul
    publisher's account of it. BSE before NSE; the richer statement first.
 3. **Different developments stay apart.** One company only; related-entity and reviewed-unrelated
    reports never fold; an uncertain search match may JOIN but never OPEN a development; a denial,
-   cancellation or clarification never joins what it answers; disagreeing rupee figures need four
-   shared words; a second filing folds only as an exchange copy; reports are matched against what the
+   cancellation or clarification never joins what it answers; disagreeing rupee figures stay separate; a second filing folds only as an exchange copy; reports are matched against what the
    development is ABOUT (its first row and its filings), so one broad story cannot chain two. The
-   loose copy rules (NSE's category form, the other exchange's twin sharing a word) need the source's
+   loose copy rules (NSE's category form, the other exchange's twin sharing event facts) need the source's
    own TIME on both rows and both exchanges NAMED — two day-only rows are "the same noon" only by our
    reading, and a row naming no exchange is no exchange's twin.
 4. **Only compact fields are read**, so an AI-pool event (no source record) folds exactly as the full
    one; `verify-alert-developments.mjs` asserts it.
+
+**28 September 2026 — announcement-first coverage:** AI Alerts keeps all filing and publisher
+records before the development fold: equal generic subjects or headlines cannot delete a source.
+`alert-event-facts.js` reads event kind/stage, normalized order amounts, explicit named customers,
+projects/places and periods; conflicting facts keep events separate. A near-in-time order award can
+match a differently worded letter of acceptance without equal headlines. Missing detail stays
+unknown, so incomplete descriptions can remain separate. Every member must be compatible; a
+broad article cannot bridge contradictory reports. The same rules serve All Alerts.
+AI cards expose related coverage through keyboard/touch-accessible source lists, with the filing
+first, each publisher/date/original link retained, and open state/focus preserved on refresh.
+A corrected filing description changes its archive identity even if its generic subject is unchanged.
+`verify-announcement-sources-ui.mjs` checks this path; `verify-alert-developments.mjs` checks matching.
 
 On the AI card: the counts behind the score read developments (thirty write-ups are one
 high-importance event), evidence rows go one per development, the card's date is its newest material

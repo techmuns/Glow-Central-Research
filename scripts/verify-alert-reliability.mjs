@@ -64,7 +64,8 @@ assert.equal(rank([{ ...nse, feed: 'nse-filings' }], '2026-09-05').cards.length,
 for (const field of ['ticker', 'publishedAt', 'url']) assert.equal(nseRecords([{ ...filing, [field]: null }])[0].aiEligible, false, `missing ${field} remains context-only`);
 const bse = { ...nse, id: 'bse:one', feed: 'announcements' };
 const duplicate = rank([bse, { ...nse, feed: 'nse-filings' }]).cards[0];
-assert.equal(duplicate.events.length, 1, 'same issuer disclosure on BSE/NSE is one evidence item');
+assert.equal(duplicate.developments.length, 1, 'same issuer disclosure on BSE/NSE is one evidence item');
+assert.equal(duplicate.events.length, 2, 'both exchange source records remain reachable beneath that item');
 const twoDisclosures = rank([bse, { ...nse, id: 'nse:two', feed: 'nse-filings', url: `${filing.url}?other=1`, headline: 'Second investor presentation' }]).cards[0];
 assert.equal(twoDisclosures.feedCount, 1, 'two exchange copies are never two independent feeds');
 
