@@ -34,27 +34,44 @@ try {
     await page.locator('[data-public-search]').fill('TIL LIMITED');
   };
   await open();
-  assert.equal(await page.locator('[data-public-row]:visible').count(), 1);
-  const source = payload.holdings.find(h => h.personId === 'madhusudan-kela' && h.ticker === 'TIL');
+  const retained = payload.holdings.filter(h => h.personId === 'madhusudan-kela' && h.kind === 'investor' && h.company === 'TIL LIMITED');
+  const source = retained.find(h => h.state === 'latest-disclosure');
+  assert(source, 'the fixture includes a latest TIL disclosure');
+  assert.equal(await page.locator('[data-public-row]:visible').count(), retained.length);
   payload = structuredClone(payload);
   payload.checkedAt = new Date(Date.now() + 600000).toISOString();
-  payload.holdings.push({ ...source, id: 'local-new-til-filing', asOf: '2026-09-09', shares: 1200000, stakePct: 1.46 });
+  const nextDay = new Date(Date.parse(`${source.asOf}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+  payload.holdings.find(h => h.id === source.id).state = 'historical-disclosure';
+  payload.holdings.push({ ...source, id: 'local-new-til-filing', asOf: nextDay, shares: 1200000, stakePct: 1.46 });
+  const expectedRows = retained.length + 1;
   const before = reads;
   await page.clock.fastForward(300100);
   await page.waitForFunction(() => [...document.querySelectorAll('[data-public-row]')].some(row => row.textContent.includes('12,00,000')));
   assert(reads > before, 'visible polling reads the published capture automatically');
   assert.equal(await page.locator('[data-public-search]').inputValue(), 'TIL LIMITED');
-  assert.equal(await page.locator('[data-public-row]:visible').count(), 2);
+  assert.equal(await page.locator('[data-public-row]:visible').count(), expectedRows);
+  for (const prior of retained) assert((await page.locator('[data-public-disclosures]').innerText()).includes(prior.asOf), `retains the ${prior.asOf} disclosure`);
   assert(await page.evaluate(async () => (await import('/js/data/public-holdings.js')).newArrivals().some(r => r.id.includes('local-new-til'))));
   unavailable = true;
   await page.clock.fastForward(300100);
   await page.waitForFunction(() => document.querySelector('[data-public-disclosures]')?.textContent.includes('Latest check failed'));
-  assert.equal(await page.locator('[data-public-row]:visible').count(), 2, 'outage retains visible evidence');
-  await page.waitForFunction(async () => (await (await import('/js/core/store.js')).readEntry('holdings:public'))?.value.holdings.some(h => h.id === 'local-new-til-filing'));
+  assert.equal(await page.locator('[data-public-row]:visible').count(), expectedRows, 'outage retains visible evidence');
+  // readEntry can answer from memory while the async disk write is still pending. Wait for
+  // the actual saved record before exercising a reload; do not manufacture a write in the test.
+  await page.waitForFunction(() => new Promise(resolve => {
+    const request = indexedDB.open('sattva-cache', 1);
+    request.onerror = () => resolve(false);
+    request.onsuccess = () => {
+      const db = request.result;
+      const read = db.transaction('payloads', 'readonly').objectStore('payloads').get('holdings:public');
+      read.onsuccess = () => { db.close(); resolve(read.result?.value.holdings.some(h => h.id === 'local-new-til-filing')); };
+      read.onerror = () => { db.close(); resolve(false); };
+    };
+  }));
   await page.reload();
   await page.waitForSelector('[data-changes-ready=true]');
   await open();
-  assert.equal(await page.locator('[data-public-row]:visible').count(), 2, 'offline reload restores the last successful public capture');
+  assert.equal(await page.locator('[data-public-row]:visible').count(), expectedRows, 'offline reload restores the last successful public capture');
   assert.match(await page.locator('[data-public-disclosures]').innerText(), /Latest check failed/);
   await page.keyboard.press('Escape');
   await page.evaluate(async () => { const managers = await import('/js/data/managers.js'); await managers.load(); await (await import('/js/investors/my-managers.js')).openManager('3p-investment-managers'); });
