@@ -1358,10 +1358,9 @@ console.log('\n— AI alerts —');
   ok('no card carries a figure strip or a per-question paragraph, and the counts are still reachable',
     aiShape.every((card) => card.figureStrip === 0 && card.questionParagraph === 0 && card.sources > 0),
     aiShape.map((card) => `${card.ticker}:${card.sources} sources`).join(' | ').slice(0, 160));
-  // A card that needs scrolling to reach its finding has not delivered one. Four evidence rows is
-  // the cap; the rest are one click away in the tab that exists to hold them.
-  ok('...at most four evidence rows, with the rest one click away',
-    aiShape.every((card) => card.evidence > 0 && card.evidence <= 4 && card.open));
+  // Headlines remain outside the bounded scrolling timeline.
+  ok('...a bounded evidence window, with complete history reachable',
+    aiShape.every((card) => card.evidence > 0 && card.evidence <= 20 && card.open));
   // The header over those rows says newest first, which is a claim about the order they are in.
   ok('...in the order the list header claims',
     aiShape.every((card) => card.rowKeys.join('|') === [...card.rowKeys].sort().reverse().join('|')),
@@ -1513,7 +1512,7 @@ console.log('\n— AI alerts —');
   ok('evidence links prefer public records and safely fall back to owning dashboard tabs', policy.evidenceLinksSafe);
 
   const firstTicker = renderedCards[0].ticker;
-  // A card now offers the same destination twice — the "N more events" line and the Open
+  // A card now offers the same destination twice — the "All alerts" link and the Open
   // button — so this names one rather than asserting there is only one to name.
   await aiCards.first().locator('[data-open-general]').first().click();
   await page.waitForTimeout(5000);

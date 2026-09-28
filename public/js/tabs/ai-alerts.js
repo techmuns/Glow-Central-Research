@@ -10,6 +10,9 @@ import { scopeSummary, pill } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { normalizeBookmark, snapshotForRow } from '../core/bookmark-record.js';
 import * as alertPool from '../data/alert-pool.js';
+import * as generalAlerts from '../data/daily-alerts.js';
+import { createTimelineHistory, timelineKey } from '../data/alert-timeline.js';
+import { mountAlertTimeline } from '../ui/alert-timeline.js';
 import { bookmarkButton, wireBookmarks } from '../ui/bookmark-button.js';
 import { reconcileMarkup } from '../ui/reconcile-markup.js';
 import { getHostContext } from '../core/host-context.js';
@@ -40,7 +43,6 @@ export const meta = {
 
 const REFRESH_ID = 'ai-alerts';
 const PAGE_SIZE = 8;
-const EVIDENCE_ROWS = 4;
 const RECHECK_MS = 90_000;
 const SORT_KEY = 'sattva:ai-alerts:sort:v1';
 const SORTS = { newest: 'Newest first', holdings: 'Largest holdings', priority: 'Highest priority' };
@@ -70,6 +72,51 @@ let loadError = '';
 let captureDirty = false;
 let sourceTimer = null;
 let lastSourceCheck = 0;
+const timelines = new Map();
+let historyReader = null, historyGeneration = 0;
+function clearTimelines({ history = false } = {}) {
+  for (const state of timelines.values()) state.controller.destroy();
+  timelines.clear();
+  if (history) { historyGeneration++; historyReader = null; }
+}
+function readTimelineHistory(options) {
+  if (!historyReader) {
+    const owner = ctxRef, generation = historyGeneration;
+    historyReader = createTimelineHistory({ collect: generalAlerts.collect,
+      options: () => ({ scope: owner.scope, holdings: coverage.holdings() }),
+      isCurrent: () => ctxRef === owner && historyGeneration === generation });
+  }
+  return historyReader.read(options);
+}
+function syncTimelines(ctx, shown) {
+  const active = new Set();
+  const roots = new Map([...ctx.root.querySelectorAll('[data-ai-card]')].map(node => [node.dataset.aiKey, node]));
+  for (const card of shown) {
+    const key = timelineKey(card);
+    const root = roots.get(key);
+    if (!root) continue;
+    active.add(key);
+    let state = timelines.get(key);
+    if (state?.root !== root) {
+      state?.controller.destroy();
+      const controller = mountAlertTimeline({ root, readHistory: readTimelineHistory,
+        renderEvent: (event, day, dev) => eventMarkup(event, ctx.scope, day, dev) });
+      state = { root, controller }; timelines.set(key, state);
+    }
+    state.controller.update(card, currentDay(), eventFilters);
+  }
+  for (const [key, state] of timelines) if (!active.has(key)) { state.controller.destroy(); timelines.delete(key); }
+}
+function refreshTimelineHistory() {
+  if (!historyReader?.loaded) return;
+  const reader = historyReader;
+  void reader.read({ memoryOnly: true }).then(history => {
+    if (reader !== historyReader || !history) return;
+    for (const state of timelines.values()) state.controller.historyChanged(history);
+  }).catch(() => {
+    if (reader === historyReader) for (const state of timelines.values()) state.controller.historyFailed();
+  });
+}
 function sourceChanged() {
   if (!ctxRef) return;
   captureDirty = true;
@@ -85,6 +132,7 @@ function sourceChanged() {
 // Keep a completed view in memory across tab visits. This lifetime listener also
 // revokes that cached private view if access expires while another tab is open.
 onPortfolioInvalidation((version) => {
+  clearTimelines({ history: true });
   actionGeneration++;
   alerts.clearRankingCache();
   cacheToken += 1;
@@ -102,7 +150,7 @@ onPortfolioInvalidation((version) => {
     void recollect(ctxRef);
     return;
   } else {
-    if (ctxRef?.scope !== 'portfolio') return;
+    if (ctxRef?.scope !== 'portfolio') { if (ctxRef) paint(ctxRef); return; }
     // A positions read already in flight will return the checked book. Otherwise
     // wait for Family to adopt it before asking for a new reading.
     if (!sizesLoading) { loadToken++; collecting = false; awaitingBook = version; sizeError = loadError = ''; }
@@ -128,6 +176,7 @@ function portfolioUnavailable() {
 }
 
 export function render(ctx) {
+  if (ctxRef !== ctx) clearTimelines({ history: true });
   actionGeneration++;
   ctxRef = ctx;
 
@@ -196,6 +245,7 @@ export function render(ctx) {
 }
 
 export function destroy() {
+  clearTimelines({ history: true });
   alerts.clearRankingCache();
   offBookmarks?.(); offBookmarks = null;
   bookmarkRoot = null;
@@ -315,6 +365,7 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
       ? await alerts.mergePartialReportAsync(report, completed, { isCurrent: current }) : completed;
     if (!current() || !settled) return;
     report = settled;
+    refreshTimelineHistory();
   } catch (err) {
     if (!current()) return;
     loadError = err?.message || 'The alert feeds could not be refreshed.';
@@ -366,6 +417,7 @@ function paint(ctx) {
     const node = ctx.root.querySelector(selector);
     reconcileMarkup(node, markup);
   }
+  syncTimelines(ctx, shown);
   wire(ctx, cards.length);
   // THE SECOND BULLET IS ASKED FOR THE CARDS ON SCREEN AND NO OTHERS — see data/alert-notes.js.
   // An answered, pending or held question is not asked again; a stored note costs no model call.
@@ -515,6 +567,7 @@ function eventView(card) {
 }
 
 function changeEventFilters(ctx) {
+  clearTimelines();
   saveAIEventFilters(eventFilters);
   eventViews = new WeakMap();
   visibleLimit = PAGE_SIZE;
@@ -746,32 +799,19 @@ function driverChipsMarkup(readings) {
   return `<span class="mt-1.5 flex flex-wrap items-center gap-1">${chips.join('')}</span>`;
 }
 
-/**
- * The list's own header, and the home of two figures the strip used to carry.
- *
- * "5 sources" is a property of the card's evidence rather than of any row, so it belongs to the
- * list rather than to a cell of its own — and "newest first" is a claim about the order, which is
- * why `byNewestFirst` sorts what `topEvidence` selected instead of trusting score order to read
- * as recency. The window is named because an age of 9d means nothing without it.
- */
+// Source breadth describes the ranked recent window; the timeline can also reveal saved history.
 function listHeadMarkup(card) {
   const sources = card.feedCount || 0;
   return `
     <div data-ai-list-head class="mt-4 flex items-baseline justify-between gap-3 border-t border-slate-100 pt-3">
       <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Newest first</span>
+      <button type="button" data-ai-timeline-latest class="ai-timeline-latest" hidden>Latest ↑</button>
       <span class="text-[10px] font-bold uppercase tracking-wider tabular-nums text-slate-500"
-        title="${escapeHtml(`How many independent feeds carry something on this company in the last ${alerts.WINDOW_DAYS} days. Every event behind this card is in All Alerts.`)}"><span data-ai-sources>${escapeHtml(formatNumber(sources))}</span> ${sources === 1 ? 'source' : 'sources'} · ${alerts.WINDOW_DAYS} days</span>
+        title="${escapeHtml(`How many independent feeds carry something on this company in the last ${alerts.WINDOW_DAYS} days. Every event behind this card is in All Alerts.`)}"><span data-ai-sources>${escapeHtml(formatNumber(sources))}</span> ${sources === 1 ? 'recent source' : 'recent sources'}</span>
     </div>`;
 }
 
-/**
- * Newest first, by the day and by the time where the feed published one.
- *
- * `topEvidence` chooses WHICH rows (one per source in rounds, capped per source, so a card never
- * spends every row on one of them), and this decides the order they are read in. Keeping them in
- * score order under a header that says "newest first" would be the header describing a different
- * list.
- */
+// Publisher citations within one development read newest first after its primary filing.
 function byNewestFirst(events) {
   return [...events].sort((a, b) =>
     String(b.day || '').localeCompare(String(a.day || '')) || String(b.time || '').localeCompare(String(a.time || '')));
@@ -866,13 +906,6 @@ function cardMarkup(card, scope, day, archived = false) {
     caution: { edge: 'border-l-amber-500', badge: 'bg-white text-amber-700 ring-amber-300' },
     neutral: { edge: 'border-l-slate-300', badge: 'bg-white text-slate-600 ring-slate-200' },
   }[badge.tone] || { edge: 'border-l-slate-300', badge: 'bg-white text-slate-600 ring-slate-200' };
-  const newest = latestAlertEvent(card);
-  // One row per DEVELOPMENT (see `topEvidence`): the newest signal is pinned by its development's
-  // lead, so a report folded under a filing can never come back as a second row of its own.
-  const events = byNewestFirst(card.developments?.length
-    ? alerts.topEvidence(card, EVIDENCE_ROWS, { first: newest })
-    : alerts.topEvidence(newest ? { ...card, events: [newest, ...card.events.filter(event => event !== newest)] } : card, EVIDENCE_ROWS));
-  const rest = (card.developments?.length || card.events.length) - events.length;
   const signal = latestAlertSignal(card);
   return `
     <article data-ai-card data-ai-key="${escapeHtml(card.key || card.ticker || card.entityId)}" data-ticker="${escapeHtml(card.ticker || '')}" data-entity-id="${escapeHtml(card.entityId || '')}" data-priority="${escapeHtml(card.priority)}" data-score="${card.score}"${Number.isFinite(card.holdingWeightPct) ? ` data-holding-weight="${card.holdingWeightPct}"` : ''}${archived ? ' data-ai-archived' : ''}
@@ -899,15 +932,17 @@ function cardMarkup(card, scope, day, archived = false) {
         ${kpiMarkup(card, scope)}
 
         ${listHeadMarkup(card)}
-        <ul data-ai-evidence class="mt-1 space-y-0.5">
-          ${events.map((event) => eventMarkup(event, scope, day, alerts.developmentOfEvent(card, event))).join('')}
-        </ul>
+        <div data-ai-timeline class="ai-alert-timeline" tabindex="0" role="region" aria-label="${escapeHtml(`${card.company} alert timeline, newest first`)}">
+          <ul data-ai-evidence data-ai-timeline-content class="ai-timeline-rows"></ul>
+          <div class="ai-timeline-history">
+            <p data-ai-timeline-status role="status" hidden></p>
+            <button type="button" data-ai-timeline-older>Load older alerts</button>
+          </div>
+        </div>
         ${contextMarkup(card, scope)}
       </div>
       <footer class="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3">
-        ${rest > 0
-          ? `<button type="button" data-open-general data-ticker="${escapeHtml(card.ticker || card.company)}" class="text-xs font-bold text-indigo-700 hover:text-indigo-900">${escapeHtml(formatNumber(rest))} more ${rest === 1 ? 'event' : 'events'} →</button>`
-          : `<span class="text-xs text-slate-400">${card.filteredEvents ? 'All matching events are above' : 'Everything on this company is above'}</span>`}
+        <button type="button" data-open-general data-ticker="${escapeHtml(card.ticker || card.company)}" class="text-xs font-bold text-indigo-700 hover:text-indigo-900">All alerts →</button>
         <div class="flex shrink-0 items-center gap-2">
           <span data-ai-notebook-card="${escapeHtml(card.key || card.ticker)}">${bookmarkButton(cardSnapshot(card), { compact: false })}</span>
           ${archived
@@ -986,7 +1021,7 @@ function eventMarkup(event, scope, day, dev = null) {
   // newest rows read at full strength and a nine-day-old book change recedes without being hidden.
   const recent = age === 'today' || age === '1d' || age.startsWith('in ');
   return `
-    <li data-ai-notebook-event="${escapeHtml(event.id)}">
+    <li data-ai-timeline-row data-row-key="${escapeHtml(event.id)}" data-ai-notebook-event="${escapeHtml(event.id)}">
       <div class="flex items-start gap-2">
       <div data-ai-event class="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 transition-colors hover:bg-indigo-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
         <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${DOT_TONE[event.direction] || DOT_TONE.neutral}" aria-hidden="true"></span>
@@ -1080,7 +1115,7 @@ function wire(ctx, total) {
       const cardKey = button.closest('[data-ai-notebook-card]')?.dataset.aiNotebookCard;
       if (cardKey) return cardSnapshot(card);
       const id = button.closest('[data-ai-notebook-event]')?.dataset.aiNotebookEvent;
-      const event = card.events.find(event => String(event.id) === id);
+      const event = card.events.find(event => String(event.id) === id) || timelines.get(owner)?.controller.event(id);
       if (!event) return null;
       // Evidence read from the precomputed pool travels without its full source record; the
       // notebook snapshot is taken from that record, fetched from the pool's own day shard.

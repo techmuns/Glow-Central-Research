@@ -34,8 +34,8 @@ export function rowGeometry(count, estimate = 72) {
 }
 
 export function mountWindowedList({ scroller, content, items, key, renderRows, renderParts = null, spacerHtml,
-  rowSelector, estimateHeight = 72, initialKey = null, onScrollActivity = null, onWindow = null }) {
-  const overscan = 8;
+  rowSelector, estimateHeight = 72, initialKey = null, onScrollActivity = null, onWindow = null,
+  minRows = 40, maxRows = 100, overscan = 8, patchRow = null }) {
   const rendered = new Map(); // only mounted nodes and their last generated markup
   const measured = new Map(); // at most one small measurement per currently retained record
   let rows = items, geometry, start = -1, end = 0, frame = 0, measureFrame = 0, disposed = false;
@@ -119,7 +119,7 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
   }
   const scheduleMeasure = () => { if (!measureFrame && !disposed) measureFrame = requestAnimationFrame(measure); };
   function paint(index, force = false) {
-    const count = Math.max(40, Math.min(100, Math.ceil(scroller.clientHeight / 40) + overscan * 2));
+    const count = Math.max(minRows, Math.min(maxRows, Math.ceil(scroller.clientHeight / 40) + overscan * 2));
     const next = Math.max(0, Math.min(Math.max(0, rows.length - count), index - overscan));
     if (!force && next === start && end === Math.min(rows.length, next + count)) return false;
     start = next; end = Math.min(rows.length, start + count);
@@ -147,7 +147,8 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
           // A real content change is applied immediately, including revoked private content.
           for (const attr of [...held.node.attributes]) if (!next.hasAttribute(attr.name)) held.node.removeAttribute(attr.name);
           for (const attr of next.attributes) held.node.setAttribute(attr.name, attr.value);
-          held.node.replaceChildren(...next.childNodes);
+          if (patchRow) patchRow(held.node, next);
+          else held.node.replaceChildren(...next.childNodes);
           held.html = html;
         }
         rendered.set(cacheKey, held);
@@ -167,7 +168,8 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
       syncListDOM(content, topHtml + renderRows(rows, start, end) + bottomHtml, start + 1);
       rendered.clear();
     }
-    if (active) {
+    if (active?.isConnected && content.contains(active)) active.focus({ preventScroll: true });
+    else if (active) {
       const replacement = [...content.querySelectorAll(rowSelector)].find(el => (el.dataset.rowKey || el.dataset.newsKey) === activeKey);
       (replacement?.querySelectorAll('a,button,input,[tabindex]')[focusIndex] || scroller).focus({ preventScroll: true });
     }

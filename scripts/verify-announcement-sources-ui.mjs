@@ -93,7 +93,7 @@ try {
   assert.equal(await card.count(), 1);
   assert.equal(await card.locator('[data-ai-kind="filing"]').count(), 1);
   assert.equal(await card.locator('[data-ai-lead-link]').getAttribute('href'), filing.url);
-  assert.equal(await card.locator('[data-ai-evidence] > li').count(), 1, 'one event row, not an announcement and two reports');
+  assert.equal(await card.locator('[data-ai-timeline-row]').count(), 1, 'one event row, not an announcement and two reports');
   assert.equal(await card.locator('[data-ai-summary]').count(), 0, 'a sufficient filing headline needs no summary');
   const sources = card.locator('[data-ai-development-sources]').first();
   assert.equal(await card.locator('details[data-ai-development-sources]').count(), 0, 'source boxes are replaced by inline links');
@@ -125,7 +125,7 @@ try {
   assert(await newsLink.evaluate(node=>document.activeElement===node && node===window.originalSourceLink), 'a new citation preserves focus on the original URL');
   assert.deepEqual(await sources.locator('a').allTextContents(), ['1', '2', '3', '4']);
   assert.equal(await newsLink.innerText(), '4', 'number follows displayed order while the focused source stays the same');
-  assert.equal(await card.locator('[data-ai-evidence] > li').count(), 1, 'another publisher stays under the existing event');
+  assert.equal(await card.locator('[data-ai-timeline-row]').count(), 1, 'another publisher stays under the existing event');
   await page.evaluate(async () => { window.failed=true; await window.refreshAlerts(); });
   assert.equal(await sources.locator('a').count(),4,'partial source failure retains every captured link');
   await page.evaluate(async () => {
@@ -135,7 +135,7 @@ try {
       filingDescription:'Received a letter of acceptance for Rs 400 crore from Eastern Railway in Kolkata'}];
     await window.refreshAlerts();
   });
-  await page.waitForFunction(()=>document.querySelectorAll('[data-ai-evidence] > li').length===2);
+  await page.waitForFunction(()=>document.querySelectorAll('[data-ai-timeline-row]').length===2);
   assert.equal(await card.locator('[data-ai-evidence-link][href="https://www.bseindia.com/another-order.pdf"]').count(),1,
     'a separate announcement with the same subject remains visible');
   await page.mouse.move(0,0);
