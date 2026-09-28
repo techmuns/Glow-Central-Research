@@ -150,6 +150,8 @@ try {
   assert(await page.locator('[data-ai-summary]').count() > 0, 'substantive filings have an AI summary after the returning-session upgrade');
   assert(!/So what\?|AI reading/.test(await page.locator('#root').textContent()));
   assert(await page.locator('[data-ai-insight] [data-ai-source-id]').count() > 0, 'returning sessions receive inline source citations');
+  await page.locator('[data-ai-timeline][aria-busy="false"]').first().waitFor();
+  assert(await page.locator('[data-ai-timeline-row]').count() > 0, 'returning sessions receive populated scrollable timelines');
   assert.equal(await page.locator('details[data-ai-development-sources]').count(), 0);
   const beforeRefresh = notePosts, savedBeforeRefresh = savedNotes.size;
   await page.evaluate(async () => (await import('/js/core/refresh.js')).refreshAll());

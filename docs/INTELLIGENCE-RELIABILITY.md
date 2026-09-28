@@ -94,7 +94,7 @@ visibility return or reconnection after that interval. These are source reads, n
 collection-job dispatches or a claim that periodic upstream feeds publish in real time. Holding
 sizes reuse their authenticated snapshot during automatic checks. New evidence for an already
 visible company merges immediately with retained evidence while other sources remain pending or
-failed. Rendering eight cards at a time and previewing three evidence items are presentation
+failed. Rendering eight cards at a time and a bounded window of timeline rows are presentation
 limits only: company/event search evaluates all eligible cards and their evidence, and All Alerts
 remains the broader retained-record view. Routine/unverified records do not gain priority merely
 because they were collected.
@@ -439,3 +439,32 @@ Actual failures remain distinguishable. Use the new summary prompt version so ol
 readings are never presented as factual summaries; retain their stored records and the existing
 cost ledger. Each eligible source version reuses its saved summary and keeps the existing bounded
 failure retries. Irrelevant sector/related-news changes and refresh times cannot change its key.
+
+
+## AI card timelines (28 September 2026)
+
+The Newest first section is a 288px scrolling timeline (256px on narrow screens), with at most
+20 mounted event rows per card. The full current 14-day card evidence is available by scrolling;
+source copies remain folded and the numbered citations open their original URLs. New latest
+records appear at the top automatically. A reader of older rows keeps the same record and offset,
+with a New alerts / Latest control to return to the top. Ranking, headline selection, search and
+priority continue to use the existing recent window; scrolling does not ask for model summaries.
+
+Near the end, or using Load older alerts, the view lazily reads the existing retained source
+history. Cards share one read and preparation yields between batches; no new collector, paid
+reader, polling loop or retention policy is introduced. This first older-history request can
+load the shared source capture files, rather than a per-company paginated endpoint. Older rows
+respect company identity, source eligibility and selected event types. They are available saved
+evidence, not a ledger certifying which records were historically promoted into AI cards or a
+claim of an exhaustive upstream archive. Existing source capture/retention limits still apply.
+
+Successful source removals remain authoritative. Failed public reads retain already available
+records and show an explicit retry; they never revive revoked private records. Scope/access
+changes and leaving the view revoke pending timeline publication. Normal source refreshes
+reassemble already opened history from shared source memory without extra archive polling.
+
+`verify-alert-timeline.mjs` covers 20,000 records, company/type/eligibility isolation, cancellation,
+shared requests and failed-source/private-record retention. `verify-ai-alert-timeline-ui.mjs`
+exercises 5,000 older rows, bounded DOM, scroll anchors, live insertions, lazy shared reads,
+failures/retries, source links, disposal, mobile and both themes without model requests.
+The existing cache-upgrade suite verifies timelines reach returning sessions through the real SW.
