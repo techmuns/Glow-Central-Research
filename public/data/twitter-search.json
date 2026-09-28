@@ -1350,7 +1350,7 @@
       ]
     },
     "isin:INE425Y01011|RPSG Ventures Limite": {
-      "lastAttemptAt": "2026-09-23T03:52:00+00:00",
+      "lastAttemptAt": "2026-09-28T01:54:44+00:00",
       "error": "search-unavailable",
       "lastResultCount": 0,
       "lastSuccessAt": "2026-09-13T23:47:09+00:00",
@@ -1818,6 +1818,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-09-28T01:41:39.260704+00:00"
+    "checkedAt": "2026-09-28T01:54:44.872033+00:00"
   }
 }
