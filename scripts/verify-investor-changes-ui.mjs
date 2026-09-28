@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
@@ -127,14 +128,26 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   await page.waitForSelector('[data-public-disclosures]');
   assert.equal(await page.locator('#modal-overlay.is-open').count(), 0, 'opening a profile closes the audit modal so the workspace is not stacked beneath it');
   assert.match(await page.locator('[data-public-disclosures]').innerText(), /TIL LIMITED.*Singularity Equity Fund I/s);
-  assert.match(await page.locator('[data-public-disclosures]').innerText(), /2026-08-06/);
+  // Captures advance independently of code. Compare the current and retained observations
+  // with the committed source, rather than expecting August's row to remain the latest.
+  const captured = JSON.parse(readFileSync(new URL('../public/data/public-holdings.json', import.meta.url)));
+  const tilEvidence = captured.holdings.filter(row => row.personId === 'madhusudan-kela' && row.kind === 'investor' && row.isin === 'INE806C01018');
+  const latestTil = tilEvidence.find(row => row.state !== 'historical-disclosure');
+  assert(latestTil, 'the saved fixture has a current TIL disclosure');
+  assert((await page.locator('[data-public-disclosures]').innerText()).includes(latestTil.asOf));
   await page.locator('[data-ws-tab=exchange]').click();
   await page.locator('[data-public-search]').fill('TIL LIMITED');
   const til = page.locator('[data-public-row]:visible');
-  assert.equal(await til.count(), 1);
-  assert.match(await til.innerText(), /11,09,190/);
-  assert.match(await til.innerText(), /1.35%/);
-  assert.match(await til.locator('a').last().getAttribute('href'), /bseindia|nseindia/);
+  assert.equal(await til.count(), tilEvidence.length, 'the complete view retains every dated TIL disclosure');
+  for (const evidence of tilEvidence) {
+    const row = til.filter({ hasText: evidence.asOf });
+    assert.equal(await row.count(), 1);
+    const number = value => typeof value === 'number' ? value.toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '—';
+    assert.equal(await row.locator('td').nth(2).innerText(), evidence.state === 'source-conflict' ? 'Conflicting reports' : number(evidence.shares));
+    assert.equal(await row.locator('td').nth(3).innerText(), evidence.state === 'source-conflict' ? 'Review evidence' : `${number(evidence.stakePct)}%`);
+    const links = await row.locator('a').evaluateAll(nodes => nodes.map(node => node.href));
+    for (const source of evidence.sources) assert(links.includes(source.url), 'each original source remains linked');
+  }
   assert(await page.locator('[data-public-export]').isVisible());
   await page.setViewportSize({ width: 390, height: 844 });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'public holdings must stay within the mobile viewport');

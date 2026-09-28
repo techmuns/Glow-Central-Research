@@ -449,7 +449,10 @@ const moneyDisagrees = (a, b) => a.money.size > 0 && b.money.size > 0 && !overla
 /** Does this report describe the development? `weak` allows the two-word, near-in-time reading. */
 function reportsDevelopment(r, dev, weak, own) {
   if (!Number.isFinite(r.at) || Math.abs(r.at - dev.anchorAt) > WINDOW_MS) return false;
-  if (!overlapsExcept(r.words, dev.anchorWords, own) && !overlaps(r.figures, dev.anchorFigures)) return false;
+  const anchor = dev.first.reading;
+  const sameReport = r.kind === 'news' && anchor.kind === 'news' && r.url && r.url === anchor.url &&
+    r.day === anchor.day && r.text === anchor.text;
+  if (!sameReport && !overlapsExcept(r.words, dev.anchorWords, own) && !overlaps(r.figures, dev.anchorFigures)) return false;
   // Every member must remain compatible, including reports that supplied a customer or project
   // missing in the first headline. A broad intermediate report cannot bridge distinct events.
   for (const item of itemsOf(dev)) {
@@ -458,7 +461,7 @@ function reportsDevelopment(r, dev, weak, own) {
         r.flags.negative !== other.flags.negative) return false;
     if ((r.flags.prospective && other.flags.completed) || (r.flags.completed && other.flags.prospective)) return false;
   }
-  const anchor = dev.first.reading;
+  if (sameReport) return true;
   const near = Math.abs(r.at - dev.anchorAt) <= NEAR_MS;
   // "Letter of acceptance" and "bags an EPC contract" need not share headline words. The
   // company, award stage, normalized amount and time identify it, subject to the vetoes above.
@@ -607,6 +610,7 @@ function clusterCompany(group, extraNames, out) {
   // company's other filings — a hundred notices in one morning share their commonest words.
   const reportWordIndex = new Map();
   const reportFigureIndex = new Map();
+  const reportUrlIndex = new Map();
   // A company with no report among its rows folds filings only as exchange copies, which are found
   // by document, time and statement — so nothing is indexed by its words and none are read.
   const hasReports = group.some((item) => item.kind !== 'filing');
@@ -623,6 +627,7 @@ function clusterCompany(group, extraNames, out) {
     const figures = filing ? reportFigureIndex : figureIndex;
     if (words.size) for (const token of r.words) if (!own.has(token)) collect(words.get(token), r, filing);
     if (figures.size) for (const token of r.figures) collect(figures.get(token), r, filing);
+    if (item.kind === 'news' && r.url) collect(reportUrlIndex.get(r.url), r, false);
     if (filing) {
       if (r.documentHash) for (const dev of byHash.get(r.documentHash) || []) if (dev.stamp !== stamp) { dev.stamp = stamp; scratch.push(dev); }
       let taken = 0;
@@ -654,6 +659,7 @@ function clusterCompany(group, extraNames, out) {
       indexTokens(wordIndex, r.words, dev, own);
       indexTokens(figureIndex, r.figures, dev, null);
     }
+    if (item.kind === 'news' && r.url) indexTokens(reportUrlIndex, [r.url], dev, null);
     if (!home && !filing) {
       indexTokens(reportWordIndex, r.words, dev, own);
       indexTokens(reportFigureIndex, r.figures, dev, null);
