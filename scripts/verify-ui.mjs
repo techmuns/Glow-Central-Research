@@ -1460,7 +1460,7 @@ console.log('\n— AI alerts —');
     const current = rank([event({ id: 'risk', feed: 'insider', headline: 'Promoter disposal', direction: 'negative', importance: 'high' })], [feed('insider')]);
     const stale = rank([event({ id: 'risk', feed: 'insider', headline: 'Promoter disposal', direction: 'negative', importance: 'high' })], [feed('insider', false)]);
     const duplicate = rank([
-      event({ id: 'n1', headline: 'Same story' }), event({ id: 'n2', headline: 'Same story' }),
+      event({ id: 'n1', headline: 'Same story', url: 'https://example.test/same-story' }), event({ id: 'n2', headline: 'Same story', url: 'https://example.test/same-story' }),
       event({ id: 'wide', ticker: null, company: 'Market', headline: 'Market-wide story' }),
     ], [feed('news')]);
     const weakSector = rank([
@@ -1482,7 +1482,8 @@ console.log('\n— AI alerts —');
       current: current.allCards[0]?.score,
       stale: stale.allCards[0]?.score,
       staleFeedStatus: feedStatus(stale).label,
-      duplicateEvents: duplicate.allCards[0]?.events.length,
+      duplicateEvents: duplicate.allCards[0]?.developments.length,
+      retainedDuplicateSources: duplicate.allCards[0]?.events.length,
       marketWideExcluded: duplicate.meta.marketWideExcluded,
       arithmetic: corroborated.allCards.every((card) => card.scoreBreakdown.reduce((sum, part) => sum + part.points, 0) === card.score),
       weakSectorBoosted: weakSector.allCards.some((card) => card.scoreBreakdown.some((part) => /portfolio companies in/.test(part.label))),
@@ -1502,8 +1503,8 @@ console.log('\n— AI alerts —');
     policy.current > policy.stale, `${policy.current} current vs ${policy.stale} stale`);
   ok('a completed degraded report renders the compact recovery state',
     policy.staleFeedStatus === 'Sources updating', policy.staleFeedStatus);
-  ok('same-feed duplicate headlines collapse and tickerless news stays out of company cards',
-    policy.duplicateEvents === 1 && policy.marketWideExcluded === 1,
+  ok('repeated publisher records form one event with both sources retained; tickerless news stays out of company cards',
+    policy.duplicateEvents === 1 && policy.retainedDuplicateSources === 2 && policy.marketWideExcluded === 1,
     `${policy.duplicateEvents} company event, ${policy.marketWideExcluded} market-wide`);
   ok('the hidden ranking model remains internally consistent', policy.arithmetic);
   ok('sector context requires material negative evidence rather than tiny negative activity',

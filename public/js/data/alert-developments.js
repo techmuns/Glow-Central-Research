@@ -437,7 +437,7 @@ function isExchangeCopy(a, b, own) {
   // the source did not name is not evidence of being the other exchange's twin.
   if (!a.venues.length || !b.venues.length || a.venues.some((venue) => b.venues.includes(venue))) return false;
   // Proximity and an exchange category cannot identify a document. Require event evidence.
-  if (a.typeOnly || b.typeOnly) return false;
+  if (a.typeOnly || b.typeOnly || ORDER_CATEGORY.test(a.claim) || ORDER_CATEGORY.test(b.claim)) return false;
   const words = countExcept(a.words, b.words, own);
   return (overlaps(a.money, b.money) && sameOrderFacts(a.facts, b.facts)) ||
     (words >= 2 && overlaps(a.figures, b.figures)) || words >= 3;
