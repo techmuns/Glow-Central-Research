@@ -8234,7 +8234,7 @@ const insightShape = await page.evaluate(() => {
   // position is put back afterwards. verify-ai-alerts-ui.mjs has the measurement.
   const y = scrollY;
   const rendered = (node) => { node.scrollIntoView({ block: 'nearest' }); return node.innerText; };
-  const everyCardLabelsItsInsight = cards.every((c) => /what happened/i.test(rendered(c)));
+  const everyCardLabelsItsInsight = cards.every((c) => /headline/i.test(rendered(c)));
   const kick = (node) => node?.querySelector('.uppercase')?.innerText.trim() || '';
   const readings = cards.map((card) => {
     rendered(card);
@@ -8259,8 +8259,8 @@ if (!insightShape) {
   skip('every AI Alerts card states what happened, in one source\'s own words',
     'no company reached the surfaced threshold in this capture');
 } else {
-  ok('every AI Alerts card labels what happened',
-    insightShape.everyCardLabelsItsInsight && /what happened/i.test(insightShape.kicker),
+  ok('every AI Alerts card labels its headline',
+    insightShape.everyCardLabelsItsInsight && /headline/i.test(insightShape.kicker),
     `${insightShape.cards.length} card(s) · "${insightShape.kicker}"`);
   // A claim is a statement, so it ends as one. An empty sentence is the failure that matters here:
   // the whole point of the card is that a reader does not have to open a row to learn what landed.

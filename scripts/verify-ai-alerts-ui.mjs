@@ -314,7 +314,7 @@ try {
     if (!card) return { withDrivers: 0 };
     const y = scrollY;
     const rendered = (node) => { node.scrollIntoView({ block: 'nearest' }); return node.innerText; };
-    const everyCardLabelsItsInsight = cards.every((c) => /what happened/i.test(rendered(c)));
+    const everyCardLabelsItsInsight = cards.every((c) => /headline/i.test(rendered(c)));
     rendered(card);
     const insight = card.querySelector('[data-ai-insight]');
     const evidence = card.querySelector('[data-ai-evidence]');
@@ -348,7 +348,7 @@ try {
     return readings;
   });
   assert.equal(shape.withDrivers, shape.total, 'every card with a tracked topic names the question on the row that carries it');
-  assert(shape.everyCardLabelsItsInsight, 'every card labels what happened');
+  assert(shape.everyCardLabelsItsInsight, 'every card labels its headline');
   // One filing in the fixture carries one tracked keyword, so one row carries one chip.
   assert.deepEqual(shape.chipTexts, ['Thesis · Fraud']);
   assert(shape.chipsSitOnRows, 'every reading sits on the row whose own source backs it');
@@ -372,7 +372,7 @@ try {
   assert(shape.rowCount > 0 && shape.rowCount <= 4, `rows: ${shape.rowCount}`);
   assert.deepEqual(shape.rowKeys, [...shape.rowKeys].sort().reverse(), 'the rows are newest first, as the list header says');
   assert.equal(shape.scriptInjected, 0, 'row text is escaped');
-  console.log('PASS: the card labels what happened and names the investor question on the row that carries the reading.');
+  console.log('PASS: the card labels its headline and names the investor question on the row that carries the reading.');
 
   await page.evaluate(() => {
     window.savedFixture = window.fixtureEvents;
