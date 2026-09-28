@@ -1574,7 +1574,7 @@
       "error": "search-unavailable"
     },
     "isin:INE239C01020|STYLAMIND": {
-      "lastAttemptAt": "2026-09-24T03:04:57+00:00",
+      "lastAttemptAt": "2026-09-28T18:49:13+00:00",
       "error": "search-unavailable"
     },
     "isin:INE659A01023|Sudarshan Chemical Industries": {
@@ -1874,6 +1874,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 212,
-    "checkedAt": "2026-09-28T18:13:25.576700+00:00"
+    "checkedAt": "2026-09-28T18:49:13.183486+00:00"
   }
 }
