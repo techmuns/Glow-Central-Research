@@ -463,7 +463,9 @@ function head(ctx) {
   // Position availability is independent of public source coverage. A failed optional
   // size read must never make partial, pending or stale evidence look complete.
   const health = feedStatus(report);
-  const status = loadError ? { label: 'Partial coverage · retained evidence shown', tone: 'neutral', state: 'partial' }
+  const status = loadError ? report?.allCards.length
+    ? { label: 'Partial coverage · retained evidence shown', tone: 'neutral', state: 'partial' }
+    : { label: 'Alert sources unavailable', tone: 'neutral', state: 'failed' }
     : health.state !== 'complete' || m.staleFeeds > 0 ? health
     : sizeError ? { label: 'Latest available', tone: 'neutral', state: 'complete' }
     : report && (collecting || awaitingBook !== null) ? { label: 'Ready · checking quietly', tone: 'neutral', state: 'pending' } : health;

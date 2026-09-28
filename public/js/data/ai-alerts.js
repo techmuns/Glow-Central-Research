@@ -1123,8 +1123,11 @@ export function withoutPositionSnapshot(report, holdings = coverage.holdings()) 
   if (!report) return report;
   const events = [...new Set([...(rankingEvidence.get(report) || []), ...report.allCards.flatMap(card =>
     [...card.events, ...(card.contextEvents || []), ...(card.upcomingEvents || [])])])];
-  return rankReport({ ...report, events, cacheSavedAt: report.meta?.cacheSavedAt },
+  const next = rankReport({ ...report, events, cacheSavedAt: report.meta?.cacheSavedAt },
     { ...rankingOptions.get(report), holdings, positionSizes: null });
+  // A partial feed may already have retained a visible alert below today's threshold.
+  // Removing an optional position snapshot must preserve that retained queue too.
+  return finishMerge(report, next, next);
 }
 
 /** Apply a newly checked private snapshot without another feed read or ranking pass. */

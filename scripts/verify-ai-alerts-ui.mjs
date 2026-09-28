@@ -76,6 +76,7 @@ export async function readCachedAlertWindow({scope,holdings,day=currentDay()}){
   return {...saved.value,day,scope,events:saved.value.events.filter(e=>scope==='universe'||wanted.has(e.ticker)),cacheSavedAt:saved.savedAt};
 }
 export async function collect({scope,onPartial,holdings,load=true}) {
+  if (new URLSearchParams(location.search).has('throwFirst')) throw new Error('Fixture initial collection failed');
   if(load) window.reads++;
   if(load && window.holdStart) await new Promise(done=>window.releaseStart=done);
   const wanted=new Set(holdings.map(h=>h.ticker));
@@ -141,6 +142,18 @@ const renderedText = async locator => {
   return locator.innerText();
 };
 try {
+  const failedContext = await browser.newContext();
+  const failedPage = await failedContext.newPage();
+  failedPage.on('pageerror', error => errors.push(error.message));
+  await failedPage.route('**/*', route => route.request().url() === `${origin}/glow-bridge.html`
+    ? route.fulfill({ contentType:'text/html', body:familyHtml })
+    : route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status:503, body:'{}' }));
+  await failedPage.goto(`${origin}/?throwFirst=1`);
+  await waitFor(failedPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'failed');
+  assert.equal(await failedPage.locator('[data-ai-feed-status]').innerText(), 'Alert sources unavailable');
+  assert.equal(await failedPage.locator('[data-ai-card]').count(), 0);
+  assert(!/retained evidence/i.test(await failedPage.locator('#root').innerText()), 'a failed first load cannot claim retained evidence');
+  await failedContext.close();
   // Empty sources often settle before a useful feed. Neither that early empty
   // report nor a slow context/positions request may hold useful cards offscreen.
   const loadingContext = await browser.newContext();

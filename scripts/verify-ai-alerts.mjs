@@ -145,6 +145,22 @@ const retractedEligibility = rankReport({ ...report, pending: 1,
 assert.equal(mergePartialReport(byPriority, retractedEligibility).cards.length, 0,
   'a source correction removing AI eligibility cannot resurrect old material evidence during a partial refresh');
 
+for (const scope of ['universe', 'watchlist']) {
+  const unheldReport = { ...report, scope, events: report.events.filter(e => e.ticker === 'SMALL' && e.feed === 'earnings')
+    .map(e => ({ ...e, ticker: 'UNHELD', company: 'Unheld company' })) };
+  const healthy = rankReport(unheldReport, { holdings: publicIdentities, positionSizes: sizes });
+  const failed = rankReport({ ...unheldReport, feeds: feeds.map(feed => ({ ...feed, status: 'failed' })) },
+    { holdings: publicIdentities, positionSizes: sizes });
+  assert.equal(healthy.cards.length, 1);
+  assert.equal(failed.cards.length, 0, 'unhealthy source weights lower this fixture below the threshold');
+  const retained = mergePartialReport(healthy, failed);
+  assert.equal(retained.cards.length, 1);
+  const withoutSizes = withoutPositionSnapshot(retained, publicIdentities);
+  assert.equal(withoutSizes.cards.length, 1, 'size failures retain already-visible below-threshold cards');
+  assert.equal(withoutSizes.meta.surfacedCompanies, 1);
+  assert.equal(withoutSizes.cards[0].holdingWeightPct, null);
+}
+
 const context = {
   id: 'LARGE-raw-filing', ticker: 'LARGE', company: 'Large holding', feed: 'announcements',
   day: '2026-09-04', headline: 'LARGE signal source document', detail: 'Underlying source record',
