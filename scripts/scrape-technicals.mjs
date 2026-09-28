@@ -359,7 +359,10 @@ function flush(scraped, indexBars, failures) {
   writeFileSync(OUT_PATH, JSON.stringify(payload) + "\n");
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> sattva/main
 /**
  * The held companies the screener export does not carry, shaped like screener rows so the scrape
  * loop below needs no special case.

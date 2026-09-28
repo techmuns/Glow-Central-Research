@@ -348,7 +348,11 @@ try {
     return readings;
   });
   assert.equal(shape.withDrivers, shape.total, 'every card with a tracked topic names the question on the row that carries it');
+<<<<<<< HEAD
   assert(shape.everyCardLabelsItsInsight, 'every card labels its headline');
+=======
+  assert(shape.everyCardLabelsItsInsight, 'every card labels what happened');
+>>>>>>> sattva/main
   // One filing in the fixture carries one tracked keyword, so one row carries one chip.
   assert.deepEqual(shape.chipTexts, ['Thesis · Fraud']);
   assert(shape.chipsSitOnRows, 'every reading sits on the row whose own source backs it');
@@ -372,7 +376,11 @@ try {
   assert(shape.rowCount > 0 && shape.rowCount <= 4, `rows: ${shape.rowCount}`);
   assert.deepEqual(shape.rowKeys, [...shape.rowKeys].sort().reverse(), 'the rows are newest first, as the list header says');
   assert.equal(shape.scriptInjected, 0, 'row text is escaped');
+<<<<<<< HEAD
   console.log('PASS: the card labels its headline and names the investor question on the row that carries the reading.');
+=======
+  console.log('PASS: the card labels what happened and names the investor question on the row that carries the reading.');
+>>>>>>> sattva/main
 
   await page.evaluate(() => {
     window.savedFixture = window.fixtureEvents;

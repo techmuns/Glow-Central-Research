@@ -1,3 +1,8 @@
+import { AlertNotesStore } from './alert-notes-store.mjs';
+import { AlertStoriesStore } from './alert-stories-store.mjs';
+import { MutualFundsStore } from './mutual-funds-store.mjs';
+import { MutualFundsScannerStore } from './mutual-funds-scanner-store.mjs';
+import { MutualFundsSchedule, MF_TIMER } from './mutual-funds-schedule.mjs';
 import { DurableObject } from 'cloudflare:workers';
 import { TelegramSchedule } from './telegram-scheduler.mjs';
 import { TelegramDelivery } from './telegram-delivery.mjs';
@@ -28,6 +33,12 @@ export class CaptureRegistry extends DurableObject {
     // The shared watchlist lives in its own fixed object (shared-watchlist:v1), so these tables
     // are only ever created on that one. A company-registry shard never calls a watchlist method.
     this.watchlist = new SharedWatchlistStore(ctx.storage);
+    this.alertNotes = new AlertNotesStore(ctx.storage, env);
+    this.alertStories = new AlertStoriesStore(ctx.storage);
+    this.mutualFunds = new MutualFundsStore(ctx.storage);
+    this.mutualFundsScanner = new MutualFundsScannerStore(ctx.storage,this.mutualFunds);
+    this.mutualFunds.scanner = this.mutualFundsScanner;
+    this.mutualFundsSchedule = new MutualFundsSchedule(ctx.storage, env);
     this.breakouts = new BreakoutStore(ctx.storage);
     this.breakoutSchedule = new BreakoutSchedule(ctx.storage, env);
     this.breakoutPrimary = new BreakoutPrimary(ctx.storage, env);
@@ -55,6 +66,9 @@ export class CaptureRegistry extends DurableObject {
   summaryReserve(run, requestId) { return this.summaries.reserve(run, requestId); }
   summaryComplete(run, input) { return this.summaries.complete(run, input); }
   summaryRead(ids) { return this.summaries.read(ids); }
+  alertNotesRead(items) { return this.alertNotes.read(items); }
+  storyReviewReserve(key) { return this.alertStories.reserve(key); }
+  storyReviewComplete(key, token, result) { return this.alertStories.complete(key, token, result); }
   watchlistSnapshot() { return this.watchlist.watchlistSnapshot(); }
   watchlistApply(intents) { return this.watchlist.watchlistApply(intents); }
   priceLevelsSnapshot() { return this.priceLevelSchedule.snapshot(); }
@@ -94,9 +108,30 @@ export class CaptureRegistry extends DurableObject {
   newsletterSend(input, token) { return this.newsletterSchedule.sendNow(input, token); }
   newsletterPdf(id) { return this.newsletter.document(id); }
   newsletterPreview(input) { return this.newsletterSchedule.preview(input); }
+<<<<<<< HEAD
   alertNotesRead(items) { return this.notes.read(items); }
   alertNotesStatus() { return this.notes.status(); }
   async alarm() {
+=======
+  mfReports(run,reports) { return this.mutualFunds.reports(run,reports); }
+  mfFragment(run,fragment) { return this.mutualFunds.fragment(run,fragment); }
+  mfBegin(run,manifest) { return this.mutualFunds.begin(run,manifest); }
+  mfCheckpoint(run,companies) { return this.mutualFunds.checkpoint(run,companies); }
+  mfConfirm(run,companies) { return this.mutualFunds.confirm(run,companies); }
+  mfFinish(run) { return this.mutualFunds.finish(run); }
+  mfRead(isins,cursor) { return this.mutualFunds.read(isins,cursor); }
+  mfDetail(isin,month) { return this.mutualFunds.detail(isin,month); }
+  mfArm() { return this.mutualFundsSchedule.arm(); }
+  mfScheduleStatus() { return this.mutualFundsSchedule.status(); }
+  mfScannerInventory(companies) { return this.mutualFundsScanner.inventory(companies); }
+  mfScannerReserve(run,id,kind) { return this.mutualFundsScanner.reserve(run,id,kind); }
+  mfScannerComplete(run,input) { return this.mutualFundsScanner.complete(run,input); }
+  mfScannerStatus() { return this.mutualFundsScanner.status(); }
+  mfPrivateRead(isins,cursor) { return this.mutualFundsScanner.read(isins,cursor); }
+  mfPrivateDetail(isin,month) { return this.mutualFundsScanner.detail(isin,month); }
+  async alarm() {
+    if (await this.ctx.storage.get(MF_TIMER)) { await this.mutualFundsSchedule.wake(); return; }
+>>>>>>> sattva/main
     if (await this.ctx.storage.get(PRIMARY_TIMER)) await this.breakoutPrimary.wake();
     else if (await this.ctx.storage.get(NEWSLETTER_TIMER_KEY)) await this.newsletterSchedule.wake();
     else if (await this.ctx.storage.get('breakout-timer')) await this.breakoutSchedule.wake();
