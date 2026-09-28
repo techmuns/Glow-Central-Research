@@ -1333,12 +1333,11 @@ console.log('\n— AI alerts —');
     figureStrip: el.querySelectorAll('[data-ai-metrics]').length,
     questionParagraph: el.querySelectorAll('[data-ai-drivers]').length,
     evidence: el.querySelectorAll('[data-ai-evidence] [data-ai-event]').length,
-    // Each row names its source in its own cell: the SET of them is the breadth on screen, and the
-    // LIST of them is what proves no one source took the whole card.
+    // Each mounted row retains its source label and stable event identity.
     // textContent, not innerText: a card Chromium has skipped under `content-visibility: auto`
     // reports empty innerText while still carrying its text, which reads as a card with no source.
     evidenceSources: [...el.querySelectorAll('[data-ai-evidence] [data-ai-event-source]')].map((n) => n.textContent.split('·')[0].trim()),
-    evidenceFeeds: [...new Set([...el.querySelectorAll('[data-ai-evidence] [data-ai-event-source]')].map((n) => n.textContent.split('·')[0].trim()))],
+    evidenceIds: [...el.querySelectorAll('[data-ai-timeline-row]')].map(n => n.dataset.rowKey),
     // Newest first is what the list header claims, so the rows carry a comparable key.
     rowKeys: [...el.querySelectorAll('[data-ai-evidence] [data-ai-event] [data-ai-age]')].map((n) => n.getAttribute('datetime') || ''),
     // A reading is a chip on the row whose own record backs it — never a colour, never a verdict,
@@ -1365,15 +1364,11 @@ console.log('\n— AI alerts —');
   ok('...in the order the list header claims',
     aiShape.every((card) => card.rowKeys.join('|') === [...card.rowKeys].sort().reverse().join('|')),
     aiShape.map((card) => `${card.ticker}:${card.rowKeys.join(',')}`).join(' | ').slice(0, 170));
-  // NO SOURCE TAKES THE WHOLE CARD. One board meeting filed to both exchanges under four different
-  // subjects is four records upstream, and it took all four rows of a card whose own header read
-  // "1 source" — so slots go one per source in rounds and stop at three from any one of them.
-  // Counted on the tag each row prints, which names the source FAMILY, so NSE and BSE count as the
-  // one source they are.
-  ok('...with no more than three rows from any one source',
-    aiShape.every((card) => [...new Set(card.evidenceSources)]
-      .every((source) => card.evidenceSources.filter((name) => name === source).length <= 3)),
-    aiShape.map((card) => `${card.ticker}:${card.evidenceSources.join('/')}`).join(' | ').slice(0, 170));
+  // The timeline shows chronological evidence without dropping rows to fit source quotas.
+  ok('...with a source label on every mounted event',
+    aiShape.every(card => card.evidenceSources.length === card.evidence && card.evidenceSources.every(Boolean)));
+  ok('...with unique retained event identities in the mounted window',
+    aiShape.every(card => new Set(card.evidenceIds).size === card.evidenceIds.length));
   // A TOPIC READING IS NOT A DIRECTION AND NOT A VERDICT. Today's capture may carry no tracked
   // topic at all, which is a legitimate state — so this asserts the shape of whatever is drawn
   // rather than that something is. The fixture-driven suite asserts one is drawn.
@@ -1388,11 +1383,6 @@ console.log('\n— AI alerts —');
   ok('...and the pattern chips tag a pattern rather than repeating its sentence',
     aiShape.every((card) => card.confluenceLines.every((line) => line.length > 0 && line.length <= 20)),
     aiShape.flatMap((card) => card.confluenceLines).join(' | ').slice(0, 140) || 'no patterns today');
-  // BREADTH, NOT THREE COPIES OF ONE FEED. A card claiming four sources that spends all three of
-  // its rows on one of them answers the question it raised with a quarter of what it holds.
-  ok('...and the evidence rows show as many different sources as the card has',
-    aiShape.every((card) => card.evidenceFeeds.length === Math.min(card.evidence, card.sources)),
-    aiShape.map((card) => `${card.ticker}:${card.evidenceFeeds.join('/')} of ${card.sources}`).join(' | ').slice(0, 170));
   ok('...and the insight is a single short sentence in ordinary English',
     aiShape.every((card) => card.insight.length > 0 && card.insight.length <= 260),
     `longest ${Math.max(0, ...aiShape.map((card) => card.insight.length))} chars`);
