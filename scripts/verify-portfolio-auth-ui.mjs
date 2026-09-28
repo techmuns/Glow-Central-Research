@@ -1,5 +1,6 @@
 // Exercises the actual Family edge login using an isolated fixture password.
 // No production credentials, cookies, data APIs or model requests are used.
+import { installResearchFixture } from './lib/research-ui-fixture.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -28,6 +29,7 @@ await context.route('**/*', async route => {
   if (url.pathname.startsWith('/api/')) return route.fulfill({ status: 503, body: 'Test API unavailable' });
   return route.continue();
 });
+await installResearchFixture(context);
 try {
   const page = await context.newPage();
   await page.goto('http://localhost:8080/#/research/ask-research?scope=portfolio');

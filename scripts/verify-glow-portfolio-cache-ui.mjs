@@ -1,5 +1,6 @@
 // The real portfolio reader under a controlling service worker, including an
 // already-open legacy session. All assets/data are local; inference is a fixture.
+import { researchFixtureAsset } from './lib/research-ui-fixture.mjs';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -59,7 +60,7 @@ const server = createServer(async (req, res) => {
   const file = resolve(root, `.${path === '/' ? '/index.html' : path === '/glow-bridge' ? '/glow-bridge.html' : path}`);
   if (!file.startsWith(root + sep)) return send('Missing', 'text/plain', 404);
   try {
-    return send(readFileSync(file), { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' }[extname(file)] || 'application/octet-stream');
+    return send(researchFixtureAsset(path, readFileSync(file)), { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' }[extname(file)] || 'application/octet-stream');
   } catch { return send('Missing', 'text/plain', 404); }
 });
 await new Promise(done => server.listen(0, '127.0.0.1', done));
@@ -114,9 +115,8 @@ try {
   assert.equal(cachedDocuments.redirected, false, 'revalidated redirects remain safe for later navigation');
   assert(cachedDocuments.readerModule, 'the independent reader module graph is warmed');
 
-  // Ask Research is stood down by default on this deployment (`isComingSoon` in the tab), so a
-  // check that drives the real composer asks for it explicitly. Without this the layout is inert
-  // and the connection chip never reaches `connected` — a pass/fail about a switch, not the bridge.
+  // The local-only research shell fixture retains composer coverage for the shared private bridge.
+  // The shipped customer shell has no Ask Research registration, including with this flag.
   await page.goto(`${origin}/#/research/ask-research?scope=portfolio&enable_research=1`);
   await page.locator('[data-portfolio-connection][data-state="connected"]').waitFor();
   const before = bookReads;

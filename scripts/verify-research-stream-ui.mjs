@@ -2,6 +2,7 @@
 // End-to-end Ask Research with local data and a synthetic authenticated peer.
 // The peer deliberately never answers legacy model reads, reproducing the
 // user's timeout. Real incremental HTTP responses verify progressive painting.
+import { researchFixtureAsset } from './lib/research-ui-fixture.mjs';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -92,7 +93,7 @@ const server = createServer(async (req, res) => {
   if (!file.startsWith(root + sep)) { res.writeHead(404); res.end(); return; }
   try {
     res.setHeader('content-type', { '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png' }[extname(file)] || 'application/octet-stream');
-    res.end(readFileSync(file));
+    res.end(researchFixtureAsset(url.pathname, readFileSync(file)));
   } catch { res.writeHead(404); res.end(); }
 });
 await new Promise(done => server.listen(0, '127.0.0.1', done));

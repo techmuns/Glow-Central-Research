@@ -197,8 +197,8 @@ try {
   await page.getByText('NEWCO announces dividend', { exact:true }).waitFor();
   assert.equal(await page.getByText('EDELWEISS announces dividend', { exact:true }).count(), 0);
   // Every tab shares the same identity set, including direct links and empty feeds.
-  for (const tab of ['daily-alerts','earnings-hub','concall','public-chatter','breakouts','super-investors','ipos','corp-announcements','nse-filings','insider-trades','ai-alerts','ask-research']) {
-    await page.evaluate(tab => { location.hash = `#/research/${tab}?scope=portfolio${tab === 'ask-research' ? '&test_stream=1' : ''}`; }, tab);
+  for (const tab of ['daily-alerts','earnings-hub','concall','public-chatter','breakouts','super-investors','ipos','corp-announcements','nse-filings','insider-trades','ai-alerts']) {
+    await page.evaluate(tab => { location.hash = `#/research/${tab}?scope=portfolio`; }, tab);
     await page.waitForFunction(async tab => (await import('/js/core/state.js')).state.tab === tab, tab);
     await page.getByRole('button', { name:'View Portfolio',exact:true }).click();
     assert.equal(await page.locator('[data-scope-count]').innerText(), '3', tab);

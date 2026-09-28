@@ -42,6 +42,12 @@ reader's row anchored when new events arrive. Preserve the recent ranking window
 filters, view/account cleanup and no-model-work-on-scroll contract. See the 28 September timeline
 section in `docs/INTELLIGENCE-RELIABILITY.md`; it supersedes the older four-row preview notes.
 
+**Navigation (28 September 2026):** Ask Research is removed from the customer tab registry.
+AI Alerts is first/default. Old Ask Research routes redirect to AI Alerts with scope and query
+parameters intact; feature flags must not restore the tab. Retained research-component tests use
+`scripts/lib/research-ui-fixture.mjs`, never a customer-facing registration switch. Shared research
+APIs, stored conversations and the in-flight upgrade guard remain unchanged.
+
 ---
 
 ## Hard rules
@@ -366,7 +372,7 @@ handler rather than closing over the one that happened to be current at subscrib
 **To add a tab:** create the module, then add it to the `WORKSPACES` array in
 `js/ui/shell.js`. That's the only registration point.
 
-**Ask Research is first, and first is the default landing page.** `handleRoute` falls back to
+**AI Alerts is first, and first is the default landing page.** `handleRoute` falls back to
 `ws.tabs[0]` for an unknown or absent tab, so the ORDER of the `WORKSPACES` array is the default —
 there is no second place recording it that could disagree with the array. Reordering that array
 moves the landing page, which is the intended way to move it.
@@ -1116,10 +1122,9 @@ circular to the crore and `scripts/verify-fpi-activity.mjs` freezes that fixture
 
 **Scope does not apply to either tab and the head says so.** They are market-wide series, not
 per-company feeds; the pill reads *Market-wide · scope does not apply* and no row carries a
-watchlist star (`watchKey: () => null`). The landing page is Ask Research, which is also first in
-the bar; `landingTab()` in `shell.js` still resolves an unknown route to `router.DEFAULT_ROUTE.tab`
-by id rather than by position, so the Glow tabs can be moved anywhere in the bar — they sat in front
-of Ask Research once, and now close it — without moving the landing page.
+watchlist star (`watchKey: () => null`). AI Alerts is the landing page and the first tab; the Glow
+macro tabs remain near the end of the bar. Keep the first registered tab and `router.DEFAULT_ROUTE`
+aligned when changing the landing page.
 
 **Never ask the store for a year it does not hold.** `fetchPoints` reads only the chunks inside the
 manifest's `first`/`last` span, and a missing chunk resolves to nothing rather than throwing — but a

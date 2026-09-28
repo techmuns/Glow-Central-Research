@@ -1,4 +1,5 @@
 // Real app, static local data, no production requests. Exercises the CSS as well as preferences.
+import { researchFixtureAsset } from './lib/research-ui-fixture.mjs';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFileSync, mkdirSync } from 'node:fs';
@@ -14,7 +15,7 @@ const server = createServer((req, res) => {
   if (!file.startsWith(root + sep)) { res.writeHead(404).end(); return; }
   try {
     res.setHeader('content-type', { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' }[extname(file)] || 'text/plain');
-    res.end(readFileSync(file));
+    res.end(researchFixtureAsset(path, readFileSync(file)));
   } catch { res.writeHead(404).end(); }
 });
 await new Promise(done => server.listen(0, '127.0.0.1', done));
