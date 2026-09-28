@@ -184,8 +184,9 @@ corroboration, and duplicate links/subjects are counted once.
 
 AI Alerts preserves every eligible corporate-announcement and publisher record through its event
 fold. Generic subjects and identical headlines are not source identities. Related reports are
-reachable in an expandable list led by the corporate announcement; each original link and date
-stays available. Conflicting order amounts, named counterparties/projects/places, stages and
+reachable through inline numbered citations led by the corporate announcement; each distinct
+original link stays available, with source dates and headlines in tooltips and accessible names.
+Duplicate routes to the same URL share one citation without deleting captured records. Conflicting order amounts, named counterparties/projects/places, stages and
 financial periods prevent grouping, including when headlines otherwise resemble each other.
 Unknown details cannot establish complete semantic matching or complete upstream collection.
 Filing-description corrections must resurface archived evidence even with an unchanged subject.

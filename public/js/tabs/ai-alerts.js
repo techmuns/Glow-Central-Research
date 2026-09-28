@@ -20,7 +20,7 @@ import { AI_EVENT_TYPES, aiEventTypes, matchesAIEvent, loadAIEventFilters, saveA
 import { KPI_CHIP_LIMIT, kpiLine, status as kpiStatus } from '../data/kpi-impact.js';
 import { chatterTopic } from '../data/chatter-sentiment.js';
 import { driversFromEvent, QUESTIONS } from '../data/alert-drivers.js';
-import { developmentSource, foldedSummary, publisherOf, venuesOf, storyKindOf, KIND_LABEL } from '../data/alert-developments.js';
+import { developmentSource, publisherOf, venuesOf, storyKindOf, KIND_LABEL } from '../data/alert-developments.js';
 import { noteRequestFor, requestNotes, onNotes } from '../data/alert-notes.js';
 import { noteBodyHtml, noteIsSkipped, NOTE_DISCLOSURE } from '../ui/alert-note.js';
 import * as screenerInsights from '../data/screener-insights.js';
@@ -829,7 +829,7 @@ function kindLabel(dev) {
  * BSE announcement and the card led with a publisher's write-up of it, as generic news. The lead is
  * now the development's (data/alert-developments.js) — the filing wherever there is one — so the
  * chip says "Corporate announcement", the source says which exchanges filed it, and the sentence
- * opens that filing. An expandable source list exposes every related report and exchange copy.
+ * opens that filing. Inline numbered citations open the original sources directly.
  */
 function whatHappenedMarkup(card, scope) {
   const dev = alerts.leadDevelopment(card);
@@ -848,7 +848,7 @@ function whatHappenedMarkup(card, scope) {
     ? `<a data-ai-lead-link href="${escapeHtml(destination.href)}" ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
         aria-label="${escapeHtml(destination.ariaLabel)}" class="rounded transition hover:text-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${sentence}</a>`
     : sentence;
-  return `${meta}<p data-ai-insight class="font-display mt-1 text-[17px] font-bold leading-snug text-slate-900"${title}>${body}</p>${developmentSourcesMarkup(dev, scope)}`;
+  return `${meta}<p data-ai-insight class="font-display mt-1 text-[17px] font-bold leading-snug text-slate-900"${title}>${body} ${developmentSourcesMarkup(dev, scope, lead)}</p>`;
 }
 
 /**
@@ -946,31 +946,31 @@ const DOT_TONE = {
  * published a clock, the IST time. A relative age invented down to the hour for a day-only feed
  * would be this dashboard being precise about something nobody measured.
  */
-// A disclosure works with a mouse, touch or keyboard, and keeps every original source reachable.
-// The keyed reconciler preserves its open state and focused link during background refreshes.
-function developmentSourcesMarkup(dev, scope) {
-  if (!dev?.others?.length) return '';
-  const ordered = [dev.lead, ...dev.others.filter(event => storyKindOf(event) === 'filing'),
-    ...byNewestFirst(dev.others.filter(event => storyKindOf(event) !== 'filing'))];
-  return `<details data-ai-development-sources="${escapeHtml(dev.id)}" class="mt-1 rounded-lg border border-slate-200 px-2 py-1">
-    <summary data-ai-folded class="cursor-pointer rounded text-xs font-semibold text-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-500">View ${escapeHtml(foldedSummary(dev))}</summary>
-    <ul class="mt-2 space-y-2">
-      ${ordered.map((source, index) => {
-        const dest = evidenceDestination(source, scope);
-        const kind = storyKindOf(source);
-        const label = kind === 'filing' ? `${index === 0 ? 'Primary corporate announcement' : 'Exchange copy'} · ${venuesOf(source).join(' · ') || source.feedLabel || 'Exchange'}`
-          : `${kind === 'news' ? 'Related news' : 'Related source'} · ${publisherOf(source) || source.feedLabel || source.feed}`;
-        const when = `${fmtDay(source.day)}${source.time ? ` · ${source.time} IST` : ''}`;
-        return `<li data-ai-notebook-event="${escapeHtml(source.id)}" class="min-w-0">
-          <a data-ai-related-source href="${escapeHtml(dest.href)}" ${dest.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
-            class="block break-words rounded text-sm text-slate-800 hover:text-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-500">
-            <span class="block text-[11px] font-semibold text-slate-500">${escapeHtml(label)} · ${escapeHtml(when)}</span>
-            <span>${escapeHtml(source.headline || alerts.plainHeadline(source))}</span>
-          </a>
-        </li>`;
-      }).join('')}
-    </ul>
-  </details>`;
+// One number per destination, with the filing first. Full source labels remain on hover and
+// in accessible names; duplicate capture routes to the same URL share one citation.
+function developmentSourcesMarkup(dev, scope, fallback = null) {
+  const ordered = dev ? [dev.lead, ...dev.others.filter(event => storyKindOf(event) === 'filing'),
+    ...byNewestFirst(dev.others.filter(event => storyKindOf(event) !== 'filing'))] : fallback ? [fallback] : [];
+  const sources = new Map();
+  for (const source of ordered) {
+    const dest = evidenceDestination(source, scope);
+    const kind = storyKindOf(source);
+    const label = kind === 'filing' ? `Corporate announcement · ${venuesOf(source).join(' · ') || source.feedLabel || 'Exchange'}`
+      : publisherOf(source) || source.feedLabel || source.feed;
+    const when = `${fmtDay(source.day)}${source.time ? ` · ${source.time} IST` : ''}`;
+    const description = `${label} · ${when} — ${source.headline || alerts.plainHeadline(source)}`;
+    const entry = sources.get(dest.href) || { dest, descriptions: [] };
+    if (!entry.descriptions.includes(description)) entry.descriptions.push(description);
+    sources.set(dest.href, entry);
+  }
+  if (!sources.size) return '';
+  return `<span data-ai-development-sources="${escapeHtml(dev?.id || fallback.id)}" class="ai-source-citations">${[...sources.values()].map(({ dest, descriptions }, index) => {
+    const title = descriptions.join('\n');
+    return `<a data-ai-related-source data-ai-source-id="${escapeHtml(dest.href)}" href="${escapeHtml(dest.href)}"
+      ${dest.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
+      title="${escapeHtml(title)}" aria-label="${escapeHtml(`Source ${index + 1}: ${title}. ${dest.external ? 'Open original source' : 'Open dashboard evidence'}`)}"
+      class="ai-source-citation">${index + 1}</a>`;
+  }).join(' ')}</span>`;
 }
 
 function eventMarkup(event, scope, day, dev = null) {
@@ -983,9 +983,7 @@ function eventMarkup(event, scope, day, dev = null) {
   // that stands for a development prints that development's line and counts what folded under it.
   const claim = dev ? alerts.developmentClaim(dev) : alerts.plainHeadline(event);
   const readings = driverReadings(event);
-  // THE CHIP MUST REACH A SCREEN READER TOO. The link carries an aria-label, which replaces its
-  // own contents for assistive technology — so a chip rendered inside it would be silently dropped
-  // unless the questions are named in that label as well.
+  // Keep the source link's accessible name connected to the topic chips on the same row.
   const ariaLabel = readings.length
     ? `${destination.ariaLabel} — could change ${readings.map(({ question }) => question.label).join(', ')}`
     : destination.ariaLabel;
@@ -995,20 +993,20 @@ function eventMarkup(event, scope, day, dev = null) {
   return `
     <li data-ai-notebook-event="${escapeHtml(event.id)}">
       <div class="flex items-start gap-2">
-      <a data-ai-event data-ai-evidence-link href="${escapeHtml(destination.href)}"
-        ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
-        aria-label="${escapeHtml(ariaLabel)}"
-        class="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 transition-colors hover:bg-indigo-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+      <div data-ai-event class="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 transition-colors hover:bg-indigo-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
         <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${DOT_TONE[event.direction] || DOT_TONE.neutral}" aria-hidden="true"></span>
         <span class="min-w-0 flex-1">
-          <span class="line-clamp-2 block text-sm font-medium leading-snug text-slate-800 group-hover:text-slate-900" title="${escapeHtml(event.headline || '')}">${escapeHtml(claim)}</span>
+          <span class="block text-sm font-medium leading-snug text-slate-800 group-hover:text-slate-900">
+            <a data-ai-evidence-link href="${escapeHtml(destination.href)}" ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
+              aria-label="${escapeHtml(ariaLabel)}" title="${escapeHtml(event.headline || '')}"
+              class="rounded focus-visible:ring-2 focus-visible:ring-indigo-500">${escapeHtml(claim)}</a> ${developmentSourcesMarkup(dev, scope, event)}
+          </span>
           ${driverChipsMarkup(readings)}
         </span>
         <span data-ai-event-source class="mt-0.5 shrink-0 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider ${recent ? 'text-slate-600' : 'text-slate-400'}" title="${escapeHtml(`${event.feedLabel || event.feed} · ${when}`)}">${escapeHtml(tag)} · <time data-ai-age data-day="${escapeHtml(event.day)}" datetime="${escapeHtml(event.time ? `${event.day}T${event.time}+05:30` : event.day)}">${escapeHtml(age)}</time></span>
-      </a>
+      </div>
       ${bookmarkButton(snapshotForRow(event, { section: 'daily-alerts' }))}
       </div>
-      ${developmentSourcesMarkup(dev, scope)}
     </li>`;
 }
 

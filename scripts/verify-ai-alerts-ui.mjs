@@ -336,7 +336,7 @@ try {
     const evidence = card.querySelector('[data-ai-evidence]');
     const chips = [...card.querySelectorAll('[data-ai-driver]')];
     const rows = [...card.querySelectorAll('[data-ai-evidence] [data-ai-evidence-link]')];
-    const rowOf = (chip) => chip.closest('[data-ai-evidence-link]');
+    const rowOf = (chip) => chip.closest('[data-ai-event]')?.querySelector('[data-ai-evidence-link]');
     const readings = {
       withDrivers: cards.filter((c) => c.querySelector('[data-ai-driver]')).length,
       total: cards.length,
@@ -349,12 +349,11 @@ try {
       chipClasses: chips.map((chip) => chip.className),
       // A chip with no record behind it is the failure this replaced a paragraph to avoid.
       chipsSitOnRows: chips.length > 0 && chips.every((chip) => !!rowOf(chip) && !!rowOf(chip).getAttribute('href')),
-      // The link's aria-label replaces its contents for assistive technology, so the questions have
-      // to be named in it or the chip is drawn for sighted readers only.
+      // The source link continues to name the topic chips on its row for assistive technology.
       rowsNameTheQuestion: chips.every((chip) => /could change/i.test(rowOf(chip).getAttribute('aria-label') || '')),
       insightBeforeEvidence: !!evidence && !!(insight.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING),
       rowCount: rows.length,
-      rowKeys: rows.map((row) => row.querySelector('[data-ai-age]')?.getAttribute('datetime') || ''),
+      rowKeys: rows.map((row) => row.closest('[data-ai-event]').querySelector('[data-ai-age]')?.getAttribute('datetime') || ''),
       // Both blocks this replaced, asserted absent by their own hooks.
       figureStrip: card.querySelectorAll('[data-ai-metrics]').length,
       questionParagraph: card.querySelectorAll('[data-ai-drivers]').length,

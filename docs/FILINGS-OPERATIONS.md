@@ -74,6 +74,10 @@ unresolved identities and the unconnected consensus feed remain explicit coverag
 
 ## Verify locally or in staging
 
+For BSE access qualification, runner selection and recovery, see
+[BSE collection](BSE-COLLECTION.md). Host access and complete pagination must both
+be verified before treating the source as recovered.
+
 ```sh
 node scripts/verify-filings-health.mjs
 node scripts/check-filings-health.mjs company insider

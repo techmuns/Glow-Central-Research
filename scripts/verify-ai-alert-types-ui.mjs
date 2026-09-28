@@ -39,6 +39,10 @@ const server = createServer((req, res) => {
   try {
     if (path === '/' || path === '/index.html') { res.setHeader('content-type', 'text/html'); return res.end(html); }
     if (path === '/sdk-fixture.js') { res.setHeader('content-type', 'text/javascript'); return res.end('/* no host */'); }
+    if (path === '/glow-bridge.html') {
+      res.setHeader('content-type', 'text/html');
+      return res.end(`<script>addEventListener('message', e => { if (e.data.channel === 'sattva-portfolio-v1') parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'}, '*'); });</script>`);
+    }
     if (path.startsWith('/api/')) { res.writeHead(503); return res.end('{}'); }
     const file = resolve(root, '.' + path); if (!file.startsWith(root + sep)) throw Error();
     let body = path === '/js/data/daily-alerts.js' ? feedModule : readFileSync(file);
