@@ -1562,7 +1562,7 @@
       "error": "search-unavailable"
     },
     "isin:INE089C01029|STLTECH": {
-      "lastAttemptAt": "2026-09-24T01:13:27+00:00",
+      "lastAttemptAt": "2026-09-28T17:04:31+00:00",
       "error": "search-unavailable"
     },
     "isin:INE958L01034|String Metaverse": {
@@ -1874,6 +1874,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 212,
-    "checkedAt": "2026-09-28T16:29:19.233623+00:00"
+    "checkedAt": "2026-09-28T17:04:31.852815+00:00"
   }
 }
