@@ -5094,73 +5094,72 @@ Where it is read:
   the lead is a filing, the row opening the filing, *Also · 2 exchange copies · 30 news reports* with
   every member listed in its title. Search reads every member; the Date range and Company relationship
   filters match a row when its lead or any member does; the export adds Kind, Development (short line),
-  So what? (AI), Also reported (count) and Also reported (source · date — headline — link). Upcoming is
+  AI summary, Also reported (count) and Also reported (source · date — headline — link). Upcoming is
   not folded. The feed chips still count what each source holds.
 
 Only compact fields are read — the headline, the filing's own subject, title and description, the
 URL, the detail line, the day and time and the document hash — so an AI-pool event, which drops its
 source record, folds exactly as the full event does. `node scripts/verify-alert-developments.mjs`.
 
-### The alerts' "So what?" line — `POST /api/alert-notes`
+### Optional AI summary — `POST /api/alert-notes`
 
-The second bullet of an alert: the likely earnings or valuation implication of the development, one
-line, written by Claude on Bedrock (`CLAUDE_KEY` on the Worker, the credential Ask Research and the
-brief's filing notes use; never the browser). It is the one reading on either alert surface that is not a stated rule, so it carries the
-brief's constraints and is refused rather than repaired when it breaks one.
+AI Alerts and All Alerts show a **Headline** and, only when useful, a short factual **AI summary**.
+This supersedes the earnings/valuation implication requested on 23 September. News never requests
+or displays a summary. Routine notices, trades, holding changes, social posts, unclassified filings
+and headline-only records also skip the request. Source collection, history and ranking are unchanged.
 
-Request (same origin only, `ALERT_NOTES_LIMITER` 30/min per address, ≤ `NOTE_REQUEST_ITEMS` (8) items,
-≤ 32 KB):
+The shared `summaryTypeOf` gate accepts results, orders, credit ratings, corporate actions, capital
+changes, deals, management changes and regulatory filings. Explicit routine classifications stay
+routine. Generic press-release or board-meeting labels qualify only when the captured statement
+names an eligible substantive type. `hasSummaryDetail` requires at least twelve words of captured
+detail and four distinct non-connector words beyond the displayed headline. This is a conservative
+presentation gate, not a claim that skipped documents are immaterial; all source records stay visible.
+Both the browser and Worker apply the gate, including requests from older browser sessions.
+
+Requests are same-origin, rate-limited to 30/minute per address, at most eight items and 32 KB:
 
 ```json
-{ "items": [{ "id": "0", "kind": "filing", "company": "Puravankara Ltd", "ticker": "PURVA",
-  "sector": "Realty", "day": "2026-09-17", "line": "Secures ₹2,600 Cr redevelopment project in Goregaon",
-  "headline": "Puravankara Limited secures Rs. 2600 Crore redevelopment project in Goregaon",
-  "detail": "BSE · Press Release / Media Release", "related": [] }] }
+{ "items": [{ "id": "0", "kind": "filing", "documentType": "corporate-action",
+  "company": "Example Ltd", "ticker": "EXAMPLE", "day": "2026-09-28",
+  "line": "Dividend recommendation", "headline": "Dividend recommendation",
+  "detail": "The board recommended a dividend of Rs 5 per share for FY26. The record date is 1 October 2026 and payment is proposed for 15 October 2026, subject to shareholder approval." }] }
 ```
 
-`kind` is one of `filing`, `news`, `result`, `insider`, `investor` — a price or volume reading, public
-chatter, a con-call's third-party analysis, a social post and an unconfirmed or related-entity report
-are never asked about. The page asks for the developments on screen only: the lead development of each
-visible AI Alerts card, and the material developments mounted in All Alerts' viewport. The question is
-built from the development's LEAD alone, so the card and the row ask the identical question and share
-one note.
+Only `filing` and `result` kinds qualify. The model receives the lead's statement, headline, captured
+detail, company/ticker, source date and document type. No linked document is opened and no current
+date or fiscal-year context is invented. The type guides what to condense: terms and dates for a
+corporate action, parties/value/timing for an order, reported figures for results, or the stated
+change/status for other filings. The prompt requests one or two simple factual sentences, at most
+220 characters, without earnings/valuation inference, forecasts or advice. Source-stated future
+actions and dividend recommendations are valid facts. Numeric validation permits only source
+figures; investment advice and share-price calls remain rejected. Model summaries can still be
+wrong: the source link and available-text disclosure stay beside them.
 
 Response: `{ ok: true, notes: { "<id>": { note, model, generatedAt, stored } }, missing: { "<id>": reason }, retryAt: { "<id>": timestampOrNull }, checkedAt }`.
-`ok: false` carries a `reason` and no `notes`. Reasons, each printed on the card in words
-(`NOTE_REASON`): `no-worker` (a static origin — 404/405/501), `no-key`, `refused`, `rate-limited`,
-`budget`, `upstream`, `timeout`, `unreadable`, `empty`, `invalid`, `retry-exhausted`, and the three refusals of a written
-note — `unhedged` (it said "will"), `advice`, `price-call` — plus `unsupported-figure` (it named a
-number the source does not state; the current and next fiscal-year labels from CONTEXT are the only
-figures it may add).
+An explicit model `note: null`, or a repeated headline, becomes terminal `not-needed`; the client
+records `skipped` and omits the entire summary section and export cell. This differs from an omitted
+item or malformed/empty response, which stays an honest unavailable state. Other reasons are
+`no-worker`, `no-key`, `refused`, `rate-limited`, `budget`, `upstream`, `timeout`, `unreadable`, `empty`,
+`invalid`, `retry-exhausted`, `advice`, `price-call` and `unsupported-figure`.
 
-The store — one Durable Object, `alert-notes:v1`, on the `ALERT_NOTES` binding (the provisioned
-CaptureRegistry class, its own storage): table `alert_notes (key, note, model, created_at)` keyed by
-the SHA-256 of everything the model was given (`noteContent`: prompt version, company, ticker, sector,
-industry, kind, day, line, headline, detail, related — never the caller's id, so nobody can file a
-note against somebody else's text), and `alert_notes_meta.budget` `{ day, used }` bounding NEW notes to
-`NOTE_DAILY_LIMIT` (1,200) attempted items per Indian day. Identical items in one batch count once;
-two readers asking at once share one request. Saved notes are retained for All Alerts history,
-including beyond 60 days, and served without another model call. Their original `generatedAt`
-keeps fiscal-year validation tied to the saved reading, not the date it is reopened. Existing note
-keys and stored answers are preserved; this release does not invalidate the cache.
+The existing `alert-notes:v1` Durable Object and SQLite tables remain. New factual summaries use
+`alert-summary:v1` in the content hash, so old investment implications are retained but never
+mislabelled as summaries. Keys contain exactly the prompt version and model-visible fields:
+company, ticker, kind, document type, source date, headline line, original headline and detail.
+Caller ids, sector changes, related news arrivals and refresh dates cannot repurchase a summary.
+The model credential remains the Worker's `CLAUDE_KEY`; it never reaches the browser.
 
-`alert_note_attempts (key, attempts, reason, retry_at)` retains one receipt per content key. Budget
-and receipts are committed together before provider access. Rejected, empty and unreadable output
-stays absent with its reason and is not purchased again for unchanged input. Temporary upstream,
-timeout, provider refusal and rate-limit failures share durable backoff and at most three attempts
-total, including interruptions, across readers, restarts and day rollover. Exhaustion is a named
-state, not an endless loading bar. `retryAt[id]` is an absolute millisecond timestamp or `null` for
-no automatic retry; missing entries use the client's existing deployment-level retry policy.
-Unconfigured keys and exhausted daily allowance do not consume a content attempt. The browser
-keeps notes in memory only, so reload can briefly load a saved reading without a new model call.
-Source capture and its normal refresh cadence are unchanged. A changed source statement or other
-model input remains eligible for a new reading; no timestamp-only cache invalidation is added.
+The cost safeguards remain: duplicate batch items count once, concurrent readers share one call,
+saved summaries persist beyond 60 days, and the shared allowance is 1,200 attempted items per Indian
+day. Budget and attempt receipts commit before provider access. Rejected, empty, unreadable and
+unnecessary summaries are not purchased again for unchanged input. Temporary failures share backoff
+and a three-attempt ceiling across browsers, interruptions, restarts and day rollover. Genuine
+source corrections may receive a new summary. No source collection or refresh cadence is reduced.
 
-The model sees the development's statement, headline and detail, the company's name and sector, the
-day, and CONTEXT `{ today, fiscalYears: { current: "FY27 (April 2026 – March 2027)", next: "FY28" } }`
-— no link, no document, nothing fetched. The line is marked **So what? · AI reading** on its face, with
-the disclosure (`NOTE_DISCLOSURE`) on the card, the row and the export banner.
-`node scripts/verify-alert-notes.mjs`.
+Validation: `verify-alert-notes.mjs` covers eligibility, factual prompt/validation, durable reuse,
+skips and bounded retries; `verify-announcement-sources-ui.mjs` covers labels and the absence of news,
+routine and headline-only requests; `verify-ai-alert-cache-ui.mjs` verifies returning-session upgrades
+and unchanged refresh/reload reuse. All model responses in these checks are local stubs.
 
 ## Tracked news keywords — DERIVED, no file and no route of its own
 

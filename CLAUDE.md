@@ -141,7 +141,7 @@ public/
       host-ticker.js          the company the HOST has selected, as one header chip. Absent, not
                               empty-stated, when it has selected none — this app is not ticker-bound
       notifications.js        the header bell and notification inbox
-      alert-note.js           how the AI "So what?" line reads on a card, a row and an export cell
+      alert-note.js           how the optional AI summary reads on a card, a row and an export cell
       export.js               generic exceljs-from-CDN "Export Excel" helper
       components.js           chrome primitives (tab bar, toggle, search…)
       shell.js                header + tabs + sub-view picker + content host + tab registry
@@ -168,7 +168,7 @@ public/
                               AI Alerts (cards) and All Alerts (rows). See the section below
       alert-claims.js         a filing's own claim (`filingClaim`, `sourceStatement`, `clip`,
                               `isTypeOnly`) — shared by the card sentence and the fold
-      alert-notes-shared.js   THE "SO WHAT?" LINE'S CONTRACT — items, fiscal-year context, the
+      alert-notes-shared.js   THE OPTIONAL SUMMARY CONTRACT — document types, source text and
                               refusals; imported by worker/alert-notes-store.mjs too
       alert-notes.js          the browser half: batches the on-screen questions to /api/alert-notes
       coverage.js             THE BOOK — the 142 companies the Portfolio toggle means, and the
@@ -3566,6 +3566,9 @@ implication). The retired blocks stay retired: the topic paragraph, the figure s
 chips do not come back. The new second bullet is a different thing — an AI line under its own
 contract, below — and a template sync must preserve it (see `docs/GLOW-TEMPLATE-SYNC.md`).
 
+**Superseded on 28 September 2026:** the user now wants **Headline** plus an optional factual
+**AI summary**, selected by document type, and no summary for news. See the current contract below.
+
 ### ONE DEVELOPMENT, ONE ITEM — `js/data/alert-developments.js`
 
 The customer's reading of Puravankara (September 2026): one ₹2,600 crore redevelopment win reached
@@ -3645,43 +3648,39 @@ company's developments are reused between rankings while its rows are unchanged.
 100,005-filing AI Alerts stress fixture went 5.0s → 10.8s on the first draft and back to ~6s with
 these; a real Universe history (263k events) folds in ~1.3s warm, a day in ~30ms.
 
-### THE "SO WHAT?" LINE — the alerts' one AI reading (`/api/alert-notes`)
+### OPTIONAL AI SUMMARY — document-aware, factual and never requested for news (28 September 2026)
 
-The second bullet: one line, at most 220 characters, on the likely earnings or valuation implication
-— *"Unlikely to move FY27 revenue at once; mainly adds to the development pipeline."* Written by
-Claude on Bedrock through the Worker's `CLAUDE_KEY` (the credential Ask Research and the brief's
-filing notes use; the brief's news notes are OpenAI's and do not share this path), and held to the
-brief's rules, enforced in code on both sides of the wire (`acceptNote`), not only in the prompt:
+The latest user request supersedes the earlier two-bullet investment-implication contract: show a
+**Headline** with an optional short **AI summary**. News has no summary and makes no model request.
+Use only substantive filing types (results, orders, ratings, corporate actions, capital, deals,
+management and regulatory changes), and only when captured detail adds information beyond the
+headline. Routine, unclassified and headline-only records remain visible without the second row.
+`summaryTypeOf` and `hasSummaryDetail` in `alert-notes-shared.js` gate both browser and Worker.
+Generic press releases and meeting labels require explicitly substantive captured text.
 
-1. **The model sees what the card shows and nothing else** — the lead's statement, headline and
-   detail, company, sector, day, and the current and next fiscal-year labels. No link, no document.
-2. **It adds no fact.** A number the input does not state is refused (`unsupported-figure`); only the
-   two fiscal-year labels given may be added. A share-price call, advice or a "will" is refused too.
-3. **Marked AI on its face** (*So what? · AI reading*, the disclosure in the title, a column and the
-   banner in the export), hedged, and **absent with its reason in words** rather than guessed:
-   `no-worker` on a static origin, `no-key`, `budget`, `refused`, `rate-limited`, a withheld note.
-4. **One development costs one model request, whoever reads it.** The Durable Object `alert-notes:v1`
-   stores each note under the hash of everything the model was given — never the caller's id, so a
-   note cannot be filed against somebody else's text — shares a question already in flight, and caps
-   NEW notes at 1,200 per Indian day. The page asks only for what is on screen (the visible cards;
-   the material rows mounted in All Alerts), batched eight at a time, and never twice in a session.
-   The question is built from the development's LEAD alone, so the card and the row share one note.
-   **28 September cost correction:** successful notes no longer expire after 60 days: All Alerts
-   can reopen older history. Durable attempt receipts also survive reloads, restarts and day
-   rollover. Rejected/empty/unreadable output is not purchased again; transient failures share a
-   backoff and three-attempt ceiling. Reserve budget and receipts before provider I/O, deduplicate
-   identical input within a batch, and honor the server's `retryAt` (`null` means terminal).
-   Saved readings retain their generation date for fiscal-year validation. Preserve existing
-   content keys and notes on deployment; source refresh never resets this cost ledger.
-5. **Which developments get one:** filings, confirmed company news, filed results, insider/deal
-   disclosures and fund-holding changes. Never a price or volume reading (the tape says who traded,
-   not why), chatter, a con-call's third-party analysis, a social post or a possible match.
+The model summarises available source text in one or two simple factual sentences (220 characters),
+guided by document type. It must not infer earnings, valuation, financial effects or unstated facts.
+No linked document is fetched and no current fiscal-year labels are added. Preserve proposed,
+approved and completed status and the different kinds of dates. A stated dividend recommendation
+is a corporate-action fact, not investment advice. The linked source remains available.
 
-This is the one place a model call starts from a page view, and it is a deliberate narrowing of the
-Deep Dive rule for the same reasons the market-news auto-fetch is: the reader opening the tab is the
-demand, the cost is bounded (a stored note is free, the day is capped), and a failure is a named
-state. `verify-alert-notes.mjs` drives the contract, the store (node:sqlite, stub model), the route
-and the client.
+The UI and exports say **AI summary**, with an available-text disclosure. If the model explicitly
+returns `note: null`, or merely repeats the headline, the saved `not-needed` receipt becomes a
+`skipped` client state: no blank section, unavailable warning or repeated request. Genuine failures
+keep their named unavailable state. News, trades, holdings, chatter and social records never request
+summaries. Both alert surfaces use the same lead and share the same content key.
+
+The fixed object stays `alert-notes:v1`; old notes and receipts are preserved. Factual summaries use
+prompt version `alert-summary:v1`, because old earnings/valuation implications cannot be relabelled
+as summaries. Only model-visible source fields form the key; sector changes, related news and
+refresh dates do not. Preserve permanent successful-note retention, in-flight sharing, batch dedupe,
+the shared 1,200-attempt daily cap, pre-provider durable receipts and the three-attempt transient
+failure ceiling. Rejected, malformed, empty and unnecessary summaries are not automatically bought
+again. Genuine source corrections remain eligible; source freshness and retained history stay intact.
+
+Read the API/data contract in `docs/DATA-CONTRACTS.md`. Run `verify-alert-notes.mjs`, the optional
+summary cases in `verify-announcement-sources-ui.mjs`, and the returning-session/cache browser test.
+No production model request is needed to verify this behavior.
 
 ### ARCHIVING IS A PLACE, NOT A DELETION — `js/core/ai-mute.js`
 
@@ -4999,7 +4998,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Refresh company sector classification, or change the KPI ontology | `.github/workflows/sector-kpis-refresh.yml` does it daily and fails naming any listed holding left without a KPI group; by hand, `node scripts/classify-companies.mjs` (Screener; `CLASSIFY_SCOPE=tracked` for the wider universe) then `node scripts/build-sector-kpis.mjs` (`--check-book` to list holdings with no group; `SECTOR_KPIS_CSV=<sector_kpis export>` to reconcile a new ontology); the ontology itself is `scripts/fixtures/sector-kpi-ontology.yaml`, reproduced unchanged |
 | Change which investor question a topic bears on, or how a card states it | `js/data/alert-drivers.js` (the one mapping) + `driverReadings()` / `driverChipsMarkup()` in `js/tabs/ai-alerts.js` — read *Earnings assumption, valuation or thesis* first. A reading is a chip on the row whose own record backs it, never a block of its own; it is a TOPIC reading, so the wording stays "could change" and the chip never borrows a direction colour; a second reading on one row prints `+1`; and the layer adds no score |
 | Change what folds into one development, or how an item is labelled and led | `js/data/alert-developments.js` (the fold, LINE 1, the labels) — read *One development, one item* first; `node scripts/verify-alert-developments.mjs` is the test. The AI card reads it through `card.developments` / `leadDevelopment` / `topEvidence` in `js/data/ai-alerts.js`; All Alerts through `foldedStream` in `js/tabs/daily-alerts.js` |
-| Change the AI "So what?" line — what the model sees, what it may say, the daily cap | `public/js/data/alert-notes-shared.js` (the contract, shared with the Worker) + `worker/alert-notes-store.mjs` / `worker/alert-notes.mjs` + `public/js/data/alert-notes.js` (the client) + `public/js/ui/alert-note.js` (the drawing) — read *The "So what?" line* first; `node scripts/verify-alert-notes.mjs` is the test |
+| Change the optional AI summary — what the model sees, what it may say, the daily cap | `public/js/data/alert-notes-shared.js` (the contract, shared with the Worker) + `worker/alert-notes-store.mjs` / `worker/alert-notes.mjs` + `public/js/data/alert-notes.js` (the client) + `public/js/ui/alert-note.js` (the drawing) — read *Optional AI summary* first; `node scripts/verify-alert-notes.mjs` is the test |
 | Change archiving on AI Alerts | `js/core/ai-mute.js` (the store) + the `archived` filter and the Archive / Restore buttons in `js/tabs/ai-alerts.js` — a record is keyed to the evidence it was given for, so a card returns on its own when stronger evidence arrives |
 | Change what the precomputed alert pool carries, or how a period is reassembled from it | `public/js/data/alert-pool-shared.js` (the feeds, the captures each reads, the revision rule, the members) + `public/js/data/alert-pool-format.js` (the shard encoding and decoding, shared by the builder and the browser) — read *The collection is done once, on the runner* first; `node scripts/verify-alert-pool.mjs` is the test |
 | Change when a pooled feed is taken from the pool, or why it is declined | `read()` / `verifyFeed()` / `deviceExtras()` in `public/js/data/alert-pool.js`, and the `pool` branch of `collect()` in `js/data/daily-alerts.js` — every check is per feed, per read, and a declined feed loads as before |
