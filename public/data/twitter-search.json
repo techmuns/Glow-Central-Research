@@ -1386,7 +1386,7 @@
       "error": "search-unavailable"
     },
     "isin:INE860D01013|Sanjivani Paranteral": {
-      "lastAttemptAt": "2026-09-23T07:39:16+00:00",
+      "lastAttemptAt": "2026-09-28T06:07:35+00:00",
       "error": "search-unavailable"
     },
     "isin:INE953O01021|Sansera Engineering": {
@@ -1818,6 +1818,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-09-28T05:34:43.867346+00:00"
+    "checkedAt": "2026-09-28T06:07:35.929752+00:00"
   }
 }
