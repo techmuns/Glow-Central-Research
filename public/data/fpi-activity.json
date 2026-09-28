@@ -8,10 +8,10 @@
     "financialYear": "https://www.fpi.nsdl.co.in/web/Reports/Yearwise.aspx?RptType=5"
   },
   "generator": "scripts/scrape-fpi-activity.mjs",
-  "capturedAt": "2026-09-24T20:37:09.367Z",
+  "capturedAt": "2026-09-28T20:43:02.683Z",
   "currency": "INR crore",
-  "asOn": "2026-09-24",
-  "flowsAsOn": "2026-09-24",
+  "asOn": "2026-09-28",
+  "flowsAsOn": "2026-09-28",
   "reportingDates": [
     "2024-01-01",
     "2024-01-02",
@@ -686,12 +686,14 @@
     "2026-09-21",
     "2026-09-22",
     "2026-09-23",
-    "2026-09-24"
+    "2026-09-24",
+    "2026-09-25",
+    "2026-09-28"
   ],
   "archive": {
-    "count": 3305,
+    "count": 3307,
     "oldest": "2011-09-30",
-    "newest": "2026-09-24"
+    "newest": "2026-09-28"
   },
   "levels": [
     {
@@ -944,6 +946,28 @@
       "gsecVrr": 1030.525,
       "sdlVrr": 0,
       "corpBondVrr": 154452,
+      "gsecLongTerm": null,
+      "layout": "single-line"
+    },
+    {
+      "date": "2026-09-25",
+      "gsec": 69642.255,
+      "sdl": 2530.952,
+      "corpBond": 126052,
+      "gsecVrr": 1030.525,
+      "sdlVrr": 0,
+      "corpBondVrr": 154285,
+      "gsecLongTerm": null,
+      "layout": "single-line"
+    },
+    {
+      "date": "2026-09-28",
+      "gsec": 70004.398,
+      "sdl": 2530.952,
+      "corpBond": 122648,
+      "gsecVrr": 1030.525,
+      "sdlVrr": 0,
+      "corpBondVrr": 153170,
       "gsecLongTerm": null,
       "layout": "single-line"
     }
@@ -1355,6 +1379,28 @@
       "mutualFunds": 49.46,
       "aifs": 0,
       "total": 7717.38
+    },
+    {
+      "date": "2026-09-25",
+      "equity": -4521.96,
+      "debtGeneral": 220.75,
+      "debtVrr": -1012.18,
+      "debtFar": -1442.62,
+      "hybrid": 4.36,
+      "mutualFunds": 198.94,
+      "aifs": 0,
+      "total": -6552.71
+    },
+    {
+      "date": "2026-09-28",
+      "equity": -3563.88,
+      "debtGeneral": -207.61,
+      "debtVrr": -108.6,
+      "debtFar": -363.07,
+      "hybrid": 21.74,
+      "mutualFunds": -1.12,
+      "aifs": 0,
+      "total": -4222.54
     }
   ],
   "months": [
@@ -1681,18 +1727,18 @@
     {
       "period": "2026-09",
       "partial": true,
-      "equity": -12609,
-      "debtGeneral": -2110,
-      "debtVrr": -2009,
-      "debtFar": -5942,
-      "hybrid": -2279,
-      "mfEquity": 59,
+      "equity": -20695,
+      "debtGeneral": -2097,
+      "debtVrr": -3130,
+      "debtFar": -7748,
+      "hybrid": -2253,
+      "mfEquity": 258,
       "mfDebt": 3,
-      "mfHybrid": 98,
+      "mfHybrid": 99,
       "mfSolutionOriented": 0,
-      "mfOther": -122,
+      "mfOther": -123,
       "aifs": 0,
-      "total": -24911
+      "total": -35686
     }
   ],
   "calendarYears": [
@@ -1715,18 +1761,18 @@
     {
       "period": "2026",
       "partial": true,
-      "equity": -237050,
-      "debtGeneral": 52103,
-      "debtVrr": -14796,
-      "debtFar": 33620,
-      "hybrid": -6506,
-      "mfEquity": 937,
+      "equity": -245136,
+      "debtGeneral": 52116,
+      "debtVrr": -15917,
+      "debtFar": 31814,
+      "hybrid": -6480,
+      "mfEquity": 1136,
       "mfDebt": -350,
-      "mfHybrid": -279,
+      "mfHybrid": -278,
       "mfSolutionOriented": 0,
-      "mfOther": 55,
+      "mfOther": 54,
       "aifs": 6,
-      "total": -172260
+      "total": -183035
     }
   ],
   "financialYears": [
@@ -1909,18 +1955,18 @@
     {
       "period": "2026-27",
       "partial": true,
-      "equity": -105930,
-      "debtGeneral": 47727,
-      "debtVrr": -16400,
-      "debtFar": 23266,
-      "hybrid": -4710,
-      "mfEquity": 481,
+      "equity": -114016,
+      "debtGeneral": 47740,
+      "debtVrr": -17521,
+      "debtFar": 21460,
+      "hybrid": -4684,
+      "mfEquity": 680,
       "mfDebt": -72,
-      "mfHybrid": 20,
+      "mfHybrid": 21,
       "mfSolutionOriented": 0,
-      "mfOther": 520,
+      "mfOther": 519,
       "aifs": 10,
-      "total": -55088
+      "total": -65864
     }
   ],
   "monthlyCoverage": [
@@ -2026,7 +2072,7 @@
     },
     {
       "period": "2026-09",
-      "days": 17,
+      "days": 19,
       "reconciles": true
     }
   ],
