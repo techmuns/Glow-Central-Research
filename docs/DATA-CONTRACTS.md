@@ -5125,10 +5125,10 @@ visible AI Alerts card, and the material developments mounted in All Alerts' vie
 built from the development's LEAD alone, so the card and the row ask the identical question and share
 one note.
 
-Response: `{ ok: true, notes: { "<id>": { note, model, stored } }, missing: { "<id>": reason }, checkedAt }`.
+Response: `{ ok: true, notes: { "<id>": { note, model, generatedAt, stored } }, missing: { "<id>": reason }, retryAt: { "<id>": timestampOrNull }, checkedAt }`.
 `ok: false` carries a `reason` and no `notes`. Reasons, each printed on the card in words
 (`NOTE_REASON`): `no-worker` (a static origin — 404/405/501), `no-key`, `refused`, `rate-limited`,
-`budget`, `upstream`, `timeout`, `unreadable`, `empty`, `invalid`, and the three refusals of a written
+`budget`, `upstream`, `timeout`, `unreadable`, `empty`, `invalid`, `retry-exhausted`, and the three refusals of a written
 note — `unhedged` (it said "will"), `advice`, `price-call` — plus `unsupported-figure` (it named a
 number the source does not state; the current and next fiscal-year labels from CONTEXT are the only
 figures it may add).
@@ -5138,9 +5138,23 @@ CaptureRegistry class, its own storage): table `alert_notes (key, note, model, c
 the SHA-256 of everything the model was given (`noteContent`: prompt version, company, ticker, sector,
 industry, kind, day, line, headline, detail, related — never the caller's id, so nobody can file a
 note against somebody else's text), and `alert_notes_meta.budget` `{ day, used }` bounding NEW notes to
-`NOTE_DAILY_LIMIT` (1,200) per Indian day. A stored note is served to every later reader at no model
-cost; two readers asking at once share one request. Notes older than `NOTE_KEEP_DAYS` (60) are dropped
-on the first spend of a day. The browser keeps notes in memory only.
+`NOTE_DAILY_LIMIT` (1,200) attempted items per Indian day. Identical items in one batch count once;
+two readers asking at once share one request. Saved notes are retained for All Alerts history,
+including beyond 60 days, and served without another model call. Their original `generatedAt`
+keeps fiscal-year validation tied to the saved reading, not the date it is reopened. Existing note
+keys and stored answers are preserved; this release does not invalidate the cache.
+
+`alert_note_attempts (key, attempts, reason, retry_at)` retains one receipt per content key. Budget
+and receipts are committed together before provider access. Rejected, empty and unreadable output
+stays absent with its reason and is not purchased again for unchanged input. Temporary upstream,
+timeout, provider refusal and rate-limit failures share durable backoff and at most three attempts
+total, including interruptions, across readers, restarts and day rollover. Exhaustion is a named
+state, not an endless loading bar. `retryAt[id]` is an absolute millisecond timestamp or `null` for
+no automatic retry; missing entries use the client's existing deployment-level retry policy.
+Unconfigured keys and exhausted daily allowance do not consume a content attempt. The browser
+keeps notes in memory only, so reload can briefly load a saved reading without a new model call.
+Source capture and its normal refresh cadence are unchanged. A changed source statement or other
+model input remains eligible for a new reading; no timestamp-only cache invalidation is added.
 
 The model sees the development's statement, headline and detail, the company's name and sector, the
 day, and CONTEXT `{ today, fiscalYears: { current: "FY27 (April 2026 – March 2027)", next: "FY28" } }`

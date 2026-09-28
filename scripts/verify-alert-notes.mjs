@@ -13,7 +13,7 @@ const storage = new Map();
 globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: (k) => storage.delete(k) };
 
 const shared = await import('../public/js/data/alert-notes-shared.js');
-const { AlertNotesStore, NOTE_DAILY_LIMIT } = await import('../worker/alert-notes-store.mjs');
+const { AlertNotesStore, NOTE_DAILY_LIMIT, NOTE_MAX_ATTEMPTS } = await import('../worker/alert-notes-store.mjs');
 const { handleAlertNotes } = await import('../worker/alert-notes.mjs');
 const notes = await import('../public/js/data/alert-notes.js');
 const dev = await import('../public/js/data/alert-developments.js');
@@ -58,7 +58,8 @@ console.log('PASS the contract: bounded items, content-keyed, fiscal-year contex
 // ---------------------------------------------------------------------------------------
 function sqlStorage() {
   const db = new DatabaseSync(':memory:');
-  return { sql: { exec: (sql, ...args) => { const rows = db.prepare(sql).all(...args); return { toArray: () => rows }; } } };
+  return { sql: { exec: (sql, ...args) => { const rows = db.prepare(sql).all(...args); return { toArray: () => rows }; } },
+    transactionSync(fn) { db.exec('BEGIN'); try { const result = fn(); db.exec('COMMIT'); return result; } catch (error) { db.exec('ROLLBACK'); throw error; } } };
 }
 const KEY_ENV = { CLAUDE_KEY: 'ABSK-test-key-for-stub-only', BEDROCK_REGION: 'ap-south-1', BEDROCK_MODEL_ID: 'global.anthropic.claude-sonnet-5' };
 const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ type: 'text', text: JSON.stringify(list) }] }), { status, headers: { 'content-type': 'application/json' } });
@@ -85,12 +86,15 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
   const [x, y] = await Promise.all([store.read([{ ...fresh, id: 'x' }]), store.read([{ ...fresh, id: 'y' }])]);
   assert.equal(x.notes.x.note, y.notes.y.note);
   assert.equal(calls.length, 2, 'a question already with the model is shared, not asked twice');
-  // A refused answer is absent with its reason, and nothing is stored for it.
+  // A refused answer is absent, but its receipt prevents another charge for the same input.
   answer = (items) => reply(items.map((i) => ({ id: i.id, note: 'Could add ₹900 crore to FY27 revenue.' })));
   const refused = await store.read([{ ...item, line: 'A different development', id: 'r' }]);
   assert.equal(refused.missing.r, 'unsupported-figure');
+  const callsBeforeRetry = calls.length;
   const retried = await store.read([{ ...item, line: 'A different development', id: 'r2' }]);
   assert.equal(retried.missing.r2, 'unsupported-figure', 'a refused note was not stored as a note');
+  assert.equal(calls.length, callsBeforeRetry, 'a rejected answer is not purchased again');
+  assert.equal(retried.retryAt.r2, null, 'withheld output is terminal for this evidence');
   answer = () => new Response('{}', { status: 403 });
   assert.equal((await store.read([{ ...item, line: 'Refused by provider', id: 'p' }])).missing.p, 'refused');
   answer = () => new Response('{}', { status: 429 });
@@ -109,7 +113,89 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
   await assert.rejects(() => store.read(Array.from({ length: 9 }, (_, i) => ({ ...item, id: String(i) }))), /Invalid notes request/);
   const invalid = await store.read([{ id: 'bad', kind: 'nope' }]);
   assert.equal(invalid.missing.bad, 'invalid');
-  console.log('PASS the store: one request per development, shared in flight, refusals unstored, every absence named, the day bounded.');
+  console.log('PASS the store: one request per development, shared in flight, rejection receipts, every absence named, the day bounded.');
+}
+
+// A refresh, another browser, day rollover and object eviction must share durable cost controls.
+{
+  let clock = Date.parse('2026-09-28T08:00:00Z'), calls = 0;
+  const disk = sqlStorage();
+  let answer = (items) => reply(items.map(i => ({ id: i.id, note: 'May affect governance; the financial effect is not stated.' })));
+  const options = { now: () => clock, fetcher: async (_url, init) => {
+    calls++;
+    return answer(JSON.parse(JSON.parse(init.body).messages[0].content).ITEMS);
+  } };
+  let store = new AlertNotesStore(disk, KEY_ENV, options);
+  const event = { ...item, company: 'Fractal Analytics Limited', ticker: 'FRACTAL', sector: 'Information Technology',
+    day: '2026-09-23', line: 'Resignation of Director/KMP/SMP.', headline: 'Resignation', detail: 'Resignation of Director/KMP/SMP.', related: [] };
+  const first = await store.read([{ ...event, id: 'card' }, { ...event, id: 'row' }]);
+  assert.equal(calls, 1);
+  assert.equal(store.status().used, 1, 'duplicates in one batch consume one allowance item');
+  assert.equal(first.notes.card.note, first.notes.row.note);
+  assert.equal(first.notes.card.generatedAt, new Date(clock).toISOString());
+  store = new AlertNotesStore(disk, KEY_ENV, options);
+  assert.equal((await store.read([{ ...event, id: 'reload' }])).notes.reload.stored, true);
+  assert.equal(calls, 1, 'a new browser/server instance uses the saved note');
+  clock += 70 * 86_400_000;
+  store.spend(1); // This used to delete notes older than 60 days.
+  assert.equal((await store.read([{ ...event, id: 'history' }])).notes.history.stored, true);
+  assert.equal(calls, 1, 'All history does not repurchase an old reading');
+
+  for (const [reason, makeReply] of [
+    ['unsupported-figure', items => reply(items.map(i => ({ id: i.id, note: 'Could add 999 crore revenue.' })))],
+    ['empty', () => reply([])],
+    ['unreadable', () => new Response('not json')],
+  ]) {
+    answer = makeReply;
+    const bad = { ...event, line: `${event.line} ${reason}` };
+    const result = await store.read([{ ...bad, id: 'first' }]);
+    assert.equal(result.missing.first, reason);
+    assert.equal(result.retryAt.first, null);
+    const before = calls;
+    for (let i = 0; i < 3; i++) {
+      clock += 86_400_000;
+      store = new AlertNotesStore(disk, KEY_ENV, options);
+      assert.equal((await store.read([{ ...bad, id: 'refresh' }])).missing.refresh, reason);
+    }
+    assert.equal(calls, before, `${reason} is not purchased again after reloads/rollover`);
+  }
+
+  answer = () => { throw new DOMException('Stub timeout', 'TimeoutError'); };
+  const outage = { ...event, line: 'A changed source statement during an outage' };
+  const before = calls;
+  for (let attempt = 1; attempt <= NOTE_MAX_ATTEMPTS; attempt++) {
+    const result = await store.read([{ ...outage, id: 'first' }]);
+    assert.equal(calls, before + attempt);
+    assert.equal(result.missing.first, attempt === NOTE_MAX_ATTEMPTS ? 'retry-exhausted' : 'timeout');
+    store = new AlertNotesStore(disk, KEY_ENV, options);
+    await store.read([{ ...outage, id: 'reload' }]);
+    assert.equal(calls, before + attempt, 'a second reader cannot bypass the durable backoff');
+    clock = result.retryAt.first ?? clock + 86_400_000;
+  }
+  clock += 90 * 86_400_000;
+  store = new AlertNotesStore(disk, KEY_ENV, options);
+  assert.equal((await store.read([{ ...outage, id: 'later' }])).missing.later, 'retry-exhausted');
+  assert.equal(calls, before + NOTE_MAX_ATTEMPTS, 'the cap survives day rollover and old history');
+  answer = items => reply(items.map(i => ({ id: i.id, note: 'May affect governance; the financial effect is not stated.' })));
+  assert((await store.read([{ ...outage, line: 'Corrected source statement', id: 'correction' }])).notes.correction);
+  assert.equal(calls, before + NOTE_MAX_ATTEMPTS + 1, 'a genuine source correction is eligible');
+
+  // Simulate eviction while the provider call has no answer: its receipt already exists.
+  let release;
+  answer = () => new Promise(resolve => { release = resolve; });
+  const interrupted = { ...event, line: 'An interrupted provider call' };
+  const pending = store.read([{ ...interrupted, id: 'waiting' }]);
+  while (!release) await new Promise(resolve => setTimeout(resolve, 0));
+  const callsInFlight = calls;
+  const restarted = new AlertNotesStore(disk, KEY_ENV, options);
+  const held = await restarted.read([{ ...interrupted, id: 'returned' }]);
+  assert.equal(held.missing.returned, 'timeout');
+  assert(held.retryAt.returned > clock);
+  assert.equal(calls, callsInFlight, 'an interrupted request cannot be immediately charged again');
+  release(reply([{ id: 'waiting', note: 'May affect governance; the financial effect is not stated.' }]));
+  await pending;
+  assert.equal((await restarted.read([{ ...interrupted, id: 'saved' }])).notes.saved.stored, true);
+  console.log('PASS FRACTAL refresh/reload, batch dedupe, retained history, terminal outcomes, bounded retries, corrections and interrupted requests.');
 }
 
 // ---------------------------------------------------------------------------------------
@@ -202,6 +288,35 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
     await new Promise((done) => setTimeout(done, 250));
     assert.equal(seen.length, 1, 'an answered question and a held one are not asked again');
     assert.match(notes.reasonText('budget'), /allowance/);
+
+    // Server retry decisions override the old five-minute client retry for rejected output.
+    notes.resetNotes();
+    let now = Date.now(), count = 0;
+    const realNow = Date.now;
+    Date.now = () => now;
+    try {
+      const retryTime = now + 600_000;
+      globalThis.fetch = async () => {
+        count++;
+        return Response.json({ ok: true, notes: {}, missing: { 0: 'unreadable', 1: 'timeout' }, retryAt: { 0: null, 1: retryTime } });
+      };
+      notes.requestNotes([fromCard, other]);
+      await new Promise(done => setTimeout(done, 250));
+      assert.equal(notes.noteState(fromCard).retryAt, Infinity);
+      assert.equal(notes.noteState(other).retryAt, retryTime);
+      now += 5 * 60_000 + 1;
+      notes.requestNotes([fromCard, other]);
+      await new Promise(done => setTimeout(done, 250));
+      assert.equal(count, 1, 'automatic refresh cannot restart a terminal or held reading');
+      notes.resetNotes();
+      now = Date.parse('2027-04-02T08:00:00Z');
+      globalThis.fetch = async () => Response.json({ ok: true, notes: { 0: {
+        note: 'May add to FY27 bookings.', generatedAt: '2026-09-28T08:00:00Z', stored: true,
+      } }, missing: {} });
+      notes.requestNotes([fromCard]);
+      await new Promise(done => setTimeout(done, 250));
+      assert.equal(notes.noteState(fromCard).state, 'ready', 'a saved reading retains its original fiscal-year context after rollover');
+    } finally { Date.now = realNow; }
   } finally {
     globalThis.fetch = realFetch;
     notes.resetNotes();

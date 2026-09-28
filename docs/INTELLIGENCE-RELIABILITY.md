@@ -389,3 +389,14 @@ document check times, full/partial/pending states, original links and distinct t
 failures, restarts and rollover. Generic acquisition or other filing categories cannot establish
 that two documents describe one event. See [Newsletter source reading](NEWSLETTER-SOURCE-CONTENT.md)
 for the first-phase scope, coverage limits and regression checks.
+
+## AI alert reading reuse (28 September 2026)
+
+Data freshness checks must not repurchase a saved AI reading for identical evidence. Notes and
+attempt receipts persist independently of browser sessions and source refreshes. Temporary model
+failures have shared backoff and at most three attempts per content version; rejected, empty or
+unreadable responses remain explicitly unavailable without automatic repurchase. Genuine source
+corrections remain eligible, and all source collection, retention and refresh cadence stay intact.
+All Alerts historical access reuses saved readings beyond 60 days, with their original generation
+context. Local tests cover unchanged refresh, reload, concurrent readers, object interruption,
+day rollover, failed/withheld responses and changed evidence; they do not establish past charges.

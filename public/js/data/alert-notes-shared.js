@@ -178,5 +178,6 @@ export const NOTE_REASON = {
   'price-call': 'AI reading withheld — it predicted the share price.',
   'unsupported-figure': 'AI reading withheld — it named a figure the source does not state.',
   empty: 'AI reading unavailable — the model returned nothing for this item.',
+  'retry-exhausted': 'AI reading unavailable — retries stopped to avoid further charges for unchanged evidence.',
   error: 'AI reading unavailable — the request failed.',
 };
