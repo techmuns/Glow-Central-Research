@@ -89,7 +89,24 @@ assert.equal(rankReport(report, { holdings: sizeHoldings.map(h => ({ ...h, secto
   'a known statement classification takes precedence over the company feed');
 assert.equal(byPriority.cards[0].ticker, 'SMALL', 'public identities cannot activate size ordering');
 assert(byPriority.cards.every(c => c.holdingWeightPct === null));
-assert.equal(rankReport({ ...report, scope: 'universe' }, { holdings: sizeHoldings, positionSizes: sizes }).cards[0].ticker, 'SMALL');
+for (const scope of ['universe', 'watchlist']) {
+  const broader = { ...report, scope, events: [...report.events, ...report.events.filter(e => e.ticker === 'SMALL')
+    .map(e => ({ ...e, id: `outside-${e.id}`, ticker: 'OUTSIDE', company: 'Outside the book' }))] };
+  const ranked = rankReport(broader, { holdings: sizeHoldings, positionSizes: sizes });
+  assert.deepEqual(sortAlertCards(ranked.cards, 'holdings').map(c => c.ticker), ['LARGE', 'SMALL', 'OUTSIDE']);
+  assert.equal(ranked.meta.positionSizes.complete, true);
+  const projected = withPositionSnapshot(rankReport(broader, { holdings: sizeHoldings }), sizes);
+  assert.deepEqual(sortAlertCards(projected.cards, 'holdings').map(c => c.ticker), ['LARGE', 'SMALL', 'OUTSIDE']);
+  assert.equal(projected.cards.find(c => c.ticker === 'OUTSIDE').holdingWeightPct, null);
+  assert.equal(projected.cards.find(c => c.ticker === 'OUTSIDE').holding, false);
+  const exitedInScope = withPositionSnapshot(projected, { ...sizes, holdings: sizes.holdings.filter(h => h.ticker !== 'SMALL') });
+  assert.equal(exitedInScope.cards.length, 3, 'verified exits remain in broader scopes');
+  assert.equal(exitedInScope.cards.find(c => c.ticker === 'SMALL').holding, false);
+  assert.equal(exitedInScope.cards.find(c => c.ticker === 'SMALL').holdingWeightPct, null);
+  const partial = rankReport({ ...broader, events: [], pending: 1 }, { holdings: sizeHoldings });
+  assert(mergePartialReport(projected, partial).cards.some(c => c.ticker === 'OUTSIDE'), 'partial updates retain non-portfolio evidence');
+  assert(withPositionSnapshot(projected, { ...sizes, sizes: { complete: false } }).cards.every(c => c.holdingWeightPct === null));
+}
 assert.equal(rankReport(report, { holdings: sizeHoldings, positionSizes: { sizes: { complete: false } } }).cards[0].ticker, 'SMALL');
 const publicIdentities = sizeHoldings.map(({ weightPct: _weightPct, ...holding }) => holding);
 const byAuthenticatedPayload = rankReport(report, { holdings: publicIdentities, positionSizes: sizes });

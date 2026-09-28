@@ -21,7 +21,11 @@ if (sessionStorage.getItem('start-alerts')) {
   coverage.prime(await (await fetch('/data/portfolio-companies.json')).json());
   await (await import('/js/data/technicals.js')).load();
   const tab = await import('/js/tabs/ai-alerts.js');
-  tab.render({root: document.querySelector('#root'), scope:'portfolio', params:{}});
+  window.showScope = (scope) => {
+    sessionStorage.setItem('alert-scope', scope);
+    tab.destroy(); tab.render({root: document.querySelector('#root'), scope, params:{}});
+  };
+  window.showScope(sessionStorage.getItem('alert-scope') || 'portfolio');
 }
 </script></body></html>`;
 const feedModule = `
@@ -38,6 +42,7 @@ export async function collect({scope,holdings,onPartial}) {
     ...(id==='announcements'?{time:h.ticker==='INDIANB'?'15:01':'10:01',filingSubject:'Dividend recommendation',filingSubCategory:'Dividend',
       filingDescription:'The board recommended a dividend of Rs 5 per share for FY26. The record date is 1 October 2026 and payment is proposed for 15 October 2026. Shareholder approval is required before payment; the proposal covers all fully paid equity shares.'}:{})
   })));
+  if (scope !== 'portfolio') events.push({...events[0], id:'outside-book', ticker:'OUTSIDE', company:'Outside the book'});
   const report={scope,day,feeds,events,pending:0}; onPartial?.({...report,pending:1}); return report;
 }`;
 let legacy = true, releaseBook, holdBook = false, bookReads = 0, unavailable = false, incompleteBook = false;
@@ -149,7 +154,23 @@ try {
   await page.waitForTimeout(300);
   assert.equal(notePosts, beforeRefresh, 'unchanged source refresh does not request the AI summary again');
   assert.equal(savedNotes.size, savedBeforeRefresh);
-  const beforeReload = bookReads;
+  for (const scope of ['watchlist', 'universe']) {
+    await page.evaluate(scope => window.showScope(scope), scope);
+    await page.waitForFunction(() => document.querySelector('[data-ai-sort]')?.value === 'holdings');
+    assert.equal(await sort.locator('option').count(), 3, 'all three sorts remain available after changing scope');
+    assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), top.ticker);
+    await page.locator('[data-ai-more]').click();
+    assert.equal(await page.locator('[data-ai-card]').last().getAttribute('data-ticker'), 'OUTSIDE', 'non-holdings stay in the view, after verified holdings');
+    assert.equal(await page.locator('[data-ai-card][data-ticker="OUTSIDE"] [data-ai-holding-size]').count(), 0);
+    await page.waitForFunction(() => [...document.querySelectorAll('[data-ai-note]')].every(node => node.querySelector('[data-note-state="ready"]')));
+    await page.locator('[data-ai-types-menu] summary').click();
+    await page.locator('[data-ai-type="corporate-action"]').check();
+    assert.equal(await sort.inputValue(), 'holdings', 'event filters preserve Largest holdings');
+    assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), top.ticker);
+    await page.locator('[data-ai-type="corporate-action"]').uncheck();
+    await page.locator('[data-ai-types-menu] summary').click();
+  }
+  const beforeReload = bookReads, savedBeforeReload = savedNotes.size;
   await page.reload();
   await page.waitForFunction(() => document.querySelector('[data-ai-sort]')?.value === 'holdings');
   assert.equal(await page.title(), 'Alert filter fixture', 'the reader cannot overwrite the main dashboard cache');
@@ -157,7 +178,7 @@ try {
   assert.equal(page.frames().length, 2, 'only one portfolio reader exists after reload');
   await page.waitForFunction(() => [...document.querySelectorAll('[data-ai-note]')].every(node => node.querySelector('[data-note-state="ready"]')));
   assert(notePosts > beforeRefresh, 'reload checks the server for saved readings');
-  assert.equal(savedNotes.size, savedBeforeRefresh, 'reload uses identical evidence keys and reuses saved readings');
+  assert.equal(savedNotes.size, savedBeforeReload, 'reload uses identical evidence keys and reuses saved readings');
   unavailable = true;
   await page.evaluate(async () => (await import('/js/core/refresh.js')).refreshAll());
   assert.equal(await sort.inputValue(), 'newest', 'failed statement refresh cannot claim a holdings ordering');
@@ -174,7 +195,7 @@ try {
   await sort.selectOption('priority');
   assert.match(await page.locator('[data-ai-position-status]').innerText(), /Showing highest priority/);
   assert.deepEqual(errors, []);
-  console.log('PASS returning-session upgrade, independent reader HTML, real Glow holding order, Indian Bank sector, pending/failure recovery and all three sorts.');
+  console.log('PASS returning-session upgrade, independent reader HTML, real Glow holding order in all scopes, event filters, Indian Bank sector, pending/failure recovery and all three sorts.');
 } finally {
   holdBook = false; releaseBook?.();
   await browser.close(); await new Promise(done => server.close(done));

@@ -504,10 +504,11 @@ try {
   assert.equal(await search.inputValue(), 'A00');
   await waitFor(peer, () => !!window.releasePositions);
   await page.evaluate(() => window.show('universe'));
-  await settled();
   await peer.evaluate(() => window.releasePositions());
+  await settled();
   assert.match(await page.locator('[data-ai-heading]').innerText(), /Universe/);
-  assert.equal(await page.locator('[data-ai-holding-size]').count(), 0, 'late portfolio replies cannot overwrite another scope');
+  assert.equal(await page.locator('[data-ai-holding-size]').count(), 1, 'the active Universe view receives verified sizes after a scope change');
+  assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').evaluate(option => option.disabled), false);
   await page.evaluate(() => window.show());
   await settled();
   await peer.evaluate(() => {
@@ -525,6 +526,8 @@ try {
   await waitFor(page, async () => (await import('/js/research/portfolio-bridge.js')).portfolioConnectionState() === 'locked');
   await settled();
   assert(/in portfolio/i.test(await renderedText(card('A00'))), 'sign-out recomputes Universe membership from the public book');
+  assert.equal(await page.locator('[data-ai-holding-size]').count(), 0, 'sign-out revokes weights in Universe too');
+  assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').evaluate(option => option.disabled), true, 'Largest holdings stays visible when access is unavailable');
   await page.evaluate(() => window.show());
   await settled();
   await page.evaluate(() => { window.dispose(); document.querySelector('#root').innerHTML = ''; });
@@ -560,6 +563,10 @@ try {
   assert.match(await page.locator('[data-ai-feed-status]').innerText(), /Ready/i);
   assert.equal(await page.evaluate(() => !!window.releaseStart), true, 'live collection is still blocked while cached cards are ready');
   console.log('PASS: reload restores a ready privacy-safe alert view before live collection completes.');
+  // The following public/tickerless cases use a separate coverage fixture.
+  const reloadedPeer = await (await page.locator('iframe').elementHandle()).contentFrame();
+  await reloadedPeer.evaluate(() => window.lock());
+  await waitFor(page, async () => (await import('/js/research/portfolio-bridge.js')).portfolioConnectionState() === 'locked');
   await page.evaluate(() => {
     window.holdStart = false; window.releaseStart(); window.dispose();
     const currentDay = window.currentDay;
@@ -622,7 +629,9 @@ try {
   const capacityContext = await browser.newContext();
   const capacityPage = await capacityContext.newPage();
   capacityPage.on('pageerror', error => errors.push(error.message));
-  await capacityPage.route('**/*', route => route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
+  await capacityPage.route('**/*', route => route.request().url() === `${origin}/glow-bridge.html`
+    ? route.fulfill({ contentType:'text/html', body:`<script>addEventListener('message', e => { if (e.data.channel === 'sattva-portfolio-v1') parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'}, '*'); });</script>` })
+    : route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
   await capacityPage.clock.install({ time: '2026-09-04T08:00:00Z' });
   await capacityPage.goto(`${origin}/?scope=universe`);
   await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');

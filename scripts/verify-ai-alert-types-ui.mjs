@@ -46,7 +46,8 @@ const server = createServer((req, res) => {
       body = body.toString().replace(/const MUNSHOT_SDK = .*;/, "const MUNSHOT_SDK = new URL('/sdk-fixture.js', self.location).href;");
       if (legacy) body = body.replace(/const CACHE_NAME = .*;/, 'const CACHE_NAME = `${CACHE_PREFIX}previous-event-filter-release`;');
     }
-    if (legacy && path === '/js/tabs/ai-alerts.js') body = body.toString().replace('${eventTypesControl()}', '');
+    if (legacy && path === '/js/tabs/ai-alerts.js') body = body.toString().replace('${eventTypesControl()}', '')
+      .replace('Object.entries(SORTS).map', "Object.entries(SORTS).filter(([value]) => value !== 'holdings' || ctxRef?.scope === 'portfolio').map");
     res.setHeader('content-type', { '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' }[extname(file)] || 'application/octet-stream');
     res.end(body);
   } catch { res.writeHead(404); res.end('{}'); }
@@ -71,9 +72,11 @@ try {
   // This case upgrades an already warm visit; let its initial reads and cache writes settle.
   await page.waitForLoadState('networkidle');
   assert.equal(await page.locator('[data-ai-types-menu]').count(), 0);
+  assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').count(), 0, 'old cached Universe menu hides Largest holdings');
   legacy = false;
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
   await page.waitForSelector('[data-ai-types-menu]');
+  assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').count(), 1, 'an existing session upgrades to the restored menu');
   assert(!(await page.evaluate(() => caches.keys())).some(key => key.includes('previous-event-filter-release')));
   assert.equal(await card('ROUTINE').count(), 0);
   assert.match(await card('MIXED').locator('[data-ai-insight]').textContent(), /Resignation/);

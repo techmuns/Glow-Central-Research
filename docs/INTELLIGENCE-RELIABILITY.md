@@ -149,7 +149,10 @@ leads the evidence preview even when older evidence has a higher score. **Larges
 Receiving holding weights cannot silently switch the selected ordering. Size sorting falls back to
 newest evidence when complete valuations are unavailable. Period-only source dates remain period-only.
 
-The sort control displays the ordering actually applied. A saved Largest holdings preference
+All three sort choices remain visible in Portfolio, Watchlist and Universe. Largest holdings
+orders matching companies by their verified share of the complete statement book, followed by
+companies outside the book; it never reduces a Watchlist or Universe view to portfolio members.
+Scope and event filters preserve the chosen sort. The sort control displays the ordering actually applied. A saved Largest holdings preference
 waits for complete valuations with Newest first visibly selected; pending, failed and incomplete
 size reads keep Largest holdings disabled. Its saved preference resumes once verified weights
 arrive. Independent HTML documents, including Glow's portfolio reader, keep separate service-worker

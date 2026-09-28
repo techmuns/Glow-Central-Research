@@ -851,7 +851,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
   }
   const firstDay = shiftDay(day, -(WINDOW_DAYS - 1));
   // Private weights never come from the persisted names-only coverage list.
-  const weights = report?.scope === 'portfolio' && positionSizes?.sizes.complete
+  const weights = positionSizes?.sizes.complete
     ? positionSnapshotIndex({ ...positionSizes, holdings: positionSizes.holdings || holdings }) : new Map();
   const feedById = new Map((report?.feeds || []).map((feed) => [feed.id, feed]));
   // Exact identifiers only: a missing statement classification can use the
@@ -1014,7 +1014,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     cards: surfaced,
     allCards: cards,
     meta: {
-      positionSizes: report?.scope === 'portfolio' ? positionSizes?.sizes || null : null,
+      positionSizes: positionSizes?.sizes || null,
       sortedByHolding: weights.size > 0,
       firstDay,
       rawEvents: recent.length,
@@ -1120,14 +1120,17 @@ function finishMerge(previous, next, merged) {
 
 /** Apply a newly checked private snapshot without another feed read or ranking pass. */
 export function withPositionSnapshot(report, snapshot) {
-  if (!report || report.scope !== 'portfolio' || !snapshot) return report;
+  if (!report || !snapshot) return report;
   const byKey = positionSnapshotIndex(snapshot);
   const identity = card => [card.key, card.ticker, card.entityId].find(key => byKey.has(key));
   const decorate = card => {
     const holdingWeightPct = byKey.get(identity(card)) ?? null;
-    return card.holding && card.holdingWeightPct === holdingWeightPct ? card : { ...card, holding: true, holdingWeightPct };
+    const holding = identity(card) !== undefined;
+    return card.holding === holding && card.holdingWeightPct === holdingWeightPct ? card : { ...card, holding, holdingWeightPct };
   };
-  const retained = card => identity(card) !== undefined;
+  // Scope chooses the companies; holding sizes only order the existing view.
+  // A checked exit disappears from Portfolio, but stays in Universe/Watchlist.
+  const retained = card => report.scope !== 'portfolio' || identity(card) !== undefined;
   const projected = report.allCards.filter(retained).map(decorate);
   const allCards = sameRows(projected, report.allCards) ? report.allCards : projected;
   const byIdentity = new Map(allCards.map(card => [card.key || card.ticker || card.entityId, card]));
@@ -1142,7 +1145,7 @@ export function withPositionSnapshot(report, snapshot) {
   } };
   rankingOptions.set(result, { ...rankingOptions.get(report), holdings: snapshot.holdings, positionSizes: snapshot });
   rankingEvidence.set(result, (rankingEvidence.get(report) || []).filter(event =>
-    [event.ticker, event.entityId].some(key => byKey.has(key))));
+    report.scope !== 'portfolio' || [event.ticker, event.entityId].some(key => byKey.has(key))));
   return result;
 }
 
