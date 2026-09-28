@@ -1118,16 +1118,20 @@ function finishMerge(previous, next, merged) {
   return result;
 }
 
-/** Remove unavailable weights without discarding retained public source evidence. */
-export function withoutPositionSnapshot(report, holdings = coverage.holdings()) {
+/** Remove optional weights by projection, retaining the complete evidence and visible queue. */
+export function withoutPositionSnapshot(report) {
   if (!report) return report;
-  const events = [...new Set([...(rankingEvidence.get(report) || []), ...report.allCards.flatMap(card =>
-    [...card.events, ...(card.contextEvents || []), ...(card.upcomingEvents || [])])])];
-  const next = rankReport({ ...report, events, cacheSavedAt: report.meta?.cacheSavedAt },
-    { ...rankingOptions.get(report), holdings, positionSizes: null });
-  // A partial feed may already have retained a visible alert below today's threshold.
-  // Removing an optional position snapshot must preserve that retained queue too.
-  return finishMerge(report, next, next);
+  const replacements = new Map();
+  const clear = card => {
+    if (!replacements.has(card)) replacements.set(card, card.holdingWeightPct == null ? card : { ...card, holdingWeightPct: null });
+    return replacements.get(card);
+  };
+  const allCards = report.allCards.map(clear), cards = report.cards.map(clear);
+  if (!report.meta.positionSizes && sameRows(allCards, report.allCards) && sameRows(cards, report.cards)) return report;
+  const result = { ...report, allCards, cards, meta: { ...report.meta, positionSizes: null, sortedByHolding: false } };
+  rankingOptions.set(result, { ...rankingOptions.get(report), positionSizes: null });
+  rankingEvidence.set(result, rankingEvidence.get(report));
+  return result;
 }
 
 /** Apply a newly checked private snapshot without another feed read or ranking pass. */

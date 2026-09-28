@@ -260,9 +260,11 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
     }
   }
   positions = positions.then(snapshot => {
-    if (current() && snapshot) {
+    if (current()) {
+      // A public-feed exception can settle Promise.all before this read finishes.
+      // Clear failed verification here too, even if no replacement report will arrive.
       checkedSnapshot = snapshot;
-      report = alerts.withPositionSnapshot(report, snapshot);
+      report = snapshot ? alerts.withPositionSnapshot(report, snapshot) : alerts.withoutPositionSnapshot(report);
       paint(ctxRef);
     }
     return snapshot;

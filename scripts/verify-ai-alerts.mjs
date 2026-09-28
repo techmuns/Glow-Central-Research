@@ -155,7 +155,7 @@ for (const scope of ['universe', 'watchlist']) {
   assert.equal(failed.cards.length, 0, 'unhealthy source weights lower this fixture below the threshold');
   const retained = mergePartialReport(healthy, failed);
   assert.equal(retained.cards.length, 1);
-  const withoutSizes = withoutPositionSnapshot(retained, publicIdentities);
+  const withoutSizes = withoutPositionSnapshot(retained);
   assert.equal(withoutSizes.cards.length, 1, 'size failures retain already-visible below-threshold cards');
   assert.equal(withoutSizes.meta.surfacedCompanies, 1);
   assert.equal(withoutSizes.cards[0].holdingWeightPct, null);
@@ -189,7 +189,7 @@ for (const scope of ['portfolio', 'watchlist', 'universe']) {
     events: [...report.events, context, contextOnly, scheduled],
     feeds: [...feeds, { id: 'news', status: 'failed' }] }, { holdings: publicIdentities, positionSizes: sizes });
   assert(beforeFailure.cards.find(c => c.ticker === 'LARGE').upcomingEvents.some(e => e.id === scheduled.id));
-  const afterFailure = withoutPositionSnapshot(beforeFailure, publicIdentities);
+  const afterFailure = withoutPositionSnapshot(beforeFailure);
   assert.equal(afterFailure.meta.positionSizes, null);
   assert.equal(afterFailure.pending, 1);
   assert.deepEqual(afterFailure.feeds, beforeFailure.feeds);
@@ -198,7 +198,10 @@ for (const scope of ['portfolio', 'watchlist', 'universe']) {
     assert.deepEqual(retained.contextEvents, card.contextEvents, 'size failure keeps context-only records');
     assert.deepEqual(retained.upcomingEvents, card.upcomingEvents, 'size failure keeps scheduled records');
     assert.equal(retained.holdingWeightPct, null);
+    assert.equal(retained.events, card.events, 'clearing weights projects cards without rereading or reranking source events');
+    assert.equal(retained.score, card.score);
   }
+  assert.equal(withoutPositionSnapshot(afterFailure), afterFailure, 'repeated size failures reuse the cleared view');
 }
 const indexedReport = { ...report, events: [...report.events, context, contextOnly, routineSnapshot] };
 const contextIndex = indexAlertContext(indexedReport);

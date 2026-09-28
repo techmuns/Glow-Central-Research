@@ -76,7 +76,7 @@ export async function readCachedAlertWindow({scope,holdings,day=currentDay()}){
   return {...saved.value,day,scope,events:saved.value.events.filter(e=>scope==='universe'||wanted.has(e.ticker)),cacheSavedAt:saved.savedAt};
 }
 export async function collect({scope,onPartial,holdings,load=true}) {
-  if (new URLSearchParams(location.search).has('throwFirst')) throw new Error('Fixture initial collection failed');
+  if (window.throwCollection || new URLSearchParams(location.search).has('throwFirst')) throw new Error('Fixture initial collection failed');
   if(load) window.reads++;
   if(load && window.holdStart) await new Promise(done=>window.releaseStart=done);
   const wanted=new Set(holdings.map(h=>h.ticker));
@@ -532,6 +532,23 @@ try {
   await page.evaluate(() => window.refreshAlerts());
   await settled();
   assert.equal(await page.locator('[data-ai-error]').count(), 0);
+  for (const scope of ['universe', 'watchlist']) {
+    await page.evaluate(scope => window.show(scope), scope);
+    await settled();
+    assert.equal(await card('A00').locator('[data-ai-holding-size]').count(), 1);
+    await peer.evaluate(() => { window.failed = true; window.holdPositions = true; });
+    await page.evaluate(() => { window.throwCollection = true; void window.refreshAlerts(); });
+    await waitFor(page, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'partial');
+    await waitFor(peer, () => !!window.releasePositions);
+    await peer.evaluate(() => window.releasePositions());
+    await waitFor(page, () => !document.querySelector('[data-ai-holding-size]'));
+    assert.equal(await card('A00').count(), 1, 'simultaneous failures keep retained public evidence');
+    assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').evaluate(option => option.disabled), true);
+    await peer.evaluate(() => { window.failed = false; });
+    await page.evaluate(() => { window.throwCollection = false; return window.refreshAlerts(); });
+    await settled();
+    assert.equal(await card('A00').locator('[data-ai-holding-size]').count(), 1);
+  }
   // Clear the short-lived position cache so the existing late-reply/scope-race
   // check still exercises a genuine read.
   await peer.evaluate(() => { window.holdPositions = true; window.invalidate(); });
