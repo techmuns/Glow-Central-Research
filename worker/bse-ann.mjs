@@ -289,7 +289,7 @@ const announcementRecordId = (row) => row.newsId ? `news:${row.newsId}` : `row:$
  */
 export async function fetchAnnouncements(
   { from, to, categories = CATEGORIES, maxPages = 200 },
-  { fetchImpl = fetch, gapMs = 150, onProgress = null,
+  { fetchImpl = fetch, gapMs = 150, onProgress = null, onPage = null,
     timeoutMs = BSE_PAGE_TIMEOUT_MS, maxResponseBytes = BSE_PAGE_JSON_LIMIT } = {},
 ) {
   if (!Array.isArray(categories) || !categories.length || categories.some((category) => !String(category || '').trim())) {
@@ -337,6 +337,7 @@ export async function fetchAnnouncements(
           url, category, page, declared, collected: got + batch.length,
         });
       }
+      const pageRows = [];
       for (const raw of batch) {
         const r = requiredAnnouncementRow(raw, { url, category, page, from: requested.from.iso, to: requested.to.iso });
         const recordId = announcementRecordId(r);
@@ -358,8 +359,12 @@ export async function fetchAnnouncements(
           unknownCategories.set(r.category, (unknownCategories.get(r.category) || 0) + 1);
         }
         rows.push(r);
+        pageRows.push(r);
       }
       got += batch.length;
+      // Collectors may retain fully validated pages if a later page fails. This callback is
+      // not a completeness signal: the normal return still requires the entire walk to pass.
+      onPage?.({ category, page, rows: pageRows, declared });
       if (onProgress) onProgress({ category, page, got, declared, requests });
       if (got === declared) break;
       if (batch.length !== PAGE_SIZE) {

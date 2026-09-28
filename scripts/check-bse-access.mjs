@@ -21,7 +21,7 @@ export async function checkBseAccess({ previousIdentities, to, scripCode = '5222
   const master = await fetchBseIdentityMaster(previousIdentities, { headers: HEADERS, fetcher: fetchImpl });
   const identity = master.find(row => String(row.SCRIP_CD) === scripCode);
   if (!identity) throw new Error(`BSE probe scrip ${scripCode} is absent from the validated directory.`);
-  const options = { fetchImpl, gapMs, attempts: 1 };
+  const options = { fetchImpl, gapMs, attempts: 1, today };
   const exchange = await collectBseAnnouncements({ from: to, to }, options);
   if (!exchange.rows.length) throw new Error('BSE probe found no exchange records. Select a completed day with known filings.');
   const from = shiftDay(to, -364);

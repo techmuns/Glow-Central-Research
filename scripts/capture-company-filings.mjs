@@ -52,7 +52,7 @@ async function proxyRequest(kind, ticker, range, company) {
 async function bseRequest(bseCode, range) {
   const result = await collectBseCompanyAnnouncements(
     { scripCode: bseCode, from: range.from, to: range.to },
-    { onRetry: ({ nextAttempt, error }) => console.warn(`${error.message} Restarting that company (attempt ${nextAttempt}/3).`) },
+    { onRetry: ({ nextAttempt, error }) => console.warn(`${error.message} Restarting this date window (attempt ${nextAttempt}/3).`) },
   );
   const announcements = result.rows.map(row => ({ ...row, title: row.headline, source: 'BSE', sources: ['BSE'],
     providers: ['BSE company index'] }));

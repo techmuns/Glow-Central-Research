@@ -63,14 +63,29 @@ retry; never clear history, errors or watermarks to manufacture a green result.
 
 ## Changing page totals
 
-Both collectors now restart a walk when BSE changes its declared total mid-read.
-There are at most three attempts, separated by one second. The exchange walk
-restarts only the affected category; company history restarts only that issuer.
-Only the successful attempt's rows are returned, and request counts include failed
-attempts. HTTP 403, invalid data, duplicate records, wrong filters and exhausted
-pagination still fail. The original strict adapter and its checks remain intact.
-If the count keeps changing, no completeness watermark advances. Retaining partial
-exchange windows independently is not implemented by this change.
+Both collectors separate completed dates from today (India time), so new filings
+cannot repeatedly invalidate a long historical walk. Within a category or issuer,
+only the affected date window restarts when BSE changes its declared total mid-read.
+There are at most three attempts per window, separated by one second. A successful
+history window stays in memory while today's smaller walk retries.
+
+The exchange collector retains fully validated pages if a later page fails, along
+with successful categories. A partial window has no claimed declared total and is
+listed under `failedWindows`. The existing reader receives a named `BSE collection`
+failure, so these useful rows remain visible with incomplete-source status. Only
+contiguous, fully checked windows advance `lastCompleteTo`; a good live day cannot
+jump over a historical gap. A partial snapshot cannot use its requested end date
+as a completeness watermark. The existing health gate runs after publication and
+keeps the workflow red while any category/window remains incomplete.
+
+Successful windows use only their final consistent attempt. Partial windows retain
+distinct observations from validated pages of the bounded attempts. Counts are
+summed across disjoint windows; request counts include failed attempts. Duplicate
+NEWSIDs across windows still fail. Invalid rows are never exposed by the adapter's
+page callback. HTTP 403 and malformed data are recorded without retry traffic;
+zero captured rows still cannot replace a good snapshot. The strict adapter,
+read-only qualification command and company-history collector continue to require
+complete results. Company failures retain their existing records and retry state.
 
 ## Verify recovery
 
