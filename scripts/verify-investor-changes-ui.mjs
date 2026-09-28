@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
@@ -127,14 +128,24 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   await page.waitForSelector('[data-public-disclosures]');
   assert.equal(await page.locator('#modal-overlay.is-open').count(), 0, 'opening a profile closes the audit modal so the workspace is not stacked beneath it');
   assert.match(await page.locator('[data-public-disclosures]').innerText(), /TIL LIMITED.*Singularity Equity Fund I/s);
-  assert.match(await page.locator('[data-public-disclosures]').innerText(), /2026-08-06/);
+  // This suite serves the current capture. A newer disclosure legitimately replaces the old
+  // preview; compare its published date and figures rather than freezing the August snapshot.
+  const tilDisclosures = JSON.parse(readFileSync(new URL('../public/data/public-holdings.json', import.meta.url), 'utf8')).holdings
+    .filter(row => row.personId === 'madhusudan-kela' && row.kind === 'investor' && row.company === 'TIL LIMITED');
+  const tilDisclosure = tilDisclosures.find(row => row.state === 'latest-disclosure');
+  assert(tilDisclosure, 'the served capture contains a latest TIL disclosure for this investor');
+  assert((await page.locator('[data-public-disclosures]').innerText()).includes(tilDisclosure.asOf));
   await page.locator('[data-ws-tab=exchange]').click();
   await page.locator('[data-public-search]').fill('TIL LIMITED');
   const til = page.locator('[data-public-row]:visible');
-  assert.equal(await til.count(), 1);
-  assert.match(await til.innerText(), /11,09,190/);
-  assert.match(await til.innerText(), /1.35%/);
-  assert.match(await til.locator('a').last().getAttribute('href'), /bseindia|nseindia/);
+  assert.equal(await til.count(), tilDisclosures.length, 'latest and retained historical disclosures stay searchable');
+  for (const disclosure of tilDisclosures) {
+    const row = til.filter({ hasText: disclosure.asOf });
+    assert.equal(await row.count(), 1, `one dated TIL disclosure for ${disclosure.asOf}`);
+    assert((await row.innerText()).includes(disclosure.shares.toLocaleString('en-IN')));
+    assert((await row.innerText()).includes(`${disclosure.stakePct}%`));
+    assert.match(await row.locator('a').last().getAttribute('href'), /bseindia|nseindia/);
+  }
   assert(await page.locator('[data-public-export]').isVisible());
   await page.setViewportSize({ width: 390, height: 844 });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'public holdings must stay within the mobile viewport');
