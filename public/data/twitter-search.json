@@ -1558,7 +1558,7 @@
       "error": "search-unavailable"
     },
     "isin:INE089C01029|STL analyst day": {
-      "lastAttemptAt": "2026-09-24T00:39:10+00:00",
+      "lastAttemptAt": "2026-09-28T16:29:19+00:00",
       "error": "search-unavailable"
     },
     "isin:INE089C01029|STLTECH": {
@@ -1874,6 +1874,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 212,
-    "checkedAt": "2026-09-28T15:59:27.041891+00:00"
+    "checkedAt": "2026-09-28T16:29:19.233623+00:00"
   }
 }
