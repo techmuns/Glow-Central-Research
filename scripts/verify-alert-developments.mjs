@@ -255,3 +255,69 @@ const events = [...reports, bse, nse, unrelatedSameCompany, clarification, other
   assert(elapsed < 5000, `20,000 same-minute filings fold in bounded time (${Math.round(elapsed)}ms)`);
   console.log(`PASS 20,000 same-minute filings across 40 companies fold in ${Math.round(elapsed)}ms, every one kept apart.`);
 }
+
+// Order awards are matched as events, including letter-of-acceptance/contract paraphrases.
+{
+  const filing = { ...bse, id: 'kalp:filing', ticker: 'KPIL', company: 'Kalpataru Projects International Ltd',
+    day: '2026-09-18', time: '18:05', importance: 'high', headline: 'General Updates', filingSubject: 'General Updates',
+    filingDescription: 'Kalpataru Projects International received a letter of acceptance for Rs 2,500 crore from Metro Rail in Mumbai',
+    url: 'https://www.bseindia.com/kalp-order.pdf' };
+  const report = { ...story('kalp', '2026-09-18', '19:30',
+    'Kalpataru bags a ₹25 billion contract from Metro Rail in Mumbai', 'Mint'), ticker: 'KPIL', company: filing.company,
+    attribution: { ...confirmed, companyTicker: 'KPIL' } };
+  const shape = rows => dev.foldDevelopments(rows).map(d => d.members.map(e => e.id).sort()).sort();
+  const folded = dev.foldDevelopments([report, filing]);
+  assert.equal(folded.length, 1, 'LOA and differently worded contract news are one awarded order');
+  assert.equal(folded[0].lead, filing, 'original corporate announcement leads');
+  assert.deepEqual(shape([filing, report]), shape([report, filing]), 'source input order does not change the event');
+  const variants = [
+    ['different amount', 'Kalpataru bags a ₹2,800 crore contract from Metro Rail in Mumbai'],
+    ['same words and a cancelled award', 'Kalpataru cancels a ₹2,500 crore contract from Metro Rail in Mumbai'],
+    ['proposal at the same amount', 'Kalpataru bids for a ₹2,500 crore contract from Metro Rail in Mumbai'],
+    ['different counterparty', 'Kalpataru bags a ₹2,500 crore contract from Northern Railway in Mumbai'],
+    ['counterparties sharing a noun', 'Kalpataru bags a ₹2,500 crore contract from Eastern Rail in Mumbai'],
+    ['different location', 'Kalpataru bags a ₹2,500 crore contract from Metro Rail in Chennai'],
+    ['completed project', 'Kalpataru completed a ₹2,500 crore contract from Metro Rail in Mumbai'],
+    ['correction', 'Kalpataru revises a ₹2,500 crore contract from Metro Rail in Mumbai'],
+  ];
+  for (const [why, headline] of variants) {
+    const other = { ...report, id: `kalp:${why}`, headline };
+    assert.equal(dev.foldDevelopments([filing, report, other]).length, 2, why);
+  }
+  for (const [left, right] of [
+    ['Q1 FY27 results: profit rises to Rs 500 crore', 'Q2 FY27 results: profit rises to Rs 500 crore'],
+    ['Q1 FY26 results: profit rises to Rs 500 crore', 'Q1 FY27 results: profit rises to Rs 500 crore'],
+    ['Launch of Phase 1 of project Equinox', 'Launch of Phase 2 of project Equinox'],
+    ['Wins Rs 500 crore order for Project Alpha', 'Wins Rs 500 crore order for Project Beta'],
+  ]) {
+    assert.equal(dev.foldDevelopments([{ ...report, id: 'period:a', headline: left },
+      { ...report, id: 'period:b', headline: right }]).length, 2, `${left} differs from ${right}`);
+  }
+  const later = { ...report, id: 'kalp:later', day: '2026-09-27' };
+  assert.equal(dev.foldDevelopments([filing, later]).length, 2, 'old awards do not absorb a later order');
+  const earlierNews = { ...report, time: '17:00' };
+  assert.equal(dev.foldDevelopments([earlierNews, filing])[0].lead, filing, 'a late filing replaces the news as primary');
+  const conflictingCopy = { ...filing, id: 'kalp:nse-other', feed: 'nse-filings', time: '18:10', detail: 'NSE · General Updates',
+    filingDescription: filing.filingDescription.replace('2,500', '2,800'), url: 'https://nsearchives.nseindia.com/other-order.pdf' };
+  assert.equal(dev.foldDevelopments([filing, conflictingCopy]).length, 2, 'exchange proximity and generic subjects cannot swallow another order');
+  // Even the same URL may carry a corrected source observation. Neither subject nor URL is an
+  // identity for an announcement. Identical publisher headlines still retain both source links.
+  const second = { ...filing, id: 'kalp:second', time: '18:30', filingDescription: 'Kalpataru received a letter of acceptance for Rs 400 crore from Eastern Railway in Kolkata' };
+  const syndicated = { ...report, id: 'kalp:second-publisher', url: 'https://other.example/order', detail: 'Published by Another outlet' };
+  const input = [filing, second, report, syndicated];
+  const ranked = ai.rankReport({ day: '2026-09-19', scope: 'portfolio', events: input,
+    feeds: ['announcements', 'news', 'nse-filings'].map(id => ({ id, status: 'ok', reachesToday: true })) },
+    { holdings: [{ ticker: 'KPIL', name: filing.company }], insightCompanies: [], companyMetadata: [] });
+  const card = ranked.cards[0];
+  assert.equal(card.events.length, input.length, 'all filings and publisher links survive the ranking');
+  assert.equal(card.developments.length, 2, 'two orders with General Updates subjects remain two events');
+  assert.equal(card.developments.reduce((sum, d) => sum + d.members.length, 0), input.length);
+  const corrected = ai.materialEvidence([filing]);
+  assert.notDeepEqual(ai.materialEvidence([{ ...filing, filingDescription: filing.filingDescription.replace('2,500', '2,800') }]),
+    corrected, 'an unchanged generic subject cannot hide a corrected filing description');
+  assert(utils.matchesSearch(card, 'Eastern Railway'), 'distinct generic-subject filings remain searchable');
+  assert.deepEqual(shape(input.map(({ sourceRecord, ...row }) => row)), shape(input), 'compact AI pool facts match full source facts');
+  const permuted = [...input].reverse();
+  assert.deepEqual(shape(permuted), shape(input));
+  console.log('PASS semantic order anchors, primary filing, units, periods, stages, distinct projects, source preservation and late filing arrival.');
+}

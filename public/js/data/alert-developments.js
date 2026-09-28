@@ -12,11 +12,11 @@
 //   * EXCHANGE COPIES. A filing lodged with both exchanges, and each exchange's own feed of it, is
 //     one filing: rows carrying one document hash; rows lodged within the hour whose statements are
 //     the same text (BSE files one corrigendum under three categories, NSE's feeds repeat each
-//     other); a row on the OTHER exchange within the hour sharing a word of its statement; and
+//     other); a row on the OTHER exchange within the hour sharing specific event facts; and
 //     NSE's structured-form subject ("Resignation of Director/KMP/SMP") beside the statement of it.
-//   * REPORTS OF IT. A publisher story joins the development when its headline carries one of the
-//     development's figures and one of its words, or three of its words — or two, inside a day and
-//     a half, where no rupee figure disagrees. Nothing is read but headlines and the filing's text.
+//   * REPORTS OF IT. Company, event kind/stage, amounts, named projects/customers/places and
+//     periods constrain the match. Order-award paraphrases can agree without matching headlines.
+//     Missing facts remain unknown; conflicting facts veto the older word/figure fallback.
 //
 // FOUR RULES KEEP THE FOLD HONEST, and each is one this codebase already runs on:
 //
@@ -29,7 +29,7 @@
 // 3. DIFFERENT DEVELOPMENTS STAY APART. Only one company's items fold together; a related-entity
 //    report or a reviewed-unrelated result never folds; an unverified search match never opens a
 //    development anybody else can join; a denial, cancellation or clarification never joins what it
-//    answers; two rupee figures that disagree need far more than a shared word; a second filing is
+//    answers; disagreeing rupee figures stay separate; a second filing is
 //    never folded into a first by its words; and a report is matched against what the development
 //    is ABOUT — its first report and its filings — so one broad story cannot chain two together.
 // 4. ONLY COMPACT FIELDS ARE READ. The AI pool carries events without their source record, and a
@@ -39,6 +39,7 @@
 //    exception is a story's publisher name, which the pool keeps for exactly this kind of reading.
 import { clip, isTypeOnly, sourceStatement, filingClaim, CLAIM_MAX } from './alert-claims.js';
 import { runSteps, runStepsInSlices } from '../core/slices.js';
+import { eventFacts, compatibleEventFacts, sameOrderFacts } from './alert-event-facts.js';
 
 /** A report joins a development whose first report is at most this many days away. */
 export const DEVELOPMENT_WINDOW_DAYS = 7;
@@ -328,6 +329,7 @@ class Reading {
     if (this._text === undefined) this._text = this.kind ? matchText(this.event, this.kind) : String(this.event.headline || '');
     return this._text;
   }
+  get facts() { return this._facts ||= eventFacts(this.text); }
   get words() { return (this._tokens ||= lineTokens(this.text)).words; }
   get figures() { return (this._tokens ||= lineTokens(this.text)).figures; }
   get money() { return (this._tokens ||= lineTokens(this.text)).money; }
@@ -416,6 +418,7 @@ function sameStatement(a, b) {
 function isExchangeCopy(a, b, own) {
   if (a.documentHash && a.documentHash === b.documentHash) return true;
   if (!Number.isFinite(a.at) || !Number.isFinite(b.at) || Math.abs(a.at - b.at) > COPY_MS) return false;
+  if (!compatibleEventFacts(a.facts, b.facts) || moneyDisagrees(a, b)) return false;
   // Two statements that each state a figure and share none are not one text — "…first batch of
   // 120" and "…of 480" — so the text comparison below is skipped for them, and it is the costly one.
   const distinctFigures = a.digits.size > 0 && b.digits.size > 0 && !overlaps(a.digits, b.digits);
@@ -431,32 +434,38 @@ function isExchangeCopy(a, b, own) {
   // The other exchange's copy: both exchanges must be KNOWN and different. A row whose exchange
   // the source did not name is not evidence of being the other exchange's twin.
   if (!a.venues.length || !b.venues.length || a.venues.some((venue) => b.venues.includes(venue))) return false;
-  // A category-only claim ("Press Release") beside its twin on the other exchange says nothing
-  // against being that twin; anything else has to share a word or a figure with it.
-  return a.typeOnly || b.typeOnly || overlapsExcept(a.words, b.words, own) || overlaps(a.figures, b.figures);
+  // Proximity and an exchange category cannot identify a document. Require event evidence.
+  if (a.typeOnly || b.typeOnly) return false;
+  const words = countExcept(a.words, b.words, own);
+  return (overlaps(a.money, b.money) && sameOrderFacts(a.facts, b.facts)) ||
+    (words >= 2 && overlaps(a.figures, b.figures)) || words >= 3;
 }
+
+// Reported amounts are event facts. Shared generic words never override a different amount.
+const moneyDisagrees = (a, b) => a.money.size > 0 && b.money.size > 0 && !overlaps(a.money, b.money);
 
 /** Does this report describe the development? `weak` allows the two-word, near-in-time reading. */
 function reportsDevelopment(r, dev, weak, own) {
   if (!Number.isFinite(r.at) || Math.abs(r.at - dev.anchorAt) > WINDOW_MS) return false;
-  // Matched against what the development is ABOUT — its first report and its filings — never
-  // against words a later member brought in, so one broad story cannot bridge two developments.
   if (!overlapsExcept(r.words, dev.anchorWords, own) && !overlaps(r.figures, dev.anchorFigures)) return false;
-  const flags = r.flags;
-  const anchor = dev.first.reading.flags;
-  if (flags.negative !== anchor.negative) return false;
-  const sharedMoney = overlaps(r.money, dev.money);
-  if (!sharedMoney && ((flags.prospective && anchor.completed) || (flags.completed && anchor.prospective))) return false;
-  const moneyConflict = r.money.size > 0 && dev.money.size > 0 && !sharedMoney;
-  // Words are counted against what the development is ABOUT, never against words a later member
-  // brought in: stories comparing banks share the names of five other banks with each other, and
-  // counted against the union an "FD rates" story joined a run of "bank holiday" stories that way.
+  // Every member must remain compatible, including reports that supplied a customer or project
+  // missing in the first headline. A broad intermediate report cannot bridge distinct events.
+  for (const item of itemsOf(dev)) {
+    const other = item.reading;
+    if (!compatibleEventFacts(r.facts, other.facts) || moneyDisagrees(r, other) ||
+        r.flags.negative !== other.flags.negative) return false;
+    if ((r.flags.prospective && other.flags.completed) || (r.flags.completed && other.flags.prospective)) return false;
+  }
+  const anchor = dev.first.reading;
+  const near = Math.abs(r.at - dev.anchorAt) <= NEAR_MS;
+  // "Letter of acceptance" and "bags an EPC contract" need not share headline words. The
+  // company, award stage, normalized amount and time identify it, subject to the vetoes above.
+  if (near && overlaps(r.money, anchor.money) && sameOrderFacts(r.facts, anchor.facts)) return true;
   const words = countExcept(r.words, dev.anchorWords, own);
-  const figures = count(r.figures, dev.figures);
+  const figures = count(r.figures, dev.anchorFigures);
   if (figures >= 1 && words >= 1) return true;
-  if (words >= 4) return true;
-  if (words >= 3 && !moneyConflict) return true;
-  return weak && words >= 2 && !moneyConflict && Math.abs(r.at - dev.anchorAt) <= NEAR_MS;
+  if (words >= 3) return true;
+  return weak && words >= 2 && near;
 }
 
 function joins(item, dev, own) {
