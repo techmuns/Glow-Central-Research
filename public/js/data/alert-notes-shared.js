@@ -134,7 +134,7 @@ const numbersIn = (value) => {
 };
 
 const FORBIDDEN = [
-  [/\b(?:recommend\w*\s+(?:buying|selling|holding|investing|to buy|to sell)|target price|price target|buy rating|sell rating|overweight|underweight|outperform\w*|underperform\w*)\b/i, 'advice'],
+  [/\b(?:recommend\w*\s+(?:(?:a|an|the|to)\s+)?(?:buy(?:ing)?|sell(?:ing)?|hold(?:ing)?|invest(?:ing|ment)?|accumulat\w*)|target price|price target|buy rating|sell rating|overweight|underweight|outperform\w*|underperform\w*)\b/i, 'advice'],
   [/\b(?:should|worth|time to)\s+(?:buy|sell|accumulate|exit|hold)\b/i, 'advice'],
   [/\b(?:share|stock)\s+price\s+(?:will|could|may|might|is likely to|likely to)\s+(?:rise|fall|jump|rally|drop|surge|decline|re-?rate)/i, 'price-call'],
   [/\b(?:shares|stock)\s+(?:will|could|may|might|is likely to|likely to)\s+(?:rise|fall|jump|rally|drop|surge|decline|re-?rate)/i, 'price-call'],

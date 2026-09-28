@@ -38,6 +38,7 @@ assert.equal(ok('The ₹2,600 Cr project covers 12 acres, with completion schedu
 assert.equal(ok('The project will be completed in 48 months.').ok, true, 'source-stated future actions are factual summaries');
 assert.equal(shared.acceptNote('The board recommended a dividend of Rs 5 per share.', { ...item, detail: 'The board recommended a dividend of Rs 5 per share.' }).ok, true, 'a dividend recommendation is a corporate action, not investment advice');
 assert.equal(ok('Investors should buy the stock on this win.').reason, 'advice');
+for (const advice of ['We recommend a buy.', 'Recommend selling the shares.', 'Recommend to hold.']) assert.equal(ok(advice).reason, 'advice');
 assert.equal(ok('Shares could rally on the news.').reason, 'price-call');
 assert.equal(ok('Could add ₹400 crore of revenue in FY28.').reason, 'unsupported-figure');
 assert.equal(ok('The project supports FY27 bookings.').reason, 'unsupported-figure', 'summaries cannot add an unstated fiscal year');
