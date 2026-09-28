@@ -127,10 +127,15 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   await page.waitForSelector('[data-public-disclosures]');
   assert.equal(await page.locator('#modal-overlay.is-open').count(), 0, 'opening a profile closes the audit modal so the workspace is not stacked beneath it');
   assert.match(await page.locator('[data-public-disclosures]').innerText(), /TIL LIMITED.*Singularity Equity Fund I/s);
-  assert.match(await page.locator('[data-public-disclosures]').innerText(), /2026-08-06/);
+  const tilDates = await page.evaluate(async () => (await import('/js/data/public-holdings.js')).forPerson('madhusudan-kela')
+    .filter(row => row.company === 'TIL LIMITED').map(row => row.asOf).sort().reverse());
+  assert(tilDates.includes('2026-08-06'), 'the original dated disclosure remains in retained history');
+  assert((await page.locator('[data-public-disclosures]').innerText()).includes(tilDates[0]), 'the compact profile shows the latest TIL disclosure');
   await page.locator('[data-ws-tab=exchange]').click();
   await page.locator('[data-public-search]').fill('TIL LIMITED');
-  const til = page.locator('[data-public-row]:visible');
+  const tilRows = page.locator('[data-public-row]:visible');
+  assert.equal(await tilRows.count(), tilDates.length, 'the full disclosure view preserves every TIL date');
+  const til = tilRows.filter({ hasText: '2026-08-06' });
   assert.equal(await til.count(), 1);
   assert.match(await til.innerText(), /11,09,190/);
   assert.match(await til.innerText(), /1.35%/);
