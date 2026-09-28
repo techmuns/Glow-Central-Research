@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-09-28T14:14:07.743Z",
+    "capturedAt": "2026-09-28T15:36:34.023Z",
     "from": "2026-08-05",
     "to": "2026-09-25",
     "rows": 9689,
@@ -12,8 +12,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-28T14:14:07.743Z",
-  "oldestDataAt": "2026-09-28T14:14:07.743Z",
+  "capturedAt": "2026-09-28T15:36:34.023Z",
+  "oldestDataAt": "2026-09-28T15:36:34.023Z",
   "from": "2025-09-28",
   "to": "2026-09-28",
   "windowDays": 365,
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-28T14:14:07.743Z",
+      "capturedAt": "2026-09-28T15:36:34.023Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-28T14:14:07.743Z",
+      "capturedAt": "2026-09-28T15:36:34.023Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +63,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-28T14:14:07.743Z",
+      "capturedAt": "2026-09-28T15:36:34.023Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -71,20 +71,20 @@
       "label": "Insider trade",
       "url": "https://www.screener.in/trades/insiders/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-09-26",
+      "latestDate": "2026-09-28",
       "oldestDate": "2026-09-25",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-28T14:14:07.743Z",
+      "capturedAt": "2026-09-28T15:36:34.023Z",
       "coverageFrom": "2026-08-18"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1807,
+  "withRows": 1810,
   "emptyCount": 0,
-  "rowCount": 18640,
+  "rowCount": 18645,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -162582,6 +162582,23 @@
       }
     ],
     "VMARCIND": [
+      {
+        "ticker": "VMARCIND",
+        "date": "2026-09-26",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "V-Marc India",
+          "Insider": "Promoter Immediate Relative",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "3000",
+          "Trade Value": "9.95 lacs",
+          "Broadcast Date": "2026-09-26",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "VMARCIND",
         "date": "2026-08-31",
@@ -366204,6 +366221,23 @@
     "KAPSTON": [
       {
         "ticker": "KAPSTON",
+        "date": "2026-09-26",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Kapston Services",
+          "Insider": "Promoter",
+          "Security Type": "Equity",
+          "Transaction": "Sold",
+          "Trade Shares": "1200000",
+          "Trade Value": "67.9 crore",
+          "Broadcast Date": "2026-09-26",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "KAPSTON",
         "date": "2026-09-25",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=6",
         "sourceId": "bulk",
@@ -367200,6 +367234,64 @@
           "Transaction": "Gift",
           "Trade Shares": "1487896",
           "Broadcast Date": "2026-09-26",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "ARVEE": [
+      {
+        "ticker": "ARVEE",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Arvee Laborat.",
+          "Insider": "Kmp (2)",
+          "Category": ",",
+          "Security Type": "Equity",
+          "Transaction": "Sold",
+          "Trade Shares": "4000",
+          "Trade Value": "9.14 lacs",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "MPEL": [
+      {
+        "ticker": "MPEL",
+        "date": "2026-09-26",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Manas Polymers",
+          "Insider": "Connected Person",
+          "Security Type": "Equity",
+          "Transaction": "Allotment",
+          "Trade Shares": "7289600",
+          "Trade Value": "11.66 crore",
+          "Broadcast Date": "2026-09-26",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "PUSHPA": [
+      {
+        "ticker": "PUSHPA",
+        "date": "2026-09-25",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Pushpa Jewellers",
+          "Insider": "Promoter And Director",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "18000",
+          "Trade Value": "18.46 lacs",
+          "Broadcast Date": "2026-09-25",
           "Source": "Screener.in"
         }
       }
