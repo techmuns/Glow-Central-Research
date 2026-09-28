@@ -1390,47 +1390,103 @@
       "error": "search-unavailable"
     },
     "isin:INE953O01021|Sansera Engineering": {
-      "lastAttemptAt": "2026-09-23T08:16:28+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-28T06:40:42+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 104,
+      "targetThrough": "2026-09-28T06:40:42+00:00",
+      "pending": [
+        {
+          "from": "2026-09-19T06:40:42.466615+00:00",
+          "to": "2026-09-23T18:40:42.233307+00:00"
+        },
+        {
+          "from": "2026-09-23T18:40:42.233307+00:00",
+          "to": "2026-09-28T06:40:42+00:00"
+        }
+      ]
     },
     "isin:INE953O01021|SANSERA": {
-      "lastAttemptAt": "2026-09-23T09:01:25+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-28T06:40:42+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 111,
+      "targetThrough": "2026-09-28T06:40:42+00:00",
+      "pending": [
+        {
+          "from": "2026-09-19T06:40:42.466615+00:00",
+          "to": "2026-09-23T18:40:42.233307+00:00"
+        },
+        {
+          "from": "2026-09-23T18:40:42.233307+00:00",
+          "to": "2026-09-28T06:40:42+00:00"
+        }
+      ]
     },
     "isin:INE08NE01025|Sanstar": {
-      "lastAttemptAt": "2026-09-23T09:34:55+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-28T06:40:42+00:00",
+      "error": null,
+      "lastResultCount": 3,
+      "lastSuccessAt": "2026-09-28T06:40:42+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE08NE01025|SANSTAR": {
-      "lastAttemptAt": "2026-09-23T10:05:05+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-28T06:40:42+00:00",
+      "error": null,
+      "lastResultCount": 3,
+      "lastSuccessAt": "2026-09-28T06:40:42+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE955I01044|Sejal Glass": {
-      "lastAttemptAt": "2026-09-23T10:35:44+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-28T06:40:42+00:00",
+      "error": null,
+      "lastResultCount": 6,
+      "lastSuccessAt": "2026-09-28T06:40:42+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE955I01044|SEJALLTD": {
-      "lastAttemptAt": "2026-09-23T11:22:41+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-28T06:40:42+00:00",
+      "error": null,
+      "lastResultCount": 2,
+      "lastSuccessAt": "2026-09-28T06:40:42+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE597J01018|Shalby": {
-      "lastAttemptAt": "2026-09-23T11:54:08+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-28T06:40:42+00:00",
+      "error": null,
+      "lastResultCount": 56,
+      "lastSuccessAt": "2026-09-28T06:40:42+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE597J01018|SHALBY": {
-      "lastAttemptAt": "2026-09-23T12:28:28+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-28T06:40:42+00:00",
+      "error": null,
+      "lastResultCount": 56,
+      "lastSuccessAt": "2026-09-28T06:40:42+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE024F01011|Shilchar Technologies": {
-      "lastAttemptAt": "2026-09-23T12:36:45+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-28T06:40:42+00:00",
+      "error": null,
+      "lastResultCount": 12,
+      "lastSuccessAt": "2026-09-28T06:40:42+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE024F01011|SHILCTECH": {
-      "lastAttemptAt": "2026-09-23T13:20:48+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-09-28T06:40:42+00:00",
+      "error": null,
+      "lastResultCount": 2,
+      "lastSuccessAt": "2026-09-28T06:40:42+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE109A01011|Shipping Corporation of India": {
-      "lastAttemptAt": "2026-09-23T13:52:06+00:00",
+      "lastAttemptAt": "2026-09-28T06:40:42+00:00",
       "error": "search-unavailable"
     },
     "isin:INE526E01018|SPR Auto Technologies": {
@@ -1816,8 +1872,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 220,
-    "checkedAt": "2026-09-28T06:07:35.929752+00:00"
+    "attempted": 11,
+    "incomplete": 212,
+    "checkedAt": "2026-09-28T06:40:42.466615+00:00"
   }
 }
