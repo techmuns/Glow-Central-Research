@@ -19,7 +19,7 @@ import * as alerts from '../data/ai-alerts.js';
 import { KPI_CHIP_LIMIT, kpiLine, status as kpiStatus } from '../data/kpi-impact.js';
 import { chatterTopic } from '../data/chatter-sentiment.js';
 import { driversFromEvent, QUESTIONS } from '../data/alert-drivers.js';
-import { developmentSource, foldedSummary, foldedList, KIND_LABEL } from '../data/alert-developments.js';
+import { developmentSource, foldedSummary, publisherOf, venuesOf, storyKindOf, KIND_LABEL } from '../data/alert-developments.js';
 import { noteRequestFor, requestNotes, onNotes } from '../data/alert-notes.js';
 import { noteBodyHtml, NOTE_DISCLOSURE } from '../ui/alert-note.js';
 import * as screenerInsights from '../data/screener-insights.js';
@@ -772,20 +772,18 @@ function kindLabel(dev) {
  * BSE announcement and the card led with a publisher's write-up of it, as generic news. The lead is
  * now the development's (data/alert-developments.js) — the filing wherever there is one — so the
  * chip says "Corporate announcement", the source says which exchanges filed it, and the sentence
- * opens that filing. The reports folded under it are counted beside it and listed in its title.
+ * opens that filing. An expandable source list exposes every related report and exchange copy.
  */
 function whatHappenedMarkup(card, scope) {
   const dev = alerts.leadDevelopment(card);
   const lead = dev?.lead || alerts.leadEvent(card);
   const destination = lead ? evidenceDestination(lead, scope) : null;
-  const folded = dev ? foldedSummary(dev) : '';
   const source = dev ? developmentSource(dev) : '';
   const chipTone = dev?.kind === 'filing' ? 'bg-indigo-50 text-indigo-700 ring-indigo-100' : 'bg-slate-50 text-slate-600 ring-slate-200';
   const meta = dev ? `
     <div data-ai-lead-meta class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
       <span data-ai-kind="${escapeHtml(dev.kind || lead?.feed || '')}" class="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${chipTone}">${escapeHtml(kindLabel(dev))}</span>
       ${source && dev.kind ? `<span data-ai-lead-source class="text-[11px] font-semibold text-slate-500">${escapeHtml(source)}</span>` : ''}
-      ${folded ? `<span data-ai-folded class="text-[11px] text-slate-400" title="${escapeHtml(`Folded into this item — the same development, so it is counted once:\n${foldedList(dev, { limit: 25 })}`)}">+ ${escapeHtml(folded)}</span>` : ''}
     </div>` : '';
   const sentence = escapeHtml(card.insight);
   const title = lead ? ` title="${escapeHtml(`${lead.feedLabel || lead.feed} · ${lead.headline || ''}`)}"` : '';
@@ -793,7 +791,7 @@ function whatHappenedMarkup(card, scope) {
     ? `<a data-ai-lead-link href="${escapeHtml(destination.href)}" ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
         aria-label="${escapeHtml(destination.ariaLabel)}" class="rounded transition hover:text-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${sentence}</a>`
     : sentence;
-  return `${meta}<p data-ai-insight class="font-display mt-1 text-[17px] font-bold leading-snug text-slate-900"${title}>${body}</p>`;
+  return `${meta}<p data-ai-insight class="font-display mt-1 text-[17px] font-bold leading-snug text-slate-900"${title}>${body}</p>${developmentSourcesMarkup(dev, scope)}`;
 }
 
 /**
@@ -891,6 +889,33 @@ const DOT_TONE = {
  * published a clock, the IST time. A relative age invented down to the hour for a day-only feed
  * would be this dashboard being precise about something nobody measured.
  */
+// A disclosure works with a mouse, touch or keyboard, and keeps every original source reachable.
+// The keyed reconciler preserves its open state and focused link during background refreshes.
+function developmentSourcesMarkup(dev, scope) {
+  if (!dev?.others?.length) return '';
+  const ordered = [dev.lead, ...dev.others.filter(event => storyKindOf(event) === 'filing'),
+    ...byNewestFirst(dev.others.filter(event => storyKindOf(event) !== 'filing'))];
+  return `<details data-ai-development-sources="${escapeHtml(dev.id)}" class="mt-1 rounded-lg border border-slate-200 px-2 py-1">
+    <summary data-ai-folded class="cursor-pointer rounded text-xs font-semibold text-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-500">View ${escapeHtml(foldedSummary(dev))}</summary>
+    <ul class="mt-2 space-y-2">
+      ${ordered.map((source, index) => {
+        const dest = evidenceDestination(source, scope);
+        const kind = storyKindOf(source);
+        const label = kind === 'filing' ? `${index === 0 ? 'Primary corporate announcement' : 'Exchange copy'} · ${venuesOf(source).join(' · ') || source.feedLabel || 'Exchange'}`
+          : `${kind === 'news' ? 'Related news' : 'Related source'} · ${publisherOf(source) || source.feedLabel || source.feed}`;
+        const when = `${fmtDay(source.day)}${source.time ? ` · ${source.time} IST` : ''}`;
+        return `<li data-ai-notebook-event="${escapeHtml(source.id)}" class="min-w-0">
+          <a data-ai-related-source href="${escapeHtml(dest.href)}" ${dest.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
+            class="block break-words rounded text-sm text-slate-800 hover:text-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-500">
+            <span class="block text-[11px] font-semibold text-slate-500">${escapeHtml(label)} · ${escapeHtml(when)}</span>
+            <span>${escapeHtml(source.headline || alerts.plainHeadline(source))}</span>
+          </a>
+        </li>`;
+      }).join('')}
+    </ul>
+  </details>`;
+}
+
 function eventMarkup(event, scope, day, dev = null) {
   const destination = evidenceDestination(event, scope);
   const tag = alerts.FEED_TAG[event.feed] || String(event.feedLabel || event.feed || '').toUpperCase();
@@ -900,7 +925,6 @@ function eventMarkup(event, scope, day, dev = null) {
   // `plainHeadline`. The tooltip always carries the feed's own wording so nothing is lost. A row
   // that stands for a development prints that development's line and counts what folded under it.
   const claim = dev ? alerts.developmentClaim(dev) : alerts.plainHeadline(event);
-  const folded = dev ? foldedSummary(dev) : '';
   const readings = driverReadings(event);
   // THE CHIP MUST REACH A SCREEN READER TOO. The link carries an aria-label, which replaces its
   // own contents for assistive technology — so a chip rendered inside it would be silently dropped
@@ -912,7 +936,8 @@ function eventMarkup(event, scope, day, dev = null) {
   // newest rows read at full strength and a nine-day-old book change recedes without being hidden.
   const recent = age === 'today' || age === '1d' || age.startsWith('in ');
   return `
-    <li class="flex items-start gap-2" data-ai-notebook-event="${escapeHtml(event.id)}">
+    <li data-ai-notebook-event="${escapeHtml(event.id)}">
+      <div class="flex items-start gap-2">
       <a data-ai-event data-ai-evidence-link href="${escapeHtml(destination.href)}"
         ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
         aria-label="${escapeHtml(ariaLabel)}"
@@ -920,12 +945,13 @@ function eventMarkup(event, scope, day, dev = null) {
         <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${DOT_TONE[event.direction] || DOT_TONE.neutral}" aria-hidden="true"></span>
         <span class="min-w-0 flex-1">
           <span class="line-clamp-2 block text-sm font-medium leading-snug text-slate-800 group-hover:text-slate-900" title="${escapeHtml(event.headline || '')}">${escapeHtml(claim)}</span>
-          ${folded ? `<span data-ai-event-folded class="block text-[11px] text-slate-400" title="${escapeHtml(foldedList(dev, { limit: 25 }))}">+ ${escapeHtml(folded)}</span>` : ''}
           ${driverChipsMarkup(readings)}
         </span>
         <span data-ai-event-source class="mt-0.5 shrink-0 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider ${recent ? 'text-slate-600' : 'text-slate-400'}" title="${escapeHtml(`${event.feedLabel || event.feed} · ${when}`)}">${escapeHtml(tag)} · <time data-ai-age data-day="${escapeHtml(event.day)}" datetime="${escapeHtml(event.time ? `${event.day}T${event.time}+05:30` : event.day)}">${escapeHtml(age)}</time></span>
       </a>
       ${bookmarkButton(snapshotForRow(event, { section: 'daily-alerts' }))}
+      </div>
+      ${developmentSourcesMarkup(dev, scope)}
     </li>`;
 }
 
