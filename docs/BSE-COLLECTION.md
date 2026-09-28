@@ -3,16 +3,34 @@
 The 28 September 2026 investigation found HTTP 403 from both BSE endpoints in the
 scheduled collection environment. The unchanged adapter read the directory and
 complete announcement results locally. This indicates an environment-dependent
-access failure; the exact BSE rejection rule is unconfirmed. Retrying a denied
-request or using a cached company directory does not repair announcement access.
+access failure, not proof that GitHub's network is banned. A public BSE client
+reported the same failure beginning on 23 September and restored server access
+with a current browser User-Agent and `Sec-Fetch-Site: same-site` on 24 September
+([request-header fix](https://github.com/BennyThadikaran/BseIndiaApi/commit/14e1661ae818ac56ad806e48c7c78eb82162ed39),
+[incident and confirmation](https://github.com/BennyThadikaran/BseIndiaApi/issues/17)).
+The shared request profile now includes those headers and BSE's website origin.
+The directory and both announcement collectors use that same profile.
 
-## Qualify the collection host
+## Keep collection on free GitHub Actions
 
-Use an always-on host with a stable network connection permitted to access BSE;
-obtain source approval or allowlisting where required. Verify access before
-switching collection. Changing runner labels alone is not proof of a remedy.
+This repository is public. Its standard `ubuntu-latest` runner minutes are
+[free](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
+Keep `BSE_COLLECTION_RUNNER` unset. No replacement server, paid runner, proxy,
+subscription or API key is needed to test the corrected public request profile.
+The separate access-check workflow creates no artifacts or caches and only reads
+public data; it cannot publish captures, change retry state or dispatch collection.
 
-On the proposed host, in a checkout of the merged repository:
+`BSE read-only access check` compares the previous and current request profiles on
+the same standard runner. A failed previous profile is recorded; the job passes
+only when the current profile validates every requested result. Run it from a
+pull request changing the BSE adapter/checks, or use its read-only manual dispatch.
+A matching local command is:
+
+```sh
+node scripts/check-bse-request-profile.mjs
+```
+
+To check only the current profile:
 
 ```sh
 node scripts/check-bse-access.mjs
@@ -25,33 +43,10 @@ and consistent counts and rejects access denial, wrong issuer/category/date,
 duplicates and truncation. It writes no captures and dispatches no workflows.
 `BSE_PROBE_TO=YYYY-MM-DD` selects another completed day with known filings;
 `BSE_PROBE_SCRIP=NNNNNN` selects another directory-verified issuer with more than
-50 filings during the preceding year. Save the output with the host identity and
-repeat it at another time before relying on the connection.
+50 filings during the preceding year. A successful probe proves access for those
+requests at that time; verify normal scheduled collection before declaring recovery.
 
-The host must support the existing Linux jobs: Node 22, Git, npm, Chrome available
-as `google-chrome`, and GitHub Actions checkout/setup-node/artifact actions. The
-company-history collector shares a job with Screener trade capture, so its Chrome
-and authenticated Screener access must also work. Keeping that combined job avoids
-introducing a second writer racing on its capture files. A single runner serializes
-both jobs; provision enough capacity for the existing cadence.
-
-GitHub documents [runner networking](https://docs.github.com/en/actions/reference/runners/github-hosted-runners#ip-addresses)
-and [runner security](https://docs.github.com/en/actions/reference/security/secure-use).
-This repository is public. Do not attach a persistent self-hosted machine to it:
-untrusted pull-request workflows can compromise that machine. Use managed ephemeral
-runners with a fixed permitted outbound connection and appropriate access isolation;
-confirm the owner's hosting plan supports this before activation. Runner registration requires
-the repository owner's/admin access; the current coding connection is not an admin.
-
-## Activate the verified host
-
-After the owner approves the specific host and production switch, set the repository
-Actions variable `BSE_COLLECTION_RUNNER` to its unique runner label. Both
-`announcements-refresh.yml` and `insider-trades-refresh.yml` use this one setting.
-With the variable unset they retain `ubuntu-latest`. The code change neither
-registers a host nor switches production routing on its own. CI continues on
-GitHub-hosted runners. Do not select an arbitrary replacement runner as a supposed
-fix without the qualification above.
+## Preserve automatic recovery
 
 The existing schedules and publication pipeline remain responsible for collection.
 The exchange capture automatically resumes two days before its last complete date
@@ -60,6 +55,25 @@ archive. Company capture retains its own coverage ranges and retry state. Its
 existing backoff can delay a failed company for up to 24 hours. Let the next due
 scheduled attempt run, or obtain exact authorization for a targeted production
 retry; never clear history, errors or watermarks to manufacture a green result.
+
+## Other free sources
+
+- NSE's [official announcements RSS feed](https://www.nseindia.com/static/rss-feed)
+  already feeds the dashboard and its retained daily archive. A GitHub Actions
+  capture on 28 September successfully read 1,414 announcements. A later local
+  read contained 2,395 items, including Kalpataru's order announcement. This is a
+  rolling recent NSE window, not BSE-only coverage or an exhaustive history.
+- Screener's public company page exposed Kalpataru's 28 September order notice
+  without login, linking to its original BSE document. Its anonymous recent endpoint
+  returned only five records. The search interface requests a free account. It is
+  a candidate supplemental discovery source, not an integrated collector or proof
+  that all historical announcements were checked. Keep publisher summaries separate
+  from the original filing text and never advance BSE coverage from this short list.
+
+Standard runner minutes being free does not make additional paid services or excess
+artifact/cache storage free. Do not introduce those costs for this recovery. GitHub
+schedules are best-effort: retain overlapping source windows and show stale or failed
+checks instead of promising guaranteed real-time delivery.
 
 ## Changing page totals
 
@@ -89,7 +103,7 @@ complete results. Company failures retain their existing records and retry state
 
 ## Verify recovery
 
-After an authorized switch, inspect normal scheduled runs on the selected host.
+After the header fix is merged, inspect normal scheduled runs on GitHub Actions.
 Require successful directory and announcement reads, complete declared counts,
 published archive/head updates, and BSE company successes as their retries become
 due. Check a known missing filing in the deployed reader, retaining its source

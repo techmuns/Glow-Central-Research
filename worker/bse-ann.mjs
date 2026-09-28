@@ -49,13 +49,17 @@ export const CATEGORIES = [
 
 const BASE = 'https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w';
 const PAGE_SIZE = 50; // observed: 50 rows a page, and the page after the last is empty rather than 404
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36';
 export const BSE_PAGE_JSON_LIMIT = 2 * 1024 * 1024;
 export const BSE_PAGE_TIMEOUT_MS = 20_000;
 
 export const HEADERS = {
   'user-agent': UA,
+  // Match the browser and site context used by BSE's public announcements page.
+  // Keep this shared by directory, exchange-wide and company-history reads.
+  origin: 'https://www.bseindia.com',
   referer: 'https://www.bseindia.com/corporates/ann.html',
+  'sec-fetch-site': 'same-site',
   accept: 'application/json, text/plain, */*',
 };
 
