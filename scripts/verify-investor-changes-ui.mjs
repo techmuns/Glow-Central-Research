@@ -128,23 +128,25 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   await page.waitForSelector('[data-public-disclosures]');
   assert.equal(await page.locator('#modal-overlay.is-open').count(), 0, 'opening a profile closes the audit modal so the workspace is not stacked beneath it');
   assert.match(await page.locator('[data-public-disclosures]').innerText(), /TIL LIMITED.*Singularity Equity Fund I/s);
-  // This suite serves the current capture. A newer disclosure legitimately replaces the old
-  // preview; compare its published date and figures rather than freezing the August snapshot.
-  const tilDisclosures = JSON.parse(readFileSync(new URL('../public/data/public-holdings.json', import.meta.url), 'utf8')).holdings
-    .filter(row => row.personId === 'madhusudan-kela' && row.kind === 'investor' && row.company === 'TIL LIMITED');
-  const tilDisclosure = tilDisclosures.find(row => row.state === 'latest-disclosure');
-  assert(tilDisclosure, 'the served capture contains a latest TIL disclosure for this investor');
-  assert((await page.locator('[data-public-disclosures]').innerText()).includes(tilDisclosure.asOf));
+  // Captures advance independently of code. Compare the current and retained observations
+  // with the committed source, rather than expecting August's row to remain the latest.
+  const captured = JSON.parse(readFileSync(new URL('../public/data/public-holdings.json', import.meta.url)));
+  const tilEvidence = captured.holdings.filter(row => row.personId === 'madhusudan-kela' && row.kind === 'investor' && row.isin === 'INE806C01018');
+  const latestTil = tilEvidence.find(row => row.state !== 'historical-disclosure');
+  assert(latestTil, 'the saved fixture has a current TIL disclosure');
+  assert((await page.locator('[data-public-disclosures]').innerText()).includes(latestTil.asOf));
   await page.locator('[data-ws-tab=exchange]').click();
   await page.locator('[data-public-search]').fill('TIL LIMITED');
   const til = page.locator('[data-public-row]:visible');
-  assert.equal(await til.count(), tilDisclosures.length, 'latest and retained historical disclosures stay searchable');
-  for (const disclosure of tilDisclosures) {
-    const row = til.filter({ hasText: disclosure.asOf });
-    assert.equal(await row.count(), 1, `one dated TIL disclosure for ${disclosure.asOf}`);
-    assert((await row.innerText()).includes(disclosure.shares.toLocaleString('en-IN')));
-    assert((await row.innerText()).includes(`${disclosure.stakePct}%`));
-    assert.match(await row.locator('a').last().getAttribute('href'), /bseindia|nseindia/);
+  assert.equal(await til.count(), tilEvidence.length, 'the complete view retains every dated TIL disclosure');
+  for (const evidence of tilEvidence) {
+    const row = til.filter({ hasText: evidence.asOf });
+    assert.equal(await row.count(), 1);
+    const number = value => typeof value === 'number' ? value.toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '—';
+    assert.equal(await row.locator('td').nth(2).innerText(), evidence.state === 'source-conflict' ? 'Conflicting reports' : number(evidence.shares));
+    assert.equal(await row.locator('td').nth(3).innerText(), evidence.state === 'source-conflict' ? 'Review evidence' : `${number(evidence.stakePct)}%`);
+    const links = await row.locator('a').evaluateAll(nodes => nodes.map(node => node.href));
+    for (const source of evidence.sources) assert(links.includes(source.url), 'each original source remains linked');
   }
   assert(await page.locator('[data-public-export]').isVisible());
   await page.setViewportSize({ width: 390, height: 844 });

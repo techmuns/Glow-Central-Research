@@ -175,6 +175,14 @@ Generic meeting intimations and AGM notices remain routine. Only NSE rows with a
 date and source link can initiate an alert. BSE/NSE use one exchange-disclosure source family for
 corroboration, and duplicate links/subjects are counted once.
 
+AI Alerts preserves every eligible corporate-announcement and publisher record through its event
+fold. Generic subjects and identical headlines are not source identities. Related reports are
+reachable in an expandable list led by the corporate announcement; each original link and date
+stays available. Conflicting order amounts, named counterparties/projects/places, stages and
+financial periods prevent grouping, including when headlines otherwise resemble each other.
+Unknown details cannot establish complete semantic matching or complete upstream collection.
+Filing-description corrections must resurface archived evidence even with an unchanged subject.
+
 ## Operational checks
 
 ### Telegram delivery resilience (7 September 2026)

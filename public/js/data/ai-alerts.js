@@ -22,7 +22,6 @@ import * as coverage from './coverage.js';
 import * as screenerInsights from './screener-insights.js';
 import * as technicals from './technicals.js';
 import { enrichCardFromAllAlerts, indexAlertContext } from './intelligence-graph.js';
-import { canonicalArticleUrl } from './filings-shared.js';
 import { getHostContext } from '../core/host-context.js';
 import { AI_ALERT_WINDOW_DAYS as WINDOW_DAYS } from '../core/alert-window.js';
 import { runSteps, runStepsInSlices } from '../core/slices.js';
@@ -115,18 +114,19 @@ const normalizedHeadline = dayCache((value) => String(value || '')
 
 const feedFamily = (event) => event.feed === 'nse-filings' ? 'announcements' : event.feed === 'market-news' ? 'news' : event.feed;
 
-/** Syndicated links and duplicate exchange disclosures are not independent corroboration. */
+/** Keep every story source for event folding; suppress repeated non-story measurements. */
 function dedupe(events) {
   const seen = new Set();
-  // Prefer the useful copy when one exchange supplied a generic label and the other a full
-  // subject. Stable ordering also stops equivalent source arrival order changing read state.
+  // Stable ordering stops equivalent source arrival order changing read state.
   return [...events].sort((a, b) => Number(b.importance === 'high') - Number(a.importance === 'high') ||
     String(a.feed).localeCompare(String(b.feed)) || String(a.id).localeCompare(String(b.id))).filter((event) => {
+    // Keep source records for the lossless development fold. Generic subjects (e.g.
+    // General Updates) and equal headlines at different URLs are not record identities.
+    if (storyKindOf(event)) return true;
     const family = feedFamily(event);
     const key = `${family}:${event.day}:${normalizedHeadline(event.headline) || event.id}`;
-    const link = event.url && ['announcements', 'news'].includes(family) ? `${family}:url:${canonicalArticleUrl(event.url)}` : null;
-    if (seen.has(key) || (link && seen.has(link))) return false;
-    seen.add(key); if (link) seen.add(link);
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 }
@@ -146,7 +146,8 @@ function dedupe(events) {
 function evidenceIdentity(dev) {
   if (dev.evidenceIdentity === undefined) {
     const anchor = dev.members.length === 1 ? dev.lead : dev.members.find((event) => storyKindOf(event) === dev.kind) || dev.lead;
-    dev.evidenceIdentity = JSON.stringify([feedFamily(anchor), anchor.id || null, anchor.day, anchor.headline, anchor.direction, dev.importance]);
+    dev.evidenceIdentity = JSON.stringify([feedFamily(anchor), anchor.id || null, anchor.day, anchor.headline, anchor.direction, dev.importance,
+      ...(storyKindOf(anchor) === 'filing' ? [anchor.filingSubject, anchor.filingHeadline, anchor.filingDescription, anchor.documentHash, anchor.url] : [])]);
   }
   return dev.evidenceIdentity;
 }
