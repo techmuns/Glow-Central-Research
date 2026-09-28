@@ -369,9 +369,9 @@ jobs:
         run: node scripts/verify-shared-watchlist-ui.mjs
   portfolio-research:
     runs-on: ubuntu-latest
-    # Keep every configured company: 510 packets now exceed the old 30-minute suite limit.
-    # Allow the complete suite 45 minutes, separate from setup and bounded job overhead.
-    timeout-minutes: 65
+    # Keep every configured company: the 510-packet suite reached 500 packets at
+    # the former 45-minute deadline. Allow a full hour plus bounded setup overhead.
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -383,7 +383,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/research-browser" --no-save --package-lock=false playwright@1.62.1
           node "$RUNNER_TEMP/research-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Verify evidence and previews across the complete saved portfolio
-        timeout-minutes: 45
+        timeout-minutes: 60
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/research-browser/node_modules/playwright
         run: node scripts/verify-research-portfolio.mjs
