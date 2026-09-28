@@ -778,6 +778,10 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
           schedulePartial();
           return;
         }
+        // A scope/session change abandons its pool read; that is not a pool outage.
+        // Let the replacement view own any fallback instead of downloading the whole
+        // capture history for a reader that can no longer publish it.
+        if (load && poolMode && !isCurrent()) return;
       }
       try {
         if (load && feed.id === 'news' && newsReader !== news) {
@@ -808,6 +812,8 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   closed = true;
   if (partialTimer !== null) clearTimeout(partialTimer);
   if (partialBuild) await partialBuild;
+  // An abandoned pool read has unfinished feeds, so it cannot replace the saved window.
+  if (load && poolMode && !isCurrent()) return null;
   const completed = await build();
   if (load && !queryWindow) {
     // Materialize from the already-settled source records; this starts no second

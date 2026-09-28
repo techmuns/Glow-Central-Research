@@ -155,6 +155,9 @@ companies outside the book; it never reduces a Watchlist or Universe view to por
 Scope and event filters preserve the chosen sort. Holding weights in Watchlist and Universe
 do not change the base evidence-priority order consumed by Ask Research. A failed size read
 preserves context and scheduled source records, and cannot conceal partial public-feed coverage.
+A session or scope change that abandons a public-pool read is not a source outage: the obsolete
+collector must not start fallback capture downloads or replace the saved window with unfinished
+feeds. The replacement view owns the next read.
 
 The sort control displays the ordering actually applied. A saved Largest holdings preference
 waits for complete valuations with Newest first visibly selected; pending, failed and incomplete
