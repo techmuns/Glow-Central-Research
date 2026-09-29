@@ -1626,72 +1626,66 @@
       "pending": []
     },
     "isin:INE508G01029|Time Technoplast": {
-      "lastAttemptAt": "2026-09-24T08:08:20+00:00",
+      "lastAttemptAt": "2026-09-29T01:13:29+00:00",
       "error": null,
-      "lastResultCount": 60,
-      "lastSuccessAt": "2026-09-24T08:08:20+00:00",
+      "lastResultCount": 31,
+      "lastSuccessAt": "2026-09-29T01:13:29+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE508G01029|TIMETECHNO": {
-      "lastAttemptAt": "2026-09-24T08:08:20+00:00",
+      "lastAttemptAt": "2026-09-29T01:13:29+00:00",
       "error": null,
-      "lastResultCount": 12,
-      "lastSuccessAt": "2026-09-24T08:08:20+00:00",
+      "lastResultCount": 8,
+      "lastSuccessAt": "2026-09-29T01:13:29+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE615H01020|Titagarh Rail Systems": {
-      "lastAttemptAt": "2026-09-24T08:08:20+00:00",
+      "lastAttemptAt": "2026-09-29T01:13:29+00:00",
       "error": null,
-      "lastResultCount": 66,
-      "lastSuccessAt": "2026-09-24T08:08:20+00:00",
+      "lastResultCount": 28,
+      "lastSuccessAt": "2026-09-29T01:13:29+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE615H01020|TITAGARH": {
-      "lastAttemptAt": "2026-09-24T08:08:20+00:00",
-      "error": "result-cap-incomplete",
-      "lastResultCount": 106,
+      "lastAttemptAt": "2026-09-29T01:13:29+00:00",
+      "error": null,
+      "lastResultCount": 88,
       "targetThrough": "2026-09-24T08:08:20+00:00",
       "pending": [
-        {
-          "from": "2026-09-15T08:08:20.544103+00:00",
-          "to": "2026-09-19T20:08:20.272051+00:00"
-        },
         {
           "from": "2026-09-19T20:08:20.272051+00:00",
           "to": "2026-09-24T08:08:20+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-09-29T01:13:29+00:00"
     },
     "isin:INE0OC301013|Turtlemint Fintech Solutions": {
-      "lastAttemptAt": "2026-09-24T08:08:20+00:00",
+      "lastAttemptAt": "2026-09-29T01:13:29+00:00",
       "error": null,
-      "lastResultCount": 19,
-      "lastSuccessAt": "2026-09-24T08:08:20+00:00",
+      "lastResultCount": 22,
+      "lastSuccessAt": "2026-09-29T01:13:29+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE0OC301013|TURTLEMINT": {
-      "lastAttemptAt": "2026-09-24T08:08:20+00:00",
-      "error": "result-cap-incomplete",
-      "lastResultCount": 105,
+      "lastAttemptAt": "2026-09-29T01:13:29+00:00",
+      "error": null,
+      "lastResultCount": 12,
       "targetThrough": "2026-09-24T08:08:20+00:00",
       "pending": [
-        {
-          "from": "2026-09-15T08:08:20.544103+00:00",
-          "to": "2026-09-19T20:08:20.272051+00:00"
-        },
         {
           "from": "2026-09-19T20:08:20.272051+00:00",
           "to": "2026-09-24T08:08:20+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-09-29T01:13:29+00:00"
     },
     "isin:INE0CAZ01013|Urban Company": {
-      "lastAttemptAt": "2026-09-24T08:08:20+00:00",
-      "error": "result-cap-incomplete",
+      "lastAttemptAt": "2026-09-29T01:13:29+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 106,
       "targetThrough": "2026-09-24T08:08:20+00:00",
       "pending": [
@@ -1703,7 +1697,8 @@
           "from": "2026-09-19T20:08:20.272051+00:00",
           "to": "2026-09-24T08:08:20+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-09-29T01:13:29+00:00"
     },
     "isin:INE0CAZ01013|URBANCO": {
       "lastAttemptAt": "2026-09-24T08:08:20+00:00",
@@ -1872,8 +1867,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 212,
-    "checkedAt": "2026-09-29T00:40:28.104044+00:00"
+    "attempted": 7,
+    "incomplete": 208,
+    "checkedAt": "2026-09-29T01:13:29.452490+00:00"
   }
 }
