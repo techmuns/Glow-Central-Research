@@ -1701,7 +1701,7 @@
       "lastDiscoveryAt": "2026-09-29T01:13:29+00:00"
     },
     "isin:INE0CAZ01013|URBANCO": {
-      "lastAttemptAt": "2026-09-24T08:08:20+00:00",
+      "lastAttemptAt": "2026-09-29T01:48:58+00:00",
       "error": "search-unavailable"
     },
     "isin:INE879I01012|Valor Estate": {
@@ -1867,8 +1867,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 7,
+    "attempted": 1,
     "incomplete": 208,
-    "checkedAt": "2026-09-29T01:13:29.452490+00:00"
+    "checkedAt": "2026-09-29T01:48:58.248665+00:00"
   }
 }
