@@ -1709,7 +1709,7 @@
       "error": "search-unavailable"
     },
     "isin:INE879I01012|DB Realty": {
-      "lastAttemptAt": "2026-09-24T09:54:26+00:00",
+      "lastAttemptAt": "2026-09-29T03:27:47+00:00",
       "error": "search-unavailable"
     },
     "isin:INE879I01012|DBREALTY": {
@@ -1869,6 +1869,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 208,
-    "checkedAt": "2026-09-29T02:39:30.045182+00:00"
+    "checkedAt": "2026-09-29T03:27:47.588906+00:00"
   }
 }
