@@ -9180,7 +9180,7 @@
     "optional": true,
     "status": "unavailable",
     "reason": "source-read-failed",
-    "lastAttemptAt": "2026-09-29T17:38:37.960Z",
+    "lastAttemptAt": "2026-09-29T18:10:03.696Z",
     "lastSuccessAt": null
   }
 }
