@@ -20,6 +20,18 @@ assert.equal(cases.length, book.holdings.length * 14);
 assert.equal(new Set(cases.map(c => c.id)).size, cases.length, 'every case is unique including unknown symbols');
 assert(cases.some(c => c.ticker === null));
 
+// A named document's filename is literal evidence of availability, not its contents.
+{
+  const plan = queryPlan('Show the PDF attachment for Example Industries', [{ ticker: 'EXAMPLE', name: 'Example Industries' }]);
+  const rows = [
+    ...Array.from({ length: 40 }, (_, i) => ({ ticker: 'EXAMPLE', date: '2026-09-24', text: `Example Industries routine update ${i}` })),
+    { ticker: 'EXAMPLE', date: '2026-09-10', text: 'Example Industries', attachments: [{ name: 'Example Industries investor note.pdf' }], url: 'https://t.me/example/1' },
+  ];
+  const selected = chooseRows(rows, plan, row => row, (a, b) => b.date.localeCompare(a.date));
+  assert.equal(selected.rows[0].attachments?.[0].name, 'Example Industries investor note.pdf');
+  assert.equal(selected.rows[0].text, 'Example Industries', 'filename prioritisation cannot invent document text');
+}
+
 const ambiguousIndex = [...index, { ticker: 'BIRLACORPN', name: 'Birla Corporation' }];
 assert.deepEqual(queryPlan('Latest on Aditya Birla Capital?', ambiguousIndex).companies.map(c => c.ticker), ['ABCAPITAL']);
 // Keep the upstream demerger regression independent of which family holds it.
