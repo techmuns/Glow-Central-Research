@@ -37,79 +37,81 @@
       ]
     },
     "isin:INE674K01013|ABCAPITAL": {
-      "lastAttemptAt": "2026-09-25T00:13:01+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 101,
+      "lastAttemptAt": "2026-09-29T15:58:33+00:00",
+      "error": null,
+      "lastResultCount": 27,
       "targetThrough": "2026-09-15T20:36:48+00:00",
       "pending": [
-        {
-          "from": "2026-09-06T20:36:48.830627+00:00",
-          "to": "2026-09-11T08:36:48.415313+00:00"
-        },
         {
           "from": "2026-09-11T08:36:48.415313+00:00",
           "to": "2026-09-15T20:36:48+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-09-29T15:58:33+00:00"
     },
     "isin:INE679V01027|Aditya Vision": {
-      "lastAttemptAt": "2026-09-25T00:45:46+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 50,
-      "lastSuccessAt": "2026-09-15T20:36:48+00:00",
+      "lastAttemptAt": "2026-09-29T15:58:33+00:00",
+      "error": null,
+      "lastResultCount": 48,
+      "lastSuccessAt": "2026-09-29T15:58:33+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE0ALI01010|Advait Energy Transitions": {
-      "lastAttemptAt": "2026-09-25T01:39:12+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 29,
-      "lastSuccessAt": "2026-09-15T20:36:48+00:00",
+      "lastAttemptAt": "2026-09-29T15:58:33+00:00",
+      "error": null,
+      "lastResultCount": 31,
+      "lastSuccessAt": "2026-09-29T15:58:33+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE0ALI01010|ADVAIT": {
-      "lastAttemptAt": "2026-09-25T02:17:37+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 104,
+      "lastAttemptAt": "2026-09-29T15:58:33+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 119,
       "targetThrough": "2026-09-15T20:36:48+00:00",
       "pending": [
         {
-          "from": "2026-09-06T20:36:48.830627+00:00",
-          "to": "2026-09-11T08:36:48.415313+00:00"
-        },
-        {
           "from": "2026-09-11T08:36:48.415313+00:00",
           "to": "2026-09-15T20:36:48+00:00"
+        },
+        {
+          "from": "2026-09-06T20:36:48.830627+00:00",
+          "to": "2026-09-09T02:36:48.622970+00:00"
+        },
+        {
+          "from": "2026-09-09T02:36:48.622970+00:00",
+          "to": "2026-09-11T08:36:48.415313+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-09-29T15:58:33+00:00"
     },
     "isin:INE914E01040|Alankit": {
-      "lastAttemptAt": "2026-09-25T02:33:00+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 21,
-      "lastSuccessAt": "2026-09-15T20:36:48+00:00",
+      "lastAttemptAt": "2026-09-29T15:58:33+00:00",
+      "error": null,
+      "lastResultCount": 20,
+      "lastSuccessAt": "2026-09-29T15:58:33+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE914E01040|ALANKIT": {
-      "lastAttemptAt": "2026-09-25T03:33:49+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 21,
-      "lastSuccessAt": "2026-09-15T20:36:48+00:00",
+      "lastAttemptAt": "2026-09-29T15:58:33+00:00",
+      "error": null,
+      "lastResultCount": 20,
+      "lastSuccessAt": "2026-09-29T15:58:33+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE1YPB01014|Allcargo Global": {
-      "lastAttemptAt": "2026-09-25T04:06:46+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 8,
-      "lastSuccessAt": "2026-09-15T20:36:48+00:00",
+      "lastAttemptAt": "2026-09-29T15:58:33+00:00",
+      "error": null,
+      "lastResultCount": 16,
+      "lastSuccessAt": "2026-09-29T15:58:33+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE0R4701017|Alpex Solar": {
-      "lastAttemptAt": "2026-09-25T04:39:36+00:00",
+      "lastAttemptAt": "2026-09-29T15:58:33+00:00",
       "error": "search-unavailable",
       "lastResultCount": 35,
       "lastSuccessAt": "2026-09-15T20:36:48+00:00",
@@ -1867,8 +1869,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 220,
-    "checkedAt": "2026-09-29T15:16:09.080972+00:00"
+    "attempted": 8,
+    "incomplete": 215,
+    "checkedAt": "2026-09-29T15:58:33.119311+00:00"
   }
 }
