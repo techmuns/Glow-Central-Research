@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-09-29T02:06:15.961Z",
+    "capturedAt": "2026-09-29T05:46:36.681Z",
     "from": "2026-08-05",
     "to": "2026-09-28",
     "rows": 9986,
@@ -12,8 +12,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-29T02:06:15.961Z",
-  "oldestDataAt": "2026-09-29T02:06:15.961Z",
+  "capturedAt": "2026-09-29T05:46:36.681Z",
+  "oldestDataAt": "2026-09-29T05:46:36.681Z",
   "from": "2025-09-29",
   "to": "2026-09-29",
   "windowDays": 365,
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-29T02:06:15.961Z",
+      "capturedAt": "2026-09-29T05:46:36.681Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-29T02:06:15.961Z",
+      "capturedAt": "2026-09-29T05:46:36.681Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -58,12 +58,12 @@
       "label": "SAST",
       "url": "https://www.screener.in/trades/sast/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-09-25",
-      "oldestDate": "2026-09-22",
+      "latestDate": "2026-09-28",
+      "oldestDate": "2026-09-24",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-29T02:06:15.961Z",
+      "capturedAt": "2026-09-29T05:46:36.681Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,15 +76,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-29T02:06:15.961Z",
+      "capturedAt": "2026-09-29T05:46:36.681Z",
       "coverageFrom": "2026-08-18"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1831,
+  "withRows": 1834,
   "emptyCount": 0,
-  "rowCount": 19004,
+  "rowCount": 19023,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -233225,6 +233225,21 @@
     "VIVIANA": [
       {
         "ticker": "VIVIANA",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Viviana Power",
+          "Insider": "PRIYANKA RICHI CHOKSI",
+          "Transaction": "Acquisition",
+          "Trade Shares": "2490",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "VIVIANA",
         "date": "2026-06-30",
         "cells": {
           "Company": "VIVIANA POWER TECH LIMITED",
@@ -306482,6 +306497,21 @@
     "RULKA": [
       {
         "ticker": "RULKA",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Rulka",
+          "Insider": "Amul Mahendra Shah",
+          "Transaction": "Acquisition",
+          "Trade Shares": "400000",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "RULKA",
         "date": "2026-08-28",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=57",
         "sourceId": "bulk",
@@ -315900,6 +315930,21 @@
       }
     ],
     "VCL": [
+      {
+        "ticker": "VCL",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Vaxtex Cotfab",
+          "Insider": "Zeal Global Opportunities Fund",
+          "Transaction": "Acquisition",
+          "Trade Shares": "6879125",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "VCL",
         "date": "2026-09-25",
@@ -337491,6 +337536,111 @@
     "SONUINFRA": [
       {
         "ticker": "SONUINFRA",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Sonu Infratech",
+          "Insider": "Arpitkumar Pandey",
+          "Transaction": "Acquisition",
+          "Trade Shares": "69000",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SONUINFRA",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Sonu Infratech",
+          "Insider": "Dipti Ketan Modi",
+          "Transaction": "Acquisition",
+          "Trade Shares": "113000",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SONUINFRA",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Sonu Infratech",
+          "Insider": "Ketan Vallabhdas Modi",
+          "Transaction": "Acquisition",
+          "Trade Shares": "103000",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SONUINFRA",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Sonu Infratech",
+          "Insider": "Ramji Shrinarayan Pandey HUF",
+          "Transaction": "Acquisition",
+          "Trade Shares": "140000",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SONUINFRA",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Sonu Infratech",
+          "Insider": "Ramji Shrinarayan Pandey",
+          "Transaction": "Acquisition",
+          "Trade Shares": "52000",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SONUINFRA",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Sonu Infratech",
+          "Insider": "Seema Pandey",
+          "Transaction": "Acquisition",
+          "Trade Shares": "62000",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SONUINFRA",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Sonu Infratech",
+          "Insider": "Sonu Pandey",
+          "Transaction": "Acquisition",
+          "Trade Shares": "49000",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SONUINFRA",
         "date": "2026-09-15",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=15",
         "sourceId": "bulk",
@@ -351558,6 +351708,96 @@
       }
     ],
     "HINDCON": [
+      {
+        "ticker": "HINDCON",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Hindcon Chemical",
+          "Insider": "HINDCON SOLUTIONS PRIVATE LIMITED.",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1025",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "HINDCON",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Hindcon Chemical",
+          "Insider": "HINDCON SOLUTIONS PRIVATE LIMITED",
+          "Transaction": "Acquisition",
+          "Trade Shares": "27000",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "HINDCON",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Hindcon Chemical",
+          "Insider": "NILIMA GOENKA",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1000",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "HINDCON",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Hindcon Chemical",
+          "Insider": "SANJAY GOENKA",
+          "Transaction": "Acquisition",
+          "Trade Shares": "2000",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "HINDCON",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Hindcon Chemical",
+          "Insider": "Sanjay Goenka",
+          "Transaction": "Acquisition",
+          "Trade Shares": "5000",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "HINDCON",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Hindcon Chemical",
+          "Insider": "VANSH GOENKA",
+          "Transaction": "Acquisition",
+          "Trade Shares": "2000",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "HINDCON",
         "date": "2026-09-24",
@@ -373789,6 +374029,57 @@
           "Transaction": "Gift",
           "Trade Shares": "45136",
           "Trade Value": "3.52 crore",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "AMIABLE": [
+      {
+        "ticker": "AMIABLE",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Amiable Logistic",
+          "Insider": "Mohanlal Nanda",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1600",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "COOLCAPS": [
+      {
+        "ticker": "COOLCAPS",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Cool Caps",
+          "Insider": "Purv Flexipack Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "2513750",
+          "Broadcast Date": "2026-09-28",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "BARFLEX": [
+      {
+        "ticker": "BARFLEX",
+        "date": "2026-09-28",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Barflex Polyfilm",
+          "Insider": "Almondz Global Securities Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "494000",
           "Broadcast Date": "2026-09-28",
           "Source": "Screener.in"
         }
