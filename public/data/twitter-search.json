@@ -1857,7 +1857,7 @@
       "error": "search-unavailable"
     },
     "isin:INE049B01025|WOCKPHARMA": {
-      "lastAttemptAt": "2026-09-24T21:45:58+00:00",
+      "lastAttemptAt": "2026-09-29T14:04:30+00:00",
       "error": "search-unavailable"
     },
     "isin:INE685T01010|HORIZONIND": {
@@ -1869,6 +1869,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-09-29T13:33:08.962604+00:00"
+    "checkedAt": "2026-09-29T14:04:30.388144+00:00"
   }
 }
