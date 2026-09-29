@@ -1845,7 +1845,7 @@
       "error": "search-unavailable"
     },
     "isin:INE377N01017|Waaree Energies": {
-      "lastAttemptAt": "2026-09-24T20:25:26+00:00",
+      "lastAttemptAt": "2026-09-29T12:28:13+00:00",
       "error": "search-unavailable"
     },
     "isin:INE377N01017|WAAREEENER": {
@@ -1868,7 +1868,7 @@
   "coverage": {
     "planned": 232,
     "attempted": 1,
-    "incomplete": 216,
-    "checkedAt": "2026-09-29T11:54:28.578331+00:00"
+    "incomplete": 220,
+    "checkedAt": "2026-09-29T12:28:13.694827+00:00"
   }
 }
