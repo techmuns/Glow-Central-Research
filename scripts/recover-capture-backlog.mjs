@@ -253,7 +253,7 @@ function filingArchiveRecovery({ id, dir, kind }) {
         for (const name of existsSync(source) ? readdirSync(source) : []) {
           if (!ARCHIVE_SHARD.test(name)) continue;
           if (changed !== null && !changed.includes(`public/data/${dir}/${name}`)) continue;
-          for (const row of readJson(join(source, name), {}).rows || []) {
+          for (const row of readNewsJson(join(source, name), {}).rows || []) {
             incoming += 1;
             const key = JSON.stringify(row);
             distinct.delete(key);

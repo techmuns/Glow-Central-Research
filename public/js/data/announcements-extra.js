@@ -11,6 +11,24 @@ export function withAnnouncementLookups(base) {
   const emit = () => subscribers.forEach((fn) => fn());
   let lastQuery = null;
   let shared = [], sharedError = null, sharedPending = false, sharedLoaded = false;
+  let recovery = [], recoveryMeta = null, recoveryRevision = null, recoveryPromise = null;
+  async function loadRecovery() {
+    if (recoveryPromise) return recoveryPromise;
+    recoveryPromise = (async () => {
+      try {
+        const { value, stale } = await capturedJson('data/screener-announcements.json');
+        if (value?.version !== 1 || !Array.isArray(value.rows) || value.rowCount !== value.rows.length || !Array.isArray(value.pending)) throw Error('Announcement recovery capture is unavailable.');
+        const revision = `${value.updatedAt}:${value.lastPageAt}:${value.lastAttemptAt}:${value.rowCount}`;
+        if (revision !== recoveryRevision) { recovery = mergeAnnouncements(recovery, value.rows); recoveryRevision = revision; }
+        recoveryMeta = { available: value.bootstrap !== true, lastAttemptAt: value.lastAttemptAt, lastPageAt: value.lastPageAt,
+          lastSuccessAt: value.lastSuccessAt, captureStart: value.captureStart, pendingCount: value.pending.length,
+          unavailableDocuments: value.rows.filter(r => r.documentUnavailable).length,
+          error: stale ? 'Using saved recovery records; publication could not be checked.' : value.error?.message || null };
+      } catch (error) { recoveryMeta = { ...recoveryMeta, available: !!recovery.length, error: error.message }; }
+      finally { recoveryPromise = null; }
+    })();
+    return recoveryPromise;
+  }
   const sharedRevisions = new Map();
   // Reserved revision key for the shared recent capture; ':' cannot appear in a ticker.
   const SHARED_RECENT_KEY = 'recent:announcements';
@@ -63,9 +81,9 @@ export function withAnnouncementLookups(base) {
   let rowSnapshot = null;
   const rows = () => {
     const source = base.rows();
-    if (rowSnapshot?.source === source && rowSnapshot.shared === shared && rowSnapshot.history === history) return rowSnapshot.rows;
-    const value = mergeAnnouncements(source.map((r) => ({ ...r, source: r.source || 'BSE', sources: r.sources || [r.source || 'BSE'], providers: ['BSE date index'] })), shared, history);
-    rowSnapshot = { source, shared, history, rows: value };
+    if (rowSnapshot?.source === source && rowSnapshot.shared === shared && rowSnapshot.history === history && rowSnapshot.recovery === recovery) return rowSnapshot.rows;
+    const value = mergeAnnouncements(source.map((r) => ({ ...r, source: r.source || 'BSE', sources: r.sources || [r.source || 'BSE'], providers: r.providers?.length ? r.providers : ['BSE date index'] })), shared, history, recovery);
+    rowSnapshot = { source, shared, history, recovery, rows: value };
     return value;
   };
   function lookupMeta() {
@@ -118,13 +136,13 @@ export function withAnnouncementLookups(base) {
     meta() {
       const m = base.meta(), combined = rows();
       return { ...m, baseRowCount: m.baseRowCount ?? m.rowCount, baseCovered: m.covered,
-        covered: new Set(combined.map((r) => r.ticker)).size, rowCount: combined.length, supplement: lookupMeta(), sharedError,
+        covered: new Set(combined.map((r) => r.ticker)).size, rowCount: combined.length, supplement: lookupMeta(), sharedError, recovery: recoveryMeta,
         archive: { ...m.archive, pending: m.archive?.pending || sharedPending, loaded: m.archive?.loaded && sharedLoaded,
           error: m.archive?.error || sharedError } };
     },
-    async seed() { await Promise.all([base.seed(), restore(), loadShared()]); emit(); },
-    async load(...args) { await Promise.all([base.load(...args), restore(), loadShared()]); emit(); },
-    async refreshSnapshot() { await Promise.all([base.refreshSnapshot(), loadShared()]); emit(); },
+    async seed() { await Promise.all([base.seed(), restore(), loadShared(), loadRecovery()]); emit(); },
+    async load(...args) { await Promise.all([base.load(...args), restore(), loadShared(), loadRecovery()]); emit(); },
+    async refreshSnapshot() { await Promise.all([base.refreshSnapshot(), loadShared(), loadRecovery()]); emit(); },
     async loadArchive({ onlyChanged = false } = {}) {
       if (sharedPending) return;
       sharedPending = true; sharedError = null; emit();
@@ -171,6 +189,6 @@ export function withAnnouncementLookups(base) {
       const off = base.onChange(fn);
       return () => { subscribers.delete(fn); off(); };
     },
-    invalidate() { base.invalidate(); restored = null; history = []; shared = []; sharedLoaded = false; sharedRevisions.clear(); queries.clear(); lastQuery = null; },
+    invalidate() { base.invalidate(); restored = null; history = []; shared = []; recovery = []; recoveryMeta = null; recoveryRevision = null; sharedLoaded = false; sharedRevisions.clear(); queries.clear(); lastQuery = null; },
   };
 }

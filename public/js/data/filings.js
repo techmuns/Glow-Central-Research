@@ -305,6 +305,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
       exchangeCompanies: state.exchangeCompanies,
       unnamedRows: state.unnamedRows,
       capturedAt: state.capturedAt,
+      sourceCheck: state.sourceCheck || null,
       oldestDataAt: state.oldestDataAt,
       fallbackCount: state.fallbackCount,
       // The OLDEST confirmation behind what is on screen, not the newest — otherwise one fresh
@@ -767,6 +768,8 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     // What the file declares about its own coverage and window. Read before the early return, so a
     // re-read that finds nothing newer still leaves these describing the file we actually hold.
     state.coversUniverse = body.coversUniverse === true;
+    state.sourceCheck = { lastAttemptAt: body.lastAttemptAt || body.capturedAt,
+      error: body.lastError || null, identityError: body.identityError || null };
     state.exchangeCompanies = Number.isFinite(body.exchangeCompanies) ? body.exchangeCompanies : null;
     state.unnamedRows = Number.isFinite(body.unnamedRows) ? body.unnamedRows : 0;
     state.snapshotWindowDays = Number.isFinite(body.windowDays) ? body.windowDays : null;

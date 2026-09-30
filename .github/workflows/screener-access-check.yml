@@ -5,6 +5,18 @@ name: Screener access check
 on:
   workflow_dispatch:
     inputs:
+      announcements_probe:
+        description: 'Read-only announcement recovery check in runner temporary storage'
+        type: boolean
+        default: false
+      announcements_probe_full:
+        description: 'Check the full recent recovery window in temporary storage'
+        type: boolean
+        default: false
+      announcements_probe_resume:
+        description: 'Prior read-only probe run whose saved checkpoint should resume'
+        type: string
+        default: ''
       sync_watchlist:
         description: 'Apply the Glow portfolio to its configured Screener watchlist'
         type: boolean
@@ -16,6 +28,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: screener-access-check
@@ -24,7 +37,7 @@ concurrency:
 jobs:
   access:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
         with:
@@ -46,8 +59,13 @@ jobs:
       - name: Install pinned Playwright runtime
         run: |
           npm install --prefix "$RUNNER_TEMP/screener-browser" --no-save --package-lock=false playwright@1.62.1
-          node "$RUNNER_TEMP/screener-browser/node_modules/playwright/cli.js" install --with-deps chromium
+          if [ "${{ inputs.announcements_probe }}" = "true" ] && command -v google-chrome >/dev/null; then
+            echo "CHROME_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          else
+            node "$RUNNER_TEMP/screener-browser/node_modules/playwright/cli.js" install --with-deps chromium
+          fi
       - name: Verify login and read one company page
+        if: ${{ !inputs.announcements_probe }}
         env:
           SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
           SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
@@ -57,6 +75,7 @@ jobs:
           PWDEBUG: ""
         run: node scripts/check-screener-access.mjs
       - name: Check or sync the configured Glow portfolio mirror
+        if: ${{ !inputs.announcements_probe }}
         env:
           SCREENER_WATCHLIST_ID: ${{ vars.SCREENER_WATCHLIST_ID }}
           SCREENER_WATCHLIST_NAME: ${{ vars.SCREENER_WATCHLIST_NAME }}
@@ -67,3 +86,36 @@ jobs:
           DEBUG: ""
           PWDEBUG: ""
         run: node scripts/sync-screener-watchlist.mjs
+      - name: Restore the prior read-only probe checkpoint
+        if: ${{ inputs.announcements_probe && inputs.announcements_probe_resume != '' }}
+        uses: actions/download-artifact@v5
+        with:
+          name: announcements-probe
+          path: ${{ runner.temp }}/announcements-probe
+          run-id: ${{ inputs.announcements_probe_resume }}
+          github-token: ${{ github.token }}
+      - name: Check announcement recovery without publishing or changing watchlists
+        if: inputs.announcements_probe
+        env:
+          SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
+          SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/screener-browser/node_modules/playwright
+          ANN_CHECK_FROM: ${{ !inputs.announcements_probe_full && '2026-09-29T10:40:00.000Z' || '' }}
+          ANN_CHECK_TO: ${{ !inputs.announcements_probe_full && '2026-09-29T11:10:00.000Z' || '' }}
+          ANN_MAX_PAGES: ${{ inputs.announcements_probe_full && '600' || '12' }}
+          DEBUG: ""
+          PWDEBUG: ""
+        run: |
+          for attempt in 1 2 3; do
+            node scripts/collect-screener-announcements.mjs "$RUNNER_TEMP/announcements-probe"
+            if node --input-type=module -e 'import {readFileSync} from "node:fs"; const s=JSON.parse(readFileSync(process.argv[1])); process.exit(s.pending.length ? 1 : 0)' "$RUNNER_TEMP/announcements-probe/screener-announcements.json"; then break; fi
+          done
+          node scripts/check-announcement-recovery-probe.mjs "$RUNNER_TEMP/announcements-probe"
+      - name: Retain read-only probe records and restart point
+        if: ${{ always() && inputs.announcements_probe }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: announcements-probe
+          path: ${{ runner.temp }}/announcements-probe/
+          retention-days: 3
+          if-no-files-found: warn

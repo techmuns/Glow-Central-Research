@@ -73,7 +73,7 @@ export function writeNewsJson(path, value, { maxBytes = JSON_SHARD_BYTES, dateIn
     return;
   }
   text = null; // The partition writer must not retain a second serialized full capture.
-  const field = value.byTicker && !Array.isArray(value.byTicker) ? 'byTicker' : Array.isArray(value.articles) ? 'articles' : null;
+  const field = value.byTicker && !Array.isArray(value.byTicker) ? 'byTicker' : Array.isArray(value.articles) ? 'articles' : Array.isArray(value.rows) ? 'rows' : null;
   if (!field) throw Error('Large news JSON has no supported record collection');
   const stem = `${basename(path, '.json')}.parts`;
   const parts = [];
@@ -104,7 +104,7 @@ export function writeNewsJson(path, value, { maxBytes = JSON_SHARD_BYTES, dateIn
     bytes += size + (items.length ? 1 : 0); items.push(serialized);
     order.push(position);
   };
-  const records = field === 'articles' ? value.articles : Object.entries(value.byTicker).flatMap(([key, rows]) => {
+  const records = field !== 'byTicker' ? value[field] : Object.entries(value.byTicker).flatMap(([key, rows]) => {
     if (!Array.isArray(rows)) throw Error('Invalid news bucket');
     return rows.map(row => [key, row]);
   });
@@ -115,7 +115,7 @@ export function writeNewsJson(path, value, { maxBytes = JSON_SHARD_BYTES, dateIn
   if (dateIndexed) layout.sort((a,b) => b.day.localeCompare(a.day) || a.position-b.position);
   for (const { item, position } of layout) add(item, position);
   flush();
-  const manifest = { ...value, [field]: field === 'articles' ? [] : Object.fromEntries(Object.keys(value.byTicker).map(key => [key, []])),
+  const manifest = { ...value, [field]: field !== 'byTicker' ? [] : Object.fromEntries(Object.keys(value.byTicker).map(key => [key, []])),
     _jsonShards: { version: dateIndexed ? 2 : 1, field, ...(field === 'byTicker' ? { bucketRows: Object.fromEntries(Object.entries(value.byTicker).map(([key, rows]) => [key, rows.length])) } : {}), rows: parts.reduce((n, p) => n + p.rows, 0), parts } };
   let manifestText = `${JSON.stringify(manifest)}\n`;
   if (Buffer.byteLength(manifestText) > maxBytes) {

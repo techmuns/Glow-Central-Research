@@ -113,3 +113,61 @@ dashboard. CI or a local probe alone cannot establish production recovery.
 Until those checks pass, keep the BSE outage visible. The existing NSE fallback can
 supply overlapping disclosures but does not prove BSE coverage. Configured-category
 success also does not independently prove BSE has added no new categories.
+
+## Independent announcement recovery (1 October 2026)
+
+The 29 September Bharat Parenterals board outcome exposed two separate failures: the
+exchange-wide BSE job stopped on a refused company-directory read before fetching filings,
+and the successful Muns company response omitted that filing. A successful provider response
+is not evidence that every exchange filing is present.
+
+`scrape-bse-announcements.mjs` now continues announcement reads with saved verified company
+identities when the directory fails. Unknown issuers retain their BSE code. Failed capture
+attempts preserve existing rows and successful coverage timestamps while publishing the
+failure. Only validated zero counts across all configured categories mean a quiet interval.
+
+The existing two-hour announcements workflow independently runs
+`scripts/collect-screener-announcements.mjs public/data`, using the existing Screener login
+secrets in the runner. It reads **All announcements**, not the editorial Important view or
+a portfolio watchlist. It retains original BSE/NSE document links and source timestamps;
+Historical date headings use the publisher response clock; missing individual times remain
+unknown. Notices without attachments retain a clearly labelled issuer or exchange reference instead of
+a fabricated document link. Screener-generated summaries are excluded. Neither source failure prevents publication of
+the other source's retained progress. The workflow remains failed when either source fails.
+
+Recovery uses fixed timestamp windows and the publisher's same-timestamp pagination offset.
+Records are archived before their cursor is saved; interrupted writes replay safely. Each
+run prioritises new arrivals, then rotates through unfinished intervals. It overlaps two
+hours and reconciles the past seven days daily for late additions. Initial coverage starts
+seven days back or two days before BSE's older successful date watermark, whichever is
+earlier. A 600-page / twelve-minute budget leaves explicit unfinished windows for later
+runs; it never marks those windows complete. Pagination is paced at no more than one page every 2.5 seconds. Source refusals end the
+run with their HTTP status recorded. A source Retry-After is respected; a rate limit without
+one waits at least thirty minutes before the saved cursor is eligible again.
+
+`public/data/screener-announcements.json` holds source check/error state, verified windows,
+pending cursors and a seven-day recent head. Monthly `announcements-archive/` files retain
+all recovered records without expiry. Large months use the existing content-addressed JSON
+parts, verified before publication and reconstructed by readers with integrity checks;
+recovery cannot grow one month beyond the hosting asset limit. The dashboard reads this head automatically and
+uses the same company/date/type/search/export filters. Its source warning remains visible
+while BSE is stale even when the backup is working. The independent filings-health workflow
+also checks recovery freshness, failures and unfinished/gapped coverage. GitHub Actions
+notification delivery depends on the operator's repository notification settings.
+
+This is publisher-index coverage, not a certification of an exhaustive exchange archive.
+Screener can also omit or delay a filing; notices added more than seven days late may require
+a separate historical reconciliation. Exchange/category inventory and company identity
+limitations remain explicit. No system can guarantee source availability or completeness.
+
+Validation: `verify-announcement-recovery.mjs`, `verify-bse-collection.mjs`,
+`verify-filings-health.mjs` and `verify-corporate-stream-ui.mjs` exercise interruption, ties,
+late arrivals, refusal/cooldown, failed writes, retained history, identities, independent
+health, source-failure display, exact-company recovery and returning-session upgrades.
+The existing **Screener access check** workflow's `announcements_probe` mode reads the
+29 September 10:40–11:10 UTC interval into runner temporary storage and verifies the reported
+Bharat Parenterals PDF. Adding `announcements_probe_full` checks the entire recent recovery
+window. A failed probe retains its public records and checkpoint as a three-day artifact;
+`announcements_probe_resume` resumes that staging run without restarting history.
+Both modes use temporary storage and do not publish data or change watchlists. Manual production
+backfills, retries or deployments still need explicit authorization for that exact action.
