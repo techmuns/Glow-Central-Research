@@ -42,6 +42,13 @@ explicit until a verified collection/backfill path closes the gap. This rule doe
 not itself change production schedules, start captures, provision monitors or
 certify that no records have been missed.
 
+Company search in Corporate Announcements selects an exchange identity, including verified BSE
+codes and provider-symbol aliases. A company named in another issuer's headline is not a filing
+by the selected company. Suggestions do not establish capture coverage; scope, period and filing
+types remain in force, and an empty filtered result must not claim that no exchange filing exists.
+Search failures retain saved suggestions and captured history. Selection survives source refreshes;
+the same predicate controls visible rows, counts and export.
+
 ## Alert evidence retention
 
 Public Chatter summaries describe the full source-tag split, not the provider's net-score band
