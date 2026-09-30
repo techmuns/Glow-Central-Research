@@ -688,7 +688,7 @@
       ]
     },
     "isin:INE084101034|INDOMIM": {
-      "lastAttemptAt": "2026-09-26T16:22:45+00:00",
+      "lastAttemptAt": "2026-09-30T23:09:58+00:00",
       "error": "search-unavailable",
       "lastResultCount": 131,
       "targetThrough": "2026-09-21T14:54:36+00:00",
@@ -1877,6 +1877,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 217,
-    "checkedAt": "2026-09-30T22:36:54.946187+00:00"
+    "checkedAt": "2026-09-30T23:09:58.890580+00:00"
   }
 }
