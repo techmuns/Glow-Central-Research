@@ -148,10 +148,15 @@ try {
   const resolver = createAnnouncementIdentity([identity]);
   const recovered = resolver.row([...saved.values()].find(r => r.ticker === 'BSE:541096'));
   assert.equal(recovered.ticker, 'BPLPHARMA');
-  archiveFilings(dir, 'announcements', [recovered]);
-  archiveFilings(dir, 'announcements', [recovered, ...saved.values()]);
+  const document = 'f6d9abb7-7050-4b1a-9725-aa4ea17421fb';
+  const target = { ...recovered, date: '2026-09-29', url: `https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=${document}.pdf` };
+  archiveFilings(dir, 'announcements', [{ ...target, url: `https://www.bseindia.com/xml-data/corpfiling/AttachLive/${document}.pdf`, providers: ['BSE date index'] }]);
+  archiveFilings(dir, 'announcements', [target, ...[...saved.values()].map(resolver.row)]);
   const month = JSON.parse(readFileSync(join(dir, '2026-09.json')));
   assert(month.rows.some(r => r.ticker === 'BPLPHARMA'));
+  const copies = month.rows.filter(r => r.date === '2026-09-29' && r.ticker === 'BPLPHARMA');
+  assert.equal(copies.length, 1, 'the same original PDF through BSE and the backup remains one filing');
+  assert.deepEqual(new Set(copies[0].providers), new Set(['BSE date index', 'Screener announcements']));
   assert(month.rows.some(r => r.url.includes('lower-bound')), 'recovery never erases older records');
 } finally { rmSync(dir, { recursive: true, force: true }); }
 
