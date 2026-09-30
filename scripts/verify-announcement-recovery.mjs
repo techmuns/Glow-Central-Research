@@ -22,6 +22,10 @@ assert.equal(parsed.rows[0].publishedAt, '2026-09-30T16:09:25.000Z');
 assert.equal(parsed.rows[0].title, 'Shareholder Meeting / Postal Ballot-Outcome of AGM');
 assert.equal(screenerCursor(parsed.next).offset, 1);
 assert.deepEqual(parsed.rows[0].providers, ['Screener announcements']);
+const zipped = parseScreenerAnnouncements(actual.replace(parsed.rows[0].url,
+  'https://nsearchives.nseindia.com/corporate/PARAMPARA_ROID_99469_KMP_Doc.zip'), { now: originalNow }).rows[0];
+assert.equal(zipped.source, 'NSE');
+assert(zipped.url.endsWith('.zip'), 'an actual NSE bundled filing must not stop every company on the page');
 const noDocument = parseScreenerAnnouncements(actual.replace(parsed.rows[0].url, '/company/id/56/'), { now: originalNow }).rows[0];
 assert.equal(noDocument.url, null);
 assert.equal(noDocument.referenceUrl, 'https://www.screener.in/company/id/56/');

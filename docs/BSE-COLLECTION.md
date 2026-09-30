@@ -130,7 +130,9 @@ The existing two-hour announcements workflow independently runs
 `scripts/collect-screener-announcements.mjs public/data`, using the existing Screener login
 secrets in the runner. It reads **All announcements**, not the editorial Important view or
 a portfolio watchlist. It retains original BSE/NSE document links and source timestamps;
-Screener-generated summaries are excluded. Neither source failure prevents publication of
+Historical date headings use the publisher response clock; missing individual times remain
+unknown. Notices without attachments retain a clearly labelled issuer reference instead of
+a fabricated document link. Screener-generated summaries are excluded. Neither source failure prevents publication of
 the other source's retained progress. The workflow remains failed when either source fails.
 
 Recovery uses fixed timestamp windows and the publisher's same-timestamp pagination offset.
@@ -160,5 +162,6 @@ late arrivals, refusal/cooldown, failed writes, retained history, identities, in
 health, source-failure display, exact-company recovery and returning-session upgrades.
 The existing **Screener access check** workflow's `announcements_probe` mode reads the
 29 September 10:40–11:10 UTC interval into runner temporary storage and verifies the reported
-Bharat Parenterals PDF. It does not publish data or change watchlists. Manual production
+Bharat Parenterals PDF. Adding `announcements_probe_full` checks the entire recent recovery
+window. Both modes use temporary storage and do not publish data or change watchlists. Manual production
 backfills, retries or deployments still need explicit authorization for that exact action.

@@ -112,6 +112,8 @@ export function parseScreenerAnnouncements(html, { cursor = null, now = Date.now
     // Some notices (e.g. an exchange seeking clarification) have no attachment. Screener
     // points to its issuer page instead. Retain the notice, but never call that page a PDF.
     const referenceOnly = url.origin === 'https://www.screener.in' && /^\/company\/id\/\d+\/$/.test(url.pathname) && !url.search && !url.hash;
+    // Exchange filings also arrive as ZIP/XBRL and other attachment formats. A filename
+    // extension is not a completeness rule; retain the original HTTPS exchange link.
     const source = ['www.bseindia.com', 'bseindia.com'].includes(url.hostname) ? 'BSE'
       : ['nsearchives.nseindia.com', 'archives.nseindia.com'].includes(url.hostname) ? 'NSE' : referenceOnly ? 'Screener' : null;
     const timeTag = /<time\b([^>]*)>/i.exec(links[1]?.[2] || '');
@@ -122,7 +124,7 @@ export function parseScreenerAnnouncements(html, { cursor = null, now = Date.now
     // The title precedes the PDF icon/time/optional AI blurb. Never import a generated blurb.
     const title = text((links[1]?.[2] || '').split(/<(?:i|time|span|div)\b/i)[0]);
     if (!company || !title || !source || !date || date > indiaDay(now) || url.protocol !== 'https:' || url.username || url.password
-      || !referenceOnly && !/\.(?:pdf|xml)(?:$|[?&#])/i.test(url.href)) throw invalidSource('record-shape');
+      || url.pathname === '/') throw invalidSource('record-shape');
     if (timeTag && group && date !== group) throw invalidSource('date-group-mismatch');
     return { ticker: /^\d{6}$/.test(companyKey) ? `BSE:${companyKey}` : companyKey,
       ...(/^\d{6}$/.test(companyKey) ? { scripCode: companyKey } : {}),
