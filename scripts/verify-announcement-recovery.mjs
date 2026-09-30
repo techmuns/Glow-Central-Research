@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseScreenerAnnouncements, screenerCursor, screenerCursorAt, screenerRecoveryCheckpoint, collectScreenerAnnouncements } from './lib/screener-announcements.mjs';
 import { bseCaptureIndex, failedBseCapture } from './lib/bse-capture-state.mjs';
+import { readNewsJson } from './lib/news-json-storage.mjs';
+import { hydrateJsonShards } from '../public/js/core/json-shards.js';
 import { archiveFilings } from './lib/filing-archive.mjs';
 import { announcementCoverage } from '../public/js/data/announcement-coverage.js';
 import { assessFilingsHealth } from '../public/js/data/filings-health-shared.js';
@@ -190,6 +192,18 @@ try {
   assert.equal(copies.length, 1, 'the same original PDF through BSE and the backup remains one filing');
   assert.deepEqual(new Set(copies[0].providers), new Set(['BSE date index', 'Screener announcements']));
   assert(month.rows.some(r => r.url.includes('lower-bound')), 'recovery never erases older records');
+  // Exercise the actual shared writer and browser transport with an artificially small limit.
+  archiveFilings(dir, 'announcements', [target], { maxBytes: 4096 });
+  const manifest = JSON.parse(readFileSync(join(dir, '2026-09.json')));
+  assert.equal(manifest._jsonShards.field, 'rows');
+  const hydrated = await hydrateJsonShards(manifest, join(dir, '2026-09.json'), {
+    fetcher: async path => new Response(readFileSync(path)),
+  });
+  assert.deepEqual(hydrated, month, 'splitting an archive preserves every filing and its order');
+  assert.deepEqual(readNewsJson(join(dir, '2026-09.json'), null, { verifyIndexes: true }), month);
+  archiveFilings(dir, 'announcements', [target], { maxBytes: 4096 });
+  assert.deepEqual(readNewsJson(join(dir, '2026-09.json')), month, 'later captures hydrate and retain the whole partitioned history');
+
 } finally { rmSync(dir, { recursive: true, force: true }); }
 
 const health = value => assessFilingsHealth({ announcementRecovery: value }, { now: clock, sources: ['announcementRecovery'] });

@@ -147,7 +147,9 @@ one waits at least thirty minutes before the saved cursor is eligible again.
 
 `public/data/screener-announcements.json` holds source check/error state, verified windows,
 pending cursors and a seven-day recent head. Monthly `announcements-archive/` files retain
-all recovered records without expiry. The dashboard reads this head automatically and
+all recovered records without expiry. Large months use the existing content-addressed JSON
+parts, verified before publication and reconstructed by readers with integrity checks;
+recovery cannot grow one month beyond the hosting asset limit. The dashboard reads this head automatically and
 uses the same company/date/type/search/export filters. Its source warning remains visible
 while BSE is stale even when the backup is working. The independent filings-health workflow
 also checks recovery freshness, failures and unfinished/gapped coverage. GitHub Actions

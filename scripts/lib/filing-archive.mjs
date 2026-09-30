@@ -1,10 +1,11 @@
 import { join } from 'node:path';
 import { readJson, writeJson } from './company-capture.mjs';
+import { readNewsJson, writeNewsJson } from './news-json-storage.mjs';
 import { mergeAnnouncements } from '../../public/js/data/announcements-shared.js';
 import { mergeInsiderTrades } from '../../public/js/data/insider-history.js';
 
 /** Preserve events before a recent snapshot applies its size/date window. No archive expiry. */
-export function archiveFilings(dir, kind, rows) {
+export function archiveFilings(dir, kind, rows, storageOptions = {}) {
   const indexPath = join(dir, 'index.json');
   const index = readJson(indexPath, { version: 1, months: {} });
   const buckets = new Map();
@@ -15,9 +16,11 @@ export function archiveFilings(dir, kind, rows) {
   }
   for (const [month, incoming] of buckets) {
     const path = join(dir, `${month}.json`);
-    const previous = readJson(path, { rows: [] });
+    const previous = readNewsJson(path, { rows: [] });
     const merged = kind === 'insider' ? mergeInsiderTrades(previous.rows, incoming) : mergeAnnouncements(previous.rows, incoming);
-    writeJson(path, { kind, rows: merged });
+    // Reuse the verified lossless transport. Large filing months must remain deployable.
+    if (kind === 'announcements') writeNewsJson(path, { kind, rows: merged }, storageOptions);
+    else writeJson(path, { kind, rows: merged });
     index.months[month] = merged.length;
   }
   index.rowCount = Object.values(index.months).reduce((a, b) => a + b, 0);
