@@ -7,6 +7,13 @@ multiple categories combine by OR, while typed words narrow the selected schemes
 removable and preserve selections across repaints. `js/ui/fund-search.js` owns the control;
 the shared table uses its predicate for rows, counts and export.
 
+Corporate Announcements offers company-name/ticker suggestions through the existing Worker
+`/api/stock-search` route, supplemented by saved companies. Selecting a company filters by its
+verified exchange identity, not headline mentions. Keep the removable selection through feed
+repaints, and apply the same company, free-text, date and filing-type filters to rows, counts and
+export. Scope remains explicit; unavailable search retains local matches. Search does not certify
+that a company's latest filing has been captured or trigger collection/model work.
+
 Read this before touching anything. `docs/SPEC.md` has the product detail;
 `docs/DATA-CONTRACTS.md` has every JSON shape.
 

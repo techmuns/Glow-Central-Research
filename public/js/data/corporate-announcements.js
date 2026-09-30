@@ -25,6 +25,7 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
   let identity = createAnnouncementIdentity(), identityError = null, identityRevision = null;
   let bseIdentities = [], nseIdentityError = null;
   let identityKey = '', rowInputs = null, heldText = '';
+  let identityGeneration = 0;
   const nseDirectories = { sme: [], equity: [] };
   async function loadBseIdentities() {
     try {
@@ -53,7 +54,7 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
     await Promise.all([loadBseIdentities(), loadNseIdentities()]);
     const entries = mergeExchangeIdentities(bseIdentities, nseDirectories.sme, nseDirectories.equity);
     const nextKey = JSON.stringify(entries);
-    if (nextKey !== identityKey) { identity = createAnnouncementIdentity(entries); identityKey = nextKey; }
+    if (nextKey !== identityKey) { identity = createAnnouncementIdentity(entries); identityKey = nextKey; identityGeneration++; }
   }
   const listeners = new Set();
   let cachedBase = { input: null, output: null, identity: null };
@@ -126,6 +127,8 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
   }
   return {
     ...base, rows,
+    companyKey: company => identity.key(company),
+    companyIdentity: company => ({ ...company, ...identity.find(company) }),
     forTicker: (ticker) => {
       const wanted = identity.key({ ticker: filingTicker(ticker) });
       return wanted ? rows().filter(row => identity.key(row) === wanted) : [];
@@ -139,7 +142,7 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
     meta() {
       const m = base.meta(), list = rows();
       return { ...m, rowCount: list.length, covered: new Set(list.map((row) => row.ticker).filter(Boolean)).size,
-        reason: list.length ? null : m.reason, identity: { capturedAt: identityRevision, error: identityError || nseIdentityError },
+        reason: list.length ? null : m.reason, identity: { capturedAt: identityRevision, revision: identityGeneration, error: identityError || nseIdentityError },
         nse: { ...nse.meta(), error: nseError } };
     },
     load: (items) => read(true, items),

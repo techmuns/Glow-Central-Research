@@ -34,6 +34,10 @@ import * as corporateActions from './corporate-actions.js';
 import { ANNOUNCEMENTS_VIEW, CORPORATE_ACTIONS_VIEW, VIEWS, viewSwitchHtml } from './corp-announcements-views.js';
 import { announcementSources, announcementSourceUrls } from '../data/announcements-shared.js';
 import { captureCoverageHtml } from '../ui/capture-coverage.js';
+import { announcementSearch } from '../ui/announcement-search.js';
+import * as coverage from '../data/coverage.js';
+import * as watchlist from '../core/watchlist.js';
+import { scopeLabel } from '../data/scope.js';
 import { classifyStory, groupLabel } from '../data/news-keywords.js';
 import { newsDay, newsPeriodBounds, inNewsWindow } from '../data/news-window.js';
 import {
@@ -307,6 +311,8 @@ const categoryBadge = (c) => {
 };
 
 const SUBTITLE = 'The latest company announcements from BSE, NSE and captured filings, newest first.';
+const searchableAnnouncement = (r) =>
+  `${cleanFilingText(r.title)} ${cleanFilingText(r.headline)} ${cleanFilingText(r.subject)} ${r.company || ''} ${r.ticker || ''} ${r.scripCode || ''} ${r.category || ''} ${r.subCategory || ''} ${typeOf(r).label}`;
 
 const announcements = makeFilingsTab({
   id: 'corp-announcements',
@@ -325,7 +331,17 @@ const announcements = makeFilingsTab({
   showWatchFilter: false,
   fillMode: 'auto',
   preserveReadingPosition: true,
-  renderRevision: () => newsDay(),
+  searchControl: ({ ctx, rows, view }) => announcementSearch({
+    companies: [...coverage.holdings(), ...watchlist.all(), ...rows],
+    companyKey: feed.companyKey,
+    resolveCompany: feed.companyIdentity,
+    allowsCompany: company => feed.filterByScope([company], ctx.scope, coverage.holdings()).length > 0,
+    scopeLabel: scopeLabel(ctx.scope),
+    searchable: searchableAnnouncement,
+    q: view?.q || '',
+    state: view?.searchState,
+  }),
+  renderRevision: m => `${newsDay()}:${m.identity?.revision || 0}`,
   filters: () => {
     // Bounds are computed once per paint, not once per historical filing. The day revision
     // also reapplies the period on an unchanged source refresh after midnight in IST.
@@ -358,8 +374,7 @@ const announcements = makeFilingsTab({
   // The company name leads, because a date-indexed feed covers companies this dashboard has no
   // ticker for and a bare scrip code identifies nothing to a reader.
   rowSub: (r) => [r.company, r.ticker, r.subCategory].filter(Boolean).join(' · '),
-  searchable: (r) =>
-    `${cleanFilingText(r.title)} ${cleanFilingText(r.headline)} ${cleanFilingText(r.subject)} ${r.company || ''} ${r.ticker || ''} ${r.scripCode || ''} ${r.category || ''} ${r.subCategory || ''} ${typeOf(r).label}`,
+  searchable: searchableAnnouncement,
   columns: () => [
     { label: 'Source', get: (r) => announcementSources(r).join(' / ') || 'Not specified' },
     {
