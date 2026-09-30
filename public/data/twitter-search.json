@@ -337,7 +337,7 @@
       ]
     },
     "isin:INE338H01029|Concord Biotech": {
-      "lastAttemptAt": "2026-09-25T19:32:14+00:00",
+      "lastAttemptAt": "2026-09-30T04:02:41+00:00",
       "error": "search-unavailable"
     },
     "isin:INE338H01029|CONCORDBIO": {
@@ -1877,6 +1877,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 209,
-    "checkedAt": "2026-09-30T03:02:15.263419+00:00"
+    "checkedAt": "2026-09-30T04:02:41.402728+00:00"
   }
 }
