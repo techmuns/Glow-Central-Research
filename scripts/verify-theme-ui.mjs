@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = fileURLToPath(new URL('../public', import.meta.url));
 const server = createServer((req, res) => {
-  const path = new URL(req.url, 'http://localhost').pathname;
+  const path = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
   res.setHeader('cache-control', 'no-store');
   if (path.startsWith('/api/')) { res.setHeader('content-type', 'application/json'); res.end('{"ok":false,"error":"Local appearance test"}'); return; }
   const file = resolve(root, `.${path === '/' ? '/index.html' : path}`);
