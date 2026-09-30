@@ -109,6 +109,8 @@ try {
     const firstRecord = stagingMarkup?.split(/<div\b[^>]*class=["'][^"']*\bannouncement-item\b[^"']*["'][^>]*>/i)[1];
     const documentLabel = firstRecord && [...firstRecord.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)][1]?.[2];
     if (stagingMarkup) console.log(JSON.stringify({ sourceShape: {
+      dateHeadings: [...stagingMarkup.matchAll(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/gi)].map(m => m[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()).filter(v => /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Today|Yesterday)/i.test(v)),
+      dateNodes: [...stagingMarkup.matchAll(/<([a-z][\w-]*)\b[^>]*>([^<>]{1,80})<\/\1>/gi)].map(m => ({ tag: m[1], text: m[2].trim() })).filter(v => /^(?:(?:[A-Z][a-z]+[.,]?\s+)?\d{1,2}\s+[A-Z][a-z]+|[A-Z][a-z]+[.,]?\s+\d{1,2}|Today|Yesterday)/.test(v.text)),
       recordText: firstRecord?.replace(/<(script|style|form)\b[^>]*>[\s\S]*?<\/\1>/gi, '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1200),
       recordDates: firstRecord?.match(/\d{4}-\d{2}-\d{2}[^\s"'<>]*/g),
       recordTags: firstRecord && [...firstRecord.matchAll(/<(\/?[a-z][\w-]*)\b([^>]*)>/gi)].map(m => ({ tag: m[1], attributes: [...m[2].matchAll(/([\w-]+)\s*=/g)].map(a => a[1]) })).slice(0, 30),
