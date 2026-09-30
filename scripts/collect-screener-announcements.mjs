@@ -109,6 +109,9 @@ try {
     const firstRecord = stagingMarkup?.split(/<div\b[^>]*class=["'][^"']*\bannouncement-item\b[^"']*["'][^>]*>/i)[1];
     const documentLabel = firstRecord && [...firstRecord.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)][1]?.[2];
     if (stagingMarkup) console.log(JSON.stringify({ sourceShape: {
+      recordText: firstRecord?.replace(/<(script|style|form)\b[^>]*>[\s\S]*?<\/\1>/gi, '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1200),
+      recordDates: firstRecord?.match(/\d{4}-\d{2}-\d{2}[^\s"'<>]*/g),
+      recordTags: firstRecord && [...firstRecord.matchAll(/<(\/?[a-z][\w-]*)\b([^>]*)>/gi)].map(m => ({ tag: m[1], attributes: [...m[2].matchAll(/([\w-]+)\s*=/g)].map(a => a[1]) })).slice(0, 30),
       documentLabel: documentLabel?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 600),
       dateLabels: documentLabel && [...documentLabel.matchAll(/\b(?:title|datetime|data-date|data-time)=["']([^"']+)["']/g)].map(m => m[1]),
       hasMainEnd: /<\/main\s*>/i.test(stagingMarkup), hasTitle: /Latest Announcements/i.test(stagingMarkup),
