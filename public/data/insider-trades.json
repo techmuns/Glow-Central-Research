@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-09-30T04:40:29.073Z",
+    "capturedAt": "2026-09-30T06:02:26.816Z",
     "from": "2026-08-05",
     "to": "2026-09-29",
     "rows": 10310,
@@ -12,8 +12,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-09-30T04:40:29.073Z",
-  "oldestDataAt": "2026-09-30T04:40:29.073Z",
+  "capturedAt": "2026-09-30T06:02:26.816Z",
+  "oldestDataAt": "2026-09-30T06:02:26.816Z",
   "from": "2025-09-30",
   "to": "2026-09-30",
   "windowDays": 365,
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-30T04:40:29.073Z",
+      "capturedAt": "2026-09-30T06:02:26.816Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-30T04:40:29.073Z",
+      "capturedAt": "2026-09-30T06:02:26.816Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -58,12 +58,12 @@
       "label": "SAST",
       "url": "https://www.screener.in/trades/sast/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-09-28",
+      "latestDate": "2026-09-29",
       "oldestDate": "2026-09-24",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-30T04:40:29.073Z",
+      "capturedAt": "2026-09-30T06:02:26.816Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,7 +76,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-09-30T04:40:29.073Z",
+      "capturedAt": "2026-09-30T06:02:26.816Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -84,7 +84,7 @@
   "covered": 4,
   "withRows": 1857,
   "emptyCount": 0,
-  "rowCount": 19373,
+  "rowCount": 19379,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -338958,6 +338958,21 @@
     "JALAN": [
       {
         "ticker": "JALAN",
+        "date": "2026-09-29",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Jalan Transol.",
+          "Insider": "Mr. Manish Jalan",
+          "Transaction": "Sell",
+          "Trade Shares": "504000",
+          "Broadcast Date": "2026-09-29",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "JALAN",
         "date": "2026-09-23",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=6",
         "sourceId": "bulk",
@@ -357043,6 +357058,36 @@
     "ACTIVEINFR": [
       {
         "ticker": "ACTIVEINFR",
+        "date": "2026-09-29",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Active Infra.",
+          "Insider": "Riaan Ventures Private Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "27000",
+          "Broadcast Date": "2026-09-29",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ACTIVEINFR",
+        "date": "2026-09-29",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Active Infra.",
+          "Insider": "SGR Ventures Private Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "27000",
+          "Broadcast Date": "2026-09-29",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ACTIVEINFR",
         "date": "2026-09-25",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -359877,6 +359922,21 @@
       }
     ],
     "MCL": [
+      {
+        "ticker": "MCL",
+        "date": "2026-09-29",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "M Tek Copper",
+          "Insider": "MR. DIVYA ARVINDHAI MONPARA",
+          "Transaction": "Sell",
+          "Trade Shares": "500000",
+          "Broadcast Date": "2026-09-29",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "MCL",
         "date": "2026-08-25",
@@ -378978,6 +379038,36 @@
       }
     ],
     "AMIABLE": [
+      {
+        "ticker": "AMIABLE",
+        "date": "2026-09-29",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Amiable Logistic",
+          "Insider": "Ami Mange",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3200",
+          "Broadcast Date": "2026-09-29",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AMIABLE",
+        "date": "2026-09-29",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Amiable Logistic",
+          "Insider": "Mr. Lalit Mange",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1600",
+          "Broadcast Date": "2026-09-29",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "AMIABLE",
         "date": "2026-09-28",
