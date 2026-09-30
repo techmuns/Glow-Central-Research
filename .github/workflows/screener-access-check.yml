@@ -13,6 +13,10 @@ on:
         description: 'Check the full recent recovery window in temporary storage'
         type: boolean
         default: false
+      announcements_probe_resume:
+        description: 'Prior read-only probe run whose saved checkpoint should resume'
+        type: string
+        default: ''
       sync_watchlist:
         description: 'Apply the Glow portfolio to its configured Screener watchlist'
         type: boolean
@@ -24,6 +28,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: screener-access-check
@@ -81,6 +86,14 @@ jobs:
           DEBUG: ""
           PWDEBUG: ""
         run: node scripts/sync-screener-watchlist.mjs
+      - name: Restore the prior read-only probe checkpoint
+        if: ${{ inputs.announcements_probe && inputs.announcements_probe_resume != '' }}
+        uses: actions/download-artifact@v5
+        with:
+          name: announcements-probe
+          path: ${{ runner.temp }}/announcements-probe
+          run-id: ${{ inputs.announcements_probe_resume }}
+          github-token: ${{ github.token }}
       - name: Check announcement recovery without publishing or changing watchlists
         if: inputs.announcements_probe
         env:
@@ -98,3 +111,11 @@ jobs:
             if node --input-type=module -e 'import {readFileSync} from "node:fs"; const s=JSON.parse(readFileSync(process.argv[1])); process.exit(s.pending.length ? 1 : 0)' "$RUNNER_TEMP/announcements-probe/screener-announcements.json"; then break; fi
           done
           node scripts/check-announcement-recovery-probe.mjs "$RUNNER_TEMP/announcements-probe"
+      - name: Retain read-only probe records and restart point
+        if: ${{ always() && inputs.announcements_probe }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: announcements-probe
+          path: ${{ runner.temp }}/announcements-probe/
+          retention-days: 3
+          if-no-files-found: warn

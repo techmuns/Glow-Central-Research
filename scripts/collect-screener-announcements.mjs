@@ -109,6 +109,6 @@ const checkpoint = async (state, incoming, { force = false } = {}) => {
 try {
   const state = await collectScreenerAnnouncements({ previous, readPage, checkpoint, now, initialFrom, sourceNow: () => sourceTime,
     maxPages: Number(process.env.ANN_MAX_PAGES || 600), budgetMs: Number(process.env.ANN_BUDGET_MS || 12 * 60000) });
-  console.log(JSON.stringify({ pages: state.pagesThisRun, rows: rows.length, pending: state.pending.length, error: state.error?.reason || null, httpStatus: state.error?.httpStatus || null, nextRetryAt: state.nextRetryAt || null }));
+  console.log(JSON.stringify({ pages: state.pagesThisRun, rows: rows.length, pending: state.pending.length, error: state.error?.reason || null, httpStatus: state.error?.httpStatus || null, nextRetryAt: state.nextRetryAt || null, recordContext: state.error?.recordContext || null }));
   if (state.error) process.exitCode = 1;
 } finally { await browser?.close(); }

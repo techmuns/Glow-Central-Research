@@ -13,7 +13,7 @@ const attr = (html, name) => {
   return decode(match?.[1] ?? match?.[2] ?? match?.[3] ?? '');
 };
 const iso = value => new Date(value).toISOString();
-const invalidSource = code => Object.assign(Error(`Announcement index rejected: ${code}`), { captureReason: code });
+const invalidSource = (code, recordContext) => Object.assign(Error(`Announcement index rejected: ${code}`), { captureReason: code, ...(recordContext ? { recordContext } : {}) });
 const validInstant = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
 
 export function screenerRecoveryCheckpoint(value) {
@@ -101,7 +101,7 @@ export function parseScreenerAnnouncements(html, { cursor = null, now = Date.now
   // Only headings OUTSIDE a record can supply its date; summaries cannot change date context.
   const groups = [...html.matchAll(/<div\b[^>]*>([^<>]{1,80})<\/div\s*>/gi)]
     .filter(m => !blocks.some(block => m.index >= block.start && m.index < block.end))
-    .map(m => ({ index: m.index, date: groupDate(text(m[1]), { now, prior, next }) })).filter(g => g.date);
+    .map(m => ({ index: m.index, label: text(m[1]), date: groupDate(text(m[1]), { now, prior, next }) }));
   const rows = blocks.map(block => {
     const links = [...block.html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)].slice(0, 2);
     const companyUrl = new URL(attr(links[0]?.[1], 'href'), SCREENER_ANNOUNCEMENTS_URL);
@@ -119,12 +119,14 @@ export function parseScreenerAnnouncements(html, { cursor = null, now = Date.now
     const timeTag = /<time\b([^>]*)>/i.exec(links[1]?.[2] || '');
     const publishedAt = attr(timeTag?.[1], 'datetime'), stamp = Date.parse(publishedAt);
     if (timeTag && (!/T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+05:30$/.test(publishedAt) || !Number.isFinite(stamp) || stamp > now + 5 * 60000)) throw invalidSource('record-time');
-    const group = groups.filter(g => g.index < block.start).at(-1)?.date;
+    const context = groups.filter(g => g.index < block.start).at(-1);
+    const group = groups.filter(g => g.date && g.index < block.start).at(-1)?.date;
     const date = timeTag ? indiaDay(stamp) : group;
     // The title precedes the PDF icon/time/optional AI blurb. Never import a generated blurb.
     const title = text((links[1]?.[2] || '').split(/<(?:i|time|span|div)\b/i)[0]);
     if (!company || !title || !source || !date || date > indiaDay(now) || url.protocol !== 'https:' || url.username || url.password
-      || url.pathname === '/') throw invalidSource('record-shape');
+      || url.pathname === '/') throw invalidSource('record-shape', { ticker: companyKey, companyPresent: !!company, titlePresent: !!title,
+        sourceHost: url.hostname, documentPath: url.pathname, protocol: url.protocol, date: date || null, dateLabel: context?.label || null });
     if (timeTag && group && date !== group) throw invalidSource('date-group-mismatch');
     return { ticker: /^\d{6}$/.test(companyKey) ? `BSE:${companyKey}` : companyKey,
       ...(/^\d{6}$/.test(companyKey) ? { scripCode: companyKey } : {}),
@@ -208,7 +210,8 @@ export async function collectScreenerAnnouncements({ previous = null, readPage, 
       parsed = parseScreenerAnnouncements(await readPage(selected.cursor), { cursor: selected.cursor, now: sourceNow() });
     } catch (error) {
       state.error = { at: iso(now()), reason: error.captureReason || 'source-or-shape',
-        ...(Number.isInteger(error.httpStatus) ? { httpStatus: error.httpStatus } : {}), message: 'Screener announcements could not be fully checked. Saved rows and pagination are retained.' };
+        ...(Number.isInteger(error.httpStatus) ? { httpStatus: error.httpStatus } : {}),
+        ...(error.recordContext ? { recordContext: error.recordContext } : {}), message: 'Screener announcements could not be fully checked. Saved rows and pagination are retained.' };
       if (Number.isFinite(error.retryAfterMs) && error.retryAfterMs > 0) state.nextRetryAt = iso(now() + error.retryAfterMs);
       break;
     }
