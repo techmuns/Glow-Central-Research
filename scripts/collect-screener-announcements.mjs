@@ -106,7 +106,11 @@ try {
   if (state.error) {
     // Staging diagnostics expose only public company paths, document hosts and filing times.
     // Never log the authenticated page, form values, headers, cookies or raw upstream exceptions.
+    const firstRecord = stagingMarkup?.split(/<div\b[^>]*class=["'][^"']*\bannouncement-item\b[^"']*["'][^>]*>/i)[1];
+    const documentLabel = firstRecord && [...firstRecord.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)][1]?.[2];
     if (stagingMarkup) console.log(JSON.stringify({ sourceShape: {
+      documentLabel: documentLabel?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 600),
+      dateLabels: documentLabel && [...documentLabel.matchAll(/\b(?:title|datetime|data-date|data-time)=["']([^"']+)["']/g)].map(m => m[1]),
       hasMainEnd: /<\/main\s*>/i.test(stagingMarkup), hasTitle: /Latest Announcements/i.test(stagingMarkup),
       items: (stagingMarkup.match(/\bannouncement-item\b/g) || []).length,
       companyPaths: [...new Set([...stagingMarkup.matchAll(/href=["']([^"']*\/company\/[^"']+)["']/g)].map(m => { try { return new URL(m[1], SCREENER_ANNOUNCEMENTS_URL).pathname; } catch { return 'invalid'; } }))].slice(0, 30),
