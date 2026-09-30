@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseScreenerAnnouncements, screenerCursor, screenerCursorAt, collectScreenerAnnouncements } from './lib/screener-announcements.mjs';
+import { parseScreenerAnnouncements, screenerCursor, screenerCursorAt, screenerRecoveryCheckpoint, collectScreenerAnnouncements } from './lib/screener-announcements.mjs';
 import { bseCaptureIndex, failedBseCapture } from './lib/bse-capture-state.mjs';
 import { archiveFilings } from './lib/filing-archive.mjs';
 import { announcementCoverage } from '../public/js/data/announcement-coverage.js';
@@ -10,6 +10,10 @@ import { assessFilingsHealth } from '../public/js/data/filings-health-shared.js'
 import { createAnnouncementIdentity } from '../public/js/data/announcement-identity.js';
 
 const originalNow = Date.parse('2026-09-30T17:00:00.000Z');
+const bootstrap = { version: 1, bootstrap: true, rowCount: 0, rows: [], pending: [], ranges: [] };
+assert.equal(screenerRecoveryCheckpoint(bootstrap), null);
+assert.throws(() => screenerRecoveryCheckpoint({ ...bootstrap, lastPageAt: '2026-09-29T10:00:00.000Z' }), /history must not be reset/);
+assert.throws(() => screenerRecoveryCheckpoint({ ...bootstrap, rows: [{ title: 'Retain me' }] }), /history must not be reset/);
 const actual = readFileSync(new URL('./fixtures/screener-announcements.html', import.meta.url), 'utf8');
 const parsed = parseScreenerAnnouncements(actual, { now: originalNow });
 assert.equal(parsed.rows.length, 25);

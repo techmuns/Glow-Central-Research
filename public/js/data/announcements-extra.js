@@ -20,7 +20,7 @@ export function withAnnouncementLookups(base) {
         if (value?.version !== 1 || !Array.isArray(value.rows) || value.rowCount !== value.rows.length || !Array.isArray(value.pending)) throw Error('Announcement recovery capture is unavailable.');
         const revision = `${value.updatedAt}:${value.lastPageAt}:${value.lastAttemptAt}:${value.rowCount}`;
         if (revision !== recoveryRevision) { recovery = mergeAnnouncements(recovery, value.rows); recoveryRevision = revision; }
-        recoveryMeta = { available: true, lastAttemptAt: value.lastAttemptAt, lastPageAt: value.lastPageAt,
+        recoveryMeta = { available: value.bootstrap !== true, lastAttemptAt: value.lastAttemptAt, lastPageAt: value.lastPageAt,
           lastSuccessAt: value.lastSuccessAt, captureStart: value.captureStart, pendingCount: value.pending.length,
           error: stale ? 'Using saved recovery records; publication could not be checked.' : value.error?.message || null };
       } catch (error) { recoveryMeta = { ...recoveryMeta, available: !!recovery.length, error: error.message }; }

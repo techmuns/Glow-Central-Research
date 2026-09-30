@@ -46,6 +46,7 @@ export function assessFilingsHealth(captures, { now = Date.now(), sources = Obje
           !Array.isArray(body.pending) || !Array.isArray(body.ranges)) {
         add(source, 'invalid-capture', 'critical'); continue;
       }
+      if (body.bootstrap === true) { add(source, 'capture-not-started', 'critical'); continue; }
       age(source, body.lastAttemptAt, FILINGS_HEALTH_LIMITS.runHours, 'capture-overdue');
       age(source, body.lastPageAt, FILINGS_HEALTH_LIMITS.runHours, 'source-check-overdue');
       if (body.error) add(source, 'source-read-failed', 'critical');

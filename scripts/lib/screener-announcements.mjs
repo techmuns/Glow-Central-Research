@@ -11,6 +11,15 @@ const attr = (html, name) => decode(new RegExp(`\\b${name}\\s*=\\s*(["'])([\\s\\
 const iso = value => new Date(value).toISOString();
 const validInstant = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
 
+export function screenerRecoveryCheckpoint(value) {
+  if (value?.bootstrap !== true) return value;
+  // The release includes an explicitly unavailable initial asset so first readers do not 404.
+  // Only the pristine empty marker may initialise collection; it cannot reset captured history.
+  if (value.version === 1 && value.rowCount === 0 && ['rows', 'ranges', 'pending'].every(k => Array.isArray(value[k]) && !value[k].length)
+    && !value.enqueuedThrough && !value.captureStart && !value.lastPageAt && !value.lastSuccessAt) return null;
+  throw Error('Invalid bootstrap capture; existing history must not be reset');
+}
+
 export function screenerCursorAt(instant) {
   const local = iso(Date.parse(instant) + IST);
   return `?ts=${local.slice(0, 19).replace(/[T:]/g, '-')}-${local.slice(20, 23)}000&same_ts_offset_count=0`;

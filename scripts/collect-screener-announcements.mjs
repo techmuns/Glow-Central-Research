@@ -4,7 +4,7 @@ import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readJson, writeJson } from './lib/company-capture.mjs';
 import { archiveFilings } from './lib/filing-archive.mjs';
-import { collectScreenerAnnouncements, SCREENER_ANNOUNCEMENTS_URL } from './lib/screener-announcements.mjs';
+import { collectScreenerAnnouncements, screenerRecoveryCheckpoint, SCREENER_ANNOUNCEMENTS_URL } from './lib/screener-announcements.mjs';
 import { mergeAnnouncements } from '../public/js/data/announcements-shared.js';
 import { createAnnouncementIdentity, mergeExchangeIdentities } from '../public/js/data/announcement-identity.js';
 
@@ -12,7 +12,7 @@ const output = process.argv[2];
 if (!output) throw Error('Provide a staging or scheduled-capture data directory');
 const dataDir = resolve(output), path = join(dataDir, 'screener-announcements.json');
 const sourceData = resolve('public/data');
-const previous = readJson(path);
+const previous = screenerRecoveryCheckpoint(readJson(path));
 const directories = readJson(join(sourceData, 'filing-capture/nse-identities.json'), {}).directories || {};
 const identity = createAnnouncementIdentity(mergeExchangeIdentities(
   readJson(join(sourceData, 'announcement-identities.json'), {}).entries || [],
