@@ -19,7 +19,12 @@ export function archiveFilings(dir, kind, rows, storageOptions = {}) {
     const previous = readNewsJson(path, { rows: [] });
     const merged = kind === 'insider' ? mergeInsiderTrades(previous.rows, incoming) : mergeAnnouncements(previous.rows, incoming);
     // Reuse the verified lossless transport. Large filing months must remain deployable.
-    if (kind === 'announcements') writeNewsJson(path, { kind, rows: merged }, storageOptions);
+    if (kind === 'announcements') {
+      // Match the existing JSON file contract: absent optional fields (e.g. no BSE code
+      // for an NSE-only issuer) are omitted before verifying the lossless partition.
+      const stored = merged.map(row => JSON.parse(JSON.stringify(row)));
+      writeNewsJson(path, { kind, rows: stored }, storageOptions);
+    }
     else writeJson(path, { kind, rows: merged });
     index.months[month] = merged.length;
   }

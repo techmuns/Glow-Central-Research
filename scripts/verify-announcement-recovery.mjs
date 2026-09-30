@@ -209,6 +209,17 @@ try {
   assert.deepEqual(readNewsJson(join(dir, '2026-09.json'), null, { verifyIndexes: true }), month);
   archiveFilings(dir, 'announcements', [target], { maxBytes: 4096 });
   assert.deepEqual(readNewsJson(join(dir, '2026-09.json')), month, 'later captures hydrate and retain the whole partitioned history');
+  const nseOnly = createAnnouncementIdentity([{ ticker: 'NSEONLY', isin: 'INE000A01010' }]).row({
+    ticker: 'NSEONLY', title: 'NSE-only notice', date: '2026-09-29', source: 'NSE',
+    url: 'https://nsearchives.nseindia.com/corporate/nse-only.pdf',
+  });
+  assert.equal(nseOnly.scripCode, undefined);
+  archiveFilings(dir, 'announcements', [nseOnly], { maxBytes: 4096 });
+  const appended = readNewsJson(join(dir, '2026-09.json'), null, { verifyIndexes: true });
+  assert.equal(appended.rows.length, month.rows.length + 1);
+  assert.deepEqual(appended.rows.filter(r => r.ticker !== 'NSEONLY'), month.rows);
+  assert.equal(Object.hasOwn(appended.rows.find(r => r.ticker === 'NSEONLY'), 'scripCode'), false);
+
 
 } finally { rmSync(dir, { recursive: true, force: true }); }
 
