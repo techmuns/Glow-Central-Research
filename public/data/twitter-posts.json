@@ -9211,9 +9211,9 @@
   "collection": {
     "version": 1,
     "optional": true,
-    "status": "partial",
-    "reason": "partial-read",
-    "lastAttemptAt": "2026-09-30T00:49:18.806Z",
+    "status": "unavailable",
+    "reason": "source-read-failed",
+    "lastAttemptAt": "2026-09-30T01:25:15.792Z",
     "lastSuccessAt": null
   }
 }
