@@ -138,8 +138,12 @@ try {
   await dialog.evaluate(node => { node.scrollTop = node.scrollHeight; });
   await page.waitForFunction(() => document.querySelectorAll('[data-chatter-mention-row]').length === 80);
   assert.equal(await page.locator('[data-mention-id]').nth(40).getAttribute('data-mention-id'), 'post-39', 'scroll continues with the next older card');
+<<<<<<< HEAD
   await page.locator('[data-chatter-more]').evaluate(button => button.focus({ preventScroll: true }));
   await page.keyboard.press('Enter');
+=======
+  await page.locator('[data-chatter-more]').click();
+>>>>>>> sattva/main
   assert.equal(await page.locator('[data-chatter-mention-row]').count(), 120, 'keyboard-accessible pagination remains available');
   // New arrivals go first without replacing the mention currently being read.
   await dialog.evaluate(node => { node.scrollTop = 1600; });

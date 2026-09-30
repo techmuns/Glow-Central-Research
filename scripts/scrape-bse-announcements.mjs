@@ -32,9 +32,13 @@ import { fileURLToPath } from 'node:url';
 import { CATEGORIES, HEADERS } from '../worker/bse-ann.mjs';
 import { collectBseAnnouncements, bseLastCompleteTo, bseCaptureCoverage, bseIndiaDay } from './lib/bse-collection.mjs';
 import { archiveFilings } from './lib/filing-archive.mjs';
+<<<<<<< HEAD
 import { fetchBseIdentityMaster } from './lib/announcement-identities.mjs';
 import { bseCaptureIndex, failedBseCapture } from './lib/bse-capture-state.mjs';
 import { writeJson } from './lib/company-capture.mjs';
+=======
+import { readAnnouncementIdentityDirectory, retainedBseScripIndex } from './lib/announcement-identities.mjs';
+>>>>>>> sattva/main
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA = (f) => resolve(__dirname, '../public/data', f);
@@ -79,11 +83,28 @@ const num = (n) => Number(n).toLocaleString('en-IN');
 async function buildScripIndex() {
   const mcPath = DATA('mc-ticker-map.json');
   const identityPath = DATA('announcement-identities.json');
+<<<<<<< HEAD
   return bseCaptureIndex({
     previous: existsSync(identityPath) ? JSON.parse(readFileSync(identityPath, 'utf8')) : null,
     mcMap: existsSync(mcPath) ? JSON.parse(readFileSync(mcPath, 'utf8')).map : {},
     fetchMaster: previous => fetchBseIdentityMaster(previous, { headers: HEADERS }),
   });
+=======
+  let previousIdentities = null;
+  try { previousIdentities = JSON.parse(readFileSync(identityPath, 'utf8')); } catch { /* Preserve raw filings even without a usable registry. */ }
+  const mc = existsSync(mcPath) ? JSON.parse(readFileSync(mcPath, 'utf8')).map : {};
+  const directory = await readAnnouncementIdentityDirectory(previousIdentities, mc, { headers: HEADERS });
+  const master = directory.master;
+  for (const [code, value] of retainedBseScripIndex(directory.identities)) if (!byCode.has(code)) byCode.set(code, value);
+  for (const s of master || []) {
+    const code = String(s?.SCRIP_CD || '').trim();
+    if (!code || byCode.get(code)?.source === 'confirmed') continue;
+    const id = String(s?.scrip_id || '').trim().toUpperCase();
+    byCode.set(code, { ticker: id || null, name: s?.Scrip_Name || null, source: id ? 'bse' : null });
+  }
+
+  return { byCode, confirmed, masterRows: master?.length || null, ...directory };
+>>>>>>> sattva/main
 }
 
 function loadExisting() {
@@ -103,9 +124,15 @@ function loadExisting() {
 async function main() {
   console.log(`BSE corporate announcements — ${FROM} to ${TO} (${MERGE ? 'merging into' : 'replacing'} the committed file)`);
 
+<<<<<<< HEAD
   const { byCode, confirmed, masterRows, identities, identityError } = await buildScripIndex();
   if (identityError) console.warn(identityError.message);
   console.log(`  scrip index: ${num(byCode.size)} codes (${num(confirmed)} confirmed from mc-ticker-map, master ${masterRows === null ? 'unavailable; using saved identities' : num(masterRows)})`);
+=======
+  const { byCode, confirmed, masterRows, identities, publish, health: identityDirectory } = await buildScripIndex();
+  if (!identityDirectory.ok) console.warn('Company directory unavailable; preserving filings with explicitly partial identity coverage.');
+  console.log(`  scrip index: ${num(byCode.size)} codes (${num(confirmed)} confirmed from mc-ticker-map, master ${num(masterRows)})`);
+>>>>>>> sattva/main
 
   const started = Date.now();
   const capture = await collectBseAnnouncements(
@@ -145,7 +172,11 @@ async function main() {
     throw Object.assign(Error('BSE returned no usable announcements; failed windows remain unchecked.'), { reason: 'upstream' });
   }
 
+<<<<<<< HEAD
   if (identities) writeJson(DATA('announcement-identities.json'), identities);
+=======
+  if (publish) writeFileSync(DATA('announcement-identities.json'), `${JSON.stringify(identities)}\n`);
+>>>>>>> sattva/main
 
   // Resolve, then merge on NEWSID. BSE's own identifier, so a re-run of an overlapping window
   // updates rather than duplicates — and a row with no id falls back to its content, never to a
@@ -223,7 +254,12 @@ async function main() {
     scope: 'exchange',
     // Every company is covered on the company axis for the named category requests. This endpoint
     // exposes no independently verified category inventory, so that separate limitation is explicit.
+<<<<<<< HEAD
     ...bseCaptureCoverage(capture, previousCapture),
+=======
+    coversUniverse: identityDirectory.ok && shortfall.length === 0 && Object.keys(unknownCategories).length === 0,
+    identityDirectory,
+>>>>>>> sattva/main
     categoryCoverage: 'configured',
     categoryInventoryVerified: false,
     categories: CATEGORIES,

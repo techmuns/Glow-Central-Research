@@ -112,6 +112,21 @@ const captured = await captureShareholdings({}, { now, concurrency: 1, fetchText
 assert.equal(captured.filings[0].status, 'parsed');
 assert.equal(captured.sources.filter((s) => !s.ok).length, 2);
 assert.equal(captured.operationalFailure, true);
+<<<<<<< HEAD
+=======
+// A pending filing does not vanish from collection when its quarter leaves the index window.
+const oldPending = { ...entry, id: 'old-pending', indexAsOf: '2025-12-31', sourceUrl: 'https://www.bseindia.com/old-pending.xml', status: 'failed', lastAttemptAt: '2026-09-01T00:00:00Z' };
+let oldReads = 0, checkpoints = 0;
+const resumed = await captureShareholdings({ ...captured, filings: [...captured.filings, oldPending] }, { now, maxFiles: 1, concurrency: 1, checkpoint: () => { checkpoints++; }, fetchText: async (url) => {
+  if (url.includes('Corp_Shareholding')) return JSON.stringify({ Table: [rawIndex] });
+  if (url.includes('corporate-share-holdings-master')) throw new Error('NSE unavailable');
+  if (url === oldPending.sourceUrl) oldReads++;
+  return inline;
+} });
+assert.equal(oldReads, 1, 'unread historical attachment resumes outside the new index window');
+assert(resumed.filings.find((f) => f.id === oldPending.id).holders.length > 0);
+assert(checkpoints > 0, 'progress is saved before any filing read');
+>>>>>>> sattva/main
 const archivePath = new URL('../public/data/shareholding-filings.json.gz', import.meta.url);
 if (existsSync(archivePath)) {
   const actual = JSON.parse(gunzipSync(readFileSync(archivePath)));
@@ -122,6 +137,7 @@ if (existsSync(archivePath)) {
     for (const [holder, shares, pct, date] of filing.holders) { assert(holder && Number.isSafeInteger(shares) && shares >= 0 && pct >= 0 && pct <= 100 && date); }
   }
   const published = JSON.parse(read('../public/data/public-holdings.json'));
+<<<<<<< HEAD
   const regenerated = reconcilePublicHoldings({ archive: actual, snapshot: JSON.parse(read('../public/data/super-investors.json')), managers: JSON.parse(read('../public/data/managers.json')),
     evidence: JSON.parse(read('../public/data/holding-evidence.json')), exchange: JSON.parse(read('../public/data/exchange-deals.json')), now: published.checkedAt });
   assert.deepEqual(JSON.parse(JSON.stringify(regenerated)), published, 'published attribution must match the committed evidence and archive');
@@ -133,10 +149,44 @@ if (existsSync(archivePath)) {
     await feed.refresh();
     assert.equal(feed.newArrivals().length, 0, 'initial backlog is quiet');
     payload = { ...payload, checkedAt: '2090-01-01T00:00:00Z', holdings: [...payload.holdings, { ...payload.holdings.find((h) => h.state === 'latest-disclosure' && h.shares > 0), id: 'new-associated-disclosure', associated: true }] };
+=======
+  const regenerated = reconcilePublicHoldings({ archive: actual, snapshot: JSON.parse(read('../public/data/super-investors.json')), managers: {},
+    evidence: existsSync(new URL('../public/data/holding-evidence.json', import.meta.url)) ? JSON.parse(read('../public/data/holding-evidence.json')) : {}, exchange: existsSync(new URL('../public/data/exchange-deals.json', import.meta.url)) ? JSON.parse(read('../public/data/exchange-deals.json')) : {}, now: published.checkedAt });
+  if (process.env.PUBLIC_HOLDINGS_VERIFY_CURRENT === '1') assert.deepEqual(JSON.parse(JSON.stringify(regenerated)), published, 'published attribution must match the current evidence and archive');
+}
+{
+  const published = reconcilePublicHoldings({ archive: { checkedAt: now, filings: [revised], sources: [] }, snapshot, evidence, now });
+  const feed = await import('../public/js/data/public-holdings.js');
+  const originalFetch = globalThis.fetch;
+  try {
+    let payload = JSON.parse(read('../public/data/public-holdings.json'));
+    globalThis.fetch = async () => Response.json(payload);
+    if (payload.status === 'not-started') {
+      await feed.refresh();
+      assert.equal(feed.report(), null, 'an unstarted capture does not become a checked empty portfolio');
+      assert.equal(feed.lastError(), 'Exchange capture has not started');
+    }
+    payload = structuredClone(published);
+    await feed.refresh();
+    const retainedReport = feed.report();
+    payload = {version:1,status:'not-started'};
+    await feed.refresh();
+    assert.equal(feed.report(), retainedReport, 'an unstarted deployment cannot erase captured evidence');
+    payload = structuredClone(published);
+    await feed.refresh();
+    assert.equal(feed.newArrivals().length, 0, 'initial backlog is quiet');
+    payload = { ...payload, checkedAt: new Date().toISOString(), holdings: [...payload.holdings, { ...payload.holdings.find((h) => h.state === 'latest-disclosure' && h.shares > 0), id: 'new-associated-disclosure', associated: true }] };
+>>>>>>> sattva/main
     await feed.refresh();
     assert.equal(feed.newArrivals().length, 1, 'new associated fund disclosures generate in-app alerts too');
     await feed.refresh();
     assert.equal(feed.newArrivals().length, 1, 'repeated captures do not duplicate alerts');
+<<<<<<< HEAD
+=======
+    globalThis.fetch = async () => Response.json({ ...payload, checkedAt: '2090-01-01T00:00:00Z' });
+    await feed.refresh();
+    assert.equal(feed.report().checkedAt, payload.checkedAt, 'a future timestamp cannot poison retained evidence');
+>>>>>>> sattva/main
     globalThis.fetch = async () => Response.json({}, { status: 503 });
     await feed.refresh();
     assert.equal(feed.report().checkedAt, payload.checkedAt);

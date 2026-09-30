@@ -10,12 +10,19 @@
 // I would just send for direct ones". So:
 //
 //   1. GLOBAL MARKET SCAN — quotes read at send time, NSE/BSE exchange snapshots and Upstox for Indian indices,
+<<<<<<< HEAD
 //      with Yahoo cross-check/fallback. Daily changes use published quote comparisons or dated closes, never a
 //      chart range's reference. Four exact global cash indices also use Upstox. Missing/conflicting comparisons are withheld. Yahoo has one
 //      symbol per request, each row carrying its OWN state and time: `Close · Wed 16:00 EDT` for a
 //      market that has shut, `Live · 07:58 JST` for one still trading. The series store under
 //      public/data/series/ is the fallback for a symbol Yahoo would not answer, and a row filled
 //      from it says so and prints the store's date — never a stale close dressed as this morning's.
+=======
+//      with Yahoo cross-check/fallback. Daily changes use dated preceding-session closes, never a
+//      chart range's reference. Four exact global cash indices also use Upstox. Missing/conflicting comparisons are withheld. Yahoo has one
+//      symbol per request, each row carrying its OWN state and time: `Close · Wed 16:00 EDT` for a
+//      market that has shut. A missing, stale or conflicting quote remains explicitly labelled.
+>>>>>>> sattva/main
 //   2. CORPORATE ANNOUNCEMENTS · DIRECT HOLDINGS — NSE's live announcements feed, read the way
 //      /api/nse-announcements reads it, PLUS the per-day history the hourly NSE capture retains
 //      under public/data/nse-filings/ (the live RSS holds the last few minutes of the exchange, not
@@ -48,7 +55,11 @@
 // And the customer's reading of the first sheets (17 September 2026) reshaped it twice: one
 // announcement is ONE update with its copies as related links (`clusterStories`), and the desk's
 // own numbers — every quoted holding on the session with the day's rupee change off the book's
+<<<<<<< HEAD
 // statement quantities, then the Indian indices — sit above the global scan.
+=======
+// company price changes, then the Indian indices — sit above the global scan.
+>>>>>>> sattva/main
 //
 // "DIRECT ONES" MEANS `portfolio-companies.json`: the family's listed direct-equity lines, one per
 // NSE symbol, the same file the Portfolio scope means on every tab. Fund units, AIFs and the
@@ -70,7 +81,10 @@
 
 import { FEED_URL as NSE_FEED_URL, HEADERS as NSE_HEADERS, assertShape as assertNseShape, buildResolver, parseAnnouncements, resolveAll, resolveRow } from './nse-ann.mjs';
 import { quoteFromChart, readUpstoxIndices, readNseIndices, readBseSensex, GLOBAL_INSTRUMENTS, reconcileIndianIndex, reconcileGlobalIndex, marketIssue } from './newsletter-markets.mjs';
+<<<<<<< HEAD
 import { readNasdaqEnrichment } from './newsletter-market-enrichment.mjs';
+=======
+>>>>>>> sattva/main
 export { quoteFromChart } from './newsletter-markets.mjs';
 import { filingKey as nseFilingKey } from '../public/js/data/nse-history-shared.js';
 import { portfolioNewsEntities } from '../public/js/data/company-news-identity.js';
@@ -80,11 +94,20 @@ import { announcementSignal } from '../public/js/data/filing-signals.js';
 import { announcementTypeOf } from '../public/js/data/announcement-types.js';
 import { insiderSignal } from '../public/js/data/insider-signal.js';
 import { insiderTradeIdentity } from '../public/js/data/insider-history.js';
+<<<<<<< HEAD
 import { insiderTradeSourceUrl } from '../public/js/data/filings-shared.js';
+=======
+import { articleUrlKey, insiderTradeSourceUrl } from '../public/js/data/filings-shared.js';
+>>>>>>> sattva/main
 import { BREAKOUT_OBJECT, expectedSession, quoteFresh } from '../public/js/data/breakout-live-shared.js';
 import { readScreenerConcallCollector } from './screener-concalls-collector.mjs';
 import { bedrockConfig, bedrockConfigured, claudeCredential } from './research-claude.mjs';
 import { reviewNewsEvents, relatedNewsReports, newsEventsNote } from './newsletter-events.mjs';
+<<<<<<< HEAD
+=======
+import { attributeNewsRow } from '../public/js/data/company-news-attribution.js';
+import { isXbrlFilingUrl, readableFilingUrl } from '../public/js/data/nse-xbrl-shared.js';
+>>>>>>> sattva/main
 import { announcementDocumentIdentity } from '../public/js/data/announcements-shared.js';
 import { newsAiEnabled } from './newsletter-openai.mjs';
 import { attachContent, sameContentEvent } from './newsletter-content.mjs';
@@ -123,9 +146,13 @@ export const AI_TIMEOUT_MS = 45000;
 export const AI_NOTE_MAX = 600;
 export const AI_MAX_TOKENS = 10000;
 export const AI_REQUEST_BYTES = 180000;
+<<<<<<< HEAD
 // The portfolio table prices the day's move with the family book's statement quantities — each
 // account's own quantity, counted once per dedupe group, as the Family Book tab counts them.
 export const FAMILY_BOOK_PATH = '/data/book.json';
+=======
+// The company table uses public prices; private Family quantities are never loaded here.
+>>>>>>> sattva/main
 
 export const BOOK_PATH = '/data/portfolio-companies.json';
 export const BSE_PATH = '/data/corp-announcements.json';
@@ -139,7 +166,10 @@ export const IDENTITIES_PATH = '/data/announcement-identities.json';
 export const TECHNICALS_PATH = '/data/technicals.json';
 export const MC_CALENDAR_PATH = '/data/earnings-calendar.json';
 export const ACTIONS_PATH = '/data/corporate-actions.json';
+<<<<<<< HEAD
 export const SERIES_INDEX_PATH = '/data/series/index.json';
+=======
+>>>>>>> sattva/main
 
 // The scan, in the order the desk reads it. `series` names the fallback in the macro store.
 export const MARKET_GROUPS = [
@@ -159,8 +189,13 @@ export const MARKET_ROWS = [
   { id: 'shanghai', symbol: '000001.SS', label: 'Shanghai Composite', group: 'asia', kind: 'index', series: 'shanghai-composite' },
   { id: 'hangseng', symbol: '^HSI', label: 'Hang Seng', group: 'asia', kind: 'index', series: 'hang-seng' },
   { id: 'kospi', symbol: '^KS11', label: 'Kospi', group: 'asia', kind: 'index' },
+<<<<<<< HEAD
   { id: 'nifty', symbol: '^NSEI', label: 'Nifty 50', group: 'india', kind: 'index', series: 'nifty-50' },
   { id: 'sensex', symbol: '^BSESN', label: 'Sensex', group: 'india', kind: 'index', series: 'sensex' },
+=======
+  { id: 'nifty', symbol: '^NSEI', label: 'Nifty 50', group: 'india', kind: 'index' },
+  { id: 'sensex', symbol: '^BSESN', label: 'Sensex', group: 'india', kind: 'index' },
+>>>>>>> sattva/main
   // The India group is its own table above the global scan: the desk's home market first.
   { id: 'niftybank', symbol: '^NSEBANK', label: 'Nifty Bank', group: 'india', kind: 'index' },
   { id: 'niftymid100', symbol: 'NIFTY_MIDCAP_100.NS', label: 'Nifty Midcap 100', group: 'india', kind: 'index' },
@@ -168,6 +203,7 @@ export const MARKET_ROWS = [
   { id: 'nifty500', symbol: '^CRSLDX', label: 'Nifty 500', group: 'india', kind: 'index' },
   { id: 'niftyit', symbol: '^CNXIT', label: 'Nifty IT', group: 'india', kind: 'index' },
   { id: 'indiavix', symbol: '^INDIAVIX', label: 'India VIX', group: 'india', kind: 'index' },
+<<<<<<< HEAD
   { id: 'brent', symbol: 'BZ=F', label: 'Brent crude', unit: '$/bbl', group: 'commodities', kind: 'price', series: 'brent-crude' },
   { id: 'gold', symbol: 'GC=F', label: 'Gold', unit: '$/oz', group: 'commodities', kind: 'price', series: 'gold' },
   { id: 'silver', symbol: 'SI=F', label: 'Silver', unit: '$/oz', group: 'commodities', kind: 'price', series: 'silver' },
@@ -175,6 +211,15 @@ export const MARKET_ROWS = [
   { id: 'usdjpy', symbol: 'JPY=X', label: 'USD/JPY', group: 'currencies', kind: 'fx', series: 'usd-jpy' },
   { id: 'usdinr', symbol: 'INR=X', label: 'USD/INR', group: 'currencies', kind: 'fx', series: 'usd-inr' },
   { id: 'us10y', symbol: '^TNX', label: 'US 10-year yield', group: 'rates', kind: 'yield', series: 'us-10y' },
+=======
+  { id: 'brent', symbol: 'BZ=F', label: 'Brent crude', unit: '$/bbl', group: 'commodities', kind: 'price' },
+  { id: 'gold', symbol: 'GC=F', label: 'Gold', unit: '$/oz', group: 'commodities', kind: 'price' },
+  { id: 'silver', symbol: 'SI=F', label: 'Silver', unit: '$/oz', group: 'commodities', kind: 'price' },
+  { id: 'dxy', symbol: 'DX-Y.NYB', label: 'Dollar index (DXY)', group: 'currencies', kind: 'index' },
+  { id: 'usdjpy', symbol: 'JPY=X', label: 'USD/JPY', group: 'currencies', kind: 'fx' },
+  { id: 'usdinr', symbol: 'INR=X', label: 'USD/INR', group: 'currencies', kind: 'fx' },
+  { id: 'us10y', symbol: '^TNX', label: 'US 10-year yield', group: 'rates', kind: 'yield' },
+>>>>>>> sattva/main
 ];
 const GLANCE = { morning: ['sp500', 'nikkei', 'brent', 'usdjpy'], evening: ['nifty', 'sensex', 'brent', 'usdinr'] };
 
@@ -204,6 +249,7 @@ export async function readAsset(env, path) {
 
 // ---- 1. the market scan -------------------------------------------------------------------------
 
+<<<<<<< HEAD
 /** The same row filled from the macro series store, dated to the store, for a symbol Yahoo refused. */
 export function quoteFromSeries(manifest, row) {
   const series = (manifest?.series || []).find((s) => s?.id === row.series);
@@ -219,6 +265,8 @@ export function quoteFromSeries(manifest, row) {
   };
 }
 
+=======
+>>>>>>> sattva/main
 export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {}) {
   const rows = [];
   const exchange = readNseIndices(MARKET_ROWS, { fetcher, now });
@@ -242,6 +290,7 @@ export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {
     if (rows[i].group === 'india') rows[i] = reconcileIndianIndex(rows[i], upstox.rows.get(id), nse.rows.get(id) || bse.rows.get(id), upstox.failures?.[id] || upstox.reason);
     else if (GLOBAL_INSTRUMENTS[id]) rows[i] = reconcileGlobalIndex(rows[i], globalUpstox.rows.get(id), globalUpstox.failures?.[id] || globalUpstox.reason);
   }
+<<<<<<< HEAD
   const nasdaqIndex = rows.findIndex(r => r.id === 'nasdaq');
   const enriched = await readNasdaqEnrichment(rows[nasdaqIndex], { fetcher, now });
   rows[nasdaqIndex] = enriched.row;
@@ -256,17 +305,24 @@ export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {
       if (fallback) { rows[rows.indexOf(row)] = { ...fallback, reason: row.reason }; stored.push(row.id); }
     }
   }
+=======
+>>>>>>> sattva/main
   const byId = new Map(rows.map((r) => [r.id, r]));
   return {
     readAt: now, upstox: { configured: !!env?.UPSTOX_ACCESS_TOKEN, reason: upstox.reason, checked: upstox.rows.size, failures: upstox.failures || {} },
     globalUpstox: { configured: !!env?.UPSTOX_ACCESS_TOKEN, reason: globalUpstox.reason, checked: globalUpstox.rows.size, failures: globalUpstox.failures || {} },
     nse: { reason: nse.reason, checked: nse.rows.size },
     bse: { reason: bse.reason, checked: bse.rows.size },
+<<<<<<< HEAD
     enrichment,
     reportedChanges: rows.filter(r => r.changeOrigin === 'yahoo-quote').map(r => r.id),
     rows: MARKET_ROWS.map((r) => byId.get(r.id)),
     failed: rows.filter((r) => r.state === 'unavailable').map((r) => r.id),
     stored,
+=======
+    rows: MARKET_ROWS.map((r) => byId.get(r.id)),
+    failed: rows.filter((r) => r.state === 'unavailable').map((r) => r.id),
+>>>>>>> sattva/main
     unverified: rows.filter(r => r.last != null && r.changePct == null).map(r => r.id),
     outliers: rows.filter(r => r.otherSourcesDisagree?.length).map(r => r.id),
     conflicts: rows.filter(r => r.verification === 'conflict' || r.changeReason === 'previous-close-conflict').map(r => r.id),
@@ -274,8 +330,11 @@ export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {
 }
 
 
+<<<<<<< HEAD
 // ---- what goes in, and when ------------------------------------------------------------------------
 
+=======
+>>>>>>> sattva/main
 const upper = (v) => String(v || '').trim().toUpperCase();
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 /** The dashboard's own story rank: a tracked keyword, then a directional mood, then importance. */
@@ -413,12 +472,20 @@ export async function readAnnouncements({ env, fetcher = fetch, now = Date.now()
     const held = folded.get(key);
     if (held) {
       if (!held.exchanges.includes(row.exchange)) held.exchanges.push(row.exchange);
+<<<<<<< HEAD
       if (!held.keys.includes(row.key)) held.keys.push(row.key);
+=======
+      for (const alias of [row.key, `${row.ticker}|${row.exchange}:${row.url || row.at}`]) if (!held.keys.includes(alias)) held.keys.push(alias);
+>>>>>>> sattva/main
       held.copies.push(row);
       held.firstAt = Math.min(held.firstAt, row.at);
       continue;
     }
+<<<<<<< HEAD
     folded.set(key, { ...row, exchanges: [row.exchange], keys: [row.key], copies: [row], firstAt: row.at });
+=======
+    folded.set(key, { ...row, exchanges: [row.exchange], keys: [row.key, `${row.ticker}|${row.exchange}:${row.url || row.at}`], copies: [row], firstAt: row.at });
+>>>>>>> sattva/main
   }
 
   const admitted = [];
@@ -479,7 +546,11 @@ export async function readNews({ env, window, lateFrom = window.from, reported =
         const ticker = upper(match.ticker || match.entityId);
         const key = `news:${ticker}|${article.url || article.id}`;
         if (!ticker || seen.has(key)) continue;
+<<<<<<< HEAD
         const where = place(at, [key]);
+=======
+        const where = place(at, [key, `${ticker}|url:${articleUrlKey({ url: article?.url })}`]);
+>>>>>>> sattva/main
         if (!where) continue;
         seen.add(key);
         rows.push({ ...story(ticker, match.company || match.attribution?.companyName || ticker, article, { publisher: article.publisher || article.source || null, url: article.url, keys: [key], late: where.late }), attribution: match.attribution?.status || null });
@@ -502,6 +573,7 @@ export async function readNews({ env, window, lateFrom = window.from, reported =
   let tradingview;
   if (latest?.byTicker && typeof latest.byTicker === 'object') {
     tradingview = { ok: true, capturedAt: latest.newsUpdatedAt || latest.capturedAt || null, matched: 0, tagged: 0 };
+<<<<<<< HEAD
     const entities = portfolioNewsEntities(holdings);
     const ownSymbol = (ticker, symbol) => /^(?:NSE|BSE):/.test(String(symbol || '')) && upper(String(symbol).slice(4)) === ticker;
     for (const [t, list] of Object.entries(latest.byTicker)) {
@@ -521,6 +593,26 @@ export async function readNews({ env, window, lateFrom = window.from, reported =
         seen.add(key);
         tradingview.matched += 1;
         rows.push({ ...story(ticker, byTicker.get(ticker).name, a, { publisher: a.source || null, url: a.url || a.tradingViewUrl, keys: [key], via: 'TradingView', late: where.late }), attribution: named ? 'confirmed' : 'symbol' });
+=======
+    const identities = new Map();
+    for (const entity of latest.entities || []) for (const key of [entity?.entityId, entity?.key, entity?.ticker].filter(Boolean)) identities.set(String(key).toUpperCase(), entity);
+    for (const [t, list] of Object.entries(latest.byTicker)) {
+      if (!Array.isArray(list)) continue;
+      const identity = identities.get(upper(t));
+      for (const a of list) {
+        const read = attributeNewsRow(a, identity || a);
+        const ticker = upper(read.ticker);
+        if (!ticker || !byTicker.has(ticker)) continue;
+        const at = Date.parse(a?.publishedAt || '');
+        const key = `tv:${ticker}|${a?.tradingViewId || a?.url}`;
+        if (!a?.title || seen.has(key)) continue;
+        const where = place(at, [key, `${ticker}|url:${articleUrlKey({ url: a?.url })}`]);
+        if (!where) continue;
+        tradingview.tagged += 1;
+        if (!['confirmed', 'related'].includes(read.attribution?.status)) continue;
+        seen.add(key); tradingview.matched += 1;
+        rows.push({ ...story(ticker, byTicker.get(ticker).name, a, { publisher: a.source || null, url: a.url || a.tradingViewUrl, keys: [key], via: 'TradingView', late: where.late }), attribution: read.attribution.status });
+>>>>>>> sattva/main
       }
     }
   } else {
@@ -652,7 +744,11 @@ export async function readSessionQuotes({ env, now = Date.now(), edition, holdin
     const rows = [];
     for (const row of daily.rows || daily.companies || []) {
       const ticker = upper(row?.ticker);
+<<<<<<< HEAD
       const pct = Number(row?.pct_change_today);
+=======
+      const pct = row?.pct_change_today == null || row.pct_change_today === '' ? NaN : Number(row.pct_change_today);
+>>>>>>> sattva/main
       if (!byTicker.has(ticker) || (row.bar_date || session) !== session || !Number.isFinite(pct)) continue;
       const last = Number.isFinite(row.cmp) ? row.cmp : null;
       // The daily file carries the close and the day's move; the previous close is the one that move was struck on.
@@ -683,7 +779,11 @@ export function readMoves({ quotes, window, lateFrom = window.from, reported = n
   for (const r of quotes.rows) {
     if (Math.abs(r.pct) < MOVE_PCT) continue;
     const key = `move:${r.ticker}|${quotes.session}`;
+<<<<<<< HEAD
     const where = place(r.at, [key]);
+=======
+    const where = place(r.at, [key, `${r.ticker}|move:${quotes.session}`]);
+>>>>>>> sattva/main
     if (!where) continue;
     rows.push({
       ...r, company: byTicker.get(r.ticker).name, late: where.late, keys: [key], dayOnly: false,
@@ -692,6 +792,7 @@ export function readMoves({ quotes, window, lateFrom = window.from, reported = n
   }
   rows.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct));
   return { ...out, ...group(rows, MOVE_LIMIT) };
+<<<<<<< HEAD
 }
 
 /**
@@ -764,6 +865,23 @@ export async function readPerformance({ env, quotes, holdings }) {
   };
 }
 
+=======
+}
+
+/** Company price performance only. Private Family quantities are never read by a public brief. */
+export async function readPerformance({ quotes, holdings }) {
+  const byTicker = bookIndex(holdings);
+  const rows = quotes.rows.filter(q => byTicker.has(q.ticker) && Number.isFinite(q.pct))
+    .map(q => ({ ...q, company: byTicker.get(q.ticker).name })).sort((a,b) => b.pct-a.pct || a.company.localeCompare(b.company));
+  const sorted = rows.map(r => r.pct).sort((a,b) => a-b), n = sorted.length;
+  return { state: quotes.state, session: quotes.session, asOf: quotes.asOf, reason: quotes.reason,
+    priceDate: quotes.priceDate, listed: holdings.length, quoted: n, unquoted: holdings.length-n, rows,
+    summary: { up: rows.filter(r => r.pct>0).length, down: rows.filter(r => r.pct<0).length,
+      flat: rows.filter(r => r.pct===0).length, median: n ? n%2 ? sorted[(n-1)/2] : (sorted[n/2-1]+sorted[n/2])/2 : null,
+      best: rows[0] || null, worst: rows.at(-1) || null } };
+}
+
+>>>>>>> sattva/main
 // ---- 6. the week ahead on the calendar -------------------------------------------------------------
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -974,7 +1092,11 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
 
 // ---- stories -------------------------------------------------------------------------------------
 //
+<<<<<<< HEAD
 // THE EMAIL IS A GLOW VENTURES BROADSHEET, AND IT LEADS WITH THE PORTFOLIO COMPANIES. The desk
+=======
+// THE EMAIL IS A SATTVA VENTURES BROADSHEET, AND IT LEADS WITH THE PORTFOLIO COMPANIES. The desk
+>>>>>>> sattva/main
 // reads it for what happened to the companies they own, so every filing, story, trade and move is
 // filed under its COMPANY, companies with a tracked or directional item first, and the global market
 // scan follows them. Two readings travel on each — both of them readings this dashboard already makes:
@@ -1215,6 +1337,8 @@ export function briefCompanies(stories) {
   return companies.sort((a, b) => b.score - a.score || b.stories.length - a.stories.length || b.latest - a.latest || a.company.localeCompare(b.company));
 }
 
+export const briefStoryKeys = brief => [...new Set(briefStories(brief).flatMap(s => s.keys || []))];
+
 export function briefStats(brief) {
   const stories = briefStories(brief);
   const companies = briefCompanies(stories);
@@ -1279,6 +1403,10 @@ export function parseAiNotes(text, ids) {
   for (const entry of list) {
     const id = typeof entry?.id === 'string' ? entry.id : null;
     if (!id || !ids.has(id) || out[id]) continue;
+<<<<<<< HEAD
+=======
+    if (typeof entry.summary !== 'string' || typeof entry.impact !== 'string' || entry.summary.length > AI_NOTE_MAX || entry.impact.length > AI_NOTE_MAX) continue;
+>>>>>>> sattva/main
     const summary = clip(entry.summary, AI_NOTE_MAX);
     const impact = clip(entry.impact, AI_NOTE_MAX);
     if (!summary || !impact) continue;
@@ -1300,9 +1428,15 @@ export async function readAiNotes({ env, fetcher = fetch, now = Date.now(), comp
     }
   }
   const candidates = aiItemsFor(companies, sectors);
+<<<<<<< HEAD
   const requested = newsAiEnabled(env) ? companies.reduce((n,c) => n + c.clusters.filter(k => k.kind === 'story').length, 0) : candidates.length;
   const mergeNews = result => ({ ...result, ok: result.ok || Object.keys(newsNotes).length > 0,
     requested,
+=======
+  const requested = companies.reduce((n,c) => n + c.clusters.filter(k => k.kind === 'story').length, 0);
+  const mergeNews = result => ({ ...result, ok: result.ok || Object.keys(newsNotes).length > 0,
+    requested, partial: result.answered + Object.keys(newsNotes).length < requested,
+>>>>>>> sattva/main
     supplied: result.supplied + Object.keys(newsNotes).length, answered: result.answered + Object.keys(newsNotes).length, items: { ...result.items, ...newsNotes },
     model: [...new Set([result.model, ...newsModels].filter(Boolean))].join(', ') || null,
     ...(Object.keys(newsNotes).length ? { reason: result.answered + Object.keys(newsNotes).length < requested ? 'partial' : null } : {}) });
@@ -1325,7 +1459,11 @@ export async function readAiNotes({ env, fetcher = fetch, now = Date.now(), comp
       body: JSON.stringify(aiRequest(items, config.model)),
       signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     });
+<<<<<<< HEAD
     if (!res.ok) return mergeNews({ ...base, model: config.model, ok: false, reason: res.status === 401 || res.status === 403 ? 'refused' : res.status === 429 ? 'rate-limited' : 'upstream', status: res.status });
+=======
+    if (!res.ok) { await res.body?.cancel(); return mergeNews({ ...base, model: config.model, ok: false, reason: res.status === 401 || res.status === 403 ? 'refused' : res.status === 429 ? 'rate-limited' : 'upstream', status: res.status }); }
+>>>>>>> sattva/main
     const body = await boundedJson(res, 80000);
     if (body.stop_reason !== 'end_turn') return mergeNews({ ...base, model: config.model, ok: false, reason: 'incomplete-response' });
     const text = (Array.isArray(body?.content) ? body.content : []).filter((b) => b?.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n');
@@ -1333,7 +1471,11 @@ export async function readAiNotes({ env, fetcher = fetch, now = Date.now(), comp
     if (!notes) return mergeNews({ ...base, model: config.model, ok: false, reason: 'unreadable' });
     return mergeNews({ ...base, model: config.model, ok: true, answered: Object.keys(notes).length, items: notes });
   } catch (error) {
+<<<<<<< HEAD
     return mergeNews({ ...base, model: config.model, ok: false, reason: reasonOf(error) });
+=======
+    return mergeNews({ ...base, model: config.model, ok: false, reason: /abort|timeout/i.test(error?.name || '') ? 'timeout' : 'unreadable' });
+>>>>>>> sattva/main
   }
 }
 
@@ -1343,12 +1485,19 @@ export function briefSummary(brief) {
   return {
     quotes: brief.markets.rows.filter((r) => r.last != null).length,
     quotesFailed: brief.markets.failed,
+<<<<<<< HEAD
     quotesStored: brief.markets.stored,
     quotesUnverified: brief.markets.unverified || [], quotesConflicts: brief.markets.conflicts || [],
     indexSource: brief.markets.upstox || null, exchangeSource: brief.markets.nse || null,
     bseIndexSource: brief.markets.bse || null, globalIndexSource: brief.markets.globalUpstox || null,
     marketEnrichment: brief.markets.enrichment || null,
     quotesReportedChanges: brief.markets.reportedChanges || [],
+=======
+    quotesStored: [],
+    quotesUnverified: brief.markets.unverified || [], quotesConflicts: brief.markets.conflicts || [],
+    indexSource: brief.markets.upstox || null, exchangeSource: brief.markets.nse || null,
+    bseIndexSource: brief.markets.bse || null, globalIndexSource: brief.markets.globalUpstox || null,
+>>>>>>> sattva/main
     quotesOutliers: brief.markets.outliers || [],
     announcements: brief.announcements.count,
     news: brief.news.count,
@@ -1373,9 +1522,15 @@ export function briefSummary(brief) {
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtNumber = (v, decimals) => v.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const signed = (v, decimals, suffix = '') => (v > 0 ? '+' : v < 0 ? '−' : '') + fmtNumber(Math.abs(v), decimals) + suffix;
+<<<<<<< HEAD
 const INK = '#1a1712', PAPER = '#fbf9f3', CREAM = '#f2eee3', RULE = '#d9d2c2', META = '#8a8272', BODY = '#4a4438', BODY2 = '#5c5445';
 // Glow Ventures' gold, from public/css/glow.css (--brand-600 on the page, --brand-mid on the mark).
 const GOLD = '#8a6a1c', GOLD_LIGHT = '#d9c48f';
+=======
+const INK = '#0f172a', PAPER = '#ffffff', CREAM = '#eef2ff', RULE = '#e2e8f0', META = '#64748b', BODY = '#334155', BODY2 = '#475569';
+// Sattva Ventures' indigo accent.
+const GOLD = '#4f46e5', GOLD_LIGHT = '#a5b4fc';
+>>>>>>> sattva/main
 const SERIF = "Georgia,'Times New Roman',Times,serif";
 const SANS = 'Arial,Helvetica,sans-serif';
 const NUM = 'font-variant-numeric:tabular-nums;white-space:nowrap;';
@@ -1413,11 +1568,17 @@ export function asOfLabel(row) {
   const when = row.timezone ? zoneShort(row.asOf, row.timezone) : istLabel(row.asOf);
   const status = { live: 'Live', close: 'Close', delayed: 'Delayed quote', stale: 'Earlier quote' }[row.state] || 'Quote';
   const provider = row.origin === 'nse' ? 'NSE' : row.origin === 'bse' ? 'BSE Indices' : row.origin === 'upstox' ? 'Upstox' : 'Yahoo';
+<<<<<<< HEAD
   const verification = row.verification === 'cross-checked' ? ' · cross-checked' : row.verification === 'level-cross-checked' ? ' · level cross-checked' : row.verification === 'single-source' || row.group === 'india' ? ' · single source' : '';
   const delay = row.delayMinutes ? ` · ${row.delayMinutes}-minute feed delay` : '';
   const enrichment = row.changeOrigin === 'nasdaq-history' ? ' · daily change: Nasdaq history'
     : row.changeOrigin === 'yahoo-quote' ? ' · quoted daily change' : '';
   return `${status} · ${when} · ${provider}${delay}${enrichment}${verification}${marketIssue(row) ? ` · ${marketIssue(row)}` : ''}`;
+=======
+  const verification = row.verification === 'cross-checked' ? ' · cross-checked' : row.verification === 'single-source' || row.group === 'india' ? ' · single source' : '';
+  const delay = row.delayMinutes ? ` · ${row.delayMinutes}-minute feed delay` : '';
+  return `${status} · ${when} · ${provider}${delay}${verification}${marketIssue(row) ? ` · ${marketIssue(row)}` : ''}`;
+>>>>>>> sattva/main
 }
 
 export function glanceLine(brief) {
@@ -1461,6 +1622,9 @@ const caps = (text, extra = '') => `<span style="font-family:${SANS};font-size:1
 // filing never takes the reader away from the brief they were working down.
 const NEW_TAB = 'target="_blank" rel="noopener noreferrer"';
 const link = (url, inner, style) => (url ? `<a href="${esc(url)}" ${NEW_TAB} style="${style}text-decoration:none;">${inner}</a>` : inner);
+export const readableUrl = (url, dashboardUrl = PRODUCTION_ORIGIN) => (isXbrlFilingUrl(url) && dashboardUrl
+  ? `${dashboardUrl}${readableFilingUrl(url)}` : url);
+
 /** The dashboard's All Alerts view, narrowed to one company — the same route the host ticker chip opens. */
 const companyUrl = (dashboardUrl, ticker) => (/^[A-Z0-9&_.-]{1,20}$/.test(ticker || '')
   ? `${dashboardUrl}/#/research/daily-alerts?scope=portfolio&company=${encodeURIComponent(ticker)}` : null);
@@ -1471,11 +1635,17 @@ const marketRowHtml = (r) => {
   const pct = formatPct(r);
   const tone = r.changePct == null ? META : toneOf(r.changePct);
   return `<tr>
+<<<<<<< HEAD
         <td style="padding:5px 6px 5px 0;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;color:${INK};">${esc(r.label)}${r.unit ? ` <span style="color:${META};font-size:10px;">${esc(r.unit)}</span>` : ''}</td>
         <td align="right" style="padding:5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;color:${INK};${NUM}">${last == null ? `<span style="color:${META};">—</span>` : esc(last)}</td>
         <td align="right" style="padding:5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:11px;color:${META};${NUM}">${r.change == null ? '' : esc(formatChange(r))}</td>
         <td align="right" style="padding:5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;font-weight:bold;color:${tone};${NUM}">${pct == null ? `<span style="color:${META};font-weight:normal;">—</span>` : esc(pct)}</td>
         <td align="right" style="padding:5px 0 5px 6px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:10px;color:${META};">${esc(asOfLabel(r))}</td>
+=======
+        <td width="46%" style="padding:9px 6px 9px 0;border-bottom:1px solid ${RULE};font-size:13px;">${esc(r.label)}${r.unit ? ` <span style="color:${META};font-size:10px;">${esc(r.unit)}</span>` : ''}<br><span style="font-size:10px;color:${META};">${esc(asOfLabel(r))}</span></td>
+        <td width="30%" align="right" style="padding:9px 6px;border-bottom:1px solid ${RULE};">${last == null ? `<span style="color:${META};">—</span>` : esc(last)}${r.change == null ? '' : `<br><span style="font-size:10px;color:${META};">${esc(formatChange(r))}</span>`}</td>
+        <td width="24%" align="right" style="padding:9px 0 9px 6px;border-bottom:1px solid ${RULE};font-weight:bold;color:${tone};">${pct == null ? `<span style="color:${META};font-weight:normal;">—</span>` : esc(pct)}</td>
+>>>>>>> sattva/main
       </tr>`;
 };
 
@@ -1486,7 +1656,11 @@ function indiaSection(brief) {
   if (!members.length) return '';
   const unavailable = members.filter((r) => r.state === 'unavailable').length;
   const note = [groupNote(brief, 'india'), `quotes ${istTime(m.readAt)} IST`, unavailable ? `${unavailable} unavailable` : null].filter(Boolean).join(' · ');
+<<<<<<< HEAD
   return `<tr><td style="padding:26px 34px 0;">
+=======
+  return `<tr><td style="padding:26px 24px 0;">
+>>>>>>> sattva/main
     ${sectionRule('Indian markets', note)}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${members.map(marketRowHtml).join('')}</table>
   </td></tr>`;
@@ -1501,7 +1675,11 @@ export const fmtInrCompact = (v) => {
   return `${sign}₹${a.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 };
 
+<<<<<<< HEAD
 /** Every quoted holding on the session, best to worst, with the day's rupee change where the book prices it. */
+=======
+/** Session prices, best to worst. No quantities, position values or portfolio P&L. */
+>>>>>>> sattva/main
 function performanceSection(brief) {
   const p = brief.performance;
   if (!p) return '';
@@ -1510,27 +1688,43 @@ function performanceSection(brief) {
   if (p.state === 'unavailable' || !p.rows.length) {
     parts.push(sectionRule(title, 'prices unavailable'));
     parts.push(quietLine(`Prices for this session could not be read (${p.reason || 'unavailable'}${p.priceDate ? `; daily bars end ${p.priceDate}` : ''}), so the day's performance is not known — not flat.`));
+<<<<<<< HEAD
     return `<tr><td style="padding:26px 34px 0;">${parts.join('\n')}</td></tr>`;
+=======
+    return `<tr><td style="padding:26px 24px 0;">${parts.join('\n')}</td></tr>`;
+>>>>>>> sattva/main
   }
   const s = p.summary;
   parts.push(sectionRule(title, `${p.session} · ${p.state === 'capture' ? 'closing quotes' : 'completed daily bars'}`));
   parts.push(`<div style="padding:10px 0 2px;font-family:${SANS};font-size:12px;line-height:1.7;color:${BODY};">
     <strong style="color:${INK};">${p.quoted} of ${p.listed}</strong> listed holdings quoted &nbsp;·&nbsp; <span style="color:${MOODS.good.color};">${s.up} up</span> · <span style="color:${MOODS.watch.color};">${s.down} down</span> · ${s.flat} flat &nbsp;·&nbsp; median ${esc(signed(s.median, 2, '%'))}${s.best ? ` &nbsp;·&nbsp; best ${esc(s.best.company)} <span style="color:${toneOf(s.best.pct)};font-weight:bold;">${esc(signed(s.best.pct, 1, '%'))}</span>` : ''}${s.worst && s.worst !== s.best ? ` &nbsp;·&nbsp; worst ${esc(s.worst.company)} <span style="color:${toneOf(s.worst.pct)};font-weight:bold;">${esc(signed(s.worst.pct, 1, '%'))}</span>` : ''}
   </div>`);
+<<<<<<< HEAD
   const priced = p.book?.ok && s.change != null;
   parts.push(`<div style="padding:4px 0 6px;font-family:${SANS};font-size:12px;line-height:1.6;color:${BODY};">${priced
     ? `Day change on the book's statement quantities: <strong style="color:${toneOf(s.change)};">${esc(fmtInrCompact(s.change))} (${esc(signed(s.changePct, 2, '%'))})</strong> across ${p.book.priced} holding${p.book.priced === 1 ? '' : 's'} priced — derived: each account's statement quantity (statements dated ${esc(p.book.statementFrom || 'unknown')} to ${esc(p.book.statementTo || 'unknown')}) times the session's close change, not a statement figure.${p.book.unpriced ? ` ${p.book.unpriced} quoted holding${p.book.unpriced === 1 ? ' carries' : 's carry'} no statement quantity and ${p.book.unpriced === 1 ? 'is' : 'are'} not in it.` : ''}`
     : p.book?.ok ? 'No quoted holding carries a statement quantity in the family book, so no rupee day change is derived.' : 'The family book could not be read, so no rupee day change is derived.'}</div>`);
+=======
+>>>>>>> sattva/main
   // Every quoted holding is a row, so the row's markup is kept to the minimum a mail client renders:
   // one short style per cell, the sans face set once on the table.
   const cell = `padding:4px 6px;border-bottom:1px solid ${RULE};`;
   const th = `${cell}color:${META};font-weight:normal;letter-spacing:1px;text-transform:uppercase;font-size:10px;`;
+<<<<<<< HEAD
   const head = `<tr><th align="left" style="${th}padding-left:0;">Holding</th><th align="right" style="${th}">Close ₹</th><th align="right" style="${th}">Day</th>${priced ? `<th align="right" style="${th}padding-right:0;">Day change (derived)</th>` : ''}</tr>`;
   const num = `${cell}white-space:nowrap;`;
   const rows = p.rows.map((r) => `<tr><td style="${cell}padding-left:0;">${esc(r.company)} <span style="color:${META};font-size:10px;">${esc(r.ticker)}</span></td><td align="right" style="${num}">${r.last == null ? '—' : esc(fmtNumber(r.last, 2))}</td><td align="right" style="${num}color:${toneOf(r.pct)};font-weight:bold;">${esc(signed(r.pct, 2, '%'))}</td>${priced ? `<td align="right" style="${num}padding-right:0;color:${r.change == null ? META : toneOf(r.change)};">${r.change == null ? 'no quantity' : esc(fmtInrCompact(r.change))}</td>` : ''}</tr>`);
   parts.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:${SANS};font-size:11px;color:${INK};">${head}${rows.join('')}</table>`);
   if (p.unquoted) parts.push(quietLine(`${p.unquoted} listed holding${p.unquoted === 1 ? ' had' : 's had'} no quote for this session and ${p.unquoted === 1 ? 'is' : 'are'} not listed — not flat.`));
   return `<tr><td style="padding:26px 34px 0;">${parts.join('\n')}</td></tr>`;
+=======
+  const head = `<tr><th align="left" style="${th}padding-left:0;">Holding</th><th align="right" style="${th}">Close ₹</th><th align="right" style="${th}">Day</th></tr>`;
+  const num = `${cell}white-space:nowrap;`;
+  const rows = p.rows.map((r) => `<tr><td style="${cell}padding-left:0;">${esc(r.company)} <span style="color:${META};font-size:10px;">${esc(r.ticker)}</span></td><td align="right" style="${num}">${r.last == null ? '—' : esc(fmtNumber(r.last, 2))}</td><td align="right" style="${num}color:${toneOf(r.pct)};font-weight:bold;">${esc(signed(r.pct, 2, '%'))}</td></tr>`);
+  parts.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:${SANS};font-size:11px;color:${INK};">${head}${rows.join('')}</table>`);
+  if (p.unquoted) parts.push(quietLine(`${p.unquoted} listed holding${p.unquoted === 1 ? ' had' : 's had'} no quote for this session and ${p.unquoted === 1 ? 'is' : 'are'} not listed — not flat.`));
+  return `<tr><td style="padding:26px 24px 0;">${parts.join('\n')}</td></tr>`;
+>>>>>>> sattva/main
 }
 
 function marketSection(brief) {
@@ -1548,10 +1742,14 @@ function marketSection(brief) {
     const members = m.rows.filter((r) => r.group === g.id);
     if (!members.length) continue;
     const gnote = groupNote(brief, g.id);
+<<<<<<< HEAD
     rows.push(`<tr><td colspan="5" style="padding:10px 0 3px;font-family:${SANS};font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${META};">${esc(g.label)}${gnote ? ` <span style="letter-spacing:0;text-transform:none;">· ${esc(gnote)}</span>` : ''}</td></tr>`);
+=======
+    rows.push(`<tr><td colspan="3" style="padding:10px 0 3px;font-family:${SANS};font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${META};">${esc(g.label)}${gnote ? ` <span style="letter-spacing:0;text-transform:none;">· ${esc(gnote)}</span>` : ''}</td></tr>`);
+>>>>>>> sattva/main
     for (const r of members) rows.push(marketRowHtml(r));
   }
-  return `<tr><td style="padding:30px 34px 0;">
+  return `<tr><td style="padding:30px 24px 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
       <td style="padding:0 0 4px;border-bottom:1px solid ${INK};">${caps('Global market scan', `color:${INK};font-weight:bold;letter-spacing:3px;`)}</td>
       <td align="right" style="padding:0 0 4px;border-bottom:1px solid ${INK};">${caps(esc(note), `color:${META};letter-spacing:1px;`)}</td>
@@ -1561,6 +1759,7 @@ function marketSection(brief) {
   </td></tr>`;
 }
 
+<<<<<<< HEAD
 
 const topicTag = (topic) => caps(esc(topic.label), `color:${topic.color};font-weight:bold;letter-spacing:1px;`);
 /** "17 Sept, 19:09 IST", or "17 Sept, day only" for a disclosure that carries a broadcast day and no clock. */
@@ -1571,6 +1770,18 @@ const relatedLine = (k) => (k.others.length ? `<div style="margin-top:5px;font-f
 
 /** The model's notes, marked as its own on their face. */
 const aiNoteHtml = (note) => `<div style="margin-top:7px;padding:7px 10px;background:${CREAM};border-left:3px solid ${GOLD_LIGHT};font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY};">${caps('AI summary', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.summary)}${note.impact ? `<br>${caps('Potential impact', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.impact)}` : ''}${note.unknowns ? `<br>${caps('Still unknown', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.unknowns)}` : ''}</div>`;
+=======
+
+const topicTag = (topic) => caps(esc(topic.label), `color:${topic.color};font-weight:bold;letter-spacing:1px;`);
+/** "17 Sept, 19:09 IST", or "17 Sept, day only" for a disclosure that carries a broadcast day and no clock. */
+export const storyWhen = (s) => `${storyDate(s.at)}, ${s.dayOnly ? 'day only' : `${istTime(s.at)} IST`}`;
+
+/** The copies and accounts of one update, as small links under it: where, when, and the headline where it differs. */
+const relatedLine = (k, dashboardUrl) => (k.others.length ? `<div style="margin-top:5px;font-family:${SANS};font-size:11px;line-height:1.7;color:${META};"><strong>Related coverage</strong><br>${k.others.map((r) => link(readableUrl(r.url, dashboardUrl), `${esc(r.source)} · ${esc(storyWhen(r))} · ${esc(r.headline)}${r.late ? ' · not in the previous brief' : ''}`, `color:${META};border-bottom:1px dotted ${RULE};`) + (r.dek ? `<div>${esc(r.dek)}</div>` : '')).join('<br>')}</div>` : '');
+
+/** The model's notes, marked as its own on their face. */
+const aiNoteHtml = (note) => `<div style="margin-top:7px;padding:7px 10px;background:${CREAM};border-left:3px solid ${GOLD_LIGHT};font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY};">${caps('AI SUMMARY', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.summary)}${note.impact ? `<br>${caps('POTENTIAL IMPACT · AI', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.impact)}` : ''}${note.unknowns ? `<br>${caps('Still unknown', `color:${GOLD};font-weight:bold;letter-spacing:1px;`)} ${esc(note.unknowns)}` : ''}</div>`;
+>>>>>>> sattva/main
 
 export function contentStatusText(cluster) {
   if (cluster.kind !== 'story') return null;
@@ -1585,6 +1796,7 @@ export function contentStatusText(cluster) {
 }
 
 /** One update under its company: the leading item's own headline, the AI notes where written, where and when, then its copies. */
+<<<<<<< HEAD
 const companyUpdate = (k, note, isFirst) => {
   const s = k.main;
   return `<tr><td style="padding:${isFirst ? '10px' : '12px'} 0 11px;${isFirst ? '' : `border-top:1px solid ${RULE};`}">
@@ -1595,18 +1807,38 @@ const companyUpdate = (k, note, isFirst) => {
   ${contentStatusText(k) ? `<div style="margin-top:5px;font-family:${SANS};font-size:11px;color:${META};">${esc(contentStatusText(k))}</div>` : ''}
   <div style="margin-top:6px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${topicTag(s.topic)} &nbsp;·&nbsp; ${dot(s.mood.color)} ${esc(s.mood.label)} · ${esc(s.source)} · ${esc(storyWhen(s))}${s.late ? ` · <span style="color:${GOLD};font-weight:bold;">not in the previous brief</span>` : ''}${s.related ? ' · related entity' : ''}${s.url ? ` · <a href="${esc(s.url)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">Read →</a>` : ''}</div>
   ${relatedLine(k)}
+=======
+const companyUpdate = (k, note, isFirst, dashboardUrl) => {
+  const s = k.main;
+  return `<tr><td style="padding:${isFirst ? '10px' : '12px'} 0 11px;${isFirst ? '' : `border-top:1px solid ${RULE};`}">
+  <div style="font-family:${SERIF};font-size:15px;line-height:1.4;font-weight:bold;color:${INK};">${link(readableUrl(s.url, dashboardUrl), esc(s.headline), `color:${INK};`)}</div>
+  ${s.dek ? `<div style="margin-top:4px;font-family:${SANS};font-size:14px;line-height:1.6;color:${BODY2};">${esc(s.dek)}</div>` : ''}
+  ${note ? aiNoteHtml(note) : ''}
+  ${s.kind === 'move' ? `<div style="margin-top:7px;font-family:${SANS};font-size:12px;line-height:1.55;color:${BODY};"><strong>Why it moved:</strong> ${esc(priceReasonText(s.why))}${s.why?.source ? ` ${link(s.why.source.url, `Source · ${esc(storyWhen(s.why.source))}`, `color:${GOLD};`)}` : ''}</div>` : ''}
+  ${contentStatusText(k) ? `<div style="margin-top:5px;font-family:${SANS};font-size:11px;color:${META};">${esc(contentStatusText(k))}</div>` : ''}
+  <div style="margin-top:6px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${topicTag(s.topic)} &nbsp;·&nbsp; ${dot(s.mood.color)} ${esc(s.mood.label)} · ${esc(s.source)} · ${esc(storyWhen(s))}${s.late ? ` · <span style="color:${GOLD};font-weight:bold;">not in the previous brief</span>` : ''}${s.related ? ' · related entity' : ''}${s.url ? ` · <a href="${esc(readableUrl(s.url, dashboardUrl))}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">Read →</a>` : ''}</div>
+  ${relatedLine(k, dashboardUrl)}
+>>>>>>> sattva/main
 </td></tr>`;
 };
 
 /** A portfolio company and everything filed, published, traded or moved about it in the window, folded into updates. */
+<<<<<<< HEAD
 function companyBlock(c, dashboardUrl, ai = null) {
   const n = c.clusters.length;
   const counts = [
     `${n} update${n === 1 ? '' : 's'}${c.stories.length > n ? ` from ${c.stories.length} items` : ''}`,
+=======
+function companyBlock(c, dashboardUrl, ai) {
+  const n = c.clusters.length;
+  const counts = [
+    `${n} update${n === 1 ? '' : 's'}${c.stories.length > n ? ` from ${c.stories.length} source items` : ''}`,
+>>>>>>> sattva/main
     c.good ? `<span style="color:${MOODS.good.color};">${c.good} good</span>` : null,
     c.watch ? `<span style="color:${MOODS.watch.color};">${c.watch} watch-out${c.watch === 1 ? '' : 's'}</span>` : null,
   ].filter(Boolean).join(' · ');
   const href = companyUrl(dashboardUrl, c.ticker);
+<<<<<<< HEAD
   return `<tr><td style="padding:20px 0 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
       <td valign="bottom" style="padding:0 8px 6px 0;border-bottom:2px solid ${INK};">
@@ -1616,6 +1848,15 @@ function companyBlock(c, dashboardUrl, ai = null) {
       <td valign="bottom" align="right" style="padding:0 0 8px;border-bottom:2px solid ${INK};font-family:${SANS};font-size:11px;white-space:nowrap;">${href ? `<a href="${esc(href)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">On the dashboard →</a>` : ''}</td>
     </tr></table>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${c.clusters.map((k, i) => companyUpdate(k, ai?.items?.[k.id] || null, i === 0)).join('')}</table>
+=======
+  return `<tr><td style="padding:28px 0 0;">
+    <div style="padding-bottom:10px;border-bottom:2px solid ${INK};">
+      <div style="font-family:${SERIF};font-size:26px;line-height:1.2;font-weight:bold;color:${INK};">${esc(c.company)}${c.continued ? ' <span style="font-size:16px;font-weight:normal;">(continued)</span>' : ''}</div>
+      <div style="margin-top:6px;font-family:${SANS};font-size:14px;line-height:1.65;color:${META};">${esc(c.ticker)} · ${counts}</div>
+      ${href ? `<div style="margin-top:4px;font-family:${SANS};font-size:12px;"><a href="${esc(href)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">On the dashboard →</a></div>` : ''}
+    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:${SANS};font-size:14px;line-height:1.65;color:${BODY2};">${c.clusters.map((k, i) => companyUpdate(k, ai?.items?.[k.id], i === 0, dashboardUrl)).join('')}</table>
+>>>>>>> sattva/main
   </td></tr>`;
 }
 
@@ -1629,15 +1870,22 @@ export function sourcesNote(brief) {
   const bits = [];
   if (brief.markets) {
     const market = brief.markets;
+<<<<<<< HEAD
     bits.push(`market source checks started ${istLabel(market.readAt)}; each row carries its own source time; daily changes use published quote comparisons or verified preceding-session closes`);
     if (market.reportedChanges?.length) bits.push('Yahoo quoted daily changes follow the comparison published with that quote; currencies and futures can use different references from historical charts');
+=======
+    bits.push(`market source checks started ${istLabel(market.readAt)}; each row carries its own source time; daily changes use the preceding session close`);
+>>>>>>> sattva/main
     if (market.nse?.reason) bits.push(`NSE index check ${market.nse.reason}; usable alternative sources are labelled on each row`);
     if (market.bse?.reason) bits.push(`BSE Sensex check ${market.bse.reason}; usable alternative sources are labelled on each row`);
     if (market.outliers?.length) bits.push(`${market.outliers.length} exchange quote(s) corroborated by another provider despite a third-source disagreement`);
     if (market.upstox?.reason) bits.push(`Upstox index check ${market.upstox.reason}; fallback rows are marked single source`);
     if (market.globalUpstox?.reason) bits.push(`Upstox global index check ${market.globalUpstox.reason}; usable alternative sources are labelled on each row`);
+<<<<<<< HEAD
     if (market.enrichment?.applied?.length) bits.push('Nasdaq Composite daily change enriched from Nasdaq official history after matching the closing level and both trading dates');
     if (market.enrichment?.reason) bits.push('Nasdaq history could not verify the comparison; unverified changes remain withheld');
+=======
+>>>>>>> sattva/main
     if (market.conflicts?.length) bits.push(`${market.conflicts.length} market source disagreement(s); affected figures withheld`);
     if (market.unverified?.length) bits.push(`${market.unverified.length} daily change(s) could not be verified`);
   }
@@ -1664,7 +1912,10 @@ export function sourcesNote(brief) {
   const x = brief.actions;
   if (x) bits.push(x.source.ok ? `corporate actions captured ${capturedLabel(x.source.capturedAt)}` : 'corporate actions capture unavailable');
   const p = brief.performance;
+<<<<<<< HEAD
   if (p?.book) bits.push(p.book.ok ? `statement quantities from the family book (statements dated ${p.book.statementFrom || 'unknown'} to ${p.book.statementTo || 'unknown'})` : 'family book unavailable, so no rupee day change');
+=======
+>>>>>>> sattva/main
   const ai = brief.ai;
   if (brief.content) bits.push(`source content: ${brief.content.ready} fully read, ${brief.content.partial} partial, ${brief.content.pending} pending`);
   const priceNote = priceReasonSourcesNote(brief.priceReasons);
@@ -1712,18 +1963,31 @@ function calendarSection(brief, dashboardUrl) {
       const href = companyUrl(dashboardUrl, r.ticker);
       rows.push(`<tr>
         <td style="padding:5px 8px 5px 0;border-bottom:1px solid ${RULE};font-family:${SERIF};font-size:14px;font-weight:bold;color:${INK};">${link(href, esc(r.company), `color:${INK};`)} <span style="font-family:${SANS};font-size:10px;font-weight:normal;letter-spacing:1px;color:${META};">${esc(r.ticker)}</span></td>
+<<<<<<< HEAD
         <td style="padding:5px 8px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;color:${INK};white-space:nowrap;">${esc(r.label)}${r.time ? ` · ${esc(r.time)} IST` : ''}</td>
         <td align="right" style="padding:5px 0 5px 8px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:10px;color:${META};white-space:nowrap;">${esc(r.sources.join(' · '))}${r.url ? ` · <a href="${esc(r.url)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">Open →</a>` : ''}</td>
+=======
+        <td style="padding:5px 8px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;color:${INK};overflow-wrap:anywhere;">${esc(r.label)}${r.time ? ` · ${esc(r.time)} IST` : ''}</td>
+        <td align="right" style="padding:5px 0 5px 8px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:10px;color:${META};overflow-wrap:anywhere;">${esc(r.sources.join(' · '))}${r.url ? ` · <a href="${esc(r.url)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">Open →</a>` : ''}</td>
+>>>>>>> sattva/main
       </tr>`);
     }
     parts.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows.join('')}</table>`);
     if (c.more > 0) parts.push(quietLine(`${c.more} more scheduled in this week on the dashboard's Earnings Calendar.`));
   }
+<<<<<<< HEAD
   return `<tr><td style="padding:26px 34px 0;">${parts.join('\n')}</td></tr>`;
 }
 
 /** The week's ex-dates, record dates and book closures on the holdings, in the source's words. */
 function actionsSection(brief) {
+=======
+  return `<tr><td style="padding:26px 24px 0;">${parts.join('\n')}</td></tr>`;
+}
+
+/** The week's ex-dates, record dates and book closures on the holdings, in the source's words. */
+function actionsSection(brief, dashboardUrl = PRODUCTION_ORIGIN) {
+>>>>>>> sattva/main
   const x = brief.actions;
   if (!x) return '';
   const parts = [sectionRule('Corporate actions', rangeLine(x.from, x.to))];
@@ -1733,15 +1997,24 @@ function actionsSection(brief) {
       : 'The corporate-actions capture could not be read, so the week ahead is not known — not empty.'));
   } else {
     const rows = x.rows.map((r) => `<tr>
+<<<<<<< HEAD
         <td style="padding:5px 8px 5px 0;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:11px;color:${INK};white-space:nowrap;">${esc(r.dates.map((d) => `${d.label} ${istLabel(istInstant(d.date), { time: false })}`).join(' · '))}</td>
         <td style="padding:5px 8px;border-bottom:1px solid ${RULE};font-family:${SERIF};font-size:14px;font-weight:bold;color:${INK};">${link(r.url, esc(r.company), `color:${INK};`)} <span style="font-family:${SANS};font-size:10px;font-weight:normal;letter-spacing:1px;color:${META};">${esc(r.ticker)}</span></td>
+=======
+        <td style="padding:5px 8px 5px 0;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:11px;color:${INK};overflow-wrap:anywhere;">${esc(r.dates.map((d) => `${d.label} ${istLabel(istInstant(d.date), { time: false })}`).join(' · '))}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid ${RULE};font-family:${SERIF};font-size:14px;font-weight:bold;color:${INK};">${link(readableUrl(r.url, dashboardUrl), esc(r.company), `color:${INK};`)} <span style="font-family:${SANS};font-size:10px;font-weight:normal;letter-spacing:1px;color:${META};">${esc(r.ticker)}</span></td>
+>>>>>>> sattva/main
         <td style="padding:5px 0 5px 8px;border-bottom:1px solid ${RULE};font-family:${SANS};font-size:12px;color:${BODY2};">${esc(r.purpose)} <span style="font-size:10px;color:${META};">· ${esc(r.source)}</span></td>
       </tr>`);
     parts.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows.join('')}</table>`);
     if (x.more > 0) parts.push(quietLine(`${x.more} more in this week on the dashboard's Corporate Actions view.`));
   }
   if (x.source.debtSkipped) parts.push(quietLine(`${x.source.debtSkipped} interest or redemption date${x.source.debtSkipped === 1 ? '' : 's'} on an issuer's debt instruments ${x.source.debtSkipped === 1 ? 'is' : 'are'} not listed.`));
+<<<<<<< HEAD
   return `<tr><td style="padding:26px 34px 0;">${parts.join('\n')}</td></tr>`;
+=======
+  return `<tr><td style="padding:26px 24px 0;">${parts.join('\n')}</td></tr>`;
+>>>>>>> sattva/main
 }
 
 const routineNote = (n) => `${n} routine filing${n === 1 ? '' : 's'} (newspaper copies, NAV declarations, trading-window, certificate and demat notices) ${n === 1 ? 'is' : 'are'} not listed here; ${n === 1 ? 'it stays' : 'they stay'} on the dashboard.`;
@@ -1759,24 +2032,41 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
   const parts = [];
 
   const downloadUrl = pdfUrl || `${dashboardUrl}/api/newsletter/preview?edition=${brief.edition}&format=pdf`;
+<<<<<<< HEAD
   parts.push(`<tr><td align="right" style="padding:18px 34px 0;font-family:${SANS};"><a href="${esc(downloadUrl)}" ${NEW_TAB} style="display:inline-block;padding:10px 16px;background:${GOLD};border-radius:4px;color:#ffffff;font-size:12px;font-weight:bold;text-decoration:none;">Download PDF ↓</a></td></tr>`);
   const partNote = part?.total > 1 ? `<tr><td style="padding:16px 34px;font-family:${SANS};font-size:13px;line-height:1.6;background:${CREAM};color:${BODY};"><strong>Part ${part.index} of ${part.total}</strong> · ${companies.reduce((n, c) => n + c.clusters.length, 0)} updates in this email.<br>${part.index === part.total ? 'This is the final part of this edition.' : `The next email continues with Part ${part.index + 1} of ${part.total}.`} The PDF contains the complete edition.${preview ? `<br>${Array.from({ length: part.total }, (_, i) => link(`${dashboardUrl}/api/newsletter/preview?edition=${brief.edition}&part=${i + 1}`, `Preview Part ${i + 1}`, `color:${GOLD};`)).join(' · ')}` : ''}</td></tr>` : '';
   if (partNote) parts.push(partNote);
 
   parts.push(`<tr><td align="center" style="padding:30px 34px 0;">
     <div style="font-family:${SERIF};font-size:34px;line-height:1.1;font-weight:bold;letter-spacing:6px;color:${INK};">${esc(brand.toUpperCase())}</div>
+=======
+  parts.push(`<tr><td align="right" style="padding:18px 24px 0;font-family:${SANS};"><a href="${esc(downloadUrl)}" ${NEW_TAB} style="display:inline-block;padding:10px 16px;background:${GOLD};border-radius:4px;color:#ffffff;font-size:12px;font-weight:bold;text-decoration:none;">Download PDF ↓</a></td></tr>`);
+  const partNote = part?.total > 1 ? `<tr><td style="padding:16px 24px;font-family:${SANS};font-size:13px;line-height:1.6;background:${CREAM};color:${BODY};"><strong>Part ${part.index} of ${part.total}</strong> · ${companies.length ? `${companies.reduce((n, c) => n + c.clusters.length, 0)} updates in this email.` : 'Calendar, company prices or market data in this email.'}<br>${part.index === part.total ? 'This is the final part of this edition.' : `The next email continues with Part ${part.index + 1} of ${part.total}.`} The PDF contains the complete edition.${preview ? `<br>${Array.from({ length: part.total }, (_, i) => link(`${dashboardUrl}/api/newsletter/preview?edition=${brief.edition}&part=${i + 1}`, `Preview Part ${i + 1}`, `color:${GOLD};`)).join(' · ')}` : ''}</td></tr>` : '';
+  if (partNote) parts.push(partNote);
+
+  parts.push(`<tr><td align="center" style="padding:30px 24px 0;">
+    <div style="font-family:${SERIF};font-size:30px;line-height:1.2;font-weight:bold;letter-spacing:3px;color:${INK};">${esc(brand.toUpperCase())}</div>
+>>>>>>> sattva/main
     <div style="border-top:3px double ${INK};margin:12px 0 7px;font-size:0;line-height:0;">&nbsp;</div>
     <div style="font-family:${SANS};font-size:11px;letter-spacing:4px;text-transform:uppercase;color:${META};">${esc(productName)} — ${esc(TAGLINES[brief.edition])}</div>
     <div style="margin-top:10px;padding:7px 0;border-top:1px solid ${RULE};border-bottom:1px solid ${RULE};font-family:${SANS};font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${META};">${esc(istDateLong(brief.at).replace(/^(\w+) /, '$1, '))} · Edition: ${esc(EDITION_NAME)}${brief.onDemand ? ' · built on request' : ''}</div>
   </td></tr>`);
 
   const reported = stats.companies.length;
+<<<<<<< HEAD
   parts.push(`<tr><td style="padding:14px 34px 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${BODY};">
+=======
+  parts.push(`<tr><td style="padding:14px 24px 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${BODY};">
+>>>>>>> sattva/main
     ${part?.total > 1 ? '<div style="font-size:10px;letter-spacing:1px;">COMPLETE EDITION</div>' : ''}
     <strong style="color:${INK};">${stats.updates} ${stats.updates === 1 ? 'update' : 'updates'}</strong> across <strong style="color:${INK};">${reported} of ${brief.book.listed}</strong> portfolio compan${brief.book.listed === 1 ? 'y' : 'ies'} &nbsp;·&nbsp; ${dot(MOODS.good.color, 9)} ${stats.good} good &nbsp;·&nbsp; ${dot(MOODS.watch.color, 9)} ${stats.watch} watch-out${stats.watch === 1 ? '' : 's'}${stats.late ? ` &nbsp;·&nbsp; <span style="color:${GOLD};">${stats.late} not in the previous brief</span>` : ''}
   </td></tr>`);
 
+<<<<<<< HEAD
   if (companies.length || !stats.stories) parts.push(`<tr><td style="padding:24px 34px 0;">
+=======
+  if (companies.length || !stats.stories) parts.push(`<tr><td style="padding:24px 24px 0;">
+>>>>>>> sattva/main
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
       <td style="padding:0 0 4px;border-bottom:3px solid ${GOLD_LIGHT};">${caps('Your portfolio companies', `color:${INK};font-weight:bold;letter-spacing:3px;`)}</td>
       <td align="right" style="padding:0 0 4px;border-bottom:3px solid ${GOLD_LIGHT};">${caps(esc(windowLine(brief)), `color:${META};letter-spacing:1px;`)}</td>
@@ -1785,11 +2075,12 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
 
   const readable = brief.announcements.nse.ok || brief.announcements.nseHistory?.ok || brief.announcements.bse.ok || brief.news.source.ok || brief.news.tradingview?.ok || brief.trades?.source?.ok || (brief.moves && brief.moves.state !== 'unavailable');
   if (!stats.stories) {
-    parts.push(`<tr><td align="center" style="padding:30px 34px 6px;">
+    parts.push(`<tr><td align="center" style="padding:30px 24px 6px;">
       <div style="font-family:${SERIF};font-size:20px;line-height:1.3;font-style:italic;color:${INK};">Quiet window — nothing to report.</div>
       <div style="margin-top:8px;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${readable ? 'Nothing was filed, published, traded or moved about a portfolio company in this window.' : 'No filing, publisher, trade or price feed could be read for this window, so stories are not known — not absent.'}</div>
     </td></tr>`);
   } else {
+<<<<<<< HEAD
     parts.push(`<tr><td style="padding:0 34px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${companies.map((c) => companyBlock(c, dashboardUrl, brief.ai)).join('')}</table>
     </td></tr>`);
@@ -1798,6 +2089,16 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
   }
   if (brief.announcements.routineHidden) {
     parts.push(`<tr><td style="padding:${stats.stories ? 8 : 14}px 34px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${esc(routineNote(brief.announcements.routineHidden))}</td></tr>`);
+=======
+    parts.push(`<tr><td style="padding:0 24px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${companies.map((c) => companyBlock(c, dashboardUrl, brief.ai)).join('')}</table>
+    </td></tr>`);
+    const more = brief.announcements.more + brief.news.more + (brief.trades?.more || 0) + (brief.moves?.more || 0);
+    if (more > 0 && (!part || part.index === part.total)) parts.push(`<tr><td style="padding:14px 24px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${more} more in this window on the <a href="${esc(`${dashboardUrl}/#/research/daily-alerts?scope=portfolio`)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">dashboard →</a>; whatever is not shown here reaches the next brief.</td></tr>`);
+  }
+  if (brief.announcements.routineHidden) {
+    parts.push(`<tr><td style="padding:${stats.stories ? 8 : 14}px 24px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${esc(routineNote(brief.announcements.routineHidden))}</td></tr>`);
+>>>>>>> sattva/main
   }
 
   // Only row selections change between emails; source coverage and edition totals stay intact.
@@ -1807,19 +2108,33 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
     const selected = !rows ? brief : ['india', 'markets'].includes(name)
       ? { ...brief, markets: { ...brief.markets, rows } }
       : { ...brief, [name]: { ...brief[name], rows } };
+<<<<<<< HEAD
     if (part && rows?.length) parts.push(`<tr><td style="padding:14px 34px 0;font-family:${SANS};font-size:11px;color:${META};">${rows.length} rows from ${esc(name === 'performance' ? 'portfolio performance' : name)} in this part. Section totals describe the complete edition.</td></tr>`);
     parts.push(name === 'calendar' ? calendarSection(selected, dashboardUrl) : name === 'actions' ? actionsSection(selected) : name === 'performance' ? performanceSection(selected) : name === 'india' ? indiaSection(selected) : marketSection(selected));
   }
   parts.push(`<tr><td style="padding:22px 34px 0;font-family:${SANS};font-size:10px;line-height:1.6;color:${META};">${esc(sourcesNote(brief))}</td></tr>`);
+=======
+    if (part && rows?.length) parts.push(`<tr><td style="padding:14px 24px 0;font-family:${SANS};font-size:11px;color:${META};">${rows.length} rows from ${esc(name === 'performance' ? 'portfolio performance' : name)} in this part. Section totals describe the complete edition.</td></tr>`);
+    parts.push(name === 'calendar' ? calendarSection(selected, dashboardUrl) : name === 'actions' ? actionsSection(selected, dashboardUrl) : name === 'performance' ? performanceSection(selected) : name === 'india' ? indiaSection(selected) : marketSection(selected));
+  }
+  parts.push(`<tr><td style="padding:22px 24px 0;font-family:${SANS};font-size:10px;line-height:1.6;color:${META};">${esc(sourcesNote(brief))}</td></tr>`);
+>>>>>>> sattva/main
 
   if (partNote) parts.push(partNote);
   const subscribedLine = recipient?.test
     ? 'This is a test copy you asked for.'
     : `You're subscribed to the ${esc(brand)} brief on your ${esc(EDITION_NAME.toLowerCase())}, every weekday at ${esc(clockLabel(sendTime))}.${recipient?.addedBy ? ` Added by ${esc(recipient.addedBy)}.` : ''}`;
+<<<<<<< HEAD
   const disclaimer = 'Filings, headlines and disclosures as the exchanges, publishers and reporting sources wrote them. AI summaries use extracted source-document or article facts; each update states whether its sources were read or remain pending. Potential impact is an AI interpretation, not an established outcome. Mood follows this dashboard’s stated rules: a filing’s subject, a trade’s own transaction word, the sign of a price move; published stories are shown neutral. The rupee day change is derived from statement quantities and the session’s closes, not a statement figure. This brief is informational, not investment advice.';
   parts.push(`<tr><td style="padding:22px 34px;background:${INK};color:#d8d0be;font-family:${SANS};font-size:12px;line-height:1.7;">
     ${subscribedLine}<br>
     <a href="${esc(unsubscribeUrl)}" ${NEW_TAB} style="color:${GOLD_LIGHT};text-decoration:underline;">Unsubscribe</a> · <strong style="color:${GOLD_LIGHT};letter-spacing:1px;">${esc(brand)}</strong> ${esc(productName)} · powered by Munshot<br>
+=======
+  const disclaimer = 'Filings, headlines and disclosures as the exchanges, publishers and reporting sources wrote them. AI summaries use extracted source-document or article facts; each update states whether its sources were read or remain pending. Potential impact is an AI interpretation, not an established outcome. Mood follows this dashboard’s stated rules: a filing’s subject, a trade’s own transaction word, the sign of a price move; published stories are shown neutral. This brief is informational, not investment advice.';
+  parts.push(`<tr><td style="padding:22px 24px;background:${INK};color:#d8d0be;font-family:${SANS};font-size:12px;line-height:1.7;">
+    ${subscribedLine}<br>
+    <a href="${esc(unsubscribeUrl)}" ${NEW_TAB} style="color:${GOLD_LIGHT};text-decoration:underline;">Unsubscribe</a> · <strong style="color:${GOLD_LIGHT};letter-spacing:1px;">${esc(brand)}</strong> ${esc(productName)} · Automated by Munshot<br>
+>>>>>>> sattva/main
     <span style="color:#6b6455;font-size:10px;">${esc(disclaimer)} Sent ${esc(istLabel(brief.builtAt, { year: true }))}.</span>
   </td></tr>`);
 
@@ -1836,7 +2151,11 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
 <body style="margin:0;padding:0;background:${CREAM};-webkit-text-size-adjust:100%;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(subject)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM};"><tr><td align="center" style="padding:24px 12px;">
+<<<<<<< HEAD
 <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="width:640px;max-width:640px;background:${PAPER};border:1px solid ${RULE};">
+=======
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" style="width:100%;max-width:640px;background:${PAPER};border:1px solid ${RULE};">
+>>>>>>> sattva/main
 ${parts.join('\n')}
 </table>
 <div style="padding-top:12px;font-family:${SANS};font-size:10px;letter-spacing:1px;color:#a49b88;">${esc(brand)} · ${esc(productName)}</div>
@@ -1846,7 +2165,7 @@ ${parts.join('\n')}
 }
 
 /** The same brief as plain text — what the tests read, and a copy that survives any client. */
-export function renderBriefText(brief, { productName = PRODUCT_NAME, brand = BRAND } = {}) {
+export function renderBriefText(brief, { productName = PRODUCT_NAME, brand = BRAND, dashboardUrl = PRODUCTION_ORIGIN } = {}) {
   const stats = briefStats(brief);
   const lines = [];
   lines.push(brand.toUpperCase(), `${productName} — ${TAGLINES[brief.edition]}`, `${istDateLong(brief.at)} · Edition: ${EDITION_NAME}`);
@@ -1863,9 +2182,15 @@ export function renderBriefText(brief, { productName = PRODUCT_NAME, brand = BRA
       if (note) lines.push(`    AI summary: ${note.summary}`, ...(note.impact ? [`    Potential impact: ${note.impact}`] : []), ...(note.unknowns ? [`    Still unknown: ${note.unknowns}`] : []));
       if (s.kind === 'move') lines.push(`    Why it moved: ${priceReasonText(s.why)}${s.why?.source ? ` Source: ${s.why.source.publisher} · ${storyWhen(s.why.source)} · ${s.why.source.url}` : ''}`);
       if (contentStatusText(k)) lines.push(`    ${contentStatusText(k)}`);
+<<<<<<< HEAD
       lines.push(`    ${s.mood.label} · ${s.source} · ${storyWhen(s)}${s.late ? ' · not in the previous brief' : ''}${s.url ? ` · ${s.url}` : ''}`);
       for (const r of k.others) {
         lines.push(`    Related: ${r.source} · ${storyWhen(r)} · ${r.headline}${r.late ? ' · not in the previous brief' : ''}${r.url ? ` · ${r.url}` : ''}`);
+=======
+      lines.push(`    ${s.mood.label} · ${s.source} · ${storyWhen(s)}${s.late ? ' · not in the previous brief' : ''}${s.url ? ` · ${readableUrl(s.url, dashboardUrl)}` : ''}`);
+      for (const r of k.others) {
+        lines.push(`    Related: ${r.source} · ${storyWhen(r)} · ${r.headline}${r.late ? ' · not in the previous brief' : ''}${r.url ? ` · ${readableUrl(r.url, dashboardUrl)}` : ''}`);
+>>>>>>> sattva/main
         if (r.dek) lines.push(`      ${r.dek}`);
       }
     }
@@ -1881,12 +2206,17 @@ export function renderBriefText(brief, { productName = PRODUCT_NAME, brand = BRA
     lines.push(`  ${g.label}`);
     for (const r of members) lines.push(`    ${r.label.padEnd(20)} ${(formatLast(r) ?? '—').padStart(11)} ${(formatPct(r) ?? '—').padStart(8)}   ${asOfLabel(r)}`);
   }
-  lines.push('', sourcesNote(brief));
+  lines.push('', sourcesNote(brief), '', 'Sattva Ventures · Automated by Munshot');
   return lines.join('\n');
 }
 
+<<<<<<< HEAD
 /** Glow-specific calendar, actions and performance, shared by text and PDF exports. */
 export function briefSupplementLines(brief) {
+=======
+/** Portfolio calendar, actions and performance, shared by text and PDF exports. */
+export function briefSupplementLines(brief, dashboardUrl = PRODUCTION_ORIGIN) {
+>>>>>>> sattva/main
   const lines = [];
   if (brief.announcements.routineHidden) lines.push('', routineNote(brief.announcements.routineHidden));
   if (brief.calendar) {
@@ -1896,7 +2226,11 @@ export function briefSupplementLines(brief) {
     let lastDay = null;
     for (const r of c.rows) {
       if (r.date !== lastDay) { lastDay = r.date; lines.push(`  ${calendarDayLabel(r.date, brief.day)}`); }
+<<<<<<< HEAD
       lines.push(`    ${r.company} (${r.ticker}) · ${r.label}${r.time ? ` · ${r.time} IST` : ''} · ${r.sources.join(' · ')}${r.url ? ` · ${r.url}` : ''}`);
+=======
+      lines.push(`    ${r.company} (${r.ticker}) · ${r.label}${r.time ? ` · ${r.time} IST` : ''} · ${r.sources.join(' · ')}${r.url ? ` · ${readableUrl(r.url, dashboardUrl)}` : ''}`);
+>>>>>>> sattva/main
     }
     if (c.more > 0) lines.push(`  ${c.more} more on the dashboard's Earnings Calendar.`);
   }
@@ -1904,7 +2238,11 @@ export function briefSupplementLines(brief) {
     const x = brief.actions;
     lines.push('', `CORPORATE ACTIONS · ${rangeLine(x.from, x.to)}`);
     if (!x.rows.length) lines.push(x.source.ok ? '  No ex-date, record date or book closure on a portfolio company in the next seven days.' : '  The corporate-actions capture could not be read — the week ahead is not known, not empty.');
+<<<<<<< HEAD
     for (const r of x.rows) lines.push(`  ${r.dates.map((d) => `${d.label} ${istLabel(istInstant(d.date), { time: false })}`).join(' · ')} · ${r.company} (${r.ticker}) · ${r.purpose} · ${r.source}${r.url ? ` · ${r.url}` : ''}`);
+=======
+    for (const r of x.rows) lines.push(`  ${r.dates.map((d) => `${d.label} ${istLabel(istInstant(d.date), { time: false })}`).join(' · ')} · ${r.company} (${r.ticker}) · ${r.purpose} · ${r.source}${r.url ? ` · ${readableUrl(r.url, dashboardUrl)}` : ''}`);
+>>>>>>> sattva/main
     if (x.more > 0) lines.push(`  ${x.more} more on the dashboard's Corporate Actions view.`);
     if (x.source.debtSkipped) lines.push(`  ${x.source.debtSkipped} interest or redemption date(s) on an issuer's debt instruments not listed.`);
   }
@@ -1915,9 +2253,14 @@ export function briefSupplementLines(brief) {
     else {
       const s = p.summary;
       lines.push(`  ${p.quoted} of ${p.listed} listed holdings quoted · ${s.up} up · ${s.down} down · ${s.flat} flat · median ${signed(s.median, 2, '%')}`);
+<<<<<<< HEAD
       if (p.book?.ok && s.change != null) lines.push(`  Day change on statement quantities (derived): ${fmtInrCompact(s.change)} (${signed(s.changePct, 2, '%')}) across ${p.book.priced} holdings priced. Statements dated ${p.book.statementFrom || 'unknown'} to ${p.book.statementTo || 'unknown'}; quantities times session close changes, not a statement figure. ${p.book.unpriced || 0} quoted holdings have no statement quantity.`);
       lines.push('  Holding / Close INR / Day % / Day change (derived, where available)');
       for (const r of p.rows) lines.push(`    ${r.company.padEnd(40)} ${(r.last == null ? '—' : fmtNumber(r.last, 2)).padStart(11)} ${signed(r.pct, 2, '%').padStart(8)}${r.change != null ? `   ${fmtInrCompact(r.change)}` : ''}`);
+=======
+      lines.push('  Holding / Close INR / Day %');
+      for (const r of p.rows) lines.push(`    ${r.company.padEnd(40)} ${(r.last == null ? '—' : fmtNumber(r.last, 2)).padStart(11)} ${signed(r.pct, 2, '%').padStart(8)}`);
+>>>>>>> sattva/main
       if (p.unquoted) lines.push(`  ${p.unquoted} listed holdings had no quote for this session and are not listed.`);
     }
   }
