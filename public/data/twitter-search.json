@@ -485,7 +485,7 @@
       "pending": []
     },
     "isin:INE935Q01015|Future Supply Chain Solutions": {
-      "lastAttemptAt": "2026-09-26T04:28:21+00:00",
+      "lastAttemptAt": "2026-09-30T11:46:04+00:00",
       "error": "search-unavailable",
       "lastResultCount": 0,
       "lastSuccessAt": "2026-09-16T18:13:23+00:00",
@@ -1877,6 +1877,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 217,
-    "checkedAt": "2026-09-30T11:12:18.857671+00:00"
+    "checkedAt": "2026-09-30T11:46:04.971179+00:00"
   }
 }
