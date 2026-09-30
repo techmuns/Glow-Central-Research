@@ -141,7 +141,9 @@ run prioritises new arrivals, then rotates through unfinished intervals. It over
 hours and reconciles the past seven days daily for late additions. Initial coverage starts
 seven days back or two days before BSE's older successful date watermark, whichever is
 earlier. A 600-page / twelve-minute budget leaves explicit unfinished windows for later
-runs; it never marks those windows complete. A source Retry-After is respected.
+runs; it never marks those windows complete. Pagination is paced at no more than one page every 2.5 seconds. Source refusals end the
+run with their HTTP status recorded. A source Retry-After is respected; a rate limit without
+one waits at least thirty minutes before the saved cursor is eligible again.
 
 `public/data/screener-announcements.json` holds source check/error state, verified windows,
 pending cursors and a seven-day recent head. Monthly `announcements-archive/` files retain

@@ -207,7 +207,8 @@ export async function collectScreenerAnnouncements({ previous = null, readPage, 
     try {
       parsed = parseScreenerAnnouncements(await readPage(selected.cursor), { cursor: selected.cursor, now: sourceNow() });
     } catch (error) {
-      state.error = { at: iso(now()), reason: error.captureReason || 'source-or-shape', message: 'Screener announcements could not be fully checked. Saved rows and pagination are retained.' };
+      state.error = { at: iso(now()), reason: error.captureReason || 'source-or-shape',
+        ...(Number.isInteger(error.httpStatus) ? { httpStatus: error.httpStatus } : {}), message: 'Screener announcements could not be fully checked. Saved rows and pagination are retained.' };
       if (Number.isFinite(error.retryAfterMs) && error.retryAfterMs > 0) state.nextRetryAt = iso(now() + error.retryAfterMs);
       break;
     }

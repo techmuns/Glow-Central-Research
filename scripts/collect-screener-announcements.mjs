@@ -33,12 +33,16 @@ delete process.env.GH_TOKEN;
 delete process.env.GITHUB_TOKEN;
 delete process.env.DEBUG;
 delete process.env.PWDEBUG;
-let browser, page, loginPromise, stagingMarkup, sourceTime = Date.now();
+let browser, page, loginPromise, sourceTime = Date.now(), lastPageStarted = 0;
 
 const refusal = (reason, response) => {
-  const error = Object.assign(Error('Announcement source unavailable'), { captureReason: reason });
+  const status = response?.status?.();
+  const error = Object.assign(Error('Announcement source unavailable'), {
+    captureReason: status === 429 ? 'rate-limited' : reason, ...(status ? { httpStatus: status } : {}),
+  });
   const retry = response?.headers?.()['retry-after'];
   if (retry) error.retryAfterMs = /^\d+$/.test(retry) ? Number(retry) * 1000 : Math.max(0, Date.parse(retry) - Date.now());
+  if (status === 429 && !(error.retryAfterMs > 0)) error.retryAfterMs = 30 * 60000;
   return error;
 };
 
@@ -67,6 +71,10 @@ async function readPage(cursor) {
   loginPromise ||= login();
   await loginPromise;
   const url = new URL(cursor, SCREENER_ANNOUNCEMENTS_URL).href;
+  // Pace authenticated pagination; a refusal ends this run and retains the exact cursor.
+  const waitMs = Math.max(0, lastPageStarted + 2500 - Date.now());
+  if (waitMs) await new Promise(done => setTimeout(done, waitMs));
+  lastPageStarted = Date.now();
   const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
   if (!response?.ok()) throw refusal([401, 403, 429].includes(response?.status()) ? 'refused' : 'upstream', response);
   const arrived = new URL(page.url());
@@ -77,10 +85,7 @@ async function readPage(cursor) {
   if (!Number.isFinite(sourceTime) || Math.abs(Date.now() - sourceTime) > 10 * 60000) throw refusal('source-clock-unverified');
   const body = await response.body();
   if (body.length > 2 * 1024 * 1024) throw refusal('oversized');
-  await new Promise(done => setTimeout(done, 350));
-  const html = body.toString('utf8');
-  if (dataDir !== sourceData) stagingMarkup = html;
-  return html;
+  return body.toString('utf8');
 }
 
 let rows = previous?.rows || [], buffered = [], pagesSinceWrite = 0;
@@ -104,19 +109,6 @@ const checkpoint = async (state, incoming, { force = false } = {}) => {
 try {
   const state = await collectScreenerAnnouncements({ previous, readPage, checkpoint, now, initialFrom, sourceNow: () => sourceTime,
     maxPages: Number(process.env.ANN_MAX_PAGES || 600), budgetMs: Number(process.env.ANN_BUDGET_MS || 12 * 60000) });
-  console.log(JSON.stringify({ pages: state.pagesThisRun, rows: rows.length, pending: state.pending.length, error: state.error?.reason || null }));
-  if (state.error) {
-    // Only public filing metadata is diagnostic; never print authenticated markup or forms.
-    if (stagingMarkup) console.log(JSON.stringify({ sourceShape: {
-      dateLabels: [...stagingMarkup.matchAll(/<div\b[^>]*>([^<>]{1,80})<\/div\s*>/gi)].map(m => m[1].trim()),
-      cards: stagingMarkup.split(/<div\b[^>]*class=["'][^"']*\bannouncement-item\b[^"']*["'][^>]*>/i).slice(1).map(chunk =>
-        [...chunk.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)].slice(0, 2).map(m => {
-          const href = /\bhref=["']([^"']*)["']/.exec(m[1])?.[1];
-          let path = 'missing';
-          try { const u = new URL(href, SCREENER_ANNOUNCEMENTS_URL); path = `${u.protocol}//${u.hostname}${u.pathname}`; } catch {}
-          return { path, label: m[2].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200) };
-        }))
-    } }));
-    process.exitCode = 1;
-  }
+  console.log(JSON.stringify({ pages: state.pagesThisRun, rows: rows.length, pending: state.pending.length, error: state.error?.reason || null, httpStatus: state.error?.httpStatus || null, nextRetryAt: state.nextRetryAt || null }));
+  if (state.error) process.exitCode = 1;
 } finally { await browser?.close(); }
