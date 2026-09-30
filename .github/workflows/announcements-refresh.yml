@@ -33,7 +33,7 @@ jobs:
   scrape:
     # Set only after the target passes check-bse-access.mjs; see docs/BSE-COLLECTION.md.
     runs-on: ${{ vars.BSE_COLLECTION_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 20
+    timeout-minutes: 40
     permissions:
       contents: write
     steps:
@@ -53,6 +53,22 @@ jobs:
           ANN_KEEP_DAYS: ${{ github.event.inputs.keepDays || '3' }}
         run: node scripts/scrape-bse-announcements.mjs
 
+      - name: Install independent recovery browser
+        if: ${{ !cancelled() }}
+        run: |
+          npm install --prefix "$RUNNER_TEMP/announcements-browser" --no-save --package-lock=false playwright@1.62.1
+          node "$RUNNER_TEMP/announcements-browser/node_modules/playwright/cli.js" install --with-deps chromium
+
+      - name: Recover announcements from the publisher index
+        if: ${{ !cancelled() }}
+        env:
+          SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
+          SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/announcements-browser/node_modules/playwright
+          DEBUG: ""
+          PWDEBUG: ""
+        run: node scripts/collect-screener-announcements.mjs public/data
+
       - name: Upload announcements (artifact)
         if: always()
         uses: actions/upload-artifact@v5
@@ -61,18 +77,19 @@ jobs:
           path: |
             public/data/corp-announcements.json
             public/data/announcement-identities.json
+            public/data/screener-announcements.json
             public/data/announcements-archive/
           if-no-files-found: warn
 
-      # `if: success()` matters here. The scraper exits non-zero when it collected nothing across
-      # every category — which means the REQUEST was wrong, not that the exchange was quiet — and
-      # committing then would replace a good file with an empty one that still looks valid.
+      # Both collectors preserve last-good rows and publish failure/checkpoint metadata.
+      # A primary-source outage must not discard the independent recovery's progress.
       - name: Commit announcements to main
-        if: success() && github.ref == 'refs/heads/main'
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add public/data/corp-announcements.json public/data/announcement-identities.json public/data/announcements-archive/
+          if test -f public/data/screener-announcements.json; then git add public/data/screener-announcements.json; fi
           if git diff --cached --quiet; then
             echo "No announcement changes to commit."
             exit 0
@@ -97,7 +114,7 @@ jobs:
         if: always()
         env:
           FILINGS_HEALTH_REPORT: ${{ runner.temp }}/filings-health.json
-        run: node scripts/check-filings-health.mjs announcements
+        run: node scripts/check-filings-health.mjs announcements announcementRecovery
 
       - name: Upload capture health report
         if: always()

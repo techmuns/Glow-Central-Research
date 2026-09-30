@@ -5,6 +5,10 @@ name: Screener access check
 on:
   workflow_dispatch:
     inputs:
+      announcements_probe:
+        description: 'Read-only announcement recovery check in runner temporary storage'
+        type: boolean
+        default: false
       sync_watchlist:
         description: 'Apply the Glow portfolio to its configured Screener watchlist'
         type: boolean
@@ -48,6 +52,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/screener-browser" --no-save --package-lock=false playwright@1.62.1
           node "$RUNNER_TEMP/screener-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Verify login and read one company page
+        if: ${{ !inputs.announcements_probe }}
         env:
           SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
           SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
@@ -57,6 +62,7 @@ jobs:
           PWDEBUG: ""
         run: node scripts/check-screener-access.mjs
       - name: Check or sync the configured Glow portfolio mirror
+        if: ${{ !inputs.announcements_probe }}
         env:
           SCREENER_WATCHLIST_ID: ${{ vars.SCREENER_WATCHLIST_ID }}
           SCREENER_WATCHLIST_NAME: ${{ vars.SCREENER_WATCHLIST_NAME }}
@@ -67,3 +73,17 @@ jobs:
           DEBUG: ""
           PWDEBUG: ""
         run: node scripts/sync-screener-watchlist.mjs
+      - name: Check announcement recovery without publishing or changing watchlists
+        if: inputs.announcements_probe
+        env:
+          SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
+          SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/screener-browser/node_modules/playwright
+          ANN_CHECK_FROM: '2026-09-29T10:40:00.000Z'
+          ANN_CHECK_TO: '2026-09-29T11:10:00.000Z'
+          ANN_MAX_PAGES: '12'
+          DEBUG: ""
+          PWDEBUG: ""
+        run: |
+          node scripts/collect-screener-announcements.mjs "$RUNNER_TEMP/announcements-probe"
+          node scripts/check-announcement-recovery-probe.mjs "$RUNNER_TEMP/announcements-probe"

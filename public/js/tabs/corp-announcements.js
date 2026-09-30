@@ -35,6 +35,7 @@ import { ANNOUNCEMENTS_VIEW, CORPORATE_ACTIONS_VIEW, VIEWS, viewSwitchHtml } fro
 import { announcementSources, announcementSourceUrls } from '../data/announcements-shared.js';
 import { captureCoverageHtml } from '../ui/capture-coverage.js';
 import { announcementSearch } from '../ui/announcement-search.js';
+import { announcementCoverage } from '../data/announcement-coverage.js';
 import * as coverage from '../data/coverage.js';
 import * as watchlist from '../core/watchlist.js';
 import { scopeLabel } from '../data/scope.js';
@@ -364,7 +365,10 @@ const announcements = makeFilingsTab({
   // instance's, so the period it holds is the one the face's counts are for.
   toolbarExtra: (ctx, m, rows, view) => typesControlHtml(rows, view?.filters?.[0] || 'all'),
   wireAboveTable: (root) => wireTypesControl(root),
-  status: () => '<span data-filings-info class="text-xs font-semibold text-slate-500">Updates automatically</span>',
+  status: m => {
+    const status = announcementCoverage(m);
+    return `<span data-filings-info class="text-xs font-semibold ${status.incomplete ? 'text-amber-700' : 'text-slate-500'}" title="${escapeHtml(status.detail)}">${escapeHtml(status.label)}</span>`;
+  },
   emptyMessage: 'No captured announcements match this scope, period or search.',
   stickyHead: 'max(320px, calc(100vh - 260px))',
   noun: 'announcements',
@@ -445,7 +449,16 @@ const announcements = makeFilingsTab({
     <div class="space-y-3 text-sm leading-relaxed text-slate-600">
       <p>${escapeHtml(SUBTITLE)}</p>
       <p><strong>BSE:</strong> exchange-wide announcements are captured every two hours, with retained monthly history.
-        Latest capture: ${escapeHtml(m.capturedAt || 'unavailable')}.</p>
+        Latest capture: ${escapeHtml(m.capturedAt || 'unavailable')}.
+        ${escapeHtml(m.sourceCheck?.error?.message || m.sourceCheck?.identityError?.message || '')}</p>
+      <p><strong>Backup announcements:</strong> Screener’s All announcements index is checked every two hours,
+        across companies. Original exchange documents join this table; generated summaries are not imported.
+        Last page checked: ${escapeHtml(m.recovery?.lastPageAt || 'unavailable')}.
+        ${escapeHtml(m.recovery?.error || '')}
+        ${m.recovery?.pendingCount ? `${escapeHtml(m.recovery.pendingCount)} date interval(s) still being recovered.` : ''}
+        Saved coverage starts ${escapeHtml(m.recovery?.captureStart || 'when the first capture completes')}.
+        Interrupted reads resume from their saved page. Daily checks revisit the past seven days for late additions;
+        older notices omitted by the publisher may remain unavailable. This backup does not certify complete exchange coverage.</p>
       <p><strong>NSE:</strong> the live exchange feed and up to 90 days of retained captures join this table.
         Latest source capture: ${escapeHtml(m.nse?.capturedAt || 'unavailable')}.
         ${escapeHtml(m.nse?.error || m.nse?.degraded || '')}</p>

@@ -3,6 +3,7 @@
 export const FILINGS_HEALTH_FILES = {
   company: 'filing-capture/index.json',
   announcements: 'corp-announcements.json',
+  announcementRecovery: 'screener-announcements.json',
   insider: 'insider-trades.json',
   news: 'company-news/index.json',
   twitter: 'twitter-posts.json',
@@ -39,6 +40,27 @@ export function assessFilingsHealth(captures, { now = Date.now(), sources = Obje
         if (!Number.isFinite(time)) add(source, 'optional-source-never-captured', 'warning');
         else if (time > now + 600000 || now - time > FILINGS_HEALTH_LIMITS.twitterHours * 3600000) add(source, 'optional-source-stale', 'warning');
         if (body.failed?.length) add(source, 'optional-source-partial', 'warning', [], body.failed.length);
+      }
+    } else if (source === 'announcementRecovery') {
+      if (body.version !== 1 || !Array.isArray(body.rows) || !count(body.rowCount) || body.rowCount !== body.rows.length ||
+          !Array.isArray(body.pending) || !Array.isArray(body.ranges)) {
+        add(source, 'invalid-capture', 'critical'); continue;
+      }
+      age(source, body.lastAttemptAt, FILINGS_HEALTH_LIMITS.runHours, 'capture-overdue');
+      age(source, body.lastPageAt, FILINGS_HEALTH_LIMITS.runHours, 'source-check-overdue');
+      if (body.error) add(source, 'source-read-failed', 'critical');
+      const validRange = r => object(r) && Number.isFinite(stamp(r.from)) && Number.isFinite(stamp(r.to)) &&
+        stamp(r.from) < stamp(r.to) && stamp(r.to) <= now + 600000;
+      if (!Number.isFinite(stamp(body.captureStart)) || stamp(body.captureStart) > now ||
+          !Number.isFinite(stamp(body.enqueuedThrough)) || stamp(body.enqueuedThrough) > now + 600000 ||
+          [...body.ranges, ...body.pending].some(r => !validRange(r))) add(source, 'invalid-capture', 'critical');
+      if (body.pending.length) add(source, 'recovery-incomplete', 'critical', [], body.pending.length);
+      else {
+        age(source, body.lastSuccessAt, FILINGS_HEALTH_LIMITS.runHours, 'recovery-overdue');
+        // Completed disjoint subsets or a recent page alone cannot certify continuous history.
+        if (!body.ranges.some(r => validRange(r) && stamp(r.from) <= stamp(body.captureStart) && stamp(r.to) >= stamp(body.enqueuedThrough)))
+          add(source, 'historical-gap', 'critical');
+        if (stamp(body.lastAttemptAt) > stamp(body.lastSuccessAt)) add(source, 'unfinished-check', 'critical');
       }
     } else if (source === 'news') {
       // Inspect every active legal-name/alias query, including tickerless holdings. A newly
@@ -212,6 +234,7 @@ export function assessFilingsHealth(captures, { now = Date.now(), sources = Obje
       const failures = object(body.failed) ? Object.keys(body.failed) : Array.isArray(body.failed) ? body.failed.map((f) => typeof f === 'string' ? f : f?.ticker || 'unknown') : [];
       if (failures.length || body.failedCount > 0) add(source, 'source-read-failed', 'critical', failures, Math.max(failures.length, body.failedCount || 0));
       if (source === 'announcements') {
+        if (body.identityError) add(source, 'identity-directory-unavailable', 'warning');
         if (Array.isArray(body.shortfall) && body.shortfall.length) add(source, 'pagination-shortfall', 'critical', body.shortfall.map((s) => s?.category || 'unknown'));
         else if (body.shortfall != null && !Array.isArray(body.shortfall)) add(source, 'invalid-capture', 'critical');
         if (Object.keys(body.unknownCategories || {}).length) add(source, 'unknown-source-categories', 'critical', Object.keys(body.unknownCategories));

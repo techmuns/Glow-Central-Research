@@ -21,8 +21,10 @@ const hits = new Map();
 const enrollments = [];
 const searches = [];
 let failSearch = false;
+let failRecovery = false;
 let legacy = false;
 const bodies = {
+  '/data/screener-announcements.json': { version: 1, rows: [], rowCount: 0, pending: [], lastAttemptAt: at, lastPageAt: at, lastSuccessAt: at, updatedAt: at, captureStart: at },
   '/data/filing-capture/nse-identities.json': { version: 1, directories: { sme: { entries: [] }, equity: { entries: [] } } },
   '/data/announcement-identities.json': { version: 1, capturedAt: at, entries: [
     { isin: 'INE564S01019', bseCode: '539659', bseSymbol: 'KAMATS', ticker: 'KAMATS', name: 'Vikram Kamats Hospitality Ltd' },
@@ -82,6 +84,7 @@ const server = createServer((req, res) => {
     res.setHeader('content-type', 'application/json');
     res.statusCode = fail ? 503 : 200; res.end(JSON.stringify(fail ? {} : { ok: true, capturedAt: at, rows: nseRows })); return;
   }
+  if (path === '/data/screener-announcements.json' && failRecovery) { res.writeHead(503); res.end('{}'); return; }
   if (bodies[path]) { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(bodies[path])); return; }
   if (path.startsWith('/api/')) { res.setHeader('content-type', 'application/json'); res.end('{}'); return; }
   try {
@@ -90,8 +93,9 @@ const server = createServer((req, res) => {
     let body = readFileSync(file);
     if (path === '/sw.js') {
       body = body.toString().replace(/const MUNSHOT_SDK = .*;/, "const MUNSHOT_SDK = new URL('/sdk-fixture.js', self.location).href;");
-      if (legacy) body = body.replace('-announcement-company-search-v1', '');
+      if (legacy) body = body.replace('-announcement-company-search-v1', '').replace('-announcement-recovery-v1', '');
     }
+    if (path === '/js/data/announcements-extra.js' && legacy) body = body.toString().replaceAll(', loadRecovery()', '');
     if (path === '/js/tabs/filings-tab.js' && legacy) body = body.toString().replace('      searchControl,', '');
     res.end(body);
   } catch { res.writeHead(404); res.end(); }
@@ -138,6 +142,15 @@ try {
   assert(await search.evaluate(el => el === window.activeSearch), 'status-only updates preserve the mounted search field');
   assert.equal(hits.get('/data/filing-capture/announcements/TCS.json'), 1);
   assert.equal(hits.get('/data/announcements-archive/2025-01.json'), 1);
+  bodies['/data/corp-announcements.json'].lastError = { message: 'Latest BSE request failed.' };
+  bodies['/data/corp-announcements.json'].lastAttemptAt = '2026-09-04T13:01:00Z';
+  bodies['/data/corp-announcements.json'].coversUniverse = false;
+  await page.evaluate(() => window.stream.refresh());
+  assert.equal(await page.evaluate(() => window.stream.meta().sourceCheck.error.message), 'Latest BSE request failed.', 'a newer failed attempt is adopted even when the last successful capture time did not move');
+  assert.match(await page.locator('[data-filings-info]').innerText(), /Some announcements may be missing/);
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'outage notices preserve matching retained history');
+  bodies['/data/corp-announcements.json'].lastError = null;
+  bodies['/data/corp-announcements.json'].coversUniverse = true;
   console.log('PASS history is searchable, polling skips unchanged archives, and search focus survives updates');
   await search.fill('');
   await page.locator('[data-table-scroll]').evaluate(el => { el.scrollTop = 600; });
@@ -327,11 +340,17 @@ try {
   await search.fill(''); await period.selectOption('today');
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'date filter remains effective after selecting a company');
   await period.selectOption('all');
-  bodies['/data/corp-announcements.json'].byTicker['541096'].push(bharatFiling('new arrival', '2026-09-05'));
-  bodies['/data/corp-announcements.json'].capturedAt = '2026-09-05T08:01:00Z';
+  const recovered = { ...bharatFiling('recovered arrival', '2026-09-05'), providers: ['Screener announcements'] };
+  Object.assign(bodies['/data/screener-announcements.json'], { rows: [recovered], rowCount: 1, pending: [{ from: at, to: '2026-09-05T08:01:00Z' }], lastPageAt: '2026-09-05T08:01:00Z' });
   await page.evaluate(() => window.stream.refresh());
   await page.waitForFunction(() => document.querySelector('[data-row-count]')?.textContent.startsWith('3 announcements'));
   assert.match(await page.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals/);
+  assert(await page.evaluate(() => window.stream.rows().some(r => r.ticker === 'BPLPHARMA' && r.providers.includes('Screener announcements'))), 'recovery joins exact issuer search while BSE capture time stays unchanged');
+  failRecovery = true;
+  await page.evaluate(() => window.stream.refresh());
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 3, 'a failed backup refresh preserves the recovered filing');
+  assert(await page.evaluate(() => !!window.stream.meta().recovery.error));
+  failRecovery = false;
   await page.evaluate(() => window.renderScope('watchlist'));
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 0);
   assert.match(await page.locator('[data-announcement-search-hint]').innerText(), /outside Watchlist/);
@@ -381,6 +400,7 @@ try {
   await returning.evaluate(async () => { await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready; });
   await returning.waitForFunction(() => !!navigator.serviceWorker.controller);
   await returning.reload(); await returning.locator('[data-table-search]').waitFor();
+  assert.equal(await returning.evaluate(() => window.stream.rows().some(r => r.title.includes('recovered arrival'))), false);
   assert.equal(await returning.locator('[data-announcement-search]').count(), 0, 'the previous immutable module still serves plain text search');
   await returning.evaluate(async () => {
     const { watchWorkerChanges } = await import('/js/core/app-updates.js');
@@ -393,7 +413,8 @@ try {
   await returning.locator('[data-table-search]').fill('Bharat');
   await returning.getByRole('option', { name: /Bharat Parenterals/ }).click();
   assert.match(await returning.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals/);
-  assert((await returning.evaluate(() => caches.keys())).every(key => key.includes('announcement-company-search-v1')));
+  assert((await returning.evaluate(() => caches.keys())).every(key => key.includes('announcement-company-search-v1') && key.includes('announcement-recovery-v1')));
+  assert(await returning.evaluate(() => window.stream.rows().some(r => r.title.includes('recovered arrival'))), 'the returning session adopts the new recovery reader');
   assert.deepEqual(errors, []);
   await returning.close();
   console.log('PASS returning session upgrades its cached filing modules and can select a company without clearing browser storage');

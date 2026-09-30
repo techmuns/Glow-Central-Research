@@ -16,6 +16,7 @@ const healthy = {
     sources: { announcements: { A: { lastSuccessAt: recent, recentCheckedAt: recent, ranges: [{ from, to }],
       bse: { bseCode: '500001', lastAttemptAt: recent, lastSuccessAt: recent, recentCheckedAt: recent,
         declared: 0, collected: 0, pages: 1, requests: 1, ranges: [{ from, to }] } } }, domestic: { A: { lastSuccessAt: recent } } } },
+  announcementRecovery: { version: 1, rows: [], rowCount: 0, pending: [], error: null, captureStart: '2026-01-01T00:00:00.000Z', enqueuedThrough: recent, lastAttemptAt: recent, lastPageAt: recent, lastSuccessAt: recent, ranges: [{ from: '2026-01-01T00:00:00.000Z', to: recent }] },
   announcements: { byTicker: {}, rowCount: 0, capturedAt: recent, coversUniverse: true,
     categoryInventoryVerified: true, shortfall: [], failed: [] },
   news: { version: 1, updatedAt: recent, entities: [{ entityId: 'isin:PRIVATE', key: 'ISIN:PRIVATE', queries: ['Private Alpha Ltd', 'AlphaBrand'] }],
@@ -105,8 +106,8 @@ assert(assess(badTime).findings.some((f) => f.code === 'invalid-check-time'));
 const missing = structuredClone(healthy);
 delete missing.company.sources.domestic;
 assert.equal(assess(missing).ok, false);
-assert.equal(assess({}).critical, 4, 'missing files fail closed for each source independently');
-assert.equal(assess(null).critical, 4);
+assert.equal(assess({}).critical, 5, 'missing files fail closed for each source independently');
+assert.equal(assess(null).critical, 5);
 for (const [source, key, value] of [
   ['announcements', 'failed', [null]], ['announcements', 'rowCount', undefined],
   ['insider', 'asked', undefined], ['insider', 'asked', 0], ['insider', 'covered', 2],
@@ -224,9 +225,9 @@ try {
   assert.equal((await get('POST')).status, 405);
   assert.equal(assetReads.length, 0);
   assert.equal((await get()).status, 200);
-  assert.equal(assetReads.length, 5);
+  assert.equal(assetReads.length, 6);
   await get();
-  assert.equal(assetReads.length, 5, 'short health cache avoids repeatedly downloading large captures');
+  assert.equal(assetReads.length, 6, 'short health cache avoids repeatedly downloading large captures');
   cache.clear(); data = auth;
   const response = await get();
   assert.equal(response.status, 503);
