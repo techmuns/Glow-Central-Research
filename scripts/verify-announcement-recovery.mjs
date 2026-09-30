@@ -24,6 +24,18 @@ assert.equal(screenerCursor(parsed.next).offset, 1);
 assert.deepEqual(parsed.rows[0].providers, ['Screener announcements']);
 assert.deepEqual(parseScreenerAnnouncements(actual.replace(/datetime="([^"]+)"/g, 'datetime=$1'), { now: originalNow }), parsed,
   'raw unquoted datetime attributes have the same meaning as browser-serialized HTML');
+const withoutTimes = actual.replace(/<span class="ink-600 smaller">[\s\S]*?<\/span>/g, '');
+const olderPage = withoutTimes.replace('<main>', '<main><div>Yesterday</div>');
+const yesterday = parseScreenerAnnouncements(olderPage, { now: originalNow + 86400000, cursor: screenerCursorAt(new Date(originalNow).toISOString()) });
+assert.equal(yesterday.rows.length, 25);
+assert(yesterday.rows.every(r => r.date === '2026-09-30' && !r.time && !r.publishedAt), 'historical date groups retain the source day without inventing a publication time');
+for (const label of ['30 Sep', '30 September 2026', 'September 30, 2026', 'Wed, 30 Sep 2026']) {
+  assert.equal(parseScreenerAnnouncements(olderPage.replace('Yesterday', label), { now: originalNow + 86400000,
+    cursor: screenerCursorAt(new Date(originalNow).toISOString()) }).rows[0].date, '2026-09-30');
+}
+assert.throws(() => parseScreenerAnnouncements(withoutTimes, { now: originalNow }), /record-shape/, 'a missing date cannot become a guessed publication date');
+assert.throws(() => parseScreenerAnnouncements(withoutTimes.replace('Shareholder Meeting', '<div>Yesterday</div>Shareholder Meeting'), { now: originalNow + 86400000 }),
+  /record-shape/, 'a date word inside a source summary cannot change date context');
 for (const bad of [actual.replace('</main>', ''), actual.replaceAll('announcement-item', 'unknown-item'),
   actual.replace('data-swap=', 'broken-swap='), actual.replace('same_ts_offset_count=1', 'same_ts_offset_count=0').replaceAll('21-24-25-000000', '21-24-26-000000'),
   actual.replace('https://www.bseindia.com/stockinfo/', 'https://untrusted.test/stockinfo/')])
@@ -71,6 +83,11 @@ const checkpoint = async (state, incoming) => {
   durable = structuredClone(state);
 };
 const run = options => collectScreenerAnnouncements({ now: () => clock, previous: durable, initialFrom: iso(originalNow - 2 * hour), readPage: indexPage, checkpoint, ...options });
+let datedOnlyState;
+await collectScreenerAnnouncements({ now: () => originalNow, sourceNow: () => originalNow + 86400000,
+  initialFrom: '2026-09-30T16:00:00.000Z', readPage: async () => olderPage, maxPages: 1,
+  checkpoint: async (state, incoming) => { datedOnlyState = structuredClone(state); if (incoming.length) assert(incoming.every(r => !r.time)); } });
+assert.equal(datedOnlyState.pending.length, 0, 'the publisher cursor completes historical pagination even when individual rows omit their times');
 await run({ maxPages: 2 });
 assert.equal(durable.pending.length, 1);
 assert.equal(saved.size, 6);

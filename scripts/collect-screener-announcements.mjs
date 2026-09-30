@@ -33,7 +33,7 @@ delete process.env.GH_TOKEN;
 delete process.env.GITHUB_TOKEN;
 delete process.env.DEBUG;
 delete process.env.PWDEBUG;
-let browser, page, loginPromise, stagingMarkup;
+let browser, page, loginPromise, stagingMarkup, sourceTime = Date.now();
 
 const refusal = (reason, response) => {
   const error = Object.assign(Error('Announcement source unavailable'), { captureReason: reason });
@@ -73,6 +73,8 @@ async function readPage(cursor) {
   if (arrived.origin !== 'https://www.screener.in' || arrived.pathname !== '/announcements/all/' || arrived.search !== new URL(url).search
     || !await page.locator('a[href^="/logout/"], form[action^="/logout/"]').count()) throw refusal('session-unverified');
   // Read the navigation's original bytes; browser DOM repair cannot certify a truncated response.
+  sourceTime = Date.parse(response.headers().date || '');
+  if (!Number.isFinite(sourceTime) || Math.abs(Date.now() - sourceTime) > 10 * 60000) throw refusal('source-clock-unverified');
   const body = await response.body();
   if (body.length > 2 * 1024 * 1024) throw refusal('oversized');
   await new Promise(done => setTimeout(done, 350));
@@ -100,7 +102,7 @@ const checkpoint = async (state, incoming, { force = false } = {}) => {
 };
 
 try {
-  const state = await collectScreenerAnnouncements({ previous, readPage, checkpoint, now, initialFrom,
+  const state = await collectScreenerAnnouncements({ previous, readPage, checkpoint, now, initialFrom, sourceNow: () => sourceTime,
     maxPages: Number(process.env.ANN_MAX_PAGES || 600), budgetMs: Number(process.env.ANN_BUDGET_MS || 12 * 60000) });
   console.log(JSON.stringify({ pages: state.pagesThisRun, rows: rows.length, pending: state.pending.length, error: state.error?.reason || null }));
   if (state.error) {

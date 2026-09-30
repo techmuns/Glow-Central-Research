@@ -43,13 +43,67 @@ export function screenerCursor(value) {
   return { query: url.search, stamp, time: Date.parse(instant), offset: Number(offset) };
 }
 
+const indiaDay = time => iso(time + IST).slice(0, 10);
+function announcementBlocks(html) {
+  const blocks = [];
+  let depth = 0, active = null;
+  for (const match of html.matchAll(/<\/?div\b[^>]*>/gi)) {
+    if (/^<\//.test(match[0])) {
+      depth--;
+      if (active && depth === active.depth) {
+        blocks.push({ ...active, end: match.index + match[0].length, html: html.slice(active.content, match.index) });
+        active = null;
+      }
+    } else {
+      if (/\bannouncement-item\b/.test(attr(match[0], 'class'))) {
+        if (active) throw invalidSource('nested-record');
+        active = { start: match.index, content: match.index + match[0].length, depth };
+      }
+      depth++;
+    }
+  }
+  if (active) throw invalidSource('record-incomplete');
+  return blocks;
+}
+function groupDate(label, { now, prior, next }) {
+  if (/^today$/i.test(label)) return indiaDay(now);
+  if (/^yesterday$/i.test(label)) return indiaDay(now - DAY);
+  const clean = label.replace(/^(?:Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?),?\s+/i, '');
+  const dayFirst = /^(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]+)\.?(?:,?\s+(\d{4}))?$/i.exec(clean);
+  const monthFirst = /^([a-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?$/i.exec(clean);
+  const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+  const word = (dayFirst?.[2] || monthFirst?.[1] || '').toLowerCase().replace(/^sept$/, 'september');
+  const month = months.findIndex(m => m === word || m.slice(0, 3) === word);
+  if (month < 0) return /^\d{4}-\d{2}-\d{2}$/.test(clean) && indiaDay(Date.parse(`${clean}T00:00:00+05:30`)) === clean ? clean : null;
+  const day = Number(dayFirst?.[1] || monthFirst?.[2]), explicitYear = Number(dayFirst?.[3] || monthFirst?.[3]);
+  const upper = indiaDay(prior?.time ?? now), lower = indiaDay(next.time);
+  const anchorYear = Number(upper.slice(0, 4));
+  const candidates = (explicitYear ? [explicitYear] : [anchorYear - 1, anchorYear, anchorYear + 1]).map(year =>
+    `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  ).filter(date => {
+    const stamp = Date.parse(`${date}T00:00:00+05:30`);
+    return Number.isFinite(stamp) && indiaDay(stamp) === date && (explicitYear || date >= lower && date <= upper);
+  });
+  if (candidates.length !== 1) throw invalidSource('date-group-ambiguous');
+  return candidates[0];
+}
+
 export function parseScreenerAnnouncements(html, { cursor = null, now = Date.now() } = {}) {
   if (typeof html !== 'string' || !/<\/main\s*>/i.test(html) || !/Latest Announcements/i.test(html)
     || /<form[^>]+action=["']\/login\//i.test(html)) throw invalidSource('index-incomplete');
-  const chunks = html.split(/<div\b[^>]*class=["'][^"']*\bannouncement-item\b[^"']*["'][^>]*>/i).slice(1);
-  if (!chunks.length) throw invalidSource('index-empty-unverified');
-  const rows = chunks.map(chunk => {
-    const links = [...chunk.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)].slice(0, 2);
+  const button = /<button\b([^>]*\bdata-swap=["']#show-more-[^"']*["'][^>]*)>/i.exec(html);
+  if (!button) throw invalidSource('pagination-unavailable');
+  const next = screenerCursor(/Utils\.ajaxLoad\(event,\s*'([^']+)'\)/.exec(attr(button[1], 'onclick'))?.[1] || '');
+  const prior = cursor ? screenerCursor(cursor) : null;
+  const blocks = announcementBlocks(html);
+  if (!blocks.length) throw invalidSource('index-empty-unverified');
+  // Older records use a shared date heading (e.g. Yesterday), with no per-record time.
+  // Only headings OUTSIDE a record can supply its date; summaries cannot change date context.
+  const groups = [...html.matchAll(/<div\b[^>]*>([^<>]{1,80})<\/div\s*>/gi)]
+    .filter(m => !blocks.some(block => m.index >= block.start && m.index < block.end))
+    .map(m => ({ index: m.index, date: groupDate(text(m[1]), { now, prior, next }) })).filter(g => g.date);
+  const rows = blocks.map(block => {
+    const links = [...block.html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)].slice(0, 2);
     const companyUrl = new URL(attr(links[0]?.[1], 'href'), SCREENER_ANNOUNCEMENTS_URL);
     const companyMatch = /^\/company\/([A-Z0-9&._-]{1,80})\/(?:consolidated\/)?$/i.exec(decodeURIComponent(companyUrl.pathname));
     if (companyUrl.origin !== 'https://www.screener.in' || !companyMatch) throw invalidSource('company-shape');
@@ -57,31 +111,29 @@ export function parseScreenerAnnouncements(html, { cursor = null, now = Date.now
     const url = new URL(attr(links[1]?.[1], 'href'));
     const source = ['www.bseindia.com', 'bseindia.com'].includes(url.hostname) ? 'BSE'
       : ['nsearchives.nseindia.com', 'archives.nseindia.com'].includes(url.hostname) ? 'NSE' : null;
-    const publishedAt = attr(/<time\b([^>]*)>/i.exec(links[1]?.[2] || '')?.[1], 'datetime');
-    const stamp = Date.parse(publishedAt);
+    const timeTag = /<time\b([^>]*)>/i.exec(links[1]?.[2] || '');
+    const publishedAt = attr(timeTag?.[1], 'datetime'), stamp = Date.parse(publishedAt);
+    if (timeTag && (!/T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+05:30$/.test(publishedAt) || !Number.isFinite(stamp) || stamp > now + 5 * 60000)) throw invalidSource('record-time');
+    const group = groups.filter(g => g.index < block.start).at(-1)?.date;
+    const date = timeTag ? indiaDay(stamp) : group;
     // The title precedes the PDF icon/time/optional AI blurb. Never import a generated blurb.
     const title = text((links[1]?.[2] || '').split(/<(?:i|time|span|div)\b/i)[0]);
-    if (!company || !title || !source || url.protocol !== 'https:' || url.username || url.password
-      || !/\.(?:pdf|xml)(?:$|[?&#])/i.test(url.href) || !/T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+05:30$/.test(publishedAt)
-      || !Number.isFinite(stamp) || stamp > now + 5 * 60000) throw invalidSource('record-shape');
-    const local = iso(stamp + IST);
+    if (!company || !title || !source || !date || date > indiaDay(now) || url.protocol !== 'https:' || url.username || url.password
+      || !/\.(?:pdf|xml)(?:$|[?&#])/i.test(url.href)) throw invalidSource('record-shape');
+    if (timeTag && group && date !== group) throw invalidSource('date-group-mismatch');
     return { ticker: /^\d{6}$/.test(companyKey) ? `BSE:${companyKey}` : companyKey,
       ...(/^\d{6}$/.test(companyKey) ? { scripCode: companyKey } : {}),
-      company, companyUrl: companyUrl.href, title, url: url.href, date: local.slice(0, 10), time: local.slice(11, 19),
-      publishedAt: iso(stamp), source, sources: [source], providers: ['Screener announcements'] };
+      company, companyUrl: companyUrl.href, title, url: url.href, date,
+      ...(timeTag ? { time: iso(stamp + IST).slice(11, 19), publishedAt: iso(stamp) } : {}),
+      source, sources: [source], providers: ['Screener announcements'] };
   });
-  for (let i = 1; i < rows.length; i++) if (rows[i].publishedAt > rows[i - 1].publishedAt) throw invalidSource('record-order');
+  for (let i = 1; i < rows.length; i++) if (rows[i].date > rows[i - 1].date ||
+    rows[i].publishedAt && rows[i - 1].publishedAt && rows[i].publishedAt > rows[i - 1].publishedAt) throw invalidSource('record-order');
   if (new Set(rows.map(r => `${r.ticker}|${r.url}`)).size !== rows.length) throw invalidSource('repeated-record');
-  const button = /<button\b([^>]*\bdata-swap=["']#show-more-[^"']*["'][^>]*)>/i.exec(html);
-  if (!button) throw invalidSource('pagination-unavailable');
-  const action = attr(button[1], 'onclick');
-  const next = screenerCursor(/Utils\.ajaxLoad\(event,\s*'([^']+)'\)/.exec(action)?.[1] || '');
-  if (next.time !== Date.parse(rows.at(-1).publishedAt)) throw invalidSource('cursor-record-mismatch');
-  if (cursor) {
-    const prior = screenerCursor(cursor);
-    if (Date.parse(rows[0].publishedAt) > prior.time || next.stamp > prior.stamp
-      || next.stamp === prior.stamp && next.offset <= prior.offset) throw invalidSource('pagination-stalled');
-  }
+  const last = rows.at(-1);
+  if (last.date !== indiaDay(next.time) || last.publishedAt && next.time !== Date.parse(last.publishedAt)) throw invalidSource('cursor-record-mismatch');
+  if (prior && (rows[0].date > indiaDay(prior.time) || Date.parse(rows[0].publishedAt || '') > prior.time || next.stamp > prior.stamp
+    || next.stamp === prior.stamp && next.offset <= prior.offset)) throw invalidSource('pagination-stalled');
   return { rows, next: next.query };
 }
 
@@ -99,8 +151,8 @@ function mergeIntervals(ranges, incoming) {
 // Fresh windows are queued independently of unfinished history. A page checkpoint is committed only
 // AFTER its records; a killed process replays pages instead of moving past unsaved disclosures.
 export async function collectScreenerAnnouncements({ previous = null, readPage, checkpoint,
-  initialFrom = null, now = Date.now, maxPages = 600, budgetMs = 12 * 60000 } = {}) {
-  const started = now(), at = iso(started);
+  initialFrom = null, now = Date.now, sourceNow = now, maxPages = 600, budgetMs = 12 * 60000 } = {}) {
+  const started = now(), at = iso(started), wallStarted = performance.now();
   if (!Number.isSafeInteger(maxPages) || maxPages < 1 || budgetMs < 1) throw Error('Invalid announcement capture budget');
   if (previous && (previous.version !== 1 || !Array.isArray(previous.pending) || !Array.isArray(previous.ranges)
     || !validInstant(previous.enqueuedThrough))) throw Error('Invalid announcement checkpoint; retain it for recovery');
@@ -143,22 +195,23 @@ export async function collectScreenerAnnouncements({ previous = null, readPage, 
   // Give arrivals ten pages, then give every unfinished window a fair turn. Queue length and
   // missing intervals remain visible when source volume exceeds the configured run budget.
   let selected = job, burst = 0;
-  while (state.pending.length && pages < maxPages && now() - started < budgetMs) {
+  while (state.pending.length && pages < maxPages && now() - started < budgetMs && performance.now() - wallStarted < budgetMs) {
     let parsed;
     try {
-      parsed = parseScreenerAnnouncements(await readPage(selected.cursor), { cursor: selected.cursor, now: now() });
+      parsed = parseScreenerAnnouncements(await readPage(selected.cursor), { cursor: selected.cursor, now: sourceNow() });
     } catch (error) {
       state.error = { at: iso(now()), reason: error.captureReason || 'source-or-shape', message: 'Screener announcements could not be fully checked. Saved rows and pagination are retained.' };
       if (Number.isFinite(error.retryAfterMs) && error.retryAfterMs > 0) state.nextRetryAt = iso(now() + error.retryAfterMs);
       break;
     }
-    const incoming = parsed.rows.filter(row => row.publishedAt >= selected.from && row.publishedAt <= selected.to);
+    const incoming = parsed.rows.filter(row => row.publishedAt ? row.publishedAt >= selected.from && row.publishedAt <= selected.to
+      : row.date >= indiaDay(Date.parse(selected.from)) && row.date <= indiaDay(Date.parse(selected.to)));
     selected.cursor = parsed.next;
     selected.pages++;
     pages++;
     state.lastPageAt = iso(now());
     state.totalPages = (state.totalPages || 0) + 1;
-    if (parsed.rows.at(-1).publishedAt < selected.from) {
+    if (screenerCursor(parsed.next).time < Date.parse(selected.from)) {
       state.ranges = mergeIntervals(state.ranges, selected);
       state.pending = state.pending.filter(p => p !== selected);
       state.lastCompletedAt = iso(now());

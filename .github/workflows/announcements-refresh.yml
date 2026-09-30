@@ -48,12 +48,14 @@ jobs:
       # No secret of any kind. BSE's announcement feed is open, which is half the reason this
       # replaced an upstream whose session JWT expired on days nobody had changed anything.
       - name: Fetch corporate announcements
+        timeout-minutes: 12
         env:
           ANN_DAYS: ${{ github.event.inputs.days || '1' }}
           ANN_KEEP_DAYS: ${{ github.event.inputs.keepDays || '3' }}
         run: node scripts/scrape-bse-announcements.mjs
 
       - name: Install independent recovery browser
+        timeout-minutes: 5
         if: ${{ !cancelled() }}
         run: |
           npm install --prefix "$RUNNER_TEMP/announcements-browser" --no-save --package-lock=false playwright@1.62.1
@@ -64,6 +66,7 @@ jobs:
           fi
 
       - name: Recover announcements from the publisher index
+        timeout-minutes: 15
         if: ${{ !cancelled() }}
         env:
           SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
