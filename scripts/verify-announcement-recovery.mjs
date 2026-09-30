@@ -22,6 +22,11 @@ assert.equal(parsed.rows[0].publishedAt, '2026-09-30T16:09:25.000Z');
 assert.equal(parsed.rows[0].title, 'Shareholder Meeting / Postal Ballot-Outcome of AGM');
 assert.equal(screenerCursor(parsed.next).offset, 1);
 assert.deepEqual(parsed.rows[0].providers, ['Screener announcements']);
+const noDocument = parseScreenerAnnouncements(actual.replace(parsed.rows[0].url, '/company/id/56/'), { now: originalNow }).rows[0];
+assert.equal(noDocument.url, null);
+assert.equal(noDocument.referenceUrl, 'https://www.screener.in/company/id/56/');
+assert.equal(noDocument.documentUnavailable, true);
+assert.equal(noDocument.source, 'Screener', 'an issuer page is neither an original PDF nor proof of its exchange');
 assert.deepEqual(parseScreenerAnnouncements(actual.replace(/datetime="([^"]+)"/g, 'datetime=$1'), { now: originalNow }), parsed,
   'raw unquoted datetime attributes have the same meaning as browser-serialized HTML');
 const withoutTimes = actual.replace(/<span class="ink-600 smaller">[\s\S]*?<\/span>/g, '');

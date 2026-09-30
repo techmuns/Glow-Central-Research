@@ -108,9 +108,12 @@ export function parseScreenerAnnouncements(html, { cursor = null, now = Date.now
     const companyMatch = /^\/company\/([A-Z0-9&._-]{1,80})\/(?:consolidated\/)?$/i.exec(decodeURIComponent(companyUrl.pathname));
     if (companyUrl.origin !== 'https://www.screener.in' || !companyMatch) throw invalidSource('company-shape');
     const companyKey = companyMatch[1].toUpperCase(), company = text(links[0][2]);
-    const url = new URL(attr(links[1]?.[1], 'href'));
+    const url = new URL(attr(links[1]?.[1], 'href'), SCREENER_ANNOUNCEMENTS_URL);
+    // Some notices (e.g. an exchange seeking clarification) have no attachment. Screener
+    // points to its issuer page instead. Retain the notice, but never call that page a PDF.
+    const referenceOnly = url.origin === 'https://www.screener.in' && /^\/company\/id\/\d+\/$/.test(url.pathname) && !url.search && !url.hash;
     const source = ['www.bseindia.com', 'bseindia.com'].includes(url.hostname) ? 'BSE'
-      : ['nsearchives.nseindia.com', 'archives.nseindia.com'].includes(url.hostname) ? 'NSE' : null;
+      : ['nsearchives.nseindia.com', 'archives.nseindia.com'].includes(url.hostname) ? 'NSE' : referenceOnly ? 'Screener' : null;
     const timeTag = /<time\b([^>]*)>/i.exec(links[1]?.[2] || '');
     const publishedAt = attr(timeTag?.[1], 'datetime'), stamp = Date.parse(publishedAt);
     if (timeTag && (!/T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+05:30$/.test(publishedAt) || !Number.isFinite(stamp) || stamp > now + 5 * 60000)) throw invalidSource('record-time');
@@ -119,17 +122,19 @@ export function parseScreenerAnnouncements(html, { cursor = null, now = Date.now
     // The title precedes the PDF icon/time/optional AI blurb. Never import a generated blurb.
     const title = text((links[1]?.[2] || '').split(/<(?:i|time|span|div)\b/i)[0]);
     if (!company || !title || !source || !date || date > indiaDay(now) || url.protocol !== 'https:' || url.username || url.password
-      || !/\.(?:pdf|xml)(?:$|[?&#])/i.test(url.href)) throw invalidSource('record-shape');
+      || !referenceOnly && !/\.(?:pdf|xml)(?:$|[?&#])/i.test(url.href)) throw invalidSource('record-shape');
     if (timeTag && group && date !== group) throw invalidSource('date-group-mismatch');
     return { ticker: /^\d{6}$/.test(companyKey) ? `BSE:${companyKey}` : companyKey,
       ...(/^\d{6}$/.test(companyKey) ? { scripCode: companyKey } : {}),
-      company, companyUrl: companyUrl.href, title, url: url.href, date,
+      company, companyUrl: companyUrl.href, title, url: referenceOnly ? null : url.href, date,
+      ...(referenceOnly ? { referenceUrl: url.href, documentUnavailable: true } : {}),
       ...(timeTag ? { time: iso(stamp + IST).slice(11, 19), publishedAt: iso(stamp) } : {}),
       source, sources: [source], providers: ['Screener announcements'] };
   });
   for (let i = 1; i < rows.length; i++) if (rows[i].date > rows[i - 1].date ||
     rows[i].publishedAt && rows[i - 1].publishedAt && rows[i].publishedAt > rows[i - 1].publishedAt) throw invalidSource('record-order');
-  if (new Set(rows.map(r => `${r.ticker}|${r.url}`)).size !== rows.length) throw invalidSource('repeated-record');
+  const linked = rows.filter(r => r.url);
+  if (new Set(linked.map(r => `${r.ticker}|${r.url}`)).size !== linked.length) throw invalidSource('repeated-record');
   const last = rows.at(-1);
   if (last.date !== indiaDay(next.time) || last.publishedAt && next.time !== Date.parse(last.publishedAt)) throw invalidSource('cursor-record-mismatch');
   if (prior && (rows[0].date > indiaDay(prior.time) || Date.parse(rows[0].publishedAt || '') > prior.time || next.stamp > prior.stamp

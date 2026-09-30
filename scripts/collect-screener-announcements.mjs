@@ -97,7 +97,7 @@ const checkpoint = async (state, incoming, { force = false } = {}) => {
   rows = rows.filter(row => !row.date || row.date >= cutoff);
   writeJson(path, { ...state, source: 'Screener all-announcements index', scope: 'publisher-index',
     coverageNote: 'Publisher-discovered exchange notices. Successful indexed windows do not certify complete BSE/NSE coverage.',
-    pendingCount: state.pending.length, rowCount: rows.length, rows });
+    pendingCount: state.pending.length, unavailableDocuments: rows.filter(r => r.documentUnavailable).length, rowCount: rows.length, rows });
   pagesSinceWrite = 0;
 };
 

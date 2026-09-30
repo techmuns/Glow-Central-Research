@@ -22,6 +22,7 @@ export function withAnnouncementLookups(base) {
         if (revision !== recoveryRevision) { recovery = mergeAnnouncements(recovery, value.rows); recoveryRevision = revision; }
         recoveryMeta = { available: value.bootstrap !== true, lastAttemptAt: value.lastAttemptAt, lastPageAt: value.lastPageAt,
           lastSuccessAt: value.lastSuccessAt, captureStart: value.captureStart, pendingCount: value.pending.length,
+          unavailableDocuments: value.rows.filter(r => r.documentUnavailable).length,
           error: stale ? 'Using saved recovery records; publication could not be checked.' : value.error?.message || null };
       } catch (error) { recoveryMeta = { ...recoveryMeta, available: !!recovery.length, error: error.message }; }
       finally { recoveryPromise = null; }

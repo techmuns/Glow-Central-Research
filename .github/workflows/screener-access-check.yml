@@ -9,6 +9,10 @@ on:
         description: 'Read-only announcement recovery check in runner temporary storage'
         type: boolean
         default: false
+      announcements_probe_full:
+        description: 'Check the full recent recovery window in temporary storage'
+        type: boolean
+        default: false
       sync_watchlist:
         description: 'Apply the Glow portfolio to its configured Screener watchlist'
         type: boolean
@@ -28,7 +32,7 @@ concurrency:
 jobs:
   access:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
         with:
@@ -83,9 +87,9 @@ jobs:
           SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
           SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/screener-browser/node_modules/playwright
-          ANN_CHECK_FROM: '2026-09-29T10:40:00.000Z'
-          ANN_CHECK_TO: '2026-09-29T11:10:00.000Z'
-          ANN_MAX_PAGES: '12'
+          ANN_CHECK_FROM: ${{ !inputs.announcements_probe_full && '2026-09-29T10:40:00.000Z' || '' }}
+          ANN_CHECK_TO: ${{ !inputs.announcements_probe_full && '2026-09-29T11:10:00.000Z' || '' }}
+          ANN_MAX_PAGES: ${{ inputs.announcements_probe_full && '600' || '12' }}
           DEBUG: ""
           PWDEBUG: ""
         run: |

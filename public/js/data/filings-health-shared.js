@@ -47,6 +47,8 @@ export function assessFilingsHealth(captures, { now = Date.now(), sources = Obje
         add(source, 'invalid-capture', 'critical'); continue;
       }
       if (body.bootstrap === true) { add(source, 'capture-not-started', 'critical'); continue; }
+      const unavailable = body.rows.filter(row => row?.documentUnavailable).length;
+      if (unavailable) add(source, 'source-documents-unavailable', 'warning', [], unavailable);
       age(source, body.lastAttemptAt, FILINGS_HEALTH_LIMITS.runHours, 'capture-overdue');
       age(source, body.lastPageAt, FILINGS_HEALTH_LIMITS.runHours, 'source-check-overdue');
       if (body.error) add(source, 'source-read-failed', 'critical');

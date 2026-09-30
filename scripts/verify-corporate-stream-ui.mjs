@@ -93,7 +93,7 @@ const server = createServer((req, res) => {
     let body = readFileSync(file);
     if (path === '/sw.js') {
       body = body.toString().replace(/const MUNSHOT_SDK = .*;/, "const MUNSHOT_SDK = new URL('/sdk-fixture.js', self.location).href;");
-      if (legacy) body = body.replace('-announcement-company-search-v1', '').replace('-announcement-recovery-v1', '');
+      if (legacy) body = body.replace('-announcement-company-search-v1', '').replace('-announcement-recovery-v2', '');
     }
     if (path === '/js/data/announcements-extra.js' && legacy) body = body.toString().replaceAll(', loadRecovery()', '');
     if (path === '/js/tabs/filings-tab.js' && legacy) body = body.toString().replace('      searchControl,', '');
@@ -413,7 +413,7 @@ try {
   await returning.locator('[data-table-search]').fill('Bharat');
   await returning.getByRole('option', { name: /Bharat Parenterals/ }).click();
   assert.match(await returning.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals/);
-  assert((await returning.evaluate(() => caches.keys())).every(key => key.includes('announcement-company-search-v1') && key.includes('announcement-recovery-v1')));
+  assert((await returning.evaluate(() => caches.keys())).every(key => key.includes('announcement-company-search-v1') && key.includes('announcement-recovery-v2')));
   assert(await returning.evaluate(() => window.stream.rows().some(r => r.title.includes('recovered arrival'))), 'the returning session adopts the new recovery reader');
   assert.deepEqual(errors, []);
   await returning.close();
