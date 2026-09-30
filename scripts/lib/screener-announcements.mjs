@@ -9,6 +9,7 @@ const decode = value => String(value || '').replace(/&#(x[\da-f]+|\d+);/gi, (_, 
 const text = value => decode(String(value || '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 const attr = (html, name) => decode(new RegExp(`\\b${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, 'i').exec(html)?.[2] || '');
 const iso = value => new Date(value).toISOString();
+const invalidSource = code => Object.assign(Error(`Announcement index rejected: ${code}`), { captureReason: code });
 const validInstant = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
 
 export function screenerRecoveryCheckpoint(value) {
@@ -29,25 +30,25 @@ export function screenerCursor(value) {
   const url = new URL(decode(value), SCREENER_ANNOUNCEMENTS_URL);
   if (url.origin !== 'https://www.screener.in' || url.pathname !== '/announcements/all/' || url.hash || url.username || url.password
     || [...url.searchParams.keys()].some(k => !['ts', 'same_ts_offset_count'].includes(k))
-    || url.searchParams.getAll('ts').length !== 1 || url.searchParams.getAll('same_ts_offset_count').length !== 1) throw Error('Invalid announcement cursor');
+    || url.searchParams.getAll('ts').length !== 1 || url.searchParams.getAll('same_ts_offset_count').length !== 1) throw invalidSource('cursor-shape');
   const stamp = url.searchParams.get('ts'), offset = url.searchParams.get('same_ts_offset_count');
   const m = /^(\d{4}-\d{2}-\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{6})$/.exec(stamp || '');
   const instant = m && `${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5].slice(0, 3)}+05:30`;
   if (!instant || !validInstant(instant) || iso(Date.parse(instant) + IST).slice(0, 19) !== `${m[1]}T${m[2]}:${m[3]}:${m[4]}`
-    || !/^\d{1,7}$/.test(offset || '')) throw Error('Invalid announcement cursor');
+    || !/^\d{1,7}$/.test(offset || '')) throw invalidSource('cursor-shape');
   return { query: url.search, stamp, time: Date.parse(instant), offset: Number(offset) };
 }
 
 export function parseScreenerAnnouncements(html, { cursor = null, now = Date.now() } = {}) {
   if (typeof html !== 'string' || !/<\/main\s*>/i.test(html) || !/Latest Announcements/i.test(html)
-    || /<form[^>]+action=["']\/login\//i.test(html)) throw Error('Announcement index unavailable or incomplete');
+    || /<form[^>]+action=["']\/login\//i.test(html)) throw invalidSource('index-incomplete');
   const chunks = html.split(/<div\b[^>]*class=["'][^"']*\bannouncement-item\b[^"']*["'][^>]*>/i).slice(1);
-  if (!chunks.length) throw Error('Announcement index has no verified records; coverage has not advanced');
+  if (!chunks.length) throw invalidSource('index-empty-unverified');
   const rows = chunks.map(chunk => {
     const links = [...chunk.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)].slice(0, 2);
     const companyUrl = new URL(attr(links[0]?.[1], 'href'), SCREENER_ANNOUNCEMENTS_URL);
     const companyMatch = /^\/company\/([A-Z0-9&._-]{1,80})\/(?:consolidated\/)?$/i.exec(decodeURIComponent(companyUrl.pathname));
-    if (companyUrl.origin !== 'https://www.screener.in' || !companyMatch) throw Error('Unrecognized announcement company');
+    if (companyUrl.origin !== 'https://www.screener.in' || !companyMatch) throw invalidSource('company-shape');
     const companyKey = companyMatch[1].toUpperCase(), company = text(links[0][2]);
     const url = new URL(attr(links[1]?.[1], 'href'));
     const source = ['www.bseindia.com', 'bseindia.com'].includes(url.hostname) ? 'BSE'
@@ -58,24 +59,24 @@ export function parseScreenerAnnouncements(html, { cursor = null, now = Date.now
     const title = text((links[1]?.[2] || '').split(/<(?:i|time|span|div)\b/i)[0]);
     if (!company || !title || !source || url.protocol !== 'https:' || url.username || url.password
       || !/\.(?:pdf|xml)(?:$|[?&#])/i.test(url.href) || !/T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+05:30$/.test(publishedAt)
-      || !Number.isFinite(stamp) || stamp > now + 5 * 60000) throw Error('Unrecognized announcement record');
+      || !Number.isFinite(stamp) || stamp > now + 5 * 60000) throw invalidSource('record-shape');
     const local = iso(stamp + IST);
     return { ticker: /^\d{6}$/.test(companyKey) ? `BSE:${companyKey}` : companyKey,
       ...(/^\d{6}$/.test(companyKey) ? { scripCode: companyKey } : {}),
       company, companyUrl: companyUrl.href, title, url: url.href, date: local.slice(0, 10), time: local.slice(11, 19),
       publishedAt: iso(stamp), source, sources: [source], providers: ['Screener announcements'] };
   });
-  for (let i = 1; i < rows.length; i++) if (rows[i].publishedAt > rows[i - 1].publishedAt) throw Error('Announcement order changed');
-  if (new Set(rows.map(r => `${r.ticker}|${r.url}`)).size !== rows.length) throw Error('Announcement page repeated a record');
+  for (let i = 1; i < rows.length; i++) if (rows[i].publishedAt > rows[i - 1].publishedAt) throw invalidSource('record-order');
+  if (new Set(rows.map(r => `${r.ticker}|${r.url}`)).size !== rows.length) throw invalidSource('repeated-record');
   const button = /<button\b([^>]*\bdata-swap=["']#show-more-[^"']*["'][^>]*)>/i.exec(html);
-  if (!button) throw Error('Announcement pagination unavailable; coverage has not advanced');
+  if (!button) throw invalidSource('pagination-unavailable');
   const action = attr(button[1], 'onclick');
   const next = screenerCursor(/Utils\.ajaxLoad\(event,\s*'([^']+)'\)/.exec(action)?.[1] || '');
-  if (next.time !== Date.parse(rows.at(-1).publishedAt)) throw Error('Announcement cursor does not match the last row');
+  if (next.time !== Date.parse(rows.at(-1).publishedAt)) throw invalidSource('cursor-record-mismatch');
   if (cursor) {
     const prior = screenerCursor(cursor);
     if (Date.parse(rows[0].publishedAt) > prior.time || next.stamp > prior.stamp
-      || next.stamp === prior.stamp && next.offset <= prior.offset) throw Error('Announcement pagination did not advance');
+      || next.stamp === prior.stamp && next.offset <= prior.offset) throw invalidSource('pagination-stalled');
   }
   return { rows, next: next.query };
 }

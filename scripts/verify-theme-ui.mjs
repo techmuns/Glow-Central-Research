@@ -32,7 +32,7 @@ async function context(options = {}) {
   });
   ctx.on('page', page => {
     page.on('pageerror', error => errors.push(error.message));
-    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+    page.on('console', message => { if (message.type() === 'error') errors.push(`${message.text()} (${message.location().url || 'unknown resource'})`); });
   });
   return ctx;
 }

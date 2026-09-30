@@ -33,7 +33,7 @@ delete process.env.GH_TOKEN;
 delete process.env.GITHUB_TOKEN;
 delete process.env.DEBUG;
 delete process.env.PWDEBUG;
-let browser, page, loginPromise;
+let browser, page, loginPromise, stagingMarkup;
 
 const refusal = (reason, response) => {
   const error = Object.assign(Error('Announcement source unavailable'), { captureReason: reason });
@@ -76,7 +76,9 @@ async function readPage(cursor) {
   const body = await response.body();
   if (body.length > 2 * 1024 * 1024) throw refusal('oversized');
   await new Promise(done => setTimeout(done, 350));
-  return body.toString('utf8');
+  const html = body.toString('utf8');
+  if (process.env.ANN_CHECK_TO) stagingMarkup = html;
+  return html;
 }
 
 let rows = previous?.rows || [], buffered = [], pagesSinceWrite = 0;
@@ -101,5 +103,15 @@ try {
   const state = await collectScreenerAnnouncements({ previous, readPage, checkpoint, now, initialFrom,
     maxPages: Number(process.env.ANN_MAX_PAGES || 600), budgetMs: Number(process.env.ANN_BUDGET_MS || 12 * 60000) });
   console.log(JSON.stringify({ pages: state.pagesThisRun, rows: rows.length, pending: state.pending.length, error: state.error?.reason || null }));
-  if (state.error) process.exitCode = 1;
+  if (state.error) {
+    // Staging diagnostics expose only public company paths, document hosts and filing times.
+    // Never log the authenticated page, form values, headers, cookies or raw upstream exceptions.
+    if (stagingMarkup) console.log(JSON.stringify({ sourceShape: {
+      hasMainEnd: /<\/main\s*>/i.test(stagingMarkup), hasTitle: /Latest Announcements/i.test(stagingMarkup),
+      items: (stagingMarkup.match(/\bannouncement-item\b/g) || []).length,
+      companyPaths: [...new Set([...stagingMarkup.matchAll(/href=["']([^"']*\/company\/[^"']+)["']/g)].map(m => { try { return new URL(m[1], SCREENER_ANNOUNCEMENTS_URL).pathname; } catch { return 'invalid'; } }))].slice(0, 30),
+      times: [...stagingMarkup.matchAll(/<time[^>]*datetime=["']([^"']+)["']/g)].map(m => m[1]).slice(0, 30),
+    } }));
+    process.exitCode = 1;
+  }
 } finally { await browser?.close(); }

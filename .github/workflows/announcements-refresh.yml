@@ -57,7 +57,11 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           npm install --prefix "$RUNNER_TEMP/announcements-browser" --no-save --package-lock=false playwright@1.62.1
-          node "$RUNNER_TEMP/announcements-browser/node_modules/playwright/cli.js" install --with-deps chromium
+          if command -v google-chrome >/dev/null; then
+            echo "CHROME_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          else
+            node "$RUNNER_TEMP/announcements-browser/node_modules/playwright/cli.js" install --with-deps chromium
+          fi
 
       - name: Recover announcements from the publisher index
         if: ${{ !cancelled() }}

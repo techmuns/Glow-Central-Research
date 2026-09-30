@@ -50,7 +50,11 @@ jobs:
       - name: Install pinned Playwright runtime
         run: |
           npm install --prefix "$RUNNER_TEMP/screener-browser" --no-save --package-lock=false playwright@1.62.1
-          node "$RUNNER_TEMP/screener-browser/node_modules/playwright/cli.js" install --with-deps chromium
+          if [ "${{ inputs.announcements_probe }}" = "true" ] && command -v google-chrome >/dev/null; then
+            echo "CHROME_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          else
+            node "$RUNNER_TEMP/screener-browser/node_modules/playwright/cli.js" install --with-deps chromium
+          fi
       - name: Verify login and read one company page
         if: ${{ !inputs.announcements_probe }}
         env:
