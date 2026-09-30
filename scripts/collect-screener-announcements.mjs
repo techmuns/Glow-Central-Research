@@ -111,6 +111,17 @@ try {
     const firstRecord = stagingMarkup?.split(/<div\b[^>]*class=["'][^"']*\bannouncement-item\b[^"']*["'][^>]*>/i)[1];
     const documentLabel = firstRecord && [...firstRecord.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)][1]?.[2];
     if (stagingMarkup) console.log(JSON.stringify({ sourceShape: {
+      unusualRecordMarkup: stagingMarkup.split(/<div\b[^>]*class=["'][^"']*\bannouncement-item\b[^"']*["'][^>]*>/i).slice(1).find(chunk => {
+        const anchor = [...chunk.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)][1]?.[1] || '';
+        return /href=["']\/company\//.test(anchor);
+      })?.replace(/<(script|style|form)\b[^>]*>[\s\S]*?<\/\1>/gi, '').replace(/<([^>]+)>/g, (_, raw) => {
+        const tag = /^\/?[\w-]+/.exec(raw)?.[0] || '';
+        const cls = /\bclass=["']([^"']*)["']/.exec(raw)?.[1];
+        const href = /\bhref=["']([^"']*)["']/.exec(raw)?.[1];
+        let target = '';
+        if (href) { try { const u = new URL(href, SCREENER_ANNOUNCEMENTS_URL); target = ` href="${u.hostname}${u.pathname}"`; } catch { target = ' href="invalid"'; } }
+        return `<${tag}${cls ? ` class="${cls}"` : ''}${target}>`;
+      }).replace(/\s+/g, ' ').slice(0, 5000),
       documentPaths: stagingMarkup.split(/<div\b[^>]*class=["'][^"']*\bannouncement-item\b[^"']*["'][^>]*>/i).slice(1).map(chunk => {
         const anchor = [...chunk.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)][1]?.[1] || '';
         const href = /\bhref=["']([^"']*)["']/.exec(anchor)?.[1];
