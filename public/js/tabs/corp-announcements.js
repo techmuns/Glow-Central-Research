@@ -458,7 +458,7 @@ const announcements = makeFilingsTab({
         ${escapeHtml(m.recovery?.error || '')}
         ${m.recovery?.pendingCount ? `${escapeHtml(m.recovery.pendingCount)} date interval(s) still being recovered.` : ''}
         Saved coverage starts ${escapeHtml(m.recovery?.captureStart || 'when the first capture completes')}.
-        ${m.recovery?.unavailableDocuments ? `${escapeHtml(m.recovery.unavailableDocuments)} backup notices have no document link; their issuer reference page is shown instead.` : ''}
+        ${m.recovery?.unavailableDocuments ? `${escapeHtml(m.recovery.unavailableDocuments)} backup notices have no document link; their source reference page is shown instead.` : ''}
         Interrupted reads resume from their saved page. Daily checks revisit the past seven days for late additions;
         older notices omitted by the publisher may remain unavailable. This backup does not certify complete exchange coverage.</p>
       <p><strong>NSE:</strong> the live exchange feed and up to 90 days of retained captures join this table.
@@ -527,7 +527,7 @@ const announcements = makeFilingsTab({
         { header: 'Source', key: 'src', width: 20, get: (r) => r.__banner ? '' : announcementSources(r).join(' / ') },
         { header: 'Retrieved through', key: 'via', width: 35, get: (r) => r.__banner ? '' : (r.providers || []).join(' / ') },
         { header: 'Document URL', key: 'u', width: 60, get: (r) => (r.__banner ? '' : r.url || '') },
-        { header: 'Issuer reference page (no document)', key: 'ref', width: 60, get: (r) => (r.__banner ? '' : r.referenceUrl || '') },
+        { header: 'Source reference page (no document)', key: 'ref', width: 60, get: (r) => (r.__banner ? '' : r.referenceUrl || '') },
         { header: 'All source document URLs', key: 'su', width: 80, get: (r) => r.__banner ? '' :
           announcementSourceUrls(r).map(({ source, url }) => `${source}: ${url}`).join('\n') },
       ],

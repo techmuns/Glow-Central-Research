@@ -110,12 +110,14 @@ export function parseScreenerAnnouncements(html, { cursor = null, now = Date.now
     const companyKey = companyMatch[1].toUpperCase(), company = text(links[0][2]);
     const url = new URL(attr(links[1]?.[1], 'href'), SCREENER_ANNOUNCEMENTS_URL);
     // Some notices (e.g. an exchange seeking clarification) have no attachment. Screener
-    // points to its issuer page instead. Retain the notice, but never call that page a PDF.
-    const referenceOnly = url.origin === 'https://www.screener.in' && /^\/company\/id\/\d+\/$/.test(url.pathname) && !url.search && !url.hash;
+    // points to its issuer page or the exchange's announcement index instead. Retain the notice, but never call that page a PDF.
+    const issuerReference = url.origin === 'https://www.screener.in' && /^\/company\/id\/\d+\/$/.test(url.pathname) && !url.search && !url.hash;
+    const exchangeReference = url.origin === 'https://www.nseindia.com' && url.pathname === '/companies-listing/corporate-filings-announcements';
+    const referenceOnly = issuerReference || exchangeReference;
     // Exchange filings also arrive as ZIP/XBRL and other attachment formats. A filename
     // extension is not a completeness rule; retain the original HTTPS exchange link.
     const source = ['www.bseindia.com', 'bseindia.com'].includes(url.hostname) ? 'BSE'
-      : ['nsearchives.nseindia.com', 'archives.nseindia.com'].includes(url.hostname) ? 'NSE' : referenceOnly ? 'Screener' : null;
+      : ['nsearchives.nseindia.com', 'archives.nseindia.com', 'www.nseindia.com', 'nseindia.com'].includes(url.hostname) ? 'NSE' : referenceOnly ? 'Screener' : null;
     const timeTag = /<time\b([^>]*)>/i.exec(links[1]?.[2] || '');
     const publishedAt = attr(timeTag?.[1], 'datetime'), stamp = Date.parse(publishedAt);
     if (timeTag && (!/T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+05:30$/.test(publishedAt) || !Number.isFinite(stamp) || stamp > now + 5 * 60000)) throw invalidSource('record-time');

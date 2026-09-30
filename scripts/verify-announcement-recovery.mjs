@@ -33,6 +33,12 @@ assert.equal(noDocument.url, null);
 assert.equal(noDocument.referenceUrl, 'https://www.screener.in/company/id/56/');
 assert.equal(noDocument.documentUnavailable, true);
 assert.equal(noDocument.source, 'Screener', 'an issuer page is neither an original PDF nor proof of its exchange');
+const indexReference = parseScreenerAnnouncements(actual.replace(parsed.rows[0].url,
+  'https://www.nseindia.com/companies-listing/corporate-filings-announcements'), { now: originalNow }).rows[0];
+assert.equal(indexReference.url, null);
+assert.equal(indexReference.source, 'NSE');
+assert.equal(indexReference.documentUnavailable, true);
+assert(indexReference.referenceUrl.includes('/companies-listing/'));
 assert.deepEqual(parseScreenerAnnouncements(actual.replace(/datetime="([^"]+)"/g, 'datetime=$1'), { now: originalNow }), parsed,
   'raw unquoted datetime attributes have the same meaning as browser-serialized HTML');
 const withoutTimes = actual.replace(/<span class="ink-600 smaller">[\s\S]*?<\/span>/g, '');
