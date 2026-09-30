@@ -111,6 +111,7 @@ try {
       items: (stagingMarkup.match(/\bannouncement-item\b/g) || []).length,
       companyPaths: [...new Set([...stagingMarkup.matchAll(/href=["']([^"']*\/company\/[^"']+)["']/g)].map(m => { try { return new URL(m[1], SCREENER_ANNOUNCEMENTS_URL).pathname; } catch { return 'invalid'; } }))].slice(0, 30),
       times: [...stagingMarkup.matchAll(/<time[^>]*datetime=["']([^"']+)["']/g)].map(m => m[1]).slice(0, 30),
+      timeTags: (stagingMarkup.match(/<time\b[^>]*>/g) || []).slice(0, 30),
     } }));
     process.exitCode = 1;
   }

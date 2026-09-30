@@ -7,7 +7,11 @@ const decode = value => String(value || '').replace(/&#(x[\da-f]+|\d+);/gi, (_, 
   return n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : '';
 }).replace(/&(amp|quot|apos|lt|gt|nbsp);/gi, (_, k) => ({ amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ' })[k.toLowerCase()]);
 const text = value => decode(String(value || '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
-const attr = (html, name) => decode(new RegExp(`\\b${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, 'i').exec(html)?.[2] || '');
+const attr = (html, name) => {
+  // Raw HTML may leave simple values unquoted; a saved browser DOM adds quotes to them.
+  const match = new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(html || '');
+  return decode(match?.[1] ?? match?.[2] ?? match?.[3] ?? '');
+};
 const iso = value => new Date(value).toISOString();
 const invalidSource = code => Object.assign(Error(`Announcement index rejected: ${code}`), { captureReason: code });
 const validInstant = value => typeof value === 'string' && Number.isFinite(Date.parse(value));

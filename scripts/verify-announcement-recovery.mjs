@@ -22,6 +22,8 @@ assert.equal(parsed.rows[0].publishedAt, '2026-09-30T16:09:25.000Z');
 assert.equal(parsed.rows[0].title, 'Shareholder Meeting / Postal Ballot-Outcome of AGM');
 assert.equal(screenerCursor(parsed.next).offset, 1);
 assert.deepEqual(parsed.rows[0].providers, ['Screener announcements']);
+assert.deepEqual(parseScreenerAnnouncements(actual.replace(/datetime="([^"]+)"/g, 'datetime=$1'), { now: originalNow }), parsed,
+  'raw unquoted datetime attributes have the same meaning as browser-serialized HTML');
 for (const bad of [actual.replace('</main>', ''), actual.replaceAll('announcement-item', 'unknown-item'),
   actual.replace('data-swap=', 'broken-swap='), actual.replace('same_ts_offset_count=1', 'same_ts_offset_count=0').replaceAll('21-24-25-000000', '21-24-26-000000'),
   actual.replace('https://www.bseindia.com/stockinfo/', 'https://untrusted.test/stockinfo/')])
