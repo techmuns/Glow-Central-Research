@@ -79,7 +79,7 @@ async function readPage(cursor) {
   if (body.length > 2 * 1024 * 1024) throw refusal('oversized');
   await new Promise(done => setTimeout(done, 350));
   const html = body.toString('utf8');
-  if (process.env.ANN_CHECK_TO) stagingMarkup = html;
+  if (dataDir !== sourceData) stagingMarkup = html;
   return html;
 }
 
@@ -106,40 +106,16 @@ try {
     maxPages: Number(process.env.ANN_MAX_PAGES || 600), budgetMs: Number(process.env.ANN_BUDGET_MS || 12 * 60000) });
   console.log(JSON.stringify({ pages: state.pagesThisRun, rows: rows.length, pending: state.pending.length, error: state.error?.reason || null }));
   if (state.error) {
-    // Staging diagnostics expose only public company paths, document hosts and filing times.
-    // Never log the authenticated page, form values, headers, cookies or raw upstream exceptions.
-    const firstRecord = stagingMarkup?.split(/<div\b[^>]*class=["'][^"']*\bannouncement-item\b[^"']*["'][^>]*>/i)[1];
-    const documentLabel = firstRecord && [...firstRecord.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)][1]?.[2];
+    // Only public filing metadata is diagnostic; never print authenticated markup or forms.
     if (stagingMarkup) console.log(JSON.stringify({ sourceShape: {
-      unusualRecordMarkup: stagingMarkup.split(/<div\b[^>]*class=["'][^"']*\bannouncement-item\b[^"']*["'][^>]*>/i).slice(1).find(chunk => {
-        const anchor = [...chunk.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)][1]?.[1] || '';
-        return /href=["']\/company\//.test(anchor);
-      })?.replace(/<(script|style|form)\b[^>]*>[\s\S]*?<\/\1>/gi, '').replace(/<([^>]+)>/g, (_, raw) => {
-        const tag = /^\/?[\w-]+/.exec(raw)?.[0] || '';
-        const cls = /\bclass=["']([^"']*)["']/.exec(raw)?.[1];
-        const href = /\bhref=["']([^"']*)["']/.exec(raw)?.[1];
-        let target = '';
-        if (href) { try { const u = new URL(href, SCREENER_ANNOUNCEMENTS_URL); target = ` href="${u.hostname}${u.pathname}"`; } catch { target = ' href="invalid"'; } }
-        return `<${tag}${cls ? ` class="${cls}"` : ''}${target}>`;
-      }).replace(/\s+/g, ' ').slice(0, 5000),
-      documentPaths: stagingMarkup.split(/<div\b[^>]*class=["'][^"']*\bannouncement-item\b[^"']*["'][^>]*>/i).slice(1).map(chunk => {
-        const anchor = [...chunk.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)][1]?.[1] || '';
-        const href = /\bhref=["']([^"']*)["']/.exec(anchor)?.[1];
-        if (!href) return 'missing';
-        try { const u = new URL(href, SCREENER_ANNOUNCEMENTS_URL); return `${u.protocol}//${u.hostname}${u.pathname}`; } catch { return 'invalid'; }
-      }),
-      dateHeadings: [...stagingMarkup.matchAll(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/gi)].map(m => m[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()).filter(v => /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Today|Yesterday)/i.test(v)),
-      dateNodes: [...stagingMarkup.matchAll(/<([a-z][\w-]*)\b[^>]*>([^<>]{1,80})<\/\1>/gi)].map(m => ({ tag: m[1], text: m[2].trim() })).filter(v => /^(?:(?:[A-Z][a-z]+[.,]?\s+)?\d{1,2}\s+[A-Z][a-z]+|[A-Z][a-z]+[.,]?\s+\d{1,2}|Today|Yesterday)/.test(v.text)),
-      recordText: firstRecord?.replace(/<(script|style|form)\b[^>]*>[\s\S]*?<\/\1>/gi, '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1200),
-      recordDates: firstRecord?.match(/\d{4}-\d{2}-\d{2}[^\s"'<>]*/g),
-      recordTags: firstRecord && [...firstRecord.matchAll(/<(\/?[a-z][\w-]*)\b([^>]*)>/gi)].map(m => ({ tag: m[1], attributes: [...m[2].matchAll(/([\w-]+)\s*=/g)].map(a => a[1]) })).slice(0, 30),
-      documentLabel: documentLabel?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 600),
-      dateLabels: documentLabel && [...documentLabel.matchAll(/\b(?:title|datetime|data-date|data-time)=["']([^"']+)["']/g)].map(m => m[1]),
-      hasMainEnd: /<\/main\s*>/i.test(stagingMarkup), hasTitle: /Latest Announcements/i.test(stagingMarkup),
-      items: (stagingMarkup.match(/\bannouncement-item\b/g) || []).length,
-      companyPaths: [...new Set([...stagingMarkup.matchAll(/href=["']([^"']*\/company\/[^"']+)["']/g)].map(m => { try { return new URL(m[1], SCREENER_ANNOUNCEMENTS_URL).pathname; } catch { return 'invalid'; } }))].slice(0, 30),
-      times: [...stagingMarkup.matchAll(/<time[^>]*datetime=["']([^"']+)["']/g)].map(m => m[1]).slice(0, 30),
-      timeTags: (stagingMarkup.match(/<time\b[^>]*>/g) || []).slice(0, 30),
+      dateLabels: [...stagingMarkup.matchAll(/<div\b[^>]*>([^<>]{1,80})<\/div\s*>/gi)].map(m => m[1].trim()),
+      cards: stagingMarkup.split(/<div\b[^>]*class=["'][^"']*\bannouncement-item\b[^"']*["'][^>]*>/i).slice(1).map(chunk =>
+        [...chunk.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)].slice(0, 2).map(m => {
+          const href = /\bhref=["']([^"']*)["']/.exec(m[1])?.[1];
+          let path = 'missing';
+          try { const u = new URL(href, SCREENER_ANNOUNCEMENTS_URL); path = `${u.protocol}//${u.hostname}${u.pathname}`; } catch {}
+          return { path, label: m[2].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200) };
+        }))
     } }));
     process.exitCode = 1;
   }

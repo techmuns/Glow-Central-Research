@@ -383,6 +383,22 @@ try {
   await search.press('Escape'); assert.equal(await menu.count(), 0);
   console.log('PASS company dropdown, Worker lookup, BSE identities, exact company selection, filters/export, refresh retention, scope and offline fallback');
 
+  const referenceOnly = { ...filing('TCS', 'Missing attachment notice', '2026-09-05'), url: null,
+    referenceUrl: 'https://www.screener.in/company/id/123456/', documentUnavailable: true,
+    source: 'Screener', providers: ['Screener announcements'] };
+  bodies['/data/screener-announcements.json'].rows.push(referenceOnly);
+  bodies['/data/screener-announcements.json'].rowCount++;
+  bodies['/data/screener-announcements.json'].lastPageAt = '2026-09-05T08:02:00Z';
+  await page.evaluate(() => window.stream.refresh());
+  await search.fill('Missing attachment');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1);
+  assert.match(await page.locator('tbody tr[data-row-key]').innerText(), /Source supplied no document link/);
+  assert.equal(await page.locator('tbody tr[data-row-key] a[href="https://www.screener.in/company/id/123456/"]').count(), 1);
+  await page.locator('[data-export]').click();
+  await page.waitForFunction(() => exportedRows?.[1]?.ref === 'https://www.screener.in/company/id/123456/');
+  assert.equal(await page.evaluate(() => exportedRows[1].u), '', 'the issuer page is never exported as a document URL');
+  console.log('PASS notices without attachments retain explicit source references and honest export fields');
+
   await page.evaluate(() => window.destroyStream());
   assert.equal(await page.locator('[data-announcement-search-menu]').count(), 0, 'navigation disposes the dropdown');
   const last = hits.get('/api/nse-announcements');
