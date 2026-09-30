@@ -1,11 +1,16 @@
 {
-  "capturedAt": "2026-09-29T07:10:30.047Z",
-  "from": "2026-09-26",
-  "to": "2026-10-20",
+  "capturedAt": "2026-09-30T02:53:15.446Z",
+  "from": "2026-09-27",
+  "to": "2026-10-21",
   "pageSize": 20,
   "source": "Moneycontrol — Earnings Calendar (all-exchange counts plus every earnings-widget pagination page)",
   "note": "The per-date counts and company lists both cover All exchanges. Every published pagination page is captured; counts are re-fetched live by the Worker and these lists are as of capturedAt.",
   "days": [
+    {
+      "date": "2026-10-21",
+      "displayDate": "21 Oct",
+      "count": 1
+    },
     {
       "date": "2026-10-20",
       "displayDate": "20 Oct",
@@ -39,7 +44,7 @@
     {
       "date": "2026-10-14",
       "displayDate": "14 Oct",
-      "count": 3
+      "count": 4
     },
     {
       "date": "2026-10-13",
@@ -64,7 +69,7 @@
     {
       "date": "2026-10-09",
       "displayDate": "09 Oct",
-      "count": 1
+      "count": 2
     },
     {
       "date": "2026-10-08",
@@ -79,12 +84,12 @@
     {
       "date": "2026-10-06",
       "displayDate": "06 Oct",
-      "count": 0
+      "count": 1
     },
     {
       "date": "2026-10-05",
       "displayDate": "05 Oct",
-      "count": 2
+      "count": 3
     },
     {
       "date": "2026-10-04",
@@ -94,7 +99,7 @@
     {
       "date": "2026-10-03",
       "displayDate": "03 Oct",
-      "count": 0
+      "count": 2
     },
     {
       "date": "2026-10-02",
@@ -104,7 +109,7 @@
     {
       "date": "2026-10-01",
       "displayDate": "01 Oct",
-      "count": 1
+      "count": 2
     },
     {
       "date": "2026-09-30",
@@ -125,14 +130,37 @@
       "date": "2026-09-27",
       "displayDate": "27 Sep",
       "count": 0
-    },
-    {
-      "date": "2026-09-26",
-      "displayDate": "26 Sep",
-      "count": 0
     }
   ],
   "byDate": {
+    "2026-10-21": {
+      "rows": [
+        {
+          "scId": "MMF04",
+          "name": "Mahindra and Mahindra Financial Services",
+          "shortName": null,
+          "resultDate": "2026-10-21",
+          "displayDate": "21 Oct",
+          "quarter": "Q2-2026",
+          "time": null,
+          "ltp": 328.05,
+          "changePct": -1.12,
+          "marketCap": 45605.22,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/finance-nbfc/mahindramahindrafinancialservices/MMF04",
+          "ticker": "M&MFIN",
+          "fullName": "MM Financial",
+          "industry": "Finance - NBFC",
+          "shares": 1389971160,
+          "mktCapAtBuild": 56606.58
+        }
+      ],
+      "scheduledCount": 1,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
+      "asOnDate": "30/09/2026"
+    },
     "2026-10-19": {
       "rows": [
         {
@@ -143,9 +171,9 @@
           "displayDate": "19 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 11001,
-          "changePct": -0.22,
-          "marketCap": 324176.56,
+          "ltp": 10829,
+          "changePct": -1.78,
+          "marketCap": 319108.07,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cement-major/ultratechcement/UTC01",
           "ticker": "ULTRACEMCO",
@@ -162,9 +190,9 @@
           "displayDate": "19 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 3155.8,
-          "changePct": -1.74,
-          "marketCap": 33478.7,
+          "ltp": 3081.6,
+          "changePct": -4.05,
+          "marketCap": 32691.54,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/engineering/lttechnologyservices/LTS",
           "ticker": "LTTS",
@@ -178,7 +206,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
     },
     "2026-10-17": {
       "rows": [
@@ -190,9 +218,9 @@
           "displayDate": "17 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 710.8,
-          "changePct": -1.15,
-          "marketCap": 1095953.9,
+          "ltp": 722.7,
+          "changePct": 0.51,
+          "marketCap": 1114302.03,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/banks-private-sector/hdfcbank/HDF01",
           "ticker": "HDFCBANK",
@@ -209,9 +237,9 @@
           "displayDate": "17 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 1297.6,
-          "changePct": -0.34,
-          "marketCap": 931514.11,
+          "ltp": 1292.2,
+          "changePct": -0.75,
+          "marketCap": 927637.58,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/banks-private-sector/icicibank/ICI02",
           "ticker": "ICICIBANK",
@@ -228,9 +256,9 @@
           "displayDate": "17 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 1196.8,
-          "changePct": -1.08,
-          "marketCap": 372632.49,
+          "ltp": 1212.1,
+          "changePct": 0.18,
+          "marketCap": 377396.26,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/banks-private-sector/axisbank/AB16",
           "ticker": "AXISBANK",
@@ -247,9 +275,9 @@
           "displayDate": "17 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 305.85,
-          "changePct": -2.1,
-          "marketCap": 9478.21,
+          "ltp": 303.7,
+          "changePct": -2.78,
+          "marketCap": 9411.58,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cement-major/indiacements/IC",
           "ticker": "INDIACEM",
@@ -263,7 +291,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
     },
     "2026-10-16": {
       "rows": [
@@ -275,9 +303,9 @@
           "displayDate": "16 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 676.55,
-          "changePct": 1.65,
-          "marketCap": 836.4,
+          "ltp": 682.1,
+          "changePct": 2.49,
+          "marketCap": 843.26,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/dyes-pigments/amal/AP05",
           "ticker": "AMAL",
@@ -291,7 +319,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
     },
     "2026-10-15": {
       "rows": [
@@ -303,9 +331,9 @@
           "displayDate": "15 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 1342,
-          "changePct": -0.3,
-          "marketCap": 258779.78,
+          "ltp": 1345.7,
+          "changePct": -0.02,
+          "marketCap": 259493.26,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/food-processing/nestleindia/NI",
           "ticker": "NESTLEIND",
@@ -322,9 +350,9 @@
           "displayDate": "15 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 2279.9,
-          "changePct": -0.97,
-          "marketCap": 97824.44,
+          "ltp": 2223.3,
+          "changePct": -3.43,
+          "marketCap": 95395.89,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/finance-investments/hdfcassetmanagementcompany/HAM02",
           "ticker": "HDFCAMC",
@@ -339,11 +367,11 @@
           "shortName": null,
           "resultDate": "2026-10-15",
           "displayDate": "15 Oct",
-          "quarter": "NA",
+          "quarter": "Q2-2026",
           "time": null,
-          "ltp": 314.75,
-          "changePct": -1.87,
-          "marketCap": 30426.6,
+          "ltp": 318.15,
+          "changePct": -0.81,
+          "marketCap": 30755.27,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/banks-private-sector/karurvysyabank/KVB",
           "ticker": "KARURVYSYA",
@@ -360,9 +388,9 @@
           "displayDate": "15 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 275.65,
-          "changePct": -1.27,
-          "marketCap": 25210.81,
+          "ltp": 273.5,
+          "changePct": -2.04,
+          "marketCap": 25014.17,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/finance-stock-broking/angelone/ABL03",
           "ticker": "ANGELONE",
@@ -376,10 +404,29 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
     },
     "2026-10-14": {
       "rows": [
+        {
+          "scId": "ILG",
+          "name": "ICICI Lombard General Insurance Company",
+          "shortName": null,
+          "resultDate": "2026-10-14",
+          "displayDate": "14 Oct",
+          "quarter": "Q2-2026",
+          "time": null,
+          "ltp": 1515,
+          "changePct": -1.62,
+          "marketCap": 75691.64,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/multiline-insurance-brokers/icicilombardgeneralinsurancecompany/ILG",
+          "ticker": "ICICIGI",
+          "fullName": "ICICI Lombard",
+          "industry": "Multiline Insurance & Brokers",
+          "shares": 499513395,
+          "mktCapAtBuild": 81990.13
+        },
         {
           "scId": "HFSL",
           "name": "HDB Financial Services",
@@ -388,9 +435,9 @@
           "displayDate": "14 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 637,
-          "changePct": -0.06,
-          "marketCap": 52921.6,
+          "ltp": 630.9,
+          "changePct": -1.02,
+          "marketCap": 52414.82,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/finance-nbfc/hdbfinancialservices/HFSL",
           "ticker": "HDBFS",
@@ -407,9 +454,9 @@
           "displayDate": "14 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 697.8,
-          "changePct": -1.31,
-          "marketCap": 28334.3,
+          "ltp": 686.75,
+          "changePct": -2.87,
+          "marketCap": 27885.61,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/diversified/tatatechnologies/TTL01",
           "ticker": "TATATECH",
@@ -426,9 +473,9 @@
           "displayDate": "14 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 3249.9,
-          "changePct": -0.76,
-          "marketCap": 13145.88,
+          "ltp": 3240,
+          "changePct": -1.06,
+          "marketCap": 13105.83,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/tyres/ceat/C07",
           "ticker": "CEATLTD",
@@ -438,11 +485,11 @@
           "mktCapAtBuild": 15289.73
         }
       ],
-      "scheduledCount": 3,
+      "scheduledCount": 4,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
     },
     "2026-10-13": {
       "rows": [
@@ -454,16 +501,16 @@
           "displayDate": "13 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 450.2,
-          "changePct": -1.85,
-          "marketCap": 65332.61,
+          "ltp": 444.55,
+          "changePct": -3.08,
+          "marketCap": 64512.69,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/finance-general/iciciprudentiallifeinsurancecompany/IPL01",
           "ticker": "ICICIPRULI",
           "fullName": "ICICI Prudentia",
           "industry": "Life & Health Insurance",
           "shares": 1451190779,
-          "mktCapAtBuild": 65332.61
+          "mktCapAtBuild": 64512.69
         },
         {
           "scId": "STC",
@@ -473,23 +520,23 @@
           "displayDate": "13 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 107.7,
-          "changePct": 0.74,
-          "marketCap": 646.2,
+          "ltp": 106.98,
+          "changePct": 0.07,
+          "marketCap": 641.88,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/trading/statetradingcorporationindia/STC",
           "ticker": "STCINDIA",
           "fullName": "STC India",
           "industry": "Trading",
           "shares": 60000000,
-          "mktCapAtBuild": 646.2
+          "mktCapAtBuild": 641.88
         }
       ],
       "scheduledCount": 2,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
     },
     "2026-10-12": {
       "rows": [
@@ -501,9 +548,9 @@
           "displayDate": "12 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 1237.3,
-          "changePct": -1.22,
-          "marketCap": 335761.78,
+          "ltp": 1222,
+          "changePct": -2.44,
+          "marketCap": 331609.87,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/computers-software/hcltechnologies/HCL02",
           "ticker": "HCLTECH",
@@ -517,10 +564,29 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
     },
     "2026-10-09": {
       "rows": [
+        {
+          "scId": "CFH",
+          "name": "Can Fin Homes",
+          "shortName": null,
+          "resultDate": "2026-10-09",
+          "displayDate": "9 Oct",
+          "quarter": "Q2-2026",
+          "time": null,
+          "ltp": 731.7,
+          "changePct": -0.8,
+          "marketCap": 9742.92,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/finance-housing/canfinhomes/CFH",
+          "ticker": "CANFINHOME",
+          "fullName": "Can Fin Homes",
+          "industry": "Finance - Housing",
+          "shares": 133154591,
+          "mktCapAtBuild": 10938.65
+        },
         {
           "scId": "CRAMCL",
           "name": "Canara Robeco Asset Management Company",
@@ -529,9 +595,9 @@
           "displayDate": "9 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 223.4,
-          "changePct": -0.89,
-          "marketCap": 4454.99,
+          "ltp": 223.55,
+          "changePct": -0.82,
+          "marketCap": 4457.98,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/finance-investment/canararobecoassetmanagementcompany/CRAMCL",
           "ticker": "CRAMC",
@@ -541,11 +607,11 @@
           "mktCapAtBuild": 5158.93
         }
       ],
-      "scheduledCount": 1,
+      "scheduledCount": 2,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
     },
     "2026-10-08": {
       "rows": [
@@ -557,9 +623,9 @@
           "displayDate": "8 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 2063,
-          "changePct": -0.37,
-          "marketCap": 746411.45,
+          "ltp": 2032.4,
+          "changePct": -1.85,
+          "marketCap": 735340.11,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/computers-software/tataconsultancyservices/TCS",
           "ticker": "TCS",
@@ -576,9 +642,9 @@
           "displayDate": "8 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 963.95,
-          "changePct": -0.27,
-          "marketCap": 2202.33,
+          "ltp": 962.95,
+          "changePct": -0.38,
+          "marketCap": 2200.04,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/breweries-distilleries/gmbreweries/GMB",
           "ticker": "GMBREW",
@@ -592,7 +658,35 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
+    },
+    "2026-10-06": {
+      "rows": [
+        {
+          "scId": "VDL02",
+          "name": "Veegaland Developers",
+          "shortName": null,
+          "resultDate": "2026-10-06",
+          "displayDate": "6 Oct",
+          "quarter": "Q2-2026",
+          "time": null,
+          "ltp": 141.17,
+          "changePct": 0.39,
+          "marketCap": 688.2,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-residential-commercial-complexes/veegalanddevelopers/VDL02",
+          "ticker": "VEEGALAND",
+          "fullName": "Veegaland Devel",
+          "industry": "Construction - Residential & Commercial Complexes",
+          "shares": 48750000,
+          "mktCapAtBuild": 688.2
+        }
+      ],
+      "scheduledCount": 1,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
+      "asOnDate": "30/09/2026"
     },
     "2026-10-05": {
       "rows": [
@@ -604,16 +698,16 @@
           "displayDate": "5 Oct",
           "quarter": "NA",
           "time": null,
-          "ltp": 151.01,
-          "changePct": 1.11,
-          "marketCap": 4374.33,
+          "ltp": 150.82,
+          "changePct": 0.98,
+          "marketCap": 4368.82,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-infrastructure/lccprojects/LPL02",
           "ticker": "LCCPROJECT",
           "fullName": "Lcc Projects",
           "industry": "Construction - Infrastructure",
           "shares": 289671232,
-          "mktCapAtBuild": 4374.33
+          "mktCapAtBuild": 4368.82
         },
         {
           "scId": "SIL33",
@@ -623,23 +717,74 @@
           "displayDate": "5 Oct",
           "quarter": "Q2-2026",
           "time": null,
-          "ltp": 110.33,
-          "changePct": 2.57,
-          "marketCap": 3049.59,
+          "ltp": 110.86,
+          "changePct": 3.06,
+          "marketCap": 3064.24,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/gas-distribution/steamhouseindia/SIL35",
           "ticker": "STEAMHOUSE",
           "fullName": "Steamhouse Indi",
           "industry": "Gas Distribution",
           "shares": 276406311,
-          "mktCapAtBuild": 3049.59
+          "mktCapAtBuild": 3064.24
+        },
+        {
+          "scId": "GC21",
+          "name": "Globe Commercials",
+          "shortName": null,
+          "resultDate": "2026-10-05",
+          "displayDate": "5 Oct",
+          "quarter": "Q2-2026",
+          "time": null,
+          "ltp": 19.13,
+          "changePct": 1.44,
+          "marketCap": 11.48,
+          "exchange": "B",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/miscellaneous/globecommercials/GC22"
+        }
+      ],
+      "scheduledCount": 3,
+      "pageSize": 20,
+      "pagesFetched": 1,
+      "complete": true,
+      "asOnDate": "30/09/2026"
+    },
+    "2026-10-03": {
+      "rows": [
+        {
+          "scId": "HUI",
+          "name": "HINDUSTHAN INSULATORS & INDUSTRIES",
+          "shortName": null,
+          "resultDate": "2026-10-03",
+          "displayDate": "3 Oct",
+          "quarter": "Q2-2026",
+          "time": null,
+          "ltp": 496.25,
+          "changePct": 1.99,
+          "marketCap": 1074.05,
+          "exchange": "B",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/infrastructure-general/hindusthaninsulatorsindustries/HUI"
+        },
+        {
+          "scId": "HE02",
+          "name": "Hawa Engineers",
+          "shortName": null,
+          "resultDate": "2026-10-03",
+          "displayDate": "3 Oct",
+          "quarter": "Q2-2026",
+          "time": null,
+          "ltp": 80.05,
+          "changePct": -2.08,
+          "marketCap": 28.23,
+          "exchange": "B",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/engineering/hawaengineers/HE02"
         }
       ],
       "scheduledCount": 2,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
     },
     "2026-10-01": {
       "rows": [
@@ -651,23 +796,42 @@
           "displayDate": "1 Oct",
           "quarter": "NA",
           "time": null,
-          "ltp": 415.15,
-          "changePct": 7.25,
-          "marketCap": 9623.36,
+          "ltp": 417.4,
+          "changePct": 7.83,
+          "marketCap": 9675.52,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/printing-publishing/manipalpaymentidentitysolutions/MPISL",
           "ticker": "MPIMANIPAL",
           "fullName": "Manipal Payment",
           "industry": "Printing & Publishing",
           "shares": 231804528,
-          "mktCapAtBuild": 9623.36
+          "mktCapAtBuild": 9675.52
+        },
+        {
+          "scId": "PCL02",
+          "name": "Pranav Constructions",
+          "shortName": null,
+          "resultDate": "2026-10-01",
+          "displayDate": "1 Oct",
+          "quarter": "NA",
+          "time": null,
+          "ltp": 100.18,
+          "changePct": -1.19,
+          "marketCap": 1128.26,
+          "exchange": "N",
+          "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-residential-commercial-complexes/pranavconstructions/PCL02",
+          "ticker": "PRANAV",
+          "fullName": "Pranav Construc",
+          "industry": "Construction - Residential & Commercial Complexes",
+          "shares": 112622782,
+          "mktCapAtBuild": 1128.26
         }
       ],
-      "scheduledCount": 1,
+      "scheduledCount": 2,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
     },
     "2026-09-30": {
       "rows": [
@@ -679,9 +843,9 @@
           "displayDate": "30 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 510.7,
-          "changePct": -1.01,
-          "marketCap": 1923.69,
+          "ltp": 508.9,
+          "changePct": -1.36,
+          "marketCap": 1916.91,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/power-generation-distribution/bfutilities/BFU",
           "ticker": "BFUTILITIE",
@@ -698,9 +862,9 @@
           "displayDate": "30 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 19.25,
-          "changePct": -0.88,
-          "marketCap": 11.55,
+          "ltp": 19.13,
+          "changePct": 1.44,
+          "marketCap": 11.48,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/miscellaneous/globecommercials/GC22"
         }
@@ -709,7 +873,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
     },
     "2026-09-29": {
       "rows": [
@@ -721,16 +885,16 @@
           "displayDate": "29 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 11.41,
-          "changePct": 4.97,
-          "marketCap": 160.83,
+          "ltp": 11.36,
+          "changePct": 4.51,
+          "marketCap": 160.13,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/construction-contracting-real-estate/vipul/V04",
           "ticker": "VIPULLTD",
           "fullName": "Vipul",
           "industry": "Construction - Residential & Commercial Complexes",
           "shares": 140959480,
-          "mktCapAtBuild": 160.83
+          "mktCapAtBuild": 160.13
         },
         {
           "scId": "PCM",
@@ -740,9 +904,9 @@
           "displayDate": "29 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 116,
-          "changePct": 3.94,
-          "marketCap": 93.05,
+          "ltp": 116.35,
+          "changePct": 2.15,
+          "marketCap": 93.33,
           "exchange": "B",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/cement-major/panyamcementsmineralinds/PCM"
         },
@@ -770,7 +934,7 @@
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
     },
     "2026-09-28": {
       "rows": [
@@ -801,16 +965,16 @@
           "displayDate": "28 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 195.6,
-          "changePct": -3.43,
-          "marketCap": 1880.19,
+          "ltp": 188.89,
+          "changePct": -6.74,
+          "marketCap": 1815.69,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/diamond--jewellery/deepajewellers/DJL",
           "ticker": "DEEPA",
           "fullName": "Deepa Jewellers",
           "industry": "Diamond & Jewellery",
           "shares": 96124293,
-          "mktCapAtBuild": 1880.19
+          "mktCapAtBuild": 1815.69
         },
         {
           "scId": "ROB",
@@ -820,23 +984,23 @@
           "displayDate": "28 Sep",
           "quarter": "NA",
           "time": null,
-          "ltp": 250.99,
-          "changePct": 12.55,
-          "marketCap": 524.61,
+          "ltp": 255.96,
+          "changePct": 14.78,
+          "marketCap": 535,
           "exchange": "N",
           "mcUrl": "https://www.moneycontrol.com/india/stockpricequote/hospital-healthcare-services/raysbelief/RoB",
           "ticker": "MOMSBELIEF",
           "fullName": "Rays of Belief",
           "industry": "Hospital & Healthcare Services",
           "shares": 20901682,
-          "mktCapAtBuild": 524.61
+          "mktCapAtBuild": 535
         }
       ],
       "scheduledCount": 3,
       "pageSize": 20,
       "pagesFetched": 1,
       "complete": true,
-      "asOnDate": "29/09/2026"
+      "asOnDate": "30/09/2026"
     }
   }
 }
