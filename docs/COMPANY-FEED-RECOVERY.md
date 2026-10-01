@@ -56,6 +56,9 @@ are retained. These mappings do not claim access to nonpublic shareholder notice
 pages, unsafe URLs, source dates, no AI-summary ingestion, free fallback request
 coalescing, preserved documents, incomplete-history reporting and outage retention.
 Existing capture, domestic-reader, health, news and portfolio checks also apply.
+The manually dispatched `Company feed access check` runs the same public-page
+reader on GitHub with read-only repository permissions, no secrets and no data
+publication. `node scripts/check-company-feed-access.mjs` runs that probe locally.
 
 No paid service, credential, collection schedule or manual production operation is
 introduced. At its next normal run, capture gives existing 404 failures one attempt
