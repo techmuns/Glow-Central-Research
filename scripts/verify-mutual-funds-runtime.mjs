@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {targetMonth,previousMonth} from '../worker/mutual-funds-model.mjs';
 import {companyFragments} from './lib/mutual-funds-transport.mjs';
 import {mkdtempSync,writeFileSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';import {join,resolve} from 'node:path';import {spawn} from 'node:child_process';import {once} from 'node:events';
@@ -36,7 +37,8 @@ try{
  await call({action:'scanner-inventory',companies:[{isin:other,name:'Private fixture bank'}]});
  const reservation=await call({action:'scanner-reserve',run:'5:1',requestId:'1',kind:'stock'});
  const checkedAt=new Date().toISOString(),sourceUrl='https://mfscanner.com/stock/fixture-bank';
- const privatePage={isin:other,month:'2026-08',priorMonth:'2026-07',checkedAt,sourceUrl,reportedFunds:1,unreportedFunds:0,unknownAmcs:0,funds:[{id:'scanner:fixture-fund',name:'Private Fixture Fund',amc:'hdfc',months:Object.fromEntries([['2026-08',75],['2026-07',50]].map(([month,shares])=>[month,{shares,valueCr:null,pctOfAum:null,sourceUrl,source:'MF Scanner',checkedAt}]))}]};
+ const scannerMonth=targetMonth(), scannerPrior=previousMonth(scannerMonth);
+ const privatePage={isin:other,month:scannerMonth,priorMonth:scannerPrior,checkedAt,sourceUrl,reportedFunds:1,unreportedFunds:0,unknownAmcs:0,funds:[{id:'scanner:fixture-fund',name:'Private Fixture Fund',amc:'hdfc',months:Object.fromEntries([[scannerMonth,75],[scannerPrior,50]].map(([month,shares])=>[month,{shares,valueCr:null,pctOfAum:null,sourceUrl,source:'MF Scanner',checkedAt}]))}]};
  privatePage.funds=Array.from({length:800},(_,i)=>({...privatePage.funds[0],id:`scanner:fixture-fund-${i}`,name:`Private Fixture Fund ${i}`,months:Object.fromEntries(Object.entries(privatePage.funds[0].months).map(([m,p])=>[m,{...p,shares:p.shares+i}]))}));privatePage.reportedFunds=800;
  await call({action:'scanner-complete',run:'5:1',input:{reservation:reservation.reservation,isin:other,page:privatePage}});
  assert.equal((await call({action:'private-read',isins:[other]})).rows[0].totalShares,379600);
