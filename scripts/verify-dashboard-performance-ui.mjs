@@ -129,6 +129,9 @@ try {
   await page.getByRole('navigation', { name: 'Research navigation' }).waitFor({ timeout: 1500 });
   assert(Date.now() - reloadedAt < 1500, 'repeat visit paints from the app cache without waiting for the network');
   await page.locator('[data-brand-mark] img').evaluate(image => image.decode());
+  await page.waitForSelector('#content-host[data-active-tab="ai-alerts"]', { timeout: 1500 });
+  // Ask Research's illustration remains cached, but AI Alerts is now the landing tab.
+  await page.locator('[data-tab-id="ask-research"]').click();
   await page.locator('.research-opening-brand').evaluate(image => image.decode());
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'cached app restores the saved theme');
   assert.equal(await page.locator('body').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(11, 18, 32)', 'cached dark styles are applied');
@@ -146,7 +149,7 @@ try {
   assert(scrollMs != null && scrollMs < 500, 'tab-strip scroll button responds locally');
 
   const tabIds = ['ask-research', 'ai-alerts', 'daily-alerts', 'earnings-hub', 'concall', 'public-chatter',
-    'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'nse-filings', 'insider-trades'];
+    'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'nse-filings', 'insider-trades', 'mutual-funds'];
   for (const id of tabIds) {
     const started = Date.now();
     await page.locator(`[data-tab-id="${id}"]`).click();
