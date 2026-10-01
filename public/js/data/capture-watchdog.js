@@ -30,9 +30,14 @@ const CONFIG = {
   companyNews: {
     route: 'api/company-news/refresh?source=auto',
     run: 'api/company-news/run',
-    maxAgeMs: 3 * 60 * 60 * 1000,
-    // Portfolio capture runs around the clock. Weekend and overnight stories are still stories;
-    // an overdue schedule should recover without waiting for the next market session.
+    // PAID SEARCHES. Each company-news run is a walk of paid Brave searches: every 2 hours from
+    // 10:11 to 18:11 IST on weekdays and once at 06:11 IST every day. Neither an open dashboard nor a
+    // click starts a walk until the longest planned gap (24 hours at the weekend) plus a late start
+    // has passed, so only a broken schedule is recovered. The workflow's gate keeps walks 2 hours
+    // apart and at most 8 a day. Headlines between walks come from the free feeds, which keep their
+    // short windows here.
+    maxAgeMs: 26 * 60 * 60 * 1000,
+    manualMinAgeMs: 26 * 60 * 60 * 1000,
     active: () => true,
     budgetMs: 35 * 60 * 1000,
   },
@@ -239,9 +244,10 @@ export async function runCaptureWatchdog({ now = Date.now, watchRuns = true, nam
     const checkedAt = now();
     const lastAttempt = attempts.get(name) || 0;
     // A deliberate click can request a more recent capture, subject to the
-    // Worker's existing cooldown. EOD technicals keep their session-based rule.
+    // Worker's existing cooldown. EOD technicals keep their session-based rule, and a
+    // source walked with paid searches keeps its own minimum age.
     const manualDue = source === 'button' && name !== 'technicals' &&
-      (!freshnessOf(name, capture) || checkedAt - Date.parse(freshnessOf(name, capture)) > 5 * 60 * 1000);
+      (!freshnessOf(name, capture) || checkedAt - Date.parse(freshnessOf(name, capture)) > (config.manualMinAgeMs ?? 5 * 60 * 1000));
     if (!(manualDue || refreshDue(name, capture, checkedAt)) || watchers.has(name) ||
         (source !== 'button' && checkedAt - lastAttempt < ATTEMPT_COOLDOWN_MS)) continue;
     attempts.set(name, checkedAt);
