@@ -885,7 +885,10 @@ export async function warmRows(rows, reading, yieldForInput = yieldForInputSlice
   }
 }
 const WARMERS = {
-  announcements: (yieldForInput, reading) => warmRows(announcements.rows(), (row) => reading.touch(announcementEvent(row), 'announcements'), yieldForInput),
+  announcements: async (yieldForInput, reading) => {
+    await announcements.warm(yieldForInput);
+    return warmRows(announcements.rows(), (row) => reading.touch(announcementEvent(row), 'announcements'), yieldForInput);
+  },
   insider: (yieldForInput, reading) => warmRows(insider.rows(), (row) => reading.touch(insiderEvent(row), 'insider'), yieldForInput),
   ...Object.fromEntries(ADDITIONAL_SOURCES.filter((s) => s.warm).map((s) => [s.id, s.warm])),
 };
