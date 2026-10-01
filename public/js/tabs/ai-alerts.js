@@ -1,3 +1,6 @@
+import * as generalAlerts from '../data/daily-alerts.js';
+import { createTimelineHistory, timelineKey } from '../data/alert-timeline.js';
+import { mountAlertTimeline } from '../ui/alert-timeline.js';
 import { AI_EVENT_TYPES, aiEventTypes, matchesAIEvent, loadAIEventFilters, saveAIEventFilters } from '../data/ai-alert-types.js';
 import { developmentOfRow, developmentSource, publisherOf, venuesOf, storyKindOf, KIND_LABEL } from '../data/alert-developments.js';
 import { alertReadingHtml, watchAlertReadings } from '../ui/alert-reading.js';
@@ -40,7 +43,6 @@ export const meta = {
 
 const REFRESH_ID = 'ai-alerts';
 const PAGE_SIZE = 8;
-const EVIDENCE_ROWS = 4;
 const RECHECK_MS = 90_000;
 const SORT_KEY = 'sattva:ai-alerts:sort:v1';
 const SORTS = { newest: 'Newest first', holdings: 'Largest holdings', priority: 'Highest priority' };
@@ -70,6 +72,51 @@ let loadError = '';
 let captureDirty = false;
 let sourceTimer = null;
 let lastSourceCheck = 0;
+const timelines = new Map();
+let historyReader = null, historyGeneration = 0;
+function clearTimelines({ history = false } = {}) {
+  for (const state of timelines.values()) state.controller.destroy();
+  timelines.clear();
+  if (history) { historyGeneration++; historyReader = null; }
+}
+function readTimelineHistory(options) {
+  if (!historyReader) {
+    const owner = ctxRef, generation = historyGeneration;
+    historyReader = createTimelineHistory({ collect: generalAlerts.collect,
+      options: () => ({ scope: owner.scope, holdings: coverage.holdings() }),
+      isCurrent: () => ctxRef === owner && historyGeneration === generation });
+  }
+  return historyReader.read(options);
+}
+function syncTimelines(ctx, shown) {
+  const active = new Set();
+  const roots = new Map([...ctx.root.querySelectorAll('[data-ai-card]')].map(node => [node.dataset.aiKey, node]));
+  for (const card of shown) {
+    const key = timelineKey(card);
+    const root = roots.get(key);
+    if (!root) continue;
+    active.add(key);
+    let state = timelines.get(key);
+    if (state?.root !== root) {
+      state?.controller.destroy();
+      const controller = mountAlertTimeline({ root, readHistory: readTimelineHistory,
+        renderEvent: (event, day, dev) => eventMarkup(event, ctx.scope, day, dev) });
+      state = { root, controller }; timelines.set(key, state);
+    }
+    state.controller.update(card, currentDay(), eventFilters);
+  }
+  for (const [key, state] of timelines) if (!active.has(key)) { state.controller.destroy(); timelines.delete(key); }
+}
+function refreshTimelineHistory() {
+  if (!historyReader?.loaded) return;
+  const reader = historyReader;
+  void reader.read({ memoryOnly: true }).then(history => {
+    if (reader !== historyReader || !history) return;
+    for (const state of timelines.values()) state.controller.historyChanged(history);
+  }).catch(() => {
+    if (reader === historyReader) for (const state of timelines.values()) state.controller.historyFailed();
+  });
+}
 function sourceChanged() {
   if (!ctxRef) return;
   captureDirty = true;
@@ -85,6 +132,7 @@ function sourceChanged() {
 // Keep a completed view in memory across tab visits. This lifetime listener also
 // revokes that cached private view if access expires while another tab is open.
 onPortfolioInvalidation((version) => {
+  clearTimelines({ history: true });
   actionGeneration++;
   alerts.clearRankingCache();
   cacheToken += 1;
@@ -127,6 +175,7 @@ function portfolioUnavailable() {
 }
 
 export function render(ctx) {
+  if (ctxRef !== ctx) clearTimelines({ history: true });
   actionGeneration++;
   ctxRef = ctx;
 
@@ -194,6 +243,7 @@ export function render(ctx) {
 }
 
 export function destroy() {
+  clearTimelines({ history: true });
   alerts.clearRankingCache();
   offBookmarks?.(); offBookmarks = null;
   bookmarkRoot = null;
@@ -313,6 +363,7 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
       ? await alerts.mergePartialReportAsync(report, completed, { isCurrent: current }) : completed;
     if (!current() || !settled) return;
     report = settled;
+    refreshTimelineHistory();
   } catch (err) {
     if (!current()) return;
     loadError = err?.message || 'The alert feeds could not be refreshed.';
@@ -359,6 +410,7 @@ function paint(ctx) {
     const node = ctx.root.querySelector(selector);
     reconcileMarkup(node, markup);
   }
+  syncTimelines(ctx, shown);
   wire(ctx, cards.length);
   if (anchor?.isConnected && anchorTop != null) {
     const delta = anchor.getBoundingClientRect().top - anchorTop;
@@ -713,8 +765,9 @@ function listHeadMarkup(card) {
   return `
     <div data-ai-list-head class="mt-4 flex items-baseline justify-between gap-3 border-t border-slate-100 pt-3">
       <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Newest first</span>
+      <button type="button" data-ai-timeline-latest class="ai-timeline-latest" hidden>Latest ↑</button>
       <span class="text-[10px] font-bold uppercase tracking-wider tabular-nums text-slate-500"
-        title="${escapeHtml(`How many independent feeds carry something on this company in the last ${alerts.WINDOW_DAYS} days. Every event behind this card is in All Alerts.`)}"><span data-ai-sources>${escapeHtml(formatNumber(sources))}</span> ${sources === 1 ? 'feed' : 'feeds'} · ${alerts.WINDOW_DAYS} days</span>
+        title="${escapeHtml(`How many independent feeds carry something on this company in the last ${alerts.WINDOW_DAYS} days. Every event behind this card is in All Alerts.`)}"><span data-ai-sources>${escapeHtml(formatNumber(sources))}</span> ${sources === 1 ? 'recent source' : 'recent sources'}</span>
     </div>`;
 }
 
@@ -757,10 +810,6 @@ function cardMarkup(card, scope, day, archived = false) {
     caution: { edge: 'border-l-amber-500', badge: 'bg-white text-amber-700 ring-amber-300' },
     neutral: { edge: 'border-l-slate-300', badge: 'bg-white text-slate-600 ring-slate-200' },
   }[badge.tone] || { edge: 'border-l-slate-300', badge: 'bg-white text-slate-600 ring-slate-200' };
-  const newest = latestAlertEvent(card);
-  const events = byNewestFirst(alerts.topEvidence(newest ? { ...card, events: [newest, ...card.events.filter(event => event !== newest)] } : card, EVIDENCE_ROWS));
-  const shownStories = new Set(events.map(e => e.storyId).filter(Boolean));
-  const rest = card.events.filter(e => !events.includes(e) && (!e.storyId || !shownStories.has(e.storyId))).length;
   const signal = latestAlertSignal(card);
   // The sentence is one source's own claim, sometimes chosen from the exchange's description and
   // sometimes clipped on a word boundary — so the untouched wording, and which feed it came from,
@@ -787,18 +836,21 @@ function cardMarkup(card, scope, day, archived = false) {
         ${Number.isFinite(card.holdingWeightPct) ? `<p data-ai-holding-size title="${escapeHtml(sizeTitle)}" class="mt-1 text-xs font-semibold text-indigo-700">${card.holdingWeightPct > 0 && card.holdingWeightPct < 0.01 ? '&lt;0.01' : card.holdingWeightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of listed portfolio</p>` : ''}
 
         ${cardSection(lead?.storyId && lead.storyChange !== 'new' ? 'Updated · What changed' : 'Headline', whatHappenedMarkup(card, scope) + confluenceMarkup(card))}
+        ${lead ? alertReadingHtml(lead) : ""}
         ${kpiMarkup(card, scope)}
 
         ${listHeadMarkup(card)}
-        <ul data-ai-evidence class="mt-1 space-y-0.5">
-          ${events.map((event) => eventMarkup(event, scope, day)).join('')}
-        </ul>
+        <div data-ai-timeline class="ai-alert-timeline" tabindex="0" role="region" aria-label="${escapeHtml(`${card.company} alert timeline, newest first`)}">
+          <ul data-ai-evidence data-ai-timeline-content class="ai-timeline-rows"></ul>
+          <div class="ai-timeline-history">
+            <p data-ai-timeline-status role="status" hidden></p>
+            <button type="button" data-ai-timeline-older>Load older alerts</button>
+          </div>
+        </div>
         ${contextMarkup(card, scope)}
       </div>
       <footer class="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3">
-        ${rest > 0
-          ? `<button type="button" data-open-general data-ticker="${escapeHtml(card.ticker || card.company)}" class="text-xs font-bold text-indigo-700 hover:text-indigo-900">${escapeHtml(formatNumber(rest))} more ${rest === 1 ? 'event' : 'events'} →</button>`
-          : `<span class="text-xs text-slate-400">Everything on this company is above</span>`}
+        <button type="button" data-open-general data-ticker="${escapeHtml(card.ticker || card.company)}" class="text-xs font-bold text-indigo-700 hover:text-indigo-900">All alerts →</button>
         <div class="flex shrink-0 items-center gap-2">
           <span data-ai-notebook-card="${escapeHtml(card.key || card.ticker)}">${bookmarkButton(cardSnapshot(card), { compact: false })}</span>
           ${archived
@@ -867,7 +919,6 @@ function eventMarkup(event, scope, day, dev = developmentOfRow(event)) {
       </div>
       ${bookmarkButton(snapshotForRow(event, { section: 'daily-alerts' }))}
       </div>
-      ${alertReadingHtml(event)}
       ${storyHistoryMarkup(event)}
     </li>`;
 }
@@ -972,7 +1023,7 @@ function wire(ctx, total) {
       const cardKey = button.closest('[data-ai-notebook-card]')?.dataset.aiNotebookCard;
       if (cardKey) return cardSnapshot(card);
       const id = button.closest('[data-ai-notebook-event]')?.dataset.aiNotebookEvent;
-      const event = card.events.find(event => String(event.id) === id);
+      const event = card.events.find(event => String(event.id) === id) || timelines.get(owner)?.controller.event(id);
       if (!event) return null;
       // Evidence read from the precomputed pool travels without its full source record; the
       // notebook snapshot is taken from that record, fetched from the pool's own day shard.
@@ -1165,6 +1216,7 @@ function eventView(card) {
 }
 
 function changeEventFilters(ctx) {
+  clearTimelines();
   saveAIEventFilters(eventFilters);
   eventViews = new WeakMap();
   visibleLimit = PAGE_SIZE;

@@ -145,7 +145,7 @@ jobs:
       - name: Verify the precomputed alert pool is exact and stands aside honestly
         run: node scripts/verify-alert-pool-cache.mjs && node scripts/verify-alert-pool-delivery.mjs && node --max-old-space-size=4096 scripts/verify-alert-pool.mjs
       - name: Verify AI alert search, calendar dates and the KPIs in play
-        run: node scripts/verify-ai-alerts.mjs && node scripts/verify-ai-alert-types.mjs && node scripts/verify-alert-capacity.mjs && node scripts/verify-kpi-impact.mjs
+        run: node scripts/verify-ai-alerts.mjs && node scripts/verify-ai-alert-types.mjs && node scripts/verify-alert-timeline.mjs && node scripts/verify-alert-capacity.mjs && node scripts/verify-kpi-impact.mjs
       - name: Verify material alert lifecycle and optional social coverage
         run: node scripts/verify-alert-reliability.mjs && python3 scripts/verify-twitter-collection.py
       - name: Syntax-check JavaScript
@@ -246,7 +246,7 @@ jobs:
       - name: Verify stable alert refresh, portfolio failures and navigation
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-ai-alerts-ui.mjs && node scripts/verify-ai-alert-types-ui.mjs && node scripts/verify-alert-capacity-ui.mjs && node scripts/verify-kpi-impact-ui.mjs
+        run: node scripts/verify-ai-alerts-ui.mjs && node scripts/verify-ai-alert-types-ui.mjs && node scripts/verify-ai-alert-timeline-ui.mjs && node scripts/verify-alert-capacity-ui.mjs && node scripts/verify-kpi-impact-ui.mjs
       - name: Verify explicit refresh through the service worker
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright

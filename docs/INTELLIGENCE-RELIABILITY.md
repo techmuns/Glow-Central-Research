@@ -412,3 +412,12 @@ a factual summary. Retain successful summaries and failed-attempt receipts; rese
 budget and attempts before provider I/O, allow at most three temporary-failure
 attempts per content key, and honor server retry times across readers and restarts.
 Keep Sattva's pinned OpenAI provider and ordinary-object RPC responses.
+
+### Company alert timelines
+
+AI cards expose all selected recent developments in a bounded scrolling window and
+lazily load complete retained older public history. Older evidence must not change
+the 14-day priority or current headline. Preserve checked story members, source
+links, bookmarks, scroll anchors and partial public history when a source fails.
+Clear private history on access changes. Timeline scrolling must not request AI
+summaries; only the visible card headline can carry its optional factual summary.

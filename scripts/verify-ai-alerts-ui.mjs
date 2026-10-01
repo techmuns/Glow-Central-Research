@@ -20,7 +20,7 @@ events.filter(e => e.ticker === 'A10').forEach(e => { e.time = '08:00'; });
 events.find((e) => e.ticker === 'A01').time = null;
 events.push({ ...events[30], id: 'hidden-event', importance: 'low', headline: 'Lithium supply agreement hidden beyond the evidence preview' });
 // More than one DOM window proves search still includes evidence beyond the mounted rows.
-events.push({ ...events[30], id: 'preview-filler', headline: 'Zenith Manufacturing: material risk 4' });
+for (let i = 0; i < 24; i++) events.push({ ...events[30], id: `preview-filler-${i}`, time: '08:01', headline: `Zenith Manufacturing: material risk ${i + 4}` });
 events.push({ ...events[0], id: 'context-document', aiEligible: false, kind: 'document', importance: 'low', direction: 'neutral', headline: 'Material risk source document', detail: 'Underlying source record' });
 events.push(...eventsFor('OLD', 'Old signal', '2026-08-22'));
 events.push({ ...events[1], id: 'important-event', ticker: 'ZIMP', company: 'Important Company', direction: 'neutral' });
@@ -379,7 +379,7 @@ try {
   assert.doesNotMatch(shape.cardText, /Nothing tracked here bears on/i);
   assert(shape.insightBeforeEvidence, 'the finding is read before its evidence');
   // Bounded timeline rows, and the header above them claims newest first — so the rows have to be in that order.
-  assert(shape.rowCount > 0 && shape.rowCount <= 4, `rows: ${shape.rowCount}`);
+  assert(shape.rowCount > 0 && shape.rowCount <= 20, `rows: ${shape.rowCount}`);
   assert.deepEqual(shape.rowKeys, [...shape.rowKeys].sort().reverse(), 'the rows are newest first, as the list header says');
   assert.equal(shape.scriptInjected, 0, 'row text is escaped');
   console.log('PASS: the card labels its headline and names the investor question on the row that carries the reading.');
