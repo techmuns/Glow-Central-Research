@@ -6,7 +6,8 @@ import { readFileSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = resolve('public'), at = '2026-09-06T00:00:00Z';
-const discovery = { capturedAt: at, completedQueries: 10, plannedQueries: 10, staleOrIncompleteQueries: 0, pagesFailed: 0, documentsPending: 0 };
+const discovery = { capturedAt: at, completedQueries: 10, plannedQueries: 10, staleOrIncompleteQueries: 0, pagesFailed: 0, documentsPending: 0,
+  upstox: { configured: true, checkedAt: at, instruments: 10, articles: 5, failedRequests: 0 } };
 const core = { capturedAt: at, enrichmentCoverage: discovery, queryCoverage: { planned: 1, succeeded: 1, failed: 0 },
   byTicker: { ALPHA: [{ title: 'Alpha company update', company: 'Alpha', ticker: 'ALPHA', date: '2026-09-06', url: 'https://publisher.example/alpha' }] } };
 let tvFailure = false;
@@ -64,8 +65,8 @@ try {
   const dataReads = () => requests.filter(r => /^\/(api|data)\//.test(r.path)).length;
   const before = dataReads();
   await page.evaluate(() => window.openBeacon({ group: 'portfolio-news' }));
-  check('all nine portfolio-news sources appear exactly once', await page.locator('[data-beacon-group="portfolio-news"] .beacon-row').count() === 9);
-  check('every recently successful news source is connected', await page.locator('[data-beacon-group="portfolio-news"] .beacon-row.is-live').count() === 9);
+  check('all ten portfolio-news sources appear exactly once', await page.locator('[data-beacon-group="portfolio-news"] .beacon-row').count() === 10);
+  check('every recently successful news source is connected', await page.locator('[data-beacon-group="portfolio-news"] .beacon-row.is-live').count() === 10);
   check('new TradingView capture uses a verified connected indicator', await page.locator('[data-beacon-source="tradingview-news"] > summary').evaluate(el => el.classList.contains('is-live') && el.innerText.includes('Connected')));
   check('launcher is a source inventory, with separate verified connection count', await page.evaluate(async () => {
     const { sourceGroups } = await import('/js/ui/sources.js');

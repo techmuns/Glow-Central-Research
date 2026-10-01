@@ -63,6 +63,8 @@ jobs:
         run: node scripts/verify-company-news-publish.mjs && node scripts/verify-company-news-publish-git.mjs
       - name: Verify portfolio discovery, customer misses and source recovery
         run: node scripts/verify-portfolio-news-discovery.mjs && node scripts/verify-news-country.mjs && python3 scripts/verify-twitter-search.py
+      - name: Verify free company-news sources (Google News search and Upstox News)
+        run: node scripts/verify-free-news.mjs
       - name: Verify public TradingView ingestion and automatic portfolio membership
         run: node scripts/verify-tradingview-news.mjs && node scripts/verify-continuous-news.mjs && node scripts/verify-news-recovery.mjs
       - name: Verify source connections and scheduled pipeline health

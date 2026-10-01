@@ -28,26 +28,30 @@ Insider Trades (bulk deals, block deals, SAST and insider disclosures).
   `docs/INTELLIGENCE-RELIABILITY.md`. Recording this requirement does not certify
   current production compliance or authorize production interventions.
 
-## Standing budget requirement: paid company-news search
+## Standing budget requirement: company-news search
 
 Recorded on 1 October 2026. Company news (`company-news-refresh.yml`: the identity walk and the
-global enrichment) calls `fastapi.muns.io/tools/news-search`, and every query is a paid Brave
-Search call on a shared account. In September 2026 the workflow ran 10-20 times a day in each
+global enrichment) used to call `fastapi.muns.io/tools/news-search`, where every query is a paid
+Brave Search call on a shared account. In September 2026 the workflow ran 10-20 times a day in each
 Central Research dashboard and made roughly 200,000 paid searches, about ten times the account's
-normal month. The owner set this budget, which keeps the news current through market and
-post-market hours; each portfolio walk is about $1 of searches for both dashboards together:
+normal month. The owner's requirements:
+
+- Company news uses free sources: Google News search (`NEWS_PROVIDER=google`, worker/free-news.mjs)
+  and the Upstox News API with the owner's read-only Analytics Token (`UPSTOX_ANALYTICS_TOKEN`).
+  The Worker's `/api/news` uses Google too (`NEWS_PROVIDER` in wrangler.jsonc). Do not route company
+  news back to the paid Muns/Brave search without the owner's agreement.
 
 - Portfolio companies are searched every 2 hours from 10:11 to 18:11 IST on weekdays, and once at
   06:11 IST every day before the pre-market. Nothing runs between 18:11 and 06:11. The complete
   universe is searched on Sundays at 06:11 IST.
-- The global (international) search takes at most 10 queries per walk, stalest first.
+- The global (international) search takes at most 40 queries per walk, stalest first.
 - Walks are at least 2 hours apart and at most 8 in any 24 hours, whatever starts the run: the
   schedule, `news-recovery.yml`, the browser capture watchdog or a Refresh click. The workflow's
   `gate` job enforces it; only a manual run with the `force` input overrides it.
-- Brave shows a story a median 4-6 hours after publication, so walking more often adds little.
-  Headlines between walks come from the free feeds (TradingView, Moneycontrol, RSS, exchange
-  filings, Telegram, X). Do not shorten the company-news windows (26-hour recovery, health and
-  click limits), raise the per-walk caps or add schedules unless the owner agrees a new budget.
+- Google News is an unofficial feed: keep requests paced (2 seconds apart) and stop a walk on a
+  429. Headlines between walks come from the other free feeds (TradingView, Moneycontrol, RSS,
+  exchange filings, Telegram, X). Do not shorten the company-news windows (26-hour recovery,
+  health and click limits) or add schedules unless the owner agrees.
 
 ## Repository workflow
 
