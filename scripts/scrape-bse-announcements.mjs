@@ -120,6 +120,7 @@ async function main() {
     {
       allowPartial: true,
       maxDays: CHUNK_DAYS,
+      lastCompleteTo,
       deadline: RUN_STARTED + BUDGET_MS,
       onRetry: ({ nextAttempt, error }) => console.warn(`\n  ${error.message} Restarting this date window (attempt ${nextAttempt}/3).`),
       onProgress: ({ category, page, got, declared }) => {

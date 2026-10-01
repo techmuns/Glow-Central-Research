@@ -127,7 +127,9 @@ windows of `ANN_CHUNK_DAYS` days (default 3), oldest first, and starts no new wa
 once `ANN_BUDGET_MS` (default 8 minutes) is spent. It writes what it completed,
 names each unread window as a `budget` failure (so the capture stays visibly
 partial and the run stays red), and moves the watermark only past complete
-windows. The next run resumes there, so any backlog shrinks on every run.
+windows. A window that would end exactly on the previous watermark also reads the
+next day, so the days each run re-reads for late filings never use up a window
+without progress. The next run resumes there, so any backlog shrinks on every run.
 `verify-bse-collection.mjs` covers the split, the stop, the watermark and the resume.
 
 ## Other free sources

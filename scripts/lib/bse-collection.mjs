@@ -10,7 +10,7 @@ const addDays = (day, days) => new Date(Date.parse(`${day}T00:00:00Z`) + days * 
 // `maxDays` also bounds each closed window, oldest first. After a long outage one walk of the
 // whole backlog can outlast the job running it, and a stopped run writes nothing, so every later
 // run would start the same walk again. Short windows complete one at a time and move the watermark.
-export function bseCollectionWindows(range, today = bseIndiaDay(), { maxDays = Infinity } = {}) {
+export function bseCollectionWindows(range, today = bseIndiaDay(), { maxDays = Infinity, lastCompleteTo = null } = {}) {
   annUrl({ ...range, category: CATEGORIES[0] });
   annUrl({ from: today, to: today, category: CATEGORIES[0] });
   if (maxDays !== Infinity && !(Number.isSafeInteger(maxDays) && maxDays >= 1)) {
@@ -21,15 +21,20 @@ export function bseCollectionWindows(range, today = bseIndiaDay(), { maxDays = I
   const day = isoDay(current);
   const live = compact(range.to) >= current;
   const closed = live ? { ...range, to: addDays(day, -1) } : range;
-  return [...splitWindow(closed, maxDays), ...(live ? [{ ...range, from: day }] : [])];
+  return [...splitWindow(closed, maxDays, lastCompleteTo), ...(live ? [{ ...range, from: day }] : [])];
 }
 
-function splitWindow(range, maxDays) {
+function splitWindow(range, maxDays, lastCompleteTo) {
   if (maxDays === Infinity) return [range];
-  const last = isoDay(range.to), windows = [];
-  for (let from = isoDay(range.from); from <= last; from = addDays(from, maxDays)) {
-    const to = addDays(from, maxDays - 1);
-    windows.push({ ...range, from, to: to < last ? to : last });
+  const last = isoDay(range.to), mark = compact(lastCompleteTo) ? isoDay(lastCompleteTo) : null, windows = [];
+  for (let from = isoDay(range.from); from <= last;) {
+    let to = addDays(from, maxDays - 1);
+    // A resumed run re-reads a few days up to the previous watermark. A window ending exactly on
+    // it would move nothing, so it takes the next day as well: every completed window makes progress.
+    if (to === mark && mark < last) to = addDays(to, 1);
+    if (to > last) to = last;
+    windows.push({ ...range, from, to });
+    from = addDays(to, 1);
   }
   return windows;
 }
@@ -90,12 +95,12 @@ async function stableWalk(read, { fetchImpl = fetch, attempts = 3, retryDelayMs 
 }
 
 export async function collectBseAnnouncements({ categories = CATEGORIES, ...range }, {
-  today, allowPartial = false, maxDays = Infinity, deadline = Infinity, now = Date.now, ...options
+  today, allowPartial = false, maxDays = Infinity, lastCompleteTo = null, deadline = Infinity, now = Date.now, ...options
 } = {}) {
   if (!Array.isArray(categories) || !categories.length) {
     throw new TypeError('BSE collection requires at least one named category.');
   }
-  const windows = bseCollectionWindows(range, today, { maxDays });
+  const windows = bseCollectionWindows(range, today, { maxDays, lastCompleteTo });
   const result = { rows: [], byCategory: {}, unknownCategories: {}, requests: 0, shortfall: [], failedWindows: [], completeTo: null };
   const observed = new Map(categories.map(category => [category, new Set()]));
   let contiguous = true, stopped = null;
