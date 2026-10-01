@@ -118,6 +118,18 @@ existing backoff can delay a failed company for up to 24 hours. Let the next due
 scheduled attempt run, or obtain exact authorization for a targeted production
 retry; never clear history, errors or watermarks to manufacture a green result.
 
+A long outage leaves a backlog that one walk cannot finish inside the collection
+step's 12-minute limit, and a stopped run writes nothing. On 1 October 2026 the
+first Sattva run after the header fix read every page it asked for, but its
+twelve-day backlog (21 September to 2 October) outlasted the step, so every later
+run would have restarted the same walk. The collector now reads closed history in
+windows of `ANN_CHUNK_DAYS` days (default 3), oldest first, and starts no new walk
+once `ANN_BUDGET_MS` (default 8 minutes) is spent. It writes what it completed,
+names each unread window as a `budget` failure (so the capture stays visibly
+partial and the run stays red), and moves the watermark only past complete
+windows. The next run resumes there, so any backlog shrinks on every run.
+`verify-bse-collection.mjs` covers the split, the stop, the watermark and the resume.
+
 ## Other free sources
 
 - NSE's [official announcements RSS feed](https://www.nseindia.com/static/rss-feed)
