@@ -203,10 +203,13 @@ try {
     return url === `${familyOrigin}/glow-bridge.html` ? route.fulfill({ contentType:'text/html', body:familyHtml })
       : url.startsWith(origin) ? route.continue() : route.fulfill({ status:503, body:'{}' });
   });
+  await coldPage.addInitScript(() => { window.failedFeed = 'earnings'; });
   await coldPage.goto(`${origin}/?completeOnly=1`);
   await coldPage.locator('[data-ai-card]').first().waitFor({ timeout: 1000 });
   assert(!await coldPage.evaluate(async () => (await import('/js/data/screener-insights.js')).isLoaded()),
     'completed public evidence appears before optional Insights answers');
+  assert.equal(await coldPage.locator('[data-ai-feed-status]').getAttribute('data-state'), 'pending',
+    'partial source coverage cannot claim a settled ranking while collection is still finishing');
   releaseInsights?.();
   await coldContext.close();
   console.log('PASS: a completed feed burst paints before context and holding sizes finish.');
