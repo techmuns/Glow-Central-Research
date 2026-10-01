@@ -33,20 +33,21 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
     if (!textByRow.has(row)) textByRow.set(row, normal(searchable(row)));
     return textByRow.get(row).includes(needle);
   };
-  const chipHtml = () => state.selected ? `<span class="inline-flex max-w-full items-center gap-1 rounded-md bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700">
-    <span class="truncate" title="${e(state.selected.name)}">${e(state.selected.name)} · ${e(state.selected.ticker || state.selected.bseCode || '')}</span>
-    <button type="button" data-announcement-company-clear aria-label="Clear selected company" class="shrink-0 px-1">×</button></span>` : '';
+  const chipHtml = () => state.selected ? `<div class="announcement-selected-company">
+    <span class="announcement-selected-identity"><span class="announcement-company-name">${e(state.selected.name)}</span>
+      <span class="announcement-company-symbol">${e(state.selected.ticker || state.selected.bseCode || '')}</span></span>
+    <button type="button" data-announcement-company-clear aria-label="Clear selected company" title="Clear selected company">×</button></div>` : '';
   const hint = () => state.selected && !allowsCompany(state.selected)
     ? `This company is outside ${scopeLabel}. Switch scope or clear the company.`
     : state.selected ? 'Showing this company only. Period and filing-type filters still apply.' : '';
   const placeholder = () => state.selected ? 'Search within this company…' : 'Search company name, ticker or announcement…';
   const html = `<div data-announcement-search="${id}" class="min-w-0 flex-1" style="min-width:min(100%,220px);max-width:32rem">
-    <div data-announcement-search-box class="flex flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 focus-within:ring-2 focus-within:ring-indigo-500">
-      <div data-announcement-company-chip class="max-w-full">${chipHtml()}</div>
+    <div data-announcement-company-chip>${chipHtml()}</div>
+    <div data-announcement-search-box>
       <input type="text" data-table-search role="combobox" aria-label="Search company name, ticker or announcement"
         aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" aria-controls="${id}-list" aria-describedby="${id}-hint"
         autocomplete="off" maxlength="200" value="${e(q)}" placeholder="${e(placeholder())}"
-        class="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400" style="min-width:min(100%,180px)">
+        class="announcement-search-input">
     </div><p id="${id}-hint" data-announcement-search-hint role="status" class="mt-1 text-xs text-slate-500" ${hint() ? '' : 'hidden'}>${e(hint())}</p>
   </div>`;
 
@@ -57,10 +58,10 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
     const menu = document.createElement('div');
     menu.dataset.announcementSearchMenu = id;
     menu.hidden = true;
-    menu.className = 'fixed z-40 rounded-xl bg-white p-2 shadow-xl ring-1 ring-slate-200';
-    menu.innerHTML = `<p data-search-status role="status" class="px-2 py-1 text-xs text-slate-500"></p>
-      <div id="${id}-list" role="listbox" aria-label="Matching companies" class="overflow-y-auto"></div>
-      <p class="px-2 pt-2 text-xs text-slate-500">Select a company to see only its announcements. You can also keep typing to search announcement text.</p>`;
+    menu.className = 'announcement-search-menu';
+    menu.innerHTML = `<p data-search-status role="status" class="announcement-search-status"></p>
+      <div id="${id}-list" role="listbox" aria-label="Matching companies"></div>
+      <p class="announcement-search-help">Select a company to see its announcements, or keep typing to search announcement text.</p>`;
     document.body.append(menu);
     const list = menu.querySelector('[role="listbox"]');
     const status = menu.querySelector('[data-search-status]');
@@ -78,7 +79,7 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
       menu.style.width = `${Math.min(Math.max(r.width, 300), innerWidth - 16)}px`;
       const below = innerHeight - r.bottom - 16, above = r.top - 16;
       const upward = below < 250 && above > below;
-      list.style.maxHeight = `${Math.max(48, Math.min(280, (upward ? above : below) - 85))}px`;
+      menu.style.maxHeight = `${Math.max(0, upward ? above : below)}px`;
       menu.style.left = `${Math.max(8, Math.min(r.left, innerWidth - menu.offsetWidth - 8))}px`;
       menu.style.top = `${Math.max(8, upward ? r.top - menu.offsetHeight - 6 : r.bottom + 6)}px`;
     }
@@ -98,9 +99,9 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
       status.textContent = message || (shown.length ? 'Choose a company' : 'No matching company found. Your text still searches announcements.');
       list.innerHTML = shown.map((item, i) => `<button type="button" role="option" tabindex="-1" id="${id}-option-${i}"
         data-announcement-company="${i}" aria-selected="false" ${item.allowed ? '' : 'disabled aria-disabled="true"'}
-        class="block w-full rounded-lg px-2 py-2 text-left hover:bg-slate-50 ${item.allowed ? 'text-slate-800' : 'text-slate-400'}">
-        <span class="block text-sm font-semibold">${e(item.name)}</span>
-        <span class="block text-xs text-slate-500">${e(item.ticker || item.bseCode || '')}${item.allowed ? '' : ` · Outside ${e(scopeLabel)} — switch to Universe`}</span>
+        class="announcement-search-option">
+        <span class="announcement-company-name">${e(item.name)}</span>
+        <span class="announcement-company-symbol">${e(item.ticker || item.bseCode || '')}${item.allowed ? '' : ` · Outside ${e(scopeLabel)} — switch to Universe`}</span>
       </button>`).join('');
       place();
     }
@@ -149,7 +150,7 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
       const index = enabled.indexOf(active), step = event.key === 'ArrowDown' ? 1 : -1;
       active = enabled[index < 0 ? (step > 0 ? 0 : enabled.length - 1) : (index + step + enabled.length) % enabled.length];
       list.querySelectorAll('[role="option"]').forEach((option, i) => {
-        option.setAttribute('aria-selected', String(i === active)); option.classList.toggle('bg-indigo-50', i === active);
+        option.setAttribute('aria-selected', String(i === active));
       });
       input.setAttribute('aria-activedescendant', `${id}-option-${active}`);
       list.children[active]?.scrollIntoView({ block: 'nearest' });
