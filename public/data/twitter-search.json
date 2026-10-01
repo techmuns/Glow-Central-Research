@@ -1088,8 +1088,8 @@
       "pending": []
     },
     "isin:INE12F801023|KISSHT": {
-      "lastAttemptAt": "2026-09-27T12:23:53+00:00",
-      "error": "result-cap-incomplete",
+      "lastAttemptAt": "2026-10-01T18:37:17+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 105,
       "targetThrough": "2026-09-27T12:23:53+00:00",
       "pending": [
@@ -1917,6 +1917,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-10-01T18:00:07.480288+00:00"
+    "checkedAt": "2026-10-01T18:37:17.349632+00:00"
   }
 }
