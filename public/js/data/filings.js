@@ -359,7 +359,9 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
         const row = list[0] || {};
         state.identities.set(key, { ticker: row.ticker || (row.entityId ? null : key), name: state.names.get(key) || row.company || row.query });
       }
-      return [key, list, state.identities.get(key)];
+      // Announcement/insider projections use only the ticker. A new scope picker
+      // object must not invalidate every retained row in those feeds.
+      return [key, list, kind === 'news' ? state.identities.get(key) : null];
     });
     const exchangeRevision = kind === 'insider' ? exchangeDeals.revision() : null;
     if (rowSnapshot?.state === state && rowSnapshot.exchangeRevision === exchangeRevision && parts.length === rowSnapshot.parts.length &&
@@ -491,10 +493,11 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
    * So recording the scope is separate from loading the data, and the tab does it on every render.
    */
   function setWanted(items = []) {
-    const wanted = [];
+    const wanted = [], seen = new Set();
     for (const item of items) {
       const t = String(item?.key ?? item?.ticker ?? item ?? '').toUpperCase();
-      if (!t || wanted.includes(t)) continue;
+      if (!t || seen.has(t)) continue;
+      seen.add(t);
       wanted.push(t);
       // Names accumulate across scopes rather than being replaced: the news search needs a name for
       // any company it may walk, and a company can leave the current scope while its name stays

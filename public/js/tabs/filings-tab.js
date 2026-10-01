@@ -93,6 +93,19 @@ export function makeFilingsTab(cfg) {
   let routeCompany = null;
   let ctxRef = null;
   let renderedRows = null;
+  let paintFrame = null, paintPending = false;
+  function requestPaint() {
+    if (!ctxRef || paintFrame !== null || paintPending) return;
+    paintFrame = requestAnimationFrame(async () => {
+      paintFrame = null;
+      paintPending = true;
+      const generation = token;
+      try {
+        await cfg.feed.prepareRows?.();
+        if (ctxRef && generation === token) paint(ctxRef);
+      } finally { paintPending = false; }
+    });
+  }
   // What the tab's Refresh control should say right now. Module-level because it has to outlive the
   // repaints the refresh itself causes — see `wireRefresh`.
   let refreshLabel = 'Check for new';
@@ -146,7 +159,7 @@ export function makeFilingsTab(cfg) {
     };
   }
 
-  function render(ctx) {
+  async function render(ctx) {
     const t = ++token;
     ctxRef = ctx;
     renderedRows = null;
@@ -174,7 +187,7 @@ export function makeFilingsTab(cfg) {
     //
     // Released in destroy(), not by the next repaint — otherwise the first arrival tears down the
     // subscription that produced it.
-    if (!unsub) unsub = cfg.feed.onChange(() => ctxRef && paint(ctxRef));
+    if (!unsub) unsub = cfg.feed.onChange(cfg.feed.prepareRows ? requestPaint : () => ctxRef && paint(ctxRef));
 
     // THE HEADER'S REFRESH BUTTON IS WHAT WALKS THESE ROUTES, and only while this tab is mounted.
     // Registration is per mounted tab on purpose: a reader on News should not pay for the other two
@@ -198,6 +211,14 @@ export function makeFilingsTab(cfg) {
     // at module level, but which companies are in scope changes with the toggle — and `wanted` is
     // what the freshness strip counts as unchecked and what Refresh walks. Setting it only inside
     // `load()` let the first scope to mount own the list for the life of the page.
+    if (cfg.feed.prepareRows) {
+      // The shared content root may still contain another tab. Cover it before
+      // yielding, so a newly selected tab can never expose the old tab's controls.
+      disposers.forEach(dispose => dispose && dispose()); disposers = [];
+      ctx.root.innerHTML = `${sectionHead(headConfig(ctx))}${loadingHtml()}`;
+      await cfg.feed.prepareRows();
+      if (t !== token) return;
+    }
     const items = tickersFor(ctx);
     cfg.feed.setWanted(items);
 
@@ -210,7 +231,7 @@ export function makeFilingsTab(cfg) {
         ctx.root.innerHTML = `${sectionHead(headConfig(ctx))}${loadingHtml()}`;
       }
       cfg.feed.load(items).then(() => {
-        if (t === token) paint(ctx);
+        if (t === token) cfg.feed.prepareRows ? requestPaint() : paint(ctx);
       });
       return;
     }
@@ -466,10 +487,10 @@ export function makeFilingsTab(cfg) {
     // arrival repaints the panel, so whichever button was pressed is long gone by the time there
     // is anything to report.
     refreshLabel = refreshRegistry.resultLabel(refreshRegistry.summarize([out]));
-    if (ctxRef) paint(ctxRef);
+    if (ctxRef) cfg.feed.prepareRows ? requestPaint() : paint(ctxRef);
     labelReset = setTimeout(() => {
       refreshLabel = 'Check for new';
-      if (ctxRef) paint(ctxRef);
+      if (ctxRef) cfg.feed.prepareRows ? requestPaint() : paint(ctxRef);
     }, 6000);
   }
 
@@ -496,6 +517,8 @@ export function makeFilingsTab(cfg) {
 
   function destroy() {
     token++;
+    if (paintFrame !== null) cancelAnimationFrame(paintFrame);
+    paintFrame = null;
     ctxRef = null;
     renderedRows = null;
     disposers.forEach((d) => d && d());

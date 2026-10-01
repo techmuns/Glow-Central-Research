@@ -2,7 +2,7 @@
 // Full-data interaction sweep. Only local captures/fixtures; no production API or write calls.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -70,13 +70,21 @@ try {
     'super-investors/superstar-investors?scope=universe', 'super-investors/institutions?scope=universe',
     'ipos?scope=universe', 'ipos?scope=universe|directory', 'corp-announcements?scope=universe', 'corp-announcements/corporate-actions?scope=universe',
     'nse-filings?scope=universe', 'insider-trades?scope=universe', 'news?scope=universe',
-    'ai-alerts?scope=universe', 'daily-alerts?scope=universe', 'news?scope=portfolio'];
+    'ai-alerts?scope=universe', 'daily-alerts?scope=universe', 'bookmarks?scope=portfolio',
+    'mutual-funds/all-schemes?scope=universe', 'mutual-funds/category-performance?scope=universe',
+    'mutual-funds/company-holdings?scope=universe', 'macro-research/commodities?scope=universe',
+    'macro-research/indices?scope=universe', 'macro-research/currencies?scope=universe',
+    'macro-research/rates?scope=universe', 'macro-research/fpi?scope=universe', 'economy-macro?scope=universe',
+    'family-book/all-holdings?scope=portfolio', 'family-book/direct-equity?scope=portfolio',
+    'corp-announcements?scope=universe', 'news?scope=portfolio'];
   for (const route of routes) {
     const [path, section] = route.split('|');
     const profiler = process.env.TAB_PERF_PROFILE ? await context.newCDPSession(page) : null;
     if (profiler) { await profiler.send('Profiler.enable'); await profiler.send('Profiler.start'); }
     const started = await frame.evaluate(route => { window.__longTasks = []; location.hash = `#/research/${route}`; return performance.now(); }, path);
-    await frame.waitForFunction(id => document.querySelector(`[data-tab-id="${id}"]`)?.getAttribute('aria-selected') === 'true', route.split(/[/?]/)[0]);
+    await frame.waitForFunction(id => id === 'bookmarks'
+      ? document.querySelector('[data-header-bookmarks]')?.getAttribute('aria-current') === 'page'
+      : document.querySelector(`[data-tab-id="${id}"]`)?.getAttribute('aria-selected') === 'true', route.split(/[/?]/)[0]);
     await frame.waitForFunction(() => {
       const panel = document.querySelector('#content-host');
       return panel?.textContent.trim() && !panel.inert && !panel.querySelector('.skeleton-shimmer');
@@ -85,7 +93,7 @@ try {
     else if (section) await frame.locator('[data-chatter-section-tabs]').getByRole('tab', { name: section, exact: true }).click();
     const readyMs = await frame.evaluate(start => performance.now() - start, started);
     // Fixed observation interval, not an application-readiness assumption: expose background fill.
-    await frame.waitForTimeout(1500);
+    await frame.waitForTimeout(Number(process.env.TAB_PERF_OBSERVE_MS) || 1500);
     const result = await frame.evaluate(() => ({
       nodes: document.querySelectorAll('*').length,
       tables: [...document.querySelectorAll('[data-score-table]')].map(t => ({ mounted: t.querySelectorAll('tr[data-row-key]').length,
@@ -95,6 +103,8 @@ try {
       text: document.querySelector('#content-host')?.textContent.trim().replace(/\s+/g, ' ').slice(0, 220),
       maxTaskMs: Math.max(0, ...window.__longTasks.map(t => t.ms)),
     }));
+    if (path.startsWith('corp-announcements?')) assert.match(result.text, /^Corp Announcements\b/,
+      'announcement readiness cannot be satisfied by the previous tab remaining visible');
     // Live tabs may replace their search input while a source update is painting. Resolve both the
     // probe and its cleanup inside the page, where each current node can be used synchronously;
     // a Playwright locator would otherwise keep retrying against successively detached inputs.
@@ -130,6 +140,7 @@ try {
     console.log(JSON.stringify(results.at(-1)));
     if (profiler) {
       const { profile } = await profiler.send('Profiler.stop');
+      if (process.env.TAB_PERF_PROFILE_FILE) writeFileSync(`${process.env.TAB_PERF_PROFILE_FILE}-${results.length}.json`, JSON.stringify(profile));
       const samples = new Map();
       profile.samples?.forEach((id, i) => samples.set(id, (samples.get(id) || 0) + profile.timeDeltas[i]));
       console.log(JSON.stringify(profile.nodes.map(n => ({ fn: n.callFrame.functionName, file: n.callFrame.url.split('/').at(-1), line: n.callFrame.lineNumber + 1, ms: Math.round((samples.get(n.id) || 0) / 1000) })).sort((a,b) => b.ms-a.ms).slice(0,20)));
@@ -146,7 +157,8 @@ try {
       // seconds before, and is bounded by garbage collection and the readers' seed merges now
       // (roughly 200–550ms locally). The budgets fail on a return to one-task ranking or sorting
       // while leaving a slow runner room.
-      const taskBudgetMs = { 'insider-trades?scope=universe': 2500, 'ai-alerts?scope=universe': 1800, 'daily-alerts?scope=universe': 1800 }[route];
+      // Corporate Announcements previously repeated its history merge in one 3.5s task.
+      const taskBudgetMs = { 'corp-announcements?scope=universe': 2500, 'insider-trades?scope=universe': 2500, 'ai-alerts?scope=universe': 1800, 'daily-alerts?scope=universe': 1800 }[route];
       if (taskBudgetMs) assert(result.maxTaskMs < taskBudgetMs, `${route}: longest main-thread task ${result.maxTaskMs}ms stays under ${taskBudgetMs}ms`);
     }
   }

@@ -70,6 +70,7 @@ export function createNseFeed({
     const needed = (index?.days || []).filter((entry) =>
       /^(\d{4}-\d{2}-\d{2}|undated)$/.test(entry.day) && (entry.day === 'undated' || entry.day >= cutoff));
     const queue = needed.filter((entry) => !loadedDays.has(entry.day) || loadedDays.get(entry.day) !== entry.revision || failedDays.has(entry.day));
+    const incoming = [], completed = [];
     // At most four archive requests in flight; 90 days must not fan out ninety requests.
     await Promise.all(Array.from({ length: Math.min(4, queue.length) }, async () => {
       while (queue.length) {
@@ -87,12 +88,20 @@ export function createNseFeed({
           failedDays.add(entry.day); continue;
         }
         // Observation timestamps let newer archive corrections win without reverting live ones.
-        held = mergeFilings(capturedRows(payload), held);
+        incoming.unshift(capturedRows(payload));
+        completed.push(entry);
+      }
+    }));
+    if (gen === generation) {
+      // Publish once after the batch. Reverse arrival order preserves the old
+      // equal-observation precedence; newer live arrivals remain in held.
+      if (incoming.length) held = mergeFilings(...incoming, held);
+      for (const entry of completed) {
         loadedDays.set(entry.day, entry.revision);
         failedDays.delete(entry.day);
       }
-    }));
-    if (gen === generation) emit();
+      emit();
+    }
     return rows();
   }
 
@@ -134,7 +143,17 @@ export function createNseFeed({
     return pending;
   }
 
-  const rows = () => held.filter((row) => inHistoryRange(row, from()));
+  // Stable arrays let all consumers reuse their projections. The IST cutoff is
+  // part of the key so a quiet source still advances its reading window at midnight.
+  const windows = new Map();
+  function windowRows(days) {
+    const cutoff = firstHistoryDay(days, now()), cached = windows.get(days);
+    if (cached?.input === held && cached.cutoff === cutoff) return cached.rows;
+    const rows = held.filter((row) => inHistoryRange(row, cutoff));
+    windows.set(days, { input: held, cutoff, rows });
+    return rows;
+  }
+  const rows = () => windowRows(windowDays);
   function meta() {
     const list = rows();
     const resolved = list.filter((row) => row.ticker).length;
@@ -149,7 +168,7 @@ export function createNseFeed({
 
   return {
     load, refresh, loadHistory, rows, all: rows, meta,
-    retainedRows: () => held.filter((row) => inHistoryRange(row, firstHistoryDay(90, now()))),
+    retainedRows: () => windowRows(90),
     isLoaded: () => loaded,
     rowKey: filingKey,
     idsHeld: () => new Set(held.map(filingKey)),
@@ -163,6 +182,7 @@ export function createNseFeed({
     invalidate: () => {
       generation++;
       held = []; retained = []; source = {}; index = null; loaded = false; loading = null; refreshing = null;
+      windows.clear();
       loadedDays.clear(); failedDays.clear(); pendingDays.clear(); indexFailed = false;
     },
   };

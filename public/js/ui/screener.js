@@ -919,7 +919,10 @@ export function scoreTable(config) {
       const started = performance.now();
       let worked = 0;
       while (searchWarmAt < rows.length && (worked < 100 || (performance.now() - started < 4 && (!deadline || deadline.timeRemaining() > 1)))) {
-        haystack(rows[searchWarmAt], searchWarmAt);
+        // Custom company search owns its matching rules and normalized text.
+        // Warm the index it actually reads, rather than an unused plain-text copy.
+        if (searchControl?.prepare) searchControl.prepare(rows[searchWarmAt]);
+        else haystack(rows[searchWarmAt], searchWarmAt);
         searchWarmAt++;
         worked++;
       }

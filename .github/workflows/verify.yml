@@ -88,7 +88,7 @@ jobs:
       - name: Verify BSE collection recovery and host qualification
         run: node scripts/verify-bse-collection.mjs && node scripts/verify-announcement-recovery.mjs
       - name: Verify continuous corporate announcement sources and retention
-        run: node scripts/verify-corporate-stream.mjs && node scripts/verify-announcement-types.mjs
+        run: node scripts/verify-corporate-stream.mjs && node scripts/verify-announcement-types.mjs && node scripts/verify-announcement-preparation.mjs
       - name: Verify domestic filings and earnings provenance
         run: node scripts/verify-domestic-filings.mjs
       - name: Verify automatic filing capture and archives
