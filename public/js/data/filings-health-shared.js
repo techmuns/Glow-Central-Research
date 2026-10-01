@@ -8,7 +8,8 @@ export const FILINGS_HEALTH_FILES = {
   news: 'company-news/index.json',
   twitter: 'twitter-posts.json',
 };
-export const FILINGS_HEALTH_LIMITS = { runHours: 4, companyHours: 48, initialHours: 24, insiderHours: 3, newsHours: 4, twitterHours: 2 };
+// Company news is a once-a-day walk of paid searches (06:11 IST), so 26 hours is its overdue line.
+export const FILINGS_HEALTH_LIMITS = { runHours: 4, companyHours: 48, initialHours: 24, insiderHours: 3, newsHours: 26, twitterHours: 2 };
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value);
 const stamp = (value) => typeof value === 'string' ? Date.parse(value) : NaN;
 const count = (value) => Number.isSafeInteger(value) && value >= 0;
