@@ -30,13 +30,14 @@ const CONFIG = {
   companyNews: {
     route: 'api/company-news/refresh?source=auto',
     run: 'api/company-news/run',
-    // PAID SEARCHES. Each company-news run is a walk of paid Brave searches, scheduled every 3 hours
-    // from 07:11 to 22:11 IST. An open dashboard recovers a walk only after the longest planned gap
-    // (9 hours overnight) plus a late start, and a click starts one only when a scheduled walk was
-    // clearly missed. The workflow's gate keeps walks 2 hours apart and at most 8 a day. Headlines
-    // between walks come from the free feeds, which keep their short windows here.
-    maxAgeMs: 12 * 60 * 60 * 1000,
-    manualMinAgeMs: 4 * 60 * 60 * 1000,
+    // PAID SEARCHES. Each company-news run is a walk of paid Brave searches: every 2 hours from
+    // 10:11 to 18:11 IST on weekdays and once at 06:11 IST every day. Neither an open dashboard nor a
+    // click starts a walk until the longest planned gap (24 hours at the weekend) plus a late start
+    // has passed, so only a broken schedule is recovered. The workflow's gate keeps walks 2 hours
+    // apart and at most 8 a day. Headlines between walks come from the free feeds, which keep their
+    // short windows here.
+    maxAgeMs: 26 * 60 * 60 * 1000,
+    manualMinAgeMs: 26 * 60 * 60 * 1000,
     active: () => true,
     budgetMs: 35 * 60 * 1000,
   },
