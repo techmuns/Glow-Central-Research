@@ -89,4 +89,64 @@ let cancelledReads = 0;
 await prepareAnnouncementSearch(rows, () => { cancelledReads++; return ''; }, {
   sliceMs: 0, yieldForInput: async () => {}, keepGoing: () => false });
 assert.equal(cancelledReads, 128, 'leaving the view stops unfinished preparation at the next slice');
+
+// All Alerts shares the announcement reader. Reading a cold archive synchronously here models
+// the multi-second merge that can land after the reader has already switched away from filings.
+const { announcements } = await import('../public/js/data/filings.js');
+const { collect, prepareSources } = await import('../public/js/data/daily-alerts.js');
+const original = { rows: announcements.rows, meta: announcements.meta,
+  seed: announcements.seed, prepareRows: announcements.prepareRows, onChange: announcements.onChange };
+let prepared = false, preparations = 0, publication = rows;
+const sourceListeners = [];
+let onMeta = null;
+try {
+  announcements.onChange = fn => { sourceListeners.push(fn); return () => {}; };
+  announcements.rows = () => {
+    assert(prepared, 'the shared archive must be prepared before a synchronous alert read');
+    return publication;
+  };
+  announcements.meta = () => {
+    assert(prepared, 'metadata must not synchronously merge a newly seeded archive');
+    onMeta?.();
+    return { capturedAt: '2026-09-04T13:00:00Z' };
+  };
+  announcements.seed = async () => { prepared = false; };
+  announcements.prepareRows = async () => {
+    preparations++;
+    // A correction/new filing arrives during the first preparation's input opportunity.
+    if (preparations === 2) publication = [...rows, { ...rows[0] },
+      { ...rows[0], title: 'Corrected filing with the same source ID' },
+      { ...rows[0], newsId: 'undated-arrival', title: 'Undated new filing', date: null }];
+    prepared = true;
+  };
+  const report = await collect({ load: false, holdings: [], day: '2026-09-30', includeHistory: true });
+  assert(report.events.some(event => event.headline === 'Undated new filing'),
+    'All Alerts prepares cold announcements and includes arrivals during that preparation');
+  const announcementFeed = report.feeds.find(feed => feed.id === 'announcements');
+  assert.equal(announcementFeed.count, rows.length + 2, 'sliced normalization removes only exact duplicates');
+  assert.equal(announcementFeed.oldestDay, '2026-09-01');
+  assert.equal(announcementFeed.newestDay, '2026-09-28');
+  assert.equal(announcementFeed.events.filter(event => event.headline === rows[0].title).length, 1);
+  assert(announcementFeed.events.some(event => event.headline === 'Corrected filing with the same source ID'),
+    'independent source content sharing an ID survives normalization');
+  const loaded = await prepareSources({ feedIds: ['announcements'] });
+  assert.equal(loaded[0].status, 'fulfilled', 'loading prepares announcement rows before reading their metadata');
+  const clock = performance.now;
+  let elapsed = 0;
+  try {
+    // Make every batch offer an input opportunity, independent of the test machine's speed.
+    performance.now = () => elapsed += 13;
+    onMeta = () => {
+      onMeta = null;
+      queueMicrotask(() => {
+        publication = [...publication, { ...rows[1], newsId: 'new-revision', title: 'Arrived during normalization' }];
+        for (const listener of sourceListeners) listener();
+      });
+    };
+    await collect({ load: false, holdings: [], day: '2026-09-29', includeHistory: true });
+    const latest = await collect({ load: false, holdings: [], day: '2026-09-29', includeHistory: true });
+    assert(latest.events.some(event => event.headline === 'Arrived during normalization'),
+      'a sliced read cannot cache its older source snapshot after an in-flight invalidation');
+  } finally { performance.now = clock; }
+} finally { Object.assign(announcements, original); }
 console.log('PASS announcement preparation: complete merge parity, bounded batches, stable scopes, concurrent arrivals and failure retention');

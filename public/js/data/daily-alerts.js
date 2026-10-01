@@ -544,6 +544,12 @@ function newsQueryRows(reader, queryWindow, companyReader = news) {
   return reader === companyReader ? newsCandidates.company : newsCandidates.market;
 }
 function readFeed(feed, { day, includeHistory, queryWindow = null, newsReader = news }) {
+  return runSteps(readFeedSteps(feed, { day, includeHistory, queryWindow, newsReader }));
+}
+function readFeedInSlices(feed, args, yieldForInput) {
+  return runStepsInSlices(readFeedSteps(feed, args), { yieldForInput });
+}
+function* readFeedSteps(feed, { day, includeHistory, queryWindow = null, newsReader = news }) {
   const newsFeed = ['news', 'market-news'].includes(feed.id);
   const windowKey = alertWindowKey(newsFeed ? queryWindow : null);
   const cached = normalizedFeeds.get(feed.id);
@@ -552,10 +558,18 @@ function readFeed(feed, { day, includeHistory, queryWindow = null, newsReader = 
     return feed.id === 'news' ? { ...cached.row, ...companyNewsState(day, newsReader.meta()) } : cached.row;
   }
   const out = COLLECTORS[feed.id]({ day, includeHistory, queryWindow, newsReader, scope: 'universe', wanted: null }) || {};
-  const row = toFeedRow(feed, { ...out,
-    events: (out.events || []).filter((e) => includeHistory || eventDay(e) === day) }, day);
-  if (settledLoads.has(feed.id) && !PRIVATE_FEEDS.has(feed.id)) normalizedFeeds.set(feed.id, { day, includeHistory, windowKey, newsReader: newsFeed ? newsReader : null, row });
-  return row;
+  // Source changes invalidate this reservation too. An older sliced read may still finish for
+  // its caller, but cannot overwrite a newer reading or cache itself after invalidation.
+  const reservation = {};
+  normalizedFeeds.set(feed.id, reservation);
+  try {
+    const row = yield* toFeedRowSteps(feed, { ...out,
+      events: (out.events || []).filter((e) => includeHistory || eventDay(e) === day) }, day);
+    if (normalizedFeeds.get(feed.id) === reservation && settledLoads.has(feed.id) && !PRIVATE_FEEDS.has(feed.id)) {
+      normalizedFeeds.set(feed.id, { day, includeHistory, windowKey, newsReader: newsFeed ? newsReader : null, row });
+    }
+    return row;
+  } finally { if (normalizedFeeds.get(feed.id) === reservation) normalizedFeeds.delete(feed.id); }
 }
 
 function loadFeed(id, refresh) {
@@ -703,7 +717,7 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
       else if (WARMERS[feed.id]) await WARMERS[feed.id](yieldForInput, warmReading);
     } catch { /* The read below still answers. */ }
     try {
-      settledFeeds.set(feed.id, { ...readFeed(feed, { day, includeHistory, queryWindow, newsReader }), status: 'pending' });
+      settledFeeds.set(feed.id, { ...await readFeedInSlices(feed, { day, includeHistory, queryWindow, newsReader }, yieldForInput), status: 'pending' });
     } catch { /* A source with no readable snapshot starts empty. */ }
     if (performance.now() - batchStarted >= 8) { await yieldForInput(); batchStarted = performance.now(); }
   }
@@ -719,9 +733,15 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
     if (queryWindow) for (const id of ['news', 'market-news']) {
       const previous = settledFeeds.get(id);
       if (previous && !poolSeeded.has(id)) {
-        try { settledFeeds.set(id, { ...previous, events: readFeed(feedById.get(id), { day, includeHistory, queryWindow, newsReader }).events }); }
-        catch { settledFeeds.set(id, { ...previous, status: 'failed', reachesToday: false,
-          note: 'This news view could not be rebuilt. Previously read evidence remains visible.' }); }
+        try {
+          const refreshed = await readFeedInSlices(feedById.get(id), { day, includeHistory, queryWindow, newsReader }, yieldForInput);
+          // A loading feed may settle while this publication yields. Keep that newer response
+          // and its completed/failed status; a partial cannot turn it back into pending.
+          if (settledFeeds.get(id) === previous) settledFeeds.set(id, { ...previous, events: refreshed.events });
+        } catch {
+          if (settledFeeds.get(id) === previous) settledFeeds.set(id, { ...previous, status: 'failed', reachesToday: false,
+            note: 'This news view could not be rebuilt. Previously read evidence remains visible.' });
+        }
       }
     }
     return assembleInSlices({ day, scope, holdings: book, includeHistory, settledFeeds, requestedCompanies, queryWindow }, yieldForInput);
@@ -796,12 +816,12 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
         await yieldForInput();
         if (feed.id === 'news' || feed.id === 'market-news') await warmNewsReadings(feed.id, newsReader, queryWindow, yieldForInput, warmReading);
         else if (WARMERS[feed.id]) { try { await WARMERS[feed.id](yieldForInput, warmReading); } catch { /* The read below still answers. */ } }
-        out = readFeed(feed, args);
+        out = await readFeedInSlices(feed, args, yieldForInput);
         if (!load && loadErrors.has(feed.id)) out = { ...out, status: 'failed', reachesToday: false, note: `Last read failed: ${loadErrors.get(feed.id)}. Retained records remain visible.` };
         else if (!load && (!loadedFeeds.has(feed.id) || loadingFeeds.has(feed.id)) && LOADERS[feed.id]) out = { ...out, status: 'pending' };
       } catch (err) {
         // A failed refresh must not erase a last-good capture or masquerade as an empty feed.
-        try { out = readFeed(feed, args); } catch { out = toFeedRow(feed, { events: [] }, day); }
+        try { out = await readFeedInSlices(feed, args, yieldForInput); } catch { out = toFeedRow(feed, { events: [] }, day); }
         out = { ...out, status: 'failed', reachesToday: false, note: `Read failed: ${String(err?.message || err)}. Retained records remain visible.` };
       }
       settledFeeds.set(feed.id, out);
@@ -868,9 +888,10 @@ async function refreshFilings(feed, refresh) {
   if (refresh && !(await feed.refreshSnapshot()).available) throw Error('Latest filings capture unavailable');
   // `meta()` below rebuilds the reader's rows synchronously, and after a load every row is new:
   // warm the readings that rebuild will hit in slices first, so it pays for the join, not for
-  // attributing every retained story in one task. A feed without `warm` (announcements, insider)
-  // is unchanged.
+  // attributing every retained story in one task. Announcements also prepare their archive
+  // merge before meta() can reach its synchronous fallback.
   await feed.warm?.(yieldToInput);
+  await feed.prepareRows?.();
   const m = feed.meta();
   if (m.reason || m.failed || m.truncated) throw Error(m.message || 'Filings coverage is incomplete');
 }
@@ -915,7 +936,17 @@ export async function warmRows(rows, reading, yieldForInput = yieldForInputSlice
   }
 }
 const WARMERS = {
-  announcements: (yieldForInput, reading) => warmRows(announcements.rows(), (row) => reading.touch(announcementEvent(row), 'announcements'), yieldForInput),
+  announcements: async (yieldForInput, reading) => {
+    await announcements.prepareRows();
+    let prepared = announcements.rows();
+    for (;;) {
+      await warmRows(prepared, row => reading.touch(announcementEvent(row), 'announcements'), yieldForInput);
+      await announcements.prepareRows();
+      const next = announcements.rows();
+      if (next === prepared) return;
+      prepared = next;
+    }
+  },
   insider: (yieldForInput, reading) => warmRows(insider.rows(), (row) => reading.touch(insiderEvent(row), 'insider'), yieldForInput),
   ...Object.fromEntries(ADDITIONAL_SOURCES.filter((s) => s.warm).map((s) => [s.id, s.warm])),
 };
@@ -950,24 +981,37 @@ function projectedEvent(event, feed) {
 }
 
 function toFeedRow(feed, out, day) {
+  return runSteps(toFeedRowSteps(feed, out, day));
+}
+// Per-source deduplication/projection can be larger than the final visible report. Slice this
+// pass too: warming classifications and slicing the final sort cannot bound its Map/JSON work.
+function* toFeedRowSteps(feed, out, day) {
   const seen = new Map();
-  const events = (out.events || []).filter((event) => {
+  const events = [];
+  let oldestDay = null, newestDay = null, todayCount = 0, visited = 0;
+  for (const event of out.events || []) {
     // Deduplicate exact records within a source, not independent exchange/publisher evidence.
     // Most IDs occur once. Only serialize source records when an ID actually collides.
     const id = String(event.id);
     const prior = seen.get(id);
-    if (!prior) { seen.set(id, { first: event, signatures: null }); return true; }
-    prior.signatures ||= new Set([JSON.stringify(prior.first.sourceRecord || prior.first)]);
-    const signature = JSON.stringify(event.sourceRecord || event);
-    if (prior.signatures.has(signature)) return false;
-    prior.signatures.add(signature); return true;
-  }).map((event) => projectedEvent(event, feed));
-  let oldestDay = null, newestDay = null, todayCount = 0;
-  for (const event of events) {
-    if (event.day === day) todayCount++;
-    if (!event.day) continue;
-    if (oldestDay === null || event.day < oldestDay) oldestDay = event.day;
-    if (newestDay === null || event.day > newestDay) newestDay = event.day;
+    let duplicate = false;
+    if (!prior) seen.set(id, { first: event, signatures: null });
+    else {
+      prior.signatures ||= new Set([JSON.stringify(prior.first.sourceRecord || prior.first)]);
+      const signature = JSON.stringify(event.sourceRecord || event);
+      duplicate = prior.signatures.has(signature);
+      prior.signatures.add(signature);
+    }
+    if (!duplicate) {
+      const projected = projectedEvent(event, feed);
+      events.push(projected);
+      if (projected.day === day) todayCount++;
+      if (projected.day) {
+        if (oldestDay === null || projected.day < oldestDay) oldestDay = projected.day;
+        if (newestDay === null || projected.day > newestDay) newestDay = projected.day;
+      }
+    }
+    if (++visited % 128 === 0) yield;
   }
   return {
     ...feed,
