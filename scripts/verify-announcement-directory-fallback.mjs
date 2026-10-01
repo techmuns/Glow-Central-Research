@@ -52,6 +52,7 @@ try {
   writeFileSync(join(data,'announcement-identities.json'),registryText);
   writeFileSync(join(data,'corp-announcements.json'),JSON.stringify({ byTicker:{ ALPHA:[{newsId:'old-retained',ticker:'ALPHA',company:'Alpha',title:'Earlier evidence',headline:'Earlier evidence',date:'2026-08-01'}] }, from:'2026-08-01', to:'2026-09-23', lastCompleteTo:'2026-09-23' }));
   writeFileSync(join(temporary,'fixture.mjs'), `
+    Date.now = () => ${now};
     globalThis.fetch = async input => {
       const url = new URL(input);
       if (url.pathname.includes('ListofScripData')) return new Response('denied',{status:403});
