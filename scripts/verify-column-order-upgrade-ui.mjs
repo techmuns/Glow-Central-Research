@@ -11,6 +11,8 @@ import { scoreTable } from '/js/ui/screener.js';
 import { watchWorkerChanges } from '/js/core/app-updates.js';
 import { NEWS_QUERY_INDEX_VERSION, newsQueryIdentities } from '/js/data/news-query-index.js';
 import { questionTopics } from '/js/research/query-context.js';
+import { POOL_FEED_CAPTURES } from '/js/data/alert-pool-shared.js';
+window.announcementRecoveryChecked=POOL_FEED_CAPTURES.announcements.includes('announcementRecovery');
 window.documentPriority=questionTopics('Show PDF attachments').includes('documents');
 window.newsQueryVersion=NEWS_QUERY_INDEX_VERSION;
 window.newsQueryKeys=newsQueryIdentities({url:'https://example.test/article',tradingViewId:'report',date:'2026-09-22',source:'Publisher',title:'Same report'}).length;
@@ -30,6 +32,7 @@ const server=createServer((req,res)=>{
    if(!upgraded)body=body.replace(/const CACHE_NAME = .*;/,'const CACHE_NAME = `${CACHE_PREFIX}previous-column-release`;');
   }
   if(path==='/js/ui/column-order.js'&&!upgraded)body='export function installColumnOrder() {}';
+  if(path==='/js/data/alert-pool-shared.js'&&!upgraded)body=body.toString().replace("'announcements', 'announcementRecovery',", "'announcements',");
   if(path==='/js/research/query-context.js'&&!upgraded)body=body.toString().replace(/^.*\['documents',.*\n/m, '');
   if(path==='/js/data/news-query-index.js'&&!upgraded)body=body.toString()
    .replace(/NEWS_QUERY_INDEX_VERSION = \d+/, 'NEWS_QUERY_INDEX_VERSION = 3')
@@ -49,12 +52,14 @@ try{
  assert.equal(await page.evaluate(()=>window.newsQueryVersion),3);
  assert.equal(await page.evaluate(()=>window.newsQueryKeys),2);
  assert.equal(await page.evaluate(()=>window.documentPriority),false);
+ assert.equal(await page.evaluate(()=>window.announcementRecoveryChecked),false);
  const before=await page.evaluate(()=>caches.keys());assert(before.some(key=>key.includes('previous-column-release')));
  upgraded=true;await page.evaluate(async()=>(await navigator.serviceWorker.getRegistration()).update());
  await page.waitForSelector('[data-column-reorder]');
  assert.equal(await page.evaluate(()=>window.newsQueryVersion),NEWS_QUERY_INDEX_VERSION);
  assert.equal(await page.evaluate(()=>window.newsQueryKeys),3,'the returning session gains dated-headline companions');
  assert.equal(await page.evaluate(()=>window.documentPriority),true,'the returning session prioritizes requested document attachments');
+ assert.equal(await page.evaluate(()=>window.announcementRecoveryChecked),true,'the returning session validates backup announcement freshness');
  await page.locator('th').first().focus();await page.keyboard.press('Alt+ArrowRight');
  assert.deepEqual((await page.locator('th').allTextContents()).map(s=>s.trim()),['Shares','Company']);
  await page.reload();await page.waitForSelector('[data-column-reorder]');
