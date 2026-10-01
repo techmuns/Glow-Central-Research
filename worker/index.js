@@ -911,7 +911,8 @@ async function handleMuns(request, env, ctx, kind, rawTicker = '') {
     // THE REQUESTED URL TRAVELS WITH THE FAILURE. A bare status code is unfalsifiable — the last
     // time that rule was broken here it cost a long investigation during which the upstream was
     // healthy the whole time. See "an upstream you CANNOT proxy" in CLAUDE.md.
-    payload = { ok: false, kind, reason: e.reason, message: e.message, status: e.status, requestedUrl: e.url, ticker: ticker || null, query };
+    payload = { ok: false, kind, reason: e.reason, message: e.message, status: e.status, requestedUrl: e.url,
+      ...(e.upstream ? { upstream: e.upstream } : {}), ticker: ticker || null, query };
     ttl = MUNS_FAIL_TTL_S;
   }
 

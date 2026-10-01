@@ -71,15 +71,20 @@ export function insiderSummary(snapshot, tickers, now = Date.now()) {
   const source = snapshot?.insiders;
   if (!source) return 'Supplementary insider disclosures have not been checked yet.';
   const wanted = tickers?.length ? tickers : source.targetTickers;
+  // A company the source refuses while answering others is a named state of its own: neither a
+  // failed check nor an unchecked one. Its retained disclosures stay in the rows.
+  const refused = c => !!c?.noRecord && !c.error;
   const checks = wanted.map(t => source.byTicker[t]);
-  const good = checks.filter(c => c?.lastSuccessAt);
+  const good = checks.filter(c => c?.lastSuccessAt && !refused(c));
   const latest = good.flatMap(c => c.trades).reduce((d, r) => r.date > d ? r.date : d, '');
-  const missing = checks.filter(c => !c?.lastSuccessAt).length;
+  const missing = checks.filter(c => !c?.lastSuccessAt && !refused(c)).length;
+  const noRecord = checks.filter(refused).length;
   const failed = checks.filter(c => c?.error).length;
   const delayed = good.filter(c => now - Date.parse(c.lastSuccessAt) > 4 * 3600000).length;
   const oldest = good.map(c => c.lastSuccessAt).sort()[0];
   const checked = oldest ? ` · oldest successful check ${new Date(oldest).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })} IST` : '';
   return `Muns insider disclosures · ${good.length}/${wanted.length} companies checked · latest disclosure ${latest || 'none reported'}${checked}.` +
-    (missing ? ` ${missing} unchecked.` : '') + (failed ? ` ${failed} failed checks; retained disclosures shown.` : '') +
+    (missing ? ` ${missing} unchecked.` : '') + (noRecord ? ` ${noRecord} have no record at the source.` : '') +
+    (failed ? ` ${failed} failed checks; retained disclosures shown.` : '') +
     (delayed ? ` ${delayed} company checks are delayed.` : '') + (source.error ? ` ${source.error}` : '');
 }

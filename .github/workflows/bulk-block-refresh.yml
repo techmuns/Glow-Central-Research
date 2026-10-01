@@ -12,6 +12,7 @@ on:
       - '.github/workflows/bulk-block-refresh.yml'
       - 'scripts/capture-exchange-deals.mjs'
       - 'scripts/lib/exchange-deals.mjs'
+      - 'scripts/lib/muns-insider-capture.mjs'
       - 'worker/exchange-artifact.mjs'
   workflow_dispatch:
     inputs:

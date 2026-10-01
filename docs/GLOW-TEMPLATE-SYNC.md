@@ -614,6 +614,18 @@ investment implications remain stored and must not be relabelled as summaries. S
 related coverage, collection, retention, scope and refresh behavior remain unchanged.
 
 
+## Insider supplement refusals and the bulk/block exit rule (2 October 2026)
+
+`scripts/capture-exchange-deals.mjs` and `scripts/lib/muns-insider-capture.mjs` were byte-identical
+to Sattva's (apart from the Worker host), and both repositories' `bulk-block-refresh.yml` failed on
+every run from at least 29 September: any retained company error failed the job, the source answers
+HTTP 500 for symbols it cannot resolve, and outage-window failures waited days for the rotation.
+Glow now confirms a refusal within the run before naming it no-record, re-asks failed companies
+right after the portfolio, asks a renamed book holding by its ISIN's current symbol, and judges the
+run with `captureVerdict()`; `worker/muns.mjs` carries the upstream's own error words. A template
+sync must keep these Glow changes (see *Refusals, retries and the run's exit rule* in
+DATA-CONTRACTS.md); upstreaming them would fix Sattva's job too.
+
 ## AI card scrolling history (28 September 2026)
 
 Glow's Newest first card section now uses `data/alert-timeline.js` and `ui/alert-timeline.js` with

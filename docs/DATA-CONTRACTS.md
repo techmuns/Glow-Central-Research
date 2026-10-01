@@ -6019,11 +6019,17 @@ slice; failed or suspiciously empty reads preserve it. The initial public exchan
 from the supplied Glow reference, with its original check dates and no Glow portfolio data.
 
 `insiders.byTicker[ticker]` retains Muns `trades`, `from/to`, the last attempt and last success,
-and an explicit error. `insiders.targetTickers` is Sattva's capture universe: its resolved live
-portfolio, local universe, and companies already present in its market disclosures. The bounded
-12-minute walk prioritises portfolio companies whose successful check is at least two hours old,
-then rotates the universe by attempt time. Requests start at least 2.5 seconds apart with four
-in flight. Each read overlaps the last successful day by seven days; the first asks for a year.
+and one of three latest states: answered; failed, with an explicit `error` and a structured
+`failure` (`reason`, `status`, `message`, and the upstream's own `upstream` message/request id when
+it gave one); or **no record at the source**, with `error: null` and `noRecord`
+(`since`, `lastRefusedAt`, `refusals`). `insiders.targetTickers` is Sattva's capture universe: its
+resolved live portfolio, local universe, and companies already present in its market disclosures.
+The bounded 12-minute walk prioritises portfolio companies whose successful check is at least two
+hours old, then companies whose last check failed (oldest failure first), then rotates the
+universe by attempt time. Requests start at least 2.5 seconds apart with four in flight. Each read
+overlaps the last successful day by seven days; the first asks for a year. `insiders.run` records
+the latest run: start/finish, requests, companies checked/answered/failed, refusals confirmed or
+reconfirmed, flaps, and whether its refusals could be confirmed (`clean`).
 Old records remain additive, including beyond the page's default 30-day reading window. Each
 completed source interval/company response is saved atomically so interrupted jobs can publish
 and resume their completed progress. A failed live portfolio lookup retains the checkpoint and
@@ -6038,6 +6044,44 @@ unchanged, and source success still requires a readable response.
 Scope matching recognises those same reviewed aliases in both directions, including Watchlist
 membership and Universe exclusions. Raw exchange rows and holdings keep their original tickers;
 older Jay Bee bulk deals therefore remain visible under its `JAYBEE-SM` portfolio holding.
+A book holding whose ISIN the exchanges' joined security master lists under a different current
+NSE symbol is asked by that symbol and keeps its book ticker on every row: HEG Ltd became HEGAM in
+September 2026, the book still files it as `HEG`, and the source stopped resolving `HEG`. The
+exchange-listed `HEGAM` is then not a second target. An ISIN listed under two symbols is ambiguous
+and changes nothing.
+
+### Refusals, retries and the run's exit rule (2 October 2026)
+
+Measured on the 1 October artifact, 641 of 666 retained insider errors were the source's HTTP 500.
+About 480 dated from its outage windows (27 September 18:00 UTC answered nobody; 30 September
+04:00–06:00 UTC refused 224 of 409) and answered when asked again; the old rotation would not have
+reached them for days. The rest were deterministic: the API answers 500 for any symbol it cannot
+resolve (a nonsense ticker and an unused BSE code both get one): rights entitlements, partly-paid
+lines, InvIT and REIT units, renamed or delisted symbols and some BSE-only codes. A single 500
+cannot distinguish the two, so:
+
+- A refused company (`reason: 'upstream'` with `status: 500`, or the source's own `not-found` 404)
+  is asked once more at least 30 seconds
+  later in the same run, past the Worker's 15-second failure cache. It is named no-record only if
+  the run is **clean**: at least ten answers, no other kind of failure (timeout, other status,
+  unreachable, unreadable), no 500 that answered on its second ask, and answers from other
+  companies both between and after its two refusals. Anything less leaves it a failed check.
+- While a refusal still lacks that evidence, the next company asked is one that answered before, so
+  a stretch of failed companies cannot vouch for each other. After the budget the run starts only
+  such witnesses (at most six) and the rechecks already owed; the budget never strands a refusal.
+- A company already named no-record is re-asked in the normal rotation; another refusal keeps it,
+  an answer clears it, and any other failure makes it an ordinary failed check again.
+- `bulk-block-refresh.yml` fails when an exchange source fails, when the insider capture did not
+  complete, when any company failed **in this run**, or when a failure has gone more than three
+  days without a re-check (the failed lane is not keeping up). Failures from an earlier run that
+  this run had no budget to re-ask, and no-record companies, are stated as `::warning::` and
+  `::notice::` annotations and in the step summary, never dropped. `captureVerdict()` in
+  `scripts/capture-exchange-deals.mjs` and `insiderVerdict()` in
+  `scripts/lib/muns-insider-capture.mjs` are the rule; the browser's insider status counts
+  no-record companies separately from checked, unchecked and failed ones.
+- `/api/insider-trades/{ticker}` failures carry `upstream: { message, requestId }` when the
+  source's error body gives one (read once, at most 4 KB and two seconds), so a refusal can later be
+  told from an outage by the source's own words rather than by inference.
 
 The schedule runs every 30 minutes during weekday day/evening hours plus a weekend check.
 The browser reads every minute while the feed is visible, and on focus/reconnection; it can
@@ -6046,7 +6090,8 @@ independently of a reader, uses Sattva's existing repository/Worker configuratio
 artifacts without commits to main. Each artifact retains the cumulative history and has 90-day
 artifact retention. An outage beyond retained artifacts is an explicit recovery limit; this is
 not a guarantee of an exhaustive historical archive. Muns coverage is per company and best
-effort; queue size, unavailable securities and upstream response limits can delay checks.
+effort; queue size, securities the source has no record for and upstream response limits can
+delay checks.
 
 The shared insider reader merges these records with Screener and the monthly archive, so tables,
 alerts and research use the same rows. Official reports supersede secondary rows only inside
