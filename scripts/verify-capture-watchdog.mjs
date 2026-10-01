@@ -6,8 +6,8 @@ import { refreshDue, resetForTest, runCaptureWatchdog } from '../public/js/data/
 const hour = 60 * 60 * 1000;
 const wed2200 = Date.parse('2026-09-02T16:30:00.000Z'); // 22:00 IST
 
-assert.equal(refreshDue('companyNews', { capturedAt: new Date(wed2200 - 2.9 * hour).toISOString() }, wed2200), false);
-assert.equal(refreshDue('companyNews', { capturedAt: new Date(wed2200 - 3.1 * hour).toISOString() }, wed2200), true);
+assert.equal(refreshDue('companyNews', { capturedAt: new Date(wed2200 - 25.9 * hour).toISOString() }, wed2200), false, 'paid company-news walks pause in the evening and at the weekend; a capture inside the 24-hour weekend gap plus a late start is current');
+assert.equal(refreshDue('companyNews', { capturedAt: new Date(wed2200 - 26.1 * hour).toISOString() }, wed2200), true, 'a broken company-news schedule is recovered');
 assert.equal(refreshDue('marketNews', { capturedAt: new Date(wed2200 - 47 * 60 * 1000).toISOString() }, wed2200 - 60 * 1000), true, 'market news refreshes through 21:59 IST');
 assert.equal(refreshDue('marketNews', { capturedAt: new Date(wed2200 - 47 * 60 * 1000).toISOString() }, wed2200), false, 'market news does not hammer a publisher outside its measured window');
 assert.equal(refreshDue('announcements', { capturedAt: new Date(wed2200 - 2 * hour).toISOString() }, wed2200), true);
