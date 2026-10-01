@@ -76,6 +76,8 @@ jobs:
         run: node scripts/verify-research.mjs && node scripts/verify-research-completion.mjs && node scripts/verify-research-claude.mjs && node scripts/verify-research-retrieval.mjs && node scripts/verify-research-catalysts.mjs && node scripts/verify-research-evaluation.mjs && node scripts/verify-research-preview.mjs
       - name: Verify Claude streaming in the native local Worker runtime
         run: node scripts/verify-research-claude-runtime.mjs
+      - name: Verify private shared price alerts, retained history and Worker restart
+        run: node scripts/verify-private-price-levels.mjs && npx --yes --package=wrangler@4.119.0 -c 'node scripts/verify-private-price-runtime.mjs'
       - name: Verify private portfolio bridge
         run: node scripts/verify-portfolio-bridge.mjs
       - name: Verify comparable portfolio businesses and dated event returns
@@ -175,6 +177,10 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-general-alerts-ui.mjs && node scripts/verify-all-alerts-restore-ui.mjs
+      - name: Verify private alert access, pagination and public-cache exclusion
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-private-price-ui.mjs
       - name: Verify AI story updates, sources and returning-session upgrade
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright

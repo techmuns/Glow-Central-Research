@@ -105,7 +105,7 @@ function shiftDay(day, amount) {
 
 export function materializePublicAlertWindow(report) {
   const firstDay = shiftDay(report.day, -(ALERT_WINDOW_CACHE_DAYS - 1));
-  const privateFeeds = new Set(['company-documents', 'drhp-documents']);
+  const privateFeeds = new Set(['price-levels', 'company-documents', 'drhp-documents']);
   return {
     version: 1,
     day: report.day,
@@ -118,7 +118,7 @@ export function materializePublicAlertWindow(report) {
 }
 
 function validAlertWindow(value, throughDay) {
-  const privateFeeds = new Set(['company-documents', 'drhp-documents']);
+  const privateFeeds = new Set(['price-levels', 'company-documents', 'drhp-documents']);
   if (value?.version !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(value.day || '') ||
       !Array.isArray(value.events) || !Array.isArray(value.feeds)) return false;
   const captured = Date.parse(`${value.day}T00:00:00Z`);
@@ -414,7 +414,7 @@ const listeners = new Set();
 // alive while the tab is unmounted so a change elsewhere cannot resurrect an old snapshot.
 // No poller or durable storage here; private document feeds are always read directly.
 const normalizedFeeds = new Map();
-const PRIVATE_FEEDS = new Set(['company-documents', 'drhp-documents']);
+const PRIVATE_FEEDS = new Set(['price-levels', 'company-documents', 'drhp-documents']);
 let observingSources = false;
 function observeSources() {
   if (observingSources) return;

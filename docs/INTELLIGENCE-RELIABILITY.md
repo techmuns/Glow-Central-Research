@@ -441,3 +441,32 @@ single-plan ETFs remain, and every raw plan remains available to the cohort proj
 A saved snapshot paints before revalidation; a failed read retains it with a failure label.
 Visible views check every 15 minutes and on return, while the source publishes daily. These
 reader checks do not claim an independent historical NAV archive or complete source coverage.
+
+### Private price levels shared with Sattva Family
+
+The dedicated `sattva-private-price-levels:v1` CaptureRegistry object keeps shared levels,
+deleted-company tombstones and reached history. Family sends changed level kinds only; explicit
+imports seed in batches of at most 40 and never overwrite a known company or deletion. Capacity
+is 600 active companies. Reached history is paginated without an oldest-record cutoff.
+
+`/api/price-levels` is service-only, requires a separate `FAMILY_PRICE_LEVELS_TOKEN` of at least
+32 characters, and grants no access from Origin or the names-only holdings token. The identical
+secret belongs only on the Central Worker and Family Pages production server; it must never be
+put in browser assets, URLs or logs. Adding it is a production configuration action requiring
+specific authorization. Family's existing password gate protects its proxy and every bridge read
+rechecks that session. Central keeps replies in memory, excludes them from public alert caches and
+automatic model requests, and clears them when the connection or authorization is lost.
+
+Explicit saves activate a durable alarm using the existing Upstox credential. GET is read-only.
+Pending levels are checked every minute during the configured weekday exchange window, with
+15-minute wakes outside it. Quotes must match exact NSE ISIN and ticker and the current IST day.
+Last trades preceding a level's set time cannot fire it; day extremes apply only to levels set
+before that session opened. Edits invalidate completeness; partial quotes never advance the last
+complete check. Market closures, credential expiry and source outages remain visible.
+
+A hit records when this service observed the level, its quote time and the evidence basis. This
+is retained history from first capture, not an exhaustive trade archive: minute sampling can miss
+an intraday crossing after a level was set, and outages cannot reconstruct those missed ticks.
+A level fires once until its value changes. Family's current-price status can change back after a
+reversal while Central keeps the dated hit. Sharing currently requires a verified NSE ticker/ISIN;
+unsupported holdings are refused explicitly. No test writes sample levels to production.

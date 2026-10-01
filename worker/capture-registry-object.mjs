@@ -1,3 +1,5 @@
+import {PriceLevelStore} from './price-levels-store.mjs';
+import {PriceLevelSchedule,PRICE_LEVEL_TIMER} from './price-levels-schedule.mjs';
 import { AlertNotesStore } from './alert-notes-store.mjs';
 import { AlertStoriesStore } from './alert-stories-store.mjs';
 import { MutualFundsStore } from './mutual-funds-store.mjs';
@@ -29,6 +31,8 @@ export class CaptureRegistry extends DurableObject {
     this.summarySchedule = new ConcallSummarySchedule(ctx.storage, env);
     // The shared watchlist lives in its own fixed object (shared-watchlist:v1), so these tables
     // are only ever created on that one. A company-registry shard never calls a watchlist method.
+    this.priceLevels = new PriceLevelStore(ctx.storage);
+    this.priceLevelSchedule = new PriceLevelSchedule(ctx.storage,env,this.priceLevels);
     this.watchlist = new SharedWatchlistStore(ctx.storage);
     this.alertNotes = new AlertNotesStore(ctx.storage, env);
     this.alertStories = new AlertStoriesStore(ctx.storage);
@@ -45,6 +49,8 @@ export class CaptureRegistry extends DurableObject {
     this.newsletterSchedule = new NewsletterSchedule(ctx.storage, env, this.newsletter);
     this.ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS companies (isin TEXT PRIMARY KEY, ticker TEXT NOT NULL, name TEXT NOT NULL)');
   }
+  priceLevelsSnapshot(cursor) { return this.priceLevelSchedule.snapshot(cursor); }
+  async priceLevelsApply(intents) { const result=this.priceLevels.apply(intents);await this.priceLevelSchedule.arm();return {...result.snapshot,outcomes:result.outcomes,check:await this.priceLevelSchedule.status()}; }
   status() { return this.schedule.status(); }
   telegramPosts() { return this.telegramDelivery.response(); }
   summaryBeginInventory(run, syncId, manifest) { return this.summaries.beginInventory(run, syncId, manifest); }
@@ -108,6 +114,7 @@ export class CaptureRegistry extends DurableObject {
   mfPrivateRead(isins,cursor) { return this.mutualFundsScanner.read(isins,cursor); }
   mfPrivateDetail(isin,month) { return this.mutualFundsScanner.detail(isin,month); }
   async alarm() {
+    if(await this.ctx.storage.get(PRICE_LEVEL_TIMER)){await this.priceLevelSchedule.wake();return;}
     if (await this.ctx.storage.get(MF_TIMER)) { await this.mutualFundsSchedule.wake(); return; }
     if (await this.ctx.storage.get(PRIMARY_TIMER)) await this.breakoutPrimary.wake();
     else if (await this.ctx.storage.get(NEWSLETTER_TIMER_KEY)) await this.newsletterSchedule.wake();

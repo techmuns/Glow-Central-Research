@@ -10,6 +10,7 @@ export const PORTFOLIO_MAX_CHARS = 6000;
 let transportReady = false;
 let connection = null;
 let positionSizesSupported = false;
+let priceLevelsSupported = false;
 const listeners = new Set();
 const invalidations = new Set();
 const portfolioReady = new Set();
@@ -154,6 +155,7 @@ function request(type, question, signal, timeoutMs) {
 export function connectPortfolio() {
   if (transportReady) return Promise.resolve(true);
   if (!connection) connection = request('hello', null, null, 15_000).then((reply) => {
+    priceLevelsSupported = Array.isArray(reply.capabilities) && reply.capabilities.includes('price-levels');
     positionSizesSupported = Array.isArray(reply.capabilities) && reply.capabilities.includes('position-sizes');
     transportReady = true;
     if (state !== 'unavailable') setConnection('connected');
@@ -285,4 +287,12 @@ export function readPositionSizes(signal, { force = false } = {}) {
   pendingSizes = entry;
   entry.promise.catch(() => {}).finally(() => { if (pendingSizes === entry) pendingSizes = null; });
   return forConsumer(entry.promise, signal);
+}
+
+export const priceLevelsAvailable = () => transportReady && state === 'connected' && priceLevelsSupported;
+export async function readPriceLevels(cursor = null) {
+  if (!priceLevelsAvailable()) throw Error('Unlock Sattva Family to read shared price alerts.');
+  const reply = await request('price-levels', cursor, null, 30000);
+  if (!reply.priceLevels || JSON.stringify(reply.priceLevels).length > 1500000) throw Error('Invalid private alert reply');
+  return reply.priceLevels;
 }

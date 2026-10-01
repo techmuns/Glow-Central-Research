@@ -41,6 +41,7 @@ const rankingOptions = new WeakMap();
 const rankingEvidence = new WeakMap();
 
 const FEED_WEIGHT = {
+  'price-levels': 18,
   earnings: 12,
   announcements: 10,
   'nse-filings': 10,
@@ -428,6 +429,7 @@ export function confluenceOf(events, { feedById = new Map() } = {}) {
  * title carries the feed's own label and its time, and the row opens that feed's own tab.
  */
 export const FEED_TAG = {
+  'price-levels': 'LEVEL',
   earnings: 'RESULT',
   concalls: 'CALL',
   'screener-insights': 'INSIGHT',
@@ -787,7 +789,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     const hasMaterialNegative = events.some((event) => event.importance === 'high' && event.direction === 'negative');
     const holding = holdingByTicker.get(ticker) || holdingByEntity.get(entityId) || null;
     const materialPortfolioEvent = !!holding && events.some((event) => event.importance === 'high' &&
-      !!event.url && (materialFiling(event) || (feedFamily(event) === 'news' && event.namesCompany === true) || isRelatedNewsContext(event)));
+      !!event.url && (event.feed === 'price-levels' || materialFiling(event) || (feedFamily(event) === 'news' && event.namesCompany === true) || isRelatedNewsContext(event)));
     const mixed = directions.positive > 0 && directions.negative > 0;
     const scoreBreakdown = [...(top?.score.parts || [])];
 
