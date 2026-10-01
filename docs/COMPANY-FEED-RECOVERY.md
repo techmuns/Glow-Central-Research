@@ -64,3 +64,18 @@ No paid service, credential, collection schedule or manual production operation 
 introduced. At its next normal run, capture gives existing 404 failures one attempt
 with the newly available fallback instead of waiting out the obsolete backoff.
 That attempt records real source results; deployment alone never certifies recovery.
+
+## Publication after concurrent changes
+
+The scheduled capture uploads its recoverable artifact before publishing. If another
+writer advances main, the retry fetches only the latest tip and reapplies this run's
+single capture commit onto it. An ordinary fetch from the shallow Actions checkout
+can follow a recently merged PR's older ancestry and download data history that the
+publisher does not need. The bounded retry preserves the latest code and other feeds,
+uses only normal fast-forward pushes, and stops with the capture intact on a conflict.
+An identical capture already published by another writer finishes without a new commit.
+
+`verify-company-capture-publish.mjs` executes the actual workflow shell against local
+shallow clones and a bare remote. It covers a concurrent merge, retained records and
+code, bounded history, identical publication and a conflicting capture. It performs
+no production operations.
