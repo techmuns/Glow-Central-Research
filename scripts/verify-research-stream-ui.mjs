@@ -38,6 +38,26 @@ function filingFixture(path, file) {
   body._provenance = 'Bounded conversation fixture; complete retained history is verified separately.';
   const json = JSON.stringify(body); filingFixtures.set(path, json); return json;
 }
+// The other retained event feeds grow too. Keep conversation/stream deadlines independent of
+// archive size, just as above for company news. Full-volume evidence is covered by the separate
+// complete-portfolio suite; do not relax this suite's first-text or stalled-source deadlines.
+const captureFixtures = new Map();
+for (const [name, field] of [
+  ['insider-trades', 'byTicker'], ['corp-announcements', 'byTicker'],
+  ['corporate-actions', 'rows'], ['exchange-deals', 'records'], ['market-news', 'articles'],
+  ['public-holdings', 'holdings'], ['ipo-filings', 'rows'], ['technicals', 'companies'],
+  ['earnings-live', 'rows'], ['nse-announcements', 'rows'], ['concall-scans', 'rows'],
+]) {
+  const capture = JSON.parse(readFileSync(resolve(root, `data/${name}.json`), 'utf8'));
+  capture[field] = field === 'byTicker'
+    ? Object.fromEntries(Object.entries(capture[field]).filter(([ticker]) => ['JAYNECOIND', 'IIFL', 'SAIL'].includes(ticker)).map(([ticker, rows]) => [ticker, rows.slice(0, 12)]))
+    : capture[field].slice(0, 24);
+  if (field === 'rows' && capture.rowCount != null) capture.rowCount = capture.rows.length;
+  if (name === 'corporate-actions') capture.companyCount = new Set(capture.rows.map(row => row.ticker || row.company)).size;
+  if (name === 'market-news') { capture.archive = []; capture.archivedCount = capture.articles.length; }
+  capture._provenance = 'Bounded conversation UI fixture; full source history is tested separately.';
+  captureFixtures.set(`/data/${name}.json`, JSON.stringify(capture));
+}
 const questions = [], timings = [], errors = [];
 let holdAnswer = false;
 let failAnswer = false;
@@ -67,6 +87,11 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/data/news.json' || url.pathname === '/data/company-news/index.json') {
     res.setHeader('content-type', 'application/json');
     res.end(url.pathname.endsWith('/news.json') ? newsFixtureJson : '{"archive":[],"queries":{},"entities":[],"articleCount":0,"_provenance":"UI fixture: archive checked in the complete-portfolio suite"}');
+    return;
+  }
+  if (captureFixtures.has(url.pathname)) {
+    res.setHeader('content-type', 'application/json');
+    res.end(captureFixtures.get(url.pathname));
     return;
   }
   if (url.pathname === '/api/research') {
