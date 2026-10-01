@@ -992,8 +992,8 @@
       "pending": []
     },
     "isin:INE071D01033|Menon Bearings": {
-      "lastAttemptAt": "2026-09-27T08:32:05+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-10-01T14:10:39+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 22,
       "lastSuccessAt": "2026-09-27T08:32:05+00:00",
       "targetThrough": null,
@@ -1917,6 +1917,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 215,
-    "checkedAt": "2026-10-01T13:38:21.270190+00:00"
+    "checkedAt": "2026-10-01T14:10:39.304228+00:00"
   }
 }
