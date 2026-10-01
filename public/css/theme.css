@@ -303,3 +303,30 @@ html[data-theme="dark"] ::selection { background: #4338ca; color: #fff; }
 .column-layout-status { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .column-layout-status[data-unavailable] { width: auto; height: auto; clip-path: none; bottom: 16px; left: 16px; right: 16px; padding: 12px; z-index: 100; border-radius: 8px; background: rgb(var(--surface-white, 255 255 255)); color: var(--ink-900); box-shadow: 0 2px 12px rgb(0 0 0 / .15); }
 [data-column-custom] > thead > tr > .left-0:not(:first-child), [data-column-custom] > tbody > tr > .left-0:not(:first-child) { left: auto; }
+
+/* Company search stays readable over the announcement table in either theme. */
+[data-announcement-search-box] { border: 1px solid rgb(var(--edge-slate-300, 203 213 225)); border-radius: 10px; background: rgb(var(--surface-white, 255 255 255)); }
+[data-announcement-search-box]:focus-within { outline: 2px solid var(--accent-600); outline-offset: 2px; }
+[data-announcement-search] .announcement-search-input { display: block; width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 0; border-radius: inherit; background: transparent; color: var(--ink-900); font-size: 14px; line-height: 22px; }
+/* The surrounding box provides the single keyboard-focus indicator. */
+html [data-announcement-search] .announcement-search-input:focus { outline: none; box-shadow: none; }
+.announcement-search-input::placeholder { color: var(--ink-400); opacity: 1; }
+.announcement-selected-company { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; padding: 6px 6px 6px 12px; border: 1px solid rgb(var(--edge-indigo-200, 199 210 254)); border-radius: 10px; background: rgb(var(--surface-indigo-50, 238 242 255)); color: var(--ink-900); }
+.announcement-selected-identity { flex: 1; min-width: 0; }
+.announcement-company-name { display: block; font-size: 14px; font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
+.announcement-company-symbol { display: block; margin-top: 2px; color: var(--ink-600); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+[data-announcement-company-clear] { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 7px; color: var(--ink-600); font-size: 24px; line-height: 1; }
+[data-announcement-company-clear]:hover { background: rgb(var(--surface-white, 255 255 255)); color: var(--ink-900); }
+[data-announcement-company-clear]:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 1px; }
+.announcement-search-menu { position: fixed; z-index: 45; display: flex; flex-direction: column; overflow: hidden; isolation: isolate; border: 1px solid rgb(var(--edge-slate-300, 203 213 225)); border-radius: 12px; background: rgb(var(--surface-white, 255 255 255)); color: var(--ink-900); box-shadow: 0 16px 40px rgb(0 0 0 / .28), 0 2px 8px rgb(0 0 0 / .12); }
+.announcement-search-menu[hidden] { display: none; }
+.announcement-search-status, .announcement-search-help { flex: 0 0 auto; margin: 0; padding: 10px 12px; background: rgb(var(--surface-slate-50, 248 250 252)); color: var(--ink-600); font-size: 12px; line-height: 18px; }
+.announcement-search-status { border-bottom: 1px solid rgb(var(--edge-slate-200, 226 232 240)); font-weight: 600; }
+.announcement-search-help { border-top: 1px solid rgb(var(--edge-slate-200, 226 232 240)); }
+.announcement-search-menu [role="listbox"] { min-height: 0; max-height: 280px; overflow-y: auto; overscroll-behavior: contain; padding: 4px; }
+.announcement-search-option { display: block; width: 100%; min-height: 52px; padding: 10px 12px; border: 1px solid transparent; border-radius: 8px; background: rgb(var(--surface-white, 255 255 255)); color: var(--ink-900); text-align: left; }
+.announcement-search-option + .announcement-search-option { margin-top: 2px; }
+.announcement-search-option:not(:disabled):hover, .announcement-search-option[aria-selected="true"] { border-color: var(--accent-600); background: rgb(var(--surface-indigo-50, 238 242 255)); }
+.announcement-search-option:disabled { color: var(--ink-400); cursor: not-allowed; }
+.announcement-search-option:disabled .announcement-company-symbol { color: var(--ink-400); }
+@media (pointer: coarse) { [data-announcement-company-clear] { flex-basis: 44px; width: 44px; height: 44px; } }

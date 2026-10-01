@@ -387,3 +387,9 @@ Before release, verify:
 If any data-integrity check fails, block release even if performance improves. Rollbacks must preserve collected history.
 
 **The customer should receive the same complete data, with smoother interaction and honest freshness status. Fewer visible DOM rows must never mean fewer available records.**
+
+Corporate Announcements offers company-name/ticker suggestions and exact issuer selection.
+The selection intersects scope, date and text filters for rows, counts and export, survives
+refreshes, and remains explicitly outside scope after a scope change. Verified BSE/NSE identities
+join aliases; another issuer mentioning the company is not its filing. Search outages keep saved
+suggestions and ordinary text search available. Collection and retained history are unchanged.

@@ -19,6 +19,9 @@ let nseRows = [nseRow, { ...nseRow, ticker: null, company: 'Unresolved Company',
 let fail = false;
 const hits = new Map();
 const enrollments = [];
+const searches = [];
+let failSearch = false;
+let legacy = false;
 const bodies = {
   '/data/filing-capture/nse-identities.json': { version: 1, directories: { sme: { entries: [] }, equity: { entries: [] } } },
   '/data/announcement-identities.json': { version: 1, capturedAt: at, entries: [
@@ -38,7 +41,7 @@ const bodies = {
 };
 bodies['/data/corp-announcements.json'].byTicker.KAMATS = [{ ...filing('KAMATS', 1), scripCode: '539659' }];
 bodies['/data/corp-announcements.json'].byTicker.ASHIKAG = [{ ...filing('ASHIKAG', 1), scripCode: '543766' }];
-const html = `<!doctype html><html><head><meta charset="utf-8"><style>#modal-overlay.is-open #modal-container{opacity:1}</style><link rel="stylesheet" href="/css/tailwind.css"></head><body class="bg-slate-50 p-4"><main id="root"></main><div id="modal-overlay" class="hidden"><div id="modal-container"><div id="modal-content"></div></div></div><script type="module">
+const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>#modal-overlay.is-open #modal-container{opacity:1}</style><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"></head><body class="bg-slate-50 p-4"><main id="root"></main><div id="modal-overlay" class="hidden"><div id="modal-container"><div id="modal-content"></div></div></div><script type="module">
 import * as tab from '/js/tabs/corp-announcements.js';
 import * as live from '/js/core/live.js';
 import * as coverage from '/js/data/coverage.js';
@@ -55,7 +58,20 @@ const server = createServer((req, res) => {
   const path = new URL(req.url, 'http://localhost').pathname;
   hits.set(path, (hits.get(path) || 0) + 1);
   res.setHeader('cache-control', 'no-store');
-  if (path === '/') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
+  if (path === '/' || path === '/index.html') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
+  if (path === '/sdk-fixture.js') { res.setHeader('content-type', 'text/javascript'); res.end('/* isolated SDK */'); return; }
+  if (path === '/api/stock-search') {
+    const query = new URL(req.url, 'http://localhost').searchParams.get('q');
+    searches.push(query);
+    res.setHeader('content-type', 'application/json');
+    res.statusCode = failSearch ? 503 : 200;
+    res.end(JSON.stringify(failSearch ? { ok: false } : { ok: true, results: /^bharat$/i.test(query) ? [
+      { ticker: '541096', name: 'Bharat Parenterals Ltd', country: 'India', validTicker: true },
+      { ticker: 'INFY', name: 'Infosys Ltd', country: 'India', validTicker: true },
+      { ticker: 'FOREIGN', name: 'Foreign listing', country: 'United States', validTicker: true },
+      { ticker: 'Invalid symbol', name: 'Not a listed symbol', country: 'India', validTicker: false },
+    ] : [] })); return;
+  }
   if (path === '/api/capture-registration' && req.method === 'POST') {
     let body = ''; req.on('data', chunk => { body += chunk; }); req.on('end', () => {
       const value = JSON.parse(body); enrollments.push(value);
@@ -71,7 +87,13 @@ const server = createServer((req, res) => {
   try {
     const file = resolve(root, `.${path}`); assert(file.startsWith(root + sep));
     res.setHeader('content-type', { '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' }[extname(file)] || 'text/plain');
-    res.end(readFileSync(file));
+    let body = readFileSync(file);
+    if (path === '/sw.js') {
+      body = body.toString().replace(/const MUNSHOT_SDK = .*;/, "const MUNSHOT_SDK = new URL('/sdk-fixture.js', self.location).href;");
+      if (legacy) body = body.replace('-announcement-company-search-v1', '').replace('-announcement-search-clarity-v1', '');
+    }
+    if (path === '/js/tabs/filings-tab.js' && legacy) body = body.toString().replace('      searchControl,', '');
+    res.end(body);
   } catch { res.writeHead(404); res.end(); }
 });
 await new Promise((done) => server.listen(0, '127.0.0.1', done));
@@ -240,6 +262,7 @@ try {
       addWorksheet() { const records = []; window.exportedRows = records; return { addRow: row => records.push(row), getRow: () => ({}) }; }
     } };
   });
+  await search.press('Escape');
   await page.locator('[data-export]').click();
   await page.waitForFunction(() => Array.isArray(window.exportedRows));
   assert.deepEqual(await page.evaluate(() => exportedRows.slice(1).map(row => row.h.match(/Period case (\w+)/)?.[1]).sort()), ['atMidnight', 'today'], 'export uses the selected period and search');
@@ -265,10 +288,112 @@ try {
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'All time still reaches older captured history');
   console.log('PASS IST time presets, inclusive boundaries, unknown dates, filtered exports, all scopes, failure retention and automatic midnight rollover');
 
+  // The reported case: an exchange code, provider ticker and portfolio name identify one issuer.
+  const bharat = { isin: 'INE365Y01019', bseCode: '541096', ticker: 'BPLPHARMA', bseSymbol: 'BPLPHARMA', name: 'Bharat Parenterals Ltd' };
+  bodies['/data/announcement-identities.json'].entries.push(bharat);
+  bodies['/data/announcement-identities.json'].capturedAt = '2026-09-05T08:00:00Z';
+  const bharatFiling = (id, date) => ({ ...filing('541096', id, date), scripCode: '541096', company: bharat.name, category: 'Company Update', subCategory: 'General Updates' });
+  bodies['/data/corp-announcements.json'].byTicker['541096'] = [bharatFiling('board outcome', '2026-09-05'), bharatFiling('older history', '2025-01-01')];
+  bodies['/data/corp-announcements.json'].capturedAt = '2026-09-05T08:00:00Z';
+  bseRows.push({ ...filing('TCS', 'mentions-bharat', '2026-09-05'), title: 'Bharat Parenterals mentioned by another company' });
+  await page.clock.fastForward(61000);
+  await page.evaluate(async () => {
+    const coverage = await import('/js/data/coverage.js');
+    coverage.prime({ holdings: [...coverage.holdings(), { isin: 'INE365Y01019', ticker: 'BPLPHARMA', name: 'Bharat Parenteral' }] });
+    window.renderScope('portfolio'); await window.stream.refresh();
+  });
+  assert.equal(await page.evaluate(() => window.stream.companyIdentity({ ticker: 'BPLPHARMA' }).name), bharat.name, 'the updated exchange directory is loaded before company selection');
+  await period.selectOption('all');
+  await search.fill('Bharat');
+  await page.clock.fastForward(300);
+  await page.waitForFunction(() => document.querySelector('[data-search-status]')?.textContent === 'Choose a company');
+  assert(searches.includes('Bharat'), 'typed names use the existing Worker search endpoint');
+  const menu = page.locator('[data-announcement-search-menu]:visible');
+  assert.equal(await menu.getByRole('option', { name: /Bharat Parenterals/ }).count(), 1, 'BSE code and symbol suggestions deduplicate by verified issuer');
+  assert.equal(await menu.getByRole('option', { name: /Foreign listing|Not a listed symbol/ }).count(), 0);
+  assert(await menu.getByRole('option', { name: /Infosys/ }).isDisabled(), 'outside-scope results explain the scope without bypassing it');
+  await search.press('ArrowDown'); await search.press('Enter');
+  assert.equal(await search.inputValue(), '');
+  assert.match(await page.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals.*BPLPHARMA/s);
+  assert.match(await page.locator('[data-row-count]').innerText(), /^2 announcements · 1 company with filings$/);
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 2, 'selection shows only the issuer');
+  assert.doesNotMatch(await page.locator('tbody').innerText(), /mentioned by another/);
+  await search.fill('older');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'free text narrows the selected company');
+  await page.locator('[data-export]').click();
+  await page.waitForFunction(() => exportedRows?.[1]?.h?.includes('older history'));
+  assert.deepEqual(await page.evaluate(() => exportedRows.slice(1).map(r => r.t)), ['BPLPHARMA']);
+  await search.fill(''); await period.selectOption('today');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'date filter remains effective after selecting a company');
+  await period.selectOption('all');
+  bodies['/data/corp-announcements.json'].byTicker['541096'].push(bharatFiling('new arrival', '2026-09-05'));
+  bodies['/data/corp-announcements.json'].capturedAt = '2026-09-05T08:01:00Z';
+  await page.evaluate(() => window.stream.refresh());
+  await page.waitForFunction(() => document.querySelector('[data-row-count]')?.textContent.startsWith('3 announcements'));
+  assert.match(await page.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals/);
+  await page.evaluate(() => window.renderScope('watchlist'));
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 0);
+  assert.match(await page.locator('[data-announcement-search-hint]').innerText(), /outside Watchlist/);
+  await page.evaluate(() => window.renderScope('portfolio'));
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 3);
+  await page.getByRole('button', { name: 'Clear selected company' }).click();
+  assert.equal(await page.locator('[data-announcement-company-chip]').innerText(), '');
+  assert(await page.locator('tbody tr[data-row-key]').count() > 3);
+  failSearch = true;
+  await search.fill('Parenterals'); await page.clock.fastForward(300);
+  await page.waitForFunction(() => document.querySelector('[data-search-status]')?.textContent.includes('unavailable'));
+  assert(await menu.getByRole('option', { name: /Bharat Parenterals/ }).isEnabled(), 'saved companies remain selectable during search failures');
+  await menu.getByRole('option', { name: /Bharat Parenterals/ }).click();
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 3);
+  await page.getByRole('button', { name: 'Clear selected company' }).click();
+  await search.fill('Bharat');
+  assert.equal(await menu.count(), 1);
+  assert(await page.evaluate(() => {
+    const r = document.querySelector('[data-announcement-search-menu]').getBoundingClientRect();
+    return r.left >= 0 && r.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth;
+  }), 'company dropdown fits the mobile viewport');
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(value => document.documentElement.dataset.theme = value, theme);
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      if (process.env.ANNOUNCEMENT_SEARCH_SCREENSHOT) await page.screenshot({ path: `${process.env.ANNOUNCEMENT_SEARCH_SCREENSHOT}-${width}-${theme}.png` });
+    }
+  }
+  await search.press('Escape'); assert.equal(await menu.count(), 0);
+  console.log('PASS company dropdown, Worker lookup, BSE identities, exact company selection, filters/export, refresh retention, scope and offline fallback');
+
   await page.evaluate(() => window.destroyStream());
+  assert.equal(await page.locator('[data-announcement-search-menu]').count(), 0, 'navigation disposes the dropdown');
   const last = hits.get('/api/nse-announcements');
   await page.clock.fastForward(180000);
   assert.equal(hits.get('/api/nse-announcements'), last, 'the poller stops after navigation away');
   assert.deepEqual(errors, []);
   console.log('PASS source failure retention, details on demand, mobile layout and polling cleanup; no browser errors');
+
+  // Prove a returning, controlled session receives the company picker through the release marker.
+  legacy = true; failSearch = false;
+  const returning = await browser.newPage();
+  returning.on('pageerror', error => errors.push(error.message));
+  await returning.route('**/*', route => route.request().url().startsWith(origin + '/') ? route.continue() : route.fulfill({ status: 200, body: '' }));
+  await returning.goto(origin);
+  await returning.evaluate(async () => { await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready; });
+  await returning.waitForFunction(() => !!navigator.serviceWorker.controller);
+  await returning.reload(); await returning.locator('[data-table-search]').waitFor();
+  assert.equal(await returning.locator('[data-announcement-search]').count(), 0, 'the previous immutable module still serves plain text search');
+  await returning.evaluate(async () => {
+    const { watchWorkerChanges } = await import('/js/core/app-updates.js');
+    watchWorkerChanges(navigator.serviceWorker, () => location.reload());
+  });
+  legacy = false;
+  await returning.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+  await returning.locator('[data-announcement-search]').waitFor();
+  await returning.evaluate(() => window.renderScope('universe'));
+  await returning.locator('[data-table-search]').fill('Bharat');
+  await returning.getByRole('option', { name: /Bharat Parenterals/ }).click();
+  assert.match(await returning.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals/);
+  assert((await returning.evaluate(() => caches.keys())).every(key => key.includes('announcement-company-search-v1')));
+  assert.deepEqual(errors, []);
+  await returning.close();
+  console.log('PASS returning session upgrades its cached filing modules and can select a company without clearing browser storage');
 } finally { await browser.close(); await new Promise(done => server.close(done)); }

@@ -4452,3 +4452,9 @@ new/removed disclosures; a zero valuation is not evidence of an exit. Original s
 partial coverage and retained versions must survive every refresh and export.
 
 Source collection safeguards follow `docs/SOURCE-COLLECTION-RELIABILITY.md`: a directory failure cannot erase source filings or become a fresh identity check, and an empty Screener watchlist requires independent management and list verification.
+
+Corporate Announcements offers company-name/ticker suggestions and exact issuer selection.
+The selection intersects scope, date and text filters for rows, counts and export, survives
+refreshes, and remains explicitly outside scope after a scope change. Verified BSE/NSE identities
+join aliases; another issuer mentioning the company is not its filing. Search outages keep saved
+suggestions and ordinary text search available. Collection and retained history are unchanged.

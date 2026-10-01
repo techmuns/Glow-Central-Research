@@ -413,6 +413,8 @@ export function scoreTable(config) {
     bookmarkSource = null,
     filters = null,
     searchable = null,
+    // A custom search control owns one predicate for rows, counts and export.
+    searchControl = null,
     initialSort = null,
     emptyMessage = 'No companies match your filters.',
     countNoun = '',
@@ -578,7 +580,9 @@ export function scoreTable(config) {
     // `rkforge` even though the search box visibly held the right ticker.
     const needle = String(view.q || '').trim().toLowerCase();
     let out = rows.filter((row, rowIndex) => {
-      if (needle && !haystack(row, rowIndex).includes(needle)) return false;
+      if (searchControl) {
+        if (!searchControl.matches(row, view.q)) return false;
+      } else if (needle && !haystack(row, rowIndex).includes(needle)) return false;
       if (watched) {
         const wk = watchKeyOf(row);
         if (!wk || !watched.has(wk)) return false;
@@ -813,11 +817,11 @@ export function scoreTable(config) {
     <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-score-table${fillMode === 'scroll' || isVirtual ? ' data-scroll-paged' : ''}${isVirtual ? ` data-virtualized data-virtual-total="${initialList.length}" data-virtual-start="${initialVirtualStart}"` : ''}${!isVirtual && initialList.length > FIRST_PAINT_ROWS ? ` data-rows-pending="${initialList.length - FIRST_PAINT_ROWS}"` : ''}>
       <div data-table-toolbar class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <div class="relative max-w-md flex-1" style="min-width:min(100%, 220px)">
+          ${searchControl ? searchControl.html : `<div class="relative max-w-md flex-1" style="min-width:min(100%, 220px)">
             <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
             <input type="text" data-table-search aria-label="Search ${escapeHtml(nameLabel)}" placeholder="${escapeHtml(searchPlaceholder)}" value="${escapeHtml(view.q)}"
               class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
+          </div>`}
           ${filterDefs
             .map(
               // `max-w-full` + `truncate` because A <select> IS AS WIDE AS ITS LONGEST OPTION, and
@@ -1330,7 +1334,10 @@ export function scoreTable(config) {
       if (row) onRowClick(row);
     });
 
-    searchEl.addEventListener('input', () => {
+    const releaseSearch = searchControl?.wire(host, {
+      onQuery: q => { view.q = q; requestFilterPaint(); },
+    });
+    if (!searchControl) searchEl.addEventListener('input', () => {
       view.q = searchEl.value.trim().toLowerCase();
       requestFilterPaint();
     });
@@ -1382,6 +1389,7 @@ export function scoreTable(config) {
 
     return () => {
       isDisposed = true;
+      releaseSearch?.();
       rowHtmlCache.clear(); staleKeys.clear();
       activeRepaint = null;
       activePresentation = null;
