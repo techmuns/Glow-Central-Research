@@ -168,7 +168,10 @@ export async function enrichCompanyNews({ dataDir = DATA, baseUrl = BASE, fetche
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const result = await enrichCompanyNews();
+  // PAID SEARCH CEILING. Each global query is up to five paid Brave reads. The workflow caps the
+  // queries per walk; the stalest go first and the rest wait for the next walk. Unset: no cap.
+  const maxQueries = Number(process.env.NEWS_DISCOVERY_MAX_QUERIES || 0);
+  const result = await enrichCompanyNews(maxQueries > 0 ? { maxQueries } : {});
   console.log(JSON.stringify(result));
   if (result.staleOrIncompleteQueries || result.pagesFailed) console.log('::warning::News enrichment has incomplete coverage; retained articles are preserved and incomplete work will be retried on the next schedule.');
 }
