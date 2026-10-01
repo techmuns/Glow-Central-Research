@@ -34,7 +34,7 @@ import * as corporateActions from './corporate-actions.js';
 import { ANNOUNCEMENTS_VIEW, CORPORATE_ACTIONS_VIEW, VIEWS, viewSwitchHtml } from './corp-announcements-views.js';
 import { announcementSources, announcementSourceUrls } from '../data/announcements-shared.js';
 import { captureCoverageHtml } from '../ui/capture-coverage.js';
-import { announcementSearch } from '../ui/announcement-search.js';
+import { announcementSearch, prepareAnnouncementSearch } from '../ui/announcement-search.js';
 import { announcementCoverage } from '../data/announcement-coverage.js';
 import * as coverage from '../data/coverage.js';
 import * as watchlist from '../core/watchlist.js';
@@ -325,6 +325,9 @@ const announcements = makeFilingsTab({
   headAside: (ctx) => viewSwitchHtml(ctx, ANNOUNCEMENTS_VIEW),
   feed,
   prepareBeforePaint: true,
+  // Search text includes the filing type. Prepare both readings in input-friendly slices before
+  // the first full-archive filter/count pass, including returns after another tab loaded history.
+  prepareForPaint: (rows, options) => prepareAnnouncementSearch(rows, searchableAnnouncement, options),
   filterByScope: feed.filterByScope,
   countLabel: (rows) => {
     const companies = new Set(rows.map(r => r.isin || r.ticker || r.company).filter(Boolean)).size;

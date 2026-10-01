@@ -56,7 +56,7 @@ const server = createServer((req, res) => {
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
@@ -80,6 +80,27 @@ try {
     Object.fromEntries(window.alerts.FEEDS.map(f=>[f.id,f.id==='nse-filings'?'failed':'ok']))));
   await contains('Saved current-day alert');
   console.log('PASS disk restores after an empty seed; fast sources publish independently; failed sources retain saved evidence.');
+
+  // A failed combined news source still canonicalizes its successfully read copies. A partial
+  // publisher copy must not be retained beside its final TradingView copy merely because an
+  // independent company-search feed is unavailable; that changes ownership of the market row.
+  await page.evaluate(() => {
+    window.show();
+    window.publisher=window.event('publisher-copy',{feed:'market-news',headline:'Alpha wins a new contract',
+      url:'https://publisher.test/alpha-contract',sourceRecord:{source:'Mint'}});
+    window.searchCopy={...window.publisher,id:'search-copy',feed:'news',attribution:{status:'confirmed'}};
+    window.finalCopy={...window.searchCopy,id:'trading-copy',url:'https://tradingview.test/alpha-contract'};
+    window.calls.at(-1).partial({news:[window.searchCopy],'market-news':[window.publisher]},
+      {news:'failed','market-news':'ok'});
+  });
+  await contains('Alpha wins a new contract');
+  await page.waitForFunction(() => document.querySelector('[data-feed="market-news"]')?.textContent.trim().endsWith('0'));
+  await page.evaluate(() => window.calls.at(-1).complete({news:[window.finalCopy],'market-news':[window.publisher]},
+    Object.fromEntries(window.alerts.FEEDS.map(f=>[f.id,['news','nse-filings'].includes(f.id)?'failed':'ok']))));
+  await page.waitForFunction(() => document.querySelector('[data-feed="market-news"]')?.textContent.trim().endsWith('1'));
+  assert((await page.locator('#root tbody').innerText()).includes('Saved current-day alert'),
+    'settled evidence from before collection still survives an independent source failure');
+  console.log('PASS final canonical source copies replace provisional copies while prior saved evidence survives failure.');
 
   // Invalidate while an old collection still holds callbacks, with the scope label unchanged.
   await page.evaluate(() => { window.show(); window.oldCall=window.calls.at(-1); window.coverage.useFamilyBook([{ticker:'BBB',name:'Beta Ltd'}]); });

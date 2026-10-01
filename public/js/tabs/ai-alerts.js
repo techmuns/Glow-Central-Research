@@ -523,11 +523,14 @@ function head(ctx) {
     : health.state !== 'complete' || m.staleFeeds > 0 ? health
     : sizeError ? { label: 'Latest available', tone: 'neutral', state: 'complete' }
     : report && (collecting || awaitingBook !== null) ? { label: 'Ready · checking quietly', tone: 'neutral', state: 'pending' } : health;
+  // Coverage and completion are independent: a failed source can already be known while
+  // sliced ranking, retained-evidence merging or the portfolio read is still finishing.
+  const pending = collecting || awaitingBook !== null;
   return sectionHead({
     title: 'AI Alerts',
     description: `Important company signals from the last ${alerts.WINDOW_DAYS} days.`,
     meta: `<div class="flex flex-wrap items-center justify-end gap-2">
-      <span data-ai-feed-status data-state="${status.state}">${pill({ label: status.label, tone: status.tone })}</span>
+      <span data-ai-feed-status data-state="${pending ? 'pending' : status.state}" aria-busy="${pending}">${pill({ label: status.label, tone: status.tone })}</span>
       ${report ? scopeSummary({
         scope: ctx.scope,
         count: m.activeCompanies || 0,
