@@ -100,6 +100,7 @@ let horizon = HORIZON.THROUGH;
 let renderedHorizon = HORIZON.THROUGH;
 let renderedDay = null;
 let renderedScope = null;
+let renderedContextKey = null;
 // The reader's own inputs at the last completed paint, and the view whose FOLDED rows are on
 // screen — see ONE VIEW AT A TIME in `paint`. `showingProvisional` marks rows shown before their
 // first fold landed.
@@ -144,7 +145,7 @@ function currentContext() {
 }
 
 function membershipChanged() {
-  if (ctxRef && report?.contextKey !== alerts.alertContextKey(ctxRef.scope)) render(ctxRef);
+  if (ctxRef && renderedContextKey !== alerts.alertContextKey(ctxRef.scope)) render(ctxRef);
 }
 
 export function render(ctx) {
@@ -184,6 +185,9 @@ export function render(ctx) {
   // onto the current scope and day, and the recheck still runs.
   if (!report) report = unpark();
   const context = currentContext();
+  // Track the requested context before any asynchronous seed or cache read. The
+  // statement handoff may change legal names before a first report exists.
+  renderedContextKey = alerts.alertContextKey(context.scope, context.holdings, context.day);
   const queryChanged = !!report && alertWindowKey(report.queryWindow) !== alertWindowKey(context.queryWindow);
   const readKey = alertWindowKey(context.queryWindow);
   if (cachedReadKey !== readKey) { cachedRead = null; cachedReadKey = readKey; }
@@ -196,7 +200,9 @@ export function render(ctx) {
       for (const handle of handles) for (const key of rowsByNoteHandle.get(handle) || []) keys.add(key);
       if (keys.size && tableInstance) tableInstance.updateRows(keys);
     }));
-    unsubs.push(coverage.onChange(({ changed }) => { if (changed) membershipChanged(); }));
+    // News matching uses statement/legal names beyond the shared membership flag.
+    // Compare this tab's own context even on an otherwise unchanged portfolio check.
+    unsubs.push(coverage.onChange(membershipChanged));
     unsubs.push(watchlist.onChange(membershipChanged));
     unsubs.push(scopeLists.onChange(membershipChanged));
     unsubs.push(records.onChange(() => {
@@ -283,6 +289,7 @@ export function destroy() {
   arrivalsUI.detach();
   arrivals.reset();
   ctxRef = null;
+  renderedContextKey = null;
   foldToken++;
   foldingRows = null;
   renderedView = settledView = null;

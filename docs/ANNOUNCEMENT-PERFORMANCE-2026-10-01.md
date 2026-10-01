@@ -86,6 +86,24 @@ The native Worker regression models a fetch cache that downloads the whole ZIP b
 a valid 206 slice. It failed with four full downloads before the bypass and verifies zero full
 downloads after the fix, alongside the existing member-cache and conditional-read assertions.
 
+After deployment, read-only API verification returned the index in 6,253 ms and the current-day
+shard in 3,588 ms, both cache misses. Conditional repeats returned 304 in 58–63 ms, and all five
+pooled feed revisions matched the capture registry at that check.
+
+The final browser check exposed a separate startup handoff: the statement book can change
+`bookName` or `legalName` while preserving ticker, display name, ISIN and sector. Alerts correctly
+abandons the obsolete news-matching context, but the portfolio's change signal omitted those
+two fields. No replacement read started, leaving the five prepared feeds marked as reading.
+All Alerts now compares its complete requested context on portfolio notifications, including
+before a first report exists. The shared membership signal stays unchanged so unrelated tabs
+do not remount for a name-only handoff. Prices, holding weights and check-only changes still
+do not invalidate Alerts. An isolated browser using read-only live requests confirmed that
+restarting the changed context adopts the prepared feeds.
+
+The regression holds the index response, performs this same-name/ticker book handoff, and
+verifies that the replacement consumes the prepared shard without fetching raw captures.
+It also verifies that quote/status updates leave the existing controls mounted.
+
 ## Data integrity
 
 An independent comparison against the previous implementation merged all 707 company archive
