@@ -233,6 +233,16 @@ async function runNews(list, portfolio, book) {
   })).sort((a, b) => Number(b.entity.portfolio) - Number(a.entity.portfolio)
     || String(a.state?.lastSuccessAt || '').localeCompare(String(b.state?.lastSuccessAt || '')));
 
+  // PAID SEARCH CEILING. Each job is one Brave search through /tools/news-search. The workflow
+  // passes a per-run ceiling so a registry that grows by accident cannot multiply the spend. Jobs
+  // are ordered portfolio first and stalest first, so a capped run drops the least urgent tail,
+  // which the next run reaches first. Unset (local runs and tests) means no ceiling.
+  const maxQueries = Number(process.env.NEWS_MAX_QUERIES || 0);
+  if (maxQueries > 0 && jobs.length > maxQueries) {
+    console.warn(`  news: ${jobs.length} queries planned; NEWS_MAX_QUERIES=${maxQueries} caps this run and the rest wait for the next.`);
+    jobs.length = maxQueries;
+  }
+
   let done = 0;
   let stop = false;
   const queue = [...jobs];

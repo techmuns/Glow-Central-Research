@@ -544,7 +544,7 @@ export function sourceGroups() {
           url: 'https://fastapi.muns.io',
           feeds:
             "<strong>Real, and not ours.</strong> Articles per company from <code class=\"rounded bg-slate-100 px-1\">POST /tools/news-search</code>, read through this dashboard's Worker because the API needs a bearer token the browser must never hold. Every active portfolio company has a stable identity: ISIN, legal name, ticker where one exists, and reviewed former-name, brand, subsidiary, alias and official-domain fields. <strong>Companies without an NSE ticker are still searched by name.</strong> Established queries use an overlapping 48-hour interval; a newly added identity term receives a 30-day backfill. Every returned portfolio article is written to a permanent monthly archive before the bounded 30-day first-paint file is derived, and an empty response never retracts captured history. Headlines, outlets and dates are the publishers', reproduced unchanged; the article stays where it is published and is never summarised into our words. <strong>Collection is broad; topic, materiality and portfolio filters are applied afterward.</strong> No sentiment is inferred from publisher reporting.",
-          cadence: 'Portfolio identities every 3 hours, every day, with a 48-hour overlap · universe top-ups at 09:00 and 19:00 IST on weekdays · permanent portfolio history',
+          cadence: 'Portfolio identities once a day at about 06:15 IST, with a 48-hour overlap · universe weekly (Sunday) · permanent portfolio history',
           status: 'live',
           file: 'worker/index.js → /api/news · worker/muns.mjs · public/js/data/company-news-identity.js · scripts/lib/company-news-archive.mjs · scripts/scrape-filings.mjs',
         },

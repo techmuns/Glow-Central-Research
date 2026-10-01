@@ -28,6 +28,23 @@ Insider Trades (bulk deals, block deals, SAST and insider disclosures).
   `docs/INTELLIGENCE-RELIABILITY.md`. Recording this requirement does not certify
   current production compliance or authorize production interventions.
 
+## Standing budget requirement: paid company-news search
+
+Recorded on 1 October 2026. Company news (`company-news-refresh.yml`: the identity walk and the
+global enrichment) calls `fastapi.muns.io/tools/news-search`, and every query is a paid Brave
+Search call on a shared account. In September 2026 the workflow ran 10-20 times a day in each
+Central Research dashboard and made roughly 200,000 paid searches, about ten times the account's
+normal month. The owner set this budget:
+
+- Portfolio companies are searched once a day (06:11 IST); the complete universe once a week.
+- At most one search walk per 20 hours, whatever starts the run: the schedule,
+  `news-recovery.yml`, the browser capture watchdog or a Refresh click. The workflow's `gate`
+  job enforces it; only a manual run with the `force` input overrides it.
+- Freshness between walks comes from the free feeds (TradingView, Moneycontrol, RSS, exchange
+  filings, Telegram, X). Do not shorten the company-news windows (26-hour recovery and health
+  limits, 20-hour click minimum) or add schedules to make news "more live" unless the owner
+  agrees a new budget.
+
 ## Repository workflow
 
 Changes under `public/js/` must advance the release version in `public/sw.js`: returning
