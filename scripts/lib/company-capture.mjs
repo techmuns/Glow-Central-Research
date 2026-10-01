@@ -280,7 +280,7 @@ export async function captureCompanySources({ dir, companies, unresolved = [], n
     // Never persist request headers or raw errors which could contain credentials.
     entry.error = { reason: error.reason || 'upstream', message: error.message || 'Source could not be read', at: attemptedAt };
     entry.failureCount = Math.min(10, (Number(entry.failureCount) || 0) + 1);
-    const delay = Math.min(24 * 3600000, Math.max(2 * 3600000 * 2 ** (entry.failureCount - 1), Number(error.retryAfterMs) || 0));
+    const delay = Math.min(24 * 3600000, Math.max(2 * 3600000 * 2 ** (error.reason === 'company-fallback' ? 0 : entry.failureCount - 1), Number(error.retryAfterMs) || 0));
     entry.nextRetryAt = new Date(now() + delay).toISOString();
   };
   const completeSource = (entry, result, range, attemptedAt) => {

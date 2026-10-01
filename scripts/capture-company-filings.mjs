@@ -63,7 +63,7 @@ async function companyRequest(kind, ticker, range, company) {
     if (!page.announcementReadable || page.announcementSkipped) throw Error('Recent notices could not be fully parsed.');
     return { ok: true, announcements: page.announcements, limited: true, skipped: 0, ...metadata };
   } catch (error) {
-    return { ...primary, message: `${primary.message || 'Primary provider has no company feed'}; fallback: ${error.message}`.slice(0, 300) };
+    return { ...primary, reason: 'company-fallback', message: `${primary.message || 'Primary provider has no company feed'}; fallback: ${error.message}`.slice(0, 300) };
   }
 }
 async function bseRequest(bseCode, range) {
