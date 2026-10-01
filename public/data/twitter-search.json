@@ -1080,7 +1080,7 @@
       "pending": []
     },
     "isin:INE12F801023|OnEMI Technology": {
-      "lastAttemptAt": "2026-09-27T11:50:54+00:00",
+      "lastAttemptAt": "2026-10-01T18:00:07+00:00",
       "error": "search-unavailable",
       "lastResultCount": 24,
       "lastSuccessAt": "2026-09-13T11:04:59+00:00",
@@ -1917,6 +1917,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-10-01T17:20:03.563467+00:00"
+    "checkedAt": "2026-10-01T18:00:07.480288+00:00"
   }
 }
