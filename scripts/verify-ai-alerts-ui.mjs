@@ -19,8 +19,18 @@ const events = Array.from({ length: 11 }, (_, i) => eventsFor(`A${String(i).padS
 events.filter(e => e.ticker === 'A10').forEach(e => { e.time = '08:00'; });
 events.find((e) => e.ticker === 'A01').time = null;
 events.push({ ...events[30], id: 'hidden-event', importance: 'low', headline: 'Lithium supply agreement hidden beyond the evidence preview' });
+<<<<<<< HEAD
 // More than one DOM window proves search still includes evidence beyond the mounted rows.
 for (let i = 0; i < 24; i++) events.push({ ...events[30], id: `preview-filler-${i}`, time: '08:01', headline: `Zenith Manufacturing: material risk ${i + 4}` });
+=======
+// THE PREVIEW IS FOUR ROWS, so a card needs five events for one to sit beyond it — and the search
+// below exists to prove a match off-screen still finds its card. Slots go one per SOURCE in rounds,
+// so the row left out is the second-weakest of some source rather than the weakest on the card:
+// this filler shares the earnings feed with the low-importance lithium row and outranks it, which
+// puts lithium third in that source's queue and so beyond the four slots. It adds no source breadth
+// and carries no tracked keyword, so it draws no reading of its own.
+events.push({ ...events[30], id: 'preview-filler', headline: 'Zenith Manufacturing: material risk 4' });
+>>>>>>> sattva/main
 events.push({ ...events[0], id: 'context-document', aiEligible: false, kind: 'document', importance: 'low', direction: 'neutral', headline: 'Material risk source document', detail: 'Underlying source record' });
 events.push(...eventsFor('OLD', 'Old signal', '2026-08-22'));
 events.push({ ...events[1], id: 'important-event', ticker: 'ZIMP', company: 'Important Company', direction: 'neutral' });
@@ -331,7 +341,11 @@ try {
     const evidence = card.querySelector('[data-ai-evidence]');
     const chips = [...card.querySelectorAll('[data-ai-driver]')];
     const rows = [...card.querySelectorAll('[data-ai-evidence] [data-ai-evidence-link]')];
+<<<<<<< HEAD
     const rowOf = (chip) => chip.closest('[data-ai-event]')?.querySelector('[data-ai-evidence-link]');
+=======
+    const rowOf = (chip) => chip.closest('[data-ai-evidence-link]');
+>>>>>>> sattva/main
     const readings = {
       withDrivers: cards.filter((c) => c.querySelector('[data-ai-driver]')).length,
       total: cards.length,
@@ -344,11 +358,20 @@ try {
       chipClasses: chips.map((chip) => chip.className),
       // A chip with no record behind it is the failure this replaced a paragraph to avoid.
       chipsSitOnRows: chips.length > 0 && chips.every((chip) => !!rowOf(chip) && !!rowOf(chip).getAttribute('href')),
+<<<<<<< HEAD
       // The source link continues to name the topic chips on its row for assistive technology.
       rowsNameTheQuestion: chips.every((chip) => /could change/i.test(rowOf(chip).getAttribute('aria-label') || '')),
       insightBeforeEvidence: !!evidence && !!(insight.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING),
       rowCount: rows.length,
       rowKeys: rows.map((row) => row.closest('[data-ai-event]').querySelector('[data-ai-age]')?.getAttribute('datetime') || ''),
+=======
+      // The link's aria-label replaces its contents for assistive technology, so the questions have
+      // to be named in it or the chip is drawn for sighted readers only.
+      rowsNameTheQuestion: chips.every((chip) => /could change/i.test(rowOf(chip).getAttribute('aria-label') || '')),
+      insightBeforeEvidence: !!evidence && !!(insight.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING),
+      rowCount: rows.length,
+      rowKeys: rows.map((row) => row.querySelector('[data-ai-age]')?.getAttribute('datetime') || ''),
+>>>>>>> sattva/main
       // Both blocks this replaced, asserted absent by their own hooks.
       figureStrip: card.querySelectorAll('[data-ai-metrics]').length,
       questionParagraph: card.querySelectorAll('[data-ai-drivers]').length,
@@ -358,7 +381,11 @@ try {
     return readings;
   });
   assert.equal(shape.withDrivers, shape.total, 'every card with a tracked topic names the question on the row that carries it');
+<<<<<<< HEAD
   assert(shape.everyCardLabelsItsInsight, 'every card labels its headline');
+=======
+  assert(shape.everyCardLabelsItsInsight, 'every card labels what happened');
+>>>>>>> sattva/main
   // One filing in the fixture carries one tracked keyword, so one row carries one chip.
   assert.deepEqual(shape.chipTexts, ['Thesis · Fraud']);
   assert(shape.chipsSitOnRows, 'every reading sits on the row whose own source backs it');
@@ -378,11 +405,19 @@ try {
   assert.doesNotMatch(shape.cardText, /earnings assumption, valuation or thesis/i);
   assert.doesNotMatch(shape.cardText, /Nothing tracked here bears on/i);
   assert(shape.insightBeforeEvidence, 'the finding is read before its evidence');
+<<<<<<< HEAD
   // Bounded timeline rows, and the header above them claims newest first — so the rows have to be in that order.
   assert(shape.rowCount > 0 && shape.rowCount <= 20, `rows: ${shape.rowCount}`);
   assert.deepEqual(shape.rowKeys, [...shape.rowKeys].sort().reverse(), 'the rows are newest first, as the list header says');
   assert.equal(shape.scriptInjected, 0, 'row text is escaped');
   console.log('PASS: the card labels its headline and names the investor question on the row that carries the reading.');
+=======
+  // Four rows, and the header above them claims newest first — so the rows have to be in that order.
+  assert(shape.rowCount > 0 && shape.rowCount <= 4, `rows: ${shape.rowCount}`);
+  assert.deepEqual(shape.rowKeys, [...shape.rowKeys].sort().reverse(), 'the rows are newest first, as the list header says');
+  assert.equal(shape.scriptInjected, 0, 'row text is escaped');
+  console.log('PASS: the card labels what happened and names the investor question on the row that carries the reading.');
+>>>>>>> sattva/main
 
   await page.evaluate(() => {
     window.savedFixture = window.fixtureEvents;
