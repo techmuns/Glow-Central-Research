@@ -113,11 +113,61 @@ export function withCallerToken(env, request) {
 
 /** A failure that names itself, so the UI can say which of them an operator has to fix. */
 export class MunsError extends Error {
-  constructor(reason, message, { status = null, url = null } = {}) {
+  constructor(reason, message, { status = null, url = null, upstream = null } = {}) {
     super(message);
     this.reason = reason; // 'no-token' | 'unauthorised' | 'rate-limited' | 'not-found' | 'timeout' | 'unreachable' | 'upstream' | 'shape'
     this.status = status;
     this.url = url;
+    this.upstream = upstream; // the upstream's own words for a failure, when it gave any
+  }
+}
+
+/**
+ * The upstream's own message and request id from a failed response, or null. Read once, capped at
+ * 4 KB and two seconds, and never thrown from. The insider-trades API answers HTTP 500 both for a
+ * symbol it cannot resolve and during its outages; the status alone cannot tell those apart, and a
+ * failure that cannot be told apart from its own artefact is half a failure state.
+ *
+ * THE MESSAGE LEAVES THROUGH A PUBLIC, EDGE-CACHED ROUTE AND A PUBLISHED CAPTURE, so it is quoted
+ * only after anything that could be a credential is cut out of it: our own token, URLs (a query
+ * string can carry somebody's key), JWT-shaped strings and long opaque runs.
+ */
+const quotable = (text, secrets) => secrets.filter((s) => s && s.length >= 8)
+  .reduce((out, secret) => out.split(secret).join('[redacted]'), text)
+  .replace(/\bhttps?:\/\/\S+/gi, '[url]')
+  .replace(/\beyJ[\w-]{4,}\.[\w-]{4,}(?:\.[\w-]+)?/g, '[token]')
+  .replace(/[A-Za-z0-9+/_=-]{32,}/g, '[redacted]');
+
+export async function upstreamDetail(res, { maxBytes = 4096, ms = 2000, secrets = [] } = {}) {
+  const reader = res?.body?.getReader?.();
+  if (!reader) return null;
+  let timer;
+  try {
+    const read = (async () => {
+      const decoder = new TextDecoder();
+      let text = '';
+      while (text.length < maxBytes) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        text += decoder.decode(value, { stream: true });
+      }
+      return text.slice(0, maxBytes);
+    })();
+    read.catch(() => {}); // a read abandoned at the deadline rejects when the stream is cancelled
+    const text = await Promise.race([read, new Promise((resolve) => { timer = setTimeout(() => resolve(null), ms); })]);
+    if (!text) return null;
+    let json = null;
+    try { json = JSON.parse(text); } catch { /* not JSON: an HTML error page carries nothing to quote */ }
+    const said = [json?.message?.message, json?.message, json?.error?.message, json?.error, json?.detail]
+      .find((value) => typeof value === 'string' && value.trim());
+    const id = [json?.requestId, json?.request_id].find((value) => typeof value === 'string' && /^[\w-]{1,100}$/.test(value));
+    if (!said && !id) return null;
+    return { ...(said ? { message: quotable(said.trim(), secrets).slice(0, 300) } : {}), ...(id ? { requestId: id } : {}) };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    reader.cancel().catch(() => {});
   }
 }
 
@@ -170,7 +220,7 @@ async function request(url, { method = 'GET', body = null, token, label, maxByte
       if (res.status === 404) throw new MunsError('not-found', `${label} has no record at this address (HTTP 404).`, { status: 404, url });
       if (res.status === 429) throw new MunsError('rate-limited', `${label} is rate limiting this deployment (HTTP 429). The registry allows 60 requests a minute.`, { status: 429, url });
       if (!res.ok) {
-        last = new MunsError('upstream', `${label} answered HTTP ${res.status}.`, { status: res.status, url });
+        last = new MunsError('upstream', `${label} answered HTTP ${res.status}.`, { status: res.status, url, upstream: await upstreamDetail(res, { secrets: [token] }) });
         if (res.status < 500) throw last;
       } else {
         // The insider-trades endpoint is documented as returning a markdown TABLE, so a non-JSON
