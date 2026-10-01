@@ -94,6 +94,19 @@ const beforeChecked = materialEvidence([hundred[0]]);
 mute.hide('ALPHA', JSON.stringify(beforeChecked));
 assert(mute.isHidden('ALPHA', JSON.stringify(materialEvidence(reader.project(hundred)))), 'finishing review does not resurface previously read facts');
 const outage = createStoryGrouping({ read: async () => null, write: async () => {}, fetcher: async () => Response.json({ ok: false }, { status: 503 }) });
+// A source row without a document cannot be grouped, but must keep its place among
+// the same-minute filings that can. Grouping finishing after paint must not reorder ties.
+const tiedRows = [event('filing-first', 'Quarterly financial results', { feed: 'announcements' }),
+  event('without-document', 'Clarification requested', { feed: 'announcements', url: null }),
+  event('filing-last', 'Appointment of director', { feed: 'announcements' })];
+assert.deepEqual(outage.project(tiedRows).map(row => row.id), tiedRows.map(row => row.id),
+  'story projection preserves source order among grouped and ungroupable rows');
+let projectionYields = 0;
+assert.deepEqual(await outage.projectAsync(tiedRows, { sliceMs: 0, yieldForInput: async () => { projectionYields++; } }), outage.project(tiedRows),
+  'asynchronous grouping paints the same records in the same order');
+const longTies = Array.from({ length: 600 }, (_, i) => event(`tie-${i}`, `Distinct source report ${i}`, { url: i % 3 ? `https://example.test/${i}` : null }));
+assert.deepEqual((await outage.projectAsync(longTies, { sliceMs: 0, yieldForInput: async () => { projectionYields++; } })).map(row => row.id), longTies.map(row => row.id));
+assert(projectionYields > 0, 'order preservation still yields across the full history');
 await outage.review([proposal, copy]);
 assert.equal(outage.project([proposal, copy]).length, 2); assert(outage.status([proposal, copy]).partial);
 assert(outage.status([event('large', 'x'.repeat(16001))]).partial, 'oversized unchecked text cannot claim complete grouping');

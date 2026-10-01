@@ -58,6 +58,10 @@ const server = createServer((req, res) => {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__alertPoolRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
     } else if (pathname === '/js/data/news-working-set.js') {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__newsQueryRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/js/data/announcements-extra.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__announcementHistoryRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/js/data/alert-stories.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__storyOrderRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
     } else if (pathname === '/css/tailwind.css') {
       res.end(`${readFileSync(path, 'utf8')}\n:root { --table-scroll-release: ${previousRelease ? 'previous' : 'current'}; }`);
     } else res.end(readFileSync(path));
@@ -197,6 +201,10 @@ try {
   assert.equal(await page.evaluate(() => globalThis.__alertPoolRelease), 'previous', 'the retained session has the older alert-pool module');
   await page.evaluate(() => import('/js/data/news-working-set.js'));
   assert.equal(await page.evaluate(() => globalThis.__newsQueryRelease), 'previous', 'returning reader starts with the older news query module');
+  await page.evaluate(() => import('/js/data/announcements-extra.js'));
+  assert.equal(await page.evaluate(() => globalThis.__announcementHistoryRelease), 'previous', 'returning reader starts with the older announcement-history module');
+  await page.evaluate(() => import('/js/data/alert-stories.js'));
+  assert.equal(await page.evaluate(() => globalThis.__storyOrderRelease), 'previous', 'returning reader starts with the older story projection');
   offline = false;
   previousRelease = false;
   await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update(); });
@@ -211,6 +219,10 @@ try {
   assert.equal(await page.evaluate(() => globalThis.__alertPoolRelease), 'current', 'the same returning session receives the context retention fix');
   await page.evaluate(() => import('/js/data/news-working-set.js'));
   assert.equal(await page.evaluate(() => globalThis.__newsQueryRelease), 'current', 'the same returning session receives the news query performance fix');
+  await page.evaluate(() => import('/js/data/announcements-extra.js'));
+  assert.equal(await page.evaluate(() => globalThis.__announcementHistoryRelease), 'current', 'the same returning session receives the sliced announcement-history reader');
+  await page.evaluate(() => import('/js/data/alert-stories.js'));
+  assert.equal(await page.evaluate(() => globalThis.__storyOrderRelease), 'current', 'the same returning session receives stable story ordering');
   const upgradedCaches = await page.evaluate(() => caches.keys());
   assert(!upgradedCaches.some(name => name.includes('previous-fixture')), 'activation removes the superseded app cache');
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'automatic upgrade retains reader preferences');

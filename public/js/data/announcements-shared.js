@@ -1,4 +1,5 @@
 import { normaliseAnnouncement, pickField } from './filings-shared.js';
+import { runSteps, sortSteps } from '../core/slices.js';
 
 export function announcementRange(fromDate, toDate) {
   const day = (value) => {
@@ -162,7 +163,14 @@ function mergeAnnouncement(previous, row, sources, sourceUrls) {
 
 /** Append new disclosures; only proven same-document/date/company overlap collapses. */
 export function mergeAnnouncements(...lists) {
+  return runSteps(mergeAnnouncementSteps(...lists));
+}
+
+// The synchronous collector and the browser warm-up share the exact same merge. Yield within
+// each source and the final stable sort so preparing retained history cannot block tab input.
+export function* mergeAnnouncementSteps(...lists) {
   const out = [], seen = new Map();
+  let processed = 0;
   for (const list of lists) {
     const occurrences = new Map();
     for (const row of list || []) {
@@ -183,7 +191,8 @@ export function mergeAnnouncements(...lists) {
         out.push(next);
         for (const key of keys.length ? keys : [fallback]) seen.set(key, next);
       }
+      if (++processed % 128 === 0) yield;
     }
   }
-  return out.sort((a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`));
+  return yield* sortSteps(out, (a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`));
 }
