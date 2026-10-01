@@ -569,12 +569,16 @@ try {
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), `no page overflow at ${width}px`);
     if (width === 390 && process.env.GENERAL_ALERTS_MOBILE_SCREENSHOT) await page.screenshot({ path: process.env.GENERAL_ALERTS_MOBILE_SCREENSHOT });
   }
+  await stableReadingSurface();
   await page.locator('[data-sources-summary]').click();
   const lastSource = page.locator('[data-feed-toggle]').last();
   await lastSource.scrollIntoViewIfNeeded();
   const sourceOffset = await page.locator('[data-alerts-coverage]').evaluate(node => node.scrollTop);
   assert(sourceOffset > 0, 'narrow source picker has a genuine scroll position to preserve');
+  const heldSource = await lastSource.elementHandle();
+  const wasChecked = await lastSource.getAttribute('aria-checked');
   await lastSource.click();
+  await page.waitForFunction(({node, before}) => node.isConnected && node.getAttribute('aria-checked') !== before, {node: heldSource, before: wasChecked});
   assert.equal(await page.locator('[data-alerts-coverage]').evaluate(node => node.scrollTop), sourceOffset,
     'source selection preserves the picker scroll position');
   await page.locator('[data-feed-toggle="__all"]').click();
