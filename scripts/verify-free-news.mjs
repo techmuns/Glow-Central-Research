@@ -61,14 +61,45 @@ assert.equal(await reason(feed('<html>consent page</html>')), 'shape');
 assert.equal(await reason(async () => { throw Error('offline'); }), 'unreachable');
 assert.equal(await reason(feed(rss([])), '  '), 'shape');
 
+// Tries, for the website's Worker: a refusal, a slow answer or a dropped connection is asked again,
+// each try with its own deadline. The default, which the scheduled capture uses, is one request.
+let calls = 0;
+const answersAfter = (failures, failure) => async (url, init) => (++calls <= failures ? failure(init) : feed(rss([story(1)]))());
+const refused = () => new Response('', { status: 503 });
+const quick = { attempts: 3, attemptMs: 50, pause: async () => {} };
+calls = 0;
+assert.equal((await fetchGoogleNews({ query: 'Coforge' }, { fetcher: answersAfter(2, refused), ...quick })).count, 1, 'the third try gets through');
+assert.equal(calls, 3);
+calls = 0;
+await assert.rejects(fetchGoogleNews({ query: 'Coforge' }, { fetcher: answersAfter(9, refused), ...quick }),
+  (err) => err.reason === 'rate-limited' && / Tried 3 times\.$/.test(err.message));
+assert.equal(calls, 3, 'it stops after the last try');
+calls = 0;
+assert.equal(await reason(answersAfter(9, refused)), 'rate-limited');
+assert.equal(calls, 1, 'one request by default, so a capture walk still stops at the first refusal');
+calls = 0;
+await assert.rejects(fetchGoogleNews({ query: 'Coforge' }, { fetcher: answersAfter(9, () => new Response('', { status: 500 })), ...quick }),
+  (err) => err.reason === 'upstream');
+assert.equal(calls, 1, 'an error answer is not asked again');
+calls = 0;
+const hangs = (init) => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(Object.assign(Error('aborted'), { name: 'AbortError' }))));
+assert.equal((await fetchGoogleNews({ query: 'Coforge' }, { fetcher: answersAfter(1, hangs), ...quick })).count, 1, 'a slow try is abandoned');
+assert.equal(calls, 2);
+calls = 0;
+await assert.rejects(fetchGoogleNews({ query: 'Coforge' }, { fetcher: answersAfter(9, async () => { throw Error('reset'); }), ...quick }),
+  (err) => err.reason === 'unreachable');
+assert.equal(calls, 3, 'a dropped connection is asked again');
+
 // The Worker route: with NEWS_PROVIDER=google it never calls the paid Muns news API.
 const originalFetch = globalThis.fetch, originalCaches = globalThis.caches;
 const cache = new Map(), pending = [], seen = [];
+let refusals = 0;
 globalThis.caches = { default: { match: async (key) => cache.get(key.url)?.clone(),
   put: async (key, response) => { cache.set(key.url, response.clone()); } } };
 globalThis.fetch = async (input) => {
   const url = String(input?.url || input);
   seen.push(url);
+  if (url.startsWith('https://news.google.com/rss/search') && refusals > 0) { refusals--; return new Response('', { status: 503 }); }
   if (url.startsWith('https://news.google.com/rss/search')) return new Response(rss([story(1)]), { headers: { 'content-type': 'application/rss+xml' } });
   throw Error(`unexpected request ${url}`);
 };
@@ -86,6 +117,11 @@ try {
   const global = await route('q=Coforge&country=ALL');
   assert.equal(global.country, 'ALL');
   assert.equal(new URL(seen.at(-1)).searchParams.get('gl'), 'US');
+  refusals = 2;
+  const asked = seen.length;
+  const retried = await route('q=Wipro');
+  assert.equal(retried.ok, true, 'the route asks again when Google refuses');
+  assert.equal(seen.length - asked, 3);
   assert(seen.every((url) => url.startsWith('https://news.google.com/')), 'no paid search request');
 } finally { globalThis.fetch = originalFetch; globalThis.caches = originalCaches; }
 

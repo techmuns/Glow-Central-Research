@@ -904,7 +904,10 @@ async function handleMuns(request, env, ctx, kind, rawTicker = '') {
     // FREE NEWS. With NEWS_PROVIDER=google (wrangler.jsonc) this route searches Google News instead
     // of the paid Brave search behind the Muns news API; see worker/free-news.mjs.
     if (freeNews) {
-      const found = await fetchGoogleNews({ query, country: newsCountry === 'ALL' ? 'ALL' : 'IN', fromDate: from, toDate: to });
+      // Three short tries: Google refuses most requests from Cloudflare's shared addresses, slowly,
+      // and answers in about a second when it answers (see worker/free-news.mjs).
+      const found = await fetchGoogleNews({ query, country: newsCountry === 'ALL' ? 'ALL' : 'IN', fromDate: from, toDate: to },
+        { attempts: 3, attemptMs: 2500 });
       payload = { ...found, ok: true, kind, country: newsCountry };
     } else if (kind === 'news') payload = { ok: true, kind, country: newsCountry, ...(await fetchNews({ query, country: newsCountry === 'ALL' ? null : newsCountry, fromDate: from, toDate: to }, env)) };
     else if (kind === 'announcements') payload = { ok: true, kind, ...(await fetchAnnouncements({ ticker, fromDate: from, toDate: to }, env)) };
