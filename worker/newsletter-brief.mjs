@@ -67,6 +67,7 @@
 // source was read, and a source that could not be read says so in the email rather than going quiet.
 
 import { FEED_URL as NSE_FEED_URL, HEADERS as NSE_HEADERS, assertShape as assertNseShape, buildResolver, parseAnnouncements, resolveAll, resolveRow } from './nse-ann.mjs';
+import { readNasdaqEnrichment } from './newsletter-market-enrichment.mjs';
 import { quoteFromChart, readUpstoxIndices, readNseIndices, readBseSensex, GLOBAL_INSTRUMENTS, reconcileIndianIndex, reconcileGlobalIndex, marketIssue } from './newsletter-markets.mjs';
 export { quoteFromChart } from './newsletter-markets.mjs';
 import { filingKey as nseFilingKey } from '../public/js/data/nse-history-shared.js';
@@ -223,12 +224,19 @@ export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {
     if (rows[i].group === 'india') rows[i] = reconcileIndianIndex(rows[i], upstox.rows.get(id), nse.rows.get(id) || bse.rows.get(id), upstox.failures?.[id] || upstox.reason);
     else if (GLOBAL_INSTRUMENTS[id]) rows[i] = reconcileGlobalIndex(rows[i], globalUpstox.rows.get(id), globalUpstox.failures?.[id] || globalUpstox.reason);
   }
+  const nasdaqIndex = rows.findIndex(r => r.id === 'nasdaq');
+  const enriched = await readNasdaqEnrichment(rows[nasdaqIndex], { fetcher, now });
+  rows[nasdaqIndex] = enriched.row;
+  const enrichment = { attempted: enriched.attempted ? ['nasdaq'] : [],
+    applied: enriched.row.enrichment ? ['nasdaq'] : [], reason: enriched.reason, checkedAt: enriched.attempted ? now : null };
   const byId = new Map(rows.map((r) => [r.id, r]));
   return {
     readAt: now, upstox: { configured: !!env?.UPSTOX_ACCESS_TOKEN, reason: upstox.reason, checked: upstox.rows.size, failures: upstox.failures || {} },
     globalUpstox: { configured: !!env?.UPSTOX_ACCESS_TOKEN, reason: globalUpstox.reason, checked: globalUpstox.rows.size, failures: globalUpstox.failures || {} },
     nse: { reason: nse.reason, checked: nse.rows.size },
     bse: { reason: bse.reason, checked: bse.rows.size },
+    enrichment,
+    reportedChanges: rows.filter(r => r.changeOrigin === 'yahoo-quote').map(r => r.id),
     rows: MARKET_ROWS.map((r) => byId.get(r.id)),
     failed: rows.filter((r) => r.state === 'unavailable').map((r) => r.id),
     unverified: rows.filter(r => r.last != null && r.changePct == null).map(r => r.id),
@@ -1254,6 +1262,8 @@ export function briefSummary(brief) {
     quotesUnverified: brief.markets.unverified || [], quotesConflicts: brief.markets.conflicts || [],
     indexSource: brief.markets.upstox || null, exchangeSource: brief.markets.nse || null,
     bseIndexSource: brief.markets.bse || null, globalIndexSource: brief.markets.globalUpstox || null,
+    marketEnrichment: brief.markets.enrichment || null,
+    quotesReportedChanges: brief.markets.reportedChanges || [],
     quotesOutliers: brief.markets.outliers || [],
     announcements: brief.announcements.count,
     news: brief.news.count,
@@ -1318,9 +1328,11 @@ export function asOfLabel(row) {
   const when = row.timezone ? zoneShort(row.asOf, row.timezone) : istLabel(row.asOf);
   const status = { live: 'Live', close: 'Close', delayed: 'Delayed quote', stale: 'Earlier quote' }[row.state] || 'Quote';
   const provider = row.origin === 'nse' ? 'NSE' : row.origin === 'bse' ? 'BSE Indices' : row.origin === 'upstox' ? 'Upstox' : 'Yahoo';
-  const verification = row.verification === 'cross-checked' ? ' · cross-checked' : row.verification === 'single-source' || row.group === 'india' ? ' · single source' : '';
+  const verification = row.verification === 'cross-checked' ? ' · cross-checked' : row.verification === 'level-cross-checked' ? ' · level cross-checked' : row.verification === 'single-source' || row.group === 'india' ? ' · single source' : '';
   const delay = row.delayMinutes ? ` · ${row.delayMinutes}-minute feed delay` : '';
-  return `${status} · ${when} · ${provider}${delay}${verification}${marketIssue(row) ? ` · ${marketIssue(row)}` : ''}`;
+  const enrichment = row.changeOrigin === 'nasdaq-history' ? ' · daily change: Nasdaq history'
+    : row.changeOrigin === 'yahoo-quote' ? ' · quoted daily change' : '';
+  return `${status} · ${when} · ${provider}${delay}${enrichment}${verification}${marketIssue(row) ? ` · ${marketIssue(row)}` : ''}`;
 }
 
 export function glanceLine(brief) {
@@ -1526,12 +1538,15 @@ export function sourcesNote(brief) {
   const bits = [];
   if (brief.markets) {
     const market = brief.markets;
-    bits.push(`market source checks started ${istLabel(market.readAt)}; each row carries its own source time; daily changes use the preceding session close`);
+    bits.push(`market source checks started ${istLabel(market.readAt)}; each row carries its own source time; daily changes use published quote comparisons or verified preceding-session closes`);
+    if (market.reportedChanges?.length) bits.push('Yahoo quoted daily changes follow the comparison published with that quote; currencies and futures can use different references from historical charts');
     if (market.nse?.reason) bits.push(`NSE index check ${market.nse.reason}; usable alternative sources are labelled on each row`);
     if (market.bse?.reason) bits.push(`BSE Sensex check ${market.bse.reason}; usable alternative sources are labelled on each row`);
     if (market.outliers?.length) bits.push(`${market.outliers.length} exchange quote(s) corroborated by another provider despite a third-source disagreement`);
     if (market.upstox?.reason) bits.push(`Upstox index check ${market.upstox.reason}; fallback rows are marked single source`);
     if (market.globalUpstox?.reason) bits.push(`Upstox global index check ${market.globalUpstox.reason}; usable alternative sources are labelled on each row`);
+    if (market.enrichment?.applied?.length) bits.push('Nasdaq Composite daily change enriched from Nasdaq official history after matching the closing level and both trading dates');
+    if (market.enrichment?.reason) bits.push('Nasdaq history could not verify the comparison; unverified changes remain withheld');
     if (market.conflicts?.length) bits.push(`${market.conflicts.length} market source disagreement(s); affected figures withheld`);
     if (market.unverified?.length) bits.push(`${market.unverified.length} daily change(s) could not be verified`);
   }
