@@ -42,6 +42,23 @@ const page = createScreenerCompanyFallback({ now: () => at, fetcher: async url =
 } });
 await Promise.all([page(company), page(company)]);
 assert.equal(requests, 1, 'announcement and document fallback share a bounded page read');
+let attempts = 0;
+const retry = createScreenerCompanyFallback({ now: () => at, sleep: async () => {}, fetcher: async () => {
+  if (++attempts === 1) throw new TypeError('fetch failed');
+  return new Response(fixture);
+} });
+assert.equal((await retry(company)).documents.length, 4);
+assert.equal(attempts, 2, 'one transport retry can recover the first connection without dropping this company');
+attempts = 0;
+const denied = createScreenerCompanyFallback({ sleep: async () => assert.fail('HTTP refusals are not retried'), fetcher: async () => {
+  attempts++; return new Response('Denied', { status: 403 });
+} });
+await assert.rejects(denied(company), /HTTP 403/);
+assert.equal(attempts, 1);
+attempts = 0;
+const offline = createScreenerCompanyFallback({ sleep: async () => {}, fetcher: async () => { attempts++; throw new TypeError('offline'); } });
+await assert.rejects(offline(company), /offline/);
+assert.equal(attempts, 2, 'persistent transport failure is bounded and never becomes an empty success');
 
 const dir = mkdtempSync(join(tmpdir(), 'glow-company-recovery-'));
 try {

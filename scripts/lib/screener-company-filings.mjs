@@ -115,7 +115,8 @@ export function parseScreenerCompanyFilings(html, company, now = Date.now()) {
     announcementReadable: recent !== null && (announcements.length > 0 || /No announcements/i.test(recent)) };
 }
 
-export function createScreenerCompanyFallback({ fetcher = fetch, now = Date.now } = {}) {
+export function createScreenerCompanyFallback({ fetcher = fetch, now = Date.now,
+  sleep = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
   const pages = new Map();
   return async company => {
     const ticker = companySourceTicker(company);
@@ -123,9 +124,21 @@ export function createScreenerCompanyFallback({ fetcher = fetch, now = Date.now 
     const key = `${ticker}|${company.bseCode || ''}|${company.isin || ''}`;
     if (!pages.has(key)) pages.set(key, (async () => {
       const url = `${origin}/company/${encodeURIComponent(ticker)}/consolidated/`;
-      const response = await fetcher(url, { signal: AbortSignal.timeout(25000), headers: { accept: 'text/html' } });
-      if (!response.ok) { await response.body?.cancel(); throw Object.assign(Error(`Screener company page returned HTTP ${response.status}`), { reason: 'upstream' }); }
-      const parsed = parseScreenerCompanyFilings(await boundedText(response, 4 * 1024 * 1024), company, now());
+      let html;
+      // The initial connection occasionally resets on both local and GitHub hosts. Retry that
+      // idempotent read once; HTTP refusals, rate limits and invalid page shapes are not retried.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const response = await fetcher(url, { signal: AbortSignal.timeout(25000), headers: { accept: 'text/html' } });
+          if (!response.ok) { await response.body?.cancel(); throw Object.assign(Error(`Screener company page returned HTTP ${response.status}`), { reason: 'upstream' }); }
+          html = await boundedText(response, 4 * 1024 * 1024);
+          break;
+        } catch (error) {
+          if (attempt || !['TypeError', 'TimeoutError'].includes(error.name)) throw error;
+          await sleep(1500);
+        }
+      }
+      const parsed = parseScreenerCompanyFilings(html, company, now());
       return { ...parsed, fetchedAt: new Date(now()).toISOString(), sourceUrl: url };
     })());
     return pages.get(key);
