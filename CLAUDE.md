@@ -229,9 +229,9 @@ public/
     tabs/                     ai-alerts, daily-alerts, ask-research, earnings-hub, concall, public-chatter, breakouts,
                               super-investors, news, corp-announcements, nse-filings, insider-trades
       corp-announcements.js   CORP ANNOUNCEMENTS — ONE TAB, TWO VIEWS: Announcements (the stream) and
-                              Corporate Actions, switched on the title row. Its Filing types slot in the
-                              filter row is a remembered multi-select over the filing TYPE
-                              (data/announcement-types.js); see the filing-type rule below
+                              Corporate Actions, switched on the title row. The stream is served a ranked
+                              page at a time by the announcement index, with Category and Market cap
+                              filters; see docs/ANNOUNCEMENT-RELEVANCE.md
       corp-announcements-views.js  the two views and the title-row switch both view modules share
       corporate-actions.js    the Corporate Actions VIEW — a sub-view, not a tab; its retired tab id
                               `corporate-actions` is aliased to the view by LEGACY_TABS in ui/shell.js
@@ -1408,9 +1408,8 @@ lost its whole window. Six things close it, and each is a rule this file already
 5. **TradingView's symbol tags are not a name match.** A sector story is tagged with every bank in
    it — measured, eight of one day's stories under SBI were about the NSE IPO — so a headline joins
    under `matchPortfolioNews` or when tagged with at most two symbols including the holding's.
-6. **Routine filings are counted, not listed** (`announcementTypeOf`, the type the Corp
-   Announcements tab hides by default), so the per-company cap — material rows first, then the
-   newest — cannot spend itself on newspaper copies.
+6. **Routine filings are counted, not listed** (`announcementTypeOf`'s routine type), so the
+   per-company cap — material rows first, then the newest — cannot spend itself on newspaper copies.
 
 **AND THE WEEK AHEAD IS ON THE PAGE, OUTSIDE THE LEDGER.** The owner's ask (18 September 2026): the
 two things a reader would otherwise learn after the fact were an ex-date or record date on a holding
@@ -1705,6 +1704,14 @@ copy of it. The sub-category keeps its own filter and its place in the export. *
 statement, so the question does not arise.
 
 ### ROUTINE FILINGS ARE SWITCHED OFF BY DEFAULT, AND THE SWITCH IS VISIBLE — the filing-type rule
+
+**Superseded on the Corp Announcements table (October 2026).** The desk then asked for every filing
+to stay visible, with routine and administrative items ranking lower rather than disappearing. The
+Announcements view no longer has the Filing types switch: it orders filings by investor relevance
+within each day and offers a Category multi-select over the shared master list, starting at All
+(`docs/ANNOUNCEMENT-RELEVANCE.md`). `announcement-types.js` still reads one type per filing for the
+brief's routine count, the alert notes and the AI Alerts type filter, and the measurements and rules
+below remain the reasoning behind that reading.
 
 Corp Announcements carries a great deal nobody at the desk acts on, and the desk said so in its own
 words: *"somebody has lost their physical shares, so the company has to upload a document saying
@@ -4957,7 +4964,13 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the chatter feed | `js/data/chatter-live.js` + `js/data/sentiment-shared.js` — the browser calls it DIRECTLY and must; read *There is no `/api/chatter`* in `docs/DATA-CONTRACTS.md` before adding a proxy. `changePct` there is mention volume, not price |
 | Change News or Insider | `worker/muns.mjs` + `js/data/filings-shared.js`, then the routes in `worker/index.js` — read *Three feeds whose SHAPE is not ours to pin* first |
 | Change Corporate Announcements | Keep the exchange-wide base in `worker/bse-ann.mjs` + `scripts/scrape-bse-announcements.mjs`. Additional user-requested company/date lookups use `worker/muns.mjs` + `js/data/announcements-extra.js`; they merge with the table and never replace the base capture or claim universe coverage. The tab is `js/tabs/corp-announcements.js` with two views; Corporate Actions is `js/tabs/corporate-actions.js` underneath it |
-| Change which filings count as routine, or add a filing type | `ANNOUNCEMENT_TYPES` + `RE` in `public/js/data/announcement-types.js` — read *Routine filings are switched off by default* first. The order is the definition, a new type starts switched ON on every device, and `node scripts/verify-announcement-types.mjs` asserts the collisions |
+| Change a category, its rules or the master list | `ANNOUNCEMENT_CATEGORY_LIST` in `public/js/data/announcement-categories.js`, then bump `CATEGORY_VERSION` so the next index build re-tags — read `docs/ANNOUNCEMENT-RELEVANCE.md` first; tags are topics, never directions |
+| Change how relevance orders an item within its day | `relevanceReading()` / `rankKey()` in `public/js/data/relevance.js` (bump `RELEVANCE_VERSION`), and `rankedKey()` / `RECENT_RELEVANCE_DAYS` in `public/js/data/surface-relevance.js` for News and All Alerts — never read a large list inside one sort |
+| Change the Corporate Announcements index, its query or its routes | `public/js/data/announcement-index-shared.js` (format + query, imported by runner, Worker and browser), `announcement-index-build.js`, `scripts/build-announcement-index.mjs`, `worker/announcement-index-store.mjs` / `announcement-index.mjs`, `.github/workflows/announcement-index-refresh.yml`; the browser fallback is `announcement-query-local.js` |
+| Change "N related filings" | `stitchEvents()` in `public/js/data/event-stitching.js` (bump `STITCH_VERSION`) |
+| Change the Important / Not important feedback or the shared model | `public/js/data/relevance-feedback-shared.js` (votes, keys, model), `relevance-feedback.js` (browser + outbox), `ui/relevance-feedback-ui.js`, `worker/relevance-feedback-store.mjs` / `relevance-feedback.mjs` |
+| Change the AI Read popup | `public/js/data/announcement-read-shared.js` (prompt, sections, limits), `worker/announcement-read-store.mjs` / `announcement-read.mjs`, `public/js/ui/announcement-read.js` — on request only, exchange documents only, never in the list |
+| Change which filings count as routine, or add a filing type | `ANNOUNCEMENT_TYPES` + `RE` in `public/js/data/announcement-types.js` (the brief, alert notes and AI Alerts type filter; Corp Announcements now uses the category master list) — read *Routine filings are switched off by default* first. The order is the definition, a new type starts switched ON on every device, and `node scripts/verify-announcement-types.mjs` asserts the collisions |
 | Change the NSE live announcements feed | `worker/nse-ann.mjs` (pure parser + name->symbol resolver, shared) + `handleNseAnnouncements` in `worker/index.js` (live route, edge-cached) + `js/data/nse-filings.js` (browser) + `js/tabs/nse-filings.js` (the scoped table). The browser CANNOT read NSE (CORS null), so it must proxy through the Worker; a full desktop user-agent is required or Akamai 430s it. Resolve by NAME — the filename prefix is only 31% reliable |
 | Refresh the NSE snapshot fallback | `node scripts/scrape-nse-announcements.mjs` — reads NSE directly (no token), resolves, commits `public/data/nse-announcements.json`. The live route is the primary read; this is the floor beneath it |
 | Change how an NSE XBRL filing is READ, or which URLs may be fetched for one | `public/js/data/nse-xbrl-shared.js` (the pure parser + the `src` allow-list, imported by the Worker too) + `handleNseFiling` in `worker/index.js` (`GET /api/nse-filing`) + `public/js/ui/xbrl-filing.js` (the panel and the one delegated click listener, installed from `app.js`). About one NSE announcement in eleven is a raw XBRL file with no readable twin — read *An XBRL filing is a document* in `docs/DATA-CONTRACTS.md` first. A fact is an element with a `contextRef`, a repeated section is a context, values travel verbatim, `row.url` keeps NSE's own address, and a modified click still gets the raw file. `node scripts/verify-nse-xbrl.mjs` and `scripts/verify-nse-xbrl-ui.mjs` are the tests |
@@ -5417,3 +5430,24 @@ one inline action joined by exact source summary IDs. The live Family Office por
 every discovery, including future additions/exits. Preserve the durable rolling quota, failure
 cooldowns, retained history, reader verification and source coverage gaps. Collection is opt-in;
 merging this implementation does not enable the production gates or establish live compatibility.
+
+### Investor relevance across Corporate Announcements, News and All Alerts (October 2026)
+
+`docs/ANNOUNCEMENT-RELEVANCE.md` is the contract. Everything stays visible: newest day first, and
+within a day the item an analyst would read first comes first (`relevance.js`: category from the one
+editable master list in `announcement-categories.js`, company size, any stated amount against market
+cap, the sector KPI ontology, direction and source reliability, plus the desk's shared feedback). No
+High/Medium/Low label is printed and nothing is hidden or deleted by its rank; routine filings rank
+lower. Corporate Announcements is served one ranked page at a time by the `announcement-index:v1`
+object over the `announcement-index` Actions artifact (built from the committed captures by
+`scripts/build-announcement-index.mjs`), keeps the exchange's subject exactly as filed, shows
+Categories, Market cap and "N related filings" (`event-stitching.js`), filters by category and market
+cap, and opens the on-request **AI Read** popup (`announcement-read:v1`, exchange documents only,
+stored per document, daily budget) when a filing is clicked. Where the index cannot be read, the same
+question is answered in the browser by the same code, in slices. News and All Alerts order only the
+last seven IST days by relevance, read within a 120 ms budget per sort and the rest in slices
+(`surface-relevance.js`): a large retained history must never be read inside one task. Important /
+Not important (+ optional Why?) on all three surfaces trains ONE shared `relevance-feedback:v1`
+preference; News keeps its click-to-article behaviour and puts the vote behind a separate ⋯. Do not
+add per-example rules: a new case is a category rule or a reading weight. Verify with
+`verify-relevance.mjs`, `verify-announcements-ui.mjs` and `verify-announcements-runtime.mjs`.
