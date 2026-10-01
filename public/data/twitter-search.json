@@ -800,7 +800,7 @@
       "pending": []
     },
     "isin:INE854B01010|Datasel S.R.L.": {
-      "lastAttemptAt": "2026-09-26T23:02:36+00:00",
+      "lastAttemptAt": "2026-10-01T06:14:49+00:00",
       "error": "search-unavailable",
       "lastResultCount": 0,
       "lastSuccessAt": "2026-09-17T09:01:32+00:00",
@@ -1877,6 +1877,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 221,
-    "checkedAt": "2026-10-01T06:01:05.404031+00:00"
+    "checkedAt": "2026-10-01T06:14:49.086737+00:00"
   }
 }
