@@ -20,15 +20,16 @@ const { build } = require('esbuild');
 function zip(members) {
   const locals = [], centrals = [];
   let offset = 0;
-  for (const [name, data] of members) {
+  for (const [name, data, { extraLength = 4, localName = name } = {}] of members) {
     const nameBytes = Buffer.from(name);
-    const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(nameBytes.length, 26); local.writeUInt16LE(4, 28);
-    const extra = Buffer.from([1, 2, 0, 0]);
+    const localNameBytes = Buffer.from(localName);
+    const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(localNameBytes.length, 26); local.writeUInt16LE(extraLength, 28);
+    const extra = Buffer.alloc(extraLength);
     const central = Buffer.alloc(46); central.writeUInt32LE(0x02014b50, 0); central.writeUInt32LE(data.length, 20); central.writeUInt32LE(data.length, 24);
     central.writeUInt16LE(nameBytes.length, 28); central.writeUInt32LE(offset, 42);
-    locals.push(local, nameBytes, extra, data);
+    locals.push(local, localNameBytes, extra, data);
     centrals.push(central, nameBytes);
-    offset += 30 + nameBytes.length + extra.length + data.length;
+    offset += 30 + localNameBytes.length + extra.length + data.length;
   }
   const directory = Buffer.concat(centrals);
   const end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(members.length, 8); end.writeUInt16LE(members.length, 10);
@@ -40,7 +41,10 @@ const index = { version: 1, contract: ALERT_POOL_CONTRACT, day, builtAt: `${day}
 const shard = { version: 1, contract: ALERT_POOL_CONTRACT, day, feeds: { technicals: { events: [{ id: 'tech:X', feed: 'technicals', headline: 'x', day }], order: [0], companions: { events: [], order: [] } } } };
 const padding = Buffer.alloc(1024 * 1024, 'p'); // the tail must not read the complete archive
 const archive = zip([['index.json', Buffer.from(JSON.stringify(index))], ['padding.bin', padding], [`days/${day}.json.gz`, gzipSync(JSON.stringify(shard))],
-  [`days/${day}.technicals.json.gz`, gzipSync(JSON.stringify(shard))], ['ai/oops.txt', Buffer.from('not json')], [`ai/${day}.json.gz`, Buffer.from('plain, not gzip')]]);
+  [`days/${day}.technicals.json.gz`, gzipSync(JSON.stringify(shard))],
+  [`days/${day}.news.json.gz`, gzipSync(JSON.stringify(shard)), { extraLength: 1024 }],
+  [`days/${day}.announcements.json.gz`, gzipSync(JSON.stringify(shard)), { localName: `oops/${day}.announcements.json.gz` }],
+  ['ai/oops.txt', Buffer.from('not json')], [`ai/${day}.json.gz`, Buffer.from('plain, not gzip')]]);
 
 // Model the hosted fetch cache: it can fill the complete archive, then return a
 // perfectly valid 206 slice. Counting origin reads catches that hidden download.
@@ -100,10 +104,12 @@ try {
   assert(ranges.includes(`bytes=${archive.length - (65557 + 256 * 1024)}-${archive.length - 1}`), 'the directory is read from an absolute archive-tail range');
   assert(ranges.includes('bytes=0-0'), 'a single-byte probe obtains the actual storage length');
 
+  const beforeMember = ranges.length;
   const member = await fetch(new URL(`/api/alert-pool/99/days/${day}.json.gz`, base));
   assert.equal(member.status, 200);
   assert.match(member.headers.get('cache-control'), /immutable/);
   assert.deepEqual(await member.json(), shard, 'the stored gzip member decodes once, in the client');
+  assert.equal(ranges.length - beforeMember, 1, 'one bounded storage read includes both the local header and complete member');
   const directoryReads = ranges.filter((r) => r === 'bytes=0-0').length;
   assert.equal(directoryReads, 1, 'the directory is read once per artifact and kept at the edge');
   const before = calls;
@@ -121,6 +127,12 @@ try {
   const separate = await fetch(new URL(`/api/alert-pool/99/days/${day}.technicals.json.gz`, base));
   assert.equal(separate.status, 200);
   assert.deepEqual(await separate.json(), shard, 'a per-feed member uses the same bounded range and gzip delivery');
+  const beforeExtra = ranges.length;
+  const extended = await fetch(new URL(`/api/alert-pool/99/days/${day}.news.json.gz`, base));
+  assert.deepEqual(await extended.json(), shard, 'a large ZIP extra field still returns the exact complete payload');
+  assert.equal(ranges.length - beforeExtra, 2, 'unusual extra fields use the bounded exact-range fallback');
+  assert.equal((await fetch(new URL(`/api/alert-pool/99/days/${day}.announcements.json.gz`, base))).status, 503,
+    'a mismatched local filename cannot return another member as the requested feed');
   assert.equal((await fetch(new URL(`/api/alert-pool/99/days/${day}.private.json.gz`, base))).status, 404,
     'only explicitly public pool feeds can be addressed');
 

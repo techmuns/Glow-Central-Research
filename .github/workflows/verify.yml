@@ -175,8 +175,9 @@ jobs:
         run: node scripts/verify-concall-summaries-runtime.mjs
   browser:
     runs-on: ubuntu-latest
-    # Setup and the complete dashboard suite share this bounded job budget.
-    timeout-minutes: 30
+    # Full-history alert comparisons left five browser checks unfinished at 30 minutes.
+    # Keep the complete suite and allow its growing captures to finish.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

@@ -10,6 +10,7 @@ import { archiveFilings } from './lib/filing-archive.mjs';
 import { announcementCoverage } from '../public/js/data/announcement-coverage.js';
 import { assessFilingsHealth } from '../public/js/data/filings-health-shared.js';
 import { createAnnouncementIdentity } from '../public/js/data/announcement-identity.js';
+import { verifyAnnouncementDelivery } from './lib/announcement-delivery.mjs';
 
 const originalNow = Date.parse('2026-09-30T17:00:00.000Z');
 const bootstrap = { version: 1, bootstrap: true, rowCount: 0, rows: [], pending: [], ranges: [] };
@@ -39,6 +40,18 @@ assert.equal(indexReference.url, null);
 assert.equal(indexReference.source, 'NSE');
 assert.equal(indexReference.documentUnavailable, true);
 assert(indexReference.referenceUrl.includes('/companies-listing/'));
+const secondReference = { ...noDocument, title: 'A separate announcement', time: '22:00:00' };
+const bseId = '00000000-0000-0000-0000-000000000001.pdf';
+const captured = { ...parsed.rows[0], url: `https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=${bseId}` };
+const merged = { ...captured, url: 'https://nsearchives.nseindia.com/corporate/companion.pdf',
+  sourceUrls: [{ source: 'BSE', url: `https://www.bseindia.com/xml-data/corpfiling/AttachHis/${bseId}` }] };
+const delivered = [merged, noDocument, secondReference].map(sourceRecord => ({ sourceRecord }));
+assert.equal(verifyAnnouncementDelivery([captured, noDocument, secondReference], delivered), 3,
+  'original documents remain discoverable behind merged links; reference-only notices retain their separate identities');
+assert.throws(() => verifyAnnouncementDelivery([captured], delivered.slice(1)), /missing from alerts/);
+assert.throws(() => verifyAnnouncementDelivery([secondReference], delivered.slice(0, 2)), /missing from alerts/,
+  'one issuer reference cannot stand in for a separate notice');
+assert.throws(() => verifyAnnouncementDelivery([{ ...captured, ticker: 'ANOTHER' }], delivered), /missing from alerts/);
 assert.deepEqual(parseScreenerAnnouncements(actual.replace(/datetime="([^"]+)"/g, 'datetime=$1'), { now: originalNow }), parsed,
   'raw unquoted datetime attributes have the same meaning as browser-serialized HTML');
 const withoutTimes = actual.replace(/<span class="ink-600 smaller">[\s\S]*?<\/span>/g, '');

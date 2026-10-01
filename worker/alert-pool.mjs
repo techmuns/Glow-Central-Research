@@ -165,11 +165,24 @@ async function memberBytes(artifactId, name, cfg, cache, ctx, { limit = MAX_MEMB
   if (entry.method !== 0) throw new Error('Alert pool member is not stored uncompressed');
   if (entry.size > limit || entry.expanded !== entry.size) throw new Error('Alert pool member exceeds size limit');
   const location = directory.location || await archiveLocation(artifactId, cfg);
-  const header = await readRange(location, entry.local, entry.local + 29, cfg);
-  const hv = new DataView(header.buffer, header.byteOffset, header.byteLength);
-  if (hv.getUint32(0, true) !== 0x04034b50) throw new Error('Invalid alert pool member header');
-  const start = entry.local + 30 + hv.getUint16(26, true) + hv.getUint16(28, true);
+  // Fetch the header and payload together. GitHub's stored ZIP members normally
+  // have a tiny local extra field; 256 spare bytes avoid a separate header trip.
+  // An unusually large extra field still takes the exact validated payload path.
+  const nameBytes = new TextEncoder().encode(name);
+  const allowance = 30 + nameBytes.length + 256;
+  if (entry.local + 30 > directory.total) throw new Error('Truncated alert pool member header');
+  const end = Math.min(directory.total - 1, entry.local + allowance + entry.size - 1);
+  const first = await readRange(location, entry.local, end, { ...cfg, limit: limit + allowance });
+  const hv = new DataView(first.buffer, first.byteOffset, first.byteLength);
+  if (hv.getUint32(0, true) !== 0x04034b50 || hv.getUint16(8, true) !== 0 || hv.getUint16(6, true) & 1)
+    throw new Error('Invalid alert pool member header');
+  const nameLength = hv.getUint16(26, true);
+  if (nameLength !== nameBytes.length || nameBytes.some((byte, i) => first[30 + i] !== byte))
+    throw new Error('Alert pool member name does not match its directory');
+  const offset = 30 + nameLength + hv.getUint16(28, true);
+  const start = entry.local + offset;
   if (start + entry.size > directory.total) throw new Error('Truncated alert pool archive');
+  if (offset + entry.size <= first.length) return first.slice(offset, offset + entry.size);
   return entry.size ? readRange(location, start, start + entry.size - 1, { ...cfg, limit }) : new Uint8Array(0);
 }
 
