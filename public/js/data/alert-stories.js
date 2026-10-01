@@ -150,17 +150,18 @@ export function createStoryGrouping({ read = readEntry, write = writeEntry, fetc
       }
       historyRevision = revision;
     }
-    const groups = new Map(), untouched = [];
-    for (const event of events) {
+    const groups = new Map(), projected = new Array(events.length);
+    for (let position = 0; position < events.length; position++) {
+      const event = events[position];
       if(++walked%200===0) yield;
       const record = storyRecord(event);
-      if (!record) { untouched.push(event); continue; }
+      if (!record) { projected[position] = event; continue; }
       const entry = decision(record);
       // Exact copies can be collapsed offline. Different summaries and same-URL corrections stay.
       const key = entry?.development || JSON.stringify([record.company, record.relation, record.day,
         record.headline.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim(), record.text, record.direction, genericStory(record) || ['announcements', 'nse-filings'].includes(record.feed) ? record.url : null]);
       if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push({ event, record, entry });
+      groups.get(key).push({ event, record, entry, position });
     }
     for (const group of groups.values()) {
       if(++walked%200===0) yield;
@@ -174,7 +175,9 @@ export function createStoryGrouping({ read = readEntry, write = writeEntry, fetc
       const event = selected.event;
       const sources = group.map(item => item.event);
       const first = entry?.first || { day: event.day, time: event.time };
-      untouched.push({ ...event,
+      // Keep the selected source's place among ungroupable rows. Appending all groups after
+      // those rows reordered same-minute ties when asynchronous grouping finished or refreshed.
+      projected[selected.position] = { ...event,
         ...(displayLead ? { feed: displayLead.feed, headline: displayLead.headline, storyText: displayLead.text, url: displayLead.url, direction: displayLead.direction,
           ...(['announcements', 'nse-filings'].includes(displayLead.feed) ? { filingSubject: displayLead.headline, filingDescription: displayLead.text } : {}) } : {}),
         day: first.day, time: first.time || null,
@@ -183,9 +186,14 @@ export function createStoryGrouping({ read = readEntry, write = writeEntry, fetc
         storyChange: entry?.change || 'new', storyReviewed: !!entry,
         storyHistory: entry ? [...(histories.get(entry.story) || [])].filter(([id]) => id !== entry.development)
           .map(([developmentId, records]) => ({ developmentId, reports: records.sort(order) })) : [],
-        importance: sources.some(r => r.importance === 'high') ? 'high' : event.importance });
+        importance: sources.some(r => r.importance === 'high') ? 'high' : event.importance };
     }
-    return untouched;
+    const rows = [];
+    for (const event of projected) {
+      if (++walked % 200 === 0) yield;
+      if (event) rows.push(event);
+    }
+    return rows;
   }
   const project = events => runSteps(projectSteps(events));
   const projectAsync = (events,options={}) => {
