@@ -93,7 +93,7 @@ const server = createServer((req, res) => {
     let body = readFileSync(file);
     if (path === '/sw.js') {
       body = body.toString().replace(/const MUNSHOT_SDK = .*;/, "const MUNSHOT_SDK = new URL('/sdk-fixture.js', self.location).href;");
-      if (legacy) body = body.replace('-announcement-company-search-v1', '').replace('-announcement-recovery-v4', '');
+      if (legacy) body = body.replace('-announcement-company-search-v1', '').replace('-announcement-recovery-v4', '').replace('-announcement-search-clarity-v1', '');
     }
     if (path === '/js/data/announcements-extra.js' && legacy) body = body.toString().replaceAll(', loadRecovery()', '');
     if (path === '/js/tabs/filings-tab.js' && legacy) body = body.toString().replace('      searchControl,', '');
@@ -328,7 +328,7 @@ try {
   assert(await menu.getByRole('option', { name: /Infosys/ }).isDisabled(), 'outside-scope results explain the scope without bypassing it');
   await search.press('ArrowDown'); await search.press('Enter');
   assert.equal(await search.inputValue(), '');
-  assert.match(await page.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals.*BPLPHARMA/);
+  assert.match(await page.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals.*BPLPHARMA/s);
   assert.match(await page.locator('[data-row-count]').innerText(), /^2 announcements · 1 company with filings$/);
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 2, 'selection shows only the issuer, with existing filing-type exclusions');
   assert.doesNotMatch(await page.locator('tbody').innerText(), /mentioned by another/);
@@ -377,7 +377,13 @@ try {
     for (const theme of ['light', 'dark']) {
       await page.evaluate(value => document.documentElement.dataset.theme = value, theme);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-      if (process.env.ANNOUNCEMENT_SEARCH_SCREENSHOT) await page.screenshot({ path: `${process.env.ANNOUNCEMENT_SEARCH_SCREENSHOT}-${width}-${theme}.png` });
+      if (process.env.ANNOUNCEMENT_SEARCH_SCREENSHOT) {
+        await page.screenshot({ path: `${process.env.ANNOUNCEMENT_SEARCH_SCREENSHOT}-${width}-${theme}.png` });
+        await menu.getByRole('option', { name: /Bharat Parenterals/ }).click();
+        await page.screenshot({ path: `${process.env.ANNOUNCEMENT_SEARCH_SCREENSHOT}-${width}-${theme}-selected.png` });
+        await page.getByRole('button', { name: 'Clear selected company' }).click();
+        await search.fill('Bharat');
+      }
     }
   }
   await search.press('Escape'); assert.equal(await menu.count(), 0);
@@ -429,7 +435,7 @@ try {
   await returning.locator('[data-table-search]').fill('Bharat');
   await returning.getByRole('option', { name: /Bharat Parenterals/ }).click();
   assert.match(await returning.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals/);
-  assert((await returning.evaluate(() => caches.keys())).every(key => key.includes('announcement-company-search-v1') && key.includes('announcement-recovery-v4')));
+  assert((await returning.evaluate(() => caches.keys())).every(key => key.includes('announcement-company-search-v1') && key.includes('announcement-recovery-v4') && key.includes('announcement-search-clarity-v1')));
   assert(await returning.evaluate(() => window.stream.rows().some(r => r.title.includes('recovered arrival'))), 'the returning session adopts the new recovery reader');
   assert.deepEqual(errors, []);
   await returning.close();
