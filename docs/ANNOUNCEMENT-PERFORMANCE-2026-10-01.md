@@ -9,8 +9,9 @@ still combines BSE, company captures and NSE in the browser. This change adds no
 
 - Announcement and insider row caches no longer depend on unrelated scope-picker object identities.
 - NSE returns stable arrays for unchanged reading windows, with the IST cutoff in the cache key.
-  Archive responses combine once per batch; observation precedence, supplements and concurrent
-  live corrections are preserved.
+  Archive observation precedence, supplements and concurrent live corrections remain unchanged.
+  Combining all archive arrivals into one reversed merge was rejected during review: an unresolved
+  newer correction must keep the identity it inherited before an older observation arrives.
 - Announcement projections, complete unions, sorting and publication comparison run in small
   batches. Shared downloads continue when a view closes; obsolete paints cannot write into the
   next tab. Concurrent archive publications are serialized, and input changes during preparation
@@ -30,11 +31,11 @@ production writes. Times are lab observations, not production percentiles or cov
 | Check | Before | After |
 | --- | --- | --- |
 | Return to announcements with 44,986 eligible rows | 3,513 ms; longest task 3,479 ms | 284 ms; longest task 245 ms |
-| Fully settled stream, 160,414 eligible rows | Separate larger stress case | 426 ms return; longest task 404 ms; 40 mounted rows |
-| First text search on the larger stream | 609–782 ms with the unused warmed index | 48–55 ms with the matching index warmed |
+| Fully settled stream, 160,414 eligible rows | Separate larger stress case | 426–467 ms return; longest task 404–446 ms; 40 mounted rows |
+| First text search on the larger stream | 609–782 ms with the unused warmed index | 48–75 ms with the matching index warmed |
 | NSE tab in the short sweep | 206 ms | 60 ms |
 
-The large cold announcement visit took 2.3 seconds while captures populated progressively. Cold
+The large cold announcement visit took 2.3–3.1 seconds while captures populated progressively. Cold
 data preparation is still work; slicing keeps input opportunities between batches. The default
 All time view and all captured history remain available. Large global sorts took 0.35–0.47 seconds
 in that stress test and are not claimed to be instantaneous.
@@ -47,6 +48,26 @@ replacement, resizing, offscreen search and complete/filtered export. Most tab v
 100 ms. In this static fallback audit, cold Universe News took 865 ms and All Alerts 4.8 seconds;
 the latter used raw captures because the local fixture has no Worker alert-pool API. This does not
 measure authenticated production delivery or certify freshness of upstream sources.
+
+## Server-prepared Alerts delivery
+
+Read-only production checks returned HTTP 504 after 25 seconds from `/api/alert-pool/index`.
+The published pool build itself had succeeded. Running the same delivery code locally against
+its actual GitHub artifact reproduced an incompatible storage request: `Range: bytes=-327701`
+returned HTTP 200 for the complete 157,717,824-byte ZIP, which the bounded reader correctly refused.
+
+GitHub's Azure blob host supports absolute offsets, as documented in Microsoft's
+[range-header formats](https://learn.microsoft.com/en-us/rest/api/storageservices/specifying-the-range-header-for-blob-service-operations).
+The reader now probes `bytes=0-0` to obtain the exact ZIP length and requests its tail using explicit
+start/end offsets. It validates Content-Range, retains bounded reads, refuses full-body responses,
+and keeps credentials confined to GitHub. No paid source, service or storage is added.
+
+The corrected local handler read the actual artifact `11150145165` successfully (HTTP 200), using
+405,397 storage bytes for the index lookup, without downloading the 158 MB archive. The native
+Worker fixture now deliberately ignores suffix ranges like the real host and verifies absolute
+ranges, directory reuse, unchanged decoded shard contents, immutable caches, 304s and failures.
+Publication time, source-revision checks and fallback behavior stay intact; a readable pool is
+not treated as proof that its sources are current or complete.
 
 ## Data integrity
 

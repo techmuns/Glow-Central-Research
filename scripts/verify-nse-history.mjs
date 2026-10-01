@@ -158,7 +158,7 @@ await check('stable reading windows still advance at IST midnight and expose sam
   assert.equal(feed.rows()[0].subject, 'Same-count corrected subject');
 });
 
-await check('batched archive completion retains concurrent live corrections', async () => {
+await check('archive completion retains concurrent live corrections', async () => {
   let release, reads = 0, response = live([today]);
   const gate = new Promise(done => { release = done; });
   let indexed = false;
@@ -181,7 +181,7 @@ await check('batched archive completion retains concurrent live corrections', as
   assert.deepEqual(feed.meta().missingDays, []);
 });
 
-await check('batched archives preserve equal-observation field precedence and supplements', async () => {
+await check('archives preserve equal-observation field precedence and supplements', async () => {
   const first = { ...older, subject: 'First completed archive', onlyFirst: 'kept' };
   const second = { ...older, subject: 'Second completed archive', onlySecond: 'kept' };
   const feed = createNseFeed({ ...defaults,
@@ -194,6 +194,23 @@ await check('batched archives preserve equal-observation field precedence and su
   assert.equal(result.subject, first.subject);
   assert.equal(result.onlyFirst, 'kept');
   assert.equal(result.onlySecond, 'kept');
+});
+
+await check('out-of-order archive observations preserve the previously resolved identity', async () => {
+  // Flattening these arrivals into one reversed merge changes the winning ticker:
+  // the newest unresolved correction inherits the first known identity, not a later older one.
+  const captures = [
+    { ...older, ticker: 'FIRST', observedAt: '2026-09-01T00:00:00Z' },
+    { ...older, ticker: null, observedAt: '2026-09-03T00:00:00Z' },
+    { ...older, ticker: 'OLDER', observedAt: '2026-09-02T00:00:00Z' },
+  ];
+  let next = 0;
+  const feed = createNseFeed({ ...defaults,
+    readIndex: async () => ({ days: captures.map((_, i) => ({ day: `2026-08-${12 + i}`, revision: `${i}`, count: 1 })) }),
+    readDay: async () => capture([captures[next++]]) });
+  await feed.load();
+  await feed.loadHistory(30);
+  assert.equal(feed.rows().find(row => row.url === older.url).ticker, 'FIRST');
 });
 
 await check('IST date boundaries and undated notices are preserved without invented dates', () => {

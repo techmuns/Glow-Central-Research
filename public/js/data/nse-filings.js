@@ -70,7 +70,6 @@ export function createNseFeed({
     const needed = (index?.days || []).filter((entry) =>
       /^(\d{4}-\d{2}-\d{2}|undated)$/.test(entry.day) && (entry.day === 'undated' || entry.day >= cutoff));
     const queue = needed.filter((entry) => !loadedDays.has(entry.day) || loadedDays.get(entry.day) !== entry.revision || failedDays.has(entry.day));
-    const incoming = [], completed = [];
     // At most four archive requests in flight; 90 days must not fan out ninety requests.
     await Promise.all(Array.from({ length: Math.min(4, queue.length) }, async () => {
       while (queue.length) {
@@ -88,20 +87,12 @@ export function createNseFeed({
           failedDays.add(entry.day); continue;
         }
         // Observation timestamps let newer archive corrections win without reverting live ones.
-        incoming.unshift(capturedRows(payload));
-        completed.push(entry);
-      }
-    }));
-    if (gen === generation) {
-      // Publish once after the batch. Reverse arrival order preserves the old
-      // equal-observation precedence; newer live arrivals remain in held.
-      if (incoming.length) held = mergeFilings(...incoming, held);
-      for (const entry of completed) {
+        held = mergeFilings(capturedRows(payload), held);
         loadedDays.set(entry.day, entry.revision);
         failedDays.delete(entry.day);
       }
-      emit();
-    }
+    }));
+    if (gen === generation) emit();
     return rows();
   }
 
