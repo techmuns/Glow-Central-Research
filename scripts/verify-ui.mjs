@@ -8109,7 +8109,7 @@ ok('the footer opens the source registry', registryModal.length > 2000, `${regis
 // The registry is a FUNCTION called on open, which is what lets a static footer reach live figures
 // without going stale — the rule that killed the old hand-typed source array.
 ok('...and it names the upstreams it is canonical for',
-  ['Muns news API', 'BSE', 'Finology', 'Trendlyne', 'Yahoo'].every((n) => registryModal.includes(n)),
+  ['Google News search', 'BSE', 'Finology', 'Trendlyne', 'Yahoo'].every((n) => registryModal.includes(n)),
   registryModal.replace(/\s+/g, ' ').slice(0, 90));
 // ...AND STILL WITHHOLDS THE TWO BRANDS IT IS SUPPOSED TO. Making provenance reachable must not
 // leak what the honesty rules deliberately keep off customer-facing surfaces: the con-call and

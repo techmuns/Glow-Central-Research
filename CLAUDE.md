@@ -239,7 +239,7 @@ scripts/
                                            endpoint about every flagged move the scrape could not verify
 .github/workflows/screener-concalls-refresh.yml  every 15 min incremental + daily full authenticated
                                            Screener concall index; immutable Actions artifact, no commit
-.github/workflows/company-news-refresh.yml weekdays 09:00 + 19:00 IST; company-news universe capture
+.github/workflows/company-news-refresh.yml weekdays 2-hourly 10:11-18:11 + daily 06:11 IST portfolio, Sunday universe; free Google News + Upstox, gate 2h/8 a day
 .github/workflows/insider-trades-refresh.yml weekdays 19:00 IST; insider-trades universe capture
 .github/workflows/announcements-refresh.yml weekdays 20:00 IST; BSE date-indexed filings
 .github/workflows/nse-announcements-refresh.yml hourly in Indian hours; the NSE snapshot fallback
@@ -1412,8 +1412,11 @@ capture: **all 123 book tickers, 1,217 articles, no failures.** The picker was c
 attention to avoid a cost that had already been paid.
 
 The 07:00 IST data refresh no longer captures company news or insider trades. Company news has its
-own `company-news-refresh.yml`: portfolio identities run every three hours, every day, with a
-48-hour overlap, while the complete universe still runs at 09:00 and 19:00 IST on weekdays. Insider Trades has
+own `company-news-refresh.yml`: portfolio identities run every 2 hours from 10:11 to 18:11 IST on
+weekdays and at 06:11 IST every day, with a 48-hour overlap, and the complete universe runs on Sundays
+at 06:11 IST. It searches Google News (free) and reads Upstox News, not the paid Brave search behind
+the Muns news API, and its `gate` job keeps walks 2 hours apart and at most 8 in 24 hours
+however the run was started (see the standing budget requirement in AGENTS.md). Insider Trades has
 `insider-trades-refresh.yml` at 19:00 IST. This keeps long per-company walks from racing with EOD
 technicals or each other. GitHub schedules are best-effort, so a single post-paint watchdog checks
 the committed capture timestamps and dispatches only an overdue workflow. It never falls back to a

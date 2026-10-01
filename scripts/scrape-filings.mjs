@@ -47,6 +47,7 @@ import { readNewsJson, writeNewsJson } from './lib/news-json-storage.mjs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchNews, fetchInsiderTrades, MunsError } from '../worker/muns.mjs';
+import { fetchGoogleNews } from '../worker/free-news.mjs';
 import { mergeLastGoodFilings } from './lib/filings-snapshot.mjs';
 import { captureCompanies } from './lib/company-capture.mjs';
 import { mergeInsiderTrades } from '../public/js/data/insider-history.js';
@@ -80,10 +81,16 @@ const FEEDS = {
   insider: { file: 'insider-trades.json', rowsKey: 'trades', windowDays: 365 },
 };
 
-// One global 2.5-second request-start interval leaves room for the Worker's retries.
-// A per-worker pause alone does not enforce a shared upstream budget.
+// FREE OR PAID COMPANY NEWS. `NEWS_PROVIDER=google` searches Google News directly (free; see
+// worker/free-news.mjs). Anything else keeps the Muns news API, which is a paid Brave search per
+// query. The company-news workflow sets google; see the standing budget requirement in AGENTS.md.
+const NEWS_PROVIDER = String(process.env.NEWS_PROVIDER || '').toLowerCase() === 'google' ? 'google' : 'muns';
+
+// One global request-start interval: 2.5 seconds leaves room for the Worker's retries, and 2
+// seconds keeps an unofficial free feed from reading as a burst. A per-worker pause alone does not
+// enforce a shared upstream budget.
 const CONCURRENCY = 4;
-const GAP_MS = 2500;
+const GAP_MS = NEWS_PROVIDER === 'google' ? 2000 : 2500;
 let requestGate = Promise.resolve();
 let nextRequestAt = 0;
 function paceRequest() {
@@ -233,6 +240,16 @@ async function runNews(list, portfolio, book) {
   })).sort((a, b) => Number(b.entity.portfolio) - Number(a.entity.portfolio)
     || String(a.state?.lastSuccessAt || '').localeCompare(String(b.state?.lastSuccessAt || '')));
 
+  // PAID SEARCH CEILING. Each job is one Brave search through /tools/news-search. The workflow
+  // passes a per-run ceiling so a registry that grows by accident cannot multiply the spend. Jobs
+  // are ordered portfolio first and stalest first, so a capped run drops the least urgent tail,
+  // which the next run reaches first. Unset (local runs and tests) means no ceiling.
+  const maxQueries = Number(process.env.NEWS_MAX_QUERIES || 0);
+  if (maxQueries > 0 && jobs.length > maxQueries) {
+    console.warn(`  news: ${jobs.length} queries planned; NEWS_MAX_QUERIES=${maxQueries} caps this run and the rest wait for the next.`);
+    jobs.length = maxQueries;
+  }
+
   let done = 0;
   let stop = false;
   const queue = [...jobs];
@@ -251,10 +268,15 @@ async function runNews(list, portfolio, book) {
       checkpoint.to = range.to;
       try {
         let response;
-        if (!VIA_WORKER) await paceRequest();
-        response = VIA_WORKER
-          ? await readNews(query, range.from, range.to)
-          : await fetchNews({ query, country: 'IN', fromDate: range.from, toDate: range.to }, env);
+        if (NEWS_PROVIDER === 'google') {
+          await paceRequest();
+          response = await fetchGoogleNews({ query, country: 'IN', fromDate: range.from, toDate: range.to });
+        } else {
+          if (!VIA_WORKER) await paceRequest();
+          response = VIA_WORKER
+            ? await readNews(query, range.from, range.to)
+            : await fetchNews({ query, country: 'IN', fromDate: range.from, toDate: range.to }, env);
+        }
         const rows = observedCompanyArticles(response.articles || [], entity, query, checkpoint.lastAttemptAt);
         outcome.rows.push(...rows);
         outcome.succeeded++;
@@ -266,7 +288,8 @@ async function runNews(list, portfolio, book) {
         outcome.failed++;
         outcome.error = { reason: failure.reason, message: failure.message };
         checkpoint.error = { reason: failure.reason, message: failure.message, at: checkpoint.lastAttemptAt };
-        if (['no-token', 'unauthorised'].includes(failure.reason)) stop = true;
+        // A free feed that starts refusing is left alone until the next walk.
+        if (['no-token', 'unauthorised'].includes(failure.reason) || (NEWS_PROVIDER === 'google' && failure.reason === 'rate-limited')) stop = true;
       }
       done++;
       if (done % 25 === 0) process.stdout.write(`\r  news queries: ${done}/${jobs.length} …`);
@@ -391,9 +414,9 @@ async function runNews(list, portfolio, book) {
   const failedCount = Object.keys(failed).length;
   const payload = {
     _provenance:
-      'REAL DATA, NOT OURS. Recent company-news head from Muns identity searches. Every returned portfolio article is written to the permanent monthly archive before this bounded 30-day view is derived. Topic, materiality and scope filters are applied only after capture. A successful empty incremental response never retracts an earlier article.',
+      `REAL DATA, NOT OURS. Recent company-news head from ${NEWS_PROVIDER === 'google' ? 'Google News' : 'Muns'} identity searches. Every returned portfolio article is written to the permanent monthly archive before this bounded 30-day view is derived. Topic, materiality and scope filters are applied only after capture. A successful empty incremental response never retracts an earlier article.`,
     kind: 'news',
-    source: VIA_WORKER ? 'Muns news API, read through this dashboard’s Worker' : 'Muns news API',
+    source: NEWS_PROVIDER === 'google' ? 'Google News search (free)' : VIA_WORKER ? 'Muns news API, read through this dashboard’s Worker' : 'Muns news API',
     generator: 'scripts/scrape-filings.mjs',
     capturedAt: observedAt,
     from,

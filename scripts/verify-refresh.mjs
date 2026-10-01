@@ -56,12 +56,20 @@ assert.deepEqual(captureNamesForView({ tab: 'news', scope: 'universe' }), ['mark
 assert.deepEqual(captureNamesForView({ tab: 'earnings-hub', params: { view: 'filings' } }), []);
 const now = Date.parse('2026-09-05T10:00:00Z');
 const callsMade = [];
+let companyNewsAt = now - 600000;
 globalThis.fetch = async (url, options = {}) => {
   callsMade.push([url, options.method || 'GET']);
-  if (url === 'api/capture-status') return Response.json({ ok: true, captures: { companyNews: { capturedAt: new Date(now - 600000).toISOString() } } });
+  if (url === 'api/capture-status') return Response.json({ ok: true, captures: { companyNews: { capturedAt: new Date(companyNewsAt).toISOString() } } });
   if (url === 'api/company-news/refresh?source=button') return Response.json({ ok: true, dispatched: false, reason: 'already-running' });
   throw Error(`Unexpected test request ${url}`);
 };
+// Company news is a walk of paid searches on a fixed schedule: a click re-reads the current capture
+// but starts another walk only once that capture is older than the longest planned gap (26 hours).
+const current = await runCaptureWatchdog({ names: ['companyNews'], source: 'button', now: () => now, watchRuns: false });
+assert.deepEqual(current.started, [], 'a News click never re-runs a paid company-news walk that is still current');
+assert.deepEqual(callsMade.filter(([, method]) => method === 'POST'), [], 'no dispatch for a current company-news capture');
+resetForTest();
+companyNewsAt = now - 27 * 60 * 60 * 1000;
 const requested = await runCaptureWatchdog({ names: ['companyNews'], source: 'button', now: () => now, watchRuns: false });
 assert.deepEqual(requested.started.map((r) => r.name), ['companyNews']);
 assert.deepEqual(callsMade.filter(([, method]) => method === 'POST'), [['api/company-news/refresh?source=button', 'POST']], 'a News click dispatches only its fixed workflow');

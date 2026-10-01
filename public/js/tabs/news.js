@@ -224,14 +224,14 @@ const tab = makeFilingsTab({
       </div>
       <div class="text-sm leading-relaxed text-slate-600">
         <p><strong>Real, and not ours.</strong> Articles come from independently captured dedicated publisher feeds and TradingView company feeds,
-           plus company-name searches through the Muns news API (<code class="rounded bg-slate-100 px-1">POST /tools/news-search</code>).
-           Only the Muns search route uses the API credential held by this dashboard's Worker; it is never sent to the browser.</p>
+           plus company-name searches through Google News and, for listed holdings, Upstox News.
+           The Upstox token is held by the scheduled capture and is never sent to the browser.</p>
         <p class="mt-2 text-xs">Already captured publisher stories are matched to reviewed company identities directly in this view;
            they do not wait for another company-search enrichment run. Unmatched originals remain available in Universe.
            Publisher names are shown consistently in the filter; the original source name, headline and URL remain in the capture and export.</p>
         ${deliveryDetails(m)}
 
-        <p class="mt-2 text-xs"><strong>Incremental and permanent.</strong> Portfolio identities are checked every few hours
+        <p class="mt-2 text-xs"><strong>Incremental and permanent.</strong> Portfolio identities are searched every 2 hours from 10:11 to 18:11 IST on weekdays and at 06:11 IST every day,
            with a 48-hour overlap. Every returned article is written to a permanent monthly archive before this fast 30-day
            head is derived. This view loads only the recent period and undated stories; it opens on Today in IST.
            Last 30 days includes today; This month starts on the first calendar day (up to 31 days). Older news remains available in
@@ -353,7 +353,7 @@ export const meta = tab.meta;
 // ---------------------------------------------------------------------------------------
 // TWO FEEDS UNDER ONE TAB, CHOSEN BY THE SCOPE TOGGLE
 //
-// Portfolio scope keeps the per-company search: the Muns news API answers one company at a time,
+// Portfolio scope keeps the per-company search: the company-news search answers one company at a time,
 // so the reader names the companies and each is searched in full.
 //
 // Universe scope cannot work that way — 603 searches is ten minutes of somebody else's service —
