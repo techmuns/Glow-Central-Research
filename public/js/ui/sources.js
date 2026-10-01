@@ -69,14 +69,15 @@ function capturedSourceReadState(kind) {
   const status = companyCaptureStatus(kind);
   if (!status.available || !status.total) return 'unchecked';
   return sourceReadState({ at: status.updatedAt, failed: !!status.error,
-    partial: !!status.gaps.length || !!status.bse?.gaps.length || !!status.unresolved.length ||
+    partial: !!status.gaps.length || !!status.bse?.gaps.length || !!status.unresolved.length || !!status.nonExchange.length ||
       !!status.unavailableLinks || !!status.bse?.unavailableLinks, maxAgeMs: 4 * 3600000 });
 }
 function capturedSourceCadence(kind) {
   const status = companyCaptureStatus(kind);
   return 'Scheduled every two hours; progress resumes across runs. ' + (!status.available ? 'No shared capture published yet.' :
-    `${kind === 'announcements' ? 'Muns: ' : ''}${status.checked}/${status.total} recently checked, ${status.failed} failed, ${status.never} never checked, ${status.stale} overdue, ${status.backfill} backfilling. ` +
+    `${kind === 'announcements' ? 'Company feeds: ' : ''}${status.checked}/${status.total} recently checked, ${kind === 'announcements' ? `${status.partial} using a partial recent-notice fallback, ` : ''}${status.failed} failed, ${status.never} never checked, ${status.stale} overdue, ${status.backfill} backfilling. ` +
     (kind === 'announcements' && status.bse?.total ? `Official BSE: ${status.bse.checked}/${status.bse.total} coded companies recently checked, ${status.bse.failed} failed, ${status.bse.never} never checked, ${status.bse.stale} overdue, ${status.bse.backfill} backfilling. ` : '')) +
+    (status.nonExchange.length ? `${status.nonExchange.length} private securities have issuer-name news coverage and no listed-equity filing feed: ${status.nonExchange.map(c => `${c.name} (${c.isin})`).join(', ')}. ` : '') +
     'Shared history does not expire; personal device-only additions are outside scheduled coverage.';
 }
 
