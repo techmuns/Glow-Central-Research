@@ -1104,9 +1104,9 @@
       ]
     },
     "isin:INE881D01027|Oracle Financial Services Software": {
-      "lastAttemptAt": "2026-09-27T12:23:53+00:00",
+      "lastAttemptAt": "2026-10-01T19:08:22+00:00",
       "lastResultCount": 51,
-      "error": null,
+      "error": "search-unavailable",
       "lastSuccessAt": "2026-09-27T12:23:53+00:00",
       "targetThrough": null,
       "pending": []
@@ -1917,6 +1917,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-10-01T18:37:17.349632+00:00"
+    "checkedAt": "2026-10-01T19:08:22.576292+00:00"
   }
 }
