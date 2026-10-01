@@ -338,9 +338,9 @@ jobs:
         run: node scripts/verify-shared-watchlist-ui.mjs
   portfolio-research:
     runs-on: ubuntu-latest
-    # Keep all 426 cases. Setup once consumed 14 minutes; budget it separately so the
-    # complete evidence suite still gets 30 minutes, plus bounded checkout/setup headroom.
-    timeout-minutes: 50
+    # Check every saved holding. The complete 354-case run takes about 36 minutes
+    # on GitHub runners; allow 45 minutes plus bounded browser setup headroom.
+    timeout-minutes: 65
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -352,7 +352,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/research-browser" --no-save --package-lock=false playwright@1.62.1
           node "$RUNNER_TEMP/research-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Verify evidence and previews across the complete saved portfolio
-        timeout-minutes: 30
+        timeout-minutes: 45
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/research-browser/node_modules/playwright
         run: node scripts/verify-research-portfolio.mjs
