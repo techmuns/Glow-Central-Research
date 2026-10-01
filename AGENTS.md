@@ -34,16 +34,19 @@ Recorded on 1 October 2026. Company news (`company-news-refresh.yml`: the identi
 global enrichment) calls `fastapi.muns.io/tools/news-search`, and every query is a paid Brave
 Search call on a shared account. In September 2026 the workflow ran 10-20 times a day in each
 Central Research dashboard and made roughly 200,000 paid searches, about ten times the account's
-normal month. The owner set this budget:
+normal month. The owner set this budget, which keeps the news current through the working day:
 
-- Portfolio companies are searched once a day (06:11 IST); the complete universe once a week.
-- At most one search walk per 20 hours, whatever starts the run: the schedule,
-  `news-recovery.yml`, the browser capture watchdog or a Refresh click. The workflow's `gate`
-  job enforces it; only a manual run with the `force` input overrides it.
-- Freshness between walks comes from the free feeds (TradingView, Moneycontrol, RSS, exchange
-  filings, Telegram, X). Do not shorten the company-news windows (26-hour recovery and health
-  limits, 20-hour click minimum) or add schedules to make news "more live" unless the owner
-  agrees a new budget.
+- Portfolio companies are searched every 3 hours from 07:11 to 22:11 IST, every day. The complete
+  universe is searched at 07:11 IST on weekdays. Nothing runs overnight.
+- The global (international) search takes at most 20 queries per walk, stalest first.
+- Walks are at least 2 hours apart and at most 8 in any 24 hours, whatever starts the run: the
+  schedule, `news-recovery.yml`, the browser capture watchdog or a Refresh click. The workflow's
+  `gate` job enforces it; only a manual run with the `force` input overrides it.
+- Brave shows a story a median 4-6 hours after publication, so walking more often adds little.
+  Headlines between walks come from the free feeds (TradingView, Moneycontrol, RSS, exchange
+  filings, Telegram, X). Do not shorten the company-news windows (12-hour recovery and health
+  limits, 4-hour click minimum), raise the per-walk caps or add schedules unless the owner agrees a
+  new budget.
 
 ## Repository workflow
 
