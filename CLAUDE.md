@@ -239,7 +239,7 @@ scripts/
                                            endpoint about every flagged move the scrape could not verify
 .github/workflows/screener-concalls-refresh.yml  every 15 min incremental + daily full authenticated
                                            Screener concall index; immutable Actions artifact, no commit
-.github/workflows/company-news-refresh.yml daily 06:11 IST portfolio, Sunday universe; paid searches, one walk per 20h
+.github/workflows/company-news-refresh.yml every 3h 07:11-22:11 IST portfolio, weekday 07:11 universe; paid searches, gate: 2h apart, 8/day
 .github/workflows/insider-trades-refresh.yml weekdays 19:00 IST; insider-trades universe capture
 .github/workflows/announcements-refresh.yml weekdays 20:00 IST; BSE date-indexed filings
 .github/workflows/nse-announcements-refresh.yml hourly in Indian hours; the NSE snapshot fallback
@@ -1412,10 +1412,10 @@ capture: **all 123 book tickers, 1,217 articles, no failures.** The picker was c
 attention to avoid a cost that had already been paid.
 
 The 07:00 IST data refresh no longer captures company news or insider trades. Company news has its
-own `company-news-refresh.yml`: portfolio identities run once a day at 06:11 IST with a 48-hour
-overlap, and the complete universe runs on Sundays with an eight-day look-back. Every query is a paid
-Brave search, so its `gate` job allows one walk per 20 hours however the run was started (see the
-standing budget requirement in AGENTS.md). Insider Trades has
+own `company-news-refresh.yml`: portfolio identities run every 3 hours from 07:11 to 22:11 IST,
+every day, with a 48-hour overlap, and the complete universe runs at 07:11 IST on weekdays. Every
+query is a paid Brave search, so its `gate` job keeps walks 2 hours apart and at most 8 in 24 hours
+however the run was started (see the standing budget requirement in AGENTS.md). Insider Trades has
 `insider-trades-refresh.yml` at 19:00 IST. This keeps long per-company walks from racing with EOD
 technicals or each other. GitHub schedules are best-effort, so a single post-paint watchdog checks
 the committed capture timestamps and dispatches only an overdue workflow. It never falls back to a

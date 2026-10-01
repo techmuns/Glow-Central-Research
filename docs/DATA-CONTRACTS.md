@@ -3347,7 +3347,7 @@ open. Any of these supplies one:
 **The page does not depend on an exact cron.** Opening the dashboard on an overdue capture starts
 one fetch after first paint — gated by the capture's real age, declined at the edge if a run is in
 flight, and never repeated in the same page. Market news is due after 45 minutes during the hours
-the publisher answers; company news after 26 hours (a once-a-day paid walk); announcements after 75 minutes on weekdays;
+the publisher answers; company news after 12 hours (paid walks every 3 hours by day, none overnight); announcements after 75 minutes on weekdays;
 technicals after 07:15 IST on weekdays if today's capture is missing; the four trade lists after
 75 minutes. An external scheduler is still useful to keep files warm
 when nobody is reading, but it is no longer the only recovery mechanism.
@@ -3779,8 +3779,9 @@ cover scope identity, the combined `BSE / NSE` label and retained source URLs.
 
 ### News and trades: snapshot first, live detail second
 
-Company news uses per-company paid Brave searches: portfolio identities run once a day at 06:11 IST
-and the full universe once a week on Sunday, with at most one walk per 20 hours. Trades use
+Company news uses per-company paid Brave searches: portfolio identities run every 3 hours from 07:11
+to 22:11 IST and the full universe at 07:11 IST on weekdays, with walks at least 2 hours apart and at
+most 8 a day. Trades use
 Screener's four market-wide date-ordered lists on a 30-minute schedule; the Muns per-ticker route
 remains an optional live detail path. Keeping both captures out of the 07:00 technicals job prevents
 long jobs from racing over the same files. If GitHub's best-effort schedule misses, the capture

@@ -4,28 +4,35 @@ env:
   FAMILY_HOLDINGS_LIVE: 'true'
 
 # Portfolio news is an overlapping incremental capture, including private, BSE-only and demerged
-# companies which have no NSE symbol. The weekly universe walk retains the broader company-news
+# companies which have no NSE symbol. The weekday universe walk retains the broader company-news
 # view. Both write through the same permanent portfolio archive and share one concurrency group,
 # so one capture can never overwrite another while it is still running.
 #
 # PAID SEARCH BUDGET. Every query this workflow makes is a paid Brave Search call through
 # fastapi.muns.io/tools/news-search. In September 2026 it ran 10-20 times a day in each Central
-# Research dashboard, and the two together made roughly 200,000 paid searches. So portfolio
-# companies are searched once a day, the universe once a week, and the `gate` job allows at most
-# one search walk per 20 hours however a run was started: schedule, news-recovery.yml, an open
-# dashboard or a Refresh click. Live headlines between walks come from the free feeds
-# (TradingView, Moneycontrol, RSS, exchange filings, Telegram, X), which keep their own fast
-# schedules. Do not add schedules or shorten the gate without an agreed budget; see the standing
-# budget requirement in AGENTS.md.
+# Research dashboard, around the clock, with two universe walks every weekday and a full global
+# search on every run; the two dashboards together made roughly 200,000 paid searches. Now the
+# portfolio is searched every 3 hours through the Indian day (07:11 to 22:11 IST, every day), the
+# complete universe each weekday morning, and the global search takes a small slice on each walk.
+# The `gate` job holds every other trigger (news-recovery.yml, an open dashboard, a Refresh click)
+# to the same budget: walks at least 2 hours apart and at most 8 in any 24 hours. Brave shows a
+# story a median 4-6 hours after publication, so searching more often adds little; headlines
+# between walks come from the free feeds (TradingView, Moneycontrol, RSS, exchange filings,
+# Telegram, X), which keep their own fast schedules. Do not add schedules or loosen the gate
+# without an agreed budget; see the standing budget requirement in AGENTS.md.
 
 on:
   schedule:
-    # Portfolio companies, Monday to Saturday at 06:11 IST (00:41 UTC). Yesterday's stories are in
-    # the search index by then, and the capture lands before the 08:00 IST brief and the 09:15
-    # open even when GitHub starts the run late. Every identity query overlaps its last 48 hours.
-    - cron: "41 0 * * 1-6"
-    # The complete universe (portfolio included), Sunday at 06:11 IST, looking back eight days.
-    - cron: "41 0 * * 0"
+    # Every 3 hours through the Indian day, every day: 07:11, 10:11, 13:11, 16:11, 19:11 and 22:11
+    # IST. Nothing runs overnight; the 07:11 walk picks up the night's stories, which are in the
+    # search index by then, and lands before the 09:15 open. Every identity query overlaps its last
+    # 48 hours, so a story the index shows late is still caught.
+    # 07:11 IST Monday to Friday: the complete universe, holdings first.
+    - cron: "41 1 * * 1-5"
+    # 07:11 IST Saturday and Sunday: holdings.
+    - cron: "41 1 * * 0,6"
+    # 10:11, 13:11, 16:11, 19:11 and 22:11 IST every day: holdings.
+    - cron: "41 4,7,10,13,16 * * *"
   workflow_dispatch:
     inputs:
       source:
@@ -39,7 +46,7 @@ on:
         required: false
         default: "book"
       force:
-        description: "Walk even though a search walk already ran in the last 20 hours (paid searches)"
+        description: "Walk even if the 2-hour gap or the 8-walks-a-day limit would skip this run (paid searches)"
         type: boolean
         required: false
         default: false
@@ -60,12 +67,16 @@ jobs:
     outputs:
       go: ${{ steps.decide.outputs.go }}
     steps:
-      - name: Allow at most one paid search walk per 20 hours
+      - name: Keep paid search walks 2 hours apart and at most 8 a day
         id: decide
         env:
           GH_TOKEN: ${{ github.token }}
           FORCE: ${{ inputs.force && 'true' || 'false' }}
-          WINDOW_HOURS: "20"
+          # Scheduled walks are 3 hours apart and may start late, so they only need to avoid a walk
+          # that just ran. A dispatched run (open dashboard, Refresh click, news-recovery.yml) can
+          # only fill in for a walk the schedule missed.
+          MIN_GAP_MINUTES: ${{ github.event_name == 'schedule' && '45' || '120' }}
+          MAX_WALKS: "8"
         # A run counts only when its "Capture company news" step actually started. Runs this gate
         # skipped, or that never left the queue, made no paid searches. Any API failure fails the
         # job, which skips the walk: an unknown budget is never spent.
@@ -73,24 +84,35 @@ jobs:
           set -euo pipefail
           if [ "$FORCE" = true ]; then
             echo "go=true" >> "$GITHUB_OUTPUT"
-            echo "Forced manual run: walking regardless of the ${WINDOW_HOURS}-hour budget." >> "$GITHUB_STEP_SUMMARY"
+            echo "Forced manual run: walking regardless of the paid-search limits." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          since=$(date -u -d "-${WINDOW_HOURS} hours" +%Y-%m-%dT%H:%M:%SZ)
+          now=$(date -u +%s)
+          since=$(date -u -d "@$((now - 86400))" +%Y-%m-%dT%H:%M:%SZ)
           runs=$(gh api --paginate -X GET "repos/${GITHUB_REPOSITORY}/actions/workflows/company-news-refresh.yml/runs" \
             -f per_page=100 -f created=">=${since}" --jq ".workflow_runs[] | select(.id != ${GITHUB_RUN_ID}) | .id")
-          walked=""
+          walks=0
+          latest=0
           for id in $runs; do
             started=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${id}/jobs" --jq '[.jobs[] | select(.name == "scrape") | .steps[]?
-              | select(.name == "Capture company news" and .status != "queued" and .status != "pending" and .conclusion != "skipped")] | length')
-            if [ "$started" -gt 0 ]; then walked="$id"; break; fi
+              | select(.name == "Capture company news" and .status != "queued" and .status != "pending" and .conclusion != "skipped")
+              | .started_at] | first // empty')
+            [ -n "$started" ] || continue
+            at=$(date -u -d "$started" +%s)
+            [ "$at" -gt $((now - 86400)) ] || continue
+            walks=$((walks + 1))
+            if [ "$at" -gt "$latest" ]; then latest=$at; fi
           done
-          if [ -n "$walked" ]; then
+          gap=$(( (now - latest) / 60 ))
+          if [ "$latest" -gt 0 ] && [ "$gap" -lt "$MIN_GAP_MINUTES" ]; then
             echo "go=false" >> "$GITHUB_OUTPUT"
-            echo "Skipped: run ${walked} already walked company news in the last ${WINDOW_HOURS} hours, so this run makes no paid searches." >> "$GITHUB_STEP_SUMMARY"
+            echo "Skipped: a company-news search walk started ${gap} minutes ago (minimum gap ${MIN_GAP_MINUTES} minutes), so this run makes no paid searches." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$walks" -ge "$MAX_WALKS" ]; then
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "Skipped: ${walks} company-news search walks already ran in the last 24 hours (limit ${MAX_WALKS}), so this run makes no paid searches." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "go=true" >> "$GITHUB_OUTPUT"
-            echo "No company-news search walk in the last ${WINDOW_HOURS} hours: walking now." >> "$GITHUB_STEP_SUMMARY"
+            echo "${walks} company-news search walks in the last 24 hours: walking now." >> "$GITHUB_STEP_SUMMARY"
           fi
 
   scrape:
@@ -116,15 +138,15 @@ jobs:
       # The gate job matches this step's name; rename both together.
       - name: Capture company news
         env:
-          # The Sunday schedule walks the universe. Every other run, scheduled or dispatched, walks
-          # the complete portfolio.
-          NEWS_SCOPE: ${{ (github.event_name == 'schedule' && github.event.schedule == '41 0 * * 0') && 'universe' || inputs.scope || 'book' }}
-        # A weekly universe walk looks back eight days, a daily portfolio walk 48 hours. The query
-        # ceiling bounds one run's paid searches even if the identity registry grows by accident.
+          # The weekday 07:11 IST schedule walks the universe. Every other run, scheduled or
+          # dispatched, walks the complete portfolio.
+          NEWS_SCOPE: ${{ (github.event_name == 'schedule' && github.event.schedule == '41 1 * * 1-5') && 'universe' || inputs.scope || 'book' }}
+        # The query ceiling bounds one run's paid searches even if the identity registry grows by
+        # accident: a portfolio walk is about 130-200 searches and a universe walk about 620-670.
         run: |
-          overlap=48; ceiling=300
-          if [ "$NEWS_SCOPE" = universe ]; then overlap=192; ceiling=900; fi
-          FILINGS_SCOPE="$NEWS_SCOPE" FILINGS_BUDGET_MS=1680000 NEWS_OVERLAP_HOURS="$overlap" NEWS_MAX_QUERIES="$ceiling" node scripts/scrape-filings.mjs news
+          ceiling=300
+          if [ "$NEWS_SCOPE" = universe ]; then ceiling=900; fi
+          FILINGS_SCOPE="$NEWS_SCOPE" FILINGS_BUDGET_MS=1680000 NEWS_OVERLAP_HOURS=48 NEWS_MAX_QUERIES="$ceiling" node scripts/scrape-filings.mjs news
 
       - name: Install bounded official-document reader
         continue-on-error: true
@@ -133,6 +155,10 @@ jobs:
       - name: Enrich from global search, official IR pages and retained publisher feeds
         # Core search progress must still be committed when an independent enrichment source fails.
         continue-on-error: true
+        env:
+          # Paid global searches per walk, stalest first; each is up to five Brave reads. Official IR
+          # pages and the retained publisher feeds cost nothing and are read on every walk.
+          NEWS_DISCOVERY_MAX_QUERIES: "20"
         run: node scripts/enrich-company-news.mjs
 
       - name: Compact identical observations without removing source history
