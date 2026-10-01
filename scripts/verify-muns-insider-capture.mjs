@@ -272,11 +272,16 @@ async function simulate(prior, companies, respond, options = {}) {
     assert.equal(error.status, 500);
     assert.equal(attempts, 2, 'a 5xx is still retried once');
     assert.deepEqual(error.upstream, { message: 'Internal server error', requestId: 'abc-123' });
+    globalThis.fetch = async () => new Response(JSON.stringify({ message: 'token fixture-session-token rejected' }), { status: 502 });
+    const echoed = await fetchInsiderTrades({ ticker: 'HEG' }, { MUNS_TOKEN: 'fixture-session-token' }).catch(e => e);
+    assert.equal(echoed.upstream.message, 'token [redacted] rejected', "the Worker's own token is never quoted back");
   } finally { globalThis.fetch = realFetch; }
   assert.equal(await upstreamDetail(new Response('<html>520: Web server is returning an unknown error</html>', { status: 520 })), null, 'an HTML error page has nothing to quote');
   const started = Date.now();
   assert.equal(await upstreamDetail(new Response(new ReadableStream({ start() {} }), { status: 500 }), { ms: 50 }), null);
   assert(Date.now() - started < 1000, 'a stalled error body is abandoned at the deadline');
+  const leaky = await upstreamDetail(new Response(JSON.stringify({ message: 'Lookup failed for fixture-session-token at https://internal.example/api?key=abc123 with eyJhbGciOi.eyJzdWIiOjF9.c2lnbmF0dXJl and ' + 'A'.repeat(40) }), { status: 500 }), { secrets: ['fixture-session-token'] });
+  assert.equal(leaky.message, 'Lookup failed for [redacted] at [url] with [token] and [redacted]', 'nothing credential-shaped is quoted on a public route');
   const long = await upstreamDetail(new Response(JSON.stringify({ message: 'x'.repeat(10000) }), { status: 500 }));
   assert.equal(long, null, 'a body beyond the cap is not parsed as a partial message');
 }

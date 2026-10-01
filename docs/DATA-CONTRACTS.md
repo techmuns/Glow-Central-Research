@@ -6080,7 +6080,9 @@ cannot distinguish the two, so:
   no-record companies separately from checked, unchecked and failed ones.
 - `/api/insider-trades/{ticker}` failures carry `upstream: { message, requestId }` when the
   source's error body gives one (read once, at most 4 KB and two seconds), so a refusal can later be
-  told from an outage by the source's own words rather than by inference.
+  told from an outage by the source's own words rather than by inference. The route is public and
+  the capture is published, so the quoted message has the Worker's token, URLs, JWT-shaped strings
+  and long opaque runs cut out of it first.
 
 The schedule runs every 30 minutes during weekday day/evening hours plus a weekend check.
 The browser reads every minute while the feed is visible, and on focus/reconnection; it can

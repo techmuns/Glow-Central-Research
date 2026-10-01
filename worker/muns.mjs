@@ -127,8 +127,18 @@ export class MunsError extends Error {
  * 4 KB and two seconds, and never thrown from. The insider-trades API answers HTTP 500 both for a
  * symbol it cannot resolve and during its outages; the status alone cannot tell those apart, and a
  * failure that cannot be told apart from its own artefact is half a failure state.
+ *
+ * THE MESSAGE LEAVES THROUGH A PUBLIC, EDGE-CACHED ROUTE AND A PUBLISHED CAPTURE, so it is quoted
+ * only after anything that could be a credential is cut out of it: our own token, URLs (a query
+ * string can carry somebody's key), JWT-shaped strings and long opaque runs.
  */
-export async function upstreamDetail(res, { maxBytes = 4096, ms = 2000 } = {}) {
+const quotable = (text, secrets) => secrets.filter((s) => s && s.length >= 8)
+  .reduce((out, secret) => out.split(secret).join('[redacted]'), text)
+  .replace(/\bhttps?:\/\/\S+/gi, '[url]')
+  .replace(/\beyJ[\w-]{4,}\.[\w-]{4,}(?:\.[\w-]+)?/g, '[token]')
+  .replace(/[A-Za-z0-9+/_=-]{32,}/g, '[redacted]');
+
+export async function upstreamDetail(res, { maxBytes = 4096, ms = 2000, secrets = [] } = {}) {
   const reader = res?.body?.getReader?.();
   if (!reader) return null;
   let timer;
@@ -152,7 +162,7 @@ export async function upstreamDetail(res, { maxBytes = 4096, ms = 2000 } = {}) {
       .find((value) => typeof value === 'string' && value.trim());
     const id = [json?.requestId, json?.request_id].find((value) => typeof value === 'string' && /^[\w-]{1,100}$/.test(value));
     if (!said && !id) return null;
-    return { ...(said ? { message: said.trim().slice(0, 300) } : {}), ...(id ? { requestId: id } : {}) };
+    return { ...(said ? { message: quotable(said.trim(), secrets).slice(0, 300) } : {}), ...(id ? { requestId: id } : {}) };
   } catch {
     return null;
   } finally {
@@ -210,7 +220,7 @@ async function request(url, { method = 'GET', body = null, token, label, maxByte
       if (res.status === 404) throw new MunsError('not-found', `${label} has no record at this address (HTTP 404).`, { status: 404, url });
       if (res.status === 429) throw new MunsError('rate-limited', `${label} is rate limiting this deployment (HTTP 429). The registry allows 60 requests a minute.`, { status: 429, url });
       if (!res.ok) {
-        last = new MunsError('upstream', `${label} answered HTTP ${res.status}.`, { status: res.status, url, upstream: await upstreamDetail(res) });
+        last = new MunsError('upstream', `${label} answered HTTP ${res.status}.`, { status: res.status, url, upstream: await upstreamDetail(res, { secrets: [token] }) });
         if (res.status < 500) throw last;
       } else {
         // The insider-trades endpoint is documented as returning a markdown TABLE, so a non-JSON
