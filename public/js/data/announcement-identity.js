@@ -4,7 +4,7 @@ const SME = { 'ALPEXSOLAR-SM': 'ALPEXSOLAR', 'JAYBEE-SM': 'JAYBEE', 'SAHANA-SM':
 // These warrant lines refer to issuers whose equity ISINs are recorded in the same Family book.
 // Only company announcements use this relationship; the holdings themselves remain untouched.
 const ISSUER_EQUITY = { INE564S13022: 'INE564S01019', INE0R4713012: 'INE0R4701017', INE666D13019: 'INE666D01022' };
-export const announcementIssuerIsin = value => ISSUER_EQUITY[String(value || '').toUpperCase()] || String(value || '').toUpperCase();
+export const announcementIssuerIsin = value => ISSUER_EQUITY[upper(value)] || upper(value);
 const upper = value => String(value || '').trim().toUpperCase();
 export const filingTicker = value => SME[upper(value)] || upper(value);
 // Exchange ISINs join the directories. Keep old exchange/provider symbols as exact aliases.

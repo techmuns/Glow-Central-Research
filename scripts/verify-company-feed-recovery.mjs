@@ -77,6 +77,7 @@ try {
   assert.equal(announcementIssuerIsin('INE666D13019'), 'INE666D01022');
   const identity = createAnnouncementIdentity([{ ticker: 'BORORENEW', isin: 'INE666D01022' }]);
   assert.equal(identity.find(holdings[0]).ticker, 'BORORENEW');
+  assert.equal(identity.find({ isin: ' ine666d13019 ' }).ticker, 'BORORENEW', 'issuer relationships preserve existing ISIN normalization');
   const entities = portfolioNewsEntities(holdings);
   for (const isin of ['INE0LTR01029', 'INE0LTR03090']) {
     const entity = entities.find(e => e.portfolioIsins.includes(isin));
