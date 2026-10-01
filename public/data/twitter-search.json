@@ -1198,7 +1198,7 @@
       ]
     },
     "isin:INE15B701018|PINELABS": {
-      "lastAttemptAt": "2026-09-27T14:02:57+00:00",
+      "lastAttemptAt": "2026-10-01T23:57:43+00:00",
       "error": "search-unavailable"
     },
     "isin:INE572E01012|PNB Housing Fin": {
@@ -1917,6 +1917,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-10-01T23:17:44.135301+00:00"
+    "checkedAt": "2026-10-01T23:57:43.716358+00:00"
   }
 }
