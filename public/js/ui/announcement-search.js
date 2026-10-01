@@ -25,16 +25,24 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
     if (item && !known.has(item.key)) known.set(item.key, item);
   }
   const textByRow = new WeakMap();
+<<<<<<< HEAD
   const prepare = row => {
     if (!textByRow.has(row)) textByRow.set(row, normal(searchable(row)));
     return textByRow.get(row);
   };
+=======
+>>>>>>> sattva/main
   let previousQuery, needle = '';
   const matches = (row, query) => {
     if (state.selected && companyKey(row) !== companyKey(state.selected)) return false;
     if (query !== previousQuery) { previousQuery = query; needle = normal(query); }
     if (!needle) return true;
+<<<<<<< HEAD
     return prepare(row).includes(needle);
+=======
+    if (!textByRow.has(row)) textByRow.set(row, normal(searchable(row)));
+    return textByRow.get(row).includes(needle);
+>>>>>>> sattva/main
   };
   const chipHtml = () => state.selected ? `<div class="announcement-selected-company">
     <span class="announcement-selected-identity"><span class="announcement-company-name">${e(state.selected.name)}</span>
@@ -42,7 +50,11 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
     <button type="button" data-announcement-company-clear aria-label="Clear selected company" title="Clear selected company">×</button></div>` : '';
   const hint = () => state.selected && !allowsCompany(state.selected)
     ? `This company is outside ${scopeLabel}. Switch scope or clear the company.`
+<<<<<<< HEAD
     : state.selected ? 'Showing this company only. Period and filing-type filters still apply.' : '';
+=======
+    : state.selected ? 'Showing this company only. Period and text filters still apply.' : '';
+>>>>>>> sattva/main
   const placeholder = () => state.selected ? 'Search within this company…' : 'Search company name, ticker or announcement…';
   const html = `<div data-announcement-search="${id}" class="min-w-0 flex-1" style="min-width:min(100%,220px);max-width:32rem">
     <div data-announcement-company-chip>${chipHtml()}</div>
@@ -179,5 +191,9 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
       document.removeEventListener('pointerdown', onOutside); window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true);
     };
   }
+<<<<<<< HEAD
   return { html, wire, matches, prepare, state };
+=======
+  return { html, wire, matches, state };
+>>>>>>> sattva/main
 }

@@ -316,7 +316,11 @@ const evidenceReads = calls.length;
 const evidenceRefresh = await alerts.refreshSources();
 assert(calls.slice(evidenceReads).includes('api/screener-insights'), 'Ask Research refresh includes company context outside the alert feed registry');
 assert(evidenceRefresh.failed > 0, 'unavailable context is reported instead of treating retained inputs as fresh');
+<<<<<<< HEAD
 console.log(`PASS: ${alerts.FEEDS.length} feed adapters; ${universe.events.length} retained records; scope parity, undated/upcoming, raw records, privacy, refresh/recovery and AI compatibility.`);
+=======
+console.log(`PASS: ${expected.length} feed adapters; ${universe.events.length} retained records; scope parity, undated/upcoming, raw records, privacy, refresh/recovery and AI compatibility.`);
+>>>>>>> sattva/main
 
 // Selecting a smaller reading period must preserve the complete event contract: canonical
 // identity, corrections, discovery provenance and exported source fields, not just row counts.

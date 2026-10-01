@@ -56,10 +56,21 @@ const server = createServer((req, res) => {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__arrivalsRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
     } else if (pathname === '/js/core/app-updates.js') {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__performanceRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+<<<<<<< HEAD
     } else if (pathname === '/js/data/alert-pool.js') {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__poolRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
     } else if (pathname === '/js/data/news-working-set.js') {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__newsQueryRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+=======
+    } else if (pathname === '/js/ui/windowed-list.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__tableScrollRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/js/data/alert-pool-format.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__alertPoolRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/js/data/news-working-set.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__newsQueryRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/css/tailwind.css') {
+      res.end(`${readFileSync(path, 'utf8')}\n:root { --table-scroll-release: ${previousRelease ? 'previous' : 'current'}; }`);
+>>>>>>> sattva/main
     } else res.end(readFileSync(path));
   } catch { res.writeHead(404); res.end(); }
 });
@@ -129,6 +140,9 @@ try {
   await page.getByRole('navigation', { name: 'Research navigation' }).waitFor({ timeout: 1500 });
   assert(Date.now() - reloadedAt < 1500, 'repeat visit paints from the app cache without waiting for the network');
   await page.locator('[data-brand-mark] img').evaluate(image => image.decode());
+  await page.waitForSelector('#content-host[data-active-tab="ai-alerts"]', { timeout: 1500 });
+  // Ask Research's illustration remains cached, but AI Alerts is now the landing tab.
+  await page.locator('[data-tab-id="ask-research"]').click();
   await page.locator('.research-opening-brand').evaluate(image => image.decode());
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'cached app restores the saved theme');
   assert.equal(await page.locator('body').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(11, 18, 32)', 'cached dark styles are applied');
@@ -147,8 +161,12 @@ try {
 
   // The previous cached release still includes Ask Research; the upgrade below must remove it.
   const tabIds = ['ask-research', 'ai-alerts', 'daily-alerts', 'earnings-hub', 'concall', 'public-chatter',
+<<<<<<< HEAD
     'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'nse-filings', 'insider-trades',
     'mutual-funds', 'macro-research', 'economy-macro', 'family-book'];
+=======
+    'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'nse-filings', 'insider-trades', 'mutual-funds'];
+>>>>>>> sattva/main
   for (const id of tabIds) {
     const started = Date.now();
     await page.locator(`[data-tab-id="${id}"]`).click();
@@ -189,6 +207,7 @@ try {
   assert.equal(await page.evaluate(() => globalThis.__watchlistRelease), 'previous', 'the cached watchlist module belongs to the older release');
   await page.evaluate(() => import('/js/core/alert-arrivals.js'));
   assert.equal(await page.evaluate(() => globalThis.__arrivalsRelease), 'previous', 'returning session has the older arrivals module cached');
+<<<<<<< HEAD
   await page.evaluate(() => import('/js/data/alert-pool.js'));
   assert.equal(await page.evaluate(() => globalThis.__poolRelease), 'previous', 'returning session has the older pool reader cached');
   await page.evaluate(() => import('/js/data/news-working-set.js'));
@@ -196,6 +215,15 @@ try {
   await page.evaluate(() => { location.hash = '#/research/ask-research?scope=universe&company=TEST'; });
   await page.locator('#content-host[data-active-tab="ask-research"]').waitFor();
   assert.equal(await page.locator('[data-tab-id]').first().getAttribute('data-tab-id'), 'ask-research');
+=======
+  await page.evaluate(() => import('/js/ui/windowed-list.js'));
+  assert.equal(await page.evaluate(() => globalThis.__tableScrollRelease), 'previous', 'returning session has the older table renderer cached');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--table-scroll-release').trim()), 'previous', 'returning session has the older scrollbar stylesheet cached');
+  await page.evaluate(() => import('/js/data/alert-pool-format.js'));
+  assert.equal(await page.evaluate(() => globalThis.__alertPoolRelease), 'previous', 'the retained session has the older alert-pool module');
+  await page.evaluate(() => import('/js/data/news-working-set.js'));
+  assert.equal(await page.evaluate(() => globalThis.__newsQueryRelease), 'previous', 'returning reader starts with the older news query module');
+>>>>>>> sattva/main
   offline = false;
   previousRelease = false;
   await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update(); });
@@ -203,8 +231,16 @@ try {
   await page.waitForFunction(() => globalThis.__watchlistRelease === 'current', null, { timeout: 30000 });
   await page.evaluate(() => import('/js/core/alert-arrivals.js'));
   assert.equal(await page.evaluate(() => globalThis.__arrivalsRelease), 'current', 'existing session receives the arrivals update');
+<<<<<<< HEAD
   await page.evaluate(() => import('/js/data/alert-pool.js'));
   assert.equal(await page.evaluate(() => globalThis.__poolRelease), 'current', 'existing session receives the pool reader update');
+=======
+  await page.evaluate(() => import('/js/ui/windowed-list.js'));
+  assert.equal(await page.evaluate(() => globalThis.__tableScrollRelease), 'current', 'existing session receives the scrolling fix');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--table-scroll-release').trim()), 'current', 'existing session receives the scrollbar stylesheet fix');
+  await page.evaluate(() => import('/js/data/alert-pool-format.js'));
+  assert.equal(await page.evaluate(() => globalThis.__alertPoolRelease), 'current', 'the same returning session receives the context retention fix');
+>>>>>>> sattva/main
   await page.evaluate(() => import('/js/data/news-working-set.js'));
   assert.equal(await page.evaluate(() => globalThis.__newsQueryRelease), 'current', 'the same returning session receives the news query performance fix');
   const upgradedCaches = await page.evaluate(() => caches.keys());

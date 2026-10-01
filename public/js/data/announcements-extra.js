@@ -12,6 +12,7 @@ export function withAnnouncementLookups(base) {
   const emit = () => subscribers.forEach((fn) => fn());
   let lastQuery = null;
   let shared = [], sharedError = null, sharedPending = false, sharedLoaded = false;
+<<<<<<< HEAD
   let sharedWrites = Promise.resolve(), sharedGeneration = 0;
   function appendShared(incoming) {
     const generation = sharedGeneration;
@@ -23,6 +24,8 @@ export function withAnnouncementLookups(base) {
     sharedWrites = task.catch(() => {});
     return task;
   }
+=======
+>>>>>>> sattva/main
   let recovery = [], recoveryMeta = null, recoveryRevision = null, recoveryPromise = null;
   async function loadRecovery() {
     if (recoveryPromise) return recoveryPromise;
@@ -95,7 +98,11 @@ export function withAnnouncementLookups(base) {
   const rows = () => {
     const source = base.rows();
     if (rowSnapshot?.source === source && rowSnapshot.shared === shared && rowSnapshot.history === history && rowSnapshot.recovery === recovery) return rowSnapshot.rows;
+<<<<<<< HEAD
     const value = mergeAnnouncements(source.map(sourceRow), shared, history, recovery);
+=======
+    const value = mergeAnnouncements(source.map((r) => ({ ...r, source: r.source || 'BSE', sources: r.sources || [r.source || 'BSE'], providers: r.providers?.length ? r.providers : ['BSE date index'] })), shared, history, recovery);
+>>>>>>> sattva/main
     rowSnapshot = { source, shared, history, recovery, rows: value };
     return value;
   };
@@ -221,6 +228,10 @@ export function withAnnouncementLookups(base) {
       const off = base.onChange(fn);
       return () => { subscribers.delete(fn); off(); };
     },
+<<<<<<< HEAD
     invalidate() { base.invalidate(); sharedGeneration++; restored = null; history = []; shared = []; recovery = []; recoveryMeta = null; recoveryRevision = null; sharedLoaded = false; sharedRevisions.clear(); queries.clear(); lastQuery = null; },
+=======
+    invalidate() { base.invalidate(); restored = null; history = []; shared = []; recovery = []; recoveryMeta = null; recoveryRevision = null; sharedLoaded = false; sharedRevisions.clear(); queries.clear(); lastQuery = null; },
+>>>>>>> sattva/main
   };
 }

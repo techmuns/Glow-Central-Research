@@ -3,7 +3,11 @@ import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseScreenerAnnouncements, screenerCursor, screenerCursorAt, screenerRecoveryCheckpoint, collectScreenerAnnouncements } from './lib/screener-announcements.mjs';
+<<<<<<< HEAD
 import { bseCaptureIndex, failedBseCapture } from './lib/bse-capture-state.mjs';
+=======
+import { failedBseCapture } from './lib/bse-capture-state.mjs';
+>>>>>>> sattva/main
 import { readNewsJson } from './lib/news-json-storage.mjs';
 import { hydrateJsonShards } from '../public/js/core/json-shards.js';
 import { archiveFilings } from './lib/filing-archive.mjs';
@@ -167,12 +171,15 @@ await assert.rejects(run({ previous: refused }), /clock moved/);
 
 // A refused company directory must not prevent the independent filing request.
 const identity = { isin: 'INE365Y01019', ticker: 'BPLPHARMA', bseCode: '541096', name: 'Bharat Parenterals Limited' };
+<<<<<<< HEAD
 const index = await bseCaptureIndex({ now: clock, previous: { version: 1, capturedAt: iso(clock - hour), entries: [identity] },
   mcMap: { tcs: { ticker: 'TCS', bseId: '532540' } }, fetchMaster: async () => { throw Error('HTTP 403'); } });
 assert.equal(index.byCode.get('541096').ticker, 'BPLPHARMA');
 assert.equal(index.byCode.get('532540').ticker, 'TCS');
 assert.equal(index.identities, null, 'do not rewrite the verified directory with a stale success timestamp');
 assert.equal(index.identityError.reason, 'directory-unavailable');
+=======
+>>>>>>> sattva/main
 const prior = { capturedAt: iso(clock - hour), lastCompleteTo: '2026-09-29', coversUniverse: true,
   byTicker: { BPLPHARMA: [{ date: '2026-09-19', title: 'Retained announcement' }] }, rowCount: 1, failed: {} };
 const failed = failedBseCapture(prior, { now: clock });
@@ -183,7 +190,11 @@ assert.equal(failed.coversUniverse, false);
 assert(failed.lastError);
 
 // Recovery shares the durable monthly archive and deduplicates alternate BSE links by document.
+<<<<<<< HEAD
 const dir = mkdtempSync(join(tmpdir(), 'glow-recovery-'));
+=======
+const dir = mkdtempSync(join(tmpdir(), 'sattva-recovery-'));
+>>>>>>> sattva/main
 try {
   const resolver = createAnnouncementIdentity([identity]);
   const recovered = resolver.row([...saved.values()].find(r => r.ticker === 'BSE:541096'));
