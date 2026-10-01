@@ -124,3 +124,39 @@ The shared ownership suite checks that hidden views do not retain rendering jobs
 
 No collection frequency, backfill, retention, source, identity rule or source-health label is
 reduced to achieve these timings. No manual production run, restart or deployment is involved.
+
+## Cold startup and announcement delivery follow-up
+
+A fresh production All Alerts / Universe visit displayed its first rows in 2,078 ms. The previously
+reported 23–26 seconds describes all background feeds settling, not a blank screen for that duration.
+Some independent feeds can still take longer to finish checking.
+
+The pool reader now starts artifact discovery, source-revision checks and device checks together.
+It still verifies all three before adopting a prepared feed. The Worker reads each stored member's
+local ZIP header and payload in one bounded range request, saving one serial storage round trip on
+an uncached member. A large ZIP extra field uses the validated two-request fallback. Size limits,
+Content-Range checks, gzip delivery, immutable member caching and full-body refusal are preserved.
+
+The backup announcement head is now an explicit dependency of the announcement pool. A changed
+backup capture makes only that feed use its current capture until the next ordinary pool build.
+Capture revisions also include collection attempts, successful/page checks and recovery progress,
+so a new failed check cannot keep the previous status merely because last-good rows did not change.
+The capture-status edge cache and dashboard service-worker release both advance.
+
+Before publication, a separate check compares the backup head with the collected announcement
+events. It recognizes original documents among all merged source links and BSE's alternate URLs
+for the same PDF. Notices without a document must retain their own company/date/time/title/reference
+identity. A missing notice fails the build. The existing member verifier then checks that the
+written shards preserve the collected events exactly; no browser-side audit work is added.
+
+At base commit `8cc6f8510`, all 16,560 captured backup notices were represented in the prepared
+daily feed, including 124 explicitly unavailable attachments. The independent recovery run
+`36872738558` completed 34 pages with no pending intervals at 14:01 UTC on 1 October. Direct BSE
+date-index requests still returned HTTP 403. These results establish delivery of the captured
+backup records, not exhaustive exchange coverage. BSE failures and missing documents remain
+visible; the existing free source, collection cadence and reconciliation history are unchanged.
+
+Regressions cover newer backup arrivals, failed attempts with unchanged last-good data, concurrent
+index/status reads, bounded one-request member delivery, large extra fields, incorrect local
+filenames, merged source links, missing reference-only notices and a returning controlled browser
+receiving the new backup dependency from its previously immutable module cache.

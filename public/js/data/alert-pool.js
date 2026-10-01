@@ -231,13 +231,17 @@ const readKey = (mode, day, queryWindow) => JSON.stringify([mode, day, queryWind
 export async function read({ mode, day, queryWindow = null, refresh = false, isCurrent = () => true, book = [], newsState = (meta) => meta, sessionRows = () => null }) {
   if (!['window', 'ai'].includes(mode) || !isDay(day)) return null;
   if (Date.now() < disabledUntil && !refresh) return null;
-  const index = await readIndex(refresh);
+  // These independent checks used to run in series. Begin the small source/device
+  // checks beside artifact discovery; neither result is adopted before verification.
+  const indexPending = readIndex(refresh);
+  const checksPending = Promise.all([readStatus(refresh), deviceExtras(sessionRows)]);
+  const index = await indexPending;
   if (!index || !isCurrent()) return null;
   const active = () => isCurrent() && lastIndex?.artifact === index.artifact;
   if (index.day !== day) return null;
   const fullMembers = membersFor(mode, index, queryWindow);
   if (!fullMembers) return null;
-  const [status, extras] = await Promise.all([readStatus(refresh), deviceExtras(sessionRows)]);
+  const [status, extras] = await checksPending;
   if (!status || !active()) return null;
   const declined = new Map();
   const wanted = [];
