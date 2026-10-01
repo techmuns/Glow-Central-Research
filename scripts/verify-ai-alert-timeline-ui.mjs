@@ -24,6 +24,9 @@ window.historyReads=0;window.memoryReads=0;window.failHistory=false;window.holdH
 window.refreshAlerts=()=>refresh.refreshAll();window.tab=tab;
 window.heartbeat=0;setInterval(()=>window.heartbeat++,10);
 window.render=()=>tab.render({root:document.querySelector('#root'),scope:'universe',params:{}});
+// Establish the locked fixture before timeline interactions. A late auth-required
+// correctly destroys private timeline state, which otherwise races this scroll test.
+await (await import('/js/research/portfolio-bridge.js')).connectPortfolio();
 window.render();
 </script></body></html>`;
 const feedModule = `
@@ -54,7 +57,7 @@ const origin=`http://127.0.0.1:${server.address().port}`;
 const browser=await chromium.launch({executablePath:process.env.CHROME_PATH});
 const page=await browser.newPage({viewport:{width:1280,height:1000}}),errors=[];
 page.on('pageerror',error=>errors.push(error.message));
-await page.context().route('**/*',route=>route.request().url()==='https://sattva-family.pages.dev/research-bridge' ? route.fulfill({contentType:'text/html',body:`<script>addEventListener('message',e=>{if(e.data.channel==='sattva-portfolio-v1')parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'},'*')});</script>`}) : new URL(route.request().url()).origin===origin?route.continue():route.fulfill({status:200,body:'{}'}));
+await page.context().route('**/*',route=>route.request().url()==='https://sattva-family.pages.dev/research-bridge' ? route.fulfill({contentType:'text/html',body:`<script>addEventListener('message',e=>{if(e.data.channel==='sattva-portfolio-v1')setTimeout(()=>parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'},'*'),100)});</script>`}) : new URL(route.request().url()).origin===origin?route.continue():route.fulfill({status:200,body:'{}'}));
 const card=page.locator('[data-ai-card][data-ticker="KPIL"]'), timeline=card.locator('[data-ai-timeline]'), rows=card.locator('[data-ai-timeline-row]');
 const settled=()=>page.waitForFunction(()=>document.querySelector('[data-ticker="KPIL"] [data-ai-timeline]')?.getAttribute('aria-busy')==='false' && document.querySelector('[data-ticker="KPIL"] [data-ai-timeline-row]'));
 const bottom=()=>timeline.evaluate(node=>{node.scrollTop=node.scrollHeight;node.dispatchEvent(new Event('scroll'));});
