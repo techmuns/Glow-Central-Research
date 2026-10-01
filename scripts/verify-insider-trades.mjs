@@ -218,7 +218,7 @@ const server = createServer((req, res) => {
 });
 try {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  for (const file of ['scripts/scrape-filings.mjs', 'scripts/lib/filings-snapshot.mjs', 'scripts/lib/company-capture.mjs', 'scripts/lib/filing-archive.mjs', 'scripts/lib/company-news-archive.mjs', 'worker/muns.mjs',
+  for (const file of ['scripts/scrape-filings.mjs', 'scripts/lib/filings-snapshot.mjs', 'scripts/lib/company-capture.mjs', 'scripts/lib/filing-archive.mjs', 'scripts/lib/company-news-archive.mjs', 'worker/muns.mjs', 'worker/free-news.mjs',
     'scripts/lib/news-json-storage.mjs', 'public/js/core/json-shards.js', 'public/js/core/memory-cache.js', 'public/js/core/slices.js',
     'public/js/data/news-query-index.js', 'public/js/data/news-window.js',
     'scripts/lib/active-portfolio.mjs', 'public/js/data/family-book-contract.js',
