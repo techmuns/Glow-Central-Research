@@ -9,6 +9,7 @@ import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { corporateAnnouncements as feed } from '../data/corporate-announcements.js';
 import { announcementSources, announcementSourceUrls } from '../data/announcements-shared.js';
 import { captureCoverageHtml } from '../ui/capture-coverage.js';
+import { announcementCoverage } from '../data/announcement-coverage.js';
 import { announcementSearch } from '../ui/announcement-search.js';
 import * as coverage from '../data/coverage.js';
 import * as watchlist from '../core/watchlist.js';
@@ -100,7 +101,10 @@ const tab = makeFilingsTab({
       match: (row, period) => period === 'all' || inNewsWindow(row, windows[period]),
     }];
   },
-  status: () => '<span data-filings-info class="text-xs font-semibold text-slate-500">Updates automatically</span>',
+  status: m => {
+    const status = announcementCoverage(m);
+    return `<span data-filings-info class="text-xs font-semibold ${status.incomplete ? 'text-amber-700' : 'text-slate-500'}" title="${escapeHtml(status.detail)}">${escapeHtml(status.label)}</span>`;
+  },
   emptyMessage: 'No captured announcements match this scope, period or search.',
   stickyHead: 'max(320px, calc(100vh - 260px))',
   noun: 'announcements',
@@ -109,7 +113,8 @@ const tab = makeFilingsTab({
   rowName: (r) => cleanFilingText(r.title || r.headline) || '(no subject)',
   // The company name leads, because a date-indexed feed covers companies this dashboard has no
   // ticker for and a bare scrip code identifies nothing to a reader.
-  rowSub: (r) => [r.company, r.ticker, r.subCategory].filter(Boolean).join(' · '),
+  rowSub: (r) => [r.company, r.ticker, r.subCategory, r.documentUnavailable ? 'Source supplied no document link' : null].filter(Boolean).join(' · '),
+  link: r => r.url || r.referenceUrl || null,
   searchable: searchableAnnouncement,
   columns: () => [
     { label: 'Source', get: (r) => announcementSources(r).join(' / ') || 'Not specified' },
@@ -168,6 +173,16 @@ const tab = makeFilingsTab({
     <div class="space-y-3 text-sm leading-relaxed text-slate-600">
       <p><strong>BSE:</strong> exchange-wide announcements are captured every two hours, with retained monthly history.
         Latest capture: ${escapeHtml(m.capturedAt || 'unavailable')}.</p>
+      <p><strong>Backup announcements:</strong> Screener’s All announcements index is checked every two hours,
+        across companies. Original exchange documents join this table; generated summaries are not imported.
+        Last page checked: ${escapeHtml(m.recovery?.lastPageAt || 'unavailable')}.
+        ${escapeHtml(m.recovery?.error || '')}
+        ${m.recovery?.pendingCount ? `${escapeHtml(m.recovery.pendingCount)} date interval(s) still being recovered.` : ''}
+        Saved coverage starts ${escapeHtml(m.recovery?.captureStart || 'when the first capture completes')}.
+        ${m.recovery?.unavailableDocuments ? `${escapeHtml(m.recovery.unavailableDocuments)} backup notices have no document link; their source reference page is shown instead.` : ''}
+        Interrupted reads resume from their saved page. Daily checks revisit the past seven days for late additions;
+        older notices omitted by the publisher may remain unavailable. This backup does not certify complete exchange coverage.</p>
+      ${m.sourceCheck?.error || m.sourceCheck?.identityError ? `<p>${escapeHtml(m.sourceCheck.error?.message || m.sourceCheck.identityError?.message)}</p>` : ''}
       <p><strong>NSE:</strong> the live exchange feed and up to 90 days of retained captures join this table.
         Latest source capture: ${escapeHtml(m.nse?.capturedAt || 'unavailable')}.
         ${escapeHtml(m.nse?.error || m.nse?.degraded || '')}</p>
@@ -219,6 +234,7 @@ const tab = makeFilingsTab({
         { header: 'Source', key: 'src', width: 20, get: (r) => r.__banner ? '' : announcementSources(r).join(' / ') },
         { header: 'Retrieved through', key: 'via', width: 35, get: (r) => r.__banner ? '' : (r.providers || []).join(' / ') },
         { header: 'Document URL', key: 'u', width: 60, get: (r) => (r.__banner ? '' : r.url || '') },
+        { header: 'Source reference page (no document)', key: 'ref', width: 60, get: r => r.__banner ? '' : r.referenceUrl || '' },
         { header: 'All source document URLs', key: 'su', width: 80, get: (r) => r.__banner ? '' :
           announcementSourceUrls(r).map(({ source, url }) => `${source}: ${url}`).join('\n') },
       ],

@@ -305,6 +305,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
       identityDirectory: state.identityDirectory,
       unnamedRows: state.unnamedRows,
       capturedAt: state.capturedAt,
+      sourceCheck: state.sourceCheck || null,
       oldestDataAt: state.oldestDataAt,
       fallbackCount: state.fallbackCount,
       // The OLDEST confirmation behind what is on screen, not the newest — otherwise one fresh
@@ -332,7 +333,8 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
         pending: state.snapshotPending, error: state.snapshotReadError ||
           (state.snapshotChecked && !queryComplete ? 'Some company searches are incomplete or unchecked.' :
             state.snapshotChecked && !coreFresh ? 'Company-search source checks are stale or unavailable.' : null),
-        capturedAt: state.capturedAt, checkedAt: state.capturedAt, readerCheckedAt: state.checkedAt,
+        capturedAt: state.capturedAt,
+      sourceCheck: state.sourceCheck || null, checkedAt: state.capturedAt, readerCheckedAt: state.checkedAt,
       } } } : {}),
       enrichmentCoverage: state.enrichmentCoverage,
       tradingViewCoverage: state.tradingViewCoverage,
@@ -762,6 +764,8 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     }
     // What the file declares about its own coverage and window. Read before the early return, so a
     // re-read that finds nothing newer still leaves these describing the file we actually hold.
+    state.sourceCheck = { lastAttemptAt: body.lastAttemptAt || body.capturedAt, error: body.lastError || null,
+      identityError: body.identityDirectory?.ok === false ? { message: 'The BSE company directory could not be refreshed. Saved identities are in use.' } : null };
     state.identityDirectory = body.identityDirectory && typeof body.identityDirectory === 'object' ? body.identityDirectory : null;
     state.coversUniverse = body.coversUniverse === true && state.identityDirectory?.ok !== false;
     state.exchangeCompanies = Number.isFinite(body.exchangeCompanies) ? body.exchangeCompanies : null;

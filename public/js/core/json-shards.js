@@ -67,7 +67,7 @@ export function readVerifiedShard(path, part, { fetcher = fetch, signal } = {}) 
 export function shardSpec(value) {
   if (!value || !Object.hasOwn(value, '_jsonShards')) return null;
   const spec = value._jsonShards;
-  if (![1, 2].includes(spec?.version) || !['byTicker', 'articles'].includes(spec.field) ||
+  if (![1, 2].includes(spec?.version) || !['byTicker', 'articles', 'rows'].includes(spec.field) ||
       !Number.isSafeInteger(spec.rows) || spec.rows < 0 || !Array.isArray(spec.parts) ||
       !spec.parts.length || spec.parts.length > 4096) throw Error('Invalid news shard manifest');
   let rows = 0;
@@ -88,7 +88,7 @@ export function shardSpec(value) {
   }
   if (rows !== spec.rows) throw Error('News shard count mismatch');
   const empty = value[spec.field];
-  if (spec.field === 'articles' ? !Array.isArray(empty) || empty.length :
+  if (spec.field !== 'byTicker' ? !Array.isArray(empty) || empty.length :
     !empty || typeof empty !== 'object' || Array.isArray(empty) || Object.values(empty).some(x => !Array.isArray(x) || x.length))
     throw Error('News manifest contains unaccounted records');
   if (spec.bucketRows != null) {
@@ -131,11 +131,11 @@ export function assembleShards(value, chunks) {
   if (!spec) return value;
   if (chunks.length !== spec.parts.length) throw Error('News parts incomplete');
   const { _jsonShards, ...out } = value;
-  if (spec.field === 'articles') out.articles = [];
+  if (spec.field !== 'byTicker') out[spec.field] = [];
   else out.byTicker = Object.fromEntries(Object.keys(value.byTicker).map(key => [key, []]));
   const ordered = spec.version === 2 ? new Array(spec.rows) : null;
   const append = item => {
-    if (spec.field === 'articles') out.articles.push(item);
+    if (spec.field !== 'byTicker') out[spec.field].push(item);
     else {
       if (!Array.isArray(item) || item.length !== 2 || typeof item[0] !== 'string' ||
           !Object.hasOwn(out.byTicker, item[0])) throw Error('Unknown news bucket');

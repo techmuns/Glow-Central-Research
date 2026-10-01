@@ -421,3 +421,10 @@ the 14-day priority or current headline. Preserve checked story members, source
 links, bookmarks, scroll anchors and partial public history when a source fails.
 Clear private history on access changes. Timeline scrolling must not request AI
 summaries; only the visible card headline can carry its optional factual summary.
+
+### Independent announcement recovery
+
+Follow `docs/BSE-COLLECTION.md`. Keep BSE category/date completeness, identity-directory
+health and publisher-index recovery separate. Retain validated partial records,
+archive before checkpointing, resume exact cursors and never advance a failed window.
+A recovery source's success cannot certify exhaustive exchange coverage.
