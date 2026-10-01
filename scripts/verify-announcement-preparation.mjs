@@ -4,7 +4,7 @@ import { createFeed } from '../public/js/data/filings.js';
 import { mergeAnnouncements, mergeAnnouncementsAsync } from '../public/js/data/announcements-shared.js';
 import { createCorporateAnnouncementsFeed } from '../public/js/data/corporate-announcements.js';
 import { mapSteps, runStepsInSlices } from '../public/js/core/slices.js';
-import { announcementSearch } from '../public/js/ui/announcement-search.js';
+import { announcementSearch, prepareAnnouncementSearch } from '../public/js/ui/announcement-search.js';
 
 const rows = Array.from({ length: 24000 }, (_, i) => ({ ticker: `ISSUER${i % 200}`,
   date: `2026-09-${String(i % 28 + 1).padStart(2, '0')}`, time: '10:00:00',
@@ -65,13 +65,28 @@ assert.equal(stream.rows().length, 3002, 'an empty/failed current input cannot r
 assert.equal(stream.forTicker('ISSUER0').length, 16, 'offscreen company search still sees the complete retained stream');
 
 let textReads = 0;
-const search = announcementSearch({ companies: [], companyKey: row => row.ticker,
+const searchable = row => { textReads++; return row.title; };
+const searchOptions = { companies: [], companyKey: row => row.ticker,
   resolveCompany: row => row, allowsCompany: () => true, scopeLabel: 'Universe',
-  searchable: row => { textReads++; return row.title; } });
+  searchable };
+const search = announcementSearch(searchOptions);
 const searchableRow = { ticker: 'ISSUER0', title: 'Café — new order' };
 search.prepare(searchableRow);
 assert(search.matches(searchableRow, 'cafe new order'), 'idle preparation uses the actual company-search normalization');
 assert(!search.matches(searchableRow, 'unrelated'));
 assert.equal(textReads, 1, 'the first keystroke reuses the prepared index');
 assert(search.matches({ ...searchableRow, title: 'Corrected order' }, 'corrected'), 'replacement records build a fresh search entry');
+yields = 0;
+await prepareAnnouncementSearch(rows, searchable, { sliceMs: 0, yieldForInput: async () => { yields++; } });
+assert(yields > 100, 'full-archive type/text preparation yields before table filtering');
+const preparedReads = textReads;
+const returnedSearch = announcementSearch(searchOptions);
+assert(returnedSearch.matches(rows.at(-1), rows.at(-1).title), 'a return can search the archive tail immediately');
+assert.equal(textReads, preparedReads, 'returning table instances reuse the prepared immutable rows');
+assert(!announcementSearch({ ...searchOptions, searchable: () => 'Different reading' }).matches(rows[0], rows[0].title),
+  'a different search reader cannot inherit another reader’s text');
+let cancelledReads = 0;
+await prepareAnnouncementSearch(rows, () => { cancelledReads++; return ''; }, {
+  sliceMs: 0, yieldForInput: async () => {}, keepGoing: () => false });
+assert.equal(cancelledReads, 128, 'leaving the view stops unfinished preparation at the next slice');
 console.log('PASS announcement preparation: complete merge parity, bounded batches, stable scopes, concurrent arrivals and failure retention');

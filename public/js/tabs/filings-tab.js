@@ -79,13 +79,35 @@ const REASONS = {
  *                                   subtitle then belongs in the provenance panel, never dropped
  * @param {Function} [cfg.headAside]  (ctx) => html drawn on the title's line (a view switch)
  * @param {Function} [cfg.renderRevision] extra revision for time-dependent filters on otherwise unchanged rows
+ * @param {Function} [cfg.prepareForPaint] sliced preparation of immutable row readings before painting
  * @param {Function} [cfg.keyFor]    (row, i) => watchlist key
  * @param {Function|false} [cfg.link] custom row-link getter, or false when the tab owns its link cell
  */
 export function makeFilingsTab(cfg) {
   // Opt in per view: News already prepares its own source publications and keeps
   // its partially loaded controls mounted while a new reading window loads.
-  const prepareRows = cfg.prepareBeforePaint ? () => cfg.feed.prepareRows?.() : null;
+  const prepareRows = cfg.prepareBeforePaint ? async () => {
+    const generation = token;
+    const keepGoing = () => !!ctxRef && generation === token;
+    await cfg.feed.prepareRows?.();
+    if (!keepGoing() || !cfg.prepareForPaint) return;
+    let prepared = cfg.feed.rows();
+    while (keepGoing()) {
+      await cfg.prepareForPaint(rowsForScope(prepared, ctxRef), { keepGoing });
+      if (!keepGoing()) return;
+      // An archive page can land while text preparation yields. Prepare that publication too,
+      // rather than letting paint's synchronous rows() fallback merge it on the main thread.
+      await cfg.feed.prepareRows?.();
+      if (!keepGoing()) return;
+      const next = cfg.feed.rows();
+      if (next === prepared) return;
+      prepared = next;
+    }
+  } : null;
+  function rowsForScope(all, ctx) {
+    if (cfg.keepRow) all = all.filter(cfg.keepRow);
+    return (cfg.filterByScope || filterByScope)(all, ctx.scope, coverage.holdings());
+  }
   const meta = { id: cfg.id, title: cfg.title, subtitle: cfg.subtitle, subviews: [] };
 
   let token = 0;
@@ -264,9 +286,7 @@ export function makeFilingsTab(cfg) {
     // published. The company was still COVERED, which is a different fact and one the coverage note
     // below still counts: searched-and-empty is not the same as never-asked, and neither is an
     // article. `keepRow` is where a tab says what a row of its own has to carry to be one.
-    if (cfg.keepRow) all = all.filter(cfg.keepRow);
-
-    const rows = (cfg.filterByScope || filterByScope)(all, ctx.scope, coverage.holdings());
+    const rows = rowsForScope(all, ctx);
     const customEmptyMessage = typeof cfg.emptyMessage === 'function' ? cfg.emptyMessage(m) : cfg.emptyMessage;
     if (cfg.preserveReadingPosition) {
       const revision = cfg.renderRevision?.(m);
