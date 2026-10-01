@@ -28,6 +28,12 @@ let version = 1;
 const calls = [];
 const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"></head><body style="padding:16px;background:#f6f7fb"><button id="refresh">Refresh</button><main id="root"></main>
 <script>
+const nativeFetch=window.fetch.bind(window);
+window.testFetches=[];
+window.fetch=(input,init)=>{
+  window.testFetches.push(new URL(input?.url||String(input),location.href).pathname);
+  return nativeFetch(input,init);
+};
 const activeListeners=new Map();
 const listenerSets=new WeakMap();
 const nativeAdd=EventTarget.prototype.addEventListener;
@@ -66,6 +72,7 @@ const server = createServer((req, res) => {
   calls.push(url.pathname);
   const json = (value) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(value)); };
   try {
+    if (url.pathname === '/fixture-before-dispose') { res.writeHead(204); res.end(); return; }
     if (url.pathname === '/embed') {
       res.setHeader('content-type', 'text/html');
       res.end(`<!doctype html><html><body style="margin:0;overflow:hidden;background:#475569"><main style="position:fixed;inset:16px 16px 16px 64px;display:flex;flex-direction:column;background:white"><header style="height:48px;flex:none">Local dashboard host</header><iframe title="Research dashboard" src="/" style="width:100%;flex:1;min-height:0;border:0"></iframe></main></body></html>`);
@@ -585,22 +592,30 @@ try {
   await page.locator('[data-sources-close]').click();
   await page.setViewportSize({ width: 1440, height: 1000 });
   if (process.env.GENERAL_ALERTS_SCREENSHOT) await page.screenshot({ path: process.env.GENERAL_ALERTS_SCREENSHOT });
+  // A browser read can reach this server after teardown even though it started before it.
+  // Hold one at the transport boundary so this distinction is exercised on every run.
+  let heldTeardownRead, markTeardownReadHeld;
+  const teardownReadHeld = new Promise(done => { markTeardownReadHeld = done; });
+  await page.route('**/fixture-before-dispose', route => { heldTeardownRead = route; markTeardownReadHeld(); });
+  await page.evaluate(() => { window.pendingTeardownRead = fetch('/fixture-before-dispose'); });
+  await teardownReadHeld;
   await page.locator('[data-alerts-focus]').click();
   await page.evaluate(() => window.dispose());
   assert.equal(await page.evaluate(() => document.documentElement.hasAttribute('data-alerts-focus-mode')), false, 'tab teardown restores navigation');
   assert.equal(await page.evaluate(() => window.testListenerCount('scroll')), 0, 'destroy removes the table scroll listener');
   assert.equal(await page.evaluate(() => window.testListenerCount('resize')), 0, 'destroy removes the table resize listener');
-  const count = calls.length;
-  await page.evaluate(async () => { (await import('/js/data/alert-records.js')).clearPrivateRecords(); });
+  const count = await page.evaluate(() => window.testFetches.length);
+  assert(!calls.includes('/fixture-before-dispose'), 'the already-started read has not reached the server');
+  await heldTeardownRead.continue();
+  await page.evaluate(async () => {
+    await window.pendingTeardownRead;
+    (await import('/js/data/alert-records.js')).clearPrivateRecords();
+  });
   await page.waitForTimeout(400);
-  // Name the request. A bare count mismatch here is unfalsifiable: it says something was read and
-  // never says what, so the only way to diagnose one is to reproduce it, which is precisely what a
-  // CI-only race does not allow.
-  assert.equal(
-    calls.length,
-    count,
-    `destroy removes source listeners and does not start another read (started: ${calls.slice(count).join(', ') || 'none'})`,
-  );
+  assert(calls.includes('/fixture-before-dispose'), 'the pending read can finish after teardown');
+  const startedAfterTeardown = await page.evaluate(start => window.testFetches.slice(start), count);
+  assert.deepEqual(startedAfterTeardown, [],
+    `destroy removes source listeners and does not start another read (started: ${startedAfterTeardown.join(', ') || 'none'})`);
   assert(!calls.some((p) => /\/api\/(combined-filings|drhp-filings|super-investors\/)/.test(p)), 'no per-company fanout');
   await page.evaluate(async () => {
     const newsTab = await import('/js/tabs/news.js');
