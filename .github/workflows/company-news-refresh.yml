@@ -8,19 +8,18 @@ env:
 # view. Both write through the same permanent portfolio archive and share one concurrency group,
 # so one capture can never overwrite another while it is still running.
 #
-# PAID SEARCH BUDGET. Every query this workflow makes is a paid Brave Search call through
-# fastapi.muns.io/tools/news-search. In September 2026 it ran 10-20 times a day in each Central
-# Research dashboard, around the clock, with two universe walks every weekday and a full global
-# search on every run; the two dashboards together made roughly 200,000 paid searches. The owner's
-# budget: the portfolio every 2 hours through market and post-market hours on weekdays (10:11 to
-# 18:11 IST) plus one pre-market walk at 06:11 IST every day, the complete universe on Sundays, and
-# a small slice of the global search on each walk. A portfolio walk is about $1 of searches for the
-# two dashboards together. The `gate` job holds every other trigger (news-recovery.yml, an open
-# dashboard, a Refresh click) to the same budget: walks at least 2 hours apart and at most 8 in any
-# 24 hours. Brave shows a story a median 4-6 hours after publication, so searching more often adds
-# little; headlines between walks come from the free feeds (TradingView, Moneycontrol, RSS,
-# exchange filings, Telegram, X), which keep their own fast schedules. Do not add schedules or
-# loosen the gate without an agreed budget; see the standing budget requirement in AGENTS.md.
+# FREE SOURCES, NOT PAID SEARCH. Until October 2026 every query here was a paid Brave Search call
+# through fastapi.muns.io/tools/news-search: in September the workflow ran 10-20 times a day in each
+# Central Research dashboard and the two together made roughly 200,000 paid searches. It now
+# searches Google News (free, no key; NEWS_PROVIDER=google) and reads the Upstox News API (free with
+# the owner's account; UPSTOX_ANALYTICS_TOKEN). Measured on 30 holdings over a week, Google found
+# about as many headlines that name the company as Brave did. The owner's schedule: the portfolio
+# every 2 hours through market and post-market hours on weekdays (10:11 to 18:11 IST) plus one
+# pre-market walk at 06:11 IST every day, and the complete universe on Sundays. Google's feed is
+# unofficial, so requests are paced and a 429 stops the walk. The `gate` job holds every other
+# trigger (news-recovery.yml, an open dashboard, a Refresh click) to the same schedule: walks at
+# least 2 hours apart and at most 8 in any 24 hours. Do not switch back to the paid provider or
+# loosen the gate without the owner's agreement; see the standing budget requirement in AGENTS.md.
 
 on:
   schedule:
@@ -139,10 +138,12 @@ jobs:
       # The gate job matches this step's name; rename both together.
       - name: Capture company news
         env:
+          # Free Google News search instead of the paid Muns/Brave news API.
+          NEWS_PROVIDER: google
           # The Sunday 06:11 IST schedule walks the universe. Every other run, scheduled or
           # dispatched, walks the complete portfolio.
           NEWS_SCOPE: ${{ (github.event_name == 'schedule' && github.event.schedule == '41 0 * * 0') && 'universe' || inputs.scope || 'book' }}
-        # The query ceiling bounds one run's paid searches even if the identity registry grows by
+        # The query ceiling bounds one run's searches even if the identity registry grows by
         # accident: a portfolio walk is about 130-200 searches and a universe walk about 620-670.
         run: |
           ceiling=300
@@ -157,9 +158,13 @@ jobs:
         # Core search progress must still be committed when an independent enrichment source fails.
         continue-on-error: true
         env:
-          # Paid global searches per walk, stalest first; each is up to five Brave reads. Official IR
-          # pages and the retained publisher feeds cost nothing and are read on every walk.
-          NEWS_DISCOVERY_MAX_QUERIES: "10"
+          # Free sources: Google News's international edition for the global search, and the
+          # owner's read-only Upstox Analytics Token for Upstox News (skipped when it is not set).
+          NEWS_PROVIDER: google
+          UPSTOX_ANALYTICS_TOKEN: ${{ secrets.UPSTOX_ANALYTICS_TOKEN }}
+          # Global queries per walk, stalest first; each is up to five reads within the step's
+          # six-minute budget. Official IR pages and the retained publisher feeds are read in full.
+          NEWS_DISCOVERY_MAX_QUERIES: "40"
         run: node scripts/enrich-company-news.mjs
 
       - name: Compact identical observations without removing source history

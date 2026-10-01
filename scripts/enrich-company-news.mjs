@@ -11,6 +11,8 @@ import { readNewsJson as readJson, writeNewsJson as writeJson } from './lib/news
 import { companyNewsArchiveRows, commitCompanyNewsArchive, observedCompanyArticles, readCompanyNewsIndex, recentArchivedCompanyNews } from './lib/company-news-archive.mjs';
 import { discoveryRange, discoverNewsRange, officialDocumentLinks, officialDocumentDate } from './lib/news-discovery.mjs';
 import { matchPortfolioNews } from '../public/js/data/portfolio-news-matching.js';
+import { fetchGoogleNews, GOOGLE_NEWS_LIMIT } from '../worker/free-news.mjs';
+import { fetchUpstoxNews } from './lib/upstox-news.mjs';
 
 const DATA = fileURLToPath(new URL('../public/data', import.meta.url));
 const BASE = 'https://glow-central-research.tech-441.workers.dev';
@@ -39,7 +41,8 @@ function pdfText(buffer) {
 }
 
 export async function enrichCompanyNews({ dataDir = DATA, baseUrl = BASE, fetcher = fetch,
-  now = Date.now(), budgetMs = 6 * 60000, gapMs = 2500, extractPdf = pdfText, maxQueries = Infinity } = {}) {
+  now = Date.now(), budgetMs = 6 * 60000, gapMs = 2500, extractPdf = pdfText, maxQueries = Infinity,
+  provider = 'worker', upstoxToken = null } = {}) {
   const dir = join(dataDir, 'company-news'), index = readCompanyNewsIndex(dir);
   const entities = index.entities || [];
   if (!entities.length) throw Error('No captured portfolio registry; enrichment cannot guess the active book.');
@@ -61,6 +64,19 @@ export async function enrichCompanyNews({ dataDir = DATA, baseUrl = BASE, fetche
     const entity = entities.find(e => e.entityId === matched.entityId);
     incoming.push(...observedCompanyArticles([{ ...row, source: row.publisher || row.source,
       date: row.publishedAt?.slice(0, 10) || null, discoverySource: 'publisher-feed' }], entity, 'publisher-feed', at));
+  }
+
+  // Upstox News for every listed holding, when the owner's read-only token is configured.
+  let upstox = { configured: false };
+  if (upstoxToken) {
+    try {
+      const result = await fetchUpstoxNews({ entities, token: upstoxToken, fetcher });
+      for (const { entity, row } of result.rows) incoming.push(...observedCompanyArticles([row], entity, 'upstox-news', at));
+      upstox = { configured: true, checkedAt: at, instruments: result.instruments, requests: result.requests,
+        articles: result.rows.length, failedRequests: result.errors.length, errors: result.errors.slice(0, 5) };
+    } catch (err) {
+      upstox = { configured: true, checkedAt: at, error: String(err?.message || err).slice(0, 160) };
+    }
   }
 
   const documents = companyNewsArchiveRows(dir).filter(r => r.discoverySource === 'official-ir');
@@ -106,9 +122,9 @@ export async function enrichCompanyNews({ dataDir = DATA, baseUrl = BASE, fetche
 
   const jobs = entities.flatMap(entity => entity.queries.map(query => ({ entity, query, key: `${entity.entityId}|ALL|${query}` })))
     .sort((a, b) => String(state.queries[a.key]?.lastAttemptAt || '').localeCompare(String(state.queries[b.key]?.lastAttemptAt || '')));
-  let attempted = 0, completed = 0;
+  let attempted = 0, completed = 0, rateLimited = false;
   for (const job of jobs) {
-    if (Date.now() > deadline - 20000 || attempted >= maxQueries) break;
+    if (Date.now() > deadline - 20000 || attempted >= maxQueries || rateLimited) break;
     attempted++;
     const checkpoint = state.queries[job.key] ||= {};
     const range = checkpoint.pending?.length ? { ...checkpoint.range } : discoveryRange(checkpoint, now);
@@ -124,10 +140,20 @@ export async function enrichCompanyNews({ dataDir = DATA, baseUrl = BASE, fetche
     }
     checkpoint.lastAttemptAt = at;
     checkpoint.range = range;
-    const result = await discoverNewsRange({ ...range, ranges, maxReads: 5,
+    const result = await discoverNewsRange({ ...range, ranges, maxReads: 5, limit: provider === 'google' ? GOOGLE_NEWS_LIMIT : 20,
       read: async ({ from, to }) => {
-        if (Date.now() > deadline - 20000) throw Error('budget');
+        if (Date.now() > deadline - 20000 || rateLimited) throw Error('budget');
         await new Promise(resolve => setTimeout(resolve, gapMs));
+        if (provider === 'google') {
+          // Free: Google News's international edition stands in for the paid unrestricted search.
+          try {
+            const found = await fetchGoogleNews({ query: job.query, country: 'ALL', fromDate: from, toDate: to }, { fetcher });
+            return { ok: true, country: 'ALL', articles: found.articles, truncated: found.truncated };
+          } catch (err) {
+            if (err?.reason === 'rate-limited') rateLimited = true;
+            throw err;
+          }
+        }
         const url = new URL('/api/news', baseUrl);
         url.search = new URLSearchParams({ q: job.query, from, to, country: 'ALL' });
         const response = JSON.parse((await bytes(url, fetcher)).toString('utf8'));
@@ -147,7 +173,8 @@ export async function enrichCompanyNews({ dataDir = DATA, baseUrl = BASE, fetche
     }
   }
   const stale = jobs.filter(job => !state.queries[job.key]?.lastSuccessAt || state.queries[job.key].error || state.queries[job.key].pending?.length || now - Date.parse(state.queries[job.key].lastSuccessAt) > 24 * 3600000).length;
-  const coverage = { capturedAt: at, plannedQueries: jobs.length, attemptedQueries: attempted, completedQueries: completed,
+  const coverage = { capturedAt: at, provider: provider === 'google' ? 'google-news' : 'muns', upstox,
+    plannedQueries: jobs.length, attemptedQueries: attempted, completedQueries: completed,
     staleOrIncompleteQueries: stale, pagesFailed: Object.values(state.pages).filter(p => p.error).length,
     documentsRead: docsRead, documentsPending: docQueue.length - docsSucceeded,
     note: 'Additive global and IR discovery; search-provider coverage is not exhaustive. Pending date partitions, document failures and stale queries remain retryable.' };
@@ -171,7 +198,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   // PAID SEARCH CEILING. Each global query is up to five paid Brave reads. The workflow caps the
   // queries per walk; the stalest go first and the rest wait for the next walk. Unset: no cap.
   const maxQueries = Number(process.env.NEWS_DISCOVERY_MAX_QUERIES || 0);
-  const result = await enrichCompanyNews(maxQueries > 0 ? { maxQueries } : {});
+  const result = await enrichCompanyNews({ ...(maxQueries > 0 ? { maxQueries } : {}),
+    provider: String(process.env.NEWS_PROVIDER || '').toLowerCase() === 'google' ? 'google' : 'worker',
+    upstoxToken: process.env.UPSTOX_ANALYTICS_TOKEN || null });
   console.log(JSON.stringify(result));
   if (result.staleOrIncompleteQueries || result.pagesFailed) console.log('::warning::News enrichment has incomplete coverage; retained articles are preserved and incomplete work will be retried on the next schedule.');
 }
