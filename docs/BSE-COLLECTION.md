@@ -1,15 +1,77 @@
 # BSE collection and recovery
 
-The 28 September 2026 investigation found HTTP 403 from both BSE endpoints in the
-scheduled collection environment. The unchanged adapter read the directory and
-complete announcement results locally. This indicates an environment-dependent
-access failure, not proof that GitHub's network is banned. A public BSE client
-reported the same failure beginning on 23 September and restored server access
-with a current browser User-Agent and `Sec-Fetch-Site: same-site` on 24 September
-([request-header fix](https://github.com/BennyThadikaran/BseIndiaApi/commit/14e1661ae818ac56ad806e48c7c78eb82162ed39),
-[incident and confirmation](https://github.com/BennyThadikaran/BseIndiaApi/issues/17)).
-The shared request profile now includes those headers and BSE's website origin.
-The directory and both announcement collectors use that same profile.
+## What BSE refuses (measured 1 October 2026)
+
+`api.bseindia.com` sits behind an Akamai bot filter that answers with an HTML
+"Access Denied" 403. It tightened twice in a week:
+
+- **23 September 2026.** A public BSE client reported 403s and restored access with a
+  current browser User-Agent and `Sec-Fetch-Site: same-site`
+  ([request-header fix](https://github.com/BennyThadikaran/BseIndiaApi/commit/14e1661ae818ac56ad806e48c7c78eb82162ed39),
+  [incident](https://github.com/BennyThadikaran/BseIndiaApi/issues/17)). This repository
+  adopted those headers on 28 September; the read-only access check then passed on GitHub
+  runners three times, the last at 04:24 UTC on 29 September.
+- **29 September 2026, during the day (UTC).** The same check failed at 22:09 UTC with the
+  unchanged profile, and every BSE read from GitHub has been refused since: announcements,
+  the company directory, bulk/block deals and the shareholding index.
+
+The 1 October investigation changed one header at a time, from a cloud host, with both
+`curl` and Node's `fetch` (the collectors' client):
+
+| Request change | curl | Node `fetch` |
+|---|---|---|
+| Full current-browser profile (`bseRequestHeaders()`) | accepted | accepted |
+| Referer `https://www.bseindia.com/corporates/ann.html` | **refused** | **refused** |
+| No Referer | redirected (301) | redirected (301) |
+| No Accept-Language | refused | accepted (Node sends `*`) |
+| No `sec-ch-ua` client hints | refused | accepted |
+| Chrome 138 or older | refused | accepted |
+
+The rule that broke collection is the Referer. `/corporates/ann.html` is the page BSE retired
+when it rebuilt its site (it now redirects to `/corporates/ann`), so only scripts still send
+it; the old profile with only the Referer changed was accepted, and the new profile with only
+that Referer restored was refused. Under the site's referrer policy a browser on any BSE page
+sends just the origin, `https://www.bseindia.com/`, to the API host, so that is the value now
+sent — the faithful one, and the one a site rebuild cannot retire. The other rows show the
+filter also scores how browser-like a request is, so the profile leaves it nothing to count:
+it is what a current desktop Chrome sends from BSE's own page, with Accept-Language, client
+hints and fetch metadata, and the Chrome version is **derived from the date** (one release
+behind Chrome's four-week schedule) so it cannot age into the "old browser" range.
+
+GitHub's network was never shown to be banned: the same runner type read every category on
+the morning of 29 September, and the refusals follow the request, not the host.
+
+One profile serves every BSE read — `bseRequestHeaders()` in `worker/bse-ann.mjs`, used by the
+directory, the exchange-wide and company-history announcement walks, bulk/block deals and the
+shareholding index (`exchangeRequestHeaders()` in `scripts/lib/exchange-deals.mjs`). Filing
+documents on `www.bseindia.com` were accepted with either the old or the new headers. Offline
+coverage: `node scripts/verify-bse-request-profile.mjs`.
+
+## When BSE refuses again
+
+No request profile is permanent: BSE can add a rule on any day, and did twice in one week.
+
+1. Run the **BSE read-only access check** workflow (manual dispatch), or locally
+   `node scripts/check-bse-request-profile.mjs`. Its first output is a diagnosis: the current
+   profile, then the same profile with each header and each header group removed, the retired
+   Referer and a Chrome a year old, one request each, with `required` naming what a refusal
+   turns on. A redirect is never followed and a 200 challenge page is never read as access.
+2. If one header or value explains it, change `bseRequestHeaders()` to what a current Chrome
+   sends from BSE's own page, and let the check and the scheduled jobs confirm it.
+3. If the current profile is refused and no single header explains it (`required: null`), the
+   cause is outside the headers — cookies, network or a new policy. Do not rotate disguises
+   to get past a deliberate block: fall back to the sources below and decide on licensed access.
+
+Until direct reads succeed, the Screener and NSE recoveries keep filings arriving, and the
+health checks keep the BSE gap visible.
+
+## What "permanent" can mean
+
+A public website's bot filter is BSE's to change, so direct collection is kept faithful to a
+real browser, self-updating and quick to diagnose, never guaranteed. The independent recovery
+sources below keep filings flowing during an outage. A contractual guarantee needs licensed
+access to BSE's announcement data, directly or through a data vendor; that is a cost decision
+for the owners, not a code change.
 
 ## Keep collection on free GitHub Actions
 
@@ -20,11 +82,11 @@ subscription or API key is needed to test the corrected public request profile.
 The separate access-check workflow creates no artifacts or caches and only reads
 public data; it cannot publish captures, change retry state or dispatch collection.
 
-`BSE read-only access check` compares the previous and current request profiles on
-the same standard runner. A failed previous profile is recorded; the job passes
-only when the current profile validates every requested result. Run it from a
-pull request changing the BSE adapter/checks, or use its read-only manual dispatch.
-A matching local command is:
+`BSE read-only access check` first prints the one-header-at-a-time diagnosis above,
+then compares the previous (29 September) and current request profiles on the same
+standard runner. A failed previous profile is recorded; the job passes only when the
+current profile validates every requested result. Run it from a pull request changing
+the BSE adapter/checks, or use its read-only manual dispatch. A matching local command is:
 
 ```sh
 node scripts/check-bse-request-profile.mjs
