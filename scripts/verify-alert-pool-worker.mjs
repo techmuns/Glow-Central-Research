@@ -42,7 +42,23 @@ const padding = Buffer.alloc(1024 * 1024, 'p'); // the tail must not read the co
 const archive = zip([['index.json', Buffer.from(JSON.stringify(index))], ['padding.bin', padding], [`days/${day}.json.gz`, gzipSync(JSON.stringify(shard))],
   [`days/${day}.technicals.json.gz`, gzipSync(JSON.stringify(shard))], ['ai/oops.txt', Buffer.from('not json')], [`ai/${day}.json.gz`, Buffer.from('plain, not gzip')]]);
 
-const bundle = await build({ stdin: { contents: `import {handleAlertPool} from './worker/alert-pool.mjs'; export default { fetch: (request, env, ctx) => handleAlertPool(request, env, ctx) };`,
+// Model the hosted fetch cache: it can fill the complete archive, then return a
+// perfectly valid 206 slice. Counting origin reads catches that hidden download.
+const bundle = await build({ stdin: { contents: `import {handleAlertPool} from './worker/alert-pool.mjs';
+  const fetchImpl = async (address, options) => {
+    const headers = new Headers(options?.headers);
+    if (new URL(address).hostname === 'storage.example' && headers.has('range') && options.cache !== 'no-store') {
+      const [start, end] = headers.get('range').slice(6).split('-').map(Number);
+      headers.delete('range');
+      const full = await fetch(address, { ...options, headers });
+      const bytes = new Uint8Array(await full.arrayBuffer());
+      const last = Math.min(end, bytes.length - 1);
+      return new Response(bytes.slice(start, last + 1), { status: 206,
+        headers: { 'content-range': 'bytes ' + start + '-' + last + '/' + bytes.length } });
+    }
+    return fetch(address, options);
+  };
+  export default { fetch: (request, env, ctx) => handleAlertPool(request, env, ctx, { fetchImpl }) };`,
   resolveDir: fileURLToPath(new URL('../', import.meta.url)) }, bundle: true, write: false, format: 'esm', platform: 'browser' });
 let calls = 0, ranges = [], fullReads = 0, rangeSupport = true, wrongRange = false;
 const mf = new Miniflare({ workers: [{ name: 'alert-pool-test', modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2026-05-23',
@@ -80,9 +96,9 @@ try {
   assert.equal(served.artifact, 99, 'the index carries the artifact id the browser addresses members by');
   assert.equal(served.day, day);
   assert.match(indexResponse.headers.get('cache-control'), /max-age=60/);
+  assert.equal(fullReads, 0, 'the fetch cache must not download the archive whole behind a valid 206 response');
   assert(ranges.includes(`bytes=${archive.length - (65557 + 256 * 1024)}-${archive.length - 1}`), 'the directory is read from an absolute archive-tail range');
   assert(ranges.includes('bytes=0-0'), 'a single-byte probe obtains the actual storage length');
-  assert.equal(fullReads, 0, 'the archive is never downloaded whole');
 
   const member = await fetch(new URL(`/api/alert-pool/99/days/${day}.json.gz`, base));
   assert.equal(member.status, 200);

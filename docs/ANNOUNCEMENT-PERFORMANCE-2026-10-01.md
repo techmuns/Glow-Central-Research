@@ -72,6 +72,20 @@ ranges, directory reuse, unchanged decoded shard contents, immutable caches, 304
 Publication time, source-revision checks and fallback behavior stay intact; a readable pool is
 not treated as proof that its sources are current or complete.
 
+The production rollout exposed a second layer: Cloudflare's automatic fetch cache could return
+valid 206 headers while taking roughly 15 seconds to deliver a 30-byte header near the end of
+the archive. The index still hit its 25-second deadline. An isolated hosted preview reproduced
+the delay: the same 30-byte read took 15,751 ms normally and 1,431 ms with `cache: 'no-store'`.
+Bypassing that cache for storage range requests avoids its full-object fill; the separate
+directory, index and member Cache API caches remain unchanged. Cloudflare documents this
+[outgoing-request cache bypass](https://developers.cloudflare.com/workers/runtime-apis/fetch/).
+The complete cold index path then succeeded in the hosted preview in 2,188–5,568 ms (GitHub metadata
+was supplied by the fixture; the signed storage reads and decoding ran on Cloudflare).
+
+The native Worker regression models a fetch cache that downloads the whole ZIP before returning
+a valid 206 slice. It failed with four full downloads before the bypass and verifies zero full
+downloads after the fix, alongside the existing member-cache and conditional-read assertions.
+
 ## Data integrity
 
 An independent comparison against the previous implementation merged all 707 company archive
