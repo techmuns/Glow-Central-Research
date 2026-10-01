@@ -77,7 +77,7 @@ function capturedSourceCadence(kind) {
   return 'Scheduled every two hours; progress resumes across runs. ' + (!status.available ? 'No shared capture published yet.' :
     `${kind === 'announcements' ? 'Company feeds: ' : ''}${status.checked}/${status.total} recently checked, ${kind === 'announcements' ? `${status.partial} using a partial recent-notice fallback, ` : ''}${status.failed} failed, ${status.never} never checked, ${status.stale} overdue, ${status.backfill} backfilling. ` +
     (kind === 'announcements' && status.bse?.total ? `Official BSE: ${status.bse.checked}/${status.bse.total} coded companies recently checked, ${status.bse.failed} failed, ${status.bse.never} never checked, ${status.bse.stale} overdue, ${status.bse.backfill} backfilling. ` : '')) +
-    (status.nonExchange.length ? `${status.nonExchange.length} private securities have issuer-name news coverage and no listed-equity filing feed: ${status.nonExchange.map(c => `${c.name} (${c.isin})`).join(', ')}. ` : '') +
+    (status.nonExchange.length ? `${status.nonExchange.length} private securities have issuer-name news coverage and no listed-equity filing feed: ${status.nonExchange.map(c => `${escapeHtml(c.name)} (${escapeHtml(c.isin)})`).join(', ')}. ` : '') +
     'Shared history does not expire; personal device-only additions are outside scheduled coverage.';
 }
 
