@@ -69,14 +69,15 @@ function capturedSourceReadState(kind) {
   const status = companyCaptureStatus(kind);
   if (!status.available || !status.total) return 'unchecked';
   return sourceReadState({ at: status.updatedAt, failed: !!status.error,
-    partial: !!status.gaps.length || !!status.bse?.gaps.length || !!status.unresolved.length ||
+    partial: !!status.gaps.length || !!status.bse?.gaps.length || !!status.unresolved.length || !!status.nonExchange.length ||
       !!status.unavailableLinks || !!status.bse?.unavailableLinks, maxAgeMs: 4 * 3600000 });
 }
 function capturedSourceCadence(kind) {
   const status = companyCaptureStatus(kind);
   return 'Scheduled every two hours; progress resumes across runs. ' + (!status.available ? 'No shared capture published yet.' :
-    `${kind === 'announcements' ? 'Muns: ' : ''}${status.checked}/${status.total} recently checked, ${status.failed} failed, ${status.never} never checked, ${status.stale} overdue, ${status.backfill} backfilling. ` +
+    `${kind === 'announcements' ? 'Company feeds: ' : ''}${status.checked}/${status.total} recently checked, ${kind === 'announcements' ? `${status.partial} using a partial recent-notice fallback, ` : ''}${status.failed} failed, ${status.never} never checked, ${status.stale} overdue, ${status.backfill} backfilling. ` +
     (kind === 'announcements' && status.bse?.total ? `Official BSE: ${status.bse.checked}/${status.bse.total} coded companies recently checked, ${status.bse.failed} failed, ${status.bse.never} never checked, ${status.bse.stale} overdue, ${status.bse.backfill} backfilling. ` : '')) +
+    (status.nonExchange.length ? `${status.nonExchange.length} private securities have issuer-name news coverage and no listed-equity filing feed: ${status.nonExchange.map(c => `${escapeHtml(c.name)} (${escapeHtml(c.isin)})`).join(', ')}. ` : '') +
     'Shared history does not expire; personal device-only additions are outside scheduled coverage.';
 }
 
@@ -415,7 +416,7 @@ export function sourceGroups() {
           name: 'Screener.in — company filings',
           url: 'https://www.screener.in/',
           feeds:
-            'Annual report PDFs, earnings report PDFs and concall transcripts for an Indian ticker, read through the authenticated Muns domestic-filings service. Open Earnings Hub → Company Filings, or follow Reports / Transcripts from a company row. Documents keep their original source links. This source provides documents; it does not populate a financial quality score or analyst estimates.',
+            'Annual reports, quarterly-result links and concall transcripts for an Indian ticker. Scheduled collection uses the authenticated Muns service, with a free public Screener company-page fallback when that service has no record for the company. Open Earnings Hub → Company Filings, or follow Reports / Transcripts from a company row. Documents keep their original source links; page availability does not certify an exhaustive issuer archive. This source does not populate a financial quality score or analyst estimates.',
           cadence: capturedSourceCadence('domestic'),
           status: 'live', readState: capturedSourceReadState('domestic'),
           file: 'worker/muns.mjs → POST /filings/domestic · /api/domestic-filings/{ticker} · public/js/tabs/company-filings.js',
@@ -538,7 +539,7 @@ export function sourceGroups() {
           url: 'https://news.google.com',
           feeds:
             "<strong>Real, and not ours.</strong> Articles per company from Google News search (free, no key) and, for listed holdings, Upstox News read with the owner's read-only token, which stays in GitHub and is never sent to the browser. Every active portfolio company has a stable identity: ISIN, legal name, ticker where one exists, and reviewed former-name, brand, subsidiary, alias and official-domain fields. <strong>Companies without an NSE ticker are still searched by name.</strong> Established queries use an overlapping 48-hour interval; a newly added identity term receives a 30-day backfill. Every returned portfolio article is written to a permanent monthly archive before the bounded 30-day first-paint file is derived, and an empty response never retracts captured history. Headlines, outlets and dates are the publishers', reproduced unchanged; the article stays where it is published and is never summarised into our words. <strong>Collection is broad; topic, materiality and portfolio filters are applied afterward.</strong> No sentiment is inferred from publisher reporting.",
-          cadence: 'Portfolio identities every 2 hours from 10:11 to 18:11 IST on weekdays and at 06:11 IST every day, with a 48-hour overlap · the complete universe on Sundays at 06:11 IST · permanent portfolio history',
+          cadence: 'Portfolio identities every 2 hours, around the clock, with a 48-hour overlap · the complete universe on Sundays at 06:11 IST · permanent portfolio history',
           status: 'live',
           file: 'worker/free-news.mjs · scripts/lib/upstox-news.mjs · worker/index.js → /api/news · public/js/data/company-news-identity.js · scripts/lib/company-news-archive.mjs · scripts/scrape-filings.mjs',
         },
@@ -582,7 +583,7 @@ export function sourceGroups() {
         {
           name: 'Muns — BSE / NSE / DRHP corporate announcements',
           url: 'https://devde.muns.io',
-          feeds: 'Additional corporate announcements from BSE, NSE fallback and DRHP documents through the authenticated corporate-announcements endpoint. Scheduled captures cover the committed companies, and their retained history loads automatically. Results join direct BSE and live NSE announcements in one table. Plausible cross-exchange pairs are combined only when their PDFs have the exact same SHA-256 content hash; every exchange label and original link survives. Saved rows survive an empty or failed refresh. Coverage is limited to the companies and dates successfully requested, not the whole NSE or DRHP universe.',
+          feeds: 'Additional corporate announcements from BSE, NSE fallback and DRHP documents through the authenticated corporate-announcements endpoint. If that provider has no company feed, public Screener company pages recover recent notices with an explicit partial-coverage status; they do not close historical gaps. Scheduled captures cover the committed companies, and their retained history loads automatically. Results join direct BSE and live NSE announcements in one table. Plausible cross-exchange pairs are combined only when their PDFs have the exact same SHA-256 content hash; every exchange label and original link survives. Saved rows survive an empty or failed refresh. Coverage is limited to the companies and dates successfully requested, not the whole NSE or DRHP universe.',
           cadence: capturedSourceCadence('announcements'),
           status: 'live', readState: capturedSourceReadState('announcements'),
           file: 'worker/muns.mjs → GET /filings/corp/announcements/{ticker} · public/js/data/announcements-extra.js',
