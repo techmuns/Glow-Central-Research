@@ -8,9 +8,8 @@ export const FILINGS_HEALTH_FILES = {
   news: 'company-news/index.json',
   twitter: 'twitter-posts.json',
 };
-// Company news is walked with paid searches every 2 hours from 10:11 to 18:11 IST on weekdays and at
-// 06:11 IST every day. The 24-hour weekend gap plus a late start makes 26 hours its overdue line.
-export const FILINGS_HEALTH_LIMITS = { runHours: 4, companyHours: 48, initialHours: 24, insiderHours: 3, newsHours: 26, twitterHours: 2 };
+// Company news is walked every 2 hours, around the clock, so two walks' time is its overdue line.
+export const FILINGS_HEALTH_LIMITS = { runHours: 4, companyHours: 48, initialHours: 24, insiderHours: 3, newsHours: 4, twitterHours: 2 };
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value);
 const stamp = (value) => typeof value === 'string' ? Date.parse(value) : NaN;
 const count = (value) => Number.isSafeInteger(value) && value >= 0;
@@ -154,7 +153,10 @@ export function assessFilingsHealth(captures, { now = Date.now(), sources = Obje
           if (!object(entry)) { group('company-unregistered', 'critical', ticker); continue; }
           unavailableLinks += Number(entry.unavailableLinks) || 0;
           if (kind === 'announcements' && authenticatedAnnouncementOutage) continue;
-          if (entry.error) group(['no-token', 'unauthorised'].includes(entry.error.reason) ? 'authentication-failed' : 'source-read-failed', 'critical', ticker);
+          if (entry.error?.reason === 'limited-coverage' && Number.isFinite(stamp(entry.recovery?.checkedAt))
+            && stamp(entry.recovery.checkedAt) <= now + 600000 && now - stamp(entry.recovery.checkedAt) <= 4 * 3600000)
+            group('partial-source-response', 'warning', ticker);
+          else if (entry.error) group(['no-token', 'unauthorised'].includes(entry.error.reason) ? 'authentication-failed' : 'source-read-failed', 'critical', ticker);
           else if (entry.skipped) group('partial-source-response', 'critical', ticker);
           else if (!entry.lastSuccessAt) {
             const registered = stamp(entry.registeredAt || body.createdAt);
@@ -227,6 +229,7 @@ export function assessFilingsHealth(captures, { now = Date.now(), sources = Obje
       }
       if (body.stoppedForAuth && !findings.some((f) => f.code === 'authentication-failed')) add(source, 'authentication-failed', 'critical');
       if (Array.isArray(body.unresolved) && body.unresolved.length) add(source, 'company-identities-unresolved', 'warning', body.unresolved);
+      if (Array.isArray(body.nonExchange) && body.nonExchange.length) add(source, 'private-issuer-filings-unavailable', 'warning', body.nonExchange.map(c => `${c.name} (${c.isin})`));
     } else {
       if (!object(body.byTicker)) { add(source, 'invalid-capture', 'critical'); continue; }
       const lists = Object.values(body.byTicker);

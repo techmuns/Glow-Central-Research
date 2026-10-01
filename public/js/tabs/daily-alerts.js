@@ -99,6 +99,20 @@ const arrivalsUI = createArrivalsUI(arrivals, () => tableInstance?.refreshPresen
 // ---------------------------------------------------------------------------------------
 let ctxRef = null;
 let report = null; // the last collected report
+// Failed sources retain evidence from before this collection. Partial publications from the
+// same collection can replace their own provisional identities as source deduplication settles.
+// A weak association also follows a parked report without keeping released history alive.
+const provisionalBaselines = new WeakMap();
+const retainedBaseline = value => provisionalBaselines.has(value) ? provisionalBaselines.get(value) : value;
+function projectRetainedReport(previous, saved, context) {
+  const projected = alerts.adoptAllAlertsReport(previous || saved, saved, context);
+  if (provisionalBaselines.has(previous)) {
+    const baseline = retainedBaseline(previous);
+    provisionalBaselines.set(projected, saved
+      ? alerts.adoptAllAlertsReport(baseline || saved, saved, context) : baseline);
+  }
+  return projected;
+}
 // LEAVING AND COMING STRAIGHT BACK MUST NOT BLANK THE TIMELINE. The full-history source graph is
 // released on unmount and the report is restored from the device snapshot — but that read is
 // asynchronous, so the first paint after a return had nothing to show and printed "Reading
@@ -247,7 +261,7 @@ export function render(ctx) {
       arrivals.clearPrivate();
       // Remove private rows synchronously, even while another public source is still loading.
       if (report && ctxRef) {
-        report = alerts.adoptAllAlertsReport(report, null, currentContext());
+        report = projectRetainedReport(report, null, currentContext());
         paint(ctxRef);
       }
       sourceChanged();
@@ -288,7 +302,7 @@ export function render(ctx) {
   // — but that report was collected FOR a scope, and painting Universe's rows under a Portfolio
   // pill for the second before the new collect lands is the page stating something untrue.
   if (report) {
-    report = alerts.adoptAllAlertsReport(report, null, currentContext());
+    report = projectRetainedReport(report, null, currentContext());
     // The ready in-memory view is this visit's baseline. A refresh can begin before the
     // first background check finishes; its new rows must not be mistaken for initial history.
     arrivals.observe(report, ctx.scope);
@@ -305,7 +319,7 @@ export function render(ctx) {
       if (restoreToken !== cacheToken || ctxRef !== ctx || !cached) return;
       // Disk and live reads share a mount, not a request token. Even an empty live seed can
       // arrive first; completed live sources still win if the saved copy arrives later.
-      report = alerts.adoptAllAlertsReport(report || cached, cached, currentContext());
+      report = projectRetainedReport(report, cached, currentContext());
       paint(ctxRef);
     }).catch(() => { /* Source reads remain independent of optional device storage. */ })
       .finally(() => { if (cachedRead === reading) cachedRead = null; });
@@ -402,14 +416,16 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true } = {
       // stop. The final report below paints immediately, so the settled state never waits on a timer.
       onPartial: (partial) => {
         if (!current()) return;
-        report = alerts.adoptAllAlertsReport(partial, report, context);
+        const baseline = retainedBaseline(report);
+        report = alerts.adoptAllAlertsReport(partial, baseline, context);
+        provisionalBaselines.set(report, baseline);
         arrivals.observe(report, ctx.scope);
         throttledPaint();
       },
     });
     if (!current()) return;
     cancelThrottledPaint();
-    report = alerts.adoptAllAlertsReport(next, report, context);
+    report = alerts.adoptAllAlertsReport(next, retainedBaseline(report), context);
     arrivals.observe(report, ctx.scope);
     paintAfterScroll();
     // A late device read may fill a failed source. Never overwrite its durable copy before
