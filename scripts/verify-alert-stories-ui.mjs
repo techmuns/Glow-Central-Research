@@ -73,6 +73,7 @@ await new Promise(done=>server.listen(0,'127.0.0.1',done));
 const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
 try {
   const page=debugPage=await browser.newPage({viewport:{width:1280,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+  await page.route('**/*', route => route.request().url() === 'https://sattva-family.pages.dev/research-bridge' ? route.fulfill({ contentType:'text/html', body:`<script>addEventListener('message', e => { if (e.data.channel === 'sattva-portfolio-v1') parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'}, '*'); });</script>` }) : new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.fulfill({ status:200, body:'' }));
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   await page.waitForFunction(()=>window.ready&&navigator.serviceWorker.controller);
   await page.reload();await page.waitForFunction(()=>window.ready);
@@ -81,13 +82,13 @@ try {
   assert.equal(await page.evaluate(()=>window.newsletterBatchAvailable),false,'the returning session starts with its old newsletter module');
   const before=await page.evaluate(()=>caches.keys());assert(before.some(k=>k.includes('before-story-grouping')));
   upgraded=true;await page.evaluate(async()=>await(await navigator.serviceWorker.getRegistration()).update());
-  await page.waitForFunction(()=>document.querySelectorAll('[data-ai-story-source]').length===2&&document.querySelectorAll('[data-ai-evidence] > li').length===1);
-  assert.equal(await card.locator('[data-ai-story-source]').count(),2);
+  await page.waitForFunction(()=>document.querySelectorAll('[data-ai-evidence] [data-ai-related-source], [data-ai-evidence] [data-ai-story-source]').length===2&&document.querySelectorAll('[data-ai-evidence] > li').length===1);
+  assert.equal(await card.locator('[data-ai-evidence] [data-ai-related-source], [data-ai-evidence] [data-ai-story-source]').count(),2);
   assert(!(await page.evaluate(()=>caches.keys())).some(k=>k.includes('before-story-grouping')));
   assert.equal(await page.evaluate(()=>window.newsletterBatchAvailable),true,'the automatic upgrade replaces the cached newsletter module too');
   await page.evaluate(e=>{window.fixtureEvents.push(e);window.changed();},event('filing','Alpha Bank proposes merger with Beta Bank',{
     feed:'announcements',feedLabel:'Corporate announcements',url:'https://www.bseindia.com/alpha-merger.pdf',time:'09:30'}));
-  await page.waitForFunction(()=>document.querySelectorAll('[data-ai-story-source]').length===3);
+  await page.waitForFunction(()=>document.querySelectorAll('[data-ai-evidence] [data-ai-related-source], [data-ai-evidence] [data-ai-story-source]').length===3);
   assert.match(await card.locator('[data-ai-event-source]').first().innerText(),/FILING/,'the company filing leads the same checked development');
   await card.locator('[data-alert-reading] [data-note-state="ready"]').first().waitFor();
   assert.ok(noteCalls>0,'visible material evidence receives a bounded fixture note');
@@ -106,7 +107,7 @@ try {
   assert.equal(await card.locator('[data-ai-evidence] > li').count(),1);
   await card.locator('[data-ai-story-history] > summary').click();
   assert.match(await card.locator('[data-ai-story-history]').innerText(),/proposes|plans/);
-  assert.equal(await card.locator('[data-ai-story-source]').count(),5,'new and earlier source links are accessible');
+  assert.equal(await card.locator('[data-ai-evidence] [data-ai-related-source], [data-ai-evidence] [data-ai-story-source]').count(),5,'new and earlier source links are accessible');
   const calls=apiCalls;await page.evaluate(()=>window.changed());await page.waitForTimeout(700);assert.equal(apiCalls,calls,'unchanged refresh does not request the model');
   assert(await card.locator('[data-ai-story-history]').getAttribute('open')!==null,'background paint keeps history open');
   await page.locator('[data-ai-search]').fill('proposes');assert.equal(await card.count(),1,'older evidence stays searchable');
