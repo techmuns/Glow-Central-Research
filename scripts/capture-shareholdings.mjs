@@ -4,10 +4,10 @@ import { dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { parseIndex, parseFiling, mergeFilings } from './lib/shareholding-filings.mjs';
-import { csvRows, SECURITY_URLS } from './lib/exchange-deals.mjs';
+import { csvRows, SECURITY_URLS, exchangeRequestHeaders } from './lib/exchange-deals.mjs';
 
 async function fetchOnce(url, maxBytes) {
-  const response = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0', accept: '*/*', referer: url.includes('bseindia') ? 'https://www.bseindia.com/' : 'https://www.nseindia.com/' }, signal: AbortSignal.timeout(60000) });
+  const response = await fetch(url, { headers: exchangeRequestHeaders(url), signal: AbortSignal.timeout(60000) });
   if (!response.ok) { await response.body?.cancel(); throw new Error(`HTTP ${response.status}`); }
   const reader = response.body.getReader(), parts = []; let length = 0;
   try { for (;;) { const { done, value } = await reader.read(); if (done) break; length += value.length; if (length > maxBytes) throw new Error('Public response exceeds size limit'); parts.push(value); } }
