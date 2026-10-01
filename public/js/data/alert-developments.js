@@ -23,7 +23,7 @@ export function developmentOfRow(e) {
     venues:[...new Set(members.flatMap(venuesOf))] };
 }
 export const developmentLine = (dev,{fallback=''}={}) => !dev?.lead ? fallback
-  : dev.kind==='filing' ? filingClaim(dev.lead) : clip(dev.lead.headline || fallback);
+  : dev.kind==='filing' ? filingClaim(dev.lead) : clip(dev.kind ? dev.lead.headline || fallback : fallback || dev.lead.headline);
 export const developmentSource = dev => dev?.kind==='filing' ? dev.venues.join(' · ') || 'Exchange filing' : publisherOf(dev?.lead);
 export const foldedSummary = dev => dev?.others?.length ? `${dev.others.length} other source ${dev.others.length===1?'report':'reports'}` : '';
 export function foldedList(dev,{limit=Infinity,withLinks=false}={}) {
