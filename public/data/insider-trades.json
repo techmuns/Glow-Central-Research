@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-10-01T04:18:53.877Z",
+    "capturedAt": "2026-10-01T05:41:27.168Z",
     "from": "2026-08-05",
     "to": "2026-09-30",
     "rows": 10590,
@@ -12,8 +12,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-01T04:18:53.877Z",
-  "oldestDataAt": "2026-10-01T04:18:53.877Z",
+  "capturedAt": "2026-10-01T05:41:27.168Z",
+  "oldestDataAt": "2026-10-01T05:41:27.168Z",
   "from": "2025-10-01",
   "to": "2026-10-01",
   "windowDays": 365,
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-01T04:18:53.877Z",
+      "capturedAt": "2026-10-01T05:41:27.168Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-01T04:18:53.877Z",
+      "capturedAt": "2026-10-01T05:41:27.168Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -58,12 +58,12 @@
       "label": "SAST",
       "url": "https://www.screener.in/trades/sast/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-09-29",
-      "oldestDate": "2026-09-24",
+      "latestDate": "2026-09-30",
+      "oldestDate": "2026-09-25",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-01T04:18:53.877Z",
+      "capturedAt": "2026-10-01T05:41:27.168Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,7 +76,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-01T04:18:53.877Z",
+      "capturedAt": "2026-10-01T05:41:27.168Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -84,7 +84,7 @@
   "covered": 4,
   "withRows": 1880,
   "emptyCount": 0,
-  "rowCount": 19697,
+  "rowCount": 19710,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -337714,6 +337714,21 @@
     "VALUE360": [
       {
         "ticker": "VALUE360",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Value 360 Commu.",
+          "Insider": "Craft Emerging Marketing Fund PCC",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1280400",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "VALUE360",
         "date": "2026-09-16",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=6",
         "sourceId": "bulk",
@@ -338039,6 +338054,21 @@
           "Trade Shares": "90000",
           "Trade Value": "1.62 crore",
           "Price": "180",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MAGSON",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Magson Retail",
+          "Insider": "Rajesh Emmanuel Francis",
+          "Transaction": "Sell",
+          "Trade Shares": "125000",
           "Broadcast Date": "2026-09-30",
           "Source": "Screener.in"
         }
@@ -358686,6 +358716,36 @@
     "HINDCON": [
       {
         "ticker": "HINDCON",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Hindcon Chemical",
+          "Insider": "Hindcon Solutions Privat Ltd.",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1146",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "HINDCON",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Hindcon Chemical",
+          "Insider": "Hindcon Solutions Privat Ltd",
+          "Transaction": "Acquisition",
+          "Trade Shares": "15000",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "HINDCON",
         "date": "2026-09-28",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -360009,6 +360069,51 @@
       }
     ],
     "ACTIVEINFR": [
+      {
+        "ticker": "ACTIVEINFR",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Active Infra.",
+          "Insider": "Riaan Ventures Private Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "13800",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ACTIVEINFR",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Active Infra.",
+          "Insider": "Riaan Ventures Private Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "27000",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ACTIVEINFR",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Active Infra.",
+          "Insider": "SGR Ventures Private Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "13800",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "ACTIVEINFR",
         "date": "2026-09-29",
@@ -362911,6 +363016,21 @@
       }
     ],
     "MCL": [
+      {
+        "ticker": "MCL",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "M Tek Copper",
+          "Insider": "MR. RAJESH ODHAVJIBHAI PATEL",
+          "Transaction": "Sell",
+          "Trade Shares": "250000",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "MCL",
         "date": "2026-09-29",
@@ -370816,6 +370936,21 @@
     "MRIL": [
       {
         "ticker": "MRIL",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Mahendra Realtor",
+          "Insider": "Neomile Growth Fund - Series I",
+          "Transaction": "Acquisition",
+          "Trade Shares": "560000",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MRIL",
         "date": "2026-09-18",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=4",
         "sourceId": "bulk",
@@ -372347,6 +372482,21 @@
       }
     ],
     "AIROLAM": [
+      {
+        "ticker": "AIROLAM",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Airo Lam",
+          "Insider": "Sureshbhai Hansarajbhai Patel",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3003",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "AIROLAM",
         "date": "2026-09-21",
@@ -383071,6 +383221,51 @@
       }
     ],
     "AMIABLE": [
+      {
+        "ticker": "AMIABLE",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Amiable Logistic",
+          "Insider": "Ami Mange",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3200",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AMIABLE",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Amiable Logistic",
+          "Insider": "Mr. Lalit Mange",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1600",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AMIABLE",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Amiable Logistic",
+          "Insider": "Mr. Mohanlal Nanda",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1600",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "AMIABLE",
         "date": "2026-09-29",
