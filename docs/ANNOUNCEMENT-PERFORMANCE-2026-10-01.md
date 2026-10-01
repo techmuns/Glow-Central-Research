@@ -16,6 +16,9 @@ still combines BSE, company captures and NSE in the browser. This change adds no
   batches. Shared downloads continue when a view closes; obsolete paints cannot write into the
   next tab. Concurrent archive publications are serialized, and input changes during preparation
   are rechecked before publishing.
+- Preparation before painting is explicitly enabled for Corporate Announcements. News retains
+  its existing publication lifecycle and keeps its filters mounted during partial source loads;
+  its publisher browser suite verifies that shared rendering changes do not regress this behavior.
 - Status-only company archive checks preserve array identity. Metadata reads reuse the prepared
   result instead of rebuilding it. All source checks, cadence and retention remain unchanged.
 - The table's idle search work now warms the company search control's actual normalized index.

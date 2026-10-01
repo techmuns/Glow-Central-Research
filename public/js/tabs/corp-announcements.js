@@ -324,6 +324,7 @@ const announcements = makeFilingsTab({
   compactHead: true,
   headAside: (ctx) => viewSwitchHtml(ctx, ANNOUNCEMENTS_VIEW),
   feed,
+  prepareBeforePaint: true,
   filterByScope: feed.filterByScope,
   countLabel: (rows) => {
     const companies = new Set(rows.map(r => r.isin || r.ticker || r.company).filter(Boolean)).size;

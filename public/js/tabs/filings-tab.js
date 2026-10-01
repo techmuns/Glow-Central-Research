@@ -83,6 +83,9 @@ const REASONS = {
  * @param {Function|false} [cfg.link] custom row-link getter, or false when the tab owns its link cell
  */
 export function makeFilingsTab(cfg) {
+  // Opt in per view: News already prepares its own source publications and keeps
+  // its partially loaded controls mounted while a new reading window loads.
+  const prepareRows = cfg.prepareBeforePaint ? () => cfg.feed.prepareRows?.() : null;
   const meta = { id: cfg.id, title: cfg.title, subtitle: cfg.subtitle, subviews: [] };
 
   let token = 0;
@@ -101,7 +104,7 @@ export function makeFilingsTab(cfg) {
       paintPending = true;
       const generation = token;
       try {
-        await cfg.feed.prepareRows?.();
+        await prepareRows?.();
         if (ctxRef && generation === token) paint(ctxRef);
       } finally { paintPending = false; }
     });
@@ -187,7 +190,7 @@ export function makeFilingsTab(cfg) {
     //
     // Released in destroy(), not by the next repaint — otherwise the first arrival tears down the
     // subscription that produced it.
-    if (!unsub) unsub = cfg.feed.onChange(cfg.feed.prepareRows ? requestPaint : () => ctxRef && paint(ctxRef));
+    if (!unsub) unsub = cfg.feed.onChange(prepareRows ? requestPaint : () => ctxRef && paint(ctxRef));
 
     // THE HEADER'S REFRESH BUTTON IS WHAT WALKS THESE ROUTES, and only while this tab is mounted.
     // Registration is per mounted tab on purpose: a reader on News should not pay for the other two
@@ -211,12 +214,12 @@ export function makeFilingsTab(cfg) {
     // at module level, but which companies are in scope changes with the toggle — and `wanted` is
     // what the freshness strip counts as unchecked and what Refresh walks. Setting it only inside
     // `load()` let the first scope to mount own the list for the life of the page.
-    if (cfg.feed.prepareRows) {
+    if (prepareRows) {
       // The shared content root may still contain another tab. Cover it before
       // yielding, so a newly selected tab can never expose the old tab's controls.
       disposers.forEach(dispose => dispose && dispose()); disposers = [];
       ctx.root.innerHTML = `${sectionHead(headConfig(ctx))}${loadingHtml()}`;
-      await cfg.feed.prepareRows();
+      await prepareRows();
       if (t !== token) return;
     }
     const items = tickersFor(ctx);
@@ -231,7 +234,7 @@ export function makeFilingsTab(cfg) {
         ctx.root.innerHTML = `${sectionHead(headConfig(ctx))}${loadingHtml()}`;
       }
       cfg.feed.load(items).then(() => {
-        if (t === token) cfg.feed.prepareRows ? requestPaint() : paint(ctx);
+        if (t === token) prepareRows ? requestPaint() : paint(ctx);
       });
       return;
     }
@@ -487,10 +490,10 @@ export function makeFilingsTab(cfg) {
     // arrival repaints the panel, so whichever button was pressed is long gone by the time there
     // is anything to report.
     refreshLabel = refreshRegistry.resultLabel(refreshRegistry.summarize([out]));
-    if (ctxRef) cfg.feed.prepareRows ? requestPaint() : paint(ctxRef);
+    if (ctxRef) prepareRows ? requestPaint() : paint(ctxRef);
     labelReset = setTimeout(() => {
       refreshLabel = 'Check for new';
-      if (ctxRef) cfg.feed.prepareRows ? requestPaint() : paint(ctxRef);
+      if (ctxRef) prepareRows ? requestPaint() : paint(ctxRef);
     }, 6000);
   }
 
