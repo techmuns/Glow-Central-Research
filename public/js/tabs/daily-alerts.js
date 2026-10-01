@@ -1,3 +1,4 @@
+import { reconcileMarkup } from '../ui/reconcile-markup.js';
 import { readableFilingUrl } from '../data/nse-xbrl-shared.js';
 import { storyGrouping } from '../data/alert-stories.js';
 import { foldAlertRowsAsync, membersOf, developmentOfRow, developmentLine } from '../data/alert-developments.js';
@@ -530,7 +531,7 @@ function paint(ctx) {
       if (status && newStatus) status.innerHTML = newStatus.innerHTML;
       const grid = coveragePanelContainer.querySelector('[data-alerts-coverage] > div:nth-child(2)');
       const newGrid = newPicker.querySelector('[data-alerts-coverage] > div:nth-child(2)');
-      if (grid && newGrid) grid.innerHTML = newGrid.innerHTML;
+      if (grid && newGrid) reconcileMarkup(grid, newGrid.innerHTML);
     }
     
     wireHorizon(ctx);

@@ -4452,3 +4452,70 @@ new/removed disclosures; a zero valuation is not evidence of an exit. Original s
 partial coverage and retained versions must survive every refresh and export.
 
 Source collection safeguards follow `docs/SOURCE-COLLECTION-RELIABILITY.md`: a directory failure cannot erase source filings or become a fresh identity check, and an empty Screener watchlist requires independent management and list verification.
+
+Corporate Announcements offers company-name/ticker suggestions and exact issuer selection.
+The selection intersects scope, date and text filters for rows, counts and export, survives
+refreshes, and remains explicitly outside scope after a scope change. Verified BSE/NSE identities
+join aliases; another issuer mentioning the company is not its filing. Search outages keep saved
+suggestions and ordinary text search available. Collection and retained history are unchanged.
+
+### AI Alerts reading parity (October 2026)
+
+Event-type filters are remembered, use OR within selected types, and intersect scope,
+search and priority. Routine notices are hidden by a visible, reversible control.
+Filtering changes displayed evidence and notebook snapshots, never company priority
+or archive identity. Source citations retain original publisher URLs and checked
+story history. Verified private holding sizes can sort every scope; failed or
+revoked access removes weights without dropping public evidence or masking source failures.
+
+### Factual alert summaries and durable attempts
+
+AI summaries use captured substantive filing/result text only. News, routine notices,
+headline-only items and private sources do not generate summaries. An explicit skip
+omits the section. The new prompt namespace must never reuse an old implication as
+a factual summary. Retain successful summaries and failed-attempt receipts; reserve
+budget and attempts before provider I/O, allow at most three temporary-failure
+attempts per content key, and honor server retry times across readers and restarts.
+Keep Sattva's pinned OpenAI provider and ordinary-object RPC responses.
+
+### Company alert timelines
+
+AI cards expose all selected recent developments in a bounded scrolling window and
+lazily load complete retained older public history. Older evidence must not change
+the 14-day priority or current headline. Preserve checked story members, source
+links, bookmarks, scroll anchors and partial public history when a source fails.
+Clear private history on access changes. Timeline scrolling must not request AI
+summaries; only the visible card headline can carry its optional factual summary.
+
+AI Alerts is the default first tab; Ask Research keeps its existing route and availability.
+Mutual Funds preserves Company Holdings as its default, with All Schemes and Category Performance
+from the same dated public AmfiBeas snapshot. Portfolio sizes never enter that public cache.
+
+### Private price levels shared with Sattva Family
+
+The dedicated `sattva-private-price-levels:v1` CaptureRegistry object keeps shared levels,
+deleted-company tombstones and reached history. Family sends changed level kinds only; explicit
+imports seed in batches of at most 40 and never overwrite a known company or deletion. Capacity
+is 600 active companies. Reached history is paginated without an oldest-record cutoff.
+
+`/api/price-levels` is service-only, requires a separate `FAMILY_PRICE_LEVELS_TOKEN` of at least
+32 characters, and grants no access from Origin or the names-only holdings token. The identical
+secret belongs only on the Central Worker and Family Pages production server; it must never be
+put in browser assets, URLs or logs. Adding it is a production configuration action requiring
+specific authorization. Family's existing password gate protects its proxy and every bridge read
+rechecks that session. Central keeps replies in memory, excludes them from public alert caches and
+automatic model requests, and clears them when the connection or authorization is lost.
+
+Explicit saves activate a durable alarm using the existing Upstox credential. GET is read-only.
+Pending levels are checked every minute during the configured weekday exchange window, with
+15-minute wakes outside it. Quotes must match exact NSE ISIN and ticker and the current IST day.
+Last trades preceding a level's set time cannot fire it; day extremes apply only to levels set
+before that session opened. Edits invalidate completeness; partial quotes never advance the last
+complete check. Market closures, credential expiry and source outages remain visible.
+
+A hit records when this service observed the level, its quote time and the evidence basis. This
+is retained history from first capture, not an exhaustive trade archive: minute sampling can miss
+an intraday crossing after a level was set, and outages cannot reconstruct those missed ticks.
+A level fires once until its value changes. Family's current-price status can change back after a
+reversal while Central keeps the dated hit. Sharing currently requires a verified NSE ticker/ISIN;
+unsupported holdings are refused explicitly. No test writes sample levels to production.

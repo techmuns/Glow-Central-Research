@@ -43,7 +43,7 @@ const { spawnSync } = await import('node:child_process');
 const root = fileURLToPath(new URL('../', import.meta.url));
 const temporary = mkdtempSync(join(tmpdir(), 'sattva-bse-directory-'));
 try {
-  for (const part of ['scripts/lib','public/js/data','worker/bse-ann.mjs','scripts/scrape-bse-announcements.mjs']) {
+  for (const part of ['scripts/lib','public/js/data','public/js/core','worker/bse-ann.mjs','scripts/scrape-bse-announcements.mjs']) {
     mkdirSync(dirname(join(temporary,part)), { recursive:true });
     cpSync(join(root,part),join(temporary,part),{recursive:true});
   }
@@ -52,6 +52,7 @@ try {
   writeFileSync(join(data,'announcement-identities.json'),registryText);
   writeFileSync(join(data,'corp-announcements.json'),JSON.stringify({ byTicker:{ ALPHA:[{newsId:'old-retained',ticker:'ALPHA',company:'Alpha',title:'Earlier evidence',headline:'Earlier evidence',date:'2026-08-01'}] }, from:'2026-08-01', to:'2026-09-23', lastCompleteTo:'2026-09-23' }));
   writeFileSync(join(temporary,'fixture.mjs'), `
+    Date.now = () => ${now};
     globalThis.fetch = async input => {
       const url = new URL(input);
       if (url.pathname.includes('ListofScripData')) return new Response('denied',{status:403});
@@ -73,6 +74,10 @@ try {
   assert.equal(readFileSync(join(data,'announcement-identities.json'),'utf8'),registryText,'no identity timestamp or bytes are republished');
   assert(JSON.parse(readFileSync(join(data,'announcements-archive/2026-08.json'),'utf8')).rows.some(row=>row.newsId==='old-retained'),'old evidence is archived before the display window');
   const failed=run(true); assert.notEqual(failed.status,0);
-  assert.equal(readFileSync(join(data,'corp-announcements.json'),'utf8'),captureText,'a filing endpoint failure cannot overwrite retained evidence');
+  const failedCapture = JSON.parse(readFileSync(join(data,'corp-announcements.json'),'utf8'));
+  assert.deepEqual(failedCapture.byTicker, capture.byTicker, 'a failed endpoint cannot overwrite retained evidence');
+  assert.equal(failedCapture.capturedAt, capture.capturedAt);
+  assert.equal(failedCapture.lastCompleteTo, capture.lastCompleteTo);
+  assert(failedCapture.lastError, 'the new failed attempt must be visible');
   console.log('PASS scheduled entry point: directory 403 still captures known and unknown issuers, preserves registry/history, and refuses a failed filing response.');
 } finally { rmSync(temporary,{recursive:true,force:true}); }

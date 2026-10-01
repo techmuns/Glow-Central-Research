@@ -15,8 +15,9 @@ Captured public-source fixtures from Glow supply these regression cases:
 
 ## Source and comparison rules
 
-`worker/newsletter-markets.mjs` owns quote validation. Yahoo comparisons require
+`worker/newsletter-markets.mjs` owns quote validation. Indian Yahoo comparisons require
 the immediately preceding dated unadjusted daily bar in an ordered daily series.
+Global quotes may use the validated published comparison described below.
 The quote's session must be represented in that series. A null prior bar, missing
 session, invalid value or conflicting explicit previous close withholds the
 daily change. For Indian indices, the existing known exchange calendar also
@@ -145,3 +146,27 @@ close merely because it occurred after the ordinary 15:30 cutoff.
 
 
 Ported from Glow #1285 and #1291, retaining Sattva’s portfolio, branding, readable filing links, subscriber ledger and existing schedule. Validation is local with injected source responses; no production send or manual deployment is needed.
+
+## Published global changes and Nasdaq history (October 2026)
+
+A global quote may provide its own daily price/change/percent tuple. Accept it only
+when the exact instrument, currency and timezone match, the published comparison
+price equals the regular-session quote, and the arithmetic agrees. Keep its original
+observation time and identify the comparison as provider-reported; a calculated
+reference does not acquire an invented historical date or independent verification.
+Cash-index historical comparisons must agree when available. FX fixings and rolling
+futures chart bars cannot substitute for their quoted comparison. Missing or
+contradictory values remain withheld. Published feed delays stay visible.
+
+For a closed Nasdaq Composite (^IXIC) quote with a known missing predecessor, a
+bounded read of [Nasdaq COMP history](https://indexes.nasdaq.com/Index/History/COMP)
+can supply the comparison only when the closing level, both exact trading dates,
+currency and adjacent EOD arithmetic match. Preserve the quote and its clock.
+Never substitute Nasdaq-100, skip an absent session or overwrite a conflict with
+a fallback. This adds no paid model call and does not alter Indian-index validation.
+
+Regression fixtures from Glow's public-source captures cover all fifteen global
+quotes, missing Nasdaq comparisons, DST/weekends, null or duplicate sessions,
+identity mismatches, partial responses, stale observations and source conflicts.
+HTML, plain text, PDF and delivery metadata disclose the comparison source. The
+existing saved editions, delivery ledger and OpenAI budgets remain unchanged.

@@ -1,6 +1,6 @@
-# Shared alert developments and excerpt notes
+# Shared alert developments and factual summaries
 
-Updated 24 September 2026 (the note model and the RPC fix are below). AI Alerts and All Alerts
+Updated 1 October 2026. AI Alerts and All Alerts
 use Sattva's existing semantic story engine. Glow's presentation and note workflow are adapted
 without installing its separate heuristic matcher. Story/development IDs, 180-day device
 history, material-update sequence, first source date and archive/resurfacing rules remain
@@ -26,37 +26,39 @@ underlying source collection and history continue. Existing rows remain visible 
 projection is prepared. Already-cached decisions load without forcing a new review. Visible
 material items can request the existing bounded semantic review; its own budget still applies.
 
-## “So what? · AI excerpt reading”
+## Optional AI summaries
 
-The optional note reads the displayed company statement/headline/detail, company/sector and
-fiscal-year context. **It does not read the linked PDF or full article.** It must not be described
-as equivalent to the newsletter's source-document reader. The visible label and explanation
-state this narrower basis; the original source is linked alongside it. News requires confirmed
-company attribution. Private/portfolio-only rows and price/volume-only measurements cannot
-request a note.
+Visible substantive corporate filings and results may receive a short factual summary when
+captured text adds useful detail beyond the headline. News, routine notices, measurements and
+headline-only records do not make a model request. Private/portfolio-only rows stay excluded.
+The summary reads supplied text only: **linked PDFs and full articles have not been read**.
+The original source remains available. This is separate from the newsletter document reader.
 
 Only visible material items are queued, in batches of at most eight. Painting, search and export
-alone do not start model calls. The server exposes a same-origin POST route; GET/prefetch cannot
-invoke it. Responses are bounded, must finish normally and must contain string notes within the
-length limit. Unsupported figures, categorical predictions, advice and share-price calls are
-withheld. Fiscal-year context cannot justify an otherwise unsupported monetary figure. Numeric
-and wording guards reduce errors; they cannot certify semantic correctness.
+alone do not start model calls. The same-origin POST route rejects cross-origin requests;
+GET/prefetch cannot generate a summary. Completed replies use a strict nullable-string schema.
+An explicit no-summary response removes the entire summary section. Actual failures stay named.
+Unsupported figures, advice and share-price calls are withheld. Numeric and wording guards
+reduce errors; they cannot certify semantic correctness or live model quality.
 
-Notes are keyed by normalized input, policy version and fiscal-year context, shared across
-concurrent readers and cached for 60 days. Changed evidence or fiscal context changes the key.
-Missing credentials, refusals, an account with no credit, incomplete responses, budget exhaustion
-and timeouts are explicit absence states; none removes the source development. The response and
-request contain no model credential. "No AI service here" is reserved for a copy served without
-the Worker; a Worker that answers with a failure says `unavailable` (retried after two minutes)
-or `no-service` (the deployment lacks the note store). The new fixed Durable Object uses the
-already-provisioned class and independent SQL storage; it does not migrate or reset story
-history, newsletter data or private Family data.
+The content key includes the new `sattva-alert-summary:v1` prompt namespace and only the source
+fields supplied to the model. Current fiscal years and unrelated metadata do not change it.
+Successful summaries and attempt receipts do not expire. Earlier implication notes retain their
+old keys and are never relabelled as factual summaries. No stored history is deleted.
 
-The durable allowance is **1,200 new note attempts per Indian calendar day**, charged before
-model I/O, including failed/uncertain attempts. The route additionally limits requests per address.
-This is a request-count allowance, **not a monetary cap**. It is separate from the newsletter's
-USD 1/day and USD 25/month news budget, and from the existing semantic-story budget. No global
-AI financial ceiling is claimed.
+The durable allowance remains **1,200 new attempts per Indian calendar day**, charged before
+provider I/O. Budget and attempt receipts are reserved in one synchronous storage transaction.
+Concurrent readers share the pending response. Terminal results, including rejected output and
+unnecessary summaries, are never purchased again for unchanged content. Temporary provider
+failures share backoff across reloads and restarts, with a maximum of three paid attempts per
+content key. Source corrections can create a new key. This request allowance is not a monetary
+cap and remains separate from newsletter and semantic-story budgets.
+
+Missing keys, refusals, quota exhaustion, incomplete responses, daily budget exhaustion and
+timeouts remain explicit. “No AI service here” describes a static deployment; a Worker's own
+failure is `unavailable`, and missing service configuration is `no-service`. The existing object,
+provider pin and private Family boundaries remain unchanged. RPC results are ordinary objects,
+including when a caller supplies an ID such as `__proto__`.
 
 ### The note model: gpt-6-luna
 
@@ -83,7 +85,7 @@ without `Object.prototype` ("Could not serialize object of type Object"). Every 
 failed at the Durable Object boundary, even for items that needed no model; the route answered
 `503 notes-unavailable`, and the page printed that as *this copy of the dashboard has no AI
 service*, permanently for the session. Node tests passed because they never cross RPC. The store
-now returns ordinary objects (`Object.fromEntries`), the route logs the underlying error, and the
+now returns ordinary objects (copied from safe internal dictionaries), the route logs the underlying error, and the
 browser no longer calls a Worker's failure "no AI service". **Anything a Durable Object RPC method
 returns must be ordinary objects and arrays.**
 
@@ -99,6 +101,7 @@ vocabulary. The existing semantic story suite covers 100 reports, later approval
 corrections, archive behavior and restarts. `verify-alert-notes.mjs` checks the contract, server
 budget/cache/concurrency, the OpenAI request and every OpenAI failure state, the provider pin,
 RPC-safe answers, route boundaries and browser sharing with fixture model replies.
+`verify-alert-summaries-ui.mjs` checks viewport-only generation, skipped sections, export and repaint neutrality, reload reuse and mobile layout.
 `verify-alert-notes-runtime.mjs` drives the real route and Durable Object over RPC and SQLite in
 workerd, with OpenAI replaced by a fixture; it fails on the pre-fix store with the live `503`.
 

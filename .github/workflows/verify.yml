@@ -17,7 +17,7 @@ jobs:
           curl --fail --silent --show-error --location https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o "$RUNNER_TEMP/actionlint.tar.gz"
           echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
           tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
-          "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= .github/workflows/mutual-funds-refresh.yml .github/workflows/investor-disclosures-refresh.yml .github/workflows/verify.yml
+          "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= .github/workflows/mutual-funds-refresh.yml .github/workflows/investor-disclosures-refresh.yml .github/workflows/verify.yml .github/workflows/announcements-refresh.yml .github/workflows/bse-access-check.yml
   contracts:
     runs-on: ubuntu-latest
     # Full-history alert checks exceeded the former ten-minute job budget while
@@ -76,6 +76,8 @@ jobs:
         run: node scripts/verify-research.mjs && node scripts/verify-research-completion.mjs && node scripts/verify-research-claude.mjs && node scripts/verify-research-retrieval.mjs && node scripts/verify-research-catalysts.mjs && node scripts/verify-research-evaluation.mjs && node scripts/verify-research-preview.mjs
       - name: Verify Claude streaming in the native local Worker runtime
         run: node scripts/verify-research-claude-runtime.mjs
+      - name: Verify private shared price alerts, retained history and Worker restart
+        run: node scripts/verify-private-price-levels.mjs && npx --yes --package=wrangler@4.119.0 -c 'node scripts/verify-private-price-runtime.mjs'
       - name: Verify private portfolio bridge
         run: node scripts/verify-portfolio-bridge.mjs
       - name: Verify comparable portfolio businesses and dated event returns
@@ -91,7 +93,7 @@ jobs:
       - name: Verify additive corporate-announcement lookups
         run: node scripts/verify-announcement-lookups.mjs && node scripts/verify-announcement-document-hashes.mjs
       - name: Verify continuous corporate announcement sources and retention
-        run: node scripts/verify-corporate-stream.mjs
+        run: node scripts/verify-corporate-stream.mjs && node scripts/verify-bse-collection.mjs && node scripts/verify-announcement-recovery.mjs
       - name: Verify domestic filings and earnings provenance
         run: node scripts/verify-domestic-filings.mjs
       - name: Verify automatic filing capture and archives
@@ -145,7 +147,7 @@ jobs:
       - name: Verify the precomputed alert pool is exact and stands aside honestly
         run: node scripts/verify-alert-pool-cache.mjs && node scripts/verify-alert-pool-delivery.mjs && node --max-old-space-size=4096 scripts/verify-alert-pool.mjs
       - name: Verify AI alert search, calendar dates and the KPIs in play
-        run: node scripts/verify-ai-alerts.mjs && node scripts/verify-alert-capacity.mjs && node scripts/verify-kpi-impact.mjs
+        run: node scripts/verify-ai-alerts.mjs && node scripts/verify-ai-alert-types.mjs && node scripts/verify-alert-timeline.mjs && node scripts/verify-alert-capacity.mjs && node scripts/verify-kpi-impact.mjs
       - name: Verify material alert lifecycle and optional social coverage
         run: node scripts/verify-alert-reliability.mjs && python3 scripts/verify-twitter-collection.py
       - name: Syntax-check JavaScript
@@ -175,10 +177,14 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-general-alerts-ui.mjs && node scripts/verify-all-alerts-restore-ui.mjs
+      - name: Verify private alert access, pagination and public-cache exclusion
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-private-price-ui.mjs
       - name: Verify AI story updates, sources and returning-session upgrade
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-alert-stories-ui.mjs
+        run: node scripts/verify-alert-stories-ui.mjs && node scripts/verify-alert-summaries-ui.mjs
       - name: Verify Sattva deals across scopes, automatic refresh and history
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
@@ -246,7 +252,7 @@ jobs:
       - name: Verify stable alert refresh, portfolio failures and navigation
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-ai-alerts-ui.mjs && node scripts/verify-alert-capacity-ui.mjs && node scripts/verify-kpi-impact-ui.mjs
+        run: node scripts/verify-ai-alerts-ui.mjs && node scripts/verify-ai-alert-types-ui.mjs && node scripts/verify-ai-alert-timeline-ui.mjs && node scripts/verify-alert-capacity-ui.mjs && node scripts/verify-kpi-impact-ui.mjs
       - name: Verify explicit refresh through the service worker
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
@@ -254,7 +260,7 @@ jobs:
       - name: Verify Mutual Fund portfolio table and grouped detail
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-mutual-funds-ui.mjs && node scripts/verify-mutual-funds-cache-ui.mjs && node scripts/verify-mutual-funds-upgrade-ui.mjs
+        run: node scripts/verify-fund-returns-ui.mjs && node scripts/verify-mutual-funds-ui.mjs && node scripts/verify-mutual-funds-cache-ui.mjs && node scripts/verify-mutual-funds-upgrade-ui.mjs
       - name: Verify instant repeat visits and interaction cache boundaries
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
@@ -338,9 +344,9 @@ jobs:
         run: node scripts/verify-shared-watchlist-ui.mjs
   portfolio-research:
     runs-on: ubuntu-latest
-    # Keep all 426 cases. Setup once consumed 14 minutes; budget it separately so the
-    # complete evidence suite still gets 30 minutes, plus bounded checkout/setup headroom.
-    timeout-minutes: 50
+    # Check every saved holding. The complete 354-case run takes about 36 minutes
+    # on GitHub runners; allow 45 minutes plus bounded browser setup headroom.
+    timeout-minutes: 65
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -352,7 +358,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/research-browser" --no-save --package-lock=false playwright@1.62.1
           node "$RUNNER_TEMP/research-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Verify evidence and previews across the complete saved portfolio
-        timeout-minutes: 30
+        timeout-minutes: 45
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/research-browser/node_modules/playwright
         run: node scripts/verify-research-portfolio.mjs

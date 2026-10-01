@@ -1,3 +1,4 @@
+import { developmentOfRow, developmentLine } from './alert-developments.js';
 import { clip, isTypeOnly, sourceStatement, filingClaim, CLAIM_MAX } from './alert-claims.js';
 export { isTypeOnly, sourceStatement, filingClaim, CLAIM_MAX } from './alert-claims.js';
 // data/ai-alerts.js — THE EXPLAINABLE PRIORITY LAYER OVER GENERAL ALERTS.
@@ -40,6 +41,7 @@ const rankingOptions = new WeakMap();
 const rankingEvidence = new WeakMap();
 
 const FEED_WEIGHT = {
+  'price-levels': 18,
   earnings: 12,
   announcements: 10,
   'nse-filings': 10,
@@ -427,6 +429,7 @@ export function confluenceOf(events, { feedById = new Map() } = {}) {
  * title carries the feed's own label and its time, and the row opens that feed's own tab.
  */
 export const FEED_TAG = {
+  'price-levels': 'LEVEL',
   earnings: 'RESULT',
   concalls: 'CALL',
   'screener-insights': 'INSIGHT',
@@ -745,7 +748,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
   }
   const firstDay = shiftDay(day, -(WINDOW_DAYS - 1));
   // Private weights never come from the persisted names-only coverage list.
-  const weights = report?.scope === 'portfolio' && positionSizes?.sizes.complete
+  const weights = positionSizes?.sizes.complete
     ? positionSnapshotIndex({ ...positionSizes, holdings: positionSizes.holdings || holdings }) : new Map();
   const feedById = new Map((report?.feeds || []).map((feed) => [feed.id, feed]));
   const holdingByTicker = new Map(
@@ -786,7 +789,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     const hasMaterialNegative = events.some((event) => event.importance === 'high' && event.direction === 'negative');
     const holding = holdingByTicker.get(ticker) || holdingByEntity.get(entityId) || null;
     const materialPortfolioEvent = !!holding && events.some((event) => event.importance === 'high' &&
-      !!event.url && (materialFiling(event) || (feedFamily(event) === 'news' && event.namesCompany === true) || isRelatedNewsContext(event)));
+      !!event.url && (event.feed === 'price-levels' || materialFiling(event) || (feedFamily(event) === 'news' && event.namesCompany === true) || isRelatedNewsContext(event)));
     const mixed = directions.positive > 0 && directions.negative > 0;
     const scoreBreakdown = [...(top?.score.parts || [])];
 
@@ -882,7 +885,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
   cards = enriched;
 
   cards.sort(
-    (a, b) => (weights.size ? (b.holdingWeightPct ?? -1) - (a.holdingWeightPct ?? -1) : 0) || b.score - a.score || b.highCount - a.highCount || String(b.topEvent?.day || '').localeCompare(String(a.topEvent?.day || '')) || a.company.localeCompare(b.company)
+    (a, b) => (report?.scope === 'portfolio' && weights.size ? (b.holdingWeightPct ?? -1) - (a.holdingWeightPct ?? -1) : 0) || b.score - a.score || b.highCount - a.highCount || String(b.topEvent?.day || '').localeCompare(String(a.topEvent?.day || '')) || a.company.localeCompare(b.company)
   );
   // A new checked development must stand on its own after the original evidence ages out.
   // Keep the measured score and the source's importance tag; neither is a new-facts gate.
@@ -899,8 +902,8 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     cards: surfaced,
     allCards: cards,
     meta: {
-      positionSizes: report?.scope === 'portfolio' ? positionSizes?.sizes || null : null,
-      sortedByHolding: weights.size > 0,
+      positionSizes: positionSizes?.sizes || null,
+      sortedByHolding: report?.scope === 'portfolio' && weights.size > 0,
       firstDay,
       rawEvents: recent.length,
       topFunnelEvents: (report?.events || []).length,
@@ -1005,14 +1008,17 @@ function finishMerge(previous, next, merged) {
 
 /** Apply a newly checked private snapshot without another feed read or ranking pass. */
 export function withPositionSnapshot(report, snapshot) {
-  if (!report || report.scope !== 'portfolio' || !snapshot) return report;
+  if (!report || !snapshot) return report;
   const byKey = positionSnapshotIndex(snapshot);
   const identity = card => [card.key, card.ticker, card.entityId].find(key => byKey.has(key));
   const decorate = card => {
     const holdingWeightPct = byKey.get(identity(card)) ?? null;
-    return card.holding && card.holdingWeightPct === holdingWeightPct ? card : { ...card, holding: true, holdingWeightPct };
+    const holding = identity(card) !== undefined;
+    return card.holding === holding && card.holdingWeightPct === holdingWeightPct ? card : { ...card, holding, holdingWeightPct };
   };
-  const retained = card => identity(card) !== undefined;
+  // Scope chooses the companies; holding sizes only order the existing view.
+  // A checked exit disappears from Portfolio, but stays in Universe/Watchlist.
+  const retained = card => report.scope !== 'portfolio' || identity(card) !== undefined;
   const projected = report.allCards.filter(retained).map(decorate);
   const allCards = sameRows(projected, report.allCards) ? report.allCards : projected;
   const byIdentity = new Map(allCards.map(card => [card.key || card.ticker || card.entityId, card]));
@@ -1027,7 +1033,7 @@ export function withPositionSnapshot(report, snapshot) {
   } };
   rankingOptions.set(result, { ...rankingOptions.get(report), holdings: snapshot.holdings, positionSizes: snapshot });
   rankingEvidence.set(result, (rankingEvidence.get(report) || []).filter(event =>
-    [event.ticker, event.entityId].some(key => byKey.has(key))));
+    report.scope !== 'portfolio' || [event.ticker, event.entityId].some(key => byKey.has(key))));
   return result;
 }
 
@@ -1112,4 +1118,43 @@ export async function collect({ scope = 'portfolio', holdings = null, positionSi
   const updatedInsights = screenerInsights.all();
   return updatedInsights.length === insights.length && updatedInsights.every((company, i) => company === insights[i])
     ? ready : rankReportAsync(report, options(updatedInsights), { isCurrent });
+}
+
+export function leadDevelopment(card) {
+  return developmentOfRow(leadEvent(card));
+}
+export function developmentClaim(dev) {
+  return dev?.lead ? developmentLine(dev, { fallback: plainHeadline(dev.lead) }) : "";
+}
+
+export function cardWithEvents(card, events) {
+  if (!events.length) return null;
+  if (events.length === card.events.length) return card;
+  const directions = directionSummary(events.filter(newsCanSupportAI));
+  const feeds = [...new Set(events.map(feedFamily))];
+  const view = { ...card, events, topEvent: events[0], directions,
+    mixed: directions.positive > 0 && directions.negative > 0,
+    developments: events.map(developmentOfRow),
+    feeds, feedCount: feeds.length, feedLabels: [...new Set(events.map(event => event.feedLabel || event.feed))],
+    // Broad cross-feed context belongs to the complete company reading, not a filtered claim.
+    confluence: [], contextEvents: [], upcomingEvents: [], contextSummary: '',
+    filteredEvents: true };
+  view.insight = plainInsight(view);
+  view.kpis = kpiImpact.kpiImpactOf(view, kpiImpact.snapshot());
+  view.badge = cardBadge(view);
+  return view;
+}
+export function withoutPositionSnapshot(report) {
+  if (!report) return report;
+  const replacements = new Map();
+  const clear = card => {
+    if (!replacements.has(card)) replacements.set(card, card.holdingWeightPct == null ? card : { ...card, holdingWeightPct: null });
+    return replacements.get(card);
+  };
+  const allCards = report.allCards.map(clear), cards = report.cards.map(clear);
+  if (!report.meta.positionSizes && sameRows(allCards, report.allCards) && sameRows(cards, report.cards)) return report;
+  const result = { ...report, allCards, cards, meta: { ...report.meta, positionSizes: null, sortedByHolding: false } };
+  rankingOptions.set(result, { ...rankingOptions.get(report), positionSizes: null });
+  rankingEvidence.set(result, rankingEvidence.get(report));
+  return result;
 }

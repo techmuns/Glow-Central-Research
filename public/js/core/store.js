@@ -38,6 +38,7 @@ const STORE = 'payloads';
 
 // Everything the store holds, so a version bump or a manual clear has one list to walk.
 export const KEYS = {
+  fundReturns: 'fund-returns',
   earnings: (subType) => `earnings:${subType}`,
   concalls: 'concalls',
   // The portfolio calendar half of /api/concalls, kept separate from the response above and its

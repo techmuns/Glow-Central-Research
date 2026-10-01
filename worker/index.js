@@ -1,3 +1,4 @@
+import {handlePriceLevels} from './price-levels.mjs';
 import { handleMutualFunds } from './mutual-funds.mjs';
 // Cloudflare Worker entry point.
 //
@@ -146,6 +147,7 @@ export default {
     // A conditional GET carries `If-None-Match`, which is not a CORS-safelisted request header, so
     // a cross-origin caller preflights it. Production is same-origin and never sees this; local
     // development, where the static site and the Worker sit on different ports, does.
+    if (url.pathname === '/api/price-levels') return handlePriceLevels(request,env);
     if (url.pathname.startsWith('/api/') && request.method === 'OPTIONS') {
       return preflight();
     }

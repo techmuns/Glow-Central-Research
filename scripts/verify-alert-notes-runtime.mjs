@@ -1,5 +1,5 @@
 // Run under npx --package=wrangler@4.119.0, or set WRANGLER_PACKAGE to its package.json.
-// The "So what?" notes through REAL Durable Object RPC and SQLite under workerd. All model traffic
+// The factual summaries through REAL Durable Object RPC and SQLite under workerd. All model traffic
 // is a fixture: the outbound service stands in for OpenAI and fails the run if anything else is asked.
 //
 // Why this exists: the store once built its answer with `Object.create(null)`, which workerd's RPC
@@ -47,7 +47,7 @@ const completed = (notes) => Response.json({ status: 'completed', output: [{ typ
   content: [{ type: 'output_text', text: JSON.stringify({ notes }) }] }], usage: { input_tokens: 900, output_tokens: 80 } });
 
 const item = { kind: 'filing', company: 'Waaree Energies Limited', ticker: 'WAAREEENER', sector: 'Industrials', day: '2026-09-24',
-  line: 'Amalgamation OR Merger-XBRL', headline: 'Amalgamation OR Merger-XBRL', detail: 'NSE · Amalgamation of wholly owned subsidiary Indosolar Limited' };
+  line: 'Amalgamation OR Merger-XBRL', headline: 'Amalgamation OR Merger-XBRL', detail: 'The board approved the amalgamation of wholly owned subsidiary Indosolar Limited into Waaree Energies Limited, subject to regulatory and shareholder approvals.' };
 
 const mf = worker({ OPENAI_API_KEY: KEY, ALERT_NOTES_AI_PROVIDER: 'openai' });
 try {
@@ -64,13 +64,13 @@ try {
   assert.deepEqual(probed.notes, {});
   assert.equal(calls, 0, 'an item the contract rejects costs no model request');
 
-  // 2. A real item: one gpt-6-luna request, a hedged note, stored.
-  reply = (input) => completed(input.ITEMS.map((i) => ({ id: i.id, note: 'The merger could simplify the group structure; its financial effect is not stated.' })));
+  // 2. A real item: one gpt-6-luna request, a factual summary, stored.
+  reply = (input) => completed(input.ITEMS.map((i) => ({ id: i.id, note: 'The board approved the amalgamation of Indosolar Limited, subject to regulatory and shareholder approvals.' })));
   const first = await (await send([{ ...item, id: '0' }])).json();
   assert.equal(first.ok, true);
   assert.equal(first.notes['0'].model, 'gpt-6-luna');
   assert.equal(first.notes['0'].stored, false);
-  assert.match(first.notes['0'].note, /financial effect is not stated/);
+  assert.match(first.notes['0'].note, /shareholder approvals/);
   assert.equal(calls, 1);
 
   // 3. A second reader asking about the same development is answered from SQLite.

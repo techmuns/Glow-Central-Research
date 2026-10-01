@@ -38,6 +38,15 @@ try {
   const context = await browser.newContext();
   await context.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
   const page = await context.newPage();
+  async function verifyCachedFunds(cacheName) {
+    const modules = await page.evaluate(async name => {
+      const cache = await caches.open(name);
+      return Promise.all(['/js/tabs/mutual-funds.js', '/js/tabs/mutual-fund-holdings.js'].map(async path =>
+        (await cache.match(path))?.text() || ''));
+    }, cacheName);
+    assert(modules[0].includes('All Schemes') && modules[0].includes('Category Performance'), 'the cached fund tab includes the new subviews');
+    assert(modules[1].includes('MF shares held'), 'the separate Company Holdings module is warmed with the fund tab');
+  }
   await page.goto(`${origin}/cache-fixture`);
   await page.evaluate(async () => {
     await caches.open('sattva-dashboard-legacy-fixture');
@@ -48,7 +57,7 @@ try {
   const before = await page.evaluate(async () => (await caches.keys()).filter(name => name.startsWith('sattva-dashboard-')));
   assert.equal(before.length, 1, 'legacy app caches are removed after activation');
   assert.match(before[0], /-mutual-funds-v[1-9]\d*(?:-|$)/, 'the release includes a versioned Mutual Fund module');
-  assert((await page.evaluate(async name => (await (await caches.open(name)).match('/js/tabs/mutual-funds.js')).text(), before[0])).includes('MF shares held'));
+  await verifyCachedFunds(before[0]);
   assert(before[0].includes('-telegram-content-v1'), 'the combined cache includes the Telegram revision');
   assert((await page.evaluate(async name => (await (await caches.open(name)).match('/js/tabs/public-chatter.js')).text(), before[0])).includes('telegramMediaLabel'));
 
@@ -71,7 +80,7 @@ try {
   assert(moduleRequested, 'the new release re-reads the Telegram module');
   const after = await page.evaluate(async () => (await caches.keys()).filter(name => name.startsWith('sattva-dashboard-')));
   assert.deepEqual(after, [before[0].replace(sharedMarker, 'fixture-next-release')], 'a later shared marker preserves module revisions and evicts the previous combined cache');
-  assert((await page.evaluate(async name => (await (await caches.open(name)).match('/js/tabs/mutual-funds.js')).text(), after[0])).includes('MF shares held'), 'a returning session receives the Mutual Funds module');
+  await verifyCachedFunds(after[0]);
   console.log('PASS Mutual Funds and Telegram cache revision, legacy eviction, atomic module warm-up and subsequent shared release upgrade.');
 } finally {
   releaseModule();

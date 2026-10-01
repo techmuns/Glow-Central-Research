@@ -23,24 +23,25 @@
 //   history while each run stays cheap. Rows are keyed on BSE's own NEWSID, which is a real unique
 //   identifier — never on a position, and never on a (ticker, date) pair that two filings can share.
 //
-// A RUN THAT COLLECTS NOTHING WRITES NOTHING. `strCat=-1` answers HTTP 200 with the string
-// "No Record Found!", and an empty `strCat` answers 200 with zero rows — see worker/bse-ann.mjs.
-// Both are the request being wrong rather than the day being quiet, so a zero-row run exits
-// non-zero rather than committing an empty file over a good one.
+// Failed reads retain good rows and the last successful check time, and publish an outage.
+// Validated zero counts across every configured category represent a checked quiet interval.
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchAnnouncements, CATEGORIES, HEADERS } from '../worker/bse-ann.mjs';
+import { CATEGORIES, HEADERS } from '../worker/bse-ann.mjs';
+import { collectBseAnnouncements, bseLastCompleteTo, bseCaptureCoverage, bseIndiaDay } from './lib/bse-collection.mjs';
 import { archiveFilings } from './lib/filing-archive.mjs';
 import { readAnnouncementIdentityDirectory, retainedBseScripIndex } from './lib/announcement-identities.mjs';
+import { failedBseCapture } from './lib/bse-capture-state.mjs';
+import { writeJson } from './lib/company-capture.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA = (f) => resolve(__dirname, '../public/data', f);
 const OUT = DATA('corp-announcements.json');
 
 const iso = (d) => new Date(d).toISOString().slice(0, 10);
-const daysAgo = (n) => iso(Date.now() - n * 86400000);
+const daysAgo = (n) => bseIndiaDay(Date.now() - n * 86400000);
 
 const DAYS = Number(process.env.ANN_DAYS || 1);
 // How many days the merged file keeps. THIS IS A SIZE LIMIT, NOT AN EDITORIAL ONE, and it is why
@@ -51,12 +52,12 @@ const DAYS = Number(process.env.ANN_DAYS || 1);
 // today's filings, and Saturday and Sunday cost almost nothing because the exchange is shut.
 const KEEP_DAYS = Number(process.env.ANN_KEEP_DAYS || 3);
 const previousCapture = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : null;
-const lastCompleteTo = previousCapture?.lastCompleteTo || (!previousCapture?.shortfall?.length ? previousCapture?.to : null);
+const lastCompleteTo = bseLastCompleteTo(previousCapture);
 // Overlap late filings and recover dates missed while a scheduled job did not run.
 const defaultFrom = daysAgo(Math.max(2, DAYS - 1));
 const recoveryFrom = lastCompleteTo ? iso(Date.parse(lastCompleteTo) - 2 * 86400000) : defaultFrom;
 const FROM = process.env.ANN_FROM || (recoveryFrom < defaultFrom ? recoveryFrom : defaultFrom);
-const TO = process.env.ANN_TO || iso(Date.now());
+const TO = process.env.ANN_TO || daysAgo(0);
 const MERGE = process.env.ANN_MERGE !== '0';
 
 const num = (n) => Number(n).toLocaleString('en-IN');
@@ -125,18 +126,25 @@ async function main() {
 
   const { byCode, confirmed, masterRows, identities, publish, health: identityDirectory } = await buildScripIndex();
   if (!identityDirectory.ok) console.warn('Company directory unavailable; preserving filings with explicitly partial identity coverage.');
-  console.log(`  scrip index: ${num(byCode.size)} codes (${num(confirmed)} confirmed from mc-ticker-map, master ${num(masterRows)})`);
+  console.log(`  scrip index: ${num(byCode.size)} codes (${num(confirmed)} confirmed from mc-ticker-map, master ${masterRows === null ? 'unavailable; using saved identities' : num(masterRows)})`);
 
   const started = Date.now();
-  const { rows, byCategory, unknownCategories, requests, shortfall } = await fetchAnnouncements(
+  const capture = await collectBseAnnouncements(
     { from: FROM, to: TO },
     {
+      allowPartial: true,
+      onRetry: ({ nextAttempt, error }) => console.warn(`\n  ${error.message} Restarting this date window (attempt ${nextAttempt}/3).`),
       onProgress: ({ category, page, got, declared }) => {
         process.stdout.write(`\r  ${category.padEnd(20)} page ${String(page).padStart(3)}  ${String(got).padStart(5)}/${declared ?? '?'}   `);
       },
     },
   );
+  const { rows, byCategory, unknownCategories, requests, shortfall, failedWindows } = capture;
   process.stdout.write('\n');
+
+  for (const failure of failedWindows) {
+    console.error(`  !! Incomplete ${failure.category} (${failure.from} to ${failure.to}): ${failure.message}`);
+  }
 
   for (const c of CATEGORIES) {
     const b = byCategory[c] || {};
@@ -152,14 +160,13 @@ async function main() {
     for (const s of shortfall) console.error(`     ${s.category}: ${s.collected} of ${s.declared}`);
   }
 
-  // A day with nothing is not a day we failed to read, but a RUN with nothing across every
-  // category is the request being wrong. Refuse rather than commit an empty file over a good one.
-  if (!rows.length) {
-    console.error('\nCollected zero announcements across every category. Refusing to write.');
-    process.exit(1);
+  // Valid, fully paginated zero counts are a checked quiet interval. Failed reads with zero
+  // usable rows retain the last good capture AND publish their failure, without a new success time.
+  if (!rows.length && failedWindows.length) {
+    throw Object.assign(Error('BSE returned no usable announcements; failed windows remain unchecked.'), { reason: 'upstream' });
   }
 
-  if (publish) writeFileSync(DATA('announcement-identities.json'), `${JSON.stringify(identities)}\n`);
+  if (publish) writeJson(DATA('announcement-identities.json'), identities);
 
   // Resolve, then merge on NEWSID. BSE's own identifier, so a re-run of an overlapping window
   // updates rather than duplicates — and a row with no id falls back to its content, never to a
@@ -189,7 +196,7 @@ async function main() {
     merged.set(key, r);
   }
   archiveFilings(DATA('announcements-archive'), 'announcements', [...merged.values()]);
-  const cutoff = iso(Date.now() - (KEEP_DAYS - 1) * 86400000);
+  const cutoff = daysAgo(KEEP_DAYS - 1);
   const kept = [...merged.values()].filter((r) => !r.date || r.date >= cutoff);
   const pruned = merged.size - kept.length;
   const all = kept.sort((a, b) => `${b.date || ''}${b.time || ''}`.localeCompare(`${a.date || ''}${a.time || ''}`));
@@ -227,6 +234,9 @@ async function main() {
     source: 'BSE — api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData',
     generator: 'scripts/scrape-bse-announcements.mjs',
     capturedAt: new Date().toISOString(),
+    lastAttemptAt: new Date(started).toISOString(),
+    lastError: null,
+    identityDirectory,
     from: windowFrom,
     to: TO,
     windowDays: Math.max(1, Math.round((Date.parse(TO) - Date.parse(windowFrom)) / 86400000) + 1),
@@ -234,12 +244,11 @@ async function main() {
     scope: 'exchange',
     // Every company is covered on the company axis for the named category requests. This endpoint
     // exposes no independently verified category inventory, so that separate limitation is explicit.
-    coversUniverse: identityDirectory.ok && shortfall.length === 0 && Object.keys(unknownCategories).length === 0,
-    identityDirectory,
+    ...bseCaptureCoverage(capture, previousCapture),
+    coversUniverse: identityDirectory.ok && bseCaptureCoverage(capture, previousCapture).coversUniverse,
     categoryCoverage: 'configured',
     categoryInventoryVerified: false,
     categories: CATEGORIES,
-    lastCompleteTo: shortfall.length || Object.keys(unknownCategories).length ? lastCompleteTo : TO,
     exchangeCompanies: masterRows,
     companies: Object.keys(byTicker).length,
     namedCompanies: Object.keys(byTicker).filter((k) => !k.startsWith('BSE:') && k !== 'UNKNOWN').length,
@@ -253,13 +262,12 @@ async function main() {
     byCategory,
     unknownCategories,
     shortfall,
-    failed: [],
     byTicker,
   };
 
   // Written compact deliberately: at ~900 rows a weekday, two-space indentation was roughly half
   // the bytes on the wire, and nobody reads this file by eye.
-  writeFileSync(OUT, `${JSON.stringify(payload)}\n`);
+  writeJson(OUT, payload);
   const secs = ((Date.now() - started) / 1000).toFixed(1);
   console.log(`\n  ${num(all.length)} announcements · ${num(payload.companies)} companies (${num(payload.namedCompanies)} named) · ${requests} requests · ${secs}s`);
   console.log(`  window in file: ${payload.dateRangeInFile?.first} .. ${payload.dateRangeInFile?.last} (keeping ${KEEP_DAYS} days${pruned ? `, archived ${num(pruned)} older rows` : ''})`);
@@ -267,6 +275,7 @@ async function main() {
 }
 
 main().catch((err) => {
+  writeJson(OUT, failedBseCapture(previousCapture, { reason: err.reason || 'upstream' }));
   console.error(`\nFAILED: ${err.reason ? `[${err.reason}] ` : ''}${err.message}`);
   if (err.detail) console.error(err.detail);
   process.exit(1);

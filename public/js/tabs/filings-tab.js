@@ -223,7 +223,7 @@ export function makeFilingsTab(cfg) {
     const rows = (cfg.filterByScope || filterByScope)(all, ctx.scope, coverage.holdings());
     const customEmptyMessage = typeof cfg.emptyMessage === 'function' ? cfg.emptyMessage(m) : cfg.emptyMessage;
     if (cfg.preserveReadingPosition) {
-      const revision = cfg.renderRevision?.();
+      const revision = cfg.renderRevision?.(m);
       const sameRows = renderedRows?.scope === ctx.scope && renderedRows.reason === m.reason &&
         renderedRows.emptyMessage === customEmptyMessage && renderedRows.revision === revision &&
         renderedRows.rows.length === rows.length && rows.every((row, i) => row === renderedRows.rows[i]);
@@ -309,6 +309,7 @@ export function makeFilingsTab(cfg) {
       rowKeys.set(r, n === 1 ? base : `${base}#${n}`);
     }
 
+    const searchControl = cfg.searchControl?.({ ctx, rows, view });
     const table = scoreTable({
       rows,
       key: (r) => rowKeys.get(r) || '',
@@ -333,6 +334,7 @@ export function makeFilingsTab(cfg) {
       columns: cfg.columns(m),
       filters: cfg.filters ? cfg.filters(rows) : null,
       searchable: cfg.searchable,
+      searchControl,
       link: cfg.link === false ? null : cfg.link || ((r) => r.url || null),
       initialSort: cfg.initialSort || { key: 'Date', dir: 'desc' },
       initialView: view,
@@ -369,6 +371,7 @@ export function makeFilingsTab(cfg) {
           : `No ${cfg.noun} matches your filters.`),
     });
     view = table.view;
+    if (searchControl) view.searchState = searchControl.state;
 
     ctx.root.innerHTML = `
       ${sectionHead({

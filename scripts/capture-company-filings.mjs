@@ -6,7 +6,7 @@ import { loadCapturePortfolio } from './lib/capture-portfolio.mjs';
 import { refreshNseIdentities } from './lib/nse-identities.mjs';
 import { boundedJson } from '../public/js/data/family-book-contract.js';
 import { loadCaptureRegistrations } from './lib/capture-registrations.mjs';
-import { fetchCompanyAnnouncements } from '../worker/bse-ann.mjs';
+import { collectBseCompanyAnnouncements } from './lib/bse-collection.mjs';
 import { enrichCrossExchangeDocumentHashes, expandCrossExchangeObservations } from './lib/announcement-document-hashes.mjs';
 
 const dataDir = fileURLToPath(new URL('../public/data/', import.meta.url));
@@ -50,7 +50,7 @@ async function proxyRequest(kind, ticker, range, company) {
   return result;
 }
 async function bseRequest(bseCode, range) {
-  const result = await fetchCompanyAnnouncements(
+  const result = await collectBseCompanyAnnouncements(
     { scripCode: bseCode, from: range.from, to: range.to },
     { fetchImpl: fetch },
   );

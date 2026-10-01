@@ -72,18 +72,18 @@ try {
   pass('Keyboard activation preserves the mounted strip, focus, and horizontal position');
 
   await page.keyboard.press('End');
-  await visibleInStrip(`${strip} [data-tab-id="insider-trades"]`);
-  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'insider-trades');
+  await visibleInStrip(`${strip} [data-tab-id="mutual-funds"]`);
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'mutual-funds');
   await page.keyboard.press('ArrowRight');
-  await visibleInStrip(`${strip} [data-tab-id="ask-research"]`);
-  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'ask-research');
+  await visibleInStrip(`${strip} [data-tab-id="ai-alerts"]`);
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'ai-alerts');
   await page.keyboard.press('ArrowLeft');
-  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'insider-trades');
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'mutual-funds');
   await page.keyboard.press('Home');
-  await visibleInStrip(`${strip} [data-tab-id="ask-research"]`);
+  await visibleInStrip(`${strip} [data-tab-id="ai-alerts"]`);
   await page.keyboard.press('Space');
-  await page.waitForFunction(() => location.hash.includes('/ask-research'));
-  await page.locator(`${strip} [data-tab-id="ask-research"][aria-selected="true"]`).waitFor();
+  await page.waitForFunction(() => location.hash.includes('/ai-alerts'));
+  await page.locator(`${strip} [data-tab-id="ai-alerts"][aria-selected="true"]`).waitFor();
   pass('Home, End, wrapping arrow keys, Enter and Space work with manual activation');
 
   await page.waitForFunction(() => document.querySelector('#tabbar-mount [data-tab-scroll="-1"]').disabled);
@@ -114,7 +114,7 @@ try {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.locator(active).focus();
   await page.keyboard.press('End');
-  await visibleInStrip(`${strip} [data-tab-id="insider-trades"]`);
+  await visibleInStrip(`${strip} [data-tab-id="mutual-funds"]`);
   assert((await page.locator(active).evaluate((button) => parseFloat(getComputedStyle(button).transitionDuration))) <= 0.00001);
   pass('Reduced motion removes the animation while keeping navigation functional');
 
