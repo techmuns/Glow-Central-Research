@@ -48,6 +48,7 @@ import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCa
 import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
 import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mjs';
 import { fetchNews, fetchAnnouncements, fetchInsiderTrades, fetchDomesticFilings, searchStocks, withCallerToken, MunsError } from './muns.mjs';
+import { fetchGoogleNews } from './free-news.mjs';
 import { DOMESTIC_FORMS } from '../public/js/data/domestic-filings-shared.js';
 import { announcementRange } from '../public/js/data/announcements-shared.js';
 import { assessFilingsHealth, FILINGS_HEALTH_FILES } from '../public/js/data/filings-health-shared.js';
@@ -891,7 +892,8 @@ async function handleMuns(request, env, ctx, kind, rawTicker = '') {
     return json({ ok: false, reason: 'shape', message: 'News country must be a two-letter country code or ALL for unrestricted discovery.' }, 400);
   }
   if (form && !Object.hasOwn(DOMESTIC_FORMS, form)) return json({ ok: false, reason: 'shape', message: 'Choose all, concalls, annual_report or earnings_report.' }, 400);
-  const cacheKey = edgeKey(`muns-${kind}?t=${encodeURIComponent(ticker)}&q=${encodeURIComponent(query || '')}&from=${from || ''}&to=${to || ''}${newsCountry ? `&country=${newsCountry}&schema=2` : ''}${form ? `&form=${form}&schema=2` : kind === 'announcements' ? '&schema=2' : ''}`);
+  const freeNews = kind === 'news' && env?.NEWS_PROVIDER === 'google';
+  const cacheKey = edgeKey(`muns-${kind}?t=${encodeURIComponent(ticker)}&q=${encodeURIComponent(query || '')}&from=${from || ''}&to=${to || ''}${newsCountry ? `&country=${newsCountry}&schema=2${freeNews ? '&provider=google' : ''}` : ''}${form ? `&form=${form}&schema=2` : kind === 'announcements' ? '&schema=2' : ''}`);
   const cache = caches.default;
   const hit = await cache.match(cacheKey);
   if (hit) return revalidate(request, hit, 'hit');
@@ -899,7 +901,12 @@ async function handleMuns(request, env, ctx, kind, rawTicker = '') {
   let payload;
   let ttl = MUNS_TTL_S[kind];
   try {
-    if (kind === 'news') payload = { ok: true, kind, country: newsCountry, ...(await fetchNews({ query, country: newsCountry === 'ALL' ? null : newsCountry, fromDate: from, toDate: to }, env)) };
+    // FREE NEWS. With NEWS_PROVIDER=google (wrangler.jsonc) this route searches Google News instead
+    // of the paid Brave search behind the Muns news API; see worker/free-news.mjs.
+    if (freeNews) {
+      const found = await fetchGoogleNews({ query, country: newsCountry === 'ALL' ? 'ALL' : 'IN', fromDate: from, toDate: to });
+      payload = { ...found, ok: true, kind, country: newsCountry };
+    } else if (kind === 'news') payload = { ok: true, kind, country: newsCountry, ...(await fetchNews({ query, country: newsCountry === 'ALL' ? null : newsCountry, fromDate: from, toDate: to }, env)) };
     else if (kind === 'announcements') payload = { ok: true, kind, ...(await fetchAnnouncements({ ticker, fromDate: from, toDate: to }, env)) };
     else if (kind === 'domestic') payload = { ok: true, kind, ...(await fetchDomesticFilings({ ticker, form }, env)) };
     else payload = { ok: true, kind, ...(await fetchInsiderTrades({ ticker, country: 'india', fromDate: from, toDate: to }, env)) };
