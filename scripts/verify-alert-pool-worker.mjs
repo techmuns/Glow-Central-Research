@@ -38,13 +38,13 @@ function zip(members) {
 const day = '2026-09-18';
 const index = { version: 1, contract: ALERT_POOL_CONTRACT, day, builtAt: `${day}T06:00:00Z`, captures: {}, feeds: {}, days: [{ day, member: `days/${day}.json.gz` }], ai: [{ span: day, member: `ai/${day}.json.gz` }] };
 const shard = { version: 1, contract: ALERT_POOL_CONTRACT, day, feeds: { technicals: { events: [{ id: 'tech:X', feed: 'technicals', headline: 'x', day }], order: [0], companions: { events: [], order: [] } } } };
-const padding = Buffer.alloc(300 * 1024, 'p'); // pushes the directory past the tail read of a small archive
+const padding = Buffer.alloc(1024 * 1024, 'p'); // the tail must not read the complete archive
 const archive = zip([['index.json', Buffer.from(JSON.stringify(index))], ['padding.bin', padding], [`days/${day}.json.gz`, gzipSync(JSON.stringify(shard))],
   [`days/${day}.technicals.json.gz`, gzipSync(JSON.stringify(shard))], ['ai/oops.txt', Buffer.from('not json')], [`ai/${day}.json.gz`, Buffer.from('plain, not gzip')]]);
 
 const bundle = await build({ stdin: { contents: `import {handleAlertPool} from './worker/alert-pool.mjs'; export default { fetch: (request, env, ctx) => handleAlertPool(request, env, ctx) };`,
   resolveDir: fileURLToPath(new URL('../', import.meta.url)) }, bundle: true, write: false, format: 'esm', platform: 'browser' });
-let calls = 0, ranges = [], fullReads = 0, rangeSupport = true;
+let calls = 0, ranges = [], fullReads = 0, rangeSupport = true, wrongRange = false;
 const mf = new Miniflare({ workers: [{ name: 'alert-pool-test', modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2026-05-23',
   bindings: { GH_REPO: 'org/repo', GH_DISPATCH_TOKEN: 'test-token' },
   serviceBindings: { ASSETS: () => Response.json({ error: 'unexpected fallback' }) },
@@ -56,17 +56,18 @@ const mf = new Miniflare({ workers: [{ name: 'alert-pool-test', modules: true, s
       return Response.json({ workflow_runs: [{ id: 7, event: 'workflow_run', head_branch: 'main', head_repository: { full_name: 'org/repo' } }] });
     }
     if (url.includes('/runs/7/artifacts')) return Response.json({ artifacts: [{ id: 99, name: 'alert-pool', size_in_bytes: archive.length, expired: false, created_at: '2026-09-18T06:01:00Z' }] });
-    if (url.endsWith('/99/zip')) return new Response(null, { status: 302, headers: { location: 'https://storage.example/alert-pool.zip' } });
+    if (/\/(99|98|97)\/zip$/.test(url)) return new Response(null, { status: 302, headers: { location: 'https://storage.example/alert-pool.zip' } });
     if (url.endsWith('/404/zip')) return new Response('gone', { status: 404 });
     if (url.startsWith('https://storage.example/')) {
       assert.equal(request.headers.get('authorization'), null, 'no credential reaches storage');
       const range = request.headers.get('range');
-      if (!rangeSupport || !range) { fullReads++; return new Response(archive); }
+      // Match the real Azure artifact host: suffix ranges are ignored and return 200.
+      if (!rangeSupport || !range || /^bytes=-/.test(range)) { fullReads++; return new Response(archive); }
       ranges.push(range);
-      const suffix = /^bytes=-(\d+)$/.exec(range), span = /^bytes=(\d+)-(\d+)$/.exec(range);
-      const start = suffix ? Math.max(0, archive.length - Number(suffix[1])) : Number(span[1]);
-      const end = suffix ? archive.length - 1 : Math.min(archive.length - 1, Number(span[2]));
-      return new Response(archive.subarray(start, end + 1), { status: 206, headers: { 'content-range': `bytes ${start}-${end}/${archive.length}` } });
+      const span = /^bytes=(\d+)-(\d+)$/.exec(range);
+      assert(span, 'storage reads always specify absolute offsets');
+      const start = Number(span[1]), end = Math.min(archive.length - 1, Number(span[2]));
+      return new Response(archive.subarray(start, end + 1), { status: 206, headers: { 'content-range': `bytes ${wrongRange ? start + 1 : start}-${end}/${archive.length}` } });
     }
     return new Response('unexpected', { status: 500 });
   },
@@ -79,14 +80,15 @@ try {
   assert.equal(served.artifact, 99, 'the index carries the artifact id the browser addresses members by');
   assert.equal(served.day, day);
   assert.match(indexResponse.headers.get('cache-control'), /max-age=60/);
-  assert(ranges.some((r) => /^bytes=-\d+$/.test(r)), 'the directory is read from the archive tail');
+  assert(ranges.includes(`bytes=${archive.length - (65557 + 256 * 1024)}-${archive.length - 1}`), 'the directory is read from an absolute archive-tail range');
+  assert(ranges.includes('bytes=0-0'), 'a single-byte probe obtains the actual storage length');
   assert.equal(fullReads, 0, 'the archive is never downloaded whole');
 
   const member = await fetch(new URL(`/api/alert-pool/99/days/${day}.json.gz`, base));
   assert.equal(member.status, 200);
   assert.match(member.headers.get('cache-control'), /immutable/);
   assert.deepEqual(await member.json(), shard, 'the stored gzip member decodes once, in the client');
-  const directoryReads = ranges.filter((r) => /^bytes=-\d+$/.test(r)).length;
+  const directoryReads = ranges.filter((r) => r === 'bytes=0-0').length;
   assert.equal(directoryReads, 1, 'the directory is read once per artifact and kept at the edge');
   const before = calls;
   let cached = false;
@@ -117,5 +119,8 @@ try {
   assert.equal(refused.status, 404);
   const noRange = await fetch(new URL(`/api/alert-pool/98/days/${day}.json.gz`, base));
   assert.equal(noRange.status, 503, 'a storage answering a range with the whole archive is refused rather than read into memory');
+  rangeSupport = true; wrongRange = true;
+  assert.equal((await fetch(new URL(`/api/alert-pool/97/days/${day}.json.gz`, base))).status, 503,
+    'an incorrect Content-Range cannot be accepted as a valid size probe');
   console.log('PASS workerd: alert pool index and members by byte range, gzip pass-through, immutable caching, 304s and every refusal');
 } finally { await mf.dispose(); }

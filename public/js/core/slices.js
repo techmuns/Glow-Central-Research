@@ -17,6 +17,16 @@ export function runSteps(steps) {
   }
 }
 
+/** Project every record without making one large mapping pass an indivisible task. */
+export function* mapSteps(array, project, stride = 128) {
+  const out = new Array(array.length);
+  for (let i = 0; i < array.length; i++) {
+    if (i in array) out[i] = project(array[i], i);
+    if ((i + 1) % stride === 0) yield;
+  }
+  return out;
+}
+
 /**
  * A stable merge sort as a generator: runs of `run` elements are sorted natively, then merged
  * bottom-up, yielding after every run and every `stride` merged elements, so a hundred-thousand-

@@ -79,20 +79,32 @@ async function readRange(location, start, end, { fetchImpl = fetch, signal, limi
     await response.body?.cancel();
     throw new Error(`Alert pool storage did not answer the byte range (HTTP ${response.status})`);
   }
+  const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.headers.get('content-range') || '');
+  if (!range || Number(range[1]) !== start || Number(range[2]) !== end || Number(range[3]) <= end) {
+    await response.body?.cancel();
+    throw new Error('Alert pool storage returned an unexpected byte range');
+  }
   const bytes = await readLimited(response, wanted);
   if (bytes.length !== wanted) throw new Error('Alert pool storage returned a short range');
   return bytes;
 }
-/** `bytes=-n`: the last n bytes, and the archive's total size from Content-Range. */
+/** Read the last n bytes using absolute ranges supported by GitHub's Azure blob storage. */
 async function readTail(location, n, { fetchImpl = fetch, signal } = {}) {
-  const response = await fetchImpl(location, { headers: { range: `bytes=-${n}` }, redirect: 'manual', signal });
+  // Azure ignores suffix ranges (bytes=-n) and returns the entire archive with 200.
+  // A one-byte probe discovers the real ZIP length without downloading the archive.
+  const response = await fetchImpl(location, { headers: { range: 'bytes=0-0' }, redirect: 'manual', signal });
   if (response.status !== 206) {
     await response.body?.cancel();
     throw new Error(`Alert pool storage did not answer the byte range (HTTP ${response.status})`);
   }
-  const total = Number((response.headers.get('content-range') || '').split('/')[1]);
-  const bytes = await readLimited(response, n);
-  if (!Number.isSafeInteger(total) || total <= 0) throw new Error('Alert pool storage did not state the archive size');
+  const range = /^bytes 0-0\/(\d+)$/.exec(response.headers.get('content-range') || '');
+  const total = Number(range?.[1]);
+  if (!Number.isSafeInteger(total) || total < 22) {
+    await response.body?.cancel();
+    throw new Error('Alert pool storage did not state the archive size');
+  }
+  if ((await readLimited(response, 1)).length !== 1) throw new Error('Alert pool storage returned a short size probe');
+  const bytes = await readRange(location, Math.max(0, total - n), total - 1, { fetchImpl, signal, limit: n });
   return { bytes, total };
 }
 

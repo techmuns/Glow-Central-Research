@@ -141,6 +141,78 @@ await check('missing archive index stays visible even while the latest live feed
   assert.equal(feed.rows().length, 2);
 });
 
+await check('stable reading windows still advance at IST midnight and expose same-count corrections', async () => {
+  let instant = clock(), response = live([today]);
+  const boundary = { ...sterlite, publishedAt: '2026-08-29T10:00:00Z', url: 'https://example.test/boundary.pdf' };
+  const feed = createNseFeed({ ...defaults, now: () => instant, readLive: async () => response,
+    readSnapshot: async () => capture([boundary]) });
+  await feed.load();
+  const first = feed.rows(), retained = feed.retainedRows();
+  assert.equal(feed.rows(), first);
+  assert.equal(feed.retainedRows(), retained);
+  instant = Date.parse('2026-09-04T18:30:00Z');
+  assert.equal(feed.rows().length, 1, 'the quiet seven-day view advances on the Indian date boundary');
+  assert.equal(feed.retainedRows().length, 2, 'display rollover does not delete older retained filings');
+  response = live([{ ...today, subject: 'Same-count corrected subject' }]);
+  await feed.refresh();
+  assert.equal(feed.rows()[0].subject, 'Same-count corrected subject');
+});
+
+await check('archive completion retains concurrent live corrections', async () => {
+  let release, reads = 0, response = live([today]);
+  const gate = new Promise(done => { release = done; });
+  let indexed = false;
+  const feed = createNseFeed({ ...defaults, readLive: async () => response,
+    readIndex: async () => ({ days: indexed ? [{ day: '2026-08-12', revision: 'a', count: 1 },
+      { day: '2026-08-13', revision: 'b', count: 1 }] : [] }),
+    readDay: async day => { reads++; await gate; return capture([{ ...older, subject: day }]); } });
+  await feed.load();
+  indexed = true;
+  await feed.refresh(); // The seven-day reader does not request the older days.
+  const history = feed.loadHistory(30);
+  await new Promise(done => setImmediate(done));
+  assert.equal(reads, 2);
+  response = live([{ ...older, subject: 'New live correction', observedAt: '2026-09-05T00:00:00Z' }]);
+  const refreshing = feed.refresh();
+  release();
+  await Promise.all([history, refreshing]);
+  assert.equal(feed.rows().find(row => row.url === older.url).subject, 'New live correction');
+  assert(feed.rows().some(row => row.url === today.url), 'a live window rollover retains its previous rows');
+  assert.deepEqual(feed.meta().missingDays, []);
+});
+
+await check('archives preserve equal-observation field precedence and supplements', async () => {
+  const first = { ...older, subject: 'First completed archive', onlyFirst: 'kept' };
+  const second = { ...older, subject: 'Second completed archive', onlySecond: 'kept' };
+  const feed = createNseFeed({ ...defaults,
+    readIndex: async () => ({ days: [{ day: '2026-08-12', revision: 'a', count: 1 },
+      { day: '2026-08-13', revision: 'b', count: 1 }] }),
+    readDay: async day => capture([day === '2026-08-12' ? first : second]) });
+  await feed.load();
+  await feed.loadHistory(30);
+  const result = feed.rows().find(row => row.url === older.url);
+  assert.equal(result.subject, first.subject);
+  assert.equal(result.onlyFirst, 'kept');
+  assert.equal(result.onlySecond, 'kept');
+});
+
+await check('out-of-order archive observations preserve the previously resolved identity', async () => {
+  // Flattening these arrivals into one reversed merge changes the winning ticker:
+  // the newest unresolved correction inherits the first known identity, not a later older one.
+  const captures = [
+    { ...older, ticker: 'FIRST', observedAt: '2026-09-01T00:00:00Z' },
+    { ...older, ticker: null, observedAt: '2026-09-03T00:00:00Z' },
+    { ...older, ticker: 'OLDER', observedAt: '2026-09-02T00:00:00Z' },
+  ];
+  let next = 0;
+  const feed = createNseFeed({ ...defaults,
+    readIndex: async () => ({ days: captures.map((_, i) => ({ day: `2026-08-${12 + i}`, revision: `${i}`, count: 1 })) }),
+    readDay: async () => capture([captures[next++]]) });
+  await feed.load();
+  await feed.loadHistory(30);
+  assert.equal(feed.rows().find(row => row.url === older.url).ticker, 'FIRST');
+});
+
 await check('IST date boundaries and undated notices are preserved without invented dates', () => {
   assert.equal(filingDay('2026-09-03T19:00:00Z'), '2026-09-04');
   assert.equal(firstHistoryDay(7, clock()), '2026-08-29');

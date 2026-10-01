@@ -1,7 +1,8 @@
 import { readEntry, writeEntry, KEYS } from '../core/store.js';
 import { authHeaders } from '../core/host-context.js';
 import { capturedJson, capturedCompany, loadCompanyCaptureIndex, companyCaptureStatus } from './company-captures.js';
-import { announcementRange, announcementUrl, mergeAnnouncements } from './announcements-shared.js';
+import { announcementRange, announcementUrl, mergeAnnouncements, mergeAnnouncementsAsync } from './announcements-shared.js';
+import { mapSteps, runStepsInSlices } from '../core/slices.js';
 
 /** Additional company lookups share the table, never the exchange-wide snapshot's coverage claim. */
 export function withAnnouncementLookups(base) {
@@ -11,6 +12,17 @@ export function withAnnouncementLookups(base) {
   const emit = () => subscribers.forEach((fn) => fn());
   let lastQuery = null;
   let shared = [], sharedError = null, sharedPending = false, sharedLoaded = false;
+  let sharedWrites = Promise.resolve(), sharedGeneration = 0;
+  function appendShared(incoming) {
+    const generation = sharedGeneration;
+    const task = sharedWrites.then(async () => {
+      if (generation !== sharedGeneration) return;
+      const next = await mergeAnnouncementsAsync([shared, ...incoming]);
+      if (generation === sharedGeneration) shared = next;
+    });
+    sharedWrites = task.catch(() => {});
+    return task;
+  }
   let recovery = [], recoveryMeta = null, recoveryRevision = null, recoveryPromise = null;
   async function loadRecovery() {
     if (recoveryPromise) return recoveryPromise;
@@ -58,7 +70,7 @@ export function withAnnouncementLookups(base) {
         const sharedRevision = typeof result.value.updatedAt === 'string' && result.value.updatedAt
           ? `recent:${result.value.updatedAt}|${result.value.rows.length}` : null;
         if (!sharedRevision || !shared.length || sharedRevisions.get(SHARED_RECENT_KEY) !== sharedRevision) {
-          shared = mergeAnnouncements(shared, result.value.rows);
+          await appendShared([result.value.rows]);
           if (sharedRevision) sharedRevisions.set(SHARED_RECENT_KEY, sharedRevision);
         }
         sharedError = result.stale ? 'Showing saved additional announcements; shared capture could not be checked.' : null;
@@ -79,13 +91,31 @@ export function withAnnouncementLookups(base) {
     return restored;
   }
   let rowSnapshot = null;
+  const sourceRow = r => ({ ...r, source: r.source || 'BSE', sources: r.sources || [r.source || 'BSE'], providers: r.providers?.length ? r.providers : ['BSE date index'] });
   const rows = () => {
     const source = base.rows();
     if (rowSnapshot?.source === source && rowSnapshot.shared === shared && rowSnapshot.history === history && rowSnapshot.recovery === recovery) return rowSnapshot.rows;
-    const value = mergeAnnouncements(source.map((r) => ({ ...r, source: r.source || 'BSE', sources: r.sources || [r.source || 'BSE'], providers: r.providers?.length ? r.providers : ['BSE date index'] })), shared, history, recovery);
+    const value = mergeAnnouncements(source.map(sourceRow), shared, history, recovery);
     rowSnapshot = { source, shared, history, recovery, rows: value };
     return value;
   };
+  let preparing = null;
+  function prepareRows() {
+    if (preparing) return preparing;
+    preparing = (async () => {
+      for (;;) {
+        await base.prepareRows?.();
+        const source = base.rows(), inputs = { source, shared, history, recovery };
+        if (rowSnapshot && Object.entries(inputs).every(([key, value]) => rowSnapshot[key] === value)) return;
+        const projected = await runStepsInSlices(mapSteps(source, sourceRow));
+        const value = await mergeAnnouncementsAsync([projected, inputs.shared, inputs.history, inputs.recovery]);
+        if (source !== base.rows() || inputs.shared !== shared || inputs.history !== history || inputs.recovery !== recovery) continue;
+        rowSnapshot = { ...inputs, rows: value };
+        return;
+      }
+    })().finally(() => { preparing = null; });
+    return preparing;
+  }
   function lookupMeta() {
     return { lookups: queries.size, companies: new Set([...queries.values()].map((q) => q.ticker)).size,
       rows: history.length, pending: pending.size, failed: [...queries.values()].filter((q) => q.error).length,
@@ -131,7 +161,7 @@ export function withAnnouncementLookups(base) {
     return task;
   }
   return {
-    ...base, rows,
+    ...base, rows, prepareRows,
     forTicker: (ticker) => rows().filter((row) => row.ticker === String(ticker).toUpperCase()),
     meta() {
       const m = base.meta(), combined = rows();
@@ -173,7 +203,9 @@ export function withAnnouncementLookups(base) {
             } catch { failed.push(ticker); }
           }
         })]);
-        shared = mergeAnnouncements(shared, incoming.flat());
+        // Status-only checks must keep the published array stable, or every
+        // consumer above this layer rebuilds the full announcement history.
+        if (incoming.length) await appendShared([incoming.flat()]);
         sharedLoaded = status.available && !failed.length && results.every(result => result.status === 'fulfilled');
         sharedError = failed.length ? `Additional company history could not be checked for: ${failed.join(', ')}.` :
           results.some(result => result.status === 'rejected') ? 'Some captured history could not be checked; saved announcements are retained.' :
@@ -189,6 +221,6 @@ export function withAnnouncementLookups(base) {
       const off = base.onChange(fn);
       return () => { subscribers.delete(fn); off(); };
     },
-    invalidate() { base.invalidate(); restored = null; history = []; shared = []; recovery = []; recoveryMeta = null; recoveryRevision = null; sharedLoaded = false; sharedRevisions.clear(); queries.clear(); lastQuery = null; },
+    invalidate() { base.invalidate(); sharedGeneration++; restored = null; history = []; shared = []; recovery = []; recoveryMeta = null; recoveryRevision = null; sharedLoaded = false; sharedRevisions.clear(); queries.clear(); lastQuery = null; },
   };
 }

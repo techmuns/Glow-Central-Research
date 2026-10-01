@@ -93,10 +93,11 @@ const server = createServer((req, res) => {
     let body = readFileSync(file);
     if (path === '/sw.js') {
       body = body.toString().replace(/const MUNSHOT_SDK = .*;/, "const MUNSHOT_SDK = new URL('/sdk-fixture.js', self.location).href;");
-      if (legacy) body = body.replace('-announcement-company-search-v1', '').replace('-announcement-recovery-v4', '').replace('-announcement-search-clarity-v1', '');
+      if (legacy) body = body.replace('-announcement-company-search-v1', '').replace('-announcement-recovery-v4', '').replace('-announcement-search-clarity-v1', '').replace('-announcement-preparation-v1', '');
     }
     if (path === '/js/data/announcements-extra.js' && legacy) body = body.toString().replaceAll(', loadRecovery()', '');
     if (path === '/js/tabs/filings-tab.js' && legacy) body = body.toString().replace('      searchControl,', '');
+    if (path === '/js/data/corporate-announcements.js' && legacy) body = body.toString().replace('...base, rows, prepareRows,', '...base, rows, prepareRows: undefined,');
     res.end(body);
   } catch { res.writeHead(404); res.end(); }
 });
@@ -147,7 +148,7 @@ try {
   bodies['/data/corp-announcements.json'].coversUniverse = false;
   await page.evaluate(() => window.stream.refresh());
   assert.equal(await page.evaluate(() => window.stream.meta().sourceCheck.error.message), 'Latest BSE request failed.', 'a newer failed attempt is adopted even when the last successful capture time did not move');
-  assert.match(await page.locator('[data-filings-info]').innerText(), /Some announcements may be missing/);
+  await page.waitForFunction(() => /Some announcements may be missing/.test(document.querySelector('[data-filings-info]')?.textContent), null, { timeout: 1500 });
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'outage notices preserve matching retained history');
   bodies['/data/corp-announcements.json'].lastError = null;
   bodies['/data/corp-announcements.json'].coversUniverse = true;
@@ -260,6 +261,8 @@ try {
   const shownCases = () => page.locator('tbody tr[data-row-key]').evaluateAll(rows => rows.map(row => row.textContent.match(/Period case (\w+)/)?.[1]).sort());
   const expectCases = async (value, expected) => {
     await period.selectOption(value);
+    await page.waitForFunction(expected => JSON.stringify([...document.querySelectorAll('tbody tr[data-row-key]')]
+      .map(row => row.textContent.match(/Period case (\w+)/)?.[1]).sort()) === JSON.stringify([...expected].sort()), expected);
     assert.deepEqual(await shownCases(), [...expected].sort(), `inclusive IST period ${value}`);
   };
   await expectCases('today', ['today', 'atMidnight']);
@@ -397,6 +400,7 @@ try {
   bodies['/data/screener-announcements.json'].lastPageAt = '2026-09-05T08:02:00Z';
   await page.evaluate(() => window.stream.refresh());
   await search.fill('Missing attachment');
+  await page.waitForFunction(() => document.querySelector('tbody tr[data-row-key]')?.textContent.includes('Missing attachment notice'));
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1);
   assert.match(await page.locator('tbody tr[data-row-key]').innerText(), /Source supplied no document link/);
   assert.equal(await page.locator('tbody tr[data-row-key] a[href="https://www.screener.in/company/id/123456/"]').count(), 1);
@@ -424,6 +428,7 @@ try {
   await returning.reload(); await returning.locator('[data-table-search]').waitFor();
   assert.equal(await returning.evaluate(() => window.stream.rows().some(r => r.title.includes('recovered arrival'))), false);
   assert.equal(await returning.locator('[data-announcement-search]').count(), 0, 'the previous immutable module still serves plain text search');
+  assert.equal(await returning.evaluate(() => typeof window.stream.prepareRows), 'undefined', 'the previous cached stream has no sliced preparation API');
   await returning.evaluate(async () => {
     const { watchWorkerChanges } = await import('/js/core/app-updates.js');
     watchWorkerChanges(navigator.serviceWorker, () => location.reload());
@@ -435,7 +440,8 @@ try {
   await returning.locator('[data-table-search]').fill('Bharat');
   await returning.getByRole('option', { name: /Bharat Parenterals/ }).click();
   assert.match(await returning.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals/);
-  assert((await returning.evaluate(() => caches.keys())).every(key => key.includes('announcement-company-search-v1') && key.includes('announcement-recovery-v4') && key.includes('announcement-search-clarity-v1')));
+  assert((await returning.evaluate(() => caches.keys())).every(key => key.includes('announcement-company-search-v1') && key.includes('announcement-recovery-v4') && key.includes('announcement-search-clarity-v1') && key.includes('announcement-preparation-v1')));
+  assert.equal(await returning.evaluate(() => typeof window.stream.prepareRows), 'function', 'the returning session adopts sliced preparation without clearing storage');
   assert(await returning.evaluate(() => window.stream.rows().some(r => r.title.includes('recovered arrival'))), 'the returning session adopts the new recovery reader');
   assert.deepEqual(errors, []);
   await returning.close();

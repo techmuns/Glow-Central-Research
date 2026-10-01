@@ -232,7 +232,7 @@ try {
     'scripts/lib/news-json-storage.mjs', 'scripts/lib/bulk-deals-snapshot.mjs', 'public/js/data/investor-changes.js', 'public/js/data/date-range.js', 'public/js/data/finology-shared.js', 'public/js/core/json-shards.js',
     'public/js/core/memory-cache.js', 'public/js/data/news-query-index.js', 'public/js/data/news-window.js',
     'scripts/lib/active-portfolio.mjs', 'public/js/data/family-book-contract.js',
-    'public/js/data/filings-shared.js', 'public/js/data/insider-history.js', 'public/js/data/announcements-shared.js', 'public/js/data/announcement-identity.js', 'public/js/data/domestic-filings-shared.js', 'public/js/data/company-news-identity.js', 'public/js/data/company-news-reviewed.js']) {
+    'public/js/core/slices.js', 'public/js/data/filings-shared.js', 'public/js/data/insider-history.js', 'public/js/data/announcements-shared.js', 'public/js/data/announcement-identity.js', 'public/js/data/domestic-filings-shared.js', 'public/js/data/company-news-identity.js', 'public/js/data/company-news-reviewed.js']) {
     await mkdir(dirname(join(scratch, file)), { recursive: true });
     await copyFile(new URL(`../${file}`, import.meta.url), join(scratch, file));
   }

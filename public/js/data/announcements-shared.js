@@ -1,4 +1,5 @@
 import { normaliseAnnouncement, pickField } from './filings-shared.js';
+import { runSteps, runStepsInSlices, sortSteps } from '../core/slices.js';
 
 export function announcementRange(fromDate, toDate) {
   const day = (value) => {
@@ -161,8 +162,9 @@ function mergeAnnouncement(previous, row, sources, sourceUrls) {
 }
 
 /** Append new disclosures; only proven same-document/date/company overlap collapses. */
-export function mergeAnnouncements(...lists) {
+function* mergeAnnouncementSteps(lists) {
   const out = [], seen = new Map();
+  let processed = 0;
   for (const list of lists) {
     const occurrences = new Map();
     for (const row of list || []) {
@@ -183,7 +185,17 @@ export function mergeAnnouncements(...lists) {
         out.push(next);
         for (const key of keys.length ? keys : [fallback]) seen.set(key, next);
       }
+      if (++processed % 128 === 0) yield;
     }
   }
-  return out.sort((a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`));
+  return yield* sortSteps(out, (a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`));
+}
+
+export function mergeAnnouncements(...lists) {
+  return runSteps(mergeAnnouncementSteps(lists));
+}
+
+/** Same complete merge, with input/render opportunities between bounded batches. */
+export function mergeAnnouncementsAsync(lists, options) {
+  return runStepsInSlices(mergeAnnouncementSteps(lists), options);
 }

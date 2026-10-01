@@ -25,13 +25,16 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
     if (item && !known.has(item.key)) known.set(item.key, item);
   }
   const textByRow = new WeakMap();
+  const prepare = row => {
+    if (!textByRow.has(row)) textByRow.set(row, normal(searchable(row)));
+    return textByRow.get(row);
+  };
   let previousQuery, needle = '';
   const matches = (row, query) => {
     if (state.selected && companyKey(row) !== companyKey(state.selected)) return false;
     if (query !== previousQuery) { previousQuery = query; needle = normal(query); }
     if (!needle) return true;
-    if (!textByRow.has(row)) textByRow.set(row, normal(searchable(row)));
-    return textByRow.get(row).includes(needle);
+    return prepare(row).includes(needle);
   };
   const chipHtml = () => state.selected ? `<div class="announcement-selected-company">
     <span class="announcement-selected-identity"><span class="announcement-company-name">${e(state.selected.name)}</span>
@@ -176,5 +179,5 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
       document.removeEventListener('pointerdown', onOutside); window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true);
     };
   }
-  return { html, wire, matches, state };
+  return { html, wire, matches, prepare, state };
 }
