@@ -832,47 +832,87 @@
       "pending": []
     },
     "isin:INE303R01014|Kalyan Jewellers India": {
-      "lastAttemptAt": "2026-09-27T01:33:30+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 12,
-      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "lastAttemptAt": "2026-10-01T08:11:22+00:00",
+      "error": null,
+      "lastResultCount": 16,
+      "lastSuccessAt": "2026-10-01T08:11:22+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE303R01014|KALYANKJIL": {
-      "lastAttemptAt": "2026-09-27T01:37:21+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 82,
-      "lastSuccessAt": "2026-09-17T09:01:32+00:00",
+      "lastAttemptAt": "2026-10-01T08:11:22+00:00",
+      "error": null,
+      "lastResultCount": 78,
+      "lastSuccessAt": "2026-10-01T08:11:22+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE415I01015|Kiri Industries": {
-      "lastAttemptAt": "2026-09-27T02:11:49+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-01T08:11:22+00:00",
+      "error": null,
+      "lastResultCount": 20,
+      "lastSuccessAt": "2026-10-01T08:11:22+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE415I01015|KIRIINDUS": {
-      "lastAttemptAt": "2026-09-27T03:12:02+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-01T08:11:22+00:00",
+      "error": null,
+      "lastResultCount": 6,
+      "lastSuccessAt": "2026-10-01T08:11:22+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE082A01010|Kopran": {
-      "lastAttemptAt": "2026-09-27T03:44:47+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-01T08:11:22+00:00",
+      "error": null,
+      "lastResultCount": 92,
+      "lastSuccessAt": "2026-10-01T08:11:22+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE082A01010|KOPRAN": {
-      "lastAttemptAt": "2026-09-27T04:17:32+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-01T08:11:22+00:00",
+      "error": null,
+      "lastResultCount": 92,
+      "lastSuccessAt": "2026-10-01T08:11:22+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE237A01036|Kotak Mahindra Bank": {
-      "lastAttemptAt": "2026-09-27T04:50:29+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-01T08:11:22+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 107,
+      "targetThrough": "2026-10-01T08:11:22+00:00",
+      "pending": [
+        {
+          "from": "2026-09-22T08:11:22.302873+00:00",
+          "to": "2026-09-26T20:11:22.151437+00:00"
+        },
+        {
+          "from": "2026-09-26T20:11:22.151437+00:00",
+          "to": "2026-10-01T08:11:22+00:00"
+        }
+      ]
     },
     "isin:INE237A01036|KOTAKBANK": {
-      "lastAttemptAt": "2026-09-27T05:35:26+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-01T08:11:22+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 115,
+      "targetThrough": "2026-10-01T08:11:22+00:00",
+      "pending": [
+        {
+          "from": "2026-09-22T08:11:22.302873+00:00",
+          "to": "2026-09-26T20:11:22.151437+00:00"
+        },
+        {
+          "from": "2026-09-26T20:11:22.151437+00:00",
+          "to": "2026-10-01T08:11:22+00:00"
+        }
+      ]
     },
     "isin:INE0O6601022|Kross": {
-      "lastAttemptAt": "2026-09-27T06:22:32+00:00",
+      "lastAttemptAt": "2026-10-01T08:11:22+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0O6601022|KROSS": {
@@ -1875,8 +1915,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 221,
-    "checkedAt": "2026-10-01T07:38:28.626801+00:00"
+    "attempted": 9,
+    "incomplete": 215,
+    "checkedAt": "2026-10-01T08:11:22.302873+00:00"
   }
 }
