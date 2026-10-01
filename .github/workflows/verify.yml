@@ -178,7 +178,7 @@ jobs:
       - name: Verify AI story updates, sources and returning-session upgrade
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-alert-stories-ui.mjs
+        run: node scripts/verify-alert-stories-ui.mjs && node scripts/verify-alert-summaries-ui.mjs
       - name: Verify Sattva deals across scopes, automatic refresh and history
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright

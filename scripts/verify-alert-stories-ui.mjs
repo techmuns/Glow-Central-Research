@@ -9,7 +9,7 @@ const root = resolve('public');
 const day = new Date(Date.now() + 19800000).toISOString().slice(0, 10);
 const event = (id, headline, extra = {}) => ({ id, headline, ticker: 'ALPHA', company: 'Alpha Bank', day, time: '09:00',
   feed: 'news', feedLabel: 'Company news', importance: 'high', direction: 'neutral', namesCompany: true,
-  url: `https://${id}.example/merger`, detail: '', sourceRecord: { publisher: id.toUpperCase() }, keywords: ['Merger'],
+  url: `https://${id}.example/merger`, detail: 'The merger proposal with Beta Bank is subject to shareholder and regulatory approvals. The scheme would combine the banking businesses of both companies.', sourceRecord: { publisher: id.toUpperCase() }, keywords: ['Merger'],
   attribution: { version: ATTRIBUTION_VERSION, status: 'confirmed' }, ...extra });
 const initial = [event('et', 'Alpha Bank proposes merger with Beta Bank'), event('reuters', 'Alpha Bank plans merger with Beta Bank')];
 let upgraded = false, apiCalls = 0, noteCalls = 0, debugPage;
@@ -50,7 +50,7 @@ const server = createServer(async (req, res) => {
     if (pathname === '/api/alert-notes') {
       let body='';for await(const part of req)body+=part;
       const items=JSON.parse(body).items;assert.ok(items.length<=8);noteCalls++;
-      res.setHeader('content-type','application/json');res.end(JSON.stringify({ok:true,notes:Object.fromEntries(items.map(i=>[i.id,{note:'The merger could change the business scope; its financial effect is not stated.',model:'fixture'}])),missing:{}}));return;
+      res.setHeader('content-type','application/json');res.end(JSON.stringify({ok:true,notes:Object.fromEntries(items.map(i=>[i.id,{note:'The merger proposal remains subject to shareholder and regulatory approvals.',model:'fixture'}])),missing:{}}));return;
     }
     if (pathname === '/api/alert-stories') {
       let text='';for await(const part of req)text+=part;apiCalls++;
@@ -87,7 +87,7 @@ try {
   assert(!(await page.evaluate(()=>caches.keys())).some(k=>k.includes('before-story-grouping')));
   assert.equal(await page.evaluate(()=>window.newsletterBatchAvailable),true,'the automatic upgrade replaces the cached newsletter module too');
   await page.evaluate(e=>{window.fixtureEvents.push(e);window.changed();},event('filing','Alpha Bank proposes merger with Beta Bank',{
-    feed:'announcements',feedLabel:'Corporate announcements',url:'https://www.bseindia.com/alpha-merger.pdf',time:'09:30'}));
+    feed:'announcements',feedLabel:'Corporate announcements',url:'https://www.bseindia.com/alpha-merger.pdf',time:'09:30', filingDescription:'The merger proposal with Beta Bank is subject to shareholder and regulatory approvals. The scheme would combine the banking businesses of both companies.'}));
   await page.waitForFunction(()=>document.querySelectorAll('[data-ai-evidence] [data-ai-related-source], [data-ai-evidence] [data-ai-story-source]').length===3);
   assert.match(await card.locator('[data-ai-event-source]').first().innerText(),/FILING/,'the company filing leads the same checked development');
   await card.locator('[data-alert-reading] [data-note-state="ready"]').first().waitFor();

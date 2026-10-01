@@ -4467,3 +4467,13 @@ Filtering changes displayed evidence and notebook snapshots, never company prior
 or archive identity. Source citations retain original publisher URLs and checked
 story history. Verified private holding sizes can sort every scope; failed or
 revoked access removes weights without dropping public evidence or masking source failures.
+
+### Factual alert summaries and durable attempts
+
+AI summaries use captured substantive filing/result text only. News, routine notices,
+headline-only items and private sources do not generate summaries. An explicit skip
+omits the section. The new prompt namespace must never reuse an old implication as
+a factual summary. Retain successful summaries and failed-attempt receipts; reserve
+budget and attempts before provider I/O, allow at most three temporary-failure
+attempts per content key, and honor server retry times across readers and restarts.
+Keep Sattva's pinned OpenAI provider and ordinary-object RPC responses.

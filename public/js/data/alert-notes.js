@@ -1,44 +1,33 @@
-// data/alert-notes.js — THE BROWSER HALF OF THE "SO WHAT?" LINE.
+// data/alert-notes.js — optional factual AI summaries of substantive filing text.
 //
 // AI Alerts and All Alerts ask here for the second bullet of the developments on screen, and this
 // batches the question to `POST /api/alert-notes` (worker/alert-notes.mjs): at most
-// `NOTE_REQUEST_ITEMS` per request, one request in flight, nothing asked twice in a session. The
-// Worker keeps every note it writes, so reopening a card, or a second reader, costs no model call.
+// `NOTE_REQUEST_ITEMS` per request, one request in flight, answered content never asked twice in a
+// session. The Worker retains notes and attempt receipts across readers and restarts.
 //
-// FOUR STATES, AND ONLY ONE OF THEM IS A NOTE. `ready` carries the note; `pending` is a question on
-// its way; `missing` carries the reason the note is absent (no AI service on this copy, a note
-// service that failed, no key, the day's allowance spent, a refusal, a withheld answer —
-// `NOTE_REASON` words each); and no entry at all means nobody has asked. A failed read is never an
-// empty note, and a reason is never a note.
-//
-// "NO AI SERVICE" IS ONLY EVER A COPY WITH NO WORKER. It once also covered the Worker's own 503, so
-// a note store that failed on every call read, on the live deployment, as a dashboard with no AI at
-// all — and, being permanent, never asked again. A Worker that answers says which failure it is.
+// `ready` carries model text, `pending` is in flight, and `skipped` omits an unnecessary summary.
+// `missing` names an actual failure through NOTE_REASON. No entry means nobody has asked.
+// A failed read is never an empty summary, and a failure reason is never model text.
 //
 // NOTHING HERE IS PERSISTED ON THE DEVICE. A note is a derived reading that the Worker already
 // keeps; holding a second copy in browser storage would be one more place for it to go stale.
-import { noteItem, noteContent, acceptNote, fiscalYearOf, NOTE_REQUEST_ITEMS, NOTE_REASON } from './alert-notes-shared.js';
+import { noteItem, noteContent, acceptNote, summaryTypeOf, NOTE_REQUEST_ITEMS, NOTE_REASON } from './alert-notes-shared.js';
 import { storyKindOf, developmentLine } from './alert-developments.js';
 import { sourceStatement } from './alert-claims.js';
-import * as coverage from './coverage.js';
-import * as technicals from './technicals.js';
 
 export { NOTE_REASON } from './alert-notes-shared.js';
 
 const ROUTE = 'api/alert-notes';
 const REQUEST_TIMEOUT_MS = 45_000;
 // How long a reason holds before the same question may be asked again this session.
-const RETRY_MS = { 'rate-limited': 60_000, budget: 30 * 60_000, 'no-key': 10 * 60_000, refused: 10 * 60_000,
-  quota: 10 * 60_000, unavailable: 2 * 60_000,
+const RETRY_MS = { quota: 600_000, unavailable: 120_000, 'rate-limited': 60_000, budget: 30 * 60_000, 'no-key': 10 * 60_000, refused: 10 * 60_000,
   upstream: 2 * 60_000, timeout: 2 * 60_000, error: 2 * 60_000, unreadable: 5 * 60_000, empty: 5 * 60_000 };
 // Reasons that are about the deployment rather than the item: every other question would get the
 // same answer, so none is sent until the hold lapses.
-const DEPLOYMENT_REASONS = new Set(['no-worker', 'no-service', 'unavailable', 'no-key', 'refused', 'quota', 'budget', 'rate-limited']);
-// Reasons nothing this session can change: a copy served without the Worker, a Worker without the store.
+const DEPLOYMENT_REASONS = new Set(['no-service', 'unavailable', 'quota', 'no-worker', 'no-key', 'refused', 'budget', 'rate-limited']);
+
 const PERMANENT_REASONS = new Set(['no-worker', 'no-service']);
-// The Worker's own failure words (worker/alert-notes.mjs), as a card states them.
 const SERVER_REASON = { 'notes-unavailable': 'unavailable', 'notes-unconfigured': 'no-service' };
-const KIND_OF_FEED = { earnings: 'result', insider: 'insider', investors: 'investor' };
 
 const states = new Map(); // content key -> { state, note?, model?, reason?, retryAt? }
 const handles = new Map(); // content key -> short DOM handle
@@ -56,24 +45,14 @@ export function noteKindOf(dev) {
   if (!lead || lead.private || lead.portfolioOnly || !(lead.ticker || lead.entityId)) return null;
   const story = storyKindOf(lead);
   if (story === 'filing') return 'filing';
-  if (story === 'news') return lead.attribution?.status === 'confirmed' ? 'news' : null;
-  return KIND_OF_FEED[lead.feed] || null;
-}
-
-const knownSector = (value) => typeof value === 'string' && !/^(unclassified|unknown|n\/a|[-—])?$/i.test(value.trim()) ? value.trim() : null;
-
-/** The company's sector as the AI Alerts card reads it: the book's own, else the technicals capture's. */
-export function noteSector(ticker) {
-  const symbol = String(ticker || '').toUpperCase();
-  if (!symbol) return null;
-  const held = coverage.holdings().find((holding) => String(holding.ticker || '').toUpperCase() === symbol);
-  if (knownSector(held?.sector)) return knownSector(held.sector);
-  return knownSector(technicals.rowFor?.(symbol)?.sector) || null;
+  // Publisher headlines, trades and holding changes already state their event without a summary.
+  if (story === 'news') return null;
+  return lead.feed === 'earnings' ? 'result' : null;
 }
 
 /**
  * The question for one development, built from its LEAD alone — the lead's own statement (LINE 1),
- * headline and detail, the company's name and sector, the development's date — so the card in AI
+ * headline and detail, the company's name and the development's date — so the card in AI
  * Alerts and the row in All Alerts ask the same question about the same development and share one
  * note, however many reports each surface has folded under it. `fallback` is the line a surface
  * prints for a measurement (a filed result, a disclosure), which has no statement of its own.
@@ -84,10 +63,13 @@ export function noteRequestFor(dev, { fallback = null } = {}) {
   const lead = dev.lead;
   const line = developmentLine({ ...dev, companyNames: [] }, { fallback: fallback || lead.headline });
   const detail = kind === 'filing' ? sourceStatement(lead.filingDescription) || lead.detail : lead.detail;
-  const item = noteItem({ id: 'q', kind, company: lead.company, ticker: lead.ticker, sector: noteSector(lead.ticker),
+  const documentType = summaryTypeOf({ kind, subCategory: lead.filingSubCategory,
+    headline: lead.filingSubject || lead.headline, detail });
+  if (!documentType) return null;
+  const item = noteItem({ id: 'q', kind, documentType, company: lead.company, ticker: lead.ticker,
     day: dev.day || lead.day, line, headline: lead.headline, detail });
   if (!item) return null;
-  const key = JSON.stringify([noteContent(item),fiscalYearOf(new Date(Date.now()+19800000).toISOString().slice(0,10))]);
+  const key = noteContent(item);
   return { key, item, handle: handleOf(key) };
 }
 
@@ -202,13 +184,20 @@ async function ask(batch) {
     if (found && typeof found.note === 'string') {
       // The Worker checked the note against the item; checking again here costs nothing and means a
       // note this page prints has passed the contract on the page's own side of the wire too.
-      const checked = acceptNote(found.note, item, new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10));
+      const checked = acceptNote(found.note, item);
       states.set(key, checked.ok
         ? { state: 'ready', note: checked.note, model: typeof found.model === 'string' ? found.model : null }
-        : { state: 'missing', reason: checked.reason, retryAt: Infinity });
+        : checked.reason === 'not-needed' ? { state: 'skipped' }
+          : { state: 'missing', reason: checked.reason, retryAt: Infinity });
     } else {
       const reason = typeof body.missing?.[id] === 'string' ? body.missing[id] : 'empty';
-      const retryAt = RETRY_MS[reason] ? Date.now() + RETRY_MS[reason] : Infinity;
+      if (reason === 'not-needed') { states.set(key, { state: 'skipped' }); changed.push(key); return; }
+      // The server owns paid-attempt retries across browsers. null is terminal for this exact
+      // evidence, not zero; omitted values retain compatibility with older deployments.
+      const savedRetry = body.retryAt?.[id];
+      const retryAt = savedRetry === null ? Infinity
+        : typeof savedRetry === 'number' && Number.isFinite(savedRetry) ? savedRetry
+          : RETRY_MS[reason] ? Date.now() + RETRY_MS[reason] : Infinity;
       if (DEPLOYMENT_REASONS.has(reason)) hold = { reason, until: retryAt };
       states.set(key, { state: 'missing', reason, retryAt });
     }
