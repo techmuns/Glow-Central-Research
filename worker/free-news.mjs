@@ -7,6 +7,12 @@
 //
 // It is an unofficial feed with no published quota. Callers pace their requests, and a 429 or 503
 // is reported as `rate-limited` so a walk stops instead of hammering it.
+//
+// THE WEBSITE'S WORKER TRIES THREE TIMES. Google refuses most requests from Cloudflare's shared
+// addresses: on 1 October 2026 it answered 8 of 24 searches from the deployed Worker, each refusal
+// a 503 that took 5-10 s, while an answer took about a second. So the Worker gives each try a short
+// deadline and asks again. The scheduled capture runs from GitHub, where Google answers normally,
+// and keeps the default single try.
 
 import { normaliseArticle } from '../public/js/data/filings-shared.js';
 import { MunsError } from './muns.mjs';
@@ -19,6 +25,9 @@ const EDITIONS = { IN: 'hl=en-IN&gl=IN&ceid=IN:en', ALL: 'hl=en-US&gl=US&ceid=US
 export const GOOGLE_NEWS_LIMIT = 100;
 const DEADLINE_MS = 20_000;
 const MAX_BYTES = 3_000_000;
+// A refusal, a slow answer or a dropped connection is worth another try; an error answer is not.
+const RETRYABLE = new Set(['rate-limited', 'timeout', 'unreachable']);
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 const decode = (value) => String(value || '')
@@ -54,32 +63,58 @@ export function googleNewsUrl({ query, country = 'IN', fromDate = null, toDate =
   return `${ENDPOINT}?q=${encodeURIComponent([String(query).trim(), ...window].join(' '))}&${edition}`;
 }
 
+/** One request for the feed, abandoned after `deadlineMs`. */
+async function readFeed(url, fetcher, deadlineMs) {
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), deadlineMs);
+  try {
+    const res = await fetcher(url, { headers: { accept: 'application/rss+xml, application/xml;q=0.9', 'user-agent': 'Mozilla/5.0 (compatible; CentralResearch/1.0)' }, signal: abort.signal });
+    if (!res.ok) {
+      // Release the connection now: a retry should not wait behind an unread refusal.
+      await res.body?.cancel().catch(() => {});
+      if (res.status === 429 || res.status === 503) {
+        throw new MunsError('rate-limited', `Google News is rate limiting this caller (HTTP ${res.status}).`, { status: res.status, url });
+      }
+      throw new MunsError('upstream', `Google News answered HTTP ${res.status}.`, { status: res.status, url });
+    }
+    return await res.text();
+  } catch (err) {
+    if (err instanceof MunsError) throw err;
+    throw abort.signal.aborted
+      ? new MunsError('timeout', `Google News did not answer within ${deadlineMs / 1000}s.`, { url })
+      : new MunsError('unreachable', `Google News could not be reached: ${err?.message || err}`, { url });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Recent articles for a query from Google News, in `fetchNews`'s shape. `country` is `IN` (India's
  * edition) or `ALL` (the international edition). `truncated` says the page was full, so a caller
  * that partitions date ranges knows there may be more.
+ *
+ * `attempts` above 1 asks again after a refusal, a slow answer or a dropped connection, each try
+ * with its own `attemptMs` deadline and a short pause between them. The default is one request.
  */
-export async function fetchGoogleNews({ query, country = 'IN', fromDate = null, toDate = null }, { fetcher = fetch } = {}) {
+export async function fetchGoogleNews({ query, country = 'IN', fromDate = null, toDate = null },
+  { fetcher = fetch, attempts = 1, attemptMs = DEADLINE_MS, pause = wait } = {}) {
   const q = String(query || '').trim();
   if (!q) throw new MunsError('shape', 'A news search needs a query.');
   const url = googleNewsUrl({ query: q, country, fromDate, toDate });
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), DEADLINE_MS);
-  let res, text;
-  try {
-    res = await fetcher(url, { headers: { accept: 'application/rss+xml, application/xml;q=0.9', 'user-agent': 'Mozilla/5.0 (compatible; CentralResearch/1.0)' }, signal: abort.signal });
-    if (res.status === 429 || res.status === 503) {
-      throw new MunsError('rate-limited', `Google News is rate limiting this caller (HTTP ${res.status}).`, { status: res.status, url });
+  const tries = Math.max(1, Math.floor(Number(attempts)) || 1);
+  let text;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      text = await readFeed(url, fetcher, attemptMs);
+      break;
+    } catch (err) {
+      if (!RETRYABLE.has(err.reason)) throw err;
+      if (attempt >= tries) {
+        if (tries > 1) err.message = `${err.message} Tried ${tries} times.`;
+        throw err;
+      }
+      await pause(150 + Math.floor(Math.random() * 250));
     }
-    if (!res.ok) throw new MunsError('upstream', `Google News answered HTTP ${res.status}.`, { status: res.status, url });
-    text = await res.text();
-  } catch (err) {
-    if (err instanceof MunsError) throw err;
-    throw abort.signal.aborted
-      ? new MunsError('timeout', `Google News did not answer within ${DEADLINE_MS / 1000}s.`, { url })
-      : new MunsError('unreachable', `Google News could not be reached: ${err?.message || err}`, { url });
-  } finally {
-    clearTimeout(timer);
   }
   if (text.length > MAX_BYTES) throw new MunsError('shape', 'Google News returned an unexpectedly large feed.', { url });
   if (!/<rss[\s>]/.test(text)) throw new MunsError('shape', 'Google News answered with something that is not RSS.', { url });
