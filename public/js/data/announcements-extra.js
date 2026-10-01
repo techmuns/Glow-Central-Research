@@ -1,7 +1,8 @@
 import { readEntry, writeEntry, KEYS } from '../core/store.js';
 import { authHeaders } from '../core/host-context.js';
 import { capturedJson, capturedCompany, loadCompanyCaptureIndex, companyCaptureStatus } from './company-captures.js';
-import { announcementRange, announcementUrl, mergeAnnouncements } from './announcements-shared.js';
+import { announcementRange, announcementUrl, mergeAnnouncements, mergeAnnouncementSteps } from './announcements-shared.js';
+import { runSteps, runStepsInSlices, yieldToInput } from '../core/slices.js';
 
 /** Additional company lookups share the table, never the exchange-wide snapshot's coverage claim. */
 export function withAnnouncementLookups(base) {
@@ -78,14 +79,40 @@ export function withAnnouncementLookups(base) {
     })();
     return restored;
   }
-  let rowSnapshot = null;
+  let rowSnapshot = null, preparingRows = null;
+  const inputs = () => ({ source: base.rows(), shared, history, recovery });
+  const sameInputs = (a, b) => !!a && (a.source === b.source || a.source.length === b.source.length &&
+    a.source.every((row, i) => row === b.source[i])) && a.shared === b.shared && a.history === b.history && a.recovery === b.recovery;
+  function* buildRows(input) {
+    const source = [];
+    for (const r of input.source) {
+      source.push({ ...r, source: r.source || 'BSE', sources: r.sources || [r.source || 'BSE'], providers: r.providers?.length ? r.providers : ['BSE date index'] });
+      if (source.length % 128 === 0) yield;
+    }
+    return yield* mergeAnnouncementSteps(source, input.shared, input.history, input.recovery);
+  }
   const rows = () => {
-    const source = base.rows();
-    if (rowSnapshot?.source === source && rowSnapshot.shared === shared && rowSnapshot.history === history && rowSnapshot.recovery === recovery) return rowSnapshot.rows;
-    const value = mergeAnnouncements(source.map((r) => ({ ...r, source: r.source || 'BSE', sources: r.sources || [r.source || 'BSE'], providers: r.providers?.length ? r.providers : ['BSE date index'] })), shared, history, recovery);
-    rowSnapshot = { source, shared, history, recovery, rows: value };
+    const input = inputs();
+    if (sameInputs(rowSnapshot, input)) return rowSnapshot.rows;
+    const value = runSteps(buildRows(input));
+    rowSnapshot = { ...input, rows: value };
     return value;
   };
+  async function warm(yieldForInput = yieldToInput, { sliceMs } = {}) {
+    await base.warm?.(yieldForInput);
+    if (preparingRows) return preparingRows;
+    preparingRows = (async () => {
+      for (;;) {
+        const input = inputs();
+        if (sameInputs(rowSnapshot, input)) return;
+        const value = await runStepsInSlices(buildRows(input), { yieldForInput, sliceMs });
+        // A source can publish or be invalidated between slices. Retry the current inputs;
+        // neither a partial merge nor an obsolete source revision may become the ready snapshot.
+        if (value && sameInputs(input, inputs())) { rowSnapshot = { ...input, rows: value }; return; }
+      }
+    })().finally(() => { preparingRows = null; });
+    return preparingRows;
+  }
   function lookupMeta() {
     return { lookups: queries.size, companies: new Set([...queries.values()].map((q) => q.ticker)).size,
       rows: history.length, pending: pending.size, failed: [...queries.values()].filter((q) => q.error).length,
@@ -131,7 +158,7 @@ export function withAnnouncementLookups(base) {
     return task;
   }
   return {
-    ...base, rows,
+    ...base, rows, warm,
     forTicker: (ticker) => rows().filter((row) => row.ticker === String(ticker).toUpperCase()),
     meta() {
       const m = base.meta(), combined = rows();
@@ -140,9 +167,9 @@ export function withAnnouncementLookups(base) {
         archive: { ...m.archive, pending: m.archive?.pending || sharedPending, loaded: m.archive?.loaded && sharedLoaded,
           error: m.archive?.error || sharedError } };
     },
-    async seed() { await Promise.all([base.seed(), restore(), loadShared(), loadRecovery()]); emit(); },
-    async load(...args) { await Promise.all([base.load(...args), restore(), loadShared(), loadRecovery()]); emit(); },
-    async refreshSnapshot() { await Promise.all([base.refreshSnapshot(), loadShared(), loadRecovery()]); emit(); },
+    async seed() { await Promise.all([base.seed(), restore(), loadShared(), loadRecovery()]); await warm(); emit(); },
+    async load(...args) { await Promise.all([base.load(...args), restore(), loadShared(), loadRecovery()]); await warm(); emit(); },
+    async refreshSnapshot() { await Promise.all([base.refreshSnapshot(), loadShared(), loadRecovery()]); await warm(); emit(); },
     async loadArchive({ onlyChanged = false } = {}) {
       if (sharedPending) return;
       sharedPending = true; sharedError = null; emit();

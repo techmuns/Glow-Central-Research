@@ -1024,7 +1024,7 @@
       ]
     },
     "isin:INE338I01027|MOTILALOFS": {
-      "lastAttemptAt": "2026-09-27T09:06:09+00:00",
+      "lastAttemptAt": "2026-10-01T15:29:42+00:00",
       "error": "search-unavailable",
       "lastResultCount": 41,
       "lastSuccessAt": "2026-09-13T11:04:59+00:00",
@@ -1032,7 +1032,7 @@
       "pending": []
     },
     "isin:INE310A01015|Nilkamal": {
-      "lastAttemptAt": "2026-09-27T09:39:05+00:00",
+      "lastAttemptAt": "2026-10-01T16:12:35+00:00",
       "error": "search-unavailable",
       "lastResultCount": 103,
       "targetThrough": "2026-09-13T11:04:59+00:00",
@@ -1916,7 +1916,7 @@
   "coverage": {
     "planned": 232,
     "attempted": 1,
-    "incomplete": 215,
-    "checkedAt": "2026-10-01T15:00:36.821469+00:00"
+    "incomplete": 220,
+    "checkedAt": "2026-10-01T16:12:35.941757+00:00"
   }
 }

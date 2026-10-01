@@ -536,7 +536,11 @@ function readFeed(feed, { day, includeHistory, queryWindow = null, newsReader = 
   const out = COLLECTORS[feed.id]({ day, includeHistory, queryWindow, newsReader, scope: 'universe', wanted: null }) || {};
   const row = toFeedRow(feed, { ...out,
     events: (out.events || []).filter((e) => includeHistory || eventDay(e) === day) }, day);
-  if (loadedFeeds.has(feed.id) && !PRIVATE_FEEDS.has(feed.id)) normalizedFeeds.set(feed.id, { day, includeHistory, windowKey, newsReader: newsFeed ? newsReader : null, row });
+  // A first source check may fail after retaining useful captured rows. Their unchanged public
+  // interpretation is reusable too; collect() still overlays the failed check on every report.
+  // This does not mark the source loaded/successful, and source arrivals or a successful retry
+  // invalidate the interpretation through the existing subscriptions/load completion below.
+  if ((loadedFeeds.has(feed.id) || loadErrors.has(feed.id)) && !PRIVATE_FEEDS.has(feed.id)) normalizedFeeds.set(feed.id, { day, includeHistory, windowKey, newsReader: newsFeed ? newsReader : null, row });
   return row;
 }
 
@@ -885,7 +889,10 @@ export async function warmRows(rows, reading, yieldForInput = yieldForInputSlice
   }
 }
 const WARMERS = {
-  announcements: (yieldForInput, reading) => warmRows(announcements.rows(), (row) => reading.touch(announcementEvent(row), 'announcements'), yieldForInput),
+  announcements: async (yieldForInput, reading) => {
+    await announcements.warm(yieldForInput);
+    return warmRows(announcements.rows(), (row) => reading.touch(announcementEvent(row), 'announcements'), yieldForInput);
+  },
   insider: (yieldForInput, reading) => warmRows(insider.rows(), (row) => reading.touch(insiderEvent(row), 'insider'), yieldForInput),
   ...Object.fromEntries(ADDITIONAL_SOURCES.filter((s) => s.warm).map((s) => [s.id, s.warm])),
 };
