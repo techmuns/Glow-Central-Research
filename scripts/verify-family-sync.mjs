@@ -258,27 +258,6 @@ test('Family ISIN tickers override obsolete listing classifications, preserving 
   assert.throws(() => validateFamilyBook({ ...incoming, lines: incoming.lines.map(l => l === line ? { ...l, ticker: 'bad ticker' } : l) }), /ticker/);
 });
 
-test('statement and legal name changes notify identity readers; quote-only checks do not', () => {
-  const holding = { ...saved.holdings[0], bookName: 'Original statement name' };
-  coverage.prime(saved);
-  coverage.useFamilyBook([holding]);
-  const changes = [];
-  const off = coverage.onChange(({ changed }) => changes.push(changed));
-  try {
-    const renamed = { ...holding, bookName: 'Corrected statement name' };
-    coverage.useFamilyBook([renamed]);
-    const { bookName, ...withoutStatementName } = renamed;
-    coverage.useFamilyBook([{ ...withoutStatementName, legalName: 'Original legal name' }]);
-    const legal = { ...withoutStatementName, legalName: 'Corrected legal name' };
-    coverage.useFamilyBook([legal]);
-    coverage.useFamilyBook([{ ...legal, cmp: 123, holdingWeightPct: 2.5 }], '2026-09-30', Date.now());
-    coverage.invalidateFamilyBook();
-    coverage.failFamilyBook();
-    assert.deepEqual(changes, [true, true, true, false, false, false],
-      'all identity changes restart readers, while prices and check status preserve their current view');
-  } finally { off(); coverage.useFamilyBook(null); coverage.prime(saved); }
-});
-
 test('legacy browser additions migrate to Watchlist; removals cannot change ownership', async () => {
   const storage = new Map();
   globalThis.localStorage = { getItem: k => storage.get(k) || null, setItem: (k, v) => storage.set(k, v) };

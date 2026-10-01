@@ -94,14 +94,15 @@ The final browser check exposed a separate startup handoff: the statement book c
 `bookName` or `legalName` while preserving ticker, display name, ISIN and sector. Alerts correctly
 abandons the obsolete news-matching context, but the portfolio's change signal omitted those
 two fields. No replacement read started, leaving the five prepared feeds marked as reading.
-The signal now includes both identity inputs; prices, holding weights and check-only changes
-still do not invalidate readers. In an isolated browser using read-only live requests, the
-corrected signal adopted all five prepared feeds within the first ten-second observation.
+All Alerts now compares its complete requested context on portfolio notifications, including
+before a first report exists. The shared membership signal stays unchanged so unrelated tabs
+do not remount for a name-only handoff. Prices, holding weights and check-only changes still
+do not invalidate Alerts. An isolated browser using read-only live requests confirmed that
+restarting the changed context adopts the prepared feeds.
 
 The regression holds the index response, performs this same-name/ticker book handoff, and
-verifies that the replacement consumes the prepared shard without fetching raw captures. A
-separate identity test fails on the previous signature and verifies that quote/status updates
-remain quiet.
+verifies that the replacement consumes the prepared shard without fetching raw captures.
+It also verifies that quote/status updates leave the existing controls mounted.
 
 ## Data integrity
 

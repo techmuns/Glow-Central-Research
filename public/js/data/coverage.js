@@ -122,9 +122,7 @@ export function syncLabel() {
 }
 let family = null;
 
-// News matching also uses the statement and legal names. A book handoff can change
-// those while keeping the same ticker/display name; readers must restart that context.
-const identitySignature = entries => JSON.stringify(entries.map(h => [h.isin, h.ticker, h.name, h.bookName, h.legalName, h.sector]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+const identitySignature = entries => JSON.stringify(entries.map(h => [h.isin, h.ticker, h.name, h.sector]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
 
 /** One in-memory Family book for every view. Only membership/identity changes
  * require re-filtering feeds; a quote refresh must not tear down an answer. */

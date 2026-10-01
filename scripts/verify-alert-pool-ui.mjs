@@ -171,6 +171,15 @@ try {
   await settledAlerts(handoff.page);
   assert.deepEqual(captureReads(handoffFrom), [], 'the replacement context still uses the pool instead of raw captures');
   assert(poolReads(handoffFrom).some(path => path.endsWith(`/days/${index.day}.json.gz`)), 'the replacement reads the current-day shard');
+  await handoff.page.evaluate(async () => {
+    window.handoffSearch = document.querySelector('[data-table-search]');
+    const coverage = await import('/js/data/coverage.js');
+    coverage.useFamilyBook(coverage.holdings().map(h => ({ ...h, cmp: 123, holdingWeightPct: 2.5 })));
+    coverage.invalidateFamilyBook(); coverage.failFamilyBook();
+  });
+  await handoff.page.waitForTimeout(50);
+  assert(await handoff.page.evaluate(() => window.handoffSearch === document.querySelector('[data-table-search]')),
+    'quote and check-status updates keep the existing controls mounted');
   assert.deepEqual(handoff.errors.filter(message => !environment(message)), []);
   await handoff.context.close();
   console.log('PASS a statement-name handoff during index loading replaces the abandoned context and settles all pooled feeds.');
