@@ -74,7 +74,9 @@ async function archiveLocation(artifactId, { repo, token, fetchImpl = fetch, sig
 async function readRange(location, start, end, { fetchImpl = fetch, signal, limit = MAX_MEMBER_BYTES } = {}) {
   const wanted = end - start + 1;
   if (wanted > limit) throw new Error('Alert pool member exceeds size limit');
-  const response = await fetchImpl(location, { headers: { range: `bytes=${start}-${end}` }, redirect: 'manual', signal });
+  // The fetch cache can fill the whole ZIP before slicing a valid 206 response.
+  // Read ranges directly from storage; the directory/member Cache API remains in use.
+  const response = await fetchImpl(location, { headers: { range: `bytes=${start}-${end}` }, cache: 'no-store', redirect: 'manual', signal });
   if (response.status !== 206) {
     await response.body?.cancel();
     throw new Error(`Alert pool storage did not answer the byte range (HTTP ${response.status})`);
@@ -92,7 +94,7 @@ async function readRange(location, start, end, { fetchImpl = fetch, signal, limi
 async function readTail(location, n, { fetchImpl = fetch, signal } = {}) {
   // Azure ignores suffix ranges (bytes=-n) and returns the entire archive with 200.
   // A one-byte probe discovers the real ZIP length without downloading the archive.
-  const response = await fetchImpl(location, { headers: { range: 'bytes=0-0' }, redirect: 'manual', signal });
+  const response = await fetchImpl(location, { headers: { range: 'bytes=0-0' }, cache: 'no-store', redirect: 'manual', signal });
   if (response.status !== 206) {
     await response.body?.cancel();
     throw new Error(`Alert pool storage did not answer the byte range (HTTP ${response.status})`);
