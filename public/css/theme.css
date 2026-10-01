@@ -330,3 +330,8 @@ html [data-announcement-search] .announcement-search-input:focus { outline: none
 .announcement-search-option:disabled { color: var(--ink-400); cursor: not-allowed; }
 .announcement-search-option:disabled .announcement-company-symbol { color: var(--ink-400); }
 @media (pointer: coarse) { [data-announcement-company-clear] { flex-basis: 44px; width: 44px; height: 44px; } }
+
+.ai-source-citations { font-family: inherit; font-weight: 600; }
+.ai-source-citation { display: inline-block; min-width: 24px; line-height: 24px; text-align: center; font-size: 11px; font-weight: 600; color: var(--accent-600); vertical-align: baseline; position: relative; top: -.2em; text-decoration: underline; text-underline-offset: 2px; border-radius: 3px; }
+.ai-source-citation:hover { color: var(--ink-900); }
+.ai-source-citation:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 1px; }

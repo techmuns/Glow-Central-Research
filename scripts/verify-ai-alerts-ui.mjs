@@ -19,19 +19,13 @@ const events = Array.from({ length: 11 }, (_, i) => eventsFor(`A${String(i).padS
 events.filter(e => e.ticker === 'A10').forEach(e => { e.time = '08:00'; });
 events.find((e) => e.ticker === 'A01').time = null;
 events.push({ ...events[30], id: 'hidden-event', importance: 'low', headline: 'Lithium supply agreement hidden beyond the evidence preview' });
-// THE PREVIEW IS FOUR ROWS, so a card needs five events for one to sit beyond it — and the search
-// below exists to prove a match off-screen still finds its card. Slots go one per SOURCE in rounds,
-// so the row left out is the second-weakest of some source rather than the weakest on the card:
-// this filler shares the earnings feed with the low-importance lithium row and outranks it, which
-// puts lithium third in that source's queue and so beyond the four slots. It adds no source breadth
-// and carries no tracked keyword, so it draws no reading of its own.
+// More than one DOM window proves search still includes evidence beyond the mounted rows.
 events.push({ ...events[30], id: 'preview-filler', headline: 'Zenith Manufacturing: material risk 4' });
 events.push({ ...events[0], id: 'context-document', aiEligible: false, kind: 'document', importance: 'low', direction: 'neutral', headline: 'Material risk source document', detail: 'Underlying source record' });
 events.push(...eventsFor('OLD', 'Old signal', '2026-08-22'));
 events.push({ ...events[1], id: 'important-event', ticker: 'ZIMP', company: 'Important Company', direction: 'neutral' });
 const holdings = [...new Map(events.map(e => [e.ticker, { ticker: e.ticker, name: e.company }])).values()]
   .map((h, i, list) => ({ ...h, isin: `INE${String(i).padStart(9, '0')}`, sector: 'Test', weightPct: 100 / list.length }));
-const familyOrigin = 'https://sattva-family.pages.dev';
 const familyHtml = `<script>
 window.book=${JSON.stringify(holdings)}; window.holdPositions=true; window.failed=false; window.version=1;
 window.book=window.book.map(h=>({...h,weightPct:h.ticker==='A09'?60:40/(window.book.length-1)}));
@@ -77,6 +71,7 @@ export async function readCachedAlertWindow({scope,holdings,day=currentDay()}){
   return {...saved.value,day,scope,events:saved.value.events.filter(e=>scope==='universe'||wanted.has(e.ticker)),cacheSavedAt:saved.savedAt};
 }
 export async function collect({scope,onPartial,holdings,load=true}) {
+  if (window.throwCollection || new URLSearchParams(location.search).has('throwFirst')) throw new Error('Fixture initial collection failed');
   if(load) window.reads++;
   if(load && window.holdStart) await new Promise(done=>window.releaseStart=done);
   const wanted=new Set(holdings.map(h=>h.ticker));
@@ -112,6 +107,7 @@ const server = createServer((req, res) => {
 });
 await new Promise((done) => server.listen(0, '127.0.0.1', done));
 const origin = `http://127.0.0.1:${server.address().port}`;
+const familyOrigin = 'https://sattva-family.pages.dev';
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
 // A browser in California must still roll the Indian market date at 18:30 UTC.
 const page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, timezoneId: 'America/Los_Angeles' });
@@ -125,7 +121,10 @@ await page.route('**/*', route => route.request().url() === `${familyOrigin}/res
 const waitFor = async (target, condition) => {
   const deadline = Date.now() + 10000;
   while (!await target.evaluate(condition)) {
-    assert(Date.now() < deadline, `Timed out: ${condition}`);
+    if (Date.now() >= deadline) {
+      const state = await target.evaluate(() => ({ status: document.querySelector('[data-ai-feed-status]')?.textContent, cards: document.querySelectorAll('[data-ai-card]').length }));
+      assert.fail(`Timed out: ${condition}; ${JSON.stringify(state)}`);
+    }
     await new Promise(done => setTimeout(done, 20));
   }
 };
@@ -138,6 +137,18 @@ const renderedText = async locator => {
   return locator.innerText();
 };
 try {
+  const failedContext = await browser.newContext();
+  const failedPage = await failedContext.newPage();
+  failedPage.on('pageerror', error => errors.push(error.message));
+  await failedPage.route('**/*', route => route.request().url() === `${familyOrigin}/research-bridge`
+    ? route.fulfill({ contentType:'text/html', body:familyHtml })
+    : route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status:503, body:'{}' }));
+  await failedPage.goto(`${origin}/?throwFirst=1`);
+  await waitFor(failedPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'failed');
+  assert.equal(await failedPage.locator('[data-ai-feed-status]').innerText(), 'Alert sources unavailable');
+  assert.equal(await failedPage.locator('[data-ai-card]').count(), 0);
+  assert(!/retained evidence/i.test(await failedPage.locator('#root').innerText()), 'a failed first load cannot claim retained evidence');
+  await failedContext.close();
   // Empty sources often settle before a useful feed. Neither that early empty
   // report nor a slow context/positions request may hold useful cards offscreen.
   const loadingContext = await browser.newContext();
@@ -209,6 +220,8 @@ try {
   await waitFor(peer, () => !!window.releasePositions);
   assert.equal(await page.locator('[data-ai-card]').count(), 8, 'cold-load evidence does not wait for holding sizes');
   assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A00');
+  assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').evaluate(option => option.disabled), true,
+    'Largest holdings cannot be selected before complete weights arrive');
   await peer.evaluate(() => window.releasePositions());
   await settled();
   assert.equal(await page.locator('[data-ai-card]').count(), 8);
@@ -312,13 +325,13 @@ try {
     if (!card) return { withDrivers: 0 };
     const y = scrollY;
     const rendered = (node) => { node.scrollIntoView({ block: 'nearest' }); return node.innerText; };
-    const everyCardLabelsItsInsight = cards.every((c) => /what happened/i.test(rendered(c)));
+    const everyCardLabelsItsInsight = cards.every((c) => /headline/i.test(rendered(c)));
     rendered(card);
     const insight = card.querySelector('[data-ai-insight]');
     const evidence = card.querySelector('[data-ai-evidence]');
     const chips = [...card.querySelectorAll('[data-ai-driver]')];
     const rows = [...card.querySelectorAll('[data-ai-evidence] [data-ai-evidence-link]')];
-    const rowOf = (chip) => chip.closest('[data-ai-evidence-link]');
+    const rowOf = (chip) => chip.closest('[data-ai-event]')?.querySelector('[data-ai-evidence-link]');
     const readings = {
       withDrivers: cards.filter((c) => c.querySelector('[data-ai-driver]')).length,
       total: cards.length,
@@ -331,12 +344,11 @@ try {
       chipClasses: chips.map((chip) => chip.className),
       // A chip with no record behind it is the failure this replaced a paragraph to avoid.
       chipsSitOnRows: chips.length > 0 && chips.every((chip) => !!rowOf(chip) && !!rowOf(chip).getAttribute('href')),
-      // The link's aria-label replaces its contents for assistive technology, so the questions have
-      // to be named in it or the chip is drawn for sighted readers only.
+      // The source link continues to name the topic chips on its row for assistive technology.
       rowsNameTheQuestion: chips.every((chip) => /could change/i.test(rowOf(chip).getAttribute('aria-label') || '')),
       insightBeforeEvidence: !!evidence && !!(insight.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING),
       rowCount: rows.length,
-      rowKeys: rows.map((row) => row.querySelector('[data-ai-age]')?.getAttribute('datetime') || ''),
+      rowKeys: rows.map((row) => row.closest('[data-ai-event]').querySelector('[data-ai-age]')?.getAttribute('datetime') || ''),
       // Both blocks this replaced, asserted absent by their own hooks.
       figureStrip: card.querySelectorAll('[data-ai-metrics]').length,
       questionParagraph: card.querySelectorAll('[data-ai-drivers]').length,
@@ -346,7 +358,7 @@ try {
     return readings;
   });
   assert.equal(shape.withDrivers, shape.total, 'every card with a tracked topic names the question on the row that carries it');
-  assert(shape.everyCardLabelsItsInsight, 'every card labels what happened');
+  assert(shape.everyCardLabelsItsInsight, 'every card labels its headline');
   // One filing in the fixture carries one tracked keyword, so one row carries one chip.
   assert.deepEqual(shape.chipTexts, ['Thesis · Fraud']);
   assert(shape.chipsSitOnRows, 'every reading sits on the row whose own source backs it');
@@ -366,11 +378,11 @@ try {
   assert.doesNotMatch(shape.cardText, /earnings assumption, valuation or thesis/i);
   assert.doesNotMatch(shape.cardText, /Nothing tracked here bears on/i);
   assert(shape.insightBeforeEvidence, 'the finding is read before its evidence');
-  // Four rows, and the header above them claims newest first — so the rows have to be in that order.
+  // Bounded timeline rows, and the header above them claims newest first — so the rows have to be in that order.
   assert(shape.rowCount > 0 && shape.rowCount <= 4, `rows: ${shape.rowCount}`);
   assert.deepEqual(shape.rowKeys, [...shape.rowKeys].sort().reverse(), 'the rows are newest first, as the list header says');
   assert.equal(shape.scriptInjected, 0, 'row text is escaped');
-  console.log('PASS: the card labels what happened and names the investor question on the row that carries the reading.');
+  console.log('PASS: the card labels its headline and names the investor question on the row that carries the reading.');
 
   await page.evaluate(() => {
     window.savedFixture = window.fixtureEvents;
@@ -381,7 +393,7 @@ try {
   });
   await waitFor(page, () => !!window.releaseRead);
   assert.equal(await page.locator('[data-ai-card]').first().getAttribute('data-ticker'), 'A09', 'newest material event reaches the top before a slow feed finishes');
-  assert.match(await renderedText(card('A09').locator('[data-ai-evidence] li').first()), /A09 new material disclosure/, 'the new event is visible in the preview');
+  assert.match(await renderedText(card('A09').locator('[data-ai-timeline-row]').first()), /A09 new material disclosure/, 'the new event is visible in the preview');
   assert.equal(await card('A00').count(), 1, 'new live evidence does not erase the previous card');
   await page.evaluate(() => { window.holdRead = false; window.releaseRead(); });
   await settled();
@@ -490,10 +502,47 @@ try {
     assert.equal(await page.locator('[data-ai-feed-status]').innerText(), 'Latest available');
     assert.equal(await card('A00').count(), 1, 'a repeated background failure preserves the evidence');
   }
+  for (const scope of ['universe', 'watchlist']) {
+    await page.evaluate(scope => {
+      window.fixtureEvents = window.fixtureEvents.map(e => e.id === 'context-document' ? { ...e, keywordIds: ['fraud'] } : e);
+      window.failedFeed = 'insider'; window.show(scope);
+    }, scope);
+    await page.evaluate(() => window.refreshAlerts());
+    assert.equal(await page.locator('[data-ai-feed-status]').getAttribute('data-state'), 'partial', 'a size failure cannot hide a failed public feed');
+    assert.match(await page.locator('[data-ai-feed-status]').innerText(), /Partial coverage/);
+    const contextBefore = await card('A00').locator('[data-ai-context]').textContent();
+    assert.match(contextBefore, /Material risk source document/);
+    await peer.evaluate(() => window.invalidate());
+    await page.evaluate(async () => { try { await (await import('/js/research/portfolio-bridge.js')).readPositionSizes(); } catch {} });
+    assert.equal(await card('A00').locator('[data-ai-context]').textContent(), contextBefore, 'background size failures retain public context');
+    assert.equal(await page.locator('[data-ai-feed-status]').getAttribute('data-state'), 'partial');
+    await page.evaluate(() => { window.holdRead = true; window.pendingRefresh = window.refreshAlerts(); });
+    await waitFor(page, () => !!window.releaseRead && document.querySelector('[data-ai-feed-status]')?.dataset.state === 'pending');
+    await page.evaluate(async () => { window.holdRead = false; window.releaseRead(); await window.pendingRefresh; });
+    assert.equal(await page.locator('[data-ai-feed-status]').getAttribute('data-state'), 'partial');
+  }
   await peer.evaluate(() => { window.failed = false; });
+  await page.evaluate(() => { window.failedFeed = null; window.show(); });
   await page.evaluate(() => window.refreshAlerts());
   await settled();
   assert.equal(await page.locator('[data-ai-error]').count(), 0);
+  for (const scope of ['universe', 'watchlist']) {
+    await page.evaluate(scope => window.show(scope), scope);
+    await settled();
+    assert.equal(await card('A00').locator('[data-ai-holding-size]').count(), 1);
+    await peer.evaluate(() => { window.failed = true; window.holdPositions = true; });
+    await page.evaluate(() => { window.throwCollection = true; void window.refreshAlerts(); });
+    await waitFor(page, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'partial');
+    await waitFor(peer, () => !!window.releasePositions);
+    await peer.evaluate(() => window.releasePositions());
+    await waitFor(page, () => !document.querySelector('[data-ai-holding-size]'));
+    assert.equal(await card('A00').count(), 1, 'simultaneous failures keep retained public evidence');
+    assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').evaluate(option => option.disabled), true);
+    await peer.evaluate(() => { window.failed = false; });
+    await page.evaluate(() => { window.throwCollection = false; return window.refreshAlerts(); });
+    await settled();
+    assert.equal(await card('A00').locator('[data-ai-holding-size]').count(), 1);
+  }
   // Clear the short-lived position cache so the existing late-reply/scope-race
   // check still exercises a genuine read.
   await peer.evaluate(() => { window.holdPositions = true; window.invalidate(); });
@@ -502,10 +551,11 @@ try {
   assert.equal(await search.inputValue(), 'A00');
   await waitFor(peer, () => !!window.releasePositions);
   await page.evaluate(() => window.show('universe'));
-  await settled();
   await peer.evaluate(() => window.releasePositions());
+  await settled();
   assert.match(await page.locator('[data-ai-heading]').innerText(), /Universe/);
-  assert.equal(await page.locator('[data-ai-holding-size]').count(), 0, 'late portfolio replies cannot overwrite another scope');
+  assert.equal(await page.locator('[data-ai-holding-size]').count(), 1, 'the active Universe view receives verified sizes after a scope change');
+  assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').evaluate(option => option.disabled), false);
   await page.evaluate(() => window.show());
   await settled();
   await peer.evaluate(() => {
@@ -523,6 +573,8 @@ try {
   await waitFor(page, async () => (await import('/js/research/portfolio-bridge.js')).portfolioConnectionState() === 'locked');
   await settled();
   assert(/in portfolio/i.test(await renderedText(card('A00'))), 'sign-out recomputes Universe membership from the public book');
+  assert.equal(await page.locator('[data-ai-holding-size]').count(), 0, 'sign-out revokes weights in Universe too');
+  assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').evaluate(option => option.disabled), true, 'Largest holdings stays visible when access is unavailable');
   await page.evaluate(() => window.show());
   await settled();
   await page.evaluate(() => { window.dispose(); document.querySelector('#root').innerHTML = ''; });
@@ -552,11 +604,16 @@ try {
   await page.evaluate(() => localStorage.setItem('sattva:ai-alerts:sort:v1', 'holdings'));
   await page.goto(`${origin}/?hold=1`);
   await page.locator('[data-ai-card]').first().waitFor({ timeout: 1000 });
-  assert.equal(await page.getByRole('combobox', { name: 'Sort AI Alerts' }).inputValue(), 'holdings', 'sort preference survives a full reload');
+  assert.equal(await page.getByRole('combobox', { name: 'Sort AI Alerts' }).inputValue(), 'newest', 'pending weights display the actual newest-first fallback');
+  assert.equal(await page.evaluate(() => localStorage.getItem('sattva:ai-alerts:sort:v1')), 'holdings', 'the requested sort survives reload while its data loads');
   await page.getByRole('combobox', { name: 'Sort AI Alerts' }).selectOption('newest');
   assert.match(await page.locator('[data-ai-feed-status]').innerText(), /Ready/i);
   assert.equal(await page.evaluate(() => !!window.releaseStart), true, 'live collection is still blocked while cached cards are ready');
   console.log('PASS: reload restores a ready privacy-safe alert view before live collection completes.');
+  // The following public/tickerless cases use a separate coverage fixture.
+  const reloadedPeer = await (await page.locator('iframe').elementHandle()).contentFrame();
+  await reloadedPeer.evaluate(() => window.lock());
+  await waitFor(page, async () => (await import('/js/research/portfolio-bridge.js')).portfolioConnectionState() === 'locked');
   await page.evaluate(() => {
     window.holdStart = false; window.releaseStart(); window.dispose();
     const currentDay = window.currentDay;
@@ -619,7 +676,9 @@ try {
   const capacityContext = await browser.newContext();
   const capacityPage = await capacityContext.newPage();
   capacityPage.on('pageerror', error => errors.push(error.message));
-  await capacityPage.route('**/*', route => route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
+  await capacityPage.route('**/*', route => route.request().url() === `${familyOrigin}/research-bridge`
+    ? route.fulfill({ contentType:'text/html', body:`<script>addEventListener('message', e => { if (e.data.channel === 'sattva-portfolio-v1') parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'}, '*'); });</script>` })
+    : route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
   await capacityPage.clock.install({ time: '2026-09-04T08:00:00Z' });
   await capacityPage.goto(`${origin}/?scope=universe`);
   await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');

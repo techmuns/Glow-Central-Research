@@ -4458,3 +4458,12 @@ The selection intersects scope, date and text filters for rows, counts and expor
 refreshes, and remains explicitly outside scope after a scope change. Verified BSE/NSE identities
 join aliases; another issuer mentioning the company is not its filing. Search outages keep saved
 suggestions and ordinary text search available. Collection and retained history are unchanged.
+
+### AI Alerts reading parity (October 2026)
+
+Event-type filters are remembered, use OR within selected types, and intersect scope,
+search and priority. Routine notices are hidden by a visible, reversible control.
+Filtering changes displayed evidence and notebook snapshots, never company priority
+or archive identity. Source citations retain original publisher URLs and checked
+story history. Verified private holding sizes can sort every scope; failed or
+revoked access removes weights without dropping public evidence or masking source failures.
