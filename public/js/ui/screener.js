@@ -1336,6 +1336,7 @@ export function scoreTable(config) {
 
     const releaseSearch = searchControl?.wire(host, {
       onQuery: q => { view.q = q; requestFilterPaint(); },
+      onChange: () => requestFilterPaint(),
     });
     if (!searchControl) searchEl.addEventListener('input', () => {
       view.q = searchEl.value.trim().toLowerCase();

@@ -1,0 +1,464 @@
+// Scheme returns, published cohort comparisons and matching filtered exports.
+import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
+import { escapeHtml } from '../core/dom.js';
+import { formatNumber, formatRelativeTime } from '../core/format.js';
+import { exportSheets, todayStamp } from '../ui/export.js';
+import { gapHeat } from '../ui/mf-heatmap.js';
+import { factorLabel, managementLabel } from '../data/mf-taxonomy.js';
+import * as fundReturns from '../data/fund-returns.js';
+import { fundSearch } from '../ui/fund-search.js';
+
+// ---------------------------------------------------------------------------------------
+// Entry
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Build the panel from the ALREADY-LOADED feed. The dispatcher awaits `fundReturns.load()` and shows
+ * a skeleton first, exactly as it did for the filed view, so `all()` / `meta()` are primed here.
+ *
+ * Returns `{ html, wire(root) }`. On a named failure it returns the failure panel and a wire that
+ * arms the "Try again" button, so a mis-configured or briefly-down upstream is recoverable without
+ * leaving the tab.
+ */
+export function renderFundReturns(ctx, {
+  disposers = [], repaint = null, rows = null, headHtml = '', view = null, onView = null,
+  measure = 'return', extraProvenance = '', onSearchChange = null, metaHtml = '',
+} = {}) {
+  const m = fundReturns.meta();
+  // `rows` lets the OWNING TAB narrow the set — the Mutual Funds tab's asset-class / group chips
+  // sit above this panel and hand down what they selected. Null means the whole feed, which is what
+  // every other caller wants. The narrowed set is what the table, the count and the export all read,
+  // so no number on screen can describe a wider set than the rows beneath it.
+  const funds = rows || fundReturns.all();
+
+  // A FAILED READ IS NEVER AN EMPTY TABLE. `meta().reason` is set on every failure and `funds` is
+  // then []; render the named state rather than "no funds", which would read as an empty universe.
+  if (!m || m.reason) {
+    return { html: failurePanel(m), wire: (root) => wireRetry(root, repaint) };
+  }
+
+  const visiblePeriods = periodsWithData(funds, m.periods);
+  const table = buildTable(funds, m, visiblePeriods, view, measure, onSearchChange);
+
+  // ONE TABLE AND NOTHING ELSE, the way the filed view and the Earnings Hub are built. No stat strip,
+  // no ranking grid: this is a listing the reader scans and sorts. The provenance is one click away
+  // in the pill, which is the honesty rule the kit is built on — declutter the page, never delete
+  // the accountability.
+  const html = `
+    ${sectionHead({
+      title: 'Fund Returns & Ranking',
+      // `metaHtml` is trusted markup from the owning tab — its compact view switch — placed
+      // before the Live pill so the heading row carries every control the old picker card did.
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${metaHtml}${livePill(m)}</div>`,
+      // Trusted markup from the owning tab — the classification chips, where there are any.
+      controls: headHtml,
+    })}
+    ${table.html}
+  `;
+
+  return {
+    html,
+    wire(root) {
+      const off = table.wire(root);
+      if (off) disposers.push(off);
+      // The reader's own search / filter / sort, handed back so a repaint (a chip press) can seed
+      // the next instance with it rather than discarding what they had set up.
+      onView?.(table.view, table.matchesSearch);
+      root.querySelector('[data-fund-returns-info]')?.addEventListener('click', () => openProvenance(m, extraProvenance));
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------------------
+// Which period columns to show
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Hide a period whose return AND rank are null for EVERY row — 10Y is empty for most cohorts, and a
+ * column of em dashes is noise. This drops nothing a reader could have used: a period kept is a
+ * period at least one scheme reports.
+ */
+function periodsWithData(funds, periods) {
+  return periods.filter((p) =>
+    funds.some((f) => {
+      const cell = f.returns?.[p];
+      return cell && (cell.return != null || cell.rank != null);
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------------------
+// The table
+// ---------------------------------------------------------------------------------------
+
+function buildTable(funds, m, visiblePeriods, view = null, measure = 'return', onSearchChange = null) {
+  const search = fundSearch({
+    rows: funds, selected: view?.fundSearch?.categories, q: view?.q,
+    onFilterChange: (matches) => onSearchChange?.(table.view, matches),
+  });
+  const table = scoreTable({
+    rows: funds,
+    // The scheme code is the stable, content-derived id — never a row index (see the perf notes in
+    // CLAUDE.md: a positional key breaks the repaint fast path the moment the row set changes).
+    key: (r) => r.schemecode,
+    // A MUTUAL-FUND SCHEME IS NOT A COMPANY, so it gets no star.
+    //
+    // Without this, `watchKey` defaults to `key` — the AmfiBeas scheme code, a bare number like
+    // "119551" — and the watchlist store rejects it against its symbol pattern. The star then
+    // repainted HOLLOW on every click: the state was correct (nothing was stored, because a scheme
+    // code is not a ticker) and only the control the reader had just pressed disagreed with it,
+    // which is the exact failure `staleKeys` exists to close, arrived at from the other side. The
+    // rule is already written down for this case — "a row with no company gets NO STAR, not a dead
+    // one" — and it applies to all ~3,400 rows here. The Watchlist FILTER goes with it: the kit
+    // drops that control when no row on a table is watchable.
+    watchKey: () => null,
+    // The filter goes with the star, for the same reason: narrowing ~3,400 SCHEMES by the reader's
+    // watched COMPANIES can only ever produce an empty table.
+    showWatchFilter: false,
+    name: (r) => r.fundName,
+    nameLabel: 'Scheme',
+    sub: (r) => identitySub(r),
+    // No leading rank counter: the list is alphabetical, so "#7" would number the current sort
+    // rather than rank anything — and this table already carries a real, per-period rank.
+    showRank: false,
+    showAvatar: false,
+    dense: true,
+    wrapHeads: true,
+    nameMaxPx: 300,
+    stickyHead: 'max(320px, calc(100vh - 300px))',
+    searchControl: search,
+    // Alphabetical by name, exactly as the source lists them.
+    initialSort: { key: 'name', dir: 'asc' },
+    initialView: view,
+    columns: columnsFor(visiblePeriods, measure),
+    exportName: `sattva-fund-returns-${todayStamp()}`,
+    onExport: (visible) => exportFunds(visible, m, visiblePeriods),
+    countNoun: 'schemes',
+    emptyMessage: 'No scheme matches your filters.',
+  });
+  // Keep category selections alongside the table's query and sort when a chip or measure repaints it.
+  table.view.fundSearch = search.view;
+  table.matchesSearch = search.matches;
+  return table;
+}
+
+/**
+ * The sub-line under a scheme name: its classification, the strategy its own name states, and its
+ * option.
+ *
+ * THE PLAN IS NOT PRINTED. Every row is the direct plan bar the schemes that have only one, so a
+ * word repeated on 1,600 rows says nothing. The details modal explains the single-plan exception.
+ * See directOnly() in js/data/fund-returns.js.
+ */
+function identitySub(r) {
+  const option = r.option && r.option !== 'unknown' ? cap(r.option === 'idcw' ? 'IDCW' : r.option) : null;
+  const strategy = (r.factors || []).map(factorLabel).join(' · ') || null;
+  // A SCHEME SHOWN SOMEWHERE OTHER THAN THE SOURCE'S BUCKET SAYS SO ON ITS OWN ROW. The source's
+  // classification leads, unchanged; the move and its reason follow, in words, so the sub-line and
+  // the chip above it can never disagree about where this scheme is. See classifyLive().
+  // Short, because the identity column is capped at 300px and the claim has to survive the
+  // ellipsis: the WHY is on the chip above, in every cell's title and in the provenance panel.
+  const moved = r.taxonomy?.refiled ? `shown under ${r.taxonomy.group}` : null;
+  return [r.classification || (moved ? 'No classification from the source' : null), moved, strategy, option].filter(Boolean).join(' · ');
+}
+
+/**
+ * The cohort a moved scheme's figures still belong to. Its rank, median and excess are the source's
+ * own and were computed inside the bucket the SOURCE chose — a mid-cap index fund's "7/52" is a rank
+ * among the mid-cap funds, actively managed ones included — so every cell of such a row says which
+ * cohort that is. Null for a scheme shown where the source put it.
+ */
+function cohortNoteOf(r) {
+  if (!r.taxonomy?.refiled) return null;
+  return `The rank and category median here are the source’s own, computed inside its ${r.classification || 'unclassified'} cohort — which includes actively managed schemes — not inside ${r.taxonomy.group}.`;
+}
+
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+// ---------------------------------------------------------------------------------------
+// Columns — two per visible period: the return, then the rank
+// ---------------------------------------------------------------------------------------
+
+function columnsFor(periods, measure) {
+  const cols = [];
+  for (const p of periods) {
+    const label = fundReturns.PERIOD_LABEL[p] || p;
+    cols.push({
+      // THE HEADING NAMES THE UNIT WHEN THE UNIT CHANGES. A gap between two percentages is measured
+      // in percentage POINTS, and a screenshot travels without the chip row that selected the mode.
+      label: measure === 'return' ? label : `${label} pp`,
+      get: (r) => (measure === 'return' ? returnCell(r.returns?.[p], p, cohortNoteOf(r)) : excessCell(r.returns?.[p], p, cohortNoteOf(r))),
+      html: true,
+      align: 'right',
+      sortable: true,
+      sortValue: (r) => valueOrNull(measure === 'return' ? r.returns?.[p]?.return : r.returns?.[p]?.excessVsMedian),
+    });
+    cols.push({
+      // The rank sub-column. `wrapHeads` lets "3Y CAGR Rank" stack instead of forcing the column
+      // as wide as the label — the headings, not the "38/149" figures, are what would overflow.
+      label: `${label} Rank`,
+      get: (r) => rankCell(r.returns?.[p], cohortNoteOf(r)),
+      html: true,
+      align: 'right',
+      sortable: true,
+      // Ascending rank is "best first"; a null rank sorts last, which scoreTable's comparator does
+      // for null on its own.
+      sortValue: (r) => valueOrNull(r.returns?.[p]?.rank),
+    });
+  }
+  return cols;
+}
+
+const valueOrNull = (v) => (v == null || Number.isNaN(v) ? null : v);
+
+const fmt1 = (v) => `${v > 0 ? '+' : ''}${v.toFixed(1)}%`;
+const fmtPp = (v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}`;
+
+/**
+ * One period's cell: the scheme's own return, and beneath it the benchmark that return is measured
+ * against — the category median AmfiBeas publish for the scheme's own cohort on the same NAV date.
+ * Shaded by the gap between them, which is their `excessVsMedian` and not a subtraction done here.
+ *
+ * A cohort too small for statistics carries a return and no median. That prints the return with an
+ * em dash beneath it and a title saying which side is missing — never a zero, and never a benchmark
+ * quietly borrowed from a wider set.
+ */
+function returnCell(cell, period, cohortNote = null) {
+  const v = cell?.return;
+  if (v == null) return dash(cell?.reason || 'no return for this period');
+  const median = cell.categoryMedian;
+  const excess = cell.excessVsMedian;
+  const heat = excess == null ? { className: '', title: null } : gapHeat(excess, period);
+  const tone = v > 0 ? 'text-emerald-700' : v < 0 ? 'text-rose-700' : 'text-slate-500';
+  const title = (median == null
+    ? `${fmt1(v)} over ${period}. This scheme’s cohort is too small for the source to publish a category median, so there is nothing to compare it with — not a zero.`
+    : `${heat.title}. Scheme ${fmt1(v)} against its category median ${fmt1(median)}${cell.categoryAverage != null ? ` (average ${fmt1(cell.categoryAverage)})` : ''} over ${period}.`)
+    + (cohortNote ? ` ${cohortNote}` : '');
+  return `
+    <span class="inline-block w-full rounded px-1 py-0.5 text-right ${heat.className}" title="${escapeHtml(title)}">
+      <span class="block font-semibold tabular-nums ${tone}">${escapeHtml(fmt1(v))}</span>
+      <span class="block text-[10px] tabular-nums text-slate-400">${escapeHtml(median == null ? '—' : fmt1(median))}</span>
+    </span>`;
+}
+
+/** The same cell in the gap reading: the source's own excess over its category median, in points. */
+function excessCell(cell, period, cohortNote = null) {
+  const excess = cell?.excessVsMedian;
+  if (excess == null || cell?.return == null || cell?.categoryMedian == null) {
+    return dash(
+      cell?.return == null
+        ? cell?.reason || 'no return for this period'
+        : 'this scheme’s cohort is too small for the source to publish a category median, so no gap can be shown',
+    );
+  }
+  const heat = gapHeat(excess, period);
+  return `<span class="inline-block w-full rounded px-1 py-0.5 text-right tabular-nums font-semibold ${heat.className}" title="${escapeHtml(`${fmt1(cell.return)} against its category median ${fmt1(cell.categoryMedian)} over ${period} — ${heat.title}. The excess is the source’s own figure.${cohortNote ? ` ${cohortNote}` : ''}`)}">${escapeHtml(fmtPp(excess))}</span>`;
+}
+
+/**
+ * The peer rank: "rank/peerCount" within the scheme's own cohort, an em dash where the cohort was
+ * too small to rank. Reproduced, not computed — the same rule the con-call score follows.
+ */
+function rankCell(cell, cohortNote = null) {
+  if (!cell || cell.rank == null) return dash('the cohort was too small to rank');
+  const peers = cell.peerCount != null ? cell.peerCount : '—';
+  // The quartile and percentile are the source's too, so they ride in the title rather than as two
+  // more columns on a table that already carries fourteen.
+  const extra = [
+    cell.quartile ? `${cell.quartile} of its cohort` : null,
+    cell.percentile != null ? `${cell.percentile.toFixed(0)}th percentile` : null,
+  ].filter(Boolean).join(' · ');
+  const title = `Rank within the scheme’s own cohort${extra ? ` — ${extra}` : ''}. The source’s own ranking.${cohortNote ? ` ${cohortNote}` : ''}`;
+  return `<span class="tabular-nums text-slate-600" title="${escapeHtml(title)}">${escapeHtml(String(cell.rank))}/${escapeHtml(String(peers))}</span>`;
+}
+
+/** A dash that says why it is a dash — never a zero. */
+const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">—</span>`;
+
+// ---------------------------------------------------------------------------------------
+// Chrome — the pill and the provenance modal
+// ---------------------------------------------------------------------------------------
+
+/** The green Live pill — the always-visible statement of what the figures are and how fresh. */
+function livePill(m) {
+  const freshness = originLabel(m);
+  const navAge = Date.now() - Date.parse(m.asOfDate);
+  const healthy = !m.readFailed && m.origin !== 'saved' && Number.isFinite(navAge) && navAge >= -86400000 && navAge <= 4 * 86400000;
+  const colour = healthy ? 'bg-emerald-50 text-emerald-700 ring-emerald-100' : 'bg-amber-50 text-amber-700 ring-amber-100';
+  return `
+    <button type="button" data-fund-returns-info title="Where these figures come from, what the benchmark is, and what the rank measures"
+      class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${colour} transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+      <span class="h-1.5 w-1.5 rounded-full" style="background:currentColor"></span>
+      <span>${escapeHtml(freshness)}</span>
+      <span class="font-medium">${escapeHtml(formatNumber(m.total || m.count))} schemes${m.asOfDate ? ` · as of ${escapeHtml(formatDateLabel(m.asOfDate))}` : ''}</span>
+    </button>`;
+}
+
+/**
+ * The pill's leading word states WHERE this paint came from, never claims a freshness it has not
+ * confirmed — the same rule the store rests on. `live` was read from the network this session,
+ * `store` is a 304-confirmed device copy; both are real reads, so both say "Live", but a reader can
+ * tell which via the modal.
+ */
+function originLabel(m) {
+  if (m.readFailed) return 'Saved · check failed';
+  if (m.origin === 'saved') return 'Saved · checking';
+  return m.origin === 'store' ? 'Cached · checked' : 'Source checked';
+}
+
+function openProvenance(m, extra = '') {
+  openModal(`<div class="p-6"><h3 class="text-xl font-bold">Fund returns · Sources and coverage</h3>
+    <p class="mt-3">Returns, ranks, category averages and medians are published by AmfiBeas from AMFI NAVs. Figures retain the source’s cohort and NAV date. Category Performance uses this same snapshot.</p>
+    <p class="mt-3">1M–1Y are simple returns; 3Y–10Y are CAGR. The comparison beneath each return is its category median. A missing figure is —. This view displays category comparisons.</p>
+    <p class="mt-3">The direct plan is shown when available; single-plan schemes and ETFs remain. Only identical rows are folded. Source names, plan, option and classification are retained in the export. The source’s cohort remains the basis of each rank, including trackers grouped as passive from their name.</p>
+    <p class="mt-3">${escapeHtml(formatNumber(m.total || m.count))} displayed rows from ${escapeHtml(formatNumber(m.universe))} source rows. ${escapeHtml(formatNumber(m.hiddenRegular))} regular-plan rows omitted; ${escapeHtml(formatNumber(m.foldedDuplicates))} identical display copies folded.</p>
+    <p class="mt-3">${provenanceFreshness(m)}</p>${extra}
+    <button data-modal-close class="mt-6">Close</button></div>`, {size:'wide'});
+}
+
+function provenanceFreshness(m) {
+  const asOf = m.asOfDate ? `As of <strong>${escapeHtml(formatDateLabel(m.asOfDate))}</strong> (the AMFI NAV date the returns were computed to). ` : '';
+  const origin =
+    m.readFailed ? 'The latest check failed; your last saved figures remain available' : m.origin === 'saved'
+      ? 'Showing your saved figures while checking the source; this visit has not confirmed freshness yet' : m.origin === 'store'
+      ? 'This paint came from your device’s cache, revalidated against the upstream’s ETag'
+      : 'This paint was read live from the upstream this session';
+  const checked = m.checkedAt ? `, last confirmed ${escapeHtml(formatRelativeTime(new Date(m.checkedAt)))}` : '';
+  return `${asOf}${origin}${checked}. The API refreshes daily; this page revalidates and reuses your cached copy when nothing changed.`;
+}
+
+// A NAV date is "YYYY-MM-DD"; render it as "12 Aug 2026" without inventing a timezone.
+function formatDateLabel(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
+  if (!m) return String(iso);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${Number(m[3])} ${months[Number(m[2]) - 1]} ${m[1]}`;
+}
+
+// ---------------------------------------------------------------------------------------
+// Failure panel — a named state, never an empty table, with a way back
+// ---------------------------------------------------------------------------------------
+
+function failurePanel(m) {
+  const reason = m?.reason || 'unknown';
+  const url = m?.url || null;
+  const REASONS = {
+    'no-url': {title:'Fund returns are unavailable',body:'The source is not configured yet.'},
+    'not-found': {title:'Fund returns are unavailable',body:'The source could not supply its returns feed. Please check back.'},
+    unreachable: {title:'Fund returns could not be checked',body:'Check your connection or try again shortly.'},
+    upstream: {title:'Fund returns could not be checked',body:'The source is temporarily unavailable. Please check back.'},
+    shape: {title:'Fund returns could not be verified',body:'The source returned an incomplete response. Please check back.'},
+  };
+  const r = REASONS[reason] || { title: 'The fund-returns feed could not be read', body: 'No further detail was reported.' };
+  return `
+    ${sectionHead({ title: 'Fund Returns & Ranking', description: 'Point-to-point returns and same-cohort peer rank for every tracked mutual fund and ETF, from AmfiBeas.' })}
+    <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+      <div class="flex items-start gap-3">
+        <span class="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-amber-400"></span>
+        <div class="min-w-0">
+          <h3 class="font-display text-base font-bold text-slate-900">${escapeHtml(r.title)}</h3>
+          <p class="mt-1.5 text-sm leading-relaxed text-slate-600">${r.body}</p>
+          <button type="button" data-fund-returns-retry
+            class="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-60">
+            Try again
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function wireRetry(root, repaint) {
+  const btn = root.querySelector('[data-fund-returns-retry]');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Retrying…';
+    try {
+      await fundReturns.reload();
+    } catch {
+      /* reload never rejects on a named failure; a thrown one falls through to the repaint below */
+    }
+    if (repaint) repaint();
+  });
+}
+
+// ---------------------------------------------------------------------------------------
+// Export — the one artefact that leaves without the page's chrome, so the banner carries the source
+// ---------------------------------------------------------------------------------------
+
+async function exportFunds(visible, m, periods) {
+  const banner =
+    `THIRD-PARTY DATA, REPRODUCED. Fund returns, category medians and same-cohort peer ranks from the AmfiBeas Returns & Ranking API ` +
+    `(computed over AMFI’s daily NAV snapshot)${m.asOfDate ? `, as of ${formatDateLabel(m.asOfDate)}` : ''}. ` +
+    `THE RETURNS, THE CATEGORY FIGURES AND THE RANKS ARE THEIRS — reproduced unchanged, not recomputed or re-ranked here. ` +
+    `A return is a percentage already: a simple return for 1M/3M/6M/1Y and a CAGR for 3Y/5Y/10Y. ` +
+    `THE BENCHMARK IN THIS SHEET IS THE SCHEME'S OWN CATEGORY, NOT AN INDEX: This sheet displays published category comparisons. ` +
+    `The excess column is the source's own "excessVsMedian", in percentage POINTS, not a subtraction done here. ` +
+    `A rank is "rank of peerCount" WITHIN THE SCHEME'S OWN COHORT, not against the whole list. ` +
+    `ONE ROW PER SCHEME — the DIRECT plan wherever the source lists one; a scheme with only one plan (every exchange-traded fund) is kept as it is. Regular-plan duplicates are not in this sheet. ` +
+    `Where the source lists one scheme twice under two ids with EVERY FIGURE IDENTICAL, it appears once. ` +
+    `The "Scheme" column drops the trailing PLAN marker from the source's own name, because it labels direct-plan rows "-Reg(G)" against its own plan field; the source's string is in the column beside it, unaltered. ` +
+    `"Strategy in name" is read from the SCHEME'S OWN NAME, where the tracked index is stated — it is not a classification either source publishes, and it never changes the classification column beside it. ` +
+    `"Active / Passive" is this dashboard's reading: PASSIVE where the source files the scheme as Index, Index Funds or ETFs, or where the scheme's own name states a tracked index or ETF; ACTIVE otherwise. ` +
+    `"Shown under" is where this dashboard lists the scheme. It is the source's own category except where the source filed a NAME-STATED TRACKER under an active category (e.g. a Nifty Midcap 150 Index Fund under Equity : Mid Cap): such a scheme is shown under Index & smart beta or Exchange traded, its "Classification" column keeps the source's own bucket, and its rank and category median remain the source's own cohort, active schemes included. ` +
+    `A blank return means no return for that period; a blank median or rank means the cohort was too small for the source to publish one — NONE IS A ZERO. ` +
+    `Category Performance uses the same published snapshot and preserves each source cohort. ` +
+    `Source: ${m.source || 'AmfiBeas'}. Exported ${new Date().toISOString()}.`;
+
+  const columns = [
+    { header: 'Scheme code', key: 'code', width: 14, get: (r) => r.schemecode },
+    { header: 'Scheme', key: 'name', width: 46, get: (r) => r.fundName },
+    { header: 'Scheme (as the source names it)', key: 'srcname', width: 46, get: (r) => r.sourceName || r.fundName },
+    { header: 'Classification (as the source files it)', key: 'cls', width: 30, get: (r) => r.classification || '' },
+    { header: 'Active / Passive (this dashboard’s reading)', key: 'mgmt', width: 22, get: (r) => managementLabel(r.taxonomy?.management) || '' },
+    { header: 'Shown under (this dashboard’s grouping)', key: 'shown', width: 40, get: (r) => (r.taxonomy ? `${r.taxonomy.assetClass} › ${r.taxonomy.group} › ${r.taxonomy.label}${r.taxonomy.refiled ? ' (moved: the name states a tracked ' + (r.taxonomy.refiled.kind === 'etf' ? 'ETF' : 'index') + ')' : ''}` : '') },
+    { header: 'Strategy in name (read from the name)', key: 'fac', width: 30, get: (r) => (r.factors || []).map(factorLabel).join(' · ') },
+    { header: 'Plan', key: 'plan', width: 10, get: (r) => (r.plan && r.plan !== 'unknown' ? cap(r.plan) : '') },
+    { header: 'Option', key: 'opt', width: 10, get: (r) => (r.option && r.option !== 'unknown' ? (r.option === 'idcw' ? 'IDCW' : cap(r.option)) : '') },
+  ];
+  for (const p of periods) {
+    const label = fundReturns.PERIOD_LABEL[p] || p;
+    columns.push({
+      header: `${label} return %`,
+      key: `r_${p}`,
+      width: 16,
+      get: (r) => {
+        const v = r.returns?.[p]?.return;
+        return v == null ? '' : Number(v.toFixed(2));
+      },
+    });
+    columns.push({
+      header: `${label} category median % (benchmark)`,
+      key: `m_${p}`,
+      width: 24,
+      get: (r) => {
+        const v = r.returns?.[p]?.categoryMedian;
+        return v == null ? '' : Number(v.toFixed(2));
+      },
+    });
+    columns.push({
+      header: `${label} vs category median (pp)`,
+      key: `x_${p}`,
+      width: 22,
+      get: (r) => {
+        const v = r.returns?.[p]?.excessVsMedian;
+        return v == null ? '' : Number(v.toFixed(2));
+      },
+    });
+    columns.push({
+      header: `${label} rank`,
+      key: `k_${p}`,
+      width: 14,
+      get: (r) => {
+        const cell = r.returns?.[p];
+        return !cell || cell.rank == null ? '' : `${cell.rank}/${cell.peerCount ?? ''}`;
+      },
+    });
+  }
+
+  await exportSheets({
+    filename: `sattva-fund-returns-${todayStamp()}`,
+    banner,
+    sheets: [{ name: 'Returns & Ranking', columns, rows: visible }],
+  });
+}

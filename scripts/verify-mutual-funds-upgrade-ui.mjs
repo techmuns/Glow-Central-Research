@@ -6,11 +6,15 @@ import { resolve, extname, sep } from 'node:path';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = resolve('public');
 let upgraded = false;
-const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><output id="reading"></output><output id="comparison"></output><output id="coverage"></output><script type="module">
+const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><output id="default"></output><output id="views"></output><output id="reading"></output><output id="comparison"></output><output id="coverage"></output><script type="module">
+import { DEFAULT_ROUTE } from '/js/core/router.js';
+import { meta as fundMeta } from '/js/tabs/mutual-funds.js';
 import { readableOwnership } from '/js/data/mutual-funds-ownership.js';
 import { coverageRows } from '/js/data/mutual-funds-coverage.js';
 import { comparisonStatus } from '/js/data/mutual-funds-status.js';
 import { watchWorkerChanges } from '/js/core/app-updates.js';
+document.querySelector('#default').textContent=DEFAULT_ROUTE.tab;
+document.querySelector('#views').textContent=fundMeta.subviews.map(v=>v.id).join(',');
 const row=readableOwnership({companyPct:10,denominator:{shares:1000,checkedAt:'2000-01-01'}});
 document.querySelector('#reading').textContent=row.companyPct===null?'—':row.companyPct+'%';
 document.querySelector('#comparison').textContent=comparisonStatus({totalShares:null,comparableFunds:0,pendingFunds:0}).label;
@@ -35,6 +39,8 @@ const server = createServer((req, res) => {
     }
     // Model the previous normalizer's behavior inside a genuinely controlled,
     // warm session. Every other module and the update lifecycle are real.
+    if (pathname === '/js/core/router.js' && !upgraded) body = body.toString().replace("tab: 'ai-alerts'", "tab: 'ask-research'");
+    if (pathname === '/js/tabs/mutual-funds.js' && !upgraded) body = 'export const meta={subviews:[]};';
     if (pathname === '/js/data/mutual-funds-ownership.js' && !upgraded)
       body = body.toString().replace('if(!row?.denominator || freshShareCount(row.denominator,now))return row;', 'return row;');
     if (pathname === '/js/data/mutual-funds-status.js' && !upgraded)
@@ -54,6 +60,8 @@ try {
   await page.waitForFunction(() => window.ready && navigator.serviceWorker.controller);
   await page.reload();
   await page.waitForFunction(() => window.ready);
+  assert.equal(await page.locator('#default').innerText(),'ask-research');
+  assert.equal(await page.locator('#views').innerText(),'');
   assert.equal(await page.locator('#reading').innerText(), '10%');
   assert.equal(await page.locator('#comparison').innerText(), 'Pending');
   assert.equal(await page.locator('#coverage').innerText(), 'ok');
@@ -63,6 +71,8 @@ try {
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
   await page.waitForFunction(() => document.querySelector('#comparison')?.textContent === 'No disclosure' && document.querySelector('#reading')?.textContent === '—', { timeout: 30000 });
   assert.equal(await page.locator('#coverage').innerText(), 'Current');
+  assert.equal(await page.locator('#default').innerText(),'ai-alerts');
+  assert.match(await page.locator('#views').innerText(),/all-schemes,category-performance/);
   assert.equal(await page.evaluate(() => !!navigator.serviceWorker.controller), true);
   const after = await page.evaluate(() => caches.keys());
   assert(after.some(key => key.startsWith('sattva-dashboard-') && !before.includes(key)));

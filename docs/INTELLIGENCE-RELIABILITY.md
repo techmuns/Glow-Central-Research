@@ -428,3 +428,16 @@ Follow `docs/BSE-COLLECTION.md`. Keep BSE category/date completeness, identity-d
 health and publisher-index recovery separate. Retain validated partial records,
 archive before checkpointing, resume exact cursors and never advance a failed window.
 A recovery source's success cannot certify exhaustive exchange coverage.
+
+## Mutual-fund returns and category comparisons
+
+Company Holdings retains the authenticated Sattva ownership reader. All Schemes and Category
+Performance use the public AmfiBeas NAV snapshot independently of company scope. They retain
+its NAV date, source cohorts, plan and option; no index comparison or average of displayed
+rows is substituted. Conflicting published cohort statistics are withheld. Schemes without a
+source cohort identity cannot establish category statistics. Direct plans take display preference,
+single-plan ETFs remain, and every raw plan remains available to the cohort projection.
+
+A saved snapshot paints before revalidation; a failed read retains it with a failure label.
+Visible views check every 15 minutes and on return, while the source publishes daily. These
+reader checks do not claim an independent historical NAV archive or complete source coverage.

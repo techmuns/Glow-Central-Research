@@ -4486,3 +4486,7 @@ the 14-day priority or current headline. Preserve checked story members, source
 links, bookmarks, scroll anchors and partial public history when a source fails.
 Clear private history on access changes. Timeline scrolling must not request AI
 summaries; only the visible card headline can carry its optional factual summary.
+
+AI Alerts is the default first tab; Ask Research keeps its existing route and availability.
+Mutual Funds preserves Company Holdings as its default, with All Schemes and Category Performance
+from the same dated public AmfiBeas snapshot. Portfolio sizes never enter that public cache.
