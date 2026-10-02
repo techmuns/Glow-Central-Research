@@ -1206,7 +1206,7 @@
       "error": "search-unavailable"
     },
     "isin:INE572E01012|PNBHOUSING": {
-      "lastAttemptAt": "2026-09-27T15:09:03+00:00",
+      "lastAttemptAt": "2026-10-02T01:03:34+00:00",
       "error": "search-unavailable",
       "lastResultCount": 52,
       "lastSuccessAt": "2026-09-18T06:26:21+00:00",
@@ -1916,7 +1916,7 @@
   "coverage": {
     "planned": 232,
     "attempted": 1,
-    "incomplete": 220,
-    "checkedAt": "2026-10-02T00:28:09.026460+00:00"
+    "incomplete": 226,
+    "checkedAt": "2026-10-02T01:03:34.979892+00:00"
   }
 }
