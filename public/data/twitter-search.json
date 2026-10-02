@@ -1923,7 +1923,7 @@
       "error": "search-unavailable"
     },
     "isin:INE879I01012|DBREALTY": {
-      "lastAttemptAt": "2026-09-29T04:02:10+00:00",
+      "lastAttemptAt": "2026-10-02T21:49:53+00:00",
       "error": "search-unavailable"
     },
     "isin:INE1CDF01017|Vedanta Aluminium Metal": {
@@ -2079,6 +2079,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 196,
-    "checkedAt": "2026-10-02T21:14:45.137021+00:00"
+    "checkedAt": "2026-10-02T21:49:53.568739+00:00"
   }
 }
