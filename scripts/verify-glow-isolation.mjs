@@ -18,7 +18,10 @@ for (const name of workflows) {
   const stagesData = /git add[^\n]*public\/data/.test(source) && /git commit/.test(source);
   if (stagesData) {
     assert(/git push origin HEAD:main/.test(source), `${name} commits captured data but never pushes it to main`);
-    assert(/git rebase origin\/main/.test(source), `${name} pushes to main without the rebase retry, so a concurrent writer loses its capture`);
+    const standardRebase = /git rebase origin\/main/.test(source);
+    const boundedCaptureRebase = /capture_parent=\$\(git rev-parse HEAD\^\)/.test(source) &&
+      /git fetch --depth=1 origin main/.test(source) && /git rebase --onto origin\/main "\$capture_parent"/.test(source);
+    assert(standardRebase || boundedCaptureRebase, `${name} pushes to main without the rebase retry, so a concurrent writer loses its capture`);
   }
   assert(!/gh pr create[^\n]*codex\/data-/.test(source), `${name} opens a data PR`);
 }
