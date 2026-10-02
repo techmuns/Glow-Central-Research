@@ -1572,47 +1572,119 @@
       "error": "search-unavailable"
     },
     "isin:INE526E01018|Shriram Pistons & Rings": {
-      "lastAttemptAt": "2026-09-28T07:58:56+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-02T10:43:50+00:00",
+      "error": null,
+      "lastResultCount": 4,
+      "lastSuccessAt": "2026-10-02T10:43:50+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE526E01018|SHRIPISTON": {
-      "lastAttemptAt": "2026-09-28T08:37:33+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-02T10:43:50+00:00",
+      "error": null,
+      "lastResultCount": 22,
+      "lastSuccessAt": "2026-10-02T10:43:50+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE1NPP01017|Siemens Energy India": {
-      "lastAttemptAt": "2026-09-28T09:08:59+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-02T10:43:50+00:00",
+      "error": null,
+      "lastResultCount": 37,
+      "lastSuccessAt": "2026-10-02T10:43:50+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE1NPP01017|ENRIN": {
-      "lastAttemptAt": "2026-09-28T09:44:38+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-02T10:43:50+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 107,
+      "targetThrough": "2026-10-02T10:43:50+00:00",
+      "pending": [
+        {
+          "from": "2026-09-23T10:43:50.428892+00:00",
+          "to": "2026-09-27T22:43:50.214446+00:00"
+        },
+        {
+          "from": "2026-09-27T22:43:50.214446+00:00",
+          "to": "2026-10-02T10:43:50+00:00"
+        }
+      ]
     },
     "isin:INE01IU01018|Sky Gold": {
-      "lastAttemptAt": "2026-09-28T10:21:07+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-02T10:43:50+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 104,
+      "targetThrough": "2026-10-02T10:43:50+00:00",
+      "pending": [
+        {
+          "from": "2026-09-23T10:43:50.428892+00:00",
+          "to": "2026-09-27T22:43:50.214446+00:00"
+        },
+        {
+          "from": "2026-09-27T22:43:50.214446+00:00",
+          "to": "2026-10-02T10:43:50+00:00"
+        }
+      ]
     },
     "isin:INE01IU01018|SKYGOLD": {
-      "lastAttemptAt": "2026-09-28T10:28:46+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-02T10:43:50+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 110,
+      "targetThrough": "2026-10-02T10:43:50+00:00",
+      "pending": [
+        {
+          "from": "2026-09-23T10:43:50.428892+00:00",
+          "to": "2026-09-27T22:43:50.214446+00:00"
+        },
+        {
+          "from": "2026-09-27T22:43:50.214446+00:00",
+          "to": "2026-10-02T10:43:50+00:00"
+        }
+      ]
     },
     "isin:INE728Z01015|Softtech Engineers": {
-      "lastAttemptAt": "2026-09-28T11:01:38+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-02T10:43:50+00:00",
+      "error": null,
+      "lastResultCount": 13,
+      "lastSuccessAt": "2026-10-02T10:43:50+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE728Z01015|SOFTTECH": {
-      "lastAttemptAt": "2026-09-28T11:34:57+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-02T10:43:50+00:00",
+      "error": null,
+      "lastResultCount": 72,
+      "lastSuccessAt": "2026-10-02T10:43:50+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE073K01018|Sona Blw Precision Forgings": {
-      "lastAttemptAt": "2026-09-28T12:08:00+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-02T10:43:50+00:00",
+      "error": null,
+      "lastResultCount": 19,
+      "lastSuccessAt": "2026-10-02T10:43:50+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE073K01018|SONACOMS": {
-      "lastAttemptAt": "2026-09-28T12:41:10+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-02T10:43:50+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 108,
+      "targetThrough": "2026-10-02T10:43:50+00:00",
+      "pending": [
+        {
+          "from": "2026-09-23T10:43:50.428892+00:00",
+          "to": "2026-09-27T22:43:50.214446+00:00"
+        },
+        {
+          "from": "2026-09-27T22:43:50.214446+00:00",
+          "to": "2026-10-02T10:43:50+00:00"
+        }
+      ]
     },
     "isin:INE12Z301012|Sotefin Bharat": {
-      "lastAttemptAt": "2026-09-28T13:12:44+00:00",
+      "lastAttemptAt": "2026-10-02T10:43:50+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0M4D01010|Standard Engineering Technology": {
@@ -1945,8 +2017,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 211,
-    "checkedAt": "2026-10-02T10:09:16.180722+00:00"
+    "attempted": 11,
+    "incomplete": 205,
+    "checkedAt": "2026-10-02T10:43:50.428892+00:00"
   }
 }
