@@ -1384,67 +1384,73 @@
       "pending": []
     },
     "isin:INE976G01028|RBL Bank": {
-      "lastAttemptAt": "2026-09-28T00:44:42+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 101,
+      "lastAttemptAt": "2026-10-02T06:48:54+00:00",
+      "error": null,
+      "lastResultCount": 61,
       "targetThrough": "2026-09-13T23:47:09+00:00",
       "pending": [
-        {
-          "from": "2026-09-04T23:47:09.668058+00:00",
-          "to": "2026-09-09T11:47:09.334029+00:00"
-        },
         {
           "from": "2026-09-09T11:47:09.334029+00:00",
           "to": "2026-09-13T23:47:09+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-10-02T06:48:54+00:00"
     },
     "isin:INE976G01028|RBLBANK": {
-      "lastAttemptAt": "2026-09-28T01:41:39+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 105,
+      "lastAttemptAt": "2026-10-02T06:48:54+00:00",
+      "error": null,
+      "lastResultCount": 60,
       "targetThrough": "2026-09-13T23:47:09+00:00",
       "pending": [
-        {
-          "from": "2026-09-04T23:47:09.668058+00:00",
-          "to": "2026-09-09T11:47:09.334029+00:00"
-        },
         {
           "from": "2026-09-09T11:47:09.334029+00:00",
           "to": "2026-09-13T23:47:09+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-10-02T06:48:54+00:00"
     },
     "isin:INE425Y01011|RPSG Ventures Limite": {
-      "lastAttemptAt": "2026-09-28T01:54:44+00:00",
-      "error": "search-unavailable",
+      "lastAttemptAt": "2026-10-02T06:48:54+00:00",
+      "error": null,
       "lastResultCount": 0,
-      "lastSuccessAt": "2026-09-13T23:47:09+00:00",
+      "lastSuccessAt": "2026-10-02T06:48:54+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE425Y01011|RPSGVENT": {
-      "lastAttemptAt": "2026-09-28T02:49:47+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 3,
-      "lastSuccessAt": "2026-09-13T23:47:09+00:00",
+      "lastAttemptAt": "2026-10-02T06:48:54+00:00",
+      "error": null,
+      "lastResultCount": 0,
+      "lastSuccessAt": "2026-10-02T06:48:54+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE500L01026|S H Kelkar & Company": {
-      "lastAttemptAt": "2026-09-28T03:22:36+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-02T06:48:54+00:00",
+      "error": null,
+      "lastResultCount": 1,
+      "lastSuccessAt": "2026-10-02T06:48:54+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE08U801020|Samhi Hotels": {
-      "lastAttemptAt": "2026-09-28T03:55:56+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-02T06:48:54+00:00",
+      "error": null,
+      "lastResultCount": 10,
+      "lastSuccessAt": "2026-10-02T06:48:54+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE08U801020|SAMHI": {
-      "lastAttemptAt": "2026-09-28T04:28:48+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-02T06:48:54+00:00",
+      "error": null,
+      "lastResultCount": 23,
+      "lastSuccessAt": "2026-10-02T06:48:54+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE148I01020|Sammaan Capital": {
-      "lastAttemptAt": "2026-09-28T05:01:39+00:00",
+      "lastAttemptAt": "2026-10-02T06:48:54+00:00",
       "error": "search-unavailable"
     },
     "isin:INE148I01020|SAMMAANCAP": {
@@ -1934,7 +1940,7 @@
   "coverage": {
     "planned": 232,
     "attempted": 8,
-    "incomplete": 222,
-    "checkedAt": "2026-10-02T05:50:51.629330+00:00"
+    "incomplete": 217,
+    "checkedAt": "2026-10-02T06:48:54.089362+00:00"
   }
 }
