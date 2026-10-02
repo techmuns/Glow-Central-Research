@@ -1873,8 +1873,8 @@
       "lastDiscoveryAt": "2026-09-29T01:13:29+00:00"
     },
     "isin:INE0OC301013|Turtlemint Fintech Solutions": {
-      "lastAttemptAt": "2026-09-29T01:13:29+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-10-02T17:59:50+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 22,
       "lastSuccessAt": "2026-09-29T01:13:29+00:00",
       "targetThrough": null,
@@ -2079,6 +2079,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 196,
-    "checkedAt": "2026-10-02T17:24:45.038276+00:00"
+    "checkedAt": "2026-10-02T17:59:50.044717+00:00"
   }
 }
