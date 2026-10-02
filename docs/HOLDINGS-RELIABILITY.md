@@ -28,6 +28,8 @@ A live investor-list failure no longer aborts the Finology capture: the walk run
 
 Publication uses the existing GitHub Actions token and pushes to `main` directly; between 9 and 17 September 2026 it went through a reviewed `codex/data-*` PR instead, and 1,091 of those were open with none merged when the gate was retired (see `docs/GLOW-TEMPLATE-SYNC.md` → Generated-data publication). Verify runs on the resulting push and reports. The existing Cloudflare Git integration publishes main. No manual production capture or deployment is needed for this implementation.
 
+From 30 September 2026 the source printed its period headings with a trailing percent sign ("Sep 2026%"). Nothing here read that as a date, so every book failed validation (86 of 90 in the 1 October 22:48 UTC run) and the live route reported no filed quarter at all. `canonicalQuarter()` in `public/js/data/finology-shared.js` now removes a trailing `%` or `(%)` from a label that is otherwise a period, before any label is ordered, compared or used as a key; `normalisePortfolio()` reads each cell under the label the source printed and files it under the canonical one, so retained history and new reads share one column per quarter. A label that is still not a date is kept exactly as printed. `verify-super-investors.mjs` and `verify-holdings-integrity.mjs` cover the decorated labels.
+
 ## Meaning and remaining limits
 
 A source download time is not a holding date. Blank source cells retain `reported`, `filing_due`, `not_disclosed` or `unknown` status; missing cells never prove a sale. Quarterly comparisons use consecutive completed calendar quarters. Unusable valuation inputs keep book totals unavailable.
