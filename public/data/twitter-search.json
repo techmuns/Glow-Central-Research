@@ -2071,7 +2071,7 @@
       "error": "search-unavailable"
     },
     "isin:INE685T01010|HORIZONIND": {
-      "lastAttemptAt": "2026-09-29T02:07:56+00:00",
+      "lastAttemptAt": "2026-10-02T20:01:55+00:00",
       "error": "search-unavailable"
     }
   },
@@ -2079,6 +2079,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 196,
-    "checkedAt": "2026-10-02T19:39:26.187555+00:00"
+    "checkedAt": "2026-10-02T20:01:55.552285+00:00"
   }
 }
