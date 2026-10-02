@@ -2,11 +2,32 @@
 // The existing Worker route owns the Muns credential and its static user_index contract.
 import { escapeHtml as e } from '../core/dom.js';
 import { searchCompanies } from '../data/stock-search.js';
+import { runStepsInSlices } from '../core/slices.js';
 
 const normal = value => String(value || '').normalize('NFKD').replace(/\p{M}/gu, '')
   .toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const words = value => normal(value).split(/\s+/).filter(Boolean);
 let sequence = 0;
+// Captured rows are immutable. Retain their text across table instances without retaining the
+// rows themselves; returning to a large archive must not normalize every filing again at once.
+const textIndexes = new WeakMap();
+function textReader(searchable) {
+  let index = textIndexes.get(searchable);
+  if (!index) { index = new WeakMap(); textIndexes.set(searchable, index); }
+  return row => {
+    if (!index.has(row)) index.set(row, normal(searchable(row)));
+    return index.get(row);
+  };
+}
+export function prepareAnnouncementSearch(rows, searchable, options) {
+  const read = textReader(searchable);
+  return runStepsInSlices((function* () {
+    for (let i = 0; i < rows.length; i++) {
+      read(rows[i]);
+      if ((i + 1) % 128 === 0) yield;
+    }
+  })(), options);
+}
 
 export function announcementSearch({ companies, companyKey, resolveCompany, allowsCompany,
   scopeLabel, searchable, q = '', state = { selected: null } }) {
@@ -24,11 +45,7 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
     const item = candidate(raw);
     if (item && !known.has(item.key)) known.set(item.key, item);
   }
-  const textByRow = new WeakMap();
-  const prepare = row => {
-    if (!textByRow.has(row)) textByRow.set(row, normal(searchable(row)));
-    return textByRow.get(row);
-  };
+  const prepare = textReader(searchable);
   let previousQuery, needle = '';
   const matches = (row, query) => {
     if (state.selected && companyKey(row) !== companyKey(state.selected)) return false;

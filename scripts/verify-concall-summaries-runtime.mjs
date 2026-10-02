@@ -46,7 +46,9 @@ writeFileSync(config,JSON.stringify({name:'summary-local-test',main:join(scratch
 let child,logs='';
 async function call(input={}) {const response=await fetch(origin,{method:'POST',body:JSON.stringify(input),signal:AbortSignal.timeout(5000)});assert(response.ok,await response.clone().text());return response.json();}
 async function start() {
-  child=spawn('npx',['--yes','wrangler@4','dev','--local','--config',config,'--ip','127.0.0.1','--port',String(port),'--persist-to',join(scratch,'state')],
+  // The preceding runtime suite can still be releasing its inspector. Let the OS assign
+  // this fixture's inspector port independently of the default shared development port.
+  child=spawn('npx',['--yes','wrangler@4','dev','--local','--config',config,'--ip','127.0.0.1','--port',String(port),'--inspector-port','0','--persist-to',join(scratch,'state')],
     {cwd:scratch,detached:true,env:{...process.env,CI:'true',WRANGLER_SEND_METRICS:'false'},stdio:['ignore','pipe','pipe']});
   for(const stream of [child.stdout,child.stderr]) stream.on('data',chunk=>{logs=(logs+chunk).slice(-12000);});
   const deadline=Date.now()+90000;
