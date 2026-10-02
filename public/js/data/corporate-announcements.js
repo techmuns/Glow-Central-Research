@@ -25,7 +25,11 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
   let pending = null, historyPending = null, held = [], nseError = null;
   let identity = createAnnouncementIdentity(), identityError = null, identityRevision = null;
   let bseIdentities = [], nseIdentityError = null;
+<<<<<<< HEAD
   let identityKey = '', rowInputs = null, heldText = [];
+=======
+  let identityKey = '', rowInputs = null, heldText = '';
+>>>>>>> sattva/main
   let identityGeneration = 0;
   const nseDirectories = { sme: [], equity: [] };
   async function loadBseIdentities() {
@@ -161,7 +165,11 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
     return pending;
   }
   return {
+<<<<<<< HEAD
     ...base, rows, prepareRows,
+=======
+    ...base, rows,
+>>>>>>> sattva/main
     companyKey: company => identity.key(company),
     companyIdentity: company => ({ ...company, ...identity.find(company) }),
     forTicker: (ticker) => {

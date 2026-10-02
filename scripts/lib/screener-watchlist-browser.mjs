@@ -39,6 +39,10 @@ export async function readWatchlistInventory(page, { origin, watchlistId, watchl
     if (manageRows.length || manageCompanyLinks || tableCompanyLinks) throw new Error('Nonempty watchlist export is unavailable');
     return { current: [], manageRows };
   }
+<<<<<<< HEAD
+=======
+  if (await forms.count() !== 1) throw new Error('Ambiguous watchlist export controls');
+>>>>>>> sattva/main
   const form = forms.first();
   const exportUrl = new URL(await form.getAttribute('action') || '', origin);
   if (exportUrl.origin !== origin || exportUrl.searchParams.get('sublist_id') !== watchlistId) throw new Error('Unexpected export target');
@@ -48,9 +52,22 @@ export async function readWatchlistInventory(page, { origin, watchlistId, watchl
   ]);
   if (await download.failure()) throw new Error('Watchlist export download failed');
   const chunks = [];
+<<<<<<< HEAD
   const stream = await download.createReadStream();
   for await (const chunk of stream) chunks.push(chunk);
   await download.delete().catch(() => {});
+=======
+  let bytes = 0;
+  try {
+    const stream = await download.createReadStream();
+    if (!stream) throw new Error('Watchlist export stream unavailable');
+    for await (const chunk of stream) {
+      bytes += chunk.length;
+      if (bytes > 8 * 1024 * 1024) { stream.destroy(); throw new Error('Watchlist export is oversized'); }
+      chunks.push(chunk);
+    }
+  } finally { await download.delete().catch(() => {}); }
+>>>>>>> sattva/main
   const current = parseWatchlistExport(Buffer.concat(chunks));
   if (manageRows.length !== current.length) throw new Error('Export and manage counts differ');
   return { current, manageRows };

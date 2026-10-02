@@ -17,6 +17,12 @@ assert.equal((await prepareTimeline(card, { history, day, filters: { selected: [
   'history respects the same event filter; the already filtered card owns current events');
 assert.equal((await prepareTimeline(card, { history, day, filters: { hideRoutine: false } })).length, 20002, 'routine history is available when explicitly included');
 assert.equal(await prepareTimeline(card, { history, day, isCurrent: () => false }), null, 'abandoned preparations never publish');
+<<<<<<< HEAD
+=======
+const proposal = event('proposal', {day, time:'09:00', storyId:'merger', storySequence:1});
+const approval = event('approval', {day, time:null, storyId:'merger', storySequence:2});
+assert.deepEqual((await prepareTimeline({events:[proposal,approval], developments:[{lead:proposal},{lead:approval}]}, {day})).map(r=>r.id), ['approval','proposal'], 'clockless material updates precede their earlier checked development');
+>>>>>>> sattva/main
 let calls = 0, release, currentView = true;
 let next = { events: [event('public'), event('public', { ticker: 'OTHER' }), event('private', { feed: 'company-documents', private: true }), event('removed-ok', { feed: 'insider' })],
   feeds: [{ id: 'earnings', status: 'ok' }, { id: 'company-documents', status: 'ok' }, { id: 'insider', status: 'ok' }] };
