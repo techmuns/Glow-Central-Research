@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-10-02T18:03:14.522Z",
+    "capturedAt": "2026-10-02T19:25:36.010Z",
     "from": "2026-08-05",
     "to": "2026-10-01",
     "rows": 10794,
@@ -12,10 +12,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-02T18:03:14.522Z",
-  "oldestDataAt": "2026-10-02T18:03:14.522Z",
-  "from": "2025-10-02",
-  "to": "2026-10-02",
+  "capturedAt": "2026-10-02T19:25:36.010Z",
+  "oldestDataAt": "2026-10-02T19:25:36.010Z",
+  "from": "2025-10-03",
+  "to": "2026-10-03",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-02T18:03:14.522Z",
+      "capturedAt": "2026-10-02T19:25:36.010Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-02T18:03:14.522Z",
+      "capturedAt": "2026-10-02T19:25:36.010Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +63,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-02T18:03:14.522Z",
+      "capturedAt": "2026-10-02T19:25:36.010Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,7 +76,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-02T18:03:14.522Z",
+      "capturedAt": "2026-10-02T19:25:36.010Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -84,7 +84,7 @@
   "covered": 4,
   "withRows": 1898,
   "emptyCount": 0,
-  "rowCount": 19944,
+  "rowCount": 19941,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -64501,50 +64501,6 @@
           "From Date": "2025-11-26",
           "To Date": "2025-11-26",
           "Broadcast Date": "2025-11-27",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "FUSION",
-        "date": "2025-10-02",
-        "cells": {
-          "Company": "FUSION",
-          "Insider": "Deepika Nishant Monga",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "1000",
-          "Trade %": "0",
-          "Trade Value": "191770",
-          "Post Holding Shares": "1000",
-          "Post Holding %": "0",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-30",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-02",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "FUSION",
-        "date": "2025-10-02",
-        "cells": {
-          "Company": "FUSION",
-          "Insider": "Nishant Monga",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "500",
-          "Trade %": "0",
-          "Trade Value": "95600",
-          "Post Holding Shares": "600",
-          "Post Holding %": "0",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-30",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-02",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -234975,28 +234931,6 @@
           "From Date": "2026-02-20",
           "To Date": "2026-02-24",
           "Broadcast Date": "2026-03-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "DBOL",
-        "date": "2025-10-02",
-        "cells": {
-          "Company": "Dhampur Bio Organics Ltd",
-          "Insider": "DBO Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "55624",
-          "Trade %": "0.08",
-          "Trade Value": "4676226",
-          "Post Holding Shares": "584000",
-          "Post Holding %": "0.88",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-02",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
