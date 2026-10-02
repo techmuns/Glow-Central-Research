@@ -1454,7 +1454,7 @@
       "error": "search-unavailable"
     },
     "isin:INE148I01020|SAMMAANCAP": {
-      "lastAttemptAt": "2026-09-28T05:34:43+00:00",
+      "lastAttemptAt": "2026-10-02T07:29:23+00:00",
       "error": "search-unavailable"
     },
     "isin:INE860D01013|Sanjivani Paranteral": {
@@ -1939,8 +1939,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 8,
+    "attempted": 1,
     "incomplete": 217,
-    "checkedAt": "2026-10-02T06:48:54.089362+00:00"
+    "checkedAt": "2026-10-02T07:29:23.419283+00:00"
   }
 }
