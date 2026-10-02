@@ -10,6 +10,7 @@ export const PORTFOLIO_MAX_CHARS = 6000;
 let transportReady = false;
 let connection = null;
 let positionSizesSupported = false;
+let priceLevelsSupported = false;
 const listeners = new Set();
 const invalidations = new Set();
 const portfolioReady = new Set();
@@ -155,6 +156,7 @@ function request(type, question, signal, timeoutMs) {
 export function connectPortfolio() {
   if (transportReady) return Promise.resolve(true);
   if (!connection) connection = request('hello', null, null, 15_000).then((reply) => {
+    priceLevelsSupported = Array.isArray(reply.capabilities) && reply.capabilities.includes('price-levels');
     positionSizesSupported = Array.isArray(reply.capabilities) && reply.capabilities.includes('position-sizes');
     transportReady = true;
     if (state !== 'unavailable') setConnection('connected');
@@ -263,7 +265,7 @@ export function needsPortfolioAnalysis(question, history = []) {
 
 export async function readResearchPortfolio(question, signal, history = []) {
   if (needsPortfolioAnalysis(question, history)) return readPortfolio(question, signal);
-  // Recheck the workbook revision, coalescing with an already-running check.
+  // Recheck the workbook after this question; share only a read that has not started.
   // A failed read never falls back to cached ownership or an extra model call.
   const reply = await readPositionSizes(signal, { force: true });
   if (!reply) throw new Error(state === 'locked' ? 'Unlock your portfolio above to answer with your holdings.' : 'Your portfolio connection is unavailable. Please try again; no old holdings were used.');
@@ -289,6 +291,7 @@ export function readPositionSizes(signal, { force = false } = {}) {
     useFamilyBook(cached.holdings, cached.sizes.bookAsOf, cached.sizes.checkedAt);
     return Promise.resolve(cached);
   }
+<<<<<<< HEAD
   // A FORCED READ MAY SHARE ONE THAT HAS NOT ASKED THE HOST ANYTHING YET. `enqueueRead` runs its
   // callback in a later microtask, so a read created earlier in this same burst has posted nothing
   // so far, and sharing it cannot return anything staler than opening a second one would - the
@@ -312,4 +315,23 @@ export function readPositionSizes(signal, { force = false } = {}) {
   pendingSizesAskedAt = askedAt;
   read.catch(() => {}).finally(() => { if (pendingSizes === read) pendingSizes = null; });
   return forConsumer(read, signal);
+=======
+  // Callers may share a queued read, but a forced caller cannot accept a source
+  // check already in progress. Keep state per operation: an older queued read
+  // must not change the state of a newer one waiting behind it.
+  if (pendingSizes && (!force || !pendingSizes.started)) return forConsumer(pendingSizes.promise, signal);
+  const entry = { started: false, promise: null };
+  entry.promise = enqueueRead(() => { entry.started = true; return readPositionSizesNow(); });
+  pendingSizes = entry;
+  entry.promise.catch(() => {}).finally(() => { if (pendingSizes === entry) pendingSizes = null; });
+  return forConsumer(entry.promise, signal);
+}
+
+export const priceLevelsAvailable = () => transportReady && state === 'connected' && priceLevelsSupported;
+export async function readPriceLevels(cursor = null) {
+  if (!priceLevelsAvailable()) throw Error('Unlock Sattva Family to read shared price alerts.');
+  const reply = await request('price-levels', cursor, null, 30000);
+  if (!reply.priceLevels || JSON.stringify(reply.priceLevels).length > 1500000) throw Error('Invalid private alert reply');
+  return reply.priceLevels;
+>>>>>>> sattva/main
 }

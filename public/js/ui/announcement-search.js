@@ -2,12 +2,16 @@
 // The existing Worker route owns the Muns credential and its static user_index contract.
 import { escapeHtml as e } from '../core/dom.js';
 import { searchCompanies } from '../data/stock-search.js';
+<<<<<<< HEAD
 import { runStepsInSlices } from '../core/slices.js';
+=======
+>>>>>>> sattva/main
 
 const normal = value => String(value || '').normalize('NFKD').replace(/\p{M}/gu, '')
   .toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const words = value => normal(value).split(/\s+/).filter(Boolean);
 let sequence = 0;
+<<<<<<< HEAD
 // Captured rows are immutable. Retain their text across table instances without retaining the
 // rows themselves; returning to a large archive must not normalize every filing again at once.
 const textIndexes = new WeakMap();
@@ -28,6 +32,8 @@ export function prepareAnnouncementSearch(rows, searchable, options) {
     }
   })(), options);
 }
+=======
+>>>>>>> sattva/main
 
 export function announcementSearch({ companies, companyKey, resolveCompany, allowsCompany,
   scopeLabel, searchable, q = '', state = { selected: null } }) {
@@ -45,13 +51,22 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
     const item = candidate(raw);
     if (item && !known.has(item.key)) known.set(item.key, item);
   }
+<<<<<<< HEAD
   const prepare = textReader(searchable);
+=======
+  const textByRow = new WeakMap();
+>>>>>>> sattva/main
   let previousQuery, needle = '';
   const matches = (row, query) => {
     if (state.selected && companyKey(row) !== companyKey(state.selected)) return false;
     if (query !== previousQuery) { previousQuery = query; needle = normal(query); }
     if (!needle) return true;
+<<<<<<< HEAD
     return prepare(row).includes(needle);
+=======
+    if (!textByRow.has(row)) textByRow.set(row, normal(searchable(row)));
+    return textByRow.get(row).includes(needle);
+>>>>>>> sattva/main
   };
   const chipHtml = () => state.selected ? `<div class="announcement-selected-company">
     <span class="announcement-selected-identity"><span class="announcement-company-name">${e(state.selected.name)}</span>
@@ -59,7 +74,11 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
     <button type="button" data-announcement-company-clear aria-label="Clear selected company" title="Clear selected company">×</button></div>` : '';
   const hint = () => state.selected && !allowsCompany(state.selected)
     ? `This company is outside ${scopeLabel}. Switch scope or clear the company.`
+<<<<<<< HEAD
     : state.selected ? 'Showing this company only. Period and filing-type filters still apply.' : '';
+=======
+    : state.selected ? 'Showing this company only. Period and text filters still apply.' : '';
+>>>>>>> sattva/main
   const placeholder = () => state.selected ? 'Search within this company…' : 'Search company name, ticker or announcement…';
   const html = `<div data-announcement-search="${id}" class="min-w-0 flex-1" style="min-width:min(100%,220px);max-width:32rem">
     <div data-announcement-company-chip>${chipHtml()}</div>
@@ -196,5 +215,9 @@ export function announcementSearch({ companies, companyKey, resolveCompany, allo
       document.removeEventListener('pointerdown', onOutside); window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true);
     };
   }
+<<<<<<< HEAD
   return { html, wire, matches, prepare, state };
+=======
+  return { html, wire, matches, state };
+>>>>>>> sattva/main
 }

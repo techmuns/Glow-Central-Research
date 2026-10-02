@@ -202,6 +202,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
       // one is a real answer rather than a gap in our budget.
       coversUniverse: false,
       exchangeCompanies: null,
+      identityDirectory: null,
       unnamedRows: 0,
       // The window the snapshot actually holds, which a date-indexed capture knows and a per-company
       // walk does not. Falls back to the feed's own constant.
@@ -303,6 +304,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
       askedEmpty: state.askedEmpty.size,
       coversUniverse: state.coversUniverse,
       exchangeCompanies: state.exchangeCompanies,
+      identityDirectory: state.identityDirectory,
       unnamedRows: state.unnamedRows,
       capturedAt: state.capturedAt,
       sourceCheck: state.sourceCheck || null,
@@ -333,7 +335,8 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
         pending: state.snapshotPending, error: state.snapshotReadError ||
           (state.snapshotChecked && !queryComplete ? 'Some company searches are incomplete or unchecked.' :
             state.snapshotChecked && !coreFresh ? 'Company-search source checks are stale or unavailable.' : null),
-        capturedAt: state.capturedAt, checkedAt: state.capturedAt, readerCheckedAt: state.checkedAt,
+        capturedAt: state.capturedAt,
+      sourceCheck: state.sourceCheck || null, checkedAt: state.capturedAt, readerCheckedAt: state.checkedAt,
       } } } : {}),
       enrichmentCoverage: state.enrichmentCoverage,
       tradingViewCoverage: state.tradingViewCoverage,
@@ -770,9 +773,16 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     }
     // What the file declares about its own coverage and window. Read before the early return, so a
     // re-read that finds nothing newer still leaves these describing the file we actually hold.
+<<<<<<< HEAD
     state.coversUniverse = body.coversUniverse === true;
     state.sourceCheck = { lastAttemptAt: body.lastAttemptAt || body.capturedAt,
       error: body.lastError || null, identityError: body.identityError || null };
+=======
+    state.sourceCheck = { lastAttemptAt: body.lastAttemptAt || body.capturedAt, error: body.lastError || null,
+      identityError: body.identityDirectory?.ok === false ? { message: 'The BSE company directory could not be refreshed. Saved identities are in use.' } : null };
+    state.identityDirectory = body.identityDirectory && typeof body.identityDirectory === 'object' ? body.identityDirectory : null;
+    state.coversUniverse = body.coversUniverse === true && state.identityDirectory?.ok !== false;
+>>>>>>> sattva/main
     state.exchangeCompanies = Number.isFinite(body.exchangeCompanies) ? body.exchangeCompanies : null;
     state.unnamedRows = Number.isFinite(body.unnamedRows) ? body.unnamedRows : 0;
     state.snapshotWindowDays = Number.isFinite(body.windowDays) ? body.windowDays : null;

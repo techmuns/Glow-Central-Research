@@ -63,7 +63,11 @@ console.log(`[alert-pool] collecting the full Universe history for ${day}`);
 const report = await alerts.collect({ scope: 'universe', day, includeHistory: true });
 const sourceFeeds = report.sourceFeeds.filter(publicAlertFeed);
 const index = writePoolMembers({ outDir, sourceFeeds, day, now, book: coverage.holdings(), newsMeta: news.meta(),
+<<<<<<< HEAD
   captures: captureIdentities({ root, exchange }), recoveryRows: readNewsJson(resolve(root, 'data/screener-announcements.json')).rows });
+=======
+  captures: captureIdentities({ root, exchange }) });
+>>>>>>> sattva/main
 const allMembers = [...index.days, ...index.ai].flatMap(entry => [entry, ...Object.values(entry.feedMembers || {}).filter(Boolean)]);
 const totalBytes = allMembers.reduce((n, entry) => n + entry.bytes, 0);
 console.log(`[alert-pool] wrote ${index.days.length} day shards and ${index.ai.length} AI shards, ${Math.round(totalBytes / 1024)} KB gzipped, in ${Math.round((performance.now() - started) / 1000)}s`);
