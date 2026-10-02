@@ -10,6 +10,7 @@
 // - an outage stops the retry pass after OUTAGE_STREAK failures in a row instead of spending a
 //   deadline on every book;
 // - the retry, and only the retry, asks the Worker for a patient read;
+// - a book the source publishes nothing for is captured as that answer, never over a populated one;
 // - Finology's decorated period labels ("Sep 2026%") pass through the whole script.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -129,8 +130,8 @@ async function run(plan, previous = null) {
   assert.ok(Object.values(requests).every((times) => times.length === 1));
 }
 
-// 5. A book empty on every read is read empty again; a first empty read and a populated book read
-//    empty are still refused.
+// 5. A book the source publishes nothing for is captured as that answer, retained or not; a
+//    populated book read empty is still refused.
 {
   const emptyRetained = { ...book('blank'), fetchedAt: '2026-09-09T06:53:23.644Z', quarters: [], holdings: [], totalStocks: null };
   const previous = { investors: [{ name: 'blank', slug: 'blank' }], books: { blank: emptyRetained } };
@@ -141,12 +142,12 @@ async function run(plan, previous = null) {
   assert.ok(Date.parse(snapshot.books.blank.fetchedAt) > Date.parse(emptyRetained.fetchedAt), 'the read time moves forward');
   assert.equal(requests.blank.length, 1);
   const first = await run({ fresh: 'empty' });
-  assert.equal(first.code, 1);
-  assert.equal(first.snapshot.failed.fresh?.reason, 'shape', 'a first read with nothing in it is not trusted');
+  assert.equal(first.code, 0, 'a book never captured may be read as publishing nothing');
+  assert.deepEqual(first.snapshot.books.fresh.holdings, []);
   const lost = await run({ lost: 'empty' }, { investors: [{ name: 'lost', slug: 'lost' }], books: { lost: { ...book('lost'), fetchedAt: '2026-09-09T00:00:00Z' } } });
   assert.equal(lost.code, 1);
   assert.equal(lost.snapshot.failed.lost?.reason, 'shape', 'a populated book read empty is still refused');
   assert.equal(lost.snapshot.books.lost.holdings.length, 1, 'and its retained holdings survive');
 }
 
-console.log('PASS super-investor capture: stale books retried after the stale entry expires, still-stale books stay failures, outages stop the retry pass, malformed books never count as an outage, decorated period labels captured, a book empty on every read is read empty again');
+console.log('PASS super-investor capture: stale books retried after the stale entry expires, still-stale books stay failures, outages stop the retry pass, malformed books never count as an outage, decorated period labels captured, a book the source publishes nothing for is captured as that answer');

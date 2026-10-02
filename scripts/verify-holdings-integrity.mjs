@@ -33,12 +33,12 @@ assert.throws(() => validateBook({ ...raw, stale: true }, raw.slug));
 assert.throws(() => validateBook({ ...raw, holdings: [] }, raw.slug, raw));
 assert.throws(() => validateBook({ ...raw, slug: 'someone-else' }, raw.slug));
 assert.throws(() => validateBook({ ...raw, fetchedAt: '2026-01-01' }, raw.slug, raw));
-// A book the source has never published anything for may be read empty again — and only then.
+// A book the source publishes nothing for is read as that answer — unless something says otherwise.
 const emptyRetained = { ...raw, quarters: [], holdings: [], totalStocks: null };
 const emptyAgain = { ...emptyRetained, fetchedAt: '2026-09-10T00:00:00Z' };
 assert.equal(validateBook(emptyAgain, raw.slug, emptyRetained), emptyAgain, 'a book empty on every read may be read empty again');
-assert.throws(() => validateBook(emptyAgain, raw.slug), /portfolio shape/, 'a first read with nothing in it is not trusted');
-assert.throws(() => validateBook(emptyAgain, raw.slug, raw), 'a populated book read empty is still refused');
+assert.equal(validateBook(emptyAgain, raw.slug), emptyAgain, 'a book never captured may be read as publishing nothing');
+assert.throws(() => validateBook(emptyAgain, raw.slug, raw), /portfolio shape/, 'a populated book read empty is still refused');
 assert.throws(() => validateBook({ ...emptyAgain, totalStocks: 3 }, raw.slug, emptyRetained), 'a source that counts stocks overrides an empty table');
 assert.throws(() => validateBook({ ...emptyAgain, holdings: raw.holdings }, raw.slug, emptyRetained), 'holdings without periods are still refused');
 assert.throws(() => validateBook({ ...emptyAgain, fetchedAt: '2026-09-08T00:00:00Z' }, raw.slug, emptyRetained), 'an older empty answer is still older');
