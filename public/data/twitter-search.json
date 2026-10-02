@@ -1230,7 +1230,7 @@
       "pending": []
     },
     "isin:INE546Y01022|Praxis Home Retails": {
-      "lastAttemptAt": "2026-09-27T17:18:07+00:00",
+      "lastAttemptAt": "2026-10-02T02:22:44+00:00",
       "error": "search-unavailable",
       "lastResultCount": 0,
       "lastSuccessAt": "2026-09-18T06:26:21+00:00",
@@ -1917,6 +1917,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-10-02T02:07:34.627956+00:00"
+    "checkedAt": "2026-10-02T02:22:44.012231+00:00"
   }
 }
