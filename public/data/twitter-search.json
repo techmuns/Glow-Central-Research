@@ -1812,7 +1812,7 @@
       "error": "search-unavailable"
     },
     "isin:INE976I01016|Tata Capital": {
-      "lastAttemptAt": "2026-09-28T23:01:05+00:00",
+      "lastAttemptAt": "2026-10-02T13:54:20+00:00",
       "error": "search-unavailable"
     },
     "isin:INE976I01016|TATACAP": {
@@ -2077,8 +2077,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 12,
+    "attempted": 1,
     "incomplete": 196,
-    "checkedAt": "2026-10-02T12:58:36.150794+00:00"
+    "checkedAt": "2026-10-02T13:54:20.782149+00:00"
   }
 }
