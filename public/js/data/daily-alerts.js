@@ -643,6 +643,10 @@ async function warmNewsReadings(feedId, reader, queryWindow, yieldForInput, { da
   let rows;
   try {
     if (feedId === 'news') await reader.warm?.(yieldForInput);
+    // A period's publisher candidates are chosen against the company reader's rows too, and that
+    // reader can still be joining a publisher month that just landed: prepare it in slices, or the
+    // read below rebuilds the join in one task (0.5s at 4x CPU throttle, measured).
+    else if (queryWindow) await reader.prepareRows?.(yieldForInput);
     rows = feedId === 'news' ? newsQueryRows(reader, queryWindow, reader) : newsQueryRows(marketNews, queryWindow, reader);
   } catch { return; }
   let started = performance.now();
@@ -730,6 +734,14 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   const build = async () => {
     // Either news route can finish last. Reconcile companions from both current readers while
     // retaining each request's real pending/failed status; a partial is never a completed check.
+    // Each read below starts with the collector's synchronous pass over the reader's rows, and a
+    // reader whose sources moved since it was last prepared — a publisher month landing
+    // mid-collection — rebuilt its join in one task there (0.6s at 4x CPU throttle, inside a
+    // progress publication). Prepare it in slices first; the read then finds its rows ready. A
+    // preparation that fails changes nothing: the read still answers.
+    if (queryWindow && ['news', 'market-news'].some(id => settledFeeds.has(id) && !poolSeeded.has(id))) {
+      try { await newsReader.prepareRows?.(yieldForInput); } catch { /* The read below still answers. */ }
+    }
     if (queryWindow) for (const id of ['news', 'market-news']) {
       const previous = settledFeeds.get(id);
       if (previous && !poolSeeded.has(id)) {
@@ -805,6 +817,10 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
         // capture history for a reader that can no longer publish it.
         if (load && poolMode && !isCurrent()) return;
       }
+      const warm = async () => {
+        if (feed.id === 'news' || feed.id === 'market-news') await warmNewsReadings(feed.id, newsReader, queryWindow, yieldForInput, warmReading);
+        else if (WARMERS[feed.id]) { try { await WARMERS[feed.id](yieldForInput, warmReading); } catch { /* The read below still answers. */ } }
+      };
       try {
         if (load && feed.id === 'news' && newsReader !== news) {
           // The publisher route can correct dates at the same URL. Its complete original pool
@@ -814,13 +830,16 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
           loadedFeeds.add('news'); normalizedFeeds.delete('news');
         } else if (load) await loadFeed(feed.id, refresh);
         await yieldForInput();
-        if (feed.id === 'news' || feed.id === 'market-news') await warmNewsReadings(feed.id, newsReader, queryWindow, yieldForInput, warmReading);
-        else if (WARMERS[feed.id]) { try { await WARMERS[feed.id](yieldForInput, warmReading); } catch { /* The read below still answers. */ } }
+        await warm();
         out = await readFeedInSlices(feed, args, yieldForInput);
         if (!load && loadErrors.has(feed.id)) out = { ...out, status: 'failed', reachesToday: false, note: `Last read failed: ${loadErrors.get(feed.id)}. Retained records remain visible.` };
         else if (!load && (!loadedFeeds.has(feed.id) || loadingFeeds.has(feed.id)) && LOADERS[feed.id]) out = { ...out, status: 'pending' };
       } catch (err) {
-        // A failed refresh must not erase a last-good capture or masquerade as an empty feed.
+        // A failed refresh must not erase a last-good capture or masquerade as an empty feed — and
+        // the retained records it reads are warmed in slices exactly as a successful load's are.
+        // Read cold, every retained filing was classified again in one task: 2.2 seconds at 4x CPU
+        // throttle, the longest task of an All Alerts open whose Today was still empty.
+        try { await warm(); } catch { /* The read below still answers. */ }
         try { out = await readFeedInSlices(feed, args, yieldForInput); } catch { out = toFeedRow(feed, { events: [] }, day); }
         out = { ...out, status: 'failed', reachesToday: false, note: `Read failed: ${String(err?.message || err)}. Retained records remain visible.` };
       }
@@ -869,9 +888,10 @@ const LOADERS = {
   'market-news': async (refresh) => {
     await marketNews.load();
     if (refresh) await marketNews.refresh();
+    // The whole retained archive, read together and announced once (see `loadRemaining`).
     while (marketNews.archiveMeta().remaining) {
       const before = marketNews.archiveMeta().remaining;
-      const result = await marketNews.loadMore();
+      const result = await marketNews.loadRemaining();
       if (result.failed || marketNews.archiveMeta().remaining >= before) throw Error('Market-news archive could not be completely read');
     }
     if (marketNews.meta().lastReadFailed) throw Error('Market-news capture could not be revalidated');
@@ -936,6 +956,10 @@ export async function warmRows(rows, reading, yieldForInput = yieldForInputSlice
   }
 }
 const WARMERS = {
+  // The announcement rows are a merge of the exchange capture with the shared, lookup and recovery
+  // rows, rebuilt — as all new row objects — whenever one of them lands, and an event is kept per row
+  // object. A merge that moved during the warm-up left the read to classify every retained filing
+  // again in one task (0.5s on a cold open, measured), so the warm-up goes again until it holds.
   announcements: async (yieldForInput, reading) => {
     await announcements.prepareRows();
     let prepared = announcements.rows();
