@@ -1262,7 +1262,7 @@
       "pending": []
     },
     "isin:INE811K01011|PRESTIGE": {
-      "lastAttemptAt": "2026-09-27T18:28:38+00:00",
+      "lastAttemptAt": "2026-10-02T04:13:54+00:00",
       "error": "search-unavailable",
       "lastResultCount": 110,
       "targetThrough": "2026-09-18T06:26:21+00:00",
@@ -1917,6 +1917,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 226,
-    "checkedAt": "2026-10-02T03:40:44.722362+00:00"
+    "checkedAt": "2026-10-02T04:13:54.228186+00:00"
   }
 }
