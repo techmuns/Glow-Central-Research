@@ -48,7 +48,9 @@ jobs:
       - name: Verify recent News calendar windows and lossless archive separation
         run: node scripts/verify-news-window.mjs
       - name: Verify bounded memory, lossless saves and exact news reading windows
-        run: node scripts/verify-memory-primitives.mjs && node scripts/verify-news-query-boundaries.mjs && node scripts/verify-news-working-set.mjs
+        # The working-set oracle replays the complete retained news history in one process: about
+        # 6 GB on 1 October 2026, past Node's default 4 GB heap on the 16 GB runner.
+        run: node scripts/verify-memory-primitives.mjs && node scripts/verify-news-query-boundaries.mjs && node --max-old-space-size=8192 scripts/verify-news-working-set.mjs
       - name: Verify hot-path caches are invisible (same answers, live edits, exact byte counts)
         run: node scripts/verify-hot-path-memo.mjs
       - name: Verify lossless news parts and deployable asset sizes
@@ -385,8 +387,11 @@ jobs:
   portfolio-research:
     runs-on: ubuntu-latest
     # Keep every configured company: the 510-packet suite reached 500 packets at
-    # the former 45-minute deadline. Allow a full hour plus bounded setup overhead.
-    timeout-minutes: 80
+    # the former 45-minute deadline, and then at the 60-minute one — it takes 34–62
+    # minutes on shared runners, each block of 50 packets slower than the last.
+    # Four main runs on 1–2 October 2026 timed out at 60 minutes. Allow 90 minutes
+    # plus bounded setup overhead.
+    timeout-minutes: 110
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -398,7 +403,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/research-browser" --no-save --package-lock=false playwright@1.62.1
           node "$RUNNER_TEMP/research-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Verify evidence and previews across the complete saved portfolio
-        timeout-minutes: 60
+        timeout-minutes: 90
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/research-browser/node_modules/playwright
         run: node scripts/verify-research-portfolio.mjs

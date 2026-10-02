@@ -6070,6 +6070,27 @@ marked `≈`, while other source values retain their units.
 Offline checks: `verify-exchange-deals.mjs`, `verify-muns-insider-capture.mjs`,
 `verify-exchange-worker-runtime.mjs` and `verify-sattva-deals-ui.mjs`.
 
+**The Muns insider supplement separates a source gap from an outage (2 October 2026).** Measured
+that day, the source answered HTTP 500 for some companies under one identifier and not another
+(HEG by NSE symbol; its BSE code 509631 returned 19 disclosures), and for a few under every
+identifier (IndiGrid, Mindspace, JB Chemicals), while it answered the rest. The capture
+(`scripts/lib/muns-insider-capture.mjs`) therefore:
+
+- asks a refused company again under its other identifier (BSE scrip code for an NSE symbol and
+  the reverse, from the run's verified security map), files rows under the dashboard's ticker, and
+  records `via` so that identifier is asked first next time;
+- puts companies whose last check failed at the front of the next run, after due holdings and
+  capped at `RETRY_LANE`, instead of waiting a full rotation of the universe;
+- names a company refused on every identifier three times over at least a day `unsupported`,
+  keeps its retained disclosures, rechecks it weekly and counts it as *not served by the source*,
+  never as an unchecked or a passing company. Timeouts and network failures are never classified
+  this way.
+
+`insiderCaptureHealth()` decides the run's colour. It fails on a capture error or refused
+credential, on more than a quarter of previously healthy companies failing in one run (an outage),
+and on any transient failure that has survived every retry for 48 hours. Named source gaps and
+failures still awaiting their retry are printed in the run log and do not fail it.
+
 ## The team brief — `GET`/`POST /api/newsletter`, `/api/newsletter/send`, `/api/newsletter/preview`
 
 **Two emails a weekday to the desk, built at the edge from feeds this dashboard already reads.**
