@@ -1,10 +1,119 @@
 {
   "note": "Posts captured from the handles in twitter-handles.json, written by scripts/scrape-twitter.py. Empty until a run has read at least one account. A handle that could not be read is listed under failed with a reason — never as an account with no posts.",
-  "capturedAt": "2026-10-02T06:49:26+00:00",
+  "capturedAt": "2026-10-02T08:02:37+00:00",
   "handles": [
     "moneycontrolcom"
   ],
   "posts": [
+    {
+      "tweet_id": "2105929375745257800",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCPersonalFinance | Tax refund interest can't be denied merely because of incorrect ITR\n\n-ITAT rules refund interest cannot be denied for ITR errors.\n-Tax department must prove taxpayer caused delay.\n-Additional 3% interest payable on delayed refunds.\n\n@mrayushmishra reports: \nhttps://t.co/tpMdM8rRH4",
+      "created_at": "2026-10-02T07:54:24+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2105929375745257800",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2105926114061455659",
+      "handle": "Green_Traders0",
+      "display_name": "Green traders",
+      "text": "🚀 60+ GROWTH STOCKS TO TRACK FOR FY27!\n\nIndia’s next growth opportunities could emerge from these sectors 🔥\n\n🖥️ AI & Electronics: HFCL, Netweb, E2E, Syrma SGS, Sterlite Tech\n\n💊 Pharma: Laurus Labs, Divi’s Lab, Neuland, Gland Pharma, Sai Life\n\n⚙️ Defence & Engineering: Azad Engineering, Dynamatic Tech, Sansera, Aequs, OBSC Perfection\n\n⚡ Power & Cables: CG Power, Hitachi Energy, GE Vernova T&D, Polycab, TD Power\n\n🚗 Auto Ancillaries: Uno Minda, Sona BLW, Bosch, Pricol, Craftsman Automation\n\n🧪 Specialty Chemicals: Acutaas, Aether, Navin Fluorine, SRF, Anupam Rasayan\n\n💎 Jewellery & Retail: Titan, Kalyan Jewellers, Sky Gold, PN Gadgil, Ethos\n\n🔥 The real triggers to watch:\n\n* FY27 revenue & profit guidance\n\n* Order book and execution visibility\n\n* Capacity expansion\n\n* Improving margins\n\n* Strong cash flows\n\n📌 Don't track growth alone. Track whether companies can deliver it.\n\n💬 Which stock deserves a detailed analysis?\n\n🔖 Save this list for your research.\n\n⚠️ Not a buy/sell recommendation. Verify management guidance, valuations and financials before investing.\n\n#GreenTraders #GrowthStocks #StockMarketIndia #FY27",
+      "created_at": "2026-10-02T07:41:26+00:00",
+      "url": "https://x.com/Green_Traders0/status/2105926114061455659",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105921959183938033",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#Business | Adani Group commits over Rs 6 lakh cr investment to Maharashtra; Rs 2.6 lakh cr projects underway: Pranav Adani\n\nThe proposed investments span energy, aviation and aero-districts, urban regeneration, data centres and coal gasification, underlining the conglomerate’s expanding footprint in Maharashtra as the state targets becoming a $1 trillion economy by 2030.\n\nRead More:\nhttps://t.co/FSuVCZzbdc",
+      "created_at": "2026-10-02T07:24:55+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2105921959183938033",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2105920910293426493",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "India says forced-labour trade curbs need verifiable evidence, warns against blanket action\n\n-India seeks verifiable evidence for forced labor trade measures.\n-India: No forced labor, respects WTO rules.\n-India warns against trade-distorting subsidies and MFN principle.\n\n@adrijac reports: \nhttps://t.co/5rhEkDdx5g",
+      "created_at": "2026-10-02T07:20:45+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2105920910293426493",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2105920408994398570",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#WATCH | 🚨 \"I had so many injuries, but I told myself I have to get up and act. At the time, I told pushed myself to open the cockpit door.\" Flydubai Captain Smit Machchhar gets emotional while recounting ordeal to Prime Minister Narendra Modi.\n\nCaptain Smit says PM Modi is his biggest idol and expresses pride in receiving his encouragement and support today.\n\n#SmitMachchhar #PMModi #Flydubai",
+      "created_at": "2026-10-02T07:18:46+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2105920408994398570",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2105919679281901722",
+      "handle": "Karthik70195672",
+      "display_name": "Shivaji Karthik Vagmore",
+      "text": "1. Va Tech Wabagh \n2. Hfcl \n3. Acutaas chemical \n4. TD POWER SYSTEMS \n5. AXISCADES TECHNOLOGIES \n6. SAI LIFE SCIENCE.\n7. AARTI PHARMA.\n8. SHILPA MEDICARE.\n9. BHAGYANAGAR INDIA.\n10. AZAD ENGINEERING.\n11. SJS ENTERPRISES.\n12. HBL ENGINEERING.\n13. TRANSRAIL.\n14. QUALITY POWER \n15. Inox India.\n16. Syrma Sgs..\n17. Aditya infotech. ( Cp plus)\n18. Unimech/ Raymond / Sansera. ( Momentum base).\n19. Mcx \n20. Ather Energy.",
+      "created_at": "2026-10-02T07:15:52+00:00",
+      "url": "https://x.com/Karthik70195672/status/2105919679281901722",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105917241112047804",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCPersonalFinance | FD rates by major banks: Know where you can earn up to 8.25% interest\n\nInterest rates vary across banks and tenures, with small finance banks offering the highest fixed deposit returns\n\n-Small finance banks offer up to 8.25% interest on FDs.\n-Compare FD rates across banks to maximize returns.\n-FDs remain a dependable investment for retirees.\n\n@mrayushmishra reports: \nhttps://t.co/WxFsndxle0",
+      "created_at": "2026-10-02T07:06:10+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2105917241112047804",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2105916699929440304",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#MCPersonalFinance | Equities may average 15% over time, but very few years actually return 15%. What should investors expect?\n\n- Long-term equity returns average 12-15%, but annual returns vary.\n- Sensex compounded 15.2% annually from 1981-2025.\n- Only 13.3% of years were within 3% of the average.\n\nRead More:\nhttps://t.co/AvRrGqsxuz",
+      "created_at": "2026-10-02T07:04:01+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2105916699929440304",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
+    {
+      "tweet_id": "2105916557977354627",
+      "handle": "moneycontrolcom",
+      "display_name": "Moneycontrol",
+      "text": "#Business | Suzuki asks India suppliers to halt production one day a week as Maruti eyes 4 million cars\n\n- Suzuki asks Indian suppliers to halt production 1 day/week.\n- Aims to prevent stoppages and maintain quality.\n- Maruti Suzuki plans to boost annual production to 4M cars.\n\nRead More:\nhttps://t.co/pZPEvLdNP4",
+      "created_at": "2026-10-02T07:03:28+00:00",
+      "url": "https://x.com/moneycontrolcom/status/2105916557977354627",
+      "image": null,
+      "source_url": "https://x.com/moneycontrolcom",
+      "matchedQueries": []
+    },
     {
       "tweet_id": "2105911980880179469",
       "handle": "RBLBankCares",
@@ -66,6 +175,22 @@
         {
           "entityId": "isin:INE976G01028",
           "query": "\"RBL Bank\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105909357984772369",
+      "handle": "knifebully",
+      "display_name": "knife bull 💸",
+      "text": "👋 guys, here's my entire technofunda watchlist that you need to focus on to make money in the upcoming months\n\nI've not included the illiquid and extended names, I would be just looking at this list to add exposure when they present a decent risk to reward based on my trading style\n\neven if you don't look anywhere else, you're covered but study the names mentioned and wait for your setup, increase portfolio exposure gradually making risk management a priority above all\n\n1. IPO\n\nTEMPSENS\nSEDEMAC\nKISSHT\nMVELECTRO\nINDOMIM\nKSHINTL\n\n2. F&O\n\nSONACOMS\nTVSMOTOR\nBSE\nATHERENERG\n\n3. CASH SEGMENT\n\nSHREEREF\nMARINE\nJGCHEM\nEMUDHRA\nSANSERA\nWELCORP\nSYRMA\nAZAD\nSPAL\nPROTEAN\nPARAS\nDIACABS\nAPOLLO\nSAMBHV\nAEGISVOPAK\nCENTUM\nAEQUS\nPGIL\nPITTIENG\nRAYMOND\nMSTCLTD\nUFLEX\nASTRAMICRO\nJYOTICNC\nPTCIL\nAVALON\nEMIL\nGPPL\nLLOYDSENGG\nANTHEM\nRRKABEL\nMTARTECH\nJSWINFRA\nENGINERSIN\nAEGISLOG\nMANINDS\nMACPOWER\nEBGNG\nUNIMECH\nOPTIEMUS\nSTLTECH\nHFCL\n\nbe patient with your entries, study diligently, manage risk, take confident decisions and own them, efforts will be rewarded sooner or later ✨\n\nI would do a space tonight or tomorrow explaining recent trades and chat about how am I approaching the markets currently, turn notifications on, stay tuned\n\nknife bull 💸🐂",
+      "created_at": "2026-10-02T06:34:51+00:00",
+      "url": "https://x.com/knifebully/status/2105909357984772369",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
         }
       ]
     },
@@ -1875,6 +2000,14 @@
         {
           "entityId": "isin:INE399G01023",
           "query": "\"Ramkrishna Forgings\""
+        },
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"Sansera Engineering\""
+        },
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
         }
       ]
     },
@@ -1891,6 +2024,26 @@
         {
           "entityId": "isin:INE976G01028",
           "query": "\"RBL Bank\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105896181851365761",
+      "handle": "chartwhisp60202",
+      "display_name": "Chart Whisperer",
+      "text": "12 PRECISION ENGINEERING STOCKS TO TRACK FOR THE LONG TERM\n\n1. Azad Engineering\n2. MTAR Technologies\n3. Sansera Engineering\n4. PTC Industries\n5. Unimech Aerospace\n6. Aequs\n7. Rossell Techsys\n8. Dynamatic Technologies\n9. Gala Precision Engineering\n10. Taneja Aerospace\n11. Indo-MIM\n12. Ratnaveer Precision Engineering\n\n #DefenceStocks #AerospaceStocks #StockMarket #AmanGautam",
+      "created_at": "2026-10-02T05:42:30+00:00",
+      "url": "https://x.com/chartwhisp60202/status/2105896181851365761",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"Sansera Engineering\""
+        },
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
         }
       ]
     },
@@ -1923,6 +2076,58 @@
         {
           "entityId": "isin:INE976G01028",
           "query": "\"RBL Bank\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105895681127002320",
+      "handle": "chartwhisp60202",
+      "display_name": "Chart Whisperer",
+      "text": "STOCKS SHOWING STRONG MOMENTUM TODAY\n\n1. AXISCADES\n2. Cupid\n3. Sterlite Tech\n4. Morepen\n5. MTAR Tech\n6. HFCL\n7. Anawil\n8. Syrma SGS\n9. Solar Industries\n10. Delta Corp\n11. PRIME Cable\n12. Sansera\n13. Lalitha Jewellery\n14. Frontier Springs\n15. Texmaco\n16. Deepa Jewel\n17. Sigma Advanced\n18. RVNL\n19. NPST\n20. GNG\n21. Aequs\n22. VMARC\n23. IRCON\n24. RPEL\n25. Priority Jewel\n\n#MomentumInvesting #StocksInFocus #StockMarket",
+      "created_at": "2026-10-02T05:40:30+00:00",
+      "url": "https://x.com/chartwhisp60202/status/2105895681127002320",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105895641683816820",
+      "handle": "chartwhisp60202",
+      "display_name": "Chart Whisperer",
+      "text": "TRUSTMF SMALL CAP FUND — SEPTEMBER PORTFOLIO UPDATE\n\nFresh Additions:\n\n1. Sansera\n2. Shadowfax\n3. Ujjivan Small Finance Bank\n4. Senores Pharma\n5. Inox India\n6. Sona BLW Precision\n7. Aeroflex\n8. CarTrade Tech\n9. Aditya Birla Capital\n\nExits:\n\n1. CDSL\n2. Apollo Micro\n3. Angel One\n4. K.P.R Mill\n5. Bharat Dynamics\n\n#TRUSTMF #SmallCap #MutualFunds #StockMarket #Investing",
+      "created_at": "2026-10-02T05:40:21+00:00",
+      "url": "https://x.com/chartwhisp60202/status/2105895641683816820",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105895006146122182",
+      "handle": "chartwhisp60202",
+      "display_name": "Chart Whisperer",
+      "text": "STOCKS TO STUDY ON A DIP \n\n1. VA Tech Wabag\n2. Azad Engineering\n3. Syrma SGS\n4. Morepen Lab\n5. Apollo Micro Systems\n6. MTAR Technologies\n7. JG Chemicals\n8. Aequs\n9. Sterlite Tech\n10. Shilpa Medicare\n11. Netweb\n12. Data Patterns\n13. Sansera Engineering\n14. Fineotex Chemical\n15. Rossell Techsys\n16. HFCL\n17. Unimech Aerospace\n18. Sudeep Pharma\n19. KRN Heat Exchanger\n20. Avalon Technologies\n21. Prime Cables\n22. Power Mech Projects\n23. GNG Electronics\n24. CG Power\n25. Venus Remedies\n26. TD Power\n27. Quality Power\n28. Senores Pharmaceuticals\n29. Diamond Power\n30. Inox India\n31. Marine Electricals\n32. Ather Energy\n33. Yash Highvoltage\n34. E2E\n35. Netweb\n36. KSH International\n37. Balaji Amines\n38. APAR\n39. Black Box\n40. Himadri Speciality\n41. Savita Oil\n42. Universal Cables\n43. Man Industries\n44. Shree Refrigeration\n45. Accent Microcell\n46. Fredun Pharma\n47. Sakar Healthcare\n48. IOLCP\n49. Neuland Labs\n50. Sai Life Sciences\n51. Marksans Pharma\n52. Raymond\n53. Shadowfax\n54. Advait Infratech\n55. Welspun Corp\n56. Aeroflex\n57. Fineotex Chemical\n58. KMEW\n59. Birla Cable\n60. Himadri Speciality\n61. Accutase Chemicals\n62. Danlaw\n63. Omnitech\n64. AHCL\n65. Ind-Swift\n66. Manorama Industries\n67. MV Electrosystems\n68. JD Cables\n69. Innova Captab\n70. V-Marc India\n71. Stallion India\n72. Sky Gold\n\n📌 Study → Track → Wait for the right setup\n\n #StocksToWatch #SmallCaps #MomentumInvesting",
+      "created_at": "2026-10-02T05:37:49+00:00",
+      "url": "https://x.com/chartwhisp60202/status/2105895006146122182",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"Sansera Engineering\""
+        },
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
         }
       ]
     },
@@ -2056,6 +2261,26 @@
       "matchedQueries": []
     },
     {
+      "tweet_id": "2105886733321863317",
+      "handle": "vivekpasari007",
+      "display_name": "Vivek Pasari",
+      "text": "@TejaswiPalam Sansera engineering",
+      "created_at": "2026-10-02T05:04:57+00:00",
+      "url": "https://x.com/vivekpasari007/status/2105886733321863317",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"Sansera Engineering\""
+        },
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2105886547769966851",
       "handle": "ajaxcoriolis",
       "display_name": "Scott Johnson",
@@ -2068,6 +2293,22 @@
         {
           "entityId": "isin:INE855B01025",
           "query": "\"RAIN\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105885611970420850",
+      "handle": "SaveALittle1",
+      "display_name": "Momentum Guy",
+      "text": "Top 10 Stock in terms of Relative Strength 1st Of October 2026\n#CUPID\n#STLTECH\n#LAURUSLABS\n#WELCORP\n#SHILPAMED\n#SANSERA\n#ANANDRATHI\n#syrma \n#SKYGOLD\n#AVALON",
+      "created_at": "2026-10-02T05:00:30+00:00",
+      "url": "https://x.com/SaveALittle1/status/2105885611970420850",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
         }
       ]
     },
@@ -2095,6 +2336,10 @@
         {
           "entityId": "isin:INE0SII01026",
           "query": "\"QPOWER\""
+        },
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
         }
       ]
     },
@@ -2178,6 +2423,26 @@
       ]
     },
     {
+      "tweet_id": "2105879999358370054",
+      "handle": "RohitKumar3108",
+      "display_name": "Rohit Kumar",
+      "text": "@GainersStock My top 7 from this list would be\n1. MARINE\n2. SYRMA TECH\n3. RISHAB INSTRUMENTS\n4. CP PLUS\n5. MANIND\n6. SANSERA ENGINEERING\n7. SUNFLAG IRON",
+      "created_at": "2026-10-02T04:38:11+00:00",
+      "url": "https://x.com/RohitKumar3108/status/2105879999358370054",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"Sansera Engineering\""
+        },
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2105878787762360665",
       "handle": "RBLBankCares",
       "display_name": "RBL Bank Cares",
@@ -2205,6 +2470,26 @@
       "matchedQueries": []
     },
     {
+      "tweet_id": "2105875062079606967",
+      "handle": "1big_bull",
+      "display_name": "Amit Multibagger Stocks",
+      "text": "Companies with good future guidance \n\nSTERLITE TECHNOLOGY \nHFCL\nMOREPEN LAB \nShilpa Medicare\nLaurus Lab\nSakar Healthcare\nKwality Pharma\nGland Pharma\nSudeep Pharma\nSai Life\nAcutaas\nDivis lab\nBeta Drugs\nPRIME CABLE\nAzad Engineering \nAEROFLEX\nWelspun Corp\nMan Industries\nTIMEX\nOMNITECH\nLalithaa Jewel\nAJC JEWEL\nAEQUS\nAarti Pharma\nShadowfax\nCupid\nAther energy \nSansera engineering\nSYRMA SGS\nMARINE ELECTRIC\nKABRA EXTRUSION\nSEDEMAC\nSENORES\nRNITAI\nPrasol Chemicals\nDIVGIITS\nKRN\nSSWL\nKMEW\nEMUDHRA\nEngineers India\nDeepa Jewel\nMilky Mist\nNeuland\nOmnitech\nDynamatic Tech\nShivalik Biometal\nEthos\nEternal\nPaytm\nCraftsman Automation\nUno Minda\nSona BLW\nBosch\nGabriel India\nRolex rings\nOBSC Perfection\nPricol\nSteel Strips\nE2E networks\nNetweb Technologies\nTD Power Systems\nGE Vernova T&D\nYash High voltage\nPitti Engineering\nKirloskar Oil Engines\nHitachi Energy India\nCummins India\nCG Power\nQuality Power\nEmmvee Photovol\nDynamic cable\nRR Kabel\nKSH International\nVmarc\nFinolex\nUniversal Cable\nPolycab\nSky Gold\nTitan\nKalyan\nPN Gadgil",
+      "created_at": "2026-10-02T04:18:34+00:00",
+      "url": "https://x.com/1big_bull/status/2105875062079606967",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"Sansera Engineering\""
+        },
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2105874519181423016",
       "handle": "RBLBankCares",
       "display_name": "RBL Bank Cares",
@@ -2221,6 +2506,22 @@
       ]
     },
     {
+      "tweet_id": "2105873834746462602",
+      "handle": "Price_Rythm",
+      "display_name": "Price Rythm",
+      "text": "#VALIANTLAB - After breaking highs of 50 - 75 - 100 weeks the stock is moving sideways\n.\n.\n#PAISALO #APOLLO #SOTL #TBZ #CUPID #WELCORP #ATHERENERG #STLTECH #LAURUSLABS #SANSERA #ANANDRATHI #SHILPAMED #AVALON #SKYGOLD #KALYANKJIL #ADANIENSOL #CAMS #KEI #STLTECH #LAURUSLABS #SOTL https://t.co/JKbrodTWbm",
+      "created_at": "2026-10-02T04:13:42+00:00",
+      "url": "https://x.com/Price_Rythm/status/2105873834746462602",
+      "image": "https://pbs.twimg.com/media/HTmREP1bwAAf79n.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2105872814016528865",
       "handle": "moneycontrolcom",
       "display_name": "Moneycontrol",
@@ -2230,6 +2531,26 @@
       "image": null,
       "source_url": "https://x.com/moneycontrolcom",
       "matchedQueries": []
+    },
+    {
+      "tweet_id": "2105872647200604312",
+      "handle": "GainersStock",
+      "display_name": "Stock Gainers (SEBI RA)",
+      "text": "𝗜𝗡 𝗧𝗛𝗜𝗦 𝗠𝗔𝗥𝗞𝗘𝗧 𝗙𝗔𝗟𝗟 📉\n\nStrong & Momentum Setups can offer opportunities to study and accumulate at lower levels.\n\nSEBI Registered Research Analyst\nRA Registration No.: INH1000078979\n\n𝐅𝐫𝐞𝐞 𝐓𝐞𝐥𝐞𝐠𝐫𝐚𝐦 👇\nhttps://t.co/MwE6Mx7Hsy...\n\n𝗠𝗬 𝗠𝗢𝗠𝗘𝗡𝗧𝗨𝗠 𝗪𝗔𝗧𝗖𝗛𝗟𝗜𝗦𝗧 👇\n\nMANIND — 920\nBLISS GVK — 683\nKMCSHIL — 172\nSYRMA TECH — 1715\nNRB BEARING — 535\nCP PLUS — 3800\nSANSERA ENGINEERING — 4250\nAEROFLEX IND — 521\nSUNFLAG IRON — 433\nJG CHEMICAL — 610\nROSSTECH — 1500\nEBGNG — 700\nAVALON TECH — 2280\nCUPID — 312\nMARINE — 435\nRISHAB INSTRUMENTS — 698\nATHER ENERGY — 1406\nMACPOWER — 2144\nIND SWIFT LAB — 395\n\nSME CATEGORY\n\nAIMTRON — 1900\nPATIL AUTOMATION — 325\nPRIZOR — 1192\nSUGS — 275\nANONDITA MEDICARE — 1075\nQLINE BIO — 680\nPPEL — 783\nVMARC INDIA — 322\n\nAs per my analysis, these are Momentum Stocks worth studying.\n\nWhen the market stabilizes, stocks showing strong relative strength may come back into focus.\n\n📌 Must Study & Add to Your Watchlist\n\nI will review these picks again after 90 DAYS.\n\nIf you think I have missed any good Momentum/Strong Setup, comment below.\n\nDo your own research. Don’t buy just because a stock is on this list.\n\n#ResultsSeason #StocksToWatch #QuarterlyResults #Earnings #StockMarket #SwingTrading #GrowthStocks #Investing #IndianStocks #PriceAction",
+      "created_at": "2026-10-02T04:08:58+00:00",
+      "url": "https://x.com/GainersStock/status/2105872647200604312",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"Sansera Engineering\""
+        },
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
     },
     {
       "tweet_id": "2105870891183718436",
@@ -2270,6 +2591,42 @@
         {
           "entityId": "isin:INE976G01028",
           "query": "\"RBLBANK\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105862837843513344",
+      "handle": "shalby_homecare",
+      "display_name": "Shalby Homecare",
+      "text": "On Gandhi Jayanti, we remember Mahatma Gandhi and the values he lived by, truth, compassion, humility, and service.\n\nMay his message of peace and humanity continue to inspire us to care for one another and make a meaningful difference every day.\n\n#GandhiJayanti https://t.co/TFzp5Gsw0M",
+      "created_at": "2026-10-02T03:30:00+00:00",
+      "url": "https://x.com/shalby_homecare/status/2105862837843513344",
+      "image": "https://pbs.twimg.com/media/HTio_N9bUAAScQz.jpg",
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE597J01018",
+          "query": "\"Shalby\""
+        },
+        {
+          "entityId": "isin:INE597J01018",
+          "query": "\"SHALBY\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105862143291904268",
+      "handle": "nalandacapital",
+      "display_name": "Pulika Nath",
+      "text": "October 26 portfolio \n\n1. ICICI BANK \n2. HDFC \n3. TD Power \n4. ENRIN \n5. RHI Magnesita\n6. Route Mobile \n7.  Axiscades\n8. Antelopus\n9.  Azad Engrng\n10. Sona comstar\n11.  Sansera\n12. PTCIL \n13. SYRMA \n14. DEEPAK NITRIT\n15. Sailife \n16. Shilpa Medicare \n17. 5 Star Fin\n18. Spandan",
+      "created_at": "2026-10-02T03:27:14+00:00",
+      "url": "https://x.com/nalandacapital/status/2105862143291904268",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
         }
       ]
     },
@@ -2337,6 +2694,26 @@
       "image": null,
       "source_url": "https://x.com/moneycontrolcom",
       "matchedQueries": []
+    },
+    {
+      "tweet_id": "2105853927271088232",
+      "handle": "TejaswiPalam",
+      "display_name": "Tejaswi | AI Industrial Shift 🇮🇳",
+      "text": "Some components look small\n\nBut if they fail, whole system can stop \n\nThat’s why I’m watching high purity precision engineering closely\n\nTiny parts\nExtremely tight tolerances\nVery little room for error \n\nThese are the stocks I’m watching closely \n\nMTAR Technologies\nPTC Industries\nIndo-MIM\nAzad Engineering\nUnimech Aerospace & Manufacturing\nAequs\nSansera Engineering\nDynamatic Technologies\nRossell Techsys\nSika Interplant Systems\nGala Precision Engineering\nObsc Perfection\nOmnitech Engineering\nSigma Advanced Systems\nTechEra Engineering\nApsis Aerocom\nTaneja Aerospace\nRatnaveer Precision Engineering",
+      "created_at": "2026-10-02T02:54:35+00:00",
+      "url": "https://x.com/TejaswiPalam/status/2105853927271088232",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"Sansera Engineering\""
+        },
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
     },
     {
       "tweet_id": "2105850884395843673",
@@ -2919,6 +3296,58 @@
       ]
     },
     {
+      "tweet_id": "2105696768352743520",
+      "handle": "Karthik70195672",
+      "display_name": "Shivaji Karthik Vagmore",
+      "text": "@SamirPradhann It's a  Great MF in Small Caps - \n\nTop 15 holdings only impressive like - Sansera , Shadowfax, mcx , ather Energy, navin Flourine, skygold , Welspun corp , wabag , TD POWER SYSTEM etc !!!!!!",
+      "created_at": "2026-10-01T16:30:06+00:00",
+      "url": "https://x.com/Karthik70195672/status/2105696768352743520",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105693718741454996",
+      "handle": "SamirPradhann",
+      "display_name": "Samir Pradhan",
+      "text": "TRUSTMF Small Cap buying fresh stocks 🔥 (September)\n\nFresh additions:\nUjjivan Small Finance Bank\nAditya Birla Capital\nSona BLW Precision \nInox India\nCarTrade Tech \nSansera \nShadowfax\nAeroflex \nSenores Pharma\n\nExit: \nApollo Micro\nBharat Dynamics\nCDSL\nK.P.R Mill \nAngel One \n\nOne of the best performing Smallcap Fund 🔥✍️ (Given around 30% above return in Last 1 Year)",
+      "created_at": "2026-10-01T16:17:59+00:00",
+      "url": "https://x.com/SamirPradhann/status/2105693718741454996",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105691879031578906",
+      "handle": "ABCI_Invest",
+      "display_name": "Anybody Can Invest-ABCI",
+      "text": "🎯ABCI India Equity Research #GEM 💎💎💎 Series...10x..20x potential multibaggers...\n\n🟣 Merritronix is the Next Kaynes Technology.\n\n🟣 Kanohar Electricals is the Next Apar Industries.\n\n🟣 Poojaa Precision Engg. is the Next Sansera Engineering.\n\n🟣 Metalic Technoforge is the Next Indo-MIM.\n\n🟣 APSIS Aerocom is the Next Sigma Advanced System.\n\n🟣 Quality Power is Next GE Vernova T&D.\n\n🟣 Prizor Viztech is the Next Aditya Infotech.\n\n🟣 Aimtron Electronics is the Next Syrma SGS Technology.\n\n🟠 Disclaimer: ABCI Equity Research View.\n⚠️ Not a buy/sell recommendation. Do your own due diligence.\n\n#Investing #SME #Mainboard #Theme #Multibagger #Stocks #IndianStockMarket #MicroCaps #SmallCaps #ABCI_INVEST",
+      "created_at": "2026-10-01T16:10:40+00:00",
+      "url": "https://x.com/ABCI_Invest/status/2105691879031578906",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"Sansera Engineering\""
+        },
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2105689199022362807",
       "handle": "proteandigital",
       "display_name": "Protean Digital",
@@ -3159,6 +3588,26 @@
         {
           "entityId": "isin:INE0SII01026",
           "query": "\"QPOWER\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105665121695486284",
+      "handle": "financeweek101",
+      "display_name": "finance weekly",
+      "text": "Nifty Smallcap 250 Movers\nNifty Smallcap 250 lost 1.18% today. Advance-Decline ratio was 47:203.\nTop Gainers:\n🟢 Schneider Electric Infrastructure: +6.20%\n🟢 IDBI Bank: +5.96%\n🟢 TARIL: +5.15%\nTop Losers:\n🔴 Chennai Petroleum Corporation: -6.64%\n🔴 Sansera Engineering: -6.14%\n🔴 KSB Ltd: -5.75%\n(6/7)",
+      "created_at": "2026-10-01T14:24:21+00:00",
+      "url": "https://x.com/financeweek101/status/2105665121695486284",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"Sansera Engineering\""
+        },
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
         }
       ]
     },
@@ -3711,6 +4160,26 @@
       ]
     },
     {
+      "tweet_id": "2105640928010502172",
+      "handle": "shalby_saeed",
+      "display_name": "Saeed Shalby",
+      "text": "@RassdNewsN حش وارمى للبهايم",
+      "created_at": "2026-10-01T12:48:12+00:00",
+      "url": "https://x.com/shalby_saeed/status/2105640928010502172",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE597J01018",
+          "query": "\"Shalby\""
+        },
+        {
+          "entityId": "isin:INE597J01018",
+          "query": "\"SHALBY\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2105640222881112125",
       "handle": "RBLBankCares",
       "display_name": "RBL Bank Cares",
@@ -4243,6 +4712,22 @@
       ]
     },
     {
+      "tweet_id": "2105609693439906241",
+      "handle": "laxmi_kuma5139",
+      "display_name": "Stock prediction",
+      "text": "Top Losers Stock ( Thu, 1 Oct 2026 ) #Nifty50 #Sensex #NiftyBank #Niftymetal #Niftyrealty \n1.Deltacorp \n2.Chennpetro \n3.Ircon \n4.Lumino \n5.Rsystems \n6.Ksb \n7. Sansera \n8.Ifci\n9.Ksl \n10.Abdl",
+      "created_at": "2026-10-01T10:44:05+00:00",
+      "url": "https://x.com/laxmi_kuma5139/status/2105609693439906241",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2105608876179828753",
       "handle": "RBLBankCares",
       "display_name": "RBL Bank Cares",
@@ -4255,6 +4740,26 @@
         {
           "entityId": "isin:INE976G01028",
           "query": "\"RBL Bank\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105608352688402782",
+      "handle": "shalby_saeed",
+      "display_name": "Saeed Shalby",
+      "text": "@RassdNewsN شوية علوق ولاد م رة",
+      "created_at": "2026-10-01T10:38:46+00:00",
+      "url": "https://x.com/shalby_saeed/status/2105608352688402782",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE597J01018",
+          "query": "\"Shalby\""
+        },
+        {
+          "entityId": "isin:INE597J01018",
+          "query": "\"SHALBY\""
         }
       ]
     },
@@ -4351,6 +4856,22 @@
         {
           "entityId": "isin:INE976G01028",
           "query": "\"RBL Bank\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105604922637205930",
+      "handle": "26amitsharma",
+      "display_name": "Amit Sharma",
+      "text": "@DemandorSupply Added today: Eco recy, Cesc, Pace digi, Enviro infra, Polyplex, Grasim, Turtle fin, Amber, Jain recy, Sansera, Laser pow, Tempsens, Dixon, Guj fluro, Epigral, Dynamic cables, Gravita, Godawari pow, Lumino, Borosil ren,  Senores, Genus, Moschip, Asian energy, Ellenbarrie, RR Kabel",
+      "created_at": "2026-10-01T10:25:08+00:00",
+      "url": "https://x.com/26amitsharma/status/2105604922637205930",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
         }
       ]
     },
@@ -4707,6 +5228,22 @@
       ]
     },
     {
+      "tweet_id": "2105581896399012296",
+      "handle": "tenfingoals",
+      "display_name": "TENFIN GOALS",
+      "text": "TOP LOSERS 📉 TO DAY\n\nC2C 🔻11.6%\nTURTLEMINT 🔻8.7%\nPOLICYBZR 🔻8.3%\nDELTACORP 🔻8.2%\nBAJAJAUTO 🔻8.2%\nARMEE 🔻7.8%\nSANGHVIMOV 🔻7.3%\nVINYAS 🔻7.2%\nLUMINO 🔻7.2%\nSJS 🔻7%\nSTEELCAS 🔻7%\nCHENNPETRO 🔻6.8%\nTVSELECT 🔻6.7%\nMAHSEAMLES 🔻6.6%\nKSL 🔻6.6%\nJGCHEM 🔻6.5%\nCAPILLARY 🔻6.4%\nWELCORP 🔻6.2%\nSANSERA 🔻6%\nSTEAMHOUSE 🔻%\n#TopLosers",
+      "created_at": "2026-10-01T08:53:38+00:00",
+      "url": "https://x.com/tenfingoals/status/2105581896399012296",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2105581818120704263",
       "handle": "Mohdzaid1243678",
       "display_name": "Mohd zaid",
@@ -4783,6 +5320,22 @@
         {
           "entityId": "isin:INE976G01028",
           "query": "\"RBL Bank\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105573379822551410",
+      "handle": "gr8Ranju",
+      "display_name": "AI Stock Alerts for listed Stocks in Bharat Market",
+      "text": "🔻 #CHENNPETRO (-6.4%)\n🔻 #KSL (-6.5%)\n🔻 #SANSERA (-6.7%)\n🔻 #MAHSEAMLES (-6.8%)\n🔻 #IRCON (-6.8%)\n🔻 #GSPL (-7.1%)\n🔻 #DHANI (-8.8%)\n#StocksInFocus #NIFTY #NSE #BSE #StocksToTrade #StocksToWatch #StocksMarket",
+      "created_at": "2026-10-01T08:19:48+00:00",
+      "url": "https://x.com/gr8Ranju/status/2105573379822551410",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
         }
       ]
     },
@@ -5353,6 +5906,26 @@
         {
           "entityId": "isin:INE976G01028",
           "query": "\"RBL Bank\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105560612734439491",
+      "handle": "BakryShalby",
+      "display_name": "Bakry Shalby",
+      "text": "@NawalAlHomoud اللهم امين يارب العالمين ببركة الصلاة والسلام على اشرف المرسلين سيدنا محمد صلى الله عليه وسلم 🤲",
+      "created_at": "2026-10-01T07:29:04+00:00",
+      "url": "https://x.com/BakryShalby/status/2105560612734439491",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE597J01018",
+          "query": "\"Shalby\""
+        },
+        {
+          "entityId": "isin:INE597J01018",
+          "query": "\"SHALBY\""
         }
       ]
     },
@@ -6004,6 +6577,22 @@
       ]
     },
     {
+      "tweet_id": "2105549809994354823",
+      "handle": "gr8Ranju",
+      "display_name": "AI Stock Alerts for listed Stocks in Bharat Market",
+      "text": "🔻 #NUVOCO (-4.8%)\n🔻 #LLOYDSME (-4.8%)\n🔻 #LUMAXTECH (-5.4%)\n🔻 #SANSERA (-5.7%)\n🔻 #IRCON (-5.9%)\n🔻 #GSPL (-7.1%)\n🔻 #DHANI (-8.8%)\n#StocksInFocus #NIFTY #NSE #BSE #StocksToTrade #StocksToWatch #StocksMarket",
+      "created_at": "2026-10-01T06:46:08+00:00",
+      "url": "https://x.com/gr8Ranju/status/2105549809994354823",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2105549382540304441",
       "handle": "zecastro99",
       "display_name": "Prof kross",
@@ -6244,6 +6833,22 @@
         {
           "entityId": "isin:INE004A01022",
           "query": "\"PROTEAN\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105545175863095660",
+      "handle": "gr8Ranju",
+      "display_name": "AI Stock Alerts for listed Stocks in Bharat Market",
+      "text": "🔻 #SUNFLAG (-4.2%)\n🔻 #LLOYDSME (-4.4%)\n🔻 #LUMAXTECH (-4.9%)\n🔻 #SANSERA (-5.3%)\n🔻 #IRCON (-6.0%)\n🔻 #GSPL (-7.1%)\n🔻 #DHANI (-8.8%)\n#StocksInFocus #NIFTY #NSE #BSE #StocksToTrade #StocksToWatch #StocksMarket",
+      "created_at": "2026-10-01T06:27:43+00:00",
+      "url": "https://x.com/gr8Ranju/status/2105545175863095660",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
         }
       ]
     },
@@ -6784,6 +7389,26 @@
         {
           "entityId": "isin:INE976G01028",
           "query": "\"RBL Bank\""
+        }
+      ]
+    },
+    {
+      "tweet_id": "2105538575181779192",
+      "handle": "shalby_saeed",
+      "display_name": "Saeed Shalby",
+      "text": "@msr3y1 لا",
+      "created_at": "2026-10-01T06:01:29+00:00",
+      "url": "https://x.com/shalby_saeed/status/2105538575181779192",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE597J01018",
+          "query": "\"Shalby\""
+        },
+        {
+          "entityId": "isin:INE597J01018",
+          "query": "\"SHALBY\""
         }
       ]
     },
@@ -7575,6 +8200,22 @@
       "image": null,
       "source_url": "https://x.com/moneycontrolcom",
       "matchedQueries": []
+    },
+    {
+      "tweet_id": "2105528123324596301",
+      "handle": "evvvks",
+      "display_name": "Tejaasvi | AI Industrial Shift 🇮🇳",
+      "text": "If you had to pick ONE precision engineering company for next 3-5 yr:  Which one? 👇\n\nMTAR\nPTC\nAzad\nUnimech\n\nAequs\nSansera\nDynamatic\nRossell Techsys\nTaneja Aerospace\nGala Precision\nIndo-MIM\nRatnaveer Precision",
+      "created_at": "2026-10-01T05:19:58+00:00",
+      "url": "https://x.com/evvvks/status/2105528123324596301",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
     },
     {
       "tweet_id": "2105527899881124037",
@@ -8676,6 +9317,22 @@
       ]
     },
     {
+      "tweet_id": "2105515267728224684",
+      "handle": "tenfingoals",
+      "display_name": "TENFIN GOALS",
+      "text": "TOP LOSERS 📉 TO DAY\n\nARMEE 🔻11.5%\nBAJAJAUTO 🔻7%\nPRICOLL 🔻6.4%\nRSYSTEMS 🔻6%\nSTEELCAS 🔻5.6%\nESDS 🔻5% LC\nADROITIND 🔻5% LC\nCIANAGRO 🔻5% LC\nPVP 🔻5% LC\nSUNTV 🔻5%\nJGCHEM 🔻4.8%\nSANSERA 🔻4.6%\nLUMAXTECH 🔻4.6%\nIRCON 🔻4.2%",
+      "created_at": "2026-10-01T04:28:53+00:00",
+      "url": "https://x.com/tenfingoals/status/2105515267728224684",
+      "image": null,
+      "source_url": "https://x.com/unknown",
+      "matchedQueries": [
+        {
+          "entityId": "isin:INE953O01021",
+          "query": "\"SANSERA\""
+        }
+      ]
+    },
+    {
       "tweet_id": "2105515184731361735",
       "handle": "moneycontrolcom",
       "display_name": "Moneycontrol",
@@ -8785,632 +9442,14 @@
           "query": "\"KOTAKBANK\""
         }
       ]
-    },
-    {
-      "tweet_id": "2105514259409223966",
-      "handle": "ProteanEgovTech",
-      "display_name": "Protean",
-      "text": "@RinkuDasMbj Hi, we understand your concern. We've noted your details and are reviewing your application status. Our team will get back to you shortly with an update. We appreciate your patience.",
-      "created_at": "2026-10-01T04:24:52+00:00",
-      "url": "https://x.com/ProteanEgovTech/status/2105514259409223966",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE004A01022",
-          "query": "\"PROTEAN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105513716292989370",
-      "handle": "callputanalystt",
-      "display_name": "Call Put Analyst",
-      "text": "💥 #KotakBank\n\nOur JackPot Call - Continue uptrend.\n\n👌✌️👌 https://t.co/6eQMHPStzZ",
-      "created_at": "2026-10-01T04:22:43+00:00",
-      "url": "https://x.com/callputanalystt/status/2105513716292989370",
-      "image": "https://pbs.twimg.com/media/HThJjvnaoAAC5CA.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105513501448093917",
-      "handle": "ssharmar004",
-      "display_name": "Sakshi Sharma",
-      "text": "#KOTAKBANK 27 OCT CE 430 \n\n🚀 Momentum Expansion: Strong buying pressure has pushed price through a key resistance zone. https://t.co/fcmEG5ObvJ",
-      "created_at": "2026-10-01T04:21:51+00:00",
-      "url": "https://x.com/ssharmar004/status/2105513501448093917",
-      "image": "https://pbs.twimg.com/media/HThI-FiboAEFdJ4.png",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105513353334706413",
-      "handle": "abouttimebuddy",
-      "display_name": "RAQAMedu",
-      "text": "#Kotakbank is clear outlier of this previous week, Market tanked but it gained +10% in 3 sessions. Voila !\n\nhttps://t.co/USpFs8UjXL https://t.co/cOKDxrlykJ",
-      "created_at": "2026-10-01T04:21:16+00:00",
-      "url": "https://x.com/abouttimebuddy/status/2105513353334706413",
-      "image": "https://pbs.twimg.com/media/HThI9Y4agAA4LWU.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105513319830544543",
-      "handle": "Optionedgetamil",
-      "display_name": "Option Edge Tamil",
-      "text": "💰 Kotak Mahindra Bank Ltd\n🟢 Buy Above: 413\n🎯 Targets:\n➡️ 456\n➡️ 482\n📈 Breakout above the key resistance zone with bullish momentum.\n\n#KOTAKBANK #KotakMahindraBank https://t.co/tTkp8e7I4R",
-      "created_at": "2026-10-01T04:21:08+00:00",
-      "url": "https://x.com/Optionedgetamil/status/2105513319830544543",
-      "image": "https://pbs.twimg.com/media/HThJI5waYAEtQVz.png",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"Kotak Mahindra Bank\""
-        },
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105513314361147512",
-      "handle": "alvarovazque936",
-      "display_name": "Kayden Kross",
-      "text": "A look back at one truly fine project https://t.co/lGMK0vqJQn",
-      "created_at": "2026-10-01T04:21:07+00:00",
-      "url": "https://x.com/alvarovazque936/status/2105513314361147512",
-      "image": "https://pbs.twimg.com/media/HThJKk7agAAkk8-.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE0O6601022",
-          "query": "\"Kross\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105513251543175286",
-      "handle": "BillionsRG",
-      "display_name": "RG",
-      "text": "BTST blasted for all\n\n10.50 to 12\n\n2,000 Gain per lot\n\n#KALYANKJIL \n\n#Nifty #Banknifty #Sensex #Options #Equity #FNO",
-      "created_at": "2026-10-01T04:20:52+00:00",
-      "url": "https://x.com/BillionsRG/status/2105513251543175286",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE303R01014",
-          "query": "\"KALYANKJIL\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105513221939696095",
-      "handle": "ProteanEgovTech",
-      "display_name": "Protean",
-      "text": "@kuma39727 Hi, thank you for sharing your details. We have noted your PAN correction application concern and forwarded it to the concerned team for review. You will receive an update on your registered contact details shortly. We appreciate your patience.",
-      "created_at": "2026-10-01T04:20:45+00:00",
-      "url": "https://x.com/ProteanEgovTech/status/2105513221939696095",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE004A01022",
-          "query": "\"PROTEAN\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105513182370619668",
-      "handle": "RaiAnuja34353",
-      "display_name": "Anuja Rai",
-      "text": "#KotakBank 420 CE Firee!!!!!\n\nBooked Profit🎉🎉 https://t.co/geQ8n0l2sX",
-      "created_at": "2026-10-01T04:20:35+00:00",
-      "url": "https://x.com/RaiAnuja34353/status/2105513182370619668",
-      "image": "https://pbs.twimg.com/media/HThItpGbIAAWRH6.png",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105512919056220426",
-      "handle": "OneModupe",
-      "display_name": "Modupe🌺",
-      "text": "Good morning world 🌎 \nI use God beg you, Greet me back🙏 https://t.co/OuvEteDHYD",
-      "created_at": "2026-10-01T04:19:33+00:00",
-      "url": "https://x.com/OneModupe/status/2105512919056220426",
-      "image": "https://pbs.twimg.com/media/HThIxvpWQAAkv5W.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE0O6601022",
-          "query": "\"Kross\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105512722037350553",
-      "handle": "tradervishal87",
-      "display_name": "Trader Vishal Sharma",
-      "text": "kotakbank 406 to 432🚀🚀",
-      "created_at": "2026-10-01T04:18:46+00:00",
-      "url": "https://x.com/tradervishal87/status/2105512722037350553",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105512704421339573",
-      "handle": "MChaurasiya93",
-      "display_name": "mansi chaurasiya",
-      "text": "#KOTAKBNAK 420CE AROUND 17 \n\nTGT 19/21 \nRISK BELOW 15\n\n#Kotakbank #optionmarket #intraday \n\n🚨 Disclaimer -Educational purpose only.DYOR",
-      "created_at": "2026-10-01T04:18:41+00:00",
-      "url": "https://x.com/MChaurasiya93/status/2105512704421339573",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105512633864708169",
-      "handle": "contactviren",
-      "display_name": "virender kumar",
-      "text": "BOUGHT #KOTAKBANK CMP 432 sl 410. #stockmarket",
-      "created_at": "2026-10-01T04:18:25+00:00",
-      "url": "https://x.com/contactviren/status/2105512633864708169",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105512211556831639",
-      "handle": "Poreliminarxd",
-      "display_name": "Domador xD",
-      "text": "@El_LocoDX @AzulyPlomo1929 Eso lo saben todos? Será por eso que siguen comprando más delanteros en lugar de medio campo? Jajaja\n\nNop, el que puso el tema en la mesa de desmeritar a otros por sus compañeros fuiste tu, no seas cobarde jajaja. Ronaldo sin Kross desapareció.\n\nMejor jugador de la Nations? XD",
-      "created_at": "2026-10-01T04:16:44+00:00",
-      "url": "https://x.com/Poreliminarxd/status/2105512211556831639",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE0O6601022",
-          "query": "\"Kross\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105512152127983642",
-      "handle": "pretty_yourss",
-      "display_name": "Pankaj",
-      "text": "KotakBank 431 🎉",
-      "created_at": "2026-10-01T04:16:30+00:00",
-      "url": "https://x.com/pretty_yourss/status/2105512152127983642",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105512075229630618",
-      "handle": "Cash_Traderr",
-      "display_name": "TRADE WIZARD",
-      "text": "@grok tell why #kotakbank is up 3.50% &amp; with huge volume buying never seen before ... https://t.co/H5a6fu8ECC",
-      "created_at": "2026-10-01T04:16:11+00:00",
-      "url": "https://x.com/Cash_Traderr/status/2105512075229630618",
-      "image": "https://pbs.twimg.com/media/HThIEhWb0AA_5gi.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105511722366939639",
-      "handle": "CNBCBajar",
-      "display_name": "CNBC Bajar",
-      "text": "Lemon Tree અને Kotak Mahindra Bank માં આજે શા માટે જોવા મળશે એક્શન? આની માહિતી આપી રહ્યા છે @KapuriaTrupti\n#Lemontreestock #Kotakmahindrabankshare #Stocktobuy https://t.co/faaHiWWDwX",
-      "created_at": "2026-10-01T04:14:47+00:00",
-      "url": "https://x.com/CNBCBajar/status/2105511722366939639",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"Kotak Mahindra Bank\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105511652867113400",
-      "handle": "LuscaVeloso",
-      "display_name": "Lucas",
-      "text": "@be_ferreira1x @realmilgrauu O cara só teve a sorte de ser de uma geração incrível do Real Madri \nKross, Modric, Marcelo, Casemiro…\nNão é a toa que mesmo após a saída, Real ainda ganhou duas vezes.",
-      "created_at": "2026-10-01T04:14:31+00:00",
-      "url": "https://x.com/LuscaVeloso/status/2105511652867113400",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE0O6601022",
-          "query": "\"Kross\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105511529580044489",
-      "handle": "moneycontrolcom",
-      "display_name": "Moneycontrol",
-      "text": "#Business | Inox Air Products files IPO papers for 7.71-crore share offer-for-sale\n\n- Inox Air Products files IPO papers\n- IPO comprises entirely an OFS of 7.71 crore equity shares\n- INOX Group & US-headquartered Air Products Group own Inox Air Products\n\nRead More:\nhttps://t.co/WbROnEXoYE",
-      "created_at": "2026-10-01T04:14:01+00:00",
-      "url": "https://x.com/moneycontrolcom/status/2105511529580044489",
-      "image": null,
-      "source_url": "https://x.com/moneycontrolcom",
-      "matchedQueries": []
-    },
-    {
-      "tweet_id": "2105511271282164005",
-      "handle": "moneycontrolcom",
-      "display_name": "Moneycontrol",
-      "text": "#Business | RBI's success on dollar flows raises stakes in inflation fight\n\nThe record $133 billion inflow from the Indian diaspora left banks awash with cash and pushed overnight rates below the Reserve Bank’s 5.25% policy rate, effectively making borrowing cheaper than policymakers intend.\n\nRead More:\nhttps://t.co/9o2Zcpx42O",
-      "created_at": "2026-10-01T04:13:00+00:00",
-      "url": "https://x.com/moneycontrolcom/status/2105511271282164005",
-      "image": null,
-      "source_url": "https://x.com/moneycontrolcom",
-      "matchedQueries": []
-    },
-    {
-      "tweet_id": "2105511179993182295",
-      "handle": "krisskrossdgr8",
-      "display_name": "Kriss Kross",
-      "text": "@MansourAlhrpfl Fuck pisslam. Fuck allah.",
-      "created_at": "2026-10-01T04:12:38+00:00",
-      "url": "https://x.com/krisskrossdgr8/status/2105511179993182295",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE0O6601022",
-          "query": "\"Kross\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105510629620814101",
-      "handle": "tradewith_kirti",
-      "display_name": "Kirtii Chaturvedi",
-      "text": "#KOTAKBANK 27 OCT 410 CE \n\nEntry Zone: ₹22\nFor proper upside movement &amp; risk management, inbox me. 📩\n\nEducational purpose only. Trade at your own risk.\n\n#KOTAKBANK #OptionsTrading #StockMarket #Trading #Sensex #Nifty",
-      "created_at": "2026-10-01T04:10:27+00:00",
-      "url": "https://x.com/tradewith_kirti/status/2105510629620814101",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105510131341422966",
-      "handle": "Krossdesignx",
-      "display_name": "𝗸𝗿𝗼𝘀𝘀",
-      "text": "@Alabastiar Great job, thank you very much",
-      "created_at": "2026-10-01T04:08:28+00:00",
-      "url": "https://x.com/Krossdesignx/status/2105510131341422966",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE0O6601022",
-          "query": "\"Kross\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105509384361013738",
-      "handle": "marie_marrko",
-      "display_name": "Paula Mar M Kross",
-      "text": "@Guate_Inmortal_ Nomas abusos  y menos intervención en algo autónomo en nuestro país que la autonomía para deducir para independizarse de gente lacra como ésta https://t.co/K111YIU4ML",
-      "created_at": "2026-10-01T04:05:30+00:00",
-      "url": "https://x.com/marie_marrko/status/2105509384361013738",
-      "image": "https://pbs.twimg.com/media/HThFn-UXUAAdnal.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE0O6601022",
-          "query": "\"Kross\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105509384042258704",
-      "handle": "AccordFinance_",
-      "display_name": "Accord Financial Services",
-      "text": "🌏Bulls Eye a Strong Rebound\n\n📊Nifty closed at 22,620\nBelow 22,650 ←\n22,500-22,400\n\n🏛️Bank Nifty support at 54,250\n\n🚗Auto stocks in focus on sales data\n\n❄️AC, TV prices rise 5-8%\n\n⚡IDFC First Bank, EMIL, Kross in focus\n\n#Accord #Nifty #Nse #IPO #Arise",
-      "created_at": "2026-10-01T04:05:30+00:00",
-      "url": "https://x.com/AccordFinance_/status/2105509384042258704",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE0O6601022",
-          "query": "\"Kross\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105508648500052288",
-      "handle": "KalamSavit69675",
-      "display_name": "@$avi",
-      "text": "KOTAKBANK 420 CE \n\nCmp: 14\n\nMomentum setup looking active \n\n Trade details ke liye DM/Inbox\n\nEducational purpose only. Not Buy Sell recommendations.\n\n#KotakBank #OptionsTrading #StockMarket #Trading",
-      "created_at": "2026-10-01T04:02:34+00:00",
-      "url": "https://x.com/KalamSavit69675/status/2105508648500052288",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105508553419358237",
-      "handle": "moneycontrolcom",
-      "display_name": "Moneycontrol",
-      "text": "#MarketsWithMC | Kotak Mahindra Bank shares gain over 3% after Anup Kumar Saha named new MD &amp; CEO\n\nSaha will take charge for a three-year term from January 1, 2027, succeeding Ashok Vaswani.\n\nRead More:\nhttps://t.co/iOjBSPgvyG",
-      "created_at": "2026-10-01T04:02:12+00:00",
-      "url": "https://x.com/moneycontrolcom/status/2105508553419358237",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"Kotak Mahindra Bank\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105508549665423585",
-      "handle": "CezareKross",
-      "display_name": "Kross",
-      "text": "Exploré mas horas que una jornada de horario laboral, increíble https://t.co/Did1eVhy22",
-      "created_at": "2026-10-01T04:02:11+00:00",
-      "url": "https://x.com/CezareKross/status/2105508549665423585",
-      "image": "https://pbs.twimg.com/media/HThEvN4a4AAlQOh.png",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE0O6601022",
-          "query": "\"Kross\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105508523824341049",
-      "handle": "NewsJagranHQ",
-      "display_name": "NewsJagran",
-      "text": "Kotak Mahindra Bank New MD-CEO: अनूप कुमार साहा को मिली बड़ी जिम्मेदारी, 1 जनवरी 2027 से संभालेंगे बैंक की कमान #NewsJagran https://t.co/u2N2gtPMfp",
-      "created_at": "2026-10-01T04:02:05+00:00",
-      "url": "https://x.com/NewsJagranHQ/status/2105508523824341049",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"Kotak Mahindra Bank\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105508499744534637",
-      "handle": "marie_marrko",
-      "display_name": "Paula Mar M Kross",
-      "text": "@__VaderGT @robertoarzugg Asi de pronto  estaremos  libres  de malas  plagas  estan cagando  ralo hay que abastecer  de papel  higiénico  oriente  con  estos chaclames https://t.co/cDK8l6l0Uu",
-      "created_at": "2026-10-01T04:01:59+00:00",
-      "url": "https://x.com/marie_marrko/status/2105508499744534637",
-      "image": "https://pbs.twimg.com/media/HThE0kmXYAAbpib.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE0O6601022",
-          "query": "\"Kross\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105508466718904598",
-      "handle": "NDTVProfit",
-      "display_name": "NDTV Profit News",
-      "text": "Parag Thakkar bets on Kotak Mahindra Bank, says he was bullish on the stock from Rs 380 levels.\n\nIn a conversation with @TamannaInamdar and @alexandermats, Thakkar shows his conviction on the stock, sharing his strategy to add more on dips. https://t.co/1nzoX9BdDs",
-      "created_at": "2026-10-01T04:01:51+00:00",
-      "url": "https://x.com/NDTVProfit/status/2105508466718904598",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"Kotak Mahindra Bank\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105508456396665011",
-      "handle": "pretty_yourss",
-      "display_name": "Pankaj",
-      "text": "KotakBank CMP 429 🚀",
-      "created_at": "2026-10-01T04:01:49+00:00",
-      "url": "https://x.com/pretty_yourss/status/2105508456396665011",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105508344765239701",
-      "handle": "Aryaa2504",
-      "display_name": "Yogita",
-      "text": "#KotakBank 410 CE |Oct. \n\nSTRAIGHT FIRST TRADING SESSION TO SECOND SESSION FRESHH MOMENTUM\n\nWATCH FOR UPSIDE MOMENTUM \n\nmsg for setup.  \n\nNot a recommendation.  \n\n#BankNifty #Nifty50 #StockInFocus",
-      "created_at": "2026-10-01T04:01:22+00:00",
-      "url": "https://x.com/Aryaa2504/status/2105508344765239701",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105508329250488771",
-      "handle": "pretty_yourss",
-      "display_name": "Pankaj",
-      "text": "KotakBank looks good for the day!",
-      "created_at": "2026-10-01T04:01:18+00:00",
-      "url": "https://x.com/pretty_yourss/status/2105508329250488771",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105508301438136437",
-      "handle": "moneycontrolcom",
-      "display_name": "Moneycontrol",
-      "text": "#MarketsWithMC |🚨Markets open lower, Sensex and Nifty in the red\n\nNifty opens below 22,550, Sensex down 140 pts; Kotak Mahindra Bank up 3%\n\nCatch LIVE Updates⏬\nhttps://t.co/O0dBtBvFdZ https://t.co/82bh95np8m",
-      "created_at": "2026-10-01T04:01:12+00:00",
-      "url": "https://x.com/moneycontrolcom/status/2105508301438136437",
-      "image": "https://pbs.twimg.com/media/HThEovEacAA5hGd.jpg",
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"Kotak Mahindra Bank\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105508007253590331",
-      "handle": "ThisIsTNA",
-      "display_name": "TNA Wrestling",
-      "text": "BOUND FOR GLORY MEMORIES: Johnny IMPACT defeated Austin Aries to become World Champion in 2018. \n\nOur biggest show of the year - #TNABoundForGlory - takes place on October 11 from the Yuengling Center in Tampa. TICKETS: https://t.co/w3Q52riYxT https://t.co/kA5eBXGCjR",
-      "created_at": "2026-10-01T04:00:02+00:00",
-      "url": "https://x.com/ThisIsTNA/status/2105508007253590331",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE0O6601022",
-          "query": "\"Kross\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105507927494983766",
-      "handle": "ETNOWlive",
-      "display_name": "ET NOW",
-      "text": "Kotak Mahindra Bank share price rises over 2% after Anup Kumar Saha appointed MD &amp; CEO for 3 years\n\nhttps://t.co/qrS6NiTlzi",
-      "created_at": "2026-10-01T03:59:43+00:00",
-      "url": "https://x.com/ETNOWlive/status/2105507927494983766",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"Kotak Mahindra Bank\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105507866702704700",
-      "handle": "TToriya26590",
-      "display_name": "Tulika Toriya",
-      "text": "STOCK OPTION TRADE ALERT!!! \n\nClose eye on #BANKING SECTOR \n\n#KOTAKBANK BULLISH MOVEMENT 420 CALL!!  OCT \n\nFrom 15-16 \n\n#AXISBANK BULLISH MOVEMENT 1220 CALL!!  OCT \n\nFrom 40 \n\nFOR TRADE SETUP REACH OUT ! \n\nThis is for educational purpose, DYOR!!!\n\n#Nifty #IndianMarket #trading #OptionsTrading #stockmarket",
-      "created_at": "2026-10-01T03:59:28+00:00",
-      "url": "https://x.com/TToriya26590/status/2105507866702704700",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
-    },
-    {
-      "tweet_id": "2105507840236679345",
-      "handle": "Suruchi7974",
-      "display_name": "Suruchi",
-      "text": "#KOTAKBANK 410 CE ! 27 OCT \n\nCMP- 23 \n\nMessage for complete trade setup..!! \n\nNot BUY/SELL \n\n#IndianStockMarket #MarketUpdate #NiftyBank #StockToWatch #Intraday",
-      "created_at": "2026-10-01T03:59:22+00:00",
-      "url": "https://x.com/Suruchi7974/status/2105507840236679345",
-      "image": null,
-      "source_url": "https://x.com/unknown",
-      "matchedQueries": [
-        {
-          "entityId": "isin:INE237A01036",
-          "query": "\"KOTAKBANK\""
-        }
-      ]
     }
   ],
   "failed": [],
   "searchCoverage": {
     "planned": 232,
-    "attempted": 8,
-    "incomplete": 217,
-    "checkedAt": "2026-10-02T06:48:54.089362+00:00"
+    "attempted": 9,
+    "incomplete": 211,
+    "checkedAt": "2026-10-02T08:02:07.622383+00:00"
   },
   "archive": [
     {
@@ -9509,9 +9548,9 @@
   "collection": {
     "version": 1,
     "optional": true,
-    "status": "unavailable",
-    "reason": "source-read-failed",
-    "lastAttemptAt": "2026-10-02T07:29:38.844Z",
+    "status": "partial",
+    "reason": "partial-read",
+    "lastAttemptAt": "2026-10-02T08:02:37.816Z",
     "lastSuccessAt": null
   }
 }
