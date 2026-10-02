@@ -1,8 +1,17 @@
 import { normalisePortfolio, quarterOrder } from '../../public/js/data/finology-shared.js';
 
+// A BOOK THE SOURCE HAS NEVER PUBLISHED ANYTHING FOR may be read empty again. Finology lists two
+// investors (rafiyudeen-narudeen-saeyd, sunil-talwar) whose pages carried no holdings and no periods
+// on every read this capture ever made; refusing that same answer for ever held every run red with
+// nothing anyone could fix. It is accepted only when the retained copy is empty too and the source
+// does not count any stocks, so a scrape that broke on a populated book, or a first read with
+// nothing in it, is still refused rather than filed as an investor who holds nothing.
+const emptyBook = (b) => Array.isArray(b?.holdings) && !b.holdings.length && Array.isArray(b?.quarters) && !b.quarters.length;
+
 export function validateBook(body, slug, previous = null) {
   if (!body || body.ok === false || body.stale === true) throw new Error('Book unavailable or served stale');
-  if (body.slug !== slug || !Array.isArray(body.holdings) || !Array.isArray(body.quarters) || !body.quarters.length) throw new Error('Invalid portfolio shape or identity');
+  const emptyAgain = emptyBook(body) && emptyBook(previous) && !(body.totalStocks > 0);
+  if (body.slug !== slug || !Array.isArray(body.holdings) || !Array.isArray(body.quarters) || (!body.quarters.length && !emptyAgain)) throw new Error('Invalid portfolio shape or identity');
   if (body.holdings.some((h) => !h.company || !h.quarterlyHoldings) || body.quarters.some((q) => !quarterOrder(q))) throw new Error('Invalid holding or period');
   if (!body.holdings.length && (body.totalStocks > 0 || previous?.holdings?.length)) throw new Error('Unexpected empty portfolio');
   if (previous?.fetchedAt && (!body.fetchedAt || Date.parse(body.fetchedAt) < Date.parse(previous.fetchedAt))) throw new Error('Source response is older than the retained book');

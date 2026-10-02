@@ -3983,6 +3983,14 @@ Three rules, and they are the filings snapshot's rules:
   serves stale when its own live read timed out, and on 2 October 2026 fifteen of the seventeen books
   that failed the walk answered live on that retry. Five failures in a row on the retry are an outage
   and stop it, and any book still unread keeps the run red (`verify-super-investor-capture.mjs`).
+  The retry asks with `?patient=1`, which gives that one Worker read a single 40-second attempt
+  (45-second deadline) instead of a reader's thirteen seconds; nothing a reader requests carries it,
+  and the cache key is unchanged.
+- **A book empty on every read may be read empty again.** Two listed investors
+  (`rafiyudeen-narudeen-saeyd`, `sunil-talwar`) had no holdings and no periods on every read since
+  at least 7 September 2026, and `validateBook` refused that answer for ever. It is now accepted only
+  when the retained copy is empty too and the source counts no stocks. A first read with nothing in
+  it, and a populated book read empty, are still refused.
 - **The device's copy always wins over the file**, because those bytes were confirmed later. The
   snapshot only ever fills gaps, and `meta().origin` reads `snapshot` for anything nobody has
   confirmed in this session. That value remains available to stale handling, exports and tests;
@@ -5998,7 +6006,7 @@ source failures, links and mobile layout against a local server with mocked live
 
 ### Original exchange shareholding reconciliation
 
-`public/data/shareholding-filings.json.gz` is a gzip-compressed version-1 JSON archive produced by `scripts/capture-shareholdings.mjs`. Three source-index statuses retain success/check times and errors. Filing records carry source URL, legal security identifiers, index/report/holding dates, parsed holder tuples `[legalName, shares, stakePercentagePoints, holdingDate]`, file SHA256, parser version and explicit pending/failed/partial status. Changed bytes at one URL retain a superseded version. A failed refresh preserves the successful read and its time. The browser does not load this all-company archive.
+`public/data/shareholding-filings.json.gz` is a gzip-compressed version-1 JSON archive produced by `scripts/capture-shareholdings.mjs`. Three source-index statuses retain success/check times and errors. Filing records carry source URL, legal security identifiers, index/report/holding dates, parsed holder tuples `[legalName, shares, stakePercentagePoints, holdingDate]`, file SHA256, parser version and explicit pending/failed/partial status. Changed bytes at one URL retain a superseded version. A failed refresh preserves the successful read and its time. An index is refused as empty or sharply truncated only by comparing like with like: within one window, half the last successful read's row count; after the window starts a quarter later, half the archive's rows dated where the two windows overlap. Most NSE SME issuers file half-yearly, so on 1 October 2026 the March filings left the window and the raw count fell from 825 to about sixty with nothing missing. The browser does not load this all-company archive.
 
 `public/data/public-holdings.json` is the version-1 browser projection from `scripts/reconcile-shareholdings.mjs`: dated attributed holdings, every original source figure/link/hash, source coverage, reconciliation issues, filing exceptions, unresolved identity candidates and all tracked profile counts. `complete` remains false. `latest-disclosure` means latest captured issuer disclosure for that security; it is not real-time ownership. A conflict does not have a chosen display value. Source and holding dates must not be interchanged.
 
