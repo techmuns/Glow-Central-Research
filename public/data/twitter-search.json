@@ -1915,7 +1915,7 @@
       "error": "search-unavailable"
     },
     "isin:INE879I01012|Valor Estate": {
-      "lastAttemptAt": "2026-09-29T02:39:30+00:00",
+      "lastAttemptAt": "2026-10-02T20:39:55+00:00",
       "error": "search-unavailable"
     },
     "isin:INE879I01012|DB Realty": {
@@ -2079,6 +2079,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 196,
-    "checkedAt": "2026-10-02T20:01:55.552285+00:00"
+    "checkedAt": "2026-10-02T20:39:55.811819+00:00"
   }
 }
