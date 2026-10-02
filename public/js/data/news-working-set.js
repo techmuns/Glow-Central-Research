@@ -344,7 +344,9 @@ export function createNewsWorkingSet({ window: readingWindow, extraRows = () => 
     }
     const add = item => {
       const row = unwrap(item, { ...descriptor, spec: { field } });
-      if (!matches(summary(row))) return;
+      // Read once per capture and selection, then cached as the projection itself: not memoised,
+      // which would keep a reading alive for every projected row of a month-long window.
+      if (!matches(newsQueryIndexRow(row))) return;
       if (field === 'byTicker') out.byTicker[item[0]].push(row); else out.articles.push(row);
     };
     if (projectedRows) out[field] = projectedRows;
