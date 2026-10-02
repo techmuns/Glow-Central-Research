@@ -7,6 +7,8 @@ import { glowPortfolio, glowPositionReply, glowReading } from '../public/js/data
 import { validPositionSizes, validPortfolioReply } from '../public/js/research/portfolio-bridge.js';
 import { handleGlowPortfolio } from '../worker/glow-portfolio.mjs';
 import { adaptGlowText } from './adapt-glow-template.mjs';
+import { announcementIssuerIsin } from '../public/js/data/announcement-identity.js';
+import { companySecurityIdentity } from '../public/js/data/company-security-identities.js';
 
 const json = name => JSON.parse(readFileSync(new URL(`../public/data/${name}.json`, import.meta.url)));
 const book = json('book'), companies = json('portfolio-companies');
@@ -72,7 +74,7 @@ assert.match(adaptGlowText('<title>Sattva Central Research</title><img src="/ass
 const captureIndex = json('filing-capture/index');
 assert.equal(captureIndex.deployment, 'glow-central-research');
 assert.equal(captureIndex.portfolio.count, companies.holdings.length);
-const heldIsins = new Set(companies.holdings.map(h => h.isin));
+const heldIsins = new Set(companies.holdings.map(h => announcementIssuerIsin(h.isin)));
 const registrationPath = new URL('../public/data/filing-capture/registrations.json', import.meta.url);
 const ownRegistrations = existsSync(registrationPath) ? JSON.parse(readFileSync(registrationPath)) : null;
 if (ownRegistrations) assert.equal(ownRegistrations.deployment, 'glow-central-research');
@@ -80,7 +82,19 @@ const eligibleIsins = new Set([...heldIsins, ...(ownRegistrations?.companies || 
 const priorities = captureIndex.companies.filter(c => c.priority);
 assert(priorities.every(c => eligibleIsins.has(c.isin)), 'only Glow holdings and Glow enrollments receive capture priority');
 const coveredIsins = new Set(priorities.map(c => c.isin));
-for (const h of companies.holdings) assert(coveredIsins.has(h.isin) || captureIndex.portfolio.unresolvedHoldings.some(c => c.isin === h.isin), 'each holding is prioritised or explicitly unresolved');
+const unavailableIsins = new Set();
+for (const security of captureIndex.nonExchange || []) {
+  const reviewed = companySecurityIdentity(security.isin);
+  assert(reviewed, `${security.isin} needs a reviewed private-issuer identity`);
+  assert.equal(security.exchangeFilings, 'unavailable', 'private securities cannot claim a listed filing feed');
+  assert.equal(security.issuerName, reviewed.issuerName);
+  assert.equal(security.securityType, reviewed.securityType);
+  assert(!coveredIsins.has(security.isin), 'private filing limitations are separate from checked listed issuers');
+  unavailableIsins.add(security.isin);
+}
+for (const h of companies.holdings) assert(coveredIsins.has(announcementIssuerIsin(h.isin)) || unavailableIsins.has(h.isin) ||
+  captureIndex.portfolio.unresolvedHoldings.some(c => c.isin === h.isin),
+  `${h.name} (${h.isin}) needs a prioritised issuer, an explicit private filing limitation, or an unresolved record`);
 // Re-adapting metadata retains every source observation and check time, and is idempotent.
 const scratch = mkdtempSync(join(tmpdir(), 'glow-index-review-'));
 try {
