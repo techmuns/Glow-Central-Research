@@ -51,6 +51,33 @@ the same predicate controls visible rows, counts and export.
 
 ## Alert evidence retention
 
+<<<<<<< HEAD
+=======
+AI Alerts story grouping is an additive reading of public news and exchange disclosures.
+Equivalent reports share one development with all source links. Material changes (including
+new terms/figures, approvals, completion, denial, cancellation and corrections) remain separate
+developments, resurface archived alerts and show what changed. Repeated publication cannot
+advance the development's first source time or inflate its event count. Raw source records stay
+searchable through `sourceEvents` and All Alerts. A grouping failure leaves distinct reports
+visible with a partial grouping status, independent of source freshness.
+Checked material developments surface in Portfolio and Universe even when their source tag is
+low or the earlier story has left the 14-day window. Preserve the source tag and measured score;
+the new development itself is a reason to surface it. Old facts and later copies still age out.
+When a source omits the clock, newly checked developments lead other developments of the same
+story on that source day. This saved reading order never supplies an invented publication time;
+copies inherit their existing development's order, and known source clocks still take precedence.
+
+The reader's decision cache provides up to 180 source days of earlier story context; clearing or
+evicting device storage can require rechecking. Semantic checks happen while reading AI Alerts,
+with existing source revalidation, not as an independent ingestion guarantee. Source collectors
+and durable source archives continue unchanged without an open browser. The shared review cache
+lasts seven days, requests are bounded to 80 records / 120 KB, and 300 attempts per rolling day.
+A company whose known context cannot fit a complete check remains partially grouped. These bounds
+must not delete, truncate or hide its reports. No outlet allow-list or publisher-count cap limits
+the news/disclosure reports admitted to grouping.
+
+
+>>>>>>> sattva/main
 Public Chatter summaries describe the full source-tag split, not the provider's net-score band
 or the latest mention alone. Opposing bullish/bearish tags are Mixed; directional summaries
 require a majority of all mentions with no opposing tags. Missing, inconsistent or empty splits
@@ -90,9 +117,15 @@ The device-only alert cache uses approximately 512 KiB integrity-checked parts a
 IndexedDB manifest replacement; there is no 100,000-event rejection threshold. A single larger
 event stays whole. Missing or corrupt parts cannot be treated as a complete window. A failed
 transaction retains the previous disk revision and the complete incoming session copy; the cache
+<<<<<<< HEAD
 status records the failure. AI Alerts omits the search, statement-period and offline-cache footnotes
 at the user's request. Statement provenance remains on holding-size tooltips. Superseded cache parts
 are pruned, not captured source history.
+=======
+status records the failure. AI Alerts omits the search, workbook and offline-cache footnotes at the
+user's request. Workbook provenance remains on holding-size tooltips. Superseded cache parts are
+pruned, not captured source history.
+>>>>>>> sattva/main
 Browser quota and memory remain finite: this is not an unlimited offline archive or a guarantee
 against device eviction. No per-alert Cloudflare files are created by this cache.
 
@@ -412,6 +445,7 @@ If any data-integrity check fails, block release even if performance improves. R
 
 **The customer should receive the same complete data, with smoother interaction and honest freshness status. Fewer visible DOM rows must never mean fewer available records.**
 
+<<<<<<< HEAD
 ## Newsletter document reading
 
 The newsletter's source-reading queue retains pending work separately from its sent-item ledger.
@@ -475,3 +509,87 @@ shared requests and failed-source/private-record retention. `verify-ai-alert-tim
 exercises 5,000 older rows, bounded DOM, scroll anchors, live insertions, lazy shared reads,
 failures/retries, source links, disposal, mobile and both themes without model requests.
 The existing cache-upgrade suite verifies timelines reach returning sessions through the real SW.
+=======
+Corporate Announcements offers company-name/ticker suggestions and exact issuer selection.
+The selection intersects scope, date and text filters for rows, counts and export, survives
+refreshes, and remains explicitly outside scope after a scope change. Verified BSE/NSE identities
+join aliases; another issuer mentioning the company is not its filing. Search outages keep saved
+suggestions and ordinary text search available. Collection and retained history are unchanged.
+
+### AI Alerts reading parity (October 2026)
+
+Event-type filters are remembered, use OR within selected types, and intersect scope,
+search and priority. Routine notices are hidden by a visible, reversible control.
+Filtering changes displayed evidence and notebook snapshots, never company priority
+or archive identity. Source citations retain original publisher URLs and checked
+story history. Verified private holding sizes can sort every scope; failed or
+revoked access removes weights without dropping public evidence or masking source failures.
+
+### Factual alert summaries and durable attempts
+
+AI summaries use captured substantive filing/result text only. News, routine notices,
+headline-only items and private sources do not generate summaries. An explicit skip
+omits the section. The new prompt namespace must never reuse an old implication as
+a factual summary. Retain successful summaries and failed-attempt receipts; reserve
+budget and attempts before provider I/O, allow at most three temporary-failure
+attempts per content key, and honor server retry times across readers and restarts.
+Keep Sattva's pinned OpenAI provider and ordinary-object RPC responses.
+
+### Company alert timelines
+
+AI cards expose all selected recent developments in a bounded scrolling window and
+lazily load complete retained older public history. Older evidence must not change
+the 14-day priority or current headline. Preserve checked story members, source
+links, bookmarks, scroll anchors and partial public history when a source fails.
+Clear private history on access changes. Timeline scrolling must not request AI
+summaries; only the visible card headline can carry its optional factual summary.
+
+### Independent announcement recovery
+
+Follow `docs/BSE-COLLECTION.md`. Keep BSE category/date completeness, identity-directory
+health and publisher-index recovery separate. Retain validated partial records,
+archive before checkpointing, resume exact cursors and never advance a failed window.
+A recovery source's success cannot certify exhaustive exchange coverage.
+
+## Mutual-fund returns and category comparisons
+
+Company Holdings retains the authenticated Sattva ownership reader. All Schemes and Category
+Performance use the public AmfiBeas NAV snapshot independently of company scope. They retain
+its NAV date, source cohorts, plan and option; no index comparison or average of displayed
+rows is substituted. Conflicting published cohort statistics are withheld. Schemes without a
+source cohort identity cannot establish category statistics. Direct plans take display preference,
+single-plan ETFs remain, and every raw plan remains available to the cohort projection.
+
+A saved snapshot paints before revalidation; a failed read retains it with a failure label.
+Visible views check every 15 minutes and on return, while the source publishes daily. These
+reader checks do not claim an independent historical NAV archive or complete source coverage.
+
+### Private price levels shared with Sattva Family
+
+The dedicated `sattva-private-price-levels:v1` CaptureRegistry object keeps shared levels,
+deleted-company tombstones and reached history. Family sends changed level kinds only; explicit
+imports seed in batches of at most 40 and never overwrite a known company or deletion. Capacity
+is 600 active companies. Reached history is paginated without an oldest-record cutoff.
+
+`/api/price-levels` is service-only, requires a separate `FAMILY_PRICE_LEVELS_TOKEN` of at least
+32 characters, and grants no access from Origin or the names-only holdings token. The identical
+secret belongs only on the Central Worker and Family Pages production server; it must never be
+put in browser assets, URLs or logs. Adding it is a production configuration action requiring
+specific authorization. Family's existing password gate protects its proxy and every bridge read
+rechecks that session. Central keeps replies in memory, excludes them from public alert caches and
+automatic model requests, and clears them when the connection or authorization is lost.
+
+Explicit saves activate a durable alarm using the existing Upstox credential. GET is read-only.
+Pending levels are checked every minute during the configured weekday exchange window, with
+15-minute wakes outside it. Quotes must match exact NSE ISIN and ticker and the current IST day.
+Last trades preceding a level's set time cannot fire it; day extremes apply only to levels set
+before that session opened. Edits invalidate completeness; partial quotes never advance the last
+complete check. Market closures, credential expiry and source outages remain visible.
+
+A hit records when this service observed the level, its quote time and the evidence basis. This
+is retained history from first capture, not an exhaustive trade archive: minute sampling can miss
+an intraday crossing after a level was set, and outages cannot reconstruct those missed ticks.
+A level fires once until its value changes. Family's current-price status can change back after a
+reversal while Central keeps the dated hit. Sharing currently requires a verified NSE ticker/ISIN;
+unsupported holdings are refused explicitly. No test writes sample levels to production.
+>>>>>>> sattva/main
