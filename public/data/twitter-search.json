@@ -96,8 +96,8 @@
       "lastDiscoveryAt": "2026-09-29T15:58:33+00:00"
     },
     "isin:INE914E01040|Alankit": {
-      "lastAttemptAt": "2026-09-29T15:58:33+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-10-03T08:30:03+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 20,
       "lastSuccessAt": "2026-09-29T15:58:33+00:00",
       "targetThrough": null,
@@ -2135,7 +2135,7 @@
   "coverage": {
     "planned": 232,
     "attempted": 1,
-    "incomplete": 192,
-    "checkedAt": "2026-10-03T07:57:03.947713+00:00"
+    "incomplete": 198,
+    "checkedAt": "2026-10-03T08:30:03.041692+00:00"
   }
 }
