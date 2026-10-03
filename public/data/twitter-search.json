@@ -212,70 +212,66 @@
       "pending": []
     },
     "isin:INE736A01011|Central Depository Services": {
-      "lastAttemptAt": "2026-09-30T00:48:50+00:00",
-      "lastResultCount": 30,
+      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
+      "lastResultCount": 10,
       "error": null,
-      "lastSuccessAt": "2026-09-30T00:48:50+00:00",
+      "lastSuccessAt": "2026-10-03T21:01:00+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE736A01011|CDSL": {
-      "lastAttemptAt": "2026-09-30T00:48:50+00:00",
-      "lastResultCount": 89,
-      "error": null,
+      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
+      "lastResultCount": 100,
+      "error": "result-cap-incomplete",
       "targetThrough": "2026-09-06T22:10:33+00:00",
       "pending": [
         {
           "from": "2026-09-02T10:10:33.233647+00:00",
+          "to": "2026-09-04T16:10:33.116823+00:00"
+        },
+        {
+          "from": "2026-09-04T16:10:33.116823+00:00",
           "to": "2026-09-06T22:10:33+00:00"
         }
       ],
-      "lastDiscoveryAt": "2026-09-30T00:48:50+00:00"
+      "lastDiscoveryAt": "2026-10-03T21:01:00+00:00"
     },
     "isin:INE067A01029|Cg Power and Ind Sol": {
-      "lastAttemptAt": "2026-09-30T00:48:50+00:00",
+      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
       "lastResultCount": 0,
       "error": null,
-      "lastSuccessAt": "2026-09-30T00:48:50+00:00",
+      "lastSuccessAt": "2026-10-03T21:01:00+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE067A01029|CG Power & Ind": {
-      "lastAttemptAt": "2026-09-30T00:48:50+00:00",
+      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
       "lastResultCount": 0,
       "error": null,
-      "lastSuccessAt": "2026-09-30T00:48:50+00:00",
+      "lastSuccessAt": "2026-10-03T21:01:00+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE067A01029|CGPOWER": {
-      "lastAttemptAt": "2026-09-30T00:48:50+00:00",
-      "lastResultCount": 104,
-      "error": "search-unavailable",
+      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
+      "lastResultCount": 57,
+      "error": null,
       "lastSuccessAt": "2026-09-06T22:10:33+00:00",
       "targetThrough": "2026-09-20T20:53:41+00:00",
       "pending": [
-        {
-          "from": "2026-09-04T22:10:33+00:00",
-          "to": "2026-09-12T21:32:07+00:00"
-        },
         {
           "from": "2026-09-12T21:32:07+00:00",
           "to": "2026-09-20T20:53:41+00:00"
         }
       ],
-      "lastDiscoveryAt": "2026-09-30T00:48:50+00:00"
+      "lastDiscoveryAt": "2026-10-03T21:01:00+00:00"
     },
     "isin:INE522F01014|Coal India": {
-      "lastAttemptAt": "2026-09-30T01:25:00+00:00",
-      "lastResultCount": 105,
-      "error": "search-unavailable",
+      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
+      "lastResultCount": 104,
+      "error": "result-cap-incomplete",
       "targetThrough": "2026-09-06T22:10:33+00:00",
       "pending": [
-        {
-          "from": "2026-09-02T10:10:33.233647+00:00",
-          "to": "2026-09-06T22:10:33+00:00"
-        },
         {
           "from": "2026-08-28T22:10:33.467294+00:00",
           "to": "2026-08-31T04:10:33.350470+00:00"
@@ -283,12 +279,20 @@
         {
           "from": "2026-08-31T04:10:33.350470+00:00",
           "to": "2026-09-02T10:10:33.233647+00:00"
+        },
+        {
+          "from": "2026-09-02T10:10:33.233647+00:00",
+          "to": "2026-09-04T16:10:33.116823+00:00"
+        },
+        {
+          "from": "2026-09-04T16:10:33.116823+00:00",
+          "to": "2026-09-06T22:10:33+00:00"
         }
       ],
-      "lastDiscoveryAt": "2026-09-20T20:53:41+00:00"
+      "lastDiscoveryAt": "2026-10-03T21:01:00+00:00"
     },
     "isin:INE522F01014|COALINDIA": {
-      "lastAttemptAt": "2026-09-30T01:58:05+00:00",
+      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
       "lastResultCount": 108,
       "error": "search-unavailable",
       "targetThrough": "2026-09-06T22:10:33+00:00",
@@ -2134,8 +2138,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 198,
-    "checkedAt": "2026-10-03T20:28:30.879086+00:00"
+    "attempted": 7,
+    "incomplete": 195,
+    "checkedAt": "2026-10-03T21:01:00.373815+00:00"
   }
 }
