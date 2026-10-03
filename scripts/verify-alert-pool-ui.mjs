@@ -89,6 +89,11 @@ async function openPage() {
 const settledAlerts = (page) => page.waitForFunction(() => {
   const rows = document.querySelectorAll('tbody tr[data-row-key]').length;
   const chips = [...document.querySelectorAll('[data-feed]')];
+<<<<<<< HEAD
+=======
+  // Today is empty after IST midnight until something dated today is captured: settled then means
+  // the table's own empty state over a zero count, never the placeholders of a read still running.
+>>>>>>> sattva/main
   const empty = /^No loaded event\b/.test(document.querySelector('tbody')?.textContent.trim() || '')
     && /^0\b/.test(document.querySelector('[data-row-count]')?.textContent.trim() || '');
   return (rows > 0 || empty) && chips.length > 0 && !chips.some((chip) => chip.textContent.includes('reading…')) && !document.querySelector('[data-table-loading]');
