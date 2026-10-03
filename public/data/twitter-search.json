@@ -196,8 +196,8 @@
       "pending": []
     },
     "isin:INE482D01024|Carysil": {
-      "lastAttemptAt": "2026-09-30T00:48:50+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-10-03T19:55:42+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 28,
       "lastSuccessAt": "2026-09-30T00:48:50+00:00",
       "targetThrough": null,
@@ -2136,6 +2136,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 198,
-    "checkedAt": "2026-10-03T19:22:38.518478+00:00"
+    "checkedAt": "2026-10-03T19:55:42.366692+00:00"
   }
 }
