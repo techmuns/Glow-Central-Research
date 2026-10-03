@@ -27,7 +27,7 @@ if (!existsSync(join(poolDir, 'index.json'))) {
 const index = JSON.parse(readFileSync(join(poolDir, 'index.json'), 'utf8'));
 const exchange = { text: readFileSync(resolve(root, 'data/exchange-deals.json'), 'utf8'), id: EXCHANGE_ID };
 const status = captureStatusFor({ root, exchange });
-const served = { pool: true, status: JSON.parse(JSON.stringify(status)), artifact: 1, requests: [] };
+const served = { status: JSON.parse(JSON.stringify(status)), artifact: 1, requests: [] };
 
 const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
@@ -40,7 +40,6 @@ const server = createServer((req, res) => {
     res.end(`<script>addEventListener('message', e => { if (e.data.channel === 'sattva-portfolio-v1') parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'}, '*'); });</script>`); return;
   }
   if (url.pathname === '/api/alert-pool/index') {
-    if (!served.pool) { res.writeHead(404, { 'content-type': 'application/json' }); res.end('{"ok":false,"reason":"no-pool"}'); return; }
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' });
     res.end(JSON.stringify({ ...index, artifact: served.artifact })); return;
   }
@@ -86,13 +85,34 @@ async function openPage() {
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   return { context, page, errors };
 }
-const settledAlerts = (page) => page.waitForFunction(() => {
-  const rows = document.querySelectorAll('tbody tr[data-row-key]').length;
-  const chips = [...document.querySelectorAll('[data-feed]')];
-  const empty = /^No loaded event\b/.test(document.querySelector('tbody')?.textContent.trim() || '')
-    && /^0\b/.test(document.querySelector('[data-row-count]')?.textContent.trim() || '');
-  return (rows > 0 || empty) && chips.length > 0 && !chips.some((chip) => chip.textContent.includes('reading…')) && !document.querySelector('[data-table-loading]');
-}, null, { timeout: 120000 });
+// A PAGE THAT MUST TAKE THE LIVE PATH IS TOLD THERE IS NO POOL BY ITS OWN ROUTE. Switching the
+// server's answer for every page also answered the pooled page while the live page settled: All
+// Alerts re-checks a visible page every 90 seconds, so once the comparison took that long the
+// pooled page read "no pool" too, went down the live path and failed the later pooled checks.
+const withoutPool = (page) => page.route('**/api/alert-pool/index', (route) =>
+  route.fulfill({ status: 404, contentType: 'application/json', body: '{"ok":false,"reason":"no-pool"}' }));
+// Settled also means the relevance order is final: within the recent days a large table reads
+// relevance in slices after its first paint (surface-relevance.js), and rows not yet read sort by
+// time until then. Comparing two pages mid-way would compare two partial orders.
+const settledAlerts = async (page) => {
+  await page.waitForFunction(() => {
+    const rows = document.querySelectorAll('tbody tr[data-row-key]').length;
+    const chips = [...document.querySelectorAll('[data-feed]')];
+    const empty = /^No loaded event\b/.test(document.querySelector('tbody')?.textContent.trim() || '')
+      && /^0\b/.test(document.querySelector('[data-row-count]')?.textContent.trim() || '');
+    return (rows > 0 || empty) && chips.length > 0 && !chips.some((chip) => chip.textContent.includes('reading…')) && !document.querySelector('[data-table-loading]');
+  }, null, { timeout: 120000 });
+  // Story grouping can hand the table new row objects after the first paint, and those are read in
+  // slices too, so settled means the readings are done and two reads a moment apart agree.
+  let previous = null;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    await page.evaluate(async () => { await (await import('/js/data/surface-relevance.js')).relevanceSettled(); });
+    const keys = JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('tbody tr[data-row-key]')].map((row) => row.dataset.rowKey)));
+    if (keys === previous) return;
+    previous = keys;
+    await page.waitForTimeout(750);
+  }
+};
 const rowKeys = (page) => page.evaluate(() => [...document.querySelectorAll('tbody tr[data-row-key]')].map((row) => row.dataset.rowKey));
 // THE RANKING IS SETTLED when the tab is no longer reading — `complete`, or `partial` where a live
 // route this sandbox cannot answer left a feed failed — and the cards have stopped changing.
@@ -185,8 +205,8 @@ try {
   console.log('PASS a statement-name handoff during index loading replaces the abandoned context and settles all pooled feeds.');
 
   // 2. THE SAME VIEW WITHOUT A POOL: the live collection paints the same rows in the same order.
-  served.pool = false;
   const live = await openPage();
+  await withoutPool(live.page);
   const liveFrom = served.requests.length;
   await live.page.goto(`${origin}/#/research/daily-alerts?scope=universe`);
   await settledAlerts(live.page);
@@ -208,24 +228,20 @@ try {
 
   // Today can legitimately be empty after IST midnight. Keep that exact comparison above,
   // and also require a populated period so an empty rendering regression cannot pass it.
-  served.pool = true;
   await pooled.page.getByRole('combobox', { name: 'Date range', exact: true }).selectOption('7d');
   await settledAlerts(pooled.page);
   await pooled.page.waitForTimeout(1500);
   const recentKeys = await rowKeys(pooled.page), recentCount = await rowCount(pooled.page);
   assert(recentKeys.length > 0, 'the retained seven-day fixture must paint actual events');
-  served.pool = false;
   await live.page.getByRole('combobox', { name: 'Date range', exact: true }).selectOption('7d');
   await settledAlerts(live.page);
   await live.page.waitForTimeout(1500);
   assert.deepEqual(await rowKeys(live.page), recentKeys, 'a populated period also paints identical rows in order');
   assert.equal(await rowCount(live.page), recentCount, 'the populated period has identical complete counts');
-  served.pool = true;
   await pooled.page.getByRole('combobox', { name: 'Date range', exact: true }).selectOption('today');
   await settledAlerts(pooled.page);
   console.log('PASS empty Today and populated seven-day windows both preserve exact pool/live results');
   await live.context.close();
-  served.pool = true;
 
   // 3. A CAPTURE THAT MOVED: the insider feed leaves the pool and is read from its capture; the
   // rows do not change, because the capture is what the pool was built from.
@@ -261,14 +277,13 @@ try {
   assert(pooledCards.length > 0, 'cards surface from the AI pool');
   const aiState = await pooled.page.evaluate(async () => (await import('/js/data/alert-pool.js')).status().feeds);
   assert(Object.values(aiState).every((state) => state.pooled), `every pooled feed came from the AI pool (${JSON.stringify(aiState)})`);
-  served.pool = false;
   const liveAi = await openPage();
+  await withoutPool(liveAi.page);
   await liveAi.page.goto(`${origin}/#/research/ai-alerts?scope=universe`);
   const liveCards = await settledRanking(liveAi.page, 300000);
   assert.deepEqual(pooledCards, liveCards, 'the AI pool ranks the same companies in the same order as the full history');
   console.log(`PASS AI Alerts from the AI pool: ${pooledCards.length} cards, identical to the live ranking`);
   await liveAi.context.close();
-  served.pool = true;
 
   // A capture check can publish a new artifact without changing any retained rows. Exercise the
   // real header refresh: all AI shards stay decoded, while the new index/status are checked.
