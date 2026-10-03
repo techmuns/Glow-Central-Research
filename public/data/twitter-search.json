@@ -160,7 +160,7 @@
       "error": "search-unavailable"
     },
     "isin:INE083K01017|Bengal and Assam Company": {
-      "lastAttemptAt": "2026-09-29T20:45:02+00:00",
+      "lastAttemptAt": "2026-10-03T15:34:26+00:00",
       "error": "search-unavailable"
     },
     "isin:INE083K01017|BENGALASM": {
@@ -2136,6 +2136,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 198,
-    "checkedAt": "2026-10-03T14:51:20.438197+00:00"
+    "checkedAt": "2026-10-03T15:34:26.366641+00:00"
   }
 }
