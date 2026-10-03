@@ -1935,7 +1935,7 @@
       "error": "search-unavailable"
     },
     "isin:INE1CLE01013|Vedanta Iron and Steel": {
-      "lastAttemptAt": "2026-09-29T06:14:08+00:00",
+      "lastAttemptAt": "2026-10-03T00:47:13+00:00",
       "error": "search-unavailable",
       "lastResultCount": 21,
       "lastSuccessAt": "2026-09-20T00:19:51+00:00",
@@ -2079,6 +2079,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 196,
-    "checkedAt": "2026-10-02T23:54:12.095714+00:00"
+    "checkedAt": "2026-10-03T00:47:13.071941+00:00"
   }
 }
