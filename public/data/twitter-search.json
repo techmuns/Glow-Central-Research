@@ -136,7 +136,7 @@
       "error": "search-unavailable"
     },
     "isin:INE094B01013|Ashika Credit Capital": {
-      "lastAttemptAt": "2026-09-29T17:38:22+00:00",
+      "lastAttemptAt": "2026-10-03T11:45:52+00:00",
       "error": "search-unavailable"
     },
     "isin:INE094B01013|ASHIKA": {
@@ -2136,6 +2136,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 198,
-    "checkedAt": "2026-10-03T11:15:14.256735+00:00"
+    "checkedAt": "2026-10-03T11:45:52.957212+00:00"
   }
 }
