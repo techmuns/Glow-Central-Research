@@ -1983,7 +1983,7 @@
       ]
     },
     "isin:INE704J01044|Vedanta Oil and Gas": {
-      "lastAttemptAt": "2026-09-29T08:48:10+00:00",
+      "lastAttemptAt": "2026-10-03T02:56:57+00:00",
       "error": "search-unavailable",
       "lastResultCount": 8,
       "lastSuccessAt": "2026-09-20T00:19:51+00:00",
@@ -2079,6 +2079,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 196,
-    "checkedAt": "2026-10-03T02:39:30.879106+00:00"
+    "checkedAt": "2026-10-03T02:56:57.177268+00:00"
   }
 }
