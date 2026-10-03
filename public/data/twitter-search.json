@@ -1967,7 +1967,7 @@
       ]
     },
     "isin:INE205A01025|VEDL": {
-      "lastAttemptAt": "2026-09-29T08:24:07+00:00",
+      "lastAttemptAt": "2026-10-03T02:39:30+00:00",
       "error": "search-unavailable",
       "lastResultCount": 103,
       "targetThrough": "2026-09-20T00:19:51+00:00",
@@ -2079,6 +2079,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 196,
-    "checkedAt": "2026-10-03T02:08:39.869505+00:00"
+    "checkedAt": "2026-10-03T02:39:30.879106+00:00"
   }
 }
