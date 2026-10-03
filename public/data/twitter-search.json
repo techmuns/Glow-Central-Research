@@ -1,27 +1,36 @@
 {
   "queries": {
     "isin:INE423A01024|Adani Enterprises": {
-      "lastAttemptAt": "2026-09-29T14:53:51+00:00",
-      "error": "search-unavailable"
-    },
-    "isin:INE423A01024|ADANIENT": {
-      "lastAttemptAt": "2026-09-29T15:14:28+00:00",
-      "error": "search-unavailable",
+      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
+      "error": "result-cap-incomplete",
       "lastResultCount": 105,
-      "targetThrough": "2026-09-15T20:36:48+00:00",
+      "targetThrough": "2026-10-03T05:24:56+00:00",
       "pending": [
         {
-          "from": "2026-09-06T20:36:48.830627+00:00",
-          "to": "2026-09-11T08:36:48.415313+00:00"
+          "from": "2026-09-24T05:24:56.457367+00:00",
+          "to": "2026-09-28T17:24:56.228683+00:00"
         },
+        {
+          "from": "2026-09-28T17:24:56.228683+00:00",
+          "to": "2026-10-03T05:24:56+00:00"
+        }
+      ]
+    },
+    "isin:INE423A01024|ADANIENT": {
+      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
+      "error": null,
+      "lastResultCount": 64,
+      "targetThrough": "2026-09-15T20:36:48+00:00",
+      "pending": [
         {
           "from": "2026-09-11T08:36:48.415313+00:00",
           "to": "2026-09-15T20:36:48+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-10-03T05:24:56+00:00"
     },
     "isin:INE674K01013|Aditya Birla Capital": {
-      "lastAttemptAt": "2026-09-29T15:16:09+00:00",
+      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
       "error": "search-unavailable",
       "lastResultCount": 103,
       "targetThrough": "2026-09-15T20:36:48+00:00",
@@ -2023,10 +2032,10 @@
       "pending": []
     },
     "isin:INE564S01019|Vikram Kamats Hospitality": {
-      "lastAttemptAt": "2026-09-29T10:48:26+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 0,
-      "lastSuccessAt": "2026-09-20T00:19:51+00:00",
+      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
+      "error": null,
+      "lastResultCount": 1,
+      "lastSuccessAt": "2026-10-03T05:24:56+00:00",
       "targetThrough": null,
       "pending": []
     },
@@ -2047,28 +2056,76 @@
       ]
     },
     "isin:INE540H01012|Voltamp Transformers": {
-      "lastAttemptAt": "2026-09-29T11:21:31+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
+      "error": null,
+      "lastResultCount": 21,
+      "lastSuccessAt": "2026-10-03T05:24:56+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE540H01012|VOLTAMP": {
-      "lastAttemptAt": "2026-09-29T11:54:28+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 100,
+      "targetThrough": "2026-10-03T05:24:56+00:00",
+      "pending": [
+        {
+          "from": "2026-09-24T05:24:56.457367+00:00",
+          "to": "2026-09-28T17:24:56.228683+00:00"
+        },
+        {
+          "from": "2026-09-28T17:24:56.228683+00:00",
+          "to": "2026-10-03T05:24:56+00:00"
+        }
+      ]
     },
     "isin:INE377N01017|Waaree Energies": {
-      "lastAttemptAt": "2026-09-29T12:28:13+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 107,
+      "targetThrough": "2026-10-03T05:24:56+00:00",
+      "pending": [
+        {
+          "from": "2026-09-24T05:24:56.457367+00:00",
+          "to": "2026-09-28T17:24:56.228683+00:00"
+        },
+        {
+          "from": "2026-09-28T17:24:56.228683+00:00",
+          "to": "2026-10-03T05:24:56+00:00"
+        }
+      ]
     },
     "isin:INE377N01017|WAAREEENER": {
-      "lastAttemptAt": "2026-09-29T13:00:41+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
+      "error": null,
+      "lastResultCount": 26,
+      "lastSuccessAt": "2026-10-03T05:24:56+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE049B01025|Wockhardt": {
-      "lastAttemptAt": "2026-09-29T13:33:08+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 107,
+      "targetThrough": "2026-10-03T05:24:56+00:00",
+      "pending": [
+        {
+          "from": "2026-09-24T05:24:56.457367+00:00",
+          "to": "2026-09-28T17:24:56.228683+00:00"
+        },
+        {
+          "from": "2026-09-28T17:24:56.228683+00:00",
+          "to": "2026-10-03T05:24:56+00:00"
+        }
+      ]
     },
     "isin:INE049B01025|WOCKPHARMA": {
-      "lastAttemptAt": "2026-09-29T14:04:30+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
+      "error": null,
+      "lastResultCount": 40,
+      "lastSuccessAt": "2026-10-03T05:24:56+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE685T01010|HORIZONIND": {
       "lastAttemptAt": "2026-10-02T20:01:55+00:00",
@@ -2077,8 +2134,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 196,
-    "checkedAt": "2026-10-03T04:53:35.001021+00:00"
+    "attempted": 10,
+    "incomplete": 192,
+    "checkedAt": "2026-10-03T05:24:56.457367+00:00"
   }
 }
