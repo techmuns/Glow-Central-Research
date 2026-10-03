@@ -2007,7 +2007,7 @@
       ]
     },
     "isin:INE694L01019|Vedanta Power": {
-      "lastAttemptAt": "2026-09-29T09:42:25+00:00",
+      "lastAttemptAt": "2026-10-03T04:20:32+00:00",
       "error": "search-unavailable",
       "lastResultCount": 29,
       "lastSuccessAt": "2026-09-20T00:19:51+00:00",
@@ -2079,6 +2079,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 196,
-    "checkedAt": "2026-10-03T03:47:30.392127+00:00"
+    "checkedAt": "2026-10-03T04:20:32.132880+00:00"
   }
 }
