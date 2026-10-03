@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-10-03T16:41:16.302Z",
+    "capturedAt": "2026-10-03T19:28:53.103Z",
     "from": "2026-08-05",
     "to": "2026-10-01",
     "rows": 10794,
@@ -12,10 +12,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-03T16:41:16.302Z",
-  "oldestDataAt": "2026-10-03T16:41:16.302Z",
-  "from": "2025-10-03",
-  "to": "2026-10-03",
+  "capturedAt": "2026-10-03T19:28:53.103Z",
+  "oldestDataAt": "2026-10-03T19:28:53.103Z",
+  "from": "2025-10-04",
+  "to": "2026-10-04",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-03T16:41:16.302Z",
+      "capturedAt": "2026-10-03T19:28:53.103Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-03T16:41:16.302Z",
+      "capturedAt": "2026-10-03T19:28:53.103Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +63,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-03T16:41:16.302Z",
+      "capturedAt": "2026-10-03T19:28:53.103Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,7 +76,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-03T16:41:16.302Z",
+      "capturedAt": "2026-10-03T19:28:53.103Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -84,7 +84,7 @@
   "covered": 4,
   "withRows": 1898,
   "emptyCount": 0,
-  "rowCount": 19941,
+  "rowCount": 19895,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -69079,28 +69079,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "JAYNECOIND",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "JAYNECOIND",
-          "Insider": "JAYASWAL NECO METALLICS PRIVATE LIMITED",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Pledge",
-          "Trade Shares": "147510",
-          "Trade %": "0.02",
-          "Trade Value": "9927423",
-          "Post Holding Shares": "47542885",
-          "Post Holding %": "4.9",
-          "Mode": "Creation Of Pledge",
-          "From Date": "2025-09-30",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "JPPOWER": [
@@ -75442,28 +75420,6 @@
           "From Date": "2026-06-12",
           "To Date": "2026-06-12",
           "Broadcast Date": "2026-06-16",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "PANACEABIO",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Panacea Biotec Ltd",
-          "Insider": "Nosheen Sheikh",
-          "Category": "Employees Immediate Relative",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "3000",
-          "Trade %": "0",
-          "Trade Value": "1220333",
-          "Post Holding Shares": "3000",
-          "Post Holding %": "0",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-30",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-03",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -91363,182 +91319,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "BAJFINANCE",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "BAJFINANCE",
-          "Insider": "Madhur Bajaj (A/c Kumud Neelima Family Trust)",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "150000",
-          "Trade %": "0",
-          "Trade Value": "148800000",
-          "Post Holding Shares": "150000",
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJFINANCE",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "BAJFINANCE",
-          "Insider": "Madhur Bajaj (A/c Kumud Neelima Family Trust)",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "150000",
-          "Trade %": "0",
-          "Trade Value": "148800000",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJFINANCE",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "BAJFINANCE",
-          "Insider": "Madhur Bajaj (A/c Kumud Nimisha Family Trust)",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "150000",
-          "Trade %": "0",
-          "Trade Value": "148800000",
-          "Post Holding Shares": "150000",
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJFINANCE",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "BAJFINANCE",
-          "Insider": "Madhur Bajaj (A/c Kumud Nimisha Family Trust)",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "150000",
-          "Trade %": "0",
-          "Trade Value": "148800000",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJFINANCE",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "BAJFINANCE",
-          "Insider": "Neelima Bajaj Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "610000",
-          "Trade %": "0.01",
-          "Trade Value": "605120000",
-          "Post Holding Shares": "610000",
-          "Post Holding %": "0.01",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJFINANCE",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "BAJFINANCE",
-          "Insider": "Neelima Bajaj Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "610000",
-          "Trade %": "0.01",
-          "Trade Value": "605120000",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJFINANCE",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "BAJFINANCE",
-          "Insider": "Nimisha Bajaj Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "610000",
-          "Trade %": "0.01",
-          "Trade Value": "605120000",
-          "Post Holding Shares": "610000",
-          "Post Holding %": "0.01",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJFINANCE",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "BAJFINANCE",
-          "Insider": "Nimisha Bajaj Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "610000",
-          "Trade %": "0.01",
-          "Trade Value": "605120000",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "PUNJABCHEM": [
@@ -104839,94 +104619,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "Anand Swamy",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "3319",
-          "Trade %": "0",
-          "Trade Value": "4712980",
-          "Post Holding Shares": "3319",
-          "Post Holding %": "0",
-          "Mode": "ESOS",
-          "From Date": "2025-09-26",
-          "To Date": "2025-09-26",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "Anand Swamy",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "9741",
-          "Trade %": "0",
-          "Trade Value": "13950184",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-22",
-          "To Date": "2025-09-22",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "HCL Technologies Stock Options Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "14936",
-          "Trade %": "0",
-          "Trade Value": "21209120",
-          "Post Holding Shares": "8154807",
-          "Post Holding %": "0.3",
-          "Mode": "ESOS",
-          "From Date": "2025-09-26",
-          "To Date": "2025-09-26",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "Ramachandran Sundararajan",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "11617",
-          "Trade %": "0",
-          "Trade Value": "16496140",
-          "Post Holding Shares": "50295",
-          "Post Holding %": "0",
-          "Mode": "ESOS",
-          "From Date": "2025-09-26",
-          "To Date": "2025-09-26",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "NTPC": [
@@ -105038,182 +104730,6 @@
           "From Date": "2026-02-19",
           "To Date": "2026-02-19",
           "Broadcast Date": "2026-02-23",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJFINSV",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Finserv Ltd",
-          "Insider": "Kumud Neelima Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "862610",
-          "Trade %": "0.05",
-          "Trade Value": "1733716709",
-          "Post Holding Shares": "862610",
-          "Post Holding %": "0.05",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJFINSV",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Finserv Ltd",
-          "Insider": "Kumud Neelima Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "862610",
-          "Trade %": "0.05",
-          "Trade Value": "1733716709",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJFINSV",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Finserv Ltd",
-          "Insider": "Kumud Nimisha Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "862610",
-          "Trade %": "0.05",
-          "Trade Value": "1733716709",
-          "Post Holding Shares": "862610",
-          "Post Holding %": "0.05",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJFINSV",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Finserv Ltd",
-          "Insider": "Kumud Nimisha Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "862610",
-          "Trade %": "0.05",
-          "Trade Value": "1733716709",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJFINSV",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Finserv Ltd",
-          "Insider": "Neelima Bajaj Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "3379240",
-          "Trade %": "0.21",
-          "Trade Value": "6791765514",
-          "Post Holding Shares": "3379240",
-          "Post Holding %": "0.21",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJFINSV",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Finserv Ltd",
-          "Insider": "Neelima Bajaj Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "3379240",
-          "Trade %": "0.21",
-          "Trade Value": "6791765514",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJFINSV",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Finserv Ltd",
-          "Insider": "Nimisha Bajaj Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "3553700",
-          "Trade %": "0.22",
-          "Trade Value": "7142403945",
-          "Post Holding Shares": "3553700",
-          "Post Holding %": "0.22",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJFINSV",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Finserv Ltd",
-          "Insider": "Nimisha Bajaj Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "3553700",
-          "Trade %": "0.22",
-          "Trade Value": "7142403945",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -113024,116 +112540,6 @@
           "From Date": "2025-10-27",
           "To Date": "2025-10-27",
           "Broadcast Date": "2025-10-29",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - JSWSL OPJ Samruddhi Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1363",
-          "Trade %": "0",
-          "Trade Value": "1539511",
-          "Post Holding Shares": "2931078",
-          "Post Holding %": "0.12",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - JSWSL OPJ Samruddhi Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "17262",
-          "Trade %": "0",
-          "Trade Value": "17262",
-          "Post Holding Shares": "2906302",
-          "Post Holding %": "0.12",
-          "Mode": "Off Market",
-          "From Date": "2025-09-30",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - JSWSL OPJ Samruddhi Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "359",
-          "Trade %": "0",
-          "Trade Value": "411421",
-          "Post Holding Shares": "2930719",
-          "Post Holding %": "0.12",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-30",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - OPJ ESOP Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "181",
-          "Trade %": "0",
-          "Trade Value": "204454",
-          "Post Holding Shares": "2932441",
-          "Post Holding %": "0.12",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - OPJ ESOP Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "7155",
-          "Trade %": "0",
-          "Trade Value": "7155",
-          "Post Holding Shares": "2923564",
-          "Post Holding %": "0.12",
-          "Mode": "Off Market",
-          "From Date": "2025-09-30",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-03",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -133427,28 +132833,6 @@
           "From Date": "2025-11-11",
           "To Date": "2025-11-11",
           "Broadcast Date": "2026-01-15",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ASAHIINDIA",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Asahi India Glass Ltd",
-          "Insider": "Mr. Sanjay Labroo",
-          "Category": "Promoter & Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Revoke",
-          "Trade Shares": "400000",
-          "Trade %": "0",
-          "Trade Value": "362240000",
-          "Post Holding Shares": "29230761",
-          "Post Holding %": "11.47",
-          "Mode": "Pledge Released",
-          "From Date": "2025-09-26",
-          "To Date": "2025-09-26",
-          "Broadcast Date": "2025-10-03",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -161007,28 +160391,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "SAFARI",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Safari Industries India Ltd",
-          "Insider": "AJENDRA SINGH",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "503",
-          "Trade %": "0",
-          "Trade Value": "1098573",
-          "Post Holding Shares": "826",
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "RBA": [
@@ -173788,50 +173150,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "KDDL",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "KDDL Ltd-$",
-          "Insider": "Pranav Shankar Saboo",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "400000",
-          "Trade %": "3.25",
-          "Trade Value": null,
-          "Post Holding Shares": "800000",
-          "Post Holding %": "6.5",
-          "Mode": "Gift",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "KDDL",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "KDDL Ltd-$",
-          "Insider": "Yashovardhan Saboo",
-          "Category": "Promoter & Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "400000",
-          "Trade %": "3.25",
-          "Trade Value": null,
-          "Post Holding Shares": "1802173",
-          "Post Holding %": "14.65",
-          "Mode": "Gift",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "AGI": [
@@ -181244,226 +180562,6 @@
           "From Date": "2025-11-24",
           "To Date": "2025-11-24",
           "Broadcast Date": "2025-11-24",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJELEC",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Electricals Ltd-$",
-          "Insider": "Geetika Shekhar Bajaj Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "1900000",
-          "Trade %": "1.65",
-          "Trade Value": "1036165000",
-          "Post Holding Shares": "1900000",
-          "Post Holding %": "1.65",
-          "Mode": "Inter-se Transfer",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJELEC",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Electricals Ltd-$",
-          "Insider": "Kiran Bajaj",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1900000",
-          "Trade %": "1.65",
-          "Trade Value": "1036165000",
-          "Post Holding Shares": "5645224",
-          "Post Holding %": "4.89",
-          "Mode": "Inter-se Transfer",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJELEC",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Electricals Ltd-$",
-          "Insider": "Kumud Neelima Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "125800",
-          "Trade %": "0.11",
-          "Trade Value": "68649060",
-          "Post Holding Shares": "125800",
-          "Post Holding %": "0.11",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJELEC",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Electricals Ltd-$",
-          "Insider": "Kumud Neelima Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "125800",
-          "Trade %": "0.11",
-          "Trade Value": "68649060",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJELEC",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Electricals Ltd-$",
-          "Insider": "Kumud Nimisha Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "125800",
-          "Trade %": "0.11",
-          "Trade Value": "68649060",
-          "Post Holding Shares": "125800",
-          "Post Holding %": "0.11",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJELEC",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Electricals Ltd-$",
-          "Insider": "Kumud Nimisha Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "125800",
-          "Trade %": "0.11",
-          "Trade Value": "68649060",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJELEC",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Electricals Ltd-$",
-          "Insider": "Neelima Bajaj Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "21644",
-          "Trade %": "0.02",
-          "Trade Value": "11811131",
-          "Post Holding Shares": "21644",
-          "Post Holding %": "0.02",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJELEC",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Electricals Ltd-$",
-          "Insider": "Neelima Bajaj Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "21644",
-          "Trade %": "0.02",
-          "Trade Value": "11811131",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJELEC",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Electricals Ltd-$",
-          "Insider": "Nimisha  Bajaj Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "206575",
-          "Trade %": "0.18",
-          "Trade Value": "112727978",
-          "Post Holding Shares": "206575",
-          "Post Holding %": "0.18",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "BAJAJELEC",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Bajaj Electricals Ltd-$",
-          "Insider": "Nimisha  Bajaj Family Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "206575",
-          "Trade %": "0.18",
-          "Trade Value": "112727978",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Off Market",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-03",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -213099,28 +212197,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "MBEL",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "M & B Engineering Ltd",
-          "Insider": "Birju Maheshbhai Patel",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "5558",
-          "Trade %": "0.01",
-          "Trade Value": "2132576",
-          "Post Holding Shares": "15558",
-          "Post Holding %": "0.03",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-30",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "MENONBE": [
@@ -232531,94 +231607,6 @@
           "From Date": "2026-02-26",
           "To Date": "2026-02-27",
           "Broadcast Date": "2026-03-05",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "MAFATIND",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Mafatlal Industries Ltd-$",
-          "Insider": "HRISHIKESH ARVIND MAFATLAL AS A TRUSTEE OF KARUNA TRUST",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "67725",
-          "Trade %": "0.09",
-          "Trade Value": "9478114",
-          "Post Holding Shares": "3458301",
-          "Post Holding %": "4.8",
-          "Mode": "Inter-se Transfer",
-          "From Date": "2025-09-30",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "MAFATIND",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Mafatlal Industries Ltd-$",
-          "Insider": "HRISHIKESH ARVIND MAFATLAL AS A TRUSTEE OF NARSINGHA TRUST",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "135445",
-          "Trade %": "0.19",
-          "Trade Value": "18955528",
-          "Post Holding Shares": "7944997",
-          "Post Holding %": "11.03",
-          "Mode": "Inter-se Transfer",
-          "From Date": "2025-09-30",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "MAFATIND",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Mafatlal Industries Ltd-$",
-          "Insider": "SETH NAVINCHANDRA MAFATLAL FOUNDATION TRUST NO 1",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "82530",
-          "Trade %": "0.11",
-          "Trade Value": "11550074",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Inter-se Transfer",
-          "From Date": "2025-09-30",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "MAFATIND",
-        "date": "2025-10-03",
-        "cells": {
-          "Company": "Mafatlal Industries Ltd-$",
-          "Insider": "SHRI HRISHIKESH ARVIND MAFATLAL PUBLIC CHARITABLE TRUST NO 1",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "120640",
-          "Trade %": "0.17",
-          "Trade Value": "16883568",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Inter-se Transfer",
-          "From Date": "2025-09-30",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-03",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
