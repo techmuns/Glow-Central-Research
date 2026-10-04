@@ -3,14 +3,21 @@ import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseScreenerAnnouncements, screenerCursor, screenerCursorAt, screenerRecoveryCheckpoint, collectScreenerAnnouncements } from './lib/screener-announcements.mjs';
+<<<<<<< HEAD
 import { bseCaptureIndex, failedBseCapture } from './lib/bse-capture-state.mjs';
+=======
+import { failedBseCapture } from './lib/bse-capture-state.mjs';
+>>>>>>> sattva/main
 import { readNewsJson } from './lib/news-json-storage.mjs';
 import { hydrateJsonShards } from '../public/js/core/json-shards.js';
 import { archiveFilings } from './lib/filing-archive.mjs';
 import { announcementCoverage } from '../public/js/data/announcement-coverage.js';
 import { assessFilingsHealth } from '../public/js/data/filings-health-shared.js';
 import { createAnnouncementIdentity } from '../public/js/data/announcement-identity.js';
+<<<<<<< HEAD
 import { verifyAnnouncementDelivery } from './lib/announcement-delivery.mjs';
+=======
+>>>>>>> sattva/main
 
 const originalNow = Date.parse('2026-09-30T17:00:00.000Z');
 const bootstrap = { version: 1, bootstrap: true, rowCount: 0, rows: [], pending: [], ranges: [] };
@@ -40,6 +47,7 @@ assert.equal(indexReference.url, null);
 assert.equal(indexReference.source, 'NSE');
 assert.equal(indexReference.documentUnavailable, true);
 assert(indexReference.referenceUrl.includes('/companies-listing/'));
+<<<<<<< HEAD
 const secondReference = { ...noDocument, title: 'A separate announcement', time: '22:00:00' };
 const bseId = '00000000-0000-0000-0000-000000000001.pdf';
 const captured = { ...parsed.rows[0], url: `https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=${bseId}` };
@@ -52,6 +60,8 @@ assert.throws(() => verifyAnnouncementDelivery([captured], delivered.slice(1)), 
 assert.throws(() => verifyAnnouncementDelivery([secondReference], delivered.slice(0, 2)), /missing from alerts/,
   'one issuer reference cannot stand in for a separate notice');
 assert.throws(() => verifyAnnouncementDelivery([{ ...captured, ticker: 'ANOTHER' }], delivered), /missing from alerts/);
+=======
+>>>>>>> sattva/main
 assert.deepEqual(parseScreenerAnnouncements(actual.replace(/datetime="([^"]+)"/g, 'datetime=$1'), { now: originalNow }), parsed,
   'raw unquoted datetime attributes have the same meaning as browser-serialized HTML');
 const withoutTimes = actual.replace(/<span class="ink-600 smaller">[\s\S]*?<\/span>/g, '');
@@ -180,12 +190,15 @@ await assert.rejects(run({ previous: refused }), /clock moved/);
 
 // A refused company directory must not prevent the independent filing request.
 const identity = { isin: 'INE365Y01019', ticker: 'BPLPHARMA', bseCode: '541096', name: 'Bharat Parenterals Limited' };
+<<<<<<< HEAD
 const index = await bseCaptureIndex({ now: clock, previous: { version: 1, capturedAt: iso(clock - hour), entries: [identity] },
   mcMap: { tcs: { ticker: 'TCS', bseId: '532540' } }, fetchMaster: async () => { throw Error('HTTP 403'); } });
 assert.equal(index.byCode.get('541096').ticker, 'BPLPHARMA');
 assert.equal(index.byCode.get('532540').ticker, 'TCS');
 assert.equal(index.identities, null, 'do not rewrite the verified directory with a stale success timestamp');
 assert.equal(index.identityError.reason, 'directory-unavailable');
+=======
+>>>>>>> sattva/main
 const prior = { capturedAt: iso(clock - hour), lastCompleteTo: '2026-09-29', coversUniverse: true,
   byTicker: { BPLPHARMA: [{ date: '2026-09-19', title: 'Retained announcement' }] }, rowCount: 1, failed: {} };
 const failed = failedBseCapture(prior, { now: clock });
@@ -196,7 +209,11 @@ assert.equal(failed.coversUniverse, false);
 assert(failed.lastError);
 
 // Recovery shares the durable monthly archive and deduplicates alternate BSE links by document.
+<<<<<<< HEAD
 const dir = mkdtempSync(join(tmpdir(), 'glow-recovery-'));
+=======
+const dir = mkdtempSync(join(tmpdir(), 'sattva-recovery-'));
+>>>>>>> sattva/main
 try {
   const resolver = createAnnouncementIdentity([identity]);
   const recovered = resolver.row([...saved.values()].find(r => r.ticker === 'BSE:541096'));
