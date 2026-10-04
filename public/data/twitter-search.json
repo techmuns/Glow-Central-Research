@@ -518,7 +518,7 @@
       "pending": []
     },
     "isin:INE220J01025|FCONSUMER": {
-      "lastAttemptAt": "2026-09-30T11:12:18+00:00",
+      "lastAttemptAt": "2026-10-04T02:47:25+00:00",
       "error": "search-unavailable",
       "lastResultCount": 1,
       "lastSuccessAt": "2026-09-16T18:13:23+00:00",
@@ -2168,6 +2168,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 191,
-    "checkedAt": "2026-10-04T02:16:24.092991+00:00"
+    "checkedAt": "2026-10-04T02:47:25.687565+00:00"
   }
 }
