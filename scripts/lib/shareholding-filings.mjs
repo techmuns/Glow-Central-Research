@@ -19,7 +19,11 @@ export function day(value) {
 }
 export function sourceUrl(value, base = 'https://www.bseindia.com') {
   const url = new URL(value, base);
+<<<<<<< HEAD
   if (url.protocol !== 'https:' || !['www.bseindia.com', 'nsearchives.nseindia.com', 'archives.nseindia.com'].includes(url.hostname) || url.username || url.password) throw new Error('Unexpected filing host');
+=======
+  if (url.protocol !== 'https:' || !['www.bseindia.com', 'nsearchives.nseindia.com', 'archives.nseindia.com'].includes(url.hostname) || url.username || url.password || url.port) throw new Error('Unexpected filing host');
+>>>>>>> sattva/main
   return url.href;
 }
 export function filingTime(value) {

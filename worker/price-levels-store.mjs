@@ -1,6 +1,10 @@
 import {
+<<<<<<< HEAD
   PRICE_LEVEL, PRICE_LEVEL_NAMES, PRICE_LEVELS_COMPANY_LIMIT, PRICE_LEVELS_TOMBSTONE_LIMIT,
   PRICE_LEVELS_HIT_LIMIT, PRICE_LEVELS_HIT_WIRE, priceLevelIntents, levelHit, hitId,
+=======
+  PRICE_LEVEL, PRICE_LEVEL_NAMES, PRICE_LEVELS_COMPANY_LIMIT, PRICE_LEVELS_HIT_WIRE, priceLevelIntents, levelHit, hitId,
+>>>>>>> sattva/main
 } from '../public/js/data/price-levels-shared.js';
 
 // THE FAMILY'S PRICE LEVELS, AS ONE DURABLE RECORD — AND EVERY TIME ONE WAS REACHED.
@@ -19,7 +23,11 @@ import {
 //     value was set (the Worker's clock) and, once the price got there, the moment it was reached.
 //   `price_level_hits` — every level that was reached, kept as history. It outlives the level: a
 //     family that clears a Stop loss after it fired has not un-happened the fall, and AI Alerts reads
+<<<<<<< HEAD
 //     a fortnight back. Bounded by `PRICE_LEVELS_HIT_LIMIT`, oldest first out.
+=======
+//     historical windows. Reached records and deletion tombstones are never pruned.
+>>>>>>> sattva/main
 //
 // THE SERVER STAMPS EVERY TIME. `setAt` and `reachedAt` are the moments THIS object accepted the
 // edit or saw the price — the one clock every device and every reader is actually talking to.
@@ -82,10 +90,17 @@ export class PriceLevelStore {
   /**
    * The whole list and the reached history, newest first.
    *
+<<<<<<< HEAD
    * `revision` moves only when a row changed — an edit, or a level reached — so an unchanged poll is
    * byte-identical and the route can answer it with a bodyless 304.
    */
   snapshot() {
+=======
+   * `revision` moves only when a row changed — an edit, or a level reached. History uses
+   * stable keyset pages; new hits arriving during a read are included on the next refresh.
+   */
+  snapshot(cursor = null) {
+>>>>>>> sattva/main
     const meta = this.meta();
     const levels = new Map();
     for (const row of this.rows('SELECT * FROM price_levels ORDER BY ticker, level')) {
@@ -104,7 +119,18 @@ export class PriceLevelStore {
         ticker: row.ticker, isin: row.isin || null, name: row.name || null, updatedAt: row.updated_at,
         levels: Object.fromEntries(PRICE_LEVEL_NAMES.map((name) => [name, levels.get(row.ticker)?.[name] || null])),
       }));
+<<<<<<< HEAD
     const hits = this.rows('SELECT * FROM price_level_hits ORDER BY reached_at DESC, id DESC LIMIT ?', PRICE_LEVELS_HIT_WIRE)
+=======
+    let before = null;
+    if (cursor) {
+      try { before = JSON.parse(cursor); } catch { throw Error('Invalid price level cursor'); }
+      if (!Array.isArray(before) || before.length !== 2 || !before.every(v => typeof v === 'string' && v.length <= 300)) throw Error('Invalid price level cursor');
+    }
+    const rawHits = before ? this.rows('SELECT * FROM price_level_hits WHERE reached_at < ? OR (reached_at = ? AND id < ?) ORDER BY reached_at DESC, id DESC LIMIT ?', before[0], before[0], before[1], PRICE_LEVELS_HIT_WIRE + 1)
+      : this.rows('SELECT * FROM price_level_hits ORDER BY reached_at DESC, id DESC LIMIT ?', PRICE_LEVELS_HIT_WIRE + 1);
+    const hits = rawHits.slice(0, PRICE_LEVELS_HIT_WIRE)
+>>>>>>> sattva/main
       .map((row) => ({
         id: row.id, ticker: row.ticker, isin: row.isin || null, name: row.name || null, level: row.level,
         value: row.value, setAt: row.set_at, reachedAt: row.reached_at, price: row.price,
@@ -119,6 +145,7 @@ export class PriceLevelStore {
       pending: this.activeTargets().reduce((sum, target) => sum + target.levels.length, 0),
       companies,
       hits,
+<<<<<<< HEAD
     };
   }
 
@@ -132,11 +159,23 @@ export class PriceLevelStore {
     );
   }
 
+=======
+      nextCursor: rawHits.length > PRICE_LEVELS_HIT_WIRE ? JSON.stringify([hits.at(-1).reachedAt, hits.at(-1).id]) : null,
+      retainedHits: this.rows('SELECT COUNT(*) AS count FROM price_level_hits')[0].count,
+      firstHitAt: this.rows('SELECT MIN(reached_at) AS first FROM price_level_hits')[0].first || null,
+    };
+  }
+
+>>>>>>> sattva/main
   /** Write one company's five levels; returns whether any row changed. */
   writeLevels(intent, at) {
     let changed = false;
     const existing = new Map(this.rows('SELECT level, value FROM price_levels WHERE ticker = ?', intent.ticker).map((row) => [row.level, row.value]));
     for (const name of PRICE_LEVEL_NAMES) {
+<<<<<<< HEAD
+=======
+      if (intent.op === 'patch' && !Object.hasOwn(intent.levels, name)) continue;
+>>>>>>> sattva/main
       const value = intent.levels[name];
       const had = existing.get(name);
       if (value === null) {
@@ -167,10 +206,18 @@ export class PriceLevelStore {
    */
   apply(input) {
     const intents = priceLevelIntents(input);
+<<<<<<< HEAD
     const at = iso(this.now());
     this.init();
     return this.storage.transactionSync(() => {
       const meta = this.meta();
+=======
+    this.init();
+    return this.storage.transactionSync(() => {
+      const meta = this.meta();
+      // Repeated re-arms in the same millisecond must retain distinct hit identities.
+      const at = iso(Math.max(this.now(), (Date.parse(meta.lastEditAt) || 0) + 1));
+>>>>>>> sattva/main
       let seq = meta.seq;
       let changed = 0;
       const outcomes = [];
@@ -179,6 +226,7 @@ export class PriceLevelStore {
       for (const intent of intents) {
         const existing = this.rows('SELECT ticker, isin, name, state FROM price_level_companies WHERE ticker = ?', intent.ticker)[0];
         const isSet = existing?.state === 'set';
+<<<<<<< HEAD
 
         if (intent.op === 'clear') {
           if (!isSet) { outcomes.push({ ticker: intent.ticker, op: 'clear', outcome: 'unchanged' }); continue; }
@@ -186,6 +234,16 @@ export class PriceLevelStore {
           this.rows('DELETE FROM price_levels WHERE ticker = ?', intent.ticker);
           this.rows("UPDATE price_level_companies SET state = 'cleared', updated_at = ?, seq = ? WHERE ticker = ?", at, seq, intent.ticker);
           active--;
+=======
+        if (existing?.isin && intent.isin && existing.isin !== intent.isin) throw Error('Invalid price level identity');
+
+        if (intent.op === 'clear') {
+          if (existing?.state === 'cleared') { outcomes.push({ ticker: intent.ticker, op: 'clear', outcome: 'unchanged' }); continue; }
+          seq++;
+          this.rows('DELETE FROM price_levels WHERE ticker = ?', intent.ticker);
+          this.rows("INSERT INTO price_level_companies(ticker,state,updated_at,seq) VALUES (?,'cleared',?,?) ON CONFLICT(ticker) DO UPDATE SET state='cleared',updated_at=excluded.updated_at,seq=excluded.seq",intent.ticker,at,seq);
+          if(isSet)active--;
+>>>>>>> sattva/main
           changed++;
           outcomes.push({ ticker: intent.ticker, op: 'clear', outcome: 'cleared' });
           continue;
@@ -198,9 +256,14 @@ export class PriceLevelStore {
           outcomes.push({ ticker: intent.ticker, op: 'seed', outcome: 'unchanged' });
           continue;
         }
+<<<<<<< HEAD
         if (!isSet && active >= PRICE_LEVELS_COMPANY_LIMIT) {
           outcomes.push({ ticker: intent.ticker, op: intent.op, outcome: 'full' });
           continue;
+=======
+        if (!isSet && active >= PRICE_LEVELS_COMPANY_LIMIT && Object.values(intent.levels).some(v=>v!==null)) {
+          throw Error('Invalid price level capacity');
+>>>>>>> sattva/main
         }
 
         const levelsChanged = this.writeLevels(intent, at);
@@ -220,6 +283,13 @@ export class PriceLevelStore {
           if (!isSet) active++;
           changed++;
         }
+<<<<<<< HEAD
+=======
+        if (!this.rows('SELECT level FROM price_levels WHERE ticker = ?',intent.ticker).length) {
+          this.rows("UPDATE price_level_companies SET state='cleared' WHERE ticker=?",intent.ticker);
+          active--;
+        }
+>>>>>>> sattva/main
         outcomes.push({
           ticker: intent.ticker, op: intent.op,
           outcome: intent.op === 'seed' ? 'seeded' : rowChanged || levelsChanged ? 'set' : 'unchanged',
@@ -227,8 +297,13 @@ export class PriceLevelStore {
       }
 
       if (changed) {
+<<<<<<< HEAD
         this.pruneTombstones();
         this.putMeta({ revision: meta.revision + 1, updatedAt: at, seq });
+=======
+
+        this.putMeta({ ...meta, revision: meta.revision + 1, updatedAt: at, lastEditAt: at, seq });
+>>>>>>> sattva/main
       } else if (seq !== meta.seq) {
         this.putMeta({ ...meta, seq });
       }
@@ -275,6 +350,7 @@ export class PriceLevelStore {
         }
       }
       if (reached.length) {
+<<<<<<< HEAD
         const total = this.rows('SELECT COUNT(*) AS count FROM price_level_hits')[0].count;
         if (total > PRICE_LEVELS_HIT_LIMIT) {
           this.rows(
@@ -282,6 +358,8 @@ export class PriceLevelStore {
             total - PRICE_LEVELS_HIT_LIMIT,
           );
         }
+=======
+>>>>>>> sattva/main
         this.putMeta({ ...meta, revision: meta.revision + 1, updatedAt: stamp });
       }
       return { reached };

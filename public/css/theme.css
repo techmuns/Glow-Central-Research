@@ -300,6 +300,7 @@ html[data-theme="dark"] .brief-button-primary { color: var(--brand-ink, #1a1830)
 .column-layout-status[data-unavailable] { width: auto; height: auto; clip-path: none; bottom: 16px; left: 16px; right: 16px; padding: 12px; z-index: 100; border-radius: 8px; background: rgb(var(--surface-white, 255 255 255)); color: var(--ink-900); box-shadow: 0 2px 12px rgb(0 0 0 / .15); }
 [data-column-custom] > thead > tr > .left-0:not(:first-child), [data-column-custom] > tbody > tr > .left-0:not(:first-child) { left: auto; }
 
+<<<<<<< HEAD
 /* Compact source references stay inline, with a separate target for every original URL. */
 .ai-source-citations { font-family: inherit; font-weight: 600; }
 .ai-source-citation { display: inline-block; min-width: 24px; line-height: 24px; text-align: center; font-size: 11px; font-weight: 600; color: var(--accent-600); vertical-align: baseline; position: relative; top: -.2em; text-decoration: underline; text-underline-offset: 2px; border-radius: 3px; }
@@ -321,6 +322,8 @@ html[data-theme="dark"] .brief-button-primary { color: var(--brand-ink, #1a1830)
 .ai-timeline-history [hidden], .ai-timeline-latest[hidden] { display: none; }
 @media (max-width: 480px) { .ai-alert-timeline { max-height: 256px; } }
 
+=======
+>>>>>>> sattva/main
 /* Company search stays readable over the announcement table in either theme. */
 [data-announcement-search-box] { border: 1px solid rgb(var(--edge-slate-300, 203 213 225)); border-radius: 10px; background: rgb(var(--surface-white, 255 255 255)); }
 [data-announcement-search-box]:focus-within { outline: 2px solid var(--accent-600); outline-offset: 2px; }
@@ -347,3 +350,26 @@ html [data-announcement-search] .announcement-search-input:focus { outline: none
 .announcement-search-option:disabled { color: var(--ink-400); cursor: not-allowed; }
 .announcement-search-option:disabled .announcement-company-symbol { color: var(--ink-400); }
 @media (pointer: coarse) { [data-announcement-company-clear] { flex-basis: 44px; width: 44px; height: 44px; } }
+<<<<<<< HEAD
+=======
+
+.ai-source-citations { font-family: inherit; font-weight: 600; }
+.ai-source-citation { display: inline-block; min-width: 24px; line-height: 24px; text-align: center; font-size: 11px; font-weight: 600; color: var(--accent-600); vertical-align: baseline; position: relative; top: -.2em; text-decoration: underline; text-underline-offset: 2px; border-radius: 3px; }
+.ai-source-citation:hover { color: var(--ink-900); }
+.ai-source-citation:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 1px; }
+
+/* Each card keeps a small visible timeline; the history itself is never truncated. */
+.ai-alert-timeline { max-height: 288px; overflow-y: auto; overflow-anchor: none; overscroll-behavior-y: contain; scrollbar-width: thin; scrollbar-gutter: stable; margin-top: 4px; padding-right: 4px; }
+.ai-alert-timeline:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 2px; border-radius: 4px; }
+.ai-timeline-rows { margin: 0; padding: 0; list-style: none; }
+[data-ai-timeline-row] { position: relative; }
+[data-ai-timeline-row]::before { content: ''; position: absolute; left: 3px; top: 22px; bottom: -8px; width: 1px; background: rgb(var(--edge-slate-200, 226 232 240)); }
+[data-ai-timeline-row]:nth-last-child(2)::before { bottom: 8px; }
+.ai-timeline-history { padding: 8px 0 10px 16px; color: var(--ink-400); font-size: 11px; line-height: 1.5; }
+.ai-timeline-history button, .ai-timeline-latest { color: var(--accent-600); font-size: 11px; font-weight: 600; border-radius: 3px; }
+.ai-timeline-history button { min-height: 28px; }
+.ai-timeline-history button:focus-visible, .ai-timeline-latest:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 2px; }
+.ai-timeline-history button:disabled { opacity: .6; }
+.ai-timeline-history [hidden], .ai-timeline-latest[hidden] { display: none; }
+@media (max-width: 480px) { .ai-alert-timeline { max-height: 256px; } }
+>>>>>>> sattva/main
