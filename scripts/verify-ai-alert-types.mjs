@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { aiEventTypes, matchesAIEvent, normalizeAIEventFilters } from '../public/js/data/ai-alert-types.js';
+<<<<<<< HEAD
 import { rankReport, cardWithEvents, leadEvent } from '../public/js/data/ai-alerts.js';
+=======
+import { rankReport, cardWithEvents, leadEvent, withPositionSnapshot, withoutPositionSnapshot } from '../public/js/data/ai-alerts.js';
+>>>>>>> sattva/main
 
 const filing = (headline, extra = {}) => ({ feed: 'announcements', headline, ...extra });
 for (const headline of ['Loss of share certificates', 'Issue of duplicate share certificate', 'Dematerialisation of shares', 'Trading window closure', 'Newspaper Publication']) {
@@ -49,3 +53,21 @@ assert.equal(card.events.length, 3, 'retained history is untouched');
 assert.equal(cardWithEvents(card, []), null);
 assert.equal(cardWithEvents(card, card.events), card);
 console.log('PASS: filing categories, multi-select OR, routine exclusion, unknowns, compact source fields, matching claims and retained company evidence.');
+<<<<<<< HEAD
+=======
+
+const extra = { ...events[1], id: 'unheld', ticker: 'OTHER', company: 'Other Company' };
+const snapshot = { holdings: [{ ticker: 'TEST', name: 'Test Limited', isin: 'INE000A01001', weightPct: 100 }], sizes: { complete: true } };
+for (const scope of ['universe', 'watchlist']) {
+  const original = rankReport({ day: '2026-09-28', scope, events: [...events, extra], feeds: report.feeds }, { holdings: [] });
+  const weighted = withPositionSnapshot(original, snapshot);
+  assert.equal(weighted.allCards.length, 2, 'non-held companies stay in their selected scope');
+  assert.equal(weighted.allCards.find(card => card.ticker === 'TEST').holdingWeightPct, 100);
+  assert.equal(weighted.allCards.find(card => card.ticker === 'OTHER').holdingWeightPct, null);
+  const cleared = withoutPositionSnapshot(weighted);
+  assert(cleared.allCards.every(card => card.holdingWeightPct === null));
+  assert.deepEqual(cleared.allCards.map(card => card.evidenceKey), original.allCards.map(card => card.evidenceKey));
+  assert.equal(withoutPositionSnapshot(cleared), cleared, 'repeated failures reuse the cleared view');
+}
+console.log('PASS: every-scope weights retain non-held evidence and disappear without reranking after failure.');
+>>>>>>> sattva/main
