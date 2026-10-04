@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-10-04T18:23:57.965Z",
+    "capturedAt": "2026-10-04T19:43:42.273Z",
     "from": "2026-08-05",
     "to": "2026-10-01",
     "rows": 10794,
@@ -12,10 +12,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-04T18:23:57.965Z",
-  "oldestDataAt": "2026-10-04T18:23:57.965Z",
-  "from": "2025-10-04",
-  "to": "2026-10-04",
+  "capturedAt": "2026-10-04T19:43:42.273Z",
+  "oldestDataAt": "2026-10-04T19:43:42.273Z",
+  "from": "2025-10-05",
+  "to": "2026-10-05",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-04T18:23:57.965Z",
+      "capturedAt": "2026-10-04T19:43:42.273Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-04T18:23:57.965Z",
+      "capturedAt": "2026-10-04T19:43:42.273Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +63,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-04T18:23:57.965Z",
+      "capturedAt": "2026-10-04T19:43:42.273Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,7 +76,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-04T18:23:57.965Z",
+      "capturedAt": "2026-10-04T19:43:42.273Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -84,7 +84,7 @@
   "covered": 4,
   "withRows": 1898,
   "emptyCount": 0,
-  "rowCount": 19895,
+  "rowCount": 19887,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -54550,160 +54550,6 @@
           "To Date": "2026-01-23",
           "Broadcast Date": "2026-02-13",
           "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ANUP",
-        "date": "2025-10-04",
-        "cells": {
-          "Company": "The Anup Engineering Ltd",
-          "Insider": "BHAGWATI FILTERS PVT LTD",
-          "Category": "Directors Immediate Relative",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "459",
-          "Trade %": "0.01",
-          "Trade Value": "1057027",
-          "Post Holding Shares": "5959",
-          "Post Holding %": "0.03",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-04",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ANUP",
-        "date": "2025-10-04",
-        "cells": {
-          "Company": "The Anup Engineering Ltd",
-          "Insider": "BHAGWATI SPHEROCAST PVT LTD",
-          "Category": "Directors Immediate Relative",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "1438",
-          "Trade %": "0.01",
-          "Trade Value": "33128662",
-          "Post Holding Shares": "64438",
-          "Post Holding %": "0.32",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-04",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ANUP",
-        "date": "2025-10-04",
-        "cells": {
-          "Company": "The Anup Engineering Ltd",
-          "Insider": "BHAGWATI SPHEROCAST PVT LTD",
-          "Category": "Directors Immediate Relative",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "562",
-          "Trade %": "0",
-          "Trade Value": "1295194",
-          "Post Holding Shares": "65000",
-          "Post Holding %": "0.32",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-04",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ANUP",
-        "date": "2025-10-04",
-        "cells": {
-          "Company": "The Anup Engineering Ltd",
-          "Insider": "PRAVIN N. BHAGWATI",
-          "Category": "Directors Immediate Relative",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "3031",
-          "Trade %": "0.01",
-          "Trade Value": "6983625",
-          "Post Holding Shares": "73001",
-          "Post Holding %": "0.36",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-04",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ANUP",
-        "date": "2025-10-04",
-        "cells": {
-          "Company": "The Anup Engineering Ltd",
-          "Insider": "PRAVIN N. BHAGWATI",
-          "Category": "Directors Immediate Relative",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1",
-          "Trade %": "0",
-          "Trade Value": "2305",
-          "Post Holding Shares": "73000",
-          "Post Holding %": "0.36",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-04",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ANUP",
-        "date": "2025-10-04",
-        "cells": {
-          "Company": "The Anup Engineering Ltd",
-          "Insider": "REENA P. BHAGWATI",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "350",
-          "Trade %": "0.01",
-          "Trade Value": "804894",
-          "Post Holding Shares": "76350",
-          "Post Holding %": "0.39",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-04",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ANUP",
-        "date": "2025-10-04",
-        "cells": {
-          "Company": "The Anup Engineering Ltd",
-          "Insider": "REENA P. BHAGWATI",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "880",
-          "Trade %": "0",
-          "Trade Value": "2025717",
-          "Post Holding Shares": "77230",
-          "Post Holding %": "0.39",
-          "Mode": "Market Purchase",
-          "From Date": "2025-09-29",
-          "To Date": "2025-09-29",
-          "Broadcast Date": "2025-10-04",
-          "Source": "BSE",
           "Trade Category": "Insider trade"
         }
       }
@@ -245095,28 +244941,6 @@
           "From Date": "2025-12-16",
           "To Date": "2025-12-22",
           "Broadcast Date": "2025-12-26",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "AHLWEST",
-        "date": "2025-10-04",
-        "cells": {
-          "Company": "Asian Hotels (West) Ltd",
-          "Insider": "Gunjan Jain",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "73608",
-          "Trade %": "0.63",
-          "Trade Value": "16193760",
-          "Post Holding Shares": "151308",
-          "Post Holding %": "1.3",
-          "Mode": "Off Market",
-          "From Date": "2025-09-30",
-          "To Date": "2025-09-30",
-          "Broadcast Date": "2025-10-04",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
