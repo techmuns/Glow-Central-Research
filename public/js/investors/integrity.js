@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // investors/integrity.js — THE COVERAGE AUDIT, one click away. GLOW-OWNED.
 //
 //   ensureHoldingsFresh()                    revalidate the sources the audit reads — on mount, at
@@ -22,6 +23,11 @@ import { escapeHtml as esc } from '../core/dom.js';
 import { closeModal } from '../ui/screener.js';
 import * as investors from '../data/super-investors.js';
 import * as managers from '../data/managers.js';
+=======
+import { escapeHtml as esc } from '../core/dom.js';
+import { closeModal } from '../ui/screener.js';
+import * as investors from '../data/super-investors.js';
+>>>>>>> sattva/main
 import { insider } from '../data/filings.js';
 import { assessCoverage } from '../data/holdings-integrity.js';
 import { loadEvidence, evidence, evidenceFor } from '../data/holding-evidence.js';
@@ -34,7 +40,11 @@ let lastRefresh = 0;
 export function ensureHoldingsFresh() {
   const refresh = Date.now() - lastRefresh > 300000;
   if (refresh) lastRefresh = Date.now();
+<<<<<<< HEAD
   return Promise.all([loadEvidence(), primary.load(), refresh ? managers.refresh() : managers.load(), refresh ? investors.refreshSnapshot() : Promise.resolve()]);
+=======
+  return Promise.all([loadEvidence(), primary.load(), refresh ? investors.refreshSnapshot() : Promise.resolve()]);
+>>>>>>> sattva/main
 }
 
 export function coverageReport() {
@@ -45,16 +55,28 @@ export function coverageReport() {
     // answer (`uncheckedFor`). The card there shows only the first; dropping the second here would
     // silence "Refresh failed; last successful book retained" — the one line this audit exists for.
     failed: Object.fromEntries(investors.list().map((i) => [i.slug, investors.failureFor(i.slug) || investors.uncheckedFor(i.slug)]).filter(([, f]) => f)) },
+<<<<<<< HEAD
     managers: { ...managers.meta(), managers: managers.all() }, deals: { bulkDeals: insider.meta().bulkDeals }, exchange: insider.meta().exchanges, evidence: evidence(), publicHoldings: primary.report() });
+=======
+    deals: { bulkDeals: insider.meta().bulkDeals }, exchange: insider.meta().exchanges, evidence: evidence(), publicHoldings: primary.report() });
+>>>>>>> sattva/main
 }
 
 /**
  * Paint the audit into `host` — a `[data-holdings-integrity]` element inside the provenance modal —
+<<<<<<< HEAD
  * and keep it current while it is on screen. Opening an investor or manager from a row closes the
  * modal first: the workspace stacks BELOW the modal (drill z-50 < workspace z-55 < modal z-60), so
  * opening one behind an open modal would be a control that works and shows nothing.
  */
 export function wireIntegrity(root, disposers, openInvestor, openManager) {
+=======
+ * and keep it current while it is on screen. Opening an investor from a row closes the
+ * modal first: the workspace stacks BELOW the modal (drill z-50 < workspace z-55 < modal z-60), so
+ * opening one behind an open modal would be a control that works and shows nothing.
+ */
+export function wireIntegrity(root, disposers, openInvestor) {
+>>>>>>> sattva/main
   const host = root?.matches?.('[data-holdings-integrity]') ? root : root?.querySelector?.('[data-holdings-integrity]');
   if (!host) return;
   let disposed = false, query = '', reviewLimit = 50;
@@ -69,18 +91,30 @@ export function wireIntegrity(root, disposers, openInvestor, openManager) {
     host.innerHTML = `<div class="text-xs text-slate-600" data-coverage-audit>
       <h3 class="font-display text-base font-bold text-slate-900">Coverage &amp; source checks · <span data-coverage-attention>${report.attention} of ${report.total}</span> profiles have an open item</h3>
       <p class="mt-2">${report.issues.length ? `${report.issues.map(esc).join(' · ')}. ` : ''}Associated funds and personal holdings are separate. Disclosures establish holdings on their stated dates.</p>
+<<<<<<< HEAD
       <p class="mt-2">Public holdings are checked every six hours. Source check is when data was fetched; report date is when the holdings apply.</p>
       ${publicReport ? `<p class="mt-2">${publicReport.coverage.parsed.toLocaleString('en-IN')} exchange filings read · ${publicReport.coverage.securities.toLocaleString('en-IN')} distinct security identifiers (ISINs) · ${publicReport.holdings.length.toLocaleString('en-IN')} attributed disclosures · checked ${esc(shownDate(publicReport.captureCheckedAt))}.</p>` : ''}
       ${primary.lastError() ? '<p class="mt-2">Public disclosure refresh failed; retained evidence is shown.</p>' : ''}
       <label class="mt-3 block">Find an investor, manager or gap <input data-integrity-search aria-label="Search coverage" class="ml-2 rounded-lg border border-slate-200 bg-white px-2 py-1" value="${esc(query)}"></label>
       <div class="mt-3 overflow-auto rounded-lg ring-1 ring-slate-200" style="max-height:360px"><table data-column-layout="integrity:1" class="w-full text-left"><thead class="bg-slate-50"><tr><th scope="col" class="p-2">Investor / manager</th><th scope="col" class="p-2">Report period</th><th scope="col" class="p-2">Source check</th><th scope="col" class="p-2">Unresolved coverage</th></tr></thead><tbody>
+=======
+      <p class="mt-2">Exchange disclosures are scheduled every six hours; Finology books are captured daily. Source check is when data was fetched; report date is when the holdings apply.</p>
+      ${publicReport ? `<p class="mt-2">${publicReport.coverage.parsed.toLocaleString('en-IN')} exchange filings read · ${publicReport.coverage.securities.toLocaleString('en-IN')} distinct security identifiers (ISINs) · ${publicReport.holdings.length.toLocaleString('en-IN')} attributed disclosures · checked ${esc(shownDate(publicReport.captureCheckedAt))}.</p>` : ''}
+      ${primary.lastError() ? '<p class="mt-2">Public disclosure refresh failed; retained evidence is shown.</p>' : ''}
+      <label class="mt-3 block">Find an investor or gap <input data-integrity-search aria-label="Search coverage" class="ml-2 rounded-lg border border-slate-200 bg-white px-2 py-1" value="${esc(query)}"></label>
+      <div class="mt-3 overflow-auto rounded-lg ring-1 ring-slate-200" style="max-height:360px"><table data-column-layout="integrity:1" class="w-full text-left"><thead class="bg-slate-50"><tr><th scope="col" class="p-2">Investor</th><th scope="col" class="p-2">Report period</th><th scope="col" class="p-2">Source check</th><th scope="col" class="p-2">Unresolved coverage</th></tr></thead><tbody>
+>>>>>>> sattva/main
       ${rows.map((r) => `<tr class="border-t border-slate-100"><td class="p-2"><button type="button" class="font-semibold text-indigo-600 underline" data-integrity-person="${esc(r.id)}" data-integrity-kind="${esc(r.kind)}">${esc(r.name)}</button></td><td class="whitespace-nowrap p-2">${esc(r.asOf || 'Unavailable')}</td><td class="whitespace-nowrap p-2">${esc(shownDate(r.fetchedAt))}</td><td class="p-2">${r.issues.length ? r.issues.map(esc).join(' · ') : 'No freshness exceptions detected'}. ${esc(r.identity)}.</td></tr>`).join('')}
       </tbody></table></div>
       <h4 class="mt-4 font-semibold text-slate-900">Public-source review · ${reviewRows.length.toLocaleString('en-IN')} checks</h4>
       <p class="mt-1">Additional holdings are already shown with their exchange evidence. Differences and possible name connections remain here until the sources reconcile.</p>
       <div class="mt-2 overflow-auto rounded-lg ring-1 ring-slate-200" style="max-height:340px" data-public-review>${reviewRows.slice(0, reviewLimit).map((r) => `<div class="border-t border-slate-100 p-2"><strong>${esc(r.company || r.legalHolder || 'Source check')}</strong>${r.person ? ` · ${esc(r.person)}` : ''}${r.legalHolder && r.legalHolder !== r.person ? ` · ${esc(r.legalHolder)}` : ''}${r.asOf ? ` · ${esc(r.asOf)}` : ''}<br>${esc(r.message)} ${r.sourceUrl ? `<a class="underline" href="${esc(r.sourceUrl)}" target="_blank" rel="noopener noreferrer">Evidence ↗</a>` : ''}</div>`).join('') || '<p class="p-2">No matching review items.</p>'}</div>
       ${reviewRows.length > reviewLimit ? `<button type="button" class="mt-2 font-semibold text-indigo-600 underline" data-more-public-review>Show more (${reviewLimit} of ${reviewRows.length})</button>` : ''}
+<<<<<<< HEAD
       <p class="mt-3"><a class="font-semibold text-indigo-600 underline" href="https://github.com/techmuns/Glow-Central-Research/actions/workflows/investor-refresh.yml" target="_blank" rel="noopener noreferrer">Refresh runs and audit reports ↗</a></p>
+=======
+      <p class="mt-3"><a class="font-semibold text-indigo-600 underline" href="https://github.com/techmuns/Sattva-Central-Research/actions/workflows/investor-disclosures-refresh.yml" target="_blank" rel="noopener noreferrer">Refresh runs and audit reports ↗</a></p>
+>>>>>>> sattva/main
       </div>`;
     host.querySelector('[data-integrity-search]').addEventListener('input', (e) => {
       const start = e.target.selectionStart; query = e.target.value; reviewLimit = 50; paint();
@@ -89,7 +123,11 @@ export function wireIntegrity(root, disposers, openInvestor, openManager) {
     host.querySelector('[data-more-public-review]')?.addEventListener('click', () => { reviewLimit += 100; paint(); });
     host.querySelectorAll('[data-integrity-person]').forEach((button) => button.addEventListener('click', () => {
       closeModal();
+<<<<<<< HEAD
       return button.dataset.integrityKind === 'investor' ? openInvestor(button.dataset.integrityPerson) : openManager(button.dataset.integrityPerson);
+=======
+      return openInvestor(button.dataset.integrityPerson);
+>>>>>>> sattva/main
     }));
   }
   paint();

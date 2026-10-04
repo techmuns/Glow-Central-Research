@@ -57,6 +57,26 @@ assert.equal(mergeAnnouncements(merged, parsed.announcements).length, 3);
 const noLink = { ticker: 'TEST', date: '2026-01-01', title: 'No document', source: 'NSE' };
 assert.equal(mergeAnnouncements([noLink,noLink], [noLink]).length, 2, 'identical no-link multiplicity survives repeated answers');
 assert.equal(mergeAnnouncements([noLink], [{...noLink,title:'Different filing'}]).length, 2);
+
+// Real reader warm-up must yield, retain all history and adopt corrections arriving mid-merge.
+// Tied dates deliberately exercise stable ordering across the sliced sort's run boundaries.
+const longHistory = Array.from({ length: 20000 }, (_, i) => ({ ticker: `T${i}`, date: '2020-01-01',
+  title: `Retained filing ${i}`, url: `https://example.test/history-${i}.pdf`, source: 'BSE' }));
+let historyRevision = longHistory;
+const historyFeed = withAnnouncementLookups({ rows: () => [...historyRevision] });
+let yielded = 0;
+await Promise.all([historyFeed.warm(async () => {
+  if (++yielded === 1) historyRevision = longHistory.map((row, i) => i === 19999 ? { ...row, title: 'Corrected tail filing' } : row);
+}, { sliceMs: 0 }), historyFeed.warm()]);
+assert(yielded > 100, 'large retained history gives input a turn throughout projection, merge and sorting');
+const preparedHistory = historyFeed.rows();
+assert.equal(preparedHistory.length, longHistory.length, 'warming does not truncate the historical tail');
+assert.deepEqual(preparedHistory.map(row => row.ticker), longHistory.map(row => row.ticker), 'equal-date rows retain their complete stable order');
+assert.equal(preparedHistory.at(-1).title, 'Corrected tail filing', 'a source correction during a yield replaces the obsolete preparation');
+assert.equal(historyFeed.rows(), preparedHistory, 'fresh arrays of the same source records reuse the prepared publication');
+assert.equal(longHistory.at(-1).title, 'Retained filing 19999', 'merging never edits the source records');
+assert.deepEqual(preparedHistory, mergeAnnouncements(historyRevision.map(row => ({ ...row, sources: ['BSE'], providers: ['BSE date index'] }))),
+  'the asynchronous reader preserves the synchronous provenance and deduplication contract');
 const kisshtHash = `sha256:${'4c'.repeat(32)}`;
 const kisshtPairId = `sha256:${'7a'.repeat(32)}`;
 const kisshtBse = { ticker: 'KISSHT', date: '2026-09-01', time: '15:46:24', title: 'Analyst meet intimation',

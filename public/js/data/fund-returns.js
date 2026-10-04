@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // data/fund-returns.js — the AmfiBeas "Returns & Ranking" feed: per-scheme point-to-point returns,
 // same-cohort peer rank AND the cohort's own published average and median. Saved first, revalidated,
 // called DIRECT from the browser.
@@ -73,6 +74,10 @@
 // and chatter feeds follow. A null `return` is "no return for that period", never a zero; a null
 // `rank` is "the cohort was too small to rank" and may sit beside a non-null return.
 
+=======
+// Public daily NAV returns. Retain exact published figures and cohorts, paint saved
+// data before revalidation, and keep the last usable snapshot on a failed check.
+>>>>>>> sattva/main
 import { conditionalJson, readEntry, KEYS, isPersistent } from '../core/store.js';
 import { factorsOf, classifyLive } from './mf-taxonomy.js';
 
@@ -82,10 +87,14 @@ export const PERIODS = ['1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y'];
 export const PERIOD_LABEL = { '1M': '1M', '3M': '3M', '6M': '6M', '1Y': '1Y', '3Y': '3Y CAGR', '5Y': '5Y CAGR', '10Y': '10Y CAGR' };
 
 const STORE_KEY = KEYS.fundReturns;
+<<<<<<< HEAD
 // AmfiBeas has no committed host yet, so the default is empty — set window.AMFIBEAS_API_BASE in
 // index.html once the API is deployed. An empty base surfaces as the `no-url` state, which the view
 // turns into "configure the host" rather than a broken table.
 const DEFAULT_BASE = '';
+=======
+const DEFAULT_BASE = 'https://amfibeas.tech-441.workers.dev';
+>>>>>>> sattva/main
 
 /** `localStorage` first so a verification run (or a screenshot) can point the whole feed at a stub. */
 function baseUrl() {
@@ -135,7 +144,11 @@ async function build(base) {
     if (saved?.value) {
       try {
         validateFeed(saved.value);
+<<<<<<< HEAD
         ingest({ ok: true, body: saved.value, url: `${base}/api/returns-ranking?fields=full`, saved: true });
+=======
+        ingest({ ok: true, body: saved.value, url: `${base}/api/returns-ranking?fields=full`, saved: true, checkedAt: saved.savedAt || null });
+>>>>>>> sattva/main
         lastTag = saved.tag;
         notify();
       } catch { /* An invalid saved response is a cache miss. */ }
@@ -159,6 +172,11 @@ function validateFeed(value) {
   if (!value || !Array.isArray(value.funds) || !value.funds.length ||
     value.funds.some(f => !f || f.schemecode == null || typeof f.fundName !== 'string' || !f.returns || typeof f.returns !== 'object'))
     throw Error('Invalid returns feed');
+<<<<<<< HEAD
+=======
+  if (Number.isFinite(value.total) && (value.total !== value.funds.length || (value.offset || 0) !== 0))
+    throw Error('Incomplete returns feed');
+>>>>>>> sattva/main
 }
 
 /**
@@ -241,7 +259,11 @@ const byName = (a, c) => a.fundName.localeCompare(c.fundName);
  */
 const PLAN_SUFFIX = /\s*[-–]\s*(Reg|Regular|Dir|Direct)\s*(Plan)?\s*(\([A-Za-z]{1,4}\))?\s*$/i;
 function displayNameOf(raw) {
+<<<<<<< HEAD
   const trimmed = String(raw || '').replace(PLAN_SUFFIX, '').trim();
+=======
+  const trimmed = String(raw || '').replace(PLAN_SUFFIX, (_all, _plan, _word, option) => option || '').trim();
+>>>>>>> sattva/main
   // Never strip a name down to nothing: a scheme called only by its plan keeps what it arrived with.
   return trimmed || String(raw || '');
 }
@@ -261,9 +283,14 @@ function displayNameOf(raw) {
  * then by scheme code, so the choice is the same on every reload.
  */
 function foldIdenticalRows(rows) {
+<<<<<<< HEAD
   const key = (r) => `${r.fundName.toLowerCase()}\u0000${r.option}\u0000${r.classification || ''}\u0000${
     Object.entries(r.returns).map(([p, c]) => `${p}:${c.return}:${c.rank}:${c.categoryMedian}`).join(';')
   }`;
+=======
+  const key = (r) => JSON.stringify([r.fundName.toLowerCase(), r.option, r.classification,
+    r.plan, r.cohortKey, Object.keys(r.returns).sort().map(p => [p, r.returns[p]])]);
+>>>>>>> sattva/main
   const groups = new Map();
   for (const r of rows) {
     const k = key(r);

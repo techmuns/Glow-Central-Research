@@ -59,7 +59,11 @@ export async function readNasdaqEnrichment(row, { fetcher, now, timeout = 8000 }
   const start = new Date(Date.parse(row.sessionDate) - 7 * 86400000).toISOString().slice(0, 10);
   try {
     const res = await fetcher(NASDAQ_HISTORY_URL, { method: 'POST', headers: {
+<<<<<<< HEAD
       accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'GlowCentralResearch/1.0',
+=======
+      accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'SattvaCentralResearch/1.0',
+>>>>>>> sattva/main
     }, body: new URLSearchParams({ id: 'COMP', startDate: `${start}T00:00:00`, endDate: `${row.sessionDate}T00:00:00`, timeOfDay: 'EOD' }).toString(),
     redirect: 'manual', signal: AbortSignal.timeout(timeout) });
     if (!res.ok) {

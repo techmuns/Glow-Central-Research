@@ -1,0 +1,90 @@
+name: Investor exchange disclosures
+on:
+  schedule:
+    - cron: "20 */6 * * *"
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/investor-disclosures-refresh.yml'
+      - 'scripts/capture-shareholdings.mjs'
+      - 'scripts/reconcile-shareholdings.mjs'
+      - 'scripts/lib/shareholding-filings.mjs'
+      - 'public/js/data/public-holdings-shared.js'
+      - 'public/data/holding-evidence.json'
+      - 'public/data/super-investors.json'
+  workflow_dispatch:
+concurrency:
+  group: investor-exchange-disclosures
+  cancel-in-progress: false
+jobs:
+  capture:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+      checks: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify disclosure and publication contracts offline
+        run: node scripts/verify-public-holdings.mjs && node scripts/verify-investor-publishing.mjs
+      - name: Restore retained checkpoint and pending capture PR
+        run: node scripts/prepare-investor-disclosures.mjs
+      - name: Capture original exchange disclosures with durable checkpoints
+        id: capture
+        continue-on-error: true
+        timeout-minutes: 25
+        env:
+          SHAREHOLDINGS_LIMIT: '600'
+        run: node scripts/capture-shareholdings.mjs
+      - name: Retain progress independently of PR publication
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: investor-disclosures-checkpoint
+          path: public/data/shareholding-filings.json.gz
+          if-no-files-found: error
+          retention-days: 90
+      - name: Reconcile named holders and source exceptions
+        run: node scripts/reconcile-shareholdings.mjs
+      - name: Validate publication and asset size
+        env:
+          PUBLIC_HOLDINGS_VERIFY_CURRENT: '1'
+        run: node scripts/verify-public-holdings.mjs && node scripts/verify-investor-publishing.mjs
+      - name: Open public disclosure update PR
+        id: archive
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          branch: codex/investor-disclosures-capture
+          base: main
+          add-paths: |
+            public/data/shareholding-filings.json.gz
+            public/data/public-holdings.json
+          commit-message: Refresh public investor disclosure evidence and source coverage
+          title: Refresh public investor disclosure evidence
+          body: |
+            Retain original NSE/BSE shareholding evidence, revised versions and incomplete source checks.
+            Reconcile only exact or explicitly evidenced legal holders; no private account data is used.
+
+            Offline validation checks the generated attribution against this archive and the current
+            tracked books. Verify runs on this exact commit before merging. Required checks and review
+            gates remain enforced. Failed reads retain the last successful evidence and stay incomplete.
+      - name: Verify and merge public capture
+        if: steps.archive.outputs.pull-request-number != ''
+        env:
+          INVESTOR_PR_NUMBER: ${{ steps.archive.outputs.pull-request-number }}
+        run: node scripts/merge-investor-disclosures.mjs
+      - name: Surface incomplete exchange collection
+        if: steps.capture.outcome == 'failure'
+        run: |
+          echo "::error::Exchange collection is incomplete. Captured evidence and checkpoints are retained; pending or failed reads remain visible."
+          exit 1

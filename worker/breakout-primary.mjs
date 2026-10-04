@@ -7,7 +7,11 @@ export const PRIMARY_TIMER = 'upstox-minute-timer';
 export const PRIMARY_INTERVAL = 60000;
 export const PRIMARY_MAX_AGE = 120000;
 const INVENTORY = 'upstox-inventory';
+<<<<<<< HEAD
 const UPSTOX_CLIENT = 'GlowCentralResearch/1.0';
+=======
+const UPSTOX_CLIENT = 'SattvaCentralResearch/1.0';
+>>>>>>> sattva/main
 const MAPPING_VERSION = 2;
 
 export function primaryInventory(targets) {

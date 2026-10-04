@@ -73,3 +73,43 @@ export function buildAnnouncementIdentities(master, mcMap = {}, capturedAt = new
   for (const entry of OFF_DIRECTORY) if (!entries.some(e => e.isin === entry.isin)) entries.push(entry);
   return { version: 1, source: BSE_MASTER_URL, symbolSource: 'mc-ticker-map by BSE code, falling back to BSE scrip_id', capturedAt, entries };
 }
+
+// An ancillary directory outage must not stop preserving source filings. Retained
+// identities keep their original verification time; an invalid registry is never used.
+export async function readAnnouncementIdentityDirectory(previous, mcMap, { now = Date.now(), ...options } = {}) {
+  const attemptedAt = new Date(now).toISOString();
+  try {
+    const master = await fetchBseIdentityMaster(previous, options);
+    const identities = buildAnnouncementIdentities(master, mcMap, attemptedAt);
+    return { master, identities, publish: true,
+      health: { ok: true, attemptedAt, lastSuccessAt: attemptedAt, source: 'current', error: null } };
+  } catch {
+    const seen = new Set();
+    const valid = previous?.version === 1 && previous.source === BSE_MASTER_URL &&
+      Number.isFinite(Date.parse(previous.capturedAt)) && Date.parse(previous.capturedAt) <= now &&
+      Array.isArray(previous.entries) && previous.entries.length > 0 && previous.entries.every(entry => {
+        if (!entry || !/^IN[A-Z0-9]{10}$/.test(entry.isin || '') || typeof entry.name !== 'string') return false;
+        const codes = [...new Set([entry.bseCode, ...(Array.isArray(entry.bseCodes) ? entry.bseCodes : [])].filter(Boolean))];
+        for (const code of codes) {
+          if (!/^\d{6}$/.test(String(code)) || seen.has(String(code))) return false;
+          seen.add(String(code));
+        }
+        return !entry.bseCodes || Array.isArray(entry.bseCodes);
+      });
+    return { master: null, identities: valid ? previous : null, publish: false,
+      health: { ok: false, attemptedAt, lastSuccessAt: valid ? previous.capturedAt : null,
+        source: valid ? 'retained' : 'unavailable', error: 'identity-directory-unavailable' } };
+  }
+}
+
+export function retainedBseScripIndex(identities) {
+  const result = new Map();
+  for (const entry of identities?.entries || []) {
+    // The retained registry proves BSE aliases. It does not freshly verify NSE mappings.
+    const ticker = filingTicker(entry.bseSymbol);
+    for (const code of new Set([entry.bseCode, ...(entry.bseCodes || [])].filter(Boolean))) {
+      result.set(String(code), { ticker, name: entry.name || null, source: ticker ? 'bse-retained' : null });
+    }
+  }
+  return result;
+}

@@ -17,7 +17,12 @@ const sourceFeeds = POOL_FEEDS.map(id => ({ id, status: 'ok', count: 10, events:
 })) }));
 const captures = Object.fromEntries([...new Set(Object.values(POOL_FEED_CAPTURES).flat())].map(name =>
   [name, name === 'exchangeDeals' ? { artifactId: 42 } : { revision: 'original' }]));
+<<<<<<< HEAD
 let servedIndex, status, artifact = 7, corrupt = false, calls = [], bytes = 0;
+=======
+let artifact = 7;
+let servedIndex, status, corrupt = false, calls = [], bytes = 0;
+>>>>>>> sattva/main
 try {
   const index = writePoolMembers({ outDir, sourceFeeds, day, now: Date.parse(`${day}T12:00:00Z`), book: [], newsMeta: {}, captures });
   verifyPoolMembers({ outDir, sourceFeeds, index });
@@ -50,6 +55,7 @@ try {
     'no declined feed or complete member is downloaded');
   for (const [id, feed] of selective.feeds) assert.deepEqual(feed, complete.feeds.get(id), `${id}: every event, field and source status survives`);
   assert(selectiveBytes < fullBytes / 10, 'a large declined feed does not dominate the remaining download');
+<<<<<<< HEAD
   // Glow already reuses complete members by hash across builds. Selective members must
   // preserve that behavior, while source status and changed member hashes remain authoritative.
   calls = []; bytes = 0; artifact++;
@@ -64,6 +70,12 @@ try {
   await read({ ...options, refresh: true });
   assert.deepEqual(calls, [changedMember.member], 'a changed selective hash invalidates only that member');
   servedIndex = index;
+=======
+  artifact++; calls = [];
+  const reusedSelective = await read({ ...options, refresh: true });
+  assert.equal(calls.length, 0, 'selective shards with unchanged content survive artifact rollover');
+  assert.deepEqual([...reusedSelective.feeds], [...selective.feeds]);
+>>>>>>> sattva/main
   assert.deepEqual(await fullRecord(complete.feeds.get('news').events[0]), sourceFeeds.find(f => f.id === 'news').events[0].sourceRecord,
     'the original complete member still supplies full bookmark evidence');
 

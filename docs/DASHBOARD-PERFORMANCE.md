@@ -17,6 +17,15 @@ descriptor means a verified empty feed/day; missing descriptors fall back to the
 and invalid member content fails into the original source-reading path. Private feeds are outside
 the route allowlist. Scheduled collection, history retention and revision checks are unchanged.
 
+<<<<<<< HEAD
+=======
+On the saved 11–24 September pool, the 14-day download is 27.33 MB gzip / 265.69 MB decoded.
+When news needs the original source reader, delivering only usable pooled feeds reduces that
+portion to 4.99 MB / 48.69 MB (82% less gzip data). When insider also needs the source reader,
+it is 4.74 MB / 44.50 MB. Those source readers still load their complete eligible records; these
+figures measure the avoided duplicate pool transfer, not total page bytes or elapsed load time.
+
+>>>>>>> sattva/main
 Each reader has a 32 MiB budget for reusable verified projections. Manifest checks and companion
 selection still run on refresh; changed source hashes, original order, dates or companion sets
 invalidate reuse. Coverage/failure metadata is rebuilt from the latest check even when rows can
@@ -30,12 +39,22 @@ background revalidations. Mutable manifests retain their existing checks and cha
 new part address. Explicit reloads still reach the server; hash/size verification is unchanged.
 API, authorized and private response exclusions are unchanged.
 
+<<<<<<< HEAD
 Glow retains its existing content-hash reuse across pool builds, including the new per-feed
 members, and its obsolete-build cancellation guard. Its portfolio adapter, extra tabs, credentials,
 source collection and theme remain unchanged. The release checks compare IDs and every field
 against Glow's complete captured history, exercise source corrections/failures and legacy artifacts,
 and verify automatic upgrades of returning sessions. These checks do not certify exhaustive
 upstream coverage or promise that cold full-history reads are instantaneous.
+=======
+The local full-history oracle compared all eligible IDs and fields for 1, 3, 14 and 30 days
+(9,748 / 33,606 / 112,753 / 171,979 events on the frozen 23 September fixture day). Adversarial
+tests cover cache eviction, corrected records, new failures, optional-index corruption, midnight,
+rapid selection changes and retained manual arrivals. The real service-worker regression checks
+one download per unchanged part, continued manifest checks and an existing session receiving the
+new query module. These are local checks, not certification of complete upstream coverage or
+a promise that every cold full-history read is instantaneous.
+>>>>>>> sattva/main
 
 ## Cold Universe follow-up, 15 September 2026
 

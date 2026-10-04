@@ -43,7 +43,11 @@ const bodies = {
 };
 bodies['/data/corp-announcements.json'].byTicker.KAMATS = [{ ...filing('KAMATS', 1), scripCode: '539659' }];
 bodies['/data/corp-announcements.json'].byTicker.ASHIKAG = [{ ...filing('ASHIKAG', 1), scripCode: '543766' }];
+<<<<<<< HEAD
 const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>#modal-overlay.is-open #modal-container{opacity:1}</style><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"><link rel="stylesheet" href="/css/glow.css"></head><body class="bg-slate-50 p-4"><main id="root"></main><div id="modal-overlay" class="hidden"><div id="modal-container"><div id="modal-content"></div></div></div><script type="module">
+=======
+const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>#modal-overlay.is-open #modal-container{opacity:1}</style><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"></head><body class="bg-slate-50 p-4"><main id="root"></main><div id="modal-overlay" class="hidden"><div id="modal-container"><div id="modal-content"></div></div></div><script type="module">
+>>>>>>> sattva/main
 import * as tab from '/js/tabs/corp-announcements.js';
 import * as live from '/js/core/live.js';
 import * as coverage from '/js/data/coverage.js';
@@ -93,11 +97,18 @@ const server = createServer((req, res) => {
     let body = readFileSync(file);
     if (path === '/sw.js') {
       body = body.toString().replace(/const MUNSHOT_SDK = .*;/, "const MUNSHOT_SDK = new URL('/sdk-fixture.js', self.location).href;");
+<<<<<<< HEAD
       if (legacy) body = body.replace('-announcement-company-search-v1', '').replace('-announcement-recovery-v4', '').replace('-announcement-search-clarity-v1', '').replace('-announcement-preparation-v1', '');
     }
     if (path === '/js/data/announcements-extra.js' && legacy) body = body.toString().replaceAll(', loadRecovery()', '');
     if (path === '/js/tabs/filings-tab.js' && legacy) body = body.toString().replace('      searchControl,', '');
     if (path === '/js/data/corporate-announcements.js' && legacy) body = body.toString().replace('...base, rows, prepareRows,', '...base, rows, prepareRows: undefined,');
+=======
+      if (legacy) body = body.replace('-announcement-company-search-v1', '').replace('-announcement-recovery-v1', '').replace('-announcement-search-clarity-v1', '');
+    }
+    if (path === '/js/data/announcements-extra.js' && legacy) body = body.toString().replaceAll(', loadRecovery()', '');
+    if (path === '/js/tabs/filings-tab.js' && legacy) body = body.toString().replace('      searchControl,', '');
+>>>>>>> sattva/main
     res.end(body);
   } catch { res.writeHead(404); res.end(); }
 });
@@ -148,7 +159,11 @@ try {
   bodies['/data/corp-announcements.json'].coversUniverse = false;
   await page.evaluate(() => window.stream.refresh());
   assert.equal(await page.evaluate(() => window.stream.meta().sourceCheck.error.message), 'Latest BSE request failed.', 'a newer failed attempt is adopted even when the last successful capture time did not move');
+<<<<<<< HEAD
   await page.waitForFunction(() => /Some announcements may be missing/.test(document.querySelector('[data-filings-info]')?.textContent), null, { timeout: 1500 });
+=======
+  assert.match(await page.locator('[data-filings-info]').innerText(), /Some announcements may be missing/);
+>>>>>>> sattva/main
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'outage notices preserve matching retained history');
   bodies['/data/corp-announcements.json'].lastError = null;
   bodies['/data/corp-announcements.json'].coversUniverse = true;
@@ -309,8 +324,12 @@ try {
   bodies['/data/announcement-identities.json'].entries.push(bharat);
   bodies['/data/announcement-identities.json'].capturedAt = '2026-09-05T08:00:00Z';
   const bharatFiling = (id, date) => ({ ...filing('541096', id, date), scripCode: '541096', company: bharat.name, category: 'Company Update', subCategory: 'General Updates' });
+<<<<<<< HEAD
   bodies['/data/corp-announcements.json'].byTicker['541096'] = [bharatFiling('board outcome', '2026-09-05'), bharatFiling('older history', '2025-01-01'),
     { ...bharatFiling('routine', '2026-09-05'), subCategory: 'Newspaper Publication' }];
+=======
+  bodies['/data/corp-announcements.json'].byTicker['541096'] = [bharatFiling('board outcome', '2026-09-05'), bharatFiling('older history', '2025-01-01')];
+>>>>>>> sattva/main
   bodies['/data/corp-announcements.json'].capturedAt = '2026-09-05T08:00:00Z';
   bseRows.push({ ...filing('TCS', 'mentions-bharat', '2026-09-05'), title: 'Bharat Parenterals mentioned by another company' });
   await page.clock.fastForward(61000);
@@ -333,7 +352,11 @@ try {
   assert.equal(await search.inputValue(), '');
   assert.match(await page.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals.*BPLPHARMA/s);
   assert.match(await page.locator('[data-row-count]').innerText(), /^2 announcements · 1 company with filings$/);
+<<<<<<< HEAD
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 2, 'selection shows only the issuer, with existing filing-type exclusions');
+=======
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 2, 'selection shows only the issuer');
+>>>>>>> sattva/main
   assert.doesNotMatch(await page.locator('tbody').innerText(), /mentioned by another/);
   await search.fill('older');
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'free text narrows the selected company');
@@ -400,7 +423,10 @@ try {
   bodies['/data/screener-announcements.json'].lastPageAt = '2026-09-05T08:02:00Z';
   await page.evaluate(() => window.stream.refresh());
   await search.fill('Missing attachment');
+<<<<<<< HEAD
   await page.waitForFunction(() => document.querySelector('tbody tr[data-row-key]')?.textContent.includes('Missing attachment notice'));
+=======
+>>>>>>> sattva/main
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1);
   assert.match(await page.locator('tbody tr[data-row-key]').innerText(), /Source supplied no document link/);
   assert.equal(await page.locator('tbody tr[data-row-key] a[href="https://www.screener.in/company/id/123456/"]').count(), 1);
@@ -428,7 +454,10 @@ try {
   await returning.reload(); await returning.locator('[data-table-search]').waitFor();
   assert.equal(await returning.evaluate(() => window.stream.rows().some(r => r.title.includes('recovered arrival'))), false);
   assert.equal(await returning.locator('[data-announcement-search]').count(), 0, 'the previous immutable module still serves plain text search');
+<<<<<<< HEAD
   assert.equal(await returning.evaluate(() => typeof window.stream.prepareRows), 'undefined', 'the previous cached stream has no sliced preparation API');
+=======
+>>>>>>> sattva/main
   await returning.evaluate(async () => {
     const { watchWorkerChanges } = await import('/js/core/app-updates.js');
     watchWorkerChanges(navigator.serviceWorker, () => location.reload());
@@ -440,8 +469,12 @@ try {
   await returning.locator('[data-table-search]').fill('Bharat');
   await returning.getByRole('option', { name: /Bharat Parenterals/ }).click();
   assert.match(await returning.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals/);
+<<<<<<< HEAD
   assert((await returning.evaluate(() => caches.keys())).every(key => key.includes('announcement-company-search-v1') && key.includes('announcement-recovery-v4') && key.includes('announcement-search-clarity-v1') && key.includes('announcement-preparation-v1')));
   assert.equal(await returning.evaluate(() => typeof window.stream.prepareRows), 'function', 'the returning session adopts sliced preparation without clearing storage');
+=======
+  assert((await returning.evaluate(() => caches.keys())).every(key => key.includes('announcement-company-search-v1') && key.includes('announcement-recovery-v1') && key.includes('announcement-search-clarity-v1')));
+>>>>>>> sattva/main
   assert(await returning.evaluate(() => window.stream.rows().some(r => r.title.includes('recovered arrival'))), 'the returning session adopts the new recovery reader');
   assert.deepEqual(errors, []);
   await returning.close();

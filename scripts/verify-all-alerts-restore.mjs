@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { FEEDS, adoptAllAlertsReport, alertContextKey, readCachedAllAlerts, saveAllAlerts } from '../public/js/data/daily-alerts.js';
-import { materializeAllAlerts, restoreAllAlertSources, retainAlertSource, ALL_ALERTS_CACHE_KEY } from '../public/js/data/all-alerts-cache.js';
+import { materializeAllAlerts, restoreAllAlertSources, retainAlertSource, publicAlertFeed, ALL_ALERTS_CACHE_KEY } from '../public/js/data/all-alerts-cache.js';
 import { readEntry, writeEntry } from '../public/js/core/store.js';
 import * as records from '../public/js/data/alert-records.js';
 import * as watchlist from '../public/js/core/watchlist.js';
@@ -68,7 +68,7 @@ assert.deepEqual((await readCachedAllAlerts(context)).events.map(row => row.id).
   'saving Today cannot overwrite older, undated or scheduled history');
 assert.deepEqual((await readCachedAllAlerts({ ...context, queryWindow })).events, selected.events);
 const expanding = adoptAllAlertsReport(selected, null, context);
-assert(expanding.feeds.filter(feed => !feed.portfolioOnly && !/documents/.test(feed.id)).every(feed => feed.status === 'pending'),
+assert(expanding.feeds.filter(publicAlertFeed).every(feed => feed.status === 'pending'),
   'expanding a successful narrow query still requires checking the remaining history');
 assert.deepEqual(adoptAllAlertsReport(selected, restored, context).events.map(row => row.id).sort(), saved.events.map(row => row.id).sort(),
   'a narrower read cannot erase saved evidence while history loads');

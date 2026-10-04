@@ -118,7 +118,11 @@ export function quoteFromBse(body, row, now) {
 
 export async function readBseSensex(row, { fetcher, now, timeout = 8000 }) {
   try {
+<<<<<<< HEAD
     const res = await fetcher(BSE_SENSEX_URL, { headers: { accept: 'application/json', 'user-agent': 'GlowCentralResearch/1.0' },
+=======
+    const res = await fetcher(BSE_SENSEX_URL, { headers: { accept: 'application/json', 'user-agent': 'SattvaCentralResearch/1.0' },
+>>>>>>> sattva/main
       redirect: 'manual', signal: AbortSignal.timeout(timeout) });
     if (!res.ok) { await res.body?.cancel(); return { rows: new Map(), reason: [401, 403].includes(res.status) ? 'blocked' : res.status === 429 ? 'rate-limited' : 'unavailable' }; }
     const quote = quoteFromBse(await boundedJson(res, 256 * 1024), row, now);
@@ -153,7 +157,11 @@ export async function readNseIndices(rows, { fetcher, now, timeout = 8000 }) {
   const requested = rows.filter(r => NSE_INDICES[r.id]);
   try {
     const res = await fetcher('https://www.nseindia.com/api/allIndices', { headers: { accept: 'application/json',
+<<<<<<< HEAD
       'user-agent': 'GlowCentralResearch/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(timeout) });
+=======
+      'user-agent': 'SattvaCentralResearch/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(timeout) });
+>>>>>>> sattva/main
     if (!res.ok) { await res.body?.cancel(); return { rows: new Map(), reason: [401, 403].includes(res.status) ? 'blocked' : res.status === 429 ? 'rate-limited' : 'unavailable' }; }
     const body = await boundedJson(res, 1024 * 1024), found = new Map(), failures = {};
     if (!Array.isArray(body?.data)) fail('shape');
@@ -298,7 +306,11 @@ export async function readUpstoxIndices(rows, { token, fetcher, now, timeout = 8
   url.searchParams.set('instrument_key', rows.map(r => instrument(r.id)[0]).join(','));
   try {
     const res = await fetcher(url.href, { headers: { authorization: `Bearer ${token}`, accept: 'application/json',
+<<<<<<< HEAD
       'user-agent': 'GlowCentralResearch/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(timeout) });
+=======
+      'user-agent': 'SattvaCentralResearch/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(timeout) });
+>>>>>>> sattva/main
     if (!res.ok) { await res.body?.cancel(); return { rows: new Map(), reason: [401, 403].includes(res.status) ? 'authentication' : res.status === 429 ? 'rate-limited' : 'unavailable' }; }
     const body = await boundedJson(res, 256 * 1024);
     if (body?.status !== 'success' || !body.data || typeof body.data !== 'object') fail('shape');

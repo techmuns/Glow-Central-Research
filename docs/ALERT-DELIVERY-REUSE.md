@@ -1,0 +1,11 @@
+# Alert and archive delivery
+
+The precomputed alert pool remains `alert-pool-v3`, with Sattva's separate classification-policy marker. An open reader retains decoded shards across artifact publications only when contract, policy, member path and valid SHA-256 content identity match. Every refresh still validates current source revisions and uses the newly published source health; unchanged bytes do not establish freshness. Missing or invalid hashes remain tied to an immutable artifact URL.
+
+New indexes clear assembled results and remove decoded identities they no longer advertise. Only the selected windows remain decoded. A cancelled or superseded view leaves the pool immediately available to another reader; genuine read/validation failures keep the existing short backoff and complete-source fallback. Source collection and history retention are unchanged.
+
+A cold exchange-status check uses the same trusted Actions run/artifact selection as delivery, bounded to small metadata requests and a five-second timeout. It never downloads an archive or advances a source date. An existing cached response stays authoritative, including an explicitly unverified static fallback.
+
+Telegram delivery uses a separate fixed object, `researchreportss-delivery-v1`, on the existing CaptureRegistry binding. That object validates the immutable artifact, strips non-public fields, decompresses and encodes it, then returns a response stream to the front Worker. Concurrent requests share one read and a one-minute disposable response. Failed reads return unavailable with a short retry delay, preserving the client's retained archive. Delivery never starts a collection timer, dispatches a workflow or changes channel history. Cache lifetime is bounded by the object's original source check.
+
+Front-Worker cache keys are namespaced to Sattva. Tests cover unchanged/changed shard reuse, cancellation and superseded requests, bounded cache retention, exact source parity, native Worker gzip/redirect/304 behavior, and 7,001 Telegram records through real durable RPC with privacy, expiry, failure, recovery and cold restart. A real returning session adopts the new pool module through the existing service-worker upgrade.

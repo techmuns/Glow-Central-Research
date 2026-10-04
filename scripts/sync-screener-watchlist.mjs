@@ -16,6 +16,8 @@ import {
   reconcileWatchlist,
 } from './lib/screener-watchlist.mjs';
 
+import { readWatchlistInventory } from './lib/screener-watchlist-browser.mjs';
+
 const ORIGIN = 'https://www.screener.in';
 const WATCHLIST_ID = process.env.SCREENER_WATCHLIST_ID;
 if (!/^\d+$/.test(WATCHLIST_ID || '') || !process.env.SCREENER_WATCHLIST_NAME) throw Error('Configure Glow Screener watchlist identity before syncing');
@@ -40,6 +42,11 @@ async function go(page, path) {
   if (!response?.ok() || new URL(page.url()).origin !== ORIGIN) throw new Error('Screener page unavailable');
 }
 
+<<<<<<< HEAD
+=======
+const inventory = page => readWatchlistInventory(page, { origin: ORIGIN, watchlistId: WATCHLIST_ID, watchlistName: WATCHLIST_NAME });
+
+>>>>>>> sattva/main
 async function importAdditions(page, additions) {
   if (!additions.length) return;
   await go(page, IMPORT_PATH);
@@ -119,7 +126,11 @@ try {
   if (!hasSession) throw new Error('Authenticated session unavailable');
 
   stage = 'watchlist inventory';
+<<<<<<< HEAD
   const { current, manageRows } = await readWatchlistInventory(page, inventoryOptions);
+=======
+  const { current, manageRows } = await inventory(page);
+>>>>>>> sattva/main
   const plan = reconcileWatchlist(current, targets);
   const removalMatches = matchRemovalButtons(plan.removals, manageRows);
   await report(`configured Screener plan: ${current.length} current, ${targets.length} portfolio sync candidates, ${plan.additions.length} additions, ${plan.removals.length} removals.`);
@@ -132,11 +143,19 @@ try {
     stage = 'watchlist removals';
     await removeCompanies(page, removalMatches);
     stage = 'final watchlist verification';
+<<<<<<< HEAD
     const { current: final } = await readWatchlistInventory(page, inventoryOptions);
     const result = reconcileWatchlist(final, targets);
     if (result.removals.length) throw new Error('Non-portfolio companies remain after sync');
     await report(`configured Screener ${result.additions.length ? 'partially synced' : 'synced'}: ${final.length} portfolio companies present; ${result.additions.length} candidate holdings were not added by Screener.`);
     if (result.additions.length) console.log(`::warning::Screener could not add ${result.additions.length} portfolio holdings; they remain candidates for the next explicitly requested sync.`);
+=======
+    const { current: final } = await inventory(page);
+    const result = reconcileWatchlist(final, targets);
+    if (result.removals.length) throw new Error('Non-portfolio companies remain after sync');
+    await report(`S Screen ${result.additions.length ? 'partially synced' : 'synced'}: ${final.length} portfolio companies present; ${result.additions.length} listed holdings are unavailable on Screener.`);
+    if (result.additions.length) console.log(`::warning::Screener could not add ${result.additions.length} listed portfolio holdings; they will be retried on the next sync.`);
+>>>>>>> sattva/main
   }
 } catch {
   // Browser exceptions can include account, holding, or form data. Keep public
