@@ -362,35 +362,51 @@
       "error": "search-unavailable"
     },
     "isin:INE532F01054|Edelweiss Financial Services": {
-      "lastAttemptAt": "2026-09-30T05:41:43+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-04T00:14:44+00:00",
+      "error": null,
+      "lastResultCount": 29,
+      "lastSuccessAt": "2026-10-04T00:14:44+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE532F01054|EAAA India Alternatives": {
-      "lastAttemptAt": "2026-09-30T06:14:09+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-04T00:14:44+00:00",
+      "error": null,
+      "lastResultCount": 1,
+      "lastSuccessAt": "2026-10-04T00:14:44+00:00",
+      "targetThrough": null,
+      "pending": []
     },
     "isin:INE532F01054|EAAA": {
-      "lastAttemptAt": "2026-09-30T06:48:35+00:00",
-      "error": "search-unavailable"
+      "lastAttemptAt": "2026-10-04T00:14:44+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 111,
+      "targetThrough": "2026-10-04T00:14:44+00:00",
+      "pending": [
+        {
+          "from": "2026-09-25T00:14:44.445357+00:00",
+          "to": "2026-09-29T12:14:44.222679+00:00"
+        },
+        {
+          "from": "2026-09-29T12:14:44.222679+00:00",
+          "to": "2026-10-04T00:14:44+00:00"
+        }
+      ]
     },
     "isin:INE532F01054|Edelweiss Alternative Asset Advisors": {
-      "lastAttemptAt": "2026-09-30T07:18:46+00:00",
-      "error": "search-unavailable",
+      "lastAttemptAt": "2026-10-04T00:14:44+00:00",
+      "error": null,
       "lastResultCount": 0,
-      "lastSuccessAt": "2026-09-21T00:21:30+00:00",
+      "lastSuccessAt": "2026-10-04T00:14:44+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE532F01054|EDELWEISS": {
-      "lastAttemptAt": "2026-09-30T07:51:56+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 109,
+      "lastAttemptAt": "2026-10-04T00:14:44+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 111,
       "targetThrough": "2026-09-12T07:47:49+00:00",
       "pending": [
-        {
-          "from": "2026-09-07T19:47:49.111375+00:00",
-          "to": "2026-09-12T07:47:49+00:00"
-        },
         {
           "from": "2026-09-03T07:47:49.222749+00:00",
           "to": "2026-09-05T13:47:49.167062+00:00"
@@ -398,33 +414,45 @@
         {
           "from": "2026-09-05T13:47:49.167062+00:00",
           "to": "2026-09-07T19:47:49.111375+00:00"
+        },
+        {
+          "from": "2026-09-07T19:47:49.111375+00:00",
+          "to": "2026-09-10T01:47:49.055687+00:00"
+        },
+        {
+          "from": "2026-09-10T01:47:49.055687+00:00",
+          "to": "2026-09-12T07:47:49+00:00"
         }
       ],
-      "lastDiscoveryAt": "2026-09-21T00:21:30+00:00"
+      "lastDiscoveryAt": "2026-10-04T00:14:44+00:00"
     },
     "isin:INE1C6T01020|Emmvee Photovoltaic Power": {
-      "lastAttemptAt": "2026-09-30T08:23:39+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 11,
-      "lastSuccessAt": "2026-09-21T00:21:30+00:00",
+      "lastAttemptAt": "2026-10-04T00:14:44+00:00",
+      "error": null,
+      "lastResultCount": 17,
+      "lastSuccessAt": "2026-10-04T00:14:44+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE1C6T01020|EMMVEE": {
-      "lastAttemptAt": "2026-09-30T08:57:31+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 21,
+      "lastAttemptAt": "2026-10-04T00:14:44+00:00",
+      "error": "result-cap-incomplete",
+      "lastResultCount": 101,
       "targetThrough": "2026-09-12T07:47:49+00:00",
       "pending": [
         {
           "from": "2026-09-07T19:47:49.111375+00:00",
+          "to": "2026-09-10T01:47:49.055687+00:00"
+        },
+        {
+          "from": "2026-09-10T01:47:49.055687+00:00",
           "to": "2026-09-12T07:47:49+00:00"
         }
       ],
-      "lastDiscoveryAt": "2026-09-21T00:21:30+00:00"
+      "lastDiscoveryAt": "2026-10-04T00:14:44+00:00"
     },
     "isin:INE758T01015|Eternal": {
-      "lastAttemptAt": "2026-09-30T09:33:38+00:00",
+      "lastAttemptAt": "2026-10-04T00:14:44+00:00",
       "error": "search-unavailable",
       "lastResultCount": 113,
       "targetThrough": "2026-09-12T07:47:49+00:00",
@@ -446,7 +474,7 @@
           "to": "2026-09-12T07:47:49+00:00"
         }
       ],
-      "lastDiscoveryAt": "2026-09-21T00:21:30+00:00"
+      "lastDiscoveryAt": "2026-10-04T00:14:44+00:00"
     },
     "isin:INE758T01015|ETERNAL": {
       "lastAttemptAt": "2026-09-30T09:52:38+00:00",
@@ -2138,8 +2166,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 195,
-    "checkedAt": "2026-10-03T23:46:46.395858+00:00"
+    "attempted": 8,
+    "incomplete": 191,
+    "checkedAt": "2026-10-04T00:14:44.445357+00:00"
   }
 }
