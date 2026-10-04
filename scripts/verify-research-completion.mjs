@@ -49,5 +49,31 @@ try {
     assert.equal(events.at(-1).type, 'error');
     assert(!events.some(e => e.type === 'done'), 'a truncated answer never becomes a success');
   }
+  // A terminal write that fails once must not close a still-readable body silently.
+  const NativeReadableStream = globalThis.ReadableStream;
+  for (const fault of ['done', 'phase']) {
+    let failedOnce = false;
+    globalThis.ReadableStream = class extends NativeReadableStream {
+      constructor(source = {}, strategy) {
+        super({ ...source, start(controller) {
+          const wrapped = { enqueue(value) {
+            let event; try { event = JSON.parse(new TextDecoder().decode(value)); } catch { /* upstream bytes */ }
+            if (!failedOnce && event?.type === fault) { failedOnce = true; throw Error('Synthetic controller write failure'); }
+            controller.enqueue(value);
+          }, close: () => controller.close(), error: error => controller.error(error) };
+          return source.start?.(wrapped);
+        } }, strategy);
+      }
+    };
+    try {
+      globalThis.fetch = async () => new Response(frame({ text: '<research-answer>Complete text</research-answer>' }));
+      const events = (await (await handleResearch(question(), env)).text()).trim().split('\n').map(JSON.parse);
+      assert(failedOnce);
+      const terminals = events.filter(event => ['error', 'done'].includes(event.type));
+      assert.equal(terminals.length, 1);
+      assert.equal(terminals[0].type, 'error');
+      assert.equal(terminals[0].reason, fault === 'done' ? 'incomplete_stream' : 'network');
+    } finally { globalThis.ReadableStream = NativeReadableStream; }
+  }
   console.log('PASS completed answers finish before connection/cancellation settlement; late transport failures cannot reverse completion; real truncation stays incomplete.');
 } finally { globalThis.fetch = originalFetch; }

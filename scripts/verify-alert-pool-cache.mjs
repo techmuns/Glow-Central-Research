@@ -3,7 +3,11 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
+<<<<<<< HEAD
 import { ALERT_POOL_CONTRACT, POOL_CAPTURES, POOL_FEEDS, captureRevision, shiftDay } from '../public/js/data/alert-pool-shared.js';
+=======
+import { ALERT_POOL_CONTRACT, ALERT_POOL_POLICY, POOL_CAPTURES, POOL_FEEDS, shiftDay } from '../public/js/data/alert-pool-shared.js';
+>>>>>>> sattva/main
 
 const storage = new Map();
 globalThis.localStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
@@ -12,7 +16,11 @@ const day = '2026-09-20';
 const days = Array.from({ length: 7 }, (_, i) => shiftDay(day, -i));
 const captures = Object.fromEntries(Object.keys(POOL_CAPTURES).map(name => [name, name === 'exchangeDeals' ? { artifactId: 42 } : { revision: 'fixture-v1' }]));
 const feeds = Object.fromEntries(POOL_FEEDS.map(id => [id, { row: { id, status: 'ok', asOf: day }, newsMeta: {} }]));
+<<<<<<< HEAD
 let served, requests, failedMember, gate, onRequest, indexGate, statusGate;
+=======
+let served, requests, failedMember, gate, onRequest;
+>>>>>>> sattva/main
 const members = new Map();
 function descriptor(kind, date, suffix = '') {
   const member = `${kind}/${date}.json.gz`;
@@ -28,15 +36,25 @@ function descriptor(kind, date, suffix = '') {
   return entry;
 }
 function reset() {
+<<<<<<< HEAD
   pool.resetForTest(); requests = []; failedMember = null; gate = null; onRequest = null; indexGate = null; statusGate = null;
   served = { version: 1, contract: ALERT_POOL_CONTRACT, artifact: 1, day, captures: structuredClone(captures), feeds: structuredClone(feeds),
+=======
+  pool.resetForTest(); requests = []; failedMember = null; gate = null; onRequest = null;
+  served = { version: 1, contract: ALERT_POOL_CONTRACT, policy: ALERT_POOL_POLICY, artifact: 1, day, captures: structuredClone(captures), feeds: structuredClone(feeds),
+>>>>>>> sattva/main
     days: days.map(date => descriptor('days', date)), ai: days.map(date => descriptor('ai', date)) };
 }
 globalThis.fetch = async input => {
   const path = String(input);
   requests.push(path);
+<<<<<<< HEAD
   if (path === pool.INDEX_ROUTE) { if (indexGate) await indexGate; return Response.json(structuredClone(served)); }
   if (path === pool.STATUS_ROUTE) { if (statusGate) await statusGate; return Response.json({ captures }); }
+=======
+  if (path === pool.INDEX_ROUTE) return Response.json(structuredClone(served));
+  if (path === pool.STATUS_ROUTE) return Response.json({ captures });
+>>>>>>> sattva/main
   const match = /^api\/alert-pool\/\d+\/(.+)$/.exec(path);
   assert(match, `unexpected request: ${path}`);
   onRequest?.(path);
@@ -81,6 +99,7 @@ assert(declined.feeds.has('news'));
 assert.equal(downloads().length, 0);
 console.log('PASS capture revisions and source health stay authoritative during reuse');
 
+<<<<<<< HEAD
 reset();
 await read();
 served.captures.announcementRecovery.revision = 'new-recovery-head';
@@ -115,6 +134,8 @@ try {
     'an unusable pool falls back immediately without waiting for its slower source checks');
 } finally { releaseStatus(); }
 
+=======
+>>>>>>> sattva/main
 // A newly adopted index cannot retain a result from the other mode's previous artifact.
 reset(); await read(); await read(window(1)); served.artifact++;
 await read({ refresh: true, ...window(1) });

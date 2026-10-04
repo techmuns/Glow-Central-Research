@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 // GLOW-OWNED: category selection and scheme search share the All Schemes search box.
+=======
+// SATTVA-OWNED: category selection and scheme search share the All Schemes search box.
+>>>>>>> sattva/main
 // Categories are the feed's own labels — except where this dashboard shows a scheme under a
 // different one (a tracker the source filed under an active category; see classifyLive in
 // js/data/mf-taxonomy.js), where the facet is the category it is SHOWN in, so the search box and

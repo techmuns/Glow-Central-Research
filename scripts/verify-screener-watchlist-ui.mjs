@@ -6,7 +6,11 @@ import { readWatchlistInventory } from './lib/screener-watchlist-browser.mjs';
 
 const { chromium } = await import(pathToFileURL(resolve(process.env.PLAYWRIGHT_ROOT, 'index.mjs')).href);
 const browser = await chromium.launch({ headless: true });
+<<<<<<< HEAD
 const options = { origin: 'https://screener-fixture.invalid', watchlistId: '99000001', watchlistName: 'Glow test watchlist' };
+=======
+const options = { origin: 'https://screener-fixture.invalid', watchlistId: '99000001', watchlistName: 'Sattva test watchlist' };
+>>>>>>> sattva/main
 const controls = '<input id="watchlist-search"><a href="/watchlist/import/99000001/">Import companies from any file</a>';
 const company = '<li><a href="/company/ALPHA/">Alpha Ltd</a><button onclick="Watchlist.removeCompany(\'11\')">Remove</button></li>';
 const exportForm = '<form action="/api/export/screen/?sublist_id=99000001"><button type="submit">Export</button></form>';
@@ -45,6 +49,12 @@ try {
   await assert.rejects(inventory({ rows: company.replace("'11'", '11') }), /Unrecognized company removal/);
   await assert.rejects(inventory({ rows: company, form: exportForm.replace('99000001', '99000002') }), /export target/);
   await assert.rejects(inventory({ form: exportForm }), /counts differ/);
+<<<<<<< HEAD
+=======
+  await assert.rejects(inventory({ rows: company, form: exportForm + exportForm }), /Ambiguous/);
+  await assert.rejects(inventory({ rows: company + company, form: exportForm }), /Unrecognized/);
+  await assert.rejects(inventory({ rows: company, form: exportForm, exported: 'x'.repeat(8 * 1024 * 1024 + 1) }), /oversized/);
+>>>>>>> sattva/main
   await assert.rejects(inventory({ status: 503 }), /page unavailable/);
   console.log('Screener inventory browser checks passed: empty, populated, unavailable export, identity and count guards.');
 } finally {

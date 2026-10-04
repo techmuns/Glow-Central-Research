@@ -5,6 +5,7 @@
 // level is, which way it fires and when it counts as reached. Same arrangement, and the same reason,
 // as `watchlist-shared.js`: the edge and the page must not be able to drift about any of it.
 //
+<<<<<<< HEAD
 // WHERE THESE COME FROM
 //   The family set a price level on a holding in the Glow Ventures dashboard — a separate app, on its
 //   own server, whose store is the reader's own browser. *"When the user puts target price inside the
@@ -21,6 +22,16 @@
 //
 // WHY A REACHED LEVEL IS A DATED EVENT HERE, AND A LIVE STATE THERE
 //   Glow Ventures shows a level as reached WHILE the price is past it, and as watched again if the
+=======
+// Sattva Family saves private levels through its password-gated server proxy. This
+// Worker monitors them independently of an open dashboard. Reached observations
+// are available to authenticated readers in All Alerts and AI Alerts.
+// Family currently exposes Buy at, Sell at and Stop loss; the shared contract also
+// accepts Target and Alert above for compatible clients.
+//
+// WHY A REACHED LEVEL IS A DATED EVENT HERE, AND A LIVE STATE THERE
+//   Sattva Family shows a level as reached WHILE the price is past it, and as watched again if the
+>>>>>>> sattva/main
 //   price comes back. An alert feed needs a moment instead: the minute this Worker first saw the price
 //   reach the level. That moment is stamped by the Worker, never by a browser — two readers must see
 //   the same time, and a reload must not move an alert to the top of the feed. One level fires once;
@@ -29,10 +40,17 @@
 import { SYMBOL_RE, companyName, normTicker } from './watchlist-shared.js';
 
 /** The one Durable Object that holds the list (same provisioned class, its own fixed name). */
+<<<<<<< HEAD
 export const PRICE_LEVELS_OBJECT = 'price-levels:v1';
 
 /** Where the levels are set, named on every alert they raise. */
 export const PRICE_LEVEL_SOURCE = 'Glow Ventures';
+=======
+export const PRICE_LEVELS_OBJECT = 'sattva-private-price-levels:v1';
+
+/** Where the levels are set, named on every alert they raise. */
+export const PRICE_LEVEL_SOURCE = 'Sattva Family';
+>>>>>>> sattva/main
 
 export const PRICE_LEVEL_NAMES = ['buyAt', 'sellAt', 'stopLoss', 'target', 'alertAbove'];
 
@@ -53,6 +71,7 @@ export const PRICE_LEVEL = {
 // Bounds — each a ceiling on what one request or one object may cost, never an editorial judgement.
 export const PRICE_LEVELS_COMPANY_LIMIT = 600;
 export const PRICE_LEVELS_INTENT_BATCH = 40;
+<<<<<<< HEAD
 export const PRICE_LEVELS_TOMBSTONE_LIMIT = 400;
 /** Reached levels kept as history — the feed's record, which outlives a level cleared after it fired. */
 export const PRICE_LEVELS_HIT_LIMIT = 500;
@@ -60,6 +79,12 @@ export const PRICE_LEVELS_HIT_LIMIT = 500;
 export const PRICE_LEVELS_HIT_WIRE = 200;
 export const PRICE_LEVELS_REQUEST_BYTES = 32768;
 /** ₹1 crore a share — above every listed Indian share; a larger figure is a typo, not a level. */
+=======
+/** How many of those the route returns, newest first. */
+export const PRICE_LEVELS_HIT_WIRE = 200;
+export const PRICE_LEVELS_REQUEST_BYTES = 32768;
+/** Explicit supported input ceiling: ₹1 crore per unit. */
+>>>>>>> sattva/main
 export const PRICE_LEVEL_MAX = 1e7;
 
 /** An Indian ISIN, the shape Upstox keys a cash-market instrument on. */
@@ -87,7 +112,12 @@ export function priceLevels(input) {
 /**
  * One edit, validated. Throws rather than silently dropping a field the caller meant to send.
  *
+<<<<<<< HEAD
  * THREE OPERATIONS, AND `seed` IS THE ONE THAT KEEPS TWO DEVICES FROM FIGHTING.
+=======
+ * `patch` changes only supplied level kinds, preserving unrelated edits on another device.
+ * `seed` imports older browser records without overwriting shared state.
+>>>>>>> sattva/main
  *   `set` is the family's latest word on a company and replaces what the list holds. `seed` is a
  *   level a browser already held BEFORE it ever sent anything — it is added only where the shared
  *   list has never heard of the company, so a laptop opened for the first time in a month cannot
@@ -96,15 +126,27 @@ export function priceLevels(input) {
  */
 export function priceLevelIntent(input) {
   const op = String(input?.op ?? '');
+<<<<<<< HEAD
   if (!['set', 'seed', 'clear'].includes(op)) throw new Error('Invalid price level operation');
+=======
+  if (!['set', 'seed', 'clear', 'patch'].includes(op)) throw new Error('Invalid price level operation');
+>>>>>>> sattva/main
   const ticker = normTicker(input?.ticker);
   if (!SYMBOL_RE.test(ticker)) throw new Error('Invalid price level company');
   if (op === 'clear') return { op, ticker };
   const isin = input?.isin == null || input.isin === '' ? null : String(input.isin).trim().toUpperCase();
   if (isin !== null && !ISIN_RE.test(isin)) throw new Error('Invalid price level ISIN');
+<<<<<<< HEAD
   const levels = priceLevels(input?.levels);
   // A set with nothing in it is a clear spelt wrongly, and it is refused so the caller says which.
   if (!PRICE_LEVEL_NAMES.some((name) => levels[name] !== null)) throw new Error('Invalid price levels: none set');
+=======
+  const all = priceLevels(input?.levels);
+  const levels = op === 'patch' ? Object.fromEntries(Object.keys(input.levels).map(key => [key, all[key]])) : all;
+  if (op === 'patch' && !Object.keys(levels).length) throw new Error('Invalid price levels');
+  // A set with nothing in it is a clear spelt wrongly, and it is refused so the caller says which.
+  if (op !== 'patch' && !PRICE_LEVEL_NAMES.some((name) => levels[name] !== null)) throw new Error('Invalid price levels: none set');
+>>>>>>> sattva/main
   return { op, ticker, isin, name: companyName(input?.name), levels };
 }
 
@@ -143,7 +185,11 @@ export const sessionOpenAt = (day) => Date.parse(`${day}T09:15:00+05:30`);
  */
 export function levelHit({ direction, value, setAt }, quote) {
   if (!quote) return null;
+<<<<<<< HEAD
   if (levelReached(direction, value, quote.price)) return { price: quote.price, basis: 'last-price' };
+=======
+  if (Number.isFinite(Date.parse(quote.quoteAt)) && Date.parse(quote.quoteAt) >= Date.parse(setAt) && levelReached(direction, value, quote.price)) return { price: quote.price, basis: 'last-price' };
+>>>>>>> sattva/main
   const extreme = direction === 'down' ? quote.low : quote.high;
   const setBeforeOpen = Number.isFinite(Date.parse(setAt)) && Date.parse(setAt) < sessionOpenAt(quote.sessionDate);
   if (setBeforeOpen && levelReached(direction, value, extreme)) {

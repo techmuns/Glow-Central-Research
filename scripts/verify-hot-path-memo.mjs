@@ -124,7 +124,11 @@ assert.notEqual(attributeNewsRow(shared, { ...alpha }), underAlpha, 'a different
 
 // --- ...and a decoration lives no longer than its identity. A re-read capture parses equal
 // identities into new objects while the row lives on; a strong inner map kept every earlier
+<<<<<<< HEAD
 // decoration of every retained row (70-90MB per re-read of the company-news head, measured).
+=======
+// decoration of every retained row (~60MB per re-read of the company-news head, measured).
+>>>>>>> sattva/main
 v8.setFlagsFromString('--expose-gc');
 const collectGarbage = vm.runInNewContext('gc');
 assert.equal(typeof collectGarbage, 'function', 'this check needs a real collection');
@@ -143,7 +147,11 @@ assert.equal(attributeNewsRow(shared, alpha), underAlpha, 'an identity still hel
 // --- a re-read of an UNCHANGED news capture keeps its identity objects, so every row keeps its
 // reading. The shared poller re-reads the head every two minutes, and a re-read can be a fresh
 // parse with nothing changed (an evicted memory copy, an origin with no ETag): each one used to
+<<<<<<< HEAD
 // re-attribute all 66,567 portfolio head rows and miss every cache keyed on them downstream.
+=======
+// re-attribute all 80,762 portfolio head rows and miss every cache keyed on them downstream.
+>>>>>>> sattva/main
 let headCapture = JSON.stringify({ capturedAt: '2026-09-10T08:00:00Z',
   entities: [{ key: 'ALPHA', ticker: 'ALPHA', name: 'Alpha Ltd', brands: ['AlphaPay'] }],
   byTicker: { ALPHA: [{ title: 'AlphaPay launches a new product', query: 'Alpha Ltd', date: '2026-09-10', url: 'https://example.com/alphapay' }] } });

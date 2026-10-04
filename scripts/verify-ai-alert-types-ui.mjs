@@ -61,7 +61,11 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH });
 const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
 const errors = []; page.on('pageerror', error => errors.push(error.message));
+<<<<<<< HEAD
 await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
+=======
+await page.route('**/*', route => route.request().url() === 'https://sattva-family.pages.dev/research-bridge' ? route.fulfill({ contentType:'text/html', body:`<script>addEventListener('message', e => { if (e.data.channel === 'sattva-portfolio-v1') parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'}, '*'); });</script>` }) : new URL(route.request().url()).origin === origin ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
+>>>>>>> sattva/main
 const card = ticker => page.locator(`[data-ai-card][data-ticker="${ticker}"]`);
 const open = async () => { if (!await page.locator('[data-ai-types-menu]').getAttribute('open').then(value => value !== null)) await page.locator('[data-ai-types-menu] summary').click(); };
 const pick = async id => { await open(); await page.locator(`[data-ai-type="${id}"]`).check(); };
@@ -80,6 +84,12 @@ try {
   legacy = false;
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
   await page.waitForSelector('[data-ai-types-menu]');
+<<<<<<< HEAD
+=======
+  await page.waitForLoadState('networkidle');
+  await page.waitForFunction(async () => (await import('/js/research/portfolio-bridge.js')).portfolioConnectionState() === 'locked');
+  await page.waitForSelector('[data-ai-card]');
+>>>>>>> sattva/main
   assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').count(), 1, 'an existing session upgrades to the restored menu');
   assert(!(await page.evaluate(() => caches.keys())).some(key => key.includes('previous-event-filter-release')));
   assert.equal(await card('ROUTINE').count(), 0);
@@ -142,9 +152,17 @@ try {
     await close();
   }
   await page.setViewportSize({ width: 1280, height: 1000 });
+<<<<<<< HEAD
   await open(); await page.screenshot({ path: '/tmp/glow-ai-alert-event-filters.png' });
   await close(); await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
   await open(); await page.screenshot({ path: '/tmp/glow-ai-alert-event-filters-dark.png' });
+=======
+  await open(); await page.screenshot({ path: '/tmp/sattva-ai-alert-event-filters.png' });
+  await close(); await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+  await open();
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-ai-lead-link]')).color === 'rgb(241, 245, 249)');
+  await page.screenshot({ path: '/tmp/sattva-ai-alert-event-filters-dark.png' });
+>>>>>>> sattva/main
   assert.deepEqual(errors, []);
   console.log('PASS: warm-session upgrade, matching cards, OR filters, search, counts/pagination, saved choices, arrivals, routine recovery, archive, keyboard and 320–1280px layouts.');
 } finally { await browser.close(); await new Promise(done => server.close(done)); }

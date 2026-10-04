@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { buildAnnouncementIdentities } from './announcement-identities.mjs';
 import { bseLastCompleteTo } from './bse-collection.mjs';
 
@@ -34,6 +35,10 @@ export async function bseCaptureIndex({ previous, mcMap = {}, fetchMaster, now =
   }
 }
 
+=======
+import { bseLastCompleteTo } from './bse-collection.mjs';
+
+>>>>>>> sattva/main
 export function failedBseCapture(previous, { now = Date.now(), reason = 'upstream' } = {}) {
   const at = new Date(now).toISOString();
   const error = { reason, at, message: 'BSE announcements could not be checked. Previously captured announcements are retained.' };

@@ -67,7 +67,11 @@ export function renderBriefEmails(brief, options = {}, { maxBytes = EMAIL_HTML_B
       continued = true;
     }
   }
+<<<<<<< HEAD
   // Glow's 170+ holding rows can be larger than an email on their own. Pack all additional
+=======
+  // A large portfolio of company price rows can be larger than an email on their own. Pack all additional
+>>>>>>> sattva/main
   // sections too, splitting at row boundaries without changing totals, values or coverage.
   const sections = [
     ['calendar', brief.calendar?.rows], ['actions', brief.actions?.rows],
