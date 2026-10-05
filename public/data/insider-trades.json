@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-10-05T00:57:25.375Z",
+    "capturedAt": "2026-10-05T04:56:53.257Z",
     "from": "2026-08-05",
     "to": "2026-10-01",
     "rows": 10794,
@@ -12,8 +12,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-05T00:57:25.375Z",
-  "oldestDataAt": "2026-10-05T00:57:25.375Z",
+  "capturedAt": "2026-10-05T04:56:53.257Z",
+  "oldestDataAt": "2026-10-05T04:56:53.257Z",
   "from": "2025-10-05",
   "to": "2026-10-05",
   "windowDays": 365,
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-05T00:57:25.375Z",
+      "capturedAt": "2026-10-05T04:56:53.257Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-05T00:57:25.375Z",
+      "capturedAt": "2026-10-05T04:56:53.257Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -58,12 +58,12 @@
       "label": "SAST",
       "url": "https://www.screener.in/trades/sast/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-09-30",
-      "oldestDate": "2026-09-25",
+      "latestDate": "2026-10-01",
+      "oldestDate": "2026-09-28",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-05T00:57:25.375Z",
+      "capturedAt": "2026-10-05T04:56:53.257Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -71,12 +71,12 @@
       "label": "Insider trade",
       "url": "https://www.screener.in/trades/insiders/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-10-01",
+      "latestDate": "2026-10-03",
       "oldestDate": "2026-10-01",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-05T00:57:25.375Z",
+      "capturedAt": "2026-10-05T04:56:53.257Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -84,7 +84,7 @@
   "covered": 4,
   "withRows": 1898,
   "emptyCount": 0,
-  "rowCount": 19887,
+  "rowCount": 19906,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -4687,6 +4687,42 @@
       }
     ],
     "512441": [
+      {
+        "ticker": "512441",
+        "date": "2026-10-01",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Enbee Trade",
+          "Insider": "Amarr Narendra Galla",
+          "Category": "Promoter And Director",
+          "Security Type": "Equity",
+          "Transaction": "Sold",
+          "Trade Shares": "6450000",
+          "Trade Value": "16.04 lacs",
+          "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "512441",
+        "date": "2026-10-01",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Enbee Trade",
+          "Insider": "Ssamta Amar Gaala",
+          "Category": "Promoter Group",
+          "Security Type": "Equity",
+          "Transaction": "Sold",
+          "Trade Shares": "2490708",
+          "Trade Value": "5.92 lacs",
+          "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "512441",
         "date": "2026-09-29",
@@ -132267,6 +132303,24 @@
     "ACUTAAS": [
       {
         "ticker": "ACUTAAS",
+        "date": "2026-10-02",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Acutaas Chemical",
+          "Insider": "Hemant Mahendabhai Patel",
+          "Category": "Designated Person",
+          "Security Type": "Equity",
+          "Transaction": "Pledge Creation",
+          "Trade Shares": "1000",
+          "Trade Value": "32.72 lacs",
+          "Broadcast Date": "2026-10-02",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ACUTAAS",
         "date": "2026-06-02",
         "cells": {
           "Company": "Acutaas Chemicals Ltd",
@@ -182739,6 +182793,42 @@
     "LUXIND": [
       {
         "ticker": "LUXIND",
+        "date": "2026-10-03",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Lux Industries",
+          "Insider": "Ashok Kumar Todi Huf",
+          "Category": "Promoter Group",
+          "Security Type": "Equity",
+          "Transaction": "Others",
+          "Trade Shares": "11310",
+          "Trade Value": "1.25 crore",
+          "Broadcast Date": "2026-10-03",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "LUXIND",
+        "date": "2026-10-03",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Lux Industries",
+          "Insider": "Ashok Kumar Todi",
+          "Category": "Promoter",
+          "Security Type": "Equity",
+          "Transaction": "Others",
+          "Trade Shares": "11310",
+          "Trade Value": "1.25 crore",
+          "Broadcast Date": "2026-10-03",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "LUXIND",
         "date": "2025-11-20",
         "cells": {
           "Company": "Lux Industries Ltd",
@@ -186401,6 +186491,24 @@
       }
     ],
     "MAYURUNIQ": [
+      {
+        "ticker": "MAYURUNIQ",
+        "date": "2026-10-02",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Mayur Uniquoters",
+          "Insider": "Kiran Poddar",
+          "Category": "Promoter",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "1000",
+          "Trade Value": "7.35 lacs",
+          "Broadcast Date": "2026-10-02",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "MAYURUNIQ",
         "date": "2026-09-29",
@@ -199848,6 +199956,24 @@
       }
     ],
     "KLBRENG-B": [
+      {
+        "ticker": "KLBRENG-B",
+        "date": "2026-10-01",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Kilburn Engg.",
+          "Insider": "Arun Monga, Arun Monga",
+          "Category": "Designated Person (2)",
+          "Security Type": "Equity",
+          "Transaction": "Sold",
+          "Trade Shares": "20729",
+          "Trade Value": "1.1 crore",
+          "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "KLBRENG-B",
         "date": "2026-09-29",
@@ -249391,6 +249517,24 @@
     "VISAKAIND": [
       {
         "ticker": "VISAKAIND",
+        "date": "2026-10-03",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Visaka Industrie",
+          "Insider": "Vigilance Security Services Private Limited",
+          "Category": "Promoter Group",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "115",
+          "Trade Value": "10,026",
+          "Broadcast Date": "2026-10-03",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "VISAKAIND",
         "date": "2026-09-30",
         "url": "https://www.screener.in/trades/insiders/?o=-2&p=2",
         "sourceId": "insiders",
@@ -285951,6 +286095,24 @@
     "SKYWAYS": [
       {
         "ticker": "SKYWAYS",
+        "date": "2026-10-01",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Skyways Air Ser.",
+          "Insider": "Yashpal Sharma, Tarun Sharma",
+          "Category": "Promoter And Director (2)",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "35000",
+          "Trade Value": "40.08 lacs",
+          "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "SKYWAYS",
         "date": "2026-09-24",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=8",
         "sourceId": "bulk",
@@ -318969,6 +319131,24 @@
     "KHADIM": [
       {
         "ticker": "KHADIM",
+        "date": "2026-10-01",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Khadim India",
+          "Insider": "Siddhartha Roy Burman, Siddhartha Roy Burman",
+          "Category": "Promoter And Director (2)",
+          "Security Type": "Warrant",
+          "Transaction": "Preferential Offer",
+          "Trade Shares": "454546",
+          "Trade Value": "1.25 crore",
+          "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "KHADIM",
         "date": "2026-09-09",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=44",
         "sourceId": "bulk",
@@ -338781,6 +338961,21 @@
     "MAGSON": [
       {
         "ticker": "MAGSON",
+        "date": "2026-10-01",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Magson Retail",
+          "Insider": "Rajesh Emmanuel Francis",
+          "Transaction": "Sell",
+          "Trade Shares": "258000",
+          "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MAGSON",
         "date": "2026-09-30",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=4",
         "sourceId": "bulk",
@@ -344721,6 +344916,21 @@
       }
     ],
     "MOS": [
+      {
+        "ticker": "MOS",
+        "date": "2026-10-01",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "MOS Utility",
+          "Insider": "Kurjibhai Premjibhai Rupareliya",
+          "Transaction": "Invocation",
+          "Trade Shares": "52026500",
+          "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "MOS",
         "date": "2026-09-23",
@@ -360990,6 +361200,21 @@
     "ACTIVEINFR": [
       {
         "ticker": "ACTIVEINFR",
+        "date": "2026-10-01",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Active Infra.",
+          "Insider": "RIAAN VENTURES PRIVATE LIMITED",
+          "Transaction": "Acquisition",
+          "Trade Shares": "12000",
+          "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ACTIVEINFR",
         "date": "2026-09-30",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -363973,6 +364198,36 @@
     "MCL": [
       {
         "ticker": "MCL",
+        "date": "2026-10-01",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "M Tek Copper",
+          "Insider": "MR. RAJESH ODHAVJIBHAI PATEL",
+          "Transaction": "Sell",
+          "Trade Shares": "10000",
+          "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MCL",
+        "date": "2026-10-01",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "M Tek Copper",
+          "Insider": "Mr Vishal Talsibhai Monpara",
+          "Transaction": "Sell",
+          "Trade Shares": "250000",
+          "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MCL",
         "date": "2026-09-30",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -365038,6 +365293,24 @@
       }
     ],
     "ALUFLUOR": [
+      {
+        "ticker": "ALUFLUOR",
+        "date": "2026-10-03",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Alufluoride",
+          "Insider": "Ahalya Meka",
+          "Category": "Immediate Relative",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "93",
+          "Trade Value": "58,590",
+          "Broadcast Date": "2026-10-03",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "ALUFLUOR",
         "date": "2026-09-29",
@@ -380308,6 +380581,21 @@
     "KHERIAAUTO": [
       {
         "ticker": "KHERIAAUTO",
+        "date": "2026-10-01",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Kheria Autocomp",
+          "Insider": "SMC Global Securities Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1675200",
+          "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "KHERIAAUTO",
         "date": "2026-09-24",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=2",
         "sourceId": "bulk",
@@ -383832,6 +384120,21 @@
     "AARON": [
       {
         "ticker": "AARON",
+        "date": "2026-10-01",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Aaron Industries",
+          "Insider": "Amar Chinubhai Doshi HUF",
+          "Transaction": "Acquisition",
+          "Trade Shares": "4075",
+          "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AARON",
         "date": "2026-09-25",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -384123,6 +384426,21 @@
       }
     ],
     "MPEL": [
+      {
+        "ticker": "MPEL",
+        "date": "2026-10-01",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Manas Polymers",
+          "Insider": "VINEET BHADAURIA",
+          "Transaction": "Acquisition",
+          "Trade Shares": "7289600",
+          "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "MPEL",
         "date": "2026-09-26",
