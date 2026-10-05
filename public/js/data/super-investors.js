@@ -13,8 +13,13 @@
 // allHoldings and summaries preserve disclosure notes rather than treating blanks
 // or pending filings as trades.
 
+<<<<<<< HEAD
 import { conditionalJson, readEntries, KEYS, isPersistent } from '../core/store.js';
 import { normalisePortfolio, isPortfolioPayload, deriveMoves, summarise, quarterOrder, filedPair, isFiledQuarter, closedQuarters } from './finology-shared.js';
+=======
+import { conditionalJson, readEntries, writeEntry, KEYS, isPersistent } from '../core/store.js';
+import { normalisePortfolio, isPortfolioPayload, deriveMoves, summarise, quarterOrder, filedPair, isFiledQuarter, closedQuarters, retainPortfolioHistory } from './finology-shared.js';
+>>>>>>> sattva/main
 
 import { summariseQuarter } from './investor-quarterly.js';
 
@@ -283,14 +288,9 @@ export async function refreshSnapshot() {
 
   const incomingSlugs = new Set(body.investors.map((i) => i?.slug).filter(Boolean));
   const incomingBooks = new Set(Object.entries(body.books || {}).filter(([slug, value]) => isPortfolioPayload(value, slug)).map(([slug]) => slug));
-  // A deployment snapshot can be newer than the file that seeded this page and still older than
-  // a book the Worker confirmed on this device. Preserve any list entry backed by such a book;
-  // otherwise an intermediate deploy rolls a newly added investor and its moves backwards.
-  const deviceNewerInvestors = state.investors.filter((i) => {
-    if (!i?.slug || incomingSlugs.has(i.slug)) return false;
-    const confirmed = Number(state.confirmedAt.get(i.slug));
-    return Number.isFinite(confirmed) && confirmed > incomingAt;
-  });
+  // A missing directory row is a review state, not permission to erase its history.
+  const deviceNewerInvestors = state.investors.filter((i) => i?.slug && !incomingSlugs.has(i.slug));
+  for (const investor of deviceNewerInvestors) state.failures.set(investor.slug, { reason: 'missing-from-list', message: 'Previously tracked investor missing from this capture; retained for review.' });
   const acceptedSlugs = new Set([...incomingSlugs, ...deviceNewerInvestors.map((i) => i.slug)]);
   // The list in the newer capture is authoritative for this replacement. Keeping a book whose
   // investor disappeared would leave `allMoves()` emitting rows the current source no longer
@@ -305,7 +305,11 @@ export async function refreshSnapshot() {
     ...state.staleBooks,
   ]);
   for (const slug of knownSlugs) {
+<<<<<<< HEAD
     // An unread book is retained. Only a removed directory entry leaves this view.
+=======
+    // Only orphan state without any retained directory entry can leave the view.
+>>>>>>> sattva/main
     if (acceptedSlugs.has(slug)) continue;
     state.books.delete(slug);
     state.confirmedAt.delete(slug);
@@ -328,7 +332,11 @@ export async function refreshSnapshot() {
     const confirmed = Number(state.confirmedAt.get(slug));
     const sourceAt = Date.parse(value.fetchedAt || '') || incomingAt;
     if (Number.isFinite(confirmed) && confirmed > sourceAt) continue;
+<<<<<<< HEAD
     state.books.set(slug, normalisePortfolio(value, slug));
+=======
+    state.books.set(slug, retainPortfolioHistory(normalisePortfolio(value, slug), state.books.get(slug)));
+>>>>>>> sattva/main
     state.confirmedAt.set(slug, sourceAt);
     state.fromSnapshot.add(slug);
     state.unconfirmed.add(slug);
@@ -467,7 +475,7 @@ async function seedFromStore(gen) {
     if (!isPortfolioPayload(value, i.slug)) continue;
     // Re-normalised rather than trusted: these bytes were written by whatever version of the Worker
     // was live when they were cached, and the shape guard is what makes that safe.
-    state.books.set(i.slug, normalisePortfolio(value, i.slug));
+    state.books.set(i.slug, retainPortfolioHistory(normalisePortfolio(value, i.slug), state.books.get(i.slug)));
     state.unconfirmed.add(i.slug);
     state.confirmedAt.set(i.slug, Date.parse(value.fetchedAt || '') || hit.savedAt || null);
     // A last-good copy the Worker served during an outage. It is real and it is labelled, and it
@@ -513,7 +521,11 @@ async function seedFromSnapshot(gen) {
     if (!isPortfolioPayload(value, slug)) continue;
     const sourceAt = Date.parse(value.fetchedAt || '') || at;
     if (state.books.has(slug) && (state.confirmedAt.get(slug) || 0) >= sourceAt) continue;
+<<<<<<< HEAD
     state.books.set(slug, normalisePortfolio(value, slug));
+=======
+    state.books.set(slug, retainPortfolioHistory(normalisePortfolio(value, slug), state.books.get(slug)));
+>>>>>>> sattva/main
     state.fromSnapshot.add(slug);
     state.unconfirmed.add(slug);
     if (sourceAt) state.confirmedAt.set(slug, sourceAt);
@@ -747,7 +759,13 @@ export async function loadBook(slug, { force = false, gen = generation } = {}) {
     // `fromStore` is the conditional layer reporting a 304 — the server confirmed the bytes we
     // already had, so there is nothing to re-normalise and nothing to repaint.
     if (res.fromStore) { state.failures.delete(slug); return false; }
+<<<<<<< HEAD
     state.books.set(slug, normalisePortfolio(body, slug));
+=======
+    const retained = retainPortfolioHistory(normalisePortfolio(body, slug), state.books.get(slug));
+    state.books.set(slug, retained);
+    await writeEntry(KEYS.investorBook(slug), { value: { ...body, ...retained }, tag: res.tag });
+>>>>>>> sattva/main
     state.failures.delete(slug);
     bump();
     return true;

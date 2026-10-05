@@ -53,8 +53,13 @@ let liveRouteCompany = null;
 // The Superstar sub-view has four in-page destinations of its own. Keep the reader on the one they
 // chose while scope changes and live-book arrivals repaint the tab; switching to Institutions or
 // leaving Super Investors resets it.
+<<<<<<< HEAD
 let liveSection = null;
 let changesView = { audience: 'my-managers', period: 'quarter', activityView: null, holdingsView: null };
+=======
+let liveSection = 'investors';
+let changesView = { period: 'quarter' };
+>>>>>>> sattva/main
 // Institutions mirrors that contract: the fund tables remain the default, while Quarterly Changes
 // is a cross-book destination whose selection survives a scope repaint but not leaving the view.
 let filedSection = 'institutions';
@@ -71,11 +76,16 @@ export function render(ctx) {
   liveRouteCompany = seeded.company;
   liveView = seeded.view;
   // A sub-view change does not destroy this module. Reset here when the reader leaves Superstar
+<<<<<<< HEAD
   // Investors so returning from Institutions opens on Changes with My Managers selected.
   if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') {
     liveSection = null;
     changesView = { audience: 'my-managers', period: 'quarter', activityView: null, holdingsView: null };
   }
+=======
+  // Investors so returning from Institutions opens on the documented All Investors default.
+  if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') { liveSection = 'investors'; changesView = { period: 'quarter' }; }
+>>>>>>> sattva/main
   if (ctxRef?.subview === 'institutions' && ctx.subview !== 'institutions') filedSection = 'institutions';
   renderToken++;
   ctxRef = ctx;
@@ -105,8 +115,13 @@ export function destroy() {
   // Leaving is a deliberate exit; coming back should be a clean table rather than last visit's
   // half-applied filter. Only a repaint mid-load carries the view forward.
   liveView = null;
+<<<<<<< HEAD
   liveSection = null;
   changesView = { audience: 'my-managers', period: 'quarter', activityView: null, holdingsView: null };
+=======
+  changesView = { period: 'quarter' };
+  liveSection = 'investors';
+>>>>>>> sattva/main
   filedSection = 'institutions';
 }
 
@@ -182,7 +197,11 @@ function paintIndividuals(ctx) {
     section: liveSection || defaultSection(ctx.scope),
     tableView: liveView,
     changesView,
+<<<<<<< HEAD
     onChangesView: (v) => { changesView = v; },
+=======
+    onChangesView: (view) => { changesView = view; },
+>>>>>>> sattva/main
     onView: (v) => (liveView = v),
     onSection: (section) => {
       if (section === liveSection || ctxRef?.subview !== 'superstar-investors') return;

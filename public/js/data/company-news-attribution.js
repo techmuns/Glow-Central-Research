@@ -128,7 +128,11 @@ export function attributionFor(row = {}) {
 // identity objects live as long as the rows. They do not: a re-read capture or archive index
 // parses equal identities into new objects, and the row outlives them. A strong inner map then kept
 // every earlier decoration of every retained row — and everything keyed on those decorations
+<<<<<<< HEAD
 // downstream — reachable through an identity nobody could pass again: measured at 70-90MB per
+=======
+// downstream — reachable through an identity nobody could pass again: measured at ~60MB per
+>>>>>>> sattva/main
 // re-read of an unchanged company-news capture, every two minutes, in an open alerts or research
 // page. An entry now lives exactly as long as its row and its identity, which is every lookup that
 // can still hit it.

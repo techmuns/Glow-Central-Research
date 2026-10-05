@@ -1,5 +1,9 @@
 // Reading a card's complete retained evidence must not change its 14-day priority.
+<<<<<<< HEAD
 import { foldAlertRowsInSlices, developmentOfRow } from './alert-developments.js';
+=======
+import { foldAlertRowsAsync as foldAlertRowsInSlices, developmentOfRow } from './alert-developments.js';
+>>>>>>> sattva/main
 import { newsCanSupportAI, isRelatedNewsContext } from './company-news-attribution.js';
 import { matchesAIEvent } from './ai-alert-types.js';
 import { runStepsInSlices, sortSteps } from '../core/slices.js';
@@ -11,7 +15,14 @@ export const timelineKey = card => String(card.key || card.ticker || card.entity
 export const incompleteHistory = report => !report || !!report.pending || report.feeds?.some(feed => ['pending', 'failed'].includes(feed.status));
 const sameCompany = (event, card) => !!(card.ticker && event.ticker === card.ticker || card.entityId && event.entityId === card.entityId);
 const newest = (a, b) => String(b.event.day || '').localeCompare(String(a.event.day || '')) ||
+<<<<<<< HEAD
   String(b.event.time || '').localeCompare(String(a.event.time || '')) || (b.dev?.importance === 'high') - (a.dev?.importance === 'high');
+=======
+  // A clockless material update still follows its known proposal. Never invent a time.
+  (a.event.storyId && a.event.storyId === b.event.storyId && (!a.event.time || !b.event.time)
+    ? (b.event.storySequence || 0) - (a.event.storySequence || 0) : 0) ||
+  String(b.event.time || '').localeCompare(String(a.event.time || '')) || (b.event.importance === 'high') - (a.event.importance === 'high');
+>>>>>>> sattva/main
 const entries = new WeakMap();
 function entry(dev) {
   if (!entries.has(dev)) entries.set(dev, { id: String(dev.lead.id), event: dev.lead, dev });
@@ -28,7 +39,13 @@ function* selectHistory(card, history, day, filters) {
   }
   // The live card owns the recent window, including corrections, filtering and removals.
   for (let i = 0; i < card.events.length; i++) {
+<<<<<<< HEAD
     const event = card.events[i]; selected.set(String(event.id), event);
+=======
+    const event = card.events[i];
+    // Reproject original members through Sattva’s single checked grouping authority.
+    for (const source of event.storyReports || [event]) selected.set(String(source.id), source);
+>>>>>>> sattva/main
     if ((i & 511) === 511) yield;
   }
   return [...selected.values()];

@@ -46,7 +46,11 @@ import { loadEvidence } from '../data/holding-evidence.js';
 import * as publicHoldings from '../data/public-holdings.js';
 import { publicDisclosuresHtml, wirePublicDisclosures } from './public-disclosures.js';
 
+<<<<<<< HEAD
 const SOURCE = 'Ticker Finology via this dashboard’s Worker; scheduled every six hours. Exchange completeness is unverified.';
+=======
+const SOURCE = 'Ticker Finology via this dashboard’s Worker; scheduled daily and checked automatically while visible. Exchange completeness is unverified.';
+>>>>>>> sattva/main
 const FINOLOGY_COMPANY = (slug) => `https://ticker.finology.in/company/${encodeURIComponent(slug)}`;
 
 const dash = '<span class="text-slate-300">—</span>';
@@ -70,6 +74,7 @@ const SECTIONS = [
   { id: 'data-table', label: 'Data Table' },
 ];
 
+<<<<<<< HEAD
 export function renderLive(ctx, { disposers = [], section = 'quarterly-changes', tableView, onView, onSection, changesView, onChangesView } = {}) {
   const m = feed.meta();
 
@@ -78,6 +83,16 @@ export function renderLive(ctx, { disposers = [], section = 'quarterly-changes',
   const quarters = feed.quarterLabels();
   const investorList = feed.list();
   const sections = sectionsFor(ctx.scope, SECTIONS);
+=======
+export function renderLive(ctx, { disposers = [], section = 'investors', tableView, onView, onSection, changesView, onChangesView } = {}) {
+  const m = feed.meta();
+
+  disposers.push(feed.watchFreshness(), publicHoldings.watchFreshness());
+  const rows = scopedHoldings(ctx);
+  const quarters = feed.quarterLabels();
+  const investorList = feed.list();
+  const sections = SECTIONS;
+>>>>>>> sattva/main
   const activeSection = sections.some((item) => item.id === section) ? section : sections[0].id;
   const sectionTabs = tabBar({ tabs: sections, activeId: activeSection, onSelect: onSection || (() => {}) });
 
@@ -107,7 +122,11 @@ export function renderLive(ctx, { disposers = [], section = 'quarterly-changes',
   ctx.root.innerHTML = `
     ${sectionHead({
       title: 'Superstar Investors',
+<<<<<<< HEAD
       description: 'Follow your managers and tracked investors through holdings reports, statement trades and bulk/block deals.',
+=======
+      description: 'Follow tracked investors through dated holdings disclosures and reported bulk/block deals.',
+>>>>>>> sattva/main
       // The chip stays a passive label — it states the age on its face and opens nothing. The door
       // is its own control beside it, because the explanation behind it is the one that says which
       // books could not be re-checked and which investors have no book at all. That sentence had
@@ -299,7 +318,11 @@ function openDerivation(q, m) {
   const audit = [];
   openModal(summaryHelpBody(q, m), { size: 'wide', onClose: () => audit.forEach((d) => d?.()) });
   const host = document.getElementById('modal-content')?.querySelector('[data-holdings-integrity]');
+<<<<<<< HEAD
   if (host) wireIntegrity(host, audit, openInvestor, openManager);
+=======
+  if (host) wireIntegrity(host, audit, openInvestor);
+>>>>>>> sattva/main
 }
 
 const COMPANY_ACTION = {
@@ -501,7 +524,7 @@ function summaryHelpBody(q, m = {}) {
       <div class="space-y-3 text-[13px] leading-relaxed text-slate-700">
         <p>Finology publishes a holding <strong>percentage</strong> per company per quarter. Changes subtract the prior percentage from the latest one. Counts and rankings are derived from those disclosures; these are not independently verified exchange filings.</p>
         <p><strong>Every book uses the same comparison pair:</strong> ${escapeHtml(q.latest || 'unavailable')} vs ${escapeHtml(q.prior || 'unavailable')}. Only consecutive calendar quarters that have ended are eligible. ${q.excludedBooks.length} loaded books lack this pair and are excluded; the dashboard does not mix older periods into this quarter.</p>
-        <p><strong>A missing or conflicting figure is incomplete data.</strong> Filing notes survive the feed and cache. An unavailable prior quarter cannot establish a new entrant. A missing current stake is called no longer disclosed only when the source also reports zero current value; otherwise its status remains incomplete.</p>
+        <p><strong>A missing or conflicting figure is incomplete data.</strong> Filing notes survive the feed and cache. An unavailable prior quarter cannot establish a new entrant. Only an explicit non-disclosure in the source establishes that a prior stake is no longer disclosed. A zero valuation cannot turn a missing stake into an exit.</p>
         <p><strong>A blank is not zero, and a new disclosure is not necessarily a new investment.</strong> A holder may reappear or cross the disclosure threshold. Appearances and disappearances carry no percentage-point trade size.</p>
         <p><strong>Stake changes do not establish purchases or sales.</strong> Issuance, buybacks and other changes in share capital can change ownership percentages. Current rupee values estimate holdings, not money traded.</p>
         <p><strong>Shared changes count distinct investors in the same company and quarter pair.</strong> Source company identifiers join names; duplicate rows never add votes. A combined percentage-point change is shown only when every included change has a measured delta.</p>
@@ -578,40 +601,13 @@ function unavailableHtml(m) {
     </div>`;
 }
 
-// AGE IS THE MATERIAL CONDITION, AND IT IS ALL OF IT THAT BELONGS IN THE CHROME.
-//
-// This used to be a full-width amber block above the grid: a warning triangle, three sentences
-// about the Worker serving the copy it already had, and the upstream's own error string —
-// `/super-investors returned HTTP 502` — in monospace, on a customer screen. It sat over a
-// complete, correct, ninety-book grid of real filed holdings, because the ONLY thing wrong with
-// those figures was that they were a few hours old.
-//
-// Every rule in this codebase about caveats points the same way — "prefer a passive status label
-// whenever a caveat is competing with the content it qualifies", "internal retry states do not
-// appear in customer chrome", "move the explanation behind a control that still states the claim,
-// and never delete the claim". So the claim survives, in the one form a reader can act on: the
-// date the source was read. Whose data it is, why it is that age and what failed are all still
-// written down — in the provenance modal on this panel and in the source registry, which is where
-// a reader who wants the mechanism goes looking.
-//
-// It is DELIBERATELY NOT COLOURED. Amber is semantic here — it means partial — and a quarterly
-// disclosure read this morning is not partial, it is current. Colouring age as a fault taught the
-// reader to distrust figures that were never in doubt.
-//
-// AND IT IS STILL NOT THE MOCK RIBBON, which is the one thing the strip it replaced got right.
-// Every figure under this label is a real filing read from the real source. What can be wrong with
-// it is its AGE and nothing else, so the label gives the age and makes no other claim — the
-// alternative both versions replaced was showing a reader with a perfectly good copy of a
-// quarterly disclosure a page of prose about a restarting service.
+// Source freshness and book completeness are separate. Display the oldest source check;
+// incomplete or failed reads remain partial even when some recently checked books exist.
 function freshnessLabel(m) {
-  const read = Date.parse(m.fetchedAt || m.capturedAt || '');
-  if (!Number.isFinite(read)) return 'Ticker Finology · updating';
-  // Shareholding data moves when a company files — four times a year — so nothing here goes out of
-  // date in hours. The window is the Worker's own six-hour source cache: inside it, the figure on
-  // screen is the figure the source would give, and saying anything else would invite the reader
-  // to read staleness into a number that could not have changed.
-  const fresh = Date.now() - read < 6 * 60 * 60 * 1000;
-  return `Ticker Finology · ${fresh ? 'up to date' : `read ${formatRelativeTime(read)}`}`;
+  const read = typeof m.checkedAt === 'number' ? m.checkedAt : Date.parse(m.checkedAt || '');
+  const partial = !m.ok || m.failedBooks > 0 || m.uncheckedBooks > 0 || m.stale || m.pending > 0;
+  const age = Number.isFinite(read) ? `read ${formatRelativeTime(read)}` : m.confirming || m.pending ? 'checking source' : 'source check unavailable';
+  return `Ticker Finology · ${partial ? 'partial · ' : ''}${age}`;
 }
 
 const derivationButton = `
@@ -820,7 +816,11 @@ function changeOf(r) {
 const ACTION = {
   unknown: ['Unconfirmed', 'bg-slate-100 text-slate-600 ring-slate-200'],
   awaiting: ['Filing due', 'bg-slate-100 text-slate-600 ring-slate-200'],
+<<<<<<< HEAD
   new: ['New', 'bg-indigo-50 text-indigo-700 ring-indigo-200'],
+=======
+  new: ['Newly disclosed', 'bg-indigo-50 text-indigo-700 ring-indigo-200'],
+>>>>>>> sattva/main
   added: ['Added', 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
   held: ['Held', 'bg-slate-100 text-slate-600 ring-slate-200'],
   trimmed: ['Trimmed', 'bg-amber-50 text-amber-800 ring-amber-200'],
