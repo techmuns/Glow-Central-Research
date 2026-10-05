@@ -12,8 +12,12 @@ import { istDate, marketWindow, expectedSession } from '../public/js/data/breako
 // WHICH PRICE, AND HOW IT IS PROVEN TO BE THIS COMPANY'S
 //   Upstox's full market quote, keyed on the company's ISIN (`NSE_EQ|<ISIN>`), which the family's own
 //   dashboard sends with every level. A row counts only if it echoes BOTH the instrument key asked
+<<<<<<< HEAD
 //   for AND the ticker the level was set on — the identity gate the breakout capture and Glow
 //   Ventures' own quote feed both apply. A company that arrived with no ISIN is not guessed from its
+=======
+//   for AND the ticker the level was set on, matching the breakout capture's identity gate. A company that arrived with no ISIN is not guessed from its
+>>>>>>> sattva/main
 //   name: it is reported as unchecked, by name, until an ISIN arrives with its next save.
 //
 // A QUOTE FROM ANOTHER DAY IS NOT TODAY'S PRICE. Only a quote whose last trade falls on today's IST
@@ -24,8 +28,13 @@ export const PRICE_LEVEL_INTERVAL = 60000;
 export const PRICE_LEVEL_IDLE_INTERVAL = 15 * 60000;
 /** A check this late is overdue — the alarm was lost or every attempt is failing. */
 export const PRICE_LEVEL_MAX_AGE = 3 * 60000;
+<<<<<<< HEAD
 const UPSTOX_CLIENT = 'GlowCentralResearch/1.0';
 const FAILED = new Set(['not-configured', 'authentication', 'rate-limited', 'unavailable']);
+=======
+const UPSTOX_CLIENT = 'SattvaCentralResearch/1.0';
+const FAILED = new Set(['partial', 'not-configured', 'authentication', 'rate-limited', 'unavailable']);
+>>>>>>> sattva/main
 
 const finite = (value) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null);
 
@@ -117,17 +126,27 @@ export class PriceLevelSchedule {
       session: state.okSession || null,
       // "Current" means every waiting level has been checked against the latest session that has
       // happened — or that nothing is waiting at all, which is complete by definition.
+<<<<<<< HEAD
       current: !pending.length || (!!session && state.okSession === session),
+=======
+      current: !pending.length || (!overdue && state.reason === 'ok' && state.checkedRevision === this.store.meta().revision && !!session && state.okSession === session && (!marketWindow(at).collect || at - state.okAt <= PRICE_LEVEL_MAX_AGE)),
+>>>>>>> sattva/main
       nextAt: alarmAt ? new Date(alarmAt).toISOString() : null,
       failures: Array.isArray(state.failures) ? state.failures : [],
     };
   }
 
   /** The list, the reached history and the check's own state, in one answer. */
+<<<<<<< HEAD
   async snapshot() {
     // A list with levels waiting and no alarm set heals itself on the next read.
     await this.arm();
     return { ...this.store.snapshot(), check: await this.status() };
+=======
+  async snapshot(cursor = null) {
+    // Reads are observational; explicit edits activate the monitoring alarm.
+    return { ...this.store.snapshot(cursor), check: await this.status() };
+>>>>>>> sattva/main
   }
 
   /** Set the alarm if there is something to check and none is set. Idempotent. */
@@ -157,6 +176,11 @@ export class PriceLevelSchedule {
     if (!claimed) return;
 
     const targets = this.store.activeTargets();
+<<<<<<< HEAD
+=======
+    const targetRevision = this.store.meta().revision;
+    let checkedRevision = targetRevision;
+>>>>>>> sattva/main
     let reason = 'closed';
     let checked = 0;
     let reached = 0;
@@ -165,7 +189,11 @@ export class PriceLevelSchedule {
     if (!targets.length) {
       // NOTHING LEFT TO CHECK, SO NOTHING IS SCHEDULED. The next save arms it again.
       reason = 'idle';
+<<<<<<< HEAD
       await this.storage.deleteAlarm();
+=======
+
+>>>>>>> sattva/main
     } else if (window.collect) {
       const withIsin = targets.filter((target) => target.isin);
       if (!this.env?.UPSTOX_ACCESS_TOKEN) reason = 'not-configured';
@@ -174,14 +202,25 @@ export class PriceLevelSchedule {
           const result = withIsin.length
             ? await fetchLevelQuotes(withIsin, this.env.UPSTOX_ACCESS_TOKEN, { fetcher: this.fetcher, now: this.now })
             : { quotes: new Map(), reason: null };
+<<<<<<< HEAD
           reached = this.store.recordCheck(this.now(), result.quotes).reached.length;
+=======
+          const unchanged = targetRevision === this.store.meta().revision;
+          reached = this.store.recordCheck(this.now(), result.quotes).reached.length;
+          checkedRevision = this.store.meta().revision;
+>>>>>>> sattva/main
           checked = result.quotes.size;
           failures = targets.filter((target) => !result.quotes.has(target.ticker)).map((target) => ({
             ticker: target.ticker,
             reason: !target.isin ? 'no-isin' : result.reason || 'no-quote-today',
           }));
           reason = result.reason || (failures.length ? 'partial' : 'ok');
+<<<<<<< HEAD
           ok = !result.reason && checked > 0;
+=======
+          ok = unchanged && !result.reason && !failures.length && checked === targets.length;
+          if (!unchanged && reason === 'ok') reason = 'waiting';
+>>>>>>> sattva/main
         } catch {
           reason = 'unavailable';
         }
@@ -190,7 +229,15 @@ export class PriceLevelSchedule {
     await this.storage.transaction(async (tx) => {
       const state = (await tx.get(PRICE_LEVEL_TIMER)) || {};
       if (state.lastAttemptAt !== at) return;
+<<<<<<< HEAD
       const next = { ...state, reason, checked, reached, failures: failures.slice(0, 50), completedAt: this.now() };
+=======
+      if (checkedRevision !== this.store.meta().revision) { ok = false; reason = 'waiting'; }
+      // Recheck inside the transaction so a concurrent save cannot lose its alarm.
+      if (reason === 'idle' && this.store.activeTargets().length) reason = 'waiting';
+      if (reason === 'idle') await tx.deleteAlarm();
+      const next = { ...state, reason, checked, checkedRevision, reached, failures, completedAt: this.now() };
+>>>>>>> sattva/main
       if (ok) { next.okAt = this.now(); next.okSession = istDate(at); }
       if (reason === 'idle') next.nextAt = null;
       await tx.put(PRICE_LEVEL_TIMER, next);

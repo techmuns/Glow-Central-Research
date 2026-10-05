@@ -158,6 +158,35 @@ await Promise.all([shared, question]);
 assert.equal(peak, 1, 'background, alerts and questions never compete for the Family reader');
 assert.equal(positionReads, 1, 'concurrent scope and alert reads share one positions request');
 assert.equal(coverage.has('EXAMPLE'), true, 'validated replies update the shared dashboard book');
+// A question arriving after a background source check started must get a later
+// check, even when Date.now remains in the same millisecond. A second queued
+// caller shares that later read; no concurrent requests reach Family.
+{
+  let release, startedRead;
+  const began = new Promise(resolve => { startedRead = resolve; });
+  const seen = [];
+  responder = m => {
+    if (m.type !== 'positions') return;
+    seen.push(m);
+    const reply = () => emit({ ...m, type: 'result', ...sizeReply, sizes: { ...sizeReply.sizes, checkedAt: new Date().toISOString() } });
+    if (seen.length === 1) { release = reply; startedRead(); }
+    else reply();
+  };
+  const realNow = Date.now, fixedNow = realNow();
+  Date.now = () => fixedNow;
+  try {
+    const background = bridge.readPositionSizes(undefined, { force: true });
+    await began;
+    const fresh = bridge.readPositionSizes(undefined, { force: true });
+    const joined = bridge.readPositionSizes(undefined, { force: true });
+    assert.equal(seen.length, 1, 'new forced requests queue behind the running source check');
+    release();
+    const [a, b, c] = await Promise.all([background, fresh, joined]);
+    assert.equal(seen.length, 2, 'later callers use one new source check');
+    assert.notEqual(a, b);
+    assert.equal(b, c, 'not-yet-started read is shared');
+  } finally { Date.now = realNow; }
+}
 emit({ channel: bridge.PORTFOLIO_CHANNEL, type: 'invalidated', version: 3 });
 assert.equal(coverage.has('EXAMPLE'), true, 'rechecking does not flash an older fallback book');
 assert.equal(coverage.meta().syncStatus, 'family-checking');

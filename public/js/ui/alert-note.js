@@ -8,7 +8,11 @@ import { escapeHtml } from '../core/dom.js';
 import { noteState, reasonText } from '../data/alert-notes.js';
 
 /** The disclosure every surface carries beside an AI note — in a title, a banner or an export. */
+<<<<<<< HEAD
 export const NOTE_DISCLOSURE = 'AI summary of the available filing text. Check the linked source for the full document.';
+=======
+export const NOTE_DISCLOSURE = 'AI summary of the captured filing excerpt. Linked documents have not been read for this summary. Check the source for the full document.';
+>>>>>>> sattva/main
 export const noteIsSkipped = (request) => !request || noteState(request)?.state === 'skipped';
 
 /** The note's body for a card. `request` is `noteRequestFor(...)`; null draws nothing. */
@@ -29,7 +33,11 @@ export function noteBodyHtml(request) {
 export function noteRowHtml(request) {
   const state = request ? noteState(request) : null;
   if (state?.state !== 'ready') return '';
+<<<<<<< HEAD
   return `<div data-alert-note="${escapeHtml(request.handle)}" class="mt-0.5 truncate text-xs text-indigo-900" title="${escapeHtml(`AI summary — ${state.note}\n\n${NOTE_DISCLOSURE}`)}"><span class="font-bold text-indigo-700">AI summary</span> ${escapeHtml(state.note)}</div>`;
+=======
+  return `<div data-alert-note="${escapeHtml(request.handle)}" class="mt-1 break-words text-xs text-indigo-900" title="${escapeHtml(`AI summary — ${state.note}\n\n${NOTE_DISCLOSURE}`)}"><span class="font-bold text-indigo-700">AI summary</span> ${escapeHtml(state.note)}</div>`;
+>>>>>>> sattva/main
 }
 
 /** The note's text for an export cell, or its reason in brackets, or empty when nobody asked. */

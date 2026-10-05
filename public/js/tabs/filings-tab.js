@@ -65,7 +65,7 @@ const REASONS = {
  * @param {string} cfg.noun          what one row is, for the counts
  * @param {Function} cfg.columns     (meta) => scoreTable columns
  * @param {Function} cfg.searchable  (row) => string
- * @param {Function} cfg.provenance  (meta) => html for the pill's modal
+ * @param {Function} cfg.provenance  (meta, { scope }) => html for the pill's modal
  * @param {Function} [cfg.filters]   (rows) => scoreTable filters
  * @param {Function} [cfg.aboveTable] (ctx, meta, rows, view) => html between the busy strip and the
  *                                   table. `rows` are the scoped rows before the table's own filters
@@ -755,7 +755,7 @@ function coverageSentence(m, cov) {
 function openProvenanceFactory(cfg, refreshLabelRef, onRefresh) {
   return function openProvenance(m, cov, scope, rows) {
     openModal(
-      `${cfg.provenance(m)}
+      `${cfg.provenance(m, { scope })}
        <div class="border-t border-slate-100 px-7 py-5">
          <p class="text-xs leading-relaxed text-slate-600">${freshnessLine(m)}${coverageSentence(m, cov)}</p>
          <p class="mt-2 text-xs leading-relaxed text-slate-600">${escapeHtml(scopeTitle(scope, rows, m).replace(' Click for where this comes from.', ''))}</p>

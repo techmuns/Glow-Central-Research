@@ -153,7 +153,11 @@ export function assessFilingsHealth(captures, { now = Date.now(), sources = Obje
           if (!object(entry)) { group('company-unregistered', 'critical', ticker); continue; }
           unavailableLinks += Number(entry.unavailableLinks) || 0;
           if (kind === 'announcements' && authenticatedAnnouncementOutage) continue;
+<<<<<<< HEAD
           if (entry.error?.reason === 'limited-coverage' && Number.isFinite(stamp(entry.recovery?.checkedAt))
+=======
+          if (entry.error?.reason === 'limited-coverage' && !entry.skipped && Number.isFinite(stamp(entry.recovery?.checkedAt))
+>>>>>>> sattva/main
             && stamp(entry.recovery.checkedAt) <= now + 600000 && now - stamp(entry.recovery.checkedAt) <= 4 * 3600000)
             group('partial-source-response', 'warning', ticker);
           else if (entry.error) group(['no-token', 'unauthorised'].includes(entry.error.reason) ? 'authentication-failed' : 'source-read-failed', 'critical', ticker);
@@ -242,7 +246,11 @@ export function assessFilingsHealth(captures, { now = Date.now(), sources = Obje
       const failures = object(body.failed) ? Object.keys(body.failed) : Array.isArray(body.failed) ? body.failed.map((f) => typeof f === 'string' ? f : f?.ticker || 'unknown') : [];
       if (failures.length || body.failedCount > 0) add(source, 'source-read-failed', 'critical', failures, Math.max(failures.length, body.failedCount || 0));
       if (source === 'announcements') {
+<<<<<<< HEAD
         if (body.identityError) add(source, 'identity-directory-unavailable', 'warning');
+=======
+        if (body.identityDirectory && body.identityDirectory.ok !== true) add(source, 'identity-directory-unavailable', 'critical');
+>>>>>>> sattva/main
         if (Array.isArray(body.shortfall) && body.shortfall.length) add(source, 'pagination-shortfall', 'critical', body.shortfall.map((s) => s?.category || 'unknown'));
         else if (body.shortfall != null && !Array.isArray(body.shortfall)) add(source, 'invalid-capture', 'critical');
         if (Object.keys(body.unknownCategories || {}).length) add(source, 'unknown-source-categories', 'critical', Object.keys(body.unknownCategories));
