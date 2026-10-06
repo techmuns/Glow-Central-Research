@@ -1688,8 +1688,8 @@
       ]
     },
     "isin:INE728Z01015|Softtech Engineers": {
-      "lastAttemptAt": "2026-10-02T10:43:50+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-10-06T08:06:28+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 13,
       "lastSuccessAt": "2026-10-02T10:43:50+00:00",
       "targetThrough": null,
@@ -2171,6 +2171,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 208,
-    "checkedAt": "2026-10-06T07:23:18.420347+00:00"
+    "checkedAt": "2026-10-06T08:06:28.648584+00:00"
   }
 }
