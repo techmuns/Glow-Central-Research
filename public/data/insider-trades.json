@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-10-06T04:08:47.131Z",
+    "capturedAt": "2026-10-06T05:43:24.284Z",
     "from": "2026-08-05",
     "to": "2026-10-05",
     "rows": 11024,
@@ -12,8 +12,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-06T04:08:47.131Z",
-  "oldestDataAt": "2026-10-06T04:08:47.131Z",
+  "capturedAt": "2026-10-06T05:43:24.284Z",
+  "oldestDataAt": "2026-10-06T05:43:24.284Z",
   "from": "2025-10-06",
   "to": "2026-10-06",
   "windowDays": 365,
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-06T04:08:47.131Z",
+      "capturedAt": "2026-10-06T05:43:24.284Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-06T04:08:47.131Z",
+      "capturedAt": "2026-10-06T05:43:24.284Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -58,12 +58,12 @@
       "label": "SAST",
       "url": "https://www.screener.in/trades/sast/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-10-01",
+      "latestDate": "2026-10-05",
       "oldestDate": "2026-09-28",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-06T04:08:47.131Z",
+      "capturedAt": "2026-10-06T05:43:24.284Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,7 +76,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-06T04:08:47.131Z",
+      "capturedAt": "2026-10-06T05:43:24.284Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -84,7 +84,7 @@
   "covered": 4,
   "withRows": 1913,
   "emptyCount": 0,
-  "rowCount": 20166,
+  "rowCount": 20179,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -341559,6 +341559,21 @@
     "MAGSON": [
       {
         "ticker": "MAGSON",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Magson Retail",
+          "Insider": "Manish Shivnarayan Pancholi",
+          "Transaction": "Sell",
+          "Trade Shares": "100000",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MAGSON",
         "date": "2026-10-01",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -347550,6 +347565,51 @@
       }
     ],
     "MOS": [
+      {
+        "ticker": "MOS",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "MOS Utility",
+          "Insider": "S B Opportunities Fund 1.",
+          "Transaction": "Acquisition",
+          "Trade Shares": "0",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MOS",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "MOS Utility",
+          "Insider": "S B Opportunities Fund 1",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3864000",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MOS",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "MOS Utility",
+          "Insider": "SB Opportunities Fund -1",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3864000",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "MOS",
         "date": "2026-10-01",
@@ -364068,6 +364128,36 @@
     "ACTIVEINFR": [
       {
         "ticker": "ACTIVEINFR",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Active Infra.",
+          "Insider": "Riaan Ventures Private Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "12000",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ACTIVEINFR",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Active Infra.",
+          "Insider": "SGR VENTURES PRIVATE LIMITED",
+          "Transaction": "Acquisition",
+          "Trade Shares": "11400",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ACTIVEINFR",
         "date": "2026-10-01",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -367064,6 +367154,36 @@
       }
     ],
     "MCL": [
+      {
+        "ticker": "MCL",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "M Tek Copper",
+          "Insider": "Mr. Divya Arvindbhai Monpara",
+          "Transaction": "Sell",
+          "Trade Shares": "10000",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MCL",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "M Tek Copper",
+          "Insider": "Mr. Vishal Talsibhai Monpara",
+          "Transaction": "Sell",
+          "Trade Shares": "10000",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "MCL",
         "date": "2026-10-01",
@@ -387942,6 +388062,21 @@
     "ICEMAKE": [
       {
         "ticker": "ICEMAKE",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "ICE Make Refrig.",
+          "Insider": "Rajendra Popatbhai Patel",
+          "Transaction": "Creation",
+          "Trade Shares": "3703280",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ICEMAKE",
         "date": "2026-09-24",
         "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
         "sourceId": "sast",
@@ -388013,6 +388148,66 @@
       }
     ],
     "MPEL": [
+      {
+        "ticker": "MPEL",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Manas Polymers",
+          "Insider": "Kamal Jagdish Gupta",
+          "Transaction": "Acquisition",
+          "Trade Shares": "857600",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MPEL",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Manas Polymers",
+          "Insider": "Mrs. Madhu Nemani",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3497900",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MPEL",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Manas Polymers",
+          "Insider": "Sonal K Gupta",
+          "Transaction": "Acquisition",
+          "Trade Shares": "838400",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MPEL",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Manas Polymers",
+          "Insider": "Sonal Kamal Gupta",
+          "Transaction": "Acquisition",
+          "Trade Shares": "838400",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "MPEL",
         "date": "2026-10-01",
