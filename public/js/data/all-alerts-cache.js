@@ -12,7 +12,7 @@ export function allAlertsViewCache(window) {
   if (!window) return allAlertsCache;
   return viewCache;
 }
-const PRIVATE_FEEDS = new Set(['company-documents', 'drhp-documents', 'screener-portfolio-upcoming']);
+const PRIVATE_FEEDS = new Set(['price-levels', 'company-documents', 'drhp-documents', 'screener-portfolio-upcoming']);
 export const publicAlertFeed = feed => !PRIVATE_FEEDS.has(feed.id) && !feed.portfolioOnly;
 const publicEvent = event => event && !event.private && !event.portfolioOnly &&
   event.weightPct == null && event.holdingWeightPct == null && !PRIVATE_FEEDS.has(event.feed);

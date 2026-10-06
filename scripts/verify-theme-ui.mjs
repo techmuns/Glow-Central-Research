@@ -42,12 +42,23 @@ async function ready(page, route = 'ask-research') {
   if (!params.has('scope')) params.set('scope', 'universe');
   params.set('test_stream', '1');
   await page.goto(`${origin}/#/research/${path}?${params.toString()}`);
+<<<<<<< HEAD
   // The first paint waits on the committed bootstrap files, and on a generated-data PR those are
   // the enlarged archives the PR exists to add. Fifteen seconds was enough on a code PR and timed
   // out on a data PR (16 September 2026, PR #1059), which stalled every capture behind it. A
   // header control that never appears still fails here — after a minute, not a quarter of one.
   await page.locator('[data-theme-toggle]').waitFor({ timeout: 60000 });
+=======
+  await page.locator('[data-theme-toggle]').waitFor();
+  await panelReady(page, path.split('/')[0]);
+>>>>>>> sattva/main
 }
+// Navigation chrome responds before a deferred renderer is ready. Sampling the
+// old table while it is being replaced returns styles from a detached element.
+const panelReady = (page, tab) => page.waitForFunction(tab => {
+  const panel = document.querySelector('#content-host');
+  return panel?.dataset.activeTab === tab && !panel.inert;
+}, tab);
 const theme = page => page.locator('html').getAttribute('data-theme');
 const toggle = page => page.getByRole('button', { name: 'Dark mode', exact: true });
 async function shot(page, name) {
@@ -135,7 +146,11 @@ try {
     const tab = route.split('/')[0];
     await page.evaluate(route => { location.hash = `#/research/${route}?scope=universe`; }, route);
     await page.waitForFunction(tab => document.querySelector('#tabbar-mount .tab-btn.is-active')?.dataset.tabId === tab, tab);
+<<<<<<< HEAD
     await page.waitForFunction(route => location.hash.startsWith(`#/research/${route}`), route);
+=======
+    await panelReady(page, tab);
+>>>>>>> sattva/main
     assert.equal(await theme(page), 'dark', tab);
     assert(contrast((await surface(page, '[data-app-header] h1')).color, 'rgb(11,18,32)') >= 7);
     if (tab === 'ipos') {

@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+import { currentRelation } from './public-holdings-shared.js';
+>>>>>>> sattva/main
 import { revalidatedJson } from '../core/store.js';
 
 let data = null, loading = null, checkedAt = 0;
@@ -11,7 +15,11 @@ export function loadEvidence() {
   return loading;
 }
 export function evidenceFor(id, kind = 'investor') {
+<<<<<<< HEAD
   const relations = evidence().relations.filter((r) => (kind === 'investor' ? r.investorSlugs : r.managerIds)?.includes(id));
+=======
+  const relations = evidence().relations.filter((r) => currentRelation(r, new Date().toISOString()) && (kind === 'investor' ? r.investorSlugs : r.managerIds)?.includes(id));
+>>>>>>> sattva/main
   return evidence().holdings.filter((h) => relations.some((r) => r.entityId === h.entityId)).map((h) => ({ ...h,
     relation: relations.find((r) => r.entityId === h.entityId) }));
 }

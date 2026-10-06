@@ -1247,7 +1247,11 @@ console.log('\n— AI alerts —');
   });
   await page.goto(`${BASE}/?fresh=${Date.now() + 1}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4500);
+<<<<<<< HEAD
   await page.locator('#content-host[data-active-tab="ai-alerts"]').waitFor({ state: 'visible', timeout: 15000 });
+=======
+  await page.locator('[data-ai-search]').waitFor({ state: 'visible', timeout: 15000 });
+>>>>>>> sattva/main
   ok('the dashboard opens on AI Alerts', /ai-alerts/.test(page.url()), page.url().split('#')[1]);
   ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'AI Alerts');
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
@@ -1335,18 +1339,31 @@ console.log('\n— AI alerts —');
     figureStrip: el.querySelectorAll('[data-ai-metrics]').length,
     questionParagraph: el.querySelectorAll('[data-ai-drivers]').length,
     evidence: el.querySelectorAll('[data-ai-evidence] [data-ai-event]').length,
+<<<<<<< HEAD
     // Each mounted row retains its source label and stable event identity.
     // textContent, not innerText: a card Chromium has skipped under `content-visibility: auto`
     // reports empty innerText while still carrying its text, which reads as a card with no source.
     evidenceSources: [...el.querySelectorAll('[data-ai-evidence] [data-ai-event-source]')].map((n) => n.textContent.split('·')[0].trim()),
     evidenceIds: [...el.querySelectorAll('[data-ai-timeline-row]')].map(n => n.dataset.rowKey),
+=======
+    // Each row names its source in its own cell: the SET of them is the breadth on screen, and the
+    // LIST of them is what proves no one source took the whole card.
+    // textContent, not innerText: a card Chromium has skipped under `content-visibility: auto`
+    // reports empty innerText while still carrying its text, which reads as a card with no source.
+    evidenceSources: [...el.querySelectorAll('[data-ai-evidence] [data-ai-event-source]')].map((n) => n.textContent.split('·')[0].trim()),
+    evidenceFeeds: [...new Set([...el.querySelectorAll('[data-ai-evidence] [data-ai-event-source]')].map((n) => n.textContent.split('·')[0].trim()))],
+>>>>>>> sattva/main
     // Newest first is what the list header claims, so the rows carry a comparable key.
     rowKeys: [...el.querySelectorAll('[data-ai-evidence] [data-ai-event] [data-ai-age]')].map((n) => n.getAttribute('datetime') || ''),
     // A reading is a chip on the row whose own record backs it — never a colour, never a verdict,
     // and never an anchor of its own to the place the row already opens.
     chips: [...el.querySelectorAll('[data-ai-driver]')].map((n) => ({
       text: n.textContent.replace(/\s+/g, ' ').trim(),
+<<<<<<< HEAD
       onRow: !!n.closest('[data-ai-event]')?.querySelector('[data-ai-evidence-link][href]'),
+=======
+      onRow: !!n.closest('[data-ai-evidence-link][href]'),
+>>>>>>> sattva/main
       says: /^Could change the (?:earnings assumption|valuation|thesis)\./.test(n.getAttribute('title') || ''),
       disclaims: /does not verify|not confirmation/i.test(n.getAttribute('title') || ''),
       toned: /emerald|rose|amber/.test(n.className),
@@ -1359,18 +1376,37 @@ console.log('\n— AI alerts —');
   ok('no card carries a figure strip or a per-question paragraph, and the counts are still reachable',
     aiShape.every((card) => card.figureStrip === 0 && card.questionParagraph === 0 && card.sources > 0),
     aiShape.map((card) => `${card.ticker}:${card.sources} sources`).join(' | ').slice(0, 160));
+<<<<<<< HEAD
   // Headlines remain outside the bounded scrolling timeline.
   ok('...a bounded evidence window, with complete history reachable',
     aiShape.every((card) => card.evidence > 0 && card.evidence <= 20 && card.open));
+=======
+  // A card that needs scrolling to reach its finding has not delivered one. Four evidence rows is
+  // the cap; the rest are one click away in the tab that exists to hold them.
+  ok('...at most four evidence rows, with the rest one click away',
+    aiShape.every((card) => card.evidence > 0 && card.evidence <= 4 && card.open));
+>>>>>>> sattva/main
   // The header over those rows says newest first, which is a claim about the order they are in.
   ok('...in the order the list header claims',
     aiShape.every((card) => card.rowKeys.join('|') === [...card.rowKeys].sort().reverse().join('|')),
     aiShape.map((card) => `${card.ticker}:${card.rowKeys.join(',')}`).join(' | ').slice(0, 170));
+<<<<<<< HEAD
   // The timeline shows chronological evidence without dropping rows to fit source quotas.
   ok('...with a source label on every mounted event',
     aiShape.every(card => card.evidenceSources.length === card.evidence && card.evidenceSources.every(Boolean)));
   ok('...with unique retained event identities in the mounted window',
     aiShape.every(card => new Set(card.evidenceIds).size === card.evidenceIds.length));
+=======
+  // NO SOURCE TAKES THE WHOLE CARD. One board meeting filed to both exchanges under four different
+  // subjects is four records upstream, and it took all four rows of a card whose own header read
+  // "1 source" — so slots go one per source in rounds and stop at three from any one of them.
+  // Counted on the tag each row prints, which names the source FAMILY, so NSE and BSE count as the
+  // one source they are.
+  ok('...with no more than three rows from any one source',
+    aiShape.every((card) => [...new Set(card.evidenceSources)]
+      .every((source) => card.evidenceSources.filter((name) => name === source).length <= 3)),
+    aiShape.map((card) => `${card.ticker}:${card.evidenceSources.join('/')}`).join(' | ').slice(0, 170));
+>>>>>>> sattva/main
   // A TOPIC READING IS NOT A DIRECTION AND NOT A VERDICT. Today's capture may carry no tracked
   // topic at all, which is a legitimate state — so this asserts the shape of whatever is drawn
   // rather than that something is. The fixture-driven suite asserts one is drawn.
@@ -8224,7 +8260,11 @@ const insightShape = await page.evaluate(() => {
   // position is put back afterwards. verify-ai-alerts-ui.mjs has the measurement.
   const y = scrollY;
   const rendered = (node) => { node.scrollIntoView({ block: 'nearest' }); return node.innerText; };
+<<<<<<< HEAD
   const everyCardLabelsItsInsight = cards.every((c) => /headline/i.test(rendered(c)));
+=======
+  const everyCardLabelsItsInsight = cards.every((c) => /what happened/i.test(rendered(c)));
+>>>>>>> sattva/main
   const kick = (node) => node?.querySelector('.uppercase')?.innerText.trim() || '';
   const readings = cards.map((card) => {
     rendered(card);
@@ -8249,8 +8289,13 @@ if (!insightShape) {
   skip('every AI Alerts card states what happened, in one source\'s own words',
     'no company reached the surfaced threshold in this capture');
 } else {
+<<<<<<< HEAD
   ok('every AI Alerts card labels its headline',
     insightShape.everyCardLabelsItsInsight && /headline/i.test(insightShape.kicker),
+=======
+  ok('every AI Alerts card labels what happened',
+    insightShape.everyCardLabelsItsInsight && /what happened/i.test(insightShape.kicker),
+>>>>>>> sattva/main
     `${insightShape.cards.length} card(s) · "${insightShape.kicker}"`);
   // A claim is a statement, so it ends as one. An empty sentence is the failure that matters here:
   // the whole point of the card is that a reader does not have to open a row to learn what landed.
