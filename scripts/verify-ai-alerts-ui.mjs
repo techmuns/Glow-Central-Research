@@ -107,7 +107,11 @@ const server = createServer((req, res) => {
 });
 await new Promise((done) => server.listen(0, '127.0.0.1', done));
 const origin = `http://127.0.0.1:${server.address().port}`;
+<<<<<<< HEAD
 const familyOrigin = origin;
+=======
+const familyOrigin = 'https://sattva-family.pages.dev';
+>>>>>>> sattva/main
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
 // A browser in California must still roll the Indian market date at 18:30 UTC.
 const page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, timezoneId: 'America/Los_Angeles' });
@@ -140,7 +144,11 @@ try {
   const failedContext = await browser.newContext();
   const failedPage = await failedContext.newPage();
   failedPage.on('pageerror', error => errors.push(error.message));
+<<<<<<< HEAD
   await failedPage.route('**/*', route => route.request().url() === `${origin}/glow-bridge.html`
+=======
+  await failedPage.route('**/*', route => route.request().url() === `${familyOrigin}/research-bridge`
+>>>>>>> sattva/main
     ? route.fulfill({ contentType:'text/html', body:familyHtml })
     : route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status:503, body:'{}' }));
   await failedPage.goto(`${origin}/?throwFirst=1`);
@@ -679,7 +687,11 @@ try {
   const capacityContext = await browser.newContext();
   const capacityPage = await capacityContext.newPage();
   capacityPage.on('pageerror', error => errors.push(error.message));
+<<<<<<< HEAD
   await capacityPage.route('**/*', route => route.request().url() === `${origin}/glow-bridge.html`
+=======
+  await capacityPage.route('**/*', route => route.request().url() === `${familyOrigin}/research-bridge`
+>>>>>>> sattva/main
     ? route.fulfill({ contentType:'text/html', body:`<script>addEventListener('message', e => { if (e.data.channel === 'sattva-portfolio-v1') parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'}, '*'); });</script>` })
     : route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
   await capacityPage.clock.install({ time: '2026-09-04T08:00:00Z' });

@@ -71,13 +71,22 @@ try {
   pass('Keyboard activation preserves the mounted strip, focus, and horizontal position');
 
   await page.keyboard.press('End');
+<<<<<<< HEAD
   await visibleInStrip(`${strip} [data-tab-id="family-book"]`);
   assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'family-book');
+=======
+  await visibleInStrip(`${strip} [data-tab-id="mutual-funds"]`);
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'mutual-funds');
+>>>>>>> sattva/main
   await page.keyboard.press('ArrowRight');
   await visibleInStrip(`${strip} [data-tab-id="ai-alerts"]`);
   assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'ai-alerts');
   await page.keyboard.press('ArrowLeft');
+<<<<<<< HEAD
   assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'family-book');
+=======
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'mutual-funds');
+>>>>>>> sattva/main
   await page.keyboard.press('Home');
   await visibleInStrip(`${strip} [data-tab-id="ai-alerts"]`);
   await page.keyboard.press('Space');
@@ -113,7 +122,11 @@ try {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.locator(active).focus();
   await page.keyboard.press('End');
+<<<<<<< HEAD
   await visibleInStrip(`${strip} [data-tab-id="family-book"]`);
+=======
+  await visibleInStrip(`${strip} [data-tab-id="mutual-funds"]`);
+>>>>>>> sattva/main
   assert((await page.locator(active).evaluate((button) => parseFloat(getComputedStyle(button).transitionDuration))) <= 0.00001);
   pass('Reduced motion removes the animation while keeping navigation functional');
 
