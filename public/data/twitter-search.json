@@ -1872,7 +1872,7 @@
       "pending": []
     },
     "isin:INE142M01025|TATATECH": {
-      "lastAttemptAt": "2026-10-02T15:12:09+00:00",
+      "lastAttemptAt": "2026-10-06T21:01:15+00:00",
       "error": "search-unavailable",
       "lastResultCount": 38,
       "lastSuccessAt": "2026-09-24T08:08:20+00:00",
@@ -2171,6 +2171,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-10-06T20:26:08.700163+00:00"
+    "checkedAt": "2026-10-06T21:01:15.750941+00:00"
   }
 }
