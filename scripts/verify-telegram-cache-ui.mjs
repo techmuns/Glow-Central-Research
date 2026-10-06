@@ -33,11 +33,23 @@ const server = createServer(async (req, res) => {
 });
 await new Promise(done => server.listen(0, '127.0.0.1', done));
 const origin = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch();
+const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
 try {
   const context = await browser.newContext();
   await context.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
   const page = await context.newPage();
+  async function verifyCachedFunds(cacheName) {
+    const paths = ['/js/tabs/mutual-funds.js', '/js/tabs/mutual-fund-holdings.js', '/js/tabs/catalog.js'];
+    const modules = await page.evaluate(async ({ name, paths }) => {
+      const cache = await caches.open(name);
+      return Promise.all(paths.map(async path =>
+        (await cache.match(path))?.text() || ''));
+    }, { name: cacheName, paths });
+    // Subview labels live in the shared catalogue now. Verify the actual released
+    // bytes of every dependency, rather than requiring labels inline in a renderer.
+    for (const [i, path] of paths.entries()) assert.equal(modules[i], readFileSync(resolve(root, `.${path}`), 'utf8'),
+      `the current fund interface, holdings and navigation dependencies are warm: ${path}`);
+  }
   await page.goto(`${origin}/cache-fixture`);
   await page.evaluate(async () => {
     await caches.open('sattva-dashboard-legacy-fixture');
@@ -47,6 +59,8 @@ try {
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
   const before = await page.evaluate(async () => (await caches.keys()).filter(name => name.startsWith('sattva-dashboard-')));
   assert.equal(before.length, 1, 'legacy app caches are removed after activation');
+  assert.match(before[0], /-mutual-funds-v[1-9]\d*(?:-|$)/, 'the release includes a versioned Mutual Fund module');
+  await verifyCachedFunds(before[0]);
   assert(before[0].includes('-telegram-content-v1'), 'the combined cache includes the Telegram revision');
   assert((await page.evaluate(async name => (await (await caches.open(name)).match('/js/tabs/public-chatter.js')).text(), before[0])).includes('telegramMediaLabel'));
 
@@ -69,7 +83,8 @@ try {
   assert(moduleRequested, 'the new release re-reads the Telegram module');
   const after = await page.evaluate(async () => (await caches.keys()).filter(name => name.startsWith('sattva-dashboard-')));
   assert.deepEqual(after, [before[0].replace(sharedMarker, 'fixture-next-release')], 'a later shared marker preserves module revisions and evicts the previous combined cache');
-  console.log('PASS Telegram cache revision, legacy eviction, atomic module warm-up and subsequent shared release upgrade.');
+  await verifyCachedFunds(after[0]);
+  console.log('PASS Mutual Funds and Telegram cache revision, legacy eviction, atomic module warm-up and subsequent shared release upgrade.');
 } finally {
   releaseModule();
   await browser.close();

@@ -56,10 +56,25 @@ const server = createServer((req, res) => {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__arrivalsRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
     } else if (pathname === '/js/core/app-updates.js') {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__performanceRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+<<<<<<< HEAD
     } else if (pathname === '/js/data/alert-pool.js') {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__poolRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
     } else if (pathname === '/js/data/news-working-set.js') {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__newsQueryRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+=======
+    } else if (pathname === '/js/ui/windowed-list.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__tableScrollRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/js/data/alert-pool-format.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__alertPoolRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/js/data/news-working-set.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__newsQueryRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/js/data/announcements-extra.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__announcementHistoryRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/js/data/alert-stories.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__storyOrderRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/css/tailwind.css') {
+      res.end(`${readFileSync(path, 'utf8')}\n:root { --table-scroll-release: ${previousRelease ? 'previous' : 'current'}; }`);
+>>>>>>> sattva/main
     } else res.end(readFileSync(path));
   } catch { res.writeHead(404); res.end(); }
 });
@@ -71,6 +86,30 @@ const errors = [];
 try {
   const context = await browser.newContext();
   const page = await context.newPage();
+  await page.addInitScript(() => {
+    window.__performanceInteractionTiming = {};
+    for (const name of ['pointerdown', 'click']) document.addEventListener(name, event => {
+      const control = event.target.closest('[data-tab-id], [data-sources-open]');
+      if (!control) return;
+      const target = control.dataset.tabId || 'sources';
+      if (name === 'pointerdown') window.__performanceInteractionTiming = { target };
+      window.__performanceInteractionTiming[name] = { at: event.timeStamp, handledAt: performance.now() };
+    }, true);
+  });
+  // Locator.click() first waits for stability and may scroll a footer or tab into view. That
+  // automation setup is not input latency (a local trace spent >1s there before a 120ms tab
+  // response). Start at the actual pointer event timestamp, which includes queued input delay,
+  // then include processing and a painted frame. Keep the original 1s/600ms response budgets.
+  const afterInteractionPaint = async target => {
+    const timing = await page.evaluate(async () => {
+      await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
+      const events = window.__performanceInteractionTiming;
+      return { target: events.target, events, elapsedMs: performance.now() - events.pointerdown?.at };
+    });
+    assert.equal(timing.target, target, 'the measured input belongs to this control');
+    assert(Number.isFinite(timing.elapsedMs) && timing.elapsedMs >= 0, 'a real pointer input starts the response measurement');
+    return timing;
+  };
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('**/*', (route) => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort());
   await page.goto(origin);
@@ -125,10 +164,17 @@ try {
   await page.getByRole('button', { name: 'Dark mode', exact: true }).click();
   offline = true;
   const reloadedAt = Date.now();
-  await page.reload();
+  // Measure when the cached navigation is visible, not the later load event: load also waits
+  // for unrelated resources even after the app shell has painted. Keep the same 1.5s budget.
+  await page.reload({ waitUntil: 'commit' });
   await page.getByRole('navigation', { name: 'Research navigation' }).waitFor({ timeout: 1500 });
-  assert(Date.now() - reloadedAt < 1500, 'repeat visit paints from the app cache without waiting for the network');
+  const repeatPaintMs = Date.now() - reloadedAt;
+  assert(repeatPaintMs < 1500,
+    `repeat visit paints from the app cache without waiting for the network (${repeatPaintMs}ms)`);
   await page.locator('[data-brand-mark] img').evaluate(image => image.decode());
+  await page.waitForSelector('#content-host[data-active-tab="ai-alerts"]', { timeout: 1500 });
+  // Ask Research's illustration remains cached, but AI Alerts is now the landing tab.
+  await page.locator('[data-tab-id="ask-research"]').click();
   await page.locator('.research-opening-brand').evaluate(image => image.decode());
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'cached app restores the saved theme');
   assert.equal(await page.locator('body').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(11, 18, 32)', 'cached dark styles are applied');
@@ -147,13 +193,24 @@ try {
 
   // The previous cached release still includes Ask Research; the upgrade below must remove it.
   const tabIds = ['ask-research', 'ai-alerts', 'daily-alerts', 'earnings-hub', 'concall', 'public-chatter',
+<<<<<<< HEAD
     'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'nse-filings', 'insider-trades',
     'mutual-funds', 'macro-research', 'economy-macro', 'family-book'];
+=======
+    'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'nse-filings', 'insider-trades', 'mutual-funds'];
+>>>>>>> sattva/main
   for (const id of tabIds) {
+    // Begin the next measurement from a painted view. data-active-tab is set before render(),
+    // so observing that attribute alone can start the next timer inside the previous paint.
+    await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
     const started = Date.now();
     await page.locator(`[data-tab-id="${id}"]`).click();
     await page.waitForSelector(`#content-host[data-active-tab="${id}"]`, { timeout: TAB_INTERACTION_LIMIT_MS });
-    const tabMs = Date.now() - started;
+    const timing = await afterInteractionPaint(id);
+    const tabMs = timing.elapsedMs;
+    if (tabMs >= TAB_INTERACTION_LIMIT_MS) console.error('Tab timing diagnostic', id, {
+      automationAndResponseMs: Date.now() - started, ...timing,
+    });
     assert(tabMs < TAB_INTERACTION_LIMIT_MS,
       `${id} opens immediately while revalidation is unavailable (${tabMs}ms)`);
   }
@@ -167,7 +224,11 @@ try {
   const started = Date.now();
   await page.locator('[data-sources-open]').click();
   await page.waitForSelector('#modal-overlay:not(.hidden)', { timeout: POPUP_INTERACTION_LIMIT_MS });
-  const popupMs = Date.now() - started;
+  const popupTiming = await afterInteractionPaint('sources');
+  const popupMs = popupTiming.elapsedMs;
+  if (popupMs >= POPUP_INTERACTION_LIMIT_MS) console.error('Popup timing diagnostic', {
+    automationAndResponseMs: Date.now() - started, ...popupTiming,
+  });
   assert(popupMs != null && popupMs < POPUP_INTERACTION_LIMIT_MS,
     `shared popups open without a network dependency (${popupMs ?? 'not ready'}ms)`);
   await page.locator('[data-modal-close]').first().click();
@@ -189,6 +250,7 @@ try {
   assert.equal(await page.evaluate(() => globalThis.__watchlistRelease), 'previous', 'the cached watchlist module belongs to the older release');
   await page.evaluate(() => import('/js/core/alert-arrivals.js'));
   assert.equal(await page.evaluate(() => globalThis.__arrivalsRelease), 'previous', 'returning session has the older arrivals module cached');
+<<<<<<< HEAD
   await page.evaluate(() => import('/js/data/alert-pool.js'));
   assert.equal(await page.evaluate(() => globalThis.__poolRelease), 'previous', 'returning session has the older pool reader cached');
   await page.evaluate(() => import('/js/data/news-working-set.js'));
@@ -196,6 +258,19 @@ try {
   await page.evaluate(() => { location.hash = '#/research/ask-research?scope=universe&company=TEST'; });
   await page.locator('#content-host[data-active-tab="ask-research"]').waitFor();
   assert.equal(await page.locator('[data-tab-id]').first().getAttribute('data-tab-id'), 'ask-research');
+=======
+  await page.evaluate(() => import('/js/ui/windowed-list.js'));
+  assert.equal(await page.evaluate(() => globalThis.__tableScrollRelease), 'previous', 'returning session has the older table renderer cached');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--table-scroll-release').trim()), 'previous', 'returning session has the older scrollbar stylesheet cached');
+  await page.evaluate(() => import('/js/data/alert-pool-format.js'));
+  assert.equal(await page.evaluate(() => globalThis.__alertPoolRelease), 'previous', 'the retained session has the older alert-pool module');
+  await page.evaluate(() => import('/js/data/news-working-set.js'));
+  assert.equal(await page.evaluate(() => globalThis.__newsQueryRelease), 'previous', 'returning reader starts with the older news query module');
+  await page.evaluate(() => import('/js/data/announcements-extra.js'));
+  assert.equal(await page.evaluate(() => globalThis.__announcementHistoryRelease), 'previous', 'returning reader starts with the older announcement-history module');
+  await page.evaluate(() => import('/js/data/alert-stories.js'));
+  assert.equal(await page.evaluate(() => globalThis.__storyOrderRelease), 'previous', 'returning reader starts with the older story projection');
+>>>>>>> sattva/main
   offline = false;
   previousRelease = false;
   await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update(); });
@@ -203,10 +278,24 @@ try {
   await page.waitForFunction(() => globalThis.__watchlistRelease === 'current', null, { timeout: 30000 });
   await page.evaluate(() => import('/js/core/alert-arrivals.js'));
   assert.equal(await page.evaluate(() => globalThis.__arrivalsRelease), 'current', 'existing session receives the arrivals update');
+<<<<<<< HEAD
   await page.evaluate(() => import('/js/data/alert-pool.js'));
   assert.equal(await page.evaluate(() => globalThis.__poolRelease), 'current', 'existing session receives the pool reader update');
   await page.evaluate(() => import('/js/data/news-working-set.js'));
   assert.equal(await page.evaluate(() => globalThis.__newsQueryRelease), 'current', 'the same returning session receives the news query performance fix');
+=======
+  await page.evaluate(() => import('/js/ui/windowed-list.js'));
+  assert.equal(await page.evaluate(() => globalThis.__tableScrollRelease), 'current', 'existing session receives the scrolling fix');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--table-scroll-release').trim()), 'current', 'existing session receives the scrollbar stylesheet fix');
+  await page.evaluate(() => import('/js/data/alert-pool-format.js'));
+  assert.equal(await page.evaluate(() => globalThis.__alertPoolRelease), 'current', 'the same returning session receives the context retention fix');
+  await page.evaluate(() => import('/js/data/news-working-set.js'));
+  assert.equal(await page.evaluate(() => globalThis.__newsQueryRelease), 'current', 'the same returning session receives the news query performance fix');
+  await page.evaluate(() => import('/js/data/announcements-extra.js'));
+  assert.equal(await page.evaluate(() => globalThis.__announcementHistoryRelease), 'current', 'the same returning session receives the sliced announcement-history reader');
+  await page.evaluate(() => import('/js/data/alert-stories.js'));
+  assert.equal(await page.evaluate(() => globalThis.__storyOrderRelease), 'current', 'the same returning session receives stable story ordering');
+>>>>>>> sattva/main
   const upgradedCaches = await page.evaluate(() => caches.keys());
   assert(!upgradedCaches.some(name => name.includes('previous-fixture')), 'activation removes the superseded app cache');
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'automatic upgrade retains reader preferences');

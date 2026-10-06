@@ -1,8 +1,16 @@
 # All Alerts on an empty new day — 2 October 2026
 
+<<<<<<< HEAD
 After 18:30 UTC (midnight in India) All Alerts opened slowly, and the Verify browser job failed on
 every pull request opened in that window: `daily-alerts?scope=universe` reached its first paint at
 26.3 seconds on CI with a 4,850 ms main-thread task (run 36910782499), against an 1,800 ms budget.
+=======
+After 18:30 UTC (midnight in India) All Alerts opened slowly. The downstream Glow deployment's Verify
+browser job failed in that window (`daily-alerts?scope=universe`: first paint at 26.3 seconds on CI,
+a 4,850 ms main-thread task against an 1,800 ms budget), and here `verify-alert-pool-ui.mjs` failed
+too: its `settledAlerts` waited for at least one Today row, which an empty new day never paints.
+This repository shares the reading code, so the same causes and fixes apply.
+>>>>>>> sattva/main
 
 ## What actually changed at midnight
 
@@ -10,7 +18,11 @@ Nothing in the reading path switched at midnight. The bounded Today read was alw
 part; the new day made it visible.
 
 - **Before midnight** Today already has rows from the exchange feeds, so the table paints them in
+<<<<<<< HEAD
   about a second while the rest of the collection carries on behind it. Measured locally on the
+=======
+  about a second while the rest of the collection carries on behind it. Measured locally on Glow's
+>>>>>>> sattva/main
   shipped captures at 22:40 IST: first paint 0.8–1.5 s, every source settled at 11–13 s.
 - **After midnight** nothing captured is dated Today yet, and the table keeps its placeholders until
   every pending read completes (the reading contract in `CLAUDE.md`). The reader then waits for the
@@ -22,7 +34,12 @@ part; the new day made it visible.
 
 ## Where the live collection spent its time
 
+<<<<<<< HEAD
 Profiled on the shipped captures with the page clock pinned after IST midnight:
+=======
+Profiled on Glow's shipped captures with the page clock pinned after IST midnight; the same code paths
+are here:
+>>>>>>> sattva/main
 
 1. **The company-news companion index was built three or four times per open.** The bounded reader
    unions every retained story's identities across the head, every archive month and the publisher
@@ -36,9 +53,16 @@ Profiled on the shipped captures with the page clock pinned after IST midnight:
 3. **BSE announcements were reported failed on every refreshing collection.**
    `withAnnouncementLookups().refreshSnapshot()` resolved to nothing, so `refreshFilings` threw
    reading `.available`. The failure path then read the feed without warming it, which classified
+<<<<<<< HEAD
    every retained filing in one task: 2.2 seconds at 4x CPU throttle. That is the task CI measured.
 4. Smaller synchronous steps: the recovery-capture merge, the announcement merge before `meta()`,
    and news joins read by a partial assembly or a market-news warm-up before they were prepared.
+=======
+   every retained filing in one task: 2.2 seconds at 4x CPU throttle. That is the task Glow's CI
+   measured.
+4. Smaller synchronous steps: the recovery-capture merge, and news joins read by a partial assembly
+   or a market-news warm-up before they were prepared.
+>>>>>>> sattva/main
 
 ## Fix
 
@@ -53,9 +77,15 @@ Profiled on the shipped captures with the page clock pinned after IST midnight:
   fetches the months a few at a time, applies them in manifest order, stops at the first unreadable
   month as the one-month walk does, merges once and announces once.
 - `announcements-extra.js` returns the capture's own refresh result and merges the recovery capture
+<<<<<<< HEAD
   in slices. `daily-alerts.js` prepares announcement merges and news joins in slices before
   synchronous reads, re-warms announcements if their merge moved during the warm-up, and warms a
   feed's retained rows on the failure path too.
+=======
+  in slices; its merge was already prepared in slices through `warm()`. `daily-alerts.js` prepares
+  news joins in slices before synchronous reads, re-warms announcements if their merge moved during
+  the warm-up, and warms a feed's retained rows on the failure path too.
+>>>>>>> sattva/main
 
 Nothing collected, retained, ordered or shown changes. Today still shows exactly the rows dated
 today, older history stays behind the period choices, and the status of a feed whose capture really
@@ -63,6 +93,7 @@ is incomplete is still reported. The BSE feed now reports its real state rather 
 
 ## Measured
 
+<<<<<<< HEAD
 Local Chrome on the shipped captures, external APIs blocked, page clock pinned ten minutes after IST
 midnight. These are lab figures, not production percentiles.
 
@@ -74,6 +105,18 @@ midnight. These are lab figures, not production percentiles.
 | Company-news and TradingView requests per open | 340 (92 MB) | 210 (64 MB) |
 | Full sweep, All Alerts route (real clock) | 10.5 s; 502 ms | 4.9 s; 279 ms |
 | Full sweep, AI Alerts / Bookmarks after it | 1,345 ms / 2,189 ms longest task | 0 / 65 ms |
+=======
+Local Chrome on this repository's shipped captures, external APIs blocked, page clock pinned ten
+minutes after IST midnight. Lab figures, not production percentiles.
+
+| Check | main | this change |
+| --- | --- | --- |
+| All Alerts as the first page (the new test), two runs each | 10.0–10.2 s; longest task 406–421 ms; all 74 news index parts read more than once | 7.7–7.9 s; longest task 90–97 ms; each part read once |
+| Full sweep, All Alerts route (real clock) | — | 5.7 s; longest task 211 ms |
+
+Glow, which shares this code, measured the same change at 4x CPU throttle: the longest task of the
+collection fell from 2,210 ms to 314 ms, and from 9.7–10.1 s to 6.2–6.7 s for every source to settle.
+>>>>>>> sattva/main
 
 ## Not yet as fast as before midnight
 
@@ -101,3 +144,8 @@ source answers. Closing the gap needs one of these, each a product decision:
 - `scripts/verify-publisher-news-delivery.mjs` checks `loadRemaining()` against the month-by-month
   walk, including a story in two months and a failing month, with a single announcement.
 - `scripts/verify-announcement-lookups.mjs` checks that the refresh result reaches the caller.
+<<<<<<< HEAD
+=======
+- `scripts/verify-alert-pool-ui.mjs` accepts the table's empty state on an empty Today and also
+  requires a populated seven-day window to paint identical rows from the pool and the live path.
+>>>>>>> sattva/main

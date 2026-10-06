@@ -10,7 +10,10 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { spawnSync } from 'node:child_process';
+<<<<<<< HEAD
 import { readNewsJson } from './lib/news-json-storage.mjs';
+=======
+>>>>>>> sattva/main
 
 // Each phase uses the full captured dataset and the same frozen clock/artifact. Isolating
 // browser-lifetime caches between independent scenarios keeps this oracle inside the CI heap
@@ -33,7 +36,7 @@ if (!phase) {
 assert(['periods', 'rankings', 'fallbacks'].includes(phase), 'known verification phase');
 
 const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '../public');
+const root = process.env.ALERT_POOL_CAPTURE_ROOT ? resolve(process.env.ALERT_POOL_CAPTURE_ROOT) : resolve(here, '../public');
 const storage = new Map();
 globalThis.localStorage = { getItem: (key) => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) };
 const now = Number(process.env.ALERT_POOL_TEST_NOW);
@@ -41,6 +44,7 @@ assert(Number.isFinite(now) && now > 0, 'a frozen verification clock');
 Date.now = () => now;
 
 const { offlineFetch, captureIdentities, captureStatusFor, writePoolMembers, verifyPoolMembers, jsonForm } = await import('./lib/alert-pool-build.mjs');
+<<<<<<< HEAD
 const { ALERT_POOL_CONTRACT, POOL_FEEDS, POOL_FEED_CAPTURES } = await import('../public/js/data/alert-pool-shared.js');
 const { validateShard, aiPoolKeep, buildAiShards, assembleFeedEvents } = await import('../public/js/data/alert-pool-format.js');
 
@@ -57,6 +61,10 @@ assert(!aiPoolKeep({ ...discoveryStory, day: '2026-03-01' }, '2026-09-20'), 'the
 assert(!aiPoolKeep({ ...discoveryStory, day: '2026-09-21' }, '2026-09-20'), 'future stories are not current context');
 assert(!aiPoolKeep({ ...discoveryStory, day: null }, '2026-09-20'), 'undated stories are not current context');
 console.log('PASS market-wide discovery context survives the trigger-window boundary');
+=======
+const { ALERT_POOL_CONTRACT, POOL_FEEDS, POOL_FEED_CAPTURES, shiftDay } = await import('../public/js/data/alert-pool-shared.js');
+const { validateShard, buildAiShards } = await import('../public/js/data/alert-pool-format.js');
+>>>>>>> sattva/main
 
 // THE ROUTES THE BROWSER READS, answered from the pool this test builds. `served` is what a test
 // step changes to make the pool disagree with the deployment in one particular way.
@@ -110,6 +118,24 @@ const assertEvents = (actual, expected, message) => {
     assert.deepEqual(jsonForm(actual[i]), jsonForm(expected[i]), `${message}: event ${i + 1} (${expected[i].id})`);
   }
 };
+<<<<<<< HEAD
+=======
+
+// A raw publisher story gains company attribution after the pool is decoded.
+// It must survive outside the ranking week because the card still reads it as context.
+const contextDay = shiftDay(day, -14);
+const contextArticle = { title: 'Coforge announces a dividend record date', summary: 'Coforge Limited published its dividend record date.', url: 'https://example.test/coforge-context', publishedAt: `${contextDay}T06:00:00Z` };
+const rawContext = { id: 'mcnews:context-regression', feed: 'market-news', day: contextDay, ticker: null, company: 'Market-wide', headline: contextArticle.title, url: contextArticle.url, sourceRecord: contextArticle };
+const contextBook = [{ ticker: 'COFORGE', name: 'Coforge Limited', isin: 'INE591G01025', entityId: 'isin:INE591G01025' }];
+const mappedContext = alerts.mapPortfolioDiscoveryEvents('market-news', [rawContext], contextBook);
+assert.equal(mappedContext[0].ticker, 'COFORGE');
+assert.equal(mappedContext[0].attribution.status, 'confirmed');
+const restoredContext = [...buildAiShards([{ id: 'market-news', events: [rawContext] }], day).values()].flatMap(shard => shard.feeds['market-news'].events);
+assert.deepEqual(alerts.mapPortfolioDiscoveryEvents('market-news', restoredContext, contextBook), mappedContext, 'Older market news retains the same company context after the pool round trip');
+assert.throws(() => validateShard({ version: 1, contract: 'alert-pool-v1', day, feeds: {} }), /unfamiliar shape/);
+assert.doesNotThrow(() => validateShard({ version: 1, contract: ALERT_POOL_CONTRACT, day, feeds: {} }));
+console.log('PASS older unattributed market news becomes identical company context after pooling; old contracts are rejected');
+>>>>>>> sattva/main
 
 // 1. THE ORACLE: the full-history collection the browser performs without any pool.
 console.log(`collecting the full history for ${day} (${phase} oracle)`);
@@ -117,8 +143,12 @@ let full = await alerts.collect({ scope: 'universe', day, includeHistory: true }
 let sourceFeeds = full.sourceFeeds.filter(publicAlertFeed);
 assert(full.feeds.find((feed) => feed.id === 'news').count > 0, 'the oracle must actually load retained news');
 const index = phase === 'periods'
+<<<<<<< HEAD
   ? writePoolMembers({ outDir, sourceFeeds, day, now, book: coverage.holdings(), newsMeta: news.meta(), captures: captureIdentities({ root, exchange }),
     recoveryRows: readNewsJson(resolve(root, 'data/screener-announcements.json')).rows })
+=======
+  ? writePoolMembers({ outDir, sourceFeeds, day, now, book: coverage.holdings(), newsMeta: news.meta(), captures: captureIdentities({ root, exchange }) })
+>>>>>>> sattva/main
   : JSON.parse(readFileSync(join(outDir, 'index.json'), 'utf8'));
 assert.equal(index.day, day);
 assert.deepEqual(index.captures, captureIdentities({ root, exchange }), 'all phases use the same captured inputs');
@@ -258,7 +288,11 @@ if (phase !== 'fallbacks') process.exit(0);
 // THE NARROWED WEEK is the reference for the fallbacks below — the full history assembled to the
 // period, the same code path a period takes over settled sources. It is built here, after the
 // ranking, so that it is not held beside two rankings and the AI pool.
+<<<<<<< HEAD
 const narrowedWeek = alerts.assemble({ day, scope: 'universe', holdings: coverage.holdings(), includeHistory: true, queryWindow: week, settledFeeds: new Map(full.sourceFeeds.map((feed) => [feed.id, feed])) });
+=======
+let narrowedWeek = alerts.assemble({ day, scope: 'universe', holdings: coverage.holdings(), includeHistory: true, queryWindow: week, settledFeeds: new Map(full.sourceFeeds.map((feed) => [feed.id, feed])) });
+>>>>>>> sattva/main
 full = null; sourceFeeds = null;
 
 // 4. EVERY REASON THE POOL STANDS ASIDE. Each one is checked on the read itself, and each leaves
@@ -271,6 +305,13 @@ const declineReasons = async (options = {}) => {
   return read ? Object.fromEntries([...read.declined]) : null;
 };
 assert.deepEqual(await declineReasons(), {}, 'a current pool declines nothing');
+served.index = { ...index };
+delete served.index.policy;
+assert.equal(await declineReasons(), null, 'an older unversioned classification pool leaves every feed on the source path');
+served.index = { ...index, policy: 'old-classification-policy' };
+assert.equal(await declineReasons(), null, 'a superseded classification policy cannot supply stale grades');
+served.index = index;
+assert.deepEqual(await declineReasons(), {}, 'the current classification policy is adopted again');
 served.status = { ...served.status, captures: { ...served.status.captures, insider: { ...served.status.captures.insider, revision: 'moved' } } };
 assert.deepEqual(await declineReasons(), { insider: 'insider: moved' }, 'a capture that moved sends only its feed down the live path');
 {
@@ -337,6 +378,7 @@ console.log('PASS every reason the pool stands aside is checked on the read, per
   assert.equal(next?.feeds.size, POOL_FEEDS.length, 'the next selection immediately retains the healthy pool without a cooldown');
 }
 
+<<<<<<< HEAD
 // Session changes (including a locked private connector) can replace an AI Alerts read while
 // its public pool is loading. The obsolete collector must not treat that cancellation as an
 // outage and start every capture loader, or overwrite the saved window with unfinished feeds.
@@ -361,6 +403,8 @@ console.log('PASS every reason the pool stands aside is checked on the read, per
     POOL_FEEDS.length, 'the replacement view can still use the pool');
 }
 
+=======
+>>>>>>> sattva/main
 // 5. A SHARD THAT DOES NOT READ IS THE POOL FAILING, NOT A FEED'S ANSWER. The index names a build
 // whose members the route no longer answers for — an artifact expired between the two reads —
 // so every feed takes the live path this time and the period is still exact.
@@ -396,6 +440,13 @@ assert.deepEqual(served.requests.filter((path) => path.startsWith('api/alert-poo
 console.log('PASS a reassembly without loading reuses the pool read in memory');
 
 // 7. Full bookmark evidence was checked alongside the actual AI collection in section 3.
+<<<<<<< HEAD
+=======
+
+narrowedWeek = null;
+alertPool.resetForTest();
+clearRankingCache();
+>>>>>>> sattva/main
 
 // 8. ROWS THIS SESSION HOLDS BEYOND THE CAPTURE DO DECLINE — through the feed modules themselves,
 // last because they cannot be taken back. A device copy that a tab loads for a company (a

@@ -1,3 +1,4 @@
+import { TAB_META } from './catalog.js';
 // tabs/earnings-hub.js — LIVE quarterly results for the whole listed universe.
 //
 // This tab is genuinely live. It paints from a committed snapshot instantly, then polls
@@ -14,8 +15,14 @@
 //   The old Earnings Hub scored synthetic financials against a 15-rule model. Moneycontrol
 //   publishes three figures per company — revenue, gross profit, net profit — which is nowhere
 //   near enough to feed that model. Rather than run a real model on fake numbers next to a live
+<<<<<<< HEAD
 //   table of real ones, the scoring sub-views are gone. The legacy scoring module and mock
 //   fixtures remain in the repo, but no active view or research source loads them.
+=======
+//   table of real ones, the scoring sub-views are gone. `js/scoring/earnings-scoring.js` and the
+//   legacy scoring code remain available, but the synthetic set is no longer loaded. Analyst
+//   estimates are unavailable; Reports opens the original document for the displayed quarter.
+>>>>>>> sattva/main
 //
 // THE PERCENTAGE THAT ISN'T ONE
 //   13% of companies have a sign flip between the two periods. "+199%" on a loss-to-profit
@@ -52,13 +59,7 @@ import { renderCompanyFilings } from './company-filings.js';
 import { wireEarningsReports } from '../ui/earnings-report.js';
 import { safeDocumentUrl } from '../data/screener-concalls-shared.js';
 
-export const meta = {
-  id: 'earnings-hub',
-  title: 'Earnings Hub',
-  subtitle: 'Live quarterly results across the listed universe, updated as companies report.',
-  // No sub-views: this tab is one table. The shell hides the rail entirely when this is empty.
-  subviews: [],
-};
+export const meta = TAB_META['earnings-hub'];
 
 // Filed results and scheduled results. Old document links remain readable.
 const VIEWS = [

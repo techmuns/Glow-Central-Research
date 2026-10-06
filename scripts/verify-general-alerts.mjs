@@ -77,6 +77,11 @@ globalThis.fetch = async (input) => {
   // the newer live/snapshot confirmation; a future repository capture must not override this
   // test's Sept 4 clock and make its cached Sept 5 freshness assertion depend on data updates.
   if (path === 'data/nse-announcements.json') return json({ ...read(path), capturedAt: nseCheckedAt });
+  // Start with a failed BSE check and its retained capture. Cached scope changes must reuse the
+  // evidence without claiming the failed source succeeded, independently of today's saved data.
+  if (path === 'data/corp-announcements.json') return json({ ...read(path), failed: {
+    'BSE collection': { reason: 'upstream', at: nseCheckedAt, message: 'Fixture BSE check failed' },
+  } });
   if (path === 'data/market-news.json') {
     const snapshot = read(path);
     return json({ ...snapshot, articles: [...snapshot.articles, crossRoutePublisher, olderPublisher, unmatchedPublisher] });
@@ -143,6 +148,8 @@ assert(universe.events.some((e) => e.feed === 'ipos'));
 assert(universe.events.some((e) => e.feed === 'ipos' && e.company === 'EAAA India Alternatives Limited' && e.headline.includes('supplement')),
   'EAAA tracked-issuer evidence must join the pool, not just the weekly snapshots');
 assert.equal(universe.feeds.find((f) => f.id === 'chatter').status, 'failed', 'outage does not look like zero chatter');
+assert.equal(universe.feeds.find((f) => f.id === 'announcements').status, 'failed', 'a failed first source check remains visible with retained evidence');
+assert(universe.feeds.find((f) => f.id === 'announcements').events.length > 0, 'the failed source still contributes its captured history');
 for (const id of ['chatter-posts', 'company-documents', 'drhp-documents'])
   assert.equal(universe.feeds.find((f) => f.id === id).status, 'on-demand');
 
@@ -151,7 +158,9 @@ console.log('Checking scope and privacy');
 let cachedPartials = 0;
 const portfolio = await alerts.collect({ ...options, scope: 'portfolio', load: false, onPartial: () => cachedPartials++ });
 assert.equal((await alerts.collect({ ...options, scope: 'portfolio', load: false })).events, portfolio.events,
-  'unchanged portfolio-calendar rows reuse the sorted timeline too');
+  'unchanged retained sources and portfolio-calendar rows reuse the sorted timeline');
+assert.equal(portfolio.feeds.find((f) => f.id === 'announcements').status, 'failed', 'reusing retained evidence never advances a failed source to success');
+assert.equal(portfolio.feeds.find((f) => f.id === 'announcements').reachesToday, false);
 assert.equal(alerts.adoptAllAlertsReport(portfolio, null, { ...options, scope: 'portfolio' }).events, portfolio.events,
   'a saved-view adoption reads the current portfolio calendar without rebuilding unchanged rows');
 assert.equal(cachedPartials, 0, 'cached scope changes assemble one completed report, not twenty full intermediate reports');
@@ -316,7 +325,11 @@ const evidenceReads = calls.length;
 const evidenceRefresh = await alerts.refreshSources();
 assert(calls.slice(evidenceReads).includes('api/screener-insights'), 'Ask Research refresh includes company context outside the alert feed registry');
 assert(evidenceRefresh.failed > 0, 'unavailable context is reported instead of treating retained inputs as fresh');
+<<<<<<< HEAD
 console.log(`PASS: ${alerts.FEEDS.length} feed adapters; ${universe.events.length} retained records; scope parity, undated/upcoming, raw records, privacy, refresh/recovery and AI compatibility.`);
+=======
+console.log(`PASS: ${expected.length} feed adapters; ${universe.events.length} retained records; scope parity, undated/upcoming, raw records, privacy, refresh/recovery and AI compatibility.`);
+>>>>>>> sattva/main
 
 // Selecting a smaller reading period must preserve the complete event contract: canonical
 // identity, corrections, discovery provenance and exported source fields, not just row counts.

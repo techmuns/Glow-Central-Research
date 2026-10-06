@@ -1,3 +1,4 @@
+import { TAB_META } from './catalog.js';
 // Exchange-wide corporate actions from NSE and Screener, scoped at paint time to the current portfolio,
 // watchlist or full captured universe.
 //
@@ -82,6 +83,7 @@ function filters(rows) {
 const SUBTITLE = 'One deduplicated feed of NSE actions, enriched with Screener ratios, terms, prices and additional records.';
 
 const tab = makeFilingsTab({
+<<<<<<< HEAD
   id: 'corporate-actions',
   title: 'Corporate Actions',
   subtitle: SUBTITLE,
@@ -89,6 +91,9 @@ const tab = makeFilingsTab({
   // The sentence above leads the provenance panel instead of sitting under the title.
   compactHead: true,
   headAside: (ctx) => viewSwitchHtml(ctx, CORPORATE_ACTIONS_VIEW),
+=======
+  ...TAB_META['corporate-actions'],
+>>>>>>> sattva/main
   feed,
   filterByScope: feed.filterByScope,
   noun: 'actions',
