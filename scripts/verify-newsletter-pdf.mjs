@@ -150,6 +150,7 @@ export function pdfFixture() {
       summary: { up: 67, down: 67, flat: 66, median: 0, change: -8055000, changePct: -0.4 },
     },
   };
+  brief.performance.rows.at(-1).ticker = 'WOCKPHARMA';
   const id = briefStats(brief).companies[0].clusters[0].id;
   brief.ai = {
     ok: true,
@@ -178,6 +179,7 @@ export function verifyNewsletterPdf() {
     data = renderBriefPdf(brief),
     raw = new TextDecoder().decode(data),
     text = pdfText(data);
+  assert.ok(raw.includes('(WOCKPHARMA) Tj'), 'long listed symbols remain intact on one line');
   assert.equal(JSON.stringify(brief), before, 'layout never mutates the source brief');
   assert.ok(data.byteLength < 1500000, 'complete edition remains within the saved PDF budget');
   for (const r of brief.performance.rows)
