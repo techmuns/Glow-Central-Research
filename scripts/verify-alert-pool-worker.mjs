@@ -3,6 +3,7 @@
 // gzip members passed through unchanged, immutable member caching, the index's short cache and
 // every refusal a storage or archive can earn. No credential ever reaches storage.
 import assert from 'node:assert/strict';
+import { ALERT_POOL_CONTRACT } from '../public/js/data/alert-pool-shared.js';
 import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -39,12 +40,18 @@ function zip(members) {
 const day = '2026-09-18';
 const index = { version: 1, contract: ALERT_POOL_CONTRACT, day, builtAt: `${day}T06:00:00Z`, captures: {}, feeds: {}, days: [{ day, member: `days/${day}.json.gz` }], ai: [{ span: day, member: `ai/${day}.json.gz` }] };
 const shard = { version: 1, contract: ALERT_POOL_CONTRACT, day, feeds: { technicals: { events: [{ id: 'tech:X', feed: 'technicals', headline: 'x', day }], order: [0], companions: { events: [], order: [] } } } };
+<<<<<<< HEAD
 const padding = Buffer.alloc(1024 * 1024, 'p'); // the tail must not read the complete archive
 const archive = zip([['index.json', Buffer.from(JSON.stringify(index))], ['padding.bin', padding], [`days/${day}.json.gz`, gzipSync(JSON.stringify(shard))],
   [`days/${day}.technicals.json.gz`, gzipSync(JSON.stringify(shard))],
   [`days/${day}.news.json.gz`, gzipSync(JSON.stringify(shard)), { extraLength: 1024 }],
   [`days/${day}.announcements.json.gz`, gzipSync(JSON.stringify(shard)), { localName: `oops/${day}.announcements.json.gz` }],
   ['ai/oops.txt', Buffer.from('not json')], [`ai/${day}.json.gz`, Buffer.from('plain, not gzip')]]);
+=======
+const padding = Buffer.alloc(300 * 1024, 'p'); // pushes the directory past the tail read of a small archive
+const archive = zip([['index.json', Buffer.from(JSON.stringify(index))], ['padding.bin', padding], [`days/${day}.json.gz`, gzipSync(JSON.stringify(shard))],
+  [`days/${day}.technicals.json.gz`, gzipSync(JSON.stringify(shard))], ['ai/oops.txt', Buffer.from('not json')], [`ai/${day}.json.gz`, Buffer.from('plain, not gzip')]]);
+>>>>>>> sattva/main
 
 // Model the hosted fetch cache: it can fill the complete archive, then return a
 // perfectly valid 206 slice. Counting origin reads catches that hidden download.
@@ -127,12 +134,15 @@ try {
   const separate = await fetch(new URL(`/api/alert-pool/99/days/${day}.technicals.json.gz`, base));
   assert.equal(separate.status, 200);
   assert.deepEqual(await separate.json(), shard, 'a per-feed member uses the same bounded range and gzip delivery');
+<<<<<<< HEAD
   const beforeExtra = ranges.length;
   const extended = await fetch(new URL(`/api/alert-pool/99/days/${day}.news.json.gz`, base));
   assert.deepEqual(await extended.json(), shard, 'a large ZIP extra field still returns the exact complete payload');
   assert.equal(ranges.length - beforeExtra, 2, 'unusual extra fields use the bounded exact-range fallback');
   assert.equal((await fetch(new URL(`/api/alert-pool/99/days/${day}.announcements.json.gz`, base))).status, 503,
     'a mismatched local filename cannot return another member as the requested feed');
+=======
+>>>>>>> sattva/main
   assert.equal((await fetch(new URL(`/api/alert-pool/99/days/${day}.private.json.gz`, base))).status, 404,
     'only explicitly public pool feeds can be addressed');
 

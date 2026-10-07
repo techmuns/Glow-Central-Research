@@ -2,7 +2,11 @@
 // Source text must already be escaped by the caller, exactly as for innerHTML.
 function identity(node) {
   if (node.nodeType !== 1) return null;
+<<<<<<< HEAD
   for (const name of ['data-ai-key', 'data-ai-development-sources', 'data-ai-source-id', 'data-ai-notebook-event', 'data-bookmark-key', 'data-ai-filter']) {
+=======
+  for (const name of ['data-feed-toggle', 'data-ai-key', 'data-ai-development-sources', 'data-ai-source-id', 'data-ai-notebook-event', 'data-bookmark-key', 'data-ai-filter']) {
+>>>>>>> sattva/main
     if (node.hasAttribute(name)) return `${name}:${node.getAttribute(name)}`;
   }
   const marker = [...node.attributes].find(attribute => attribute.name.startsWith('data-ai-'));

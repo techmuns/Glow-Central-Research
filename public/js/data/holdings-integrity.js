@@ -3,6 +3,7 @@
 import { comparisonPeriods, summarise, disclosureStatus, periodEnd } from './finology-shared.js';
 import { currentRelation } from './public-holdings-shared.js';
 
+<<<<<<< HEAD
 export const POLICY = { investorHours: 30, managerSyncHours: 36, bulkHours: 72, mfDays: 45, entityReviewDays: 90 };
 const ageDays = (value, now) => Number.isFinite(Date.parse(value)) ? Math.max(0, (Date.parse(now) - Date.parse(value)) / 86400000) : Infinity;
 
@@ -11,6 +12,16 @@ export function assessCoverage({ snapshot = {}, managers = {}, deals = {}, excha
   for (const investor of snapshot.investors || []) {
     const book = snapshot.books?.[investor.slug], issues = [];
     const fetchedAt = book?.fetchedAt || null;
+=======
+export const POLICY = { investorHours: 30, bulkHours: 72, entityReviewDays: 90 };
+const ageDays = (value, now) => Number.isFinite(Date.parse(value)) ? Math.max(0, (Date.parse(now) - Date.parse(value)) / 86400000) : Infinity;
+
+export function assessCoverage({ snapshot = {}, deals = {}, exchange = null, evidence = {}, publicHoldings = null, now = new Date().toISOString() } = {}) {
+  const rows = [];
+  for (const investor of snapshot.investors || []) {
+    const book = snapshot.books?.[investor.slug], issues = [];
+    const fetchedAt = book?.sourceCheckedAt || book?.fetchedAt || null;
+>>>>>>> sattva/main
     if (!book) issues.push('Book unavailable');
     else {
       if (snapshot.failed?.[investor.slug] || book.stale) issues.push('Refresh failed; last successful book retained');
@@ -30,6 +41,7 @@ export function assessCoverage({ snapshot = {}, managers = {}, deals = {}, excha
       identity: relations.length ? `${relations.length} evidenced relationship(s); full coverage unverified` : 'Associated entities not reviewed',
       sourceUrl: `https://ticker.finology.in/investor/${encodeURIComponent(investor.slug)}` });
   }
+<<<<<<< HEAD
   for (const manager of managers.managers || []) {
     const issues = [], dates = manager.kind === 'mf' ? (manager.lookthrough?.funds || []).map((f) => f.holdingsAsOf).filter(Boolean).sort() : [];
     const statementDates = new Map();
@@ -50,6 +62,10 @@ export function assessCoverage({ snapshot = {}, managers = {}, deals = {}, excha
   const sourceIssues = [];
   if (!(snapshot.investors || []).length) sourceIssues.push('Investor list unavailable');
   if (!(managers.managers || []).length) sourceIssues.push('Manager list unavailable');
+=======
+  const sourceIssues = [];
+  if (!(snapshot.investors || []).length) sourceIssues.push('Investor list unavailable');
+>>>>>>> sattva/main
   if (exchange) {
     if (ageDays(exchange.checkedAt, now) * 24 > POLICY.bulkHours || exchange.sources?.length !== 4 || exchange.sources.some((s) => s.ok !== true)) sourceIssues.push('NSE/BSE bulk/block feed overdue or failed');
     if (exchange.deliveryError) sourceIssues.push('NSE/BSE live delivery unavailable; saved reports retained');
@@ -63,7 +79,11 @@ export function assessCoverage({ snapshot = {}, managers = {}, deals = {}, excha
     if (publicHoldings.coverage?.failedRefresh) sourceIssues.push(`${publicHoldings.coverage.failedRefresh} exchange filing refreshes failed; last successful reads retained`);
     if (publicHoldings.securityMaster?.ok === false) sourceIssues.push('NSE security identifier check failed; retained identities used where available');
     for (const row of rows) {
+<<<<<<< HEAD
       const profile = publicHoldings.profiles?.find((p) => p.id === row.id && p.kind === (row.kind === 'investor' ? 'investor' : 'manager'));
+=======
+      const profile = publicHoldings.profiles?.find((p) => p.id === row.id && p.kind === 'investor');
+>>>>>>> sattva/main
       if (profile?.issues) row.issues.push(`${profile.issues} public-source checks need review`);
       row.identity = `${profile?.matches || 0} latest public disclosures matched; ${profile?.relations || 0} verified entity links`;
     }
