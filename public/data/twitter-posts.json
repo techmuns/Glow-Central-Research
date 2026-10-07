@@ -9262,9 +9262,9 @@
   "collection": {
     "version": 1,
     "optional": true,
-    "status": "partial",
-    "reason": "partial-read",
-    "lastAttemptAt": "2026-10-07T09:11:48.622Z",
+    "status": "unavailable",
+    "reason": "source-read-failed",
+    "lastAttemptAt": "2026-10-07T09:33:11.247Z",
     "lastSuccessAt": null
   }
 }

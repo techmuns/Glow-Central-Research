@@ -2058,8 +2058,8 @@
       "pending": []
     },
     "isin:INE564S01019|Vikram Kamats Hospitality": {
-      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-10-07T09:32:55+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 1,
       "lastSuccessAt": "2026-10-03T05:24:56+00:00",
       "targetThrough": null,
@@ -2160,8 +2160,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 6,
+    "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-10-07T09:11:18.558299+00:00"
+    "checkedAt": "2026-10-07T09:32:55.785726+00:00"
   }
 }
