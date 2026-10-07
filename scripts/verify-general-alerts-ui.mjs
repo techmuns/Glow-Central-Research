@@ -18,10 +18,13 @@ const data = (path) => JSON.parse(readFileSync(resolve(root, `data/${path}`)));
 const IST_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
 const UPCOMING_DAY = IST_DAY.format(new Date(Date.now() + 5 * 86400000));
 const UPCOMING_FAR_DAY = IST_DAY.format(new Date(Date.now() + 40 * 86400000));
+// News intentionally exposes at most thirty recent days. Keep these attribution fixtures
+// inside that window as the suite advances; older real records are tested in All Alerts.
+const NEWS_DAY = IST_DAY.format(new Date(Date.now() - 7 * 86400000));
 const newsCases = JSON.parse(readFileSync(new URL('./fixtures/company-news-attribution.json', import.meta.url))).cases
   .filter(test => ['accent', 'ticker-brand', 'no-keyword', 'snippet-only', 'reported-mismatch'].includes(test.id));
-const newsFixture = { capturedAt: '2026-09-04T08:00:00Z', entities: newsCases.map(test => ({ ...test.identity, key: test.identity.ticker })),
-  byTicker: Object.groupBy(newsCases.map(test => ({ date: '2026-09-04', company: test.identity.name,
+const newsFixture = { capturedAt: `${NEWS_DAY}T08:00:00Z`, entities: newsCases.map(test => ({ ...test.identity, key: test.identity.ticker })),
+  byTicker: Object.groupBy(newsCases.map(test => ({ date: NEWS_DAY, company: test.identity.name,
     ticker: test.identity.ticker, query: test.identity.name, source: 'Synthetic test publisher',
     url: `https://example.test/${test.id}`, ...test.row })), row => row.ticker) };
 // THE SCHEDULED EVENT HAS TO BE SCHEDULED WHEN THE SUITE RUNS. The Upcoming AGM row below was
