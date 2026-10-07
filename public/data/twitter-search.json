@@ -2316,12 +2316,16 @@
     "isin:INE391J01032|JTLIND": {
       "lastAttemptAt": "2026-10-07T18:55:32+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE04I401011|Kpit Technologies": {
+      "lastAttemptAt": "2026-10-07T19:30:41+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 254,
     "attempted": 1,
     "incomplete": 243,
-    "checkedAt": "2026-10-07T18:55:32.921354+00:00"
+    "checkedAt": "2026-10-07T19:30:41.536062+00:00"
   }
 }
