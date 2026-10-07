@@ -2308,12 +2308,16 @@
     "isin:INE040A01034|HDFCBANK": {
       "lastAttemptAt": "2026-10-07T17:43:25+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE391J01032|Jtl Industries": {
+      "lastAttemptAt": "2026-10-07T18:22:38+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 254,
     "attempted": 1,
     "incomplete": 240,
-    "checkedAt": "2026-10-07T17:43:25.510362+00:00"
+    "checkedAt": "2026-10-07T18:22:38.256978+00:00"
   }
 }
