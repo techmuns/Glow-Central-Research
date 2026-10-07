@@ -516,11 +516,17 @@ try {
   assert.equal(virtualContract.scrollListeners, 1, 'feed repaints retain exactly one active table scroll listener');
   assert.equal(virtualContract.resizeListeners, 1, 'feed repaints retain exactly one active resize listener');
   // The export button moved out of the table toolbar, but must still use the full filtered
-  // model. Compare its current source count, rather than the earlier virtualization snapshot:
-  // asynchronous feed repaints can change that model between the two interactions.
+  // model. Capture its count at the export click, rather than the earlier virtualization
+  // snapshot: asynchronous feed repaints can change that model between the two interactions.
   // A local workbook stand-in counts rows without a CDN or a large artifact on disk.
   await page.evaluate(() => {
     window.exportedRows = 0;
+    window.expectedExportRows = null;
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('[data-alerts-table-actions] [data-export]')) {
+        window.expectedExportRows = Number(document.querySelector('[data-score-table]').dataset.virtualTotal) + 1;
+      }
+    }, { capture: true, once: true });
     window.ExcelJS = { Workbook: class {
       constructor() { this.xlsx = { writeBuffer: async () => new Uint8Array() }; }
       addWorksheet() { return { addRow: () => { window.exportedRows++; }, getRow: () => ({}) }; }
@@ -528,7 +534,9 @@ try {
   });
   await page.locator('[data-alerts-table-actions] [data-export]').click();
   await page.waitForFunction(() => window.exportedRows > 0);
-  assert.equal(await page.evaluate(() => window.exportedRows), await page.evaluate(() => Number(document.querySelector('[data-alerts-source-count]').dataset.alertsSourceCount)) + 1,
+  const exported = await page.evaluate(() => ({ actual: window.exportedRows, expected: window.expectedExportRows }));
+  assert.ok(exported.expected > virtualContract.mounted, 'the export model includes unmounted records');
+  assert.equal(exported.actual, exported.expected,
     'relocated export includes every matching record plus provenance, not just mounted rows');
 
   await page.locator('[data-table-scroll]').evaluate((scroller) => { scroller.scrollTop = scroller.scrollHeight; });
