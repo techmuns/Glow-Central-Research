@@ -286,7 +286,7 @@ jobs:
       - name: Verify instant repeat visits and interaction cache boundaries
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-dashboard-performance-ui.mjs
+        run: node scripts/verify-dashboard-performance-ui.mjs && node scripts/verify-startup-ui.mjs
       - name: Verify full-data dashboard tabs and bounded iframe interactions
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright

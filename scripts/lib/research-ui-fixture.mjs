@@ -3,6 +3,10 @@
 export function researchFixtureAsset(path, body, { first = false } = {}) {
   if (path !== '/js/ui/shell.js') return body;
   const source = String(body);
+  if (source.includes('tabs: researchTabs')) return source
+    .replace("import { researchTabs } from './tab-registry.js';", "$&\nimport * as askResearch from '../tabs/ask-research.js';")
+    .replace('tabs: researchTabs', first ? 'tabs: [askResearch, ...researchTabs]' : 'tabs: [researchTabs[0], askResearch, ...researchTabs.slice(1)]')
+    .replace("  'ask-research': { tab: 'ai-alerts', subview: null },\n", '');
   if (!source.includes('tabs: [aiAlerts,')) throw new Error('Research fixture needs the current AI Alerts landing registry');
   return source
     .replace("import * as aiAlerts from '../tabs/ai-alerts.js';", "$&\nimport * as askResearch from '../tabs/ask-research.js';")
