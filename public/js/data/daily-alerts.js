@@ -1,3 +1,5 @@
+import { insiderSignal, INSIDER_HIGH_PCT, INSIDER_HIGH_VALUE } from './insider-signal.js';
+export { insiderSignal, INSIDER_HIGH_PCT, INSIDER_HIGH_VALUE } from './insider-signal.js';
 // data/daily-alerts.js — A NEWEST-FIRST TIMELINE ACROSS THIS DASHBOARD'S RESEARCH FEEDS.
 //
 //   const day = today();                     // the IST trading date
@@ -104,7 +106,7 @@ function shiftDay(day, amount) {
 
 export function materializePublicAlertWindow(report) {
   const firstDay = shiftDay(report.day, -(ALERT_WINDOW_CACHE_DAYS - 1));
-  const privateFeeds = new Set(['company-documents', 'drhp-documents']);
+  const privateFeeds = new Set(['price-levels', 'company-documents', 'drhp-documents']);
   return {
     version: 1,
     day: report.day,
@@ -117,7 +119,7 @@ export function materializePublicAlertWindow(report) {
 }
 
 function validAlertWindow(value, throughDay) {
-  const privateFeeds = new Set(['company-documents', 'drhp-documents']);
+  const privateFeeds = new Set(['price-levels', 'company-documents', 'drhp-documents']);
   if (value?.version !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(value.day || '') ||
       !Array.isArray(value.events) || !Array.isArray(value.feeds)) return false;
   const captured = Date.parse(`${value.day}T00:00:00Z`);
@@ -239,9 +241,12 @@ function istDay(value) {
 // A material day move. This is an importance threshold, no longer a collection threshold:
 // below-threshold measurements remain in the pool and do not change the existing AI policy.
 export const MOVE_PCT = 5;
+<<<<<<< HEAD
 // The insider thresholds and the reading over a trade row live in `insider-signal.js` (pure, shared
 // with the team brief) and are re-exported here for every consumer that reads them from this module.
 export { INSIDER_HIGH_PCT, INSIDER_HIGH_VALUE, insiderSignal };
+=======
+>>>>>>> sattva/main
 export const INVESTOR_HIGH_PP = 1;
 export const CHATTER_HIGH_MENTIONS = 10;
 export const CHATTER_HIGH_CHANGE_PCT = 100;
@@ -381,7 +386,10 @@ export function eventSearchText(event = {}) {
 
 const numeric = parseIndianAmount;
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> sattva/main
 // ---------------------------------------------------------------------------------------
 // Feed registry — id, label, which tab owns it, and what it can contribute
 // ---------------------------------------------------------------------------------------
@@ -408,6 +416,7 @@ const listeners = new Set();
 // alive while the tab is unmounted so a change elsewhere cannot resurrect an old snapshot.
 // No poller or durable storage here; private document feeds are always read directly.
 const normalizedFeeds = new Map();
+<<<<<<< HEAD
 // A LOADER THAT REJECTED HAS STILL SETTLED, AND ITS RECORDS ARE STILL WORTH CACHING.
 //
 // `readFeed`'s memo was gated on `loadedFeeds`, which only a RESOLVED loader joins. On this
@@ -431,6 +440,9 @@ const settledLoads = new Set();
 let alertWindowWrite = Promise.resolve();
 export const whenAlertWindowSaved = () => alertWindowWrite;
 const PRIVATE_FEEDS = new Set(['company-documents', 'drhp-documents']);
+=======
+const PRIVATE_FEEDS = new Set(['price-levels', 'company-documents', 'drhp-documents']);
+>>>>>>> sattva/main
 let observingSources = false;
 function observeSources() {
   if (observingSources) return;
@@ -558,6 +570,7 @@ function* readFeedSteps(feed, { day, includeHistory, queryWindow = null, newsRea
     return feed.id === 'news' ? { ...cached.row, ...companyNewsState(day, newsReader.meta()) } : cached.row;
   }
   const out = COLLECTORS[feed.id]({ day, includeHistory, queryWindow, newsReader, scope: 'universe', wanted: null }) || {};
+<<<<<<< HEAD
   // Source changes invalidate this reservation too. An older sliced read may still finish for
   // its caller, but cannot overwrite a newer reading or cache itself after invalidation.
   const reservation = {};
@@ -570,6 +583,16 @@ function* readFeedSteps(feed, { day, includeHistory, queryWindow = null, newsRea
     }
     return row;
   } finally { if (normalizedFeeds.get(feed.id) === reservation) normalizedFeeds.delete(feed.id); }
+=======
+  const row = toFeedRow(feed, { ...out,
+    events: (out.events || []).filter((e) => includeHistory || eventDay(e) === day) }, day);
+  // A first source check may fail after retaining useful captured rows. Their unchanged public
+  // interpretation is reusable too; collect() still overlays the failed check on every report.
+  // This does not mark the source loaded/successful, and source arrivals or a successful retry
+  // invalidate the interpretation through the existing subscriptions/load completion below.
+  if ((loadedFeeds.has(feed.id) || loadErrors.has(feed.id)) && !PRIVATE_FEEDS.has(feed.id)) normalizedFeeds.set(feed.id, { day, includeHistory, windowKey, newsReader: newsFeed ? newsReader : null, row });
+  return row;
+>>>>>>> sattva/main
 }
 
 function loadFeed(id, refresh) {
@@ -734,11 +757,18 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   const build = async () => {
     // Either news route can finish last. Reconcile companions from both current readers while
     // retaining each request's real pending/failed status; a partial is never a completed check.
+<<<<<<< HEAD
     // Each read below starts with the collector's synchronous pass over the reader's rows, and a
     // reader whose sources moved since it was last prepared — a publisher month landing
     // mid-collection — rebuilt its join in one task there (0.6s at 4x CPU throttle, inside a
     // progress publication). Prepare it in slices first; the read then finds its rows ready. A
     // preparation that fails changes nothing: the read still answers.
+=======
+    // The reads below are synchronous, and a reader whose sources moved since it was last prepared
+    // — a publisher month landing mid-collection — rebuilt its join in one task there (0.6s at 4x
+    // CPU throttle, inside a progress publication). Prepare it in slices first; the read then
+    // finds its rows ready. A preparation that fails changes nothing: the read still answers.
+>>>>>>> sattva/main
     if (queryWindow && ['news', 'market-news'].some(id => settledFeeds.has(id) && !poolSeeded.has(id))) {
       try { await newsReader.prepareRows?.(yieldForInput); } catch { /* The read below still answers. */ }
     }
@@ -831,7 +861,11 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
         } else if (load) await loadFeed(feed.id, refresh);
         await yieldForInput();
         await warm();
+<<<<<<< HEAD
         out = await readFeedInSlices(feed, args, yieldForInput);
+=======
+        out = readFeed(feed, args);
+>>>>>>> sattva/main
         if (!load && loadErrors.has(feed.id)) out = { ...out, status: 'failed', reachesToday: false, note: `Last read failed: ${loadErrors.get(feed.id)}. Retained records remain visible.` };
         else if (!load && (!loadedFeeds.has(feed.id) || loadingFeeds.has(feed.id)) && LOADERS[feed.id]) out = { ...out, status: 'pending' };
       } catch (err) {
@@ -840,7 +874,11 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
         // Read cold, every retained filing was classified again in one task: 2.2 seconds at 4x CPU
         // throttle, the longest task of an All Alerts open whose Today was still empty.
         try { await warm(); } catch { /* The read below still answers. */ }
+<<<<<<< HEAD
         try { out = await readFeedInSlices(feed, args, yieldForInput); } catch { out = toFeedRow(feed, { events: [] }, day); }
+=======
+        try { out = readFeed(feed, args); } catch { out = toFeedRow(feed, { events: [] }, day); }
+>>>>>>> sattva/main
         out = { ...out, status: 'failed', reachesToday: false, note: `Read failed: ${String(err?.message || err)}. Retained records remain visible.` };
       }
       settledFeeds.set(feed.id, out);
@@ -958,6 +996,7 @@ export async function warmRows(rows, reading, yieldForInput = yieldForInputSlice
 const WARMERS = {
   // The announcement rows are a merge of the exchange capture with the shared, lookup and recovery
   // rows, rebuilt — as all new row objects — whenever one of them lands, and an event is kept per row
+<<<<<<< HEAD
   // object. A merge that moved during the warm-up left the read to classify every retained filing
   // again in one task (0.5s on a cold open, measured), so the warm-up goes again until it holds.
   announcements: async (yieldForInput, reading) => {
@@ -969,6 +1008,18 @@ const WARMERS = {
       const next = announcements.rows();
       if (next === prepared) return;
       prepared = next;
+=======
+  // object. A merge that moved during the warm-up left the read to rebuild it and classify every
+  // retained filing again in one task (0.5s on a cold open, measured). So the warm-up goes again over
+  // the newer merge if one landed while it ran.
+  announcements: async (yieldForInput, reading) => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await announcements.warm(yieldForInput);
+      const rows = announcements.rows();
+      await warmRows(rows, (row) => reading.touch(announcementEvent(row), 'announcements'), yieldForInput);
+      await announcements.warm(yieldForInput);
+      if (announcements.rows() === rows) return;
+>>>>>>> sattva/main
     }
   },
   insider: (yieldForInput, reading) => warmRows(insider.rows(), (row) => reading.touch(insiderEvent(row), 'insider'), yieldForInput),
@@ -1825,6 +1876,7 @@ export function announcementEvent(r) {
     // is already reproduced in `detail`; naming it separately is what lets the card fall back to
     // it without splitting a joined string, and nothing here is reworded.
     filingSubject: r.title || r.headline || null,
+<<<<<<< HEAD
     // A row lodged on both exchanges is merged keeping the first exchange's subject — NSE's bare
     // "Press Release" — and BSE's full title arrives as `headline` beside it. It is the same filing's
     // other statement of itself, kept so the alert surfaces can print the one that says what happened.
@@ -1839,6 +1891,10 @@ export function announcementEvent(r) {
     // rows are one filing (js/data/alert-developments.js). A top-level field, because the AI pool
     // carries events without their source record.
     documentHash: r.documentHash || null,
+=======
+    filingSubCategory: r.subCategory || null,
+    filingDescription: r.description || null,
+>>>>>>> sattva/main
   };
   announcementEvents.set(r, event);
   return event;
@@ -2057,6 +2113,7 @@ function companyNewsEvent(r) {
     entityId: r.entityId || null,
     company: attributionFor(r).status === 'unrelated' ? 'Unrelated search result' : r.company || attributionFor(r).queryCompany || coverage.holdings().find((h) => h.ticker === r.ticker)?.name || r.ticker || 'Unresolved company',
     headline: r.title || 'Story',
+    storyText: r.summary || r.description || '',
     detail: [r.source ? `Published by ${r.source}` : 'Publisher not carried',
       attributionFor(r).status === 'related' ? attributionFor(r).reason : null].filter(Boolean).join(' · '),
     url: r.url || null,

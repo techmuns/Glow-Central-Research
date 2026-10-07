@@ -391,9 +391,21 @@ export function articleUrlKey(row) {
   return key;
 }
 
+<<<<<<< HEAD
 export const articleStoryKey = row => row?.title && row?.source
   ? `${String(row.date || row.publishedAt || '').slice(0, 10)} :: ${String(row.source).trim().toLowerCase()} :: ${String(row.title).trim().toLowerCase()}`
   : null;
+=======
+// One outlet's headline on one date: what `dedupeArticles` folds two addresses on. TradingView
+// republishes an outlet's story under its own address with that outlet's name, headline and date,
+// so this is the only thing the copy shares with the original. Exported because the news query
+// index has to find every row this can fold, or a period read keeps a copy the full history drops.
+export function articleStoryKey(row) {
+  return row?.title && row?.source
+    ? `${String(row.date || row.publishedAt || '').slice(0, 10)} :: ${String(row.source).trim().toLowerCase()} :: ${String(row.title).trim().toLowerCase()}`
+    : null;
+}
+>>>>>>> sattva/main
 
 export function dedupeArticles(list = []) {
   const seenUrl = new Set();

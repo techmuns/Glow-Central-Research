@@ -1,7 +1,13 @@
+<<<<<<< HEAD
 // tabs/corp-announcements.js — ONE TAB, TWO VIEWS: Announcements and Corporate Actions.
 //
 // The Announcements view is a continuous, scoped stream of source announcements. BSE date captures,
 // live NSE filings and retained Muns company documents share one table and keep their source labels.
+=======
+import { TAB_META } from './catalog.js';
+// A continuous, scoped stream of source announcements. BSE date captures, live NSE
+// filings and retained Muns company documents share one table and keep their source labels.
+>>>>>>> sattva/main
 // Captured history loads automatically; publication and capture gaps remain in provenance.
 //
 // CORPORATE ACTIONS USED TO BE A TAB OF ITS OWN, beside this one in the bar. Both are exchange
@@ -34,8 +40,13 @@ import * as corporateActions from './corporate-actions.js';
 import { ANNOUNCEMENTS_VIEW, CORPORATE_ACTIONS_VIEW, VIEWS, viewSwitchHtml } from './corp-announcements-views.js';
 import { announcementSources, announcementSourceUrls } from '../data/announcements-shared.js';
 import { captureCoverageHtml } from '../ui/capture-coverage.js';
+<<<<<<< HEAD
 import { announcementSearch, prepareAnnouncementSearch } from '../ui/announcement-search.js';
 import { announcementCoverage } from '../data/announcement-coverage.js';
+=======
+import { announcementCoverage } from '../data/announcement-coverage.js';
+import { announcementSearch } from '../ui/announcement-search.js';
+>>>>>>> sattva/main
 import * as coverage from '../data/coverage.js';
 import * as watchlist from '../core/watchlist.js';
 import { scopeLabel } from '../data/scope.js';
@@ -311,6 +322,7 @@ const categoryBadge = (c) => {
   return `<span class="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${cls}">${escapeHtml(String(c))}</span>`;
 };
 
+<<<<<<< HEAD
 const SUBTITLE = 'The latest company announcements from BSE, NSE and captured filings, newest first.';
 const searchableAnnouncement = (r) =>
   `${cleanFilingText(r.title)} ${cleanFilingText(r.headline)} ${cleanFilingText(r.subject)} ${r.company || ''} ${r.ticker || ''} ${r.scripCode || ''} ${r.category || ''} ${r.subCategory || ''} ${typeOf(r).label}`;
@@ -323,6 +335,12 @@ const announcements = makeFilingsTab({
   // the view switch is drawn beside the title; the status label keeps its place on the right.
   compactHead: true,
   headAside: (ctx) => viewSwitchHtml(ctx, ANNOUNCEMENTS_VIEW),
+=======
+const searchableAnnouncement = r => `${cleanFilingText(r.title)} ${cleanFilingText(r.headline)} ${cleanFilingText(r.subject)} ${r.company || ''} ${r.ticker || ''} ${r.scripCode || ''} ${r.category || ''} ${r.subCategory || ''}`;
+
+const tab = makeFilingsTab({
+  ...TAB_META['corp-announcements'],
+>>>>>>> sattva/main
   feed,
   prepareBeforePaint: true,
   // Search text includes the filing type. Prepare both readings in input-friendly slices before
@@ -373,6 +391,13 @@ const announcements = makeFilingsTab({
     const status = announcementCoverage(m);
     return `<span data-filings-info class="text-xs font-semibold ${status.incomplete ? 'text-amber-700' : 'text-slate-500'}" title="${escapeHtml(status.detail)}">${escapeHtml(status.label)}</span>`;
   },
+<<<<<<< HEAD
+=======
+  status: m => {
+    const status = announcementCoverage(m);
+    return `<span data-filings-info class="text-xs font-semibold ${status.incomplete ? 'text-amber-700' : 'text-slate-500'}" title="${escapeHtml(status.detail)}">${escapeHtml(status.label)}</span>`;
+  },
+>>>>>>> sattva/main
   emptyMessage: 'No captured announcements match this scope, period or search.',
   stickyHead: 'max(320px, calc(100vh - 260px))',
   noun: 'announcements',
@@ -446,7 +471,7 @@ const announcements = makeFilingsTab({
       },
     },
   ],
-  provenance: (m) => `<div class="px-7 py-6">
+  provenance: (m, { scope } = {}) => `<div class="px-7 py-6">
     <div class="mb-3 flex items-start justify-between gap-4">
       <h2 class="font-display text-xl font-bold text-slate-900">Corporate announcements</h2>
       <button data-modal-close class="text-2xl text-slate-400">&times;</button>
@@ -454,8 +479,12 @@ const announcements = makeFilingsTab({
     <div class="space-y-3 text-sm leading-relaxed text-slate-600">
       <p>${escapeHtml(SUBTITLE)}</p>
       <p><strong>BSE:</strong> exchange-wide announcements are captured every two hours, with retained monthly history.
+<<<<<<< HEAD
         Latest capture: ${escapeHtml(m.capturedAt || 'unavailable')}.
         ${escapeHtml(m.sourceCheck?.error?.message || m.sourceCheck?.identityError?.message || '')}</p>
+=======
+        Latest capture: ${escapeHtml(m.capturedAt || 'unavailable')}.</p>
+>>>>>>> sattva/main
       <p><strong>Backup announcements:</strong> Screener’s All announcements index is checked every two hours,
         across companies. Original exchange documents join this table; generated summaries are not imported.
         Last page checked: ${escapeHtml(m.recovery?.lastPageAt || 'unavailable')}.
@@ -465,6 +494,10 @@ const announcements = makeFilingsTab({
         ${m.recovery?.unavailableDocuments ? `${escapeHtml(m.recovery.unavailableDocuments)} backup notices have no document link; their source reference page is shown instead.` : ''}
         Interrupted reads resume from their saved page. Daily checks revisit the past seven days for late additions;
         older notices omitted by the publisher may remain unavailable. This backup does not certify complete exchange coverage.</p>
+<<<<<<< HEAD
+=======
+      ${m.sourceCheck?.error || m.sourceCheck?.identityError ? `<p>${escapeHtml(m.sourceCheck.error?.message || m.sourceCheck.identityError?.message)}</p>` : ''}
+>>>>>>> sattva/main
       <p><strong>NSE:</strong> the live exchange feed and up to 90 days of retained captures join this table.
         Latest source capture: ${escapeHtml(m.nse?.capturedAt || 'unavailable')}.
         ${escapeHtml(m.nse?.error || m.nse?.degraded || '')}</p>
@@ -496,7 +529,7 @@ const announcements = makeFilingsTab({
       </ul>
       ${m.archive?.error ? `<p>${escapeHtml(m.archive.error)}</p>` : ''}
       ${m.nse?.historyUnavailable || m.nse?.allMissingDays?.length ? '<p>Some retained NSE history could not be loaded; existing records remain visible.</p>' : ''}
-      ${captureCoverageHtml('announcements')}
+      ${captureCoverageHtml('announcements', null, { scope })}
       ${coverageBlock(m)}
     </div>
   </div>`,
@@ -531,7 +564,11 @@ const announcements = makeFilingsTab({
         { header: 'Source', key: 'src', width: 20, get: (r) => r.__banner ? '' : announcementSources(r).join(' / ') },
         { header: 'Retrieved through', key: 'via', width: 35, get: (r) => r.__banner ? '' : (r.providers || []).join(' / ') },
         { header: 'Document URL', key: 'u', width: 60, get: (r) => (r.__banner ? '' : r.url || '') },
+<<<<<<< HEAD
         { header: 'Source reference page (no document)', key: 'ref', width: 60, get: (r) => (r.__banner ? '' : r.referenceUrl || '') },
+=======
+        { header: 'Source reference page (no document)', key: 'ref', width: 60, get: r => r.__banner ? '' : r.referenceUrl || '' },
+>>>>>>> sattva/main
         { header: 'All source document URLs', key: 'su', width: 80, get: (r) => r.__banner ? '' :
           announcementSourceUrls(r).map(({ source, url }) => `${source}: ${url}`).join('\n') },
       ],

@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { defaultSection } from '../investors/my-managers.js';
+=======
+import { TAB_META } from './catalog.js';
+>>>>>>> sattva/main
 // tabs/super-investors.js — who owns what, from two live sources and nothing else.
 //
 //   Superstar Investors  every tracked investor's book, live off Ticker Finology  → investors/live.js
@@ -28,15 +32,7 @@ import * as liveInvestors from '../data/super-investors.js';
 import * as refreshRegistry from '../core/refresh.js';
 import * as filed from '../data/institution-holdings.js';
 
-export const meta = {
-  id: 'super-investors',
-  title: 'Super Investors',
-  subtitle: 'Superstar-investor and institutional holdings, quarter on quarter and month on month.',
-  subviews: [
-    { id: 'superstar-investors', label: 'Superstar Investors' },
-    { id: 'institutions', label: 'Institutions' },
-  ],
-};
+export const meta = TAB_META['super-investors'];
 
 let renderToken = 0;
 let ctxRef = null;
@@ -53,8 +49,13 @@ let liveRouteCompany = null;
 // The Superstar sub-view has four in-page destinations of its own. Keep the reader on the one they
 // chose while scope changes and live-book arrivals repaint the tab; switching to Institutions or
 // leaving Super Investors resets it.
+<<<<<<< HEAD
 let liveSection = null;
 let changesView = { audience: 'my-managers', period: 'quarter', activityView: null, holdingsView: null };
+=======
+let liveSection = 'investors';
+let changesView = { period: 'quarter' };
+>>>>>>> sattva/main
 // Institutions mirrors that contract: the fund tables remain the default, while Quarterly Changes
 // is a cross-book destination whose selection survives a scope repaint but not leaving the view.
 let filedSection = 'institutions';
@@ -71,11 +72,16 @@ export function render(ctx) {
   liveRouteCompany = seeded.company;
   liveView = seeded.view;
   // A sub-view change does not destroy this module. Reset here when the reader leaves Superstar
+<<<<<<< HEAD
   // Investors so returning from Institutions opens on Changes with My Managers selected.
   if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') {
     liveSection = null;
     changesView = { audience: 'my-managers', period: 'quarter', activityView: null, holdingsView: null };
   }
+=======
+  // Investors so returning from Institutions opens on the documented All Investors default.
+  if (ctxRef?.subview === 'superstar-investors' && ctx.subview !== 'superstar-investors') { liveSection = 'investors'; changesView = { period: 'quarter' }; }
+>>>>>>> sattva/main
   if (ctxRef?.subview === 'institutions' && ctx.subview !== 'institutions') filedSection = 'institutions';
   renderToken++;
   ctxRef = ctx;
@@ -105,8 +111,13 @@ export function destroy() {
   // Leaving is a deliberate exit; coming back should be a clean table rather than last visit's
   // half-applied filter. Only a repaint mid-load carries the view forward.
   liveView = null;
+<<<<<<< HEAD
   liveSection = null;
   changesView = { audience: 'my-managers', period: 'quarter', activityView: null, holdingsView: null };
+=======
+  changesView = { period: 'quarter' };
+  liveSection = 'investors';
+>>>>>>> sattva/main
   filedSection = 'institutions';
 }
 
@@ -182,7 +193,11 @@ function paintIndividuals(ctx) {
     section: liveSection || defaultSection(ctx.scope),
     tableView: liveView,
     changesView,
+<<<<<<< HEAD
     onChangesView: (v) => { changesView = v; },
+=======
+    onChangesView: (view) => { changesView = view; },
+>>>>>>> sattva/main
     onView: (v) => (liveView = v),
     onSection: (section) => {
       if (section === liveSection || ctxRef?.subview !== 'superstar-investors') return;
@@ -247,7 +262,7 @@ function paintInstitutions(ctx) {
       <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
         <h3 class="font-display text-base font-bold text-slate-900">No holdings file loaded</h3>
         <p class="mt-1.5 text-sm leading-relaxed text-slate-600">
-          <code class="rounded bg-slate-100 px-1">public/data/institution-holdings.json</code> did not load at bootstrap.
+          <code class="rounded bg-slate-100 px-1">public/data/institution-holdings.json</code> could not be loaded.
           It is written by <code class="rounded bg-slate-100 px-1">scripts/scrape-institution-holdings.mjs</code> and
           <code class="rounded bg-slate-100 px-1">scripts/import-amc-portfolio.mjs</code>.
         </p>

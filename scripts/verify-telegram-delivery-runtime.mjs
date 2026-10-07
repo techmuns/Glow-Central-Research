@@ -44,12 +44,20 @@ const options = { workers: [{ name: 'telegram-delivery-test', modules: true, scr
     if (url.startsWith('https://example.blob.core.windows.net/')) {
       assert.equal(request.headers.get('authorization'), null); return new Response(bytes);
     }
+<<<<<<< HEAD
     assert(url.startsWith('https://api.github.com/repos/techmuns/Glow-Central-Research/'));
+=======
+    assert(url.startsWith('https://api.github.com/repos/techmuns/Sattva-Central-Research/'));
+>>>>>>> sattva/main
     assert.equal(request.headers.get('authorization'), 'Bearer test-token');
     if (url.includes('/runs?')) {
       await new Promise(done => setTimeout(done, 10));
       return Response.json({ workflow_runs: [{ id: 1, name: 'Telegram collection (github-cron)', head_branch: 'main',
+<<<<<<< HEAD
         head_repository: { full_name: 'techmuns/Glow-Central-Research' }, event: 'schedule', status: 'completed', conclusion: 'success' }] });
+=======
+        head_repository: { full_name: 'techmuns/Sattva-Central-Research' }, event: 'schedule', status: 'completed', conclusion: 'success' }] });
+>>>>>>> sattva/main
     }
     if (url.includes('/artifacts?')) return Response.json({ artifacts: [{ id: 2, name: 'telegram-posts-v1.json.gz', expired: false,
       workflow_run: { id: 1 }, digest: corrupt ? 'sha256:' + '0'.repeat(64) : digest, size_in_bytes: bytes.length }] });
