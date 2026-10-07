@@ -3,8 +3,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-07T02:27:11.526Z",
-  "oldestDataAt": "2026-10-07T02:27:11.526Z",
+  "capturedAt": "2026-10-07T05:50:19.260Z",
+  "oldestDataAt": "2026-10-07T05:50:19.260Z",
   "from": "2025-10-07",
   "to": "2026-10-07",
   "windowDays": 365,
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-07T02:27:11.526Z",
+      "capturedAt": "2026-10-07T05:50:19.260Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-07T02:27:11.526Z",
+      "capturedAt": "2026-10-07T05:50:19.260Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -49,12 +49,12 @@
       "label": "SAST",
       "url": "https://www.screener.in/trades/sast/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-10-05",
-      "oldestDate": "2026-09-28",
+      "latestDate": "2026-10-06",
+      "oldestDate": "2026-09-30",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-07T02:27:11.526Z",
+      "capturedAt": "2026-10-07T05:50:19.260Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -67,15 +67,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-07T02:27:11.526Z",
+      "capturedAt": "2026-10-07T05:50:19.260Z",
       "coverageFrom": "2026-08-04"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1852,
+  "withRows": 1854,
   "emptyCount": 0,
-  "rowCount": 19734,
+  "rowCount": 19746,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -256284,6 +256284,36 @@
     "MILTON": [
       {
         "ticker": "MILTON",
+        "date": "2026-10-06",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Milton Industri.",
+          "Insider": "Aadit Jain",
+          "Transaction": "Acquisition",
+          "Trade Shares": "283800",
+          "Broadcast Date": "2026-10-06",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MILTON",
+        "date": "2026-10-06",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Milton Industri.",
+          "Insider": "Ajay Jain",
+          "Transaction": "Sell",
+          "Trade Shares": "514800",
+          "Broadcast Date": "2026-10-06",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MILTON",
         "date": "2026-09-25",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=6",
         "sourceId": "bulk",
@@ -302584,6 +302614,21 @@
     "MAGSON": [
       {
         "ticker": "MAGSON",
+        "date": "2026-10-06",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Magson Retail",
+          "Insider": "Manish Shivnarayan Pancholi",
+          "Transaction": "Sell",
+          "Trade Shares": "31000",
+          "Broadcast Date": "2026-10-06",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MAGSON",
         "date": "2026-10-05",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -312392,6 +312437,21 @@
     "ARVINDPORT": [
       {
         "ticker": "ARVINDPORT",
+        "date": "2026-10-06",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Arvind Port &",
+          "Insider": "Vinit Arvind Shah",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3000",
+          "Broadcast Date": "2026-10-06",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ARVINDPORT",
         "date": "2026-09-25",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -315385,6 +315445,36 @@
       }
     ],
     "MCL": [
+      {
+        "ticker": "MCL",
+        "date": "2026-10-06",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "M Tek Copper",
+          "Insider": "MR. DIVYA ARVINDHAI MONPARA",
+          "Transaction": "Sell",
+          "Trade Shares": "9000",
+          "Broadcast Date": "2026-10-06",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MCL",
+        "date": "2026-10-06",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "M Tek Copper",
+          "Insider": "MR. RAJESH ODHAVJIBHAI PATEL",
+          "Transaction": "Sell",
+          "Trade Shares": "9000",
+          "Broadcast Date": "2026-10-06",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "MCL",
         "date": "2026-10-05",
@@ -363563,6 +363653,21 @@
     "MARINE": [
       {
         "ticker": "MARINE",
+        "date": "2026-10-06",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Marine Electric.",
+          "Insider": "KDU Enterprises Private Limited",
+          "Transaction": "Sell",
+          "Trade Shares": "4200000",
+          "Broadcast Date": "2026-10-06",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MARINE",
         "date": "2026-09-23",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=7",
         "sourceId": "bulk",
@@ -369352,6 +369457,21 @@
       }
     ],
     "KAPSTON": [
+      {
+        "ticker": "KAPSTON",
+        "date": "2026-10-06",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Kapston Services",
+          "Insider": "MR. SRIKANTH KODALI",
+          "Transaction": "Sell",
+          "Trade Shares": "1200000",
+          "Broadcast Date": "2026-10-06",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "KAPSTON",
         "date": "2026-09-30",
@@ -380121,6 +380241,70 @@
           "Trade Shares": "607000",
           "Trade Value": "63.13 crore",
           "Price": "1040",
+          "Broadcast Date": "2026-10-06",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "ANONDITA": [
+      {
+        "ticker": "ANONDITA",
+        "date": "2026-10-06",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Anondita Medi.",
+          "Insider": "Mr. Anupam Ghosh, Mr. Reshant Ghosh, Ms. Sonia Ghosh",
+          "Transaction": "Acquisition",
+          "Trade Shares": "0",
+          "Broadcast Date": "2026-10-06",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ANONDITA",
+        "date": "2026-10-06",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Anondita Medi.",
+          "Insider": "Mr. Anupam Ghosh",
+          "Transaction": "Acquisition",
+          "Trade Shares": "0",
+          "Broadcast Date": "2026-10-06",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ANONDITA",
+        "date": "2026-10-06",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Anondita Medi.",
+          "Insider": "Sageone-Flagship Growth OE Fund",
+          "Transaction": "Acquisition",
+          "Trade Shares": "251200",
+          "Broadcast Date": "2026-10-06",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "ORIANA": [
+      {
+        "ticker": "ORIANA",
+        "date": "2026-10-06",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Oriana Power Ltd",
+          "Insider": "Parveen Kumar",
+          "Transaction": "Release",
+          "Trade Shares": "19634000",
           "Broadcast Date": "2026-10-06",
           "Source": "Screener.in"
         }
