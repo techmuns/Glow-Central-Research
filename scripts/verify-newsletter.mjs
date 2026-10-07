@@ -17,6 +17,7 @@ import {
 } from '../public/js/data/newsletter-shared.js';
 import { renderBriefEmails, emailBytes, EMAIL_HTML_BYTES, acceptedStoryKeys } from '../worker/newsletter-email.mjs';
 import { renderBriefPdf, pdfFilename } from '../worker/newsletter-pdf.mjs';
+import { verifyNewsletterPdf } from './verify-newsletter-pdf.mjs';
 import { handleNewsletter } from '../worker/newsletter.mjs';
 import { NewsletterStore } from '../worker/newsletter-store.mjs';
 import {
@@ -1191,6 +1192,8 @@ await test('sendEmail uses the verified Muns reply fields and validates returned
   await assert.rejects(send({}, 'invalid'), /valid reply Message-ID/);
 });
 
+await test('PDF layout preserves rows, evidence, navigation and pagination', verifyNewsletterPdf);
+
 await test('busy editions preserve every source, AI note and supplemental row within the UTF-8 email budget', () => {
   const busy = structuredClone(morning);
   busy.announcements.groups = []; busy.trades.groups = []; busy.moves.groups = [];
@@ -1235,6 +1238,7 @@ await test('busy editions preserve every source, AI note and supplemental row wi
     parts.forEach((p, i) => writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/part-${i + 1}.html`, p.html));
     writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/glow-full-brief.pdf`, renderBriefPdf(busy));
     writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/glow-short-brief.pdf`, renderBriefPdf(morning));
+    writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/glow-short-brief.json`, JSON.stringify(morning));
   }
 });
 

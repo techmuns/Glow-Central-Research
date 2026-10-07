@@ -1325,6 +1325,11 @@ Stop unlinked parts when no valid root is acknowledged; retain unsent story elig
 Glow’s reported ledger and commit only acknowledged part identities with delivery progress.
 See `docs/GLOW-TEMPLATE-SYNC.md` → *Newsletter delivery parity* for the full contract.
 
+The complete PDF uses `worker/newsletter-pdf-layout.mjs`: measured tables, repeated headings,
+section bookmarks, contents links and bounded continuation of long notes. Keep every holding,
+source link, actual check time and failure state. Saved emailed PDFs remain immutable; the design
+applies to new sends and PDF previews. `verify-newsletter-pdf.mjs` runs inside newsletter CI.
+
 The **Newsletter** button beside the header bell subscribes the desk to two Glow Ventures-branded
 emails a weekday, each leading with the portfolio companies (one block per company, every link
 opening in a new tab) and following with the market scan: the **morning brief** at 08:00 IST (what happened overnight — the US close, Asia this
