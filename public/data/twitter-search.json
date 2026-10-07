@@ -2160,12 +2160,16 @@
     "isin:INE0LRU01027|Aarti Pharmalabs": {
       "lastAttemptAt": "2026-10-07T11:26:55+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE0LRU01027|AARTIPHARM": {
+      "lastAttemptAt": "2026-10-07T11:59:10+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 254,
     "attempted": 1,
     "incomplete": 245,
-    "checkedAt": "2026-10-07T11:26:55.489293+00:00"
+    "checkedAt": "2026-10-07T11:59:10.872596+00:00"
   }
 }
