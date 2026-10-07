@@ -391,6 +391,13 @@ See `CONCALL-SUMMARIES.md` for retention limits, activation gates and the unveri
 parser. Offline tests do not certify production capture or complete portfolio summary coverage.
 
 ## Performance vs. Data Integrity
+Opening reads the public company identities and sector context alongside module loading, sharing
+each opening promise once with its normal reader. An unused opening promise expires after 30
+seconds; later visits use the existing revalidation policy. Secondary tab interfaces import on
+selection, with all routing/scope flags preserved. Obsolete imports cannot mount over a newer
+route. The service worker still warms all interfaces for offline visits and upgrades existing
+sessions. Source readers, polling cadence, capture, archives and full-data search/export are unchanged.
+
 **DATA INTEGRITY IS A RELEASE-BLOCKING REQUIREMENT.**
 
 Performance improvements must preserve incoming data, historical records, and existing freshness guarantees.

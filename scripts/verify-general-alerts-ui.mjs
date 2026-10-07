@@ -18,10 +18,13 @@ const data = (path) => JSON.parse(readFileSync(resolve(root, `data/${path}`)));
 const IST_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
 const UPCOMING_DAY = IST_DAY.format(new Date(Date.now() + 5 * 86400000));
 const UPCOMING_FAR_DAY = IST_DAY.format(new Date(Date.now() + 40 * 86400000));
+// News intentionally exposes at most thirty recent days. Keep these attribution fixtures
+// inside that window as the suite advances; older real records are tested in All Alerts.
+const NEWS_DAY = IST_DAY.format(new Date(Date.now() - 7 * 86400000));
 const newsCases = JSON.parse(readFileSync(new URL('./fixtures/company-news-attribution.json', import.meta.url))).cases
   .filter(test => ['accent', 'ticker-brand', 'no-keyword', 'snippet-only', 'reported-mismatch'].includes(test.id));
-const newsFixture = { capturedAt: '2026-09-04T08:00:00Z', entities: newsCases.map(test => ({ ...test.identity, key: test.identity.ticker })),
-  byTicker: Object.groupBy(newsCases.map(test => ({ date: '2026-09-04', company: test.identity.name,
+const newsFixture = { capturedAt: `${NEWS_DAY}T08:00:00Z`, entities: newsCases.map(test => ({ ...test.identity, key: test.identity.ticker })),
+  byTicker: Object.groupBy(newsCases.map(test => ({ date: NEWS_DAY, company: test.identity.name,
     ticker: test.identity.ticker, query: test.identity.name, source: 'Synthetic test publisher',
     url: `https://example.test/${test.id}`, ...test.row })), row => row.ticker) };
 // THE SCHEDULED EVENT HAS TO BE SCHEDULED WHEN THE SUITE RUNS. The Upcoming AGM row below was
@@ -63,6 +66,8 @@ window.SATTVA_CHATTER_URL=location.origin+'/chatter';
 import * as tab from '/js/tabs/daily-alerts.js';
 import * as coverage from '/js/data/coverage.js';
 import * as refresh from '/js/core/refresh.js';
+import { clearPrivateRecords } from '/js/data/alert-records.js';
+window.testClearPrivateRecords = clearPrivateRecords;
 coverage.prime({holdings:[{ticker:'STLTECH',name:'Sterlite Technologies'},{ticker:'RELIANCE',name:'Reliance Industries'},{ticker:'JAYNECOIND',name:'Jayaswal Neco Industries'},{ticker:'NESTLEIND',name:'Nestle India'},{ticker:'DMART',name:'Avenue Supermarts'}]});
 window.show=(scope='universe',params={})=>tab.render({root:document.querySelector('#root'),params,scope,data:{}});
 window.dispose=()=>tab.destroy();
@@ -305,7 +310,7 @@ try {
   // A large table applies a search on the next frame; count once it has, as the checks below do.
   await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, '60-day evidence remains reachable through See all');
-  await page.evaluate(async () => { (await import('/js/data/alert-records.js')).clearPrivateRecords(); window.show('portfolio'); });
+  await page.evaluate(() => { window.testClearPrivateRecords(); window.show('portfolio'); });
   await settled();
   console.log('Verified exact All Alerts periods, retained user choice and complete-history company links');
   assert.equal(await page.locator('[data-feed="screener-portfolio-upcoming"]').count(), 1);
@@ -470,6 +475,8 @@ try {
     const first = document.querySelector('tbody [data-event-day]');
     return first?.getAttribute('data-event-day');
   });
+  await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
+  await stableReadingSurface();
   assert(!(await page.locator('tbody tr').first().innerText()).includes('Date not supplied'), 'undated rows sort after dated records');
 
   const tableContract = await page.evaluate(() => {
@@ -526,18 +533,32 @@ try {
   assert.equal(virtualContract.scrollListeners, 1, 'feed repaints retain exactly one active table scroll listener');
   assert.equal(virtualContract.resizeListeners, 1, 'feed repaints retain exactly one active resize listener');
   // The export button moved out of the table toolbar, but must still use the full filtered
-  // model. A local workbook stand-in counts rows without a CDN or a large artifact on disk.
+  // model. Capture its count at the export click, rather than the earlier virtualization
+  // snapshot: asynchronous feed repaints can change that model between the two interactions.
+  // A local workbook stand-in counts rows without a CDN or a large artifact on disk.
   await page.evaluate(() => {
     window.exportedRows = 0;
+    window.exportFinished = false;
+    // Source settlement and sliced development grouping can publish a newer model between
+    // the geometry assertions above and this click. Compare against the model the reader
+    // actually exports, captured before the button's handler runs in the same browser task.
+    document.addEventListener('click', event => {
+      if (event.target.closest('[data-alerts-table-actions] [data-export]')) {
+        window.exportExpectedRows = Number(document.querySelector('[data-score-table]').dataset.virtualTotal) + 1;
+      }
+    }, { capture: true, once: true });
     window.ExcelJS = { Workbook: class {
-      constructor() { this.xlsx = { writeBuffer: async () => new Uint8Array() }; }
+      constructor() { this.xlsx = { writeBuffer: async () => { window.exportFinished = true; return new Uint8Array(); } }; }
       addWorksheet() { return { addRow: () => { window.exportedRows++; }, getRow: () => ({}) }; }
     } };
   });
   await page.locator('[data-alerts-table-actions] [data-export]').click();
-  await page.waitForFunction(() => window.exportedRows > 0);
-  assert.equal(await page.evaluate(() => window.exportedRows), virtualContract.total + 1,
+  await page.waitForFunction(() => window.exportFinished);
+  const exported = await page.evaluate(() => ({ actual: window.exportedRows, expected: window.exportExpectedRows }));
+  assert(exported.expected > virtualContract.mounted + 1, 'export snapshot includes offscreen records');
+  assert.equal(exported.actual, exported.expected,
     'relocated export includes every matching record plus provenance, not just mounted rows');
+  console.log(`Verified complete ${exported.actual - 1}-record export from its click-time model`);
 
   await page.locator('[data-table-scroll]').evaluate((scroller) => { scroller.scrollTop = scroller.scrollHeight; });
   await page.waitForFunction((firstKey) => {
@@ -564,6 +585,17 @@ try {
     return { key: row?.dataset.rowKey || null, offset: row ? row.getBoundingClientRect().top - boundary : 0 };
   });
   assert(beforeRefresh.key && (await page.locator('[data-table-scroll]').evaluate((el) => el.scrollTop)) > 0);
+  // Observe receipt before waiting for every provider: its live notice can legitimately
+  // expire while slower source reads finish, but the reading anchor must still survive.
+  await page.evaluate(() => {
+    window.observedReadingArrival = false;
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('[data-arrivals-announcement]')?.textContent.includes('Arrival while reading older rows')) {
+        window.observedReadingArrival = true; observer.disconnect();
+      }
+    });
+    observer.observe(document.querySelector('#root'), { childList: true, subtree: true, characterData: true });
+  });
   version = 4;
   await page.evaluate(async () => (await import('/js/core/refresh.js')).refreshAll());
   await settled();
@@ -575,7 +607,7 @@ try {
   }, beforeRefresh.key);
   assert.equal(afterRefresh.key, beforeRefresh.key);
   assert(Math.abs(afterRefresh.offset - beforeRefresh.offset) <= 2, `visible row moved ${afterRefresh.offset - beforeRefresh.offset}px during refresh`);
-  assert((await page.locator('[data-arrivals-announcement]').textContent()).includes('Arrival while reading older rows'), 'new row arrived above the preserved reading position');
+  assert(await page.evaluate(() => window.observedReadingArrival), 'new row arrived above the preserved reading position');
 
   await page.locator('[data-alerts-focus]').click();
   assert.equal(await page.locator('[data-alerts-focus]').getAttribute('aria-pressed'), 'true');

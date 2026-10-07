@@ -6360,9 +6360,18 @@ what it was asked to send.
 - Packing and the final transport guard enforce 90,000 UTF-8 bytes per body. Companies stay
   together where possible; complete updates and supplemental table rows are indivisible.
   Impossible content returns `email-too-large` before sending, without truncating evidence.
-- Each dated morning/evening subject includes its part number, preventing Gmail from combining
-  large parts into a clipped conversation. No reply/threading headers are claimed: the current
-  Muns raw-send API has no documented controls for them. The complete PDF provides one document.
+- **Threaded editions (7 October 2026):** all parts share one dated morning/evening subject;
+  part numbers remain in the body. The verified Muns success response returns `data.messageId`.
+  Each recipient's first part starts a new root; later parts send `inReplyTo: rootMessageId`
+  and `references: [rootMessageId]`. Root IDs are local to that recipient and delivery, never
+  shared across recipients, editions or dates. Delivery outcomes retain `threadMessageId` and
+  each acknowledged part's `messageId`. The API still receives exactly one of `html`/`text`.
+  A missing/invalid root ID or failed first send stops later parts with `thread-unavailable`;
+  acknowledged first-part identities alone may enter the ledger, and unsent identities remain
+  eligible. A failed intermediate reply does not unlink subsequent parts. Unknown sends are
+  never retried. Individual bodies retain the 90,000-byte cap; clients may still clip a combined
+  conversation, so every part links to the complete immutable PDF. Gmail delivery was verified
+  with two test messages to `ceekay@muns.io`, including received reply headers and one thread ID.
 - Five manual send attempts per rolling hour are reserved durably before building documents
   or calling AI. Exhaustion returns `manual-send-budget` with `retryAt`. Existing schedule,
   subscriber list, edition claims and normal delivery cadence remain unchanged.
