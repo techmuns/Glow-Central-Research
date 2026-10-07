@@ -176,15 +176,15 @@ function performance(pdf, brief) {
     );
   const columns = priced
     ? [
-        { label: 'HOLDING', width: 195 },
-        { label: 'SYMBOL', width: 49 },
+        { label: 'HOLDING', width: 164 },
+        { label: 'SYMBOL', width: 80 },
         { label: 'CLOSE / INR', width: 84, align: 'right' },
         { label: 'DAY / %', width: 61, align: 'right' },
         { label: 'CHANGE / DERIVED', width: CONTENT - 389, align: 'right' },
       ]
     : [
-        { label: 'HOLDING', width: CONTENT - 250 },
-        { label: 'SYMBOL', width: 55 },
+        { label: 'HOLDING', width: CONTENT - 275 },
+        { label: 'SYMBOL', width: 80 },
         { label: 'CLOSE / INR', width: 110, align: 'right' },
         { label: 'DAY / %', width: 85, align: 'right' },
       ];
