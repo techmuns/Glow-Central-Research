@@ -119,7 +119,12 @@ try {
   assert.equal(readFileSync(file, 'utf8'), bytes);
 } finally { rmSync(scratch, { recursive: true, force: true }); }
 const shell = readFileSync(new URL('../public/js/ui/shell.js', import.meta.url), 'utf8');
-for (const name of ['mutualFunds', 'macroResearch', 'economyMacro', 'familyBook']) assert(shell.includes(name));
+const registry = readFileSync(new URL('../public/js/ui/tab-registry.js', import.meta.url), 'utf8');
+assert(shell.includes('tabs: researchTabs'), 'the shell uses the research tab registry');
+for (const id of ['mutual-funds', 'macro-research', 'economy-macro', 'family-book']) {
+  assert(registry.includes(`id: '${id}'`), `${id} remains in research navigation`);
+  assert(registry.includes(`import('../tabs/${id}.js')`), `${id} retains its interface`);
+}
 // `scripts/` IS SCANNED, AND IT IS THE DIRECTORY THE ADAPTER CANNOT REACH. `adaptGlowTemplate`
 // skips every `verify-*` file on purpose — a check may legitimately assert an upstream string, and
 // rewriting a fixture is how a real mismatch gets masked. The cost is that a merged upstream check

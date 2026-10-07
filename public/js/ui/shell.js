@@ -9,7 +9,7 @@ import * as live from '../core/live.js';
 import * as watch from '../core/watch.js';
 import * as refreshRegistry from '../core/refresh.js';
 import { tabBar, segmentedToggle, statusControl, emptyState } from './components.js';
-import { coverTableResults } from './loading.js';
+import { coverTableResults, loadingGrid } from './loading.js';
 import { closeDrill, closeModal, closeWorkspace, openModal, watchlistEmptyPanel } from './screener.js';
 import { SCOPES, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
@@ -26,23 +26,8 @@ import * as sourceBeacon from './source-beacon.js';
 import * as notifications from './notifications.js';
 import * as newsletter from './newsletter.js';
 
-import * as aiAlerts from '../tabs/ai-alerts.js';
-import * as dailyAlerts from '../tabs/daily-alerts.js';
-import * as earningsHub from '../tabs/earnings-hub.js';
-import * as concall from '../tabs/concall.js';
-import * as publicChatter from '../tabs/public-chatter.js';
-import * as breakouts from '../tabs/breakouts.js';
-import * as superInvestors from '../tabs/super-investors.js';
-import * as news from '../tabs/news.js';
-import * as corpAnnouncements from '../tabs/corp-announcements.js';
-import * as nseFilings from '../tabs/nse-filings.js';
-import * as insiderTrades from '../tabs/insider-trades.js';
-import * as ipos from '../tabs/ipos.js';
-import * as bookmarks from '../tabs/bookmarks.js';
-import * as mutualFunds from '../tabs/mutual-funds.js';
-import * as macroResearch from '../tabs/macro-research.js';
-import * as economyMacro from '../tabs/economy-macro.js';
-import * as familyBook from '../tabs/family-book.js';
+import { researchTabs } from './tab-registry.js';
+const bookmarks = researchTabs.find(tab => tab.meta.id === 'bookmarks');
 
 // The nav model in one place: each workspace an ordered list of tab modules. Every module's
 // `meta.subviews` supplies the rail/rail-dropdown items — nothing here is duplicated per module.
@@ -68,7 +53,7 @@ import * as familyBook from '../tabs/family-book.js';
 // an unknown or absent tab, so the order of this array IS the default landing page — there is no
 // second place recording it that could disagree.
 const WORKSPACES = [
-  { id: 'research', label: 'Research Central', tabs: [aiAlerts, dailyAlerts, bookmarks, earningsHub, concall, publicChatter, breakouts, superInvestors, news, ipos, corpAnnouncements, nseFilings, insiderTrades, mutualFunds, macroResearch, economyMacro, familyBook] },
+  { id: 'research', label: 'Research Central', tabs: researchTabs },
 ];
 
 // A TAB THAT BECAME A SUB-VIEW KEEPS ITS OLD ADDRESS WORKING. Corporate Actions was its own tab in
@@ -546,21 +531,28 @@ function mountTab(root, tabModule, resolved) {
   // Keep old controls out of reach during that yield: otherwise a fast follow-up search can
   // edit a table that the queued render is about to replace. The current tab still owns its DOM
   // and view state; only the temporary cover is removed before the latest render runs.
-  if (contentHost.children.length) releaseRouteLoading = coverTableResults(contentHost.parentElement, contentHost);
+  if (!contentHost.children.length) contentHost.innerHTML = loadingGrid({ label: `Loading ${tabModule.meta.title}` });
+  releaseRouteLoading = coverTableResults(contentHost.parentElement, contentHost);
   if (typeof requestAnimationFrame === 'function') {
     requestAnimationFrame(() => setTimeout(runRender, 0));
   } else {
     setTimeout(runRender, 16);
   }
 
-  function runRender() {
+  async function runRender() {
     if (shellRenderRequest !== reqId) return; // Reader clicked away before this frame
-    releaseRouteLoading?.(); releaseRouteLoading = null;
-    root.dataset.readingLayout = tabModule.meta.layout === 'table' ? 'table' : 'standard';
-    contentHost.setAttribute('data-active-tab', tabModule.meta.id);
     try {
-      tabModule.render(ctx);
+      const loaded = tabModule.load ? await tabModule.load() : tabModule;
+      // Import completion belongs to the route that asked for it. Rapid tab, scope and subview
+      // changes can share the download but only the latest request may mount its interface.
+      if (shellRenderRequest !== reqId) return;
+      releaseRouteLoading?.(); releaseRouteLoading = null;
+      root.dataset.readingLayout = loaded.meta.layout === 'table' ? 'table' : 'standard';
+      contentHost.setAttribute('data-active-tab', loaded.meta.id);
+      loaded.render(ctx);
     } catch (err) {
+      if (shellRenderRequest !== reqId) return;
+      releaseRouteLoading?.(); releaseRouteLoading = null;
       console.error(`[shell] render() failed for "${tabModule.meta?.id}"`, err);
       contentHost.innerHTML = emptyState({ title: 'This panel hit a snag', message: String(err?.message || err), icon: '⚠️' });
     }

@@ -18,10 +18,13 @@ const data = (path) => JSON.parse(readFileSync(resolve(root, `data/${path}`)));
 const IST_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
 const UPCOMING_DAY = IST_DAY.format(new Date(Date.now() + 5 * 86400000));
 const UPCOMING_FAR_DAY = IST_DAY.format(new Date(Date.now() + 40 * 86400000));
+// News intentionally exposes at most thirty recent days. Keep these attribution fixtures
+// inside that window as the suite advances; older real records are tested in All Alerts.
+const NEWS_DAY = IST_DAY.format(new Date(Date.now() - 7 * 86400000));
 const newsCases = JSON.parse(readFileSync(new URL('./fixtures/company-news-attribution.json', import.meta.url))).cases
   .filter(test => ['accent', 'ticker-brand', 'no-keyword', 'snippet-only', 'reported-mismatch'].includes(test.id));
-const newsFixture = { capturedAt: '2026-09-04T08:00:00Z', entities: newsCases.map(test => ({ ...test.identity, key: test.identity.ticker })),
-  byTicker: Object.groupBy(newsCases.map(test => ({ date: '2026-09-04', company: test.identity.name,
+const newsFixture = { capturedAt: `${NEWS_DAY}T08:00:00Z`, entities: newsCases.map(test => ({ ...test.identity, key: test.identity.ticker })),
+  byTicker: Object.groupBy(newsCases.map(test => ({ date: NEWS_DAY, company: test.identity.name,
     ticker: test.identity.ticker, query: test.identity.name, source: 'Synthetic test publisher',
     url: `https://example.test/${test.id}`, ...test.row })), row => row.ticker) };
 // THE SCHEDULED EVENT HAS TO BE SCHEDULED WHEN THE SUITE RUNS. The Upcoming AGM row below was
@@ -462,6 +465,8 @@ try {
     const first = document.querySelector('tbody [data-event-day]');
     return first?.getAttribute('data-event-day');
   });
+  await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
+  await stableReadingSurface();
   assert(!(await page.locator('tbody tr').first().innerText()).includes('Date not supplied'), 'undated rows sort after dated records');
 
   const tableContract = await page.evaluate(() => {
@@ -523,23 +528,27 @@ try {
   // A local workbook stand-in counts rows without a CDN or a large artifact on disk.
   await page.evaluate(() => {
     window.exportedRows = 0;
-    window.expectedExportRows = null;
-    document.addEventListener('click', (event) => {
+    window.exportFinished = false;
+    // Source settlement and sliced development grouping can publish a newer model between
+    // the geometry assertions above and this click. Compare against the model the reader
+    // actually exports, captured before the button's handler runs in the same browser task.
+    document.addEventListener('click', event => {
       if (event.target.closest('[data-alerts-table-actions] [data-export]')) {
-        window.expectedExportRows = Number(document.querySelector('[data-score-table]').dataset.virtualTotal) + 1;
+        window.exportExpectedRows = Number(document.querySelector('[data-score-table]').dataset.virtualTotal) + 1;
       }
     }, { capture: true, once: true });
     window.ExcelJS = { Workbook: class {
-      constructor() { this.xlsx = { writeBuffer: async () => new Uint8Array() }; }
+      constructor() { this.xlsx = { writeBuffer: async () => { window.exportFinished = true; return new Uint8Array(); } }; }
       addWorksheet() { return { addRow: () => { window.exportedRows++; }, getRow: () => ({}) }; }
     } };
   });
   await page.locator('[data-alerts-table-actions] [data-export]').click();
-  await page.waitForFunction(() => window.exportedRows > 0);
-  const exported = await page.evaluate(() => ({ actual: window.exportedRows, expected: window.expectedExportRows }));
-  assert.ok(exported.expected > virtualContract.mounted, 'the export model includes unmounted records');
+  await page.waitForFunction(() => window.exportFinished);
+  const exported = await page.evaluate(() => ({ actual: window.exportedRows, expected: window.exportExpectedRows }));
+  assert(exported.expected > virtualContract.mounted + 1, 'export snapshot includes offscreen records');
   assert.equal(exported.actual, exported.expected,
     'relocated export includes every matching record plus provenance, not just mounted rows');
+  console.log(`Verified complete ${exported.actual - 1}-record export from its click-time model`);
 
   await page.locator('[data-table-scroll]').evaluate((scroller) => { scroller.scrollTop = scroller.scrollHeight; });
   await page.waitForFunction((firstKey) => {
