@@ -1925,7 +1925,7 @@
       "pending": []
     },
     "isin:INE0OC301013|TURTLEMINT": {
-      "lastAttemptAt": "2026-10-02T18:30:47+00:00",
+      "lastAttemptAt": "2026-10-07T00:20:39+00:00",
       "error": "search-unavailable",
       "lastResultCount": 12,
       "targetThrough": "2026-09-24T08:08:20+00:00",
@@ -2171,6 +2171,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-10-06T23:41:10.450105+00:00"
+    "checkedAt": "2026-10-07T00:20:39.364904+00:00"
   }
 }
