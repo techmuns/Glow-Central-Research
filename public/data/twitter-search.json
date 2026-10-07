@@ -1987,7 +1987,7 @@
       "pending": []
     },
     "isin:INE1CLE01013|VISL": {
-      "lastAttemptAt": "2026-10-03T01:34:36+00:00",
+      "lastAttemptAt": "2026-10-07T06:35:58+00:00",
       "error": "search-unavailable",
       "lastResultCount": 53,
       "lastSuccessAt": "2026-09-20T00:19:51+00:00",
@@ -2170,7 +2170,7 @@
   "coverage": {
     "planned": 232,
     "attempted": 1,
-    "incomplete": 220,
-    "checkedAt": "2026-10-07T05:50:47.044997+00:00"
+    "incomplete": 222,
+    "checkedAt": "2026-10-07T06:35:58.163598+00:00"
   }
 }
