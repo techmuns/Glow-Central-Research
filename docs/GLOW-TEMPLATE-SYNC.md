@@ -626,3 +626,11 @@ retention and view/account revocation, anchored live updates, inline citations a
 summaries during template sync. The existing 14-day ranking is unchanged. History is retained
 source evidence, not an exhaustive historical AI-promotion ledger. See the timeline section in
 `INTELLIGENCE-RELIABILITY.md` for the behavior and browser checks.
+
+### Newsletter PDF design parity (7 October 2026)
+
+The A4 layout primitive and PDF conservation checks are shared with Sattva. Keep Glow's gold
+palette, brand, filename prefix and original-source links; Sattva retains its purple palette,
+brand, filename prefix and readable XBRL links. Tables use each deployment's own brief, portfolio
+and statement quantities only. This renderer change does not move credentials, subscriber lists,
+schedules or saved PDFs between deployments.

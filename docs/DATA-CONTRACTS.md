@@ -6365,6 +6365,25 @@ what it was asked to send.
   or calling AI. Exhaustion returns `manual-send-budget` with `retryAt`. Existing schedule,
   subscriber list, edition claims and normal delivery cadence remain unchanged.
 
+## Newsletter PDF layout (7 October 2026)
+
+The complete edition uses a Worker-safe A4 vector layout in `worker/newsletter-pdf-layout.mjs`.
+A contents page and PDF bookmarks link to company updates, the calendar, corporate actions,
+portfolio performance, markets and source notes. Each section has a clear heading; continuation
+pages retain section/company context and page numbers.
+
+Calendar, action, holding and market records use measured columns with repeated table headings.
+Portfolio performance shows the actual session, quote coverage, up/down/flat counts and median;
+derived statement-quantity changes retain the priced denominator, statement dates and missing
+quantities. Numeric columns align on the right, with signed figures plus colour for direction.
+Long company names, source details and AI notes wrap or continue without removing source text.
+Market timestamps, verification gaps, unavailable states and original hyperlinks remain visible.
+
+This changes rendering only. Saved emailed PDFs remain immutable snapshots. New sends and unsaved
+PDF previews use this layout; no subscriber, delivery, story-ledger, quantity or schedule changes
+are made. `verify-newsletter-pdf.mjs`, imported by the existing newsletter CI suite, checks all
+holdings, links, source states, repeated headings, bookmarks and unusually long content.
+
 ## Glow newsletter source-content phase (24 September 2026)
 
 The source-content phase supersedes the earlier newsletter headline-only AI input and
