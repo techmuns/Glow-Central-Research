@@ -460,6 +460,8 @@ try {
     const first = document.querySelector('tbody [data-event-day]');
     return first?.getAttribute('data-event-day');
   });
+  await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
+  await stableReadingSurface();
   assert(!(await page.locator('tbody tr').first().innerText()).includes('Date not supplied'), 'undated rows sort after dated records');
 
   const tableContract = await page.evaluate(() => {
@@ -519,15 +521,27 @@ try {
   // model. A local workbook stand-in counts rows without a CDN or a large artifact on disk.
   await page.evaluate(() => {
     window.exportedRows = 0;
+    window.exportFinished = false;
+    // Source settlement and sliced development grouping can publish a newer model between
+    // the geometry assertions above and this click. Compare against the model the reader
+    // actually exports, captured before the button's handler runs in the same browser task.
+    document.addEventListener('click', event => {
+      if (event.target.closest('[data-alerts-table-actions] [data-export]')) {
+        window.exportExpectedRows = Number(document.querySelector('[data-score-table]').dataset.virtualTotal) + 1;
+      }
+    }, { capture: true, once: true });
     window.ExcelJS = { Workbook: class {
-      constructor() { this.xlsx = { writeBuffer: async () => new Uint8Array() }; }
+      constructor() { this.xlsx = { writeBuffer: async () => { window.exportFinished = true; return new Uint8Array(); } }; }
       addWorksheet() { return { addRow: () => { window.exportedRows++; }, getRow: () => ({}) }; }
     } };
   });
   await page.locator('[data-alerts-table-actions] [data-export]').click();
-  await page.waitForFunction(() => window.exportedRows > 0);
-  assert.equal(await page.evaluate(() => window.exportedRows), virtualContract.total + 1,
+  await page.waitForFunction(() => window.exportFinished);
+  const exported = await page.evaluate(() => ({ actual: window.exportedRows, expected: window.exportExpectedRows }));
+  assert(exported.expected > virtualContract.mounted + 1, 'export snapshot includes offscreen records');
+  assert.equal(exported.actual, exported.expected,
     'relocated export includes every matching record plus provenance, not just mounted rows');
+  console.log(`Verified complete ${exported.actual - 1}-record export from its click-time model`);
 
   await page.locator('[data-table-scroll]').evaluate((scroller) => { scroller.scrollTop = scroller.scrollHeight; });
   await page.waitForFunction((firstKey) => {
