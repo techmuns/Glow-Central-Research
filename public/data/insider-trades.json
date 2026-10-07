@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-10-07T17:28:44.252Z",
+    "capturedAt": "2026-10-07T20:00:43.607Z",
     "from": "2026-08-05",
     "to": "2026-10-07",
     "rows": 11531,
@@ -12,10 +12,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-07T17:28:44.252Z",
-  "oldestDataAt": "2026-10-07T17:28:44.252Z",
-  "from": "2025-10-07",
-  "to": "2026-10-07",
+  "capturedAt": "2026-10-07T20:00:43.607Z",
+  "oldestDataAt": "2026-10-07T20:00:43.607Z",
+  "from": "2025-10-08",
+  "to": "2026-10-08",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -31,13 +31,13 @@
       "id": "bulk",
       "label": "Bulk deal",
       "url": "https://www.screener.in/trades/bulk/?o=-2",
-      "pagesRead": 11,
+      "pagesRead": 2,
       "latestDate": "2026-10-07",
-      "oldestDate": "2026-10-06",
+      "oldestDate": "2026-10-07",
       "bootstrapDays": null,
       "ok": true,
-      "rowCount": 275,
-      "capturedAt": "2026-10-07T17:28:44.252Z",
+      "rowCount": 50,
+      "capturedAt": "2026-10-07T20:00:43.607Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-07T17:28:44.252Z",
+      "capturedAt": "2026-10-07T20:00:43.607Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +63,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-07T17:28:44.252Z",
+      "capturedAt": "2026-10-07T20:00:43.607Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,7 +76,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-07T17:28:44.252Z",
+      "capturedAt": "2026-10-07T20:00:43.607Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -84,7 +84,7 @@
   "covered": 4,
   "withRows": 1947,
   "emptyCount": 0,
-  "rowCount": 20713,
+  "rowCount": 20707,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -69673,28 +69673,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "IEX",
-        "date": "2025-10-07",
-        "cells": {
-          "Company": "IEX",
-          "Insider": "PPFAS Mutual Fund",
-          "Category": "Other",
-          "Security Type": null,
-          "Transaction": "Acquisition",
-          "Trade Shares": "991084",
-          "Trade %": "0.11",
-          "Trade Value": null,
-          "Post Holding Shares": "81919825",
-          "Post Holding %": "9.19",
-          "Mode": "Market",
-          "From Date": "2025-09-10",
-          "To Date": "2025-09-10",
-          "Broadcast Date": "2025-10-07",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "IFBIND": [
@@ -69807,50 +69785,6 @@
           "To Date": "2026-02-25",
           "Broadcast Date": "2026-02-25",
           "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "INA",
-        "date": "2025-10-07",
-        "cells": {
-          "Company": "INA",
-          "Insider": "Vikas Jain HUF",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Acquisition",
-          "Trade Shares": "3000",
-          "Trade %": null,
-          "Trade Value": null,
-          "Post Holding Shares": "100600",
-          "Post Holding %": "0.04",
-          "Mode": "Market",
-          "From Date": "2025-09-11",
-          "To Date": "2025-09-11",
-          "Broadcast Date": "2025-10-07",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "INA",
-        "date": "2025-10-07",
-        "cells": {
-          "Company": "INA",
-          "Insider": "Vikas Jain HUF",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Acquisition",
-          "Trade Shares": "3500",
-          "Trade %": null,
-          "Trade Value": null,
-          "Post Holding Shares": "97600",
-          "Post Holding %": "0.04",
-          "Mode": "Market",
-          "From Date": "2025-09-09",
-          "To Date": "2025-09-09",
-          "Broadcast Date": "2025-10-07",
-          "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
       }
@@ -161752,72 +161686,6 @@
           "From Date": "2025-12-22",
           "To Date": "2025-12-22",
           "Broadcast Date": "2025-12-24",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SKFINDIA",
-        "date": "2025-10-07",
-        "cells": {
-          "Company": "SKF India Ltd",
-          "Insider": "Aktiebolaget SKF",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "3326004",
-          "Trade %": "6.73",
-          "Trade Value": null,
-          "Post Holding Shares": "25992059",
-          "Post Holding %": "52.58",
-          "Mode": "Inter-se Transfer",
-          "From Date": "2025-10-01",
-          "To Date": "2025-10-01",
-          "Broadcast Date": "2025-10-07",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SKFINDIA",
-        "date": "2025-10-07",
-        "cells": {
-          "Company": "SKF India Ltd",
-          "Insider": "SKF Förvaltning AB",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "196423",
-          "Trade %": "0.4",
-          "Trade Value": null,
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Inter-se Transfer",
-          "From Date": "2025-10-01",
-          "To Date": "2025-10-01",
-          "Broadcast Date": "2025-10-07",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SKFINDIA",
-        "date": "2025-10-07",
-        "cells": {
-          "Company": "SKF India Ltd",
-          "Insider": "Skf  U.K.  Ltd.",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "3129581",
-          "Trade %": "6.33",
-          "Trade Value": null,
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Inter-se Transfer",
-          "From Date": "2025-10-01",
-          "To Date": "2025-10-01",
-          "Broadcast Date": "2025-10-07",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
