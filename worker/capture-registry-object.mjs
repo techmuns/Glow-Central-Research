@@ -13,6 +13,19 @@ import { PriceLevelStore } from './price-levels-store.mjs';
 import { PriceLevelSchedule, PRICE_LEVEL_TIMER } from './price-levels-schedule.mjs';
 import { AlertNotesStore } from './alert-notes-store.mjs';
 import { CAPTURE_REGISTRY_LIMIT, CAPTURE_REGISTRATION_BATCH, registeredCompany } from '../public/js/data/capture-registration-shared.js';
+import { AnnouncementIndexStore } from './announcement-index-store.mjs';
+import { RelevanceFeedbackStore } from './relevance-feedback-store.mjs';
+import { AnnouncementReadStore } from './announcement-read-store.mjs';
+
+// An RPC error crosses the boundary with its message only, so the three announcement objects answer
+// a failure as a plain `{ ok: false, reason, message }` the route can act on.
+async function settled(work) {
+  try { return await work(); } catch (error) {
+    const message = String(error?.message || error);
+    const reason = error?.reason || (/^Invalid /.test(message) ? 'invalid-request' : 'index-unavailable');
+    return { ok: false, reason, message };
+  }
+}
 
 // Each shard coordinates one bounded set of issuer registrations. No reader identity is stored.
 export class CaptureRegistry extends DurableObject {
@@ -45,6 +58,21 @@ export class CaptureRegistry extends DurableObject {
     this.notes = new AlertNotesStore(ctx.storage, env);
     this.ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS companies (isin TEXT PRIMARY KEY, ticker TEXT NOT NULL, name TEXT NOT NULL)');
   }
+  // The Corporate Announcements index (announcement-index:v1), the shared relevance feedback
+  // (relevance-feedback:v1) and AI Read (announcement-read:v1) each live on their own fixed object.
+  // Built on first use, so no other object ever creates their tables or holds their memory.
+  get announcementIndex() { return (this._announcementIndex ||= new AnnouncementIndexStore(this.ctx.storage, this.env)); }
+  get relevanceFeedback() { return (this._relevanceFeedback ||= new RelevanceFeedbackStore(this.ctx.storage)); }
+  get announcementReads() { return (this._announcementReads ||= new AnnouncementReadStore(this.ctx.storage, this.env)); }
+  annIndexQuery(input) { return settled(() => this.announcementIndex.query(input)); }
+  annIndexEvent(id, range) { return settled(() => this.announcementIndex.event(id, range || {})); }
+  annIndexProfiles() { return settled(() => this.announcementIndex.profiles()); }
+  annIndexStatus() { return settled(() => this.announcementIndex.status()); }
+  feedbackApply(vote) { return this.relevanceFeedback.apply(vote); }
+  feedbackModel() { return this.relevanceFeedback.model(); }
+  feedbackMine(device) { return this.relevanceFeedback.mine(device); }
+  announcementRead(input) { return settled(() => this.announcementReads.read(input)); }
+  announcementReadStatus() { return settled(() => this.announcementReads.status()); }
   status() { return this.schedule.status(); }
   telegramPosts() { return this.telegramDelivery.response(); }
   summaryBeginInventory(run, syncId, manifest) { return this.summaries.beginInventory(run, syncId, manifest); }

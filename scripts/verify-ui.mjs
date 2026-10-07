@@ -8000,86 +8000,48 @@ await page.waitForTimeout(600);
 const mcTracked = /(\d[\d,]*) of/.exec(await mcCountText())?.[1] || '0';
 ok('...and it narrows the market feed', Number(mcTracked.replace(/,/g, '')) > 0 && Number(mcTracked.replace(/,/g, '')) < Number(mcAll.replace(/,/g, '')), `${mcTracked} of ${mcAll}`);
 
-// --- Corp Announcements keeps topic labels within a clean, scoped stream ---
+// --- Corp Announcements: categories and market cap beside the exchange's own subject ---
 await go('/#/research/corp-announcements?scope=universe', 2000);
 await waitForPanel();
 await settleTables();
 const annHeads = await page.locator('#content-host table thead th').allInnerTexts();
-ok('Corp Announcements carries a Topic column', annHeads.some((h) => /Topic/i.test(h)), annHeads.join(' | '));
+ok('Corp Announcements carries Categories and Market cap columns', annHeads.some((h) => /Categories/i.test(h)) && annHeads.some((h) => /Market cap/i.test(h)), annHeads.join(' | '));
 // Same trade as News/Outlet: `rowSub` already prints the sub-category under every subject.
-ok('...in place of the Sub-category column, which was already in the sub-line', !annHeads.some((h) => /Sub-category/i.test(h)));
+ok('...and no Sub-category column, which is already in the sub-line', !annHeads.some((h) => /Sub-category/i.test(h)));
 const annSelects = page.locator('#content-host select');
-ok('...and the feed removes secondary filters and manual capture controls',
-  (await annSelects.count()) === 0 && (await page.locator('#content-host [data-watch-toggle], #content-host [data-announcement-lookup], #content-host [data-load-filing-history], #content-host [data-capture-coverage]').count()) === 0);
-ok('...and retains search, export and incremental scrolling',
+ok('...one period dropdown beside the Category and Market cap filters, and no manual capture controls',
+  (await annSelects.count()) === 1 &&
+  (await page.locator('#content-host [data-ca-open="categories"], #content-host [data-ca-open="mcap"]').count()) === 2 &&
+  (await page.locator('#content-host [data-watch-toggle], #content-host [data-announcement-lookup], #content-host [data-load-filing-history], #content-host [data-capture-coverage]').count()) === 0);
+ok('...and retains search and export',
   (await page.locator('#content-host [data-table-search]').count()) === 1 &&
-  (await page.locator('#content-host [data-export]').count()) === 1 &&
-  (await page.locator('#content-host [data-scroll-paged]').count()) === 1);
+  (await page.locator('#content-host [data-export]').count()) === 1);
 const annWidth = await page.evaluate(() => {
   const el = document.querySelector('#content-host [data-table-scroll]');
   return el ? { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth } : null;
 });
 ok('...and the table still fits without a horizontal scrollbar of its own', annWidth && annWidth.scrollWidth <= annWidth.clientWidth, `${annWidth?.scrollWidth}px in ${annWidth?.clientWidth}px`);
 
-// --- Routine filings are switched off by default, VISIBLY, from one slot in the filter row, and the choice is remembered ---
+// --- Nothing is hidden by its type any more: a Category filter over the master list, starting at All ---
+// The desk asked (October 2026) for every filing to stay visible, with routine ones ranking lower within
+// their day; the Filing types switch that hid Routine & administrative by default is retired.
 {
-  await page.evaluate(() => localStorage.removeItem('sattva:announcement-types:v1'));
   await go('/#/research/corp-announcements?scope=universe', 2000);
   await waitForPanel();
   await settleTables();
-  await page.locator('#content-host [data-table-filter="0"]').selectOption('all');
-  await page.waitForTimeout(500);
-  await settleTables();
-  const trigger = page.locator('#content-host [data-table-toolbar] [data-announcement-types-trigger]');
-  const face = () => page.locator('#content-host [data-announcement-types-face]').innerText();
-  ok('the filing-types control is one slot in the table\'s filter row, and its face states what it hides',
-    (await trigger.count()) === 1 && /^12 of 13 · [\d,]+ hidden$/.test(await face()), await face());
-  ok('...and no band of chips sits between the head and the table', (await page.locator('#content-host [data-announcement-types]').count()) === 0);
+  ok('the filing-types switch is retired', (await page.locator('#content-host [data-announcement-types-trigger]').count()) === 0);
+  const trigger = page.locator('#content-host [data-table-toolbar] [data-ca-open="categories"]');
+  ok('a Category control sits in the table\'s filter row and starts at All', (await trigger.count()) === 1 && /All/.test(await trigger.innerText()), await trigger.innerText());
   await trigger.click();
-  await page.waitForSelector('[data-announcement-types-panel]');
-  const rows = await page.evaluate(() => [...document.querySelectorAll('[data-announcement-types-panel] [data-announcement-type]')].map((el) => ({
-    id: el.dataset.announcementType, on: el.checked,
-    n: Number(el.closest('label').querySelector('[data-announcement-type-count]')?.textContent.replace(/,/g, '') || 0),
-  })));
-  const routine = rows.find((r) => r.id === 'routine');
-  ok('...and opens a checklist of every type with a count, only Routine & administrative switched off',
-    rows.length === 13 && !!routine && !routine.on && rows.filter((r) => !r.on).length === 1,
-    rows.map((r) => `${r.id}:${r.on ? 'on' : 'off'}:${r.n}`).join(' '));
-  ok('...where the switched-off type still prints its count', routine?.n > 0, String(routine?.n));
-  const routineOnScreen = () => page.locator('#content-host tbody tr[data-row-key] [title^="Type (derived): Routine"]').count();
-  ok('...and no routine row is on screen', (await routineOnScreen()) === 0);
-  const countBefore = await page.locator('#content-host [data-row-count]').innerText();
-  await page.locator('[data-announcement-types-panel] [data-announcement-type="routine"]').check();
-  await page.waitForTimeout(600);
-  await settleTables();
-  const countAfter = await page.locator('#content-host [data-row-count]').innerText();
-  ok('switching it on adds those rows to the table and to its count, with the checklist still open',
-    countAfter !== countBefore && (await routineOnScreen()) > 0 && (await page.locator('[data-announcement-types-panel]').count()) === 1, `${countBefore} → ${countAfter}`);
-  ok('...the face now says none hidden', /none hidden$/.test(await face()), await face());
-  ok('...and Reset appears because the selection is no longer the default',
-    await page.locator('[data-announcement-types-panel] [data-announcement-types-reset]').evaluate((el) => !el.classList.contains('invisible')));
-  const stored = await page.evaluate(() => localStorage.getItem('sattva:announcement-types:v1'));
-  ok('...stored as the set switched OFF, so a type added later starts switched on', stored === '{"hidden":[]}', String(stored));
+  await page.waitForSelector('.ca-popover');
+  const expected = await page.evaluate(async () => (await import('/js/data/announcement-categories.js')).ANNOUNCEMENT_CATEGORIES.length);
+  const boxes = await page.locator('.ca-popover input[type="checkbox"]').count();
+  ok('...listing every category of the master list, none ticked', boxes === expected && (await page.locator('.ca-popover input[type="checkbox"]:checked').count()) === 0, `${boxes} of ${expected}`);
   await page.keyboard.press('Escape');
-  ok('Escape closes the checklist and returns focus to the control',
-    (await page.locator('[data-announcement-types-panel]').count()) === 0 && await trigger.evaluate((el) => el === document.activeElement));
-  await page.reload();
-  await waitForPanel();
-  await settleTables();
-  await page.locator('#content-host [data-announcement-types-trigger]').click();
-  await page.waitForSelector('[data-announcement-types-panel]');
-  const remembered = await page.locator('[data-announcement-types-panel] [data-announcement-type="routine"]').isChecked();
-  ok('...and the choice survives a reload', remembered === true, String(remembered));
-  await page.locator('[data-announcement-types-panel] [data-announcement-types-reset]').click();
-  await page.waitForTimeout(300);
-  ok('Reset restores the default and hides itself without moving the panel',
-    (await page.locator('[data-announcement-types-panel] [data-announcement-type="routine"]').isChecked()) === false &&
-    await page.locator('[data-announcement-types-panel] [data-announcement-types-reset]').evaluate((el) => el.classList.contains('invisible')));
-  await page.locator('#content-host [data-section-head] h2').click();
-  await page.waitForTimeout(200);
-  ok('...and a click outside closes it', (await page.locator('[data-announcement-types-panel]').count()) === 0);
-  const typeHeads = await page.locator('#content-host table thead th').allInnerTexts();
-  ok('...and the Type column is on the table, beside the exchange\'s own Category', typeHeads.some((h) => /^Type$/i.test(h.trim())) && typeHeads.some((h) => /Category/i.test(h)), typeHeads.join(' | '));
+  ok('Escape closes it', (await page.locator('.ca-popover').count()) === 0);
+  const heads = await page.locator('#content-host table thead th').allInnerTexts();
+  ok('...and the Categories and Market cap columns replace Type and Topic',
+    heads.some((h) => /Categories/i.test(h)) && heads.some((h) => /Market cap/i.test(h)) && !heads.some((h) => /^(Type|Topic)$/i.test(h.trim())), heads.join(' | '));
 }
 
 // --- Corporate Actions is a VIEW of Corp Announcements, switched on the title row; the retired tab address still lands on it ---

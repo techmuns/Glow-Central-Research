@@ -23,6 +23,11 @@
 //   GET  /api/stock-search?q=                   ->  company search for the scope editor (Muns)
 //   GET  /api/research                          ->  whether Ask Research is configured
 //   POST /api/research                          ->  streamed dashboard-grounded research answer
+//   POST /api/announcement-index/query         ->  one ranked, filtered page of Corporate Announcements
+//   GET  /api/announcement-index/event?id=     ->  every filing stitched into one event
+//   POST /api/announcement-read                ->  AI Read of one filing, on request, cached
+//   GET  /api/relevance/model                  ->  the desk's one shared relevance preference
+//   POST /api/relevance/feedback               ->  Important / Not important, with an optional why
 //
 // Data reads are read-through overlays on committed data. The POST-only refresh routes dispatch
 // fixed repository workflows; credentials remain in the Worker and duplicate runs are declined.
@@ -78,6 +83,9 @@ import { handleIpoMonitor } from './ipo-monitor.mjs';
 import { handleIpoFilings } from './ipo-filings.mjs';
 import { handleCaptureRegistration } from './capture-registration.mjs';
 import { handleWatchlist } from './watchlist.mjs';
+import { handleAnnouncementIndex } from './announcement-index.mjs';
+import { handleAnnouncementRead } from './announcement-read.mjs';
+import { handleRelevanceFeedback } from './relevance-feedback.mjs';
 import { handlePriceLevels } from './price-levels.mjs';
 import { handleAlertNotes } from './alert-notes.mjs';
 import { readPlatformCollector } from './ipo-platform-collector.mjs';
@@ -165,6 +173,9 @@ export default {
     if (url.pathname === '/api/newsletter' || url.pathname.startsWith('/api/newsletter/')) return handleNewsletter(request, env);
     if (url.pathname === '/api/concall-summaries' || url.pathname === '/api/concall-summaries/collector')
       return handleConcallSummaries(request, env);
+    if (url.pathname.startsWith('/api/announcement-index/')) return handleAnnouncementIndex(request, env);
+    if (url.pathname === '/api/announcement-read' || url.pathname === '/api/announcement-read/status') return handleAnnouncementRead(request, env);
+    if (url.pathname.startsWith('/api/relevance/')) return handleRelevanceFeedback(request, env);
 
     // THE READER'S OWN TOKEN, BUT ONLY WHERE THIS DEPLOYMENT HAS NONE. The dashboard runs inside
     // the Munshot host, which hands the browser the signed-in reader's session JWT; the browser

@@ -112,6 +112,27 @@
       "simple": { "limit": 12, "period": 60 }
     },
     {
+      // Important / Not important votes. One vote per browser per item is stored; this bounds a
+      // burst of unauthenticated writes to the shared relevance preference.
+      "name": "RELEVANCE_FEEDBACK_LIMITER",
+      "namespace_id": "1806",
+      "simple": { "limit": 30, "period": 60 }
+    },
+    {
+      // AI Read of one Corporate Announcement on a reader's click. The object also enforces a
+      // durable daily allowance and per-document attempts; a stored reading costs nothing.
+      "name": "ANNOUNCEMENT_READ_LIMITER",
+      "namespace_id": "1807",
+      "simple": { "limit": 12, "period": 60 }
+    },
+    {
+      // Corporate Announcements pages, events and profiles. A reader scrolling and filtering makes
+      // bursts of reads; this bounds a script, not a person.
+      "name": "ANNOUNCEMENT_INDEX_LIMITER",
+      "namespace_id": "1808",
+      "simple": { "limit": 240, "period": 60 }
+    },
+    {
       // The alerts' AI notes. A page asks once per screen of cards, and a stored note costs nothing
       // to serve, so this is set for a reader paging and scrolling, well below a script; the object's
       // daily allowance of NEW notes is what bounds the spend behind it.

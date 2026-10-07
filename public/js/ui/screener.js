@@ -484,6 +484,14 @@ export function scoreTable(config) {
     scrollLabel = `${nameLabel} data table`,
     // Show placeholders only when no matching rows have arrived and a read is still active.
     loading = false,
+    // Trusted markup drawn under a row's sub-line, inside the identity cell — e.g. an expandable
+    // "3 related filings" list. Give interactive content `data-norow` so it does not open the row.
+    afterSub = null,
+    // False when the rows arrive in an order the server chose (a ranked, paged result): sorting the
+    // loaded page alone would misstate the whole result, so no heading offers it.
+    allowSort = true,
+    // Extra trusted controls in the toolbar, after the filters: { html, wire(host) => disposer }.
+    toolbarControls = null,
   } = config;
 
   // `watchKey` defaults to the row key, which is correct wherever a row is a company. `watchName`
@@ -632,7 +640,7 @@ export function scoreTable(config) {
 
   function headHtml() {
     const th = (label, sortKey, align = 'left') => {
-      const sortable = sortKey !== null;
+      const sortable = allowSort && sortKey !== null;
       const active = view.sort && view.sort.key === sortKey;
       // `wrapHeads` lets a long heading stack instead of forcing its column as wide as the label.
       // On a table with a dozen numeric columns the headings, not the figures, are what overflows.
@@ -735,6 +743,7 @@ export function scoreTable(config) {
                 <div class="min-w-0">
                   <div class="truncate font-semibold text-slate-900" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
                   <div class="flex items-center gap-1"><span class="truncate text-xs text-slate-500" title="${escapeHtml(sub(row))}">${escapeHtml(sub(row))}</span>${bookmarkButton(bookmarkEntry(row))}</div>
+                  ${afterSub ? afterSub(row) || '' : ''}
                 </div>
               </div>`)}
             ${
@@ -852,6 +861,7 @@ export function scoreTable(config) {
                  </select>`
             )
             .join('')}
+          ${toolbarControls?.html || ''}
           ${showWatchFilter ? `<button type="button" data-watch-toggle title="Show only watchlisted companies"
             class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition-colors hover:border-amber-200 hover:bg-amber-50">
             <span data-watch-icon class="text-amber-400">${view.watchOnly ? '★' : '☆'}</span>
@@ -1349,6 +1359,7 @@ export function scoreTable(config) {
       if (row) onRowClick(row);
     });
 
+    const releaseToolbar = toolbarControls?.wire?.(host) || null;
     const releaseSearch = searchControl ? searchControl.wire(host, {
       onQuery: q => { view.q = q; repaint(); },
       onChange: repaint,
@@ -1405,6 +1416,7 @@ export function scoreTable(config) {
 
     return () => {
       releaseSearch?.();
+      releaseToolbar?.();
       isDisposed = true;
       rowHtmlCache.clear(); staleKeys.clear();
       activeRepaint = null;
