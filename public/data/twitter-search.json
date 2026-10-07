@@ -2188,12 +2188,16 @@
     "isin:INE120A01034|CARBORUNIV": {
       "lastAttemptAt": "2026-10-07T15:34:49+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE488A01050|Chemplast Sanmar": {
+      "lastAttemptAt": "2026-10-07T16:07:57+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 254,
     "attempted": 1,
     "incomplete": 245,
-    "checkedAt": "2026-10-07T15:34:49.104527+00:00"
+    "checkedAt": "2026-10-07T16:07:57.933645+00:00"
   }
 }
