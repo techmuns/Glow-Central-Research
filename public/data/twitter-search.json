@@ -2196,12 +2196,120 @@
     "isin:INE488A01050|CHEMPLASTS": {
       "lastAttemptAt": "2026-10-07T16:44:45+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE007A01025|Crisil": {
+      "lastAttemptAt": "2026-10-07T17:08:22+00:00",
+      "lastResultCount": 101,
+      "error": "result-cap-incomplete",
+      "targetThrough": "2026-10-07T17:08:22+00:00",
+      "pending": [
+        {
+          "from": "2026-09-28T17:08:22.473354+00:00",
+          "to": "2026-10-03T05:08:22.236677+00:00"
+        },
+        {
+          "from": "2026-10-03T05:08:22.236677+00:00",
+          "to": "2026-10-07T17:08:22+00:00"
+        }
+      ]
+    },
+    "isin:INE007A01025|CRISIL": {
+      "lastAttemptAt": "2026-10-07T17:08:22+00:00",
+      "lastResultCount": 101,
+      "error": "result-cap-incomplete",
+      "targetThrough": "2026-10-07T17:08:22+00:00",
+      "pending": [
+        {
+          "from": "2026-09-28T17:08:22.473354+00:00",
+          "to": "2026-10-03T05:08:22.236677+00:00"
+        },
+        {
+          "from": "2026-10-03T05:08:22.236677+00:00",
+          "to": "2026-10-07T17:08:22+00:00"
+        }
+      ]
+    },
+    "isin:INE255Z01027|E2E Networks": {
+      "lastAttemptAt": "2026-10-07T17:08:22+00:00",
+      "lastResultCount": 117,
+      "error": "result-cap-incomplete",
+      "targetThrough": "2026-10-07T17:08:22+00:00",
+      "pending": [
+        {
+          "from": "2026-09-28T17:08:22.473354+00:00",
+          "to": "2026-10-03T05:08:22.236677+00:00"
+        },
+        {
+          "from": "2026-10-03T05:08:22.236677+00:00",
+          "to": "2026-10-07T17:08:22+00:00"
+        }
+      ]
+    },
+    "isin:INE0DRI01029|Esds Software Solution": {
+      "lastAttemptAt": "2026-10-07T17:08:22+00:00",
+      "lastResultCount": 61,
+      "error": null,
+      "lastSuccessAt": "2026-10-07T17:08:22+00:00",
+      "targetThrough": null,
+      "pending": []
+    },
+    "isin:INE0DRI01029|ESDS": {
+      "lastAttemptAt": "2026-10-07T17:08:22+00:00",
+      "lastResultCount": 115,
+      "error": "result-cap-incomplete",
+      "targetThrough": "2026-10-07T17:08:22+00:00",
+      "pending": [
+        {
+          "from": "2026-09-28T17:08:22.473354+00:00",
+          "to": "2026-10-03T05:08:22.236677+00:00"
+        },
+        {
+          "from": "2026-10-03T05:08:22.236677+00:00",
+          "to": "2026-10-07T17:08:22+00:00"
+        }
+      ]
+    },
+    "isin:INE235A01022|Finolex Cables": {
+      "lastAttemptAt": "2026-10-07T17:08:22+00:00",
+      "lastResultCount": 53,
+      "error": null,
+      "lastSuccessAt": "2026-10-07T17:08:22+00:00",
+      "targetThrough": null,
+      "pending": []
+    },
+    "isin:INE235A01022|FINCABLES": {
+      "lastAttemptAt": "2026-10-07T17:08:22+00:00",
+      "lastResultCount": 48,
+      "error": null,
+      "lastSuccessAt": "2026-10-07T17:08:22+00:00",
+      "targetThrough": null,
+      "pending": []
+    },
+    "isin:INE0PA801013|Ghcl Textiles": {
+      "lastAttemptAt": "2026-10-07T17:08:22+00:00",
+      "lastResultCount": 3,
+      "error": null,
+      "lastSuccessAt": "2026-10-07T17:08:22+00:00",
+      "targetThrough": null,
+      "pending": []
+    },
+    "isin:INE0PA801013|GHCLTEXTIL": {
+      "lastAttemptAt": "2026-10-07T17:08:22+00:00",
+      "lastResultCount": 4,
+      "error": null,
+      "lastSuccessAt": "2026-10-07T17:08:22+00:00",
+      "targetThrough": null,
+      "pending": []
+    },
+    "isin:INE040A01034|HDFC Bank": {
+      "lastAttemptAt": "2026-10-07T17:08:22+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 254,
-    "attempted": 1,
-    "incomplete": 245,
-    "checkedAt": "2026-10-07T16:44:45.096508+00:00"
+    "attempted": 10,
+    "incomplete": 240,
+    "checkedAt": "2026-10-07T17:08:22.473354+00:00"
   }
 }
