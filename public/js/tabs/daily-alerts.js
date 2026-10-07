@@ -1,3 +1,4 @@
+import { TAB_META } from './catalog.js';
 import { reconcileMarkup } from '../ui/reconcile-markup.js';
 import { readableFilingUrl } from '../data/nse-xbrl-shared.js';
 import { storyGrouping } from '../data/alert-stories.js';
@@ -74,15 +75,7 @@ function alertRelevance(e) {
 const alertFeedback = (e) => feedbackItemFor(alertRelevance(e), e, { label: e.headline, company: e.company || e.ticker || null });
 let relevanceSeen = null;
 
-export const meta = {
-  id: 'daily-alerts',
-  title: 'All Alerts',
-  layout: 'table',
-  subtitle: 'Opens on Today (IST); older retained alerts and upcoming schedules remain available.',
-  // No rail. This is one stream and splitting it by feed would rebuild the tabs it exists to
-  // collapse — the feed filter in the toolbar does that job without costing a navigation.
-  subviews: [],
-};
+export const meta = TAB_META['daily-alerts'];
 
 const REFRESH_ID = 'daily-alerts';
 const RECHECK_MS = 90_000;
@@ -314,6 +307,9 @@ export function destroy() {
   arrivalsUI.detach();
   arrivals.reset();
   ctxRef = null;
+  // Leaving cancels sliced projection. Retain completed views, but rebuild an unfinished
+  // one on return even when the parked source report and story revision are unchanged.
+  if (lastVisible?.grouping) lastVisible = null;
   loadToken++;
   cacheToken++;
   clearTimeout(sourceTimer); sourceTimer = null; sourceDirty = false;
@@ -517,9 +513,10 @@ function paint(ctx) {
   if (lastVisible?.events !== events || lastVisible.selection !== selection || lastVisible.storyRevision !== storyGrouping.revision()) {
     const period = horizon === HORIZON.UPCOMING ? partition.upcoming : allThrough;
     const selected = picked ? period.filter(event => picked.has(event.feed)) : period;
-    const pending = lastVisible = { events, selection, storyRevision:storyGrouping.revision(), rows: horizon === HORIZON.UPCOMING ? collapseUpcoming(selected) : selected };
+    const pending = lastVisible = { events, selection, storyRevision:storyGrouping.revision(), grouping: horizon === HORIZON.THROUGH,
+      rows: horizon === HORIZON.UPCOMING ? collapseUpcoming(selected) : selected };
     if(horizon===HORIZON.THROUGH) void foldAlertRowsAsync(selected,{isCurrent:()=>!!ctxRef&&lastVisible===pending&&pending.storyRevision===storyGrouping.revision()}).then(rows=>{
-      if(rows&&ctxRef&&lastVisible===pending){pending.rows=rows;paint(ctxRef);}
+      if(rows&&ctxRef&&lastVisible===pending){pending.rows=rows;pending.grouping=false;paint(ctxRef);}
     });
   }
   const visible = lastVisible.rows;
@@ -542,6 +539,9 @@ function paint(ctx) {
   // Keep the reading header focused on scope and history. Source-check details belong
   // inside Sources; the selected date remains visible in the timeline controls and export.
   if (tableInstance && renderedHorizon === horizon && renderedDay === day && renderedScope === ctx.scope) {
+    // Source reads can finish before sliced grouping. Keep the painted rows usable while
+    // exposing that their final presentation/count is still being calculated.
+    ctx.root.querySelector('[data-alerts-workspace]')?.setAttribute('aria-busy', String(lastVisible.grouping));
     const metaDiv = ctx.root.querySelector('[data-alerts-meta]');
     if (metaDiv) metaDiv.innerHTML = `${scopeSummary({
         scope: ctx.scope, count: m.companies || 0, noun: report?.queryWindow ? 'companies in selected period' : 'companies in loaded history', book: coverage.meta(),
@@ -597,7 +597,7 @@ function paint(ctx) {
   tableViews[horizon] = table.view;
 
   ctx.root.innerHTML = `
-    <div class="alerts-workspace" data-alerts-workspace data-fullscreen-workspace>
+    <div class="alerts-workspace" data-alerts-workspace data-fullscreen-workspace aria-busy="${lastVisible.grouping}">
     ${sectionHead({
       title: 'All Alerts',
       meta: `<div class="flex flex-wrap items-center justify-end gap-2" data-alerts-meta>${scopeSummary({

@@ -834,6 +834,10 @@ in [Newsletter markets](docs/NEWSLETTER-MARKET-ACCURACY.md). The route/store con
 - The ten-day reported-item ledger migrates retained acknowledged legacy keys in place and
   records confirmed parts atomically. Preview/test sends mark nothing. Preserve subscribers,
   claims, settings, PDFs and the four-attempt rolling daily manual-send budget.
+- **Threading updated 7 October 2026:** one dated subject per morning/evening edition. Each
+  recipient starts a fresh root; subsequent parts send Muns `inReplyTo` and `references` using
+  the returned `data.messageId`. Keep body part labels. Without an acknowledged valid root,
+  stop later parts as `thread-unavailable` and retain unsent identities for future editions.
 - Every part stays within 90,000 final UTF-8 HTML bytes. Split at company, complete-update or
   supplementary-row boundaries; preserve all sources and notes. A single unfit item fails
   before PDF creation or delivery. Parts share a complete immutable PDF; confirmed rejected
@@ -2216,6 +2220,15 @@ Three things to take from it:
    Trades, five filter dropdowns asking ~48,000 rows five times each.
 4. **Do not measure bytes with `TextEncoder.encode` per record.** `utf8Length` counts without the
    allocation; the per-part figure the integrity check reads is still the encoder's own.
+5. **A cache keyed on a second object holds that object weakly, and a re-read keeps an unchanged
+   object.** `attributeNewsRow` keeps one decoration per (row, identity), and its inner map was
+   strong: every re-read of the company-news head parsed its 116 identities into new objects, so
+   `rows()` re-attributed all 80,762 portfolio head rows and the old identities pinned every earlier
+   decoration — and everything keyed on those downstream — for the life of the page. The shared
+   poller re-reads every two minutes, so an open page gained ~60MB per poll (2 October 2026); on
+   Glow, whose 510-packet portfolio-research job runs longer, the heap neared its limit and the
+   blocks went from 4.4 to 8.8 minutes. The inner map is now a `WeakMap`, and `seedFromSnapshot`
+   keeps a held identity whose content is unchanged, as the picker's merge in `setWanted` already did.
 
 `scripts/verify-hot-path-memo.mjs` asserts every cache is invisible — same answers as a fresh
 computation, live reads where promised, exact byte counts — and runs in the contracts job.

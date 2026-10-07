@@ -20,10 +20,11 @@ const UPCOMING_DAY = IST_DAY.format(new Date(Date.now() + 5 * 86400000));
 const UPCOMING_FAR_DAY = IST_DAY.format(new Date(Date.now() + 40 * 86400000));
 const newsCases = JSON.parse(readFileSync(new URL('./fixtures/company-news-attribution.json', import.meta.url))).cases
   .filter(test => ['accent', 'ticker-brand', 'no-keyword', 'snippet-only', 'reported-mismatch'].includes(test.id));
-const newsFixture = { capturedAt: '2026-09-04T08:00:00Z', entities: newsCases.map(test => ({ ...test.identity, key: test.identity.ticker })),
-  byTicker: Object.groupBy(newsCases.map(test => ({ date: '2026-09-04', company: test.identity.name,
+// Attribution examples must stay inside News' 30-day reader window as the test runs over time.
+const newsFixture = { capturedAt: new Date().toISOString(), entities: newsCases.map(test => ({ ...test.identity, key: test.identity.ticker })),
+  byTicker: Object.groupBy(newsCases.map(test => ({ company: test.identity.name,
     ticker: test.identity.ticker, query: test.identity.name, source: 'Synthetic test publisher',
-    url: `https://example.test/${test.id}`, ...test.row })), row => row.ticker) };
+    url: `https://example.test/${test.id}`, ...test.row, date: IST_DAY.format(new Date()) })), row => row.ticker) };
 let version = 1;
 const calls = [];
 const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"></head><body style="padding:16px;background:#f6f7fb"><button id="refresh">Refresh</button><main id="root"></main>
@@ -59,8 +60,9 @@ window.SATTVA_CHATTER_URL=location.origin+'/chatter';
 import * as tab from '/js/tabs/daily-alerts.js';
 import * as coverage from '/js/data/coverage.js';
 import * as refresh from '/js/core/refresh.js';
-import { recordDocuments } from '/js/data/alert-records.js';
+import { recordDocuments, clearPrivateRecords } from '/js/data/alert-records.js';
 window.testRecordDocuments = recordDocuments;
+window.testClearPrivateRecords = clearPrivateRecords;
 coverage.prime({holdings:[{ticker:'STLTECH',name:'Sterlite Technologies'},{ticker:'RELIANCE',name:'Reliance Industries'},{ticker:'JAYNECOIND',name:'Jayaswal Neco Industries'},{ticker:'NESTLEIND',name:'Nestle India'},{ticker:'DMART',name:'Avenue Supermarts'}]});
 window.show=(scope='universe',params={})=>tab.render({root:document.querySelector('#root'),params,scope,data:{}});
 window.dispose=()=>tab.destroy();
@@ -212,6 +214,11 @@ try {
     await period.selectOption(value);
     await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
   };
+  const search = async value => {
+    await page.locator('[data-table-search]').fill(value);
+    // Large histories defer filtering until after the loading cover paints.
+    await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
+  };
   for (const label of ['Today', 'Last 3 days', 'Last 7 days', 'Last 14 days', 'Last 30 days', 'This month', 'Date not supplied', 'All history through today']) {
     assert((await period.locator('option').allTextContents()).includes(label), `All Alerts offers ${label}`);
   }
@@ -300,11 +307,10 @@ try {
   await page.evaluate(() => window.show('portfolio', { company: 'STLTECH' }));
   await settled();
   assert.equal(await period.inputValue(), 'all', 'company See all link explicitly restores complete history');
-  await page.locator('[data-table-search]').fill('Date window fixture 10');
-  // A large table applies a search on the next frame; count once it has, as the checks below do.
-  await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
+  await search('Date window fixture 10');
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, '60-day evidence remains reachable through See all');
-  await page.evaluate(async () => { (await import('/js/data/alert-records.js')).clearPrivateRecords(); window.show('portfolio'); });
+  assert.equal(await page.locator('tbody a[href="https://example.test/date-window-10"]').count(), 1, 'the result is the retained 60-day record');
+  await page.evaluate(() => { window.testClearPrivateRecords(); window.show('portfolio'); });
   await settled();
   console.log('Verified exact All Alerts periods, retained user choice and complete-history company links');
   assert.equal(await page.locator('[data-feed="screener-portfolio-upcoming"]').count(), 1);
@@ -367,13 +373,12 @@ try {
   assert.equal(await page.locator('[data-arrival-badge]').count(), 1, 'newly received filing is highlighted in the existing table');
   assert((await page.locator('tbody [data-event-day]').innerText()).includes('4 Sept 2026'), 'old source dates never become published-now claims');
   if (process.env.GENERAL_ALERTS_ARRIVAL_SCREENSHOT) await page.screenshot({ path: process.env.GENERAL_ALERTS_ARRIVAL_SCREENSHOT });
-  await page.locator('[data-table-search]').fill('no matching arrival');
-  await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
+  await search('no matching arrival');
   assert.equal(await page.locator('[data-arrivals-announcement]').textContent(), '', 'receipt announcements respect search filters');
-  await page.locator('[data-table-search]').fill('Newly arrived NSE record');
+  await search('Newly arrived NSE record');
   await page.waitForFunction(() => document.querySelectorAll('[data-arrival-badge]').length === 0, null, { timeout: 25000 });
-  await page.locator('[data-table-search]').fill('');
-  await page.locator('[data-table-search]').fill('Newly arrived NSE record');
+  await search('');
+  await search('Newly arrived NSE record');
   assert.equal(await page.locator('[data-arrival-badge]').count(), 0, 'remounting an old row does not restart the highlight');
   await page.locator('[data-table-search]').fill('');
   await selectPeriod('today');
@@ -516,17 +521,28 @@ try {
   assert.equal(virtualContract.scrollListeners, 1, 'feed repaints retain exactly one active table scroll listener');
   assert.equal(virtualContract.resizeListeners, 1, 'feed repaints retain exactly one active resize listener');
   // The export button moved out of the table toolbar, but must still use the full filtered
-  // model. A local workbook stand-in counts rows without a CDN or a large artifact on disk.
+  // model. Capture its count at the export click, rather than an earlier snapshot that
+  // asynchronous feed repaints can change. A local workbook stand-in counts full rows.
   await page.evaluate(() => {
     window.exportedRows = 0;
+    window.exportFinished = false;
+    window.expectedExportRows = null;
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('[data-alerts-table-actions] [data-export]')) {
+        // Grouped items can contain several originals; the export retains every source report.
+        window.expectedExportRows = Number(document.querySelector('[data-alerts-source-count]').dataset.alertsSourceCount) + 1;
+      }
+    }, { capture: true, once: true });
     window.ExcelJS = { Workbook: class {
-      constructor() { this.xlsx = { writeBuffer: async () => new Uint8Array() }; }
+      constructor() { this.xlsx = { writeBuffer: async () => { window.exportFinished = true; return new Uint8Array(); } }; }
       addWorksheet() { return { addRow: () => { window.exportedRows++; }, getRow: () => ({}) }; }
     } };
   });
   await page.locator('[data-alerts-table-actions] [data-export]').click();
-  await page.waitForFunction(() => window.exportedRows > 0);
-  assert.equal(await page.evaluate(() => window.exportedRows), await page.evaluate(()=>Number(document.querySelector('[data-alerts-source-count]').dataset.alertsSourceCount))+1,
+  await page.waitForFunction(() => window.exportFinished);
+  const exported = await page.evaluate(() => ({ actual: window.exportedRows, expected: window.expectedExportRows }));
+  assert.ok(exported.expected > virtualContract.mounted, 'the export model includes unmounted records');
+  assert.equal(exported.actual, exported.expected,
     'relocated export includes every matching record plus provenance, not just mounted rows');
 
   await page.locator('[data-table-scroll]').evaluate((scroller) => { scroller.scrollTop = scroller.scrollHeight; });
@@ -554,6 +570,17 @@ try {
     return { key: row?.dataset.rowKey || null, offset: row ? row.getBoundingClientRect().top - boundary : 0 };
   });
   assert(beforeRefresh.key && (await page.locator('[data-table-scroll]').evaluate((el) => el.scrollTop)) > 0);
+  // Observe receipt before waiting for every provider: its live notice can legitimately
+  // expire while slower source reads finish, but the reading anchor must still survive.
+  await page.evaluate(() => {
+    window.observedReadingArrival = false;
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('[data-arrivals-announcement]')?.textContent.includes('Arrival while reading older rows')) {
+        window.observedReadingArrival = true; observer.disconnect();
+      }
+    });
+    observer.observe(document.querySelector('#root'), { childList: true, subtree: true, characterData: true });
+  });
   version = 4;
   await page.evaluate(async () => (await import('/js/core/refresh.js')).refreshAll());
   await settled();
@@ -565,7 +592,7 @@ try {
   }, beforeRefresh.key);
   assert.equal(afterRefresh.key, beforeRefresh.key);
   assert(Math.abs(afterRefresh.offset - beforeRefresh.offset) <= 2, `visible row moved ${afterRefresh.offset - beforeRefresh.offset}px during refresh`);
-  assert((await page.locator('[data-arrivals-announcement]').textContent()).includes('Arrival while reading older rows'), 'new row arrived above the preserved reading position');
+  assert(await page.evaluate(() => window.observedReadingArrival), 'new row arrived above the preserved reading position');
 
   await page.locator('[data-alerts-focus]').click();
   assert.equal(await page.locator('[data-alerts-focus]').getAttribute('aria-pressed'), 'true');

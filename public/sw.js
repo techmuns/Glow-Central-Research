@@ -33,7 +33,7 @@ const WARM_CONCURRENCY = 8;
 // Keep content revisions separate from the shared marker: concurrent dashboard
 // releases can update that marker without conflicting with these fixes. Every
 // install, read and eviction uses the same combined key, retaining atomic upgrades.
-const CACHE_KEY = `${CACHE_NAME}-news-story-companions-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v2-dated-grades-all-alerts-restore-v2-ai-card-updates-v1-story-updates-v2-shared-reading-performance-ownership-v1-sattva-newsletter-v3-source-evidence-bounded-history-memory-v5-news-query-performance-v1-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v3-content-reuse-investor-evidence-v2-initial-state-source-reliability-v1-scrollbar-grab-v2-measured-anchor-filing-particulars-v1-table-drag-v2-mutual-funds-v12-upstox-minute-v2-muns-price-label-v2-kpi-impact-v2-alert-notes-luna-v1-announcement-company-search-v1-announcement-search-clarity-v1-source-picker-stability-v1-fund-navigation-v1-private-price-alerts-v2-ai-reading-v2-factual-summaries-v1-alert-timelines-v1-announcement-recovery-v1-sliced-announcement-history-v1-retained-failure-cache-v1-story-order-v1`;
+const CACHE_KEY = `${CACHE_NAME}-news-story-companions-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v2-dated-grades-all-alerts-restore-v2-ai-card-updates-v1-story-updates-v2-shared-reading-performance-ownership-v1-sattva-newsletter-v3-source-evidence-bounded-history-memory-v5-news-query-performance-v1-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v3-content-reuse-investor-evidence-v2-initial-state-source-reliability-v1-scrollbar-grab-v2-measured-anchor-filing-particulars-v1-table-drag-v2-mutual-funds-v12-upstox-minute-v2-muns-price-label-v2-kpi-impact-v2-alert-notes-luna-v1-announcement-company-search-v1-announcement-search-clarity-v1-source-picker-stability-v1-fund-navigation-v1-private-price-alerts-v2-ai-reading-v2-factual-summaries-v1-alert-timelines-v1-announcement-recovery-v1-sliced-announcement-history-v1-retained-failure-cache-v1-story-order-v1-company-feed-recovery-v9`;
 
 function moduleSpecifiers(source) {
   const found = new Set();
@@ -127,7 +127,7 @@ async function cacheModuleGraph(cache, entry) {
 }
 
 // This UI revision composes with the shared release without competing for its version line.
-const RELEASE_CACHE_KEY = `${CACHE_KEY}-ai-alerts-clean-search-v1-direct-earnings-reports-v2-paid-news-market-hours-v1-free-company-news-v1-news-every-2-hours-v1-empty-day-alerts-v1-finology-period-labels-v1-insider-source-gaps-v1-relevance-ranking-v1`;
+const RELEASE_CACHE_KEY = `${CACHE_KEY}-ai-alerts-clean-search-v1-direct-earnings-reports-v2-paid-news-market-hours-v1-free-company-news-v1-news-every-2-hours-v1-empty-day-alerts-v1-finology-period-labels-v1-insider-source-gaps-v1-research-settle-v1-news-identity-retention-v1-lazy-tab-interfaces-v2-momentum-scanner-v1-relevance-ranking-v1`;
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {

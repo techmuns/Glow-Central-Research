@@ -1,3 +1,4 @@
+import { TAB_META } from './catalog.js';
 // A continuous, scoped stream of source announcements. BSE date captures, live NSE
 // filings and retained Muns company documents share one table and keep their source labels.
 //
@@ -373,9 +374,7 @@ function searchControl({ ctx, rows, view }) {
 }
 
 const tab = makeFilingsTab({
-  id: 'corp-announcements',
-  title: 'Corp Announcements',
-  subtitle: 'Company announcements from BSE, NSE and captured filings — newest day first, the most relevant first within each day.',
+  ...TAB_META['corp-announcements'],
   feed,
   filterByScope: (list) => list,
   keyFor: (r) => r.id,
@@ -449,7 +448,7 @@ const tab = makeFilingsTab({
     { label: 'Market cap', get: mcapCell, html: true, align: 'right', sortable: false },
     { label: 'Source', get: (r) => announcementSources(r).join(' / ') || 'Not specified', sortable: false },
   ],
-  provenance: (m) => {
+  provenance: (m, { scope } = {}) => {
     const qm = m.query || {};
     const index = qm.index || {};
     const built = index.builtAt ? new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(index.builtAt)) + ' IST' : 'unavailable';
@@ -506,7 +505,7 @@ const tab = makeFilingsTab({
       <p>No PDF is summarized or scored in the list. Missing fields remain blank.</p>
       ${m.archive?.error ? `<p>${escapeHtml(m.archive.error)}</p>` : ''}
       ${m.nse?.historyUnavailable || m.nse?.allMissingDays?.length ? '<p>Some retained NSE history could not be loaded; existing records remain visible.</p>' : ''}
-      ${captureCoverageHtml('announcements')}
+      ${captureCoverageHtml('announcements', null, { scope })}
       ${qm.mode === 'local' ? coverageBlock({ ...m, rowCount: qm.total ?? 0, covered: qm.companies ?? 0 }) : ''}
     </div>
   </div>`;
