@@ -2163,7 +2163,7 @@
       "pending": []
     },
     "isin:INE685T01010|HORIZONIND": {
-      "lastAttemptAt": "2026-10-02T20:01:55+00:00",
+      "lastAttemptAt": "2026-10-07T01:59:58+00:00",
       "error": "search-unavailable"
     }
   },
@@ -2171,6 +2171,6 @@
     "planned": 232,
     "attempted": 1,
     "incomplete": 220,
-    "checkedAt": "2026-10-07T01:27:05.295420+00:00"
+    "checkedAt": "2026-10-07T01:59:58.903399+00:00"
   }
 }
