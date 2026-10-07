@@ -1,36 +1,29 @@
 {
   "queries": {
     "isin:INE423A01024|Adani Enterprises": {
-      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
-      "error": "result-cap-incomplete",
-      "lastResultCount": 105,
+      "lastAttemptAt": "2026-10-07T09:11:18+00:00",
+      "error": null,
+      "lastResultCount": 82,
       "targetThrough": "2026-10-03T05:24:56+00:00",
       "pending": [
-        {
-          "from": "2026-09-24T05:24:56.457367+00:00",
-          "to": "2026-09-28T17:24:56.228683+00:00"
-        },
         {
           "from": "2026-09-28T17:24:56.228683+00:00",
           "to": "2026-10-03T05:24:56+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-10-07T09:11:18+00:00"
     },
     "isin:INE423A01024|ADANIENT": {
-      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
+      "lastAttemptAt": "2026-10-07T09:11:18+00:00",
       "error": null,
-      "lastResultCount": 64,
-      "targetThrough": "2026-09-15T20:36:48+00:00",
-      "pending": [
-        {
-          "from": "2026-09-11T08:36:48.415313+00:00",
-          "to": "2026-09-15T20:36:48+00:00"
-        }
-      ],
-      "lastDiscoveryAt": "2026-10-03T05:24:56+00:00"
+      "lastResultCount": 16,
+      "targetThrough": null,
+      "pending": [],
+      "lastDiscoveryAt": "2026-10-07T09:11:18+00:00",
+      "lastSuccessAt": "2026-09-15T20:36:48+00:00"
     },
     "isin:INE674K01013|Aditya Birla Capital": {
-      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
+      "lastAttemptAt": "2026-10-07T09:11:18+00:00",
       "error": "search-unavailable",
       "lastResultCount": 103,
       "targetThrough": "2026-09-15T20:36:48+00:00",
@@ -43,7 +36,8 @@
           "from": "2026-09-11T08:36:48.415313+00:00",
           "to": "2026-09-15T20:36:48+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-10-07T09:11:18+00:00"
     },
     "isin:INE674K01013|ABCAPITAL": {
       "lastAttemptAt": "2026-10-03T06:17:45+00:00",
@@ -2035,34 +2029,31 @@
       "pending": []
     },
     "isin:INE704J01044|VOGL": {
-      "lastAttemptAt": "2026-10-03T03:47:30+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 104,
+      "lastAttemptAt": "2026-10-07T09:11:18+00:00",
+      "error": null,
+      "lastResultCount": 21,
       "targetThrough": "2026-09-20T00:19:51+00:00",
       "pending": [
-        {
-          "from": "2026-09-11T00:19:51.977725+00:00",
-          "to": "2026-09-15T12:19:51.488863+00:00"
-        },
         {
           "from": "2026-09-15T12:19:51.488863+00:00",
           "to": "2026-09-20T00:19:51+00:00"
         }
-      ]
+      ],
+      "lastDiscoveryAt": "2026-10-07T09:11:18+00:00"
     },
     "isin:INE694L01019|Vedanta Power": {
-      "lastAttemptAt": "2026-10-03T04:20:32+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 29,
-      "lastSuccessAt": "2026-09-20T00:19:51+00:00",
+      "lastAttemptAt": "2026-10-07T09:11:18+00:00",
+      "error": null,
+      "lastResultCount": 81,
+      "lastSuccessAt": "2026-10-07T09:11:18+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE694L01019|VEDPOWER": {
-      "lastAttemptAt": "2026-10-03T04:53:35+00:00",
-      "error": "search-unavailable",
-      "lastResultCount": 11,
-      "lastSuccessAt": "2026-09-20T00:19:51+00:00",
+      "lastAttemptAt": "2026-10-07T09:11:18+00:00",
+      "error": null,
+      "lastResultCount": 15,
+      "lastSuccessAt": "2026-10-07T09:11:18+00:00",
       "targetThrough": null,
       "pending": []
     },
@@ -2169,8 +2160,8 @@
   },
   "coverage": {
     "planned": 232,
-    "attempted": 1,
-    "incomplete": 222,
-    "checkedAt": "2026-10-07T08:39:38.223165+00:00"
+    "attempted": 6,
+    "incomplete": 220,
+    "checkedAt": "2026-10-07T09:11:18.558299+00:00"
   }
 }
