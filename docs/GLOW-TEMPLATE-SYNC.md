@@ -428,12 +428,16 @@ share a durable five-attempt/hour budget; scheduled edition claims and send time
 The existing Glow reported-item ledger is retained, with acknowledged part outcomes and only
 confirmed identities written atomically. Shared fallback keys cannot suppress unsent updates.
 
-Parts use distinct dated morning/evening subjects with part numbers in both subject and body.
-Gmail can clip combined same-subject conversations even when individual emails fit (see
-[Mailchimp’s guidance](https://mailchimp.com/help/gmail-is-clipping-my-email/)). The Muns `/email/send/raw` API
-specification inspected on 23 September exposes subject/body/attachments, not Message-ID,
-References, In-Reply-To or thread IDs. The conditional request for one thread is therefore not enabled: it would need sender support
-and end-to-end clipping verification. No unsupported transport fields are sent.
+**Threading updated 7 October 2026:** the Muns `/email/send/raw` API now returns
+`data.messageId` and accepts `inReplyTo` plus `references` (an array of message IDs).
+A two-message test to `ceekay@muns.io` verified both received headers and a shared Gmail thread.
+Glow and Sattva now use one dated subject per edition: the first part starts a fresh thread for
+each recipient, and all later parts reply to that root. Morning and evening editions have separate
+roots. Part numbers stay in the body. Missing/invalid root IDs stop remaining parts instead of
+sending extra standalone messages; unsent evidence stays eligible for later briefs.
+Each body keeps its byte limit. Gmail may clip combined conversations (see
+[Mailchimp’s guidance](https://mailchimp.com/help/gmail-is-clipping-my-email/)); the complete PDF
+remains available in every part. Existing schedules, claims, credentials and subscribers are preserved.
 
 Verification: `verify-newsletter.mjs` covers byte limits, evidence/row preservation, failures,
 restarts, PDF routes, retention and budgets. `verify-newsletter-ui.mjs` exercises the preview

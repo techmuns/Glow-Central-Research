@@ -66,6 +66,8 @@ window.SATTVA_CHATTER_URL=location.origin+'/chatter';
 import * as tab from '/js/tabs/daily-alerts.js';
 import * as coverage from '/js/data/coverage.js';
 import * as refresh from '/js/core/refresh.js';
+import { clearPrivateRecords } from '/js/data/alert-records.js';
+window.testClearPrivateRecords = clearPrivateRecords;
 coverage.prime({holdings:[{ticker:'STLTECH',name:'Sterlite Technologies'},{ticker:'RELIANCE',name:'Reliance Industries'},{ticker:'JAYNECOIND',name:'Jayaswal Neco Industries'},{ticker:'NESTLEIND',name:'Nestle India'},{ticker:'DMART',name:'Avenue Supermarts'}]});
 window.show=(scope='universe',params={})=>tab.render({root:document.querySelector('#root'),params,scope,data:{}});
 window.dispose=()=>tab.destroy();
@@ -306,7 +308,7 @@ try {
   assert.equal(await period.inputValue(), 'all', 'company See all link explicitly restores complete history');
   await page.locator('[data-table-search]').fill('Date window fixture 10');
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, '60-day evidence remains reachable through See all');
-  await page.evaluate(async () => { (await import('/js/data/alert-records.js')).clearPrivateRecords(); window.show('portfolio'); });
+  await page.evaluate(() => { window.testClearPrivateRecords(); window.show('portfolio'); });
   await settled();
   console.log('Verified exact All Alerts periods, retained user choice and complete-history company links');
   assert.equal(await page.locator('[data-feed="screener-portfolio-upcoming"]').count(), 1);
@@ -521,7 +523,9 @@ try {
   assert.equal(virtualContract.scrollListeners, 1, 'feed repaints retain exactly one active table scroll listener');
   assert.equal(virtualContract.resizeListeners, 1, 'feed repaints retain exactly one active resize listener');
   // The export button moved out of the table toolbar, but must still use the full filtered
-  // model. A local workbook stand-in counts rows without a CDN or a large artifact on disk.
+  // model. Capture its count at the export click, rather than the earlier virtualization
+  // snapshot: asynchronous feed repaints can change that model between the two interactions.
+  // A local workbook stand-in counts rows without a CDN or a large artifact on disk.
   await page.evaluate(() => {
     window.exportedRows = 0;
     window.exportFinished = false;
@@ -571,6 +575,17 @@ try {
     return { key: row?.dataset.rowKey || null, offset: row ? row.getBoundingClientRect().top - boundary : 0 };
   });
   assert(beforeRefresh.key && (await page.locator('[data-table-scroll]').evaluate((el) => el.scrollTop)) > 0);
+  // Observe receipt before waiting for every provider: its live notice can legitimately
+  // expire while slower source reads finish, but the reading anchor must still survive.
+  await page.evaluate(() => {
+    window.observedReadingArrival = false;
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('[data-arrivals-announcement]')?.textContent.includes('Arrival while reading older rows')) {
+        window.observedReadingArrival = true; observer.disconnect();
+      }
+    });
+    observer.observe(document.querySelector('#root'), { childList: true, subtree: true, characterData: true });
+  });
   version = 4;
   await page.evaluate(async () => (await import('/js/core/refresh.js')).refreshAll());
   await settled();
@@ -582,7 +597,7 @@ try {
   }, beforeRefresh.key);
   assert.equal(afterRefresh.key, beforeRefresh.key);
   assert(Math.abs(afterRefresh.offset - beforeRefresh.offset) <= 2, `visible row moved ${afterRefresh.offset - beforeRefresh.offset}px during refresh`);
-  assert((await page.locator('[data-arrivals-announcement]').textContent()).includes('Arrival while reading older rows'), 'new row arrived above the preserved reading position');
+  assert(await page.evaluate(() => window.observedReadingArrival), 'new row arrived above the preserved reading position');
 
   await page.locator('[data-alerts-focus]').click();
   assert.equal(await page.locator('[data-alerts-focus]').getAttribute('aria-pressed'), 'true');

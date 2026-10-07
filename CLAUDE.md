@@ -1318,8 +1318,10 @@ revalidates its sources on mount — moved, not deleted, and the age stays state
 
 **Delivery updated 23 September 2026:** size-bound the entire edition, including Glow’s extra
 calendar and holdings tables, using `newsletter-email.mjs`. Each part must stay within 90,000
-UTF-8 bytes and link to its saved complete PDF. Use distinct numbered morning/evening subjects;
-Gmail can clip combined conversations and the sender has no reply-header controls. Preserve
+UTF-8 bytes and link to its saved complete PDF. **Threading updated 7 October 2026:** each
+recipient/edition uses one dated subject and a fresh first-part root; later parts send Muns
+`inReplyTo` and `references` using the returned `data.messageId`. Keep part labels in the body.
+Stop unlinked parts when no valid root is acknowledged; retain unsent story eligibility. Preserve
 Glow’s reported ledger and commit only acknowledged part identities with delivery progress.
 See `docs/GLOW-TEMPLATE-SYNC.md` → *Newsletter delivery parity* for the full contract.
 
