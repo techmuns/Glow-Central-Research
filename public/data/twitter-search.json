@@ -2146,8 +2146,8 @@
       ]
     },
     "isin:INE049B01025|WOCKPHARMA": {
-      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-10-08T08:14:24+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 40,
       "lastSuccessAt": "2026-10-03T05:24:56+00:00",
       "targetThrough": null,
@@ -2398,6 +2398,6 @@
     "planned": 254,
     "attempted": 1,
     "incomplete": 249,
-    "checkedAt": "2026-10-08T07:36:40.797735+00:00"
+    "checkedAt": "2026-10-08T08:14:24.124846+00:00"
   }
 }
