@@ -2130,8 +2130,8 @@
       "pending": []
     },
     "isin:INE049B01025|Wockhardt": {
-      "lastAttemptAt": "2026-10-03T05:24:56+00:00",
-      "error": "result-cap-incomplete",
+      "lastAttemptAt": "2026-10-08T07:36:40+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 107,
       "targetThrough": "2026-10-03T05:24:56+00:00",
       "pending": [
@@ -2398,6 +2398,6 @@
     "planned": 254,
     "attempted": 1,
     "incomplete": 249,
-    "checkedAt": "2026-10-08T07:04:52.337083+00:00"
+    "checkedAt": "2026-10-08T07:36:40.797735+00:00"
   }
 }
