@@ -150,7 +150,7 @@
       "error": "search-unavailable"
     },
     "isin:INE555B01013|AXISCADES": {
-      "lastAttemptAt": "2026-10-03T14:51:20+00:00",
+      "lastAttemptAt": "2026-10-08T17:12:24+00:00",
       "error": "search-unavailable"
     },
     "isin:INE083K01017|Bengal and Assam Company": {
@@ -2398,6 +2398,6 @@
     "planned": 254,
     "attempted": 1,
     "incomplete": 249,
-    "checkedAt": "2026-10-08T16:41:13.255149+00:00"
+    "checkedAt": "2026-10-08T17:12:24.103402+00:00"
   }
 }
