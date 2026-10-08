@@ -142,8 +142,12 @@ try {
   // AI Read: one click, one read, the same five sections, the original filing one click away.
   // An exchange PDF: the stand-in answers with a PDF, and which filing leads the page moves with the
   // data (an NSE XBRL file there is read as XBRL and correctly refused as unreadable).
-  const target = (await caRows()).find((r) => /bseindia|nseindia/.test(r.url || '') && /\.pdf(?:$|[?#])/i.test(r.url || ''));
-  assert(target, 'the newest page holds an exchange PDF filing to read');
+  // Keep the PDF genuine and choose a nearby same-day peer for the later vote
+  // check: a score penalty need not move a filing across an arbitrary large gap.
+  const readableRows = await caRows();
+  const target = readableRows.find((r, i) => /bseindia|nseindia/.test(r.url || '') && /\.pdf(?:$|[?#])/i.test(r.url || '')
+    && readableRows[i + 1]?.date === r.date && r.relevance - readableRows[i + 1].relevance < 1);
+  assert(target, 'the newest page holds an exchange PDF with a nearby same-day peer');
   const targetRow = page.locator(`tbody tr[data-row-key="${target.id}"]`);
   await targetRow.locator('td').nth(1).click();
   const popup = page.locator('#modal-content [data-ann-read]');
@@ -180,11 +184,17 @@ try {
     const rows = q.rows(); const day = rows.find((r) => r.id === id)?.date;
     return q.meta().state === 'ready' && rows.filter((r) => r.date === day).findIndex((r) => r.id === id) > at;
   }, [target.id, beforeAt], { timeout: 30000 });
-  assert((await caRows()).some((r) => r.id === target.id), 'the filing is still listed');
+  const voted = (await caRows()).find((r) => r.id === target.id);
+  assert(voted, 'the filing is still listed');
+  assert(voted.relevance < target.relevance, 'the saved negative vote lowers its score');
+  assert.equal((await caMeta()).total, meta.total, 'feedback retains every filing');
   ok('Important / Not important + Why? in the popup re-orders the day and hides nothing');
 
   // ---- News: the row still opens the article; the ⋯ is a separate control ---------------------
   await page.goto(`${srv.url}#/research/news?scope=universe`);
+  // Feedback applies to retained articles too. Today can legitimately have none
+  // when the exchange fixture's newest day is later than the news capture.
+  await page.locator('select').filter({ has: page.locator('option[value="today"]') }).selectOption('30');
   await page.waitForSelector('[data-news-key] [data-feedback-menu]', { timeout: 60000 });
   // The order within a day can still be settling (readings past the first budget are made in
   // slices); act on the list once it has, as a reader would after the first second.
