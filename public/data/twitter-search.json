@@ -2372,12 +2372,16 @@
     "isin:INE011K01018|TEGA": {
       "lastAttemptAt": "2026-10-08T02:38:36+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE0JA001018|Venus Pipes & Tubes": {
+      "lastAttemptAt": "2026-10-08T03:32:24+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 254,
     "attempted": 1,
     "incomplete": 243,
-    "checkedAt": "2026-10-08T02:38:36.405459+00:00"
+    "checkedAt": "2026-10-08T03:32:24.737942+00:00"
   }
 }
