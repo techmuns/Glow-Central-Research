@@ -107,7 +107,11 @@ const server = createServer((req, res) => {
 });
 await new Promise((done) => server.listen(0, '127.0.0.1', done));
 const origin = `http://127.0.0.1:${server.address().port}`;
+<<<<<<< HEAD
 const familyOrigin = origin;
+=======
+const familyOrigin = 'https://sattva-family.pages.dev';
+>>>>>>> sattva/main
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
 // A browser in California must still roll the Indian market date at 18:30 UTC.
 const page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, timezoneId: 'America/Los_Angeles' });
@@ -118,8 +122,10 @@ await page.route('**/*', route => route.request().url() === `${familyOrigin}/glo
   : route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
 // Browser clocks are paused for midnight tests; poll postMessage completion with
 // the test runner's real clock rather than a frozen requestAnimationFrame loop.
-const waitFor = async (target, condition) => {
-  const deadline = Date.now() + 10000;
+// Most waits settle in well under a second; the three that recompute the 100,005-event window take
+// about ten seconds on a shared runner, so they pass their own longer limit rather than racing this one.
+const waitFor = async (target, condition, ms = 10000) => {
+  const deadline = Date.now() + ms;
   while (!await target.evaluate(condition)) {
     if (Date.now() >= deadline) {
       const state = await target.evaluate(() => ({ status: document.querySelector('[data-ai-feed-status]')?.textContent, cards: document.querySelectorAll('[data-ai-card]').length }));
@@ -140,7 +146,11 @@ try {
   const failedContext = await browser.newContext();
   const failedPage = await failedContext.newPage();
   failedPage.on('pageerror', error => errors.push(error.message));
+<<<<<<< HEAD
   await failedPage.route('**/*', route => route.request().url() === `${origin}/glow-bridge.html`
+=======
+  await failedPage.route('**/*', route => route.request().url() === `${familyOrigin}/research-bridge`
+>>>>>>> sattva/main
     ? route.fulfill({ contentType:'text/html', body:familyHtml })
     : route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status:503, body:'{}' }));
   await failedPage.goto(`${origin}/?throwFirst=1`);
@@ -679,7 +689,11 @@ try {
   const capacityContext = await browser.newContext();
   const capacityPage = await capacityContext.newPage();
   capacityPage.on('pageerror', error => errors.push(error.message));
+<<<<<<< HEAD
   await capacityPage.route('**/*', route => route.request().url() === `${origin}/glow-bridge.html`
+=======
+  await capacityPage.route('**/*', route => route.request().url() === `${familyOrigin}/research-bridge`
+>>>>>>> sattva/main
     ? route.fulfill({ contentType:'text/html', body:`<script>addEventListener('message', e => { if (e.data.channel === 'sattva-portfolio-v1') parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'}, '*'); });</script>` })
     : route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
   await capacityPage.clock.install({ time: '2026-09-04T08:00:00Z' });
@@ -695,7 +709,7 @@ try {
     }));
     window.show('universe');
   });
-  await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');
+  await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete', 30000);
   assert.equal(await capacityPage.locator('[data-ai-card]').count(), 8, 'large evidence windows keep the initial DOM bounded');
   await capacityPage.locator('[data-ai-more]').click();
   assert.equal(await capacityPage.locator('[data-ai-card]').count(), 16);
@@ -704,13 +718,13 @@ try {
     'search evaluates the 100,005th event, not only paginated cards or the evidence preview');
   const beforeVisible = await capacityPage.evaluate(() => window.reads);
   await capacityPage.clock.fastForward(90_001);
-  await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');
+  await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete', 30000);
   assert.equal(await capacityPage.evaluate(() => window.reads), beforeVisible + 1, 'visible AI Alerts revalidates published sources after 90 seconds');
   await capacityPage.evaluate(() => Object.defineProperty(document, 'hidden', { configurable: true, value: true }));
   await capacityPage.clock.fastForward(90_001);
   assert.equal(await capacityPage.evaluate(() => window.reads), beforeVisible + 1, 'hidden views do not poll');
   await capacityPage.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: false }); window.dispatchEvent(new Event('focus')); });
-  await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');
+  await waitFor(capacityPage, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete', 30000);
   assert.equal(await capacityPage.evaluate(() => window.reads), beforeVisible + 2, 'returning from inactivity checks immediately');
   await capacityPage.evaluate(() => window.dispatchEvent(new Event('online')));
   assert.equal(await capacityPage.evaluate(() => window.reads), beforeVisible + 2, 'nearby wake signals do not duplicate checks');

@@ -166,14 +166,22 @@ test('fresh quotes cannot hide an overdue inventory check',async()=>{
 test('500 instrument batches preserve earlier quotes when auth fails, and credentials never follow redirects',async()=>{
  const targets=Array.from({length:501},(_,i)=>({ticker:`T${i}`,instrumentKey:`NSE_EQ|${i}`,upstoxSymbol:`T${i}`}));let calls=0;
  const result=await minuteQuotes(targets,new Map(),'secret-fixture',{now:()=>AT,fetcher:async(url,opts)=>{
+<<<<<<< HEAD
   calls++;assert.equal(new URL(url).hostname,'api.upstox.com');assert.equal(opts.redirect,'manual');assert.equal(opts.headers.authorization,'Bearer secret-fixture');assert.equal(opts.headers['user-agent'],'GlowCentralResearch/1.0');
+=======
+  calls++;assert.equal(new URL(url).hostname,'api.upstox.com');assert.equal(opts.redirect,'manual');assert.equal(opts.headers.authorization,'Bearer secret-fixture');assert.equal(opts.headers['user-agent'],'SattvaCentralResearch/1.0');
+>>>>>>> sattva/main
   if(calls===2)return new Response(null,{status:401});
   return Response.json({status:'success',data:Object.fromEntries(targets.slice(0,500).map(t=>[t.ticker,{instrument_token:t.instrumentKey,symbol:t.upstoxSymbol,last_price:108,volume:2300,net_change:8,last_trade_time:AT}]))});
  }});
  assert.equal(calls,2);assert.equal(result.rows.length,500);assert.equal(result.reason,'authentication');
  const redirected=await minuteQuotes(targets.slice(0,1),new Map(),'secret-fixture',{fetcher:async()=>new Response(null,{status:302,headers:{location:'https://attacker/'}})});
  assert.equal(redirected.reason,'unavailable');assert.equal(redirected.rows.length,0);
+<<<<<<< HEAD
  const decoded=await primaryInstruments('NSE',async(url,opts)=>{assert.equal(opts.headers['user-agent'],'GlowCentralResearch/1.0');assert.equal(opts.headers.authorization,undefined);assert.equal(opts.redirect,'manual');return new Response(gzipSync(JSON.stringify(instruments)));});
+=======
+ const decoded=await primaryInstruments('NSE',async(url,opts)=>{assert.equal(opts.headers['user-agent'],'SattvaCentralResearch/1.0');assert.equal(opts.headers.authorization,undefined);assert.equal(opts.redirect,'manual');return new Response(gzipSync(JSON.stringify(instruments)));});
+>>>>>>> sattva/main
  assert.deepEqual(JSON.parse(JSON.stringify(decoded)),instruments);
 });
 test('public reads expose primary readiness but cannot activate collection or accept a token',async()=>{

@@ -1,10 +1,21 @@
 import {escapeHtml as esc} from '../core/dom.js';
 import {scoreTable,openModal,closeModal} from '../ui/screener.js';
+<<<<<<< HEAD
 import * as feed from '../data/mutual-fund-holdings.js';
 import {coverageRows,coverageTime} from '../data/mutual-funds-coverage.js';
 import {comparisonStatus} from '../data/mutual-funds-status.js';
 import {cachedPositionSizes,readPositionSizes,onPortfolioReady,onPortfolioInvalidation,portfolioConnectionState,unlockPortfolio} from '../research/portfolio-bridge.js';
 let ctx=null,disposeTable=null,table=null,offReady=null,offInvalid=null,offUpdate=null,timer=null,sequence=0,dialog=0,sort='holdings',busy=false,lastRead=0;
+=======
+import * as feed from '../data/mutual-funds.js';
+import {coverageRows,coverageTime} from '../data/mutual-funds-coverage.js';
+import {comparisonStatus} from '../data/mutual-funds-status.js';
+import {supplementStatus} from '../data/mutual-funds-supplement.js';
+import * as coverage from '../data/coverage.js';
+import {cachedPositionSizes,readPositionSizes,onPortfolioReady,onPortfolioInvalidation,portfolioConnectionState,unlockPortfolio} from '../research/portfolio-bridge.js';
+export const meta={id:'mutual-funds',title:'Mutual Funds',subtitle:'Monthly mutual-fund ownership across your portfolio.',subviews:[]};
+let ctx=null,disposeTable=null,table=null,offReady=null,offInvalid=null,offSession=null,offUpdate=null,timer=null,sequence=0,dialog=0,sort='holdings',busy=false,lastRead=0;
+>>>>>>> sattva/main
 const num=n=>Number.isFinite(n)?n.toLocaleString('en-IN',{maximumFractionDigits:0}):'—';
 const pct=n=>Number.isFinite(n)?`${n.toLocaleString('en-IN',{maximumFractionDigits:2})}%`:'—';
 const signed=n=>Number.isFinite(n)?`${n>0?'+':n<0?'−':''}${num(Math.abs(n))}`:'—';
@@ -28,22 +39,37 @@ function ownershipNote(r) {
 }
 const checked=m=>m.checkedAt?new Date(m.checkedAt).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'})+' IST':'Not checked';
 export function render(context) {
+<<<<<<< HEAD
   cleanup();ctx=context;sequence++;busy=false;
+=======
+  cleanup();ctx=context;sequence++;
+>>>>>>> sattva/main
   ctx.root.innerHTML=`<section class="mf-module"><div class="mf-toolbar"><label>Sort <select data-mf-sort aria-label="Sort mutual funds"><option value="holdings">Largest holdings</option><option value="newest">Newest</option></select></label><button data-mf-coverage class="text-xs text-indigo-600">Coverage</button></div><p data-mf-sizes class="text-xs text-slate-500"></p><div data-mf-table></div></section>`;
   ctx.root.querySelector('[data-mf-sort]').value=sort;
   ctx.root.querySelector('[data-mf-sort]').onchange=e=>{sort=e.target.value;if(table)table.view.sort=null;paint();};
   ctx.root.querySelector('[data-mf-coverage]').onclick=showCoverage;
   offReady=onPortfolioReady(()=>paint());offInvalid=onPortfolioInvalidation(()=>paint());
   offUpdate=feed.onUpdate(()=>paint());
+<<<<<<< HEAD
   window.addEventListener('focus',resume);window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
   timer=setInterval(()=>{if(!document.hidden)refresh();},60000);
   refresh();paint(true);
+=======
+  offSession=feed.onSessionChange(()=>{sequence++;dialog++;activeCompany=null;detailData=null;closeModal();paint();refresh();});
+  window.addEventListener('focus',resume);window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
+  timer=setInterval(()=>{if(!document.hidden)refresh();},60000);
+  paint(true);refresh();
+>>>>>>> sattva/main
   if(ctx.scope==='portfolio')readPositionSizes().then(()=>{if(ctx)paint();}).catch(()=>{if(ctx)paint();});
 }
 function resume(){if(ctx&&!document.hidden&&Date.now()-lastRead>30000)refresh();}
 async function refresh() {
   if(!ctx||busy)return;busy=true;const mine=sequence,scope=ctx.scope;
+<<<<<<< HEAD
   try{await feed.load(scope);}catch{/* Keep the last readable rows. */}finally{if(ctx&&mine===sequence){busy=false;lastRead=Date.now();paint();if(activeCompany)refreshOpenDetail();}}
+=======
+  try{await feed.load(scope);}catch{/* Keep the last readable rows. */}finally{busy=false;lastRead=Date.now();if(ctx&&mine===sequence){paint();if(activeCompany)refreshOpenDetail();}else if(ctx)queueMicrotask(refresh);}
+>>>>>>> sattva/main
 }
 function orderedRows() {
   const snapshot=cachedPositionSizes(),weights=new Map(snapshot?.sizes?.complete?snapshot.holdings.map(h=>[h.isin,h.weightPct]):[]);
@@ -70,7 +96,11 @@ function paint(loading=busy) {
 function paintStatus() {
   if(!ctx)return;
   const m=feed.meta();
+<<<<<<< HEAD
   ctx.root.querySelector('[data-mf-coverage]').title=[m.revalidating?'Showing saved disclosures · Checking for updates':'',`${feed.health()} · Checked ${checked(m)}`].filter(Boolean).join(' · ');
+=======
+  ctx.root.querySelector('[data-mf-coverage]').title=[m.revalidating?'Showing saved disclosures · Checking for updates':'',`${feed.health()} · Checked ${checked(m)}`,supplementStatus(m)].filter(Boolean).join(' · ');
+>>>>>>> sattva/main
   const sizeNode=ctx.root.querySelector('[data-mf-sizes]'),sizes=cachedPositionSizes();
   sizeNode.innerHTML=sort==='holdings'&&ctx.scope==='portfolio'&&!sizes?.sizes?.complete
     ? portfolioConnectionState()==='locked'?'<button data-mf-unlock class="text-indigo-600">Unlock portfolio for Largest holdings</button> · Newest shown while sizes are unavailable.' : 'Portfolio sizes unavailable · Newest shown.' : '';
@@ -80,10 +110,17 @@ let activeCompany=null,detailData=null,selectedMonth=null,detailSort={key:'chang
 async function openCompany(row) {
   activeCompany=row;detailData=null;selectedMonth=null;detailSort={key:'change',dir:'desc'};const mine=++dialog;
   openModal(`<div class="p-6"><button data-modal-close class="float-right text-2xl" aria-label="Close">×</button><h2 class="text-xl font-bold">${esc(row.name)}</h2><p class="mt-4 text-slate-500">Loading fund disclosures…</p></div>`,{size:'magazine',onClose:()=>{dialog++;activeCompany=null;}});
+<<<<<<< HEAD
   try{const data=await feed.detail(row.isin,null,{onUpdate:data=>{if(mine===dialog&&activeCompany){detailData=data;paintDetail();}}});if(mine===dialog&&activeCompany){detailData=data;paintDetail();}}
   catch {if(mine===dialog&&activeCompany)document.querySelector('#modal-content').innerHTML=`<div class="p-6"><button data-modal-close class="float-right text-2xl" aria-label="Close">×</button><h2 class="text-xl font-bold">${esc(row.name)}</h2><p class="mt-4">Fund disclosures are unavailable. Please check back.</p></div>`;document.querySelector('#modal-content [data-modal-close]')?.addEventListener('click',closeModal);}
 }
 async function refreshOpenDetail(){const row=activeCompany,mine=dialog;try{const data=await feed.detail(row.isin,selectedMonth,{onUpdate:data=>{if(mine===dialog&&activeCompany){detailData=data;paintDetail();}}});if(mine===dialog&&activeCompany){detailData=data;paintDetail();}}catch{if(mine===dialog&&detailData){detailData.meta={...detailData.meta,readFailed:true};paintDetail();}}}
+=======
+  try{const data=await feed.detail(row.isin);if(mine===dialog&&activeCompany){detailData=data;paintDetail();}}
+  catch {if(mine===dialog&&activeCompany)document.querySelector('#modal-content').innerHTML=`<div class="p-6"><button data-modal-close class="float-right text-2xl" aria-label="Close">×</button><h2 class="text-xl font-bold">${esc(row.name)}</h2><p class="mt-4">Fund disclosures are unavailable. Please check back.</p></div>`;document.querySelector('#modal-content [data-modal-close]')?.addEventListener('click',closeModal);}
+}
+async function refreshOpenDetail(){const row=activeCompany,mine=dialog;try{const data=await feed.detail(row.isin,selectedMonth);if(mine===dialog&&activeCompany){detailData=data;paintDetail();}}catch{if(mine===dialog&&detailData){detailData.meta={...detailData.meta,readFailed:true};paintDetail();}}}
+>>>>>>> sattva/main
 function paintDetail() {
   const company=detailData?.company;
   if(!company) {document.querySelector('#modal-content').innerHTML='<div class="p-6">No matched fund disclosure yet. <button data-modal-close>Close</button></div>';document.querySelector('#modal-content [data-modal-close]').onclick=closeModal;return;}
@@ -103,7 +140,11 @@ function paintDetail() {
   ];
   if(!columns.some(c=>c.key===detailSort.key))detailSort={key:'change',dir:'desc'};
   const header=c=>`<th scope="col" ${c.key==='name'?'class="mf-identity" rowspan="2"':''} ${c.title?`title="${esc(c.title)}"`:''}><button type="button" class="mf-sort-header" data-column-drag-handle data-mf-fund-sort="${esc(c.key)}" data-sort-label="${esc(c.month?`${monthLabel(c.month)} ${c.label}`:c.label)}">${esc(c.label)} <span data-mf-sort-arrow aria-hidden="true"></span></button></th>`;
+<<<<<<< HEAD
   holder.innerHTML=`<div class="p-6 mf-detail"><button data-modal-close class="float-right text-2xl" aria-label="Close">×</button><h2 class="text-xl font-bold">${esc(company.name)} · Mutual Funds</h2><p class="mt-2 text-sm text-slate-500">${esc(monthLabel(latest))} · MF ownership ${ownershipValue(company)} · ${company.addedFunds} funds added, ${company.reducedFunds} reduced · Net ${signed(company.netChange)} shares</p><div class="mf-toolbar mt-4">${company.availableMonths?.length?`<select data-mf-month aria-label="Disclosure month">${company.availableMonths.map(m=>`<option value="${esc(m)}" ${m===latest?'selected':''}>${esc(monthLabel(m))}</option>`).join('')}</select>`:''}<input data-mf-fund-search aria-label="Search mutual funds" placeholder="Search mutual funds" value="${esc(oldSearch)}"><select data-mf-action aria-label="Fund action"><option value="all">All funds</option><option value="added">Added</option><option value="reduced">Reduced</option><option value="pending">Pending</option></select><span class="text-xs text-slate-500">${company.funds.length} funds · ${company.pendingFunds} awaiting comparable reports</span></div><div class="mf-detail-scroll"><table data-column-layout="mutual-funds:1" class="mf-detail-table"><thead><tr>${header(columns[0])}<th scope="colgroup" colspan="5">${esc(monthLabel(latest))}</th>${earlier.map(m=>`<th scope="colgroup" colspan="2">${esc(monthLabel(m))}</th>`).join('')}</tr><tr>${columns.slice(1).map(header).join('')}</tr></thead><tbody></tbody></table></div><div class="mf-toolbar"><button data-mf-prev>Previous</button><span data-mf-page class="text-xs text-slate-500"></span><button data-mf-next>Next</button></div><div class="mf-insights-grid mt-4">${company.topBuyer?`<p class="mf-buyer">${esc(company.topBuyer.name)} was the largest buyer: ${signed(company.topBuyer.change)} shares.</p>`:''}${company.topSeller?`<p class="mf-seller">${esc(company.topSeller.name)} was the largest seller: ${signed(company.topSeller.change)} shares.</p>`:''}</div><p class="mt-3 text-xs text-slate-500">Shares reported by tracked schemes; monthly share changes can include corporate actions. — means not reported or not comparable; a confirmed nil holding is 0. New positions have no percentage base. ${esc(feed.health(detailData.meta))}. ${esc(ownershipNote(company))}</p></div>`;
+=======
+  holder.innerHTML=`<div class="p-6 mf-detail"><button data-modal-close class="float-right text-2xl" aria-label="Close">×</button><h2 class="text-xl font-bold">${esc(company.name)} · Mutual Funds</h2><p class="mt-2 text-sm text-slate-500">${esc(monthLabel(latest))} · MF ownership ${ownershipValue(company)} · ${company.addedFunds} funds added, ${company.reducedFunds} reduced · Net ${signed(company.netChange)} shares</p><div class="mf-toolbar mt-4">${company.availableMonths?.length?`<select data-mf-month aria-label="Disclosure month">${company.availableMonths.map(m=>`<option value="${esc(m)}" ${m===latest?'selected':''}>${esc(monthLabel(m))}</option>`).join('')}</select>`:''}<input data-mf-fund-search aria-label="Search mutual funds" placeholder="Search mutual funds" value="${esc(oldSearch)}"><select data-mf-action aria-label="Fund action"><option value="all">All funds</option><option value="added">Added</option><option value="reduced">Reduced</option><option value="pending">Pending</option></select><span class="text-xs text-slate-500">${company.funds.length} funds · ${company.pendingFunds} awaiting comparable reports</span></div><div class="mf-detail-scroll"><table data-column-layout="mutual-funds:1" class="mf-detail-table"><thead><tr>${header(columns[0])}<th scope="colgroup" colspan="5">${esc(monthLabel(latest))}</th>${earlier.map(m=>`<th scope="colgroup" colspan="2">${esc(monthLabel(m))}</th>`).join('')}</tr><tr>${columns.slice(1).map(header).join('')}</tr></thead><tbody></tbody></table></div><div class="mf-toolbar"><button data-mf-prev>Previous</button><span data-mf-page class="text-xs text-slate-500"></span><button data-mf-next>Next</button></div><div class="mf-insights-grid mt-4">${company.topBuyer?`<p class="mf-buyer">${esc(company.topBuyer.name)} was the largest buyer: ${signed(company.topBuyer.change)} shares.</p>`:''}${company.topSeller?`<p class="mf-seller">${esc(company.topSeller.name)} was the largest seller: ${signed(company.topSeller.change)} shares.</p>`:''}</div><p class="mt-3 text-xs text-slate-500">Shares reported by tracked schemes; monthly share changes can include corporate actions. — means not reported or not comparable; a confirmed nil holding is 0. New positions have no percentage base. ${esc(feed.health(detailData.meta))}. ${esc(supplementStatus(detailData.meta))}. ${esc(ownershipNote(company))}</p></div>`;
+>>>>>>> sattva/main
   holder.querySelector('[data-modal-close]').onclick=closeModal;
   const period=holder.querySelector('[data-mf-month]');if(period)period.onchange=()=>{selectedMonth=period.value;dialog++;refreshOpenDetail();};
   const fill=()=>{
@@ -141,5 +182,9 @@ function showCoverage(){
   const rows=coverageRows(feed.meta());
   openModal(`<div class="p-6 mf-coverage"><button data-modal-close class="float-right text-2xl" aria-label="Close">×</button><h2 class="text-xl font-bold">Mutual Fund coverage</h2><div class="mf-detail-scroll mt-4"><table data-column-layout="mutual-funds:2" class="mf-detail-table mf-coverage-table"><thead><tr><th class="mf-identity">Source</th><th>Latest month</th><th>Status</th><th>Last successful check</th><th>Last attempt</th></tr></thead><tbody>${rows.map(a=>`<tr><td class="mf-identity">${esc(a.name)}</td><td>${esc(monthLabel(a.month))}</td><td><span class="mf-coverage-status" data-tone="${a.tone}">${esc(a.status)}</span></td><td>${esc(coverageTime(a.checkedAt))}</td><td>${esc(coverageTime(a.attemptAt))}</td></tr>`).join('')||'<tr><td colspan="5">Source coverage is unavailable.</td></tr>'}</tbody></table></div></div>`,{size:'wide'});
 }
+<<<<<<< HEAD
 function cleanup(){disposeTable?.();disposeTable=null;table=null;offReady?.();offInvalid?.();offUpdate?.();clearInterval(timer);window.removeEventListener('focus',resume);window.removeEventListener('online',resume);document.removeEventListener('visibilitychange',resume);}
+=======
+function cleanup(){disposeTable?.();disposeTable=null;table=null;offReady?.();offInvalid?.();offSession?.();offUpdate?.();clearInterval(timer);window.removeEventListener('focus',resume);window.removeEventListener('online',resume);document.removeEventListener('visibilitychange',resume);}
+>>>>>>> sattva/main
 export function destroy(){cleanup();sequence++;dialog++;ctx=null;activeCompany=null;}

@@ -23,19 +23,21 @@ function resetSourceCoverage(entry) {
   Object.assign(entry, { ranges: [], lastAttemptAt: null, lastSuccessAt: null,
     lastResponseAt: null, recentCheckedAt: null, recheckBefore: null, nextRetryAt: null,
     failureCount: 0, error: null, skipped: 0, unavailableLinks: 0,
-    declared: null, collected: null, pages: null, requests: null });
+    declared: null, collected: null, pages: null, requests: null,
+    recovery: null, provider: null, primaryError: null });
 }
 
 function purgeProviderEvidence(dir, ticker, provider, keepSource) {
+  const invalidProviders = new Set(Array.isArray(provider) ? provider : [provider]);
   const path = join(dir, companyPath('announcements', ticker));
   const saved = readJson(path, null);
   if (!Array.isArray(saved?.rows)) return { changed: false, removed: 0 };
   let changed = false, removed = 0;
   const rows = [];
   for (const row of saved.rows) {
-    if (!(row.providers || []).includes(provider)) { rows.push(row); continue; }
+    if (!(row.providers || []).some(value => invalidProviders.has(value))) { rows.push(row); continue; }
     changed = true;
-    const providers = (row.providers || []).filter(value => value !== provider);
+    const providers = (row.providers || []).filter(value => !invalidProviders.has(value));
     if (!providers.length) { removed++; continue; }
     const allSources = announcementSources(row);
     let sources = allSources.filter(keepSource);
@@ -200,7 +202,11 @@ export async function captureCompanySources({ dir, companies, unresolved = [], n
         // but remove that provider's attribution and make the corrected symbol prove every
         // historical window again. Independently captured direct-BSE evidence survives.
         const purged = kind === 'announcements'
+<<<<<<< HEAD
           ? purgeProviderEvidence(dir, ticker, 'Muns corporate announcements', source => source === 'BSE') : { changed: false };
+=======
+          ? purgeProviderEvidence(dir, ticker, ['Muns corporate announcements', 'Screener company recent notices'], source => source === 'BSE') : { changed: false };
+>>>>>>> sattva/main
         if (purged.changed) {
           const saved = readJson(join(dir, companyPath('announcements', ticker)), { rows: [] });
           entries[ticker].rowCount = saved.rows.length;
@@ -294,7 +300,14 @@ export async function captureCompanySources({ dir, companies, unresolved = [], n
       // gap open, and poll the fallback again on the normal two-hour collection cadence.
       entry.recovery = { checkedAt: result.fetchedAt || attemptedAt, rowCount: result.announcements.length,
         sourceUrl: result.sourceUrl, scope: 'Recent company notices only; full history remains unverified.' };
+<<<<<<< HEAD
       failSource(entry, Object.assign(Error(entry.recovery.scope), { reason: 'limited-coverage' }), attemptedAt);
+=======
+      const message = entry.skipped
+        ? `${entry.skipped} recent-notice entries could not be parsed; valid notices retained. ${entry.recovery.scope}`
+        : entry.recovery.scope;
+      failSource(entry, Object.assign(Error(message), { reason: entry.skipped ? 'shape' : 'limited-coverage' }), attemptedAt);
+>>>>>>> sattva/main
       entry.nextRetryAt = new Date(now() + 2 * 3600000).toISOString();
       return false;
     }
@@ -303,7 +316,8 @@ export async function captureCompanySources({ dir, companies, unresolved = [], n
       if (Number.isFinite(result[field]) && result[field] >= 0) entry[field] = result[field];
     }
     if (entry.skipped) {
-      failSource(entry, new Error(`${entry.skipped} source entries could not be parsed; captured rows retained, window remains incomplete.`), attemptedAt);
+      failSource(entry, Object.assign(new Error(result.parseError || `${entry.skipped} source entries could not be parsed; captured rows retained, window remains incomplete.`),
+        result.parseError ? { reason: 'shape' } : {}), attemptedAt);
       return false;
     }
     entry.lastSuccessAt = attemptedAt;

@@ -1,3 +1,4 @@
+import * as priceLevels from './price-levels.js';
 // Additional source-tab adapters. No ranking, company walks or upstream job dispatches.
 import * as nse from './nse-filings.js';
 import * as twitter from './twitter-news.js';
@@ -134,6 +135,7 @@ function privateDocuments(kind, day) {
 }
 
 export const ADDITIONAL_SOURCES = [
+<<<<<<< HEAD
   // THE FAMILY'S OWN PRICE LEVELS, FIRST AMONG THESE because they are the one source the family
   // wrote themselves — a Buy at, Sell at, Stop loss, Target or Alert above set on a
   // holding in the Glow Ventures dashboard, checked here against the live price every minute the
@@ -144,6 +146,11 @@ export const ADDITIONAL_SOURCES = [
     what: 'Price levels the family set on their holdings in the Glow Ventures dashboard \u2014 Buy at, Sell at, Stop loss, Target and Alert above \u2014 each checked against the live price once a minute while the market is open. A row is the minute a level was first reached; a level fires once, and a new value is a new level.',
     load: () => priceLevels.load(),
     read: () => priceLevels.readFeed() },
+=======
+  {id:'price-levels',label:'Private price alerts',tab:'daily-alerts',private:true,
+    what:'Levels entered in Sattva Family, checked in the background during market hours. Private reached history is read only while Family access is authenticated.',
+    load:()=>priceLevels.load(),read:()=>priceLevels.readFeed()},
+>>>>>>> sattva/main
   { id: 'nse-filings', label: 'NSE filings', tab: 'nse-filings', what: 'Every filing in the available retained NSE window, including unresolved and undated filings.',
     load: async (refresh) => { await nse.load(); if (refresh) await nse.refresh(); await nse.loadHistory(90, { updateWindow: false }); },
     warm: warmNse,
@@ -252,6 +259,7 @@ export const ADDITIONAL_SOURCES = [
 ];
 
 export const additionalSourceDependencies = [
+  [priceLevels,['price-levels']],
   [nse, ['nse-filings']], [twitter, ['twitter']], [institutions, ['institutions']],
   [calendar, ['earnings-calendar']], [ipoFilings, ['ipos']], [priceLevels, [priceLevels.PRICE_LEVELS_FEED]],
 ];

@@ -19,7 +19,11 @@ for (const line of lines) {
 }
 const script = commands.join('\n');
 assert(script.includes('git push'), 'test executes the workflow publisher, not a separate implementation');
+<<<<<<< HEAD
 const scratch = mkdtempSync(join(tmpdir(), 'glow-company-capture-publish-'));
+=======
+const scratch = mkdtempSync(join(tmpdir(), 'sattva-company-capture-publish-'));
+>>>>>>> sattva/main
 const git = (cwd, ...args) => execFileSync('git', ['-c', 'gc.auto=0', ...args], {
   cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
 }).trim();
