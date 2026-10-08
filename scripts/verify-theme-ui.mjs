@@ -58,10 +58,17 @@ async function shot(page, name) {
   await page.screenshot({ path: `${process.env.THEME_SCREENSHOTS}/${name}.png`, fullPage: true });
 }
 async function surface(page, selector) {
-  return page.locator(selector).first().evaluate(el => {
+  // Source arrivals can replace a table between resolving its locator and
+  // reading its styles. Read a connected node in the same browser turn.
+  const sample = await page.waitForFunction(selector => {
+    const el = document.querySelector(selector);
+    if (!el?.isConnected) return false;
     const s = getComputedStyle(el);
     return { bg: s.backgroundColor, color: s.color };
-  });
+  }, selector);
+  const value = await sample.jsonValue();
+  await sample.dispose();
+  return value;
 }
 function rgb(color) { return color.match(/[\d.]+/g).slice(0, 3).map(Number); }
 function luma(color) {
@@ -143,11 +150,21 @@ try {
       const head = await surface(page, '[data-table-head]');
       assert(luma(head.bg) < 0.05, 'sticky table header is dark');
       assert(contrast(head.color, head.bg) >= 4.5);
-      await page.evaluate(() => { window.themeContentBefore = document.querySelector('#content-host').firstElementChild; });
-      await toggle(page).click();
-      assert.equal((await surface(page, '[data-table-head]')).bg, 'rgb(255, 255, 255)');
-      await toggle(page).click();
-      assert(await page.evaluate(() => window.themeContentBefore === document.querySelector('#content-host').firstElementChild), 'theme change does not remount the table');
+      // Theme changes are synchronous. Keep this identity assertion in that
+      // browser turn so an independent source arrival cannot replace the table
+      // between the clicks and be mistaken for a theme-triggered remount.
+      const toggled = await page.evaluate(() => {
+        const panel = document.querySelector('#content-host');
+        const before = panel.firstElementChild;
+        const button = document.querySelector('[data-theme-toggle]');
+        button.click();
+        const light = getComputedStyle(document.querySelector('[data-table-head]')).backgroundColor;
+        const retainedLight = panel.firstElementChild === before;
+        button.click();
+        return { light, retained: retainedLight && panel.firstElementChild === before };
+      });
+      assert.equal(toggled.light, 'rgb(255, 255, 255)');
+      assert(toggled.retained, 'theme change does not remount the table');
     }
     await shot(page, `${tab}-dark`);
   }
