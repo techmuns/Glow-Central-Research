@@ -2348,12 +2348,16 @@
     "isin:INE658D01029|Simplex Casting": {
       "lastAttemptAt": "2026-10-07T23:38:50+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE658D01029|Simplex Castings": {
+      "lastAttemptAt": "2026-10-08T00:15:49+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 254,
     "attempted": 1,
     "incomplete": 243,
-    "checkedAt": "2026-10-07T23:38:50.894473+00:00"
+    "checkedAt": "2026-10-08T00:15:49.976775+00:00"
   }
 }
