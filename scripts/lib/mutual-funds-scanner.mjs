@@ -1,6 +1,11 @@
 import { previousMonth, targetMonth, validIsin } from '../../worker/mutual-funds-model.mjs';
 import { scannerAmc, scannerName } from '../../worker/mutual-funds-scanner-model.mjs';
 
+const scannerError=message=>Object.assign(Error(message),{code:
+  /identity mismatch/.test(message)?'identity-mismatch':/URL mismatch/.test(message)?'canonical-mismatch':
+  /disclosure periods/.test(message)?'invalid-period':/quantity|share change|Pending report/.test(message)?'invalid-quantity':
+  /scheme identity/.test(message)?'invalid-scheme-identity':/inventory|catalogue/.test(message)?'incomplete-inventory':'invalid-structure'});
+export const scannerFailureReason=error=>['identity-mismatch','canonical-mismatch','invalid-period','invalid-quantity','invalid-scheme-identity','incomplete-inventory','invalid-structure'].includes(error?.code)?error.code:'invalid-structure';
 export const SCANNER_ORIGIN = 'https://mfscanner.com';
 const entities = { amp:'&', quot:'"', apos:"'", lt:'<', gt:'>', nbsp:' ', minus:'−' };
 const decode = s => s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, key) => {
@@ -17,19 +22,19 @@ const fullMonth = s => {
 };
 function quantity(s, { signed=false, nullable=false }={}) {
   if (nullable && ['—','–','-',''].includes(s)) return null;
-  if (!(signed?/^[+−-]?\d[\d,]*$/:/^\d[\d,]*$/).test(s)) throw Error('Invalid share quantity');
+  if (!(signed?/^[+−-]?\d[\d,]*$/:/^\d[\d,]*$/).test(s)) throw scannerError('Invalid share quantity');
   const n=Number(s.replaceAll(',','').replace('−','-'));
-  if (!Number.isSafeInteger(n) || (!signed && n<0)) throw Error('Invalid share quantity');
+  if (!Number.isSafeInteger(n) || (!signed && n<0)) throw scannerError('Invalid share quantity');
   return n;
 }
 export function parseScannerCatalogue(html) {
-  if (!html.includes('</html>')) throw Error('Truncated catalogue');
+  if (!html.includes('</html>')) throw scannerError('Truncated catalogue');
   const entries=new Map();
   for (const m of html.matchAll(/<a\b[^>]*href=["'](\/stock\/[a-z0-9-]+)["'][^>]*>([\s\S]*?)<\/a>/g)) {
     const name=text(m[2]); if (name) entries.set(m[1],{url:SCANNER_ORIGIN+m[1],name});
   }
   const count=Number(/<span[^>]*>\s*(\d+)\s*<\/span>\s*stocks\./.exec(html)?.[1]);
-  if (!count || entries.size!==count || count>10000) throw Error('Incomplete stock catalogue');
+  if (!count || entries.size!==count || count>10000) throw scannerError('Incomplete stock catalogue');
   return [...entries.values()];
 }
 export function scannerStockUrl(entries, company) {
@@ -47,34 +52,34 @@ export function scannerStockUrl(entries, company) {
 // Parse only the server-rendered facts. Never execute a source script, treat a
 // missing row as an exit, or infer shares from the source's rounded market value.
 export function parseScannerStock(html, {isin,url,checkedAt=new Date().toISOString(),now=Date.now()}={}) {
-  if (!validIsin(isin) || !/^https:\/\/mfscanner\.com\/stock\/[a-z0-9-]+$/.test(url||'') || !html.includes('</html>')) throw Error('Invalid source page');
+  if (!validIsin(isin) || !/^https:\/\/mfscanner\.com\/stock\/[a-z0-9-]+$/.test(url||'') || !html.includes('</html>')) throw scannerError('Invalid source page');
   const identity=/<span[^>]*>\s*(IN[A-Z0-9]{10})\s*<\/span>\s*· fund activity/.exec(html)?.[1];
-  if (identity!==isin) throw Error('Source stock identity mismatch');
+  if (identity!==isin) throw scannerError('Source stock identity mismatch');
   const canonical=[...html.matchAll(/<link\b[^>]*>/g)].find(m=>attribute(m[0],'rel')==='canonical')?.[0];
-  if (attribute(canonical||'','href')!==url) throw Error('Source URL mismatch');
-  const tables=tags(html,'table'); if(tables.length!==1) throw Error('Ambiguous source table');
+  if (attribute(canonical||'','href')!==url) throw scannerError('Source URL mismatch');
+  const tables=tags(html,'table'); if(tables.length!==1) throw scannerError('Ambiguous source table');
   const headers=tags(tags(tables[0],'thead')[0]||'','th').map(text);
   const prior=fullMonth(headers[2]||''),month=fullMonth(headers[3]||'');
-  if(headers.length!==6 || headers[0]!=='Fund' || headers[1]!=='Action' || headers[4]!=='Δ shares' || headers[5]!=='Value (₹Cr)' || !month || month>targetMonth(now) || prior!==previousMonth(month)) throw Error('Invalid disclosure periods');
+  if(headers.length!==6 || headers[0]!=='Fund' || headers[1]!=='Action' || headers[4]!=='Δ shares' || headers[5]!=='Value (₹Cr)' || !month || month>targetMonth(now) || prior!==previousMonth(month)) throw scannerError('Invalid disclosure periods');
   const description=[...html.matchAll(/<meta\b[^>]*>/g)].find(m=>attribute(m[0],'name')==='description')?.[0];
   const expected=Number(/— ([\d,]+) schemes,/.exec(attribute(description||'','content'))?.[1]?.replaceAll(',',''));
-  const body=tags(tables[0],'tbody'); if(body.length!==1)throw Error('Missing source table');
+  const body=tags(tables[0],'tbody'); if(body.length!==1)throw scannerError('Missing source table');
   const rows=tags(body[0],'tr'), funds=[], ids=new Set();let currentCount=0,unknownAmcs=0;
   for (const row of rows) {
-    const cells=tags(row,'td'); if(cells.length!==6)throw Error('Incomplete fund row');
+    const cells=tags(row,'td'); if(cells.length!==6)throw scannerError('Incomplete fund row');
     const link=/<a\b[^>]*href=["'](\/fund\/[a-z0-9-]+)["'][^>]*>([\s\S]*?)<\/a>/.exec(cells[0]);
     const code=text(tags(cells[0],'span').at(-1)||''),amc=scannerAmc(code);
-    if(!link || ids.has(link[1]))throw Error('Duplicate or missing scheme identity');ids.add(link[1]);
+    if(!link || ids.has(link[1]))throw scannerError('Duplicate or missing scheme identity');ids.add(link[1]);
     const action=text(cells[1]),p=quantity(text(cells[2]),{nullable:true}),c=quantity(text(cells[3]),{nullable:true}),delta=quantity(text(cells[4]),{signed:true,nullable:true});
-    if(!['new','exited','held','increased','decreased','pending'].includes(action))throw Error('Unknown fund action');
-    if(action==='pending') { if(c!==null || delta!==null)throw Error('Pending report has shares'); }
-    else if(c===null || p===null || delta!==c-p || (action==='new' && !(p===0&&c>0)) || (action==='exited' && !(c===0&&p>0)) || (action==='held' && c!==p) || (action==='increased' && !(c>p&&p>0)) || (action==='decreased' && !(p>c&&c>0))) throw Error('Inconsistent monthly share change');
+    if(!['new','exited','held','increased','decreased','pending'].includes(action))throw scannerError('Unknown fund action');
+    if(action==='pending') { if(c!==null || delta!==null)throw scannerError('Pending report has shares'); }
+    else if(c===null || p===null || delta!==c-p || (action==='new' && !(p===0&&c>0)) || (action==='exited' && !(c===0&&p>0)) || (action==='held' && c!==p) || (action==='increased' && !(c>p&&p>0)) || (action==='decreased' && !(p>c&&c>0))) throw scannerError('Inconsistent monthly share change');
     if(c>0)currentCount++;
     if(!amc){unknownAmcs++;continue;}
     const point=(shares,period)=>({shares,valueCr:null,pctOfAum:null,checkedAt,sourceUrl:url,source:'MF Scanner',absenceVerified:shares===0,reportedMonth:period});
     funds.push({id:`scanner:${link[1].slice(6)}`,name:text(link[2]),amc,months:{[prior]:point(p,prior),[month]:point(c,month)}});
   }
-  if(!Number.isSafeInteger(expected)||!rows.length||rows.length>5000||currentCount!==expected)throw Error('Incomplete fund inventory');
+  if(!Number.isSafeInteger(expected)||!rows.length||rows.length>5000||currentCount!==expected)throw scannerError('Incomplete fund inventory');
   const pending=Number(/(\d+) funds that held this stock in/.exec(text(html))?.[1]||0);
   return {isin,month,priorMonth:prior,checkedAt,sourceUrl:url,funds,reportedFunds:currentCount,unreportedFunds:pending,unknownAmcs};
 }

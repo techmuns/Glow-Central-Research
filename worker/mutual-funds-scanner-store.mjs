@@ -71,6 +71,7 @@ export class MutualFundsScannerStore {
   complete(run,input) {
     this.init();const {reservation,isin=null,page=null,catalogue=null,failure=null}=input||{};
     if(typeof reservation!=='string'||!reservation.startsWith(`${run}:`)||!this.get(`receipt:${reservation}`))throw Error('Unreserved source request');
+    if(input.failureReason&&!['identity-mismatch','canonical-mismatch','invalid-period','invalid-quantity','invalid-scheme-identity','incomplete-inventory','invalid-structure','request-timeout','transport-error'].includes(input.failureReason))throw Error('Invalid source failure detail');
     if(failure && !['http-403','http-429','http-error','timeout','invalid-page','unmatched'].includes(failure))throw Error('Invalid source outcome');
     return this.storage.transactionSync(()=>{
       const now=this.now(),stamp=new Date(now).toISOString(),control=this.get('control',{});
@@ -104,6 +105,7 @@ export class MutualFundsScannerStore {
         }
         this.storage.sql.exec('UPDATE mf_scanner_targets SET lease=0,next_at=?,state=? WHERE isin=?',now+INTERVAL,failure||'ok',isin);
         if(['http-error','invalid-page'].includes(failure))this.storage.sql.exec('UPDATE mf_scanner_targets SET url=NULL WHERE isin=?',isin);
+        this.set(`failure:${isin}`,failure?{kind:failure,reason:input.failureReason||null}:null);
         this.set(`attempt:${isin}`,stamp);
         this.refresh(isin);
       }
@@ -140,9 +142,13 @@ export class MutualFundsScannerStore {
   }
   status() {
     this.init();const targets=this.storage.sql.exec('SELECT isin,state,checked,coverage FROM mf_scanner_targets WHERE active=1 ORDER BY isin').toArray();
-    const target=targetMonth(this.now()),current=targets.filter(t=>t.state==='ok'&&t.coverage&&JSON.parse(t.coverage).month===target&&this.now()-Date.parse(t.checked)<=45*60000);
-    return {source:'MF Scanner',scope:'portfolio',expectedCompanies:targets.length,currentCompanies:current.length,inventoryCheckedAt:this.get('inventoryCheckedAt'),catalogue:this.get('catalogueStatus'),cooldownUntil:this.get('control',{}).blockedUntil||null,
-      companies:targets.map(t=>({isin:t.isin,state:t.state,checkedAt:t.checked,lastAttemptAt:this.get(`attempt:${t.isin}`),month:t.coverage?JSON.parse(t.coverage).month:null}))};
+    const target=targetMonth(this.now()),coverage=t=>t.coverage?JSON.parse(t.coverage):null;
+    const recent=t=>t.state==='ok'&&coverage(t)&&this.now()-Date.parse(t.checked)<=45*60000;
+    const currentPeriod=targets.filter(t=>recent(t)&&coverage(t).month===target);
+    const current=currentPeriod.filter(t=>!coverage(t).unreportedFunds&&!coverage(t).unknownAmcs);
+    const periods={};for(const t of targets){const month=coverage(t)?.month;if(month)periods[month]=(periods[month]||0)+1;}
+    return {source:'MF Scanner',scope:'portfolio',targetMonth:target,expectedCompanies:targets.length,currentCompanies:current.length,currentPeriodCompanies:currentPeriod.length,olderPeriodCompanies:targets.filter(t=>coverage(t)?.month<target).length,partialCompanies:targets.filter(t=>coverage(t)&&(coverage(t).unreportedFunds||coverage(t).unknownAmcs)).length,periods,inventoryCheckedAt:this.get('inventoryCheckedAt'),catalogue:this.get('catalogueStatus'),cooldownUntil:this.get('control',{}).blockedUntil||null,
+      companies:targets.map(t=>({isin:t.isin,state:t.state,failure:this.get(`failure:${t.isin}`),unreportedFunds:coverage(t)?.unreportedFunds||0,unknownAmcs:coverage(t)?.unknownAmcs||0,checkedAt:t.checked,lastAttemptAt:this.get(`attempt:${t.isin}`),month:t.coverage?JSON.parse(t.coverage).month:null}))};
   }
   read(isins,cursor='') {
     this.init();if(isins&&(isins.length>250||isins.some(id=>!validIsin(id))))throw Error('Invalid ISINs');

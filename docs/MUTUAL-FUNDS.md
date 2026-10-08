@@ -1,5 +1,13 @@
 # Mutual Fund ownership
 
+The private MF Scanner supplement reports company-page coverage separately from the primary
+AMC feed. A freshly checked page counts as complete only when its actual disclosure period is
+the target month and its inventory has neither pending fund reports nor unmapped AMC codes.
+Older pages remain available with their original period; they never increase current coverage.
+Operational diagnostics expose counts by source period and bounded validation reason, without
+portfolio identities or source observations in public workflow logs. Failed validation retains
+the last verified observations and records why the latest check could not replace them.
+
 The Mutual Funds tab shows every active portfolio company, including companies with no matching
 fund disclosure. Largest holdings uses only the authenticated, complete Family position weights,
 in memory. Without those weights the screen explicitly falls back to Newest. Newest orders by
