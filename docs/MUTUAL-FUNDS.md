@@ -154,3 +154,16 @@ Sattva's tests cover checksum/inventory failures, unsupported feed versions,
 source-clock preservation, interrupted upstream capture, partial source coverage,
 retained history, ownership arithmetic and delivery to all portfolio companies.
 The earlier source findings above remain historical evidence, not current coverage.
+
+The repair's validation gates retain genuine public fixtures and meaningful
+assertions. Feedback checks choose a real same-day pair with a small score gap:
+a negative vote must lower the score, move the filing below that peer, and retain
+every filing. An arbitrary top filing can lose score without crossing a much
+lower-scored peer. The browser explicitly selects retained news when Today has
+no articles; it does not change the dashboard's Today default.
+
+The broad dashboard checklist reads virtual table model counts and excludes
+spacer rows. It reconciles more than 100 displayed figure pairs across multiple
+scroll windows. AI Alerts checks source settlement and requires partial status
+when feeds failed; a standalone server's missing Worker routes cannot establish
+complete source coverage. These are validation changes, not production changes.

@@ -165,7 +165,11 @@ try {
   console.log('PASS workerd: stitched events (with 304), company profiles, status, same-origin queries');
 
   // 4. Shared feedback: a vote crosses RPC, the model publishes it, and the index re-ranks on it.
-  const top = all.rows[0];
+  // A real nearby same-day peer establishes that the saved score penalty must
+  // cross a row; an arbitrary top score can remain first after a valid penalty.
+  const top = all.rows.find((row, i) => all.rows[i + 1]?.date === row.date && row.relevance - all.rows[i + 1].relevance < 1);
+  assert(top, 'the real-data RPC fixture holds nearby same-day peers');
+  const beforeAt = all.rows.filter(row => row.date === top.date).findIndex(row => row.id === top.id);
   const voted = await post('/api/relevance/feedback', { surface: 'announcements', vote: 'not-important', itemKey: top.id, eventKey: top.event?.id || null,
     device: 'device-runtime-1', features: top.keys, why: 'routine', label: top.title, company: top.company, categories: top.categories });
   assert.equal(voted.status, 200, await voted.clone().text());
@@ -175,7 +179,9 @@ try {
   assert.equal(mine.votes[top.id].vote, 'not-important');
   const reranked = await (await post('/api/announcement-index/query', { period: 'all', limit: 500, modelRevision: model.model.revision })).json();
   const day = reranked.rows.filter((r) => r.date === top.date);
-  assert(day.findIndex((r) => r.id === top.id) > 0, 'the vote moves the filing down its day at once');
+  const scored = day.find(row => row.id === top.id);
+  assert(scored && scored.relevance < top.relevance, 'the saved vote lowers the score across RPC');
+  assert(day.findIndex((r) => r.id === top.id) > beforeAt, 'the vote moves the filing below its nearby same-day peer at once');
   assert.equal(reranked.total, all.total, 'and hides nothing');
   console.log('PASS workerd: a vote crosses RPC, publishes in the shared model and re-ranks the index immediately');
 
