@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // tabs/corp-announcements.js — ONE TAB, TWO VIEWS: Announcements and Corporate Actions.
 //
 // The Announcements view is a continuous, scoped stream of source announcements. BSE date captures,
@@ -11,6 +12,11 @@
 // routine ones to rank lower instead, so the Category filter below starts at All and the ranking does
 // the sorting. data/announcement-types.js still reads one type per filing for the alert notes and the
 // AI Alerts type filter; this tab no longer uses it.
+=======
+import { TAB_META } from './catalog.js';
+// A continuous, scoped stream of source announcements. BSE date captures, live NSE
+// filings and retained Muns company documents share one table and keep their source labels.
+>>>>>>> sattva/main
 //
 // SERVED A PAGE AT A TIME. The table asks the Worker's announcement index for one ranked page of the
 // question on screen (period, scope, categories, market cap, search, one company) and receives the
@@ -48,8 +54,11 @@ import * as localEngine from '../data/announcement-query-local.js';
 import { categoryChips } from '../ui/category-chips.js';
 import { openAnnouncementRead } from '../ui/announcement-read.js';
 import { loadModel } from '../data/relevance-feedback.js';
+<<<<<<< HEAD
 import * as corporateActions from './corporate-actions.js';
 import { ANNOUNCEMENTS_VIEW, CORPORATE_ACTIONS_VIEW, VIEWS, viewSwitchHtml } from './corp-announcements-views.js';
+=======
+>>>>>>> sattva/main
 
 const DEFAULT_PERIOD = 'all';
 // The periods this tab has always offered; the index answers any of ANNOUNCEMENT_PERIODS.
@@ -128,6 +137,7 @@ const feed = {
   wasAskedEmpty: () => false,
   failureFor: () => null,
   meta: () => metaOf(),
+<<<<<<< HEAD
 };
 
 function metaOf() {
@@ -158,6 +168,38 @@ const mcapCell = (r) => {
   return `<span class="tabular-nums text-slate-700" title="${escapeHtml(title)}">${escapeHtml(text.replace(/^₹/, '₹ '))}</span>`;
 };
 
+=======
+};
+
+function metaOf() {
+  const qm = query.meta();
+  const index = qm.index;
+  const base = (index?.local ? index.meta : index?.meta) || {};
+  const live = index?.live || {};
+  return {
+    ...base,
+    kind: 'announcements',
+    nse: { ...(base.nse || {}), capturedAt: live.at || base.nse?.capturedAt || null, error: live.error || base.nse?.error || null },
+    reason: qm.state === 'failed' && !qm.loaded ? (qm.error?.reason === 'rate-limited' ? 'rate-limited' : 'unreachable') : null,
+    message: qm.state === 'failed' ? qm.error?.message || null : null,
+    query: qm,
+    rowCount: qm.total ?? 0,
+    covered: qm.companies ?? 0,
+    windowDays: base.windowDays ?? 0,
+  };
+}
+
+const feedbackItem = (row) => ({ surface: 'announcements', itemKey: row.id, eventKey: row.event?.id || null, features: row.keys || [],
+  label: cleanFilingText(row.title).slice(0, 300), company: row.company || row.ticker || null, categories: row.categories || [] });
+
+const mcapCell = (r) => {
+  const text = formatMarketCap(r.mcapCr);
+  if (!text) return dash('No market cap is known for this company. Its filings stay visible; the range filter lists it under "Not available".');
+  const title = `Market cap ${text}${r.mcapAsOf ? ` as of ${String(r.mcapAsOf).slice(0, 10)}` : ''}${r.mcapSource ? ` · ${r.mcapSource}` : ''}`;
+  return `<span class="tabular-nums text-slate-700" title="${escapeHtml(title)}">${escapeHtml(text.replace(/^₹/, '₹ '))}</span>`;
+};
+
+>>>>>>> sattva/main
 // "N related filings": an expandable list right under the subject, read on demand (data-norow keeps
 // it from opening the AI Read popup).
 const relatedHtml = (r) => {
@@ -386,6 +428,7 @@ function searchControl({ ctx, rows, view }) {
 }
 
 const tab = makeFilingsTab({
+<<<<<<< HEAD
   id: 'corp-announcements',
   title: 'Corp Announcements',
   subtitle: 'Company announcements from BSE, NSE and captured filings — newest day first, the most relevant first within each day.',
@@ -393,6 +436,9 @@ const tab = makeFilingsTab({
   // the first line of the provenance panel, and the status label keeps its place on the right.
   compactHead: true,
   headAside: (ctx) => viewSwitchHtml(ctx, ANNOUNCEMENTS_VIEW),
+=======
+  ...TAB_META['corp-announcements'],
+>>>>>>> sattva/main
   feed,
   filterByScope: (list) => list,
   keyFor: (r) => r.id,
@@ -466,7 +512,11 @@ const tab = makeFilingsTab({
     { label: 'Market cap', get: mcapCell, html: true, align: 'right', sortable: false },
     { label: 'Source', get: (r) => announcementSources(r).join(' / ') || 'Not specified', sortable: false },
   ],
+<<<<<<< HEAD
   provenance: (m) => {
+=======
+  provenance: (m, { scope } = {}) => {
+>>>>>>> sattva/main
     const qm = m.query || {};
     const index = qm.index || {};
     const built = index.builtAt ? new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(index.builtAt)) + ' IST' : 'unavailable';
@@ -523,7 +573,11 @@ const tab = makeFilingsTab({
       <p>No PDF is summarized or scored in the list. Missing fields remain blank.</p>
       ${m.archive?.error ? `<p>${escapeHtml(m.archive.error)}</p>` : ''}
       ${m.nse?.historyUnavailable || m.nse?.allMissingDays?.length ? '<p>Some retained NSE history could not be loaded; existing records remain visible.</p>' : ''}
+<<<<<<< HEAD
       ${captureCoverageHtml('announcements')}
+=======
+      ${captureCoverageHtml('announcements', null, { scope })}
+>>>>>>> sattva/main
       ${qm.mode === 'local' ? coverageBlock({ ...m, rowCount: qm.total ?? 0, covered: qm.companies ?? 0 }) : ''}
     </div>
   </div>`;
@@ -569,6 +623,7 @@ const tab = makeFilingsTab({
   },
 });
 
+<<<<<<< HEAD
 export { ANNOUNCEMENTS_VIEW, CORPORATE_ACTIONS_VIEW };
 
 // Announcements is first, and first is what the shell opens the tab on: `handleRoute` resolves a
@@ -588,6 +643,13 @@ let mounted = null; // ANNOUNCEMENTS_VIEW | CORPORATE_ACTIONS_VIEW | null
 let liveRef = null;
 
 function mountAnnouncements(ctx) {
+=======
+export const meta = tab.meta;
+/** The paged query behind the table — for diagnostics and the browser checks. */
+export const announcementQuery = query;
+let liveRef = null;
+export function render(ctx) {
+>>>>>>> sattva/main
   currentCtx = ctx;
   tab.render(ctx);
   if (ctx.live && !liveRef) {
@@ -605,8 +667,12 @@ function mountAnnouncements(ctx) {
     liveRef.start(POLL_ID, { fresh: true });
   }
 }
+<<<<<<< HEAD
 
 function unmountAnnouncements() {
+=======
+export function destroy() {
+>>>>>>> sattva/main
   clearTimeout(searchTimer);
   closePopover();
   // Nobody is reading this table any more: stop any preparation in this browser now.
