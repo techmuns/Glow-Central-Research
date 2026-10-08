@@ -69,7 +69,7 @@
       "pending": []
     },
     "isin:INE0ALI01010|ADVAIT": {
-      "lastAttemptAt": "2026-10-03T07:57:03+00:00",
+      "lastAttemptAt": "2026-10-08T10:25:20+00:00",
       "error": "search-unavailable",
       "lastResultCount": 119,
       "targetThrough": "2026-09-15T20:36:48+00:00",
@@ -2398,6 +2398,6 @@
     "planned": 254,
     "attempted": 1,
     "incomplete": 249,
-    "checkedAt": "2026-10-08T09:47:37.159753+00:00"
+    "checkedAt": "2026-10-08T10:25:20.011560+00:00"
   }
 }
