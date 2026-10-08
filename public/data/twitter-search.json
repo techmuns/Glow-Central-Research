@@ -2388,12 +2388,16 @@
     "isin:INE625G01013|WELENT": {
       "lastAttemptAt": "2026-10-08T05:21:33+00:00",
       "error": "search-unavailable"
+    },
+    "isin:INE274C01019|Wendt (India)": {
+      "lastAttemptAt": "2026-10-08T05:54:59+00:00",
+      "error": "search-unavailable"
     }
   },
   "coverage": {
     "planned": 254,
     "attempted": 1,
     "incomplete": 243,
-    "checkedAt": "2026-10-08T05:21:33.564813+00:00"
+    "checkedAt": "2026-10-08T05:54:59.596916+00:00"
   }
 }
