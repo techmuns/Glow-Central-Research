@@ -3,8 +3,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-08T08:57:52.438Z",
-  "oldestDataAt": "2026-10-08T08:57:52.438Z",
+  "capturedAt": "2026-10-08T15:48:56.120Z",
+  "oldestDataAt": "2026-10-08T15:48:56.120Z",
   "from": "2025-10-08",
   "to": "2026-10-08",
   "windowDays": 365,
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-08T08:57:52.438Z",
+      "capturedAt": "2026-10-08T15:48:56.120Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-08T08:57:52.438Z",
+      "capturedAt": "2026-10-08T15:48:56.120Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-08T08:57:52.438Z",
+      "capturedAt": "2026-10-08T15:48:56.120Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -67,15 +67,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-08T08:57:52.438Z",
+      "capturedAt": "2026-10-08T15:48:56.120Z",
       "coverageFrom": "2026-08-04"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1874,
+  "withRows": 1876,
   "emptyCount": 0,
-  "rowCount": 20022,
+  "rowCount": 20027,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -380983,6 +380983,23 @@
     "PKTEA": [
       {
         "ticker": "PKTEA",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/insiders/?o=-2&p=2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "The Peria Karamalai Tea",
+          "Insider": "Promoter Group",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "19606",
+          "Trade Value": "1.99 crore",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "PKTEA",
         "date": "2026-09-30",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=7",
         "sourceId": "bulk",
@@ -385292,6 +385309,78 @@
           "Transaction": "Inter-se-Transfer",
           "Trade Shares": "883979",
           "Broadcast Date": "2026-10-07",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "MAXVOLT": [
+      {
+        "ticker": "MAXVOLT",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/insiders/?o=-2&p=2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Maxvolt Energy",
+          "Insider": "Employees Immediate Relative",
+          "Security Type": "Equity",
+          "Transaction": "Gift",
+          "Trade Shares": "448986",
+          "Trade Value": "19.31 crore",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MAXVOLT",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/insiders/?o=-2&p=2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Maxvolt Energy",
+          "Insider": "Kmp",
+          "Security Type": "Equity",
+          "Transaction": "Gift",
+          "Trade Shares": "448986",
+          "Trade Value": "19.31 crore",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "HIGREEN": [
+      {
+        "ticker": "HIGREEN",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/insiders/?o=-2&p=2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Hi-Green Carbon",
+          "Insider": "Promoter Group",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "8000",
+          "Trade Value": "9.84 lacs",
+          "Broadcast Date": "2026-10-05",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "HIGREEN",
+        "date": "2026-10-05",
+        "url": "https://www.screener.in/trades/insiders/?o=-2&p=2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Hi-Green Carbon",
+          "Insider": "Promoter",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "4800",
+          "Trade Value": "5.85 lacs",
+          "Broadcast Date": "2026-10-05",
           "Source": "Screener.in"
         }
       }
