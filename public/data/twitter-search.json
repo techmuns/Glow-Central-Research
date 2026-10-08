@@ -142,7 +142,7 @@
       "error": "search-unavailable"
     },
     "isin:INE0Z4F01028|ATLANTAELE": {
-      "lastAttemptAt": "2026-10-03T13:48:04+00:00",
+      "lastAttemptAt": "2026-10-08T16:11:18+00:00",
       "error": "search-unavailable"
     },
     "isin:INE555B01013|Axiscades Technologies": {
@@ -2398,6 +2398,6 @@
     "planned": 254,
     "attempted": 1,
     "incomplete": 249,
-    "checkedAt": "2026-10-08T15:39:02.924136+00:00"
+    "checkedAt": "2026-10-08T16:11:18.951393+00:00"
   }
 }
