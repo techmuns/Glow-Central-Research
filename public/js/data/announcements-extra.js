@@ -1,8 +1,13 @@
 import { readEntry, writeEntry, KEYS } from '../core/store.js';
 import { authHeaders } from '../core/host-context.js';
 import { capturedJson, capturedCompany, loadCompanyCaptureIndex, companyCaptureStatus } from './company-captures.js';
+<<<<<<< HEAD
 import { announcementRange, announcementUrl, mergeAnnouncements, mergeAnnouncementsAsync } from './announcements-shared.js';
 import { mapSteps, runStepsInSlices } from '../core/slices.js';
+=======
+import { announcementRange, announcementUrl, mergeAnnouncements, mergeAnnouncementSteps } from './announcements-shared.js';
+import { runSteps, runStepsInSlices, yieldToInput } from '../core/slices.js';
+>>>>>>> sattva/main
 
 /** Additional company lookups share the table, never the exchange-wide snapshot's coverage claim. */
 export function withAnnouncementLookups(base) {
@@ -12,6 +17,7 @@ export function withAnnouncementLookups(base) {
   const emit = () => subscribers.forEach((fn) => fn());
   let lastQuery = null;
   let shared = [], sharedError = null, sharedPending = false, sharedLoaded = false;
+<<<<<<< HEAD
   let sharedWrites = Promise.resolve(), sharedGeneration = 0;
   function appendShared(incoming) {
     const generation = sharedGeneration;
@@ -23,6 +29,8 @@ export function withAnnouncementLookups(base) {
     sharedWrites = task.catch(() => {});
     return task;
   }
+=======
+>>>>>>> sattva/main
   let recovery = [], recoveryMeta = null, recoveryRevision = null, recoveryPromise = null;
   async function loadRecovery() {
     if (recoveryPromise) return recoveryPromise;
@@ -33,7 +41,11 @@ export function withAnnouncementLookups(base) {
         const revision = `${value.updatedAt}:${value.lastPageAt}:${value.lastAttemptAt}:${value.rowCount}`;
         // In slices: the recovery capture is thousands of filings, and merging it in one task was
         // half a second at 4x CPU throttle on every first read of the announcements feed.
+<<<<<<< HEAD
         if (revision !== recoveryRevision) { recovery = await mergeAnnouncementsAsync([recovery, value.rows]); recoveryRevision = revision; }
+=======
+        if (revision !== recoveryRevision) { recovery = await runStepsInSlices(mergeAnnouncementSteps(recovery, value.rows)); recoveryRevision = revision; }
+>>>>>>> sattva/main
         recoveryMeta = { available: value.bootstrap !== true, lastAttemptAt: value.lastAttemptAt, lastPageAt: value.lastPageAt,
           lastSuccessAt: value.lastSuccessAt, captureStart: value.captureStart, pendingCount: value.pending.length,
           unavailableDocuments: value.rows.filter(r => r.documentUnavailable).length,
@@ -92,6 +104,7 @@ export function withAnnouncementLookups(base) {
     })();
     return restored;
   }
+<<<<<<< HEAD
   let rowSnapshot = null;
   const sourceRow = r => ({ ...r, source: r.source || 'BSE', sources: r.sources || [r.source || 'BSE'], providers: r.providers?.length ? r.providers : ['BSE date index'] });
   const rows = () => {
@@ -117,6 +130,41 @@ export function withAnnouncementLookups(base) {
       }
     })().finally(() => { preparing = null; });
     return preparing;
+=======
+  let rowSnapshot = null, preparingRows = null;
+  const inputs = () => ({ source: base.rows(), shared, history, recovery });
+  const sameInputs = (a, b) => !!a && (a.source === b.source || a.source.length === b.source.length &&
+    a.source.every((row, i) => row === b.source[i])) && a.shared === b.shared && a.history === b.history && a.recovery === b.recovery;
+  function* buildRows(input) {
+    const source = [];
+    for (const r of input.source) {
+      source.push({ ...r, source: r.source || 'BSE', sources: r.sources || [r.source || 'BSE'], providers: r.providers?.length ? r.providers : ['BSE date index'] });
+      if (source.length % 128 === 0) yield;
+    }
+    return yield* mergeAnnouncementSteps(source, input.shared, input.history, input.recovery);
+  }
+  const rows = () => {
+    const input = inputs();
+    if (sameInputs(rowSnapshot, input)) return rowSnapshot.rows;
+    const value = runSteps(buildRows(input));
+    rowSnapshot = { ...input, rows: value };
+    return value;
+  };
+  async function warm(yieldForInput = yieldToInput, { sliceMs } = {}) {
+    await base.warm?.(yieldForInput);
+    if (preparingRows) return preparingRows;
+    preparingRows = (async () => {
+      for (;;) {
+        const input = inputs();
+        if (sameInputs(rowSnapshot, input)) return;
+        const value = await runStepsInSlices(buildRows(input), { yieldForInput, sliceMs });
+        // A source can publish or be invalidated between slices. Retry the current inputs;
+        // neither a partial merge nor an obsolete source revision may become the ready snapshot.
+        if (value && sameInputs(input, inputs())) { rowSnapshot = { ...input, rows: value }; return; }
+      }
+    })().finally(() => { preparingRows = null; });
+    return preparingRows;
+>>>>>>> sattva/main
   }
   function lookupMeta() {
     return { lookups: queries.size, companies: new Set([...queries.values()].map((q) => q.ticker)).size,
@@ -163,7 +211,11 @@ export function withAnnouncementLookups(base) {
     return task;
   }
   return {
+<<<<<<< HEAD
     ...base, rows, prepareRows,
+=======
+    ...base, rows, warm,
+>>>>>>> sattva/main
     forTicker: (ticker) => rows().filter((row) => row.ticker === String(ticker).toUpperCase()),
     meta() {
       const m = base.meta(), combined = rows();
@@ -172,14 +224,23 @@ export function withAnnouncementLookups(base) {
         archive: { ...m.archive, pending: m.archive?.pending || sharedPending, loaded: m.archive?.loaded && sharedLoaded,
           error: m.archive?.error || sharedError } };
     },
+<<<<<<< HEAD
     async seed() { await Promise.all([base.seed(), restore(), loadShared(), loadRecovery()]); emit(); },
     async load(...args) { await Promise.all([base.load(...args), restore(), loadShared(), loadRecovery()]); emit(); },
+=======
+    async seed() { await Promise.all([base.seed(), restore(), loadShared(), loadRecovery()]); await warm(); emit(); },
+    async load(...args) { await Promise.all([base.load(...args), restore(), loadShared(), loadRecovery()]); await warm(); emit(); },
+>>>>>>> sattva/main
     // The capture's own answer travels back. Resolving to nothing made every refreshing All Alerts
     // collection read `.available` off undefined and report the BSE feed as failed — and a feed
     // read after a failed load is classified in one task, not warmed in slices first.
     async refreshSnapshot() {
       const [result] = await Promise.all([base.refreshSnapshot(), loadShared(), loadRecovery()]);
+<<<<<<< HEAD
       emit();
+=======
+      await warm(); emit();
+>>>>>>> sattva/main
       return result;
     },
     async loadArchive({ onlyChanged = false } = {}) {
@@ -230,6 +291,10 @@ export function withAnnouncementLookups(base) {
       const off = base.onChange(fn);
       return () => { subscribers.delete(fn); off(); };
     },
+<<<<<<< HEAD
     invalidate() { base.invalidate(); sharedGeneration++; restored = null; history = []; shared = []; recovery = []; recoveryMeta = null; recoveryRevision = null; sharedLoaded = false; sharedRevisions.clear(); queries.clear(); lastQuery = null; },
+=======
+    invalidate() { base.invalidate(); restored = null; history = []; shared = []; recovery = []; recoveryMeta = null; recoveryRevision = null; sharedLoaded = false; sharedRevisions.clear(); queries.clear(); lastQuery = null; },
+>>>>>>> sattva/main
   };
 }

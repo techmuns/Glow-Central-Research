@@ -46,7 +46,11 @@
 // explains it, exactly as `alert-drivers.js` does. What it may change is how FAST a reader sees what
 // matters, which is the product's only job.
 
+<<<<<<< HEAD
 import { startupJson } from '../core/startup-data.js';
+=======
+import { revalidatedJson } from '../core/store.js';
+>>>>>>> sattva/main
 import { isRelatedNewsContext, newsCanSupportAI } from './company-news-attribution.js';
 import { isBrokerageResearch } from './portfolio-news-matching.js';
 import { KEYWORDS } from './news-keywords.js';
@@ -142,7 +146,11 @@ export function load({ wait = false } = {}) {
   if (!pending) {
     const held = ontology;
     if (!held) readStatus = { ...readStatus, state: 'loading' };
+<<<<<<< HEAD
     pending = startupJson(KPI_FILE, { optional: true })
+=======
+    pending = revalidatedJson(KPI_FILE, { optional: true })
+>>>>>>> sattva/main
       .then((payload) => {
         if (!payload) throw new Error(held ? 'the sector file could not be re-read' : 'the sector file is not published on this deployment');
         return adopt(payload);
