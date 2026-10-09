@@ -109,7 +109,7 @@ try {
     assert.equal(await page.locator('#content-host').getAttribute('data-active-tab'), 'bookmarks', 'late import completion cannot repaint the newer route');
     const metadata = await page.evaluate(async () => {
       const { researchTabs } = await import('/js/ui/tab-registry.js');
-      const fields = ['id', 'title', 'subviews', 'layout', 'inlineSubviews', 'allowEmptyScope', 'scopeIndependent'];
+      const fields = ['id', 'title', 'subviews', 'layout', 'inlineSubviews', 'subviewNavigation', 'allowEmptyScope', 'scopeIndependent'];
       const pick = meta => Object.fromEntries(fields.map(field => [field, meta[field] ?? null]));
       return Promise.all(researchTabs.map(async tab => ({ routing: pick(tab.meta), actual: pick((await tab.load()).meta) })));
     });

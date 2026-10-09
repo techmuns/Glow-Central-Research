@@ -72,6 +72,7 @@ let currentTabModule = null;
 let chromeDisposers = [];
 let headerDisposer = null;
 let topTabs = null;
+let subviewTabs = null;
 let shellRenderRequest = 0;
 let releaseRouteLoading = null;
 
@@ -79,6 +80,8 @@ export function mount(root) {
   releaseRouteLoading?.(); releaseRouteLoading = null;
   topTabs?.dispose();
   topTabs = null;
+  subviewTabs?.dispose();
+  subviewTabs = null;
   root.innerHTML = shellTemplate();
   contentHost = $('#content-host', root);
 
@@ -372,34 +375,37 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   //
   // The kicker reads "View" rather than the tab's own title: the section head immediately below
   // prints that title as the page's heading, and the rail card's header was repeating it.
+  // Breakouts exposes its four views as horizontal tabs. Keep that strip mounted across
+  // subview and scope changes so keyboard focus and horizontal scroll survive navigation.
   const subviewItems = (tabModule.meta.subviews || []).map((s) => ({ id: s.id, label: s.label, badge: s.badge }));
-  const activeSubviewLabel = subviewItems.find((s) => s.id === resolved.subview)?.label || '';
-  const subviewPicker = dropdownMenu({
-    key: 'subview',
-    kicker: 'View',
-    valueLabel: activeSubviewLabel,
-    items: subviewItems,
-    activeId: resolved.subview,
-    onSelect: goSubview,
-    title: `Switch between ${tabModule.meta.title} views`,
-  });
-
-  // A tab that declares `meta.inlineSubviews: true` keeps its sub-views ROUTED (the URL segment,
-  // the fallback to the first view, the legacy aliases above) and draws the switch itself, inside
-  // its own section head: Mutual Funds as a two-option tray beside the as-on pill, routed through
-  // `router.navigate` exactly as this picker is; Corp Announcements as plain hash links on the
-  // title row. The card here — a kicker, a label and a menu in a 15rem white box — cost 70–90px
-  // above a table whose whole point is the rows, to choose between two words. ONE flag, because
-  // two spellings of "no picker card" landed the same morning and a shell reading either would be
-  // two predicates over one question.
   const hasSubviews = subviewItems.length > 0 && !tabModule.meta.inlineSubviews;
+  const useSubviewTabs = hasSubviews && tabModule.meta.subviewNavigation === 'tabs';
   const subviewMount = $('#subview-mount', root);
-  // A tab with `subviews: []` has nothing to pick, so the row goes entirely rather than
-  // rendering an empty control — same rule the rail followed.
+  if (!useSubviewTabs || subviewTabs?.tab !== resolved.tab) {
+    subviewTabs?.dispose();
+    subviewTabs = null;
+  }
   subviewMount.classList.toggle('hidden', !hasSubviews);
   if (!hasSubviews) {
     subviewMount.innerHTML = '';
+  } else if (useSubviewTabs) {
+    if (subviewTabs) {
+      subviewTabs.bar.update(resolved.subview);
+    } else {
+      const bar = tabBar({ tabs: subviewItems, activeId: resolved.subview, onSelect: goSubview, label: `${tabModule.meta.title} views` });
+      subviewMount.innerHTML = bar.html;
+      subviewTabs = { tab: resolved.tab, bar, dispose: bar.wire(subviewMount) };
+    }
   } else {
+    const subviewPicker = dropdownMenu({
+      key: 'subview',
+      kicker: 'View',
+      valueLabel: subviewItems.find((s) => s.id === resolved.subview)?.label || '',
+      items: subviewItems,
+      activeId: resolved.subview,
+      onSelect: goSubview,
+      title: `Switch between ${tabModule.meta.title} views`,
+    });
     subviewMount.innerHTML = `
       <div class="w-full max-w-[15rem] rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
         ${subviewPicker.html}

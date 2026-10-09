@@ -28,7 +28,8 @@ export const researchTabs = [
   lazyTab({ id: 'earnings-hub', title: 'Earnings Hub' }, () => import('../tabs/earnings-hub.js')),
   lazyTab({ id: 'concall', title: 'Con-call' }, () => import('../tabs/concall.js')),
   lazyTab({ id: 'public-chatter', title: 'Public Chatter', allowEmptyScope: true }, () => import('../tabs/public-chatter.js')),
-  lazyTab({ id: 'breakouts', title: 'Breakouts / Technical', subviews: [
+  lazyTab({ id: 'breakouts', title: 'Breakouts / Technical', subviewNavigation: 'tabs', subviews: [
+    { id: 'momentum-scanner', label: 'Momentum Scanner' },
     { id: 'strong-breakouts', label: 'Strong Breakouts' },
     { id: 'technical-scanner', label: 'Technical Scanner' },
     { id: 'fii-accumulation', label: 'FII Accumulation' },

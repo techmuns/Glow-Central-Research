@@ -61,7 +61,7 @@ spans the full 1400px on every tab.
 | Earnings Hub | *(none — one table, so the picker is hidden)* |
 | Con-call | *(no sub-views)* — one scan table, with no schedule or feed-status chips above it |
 | Public Chatter | *(no shell sub-views)* — in-page **Coverage** and **Not in coverage** tabs, one table at a time |
-| Breakouts / Technical | Strong Breakouts *(default)* · Technical Scanner · FII Accumulation |
+| Breakouts / Technical | Momentum Scanner *(default)* · Strong Breakouts · Technical Scanner · FII Accumulation |
 | Super Investors | Superstar Investors · Institutions |
 | News · Corp Announcements · NSE Filings · Insider Trades | *(no sub-views)* — one table each, off the shared filings renderer |
 
@@ -579,3 +579,22 @@ export function destroy();     // detach listeners/pollers; called on nav away
 `ctx.root` is the content host element, already emptied by the previous tab's teardown.
 `ctx.data` is the fully-loaded data set (see `docs/DATA-CONTRACTS.md`).
 `ctx.live` is the live engine module.
+
+### Momentum Scanner (Glow)
+
+Breakouts / Technical opens on Momentum Scanner and displays four horizontal view tabs.
+Strong Breakouts, Technical Scanner and FII Accumulation retain their explicit routes. Missing
+or retired view links use the new default. Native arrow/Home/End navigation changes focus;
+Enter/Space activates a view. Narrow screens scroll the strip without page overflow.
+
+The criteria panel starts with Strong Momentum, Volume + Momentum and Both signals. Two labelled
+groups show three RSI thresholds and the daily RSI/ten-day volume threshold respectively, with
+Applied badges and the engine’s fixed conditions. Both signals requires all conditions in both
+groups. All thresholds are editable and saved in the URL. Reset defaults restores the default
+gate and five values while preserving scope and unrelated filters. Keyboard focus survives
+repaints. Desktop groups sit side by side; small screens stack them in both themes.
+
+Counts, table and export use one evaluated model. Scanned excludes stocks with unavailable
+required history or current quotes; Exceptions opens every excluded stock with a short reason.
+Until the existing scheduled daily refresh first supplies the additive fields, stocks with
+missing indicator state remain exceptions. No data is copied from Sattva.

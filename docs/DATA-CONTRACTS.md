@@ -6471,3 +6471,18 @@ Rules worth keeping:
   ticker, and its last trade must fall on today's IST session. A company that arrived with no ISIN is
   reported unchecked by name, never matched on its name.
 - **A reached level outlives its clear** — the history is the feed's record, bounded at 500 rows.
+
+### Glow Momentum Scanner additive fields
+
+The existing daily collector retains its 400-calendar-day window for existing daily fields,
+fetching one longer series per stock to warm weekly/monthly Wilder RSI(14). It adds `sma20`,
+`sma100`, `above_20dma`, `above_50dma`, `above_100dma`, `avg_volume_10d`, `volume_ratio_10d` and
+`rsi_multi.{daily,weekly,monthly}`. Each available RSI state carries
+`{value,avgGain,avgLoss,lastClose,asOf}`; insufficient completed periods yield null. `macd.state`
+carries unrounded `{ema12,ema26,signal,asOf}`; existing rounded display fields remain unchanged.
+
+`momentum_volume_10d` and optional quote `volumeBase` contain
+`{average,from,to,count:10,exchange}`. A live volume ratio uses exactly ten preceding sessions,
+including yesterday and excluding the quote’s session. The window must end on the previous
+trading session and match the quote’s venue. The saved EOD `avg_volume_10d` excludes the last
+completed bar and cannot substitute for the live baseline. Missing/invalid state stays null.

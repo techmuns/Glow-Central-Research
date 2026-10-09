@@ -2758,25 +2758,11 @@ console.log('\n— breakouts: default view and filters —');
 {
   await go('/#/research/breakouts?scope=universe', 2500);
   await waitForPanel();
-  ok('a bare /breakouts route lands on Strong Breakouts', /breakouts\/strong-breakouts/.test(page.url()), page.url());
-
-  // The menu markup is in the DOM whether or not it is open — only a `hidden` class moves — so
-  // this click is not what makes the items readable. It is here because the assertion below is
-  // about what the READER can see, and a menu clipped by its own card reads identically to a
-  // closed one from the DOM alone.
-  await page.locator('#subview-mount [data-dd-trigger]').click();
-  await page.waitForTimeout(300);
-  const picker = await page.evaluate(() => {
-    const items = [...document.querySelectorAll('#subview-mount [data-dd-id]')];
-    return {
-      ids: items.map((b) => b.dataset.ddId),
-      checked: items.find((b) => b.className.includes('text-indigo-700'))?.dataset.ddId || null,
-      face: document.querySelector('#subview-mount [data-dd-trigger]')?.innerText.replace(/\s+/g, ' ').trim() || '',
-    };
-  });
-  await page.keyboard.press('Escape');
-  ok('...which is the first item in the sub-view picker', picker.ids[0] === 'strong-breakouts', picker.ids.join(' · '));
-  ok('...and is the one the picker is set to', picker.checked === 'strong-breakouts' && /Strong Breakouts/.test(picker.face), `${picker.checked} — "${picker.face}"`);
+  ok('a bare /breakouts route lands on Momentum Scanner', /breakouts\/momentum-scanner/.test(page.url()), page.url());
+  const tabs = await page.locator('#subview-mount [data-tab-id]').evaluateAll(items => items.map(b => ({ id: b.dataset.tabId, selected: b.getAttribute('aria-selected') })));
+  ok('Momentum Scanner is the first selected view tab', tabs.length === 4 && tabs[0].id === 'momentum-scanner' && tabs[0].selected === 'true', JSON.stringify(tabs));
+  await page.locator('#subview-mount [data-tab-id=strong-breakouts]').click();
+  await page.waitForSelector('[data-chip-bar]');
 
   // Read the chip bar as it is drawn: the first chip of every group, and which chip is selected.
   // Asserted off the DOM rather than the module's config, because the config being right and the
@@ -2901,8 +2887,8 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
   // Retired mock views must disappear from navigation and saved links alike.
   await go('/#/research/breakouts/earnings-surprise?scope=universe', 2600);
   await waitForPanel();
-  ok('a saved Earnings Surprise link resolves to Strong Breakouts',
-    /breakouts\/strong-breakouts/.test(page.url()), page.url());
+  ok('a saved retired Earnings Surprise link resolves to Momentum Scanner',
+    /breakouts\/momentum-scanner/.test(page.url()), page.url());
   ok('the Breakouts picker no longer offers Earnings Surprise',
     !/Earnings Surprise/i.test(await page.locator('#subview-mount').textContent()));
   ok('the retired view cannot render mock earnings or a Surprise column',
@@ -7387,19 +7373,8 @@ console.log('\n— sub-view picker and the removed roadmap card —');
   // an ancestor clipped it; a check that cannot fail is not a check.
   await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
   await waitForPanel();
-  await page.locator('#subview-mount [data-dd-trigger]').click();
-  await page.waitForTimeout(350);
-  const menu = await page.evaluate(() => {
-    const el = document.querySelector('#subview-mount [data-dd-menu]');
-    const clippers = [];
-    for (let n = el.parentElement; n && n.id !== 'subview-mount'; n = n.parentElement) {
-      if (String(n.className || '').split(/\s+/).includes('overflow-hidden')) clippers.push(n.className);
-    }
-    return { open: !el.classList.contains('hidden'), items: el.querySelectorAll('[data-dd-id]').length, clippers };
-  });
-  ok('clicking the picker opens its three available views', menu.open && menu.items === 3, JSON.stringify({ open: menu.open, items: menu.items }));
-  ok('...and nothing between the menu and its mount clips it', menu.clippers.length === 0, menu.clippers.join(' | ') || 'no overflow-hidden ancestor');
-  await page.locator('#subview-mount [data-dd-id="fii-accumulation"]').click();
+  ok('Breakouts shows four horizontal view tabs', await page.locator('#subview-mount [role=tab]').count() === 4);
+  await page.locator('#subview-mount [data-tab-id=fii-accumulation]').click();
   await page.waitForTimeout(1800);
   ok('...and picking a sub-view navigates to it', /breakouts\/fii-accumulation/.test(page.url()), page.url());
   ok('...and the content follows', /Institutional holding changes/i.test(await hostText()));
