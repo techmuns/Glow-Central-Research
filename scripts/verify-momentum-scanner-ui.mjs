@@ -43,13 +43,14 @@ const ok = (label, cond, detail = '') => {
 // engine reads. A Wilder RSI state whose lastClose equals the live price advances with Δ = 0, so it
 // stays at exactly `value` — which lets us place a stock cleanly above or below a threshold.
 const root = resolve('public');
+const AT = Date.parse('2026-10-09T06:30:00Z');
 const original = JSON.parse(readFileSync(`${root}/data/technicals.json`));
 const seed = original.companies.find((r) => !r.error && r.rsi_multi && r.macd && r.sma20 != null);
 if (!seed) { console.error('No clean seed row in technicals.json'); process.exit(2); }
 
 const rsiState = (value, cmp) => ({ value, avgGain: 100 / (100 - value) - 1, avgLoss: 1, lastClose: cmp });
 function makeCompany({ ticker, name, sector, cmp = 100, d, w, m, belowDma = false, pending = false }) {
-  const base = { ...seed, ticker, name, sector, cmp, bar_date: original.price_date || '2026-09-10', screenerUrl: `https://www.screener.in/company/${ticker}/` };
+  const base = { ...seed, ticker, name, sector, cmp, bar_date: '2026-10-08', screenerUrl: `https://www.screener.in/company/${ticker}/` };
   if (pending) {
     // Incomplete history must stay outside the pass counts.
     delete base.rsi_multi; delete base.macd;
@@ -68,8 +69,8 @@ function makeCompany({ ticker, name, sector, cmp = 100, d, w, m, belowDma = fals
   };
 }
 
-// 3 pass Filter 1 across 3 sectors, 1 fails Filter 1 (below its 20 DMA), 6 exceptions. With no live
-// quote feed the volume ratio is null, so Filter 2 fails for everyone — which gives the passer rows
+// 3 pass Filter 1 across 3 sectors, 1 fails Filter 1 (below its 20 DMA), 6 exceptions. The live
+// quote fixture has low volume and no price rise, so Filter 2 fails for everyone — which gives the passer rows
 // an emerald Filter 1 pill AND a rose Filter 2 pill, the "colourful pills" the view is meant to show.
 const companies = [
   makeCompany({ ticker: 'MOMOA', name: 'Alpha Momentum', sector: 'Capital Goods', d: 80, w: 80, m: 75 }),
@@ -95,6 +96,10 @@ const server = createServer((req, res) => {
   // The fixture takes the place of the committed capture; the live route 304s nothing so the
   // module falls back to it. Every other /api/* answers a benign 200 so no same-origin 404 is logged.
   if (path === '/data/technicals.json') return json(fixture);
+  if (path === '/api/breakouts') return json({version:1,state:'complete',targets:companies.map(c=>c.ticker),failures:[],
+    completedAt:new Date(AT).toISOString(),rows:companies.filter(c=>Number.isFinite(c.cmp)&&c.cmp>0).map(c=>({ticker:c.ticker,price:c.cmp,volume:500,prevClose:c.cmp,
+      sessionDate:'2026-10-09',quoteAt:new Date(AT).toISOString(),checkedAt:new Date(AT).toISOString(),provider:'Upstox',exchange:'NSE',
+      volumeBase:{average:1000,from:'2026-09-24',to:'2026-10-08',count:10,exchange:'NSE'}}))});
   if (path.startsWith('/api/')) return json({ ok: false });
   if (path === '/sdk-fixture.js') { res.setHeader('content-type', 'text/javascript'); res.end(''); return; }
   const file = resolve(root, `.${path === '/' ? '/index.html' : path}`);
@@ -135,6 +140,7 @@ async function newPage(width, height, serviceWorkers = 'block') {
   // No egress: anything off our origin is fulfilled empty (the SDK then falls back to its no-op).
   await context.route('**/*', (route) => (route.request().url().startsWith(origin + '/') ? route.continue() : route.fulfill({ status: 200, contentType: 'text/javascript', body: '' })));
   const page = await context.newPage();
+  await page.clock.install({time:AT});
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') { const u = (() => { try { return m.location()?.url || ''; } catch { return ''; } })(); errors.push(`${m.text()} ${u}`); } });
   page.on('pageerror', (e) => errors.push(`PAGEERROR ${String(e.stack || e)}`));
@@ -205,6 +211,15 @@ try {
     ok('source failures do not leak technical error text', !/HTTP|bars|Step-1|refresh/.test(await page.locator('#modal-content').textContent()));
     await page.keyboard.press('Escape');
     ok('Escape closes the exception list and returns focus to the info button', await page.locator('#modal-overlay').evaluate(el => el.classList.contains('hidden')) && await exceptionButton.evaluate(el => el === document.activeElement));
+
+    await page.click('#content-host [data-mgate="volume-momentum"]');
+    await page.waitForFunction(() => /Scanned\D*5\b.*5 Exceptions/s.test(document.querySelector('#content-host .stat-card')?.textContent || ''));
+    const volumeView = await page.evaluate(readView);
+    ok('Volume + Momentum scans the newer listing without 200-day history', /Scanned\D*5\b/.test(volumeView.statCards[0]?.text) && /5 Exceptions/.test(volumeView.statCards[0]?.text));
+    await page.click('#content-host [data-stat-help="note-0"]');
+    ok('its exception list no longer excludes the newer listing', await page.locator('[data-momentum-exception-list] tbody tr').count() === 5 && !/Young Stock/.test(await page.locator('[data-momentum-exception-list]').textContent()));
+    await page.keyboard.press('Escape');
+    await page.click('#content-host [data-mgate="strong-momentum"]');
 
     ok('sector mini-bar renders', !!v.sector);
     ok('sector mini-bar has one SVG segment per legend chip', v.sector && v.sector.rects === v.sector.legend && v.sector.rects >= 1, v.sector && `${v.sector.rects} rects / ${v.sector.legend} chips`);
