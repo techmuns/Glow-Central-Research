@@ -643,3 +643,11 @@ inline switches, portfolio adapter, credentials, gold palette and export names. 
 indicator and dated volume-state code is shared; committed captures and production collector
 runs are not copied or manually triggered. The service-worker release advances and the browser
 test warms the actual old Glow renderer/registry/shell before verifying automatic upgrade.
+
+The existing BUILDPRO release blocker was traced to its 8 October 2026 subdivision. NSE/CML/76711
+([5 October notice](https://nsearchives.nseindia.com/content/circulars/CML76711.pdf)) identifies
+current equity ISIN INE24OJ01029; Glow’s dated book retains predecessor INE24OJ01011. An exact
+filing-issuer alias joins them without rewriting statement units/marks or relaxing unknown-ISIN
+rejection. Saved capture membership checks normalize that same alias. The existing research
+comparison verification uses a larger offline retrieval budget while continuing to enforce the
+unchanged 18,000-character shipped-packet budget and zero omitted verification candidates.

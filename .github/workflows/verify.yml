@@ -34,7 +34,7 @@ jobs:
       - name: Verify notification receipts, retained unread items and private content isolation
         run: node scripts/verify-notification-inbox.mjs
       - name: Verify momentum indicator math, filter gates and session reliability
-        run: node scripts/verify-momentum-indicators.mjs && node scripts/verify-momentum-scanner.mjs && node scripts/verify-momentum-reliability.mjs && node scripts/verify-glow-momentum-parity.mjs
+        run: node scripts/verify-momentum-indicators.mjs && node scripts/verify-momentum-scanner.mjs && node scripts/verify-momentum-reliability.mjs && node scripts/verify-glow-momentum-parity.mjs && node scripts/verify-glow-issuer-alias.mjs
       - name: Verify shared technical filter boundaries and counts
         run: node scripts/verify-technical-filters.mjs
       - name: Verify the mutual-fund active / passive cut and where a moved tracker is shown
