@@ -3,8 +3,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-09T09:33:54.997Z",
-  "oldestDataAt": "2026-10-09T09:33:54.997Z",
+  "capturedAt": "2026-10-09T15:18:37.578Z",
+  "oldestDataAt": "2026-10-09T15:18:37.578Z",
   "from": "2025-10-09",
   "to": "2026-10-09",
   "windowDays": 365,
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-09T09:33:54.997Z",
+      "capturedAt": "2026-10-09T15:18:37.578Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-09T09:33:54.997Z",
+      "capturedAt": "2026-10-09T15:18:37.578Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-09T09:33:54.997Z",
+      "capturedAt": "2026-10-09T15:18:37.578Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -62,20 +62,20 @@
       "label": "Insider trade",
       "url": "https://www.screener.in/trades/insiders/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-10-08",
-      "oldestDate": "2026-10-05",
+      "latestDate": "2026-10-09",
+      "oldestDate": "2026-10-06",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-09T09:33:54.997Z",
+      "capturedAt": "2026-10-09T15:18:37.578Z",
       "coverageFrom": "2026-08-04"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1897,
+  "withRows": 1901,
   "emptyCount": 0,
-  "rowCount": 20361,
+  "rowCount": 20386,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -28187,6 +28187,62 @@
         }
       }
     ],
+    "534920": [
+      {
+        "ticker": "534920",
+        "date": "2026-10-08",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "iSERA Lifesciences",
+          "Insider": "Mangina S Rao",
+          "Category": "Director",
+          "Security Type": "Equity",
+          "Transaction": "Preferential Offer",
+          "Trade Shares": "41600",
+          "Trade Value": "20.05 lacs",
+          "Broadcast Date": "2026-10-08",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "534920",
+        "date": "2026-10-08",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "iSERA Lifesciences",
+          "Insider": "Shubhangi Dhanraj Garad, Sumeet Dhanraj Garad, Pra...",
+          "Category": "Promoter (7)",
+          "Security Type": "Equity",
+          "Transaction": "Preferential Offer",
+          "Trade Shares": "6880500",
+          "Trade Value": "33.16 crore",
+          "Broadcast Date": "2026-10-08",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "534920",
+        "date": "2026-10-08",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "iSERA Lifesciences",
+          "Insider": "Venkatesh Madhav Bhat, Pravin Vaman Suryarao, Mada...",
+          "Category": "Promoter Group (23)",
+          "Security Type": "Equity",
+          "Transaction": "Preferential Offer",
+          "Trade Shares": "1635000",
+          "Trade Value": "7.88 crore",
+          "Broadcast Date": "2026-10-08",
+          "Source": "Screener.in"
+        }
+      }
+    ],
     "535204": [
       {
         "ticker": "535204",
@@ -36699,6 +36755,25 @@
         }
       }
     ],
+    "540175": [
+      {
+        "ticker": "540175",
+        "date": "2026-10-09",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Regency Fincorp",
+          "Insider": "Regency Digitrade Investments Private Limited",
+          "Category": "Promoter",
+          "Security Type": "Equity",
+          "Transaction": "Off Market",
+          "Trade Shares": "4247426",
+          "Broadcast Date": "2026-10-09",
+          "Source": "Screener.in"
+        }
+      }
+    ],
     "540243": [
       {
         "ticker": "540243",
@@ -42380,6 +42455,44 @@
           "Trade Value": "3.39 lacs",
           "Price": "141",
           "Broadcast Date": "2026-09-02",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "543461": [
+      {
+        "ticker": "543461",
+        "date": "2026-10-09",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Safa Systems",
+          "Insider": "Faizal Bavarparambil Abdul Khader, Bavaraparambil ...",
+          "Category": "Promoter And Director (3)",
+          "Security Type": "Equity",
+          "Transaction": "Allotment",
+          "Trade Shares": "1800000",
+          "Trade Value": "1.8 crore",
+          "Broadcast Date": "2026-10-09",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "543461",
+        "date": "2026-10-09",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Safa Systems",
+          "Insider": "Safa Plywoods Private Limited, Pathukunju Abdul Kh...",
+          "Category": "Promoter Group (5)",
+          "Security Type": "Equity",
+          "Transaction": "Allotment",
+          "Trade Shares": "590000",
+          "Trade Value": "59.0 lacs",
+          "Broadcast Date": "2026-10-09",
           "Source": "Screener.in"
         }
       }
@@ -95195,6 +95308,59 @@
     "VINCOFE": [
       {
         "ticker": "VINCOFE",
+        "date": "2026-10-08",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Vintage Coffee",
+          "Insider": "Balakrishna Tati, Mohit Rathi, Vishal Jethalia",
+          "Category": "Promoter And Director (3)",
+          "Security Type": "Equity",
+          "Transaction": "Revocation Of Pledge",
+          "Trade Shares": "8913179",
+          "Trade Value": "167 crore",
+          "Broadcast Date": "2026-10-08",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "VINCOFE",
+        "date": "2026-10-08",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Vintage Coffee",
+          "Insider": "Chin Corp Holding Pte Limited",
+          "Category": "Promoter Group",
+          "Security Type": "Equity",
+          "Transaction": "Revocation Of Pledge",
+          "Trade Shares": "4185205",
+          "Trade Value": "73.64 crore",
+          "Broadcast Date": "2026-10-08",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "VINCOFE",
+        "date": "2026-10-08",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Vintage Coffee",
+          "Insider": "Mohit Rathi, Vishal Jethalia",
+          "Category": "Promoter And Director (2)",
+          "Security Type": "Warrant",
+          "Transaction": "Revocation Of Pledge",
+          "Trade Shares": "0",
+          "Broadcast Date": "2026-10-08",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "VINCOFE",
         "date": "2026-08-31",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=46",
         "sourceId": "bulk",
@@ -138662,6 +138828,42 @@
     "KEI": [
       {
         "ticker": "KEI",
+        "date": "2026-10-09",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "KEI Industries",
+          "Insider": "Lalit Sharma, Adarsh Kumar Jain, Kishore Kunal, Ma...",
+          "Category": "Employee (9)",
+          "Security Type": "Equity",
+          "Transaction": "ESOP",
+          "Trade Shares": "33000",
+          "Trade Value": "74.25 lacs",
+          "Broadcast Date": "2026-10-09",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "KEI",
+        "date": "2026-10-09",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "KEI Industries",
+          "Insider": "Rajeev Gupta",
+          "Category": "Director",
+          "Security Type": "Equity",
+          "Transaction": "ESOP",
+          "Trade Shares": "12000",
+          "Trade Value": "27.0 lacs",
+          "Broadcast Date": "2026-10-09",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "KEI",
         "date": "2026-08-21",
         "url": "https://www.screener.in/trades/insiders/?o=-2&p=25",
         "sourceId": "insiders",
@@ -155730,6 +155932,42 @@
       }
     ],
     "DMART": [
+      {
+        "ticker": "DMART",
+        "date": "2026-10-09",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Avenue Super.",
+          "Insider": "Allan Nott, Krishan Kumar Aggarwal, Abhishek Ranga...",
+          "Category": "Designated Person (32)",
+          "Security Type": "Equity",
+          "Transaction": "ESOP",
+          "Trade Shares": "60046",
+          "Trade Value": "20.16 crore",
+          "Broadcast Date": "2026-10-09",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "DMART",
+        "date": "2026-10-09",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Avenue Super.",
+          "Insider": "Niladri Deb",
+          "Category": "Kmp",
+          "Security Type": "Equity",
+          "Transaction": "ESOP",
+          "Trade Shares": "3500",
+          "Trade Value": "1.17 crore",
+          "Broadcast Date": "2026-10-09",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "DMART",
         "date": "2026-09-14",
@@ -192421,6 +192659,23 @@
     "CLEANMAX": [
       {
         "ticker": "CLEANMAX",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Clean Max Enviro",
+          "Insider": "Augment India I Holdings LLC",
+          "Transaction": "Sale",
+          "Trade Shares": "8502537",
+          "Trade %": "7.25",
+          "Mode": "Market",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "CLEANMAX",
         "date": "2026-09-28",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=3",
         "sourceId": "bulk",
@@ -200071,6 +200326,22 @@
       }
     ],
     "AEQUS": [
+      {
+        "ticker": "AEQUS",
+        "date": "2026-10-09",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Aequs",
+          "Insider": "Melligeri Private Family Foundation Mellwood Trust...",
+          "Category": "Promoter",
+          "Transaction": "10,05,13,070 Equity",
+          "Trade Value": "2,317 crore",
+          "Broadcast Date": "2026-10-09",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "AEQUS",
         "date": "2026-09-21",
@@ -257277,6 +257548,40 @@
           "Trade Shares": "170000",
           "Trade Value": "3.37 crore",
           "Broadcast Date": "2026-10-01",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "BODALCHEM",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Bodal Chemicals",
+          "Insider": "Ankit S Patel",
+          "Transaction": "Acquisition",
+          "Trade Shares": "170000",
+          "Trade %": "0.13",
+          "Mode": "Market",
+          "Broadcast Date": "2026-09-30",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "BODALCHEM",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Bodal Chemicals",
+          "Insider": "Ramesh D Patel (Revised)",
+          "Transaction": "Sale",
+          "Trade Shares": "170000",
+          "Trade %": "0.13",
+          "Mode": "Market",
+          "Broadcast Date": "2026-09-30",
           "Source": "Screener.in"
         }
       },
@@ -324163,6 +324468,24 @@
     "WSI": [
       {
         "ticker": "WSI",
+        "date": "2026-10-09",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "W S Inds.",
+          "Insider": "S. Aravindan",
+          "Category": "Promoter",
+          "Security Type": "Equity",
+          "Transaction": "Bought",
+          "Trade Shares": "9000",
+          "Trade Value": "4.89 lacs",
+          "Broadcast Date": "2026-10-09",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "WSI",
         "date": "2026-09-19",
         "url": "https://www.screener.in/trades/insiders/?o=-2",
         "sourceId": "insiders",
@@ -330206,6 +330529,42 @@
     "CSLFINANCE": [
       {
         "ticker": "CSLFINANCE",
+        "date": "2026-10-09",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "CSL Finance",
+          "Insider": "Csl Capital Private Limited, Csl Capital Private Limited",
+          "Category": "Promoter Group (2)",
+          "Security Type": "Equity",
+          "Transaction": "Inter-se-Transfer",
+          "Trade Shares": "265686",
+          "Trade Value": "5.71 crore",
+          "Broadcast Date": "2026-10-09",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "CSLFINANCE",
+        "date": "2026-10-09",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "CSL Finance",
+          "Insider": "Rohit Gupta Huf, Rohit Gupta Huf",
+          "Category": "Promoter (2)",
+          "Security Type": "Equity",
+          "Transaction": "Inter-se-Transfer",
+          "Trade Shares": "265686",
+          "Trade Value": "5.71 crore",
+          "Broadcast Date": "2026-10-09",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "CSLFINANCE",
         "date": "2026-09-17",
         "url": "https://www.screener.in/trades/insiders/?o=-2&p=3",
         "sourceId": "insiders",
@@ -332623,6 +332982,24 @@
       }
     ],
     "ZENSARTECH": [
+      {
+        "ticker": "ZENSARTECH",
+        "date": "2026-10-09",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Zensar Tech.",
+          "Insider": "Vijayasimha Alilughatta, Ravi Thakur",
+          "Category": "Designated Person (2)",
+          "Security Type": "Equity",
+          "Transaction": "ESOP",
+          "Trade Shares": "32309",
+          "Trade Value": "1.42 crore",
+          "Broadcast Date": "2026-10-09",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "ZENSARTECH",
         "date": "2026-09-15",
@@ -359601,6 +359978,60 @@
       }
     ],
     "ROYALCUSHN": [
+      {
+        "ticker": "ROYALCUSHN",
+        "date": "2026-10-08",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Royal Cush. Vin.",
+          "Insider": "Mahesh Kantilal Shah, Jayesh Amrutlal Motasha",
+          "Category": "Promoter And Director (2)",
+          "Security Type": "Equity",
+          "Transaction": "Scheme of Amalgamation/Merger/Demerger/Arrangement",
+          "Trade Shares": "825897",
+          "Trade Value": "82.59 lacs",
+          "Broadcast Date": "2026-10-08",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ROYALCUSHN",
+        "date": "2026-10-08",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Royal Cush. Vin.",
+          "Insider": "Suvrat Mahesh Shah, Jay Vinod Shah, Vivek Deepak M...",
+          "Category": "Promoter Group (5)",
+          "Security Type": "Equity",
+          "Transaction": "Scheme of Amalgamation/Merger/Demerger/Arrangement",
+          "Trade Shares": "2054472",
+          "Trade Value": "2.05 crore",
+          "Broadcast Date": "2026-10-08",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ROYALCUSHN",
+        "date": "2026-10-08",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Royal Cush. Vin.",
+          "Insider": "Vinod Kantilal Shah, Deepak Amrutlal Motasha, Muke...",
+          "Category": "Promoter (3)",
+          "Security Type": "Equity",
+          "Transaction": "Scheme of Amalgamation/Merger/Demerger/Arrangement",
+          "Trade Shares": "1236791",
+          "Trade Value": "1.24 crore",
+          "Broadcast Date": "2026-10-08",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "ROYALCUSHN",
         "date": "2026-09-16",
@@ -391386,6 +391817,25 @@
           "Transaction": "Acquisition",
           "Trade Shares": "145576",
           "Broadcast Date": "2026-10-08",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "CAMPUS": [
+      {
+        "ticker": "CAMPUS",
+        "date": "2026-09-30",
+        "url": "https://www.screener.in/trades/sast/?o=-2&p=2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Campus Activewe.",
+          "Insider": "Hari Krishan Agarwal & Prerna Aggarwal",
+          "Transaction": "Acquisition",
+          "Trade Shares": "220318004",
+          "Trade %": "72.07",
+          "Mode": "Inter-se Transfer / Gift",
+          "Broadcast Date": "2026-09-30",
           "Source": "Screener.in"
         }
       }
