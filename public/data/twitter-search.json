@@ -162,27 +162,27 @@
       "error": "search-unavailable"
     },
     "isin:INE0HOQ01053|Billionbrains Garage Ventures": {
-      "lastAttemptAt": "2026-10-03T16:51:13+00:00",
+      "lastAttemptAt": "2026-10-08T19:01:38+00:00",
       "error": "search-unavailable"
     },
     "isin:INE0HOQ01053|GROWW": {
-      "lastAttemptAt": "2026-10-03T17:24:44+00:00",
+      "lastAttemptAt": "2026-10-08T19:32:25+00:00",
       "error": "search-unavailable"
     },
     "isin:INE376G01013|Biocon": {
-      "lastAttemptAt": "2026-10-03T17:57:39+00:00",
+      "lastAttemptAt": "2026-10-08T20:32:25+00:00",
       "error": "search-unavailable"
     },
     "isin:INE376G01013|BIOCON": {
-      "lastAttemptAt": "2026-10-03T18:04:58+00:00",
+      "lastAttemptAt": "2026-10-08T21:05:06+00:00",
       "error": "search-unavailable"
     },
     "isin:INE476A01022|Canara Bank": {
-      "lastAttemptAt": "2026-10-03T18:37:04+00:00",
+      "lastAttemptAt": "2026-10-08T21:38:10+00:00",
       "error": "search-unavailable"
     },
     "isin:INE476A01022|CANBK": {
-      "lastAttemptAt": "2026-10-03T19:22:38+00:00",
+      "lastAttemptAt": "2026-10-08T21:39:33+00:00",
       "error": "search-unavailable",
       "lastResultCount": 29,
       "lastSuccessAt": "2026-09-30T00:48:50+00:00",
@@ -190,7 +190,7 @@
       "pending": []
     },
     "isin:INE482D01024|Carysil": {
-      "lastAttemptAt": "2026-10-03T19:55:42+00:00",
+      "lastAttemptAt": "2026-10-08T22:42:31+00:00",
       "error": "search-unavailable",
       "lastResultCount": 28,
       "lastSuccessAt": "2026-09-30T00:48:50+00:00",
@@ -198,7 +198,7 @@
       "pending": []
     },
     "isin:INE482D01024|CARYSIL": {
-      "lastAttemptAt": "2026-10-03T20:28:30+00:00",
+      "lastAttemptAt": "2026-10-08T23:16:33+00:00",
       "lastResultCount": 39,
       "error": "search-unavailable",
       "lastSuccessAt": "2026-09-30T00:48:50+00:00",
@@ -206,17 +206,17 @@
       "pending": []
     },
     "isin:INE736A01011|Central Depository Services": {
-      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
+      "lastAttemptAt": "2026-10-08T23:48:27+00:00",
       "lastResultCount": 10,
-      "error": null,
+      "error": "search-unavailable",
       "lastSuccessAt": "2026-10-03T21:01:00+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE736A01011|CDSL": {
-      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
+      "lastAttemptAt": "2026-10-09T00:28:01+00:00",
       "lastResultCount": 100,
-      "error": "result-cap-incomplete",
+      "error": "search-unavailable",
       "targetThrough": "2026-09-06T22:10:33+00:00",
       "pending": [
         {
@@ -231,25 +231,25 @@
       "lastDiscoveryAt": "2026-10-03T21:01:00+00:00"
     },
     "isin:INE067A01029|Cg Power and Ind Sol": {
-      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
+      "lastAttemptAt": "2026-10-09T01:03:02+00:00",
       "lastResultCount": 0,
-      "error": null,
+      "error": "search-unavailable",
       "lastSuccessAt": "2026-10-03T21:01:00+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE067A01029|CG Power & Ind": {
-      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
+      "lastAttemptAt": "2026-10-09T01:34:26+00:00",
       "lastResultCount": 0,
-      "error": null,
+      "error": "search-unavailable",
       "lastSuccessAt": "2026-10-03T21:01:00+00:00",
       "targetThrough": null,
       "pending": []
     },
     "isin:INE067A01029|CGPOWER": {
-      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
+      "lastAttemptAt": "2026-10-09T02:09:16+00:00",
       "lastResultCount": 57,
-      "error": null,
+      "error": "search-unavailable",
       "lastSuccessAt": "2026-09-06T22:10:33+00:00",
       "targetThrough": "2026-09-20T20:53:41+00:00",
       "pending": [
@@ -261,9 +261,9 @@
       "lastDiscoveryAt": "2026-10-03T21:01:00+00:00"
     },
     "isin:INE522F01014|Coal India": {
-      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
+      "lastAttemptAt": "2026-10-09T02:44:08+00:00",
       "lastResultCount": 104,
-      "error": "result-cap-incomplete",
+      "error": "search-unavailable",
       "targetThrough": "2026-09-06T22:10:33+00:00",
       "pending": [
         {
@@ -286,7 +286,7 @@
       "lastDiscoveryAt": "2026-10-03T21:01:00+00:00"
     },
     "isin:INE522F01014|COALINDIA": {
-      "lastAttemptAt": "2026-10-03T21:01:00+00:00",
+      "lastAttemptAt": "2026-10-09T03:17:22+00:00",
       "lastResultCount": 108,
       "error": "search-unavailable",
       "targetThrough": "2026-09-06T22:10:33+00:00",
@@ -2398,6 +2398,6 @@
     "planned": 254,
     "attempted": 1,
     "incomplete": 249,
-    "checkedAt": "2026-10-08T18:25:58.360636+00:00"
+    "checkedAt": "2026-10-09T03:17:22.994976+00:00"
   }
 }

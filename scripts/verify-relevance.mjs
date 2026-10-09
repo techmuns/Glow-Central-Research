@@ -32,7 +32,7 @@ const { handleRelevanceFeedback } = await import('../worker/relevance-feedback.m
 const { handleAnnouncementIndex } = await import('../worker/announcement-index.mjs');
 const { handleAnnouncementRead } = await import('../worker/announcement-read.mjs');
 const { sqliteStorage, directorySource } = await import('./lib/announcement-test-server.mjs');
-const { buildFixtureIndex } = await import('./lib/announcement-index-fixture.mjs');
+const { buildFixtureIndex, feedbackPair } = await import('./lib/announcement-index-fixture.mjs');
 
 let checks = 0;
 const ok = (label) => { checks++; console.log(`  PASS  ${label}`); };
@@ -340,24 +340,22 @@ try {
   ok(`related filings: an event of ${event.members.length} filings reads back whole`);
 
   // Shared feedback moves the order within a day, and never removes a row.
-  const today = await store.query({ period: 'all', limit: 50 });
-  // A vote lowers a score, but cannot guarantee that the day's highest-scored
-  // filing crosses a peer. Use a real adjacent pair with a small score gap.
-  const top = today.rows.find((row, i) => {
-    const next = today.rows[i + 1];
-    return next?.date === row.date && row.relevance - next.relevance < 1;
-  });
-  assert(top, 'the real-data fixture holds same-day peers with a small score gap');
+  const beforeVote = await store.query({ period: 'all', limit: 500 });
+  // A new capture can begin with one filing on the newest day, or a leader whose
+  // score is too far above its peers for one bounded vote to overtake it. Exercise
+  // the ordering contract on two equally scored, equally featured peers instead.
+  const top = feedbackPair(beforeVote.rows)?.row;
+  assert(top, 'the real capture contains equally scored same-day peers for the feedback check');
+  const beforePosition = beforeVote.rows.filter(row => row.date === top.date).findIndex(row => row.id === top.id);
   model = fb.aggregateModel([{ surface: 'announcements', vote: 'not-important', itemKey: top.id, features: top.keys, at: Date.now() }]);
   store.modelCache.at = 0;
   store.queries.clear();
   const after = await store.query({ period: 'all', limit: 500 });
   assert.equal(after.total, all.total, 'a vote hides nothing');
   const sameDay = after.rows.filter((r) => r.date === top.date);
-  const beforeAt = today.rows.filter((r) => r.date === top.date).findIndex((r) => r.id === top.id);
-  const voted = sameDay.find((r) => r.id === top.id);
+  const voted = sameDay.find(row => row.id === top.id);
   assert(voted && voted.relevance < top.relevance, 'a Not important vote lowers the filing score');
-  assert(sameDay.findIndex((r) => r.id === top.id) > beforeAt, 'a Not important vote moves the filing below a nearby same-day peer');
+  assert(sameDay.findIndex((r) => r.id === top.id) > beforePosition, 'a Not important vote moves the filing down its day');
   ok('a Not important vote re-orders the day without removing the filing');
 
   // Profiles for News and All Alerts.
