@@ -8,7 +8,9 @@ export const scannerName=value=>String(value||'').toLowerCase().replace(/^the\s+
 export function scannerOperationalStatus(status={},now=Date.now()) {
   const states={},companies=status.companies||[];
   for(const company of companies)states[company.state]=(states[company.state]||0)+1;
-  return {source:'MF Scanner',expectedCompanies:status.expectedCompanies||0,currentCompanies:status.currentCompanies||0,
+  return {source:'MF Scanner',targetMonth:status.targetMonth||null,expectedCompanies:status.expectedCompanies||0,currentCompanies:status.currentCompanies||0,
+    currentPeriodCompanies:status.currentPeriodCompanies||0,olderPeriodCompanies:status.olderPeriodCompanies||0,partialCompanies:status.partialCompanies||0,periods:status.periods||{},
+    failureReasons:companies.reduce((out,c)=>{const reason=c.failure?.reason||c.failure?.kind;if(reason)out[reason]=(out[reason]||0)+1;return out;},{}),
     states,cooldownUntil:status.cooldownUntil>now?status.cooldownUntil:null,catalogue:status.catalogue||null,
     latestPageCheckedAt:companies.map(c=>c.checkedAt).filter(v=>Number.isFinite(Date.parse(v))).sort().at(-1)||null};
 }

@@ -353,6 +353,8 @@ try {
   const after = await store.query({ period: 'all', limit: 500 });
   assert.equal(after.total, all.total, 'a vote hides nothing');
   const sameDay = after.rows.filter((r) => r.date === top.date);
+  const voted = sameDay.find(row => row.id === top.id);
+  assert(voted && voted.relevance < top.relevance, 'a Not important vote lowers the filing score');
   assert(sameDay.findIndex((r) => r.id === top.id) > beforePosition, 'a Not important vote moves the filing down its day');
   ok('a Not important vote re-orders the day without removing the filing');
 

@@ -2,14 +2,14 @@ import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { collectorClient } from './collect-mutual-funds.mjs';
 import { loadActivePortfolio } from './lib/active-portfolio.mjs';
-import { parseScannerCatalogue,parseScannerStock,scannerStockUrl } from './lib/mutual-funds-scanner.mjs';
+import { parseScannerCatalogue,parseScannerStock,scannerStockUrl,scannerFailureReason } from './lib/mutual-funds-scanner.mjs';
 
 const pause=ms=>new Promise(done=>setTimeout(done,ms));
 export async function scannerFetch(url,{fetcher=fetch}={}) {
   if(!/^https:\/\/mfscanner\.com\/(?:stock\/[a-z0-9-]+)?$/.test(url))throw Error('Unexpected source URL');
   let response;
   try { response=await fetcher(url,{headers:{accept:'text/html','user-agent':'SattvaResearch/1.0 (+https://github.com/techmuns/Sattva-Central-Research)'},redirect:'manual',signal:AbortSignal.timeout(30000)}); }
-  catch {return {failure:'timeout'};}
+  catch(error) {return {failure:'timeout',failureReason:error?.name==='TimeoutError'||error?.name==='AbortError'?'request-timeout':'transport-error'};}
   if(!response.ok) {
     await response.body?.cancel();
     const retry=response.headers.get('retry-after'),seconds=Number(retry);
@@ -24,8 +24,9 @@ export async function scannerFetch(url,{fetcher=fetch}={}) {
 }
 export async function collectScanner({client=collectorClient(),fetcher=fetch,sleep=pause,now=Date.now,companies,maxRequests=180}={}) {
   await client({action:'scanner-inventory',companies});
-  let requestId=0,catalogue=null,completed=0,failed=0,reason=null;const failures={};
-  const recordFailure=kind=>{failed++;failures[kind]=(failures[kind]||0)+1;};
+  let requestId=0,catalogue=null,completed=0,failed=0,reason=null;const failures={},failureReasons={},periods={},partialPages={pending:0,unknownAmcs:0};
+  const result=()=>({completed,failed,failures,failureReasons,periods,partialPages,reason});
+  const recordFailure=(kind,detail)=>{failed++;failures[kind]=(failures[kind]||0)+1;if(detail)failureReasons[detail]=(failureReasons[detail]||0)+1;};
   const reserve=async kind=>{
     const id=String(++requestId);
     for(;;){const r=await client({action:'scanner-reserve',requestId:id,kind});if(r.waitUntil&&r.reason==='spacing'){await sleep(Math.min(3000,Math.max(1,r.waitUntil-now())));continue;}return r;}
@@ -34,25 +35,25 @@ export async function collectScanner({client=collectorClient(),fetcher=fetch,sle
   if(catalog.catalogue)catalogue=catalog.catalogue;
   else if(catalog.reservation) {
     const fetched=await scannerFetch(catalog.url,{fetcher});
-    if(!fetched.failure){try{catalogue=parseScannerCatalogue(fetched.html);}catch{fetched.failure='invalid-page';}}
-    await client({action:'scanner-complete',input:{reservation:catalog.reservation,catalogue,failure:fetched.failure||null,retryAfterMs:fetched.retryAfterMs}});
+    if(!fetched.failure){try{catalogue=parseScannerCatalogue(fetched.html);}catch(error){fetched.failure='invalid-page';fetched.failureReason=scannerFailureReason(error);}}
+    await client({action:'scanner-complete',input:{reservation:catalog.reservation,catalogue,failure:fetched.failure||null,retryAfterMs:fetched.retryAfterMs,failureReason:fetched.failureReason}});
     if(fetched.failure) {
-      recordFailure(fetched.failure);
-      if(['http-403','http-429'].includes(fetched.failure)||!catalog.savedCatalogue)return {completed,failed,failures,reason:fetched.failure};
+      recordFailure(fetched.failure,fetched.failureReason);
+      if(['http-403','http-429'].includes(fetched.failure)||!catalog.savedCatalogue){reason=fetched.failure;return result();}
       catalogue=catalog.savedCatalogue;
     }
-  } else return {completed,failed,reason:catalog.reason};
+  } else {reason=catalog.reason;return result();}
   for(let i=0;i<Math.min(maxRequests,companies.length);i++) {
     const task=await reserve('stock');if(!task.reservation)break;
     const {company,reservation}=task,url=task.url||scannerStockUrl(catalogue,company);
     if(!url){await client({action:'scanner-complete',input:{reservation,isin:company.isin,failure:'unmatched'}});recordFailure('unmatched');continue;}
     const fetched=await scannerFetch(url,{fetcher});let page=null;
-    if(!fetched.failure){try{page=parseScannerStock(fetched.html,{isin:company.isin,url,now:now(),checkedAt:new Date(now()).toISOString()});}catch{fetched.failure='invalid-page';}}
-    await client({action:'scanner-complete',input:{reservation,isin:company.isin,page,failure:fetched.failure||null,retryAfterMs:fetched.retryAfterMs}});
-    if(fetched.failure)recordFailure(fetched.failure);else completed++;
+    if(!fetched.failure){try{page=parseScannerStock(fetched.html,{isin:company.isin,url,now:now(),checkedAt:new Date(now()).toISOString()});}catch(error){fetched.failure='invalid-page';fetched.failureReason=scannerFailureReason(error);}}
+    await client({action:'scanner-complete',input:{reservation,isin:company.isin,page,failure:fetched.failure||null,retryAfterMs:fetched.retryAfterMs,failureReason:fetched.failureReason}});
+    if(fetched.failure)recordFailure(fetched.failure,fetched.failureReason);else {completed++;periods[page.month]=(periods[page.month]||0)+1;if(page.unreportedFunds)partialPages.pending++;if(page.unknownAmcs)partialPages.unknownAmcs++;}
     if(['http-403','http-429'].includes(fetched.failure)){reason=fetched.failure;break;}
   }
-  return {completed,failed,failures,reason};
+  return result();
 }
 export const scannerCaptureHealthy=(result,status)=>!result.failed&&status?.expectedCompanies>0&&status.currentCompanies===status.expectedCompanies&&!['source-cooldown','in-flight','reservation-expired'].includes(result.reason);
 async function main() {
@@ -65,6 +66,7 @@ async function main() {
   // publish source pages, scheme observations, or the private portfolio.
   console.log(`MF Scanner: ${result.completed} pages saved; ${result.failed} pages unavailable${result.reason?`; ${result.reason}`:''}.`);
   if(result.failures&&Object.keys(result.failures).length)console.log(`Failure counts: ${JSON.stringify(result.failures)}`);
+  console.log(`Observed source periods: ${JSON.stringify(result.periods||{})}; partial pages: ${JSON.stringify(result.partialPages||{})}; validation reasons: ${JSON.stringify(result.failureReasons||{})}.`);
   if(status?.cooldownUntil>Date.now())console.log(`Source access paused until ${new Date(status.cooldownUntil).toISOString()}; saved progress is retained.`);
   if(!scannerCaptureHealthy(result,status)) {
     console.error(`MF Scanner coverage incomplete: ${status?.currentCompanies||0}/${status?.expectedCompanies||companies.length} current company pages. Saved observations remain available; the next automatic run resumes collection.`);

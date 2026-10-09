@@ -177,6 +177,8 @@ try {
   assert.equal(mine.votes[top.id].vote, 'not-important');
   const reranked = await (await post('/api/announcement-index/query', { period: 'all', limit: 500, modelRevision: model.model.revision })).json();
   const day = reranked.rows.filter((r) => r.date === top.date);
+  const scored = day.find(row => row.id === top.id);
+  assert(scored && scored.relevance < top.relevance, 'the saved vote lowers the score across RPC');
   assert(day.findIndex((r) => r.id === top.id) > beforePosition, 'the vote moves the filing down its day at once');
   assert.equal(reranked.total, all.total, 'and hides nothing');
   console.log('PASS workerd: a vote crosses RPC, publishes in the shared model and re-ranks the index immediately');

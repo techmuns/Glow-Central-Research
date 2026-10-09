@@ -62,6 +62,9 @@ await handleMutualFunds(new Request(MF_ORIGIN+'/api/mutual-funds/collector',{met
   {identity:async(_request,options)=>{assert.equal(options.workflow,'mutual-funds-scanner.yml');return '7:1';}});
 let fetchCalls=0;const denied=await scannerFetch(url,{fetcher:async(_url,options)=>{fetchCalls++;assert.equal(options.redirect,'manual');assert.equal(options.headers.authorization,undefined);return new Response('',{status:429,headers:{'retry-after':'7200'}});}});assert.equal(fetchCalls,1);assert.equal(denied.retryAfterMs,7200000);
 const out=await collectScanner({companies:[{isin,name:'Fixture Bank'}],client:async body=>body.action==='scanner-reserve'?{ok:true,reason:'source-cooldown'}:{ok:true},fetcher:()=>{throw Error('Cooldown must prevent source requests');}});assert.equal(out.reason,'source-cooldown');
+assert.deepEqual(out.failureReasons,{});assert.deepEqual(out.periods,{});
+const invalidCatalogue=await collectScanner({companies:[{isin,name:'Fixture Bank'}],client:async body=>body.action==='scanner-reserve'?{reservation:'catalogue-fixture',url:'https://mfscanner.com/'}:{ok:true},fetcher:async()=>new Response('<html>truncated',{headers:{'content-type':'text/html'}})});
+assert.equal(invalidCatalogue.reason,'invalid-page');assert.equal(invalidCatalogue.failureReasons['incomplete-inventory'],1,'Early catalogue failures retain their validation reason');
 // A future portfolio company can arrive in the supplement before primary import.
 clock+=3*3600000;const newIsin='INE040A01034';store.inventory([{isin,name:'Fixture Bank'},{isin:newIsin,name:'New holding'}]);
 task=store.reserve('6:1','1');assert.equal(task.company.isin,newIsin);
@@ -85,7 +88,7 @@ const {providerMutualFunds}=await import('../public/js/research/evidence-shared.
 assert.equal(packed.rows[0][packed.columns.indexOf('mfScanner.checkedAt')],combined.supplement.checkedAt);assert.equal(packed.rows[0][packed.columns.indexOf('mfScanner.checkState')],'read-failed');
 const {supplementStatus}=await import('../public/js/data/mutual-funds-supplement.js');
 const backupStatus=supplementStatus({checkedAt:'2026-09-21T05:00:00Z',supplement:{currentCompanies:1,expectedCompanies:1,companies:[{checkedAt:'2026-09-20T04:00:00Z'}],catalogue:{state:'timeout',lastAttemptAt:'2026-09-21T03:00:00Z'}}});
-assert.match(backupStatus,/1\/1 companies checked/);assert.match(backupStatus,/20 Sept 2026/);assert.match(backupStatus,/Catalogue check unavailable \(21 Sept 2026/);
+assert.match(backupStatus,/1\/1 complete company pages/);assert.match(backupStatus,/20 Sept 2026/);assert.match(backupStatus,/Catalogue check unavailable \(21 Sept 2026/);
 assert.match(supplementStatus({supplementReadFailed:true}),/primary disclosures shown/);
 const largeBook=Array.from({length:5000},(_,i)=>({isin:`INE${String(i).padStart(9,'0')}`,name:`Fixture ${i}`}));
 store.inventory(largeBook);assert.equal(store.status().expectedCompanies,5000,'The complete validated portfolio is accepted');
@@ -115,3 +118,27 @@ const deniedRun=await collectScanner({companies:[{isin,name:'Fixture Bank'}],cli
 assert.equal(deniedFetches,1);assert.equal(deniedRun.reason,'http-429');assert.deepEqual(deniedRun.failures,{'http-429':1});
 assert.equal(deniedRun.failed,1);assert.equal(deniedRun.completed,0);
 console.log('PASS source refusal stops collection and reports its failure category without private observations');
+// A readable page can be current-period yet incomplete; both counts stay visible.
+store.inventory([{isin,name:'Fixture Bank'}]);clock+=16*60000;
+task=store.reserve('100:1','1');
+const partialPage={...parse(sample),unreportedFunds:1};
+store.complete('100:1',{reservation:task.reservation,isin,page:partialPage});
+assert.equal(store.status().currentPeriodCompanies,1);assert.equal(store.status().currentCompanies,0);
+assert.equal(store.status().partialCompanies,1);
+clock+=16*60000;task=store.reserve('100:1','2');
+store.complete('100:1',{reservation:task.reservation,isin,page:{...parse(sample),unknownAmcs:1}});
+assert.equal(store.status().currentCompanies,0,'Unmapped AMC inventories cannot certify complete company coverage');
+clock+=16*60000;task=store.reserve('100:1','3');
+store.complete('100:1',{reservation:task.reservation,isin,failure:'invalid-page',failureReason:'identity-mismatch'});
+const diagnostic=scannerOperationalStatus(store.status(),clock);
+assert.equal(diagnostic.failureReasons['identity-mismatch'],1);assert(!JSON.stringify(diagnostic).includes(isin));
+assert.equal(db.prepare('SELECT COUNT(*) n FROM mf_scanner_points WHERE isin=?').get(isin).n>0,true,'Failed identity checks retain verified prior observations');
+clock=Date.parse('2026-10-08T19:00:00Z');
+assert.equal(store.status().olderPeriodCompanies,1);assert.equal(store.status().periods['2026-08'],1);assert.equal(store.status().currentCompanies,0);
+const {scannerFailureReason}=await import('./lib/mutual-funds-scanner.mjs');
+try{parseScannerStock(sample.replace(isin,'INE040A01034'),{isin,url,now:clock});assert.fail();}catch(error){assert.equal(scannerFailureReason(error),'identity-mismatch');}
+console.log('PASS scanner diagnostics: current period vs complete coverage, pending/unmapped reports, older periods, private validation causes and retained observations');
+
+const agedStatus=supplementStatus({supplement:{expectedCompanies:129,currentCompanies:0,targetMonth:'2026-09',olderPeriodCompanies:98,partialCompanies:5,latestPageCheckedAt:'2026-10-08T18:00:00Z'}});
+assert.match(agedStatus,/0\/129 complete company pages for September 2026/);assert.match(agedStatus,/98 retained pages from older periods/);assert.match(agedStatus,/5 pages have pending or unmapped fund reports/);assert(!agedStatus.includes('Not checked'));
+console.log('PASS visible scanner coverage: retained older observations, incomplete fund inventories and actual page check dates remain distinct');

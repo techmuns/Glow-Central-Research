@@ -252,6 +252,8 @@ const settleTables = () =>
     .catch(() => {});
 const rowCount = async () => {
   await settleTables();
+  const virtual = page.locator('#content-host [data-score-table][data-virtualized]');
+  if (await virtual.count()) return Number(await virtual.first().getAttribute('data-virtual-total'));
   return page.locator('tr[data-row-key]').count();
 };
 const SEARCH = '#content-host input[type="search"], #content-host input[placeholder*="Search"]';
@@ -436,7 +438,7 @@ const latestRows = await rowCount();
 ok('Latest Results renders the full listed universe', latestRows > 1000, `${latestRows} companies`);
 
 const ehText = await hostText();
-ok('states which quarter and which two periods', /Q\d\s*FY/i.test(ehText) && /\bvs\b/i.test(ehText));
+ok('states which quarter and which two periods', /Q\d\s*FY/i.test(ehText) && /\b(?:vs|against)\b/i.test(ehText));
 ok('says whether it is live or a snapshot', /\bLive\b/i.test(ehText) || /snapshot/i.test(ehText));
 // This tab deliberately has no stat strip and no sub-view picker: one table, one passive Live label.
 ok('no stat-card furniture in front of the table', (await page.locator('#content-host .stat-card').count()) === 0);
@@ -512,7 +514,7 @@ const ehSticky = await page.evaluate(async () => {
   const before = head.getBoundingClientRect().top;
   box.scrollTop = 800;
   await new Promise((r) => setTimeout(r, 250));
-  return { styled, moved: Math.abs(head.getBoundingClientRect().top - before), scrolled: box.scrollTop, rowsAbove: document.querySelector('#content-host tbody tr').getBoundingClientRect().top < before };
+  return { styled, moved: Math.abs(head.getBoundingClientRect().top - before), scrolled: box.scrollTop, rowsAbove: document.querySelector('#content-host tbody tr[data-row-key]').getBoundingClientRect().top < before };
 });
 ok('the table body scrolls inside its own box', ehSticky.scrolled > 0, `${ehSticky.scrolled}px`);
 if (ehSticky.styled) ok('...and the column headings stay put while it does', ehSticky.moved < 2 && ehSticky.rowsAbove, `head moved ${ehSticky.moved.toFixed(1)}px`);
@@ -524,7 +526,7 @@ ok('TICKER is not a column...', !ehHeads.some((h) => h.includes('TICKER')));
 ok('...nor INDUSTRY...', !ehHeads.some((h) => h.includes('INDUSTRY')));
 ok('...nor Return Since Result', !ehHeads.some((h) => h.includes('RETURN SINCE RESULT')));
 // Dropping them from the header must not drop them from the page — they moved under the name.
-const ehIdent = await page.locator('#content-host tbody tr').first().innerText();
+const ehIdent = await page.locator('#content-host tbody tr[data-row-key]').first().innerText();
 const ehSub = ehIdent.split('\n').find((l) => /[A-Z0-9&-]{2,}\s·\s\S/.test(l)) || '';
 ok('ticker and industry survive under the company name', !!ehSub, ehSub || ehIdent.replace(/\s+/g, ' ').slice(0, 60));
 ok('default sort is newest-first', /^DATE/.test(ehHeads[0]) && /▾/.test(ehHeads[0]));
@@ -552,7 +554,7 @@ const ehOrder = await page.evaluate(async () => {
   // middle of results season and false at 09:00, when exactly one company has filed. The property
   // under test holds either way; the list comparison did not.
   const index = new Map(payload.rows.map((r) => [r.scId, { date: r.resultDate || '', seq: r.seq ?? 0 }]));
-  const rendered = [...document.querySelectorAll('#content-host tbody tr')].map((tr) => tr.dataset.rowKey);
+  const rendered = [...document.querySelectorAll('#content-host tbody tr[data-row-key]')].map((tr) => tr.dataset.rowKey);
   const seen = rendered.map((k) => index.get(k)).filter(Boolean); // a row that filed mid-check is simply skipped
   const breaks = [];
   for (let i = 1; i < seen.length; i++) {
@@ -592,30 +594,43 @@ else skip('the table fits at 1440 with no horizontal scrollbar', 'compiled style
 // THE RECONCILIATION. The growth column and the two figure columns are three renderings of the
 // same fact, and a reader will trust the pair over the percentage. Recompute the percentage from
 // the two figures actually on screen and require it to agree with the one actually on screen.
-const ehRecon = await page.evaluate(() => {
+const ehRecon = await page.evaluate(async () => {
   const heads = [...document.querySelectorAll('#content-host thead th')].map((t) => t.innerText.trim().toUpperCase());
   const num = (s) => Number(String(s).replace(/[^0-9.-]/g, ''));
   const out = { checked: 0, bad: [] };
-  for (const tr of [...document.querySelectorAll('#content-host tbody tr')].slice(0, 60)) {
-    const td = [...tr.children].map((c) => c.innerText.trim());
-    for (const m of ['REVENUE', 'NET PROFIT']) {
-      const iCur = heads.findIndex((h) => h.startsWith(`${m} `) && h !== `${m} GROWTH`);
-      const iPct = heads.indexOf(`${m} GROWTH`);
-      if (iCur < 0 || iPct < 0) continue;
-      const cur = num(td[iCur]);
-      const pri = num(td[iCur + 1]);
-      const shown = td[iPct];
-      if (!/^[+-]?[\d.]+%$/.test(shown)) continue; // a pill, not a percentage — checked elsewhere
-      if (!Number.isFinite(cur) || !Number.isFinite(pri) || pri === 0) continue;
-      out.checked++;
-      const calc = ((cur - pri) / Math.abs(pri)) * 100;
-      // Rounding: the figures are whole crore and the percentage is a whole number, so a small
-      // integer-rounding gap is expected. A sign flip or a factor-of-two gap is not.
-      if (Math.abs(calc - num(shown)) > Math.max(2, Math.abs(num(shown)) * 0.05)) {
-        out.bad.push(`${td[1].replace(/\s+/g, ' ').slice(0, 32)} ${m}: ${pri}→${cur} shown ${shown}, computes ${calc.toFixed(0)}%`);
+  const seen = new Set();
+  const scroller = document.querySelector('#content-host [data-table-scroll]');
+  const originalTop = scroller?.scrollTop || 0;
+  // Sample real rows across the virtual table, retaining the >100 comparison
+  // gate. Spacer rows carry no reported figures and never count as companies.
+  for (const fraction of [0, 1 / 3, 2 / 3, 1]) {
+    if (scroller) scroller.scrollTop = fraction * (scroller.scrollHeight - scroller.clientHeight);
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    for (const tr of document.querySelectorAll('#content-host tbody tr[data-row-key]')) {
+      if (seen.has(tr.dataset.rowKey)) continue;
+      seen.add(tr.dataset.rowKey);
+      const td = [...tr.children].map((c) => c.innerText.trim());
+      for (const m of ['REVENUE', 'NET PROFIT']) {
+        const iCur = heads.findIndex((h) => h.startsWith(`${m} `) && h !== `${m} GROWTH`);
+        const iPct = heads.indexOf(`${m} GROWTH`);
+        if (iCur < 0 || iPct < 0) continue;
+        const cur = num(td[iCur]);
+        const pri = num(td[iCur + 1]);
+        const shown = td[iPct];
+        if (!/^[+-]?[\d.]+%$/.test(shown)) continue; // a pill, not a percentage — checked elsewhere
+        if (!Number.isFinite(cur) || !Number.isFinite(pri) || pri === 0) continue;
+        out.checked++;
+        const calc = ((cur - pri) / Math.abs(pri)) * 100;
+        // Rounding: the figures are whole crore and the percentage is a whole number, so a small
+        // integer-rounding gap is expected. A sign flip or a factor-of-two gap is not.
+        if (Math.abs(calc - num(shown)) > Math.max(2, Math.abs(num(shown)) * 0.05)) {
+          out.bad.push(`${td[1].replace(/\s+/g, ' ').slice(0, 32)} ${m}: ${pri}→${cur} shown ${shown}, computes ${calc.toFixed(0)}%`);
+        }
       }
     }
   }
+  if (scroller) scroller.scrollTop = originalTop;
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   return out;
 });
 ok('the figure columns reconcile with the growth column', ehRecon.checked > 100 && ehRecon.bad.length === 0, `${ehRecon.checked} checked${ehRecon.bad.length ? ' — ' + ehRecon.bad.slice(0, 3).join('; ') : ''}`);
@@ -663,7 +678,7 @@ const figuresFor = async (needle, timeout = 8000) => {
       const hs = [...document.querySelectorAll('#content-host thead th')].map((t) => t.innerText.trim().toUpperCase());
       const i = hs.findIndex((h) => h.startsWith('REVENUE ') && h !== 'REVENUE GROWTH');
       if (i < 0) return null;
-      for (const tr of document.querySelectorAll('#content-host tbody tr')) {
+      for (const tr of document.querySelectorAll('#content-host tbody tr[data-row-key]')) {
         const tds = [...tr.children].map((c) => c.innerText.trim());
         if (tds[1] && tds[1].toUpperCase().includes(n)) return { cur: tds[i], prior: tds[i + 1] };
       }
@@ -724,7 +739,7 @@ const hasLiveRoute = qoqProbe.live;
 // row happened to sort first. Read the name off the table rather than hard-coding it — the
 // committed snapshot and the live feed do not contain the same companies.
 const pinned = await page.evaluate(() => {
-  const tr = document.querySelector('#content-host tbody tr');
+  const tr = document.querySelector('#content-host tbody tr[data-row-key]');
   return (tr?.children[1]?.innerText || '').split('\n').map((x) => x.trim()).filter(Boolean).find((x) => x.length > 3) || '';
 });
 const yoyPinned = pinned ? await figuresFor(pinned.toUpperCase()) : null;
@@ -1061,7 +1076,7 @@ await page.locator('#content-host select').nth(1).selectOption('con');
 await page.waitForTimeout(500);
 const conOnly = await rowCount();
 ok('standalone + consolidated partition the set exactly', stdOnly > 0 && conOnly > 0 && stdOnly + conOnly === preBasis, `${stdOnly} STD + ${conOnly} CON = ${preBasis}`);
-ok('...and the rows actually carry that basis, spelled out', /Consolidated/.test(await page.locator('#content-host tbody tr').first().innerText()));
+ok('...and the rows actually carry that basis, spelled out', /Consolidated/.test(await page.locator('#content-host tbody tr[data-row-key]').first().innerText()));
 // AND, not OR: narrowing the other dropdown on top of this one must narrow further.
 await page.locator('#content-host select').first().selectOption('pat-up');
 await page.waitForTimeout(500);
@@ -1236,7 +1251,18 @@ console.log('\n— AI alerts —');
   ok('...in the Portfolio scope by default', /scope=portfolio/.test(page.url()), page.url());
 
   await go('/#/research/ai-alerts?scope=portfolio', 4500);
-  await page.locator('[data-ai-feed-status][data-state="complete"]').waitFor({ state: 'visible', timeout: 30000 });
+  // A completed source check can remain partial. This standalone server cannot
+  // answer every Worker route, and must never turn those failures into green.
+  await page.locator('[data-ai-feed-status][data-state="complete"], [data-ai-feed-status][data-state="partial"]').waitFor({ state: 'visible', timeout: 60000 });
+  const aiCoverage = await page.evaluate(async () => {
+    const coverage = await import('/js/data/coverage.js');
+    const alerts = await import('/js/data/daily-alerts.js');
+    const report = await alerts.collect({ scope: 'portfolio', holdings: coverage.holdings(), includeHistory: true, load: false, pool: 'ai' });
+    return { state: document.querySelector('[data-ai-feed-status]')?.dataset.state,
+      pending: report.pending, failed: report.feeds.filter(feed => feed.status === 'failed').map(feed => feed.id) };
+  });
+  ok('AI Alerts completes its check and accurately exposes failed source coverage', aiCoverage.pending === 0 &&
+    aiCoverage.state === (aiCoverage.failed.length ? 'partial' : 'complete'), JSON.stringify(aiCoverage));
 
   const aiCards = page.locator('[data-ai-card]');
   const aiCount = await aiCards.count();

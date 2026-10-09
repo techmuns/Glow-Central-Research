@@ -189,6 +189,7 @@ try {
   }
   const afterRows = await caRows();
   assert(afterRows.some(row => row.id === target.id), 'the filing is still listed');
+  assert(afterRows.find(row => row.id === target.id).relevance < target.relevance, 'the saved negative vote lowers its score');
   assert(afterRows.filter(row => row.date === target.date).findIndex(row => row.id === target.id) > beforeAt, 'the vote reorders the actual day');
   assert.equal((await caMeta()).total, beforeTotal, 'a vote never removes captured filings');
   ok('Important / Not important + Why? in the popup re-orders the day and hides nothing');
