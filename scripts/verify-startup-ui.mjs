@@ -22,7 +22,11 @@ const server = createServer(async (req, res) => {
     await sourcesPending;
     res.writeHead(503).end('{}'); return;
   }
+<<<<<<< HEAD
   if (gateTab && path === '/js/tabs/family-book.js') { tabRequested(); await tabPending; }
+=======
+  if (gateTab && path === '/js/tabs/ask-research.js') { tabRequested(); await tabPending; }
+>>>>>>> sattva/main
   const asset = path === '/' ? '/index.html' : path;
   const file = resolve(baseline && /\.(js|html)$/.test(asset) ? baseline : root, '.' + asset);
   if (!file.startsWith((baseline && /\.(js|html)$/.test(asset) ? resolve(baseline) : root) + sep)) {
@@ -80,7 +84,17 @@ try {
   if (process.env.STARTUP_CPU_RATE) await (await context.newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.STARTUP_CPU_RATE) });
   requests.length = 0;
   await page.goto(origin + '/#/research/ai-alerts', { waitUntil: 'domcontentloaded' });
+<<<<<<< HEAD
   await page.locator('[data-ai-card]').first().waitFor({ timeout: 20000 });
+=======
+  try {
+    await page.locator('[data-ai-card]').first().waitFor({ timeout: 20000 });
+  } catch (error) {
+    console.log(JSON.stringify({ errors, text: await page.locator('#app').innerText(),
+      cache: await page.evaluate(async () => (await import('/js/data/daily-alerts.js')).readCachedAlertWindow({ scope: 'portfolio' })) }));
+    throw error;
+  }
+>>>>>>> sattva/main
   const timing = await page.evaluate(() => ({ ...openingTimes,
     modules: performance.getEntriesByType('resource').filter(r => r.name.includes('/js/')).length,
     moduleBytes: performance.getEntriesByType('resource').filter(r => r.name.includes('/js/')).reduce((sum, r) => sum + r.decodedBodySize, 0) }));
@@ -88,28 +102,56 @@ try {
   if (baseline) { assert.deepEqual(errors, []); }
   else {
     const interfaceRequests = requests.filter(path => /^\/js\/tabs\/[^/]+\.js$/.test(path));
+<<<<<<< HEAD
     assert.deepEqual(interfaceRequests.sort(), ['/js/tabs/ai-alerts.js', '/js/tabs/corp-announcements-views.js', '/js/tabs/family-book-views.js']);
+=======
+    assert(interfaceRequests.includes('/js/tabs/ai-alerts.js'));
+    assert(!interfaceRequests.includes('/js/tabs/ask-research.js'), 'unselected research interface stays deferred');
+    assert(!interfaceRequests.includes('/js/tabs/news.js'), 'unselected news interface stays deferred');
+>>>>>>> sattva/main
     for (const path of small) if (path !== '/data/book.json') assert.equal(requests.filter(p => p === path).length, 1, `${path}: opening promise avoids a duplicate read`);
     const restored = await page.evaluate(async () => (await (await import('/js/data/daily-alerts.js')).readCachedAlertWindow({ scope: 'portfolio' })).events);
     assert.deepEqual(restored, saved, 'every cached record and field survives the faster opening');
     assert.equal(await page.locator('[data-ai-card]').count(), 8, 'only the first screen is mounted');
     const last = saved.at(-1);
     await page.locator('[data-ai-search]').fill(last.ticker);
+<<<<<<< HEAD
     await page.locator(`[data-ai-card][data-ticker="${last.ticker}"]`).waitFor();
     assert.match(await page.locator(`[data-ai-card][data-ticker="${last.ticker}"]`).innerText(), /evidence 29/, 'offscreen evidence is searchable');
     releaseSources();
     gateTab = true;
     await page.locator('[data-tab-id="family-book"]').click();
+=======
+    const resultCard = page.locator(`[data-ai-card][data-ticker="${last.ticker}"]`);
+    await resultCard.waitFor();
+    // Cards use content-visibility:auto. Attachment/visibility can precede its
+    // viewport paint, when innerText is still empty despite complete cached markup.
+    await resultCard.scrollIntoViewIfNeeded();
+    await page.waitForFunction(({ ticker, headline }) => [...document.querySelectorAll('[data-ai-card]')]
+      .some(card => card.dataset.ticker === ticker && card.innerText.includes(headline)), { ticker: last.ticker, headline: last.headline });
+    assert.match(await resultCard.innerText(), /evidence 29/, 'offscreen evidence is searchable and painted');
+    releaseSources();
+    gateTab = true;
+    await page.evaluate(() => { location.hash = '#/research/ask-research'; });
+>>>>>>> sattva/main
     await requestedTab;
     assert.equal(await page.locator('#content-host').evaluate(node => node.inert), true, 'old controls stay covered while the replacement imports');
     await page.locator('[data-header-bookmarks]').click();
     await page.locator('#content-host[data-active-tab="bookmarks"]').waitFor();
     releaseTab();
+<<<<<<< HEAD
     await page.evaluate(async () => { await (await import('/js/ui/tab-registry.js')).researchTabs.find(tab => tab.meta.id === 'family-book').load(); });
     assert.equal(await page.locator('#content-host').getAttribute('data-active-tab'), 'bookmarks', 'late import completion cannot repaint the newer route');
     const metadata = await page.evaluate(async () => {
       const { researchTabs } = await import('/js/ui/tab-registry.js');
       const fields = ['id', 'title', 'subviews', 'layout', 'inlineSubviews', 'subviewNavigation', 'allowEmptyScope', 'scopeIndependent'];
+=======
+    await page.evaluate(async () => { await (await import('/js/tabs/registry.js')).researchTabs.find(tab => tab.meta.id === 'ask-research').load(); });
+    assert.equal(await page.locator('#content-host').getAttribute('data-active-tab'), 'bookmarks', 'late import completion cannot repaint the newer route');
+    const metadata = await page.evaluate(async () => {
+      const { researchTabs } = await import('/js/tabs/registry.js');
+      const fields = ['id', 'title', 'navigationTitle', 'subviews', 'layout', 'inlineSubviews', 'allowEmptyScope', 'scopeIndependent', 'hideFromNavigation'];
+>>>>>>> sattva/main
       const pick = meta => Object.fromEntries(fields.map(field => [field, meta[field] ?? null]));
       return Promise.all(researchTabs.map(async tab => ({ routing: pick(tab.meta), actual: pick((await tab.load()).meta) })));
     });

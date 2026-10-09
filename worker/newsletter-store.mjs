@@ -32,8 +32,13 @@ import {
 
 export const NEWSLETTER_OBJECT = 'team-brief:v1';
 export const DELIVERY_HISTORY = 12;
+<<<<<<< HEAD
 export const MANUAL_SEND_LIMIT = 5;
 export const MANUAL_SEND_WINDOW_MS = 3600_000;
+=======
+export const MANUAL_SEND_LIMIT = 4;
+export const MANUAL_SEND_WINDOW_MS = 24 * 3600 * 1000;
+>>>>>>> sattva/main
 
 const iso = (at) => new Date(at).toISOString();
 const parseJson = (text, fallback) => { try { return JSON.parse(text); } catch { return fallback; } };
@@ -65,7 +70,28 @@ export class NewsletterStore {
     this.storage.sql.exec(`CREATE TABLE IF NOT EXISTS newsletter_documents (
       id TEXT PRIMARY KEY, filename TEXT NOT NULL, body BLOB NOT NULL, created_at TEXT NOT NULL,
       delivery_key TEXT, delivery_state TEXT NOT NULL DEFAULT 'pending')`);
+<<<<<<< HEAD
+=======
+    // Added after the table shipped: a deployment whose log predates it gains the column in place.
+    const columns = this.storage.sql.exec('PRAGMA table_info(newsletter_deliveries)').toArray();
+    if (!columns.some((c) => c.name === 'stories')) this.storage.sql.exec('ALTER TABLE newsletter_deliveries ADD COLUMN stories TEXT');
+    const documentColumns = this.storage.sql.exec('PRAGMA table_info(newsletter_documents)').toArray();
+    if (!documentColumns.some(c => c.name === 'delivery_key')) this.storage.sql.exec('ALTER TABLE newsletter_documents ADD COLUMN delivery_key TEXT');
+    if (!documentColumns.some(c => c.name === 'delivery_state')) this.storage.sql.exec("ALTER TABLE newsletter_documents ADD COLUMN delivery_state TEXT NOT NULL DEFAULT 'pending'");
+>>>>>>> sattva/main
     this.initialised = true;
+    // Migrate acknowledged Sattva story identities in place, once. Preserve subscribers,
+    // delivery claims and documents, including interrupted/partially acknowledged editions.
+    const meta = this.meta();
+    if (!meta.reportedMigrated) this.storage.transactionSync(() => {
+      const cutoff = iso(this.now() - REPORTED_RETENTION_MS);
+      const deliveries = this.rows("SELECT key,started_at,stories FROM newsletter_deliveries WHERE stories IS NOT NULL AND source != 'test' AND started_at >= ? ORDER BY started_at", cutoff);
+      for (const d of deliveries) for (const key of parseJson(d.stories, [])) {
+        if (typeof key !== 'string' || key.length > 512) continue;
+        this.rows('INSERT OR IGNORE INTO newsletter_reported(item,published_at,delivery,reported_at) VALUES (?,NULL,?,?)', key, d.key, d.started_at);
+      }
+      this.putMeta({ ...meta, reportedMigrated: true, ...(deliveries.length && !meta.reportedSince ? { reportedSince: iso(Date.parse(deliveries[0].started_at) - 26*3600000) } : {}) });
+    });
   }
 
   rows(sql, ...args) {
@@ -129,6 +155,7 @@ export class NewsletterStore {
 
   apply(input) {
     const intents = newsletterIntents(input);
+    this.init();
     return this.storage.transactionSync(() => {
       const meta = this.meta();
       let seq = meta.seq || 0;
@@ -190,6 +217,7 @@ export class NewsletterStore {
    * scheduled edition's key is `<day>:<edition>` and is claimed once, ever.
    */
   beginDelivery({ key, edition, day, scheduledAt = null, source, recipients }) {
+    this.init();
     return this.storage.transactionSync(() => {
       const existing = this.rows('SELECT key FROM newsletter_deliveries WHERE key = ?', key)[0];
       if (existing) return false;
@@ -207,6 +235,10 @@ export class NewsletterStore {
   }
 
   recordDeliveryProgress(key, { sent = 0, failed = 0, reason = null, outcomes = [], subject = null, summary = null, reported = [], windowFrom = null } = {}, finished = false) {
+<<<<<<< HEAD
+=======
+    this.init();
+>>>>>>> sattva/main
     this.storage.transactionSync(() => {
       this.rows(
         'UPDATE newsletter_deliveries SET finished_at = ?, sent = ?, failed = ?, reason = ?, subject = ?, outcomes = ?, summary = ? WHERE key = ?',
@@ -221,6 +253,10 @@ export class NewsletterStore {
   // budget survives object restarts and cannot be bypassed with another address or client IP.
   // Scheduled editions use their existing once-per-edition claims and do not spend this budget.
   claimManualDelivery(now = this.now()) {
+<<<<<<< HEAD
+=======
+    this.init();
+>>>>>>> sattva/main
     return this.storage.transactionSync(() => {
       this.rows('DELETE FROM newsletter_manual_attempts WHERE at <= ?', now - MANUAL_SEND_WINDOW_MS);
       const budget = this.rows('SELECT COUNT(*) AS count, MIN(at) AS first FROM newsletter_manual_attempts')[0];
@@ -298,6 +334,10 @@ export class NewsletterStore {
    * knowledge begins, and `reportedLookup().since` reports it.
    */
   markReported(items, delivery, { windowFrom = null } = {}) {
+<<<<<<< HEAD
+=======
+    this.init();
+>>>>>>> sattva/main
     return this.storage.transactionSync(() => this.markReportedRows(items, delivery, { windowFrom }));
   }
 
@@ -317,6 +357,13 @@ export class NewsletterStore {
     return { added };
   }
 
+<<<<<<< HEAD
+=======
+  sentStoryKeys() {
+    return new Set(this.rows('SELECT item FROM newsletter_reported').map(row => row.item));
+  }
+
+>>>>>>> sattva/main
   reportedCount() {
     return this.rows('SELECT COUNT(*) AS count FROM newsletter_reported')[0].count;
   }

@@ -1,5 +1,12 @@
 import { installColumnOrder } from './ui/column-order.js';
+<<<<<<< HEAD
 // app.js — bootstrap: adopt the early identity read, then mount the shell (which starts the
+=======
+// The default interface must be ready before source downloads occupy browser connections.
+// Secondary interfaces retain their shared lazy loaders and navigation ownership checks.
+import './tabs/ai-alerts.js';
+// app.js — bootstrap: load the JSON data set once, then mount the shell (which starts the
+>>>>>>> sattva/main
 // router and renders the first tab). Every tab reads its slice off `state.data` via ctx.data,
 // so there is exactly one fetch pass at startup and pollers handle everything after that.
 
@@ -12,7 +19,6 @@ import { mount } from './ui/shell.js';
 import { prime as primeBook } from './data/book.js';
 import { prime as primeTrackedUniverse } from './data/tracked-universe.js';
 import { adaptUniverse } from './data/universe.js';
-import { prime as primeFiled } from './data/institution-holdings.js';
 import { prime as primeCoverage, restoreLastGood } from './data/coverage.js';
 import { loadCompanyCaptureIndex } from './data/company-captures.js';
 import { startCaptureWatchdog } from './data/capture-watchdog.js';
@@ -52,11 +58,14 @@ const CRITICAL_SOURCES = {
 
 const DEFERRED_SOURCES = {
   universe: 'data/universe.json',
+<<<<<<< HEAD
   book: 'data/book.json',
   trackedUniverse: 'data/tracked-universe.json',
   // REAL: filed shareholdings scraped from Trendlyne, plus the AMC monthly portfolios. 347KB, and
   // read by exactly one sub-view.
   filedHoldings: 'data/institution-holdings.json',
+=======
+>>>>>>> sattva/main
 };
 
 async function fetchAll(sources, options = {}) {
@@ -103,11 +112,16 @@ function loadDeferred(data) {
       data.universeRaw = data.universe;
       data.universe = adaptUniverse(data.universeRaw);
 
+<<<<<<< HEAD
       // Institutions: filed shareholdings and AMC portfolios. The Superstar half of that tab loads
       // nothing from here — it is live off /api/super-investors, cached by js/core/store.js.
       primeFiled(data.filedHoldings);
       primeBook(data.book);
       primeTrackedUniverse(data.trackedUniverse);
+=======
+      // Institutions loads its own complete capture on demand through filed.load().
+      // Its download must not delay unrelated readers of the company index.
+>>>>>>> sattva/main
 
       // NOTHING HERE LOADS A LEDGER. The mock transactions file, portfolio.json and the 290KB
       // equity-curve history were fetched on every visit for the Portfolio Analytics workspace,

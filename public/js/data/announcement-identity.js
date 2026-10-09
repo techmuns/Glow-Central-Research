@@ -1,12 +1,16 @@
 // Announcement identities are independent of quote-provider symbols and book-date listing labels.
 // These three Yahoo SME aliases are verified against NSE filings (see DATA-CONTRACTS.md).
 const SME = { 'ALPEXSOLAR-SM': 'ALPEXSOLAR', 'JAYBEE-SM': 'JAYBEE', 'SAHANA-SM': 'SAHANA' };
-// These warrant lines refer to issuers whose equity ISINs are recorded in the same Family book.
+// Reviewed warrant-to-issuer relationships resolve against the current exchange directories.
 // Only company announcements use this relationship; the holdings themselves remain untouched.
+<<<<<<< HEAD
 // BUILDPRO subdivision effective 2026-10-08: NSE/CML/76711
 // https://nsearchives.nseindia.com/content/circulars/CML76711.pdf
 // Filing issuer identity only; the dated statement's ISIN, units and values are unchanged.
 const ISSUER_EQUITY = { INE24OJ01011: 'INE24OJ01029', INE564S13022: 'INE564S01019', INE0R4713012: 'INE0R4701017', INE666D13019: 'INE666D01022' };
+=======
+const ISSUER_EQUITY = { INE564S13022: 'INE564S01019', INE0R4713012: 'INE0R4701017', INE666D13019: 'INE666D01022' };
+>>>>>>> sattva/main
 export const announcementIssuerIsin = value => ISSUER_EQUITY[upper(value)] || upper(value);
 const upper = value => String(value || '').trim().toUpperCase();
 export const filingTicker = value => SME[upper(value)] || upper(value);
