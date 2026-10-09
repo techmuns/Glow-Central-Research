@@ -10,10 +10,22 @@ function fingerprint(value) {
   for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);
   return (hash >>> 0).toString(36);
 }
+<<<<<<< HEAD
 export function newsQueryIdentities(row, { includeStory = true } = {}) {
   const story = includeStory && articleStoryKey(row);
   return [row?.url ? `url:${canonicalArticleUrl(row.url)}` : '',
     row?.tradingViewId ? `tv:${row.tradingViewId}` : '', story ? `story:${story}` : ''].filter(Boolean).map(fingerprint);
+=======
+export function newsQueryIdentities(row) {
+  const story = articleStoryKey(row);
+  // A republished copy shares neither address nor TradingView id with its original, only the
+  // headline `dedupeArticles` folds it on. Past midnight IST the copy lands on the next day, so
+  // without this a one-day read kept a copy the full history drops (Mint's Pine Labs story of
+  // 21 September 2026, republished by TradingView at 00:06 IST on the 22nd).
+  return [row?.url ? `url:${canonicalArticleUrl(row.url)}` : '',
+    row?.tradingViewId ? `tv:${row.tradingViewId}` : '',
+    story ? `story:${story}` : ''].filter(Boolean).map(fingerprint);
+>>>>>>> sattva/main
 }
 export const newsQueryIdentity = row => newsQueryIdentities(row)[0] || '';
 export function newsQueryIndexRow(row) {

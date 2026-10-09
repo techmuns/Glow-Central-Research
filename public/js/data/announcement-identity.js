@@ -1,7 +1,7 @@
 // Announcement identities are independent of quote-provider symbols and book-date listing labels.
 // These three Yahoo SME aliases are verified against NSE filings (see DATA-CONTRACTS.md).
 const SME = { 'ALPEXSOLAR-SM': 'ALPEXSOLAR', 'JAYBEE-SM': 'JAYBEE', 'SAHANA-SM': 'SAHANA' };
-// These warrant lines refer to issuers whose equity ISINs are recorded in the same Family book.
+// Reviewed warrant-to-issuer relationships resolve against the current exchange directories.
 // Only company announcements use this relationship; the holdings themselves remain untouched.
 const ISSUER_EQUITY = { INE564S13022: 'INE564S01019', INE0R4713012: 'INE0R4701017', INE666D13019: 'INE666D01022' };
 export const announcementIssuerIsin = value => ISSUER_EQUITY[upper(value)] || upper(value);

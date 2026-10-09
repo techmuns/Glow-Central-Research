@@ -1,6 +1,7 @@
+import { TAB_META } from './catalog.js';
 import * as live from '../data/breakout-live.js';
 import { filterByScope, scopeTickers } from '../data/scope.js';
-import { topCards, scoreTable, sectionHead, openModal } from '../ui/screener.js';
+import { topCards, scoreTable, sectionHead, openModal, statStrip } from '../ui/screener.js';
 import { legendStrip } from '../ui/visual.js';
 import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
@@ -13,17 +14,9 @@ import { openTechnicalsDrill, fmtPoints } from './breakouts-drill.js';
 import * as coverage from '../data/coverage.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { TECHNICAL_FILTERS, TECHNICAL_DEFAULTS, chipCounts } from './technical-filters.js';
+import * as momentum from '../scoring/momentum-live.js';
 
-export const meta = {
-  id: 'breakouts',
-  title: 'Breakouts / Technical',
-  subtitle: 'Daily technical scoring and captured prices across the NSE 500 and every listed holding — 16 rules, 24 points.',
-  subviews: [
-    { id: 'strong-breakouts', label: 'Strong Breakouts' },
-    { id: 'technical-scanner', label: 'Technical Scanner' },
-    { id: 'fii-accumulation', label: 'FII Accumulation' },
-  ],
-};
+export const meta = TAB_META['breakouts'];
 
 // Bumped on every render so a slow load that resolves after the user navigated away is
 // discarded instead of painting over whatever is now on screen.
@@ -105,6 +98,7 @@ function paint(ctx) {
   const view = {
     'strong-breakouts': renderStrongBreakouts,
     'technical-scanner': renderScanner,
+    'momentum-scanner': renderMomentumScanner,
     'fii-accumulation': renderFiiAccumulation,
   }[ctx.subview] || renderStrongBreakouts;
 
@@ -707,6 +701,338 @@ function dmaPill(v) {
   return v
     ? '<span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">Above</span>'
     : '<span class="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200">Below</span>';
+}
+
+// ---- (d) Momentum Scanner ------------------------------------------------------------------
+//
+// A UNIVERSE-WIDE live technical screener. Everything a filter needs is recomputed on the
+// in-progress candle from the current price by `js/scoring/momentum-live.js` — the SAME Wilder /
+// EMA steps the data pipeline uses — so this view is driven entirely by the live quote feed that
+// `render()` already subscribes to (`liveOff = live.watch(...) -> paint`). Nothing here re-fetches:
+// a threshold or gate change rewrites the URL and re-paints from the cached daily data, exactly as
+// the chip bar does.
+//
+// The two filters, their conditions and the client's default thresholds all live in momentum-live.js
+// as DATA, built to grow toward ~40. This renderer only draws them and wires the controls.
+
+// URL params, namespaced so they cannot collide with the other sub-views' chip params.
+const MGATE_PARAM = 'mgate';
+const MTHRESH_PARAM = { rsiD1: 'mrd1', rsiW: 'mrw', rsiM: 'mrm', rsiD2: 'mrd2', volMult: 'mvm' };
+
+function readMomentumGate(params) {
+  return momentum.GATES.includes(params[MGATE_PARAM]) ? params[MGATE_PARAM] : 'strong-momentum';
+}
+function readMomentumThresholds(params) {
+  const raw = {};
+  for (const f of momentum.THRESHOLD_FIELDS) {
+    const p = MTHRESH_PARAM[f.key];
+    if (params[p] != null && params[p] !== '') raw[f.key] = params[p];
+  }
+  return momentum.clampThresholds(raw);
+}
+
+// One live recompute per company per paint, with both filters pre-evaluated so the columns, the
+// gate and the sort all read the same object rather than recomputing it.
+function momentumLiveFor(s, thresholds) {
+  const c = s.company;
+  const info = live.priceInfo(c);
+  const q = live.quote(c.ticker);
+  const v = momentum.liveIndicators(c, info.price, q?.volume ?? null, q?.prevClose ?? c.cmp ?? null);
+  v.isLiveQuote = !info.stale && !!q;
+  v.f1 = momentum.evaluateFilter('strong-momentum', v, thresholds);
+  v.f2 = momentum.evaluateFilter('volume-momentum', v, thresholds);
+  return v;
+}
+
+const mPillBase = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ring-1';
+const M_PASS = 'bg-emerald-50 text-emerald-700 ring-emerald-200';
+const M_FAIL = 'bg-rose-50 text-rose-700 ring-rose-200';
+const M_NA = 'bg-slate-100 text-slate-500 ring-slate-200';
+
+function conditionTitle(result) {
+  return result.conditions.map((c) => `${c.ok ? '✓' : '✕'} ${c.label}${c.live && c.live !== '—' ? ` (${c.live})` : ''}`).join(' · ');
+}
+function filterPill(result) {
+  if (!result.evaluable) return `<span class="${mPillBase} ${M_NA}" title="No Step-1 momentum fields for this stock yet — pending the next data refresh.">Pending</span>`;
+  const cls = result.pass ? M_PASS : M_FAIL;
+  const text = result.pass ? '✓ Pass' : '✕ Fail';
+  return `<span class="${mPillBase} ${cls}" title="${escapeHtml(conditionTitle(result))}">${text}</span>`;
+}
+// A provisional figure is recomputed on the live price; otherwise it is advanced from the last
+// completed daily close. Said once in a tooltip so the number is never mistaken for a settled one.
+const provNote = (live) => (live ? 'Live / provisional — recomputed on the current price.' : 'Provisional — advanced from the last completed daily close.');
+function rsiLiveCell(v, tf) {
+  const val = v[tf];
+  if (val == null) return '<span class="text-slate-300">—</span>';
+  const tone = val >= 55 && val <= 75 ? 'pos' : val > 75 ? 'warn' : val < 40 ? 'neg' : null;
+  return `<span title="${escapeHtml(provNote(v.isLiveQuote))}">${toneSpan(num(val, 1), tone)}</span>`;
+}
+function momentumVolCell(v, volMult) {
+  if (v.volRatio10d == null) return `<span class="text-slate-300" title="No live volume yet, or no 10-day average in the daily file.">—</span>`;
+  const r = v.volRatio10d;
+  const title = `Today's cumulative volume so far vs the 10-day average. Threshold ≥ ${Number(volMult).toFixed(1)}×. ${provNote(v.isLiveQuote)}`;
+  return `<span title="${escapeHtml(title)}">${toneSpan(`${num(r, 2)}×`, r >= volMult ? 'pos' : r >= 1 ? 'warn' : 'neg')}</span>`;
+}
+function macdPill(v) {
+  if (v.macdBullish == null) return `<span class="${mPillBase} ${M_NA}">—</span>`;
+  const title = `MACD line ${num(v.macdLine, 2)} vs signal ${num(v.macdSignal, 2)} · ${v.macdAboveZero ? 'above' : 'below'} zero. ${provNote(v.isLiveQuote)}`;
+  if (v.freshCross) return `<span class="${mPillBase} ${M_PASS}" title="Fresh bullish crossover on the live candle. ${escapeHtml(title)}">⚡ Bullish</span>`;
+  if (v.macdBullish) return `<span class="${mPillBase} ${M_PASS}" title="${escapeHtml(title)}">Bullish</span>`;
+  return `<span class="${mPillBase} ${M_FAIL}" title="${escapeHtml(title)}">Bearish</span>`;
+}
+function dma20Pill(v) {
+  if (v.above20dma == null) return `<span class="${mPillBase} ${M_NA}">—</span>`;
+  const title = `Live price ${v.price == null ? '—' : v.price.toFixed(2)} vs 20 DMA ${v.sma20 == null ? '—' : v.sma20.toFixed(2)}.`;
+  if (v.above20dma) {
+    const crossed = v.priorAbove20dma === false;
+    return `<span class="${mPillBase} ${M_PASS}" title="${escapeHtml(title)}${crossed ? ' Crossed above today.' : ''}">${crossed ? 'Crossed ↑' : 'Above'}</span>`;
+  }
+  return `<span class="${mPillBase} ${M_FAIL}" title="${escapeHtml(title)}">Below</span>`;
+}
+
+function momentumControls(gate, thresholds) {
+  const gates = [
+    { id: 'strong-momentum', label: momentum.MOMENTUM_FILTERS['strong-momentum'].label },
+    { id: 'volume-momentum', label: momentum.MOMENTUM_FILTERS['volume-momentum'].label },
+    { id: 'both', label: 'Both' },
+  ];
+  const gateBtns = gates
+    .map((g) => `<button type="button" data-mgate="${g.id}" class="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+      gate === g.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+    }">${escapeHtml(g.label)}</button>`)
+    .join('');
+  const inputs = momentum.THRESHOLD_FIELDS
+    .map((f) => `<label class="inline-flex items-center gap-1.5 text-xs text-slate-600" title="${escapeHtml(momentum.MOMENTUM_FILTERS[f.filter].label)}">
+        <span class="font-semibold text-slate-500">${escapeHtml(momentum.MOMENTUM_FILTERS[f.filter].label)} · ${escapeHtml(f.label)}</span>
+        <input type="number" data-mthreshold="${f.key}" value="${thresholds[f.key]}" min="${f.min}" max="${f.max}" step="${f.step}" inputmode="decimal"
+          class="w-16 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-right text-sm tabular-nums focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      </label>`)
+    .join('');
+  return `
+    <div class="mb-5 space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100" data-momentum-controls>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="w-24 flex-shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400">Show</span>
+        <div class="flex flex-wrap gap-2" data-mgate-bar>${gateBtns}</div>
+      </div>
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span class="w-24 flex-shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400">Thresholds</span>
+        ${inputs}
+        <button type="button" data-mreset class="text-xs font-semibold text-indigo-600 hover:text-indigo-800">Reset</button>
+      </div>
+    </div>`;
+}
+
+function wireMomentumControls(root, ctx) {
+  root.querySelector('[data-mgate-bar]')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-mgate]');
+    if (!btn) return;
+    ctx.setParams({ ...(ctx.params || {}), [MGATE_PARAM]: btn.dataset.mgate });
+  });
+  root.querySelectorAll('[data-mthreshold]').forEach((input) => {
+    // Commit on change (blur / Enter), not per keystroke: a mid-type re-mount would take the caret.
+    input.addEventListener('change', () => {
+      const p = MTHRESH_PARAM[input.dataset.mthreshold];
+      const next = { ...(ctx.params || {}) };
+      if (input.value === '') delete next[p];
+      else next[p] = String(input.value);
+      ctx.setParams(next);
+    });
+  });
+  root.querySelector('[data-mreset]')?.addEventListener('click', () => {
+    const next = { ...(ctx.params || {}) };
+    delete next[MGATE_PARAM];
+    for (const f of momentum.THRESHOLD_FIELDS) delete next[MTHRESH_PARAM[f.key]];
+    ctx.setParams(next);
+  });
+}
+
+// The compact summary that sits above the ranked table. `statStrip` is the kit's 4-up KPI row;
+// the counts are read straight off the pre-evaluated filter results so they move with the live
+// quote and the thresholds exactly as the table does, and they describe BOTH filters at once,
+// which the gate-specific count line beneath cannot. Card 4 is the gradient hero per the kit.
+function momentumStatStrip(rows, vf, evaluable, pending) {
+  const f1 = rows.reduce((n, s) => n + (vf(s).f1.pass ? 1 : 0), 0);
+  const f2 = rows.reduce((n, s) => n + (vf(s).f2.pass ? 1 : 0), 0);
+  const both = rows.reduce((n, s) => { const v = vf(s); return n + (v.f1.pass && v.f2.pass ? 1 : 0); }, 0);
+  return statStrip([
+    {
+      label: 'Scanned',
+      value: formatNumber(evaluable.length),
+      note: pending ? `${formatNumber(pending)} pending data refresh` : `of ${formatNumber(rows.length)} in scope`,
+      help: {
+        title: 'How the Momentum Scanner reads',
+        body: `<p>Every figure here is recomputed <strong>live</strong> on the in-progress candle from the current price — the same Wilder (RSI) and EMA (MACD) steps the daily data pipeline uses — so the counts move with the quote feed and with the thresholds you set above. Nothing is estimated and nothing is mock.</p>
+          <p class="mt-2"><strong>Scanned</strong> is the number of stocks that carry the Step-1 indicator fields and can therefore be evaluated. <strong>Pending</strong> stocks are awaiting the next daily data refresh and are left out of every count until it lands.</p>
+          <p class="mt-2">Each card counts the evaluated stocks that clear that filter at the current thresholds, independent of which view the toggle shows.</p>`,
+      },
+    },
+    { label: momentum.MOMENTUM_FILTERS['strong-momentum'].label, value: formatNumber(f1), note: 'stocks pass' },
+    { label: momentum.MOMENTUM_FILTERS['volume-momentum'].label, value: formatNumber(f2), note: 'stocks pass' },
+    { hero: true, label: 'Pass Both', value: formatNumber(both), note: 'Strong + Volume' },
+  ]);
+}
+
+// A compact, hand-built stacked bar of the current passers by sector — no chart library. It
+// summarises the result set already on screen; it never replaces or reorders the table. Segment
+// colours walk the brand ramp (indigo → purple → pink), which is constant in both themes exactly
+// like the hero gradient; the "Other" bucket uses the neutral token, which does flip. Every
+// segment and legend chip carries the rule and the live figure in its own tooltip.
+const MSECTOR_RAMP = ['#4f46e5', '#6366f1', '#818cf8', '#a855f7', '#c084fc', '#d946ef', '#ec4899', '#f472b6'];
+function momentumSectorBar(passers) {
+  if (!passers.length) return '';
+  const counts = new Map();
+  for (const s of passers) {
+    const sector = (s.company.sector || '').trim() || 'Unclassified';
+    counts.set(sector, (counts.get(sector) || 0) + 1);
+  }
+  // Busiest sector first; alphabetical as a stable tie-break so the paint is deterministic.
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const TOP = 7;
+  const segs = sorted.length > TOP + 1
+    ? [...sorted.slice(0, TOP), ['Other', sorted.slice(TOP).reduce((n, [, c]) => n + c, 0)]]
+    : sorted;
+  const total = passers.length;
+  const colourFor = (name, i) => (name === 'Other' ? 'var(--neutral)' : MSECTOR_RAMP[i % MSECTOR_RAMP.length]);
+  const pctText = (pct) => (pct < 10 ? pct.toFixed(1) : Math.round(pct).toString());
+
+  let cum = 0;
+  const rects = segs
+    .map(([name, count], i) => {
+      const pct = (count / total) * 100;
+      const x = cum;
+      cum += pct;
+      const title = `${name}: ${count} of ${total} (${pctText(pct)}%)`;
+      return `<rect x="${x.toFixed(3)}" y="0" width="${pct.toFixed(3)}" height="10" style="fill:${colourFor(name, i)}"><title>${escapeHtml(title)}</title></rect>`;
+    })
+    .join('');
+
+  const legend = segs
+    .map(([name, count], i) => `
+      <span class="inline-flex items-center gap-2 text-[11px] text-slate-600" title="${escapeHtml(`${name}: ${count} of ${total} passing`)}">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:3px;flex:0 0 auto;background:${colourFor(name, i)}"></span>
+        <span class="truncate" style="max-width:11rem">${escapeHtml(name)}</span>
+        <span class="font-semibold tabular-nums text-slate-800">${formatNumber(count)}</span>
+      </span>`)
+    .join('');
+
+  return `
+    <section class="mb-5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100" aria-label="Passing stocks by sector">
+      <div class="mb-2 flex items-baseline justify-between gap-2">
+        <div class="text-xs font-bold uppercase tracking-wider text-slate-500">Passers by sector</div>
+        <div class="text-[11px] text-slate-400">${formatNumber(total)} ${total === 1 ? 'stock' : 'stocks'} · ${segs.length} ${segs.length === 1 ? 'sector' : 'sectors'}</div>
+      </div>
+      <div class="overflow-hidden rounded-lg ring-1 ring-slate-100">
+        <svg viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="Sector distribution of passing stocks" style="display:block;width:100%;height:26px">${rects}</svg>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-x-4 gap-y-2">${legend}</div>
+    </section>`;
+}
+
+function renderMomentumScanner(ctx, rows) {
+  const gate = readMomentumGate(ctx.params || {});
+  const thresholds = readMomentumThresholds(ctx.params || {});
+  const gateLabel = { 'strong-momentum': 'Strong Momentum', 'volume-momentum': 'Volume + Momentum', both: 'both filters' }[gate];
+
+  // One recompute per row, shared by every cell, the gate and the sort.
+  const liveMap = new Map(rows.map((s) => [s.company.ticker, momentumLiveFor(s, thresholds)]));
+  const vf = (s) => liveMap.get(s.company.ticker);
+
+  const evaluable = rows.filter((s) => vf(s).evaluable);
+  const pending = rows.length - evaluable.length;
+  const passers = rows.filter((s) => momentum.passesGate(gate, vf(s), thresholds));
+
+  // Compact summary above the hero table: a 4-up KPI strip (both filters at once) and a sector
+  // mini-bar of the current gate's passers. Both are rebuilt on every paint, so they track the
+  // live quote and the thresholds with the table rather than going stale beside it.
+  const strip = momentumStatStrip(rows, vf, evaluable, pending);
+  const sectorBar = momentumSectorBar(passers);
+
+  const pill = livePill();
+  const col = (label, build, sortValue, align = 'left') => ({ label, get: (s) => build(vf(s)), html: true, align, sortValue: (s) => sortValue(vf(s)) });
+
+  const table = scoreTable({
+    ...tableBase(passers, ctx),
+    initialView: tableViews.get(ctx.subview) || (ctx.params?.company ? { q: String(ctx.params.company).trim().toUpperCase() } : null),
+    nameLabel: 'Stock',
+    emptyMessage:
+      pending === rows.length && rows.length
+        ? 'No momentum data yet — the daily file has not been refreshed with the Step-1 fields (SMA/RSI state/MACD EMAs). Run the "Data refresh" workflow or wait for the next scheduled run; rows appear automatically once it lands.'
+        : 'No stocks currently meet these conditions — try relaxing a threshold above.',
+    columns: [
+      { label: 'Price', get: (s) => cmpCell(s.company), html: true, align: 'right', sortValue: (s) => live.priceInfo(s.company).price ?? -1 },
+      col('Strong Momentum', (v) => filterPill(v.f1), (v) => (v.f1.pass ? 1 : 0)),
+      col('Volume + Momentum', (v) => filterPill(v.f2), (v) => (v.f2.pass ? 1 : 0)),
+      col('Volume vs 10D Avg', (v) => momentumVolCell(v, thresholds.volMult), (v) => v.volRatio10d ?? -1, 'right'),
+      col('RSI Daily', (v) => rsiLiveCell(v, 'rsiDaily'), (v) => v.rsiDaily ?? -1, 'right'),
+      col('RSI Weekly', (v) => rsiLiveCell(v, 'rsiWeekly'), (v) => v.rsiWeekly ?? -1, 'right'),
+      col('RSI Monthly', (v) => rsiLiveCell(v, 'rsiMonthly'), (v) => v.rsiMonthly ?? -1, 'right'),
+      col('MACD', (v) => macdPill(v), (v) => (v.freshCross ? 2 : v.macdBullish ? 1 : 0)),
+      col('20-DMA Status', (v) => dma20Pill(v), (v) => (v.above20dma ? 1 : 0)),
+    ],
+    // The two filter columns carry their full names now, so let headings wrap to two lines
+    // instead of forcing those columns as wide as "Volume + Momentum".
+    wrapHeads: true,
+    initialSort: { key: 'RSI Daily', dir: 'desc' },
+    exportName: `glow-momentum-${todayStamp()}`,
+    onExport: (visible, filename) => runMomentumExport(visible, filename, thresholds),
+  });
+
+  const scopeHint =
+    ctx.scope !== 'universe'
+      ? ` <span class="text-slate-400">This screener is built for the full universe — switch scope to Universe to screen every listed company.</span>`
+      : '';
+
+  ctx.root.innerHTML = `
+    ${sectionHead({
+      title: meta.title,
+      description:
+        'A live momentum screener across the top-500 universe. Adjust the thresholds and the list re-filters instantly.',
+      meta: `<div class="flex flex-wrap items-center justify-end gap-2">${pill.html}${scopeSummary({ scope: ctx.scope, count: passers.length, noun: 'passing', book: coverage.meta() })}</div>`,
+    })}
+    ${momentumControls(gate, thresholds)}
+    ${strip.html}
+    ${sectorBar}
+    <div class="mb-3 text-xs text-slate-500"><span class="font-semibold text-slate-700">${formatNumber(passers.length)} of ${formatNumber(evaluable.length)}</span> evaluable ${evaluable.length === 1 ? 'stock passes' : 'stocks pass'} ${escapeHtml(gateLabel)}.${
+      pending ? ` <span data-momentum-pending="${pending}">${formatNumber(pending)} ${pending === 1 ? 'stock is' : 'stocks are'} pending the momentum data refresh and cannot be evaluated yet.</span>` : ''
+    }${scopeHint}</div>
+    ${table.html}
+  `;
+
+  pill.wire(ctx.root);
+  strip.wire(ctx.root);
+  tableViews.set(ctx.subview, table.view);
+  tableOff = table.wire(ctx.root);
+  wireMomentumControls(ctx.root, ctx);
+}
+
+function runMomentumExport(visibleRows, filename, thresholds) {
+  const rows = visibleRows.filter((s) => s.company);
+  const vmap = new Map(rows.map((s) => [s.company.ticker, momentumLiveFor(s, thresholds)]));
+  const vf = (s) => vmap.get(s.company.ticker);
+  const yn = (b) => (b == null ? '' : b ? 'Yes' : 'No');
+  const columns = [
+    { header: 'Company', key: 'name', width: 30, get: (s) => s.company.name || '' },
+    { header: 'Ticker', key: 'ticker', width: 14, get: (s) => s.company.ticker || '' },
+    { header: 'Sector', key: 'sector', width: 22, get: (s) => s.company.sector || '' },
+    { header: 'Price', key: 'price', width: 12, get: (s) => vf(s).price ?? null },
+    { header: 'Quote source and time', key: 'quote_time', width: 40, get: (s) => live.priceInfo(s.company).label },
+    { header: 'Filter 1 (Strong Momentum)', key: 'f1', width: 24, get: (s) => yn(vf(s).f1.pass) },
+    { header: 'Filter 2 (Volume + Momentum)', key: 'f2', width: 26, get: (s) => yn(vf(s).f2.pass) },
+    { header: 'Volume vs 10D avg (× so far today)', key: 'vol', width: 30, get: (s) => (vf(s).volRatio10d == null ? null : Number(vf(s).volRatio10d.toFixed(2))) },
+    { header: 'RSI Daily (live)', key: 'rsid', width: 16, get: (s) => (vf(s).rsiDaily == null ? null : Number(vf(s).rsiDaily.toFixed(2))) },
+    { header: 'RSI Weekly (live)', key: 'rsiw', width: 16, get: (s) => (vf(s).rsiWeekly == null ? null : Number(vf(s).rsiWeekly.toFixed(2))) },
+    { header: 'RSI Monthly (live)', key: 'rsim', width: 16, get: (s) => (vf(s).rsiMonthly == null ? null : Number(vf(s).rsiMonthly.toFixed(2))) },
+    { header: 'MACD bullish (live)', key: 'macd', width: 16, get: (s) => yn(vf(s).macdBullish) },
+    { header: 'MACD fresh cross', key: 'xcross', width: 16, get: (s) => yn(vf(s).freshCross) },
+    { header: 'Above 20 DMA (live)', key: 'd20', width: 16, get: (s) => yn(vf(s).above20dma) },
+    { header: 'Above 50 DMA (live)', key: 'd50', width: 16, get: (s) => yn(vf(s).above50dma) },
+    { header: 'Above 100 DMA (live)', key: 'd100', width: 17, get: (s) => yn(vf(s).above100dma) },
+    { header: 'Above 200 DMA (live)', key: 'd200', width: 17, get: (s) => yn(vf(s).above200dma) },
+    { header: 'Thresholds', key: 'thr', width: 44, get: () => `RSI D1>${thresholds.rsiD1}, W>${thresholds.rsiW}, M>${thresholds.rsiM}; F2 RSI D>${thresholds.rsiD2}, Vol≥${thresholds.volMult}×` },
+  ];
+  exportRows({ filename, sheetName: 'Momentum Scanner', columns, rows }).then((ok) => {
+    if (!ok) console.warn('[breakouts] momentum export did not complete — exceljs unavailable.');
+  });
 }
 
 // ---- Excel export ----------------------------------------------------------------------------

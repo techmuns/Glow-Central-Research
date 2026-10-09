@@ -5,9 +5,13 @@ let lastDispatch = 0, apiTag = null;
 let byTicker = new Map(), insidersByTicker = new Map();
 let snapshot = null, rows = [], pending = null, loaded = false, lastCheck = 0, timer = null, deliveryError = null;
 const listeners = new Set();
+<<<<<<< HEAD
 // Only active readers keep the 60-second check running. A cache observer (All Alerts' source
 // watcher stays subscribed for the page's lifetime) passes `poll: false`, so leaving the last
 // reader stops the background reads instead of polling for ever.
+=======
+// Cache observers receive updates without keeping the active-reader poll alive.
+>>>>>>> sattva/main
 const pollers = new Set();
 // A repaint may replace a subscription; deliver each revision to the original listeners once.
 const emit = () => [...listeners].forEach((fn) => fn());

@@ -32,7 +32,11 @@ const server = createServer((req, res) => {
   } catch { res.writeHead(404); res.end('{}'); }
 });
 await new Promise((done) => server.listen(0, '127.0.0.1', done));
+<<<<<<< HEAD
 const browser = await chromium.launch();
+=======
+const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
+>>>>>>> sattva/main
 const page = await browser.newPage();
 const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
