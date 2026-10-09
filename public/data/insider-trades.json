@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-09T17:09:25.775Z",
-  "oldestDataAt": "2026-10-09T17:09:25.775Z",
-  "from": "2025-10-09",
-  "to": "2026-10-09",
+  "capturedAt": "2026-10-09T20:20:21.860Z",
+  "oldestDataAt": "2026-10-09T20:20:21.860Z",
+  "from": "2025-10-10",
+  "to": "2026-10-10",
   "windowDays": 365,
   "coverageFrom": "2026-08-05",
   "scope": "exchange",
@@ -22,13 +22,13 @@
       "id": "bulk",
       "label": "Bulk deal",
       "url": "https://www.screener.in/trades/bulk/?o=-2",
-      "pagesRead": 10,
+      "pagesRead": 2,
       "latestDate": "2026-10-09",
-      "oldestDate": "2026-10-08",
+      "oldestDate": "2026-10-09",
       "bootstrapDays": null,
       "ok": true,
-      "rowCount": 250,
-      "capturedAt": "2026-10-09T17:09:25.775Z",
+      "rowCount": 50,
+      "capturedAt": "2026-10-09T20:20:21.860Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-09T17:09:25.775Z",
+      "capturedAt": "2026-10-09T20:20:21.860Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-09T17:09:25.775Z",
+      "capturedAt": "2026-10-09T20:20:21.860Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-09T17:09:25.775Z",
+      "capturedAt": "2026-10-09T20:20:21.860Z",
       "coverageFrom": "2026-08-04"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 1912,
   "emptyCount": 0,
-  "rowCount": 20613,
+  "rowCount": 20608,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -127350,28 +127350,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "NAZARA",
-        "date": "2025-10-09",
-        "cells": {
-          "Company": "NAZARA",
-          "Insider": "SBI Mutual Fund",
-          "Category": "None",
-          "Security Type": null,
-          "Transaction": "Disposal",
-          "Trade Shares": "42191",
-          "Trade %": "0.04",
-          "Trade Value": null,
-          "Post Holding Shares": "5591528",
-          "Post Holding %": "6.03",
-          "Mode": "Market",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-18",
-          "Broadcast Date": "2025-10-09",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "LALPATHLAB": [
@@ -162368,50 +162346,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "NATCOPHARM",
-        "date": "2025-10-09",
-        "cells": {
-          "Company": "NATCOPHARM",
-          "Insider": "Satya Vani Nannapaneni",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Disposal",
-          "Trade Shares": "17149",
-          "Trade %": "0.01",
-          "Trade Value": null,
-          "Post Holding Shares": "402851",
-          "Post Holding %": "0.22",
-          "Mode": "Market",
-          "From Date": "2025-09-08",
-          "To Date": "2025-09-10",
-          "Broadcast Date": "2025-10-09",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NATCOPHARM",
-        "date": "2025-10-09",
-        "cells": {
-          "Company": "NATCOPHARM",
-          "Insider": "Satya Vani Nannapaneni",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Disposal",
-          "Trade Shares": "23000",
-          "Trade %": "0.01",
-          "Trade Value": null,
-          "Post Holding Shares": "379851",
-          "Post Holding %": "0.21",
-          "Mode": "Market",
-          "From Date": "2025-09-16",
-          "To Date": "2025-09-16",
-          "Broadcast Date": "2025-10-09",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "TIINDIA": [
@@ -180694,28 +180628,6 @@
           "To Date": "2025-11-11",
           "Broadcast Date": "2026-01-15",
           "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ASAHIINDIA",
-        "date": "2025-10-09",
-        "cells": {
-          "Company": "ASAHIINDIA",
-          "Insider": "Sanjay Labroo",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Others",
-          "Trade Shares": "400000",
-          "Trade %": null,
-          "Trade Value": null,
-          "Post Holding Shares": "4200000",
-          "Post Holding %": null,
-          "Mode": "Release",
-          "From Date": "2025-09-26",
-          "To Date": "2025-09-26",
-          "Broadcast Date": "2025-10-09",
-          "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
       }
@@ -206080,28 +205992,6 @@
           "From Date": "2026-02-12",
           "To Date": "2026-02-12",
           "Broadcast Date": "2026-02-19",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "NETWEB",
-        "date": "2025-10-09",
-        "cells": {
-          "Company": "NETWEB",
-          "Insider": "Goldman Sachs Asset Management International & PACs",
-          "Category": "Other",
-          "Security Type": null,
-          "Transaction": "Disposal",
-          "Trade Shares": "1134042",
-          "Trade %": "2",
-          "Trade Value": null,
-          "Post Holding Shares": "1939035",
-          "Post Holding %": "3.42",
-          "Mode": "Market",
-          "From Date": "2025-09-16",
-          "To Date": "2025-09-16",
-          "Broadcast Date": "2025-10-09",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
