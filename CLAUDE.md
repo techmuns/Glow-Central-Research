@@ -433,7 +433,11 @@ Conventions:
 - Tables scroll horizontally **inside their own container**; the page body must never scroll
   sideways. `overflow-x: hidden` on `html` *and* `body` is a backstop, not the mechanism —
   it's on `html` because the parked drill panel is `position: fixed` and `body` can't clip it.
-- **Sub-views are one dropdown, at every width, and the content always spans the full column.**
+- **Sub-views normally use one dropdown, and the content spans the full column.**
+  Breakouts / Technical opts into `meta.subviewNavigation: 'tabs'`: Momentum Scanner is first
+  and default, followed by Strong Breakouts, Technical Scanner and FII Accumulation. The shell
+  preserves this horizontal strip across view/scope changes, with manual keyboard activation
+  and overflow controls on narrow screens. Inline subview switches elsewhere remain supported.
   There used to be a 240px left rail above 1024px and a dropdown below it. The rail cost the
   content 240px of its 1400px, permanently, to show at most four short labels — while the tables
   beside it are the widest things here and were scrolling inside their own containers to fit what
@@ -4463,9 +4467,9 @@ ever has one age, so the stale branch cannot be produced by the fixture, exactly
 cannot be produced by a day with no big faller in it. A feed with **no** capture time is a third
 state, `unknown`: never "live", never "stale".
 
-**Glow removes Earnings Surprise until real data is available.** Breakouts offers only Strong
-Breakouts, Technical Scanner and FII Accumulation. Old Earnings Surprise links resolve to Strong
-Breakouts through the shell’s normal fallback. The mock earnings corpus is absent from the
+**Glow removes Earnings Surprise until real data is available.** Breakouts now opens on Momentum Scanner, followed by Strong
+Breakouts, Technical Scanner and FII Accumulation. Old Earnings Surprise links resolve to Momentum
+Scanner through the shell’s normal fallback. The mock earnings corpus is absent from the
 bootstrap, Ask Research evidence and the source registry; keep it out of active customer views.
 Research keeps the missing-consensus limitation with Earnings Hub: reported growth must never be
 presented as an earnings surprise.
@@ -5487,3 +5491,14 @@ Not important (+ optional Why?) on all three surfaces trains ONE shared `relevan
 preference; News keeps its click-to-article behaviour and puts the vote behind a separate ⋯. Do not
 add per-example rules: a new case is a category rule or a reading weight. Verify with
 `verify-relevance.mjs`, `verify-announcements-ui.mjs` and `verify-announcements-runtime.mjs`.
+
+## Momentum Scanner in Glow
+
+The scanner uses the shared pure momentum engine and grouped criteria panel. Thresholds are
+URL-backed, both groups remain editable, Both signals combines them by AND, and Reset defaults
+preserves scope and other filters. Use Glow’s own palette and export prefix. Missing history,
+stale quotes or mismatched sessions/venues are exceptions, never passing stocks. The existing
+scheduled daily collector adds warmed weekly/monthly Wilder states and precise MACD state; the
+existing quote collector retains a ten-session volume window. No manual production refresh is
+authorized by implementing this view. Verify momentum math, reliability, browser layout, original
+Glow dropdown-to-tabs upgrades, retained filters and portfolio isolation before release.

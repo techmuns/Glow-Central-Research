@@ -3,14 +3,18 @@
 const SME = { 'ALPEXSOLAR-SM': 'ALPEXSOLAR', 'JAYBEE-SM': 'JAYBEE', 'SAHANA-SM': 'SAHANA' };
 // These warrant lines refer to issuers whose equity ISINs are recorded in the same Family book.
 // Only company announcements use this relationship; the holdings themselves remain untouched.
-const ISSUER_EQUITY = { INE564S13022: 'INE564S01019', INE0R4713012: 'INE0R4701017', INE666D13019: 'INE666D01022' };
+// BUILDPRO subdivision effective 2026-10-08: NSE/CML/76711
+// https://nsearchives.nseindia.com/content/circulars/CML76711.pdf
+// Filing issuer identity only; the dated statement's ISIN, units and values are unchanged.
+const ISSUER_EQUITY = { INE24OJ01011: 'INE24OJ01029', INE564S13022: 'INE564S01019', INE0R4713012: 'INE0R4701017', INE666D13019: 'INE666D01022' };
 export const announcementIssuerIsin = value => ISSUER_EQUITY[upper(value)] || upper(value);
 const upper = value => String(value || '').trim().toUpperCase();
 export const filingTicker = value => SME[upper(value)] || upper(value);
 // Exchange ISINs join the directories. Keep old exchange/provider symbols as exact aliases.
 export function mergeExchangeIdentities(...lists) {
   const entries = new Map();
-  for (const entry of lists.flat()) {
+  for (const sourceEntry of lists.flat()) {
+    const entry = { ...sourceEntry, isin: announcementIssuerIsin(sourceEntry.isin) };
     const previous = entries.get(entry.isin);
     entries.set(entry.isin, { ...previous, ...entry,
       aliases: [...new Set([...(previous?.aliases || []), previous?.ticker, ...(entry.aliases || [])].filter(Boolean))] });

@@ -80,8 +80,8 @@ const ownRegistrations = existsSync(registrationPath) ? JSON.parse(readFileSync(
 if (ownRegistrations) assert.equal(ownRegistrations.deployment, 'glow-central-research');
 const eligibleIsins = new Set([...heldIsins, ...(ownRegistrations?.companies || []).map(c => c.isin)]);
 const priorities = captureIndex.companies.filter(c => c.priority);
-assert(priorities.every(c => eligibleIsins.has(c.isin)), 'only Glow holdings and Glow enrollments receive capture priority');
-const coveredIsins = new Set(priorities.map(c => c.isin));
+assert(priorities.every(c => eligibleIsins.has(announcementIssuerIsin(c.isin))), 'only Glow holdings and Glow enrollments receive capture priority');
+const coveredIsins = new Set(priorities.map(c => announcementIssuerIsin(c.isin)));
 const unavailableIsins = new Set();
 for (const security of captureIndex.nonExchange || []) {
   const reviewed = companySecurityIdentity(security.isin);

@@ -31,7 +31,7 @@ try {
       // first is what made this suite depend on where a byte boundary fell - see the note on the
       // assertions below.
       const retrieved = await research.buildResearchEvidence({ question, prepared, scope: 'portfolio',
-        history: [{ role: 'user', text: 'Latest Sterlite news?' }], charBudget: 200000 });
+        history: [{ role: 'user', text: 'Latest Sterlite news?' }], charBudget: 2000000 });
       results.push({ question, ms: Math.round(performance.now() - started), chars: researchEvidenceChars(packet),
         context: providerEvidence(packet).businessContext, companies: packet.selection.companies,
         found: providerEvidence(retrieved).businessContext?.candidates.map(c => c.ticker) || [],
