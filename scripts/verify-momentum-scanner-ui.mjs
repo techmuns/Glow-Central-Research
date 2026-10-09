@@ -166,6 +166,7 @@ const readView = () => ({
   ths: [...document.querySelectorAll('#content-host [data-score-table] thead th')].map((t) => t.textContent.replace(/[▾▴\s]+/g, ' ').trim()),
   gateButtons: document.querySelectorAll('#content-host [data-mgate]').length,
   selectedGate: document.querySelector('#content-host [data-mgate][aria-pressed="true"]')?.dataset.mgate,
+  selectedGateColor: getComputedStyle(document.querySelector('#content-host [data-mgate][aria-pressed="true"]')).color,
   appliedGroups: [...document.querySelectorAll('[data-momentum-group][data-applied="true"]')].map(group => group.dataset.momentumGroup),
   thresholdInputs: document.querySelectorAll('#content-host [data-mthreshold]').length,
   emeraldPills: document.querySelectorAll('#content-host [data-score-table] tbody .bg-emerald-50.text-emerald-700').length,
@@ -243,6 +244,7 @@ try {
       await ruleGroups.count() === 2 && await ruleGroups.first().locator('[data-mthreshold]').count() === 3 && await ruleGroups.last().locator('[data-mthreshold]').count() === 2);
     ok('only Strong Momentum is applied by default, with an accessible selected mode',
       v.selectedGate === 'strong-momentum' && v.appliedGroups.join('|') === 'strong-momentum');
+    ok('the criteria selector keeps Glow’s gold palette', v.selectedGateColor === 'rgb(125, 95, 22)', v.selectedGateColor);
     ok('thresholds have unique accessible names and the volume average is explicit',
       await page.getByRole('spinbutton', { name: 'Strong Momentum · RSI daily >', exact: true }).count() === 1 &&
       await page.getByRole('spinbutton', { name: 'Volume + Momentum · RSI daily >', exact: true }).count() === 1 &&
