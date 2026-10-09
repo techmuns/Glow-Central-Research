@@ -8,12 +8,21 @@
 // question about the same development.
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
+<<<<<<< HEAD
+=======
+import { readFileSync } from 'node:fs';
+import { NEWS_PRICES } from '../worker/newsletter-openai.mjs';
+>>>>>>> sattva/main
 
 const storage = new Map();
 globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: (k) => storage.delete(k) };
 
 const shared = await import('../public/js/data/alert-notes-shared.js');
+<<<<<<< HEAD
 const { AlertNotesStore, NOTE_DAILY_LIMIT, NOTE_MAX_ATTEMPTS } = await import('../worker/alert-notes-store.mjs');
+=======
+const { AlertNotesStore, NOTE_DAILY_LIMIT, NOTE_MAX_ATTEMPTS, noteProvider, NOTE_OPENAI_MODEL } = await import('../worker/alert-notes-store.mjs');
+>>>>>>> sattva/main
 const { handleAlertNotes } = await import('../worker/alert-notes.mjs');
 const notes = await import('../public/js/data/alert-notes.js');
 const dev = await import('../public/js/data/alert-developments.js');
@@ -68,13 +77,28 @@ console.log('PASS the contract: bounded items, content-keyed, optional document 
 // ---------------------------------------------------------------------------------------
 // 2. The Worker store
 // ---------------------------------------------------------------------------------------
+<<<<<<< HEAD
+=======
+function assertRpcSafe(value, path = 'read()') {
+  if (value === null || typeof value !== 'object') return;
+  if (Array.isArray(value)) { value.forEach((entry, index) => assertRpcSafe(entry, `${path}[${index}]`)); return; }
+  assert.equal(Object.getPrototypeOf(value), Object.prototype, `${path} is an ordinary object`);
+  for (const [key, entry] of Object.entries(value)) assertRpcSafe(entry, `${path}.${key}`);
+}
+const realRead = AlertNotesStore.prototype.read;
+AlertNotesStore.prototype.read = async function read(...args) { const out = await realRead.apply(this, args); assertRpcSafe(out); return out; };
+>>>>>>> sattva/main
 function sqlStorage() {
   const db = new DatabaseSync(':memory:');
   return { sql: { exec: (sql, ...args) => { const rows = db.prepare(sql).all(...args); return { toArray: () => rows }; } },
     transactionSync(fn) { db.exec('BEGIN'); try { const result = fn(); db.exec('COMMIT'); return result; } catch (error) { db.exec('ROLLBACK'); throw error; } } };
 }
 const KEY_ENV = { CLAUDE_KEY: 'ABSK-test-key-for-stub-only', BEDROCK_REGION: 'ap-south-1', BEDROCK_MODEL_ID: 'global.anthropic.claude-sonnet-5' };
+<<<<<<< HEAD
 const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ type: 'text', text: JSON.stringify(list) }] }), { status, headers: { 'content-type': 'application/json' } });
+=======
+const reply = (list, status = 200) => new Response(JSON.stringify({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(list) }] }), { status, headers: { 'content-type': 'application/json' } });
+>>>>>>> sattva/main
 {
   const calls = [];
   let answer = (items) => reply(items.map((i) => ({ id: i.id, note: 'The ₹2,600 Cr project covers 12 acres, with completion scheduled in 48 months.' })));
@@ -217,6 +241,70 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
 }
 
 // ---------------------------------------------------------------------------------------
+<<<<<<< HEAD
+=======
+// 2b. gpt-6-luna on OpenAI, and which provider writes the notes
+// ---------------------------------------------------------------------------------------
+{
+  const OPENAI_ENV = { OPENAI_API_KEY: ' sk-test-openai-stub ', ALERT_NOTES_AI_PROVIDER: 'openai' };
+  const completed = (list) => Response.json({ status: 'completed', output: [{ type: 'message', role: 'assistant',
+    content: [{ type: 'output_text', text: JSON.stringify({ notes: list }) }] }], usage: { input_tokens: 900, output_tokens: 80 } });
+  const calls = [];
+  let answer = (items) => completed(items.map((i) => ({ id: i.id, note: 'The project covers 12 acres with completion scheduled in 48 months.' })));
+  const fetcher = async (url, init) => {
+    const sentBody = JSON.parse(init.body);
+    calls.push({ url, headers: init.headers, body: sentBody });
+    return answer(JSON.parse(sentBody.input).ITEMS);
+  };
+  const store = new AlertNotesStore(sqlStorage(), { ...KEY_ENV, ...OPENAI_ENV }, { fetcher, now: () => Date.parse('2026-09-23T06:00:00Z') });
+  const first = await store.read([{ ...item, id: 'a' }]);
+  assert.equal(first.notes.a.model, 'gpt-6-luna');
+  assert.match(first.notes.a.note, /12 acres/);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://api.openai.com/v1/responses', 'the OpenAI key goes only to OpenAI');
+  assert.equal(calls[0].headers.authorization, 'Bearer sk-test-openai-stub', 'the key is sent trimmed');
+  assert.equal(Object.hasOwn(calls[0].headers, 'x-api-key'), false, 'the Bedrock key never travels to OpenAI');
+  assert.deepEqual({ model: calls[0].body.model, store: calls[0].body.store, reasoning: calls[0].body.reasoning },
+    { model: 'gpt-6-luna', store: false, reasoning: { effort: 'none' } });
+  assert.equal((await store.read([{ ...item, id: 'b' }])).notes.b.stored, true, 'kept, whoever asks next');
+  assert.equal(calls.length, 1);
+  const cases = [
+    [() => new Response('{}', { status: 401 }), 'refused'],
+    [() => Response.json({ error: { type: 'requests', code: 'rate_limit_exceeded' } }, { status: 429 }), 'rate-limited'],
+    [() => Response.json({ error: { type: 'insufficient_quota', code: 'insufficient_quota' } }, { status: 429 }), 'quota'],
+    [() => new Response('{}', { status: 500 }), 'upstream'],
+    [() => Response.json({ status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, output: [] }), 'unreadable'],
+    [() => Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'No.' }] }] }), 'declined'],
+    [() => { throw Object.assign(new Error('slow'), { name: 'TimeoutError' }); }, 'timeout'],
+    [() => completed([{ id: 'nobody', note: 'Could add to the pipeline.' }]), 'empty'],
+    [(items) => completed(items.map((i) => ({ id: i.id, note: 'This will lift FY27 profit.' }))), 'unsupported-figure'],
+  ];
+  for (const [index, [reply, reason]] of cases.entries()) {
+    answer = reply;
+    const read = await store.read([{ ...item, line: `OpenAI case ${index}`, id: 'c' }]);
+    assert.equal(read.missing.c, reason, `OpenAI failure case ${index} is ${reason}`);
+  }
+  const status = store.status();
+  assert.deepEqual({ configured: status.configured, provider: status.provider, model: status.model }, { configured: true, provider: 'openai', model: 'gpt-6-luna' });
+
+  assert.equal(noteProvider({}), null);
+  assert.deepEqual(noteProvider(KEY_ENV), { id: 'bedrock', model: KEY_ENV.BEDROCK_MODEL_ID }, 'only a Bedrock key, no pin: Claude');
+  assert.deepEqual(noteProvider({ ...KEY_ENV, OPENAI_API_KEY: 'sk' }), { id: 'openai', model: 'gpt-6-luna' }, 'both keys, no pin: the low-cost model');
+  assert.equal(noteProvider({ ...KEY_ENV, ALERT_NOTES_AI_PROVIDER: 'openai' }), null, 'pinned to OpenAI without its key: no note, never a costlier model');
+  assert.equal(noteProvider({ OPENAI_API_KEY: 'sk', ALERT_NOTES_AI_PROVIDER: 'bedrock' }), null);
+  assert.equal(noteProvider({ OPENAI_API_KEY: 'sk', ALERT_NOTES_AI_PROVIDER: 'claude' }), null, 'an unrecognised pin fails closed');
+  assert.equal(noteProvider({ OPENAI_API_KEY: '   ' }), null, 'a blank key is no key');
+  assert.deepEqual(noteProvider({ OPENAI_API_KEY: 'sk', ALERT_NOTES_AI_PROVIDER: ' OpenAI ' }), { id: 'openai', model: 'gpt-6-luna' });
+  const cheapest = Math.min(...Object.values(NEWS_PRICES).map(([input]) => input));
+  assert.equal(NEWS_PRICES[NOTE_OPENAI_MODEL]?.[0], cheapest, 'the note model is a priced one, and the lowest-priced the Worker knows');
+  assert.match(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8'), /"ALERT_NOTES_AI_PROVIDER":\s*"openai"/, 'the deployment pins the notes to OpenAI');
+  const pinned = new AlertNotesStore(sqlStorage(), { ...KEY_ENV, ALERT_NOTES_AI_PROVIDER: 'openai' }, { fetcher: () => { throw new Error('must not be called'); } });
+  assert.equal((await pinned.read([{ ...item, id: 'n' }])).missing.n, 'no-key');
+  console.log('PASS gpt-6-luna: the newsletter\'s low-cost settings, one request per development, every OpenAI failure named, and a pin that fails closed.');
+}
+
+// ---------------------------------------------------------------------------------------
+>>>>>>> sattva/main
 // 3. The route
 // ---------------------------------------------------------------------------------------
 {
@@ -260,7 +348,11 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
     headline: 'Puravankara bags ₹2,600-crore redevelopment project in Goregaon', attribution: confirmed, importance: 'high', direction: 'neutral', aiEligible: true, detail: 'Published by Mint' };
   const uncertain = { ...report, id: 'news:2', headline: 'Goregaon redevelopment: Puravankara ₹2,600 crore project explained', attribution: { ...confirmed, status: 'uncertain' } };
   // The card sees what the ranking admits; the stream sees everything. Same development, same question.
+<<<<<<< HEAD
   const cardDev = dev.foldDevelopments([report, filing], { companyNames: ['Puravankara Limited'] }).find((d) => d.lead === filing);
+=======
+  const cardDev = dev.foldDevelopments([report, filing], { companyNames: ['Puravankara Limited'] }).find((d) => d.lead.id === filing.id);
+>>>>>>> sattva/main
   const rowDev = dev.developmentOfRow(dev.foldAlertRows([uncertain, report, filing]).find((row) => row.id === filing.id));
   const fromCard = notes.noteRequestFor(cardDev, { fallback: ai.plainHeadline(filing) });
   const fromRow = notes.noteRequestFor(rowDev, { fallback: ai.plainHeadline(filing) });
@@ -363,3 +455,36 @@ const reply = (list, status = 200) => new Response(JSON.stringify({ content: [{ 
   }
   console.log('PASS the client: one batched request, named absences, held deployments, and one question per development on both surfaces.');
 }
+<<<<<<< HEAD
+=======
+
+const openBody = shared.noteOpenAIRequest([item], 'gpt-6-luna');
+assert.equal(openBody.store, false);
+assert.deepEqual(openBody.reasoning, { effort: 'none' });
+assert.equal(openBody.service_tier, 'default');
+assert.deepEqual(JSON.parse(openBody.input).ITEMS, sent.ITEMS);
+assert.deepEqual(shared.NOTE_SCHEMA.properties.notes.items.properties.note.type, ['string', 'null']);
+assert.equal(shared.parseNotes(JSON.stringify({ notes: [{ id: '__proto__', note: null }] }), new Set(['__proto__'])).__proto__, null);
+assert.equal(shared.parseNotes(JSON.stringify([{ id: 'x', note: {} }]), new Set(['x'])).x, undefined);
+assert.equal(shared.acceptNote('x'.repeat(241), item).reason, 'unreadable');
+assert.equal(notes.noteKindOf({ lead: { feed:'announcements', ticker:'TEST', private:true } }), null);
+assert.equal(notes.noteKindOf({ lead: { feed:'announcements', ticker:'TEST', portfolioOnly:true } }), null);
+const oddStore = new AlertNotesStore(sqlStorage());
+assert.equal(Object.hasOwn((await oddStore.read([{ id:'__proto__', kind:'invalid' }])).missing, '__proto__'), true);
+console.log('PASS: nullable strict OpenAI schema, RPC-safe special keys, input bounds and private-source exclusion.');
+
+// Sattva distinguishes a failing Worker from a static origin; neither leaks private input.
+{
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const [reason, expected] of [['notes-unavailable','unavailable'],['notes-unconfigured','no-service']]) {
+      notes.resetNotes();
+      globalThis.fetch = async () => Response.json({ ok:false, reason }, { status:503 });
+      const key = shared.noteContent(item), request = { key, item, handle:notes.handleOf(key) };
+      notes.requestNotes([request]); await new Promise(done=>setTimeout(done,250));
+      assert.equal(notes.noteState(request).reason,expected);
+      assert.equal(Number.isFinite(notes.noteState(request).retryAt), expected==='unavailable');
+    }
+  } finally { globalThis.fetch=originalFetch; notes.resetNotes(); }
+}
+>>>>>>> sattva/main

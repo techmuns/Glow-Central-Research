@@ -1,3 +1,4 @@
+import { researchTabs, bookmarks } from '../tabs/registry.js';
 // ui/shell.js — the generic app chrome: header, workspace dropdown, top tabs, left rail,
 // and the content host that every tab/portfolio module mounts into. This file owns the
 // workspace/tab registry; individual tab modules stay ignorant of navigation entirely.
@@ -26,9 +27,12 @@ import * as sourceBeacon from './source-beacon.js';
 import * as notifications from './notifications.js';
 import * as newsletter from './newsletter.js';
 
+<<<<<<< HEAD
 import { researchTabs } from './tab-registry.js';
 const bookmarks = researchTabs.find(tab => tab.meta.id === 'bookmarks');
 
+=======
+>>>>>>> sattva/main
 // The nav model in one place: each workspace an ordered list of tab modules. Every module's
 // `meta.subviews` supplies the rail/rail-dropdown items — nothing here is duplicated per module.
 //
@@ -364,6 +368,7 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   //
   // Portfolio Analytics itself is untouched and still routes; see WORKSPACES above.
 
+<<<<<<< HEAD
   // THE SUB-VIEW RAIL IS A DROPDOWN NOW, AT EVERY WIDTH.
   //
   // It used to be a 240px left column above 1024px and a dropdown below it. The column cost the
@@ -379,6 +384,12 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   // subview and scope changes so keyboard focus and horizontal scroll survive navigation.
   const subviewItems = (tabModule.meta.subviews || []).map((s) => ({ id: s.id, label: s.label, badge: s.badge }));
   const hasSubviews = subviewItems.length > 0 && !tabModule.meta.inlineSubviews;
+=======
+  // Breakouts exposes its four views as horizontal tabs. Keep that strip mounted across
+  // subview and scope changes so keyboard focus and horizontal scroll survive navigation.
+  const subviewItems = (tabModule.meta.subviews || []).map((s) => ({ id: s.id, label: s.label, badge: s.badge }));
+  const hasSubviews = subviewItems.length > 0;
+>>>>>>> sattva/main
   const useSubviewTabs = hasSubviews && tabModule.meta.subviewNavigation === 'tabs';
   const subviewMount = $('#subview-mount', root);
   if (!useSubviewTabs || subviewTabs?.tab !== resolved.tab) {
@@ -420,7 +431,8 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   } else {
     topTabs?.dispose();
     // Saved events are reached from the header beside the appearance control.
-    const tabItems = ws.tabs.filter((t) => t !== bookmarks).map((t) => ({ id: t.meta.id, label: t.meta.title }));
+    const tabItems = ws.tabs.filter((t) => t !== bookmarks && !t.meta.hideFromNavigation)
+      .map((t) => ({ id: t.meta.id, label: t.meta.navigationTitle || t.meta.title }));
     const bar = tabBar({ tabs: tabItems, activeId: resolved.tab, onSelect: goTab, label: 'Research sections' });
     const tabBarMount = $('#tabbar-mount', root);
     tabBarMount.innerHTML = bar.html;
@@ -548,6 +560,7 @@ function mountTab(root, tabModule, resolved) {
   async function runRender() {
     if (shellRenderRequest !== reqId) return; // Reader clicked away before this frame
     try {
+<<<<<<< HEAD
       const loaded = tabModule.load ? await tabModule.load() : tabModule;
       // Import completion belongs to the route that asked for it. Rapid tab, scope and subview
       // changes can share the download but only the latest request may mount its interface.
@@ -558,6 +571,18 @@ function mountTab(root, tabModule, resolved) {
       loaded.render(ctx);
     } catch (err) {
       if (shellRenderRequest !== reqId) return;
+=======
+      // Load only the requested interface. The cover remains until it is ready;
+      // shared collectors and retained data continue independently of navigation.
+      if (tabModule.load) await tabModule.load();
+      if (ctx.isCancelled) return;
+      releaseRouteLoading?.(); releaseRouteLoading = null;
+      root.dataset.readingLayout = tabModule.meta.layout === 'table' ? 'table' : 'standard';
+      contentHost.setAttribute('data-active-tab', tabModule.meta.id);
+      tabModule.render(ctx);
+    } catch (err) {
+      if (ctx.isCancelled) return;
+>>>>>>> sattva/main
       releaseRouteLoading?.(); releaseRouteLoading = null;
       console.error(`[shell] render() failed for "${tabModule.meta?.id}"`, err);
       contentHost.innerHTML = emptyState({ title: 'This panel hit a snag', message: String(err?.message || err), icon: '⚠️' });
