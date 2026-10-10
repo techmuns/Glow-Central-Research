@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-10-10T15:24:07.528Z",
+    "capturedAt": "2026-10-10T18:44:00.676Z",
     "from": "2026-08-05",
     "to": "2026-10-09",
     "rows": 12074,
@@ -12,10 +12,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-10T15:24:07.528Z",
-  "oldestDataAt": "2026-10-10T15:24:07.528Z",
-  "from": "2025-10-10",
-  "to": "2026-10-10",
+  "capturedAt": "2026-10-10T18:44:00.676Z",
+  "oldestDataAt": "2026-10-10T18:44:00.676Z",
+  "from": "2025-10-11",
+  "to": "2026-10-11",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -37,7 +37,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-10T15:24:07.528Z",
+      "capturedAt": "2026-10-10T18:44:00.676Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-10T15:24:07.528Z",
+      "capturedAt": "2026-10-10T18:44:00.676Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +63,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-10T15:24:07.528Z",
+      "capturedAt": "2026-10-10T18:44:00.676Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,7 +76,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-10T15:24:07.528Z",
+      "capturedAt": "2026-10-10T18:44:00.676Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -84,7 +84,7 @@
   "covered": 4,
   "withRows": 1983,
   "emptyCount": 0,
-  "rowCount": 21300,
+  "rowCount": 21299,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -88965,28 +88965,6 @@
           "From Date": "2025-10-27",
           "To Date": "2025-10-27",
           "Broadcast Date": "2025-10-31",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "VEDL",
-        "date": "2025-10-10",
-        "cells": {
-          "Company": "VEDL",
-          "Insider": "Vedanta Holdings Mauritius Limited",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Others",
-          "Trade Shares": "107342705",
-          "Trade %": null,
-          "Trade Value": null,
-          "Post Holding Shares": null,
-          "Post Holding %": null,
-          "Mode": "Release",
-          "From Date": "2025-10-06",
-          "To Date": "2025-10-06",
-          "Broadcast Date": "2025-10-10",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
