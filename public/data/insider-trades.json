@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-10T17:51:50.766Z",
-  "oldestDataAt": "2026-10-10T17:51:50.766Z",
-  "from": "2025-10-10",
-  "to": "2026-10-10",
+  "capturedAt": "2026-10-10T18:47:38.775Z",
+  "oldestDataAt": "2026-10-10T18:47:38.775Z",
+  "from": "2025-10-11",
+  "to": "2026-10-11",
   "windowDays": 365,
   "coverageFrom": "2026-08-05",
   "scope": "exchange",
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-10T17:51:50.766Z",
+      "capturedAt": "2026-10-10T18:47:38.775Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-10T17:51:50.766Z",
+      "capturedAt": "2026-10-10T18:47:38.775Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-10T17:51:50.766Z",
+      "capturedAt": "2026-10-10T18:47:38.775Z",
       "coverageFrom": "2026-08-05"
     },
     {
@@ -67,15 +67,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-10T17:51:50.766Z",
+      "capturedAt": "2026-10-10T18:47:38.775Z",
       "coverageFrom": "2026-08-04"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 1912,
+  "withRows": 1911,
   "emptyCount": 0,
-  "rowCount": 20608,
+  "rowCount": 20601,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -82745,28 +82745,6 @@
           "From Date": "2025-10-27",
           "To Date": "2025-10-27",
           "Broadcast Date": "2025-10-31",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "VEDL",
-        "date": "2025-10-10",
-        "cells": {
-          "Company": "VEDL",
-          "Insider": "Vedanta Holdings Mauritius Limited",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Others",
-          "Trade Shares": "107342705",
-          "Trade %": null,
-          "Trade Value": null,
-          "Post Holding Shares": null,
-          "Post Holding %": null,
-          "Mode": "Release",
-          "From Date": "2025-10-06",
-          "To Date": "2025-10-06",
-          "Broadcast Date": "2025-10-10",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -181197,140 +181175,6 @@
           "From Date": "2025-11-11",
           "To Date": "2025-11-11",
           "Broadcast Date": "2025-11-13",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      }
-    ],
-    "PFOCUS": [
-      {
-        "ticker": "PFOCUS",
-        "date": "2025-10-10",
-        "cells": {
-          "Company": "PFOCUS",
-          "Insider": "A2R Holdings",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Acquisition",
-          "Trade Shares": "102447901",
-          "Trade %": "0.4",
-          "Trade Value": null,
-          "Post Holding Shares": "413072669",
-          "Post Holding %": "53.27",
-          "Mode": "Allotment",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-10-10",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "PFOCUS",
-        "date": "2025-10-10",
-        "cells": {
-          "Company": "PFOCUS",
-          "Insider": "A2R Holdings",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Acquisition",
-          "Trade Shares": "159537479",
-          "Trade %": "4.12",
-          "Trade Value": null,
-          "Post Holding Shares": "310624768",
-          "Post Holding %": "52.87",
-          "Mode": "Allotment",
-          "From Date": "2025-09-17",
-          "To Date": "2025-09-17",
-          "Broadcast Date": "2025-10-10",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "PFOCUS",
-        "date": "2025-10-10",
-        "cells": {
-          "Company": "PFOCUS",
-          "Insider": "Augusta Investments I Pte Ltd & PACs",
-          "Category": "Other",
-          "Security Type": null,
-          "Transaction": "Disposal",
-          "Trade Shares": "12000000",
-          "Trade %": "3.87",
-          "Trade Value": null,
-          "Post Holding Shares": "35002217",
-          "Post Holding %": "11.3",
-          "Mode": "Market",
-          "From Date": "2025-09-08",
-          "To Date": "2025-09-08",
-          "Broadcast Date": "2025-10-10",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "PFOCUS",
-        "date": "2025-10-10",
-        "cells": {
-          "Company": "PFOCUS",
-          "Insider": "Marina IV LP & PACs",
-          "Category": "Other",
-          "Security Type": null,
-          "Transaction": "Disposal",
-          "Trade Shares": "11000000",
-          "Trade %": "3.56",
-          "Trade Value": null,
-          "Post Holding Shares": "47002217",
-          "Post Holding %": "15.17",
-          "Mode": "Market",
-          "From Date": "2025-09-05",
-          "To Date": "2025-09-05",
-          "Broadcast Date": "2025-10-10",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "PFOCUS",
-        "date": "2025-10-10",
-        "cells": {
-          "Company": "PFOCUS",
-          "Insider": "Novator Capital Ltd",
-          "Category": "Other",
-          "Security Type": null,
-          "Transaction": "Acquisition",
-          "Trade Shares": "14318750",
-          "Trade %": "1.85",
-          "Trade Value": null,
-          "Post Holding Shares": "111284312",
-          "Post Holding %": "14.35",
-          "Mode": "Allotment",
-          "From Date": "2025-09-23",
-          "To Date": "2025-09-23",
-          "Broadcast Date": "2025-10-10",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "PFOCUS",
-        "date": "2025-10-10",
-        "cells": {
-          "Company": "PFOCUS",
-          "Insider": "Novator Capital Ltd",
-          "Category": "Other",
-          "Security Type": null,
-          "Transaction": "Acquisition",
-          "Trade Shares": "96965562",
-          "Trade %": "16.5",
-          "Trade Value": null,
-          "Post Holding Shares": "96965562",
-          "Post Holding %": "16.5",
-          "Mode": "Allotment",
-          "From Date": "2025-09-17",
-          "To Date": "2025-09-17",
-          "Broadcast Date": "2025-10-10",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
