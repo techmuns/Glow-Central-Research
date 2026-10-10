@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // investors/fund-returns.js — the All Schemes view, on the AmfiBeas "Returns & Ranking" feed.
 //
 //   renderFundReturns(ctx, { disposers, repaint })   the scheme table, its pill and its export
@@ -29,6 +30,9 @@
 // null `rank` is "the cohort was too small to rank" and may sit beside a real return. Neither is
 // ever coloured or counted as though it were measured.
 
+=======
+// Scheme returns, published cohort comparisons and matching filtered exports.
+>>>>>>> sattva/main
 import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
@@ -161,7 +165,11 @@ function buildTable(funds, m, visiblePeriods, view = null, measure = 'return', o
     initialSort: { key: 'name', dir: 'asc' },
     initialView: view,
     columns: columnsFor(visiblePeriods, measure),
+<<<<<<< HEAD
     exportName: `glow-fund-returns-${todayStamp()}`,
+=======
+    exportName: `sattva-fund-returns-${todayStamp()}`,
+>>>>>>> sattva/main
     onExport: (visible) => exportFunds(visible, m, visiblePeriods),
     countNoun: 'schemes',
     emptyMessage: 'No scheme matches your filters.',
@@ -274,7 +282,11 @@ function returnCell(cell, period, cohortNote = null) {
 /** The same cell in the gap reading: the source's own excess over its category median, in points. */
 function excessCell(cell, period, cohortNote = null) {
   const excess = cell?.excessVsMedian;
+<<<<<<< HEAD
   if (excess == null) {
+=======
+  if (excess == null || cell?.return == null || cell?.categoryMedian == null) {
+>>>>>>> sattva/main
     return dash(
       cell?.return == null
         ? cell?.reason || 'no return for this period'
@@ -337,6 +349,7 @@ function originLabel(m) {
 }
 
 function openProvenance(m, extra = '') {
+<<<<<<< HEAD
   openModal(
     `<div class="p-6 sm:p-8">
       <h3 class="font-display text-xl font-bold text-slate-900">Where this comes from</h3>
@@ -385,6 +398,15 @@ function openProvenance(m, extra = '') {
     </div>`,
     { size: 'wide' },
   );
+=======
+  openModal(`<div class="p-6"><h3 class="text-xl font-bold">Fund returns · Sources and coverage</h3>
+    <p class="mt-3">Returns, ranks, category averages and medians are published by AmfiBeas from AMFI NAVs. Figures retain the source’s cohort and NAV date. Category Performance uses this same snapshot.</p>
+    <p class="mt-3">1M–1Y are simple returns; 3Y–10Y are CAGR. The comparison beneath each return is its category median. A missing figure is —. This view displays category comparisons.</p>
+    <p class="mt-3">The direct plan is shown when available; single-plan schemes and ETFs remain. Only identical rows are folded. Source names, plan, option and classification are retained in the export. The source’s cohort remains the basis of each rank, including trackers grouped as passive from their name.</p>
+    <p class="mt-3">${escapeHtml(formatNumber(m.total || m.count))} displayed rows from ${escapeHtml(formatNumber(m.universe))} source rows. ${escapeHtml(formatNumber(m.hiddenRegular))} regular-plan rows omitted; ${escapeHtml(formatNumber(m.foldedDuplicates))} identical display copies folded.</p>
+    <p class="mt-3">${provenanceFreshness(m)}</p>${extra}
+    <button data-modal-close class="mt-6">Close</button></div>`, {size:'wide'});
+>>>>>>> sattva/main
 }
 
 function provenanceFreshness(m) {
@@ -414,6 +436,7 @@ function failurePanel(m) {
   const reason = m?.reason || 'unknown';
   const url = m?.url || null;
   const REASONS = {
+<<<<<<< HEAD
     'no-url': {
       title: 'The fund-returns feed has no address',
       body:
@@ -436,6 +459,13 @@ function failurePanel(m) {
       title: 'The fund-returns upstream returned something unexpected',
       body: 'It answered, but not in the documented shape — the <code>funds</code> array was missing. Their contract may have changed.',
     },
+=======
+    'no-url': {title:'Fund returns are unavailable',body:'The source is not configured yet.'},
+    'not-found': {title:'Fund returns are unavailable',body:'The source could not supply its returns feed. Please check back.'},
+    unreachable: {title:'Fund returns could not be checked',body:'Check your connection or try again shortly.'},
+    upstream: {title:'Fund returns could not be checked',body:'The source is temporarily unavailable. Please check back.'},
+    shape: {title:'Fund returns could not be verified',body:'The source returned an incomplete response. Please check back.'},
+>>>>>>> sattva/main
   };
   const r = REASONS[reason] || { title: 'The fund-returns feed could not be read', body: 'No further detail was reported.' };
   return `
@@ -446,8 +476,11 @@ function failurePanel(m) {
         <div class="min-w-0">
           <h3 class="font-display text-base font-bold text-slate-900">${escapeHtml(r.title)}</h3>
           <p class="mt-1.5 text-sm leading-relaxed text-slate-600">${r.body}</p>
+<<<<<<< HEAD
           ${url ? `<p class="mt-3 text-xs text-slate-500">Requested <code class="rounded bg-slate-100 px-1">${escapeHtml(url)}</code> — the exact address, so this can be diagnosed without guessing at it.</p>` : ''}
           <p class="mt-3 text-xs text-slate-400">Nothing is shown rather than a zero: an empty list and a list we could not read must never look the same.</p>
+=======
+>>>>>>> sattva/main
           <button type="button" data-fund-returns-retry
             class="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-60">
             Try again
@@ -482,7 +515,11 @@ async function exportFunds(visible, m, periods) {
     `(computed over AMFI’s daily NAV snapshot)${m.asOfDate ? `, as of ${formatDateLabel(m.asOfDate)}` : ''}. ` +
     `THE RETURNS, THE CATEGORY FIGURES AND THE RANKS ARE THEIRS — reproduced unchanged, not recomputed or re-ranked here. ` +
     `A return is a percentage already: a simple return for 1M/3M/6M/1Y and a CAGR for 3Y/5Y/10Y. ` +
+<<<<<<< HEAD
     `THE BENCHMARK IN THIS SHEET IS THE SCHEME'S OWN CATEGORY, NOT AN INDEX: AMFI's NAV snapshot carries no index level, so this source publishes no index return and none is substituted. ` +
+=======
+    `THE BENCHMARK IN THIS SHEET IS THE SCHEME'S OWN CATEGORY, NOT AN INDEX: This sheet displays published category comparisons. ` +
+>>>>>>> sattva/main
     `The excess column is the source's own "excessVsMedian", in percentage POINTS, not a subtraction done here. ` +
     `A rank is "rank of peerCount" WITHIN THE SCHEME'S OWN COHORT, not against the whole list. ` +
     `ONE ROW PER SCHEME — the DIRECT plan wherever the source lists one; a scheme with only one plan (every exchange-traded fund) is kept as it is. Regular-plan duplicates are not in this sheet. ` +
@@ -492,7 +529,11 @@ async function exportFunds(visible, m, periods) {
     `"Active / Passive" is this dashboard's reading: PASSIVE where the source files the scheme as Index, Index Funds or ETFs, or where the scheme's own name states a tracked index or ETF; ACTIVE otherwise. ` +
     `"Shown under" is where this dashboard lists the scheme. It is the source's own category except where the source filed a NAME-STATED TRACKER under an active category (e.g. a Nifty Midcap 150 Index Fund under Equity : Mid Cap): such a scheme is shown under Index & smart beta or Exchange traded, its "Classification" column keeps the source's own bucket, and its rank and category median remain the source's own cohort, active schemes included. ` +
     `A blank return means no return for that period; a blank median or rank means the cohort was too small for the source to publish one — NONE IS A ZERO. ` +
+<<<<<<< HEAD
     `NOT COMPARABLE WITH THE CATEGORY PERFORMANCE SHEET, which reads a weekly workbook on an earlier date. ` +
+=======
+    `Category Performance uses the same published snapshot and preserves each source cohort. ` +
+>>>>>>> sattva/main
     `Source: ${m.source || 'AmfiBeas'}. Exported ${new Date().toISOString()}.`;
 
   const columns = [
@@ -547,7 +588,11 @@ async function exportFunds(visible, m, periods) {
   }
 
   await exportSheets({
+<<<<<<< HEAD
     filename: `glow-fund-returns-${todayStamp()}`,
+=======
+    filename: `sattva-fund-returns-${todayStamp()}`,
+>>>>>>> sattva/main
     banner,
     sheets: [{ name: 'Returns & Ranking', columns, rows: visible }],
   });
