@@ -1,8 +1,8 @@
 {
   "bulkDeals": {
-    "source": "Screener.in bulk and block listings captured by Glow",
-    "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-10-10T00:07:07.094Z",
+    "source": "Screener.in bulk and block listings via the shared Sattva capture",
+    "sourceUrl": "https://raw.githubusercontent.com/techmuns/Sattva-Central-Research/main/public/data/insider-trades.json",
+    "capturedAt": "2026-10-10T00:20:06.193Z",
     "from": "2026-08-05",
     "to": "2026-10-09",
     "rows": 12074,
