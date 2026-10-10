@@ -859,8 +859,8 @@
       "pending": []
     },
     "isin:INE700A01033|JUBLPHARMA": {
-      "lastAttemptAt": "2026-10-04T19:16:43+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-10-10T09:17:28+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 7,
       "lastSuccessAt": "2026-10-04T19:16:43+00:00",
       "targetThrough": null,
@@ -2398,6 +2398,6 @@
     "planned": 254,
     "attempted": 1,
     "incomplete": 254,
-    "checkedAt": "2026-10-10T08:42:14.859867+00:00"
+    "checkedAt": "2026-10-10T09:17:28.245286+00:00"
   }
 }
