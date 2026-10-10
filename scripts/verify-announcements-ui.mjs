@@ -18,7 +18,11 @@ globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k,
 const here = dirname(fileURLToPath(import.meta.url));
 const publicDir = resolve(here, '../public');
 const { startAnnouncementServer } = await import('./lib/announcement-test-server.mjs');
+<<<<<<< HEAD
 const { buildFixtureIndex } = await import('./lib/announcement-index-fixture.mjs');
+=======
+const { buildFixtureIndex, feedbackPair } = await import('./lib/announcement-index-fixture.mjs');
+>>>>>>> sattva/main
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
 const { chromium } = await import(`${PW_ROOT}/index.mjs`);
 
@@ -37,10 +41,36 @@ const READING = { readable: true, issuerMatches: true, documentType: 'Exchange f
   keyDetails: [{ label: 'Filing', value: 'As stated in the document', quote: 'trailer', location: 'page 1' }],
   whyItMatters: 'It matters to an investor because it changes what is known about the company this period.',
   impact: { direction: 'unclear', horizon: 'unclear', text: 'Could matter if it changes earnings or plans; the document alone does not say.' } };
+<<<<<<< HEAD
 const readFetcher = async (url, init = {}) => {
   const href = String(url);
   if (/^https:\/\/(?:www\.)?bseindia\.com\/|^https:\/\/(?:nsearchives|archives)\.nseindia\.com\//.test(href)) { counts.documents++; return new Response(pdf, { headers: { 'content-type': 'application/pdf' } }); }
   if (href.startsWith('https://bedrock-runtime.')) { counts.model++; void init; return Response.json({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(READING) }] }); }
+=======
+let readGate = null, releaseRead;
+const readFetcher = async (url, init = {}) => {
+  const href = String(url);
+  if (/^https:\/\/(?:www\.)?bseindia\.com\/|^https:\/\/(?:nsearchives|archives)\.nseindia\.com\//.test(href)) { counts.documents++; return new Response(pdf, { headers: { 'content-type': 'application/pdf' } }); }
+  if (href.startsWith('https://bedrock-runtime.')) {
+    counts.model++;
+    if (readGate) {
+      const gate = readGate, encoder = new TextEncoder(), text = JSON.stringify(READING), cut = text.indexOf('"keyDetails"');
+      assert.equal(JSON.parse(init.body).stream, true);
+      return new Response(new ReadableStream({ async start(c) {
+        const send = value => c.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`));
+        send({ type: 'message_start' });
+        send({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } });
+        send({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: text.slice(0, cut) } });
+        await gate;
+        send({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: text.slice(cut) } });
+        send({ type: 'content_block_stop', index: 0 });
+        send({ type: 'message_delta', delta: { stop_reason: 'end_turn' } });
+        send({ type: 'message_stop' }); c.close();
+      } }), { headers: { 'content-type': 'text/event-stream' } });
+    }
+    return Response.json({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(READING) }] });
+  }
+>>>>>>> sattva/main
   return new Response('unexpected', { status: 500 });
 };
 const now = () => clock.getTime();
@@ -70,11 +100,25 @@ try {
   await ready();
   await hold();
   assert.equal(await page.locator('[data-filings-info]').getAttribute('data-ca-mode'), 'server', 'the index answers');
+<<<<<<< HEAD
+=======
+  const period = page.getByRole('combobox', { name: 'Announcement period (IST)' });
+  assert.equal(await period.inputValue(), '3', 'Last 3 days is selected on opening');
+  assert.equal(await page.evaluate(() => window.__ca.query().period), '3', 'the initial query uses Last 3 days');
+  assert.equal(srv.stats.queries, 1, 'one initial page request');
+  ok('Last 3 days is the default dropdown and server query');
+  await period.selectOption('all');
+  await page.waitForFunction(() => window.__ca.query().period === 'all' && window.__ca.meta().state === 'ready');
+>>>>>>> sattva/main
   const heads = await page.locator('thead th').allInnerTexts();
   for (const head of ['SUBJECT', 'DATE', 'CATEGORIES', 'MARKET CAP', 'SOURCE']) assert(heads.map((h) => h.trim().toUpperCase()).includes(head), `column ${head}`);
   const meta = await caMeta();
   assert.equal(meta.total, index.counts.rows, 'All time counts every filing');
+<<<<<<< HEAD
   assert.equal(srv.stats.queries, 1, 'one page request, not the history');
+=======
+  assert.equal(srv.stats.queries, 2, 'one page request per selected period, not the history');
+>>>>>>> sattva/main
   const rows = await caRows();
   const firstSubject = await page.locator('tbody tr[data-row-key]').first().locator('div.truncate.font-semibold').getAttribute('title');
   assert.equal(firstSubject, rows[0].title.replace(/\s+/g, ' ').trim(), 'the subject is the exchange’s own words');
@@ -142,8 +186,13 @@ try {
   // AI Read: one click, one read, the same five sections, the original filing one click away.
   // An exchange PDF: the stand-in answers with a PDF, and which filing leads the page moves with the
   // data (an NSE XBRL file there is read as XBRL and correctly refused as unreadable).
+<<<<<<< HEAD
   const target = (await caRows()).find((r) => /bseindia|nseindia/.test(r.url || '') && /\.pdf(?:$|[?#])/i.test(r.url || ''));
   assert(target, 'the newest page holds an exchange PDF filing to read');
+=======
+  const target = feedbackPair(await caRows(), { pdf: true })?.row;
+  assert(target, 'the page holds an exchange PDF with a comparable same-day peer for the read and feedback checks');
+>>>>>>> sattva/main
   const targetRow = page.locator(`tbody tr[data-row-key="${target.id}"]`);
   await targetRow.locator('td').nth(1).click();
   const popup = page.locator('#modal-content [data-ann-read]');
@@ -163,6 +212,10 @@ try {
 
   // Important / Not important inside the popup trains the shared model and re-orders the list.
   const beforeRows = await caRows();
+<<<<<<< HEAD
+=======
+  const beforeTotal = (await caMeta()).total;
+>>>>>>> sattva/main
   const sameDay = beforeRows.filter((r) => r.date === target.date);
   const beforeAt = sameDay.findIndex((r) => r.id === target.id);
   await popup.locator('[data-vote="not-important"]').click();
@@ -175,12 +228,31 @@ try {
   await page.waitForFunction(() => /shared ranking learns/.test(document.querySelector('#modal-content [data-feedback-status]')?.textContent || ''));
   assert(srv.feedback.model().recent.some((v) => v.why === 'routine for a company this size'), 'the why travels with the vote');
   await page.locator('#modal-content [data-modal-close]').first().click();
+<<<<<<< HEAD
   await page.waitForFunction(([id, at]) => {
     const q = window.__ca;
     const rows = q.rows(); const day = rows.find((r) => r.id === id)?.date;
     return q.meta().state === 'ready' && rows.filter((r) => r.date === day).findIndex((r) => r.id === id) > at;
   }, [target.id, beforeAt], { timeout: 30000 });
   assert((await caRows()).some((r) => r.id === target.id), 'the filing is still listed');
+=======
+  await page.waitForFunction(([id, score]) => {
+    const q = window.__ca;
+    const row = q.rows().find(r => r.id === id);
+    return q.meta().state === 'ready' && !q.meta().refreshing && (!row || row.relevance < score);
+  }, [target.id, target.relevance], { timeout: 30000 });
+  // A bounded first page is not the whole ranked day. A valid vote can move the
+  // filing beyond it; follow the real pagination before asserting retention/order.
+  while (!(await caRows()).some(row => row.id === target.id) && (await caMeta()).nextOffset !== null) {
+    await page.evaluate(() => window.__ca.loadMore());
+    await settle();
+  }
+  const afterRows = await caRows();
+  assert(afterRows.some(row => row.id === target.id), 'the filing is still listed');
+  assert(afterRows.find(row => row.id === target.id).relevance < target.relevance, 'the saved negative vote lowers its score');
+  assert(afterRows.filter(row => row.date === target.date).findIndex(row => row.id === target.id) > beforeAt, 'the vote reorders the actual day');
+  assert.equal((await caMeta()).total, beforeTotal, 'a vote never removes captured filings');
+>>>>>>> sattva/main
   ok('Important / Not important + Why? in the popup re-orders the day and hides nothing');
 
   // ---- News: the row still opens the article; the ⋯ is a separate control ---------------------
@@ -212,6 +284,12 @@ try {
   // ---- All Alerts: after opening an item, it asks --------------------------------------------
   await page.goto(`${srv.url}#/research/daily-alerts?scope=universe`);
   await page.waitForSelector('tbody tr[data-row-key]', { timeout: 90000 });
+<<<<<<< HEAD
+=======
+  // The first partial can be replaced while the initial view is still covered. Vote only once
+  // the workspace permits interaction, as the reader does after the source handoff.
+  await page.waitForFunction(() => document.querySelector('[data-alerts-workspace]')?.getAttribute('aria-busy') === 'false', null, { timeout: 90000 });
+>>>>>>> sattva/main
   await page.locator('tbody tr[data-row-key]').first().locator('td').first().click();
   const prompt = page.locator('.relevance-prompt');
   await prompt.waitFor();
@@ -229,6 +307,57 @@ try {
   assert(Object.keys(model.model.weights).length, 'and every vote trained the shared weights');
   ok('one shared model: votes from all three surfaces');
 
+<<<<<<< HEAD
+=======
+  // Real popup: neither a held event-history request nor the model's held tail blocks useful text.
+  const requestsBefore = srv.stats.reads, modelsBefore = counts.model;
+  readGate = new Promise(done => { releaseRead = done; });
+  await page.evaluate(async () => {
+    const { openAnnouncementRead } = await import('/js/ui/announcement-read.js');
+    window.latencyRow = { id: 'a:latency-ui', title: 'Latency fixture', company: 'Fixture Co', sources: ['BSE'],
+      url: 'https://www.bseindia.com/xml-data/corpfiling/AttachLive/latency-ui.pdf', event: { id: 'event-latency-ui', size: 2 } };
+    window.historyReleases = [];
+    window.openLatencyRead = () => openAnnouncementRead(window.latencyRow, {
+      loadEvent: () => new Promise(done => window.historyReleases.push(done)),
+      item: { surface: 'announcements', itemKey: window.latencyRow.id, features: [] },
+    });
+    window.openLatencyRead();
+  });
+  await popup.locator('[data-slot="what"]').filter({ hasText: 'read in full' }).waitFor();
+  assert.match(await popup.locator('[data-read-status]').innerText(), /in progress/);
+  assert.equal(await popup.locator('[data-slot="why"] .ann-read-loading').count(), 1, 'analysis waits for validation');
+  assert.equal(await popup.locator('[data-slot="history"] .ann-read-loading').count(), 1, 'held history did not delay the read');
+  assert.equal(srv.stats.reads, requestsBefore + 1);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.openLatencyRead());
+  await popup.locator('[data-slot="what"]').filter({ hasText: 'read in full' }).waitFor();
+  assert.equal(srv.stats.reads, requestsBefore + 1, 'close/reopen shares the pending browser request');
+  await page.evaluate(() => {
+    for (const done of window.historyReleases) done({ members: [window.latencyRow, { id: 'related-latency', title: 'Prior approval', sources: ['BSE'] }] });
+  });
+  await popup.locator('[data-slot="history"]').filter({ hasText: 'Prior approval' }).waitFor();
+  readGate = null;
+  await page.evaluate(async () => {
+    const { openAnnouncementRead } = await import('/js/ui/announcement-read.js');
+    openAnnouncementRead({ id: 'a:replacement', title: 'Replacement filing', url: 'https://evil.example/no.pdf' },
+      { item: { surface: 'announcements', itemKey: 'a:replacement', features: [] } });
+  });
+  await popup.locator('.ann-read-unavailable').waitFor();
+  releaseRead();
+  await page.evaluate(async () => {
+    const { requestAnnouncementRead } = await import('/js/data/announcement-read-client.js');
+    await requestAnnouncementRead(window.latencyRow);
+  });
+  assert.equal(await popup.locator('.ann-read-subject').innerText(), 'Replacement filing');
+  assert.equal(await popup.locator('.ann-read-unavailable').count(), 1, 'a late answer cannot overwrite another filing');
+  await page.evaluate(() => window.openLatencyRead());
+  await popup.locator('[data-slot="why"]').filter({ hasText: 'Investment impact' }).waitFor();
+  assert.equal(counts.model, modelsBefore + 1, 'the completed shared read is reused');
+  assert.equal(srv.stats.reads, requestsBefore + 2, 'only the original and the replacement requested the server');
+  await page.keyboard.press('Escape');
+  ok('streamed facts precede held history/model completion; pending and saved reopen share one request; late answers stay in their own popup');
+
+>>>>>>> sattva/main
   // Phone width and dark appearance.
   await page.goto(`${srv.url}#/research/corp-announcements?scope=universe`);
   await ready();
@@ -256,6 +385,11 @@ try {
   await local.clock.install({ time: clock });
   await local.goto(`${fallback.url}#/research/corp-announcements?scope=universe`);
   await local.waitForFunction(() => document.querySelector('[data-filings-info]')?.dataset.caMode === 'local' && document.querySelectorAll('tbody tr[data-row-key]').length > 0, null, { timeout: 180000 });
+<<<<<<< HEAD
+=======
+  assert.equal(await local.getByRole('combobox', { name: 'Announcement period (IST)' }).inputValue(), '3', 'fallback opens on Last 3 days');
+  assert.equal(await local.locator('[data-filings-info]').getAttribute('data-ca-period'), '3', 'fallback query uses Last 3 days');
+>>>>>>> sattva/main
   assert(await local.locator('tbody .category-chip').count() > 0, 'categories still show');
   await local.locator('tbody tr[data-row-key]').first().locator('td').nth(1).click();
   await local.locator('#modal-content [data-ann-read]').waitFor();
@@ -267,6 +401,10 @@ try {
   assert.deepEqual(errors, [], 'no page errors');
   ok('no page errors');
 } finally {
+<<<<<<< HEAD
+=======
+  releaseRead?.();
+>>>>>>> sattva/main
   await browser.close();
   await srv.close();
   await fallback.close();

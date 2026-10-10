@@ -262,12 +262,18 @@ const settleTables = () =>
 // counted as before.
 const rowCount = async () => {
   await settleTables();
+<<<<<<< HEAD
   const virtualTotal = await page.evaluate(() => {
     const table = document.querySelector('[data-score-table][data-virtualized]');
     const total = Number(table?.dataset.virtualTotal);
     return Number.isFinite(total) ? total : null;
   });
   return virtualTotal ?? page.locator('tr[data-row-key]').count();
+=======
+  const virtual = page.locator('#content-host [data-score-table][data-virtualized]');
+  if (await virtual.count()) return Number(await virtual.first().getAttribute('data-virtual-total'));
+  return page.locator('tr[data-row-key]').count();
+>>>>>>> sattva/main
 };
 const SEARCH = '#content-host input[type="search"], #content-host input[placeholder*="Search"]';
 
@@ -526,7 +532,7 @@ const ehSticky = await page.evaluate(async () => {
   const before = head.getBoundingClientRect().top;
   box.scrollTop = 800;
   await new Promise((r) => setTimeout(r, 250));
-  return { styled, moved: Math.abs(head.getBoundingClientRect().top - before), scrolled: box.scrollTop, rowsAbove: document.querySelector('#content-host tbody tr').getBoundingClientRect().top < before };
+  return { styled, moved: Math.abs(head.getBoundingClientRect().top - before), scrolled: box.scrollTop, rowsAbove: document.querySelector('#content-host tbody tr[data-row-key]').getBoundingClientRect().top < before };
 });
 ok('the table body scrolls inside its own box', ehSticky.scrolled > 0, `${ehSticky.scrolled}px`);
 if (ehSticky.styled) ok('...and the column headings stay put while it does', ehSticky.moved < 2 && ehSticky.rowsAbove, `head moved ${ehSticky.moved.toFixed(1)}px`);
@@ -538,8 +544,11 @@ ok('TICKER is not a column...', !ehHeads.some((h) => h.includes('TICKER')));
 ok('...nor INDUSTRY...', !ehHeads.some((h) => h.includes('INDUSTRY')));
 ok('...nor Return Since Result', !ehHeads.some((h) => h.includes('RETURN SINCE RESULT')));
 // Dropping them from the header must not drop them from the page — they moved under the name.
+<<<<<<< HEAD
 // `tr[data-row-key]`, not `tbody tr`: a virtualised table opens with a zero-height spacer row that
 // carries the rows above the window, so `.first()` reads an empty `aria-hidden` cell.
+=======
+>>>>>>> sattva/main
 const ehIdent = await page.locator('#content-host tbody tr[data-row-key]').first().innerText();
 const ehSub = ehIdent.split('\n').find((l) => /[A-Z0-9&-]{2,}\s·\s\S/.test(l)) || '';
 ok('ticker and industry survive under the company name', !!ehSub, ehSub || ehIdent.replace(/\s+/g, ' ').slice(0, 60));
@@ -568,7 +577,7 @@ const ehOrder = await page.evaluate(async () => {
   // middle of results season and false at 09:00, when exactly one company has filed. The property
   // under test holds either way; the list comparison did not.
   const index = new Map(payload.rows.map((r) => [r.scId, { date: r.resultDate || '', seq: r.seq ?? 0 }]));
-  const rendered = [...document.querySelectorAll('#content-host tbody tr')].map((tr) => tr.dataset.rowKey);
+  const rendered = [...document.querySelectorAll('#content-host tbody tr[data-row-key]')].map((tr) => tr.dataset.rowKey);
   const seen = rendered.map((k) => index.get(k)).filter(Boolean); // a row that filed mid-check is simply skipped
   const breaks = [];
   for (let i = 1; i < seen.length; i++) {
@@ -608,10 +617,11 @@ else skip('the table fits at 1440 with no horizontal scrollbar', 'compiled style
 // THE RECONCILIATION. The growth column and the two figure columns are three renderings of the
 // same fact, and a reader will trust the pair over the percentage. Recompute the percentage from
 // the two figures actually on screen and require it to agree with the one actually on screen.
-const ehRecon = await page.evaluate(() => {
+const ehRecon = await page.evaluate(async () => {
   const heads = [...document.querySelectorAll('#content-host thead th')].map((t) => t.innerText.trim().toUpperCase());
   const num = (s) => Number(String(s).replace(/[^0-9.-]/g, ''));
   const out = { checked: 0, bad: [] };
+<<<<<<< HEAD
   for (const tr of [...document.querySelectorAll('#content-host tbody tr[data-row-key]')].slice(0, 60)) {
     const td = [...tr.children].map((c) => c.innerText.trim());
     for (const m of ['REVENUE', 'NET PROFIT']) {
@@ -629,9 +639,41 @@ const ehRecon = await page.evaluate(() => {
       // integer-rounding gap is expected. A sign flip or a factor-of-two gap is not.
       if (Math.abs(calc - num(shown)) > Math.max(2, Math.abs(num(shown)) * 0.05)) {
         out.bad.push(`${td[1].replace(/\s+/g, ' ').slice(0, 32)} ${m}: ${pri}→${cur} shown ${shown}, computes ${calc.toFixed(0)}%`);
+=======
+  const seen = new Set();
+  const scroller = document.querySelector('#content-host [data-table-scroll]');
+  const originalTop = scroller?.scrollTop || 0;
+  // Sample real rows across the virtual table, retaining the >100 comparison
+  // gate. Spacer rows carry no reported figures and never count as companies.
+  for (const fraction of [0, 1 / 3, 2 / 3, 1]) {
+    if (scroller) scroller.scrollTop = fraction * (scroller.scrollHeight - scroller.clientHeight);
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    for (const tr of document.querySelectorAll('#content-host tbody tr[data-row-key]')) {
+      if (seen.has(tr.dataset.rowKey)) continue;
+      seen.add(tr.dataset.rowKey);
+      const td = [...tr.children].map((c) => c.innerText.trim());
+      for (const m of ['REVENUE', 'NET PROFIT']) {
+        const iCur = heads.findIndex((h) => h.startsWith(`${m} `) && h !== `${m} GROWTH`);
+        const iPct = heads.indexOf(`${m} GROWTH`);
+        if (iCur < 0 || iPct < 0) continue;
+        const cur = num(td[iCur]);
+        const pri = num(td[iCur + 1]);
+        const shown = td[iPct];
+        if (!/^[+-]?[\d.]+%$/.test(shown)) continue; // a pill, not a percentage — checked elsewhere
+        if (!Number.isFinite(cur) || !Number.isFinite(pri) || pri === 0) continue;
+        out.checked++;
+        const calc = ((cur - pri) / Math.abs(pri)) * 100;
+        // Rounding: the figures are whole crore and the percentage is a whole number, so a small
+        // integer-rounding gap is expected. A sign flip or a factor-of-two gap is not.
+        if (Math.abs(calc - num(shown)) > Math.max(2, Math.abs(num(shown)) * 0.05)) {
+          out.bad.push(`${td[1].replace(/\s+/g, ' ').slice(0, 32)} ${m}: ${pri}→${cur} shown ${shown}, computes ${calc.toFixed(0)}%`);
+        }
+>>>>>>> sattva/main
       }
     }
   }
+  if (scroller) scroller.scrollTop = originalTop;
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   return out;
 });
 // The bar is a SAMPLE size, not a coverage claim: the table virtualises, so what is in the DOM is
@@ -682,7 +724,7 @@ const figuresFor = async (needle, timeout = 8000) => {
       const hs = [...document.querySelectorAll('#content-host thead th')].map((t) => t.innerText.trim().toUpperCase());
       const i = hs.findIndex((h) => h.startsWith('REVENUE ') && h !== 'REVENUE GROWTH');
       if (i < 0) return null;
-      for (const tr of document.querySelectorAll('#content-host tbody tr')) {
+      for (const tr of document.querySelectorAll('#content-host tbody tr[data-row-key]')) {
         const tds = [...tr.children].map((c) => c.innerText.trim());
         if (tds[1] && tds[1].toUpperCase().includes(n)) return { cur: tds[i], prior: tds[i + 1] };
       }
@@ -743,7 +785,7 @@ const hasLiveRoute = qoqProbe.live;
 // row happened to sort first. Read the name off the table rather than hard-coding it — the
 // committed snapshot and the live feed do not contain the same companies.
 const pinned = await page.evaluate(() => {
-  const tr = document.querySelector('#content-host tbody tr');
+  const tr = document.querySelector('#content-host tbody tr[data-row-key]');
   return (tr?.children[1]?.innerText || '').split('\n').map((x) => x.trim()).filter(Boolean).find((x) => x.length > 3) || '';
 });
 const yoyPinned = pinned ? await figuresFor(pinned.toUpperCase()) : null;
@@ -1247,7 +1289,11 @@ console.log('\n— AI alerts —');
   });
   await page.goto(`${BASE}/?fresh=${Date.now() + 1}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4500);
+<<<<<<< HEAD
   await page.locator('#content-host[data-active-tab="ai-alerts"]').waitFor({ state: 'visible', timeout: 15000 });
+=======
+  await page.locator('[data-ai-search]').waitFor({ state: 'visible', timeout: 15000 });
+>>>>>>> sattva/main
   ok('the dashboard opens on AI Alerts', /ai-alerts/.test(page.url()), page.url().split('#')[1]);
   ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'AI Alerts');
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
@@ -1255,6 +1301,7 @@ console.log('\n— AI alerts —');
   ok('...in the Portfolio scope by default', /scope=portfolio/.test(page.url()), page.url());
 
   await go('/#/research/ai-alerts?scope=portfolio', 4500);
+<<<<<<< HEAD
   // WAIT FOR A SETTLED STATE, NOT FOR `complete`. On a static origin there is no Worker, so the
   // feeds behind `/api/*` and the chatter host genuinely cannot be read and `partial · retained
   // evidence shown` is the honest answer — the one this dashboard exists to give. Waiting only for
@@ -1278,6 +1325,20 @@ console.log('\n— AI alerts —');
     window.__aiSignature = signature;
     return settled;
   }, null, { timeout: 30000, polling: 1200 }).catch(() => {});
+=======
+  // A completed source check can remain partial. This standalone server cannot
+  // answer every Worker route, and must never turn those failures into green.
+  await page.locator('[data-ai-feed-status][data-state="complete"], [data-ai-feed-status][data-state="partial"]').waitFor({ state: 'visible', timeout: 60000 });
+  const aiCoverage = await page.evaluate(async () => {
+    const coverage = await import('/js/data/coverage.js');
+    const alerts = await import('/js/data/daily-alerts.js');
+    const report = await alerts.collect({ scope: 'portfolio', holdings: coverage.holdings(), includeHistory: true, load: false, pool: 'ai' });
+    return { state: document.querySelector('[data-ai-feed-status]')?.dataset.state,
+      pending: report.pending, failed: report.feeds.filter(feed => feed.status === 'failed').map(feed => feed.id) };
+  });
+  ok('AI Alerts completes its check and accurately exposes failed source coverage', aiCoverage.pending === 0 &&
+    aiCoverage.state === (aiCoverage.failed.length ? 'partial' : 'complete'), JSON.stringify(aiCoverage));
+>>>>>>> sattva/main
 
   const aiCards = page.locator('[data-ai-card]');
   const aiCount = await aiCards.count();
@@ -1335,18 +1396,31 @@ console.log('\n— AI alerts —');
     figureStrip: el.querySelectorAll('[data-ai-metrics]').length,
     questionParagraph: el.querySelectorAll('[data-ai-drivers]').length,
     evidence: el.querySelectorAll('[data-ai-evidence] [data-ai-event]').length,
+<<<<<<< HEAD
     // Each mounted row retains its source label and stable event identity.
     // textContent, not innerText: a card Chromium has skipped under `content-visibility: auto`
     // reports empty innerText while still carrying its text, which reads as a card with no source.
     evidenceSources: [...el.querySelectorAll('[data-ai-evidence] [data-ai-event-source]')].map((n) => n.textContent.split('·')[0].trim()),
     evidenceIds: [...el.querySelectorAll('[data-ai-timeline-row]')].map(n => n.dataset.rowKey),
+=======
+    // Each row names its source in its own cell: the SET of them is the breadth on screen, and the
+    // LIST of them is what proves no one source took the whole card.
+    // textContent, not innerText: a card Chromium has skipped under `content-visibility: auto`
+    // reports empty innerText while still carrying its text, which reads as a card with no source.
+    evidenceSources: [...el.querySelectorAll('[data-ai-evidence] [data-ai-event-source]')].map((n) => n.textContent.split('·')[0].trim()),
+    evidenceFeeds: [...new Set([...el.querySelectorAll('[data-ai-evidence] [data-ai-event-source]')].map((n) => n.textContent.split('·')[0].trim()))],
+>>>>>>> sattva/main
     // Newest first is what the list header claims, so the rows carry a comparable key.
     rowKeys: [...el.querySelectorAll('[data-ai-evidence] [data-ai-event] [data-ai-age]')].map((n) => n.getAttribute('datetime') || ''),
     // A reading is a chip on the row whose own record backs it — never a colour, never a verdict,
     // and never an anchor of its own to the place the row already opens.
     chips: [...el.querySelectorAll('[data-ai-driver]')].map((n) => ({
       text: n.textContent.replace(/\s+/g, ' ').trim(),
+<<<<<<< HEAD
       onRow: !!n.closest('[data-ai-event]')?.querySelector('[data-ai-evidence-link][href]'),
+=======
+      onRow: !!n.closest('[data-ai-evidence-link][href]'),
+>>>>>>> sattva/main
       says: /^Could change the (?:earnings assumption|valuation|thesis)\./.test(n.getAttribute('title') || ''),
       disclaims: /does not verify|not confirmation/i.test(n.getAttribute('title') || ''),
       toned: /emerald|rose|amber/.test(n.className),
@@ -1359,18 +1433,37 @@ console.log('\n— AI alerts —');
   ok('no card carries a figure strip or a per-question paragraph, and the counts are still reachable',
     aiShape.every((card) => card.figureStrip === 0 && card.questionParagraph === 0 && card.sources > 0),
     aiShape.map((card) => `${card.ticker}:${card.sources} sources`).join(' | ').slice(0, 160));
+<<<<<<< HEAD
   // Headlines remain outside the bounded scrolling timeline.
   ok('...a bounded evidence window, with complete history reachable',
     aiShape.every((card) => card.evidence > 0 && card.evidence <= 20 && card.open));
+=======
+  // A card that needs scrolling to reach its finding has not delivered one. Four evidence rows is
+  // the cap; the rest are one click away in the tab that exists to hold them.
+  ok('...at most four evidence rows, with the rest one click away',
+    aiShape.every((card) => card.evidence > 0 && card.evidence <= 4 && card.open));
+>>>>>>> sattva/main
   // The header over those rows says newest first, which is a claim about the order they are in.
   ok('...in the order the list header claims',
     aiShape.every((card) => card.rowKeys.join('|') === [...card.rowKeys].sort().reverse().join('|')),
     aiShape.map((card) => `${card.ticker}:${card.rowKeys.join(',')}`).join(' | ').slice(0, 170));
+<<<<<<< HEAD
   // The timeline shows chronological evidence without dropping rows to fit source quotas.
   ok('...with a source label on every mounted event',
     aiShape.every(card => card.evidenceSources.length === card.evidence && card.evidenceSources.every(Boolean)));
   ok('...with unique retained event identities in the mounted window',
     aiShape.every(card => new Set(card.evidenceIds).size === card.evidenceIds.length));
+=======
+  // NO SOURCE TAKES THE WHOLE CARD. One board meeting filed to both exchanges under four different
+  // subjects is four records upstream, and it took all four rows of a card whose own header read
+  // "1 source" — so slots go one per source in rounds and stop at three from any one of them.
+  // Counted on the tag each row prints, which names the source FAMILY, so NSE and BSE count as the
+  // one source they are.
+  ok('...with no more than three rows from any one source',
+    aiShape.every((card) => [...new Set(card.evidenceSources)]
+      .every((source) => card.evidenceSources.filter((name) => name === source).length <= 3)),
+    aiShape.map((card) => `${card.ticker}:${card.evidenceSources.join('/')}`).join(' | ').slice(0, 170));
+>>>>>>> sattva/main
   // A TOPIC READING IS NOT A DIRECTION AND NOT A VERDICT. Today's capture may carry no tracked
   // topic at all, which is a legitimate state — so this asserts the shape of whatever is drawn
   // rather than that something is. The fixture-driven suite asserts one is drawn.
@@ -2642,14 +2735,11 @@ console.log('\n— editable scope lists —');
   await page.locator('[data-scope-edit]').click();
   await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 10000 });
   const universeBefore = Number((await page.locator('[data-scope-count]').innerText()).replace(/,/g, ''));
-  await page.locator('[data-scope-search]').fill('ALPHA');
-  await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
-  await page.locator('[data-scope-result="0"]').click();
-  ok('Universe accepts a company not present in the committed technicals set',
-    Number((await page.locator('[data-scope-count]').innerText()).replace(/,/g, '')) === universeBefore + 1);
+  ok('Universe includes the exchange directories independently of technicals coverage', universeBefore > 5000);
+  await page.locator('[data-scope-search]').fill('DP Abhushan');
+  ok('Universe searches companies outside the scored technicals set', /DPABHUSHAN/.test(await page.locator('[data-scope-members]').innerText()));
   await page.locator('[data-scope-search]').fill('RELIAN');
-  await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
-  await page.locator('[data-scope-result="0"]').click();
+  await page.locator('[data-scope-remove="ticker:RELIANCE"]').click();
   ok('a base Universe company can be excluded from ticker-based feeds', await page.evaluate(async () => {
     const scope = await import('/js/data/scope.js');
     return !scope.scopeAllowsTicker('universe', 'RELIANCE');
@@ -2735,12 +2825,8 @@ await page.waitForTimeout(400);
 ok('ESC closes the drill', (await page.locator('#drill-panel.translate-x-full, #drill-panel:not(.translate-x-0)').count()) > 0);
 
 // ---------------------------------------------------------------------------------------
-// 4b2. Breakouts opens on Strong Breakouts, and no chip narrows the view on the reader's behalf
-//
-// The tab used to land on Technical Scanner — the whole scored universe — while the view that
-// answers "what is breaking out today" sat second in the list. Strong Breakouts is first now, and
-// the shell resolves an absent sub-view to `subviews[0]`, so the picker order and the landing
-// route are one fact rather than two that could drift; both are asserted off the same navigation.
+// 4b2. Breakouts opens on Momentum Scanner; horizontal tabs switch its views.
+// The first catalog subview is both the landing route and the first visible tab.
 //
 // The filters are the other half of it. Three of the four groups already defaulted to their widest
 // option, but that option sat LAST in its row, and the fourth — the trend filter — shipped on
@@ -2759,10 +2845,25 @@ console.log('\n— breakouts: default view and filters —');
   await go('/#/research/breakouts?scope=universe', 2500);
   await waitForPanel();
   ok('a bare /breakouts route lands on Momentum Scanner', /breakouts\/momentum-scanner/.test(page.url()), page.url());
+<<<<<<< HEAD
   const tabs = await page.locator('#subview-mount [data-tab-id]').evaluateAll(items => items.map(b => ({ id: b.dataset.tabId, selected: b.getAttribute('aria-selected') })));
   ok('Momentum Scanner is the first selected view tab', tabs.length === 4 && tabs[0].id === 'momentum-scanner' && tabs[0].selected === 'true', JSON.stringify(tabs));
   await page.locator('#subview-mount [data-tab-id=strong-breakouts]').click();
   await page.waitForSelector('[data-chip-bar]');
+=======
+  const picker = await page.evaluate(() => {
+    const items = [...document.querySelectorAll('#subview-mount [role="tab"]')];
+    return {
+      ids: items.map((b) => b.dataset.tabId),
+      checked: items.find((b) => b.getAttribute('aria-selected') === 'true')?.dataset.tabId || null,
+    };
+  });
+  ok('Momentum Scanner is the first horizontal view tab', picker.ids[0] === 'momentum-scanner', picker.ids.join(' · '));
+  ok('Momentum Scanner is selected', picker.checked === 'momentum-scanner');
+  await page.locator('#subview-mount [data-tab-id="strong-breakouts"]').click();
+  await waitForPanel();
+  await page.waitForSelector('#content-host [data-chip-group="strength"]');
+>>>>>>> sattva/main
 
   // Read the chip bar as it is drawn: the first chip of every group, and which chip is selected.
   // Asserted off the DOM rather than the module's config, because the config being right and the
@@ -7371,12 +7472,31 @@ console.log('\n— sub-view picker and the removed roadmap card —');
   // It is asserted as a CLASS contract rather than as geometry because class ownership is the
   // durable cause of this bug. The first version read the open menu's box and could pass even when
   // an ancestor clipped it; a check that cannot fail is not a check.
-  await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
+  await go('/#/research/super-investors/superstar-investors?scope=universe', 2600);
   await waitForPanel();
+<<<<<<< HEAD
   ok('Breakouts shows four horizontal view tabs', await page.locator('#subview-mount [role=tab]').count() === 4);
   await page.locator('#subview-mount [data-tab-id=fii-accumulation]').click();
+=======
+  await page.locator('#subview-mount [data-dd-trigger]').click();
+  await page.waitForTimeout(350);
+  const menu = await page.evaluate(() => {
+    const el = document.querySelector('#subview-mount [data-dd-menu]');
+    const clippers = [];
+    for (let n = el.parentElement; n && n.id !== 'subview-mount'; n = n.parentElement) {
+      if (String(n.className || '').split(/\s+/).includes('overflow-hidden')) clippers.push(n.className);
+    }
+    return { open: !el.classList.contains('hidden'), items: el.querySelectorAll('[data-dd-id]').length, clippers };
+  });
+  ok('clicking the picker opens its menu', menu.open && menu.items === 2, JSON.stringify({ open: menu.open, items: menu.items }));
+  ok('...and nothing between the menu and its mount clips it', menu.clippers.length === 0, menu.clippers.join(' | ') || 'no overflow-hidden ancestor');
+  await page.keyboard.press('Escape');
+  await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
+  await waitForPanel();
+  await page.locator('#subview-mount [data-tab-id="fii-accumulation"]').click();
+>>>>>>> sattva/main
   await page.waitForTimeout(1800);
-  ok('...and picking a sub-view navigates to it', /breakouts\/fii-accumulation/.test(page.url()), page.url());
+  ok('clicking a scanner view tab navigates to it', /breakouts\/fii-accumulation/.test(page.url()), page.url());
   ok('...and the content follows', /Institutional holding changes/i.test(await hostText()));
 }
 
@@ -8161,7 +8281,11 @@ const insightShape = await page.evaluate(() => {
   // position is put back afterwards. verify-ai-alerts-ui.mjs has the measurement.
   const y = scrollY;
   const rendered = (node) => { node.scrollIntoView({ block: 'nearest' }); return node.innerText; };
+<<<<<<< HEAD
   const everyCardLabelsItsInsight = cards.every((c) => /headline/i.test(rendered(c)));
+=======
+  const everyCardLabelsItsInsight = cards.every((c) => /what happened/i.test(rendered(c)));
+>>>>>>> sattva/main
   const kick = (node) => node?.querySelector('.uppercase')?.innerText.trim() || '';
   const readings = cards.map((card) => {
     rendered(card);
@@ -8186,8 +8310,13 @@ if (!insightShape) {
   skip('every AI Alerts card states what happened, in one source\'s own words',
     'no company reached the surfaced threshold in this capture');
 } else {
+<<<<<<< HEAD
   ok('every AI Alerts card labels its headline',
     insightShape.everyCardLabelsItsInsight && /headline/i.test(insightShape.kicker),
+=======
+  ok('every AI Alerts card labels what happened',
+    insightShape.everyCardLabelsItsInsight && /what happened/i.test(insightShape.kicker),
+>>>>>>> sattva/main
     `${insightShape.cards.length} card(s) · "${insightShape.kicker}"`);
   // A claim is a statement, so it ends as one. An empty sentence is the failure that matters here:
   // the whole point of the card is that a reader does not have to open a row to learn what landed.

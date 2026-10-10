@@ -69,11 +69,23 @@ export function scopeMatcher(scope, holdings = null) {
   // Reviewed SME quote aliases and exchange symbols identify the same company. Match both
   // sides without rewriting holdings or source records, or guessing unknown suffixes.
   const wanted = members && new Set([...members].map(filingTicker));
-  const removed = wanted ? null : new Set(scopeLists.removed('universe')
-    .map(entry => scopeLists.keyFor({ ...entry, ticker: filingTicker(entry.ticker) })));
-  return { has: (ticker) => {
+  const exclusions = wanted ? [] : scopeLists.removed('universe');
+  const removed = new Map();
+  for (const entry of exclusions) for (const t of [entry.ticker, ...(entry.matchTickers || [])].map(filingTicker)) {
+    if (!removed.has(t)) removed.set(t, new Set());
+    removed.get(t).add(entry.isin || null);
+  }
+  const removedIsins = new Set(exclusions.map(entry => entry.isin).filter(Boolean));
+  const removedCodes = new Set(exclusions.flatMap(entry => [entry.bseCode, ...(entry.matchTickers || [])]
+    .filter(code => /^\d{6}$/.test(String(code || ''))).map(String)));
+  return { has: (ticker, company = null) => {
     const t = filingTicker(ticker);
-    return !!t && (wanted ? wanted.has(t) : !removed.has(`ticker:${t}`));
+    if (wanted) return !!t && wanted.has(t);
+    if (company?.isin) return !removedIsins.has(company.isin) &&
+      !removed.get(t)?.has(null) && !removed.get(t)?.has(company.isin);
+    const code = String(company?.scripCode || company?.bseCode || '');
+    if (/^\d{6}$/.test(code)) return !removedCodes.has(code) && !removed.get(t)?.has(null);
+    return !!t && !removed.has(t);
   } };
 }
 
@@ -92,7 +104,7 @@ export function filterByScope(rows, scope, holdings = null, tickerOf = (r) => r.
     // A tickerless row cannot match a narrowed list, but it remains part of Universe: there is no
     // symbol by which the editor could exclude it, and dropping it would turn an edit feature into
     // a silent data-loss rule for unresolved fund holdings and chatter rows.
-    return t ? wanted.has(t) : scope === UNIVERSE;
+    return t ? wanted.has(t, r) : scope === UNIVERSE;
   });
 }
 
