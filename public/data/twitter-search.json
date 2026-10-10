@@ -995,7 +995,7 @@
       "pending": []
     },
     "isin:INE993A01026|MANINDS": {
-      "lastAttemptAt": "2026-10-05T03:30:22+00:00",
+      "lastAttemptAt": "2026-10-10T17:31:24+00:00",
       "error": "search-unavailable",
       "lastResultCount": 118,
       "targetThrough": "2026-09-27T08:32:05+00:00",
@@ -2398,6 +2398,6 @@
     "planned": 254,
     "attempted": 1,
     "incomplete": 254,
-    "checkedAt": "2026-10-10T16:58:22.335974+00:00"
+    "checkedAt": "2026-10-10T17:31:24.867312+00:00"
   }
 }
