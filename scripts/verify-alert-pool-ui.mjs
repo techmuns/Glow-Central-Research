@@ -76,7 +76,9 @@ const captureReads = (since = 0) => served.requests.slice(since).filter((path) =
 const poolReads = (since = 0) => served.requests.slice(since).filter((path) => path.startsWith('/api/alert-pool/'));
 
 async function openPage() {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
+  // Compare the completed data presentation, not two independent entrance-animation clocks.
+  // Normal-motion queue timing and complete-model export are covered by verify-general-alerts-ui.
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block', reducedMotion: 'reduce' });
   await context.route('**/*', (route) => route.request().url().startsWith(origin + '/') ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
   await context.addInitScript((base) => { localStorage.setItem('sattva:chatter-base', `${base}/fixture/chatter`); }, origin);
   const page = await context.newPage();
@@ -98,6 +100,7 @@ const settledAlerts = async (page) => {
   await page.waitForFunction(() => {
     const rows = document.querySelectorAll('tbody tr[data-row-key]').length;
     const chips = [...document.querySelectorAll('[data-feed]')];
+<<<<<<< HEAD
     const empty = /^No loaded event\b/.test(document.querySelector('tbody')?.textContent.trim() || '')
       && /^0\b/.test(document.querySelector('[data-row-count]')?.textContent.trim() || '');
     return (rows > 0 || empty) && chips.length > 0 && !chips.some((chip) => chip.textContent.includes('reading…')) && !document.querySelector('[data-table-loading]');
@@ -111,6 +114,30 @@ const settledAlerts = async (page) => {
     if (keys === previous) return;
     previous = keys;
     await page.waitForTimeout(750);
+=======
+    // Today is empty after IST midnight until something dated today is captured: settled then means
+    // the table's own empty state over a zero count, never the placeholders of a read still running.
+    const empty = /^No loaded event\b/.test(document.querySelector('tbody')?.textContent.trim() || '')
+      && /^0\b/.test(document.querySelector('[data-row-count]')?.textContent.trim() || '');
+    // The feeds may be ready while sliced story grouping still shows the original reports.
+    // Compare completed line items, never a fixed-delay sample of an intermediate count.
+    return (rows > 0 || empty) && chips.length > 0 && !chips.some((chip) => chip.textContent.includes('reading…'))
+      && document.querySelector('[data-alerts-workspace]')?.getAttribute('aria-busy') === 'false'
+      && !document.querySelector('[data-table-loading]');
+  }, null, { timeout: 120000 });
+  // Story grouping folds exact duplicate reports after the first paint and hands the table new row
+  // objects, which are read in slices too; a refresh repaints the unfolded rows until the fold runs
+  // again. So settled means the readings are done and two reads a moment apart agree on the painted
+  // rows AND on the complete count, which counts rows that are not painted.
+  let previous = null;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    await page.evaluate(async () => { await (await import('/js/data/surface-relevance.js')).relevanceSettled(); });
+    const state = JSON.stringify(await page.evaluate(() => [document.querySelector('[data-row-count]')?.textContent.trim() || '',
+      ...[...document.querySelectorAll('tbody tr[data-row-key]')].map((row) => row.dataset.rowKey)]));
+    if (state === previous) return;
+    previous = state;
+    await page.waitForTimeout(1500);
+>>>>>>> sattva/main
   }
 };
 const rowKeys = (page) => page.evaluate(() => [...document.querySelectorAll('tbody tr[data-row-key]')].map((row) => row.dataset.rowKey));
@@ -129,6 +156,8 @@ const settledRanking = async (page, timeout) => {
 };
 const rowCount = (page) => page.evaluate(() => document.querySelector('[data-row-count]')?.textContent.trim() || '');
 const feedChips = (page) => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-feed]')].map((chip) => [chip.dataset.feed, chip.textContent.trim().replace(/\s+/g, ' ')])));
+const environment = (message) => /ExcelJS|fonts\.googleapis|exceljs|Failed to load resource|net::ERR|503/.test(message);
+
 const environment = (message) => /ExcelJS|fonts\.googleapis|exceljs|Failed to load resource|net::ERR|503/.test(message);
 
 try {
@@ -179,8 +208,22 @@ try {
   const handoffFrom = served.requests.length;
   await handoff.page.goto(`${origin}/#/research/daily-alerts?scope=universe`);
   await indexWaiting;
+<<<<<<< HEAD
   await handoff.page.evaluate(async () => {
     const coverage = await import('/js/data/coverage.js');
+=======
+  // Keep the test's module promise rooted while the index is deliberately held.
+  // A bare async DevTools evaluation can lose its promise during a browser GC;
+  // apply the book change synchronously after the dependency is available.
+  await handoff.page.evaluate(() => {
+    window.handoffCoverageReady = import('/js/data/coverage.js').then(module => {
+      window.handoffCoverage = module;
+    });
+  });
+  await handoff.page.waitForFunction(() => !!window.handoffCoverage, null, { timeout: 10000 });
+  await handoff.page.evaluate(() => {
+    const coverage = window.handoffCoverage;
+>>>>>>> sattva/main
     coverage.useFamilyBook(coverage.holdings().map(h => ({ ...h, bookName: `${h.name} statement name` })));
   });
   releaseIndex();
@@ -191,9 +234,15 @@ try {
   await settledAlerts(handoff.page);
   assert.deepEqual(captureReads(handoffFrom), [], 'the replacement context still uses the pool instead of raw captures');
   assert(poolReads(handoffFrom).some(path => path.endsWith(`/days/${index.day}.json.gz`)), 'the replacement reads the current-day shard');
+<<<<<<< HEAD
   await handoff.page.evaluate(async () => {
     window.handoffSearch = document.querySelector('[data-table-search]');
     const coverage = await import('/js/data/coverage.js');
+=======
+  await handoff.page.evaluate(() => {
+    window.handoffSearch = document.querySelector('[data-table-search]');
+    const coverage = window.handoffCoverage;
+>>>>>>> sattva/main
     coverage.useFamilyBook(coverage.holdings().map(h => ({ ...h, cmp: 123, holdingWeightPct: 2.5 })));
     coverage.invalidateFamilyBook(); coverage.failFamilyBook();
   });
@@ -285,6 +334,7 @@ try {
   console.log(`PASS AI Alerts from the AI pool: ${pooledCards.length} cards, identical to the live ranking`);
   await liveAi.context.close();
 
+<<<<<<< HEAD
   // A capture check can publish a new artifact without changing any retained rows. Exercise the
   // real header refresh: all AI shards stay decoded, while the new index/status are checked.
   const fromRefresh = served.requests.length;
@@ -297,6 +347,8 @@ try {
   assert(served.requests.slice(fromRefresh).includes('/api/capture-status'), 'refresh still checks live capture revisions');
   console.log(`PASS new artifact reuses ${index.ai.length} unchanged AI shards: zero shard requests, identical cards`);
 
+=======
+>>>>>>> sattva/main
   const real = pooled.errors.filter((message) => !environment(message));
   assert.deepEqual(real, [], `zero console errors (${pooled.errors.length - real.length} environment failures dropped)`);
   await pooled.context.close();

@@ -15,6 +15,7 @@
  * Tables keep native scrolling — trackpads, wheels and touch screens already do that best — but
  * the surface now carries momentum on iOS, contains overscroll instead of handing a diagonal
  * gesture to the page, and is keyboard-focusable wherever the markup supplies tabindex="0".
+<<<<<<< HEAD
  * Do not add scroll snapping here: stopping a financial table between rows/columns is a feature,
  * not an error — and do not add `scroll-behavior: smooth` either, because the windowed list
  * writes `scrollTop` to put a held record back and an animated write would land the reader
@@ -31,15 +32,50 @@
  * history the thumb is a sliver a few pixels long, and a 40px floor is what makes it draggable
  * at all. Firefox gets `auto` rather than `thin` for the same reason; `thin` is the one value
  * that cannot be widened.
+=======
+ * A slightly larger, higher-contrast thumb is easier to acquire without becoming dashboard
+ * chrome. Do not add scroll snapping here: stopping a financial table between rows/columns is a
+ * feature, not an error.
+ *
+ * THE THUMB NEEDS A FLOOR, AND THAT IS THE HALF THAT MADE DRAGGING HARD. A scrollbar thumb is
+ * sized in proportion to what it scrolls, so a retained history is a sliver: All Alerts measures
+ * 167,944px of scrollHeight inside a 400px scroller, which is a thumb UNDER ONE PIXEL TALL. No
+ * width setting can rescue that — the bar was wide enough to see and too short to grab, which
+ * reads as a broken control rather than a small one. A per-axis floor is the fix — `min-height`
+ * on the vertical thumb and `min-width` on the horizontal one, never both on both, which would
+ * ask a vertical thumb to be 48px WIDE inside a 14px track — and
+ * the width below is what makes it a comfortable target rather than a precise one.
+ *
+ * The 14px track carries a 2px transparent border under `background-clip: content-box`, so the
+ * bar a reader SEES is 10px — a little thicker than the 8px it replaces — while the area a
+ * pointer may grab is the full 14px. Widening the visible thumb to the whole track would read as
+ * chrome on a page whose tables are the content; widening only the hit area would leave the
+ * control looking exactly as hard to grab as before. This is both.
+ *
+ * `scrollbar-width` is `auto`, never `thin`. Browsers with ::-webkit-scrollbar support must
+ * also keep scrollbar-color at auto: a non-auto colour overrides the entire pseudo-element
+ * family, including the track width and thumb length floor. Firefox uses the standard colour
+ * fallback. Widening it costs the widest table 6px of its own room and that
+ * was measured before it shipped: the tightest table here (All Alerts) stops shrinking at
+ * 1,224px inside a 1,392px scroller, so every one of them keeps well over 100px of headroom.
+>>>>>>> sattva/main
  */
 .table-scroll-surface {
   max-width: 100%;
   overscroll-behavior: contain;
   scroll-padding: 1rem;
+<<<<<<< HEAD
   scrollbar-color: rgb(var(--edge-slate-400, 148 163 184) / 1) rgb(var(--surface-slate-100, 241 245 249) / 1);
+=======
+  scrollbar-color: rgb(var(--edge-slate-400, 148 163 184) / 1) transparent;
+>>>>>>> sattva/main
   scrollbar-width: auto;
   touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  .table-scroll-surface { scrollbar-color: auto; }
 }
 
 .table-scroll-surface::-webkit-scrollbar {
@@ -56,17 +92,33 @@
 
 .table-scroll-surface::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
+<<<<<<< HEAD
   background: rgb(var(--surface-slate-400, 148 163 184) / 0.8);
   background-clip: padding-box;
   border-radius: 9999px;
   min-height: 40px;
   min-width: 40px;
+=======
+  background-clip: content-box;
+  border-radius: 9999px;
+  background-color: rgb(var(--surface-slate-400, 148 163 184) / 1);
+}
+
+/* The floor is per axis: a length on the bar that scrolls, never a width on the other one. */
+.table-scroll-surface::-webkit-scrollbar-thumb:vertical {
+  min-height: 48px;
+}
+
+.table-scroll-surface::-webkit-scrollbar-thumb:horizontal {
+  min-width: 48px;
+>>>>>>> sattva/main
 }
 
 /* Contrast on hover comes from ALPHA, not from a darker token: the surface ramp inverts under the
    dark theme, where slate-500 is darker than slate-400 and "hover" would dim the thumb. Compositing
    further toward the thumb's own colour stands out against the card in both themes. */
 .table-scroll-surface::-webkit-scrollbar-thumb:hover {
+<<<<<<< HEAD
   border-width: 1px;
   background: rgb(var(--surface-slate-400, 148 163 184) / 1);
   background-clip: padding-box;
@@ -82,6 +134,13 @@
    one. */
 .table-scroll-surface::-webkit-scrollbar-corner {
   background: transparent;
+=======
+  background-color: rgb(var(--surface-slate-500, 100 116 139) / 1);
+}
+
+.table-scroll-surface::-webkit-scrollbar-thumb:active {
+  background-color: rgb(var(--surface-slate-600, 71 85 105) / 1);
+>>>>>>> sattva/main
 }
 
 .table-scroll-surface:focus-visible {
@@ -94,6 +153,7 @@
 /* All Alerts is a reading workspace: spend the viewport on records, not chrome. Other tabs
    retain their existing framing. No row typography, virtual stride or data policy changes. */
 [data-reading-layout="table"] [data-app-header] { padding-top: 12px; padding-bottom: 4px; }
+<<<<<<< HEAD
 [data-reading-layout="table"] [data-app-content] { max-width: 1800px; padding-left: 24px; padding-right: 24px; padding-top: 12px; padding-bottom: 0; }
 /* The brand block is compacted and the strapline hidden in this layout, and that is not decoration:
    it is the difference between the table owning most of an embedded frame and owning under half of
@@ -104,6 +164,10 @@
 [data-reading-layout="table"] [data-app-header] h1 { margin: 0; }
 [data-reading-layout="table"] #brand-subtitle { display: none; }
 .alerts-workspace [data-section-head] { margin-bottom: 8px; }
+=======
+[data-reading-layout="table"] [data-app-content] { max-width: 1800px; padding-left: 24px; padding-right: 24px; padding-top: 8px; padding-bottom: 0; }
+.alerts-workspace [data-section-head] { margin-bottom: 4px; }
+>>>>>>> sattva/main
 .alerts-workspace [data-section-head] > div { align-items: center; gap: 8px; }
 .alerts-workspace [data-section-head] h2 { font-size: 20px; }
 .alerts-controls { position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 8px; }
@@ -133,7 +197,7 @@
 .alerts-source-picker[open] .alerts-source-chevron { transform: rotate(180deg); }
 .alerts-source-panel { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; width: min(820px, 100%); max-height: min(440px, 55vh); overflow-y: auto; overscroll-behavior: contain; padding: 16px; border: 1px solid rgb(var(--edge-slate-200, 226 232 240) / 1); border-radius: 14px; background: rgb(var(--surface-white, 255 255 255) / 1); box-shadow: 0 16px 48px #0f172a26; }
 .alerts-source-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 14px; font-size: 14px; }
-.alerts-workspace [data-table-toolbar] { padding: 10px 12px; gap: 8px; }
+.alerts-workspace [data-table-toolbar] { padding: 8px 12px; gap: 8px; }
 .alerts-workspace [data-table-toolbar] > div:first-child > div:first-child { min-width: 180px; }
 html[data-alerts-focus-mode="true"] [data-reading-layout="table"] [data-app-header],
 html[data-alerts-focus-mode="true"] [data-reading-layout="table"] [data-app-nav] { display: none; }
