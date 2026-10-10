@@ -1,3 +1,4 @@
+import { TAB_META } from './catalog.js';
 import * as live from '../data/breakout-live.js';
 import { filterByScope, scopeTickers } from '../data/scope.js';
 import { topCards, scoreTable, sectionHead, openModal, statStrip } from '../ui/screener.js';
@@ -15,6 +16,7 @@ import * as scopeLists from '../core/scope-lists.js';
 import { TECHNICAL_FILTERS, TECHNICAL_DEFAULTS, chipCounts } from './technical-filters.js';
 import * as momentum from '../scoring/momentum-live.js';
 
+<<<<<<< HEAD
 export const meta = {
   id: 'breakouts',
   title: 'Breakouts / Technical',
@@ -27,6 +29,9 @@ export const meta = {
     { id: 'fii-accumulation', label: 'FII Accumulation' },
   ],
 };
+=======
+export const meta = TAB_META['breakouts'];
+>>>>>>> sattva/main
 
 // Bumped on every render so a slow load that resolves after the user navigated away is
 // discarded instead of painting over whatever is now on screen.
@@ -957,7 +962,11 @@ function momentumStatStrip(rows, vf, evaluable, exceptions) {
 // colours walk the brand ramp (indigo → purple → pink), which is constant in both themes exactly
 // like the hero gradient; the "Other" bucket uses the neutral token, which does flip. Every
 // segment and legend chip carries the rule and the live figure in its own tooltip.
+<<<<<<< HEAD
 const MSECTOR_RAMP = ['#8a6a1c', '#a18336', '#b89b50', '#c3a962', '#ceb879', '#d9c48f', '#e2cfa0', '#ecdcae'];
+=======
+const MSECTOR_RAMP = ['#4f46e5', '#6366f1', '#818cf8', '#a855f7', '#c084fc', '#d946ef', '#ec4899', '#f472b6'];
+>>>>>>> sattva/main
 function momentumSectorBar(passers) {
   if (!passers.length) return '';
   const counts = new Map();
@@ -1056,7 +1065,11 @@ function renderMomentumScanner(ctx, rows) {
     // instead of forcing those columns as wide as "Volume + Momentum".
     wrapHeads: true,
     initialSort: { key: 'RSI Daily', dir: 'desc' },
+<<<<<<< HEAD
     exportName: `glow-momentum-${todayStamp()}`,
+=======
+    exportName: `sattva-momentum-${todayStamp()}`,
+>>>>>>> sattva/main
     onExport: (visible, filename) => runMomentumExport(visible, filename, thresholds),
   });
 

@@ -5,6 +5,10 @@ import { documentUrl } from '../../public/js/data/domestic-filings-shared.js';
 import { createAnnouncementIdentity, filingTicker, mergeExchangeIdentities } from '../../public/js/data/announcement-identity.js';
 import { marketTicker } from '../../public/js/data/market-identity.js';
 import { companySecurityIdentity } from '../../public/js/data/company-security-identities.js';
+<<<<<<< HEAD
+=======
+import { buildExchangeUniverse } from '../../public/js/data/exchange-universe.js';
+>>>>>>> sattva/main
 
 export const day = (time) => new Date(time).toISOString().slice(0, 10);
 const shift = (date, days) => day(Date.parse(date) + days * 86400000);
@@ -23,19 +27,21 @@ function resetSourceCoverage(entry) {
   Object.assign(entry, { ranges: [], lastAttemptAt: null, lastSuccessAt: null,
     lastResponseAt: null, recentCheckedAt: null, recheckBefore: null, nextRetryAt: null,
     failureCount: 0, error: null, skipped: 0, unavailableLinks: 0,
-    declared: null, collected: null, pages: null, requests: null });
+    declared: null, collected: null, pages: null, requests: null,
+    recovery: null, provider: null, primaryError: null });
 }
 
 function purgeProviderEvidence(dir, ticker, provider, keepSource) {
+  const invalidProviders = new Set(Array.isArray(provider) ? provider : [provider]);
   const path = join(dir, companyPath('announcements', ticker));
   const saved = readJson(path, null);
   if (!Array.isArray(saved?.rows)) return { changed: false, removed: 0 };
   let changed = false, removed = 0;
   const rows = [];
   for (const row of saved.rows) {
-    if (!(row.providers || []).includes(provider)) { rows.push(row); continue; }
+    if (!(row.providers || []).some(value => invalidProviders.has(value))) { rows.push(row); continue; }
     changed = true;
-    const providers = (row.providers || []).filter(value => value !== provider);
+    const providers = (row.providers || []).filter(value => !invalidProviders.has(value));
     if (!providers.length) { removed++; continue; }
     const allSources = announcementSources(row);
     let sources = allSources.filter(keepSource);
@@ -108,9 +114,13 @@ export function mergeDocuments(previous, incoming) {
 
 export function captureCompanies(dataDir, { announcements = false, holdings = null, registrations = null } = {}) {
   const book = holdings ?? readJson(join(dataDir, 'portfolio-companies.json'), {}).holdings ?? [];
-  const identities = announcements ? readJson(join(dataDir, 'announcement-identities.json'), {}).entries || [] : [];
-  const nse = announcements ? readJson(join(dataDir, 'filing-capture/nse-identities.json'), {}).directories || {} : {};
+  const bseDirectory = readJson(join(dataDir, 'announcement-identities.json'), {});
+  const nseDirectory = readJson(join(dataDir, 'filing-capture/nse-identities.json'), {});
+  const identities = bseDirectory.entries || [];
+  const nse = nseDirectory.directories || {};
   const identityIndex = createAnnouncementIdentity(mergeExchangeIdentities(identities, nse.sme?.entries || [], nse.equity?.entries || []));
+  const listed = buildExchangeUniverse(bseDirectory, nseDirectory).companies;
+  const listedByTicker = new Map(listed.map(c => [c.ticker, c]));
   const universe = readJson(join(dataDir, 'universe.json'), []);
   const technicals = readJson(join(dataDir, 'technicals.json'), {}).companies || [];
   const announcementBook = book.map(c => {
@@ -120,7 +130,7 @@ export function captureCompanies(dataDir, { announcements = false, holdings = nu
       ...(identity?.bseCode ? { bseCode: String(identity.bseCode) } : {}), priority: true };
   });
   const enrolled = announcements ? registrations ?? readJson(join(dataDir, 'filing-capture/registrations.json'), {}).companies ?? [] : [];
-  const known = [...(announcements ? announcementBook : book), ...enrolled.map(c => ({ ...c, priority: true })), ...(Array.isArray(universe) ? universe : universe.companies || []), ...technicals];
+  const known = [...(announcements ? announcementBook : book), ...enrolled.map(c => ({ ...c, priority: true })), ...(Array.isArray(universe) ? universe : universe.companies || []), ...technicals, ...listed];
   const seen = new Map();
   const storageTickers = new Map();
   const unresolved = [];
@@ -130,10 +140,11 @@ export function captureCompanies(dataDir, { announcements = false, holdings = nu
     const security = companySecurityIdentity(c.isin);
     if (!ticker && security) { nonExchange.push({ isin: c.isin, name: c.name, ...security }); continue; }
     if (!/^[A-Z0-9&._-]{1,80}$/.test(ticker)) { unresolved.push(c.name || c.Company || ticker || 'Unnamed company'); continue; }
-    const identity = announcements ? identityIndex.find({ ...c, ticker }) : null;
+    const identity = identityIndex.find({ ...c, ticker }) ||
+      (!c.isin && !c.bseCode && !c.scripCode ? listedByTicker.get(ticker) : null);
     const sourceTicker = c.announcementTicker || (identity && filingTicker(identity.ticker || identity.bseSymbol));
     const bseCode = String(identity?.bseCode || c.bseCode || '');
-    const key = announcements ? identityIndex.key({ ...c, ticker }) || filingTicker(ticker) : ticker;
+    const key = identity?.isin ? `isin:${identity.isin}` : announcements ? identityIndex.key({ ...c, ticker }) || filingTicker(ticker) : ticker;
     // A portfolio alias may resolve by ISIN while the same universe ticker has no directory
     // match. Both write the same checkpoint/file: keep the verified portfolio identity instead
     // of letting the later, less-specific row reset its query symbol, history and priority.
@@ -147,7 +158,7 @@ export function captureCompanies(dataDir, { announcements = false, holdings = nu
     }
     if (!seen.has(key)) seen.set(key, { ticker, name: c.name || c.Company || ticker,
       ...(sourceTicker ? { announcementTicker: sourceTicker } : {}),
-      ...(identity ? { isin: identity.isin } : {}),
+      ...(identity?.isin || c.isin ? { isin: identity?.isin || c.isin } : {}),
       ...(/^\d{6}$/.test(bseCode) ? { bseCode } : {}), priority: !!c.priority });
     storageTickers.set(ticker, { key, company: seen.get(key) });
   }
@@ -200,7 +211,11 @@ export async function captureCompanySources({ dir, companies, unresolved = [], n
         // but remove that provider's attribution and make the corrected symbol prove every
         // historical window again. Independently captured direct-BSE evidence survives.
         const purged = kind === 'announcements'
+<<<<<<< HEAD
           ? purgeProviderEvidence(dir, ticker, 'Muns corporate announcements', source => source === 'BSE') : { changed: false };
+=======
+          ? purgeProviderEvidence(dir, ticker, ['Muns corporate announcements', 'Screener company recent notices'], source => source === 'BSE') : { changed: false };
+>>>>>>> sattva/main
         if (purged.changed) {
           const saved = readJson(join(dir, companyPath('announcements', ticker)), { rows: [] });
           entries[ticker].rowCount = saved.rows.length;
@@ -252,9 +267,11 @@ export async function captureCompanySources({ dir, companies, unresolved = [], n
         : [job.entry];
       const rank = job => pendingStates(job).some(entry => !entry.lastAttemptAt) ? 0 : pendingStates(job).some(entry => entry.error) ? 1 :
         job.kind === 'announcements' && job.entry.priority ? 2 : job.kind === 'announcements' ? 3 : 4;
-      const priority = job => job.kind === 'announcements' && job.entry.priority ? 0 : 1;
+      const priority = job => job.entry.priority ? 0 : 1;
       const oldest = job => pendingStates(job).map(entry => entry.lastAttemptAt || '').sort()[0] || '';
-      return rank(a) - rank(b) || priority(a) - priority(b) || oldest(a).localeCompare(oldest(b));
+      // Thousands of newly enrolled universe companies must not postpone established portfolio
+      // checks. The source rotation below still gives domestic documents their own fair turns.
+      return priority(a) - priority(b) || rank(a) - rank(b) || oldest(a).localeCompare(oldest(b));
     });
   // Reserve two of every three starts for announcements, one for domestic reports. A large
   // announcement universe must not starve reports (or let reports consume the backfill budget).
@@ -264,7 +281,7 @@ export async function captureCompanySources({ dir, companies, unresolved = [], n
   const takeJob = () => {
     const prefer = lane++ % 3 === 2 ? domestic : announcements;
     const other = prefer === domestic ? announcements : domestic;
-    if (prefer[0]?.entry.lastAttemptAt && other[0] && !other[0].entry.lastAttemptAt) return other.shift();
+    if (!prefer[0]?.entry.priority && prefer[0]?.entry.lastAttemptAt && other[0] && !other[0].entry.lastAttemptAt) return other.shift();
     return prefer.shift() || other.shift();
   };
   let count = 0, stop = false, authFailedThisRun = false, legacySucceededThisRun = false;
@@ -294,7 +311,14 @@ export async function captureCompanySources({ dir, companies, unresolved = [], n
       // gap open, and poll the fallback again on the normal two-hour collection cadence.
       entry.recovery = { checkedAt: result.fetchedAt || attemptedAt, rowCount: result.announcements.length,
         sourceUrl: result.sourceUrl, scope: 'Recent company notices only; full history remains unverified.' };
+<<<<<<< HEAD
       failSource(entry, Object.assign(Error(entry.recovery.scope), { reason: 'limited-coverage' }), attemptedAt);
+=======
+      const message = entry.skipped
+        ? `${entry.skipped} recent-notice entries could not be parsed; valid notices retained. ${entry.recovery.scope}`
+        : entry.recovery.scope;
+      failSource(entry, Object.assign(Error(message), { reason: entry.skipped ? 'shape' : 'limited-coverage' }), attemptedAt);
+>>>>>>> sattva/main
       entry.nextRetryAt = new Date(now() + 2 * 3600000).toISOString();
       return false;
     }
@@ -303,7 +327,8 @@ export async function captureCompanySources({ dir, companies, unresolved = [], n
       if (Number.isFinite(result[field]) && result[field] >= 0) entry[field] = result[field];
     }
     if (entry.skipped) {
-      failSource(entry, new Error(`${entry.skipped} source entries could not be parsed; captured rows retained, window remains incomplete.`), attemptedAt);
+      failSource(entry, Object.assign(new Error(result.parseError || `${entry.skipped} source entries could not be parsed; captured rows retained, window remains incomplete.`),
+        result.parseError ? { reason: 'shape' } : {}), attemptedAt);
       return false;
     }
     entry.lastSuccessAt = attemptedAt;

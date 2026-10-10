@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+<<<<<<< HEAD
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,6 +7,10 @@ import { PERIODS, periodRange, inPeriod, matchedDeals, managerTrades, managerHol
 import { mergeBulkDeals } from './lib/bulk-deals-snapshot.mjs';
 import { syncBulkDeals } from './sync-bulk-deals.mjs';
 import { parseRange, applyRange, indiaDay, rangeParam, describeRange, dayGap } from '../public/js/data/date-range.js';
+=======
+import { PERIODS, indiaDay, periodRange, inPeriod, matchedDeals, investorHoldings, identityIndex, preserveBulkDeals } from '../public/js/data/investor-changes.js';
+
+>>>>>>> sattva/main
 
 assert.deepEqual(PERIODS.map((p) => p.id), ['today', '3d', '7d', 'month', 'quarter', '6m', 'year', 'itd']);
 // Indian calendar boundaries: before UTC midnight, across a year and across leap day.
@@ -18,6 +23,7 @@ for (const [stamp, today, threeFrom, sevenFrom] of [
   const now = Date.parse(stamp);
   assert.equal(indiaDay(now), today);
   for (const [id, from, days] of [['today', today, 1], ['3d', threeFrom, 3], ['7d', sevenFrom, 7], ['month', `${today.slice(0, 7)}-01`, Number(today.slice(8))]]) {
+<<<<<<< HEAD
     const range = parseRange(id, now);
     assert.deepEqual(periodRange(id, today), { from, to: today });
     assert.deepEqual(range, { id, from, to: today, days, custom: false });
@@ -33,6 +39,13 @@ assert.equal(describeRange(parseRange('month')), 'this month');
 assert.equal(describeRange(parseRange('3d')), 'the last 3 days');
 assert.equal(parseRange(null).id, 'all', 'existing filings default is preserved');
 assert.equal(parseRange('2026-09-09..2026-09-01').from, '2026-09-01', 'custom dates still work');
+=======
+    assert.deepEqual(periodRange(id, today), { from, to: today });
+    const rows = ['2020-01-01', from, today, '2030-01-01', null].map((date) => ({ date }));
+    assert.deepEqual(rows.filter((row) => inPeriod(row, periodRange(id, today))), [rows[1], rows[2]]);
+  }
+}
+>>>>>>> sattva/main
 assert.deepEqual(periodRange('month', '2026-09-09'), { from: '2026-09-01', to: '2026-09-09' });
 assert.deepEqual(periodRange('quarter', '2026-01-02'), { from: '2026-01-01', to: '2026-01-02' });
 assert.equal(periodRange('6m', '2026-08-31').from, '2026-02-28');
@@ -58,6 +71,7 @@ assert.equal(grouped[0].source, 'Bulk deal');
 assert.equal(matchedDeals([deal, variant({ Transaction: 'Sell' })], people).length, 2);
 assert.equal(matchedDeals([deal, variant({ 'Trade Shares': '20,000' })], people).length, 2);
 
+<<<<<<< HEAD
 const source = { byTicker: { EXAMPLE: [deal] } };
 const base = { byTicker: { OLD: [{ ticker: 'OLD', date: '2024-01-01', cells: { Transaction: 'Pledge' } }] }, empty: ['EXAMPLE'] };
 const merged = mergeBulkDeals(base, source, { capturedAt: '2026-09-02T00:00:00Z' });
@@ -89,6 +103,8 @@ try {
   assert.equal(JSON.parse(readFileSync(file, 'utf8')).bulkDeals.capturedAt, merged.bulkDeals.capturedAt);
 } finally { globalThis.fetch = realFetch; rmSync(temp, { recursive: true }); }
 
+=======
+>>>>>>> sattva/main
 const books = [{ slug: 'example', quarters: ['Sep 2026', 'Jun 2026', 'Mar 2026', 'Dec 2025'], holdings: [
   { company: 'Example', companySlug: 'EXAMPLE', quarterlyHoldings: { 'Sep 2026': 8, 'Jun 2026': 3, 'Mar 2026': 2, 'Dec 2025': null } },
   { company: 'Gone', companySlug: 'GONE', quarterlyStatus: { 'Jun 2026': 'not_disclosed' }, quarterlyHoldings: { 'Jun 2026': null, 'Mar 2026': 1 } },
@@ -100,13 +116,18 @@ assert(observed.every((r) => r.date !== '2026-09-30'));
 const example = observed.find((r) => r.company === 'Example' && r.date === '2026-06-30');
 assert.deepEqual([example.from, example.date, example.dateKind, example.priorLabel, example.latestLabel], ['2026-03-31', '2026-06-30', 'pattern', 'Mar 2026', 'Jun 2026']);
 assert.equal(example.sourceCheckedAt, null, 'a book with no recorded read time reports none rather than today');
+<<<<<<< HEAD
 assert.equal(tradeWindow(example), null, 'a shareholding pattern never yields a trade date');
+=======
+assert.equal(example.tradeDate, undefined, 'a shareholding pattern never yields a trade date');
+>>>>>>> sattva/main
 assert.equal(investorHoldings([{ ...books[0], fetchedAt: '2026-09-09T11:52:16.304Z' }], [], '2026-09-09')[0].sourceCheckedAt, '2026-09-09T11:52:16.304Z');
 assert.equal(observed.find((r) => r.company === 'Example' && r.date === '2026-06-30').deltaPp, 1);
 assert.equal(observed.find((r) => r.company === 'Gone').action, 'exited', 'an explicit source non-disclosure establishes a disclosure disappearance, without implying a sale');
 assert.equal(observed.find((r) => r.company === 'Gone').deltaPp, null);
 assert.equal(observed.filter((r) => inPeriod(r, periodRange('month', '2026-09-09'))).length, 0);
 
+<<<<<<< HEAD
 const load = (name) => JSON.parse(readFileSync(new URL(`../public/data/${name}.json`, import.meta.url), 'utf8'));
 const managers = load('managers'), investors = load('super-investors'), filings = load('insider-trades');
 const trades = managerTrades(managers.managers), holdings = managerHoldings(managers.managers, { syncedAt: managers.syncedAt });
@@ -122,3 +143,7 @@ for (const r of holdings) { const w = tradeWindow(r); if (w) assert(w.first >= r
 assert(trades.some((r) => r.amount != null && r.amount < 1e5));
 assert(matchedDeals(Object.values(filings.byTicker).flat(), investors.investors.map((i) => ({ id: i.slug, name: i.name }))).length > 0);
 console.log('PASS investor changes: period boundaries, strict identity joins, ambiguous names, duplicate evidence, source failure retention, closed-quarter comparisons, dated rows and shipped data');
+=======
+
+console.log('PASS public investor changes: period boundaries, identity joins, ambiguous names, duplicate evidence, failure retention, closed-quarter comparisons and separate dates');
+>>>>>>> sattva/main

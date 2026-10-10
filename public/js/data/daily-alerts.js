@@ -1,3 +1,5 @@
+import { insiderSignal, INSIDER_HIGH_PCT, INSIDER_HIGH_VALUE } from './insider-signal.js';
+export { insiderSignal, INSIDER_HIGH_PCT, INSIDER_HIGH_VALUE } from './insider-signal.js';
 // data/daily-alerts.js — A NEWEST-FIRST TIMELINE ACROSS THIS DASHBOARD'S RESEARCH FEEDS.
 //
 //   const day = today();                     // the IST trading date
@@ -104,7 +106,7 @@ function shiftDay(day, amount) {
 
 export function materializePublicAlertWindow(report) {
   const firstDay = shiftDay(report.day, -(ALERT_WINDOW_CACHE_DAYS - 1));
-  const privateFeeds = new Set(['company-documents', 'drhp-documents']);
+  const privateFeeds = new Set(['price-levels', 'company-documents', 'drhp-documents']);
   return {
     version: 1,
     day: report.day,
@@ -117,7 +119,7 @@ export function materializePublicAlertWindow(report) {
 }
 
 function validAlertWindow(value, throughDay) {
-  const privateFeeds = new Set(['company-documents', 'drhp-documents']);
+  const privateFeeds = new Set(['price-levels', 'company-documents', 'drhp-documents']);
   if (value?.version !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(value.day || '') ||
       !Array.isArray(value.events) || !Array.isArray(value.feeds)) return false;
   const captured = Date.parse(`${value.day}T00:00:00Z`);
@@ -239,9 +241,12 @@ function istDay(value) {
 // A material day move. This is an importance threshold, no longer a collection threshold:
 // below-threshold measurements remain in the pool and do not change the existing AI policy.
 export const MOVE_PCT = 5;
+<<<<<<< HEAD
 // The insider thresholds and the reading over a trade row live in `insider-signal.js` (pure, shared
 // with the team brief) and are re-exported here for every consumer that reads them from this module.
 export { INSIDER_HIGH_PCT, INSIDER_HIGH_VALUE, insiderSignal };
+=======
+>>>>>>> sattva/main
 export const INVESTOR_HIGH_PP = 1;
 export const CHATTER_HIGH_MENTIONS = 10;
 export const CHATTER_HIGH_CHANGE_PCT = 100;
@@ -381,7 +386,10 @@ export function eventSearchText(event = {}) {
 
 const numeric = parseIndianAmount;
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> sattva/main
 // ---------------------------------------------------------------------------------------
 // Feed registry — id, label, which tab owns it, and what it can contribute
 // ---------------------------------------------------------------------------------------
@@ -408,6 +416,7 @@ const listeners = new Set();
 // alive while the tab is unmounted so a change elsewhere cannot resurrect an old snapshot.
 // No poller or durable storage here; private document feeds are always read directly.
 const normalizedFeeds = new Map();
+<<<<<<< HEAD
 // A LOADER THAT REJECTED HAS STILL SETTLED, AND ITS RECORDS ARE STILL WORTH CACHING.
 //
 // `readFeed`'s memo was gated on `loadedFeeds`, which only a RESOLVED loader joins. On this
@@ -431,6 +440,15 @@ const settledLoads = new Set();
 let alertWindowWrite = Promise.resolve();
 export const whenAlertWindowSaved = () => alertWindowWrite;
 const PRIVATE_FEEDS = new Set(['company-documents', 'drhp-documents']);
+=======
+const normalizedRevisions = new Map();
+let normalizedEpoch = 0;
+function invalidateNormalizedFeed(id) {
+  normalizedFeeds.delete(id);
+  normalizedRevisions.set(id, (normalizedRevisions.get(id) || 0) + 1);
+}
+const PRIVATE_FEEDS = new Set(['price-levels', 'company-documents', 'drhp-documents']);
+>>>>>>> sattva/main
 let observingSources = false;
 function observeSources() {
   if (observingSources) return;
@@ -445,19 +463,19 @@ function observeSources() {
   // This observer only invalidates cached readings and stays for the page's lifetime, so it must
   // not keep the insider feed's bulk/block poller running after every tab that reads it has left.
   for (const [source, ids] of dependencies) source.onChange?.(() => {
-    for (const id of ids) normalizedFeeds.delete(id);
+    for (const id of ids) invalidateNormalizedFeed(id);
     if (ids.includes('news') || ids.includes('market-news')) {
       newsCandidates = null;
       lastNewsSourceQuery = null;
       // Full source interpretations are independent. Only period queries depend on companions
       // from the other route; do not reclassify full news on every market-feed status change.
       const other = ids.includes('news') ? 'market-news' : 'news';
-      if (normalizedFeeds.get(other)?.windowKey !== 'null') normalizedFeeds.delete(other);
+      if (normalizedFeeds.get(other)?.windowKey !== 'null') invalidateNormalizedFeed(other);
     }
     listeners.forEach((fn) => fn());
   }, source === insider ? { poll: false } : undefined);
   // Some collectors resolve issuer names against the current in-memory portfolio.
-  coverage.onChange(({ changed }) => { if (changed) normalizedFeeds.clear(); });
+  coverage.onChange(({ changed }) => { if (changed) { normalizedEpoch++; normalizedFeeds.clear(); } });
 }
 
 export function inAlertQuery(event, window) {
@@ -501,7 +519,7 @@ function releaseInactiveMemory() {
   // Research keeps a prepared estate between questions. Its source owner is independent of
   // alert navigation; clearing that store would make a cached research preparation incomplete.
   if (!researchOwnsSources) { news.invalidate(); loadedFeeds.delete('news'); loadErrors.delete('news'); }
-  normalizedFeeds.delete('news'); normalizedFeeds.delete('market-news');
+  invalidateNormalizedFeed('news'); invalidateNormalizedFeed('market-news');
   newsCandidates = null; lastNewsSourceQuery = null; lastAssembleInput = null; lastAssembleOutput = null;
   releaseRequested = false;
 }
@@ -514,8 +532,8 @@ function queryNewsReader(queryWindow) {
     // add a second independent poller that keeps revisiting old history after a period switch.
     const reader = createQueryNews(queryWindow, { extraRows: () => marketNews.rows(), autoRefresh: false });
     const off = reader.onChange(() => {
-      normalizedFeeds.delete('news'); newsCandidates = null; lastNewsSourceQuery = null;
-      if (normalizedFeeds.get('market-news')?.windowKey !== 'null') normalizedFeeds.delete('market-news');
+      invalidateNormalizedFeed('news'); newsCandidates = null; lastNewsSourceQuery = null;
+      if (normalizedFeeds.get('market-news')?.windowKey !== 'null') invalidateNormalizedFeed('market-news');
       listeners.forEach(fn => fn());
     });
     entry = { reader, off, active: 0 };
@@ -538,11 +556,14 @@ function newsQueryRows(reader, queryWindow, companyReader = news) {
   if (newsCandidates?.companyRows !== companyRows || newsCandidates.marketRows !== marketRows || newsCandidates.key !== key) {
     const selected = row => inAlertQuery({ at: row.publishedAt || row.date }, queryWindow);
     const urls = new Set([...companyRows, ...marketRows].filter(selected).filter(row => row.url).map(rowUrlKey));
-    const matches = row => selected(row) || row.url && urls.has(rowUrlKey(row));
+    // An empty period has no publisher companions. Avoid parsing every older
+    // article's address just to test membership in an empty set.
+    const matches = row => selected(row) || urls.size > 0 && row.url && urls.has(rowUrlKey(row));
     newsCandidates = { companyRows, marketRows, key, company: companyRows.filter(matches), market: marketRows.filter(matches) };
   }
   return reader === companyReader ? newsCandidates.company : newsCandidates.market;
 }
+<<<<<<< HEAD
 function readFeed(feed, { day, includeHistory, queryWindow = null, newsReader = news }) {
   return runSteps(readFeedSteps(feed, { day, includeHistory, queryWindow, newsReader }));
 }
@@ -550,6 +571,9 @@ function readFeedInSlices(feed, args, yieldForInput) {
   return runStepsInSlices(readFeedSteps(feed, args), { yieldForInput });
 }
 function* readFeedSteps(feed, { day, includeHistory, queryWindow = null, newsReader = news }) {
+=======
+function readFeed(feed, { day, includeHistory, queryWindow = null, newsReader = news }, yieldForInput = null) {
+>>>>>>> sattva/main
   const newsFeed = ['news', 'market-news'].includes(feed.id);
   const windowKey = alertWindowKey(newsFeed ? queryWindow : null);
   const cached = normalizedFeeds.get(feed.id);
@@ -557,7 +581,9 @@ function* readFeedSteps(feed, { day, includeHistory, queryWindow = null, newsRea
     // Re-age the wall-clock discovery note without reclassifying thousands of unchanged stories.
     return feed.id === 'news' ? { ...cached.row, ...companyNewsState(day, newsReader.meta()) } : cached.row;
   }
+  const revision = normalizedRevisions.get(feed.id), epoch = normalizedEpoch;
   const out = COLLECTORS[feed.id]({ day, includeHistory, queryWindow, newsReader, scope: 'universe', wanted: null }) || {};
+<<<<<<< HEAD
   // Source changes invalidate this reservation too. An older sliced read may still finish for
   // its caller, but cannot overwrite a newer reading or cache itself after invalidation.
   const reservation = {};
@@ -570,6 +596,23 @@ function* readFeedSteps(feed, { day, includeHistory, queryWindow = null, newsRea
     }
     return row;
   } finally { if (normalizedFeeds.get(feed.id) === reservation) normalizedFeeds.delete(feed.id); }
+=======
+  const steps = toFeedRowSteps(feed, { ...out,
+    events: (out.events || []).filter((e) => includeHistory || eventDay(e) === day) }, day);
+  // A first source check may fail after retaining useful captured rows. Their unchanged public
+  // interpretation is reusable too; collect() still overlays the failed check on every report.
+  // This does not mark the source loaded/successful, and source arrivals or a successful retry
+  // invalidate the interpretation through the existing subscriptions/load completion below.
+  const finish = row => {
+    // A source arriving between slices invalidates the old interpretation. The current
+    // partial may retain it, but it must never be cached as the newly arrived revision.
+    if (epoch === normalizedEpoch && revision === normalizedRevisions.get(feed.id) &&
+      (loadedFeeds.has(feed.id) || loadErrors.has(feed.id)) && !PRIVATE_FEEDS.has(feed.id))
+      normalizedFeeds.set(feed.id, { day, includeHistory, windowKey, newsReader: newsFeed ? newsReader : null, row });
+    return row;
+  };
+  return yieldForInput ? runStepsInSlices(steps, { yieldForInput }).then(finish) : finish(runSteps(steps));
+>>>>>>> sattva/main
 }
 
 function loadFeed(id, refresh) {
@@ -577,6 +620,7 @@ function loadFeed(id, refresh) {
   const pending = Promise.resolve().then(() => LOADERS[id]?.(refresh)).then(
     () => {
       // A loader may update freshness without publishing row changes (e.g. HTTP 304).
+<<<<<<< HEAD
       if (refresh || !loadedFeeds.has(id)) normalizedFeeds.delete(id);
       loadErrors.delete(id); loadedFeeds.add(id); settledLoads.add(id);
     },
@@ -585,10 +629,14 @@ function loadFeed(id, refresh) {
       if (refresh || !settledLoads.has(id)) normalizedFeeds.delete(id);
       loadErrors.set(id, String(error?.message || error)); settledLoads.add(id);
       throw error;
+=======
+      if (refresh || !loadedFeeds.has(id)) invalidateNormalizedFeed(id);
+      loadErrors.delete(id); loadedFeeds.add(id);
+>>>>>>> sattva/main
     },
   ).finally(() => {
     // The bulk calendar adapter owns a capture outside earnings-calendar's event store.
-    if (id === 'earnings-calendar') normalizedFeeds.delete(id);
+    if (id === 'earnings-calendar') invalidateNormalizedFeed(id);
     loadingFeeds.delete(id); listeners.forEach((fn) => fn());
     releaseInactiveMemory();
   });
@@ -639,7 +687,7 @@ export async function prepareSources({ refresh = false, feedIds = null } = {}) {
 // object, so touching them here in ~12ms slices with a yield between each turns that one task into
 // forty small ones. Nothing is skipped and nothing is decided here — the collector still reads
 // every row itself and reports its own failures; this only changes when the work happens.
-async function warmNewsReadings(feedId, reader, queryWindow, yieldForInput, { day, includeHistory, touch = null } = {}) {
+async function warmNewsReadings(feedId, reader, queryWindow, yieldForInput, { day, includeHistory, touch = null, keepGoing = () => true } = {}) {
   let rows;
   try {
     if (feedId === 'news') await reader.warm?.(yieldForInput);
@@ -649,8 +697,14 @@ async function warmNewsReadings(feedId, reader, queryWindow, yieldForInput, { da
     else if (queryWindow) await reader.prepareRows?.(yieldForInput);
     rows = feedId === 'news' ? newsQueryRows(reader, queryWindow, reader) : newsQueryRows(marketNews, queryWindow, reader);
   } catch { return; }
+  if (!keepGoing()) return;
   let started = performance.now();
   for (let i = 0; i < rows.length; i++) {
+    // Skipped historical rows still consume CPU on an empty new day.
+    if (performance.now() - started >= 12) {
+      await yieldForInput(); started = performance.now();
+      if (!keepGoing()) return;
+    }
     const row = rows[i];
     try {
       // Only what the collector will read: on a single day it reads that day's rows and nothing
@@ -679,6 +733,7 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   // (js/data/alert-pool.js). A feed the pool declines — or a pool that cannot be read at all —
   // loads below exactly as it always has. A reassembly without loading reuses the last read.
   const poolMode = pool === 'window' || pool === 'ai' ? pool : null;
+  const readingCurrent = () => !load || !poolMode || isCurrent();
   // What the pool cannot carry is what the feed modules hold beyond the capture THIS SESSION — a
   // live walk, a live search, a device copy a tab loaded — and the modules answer that themselves.
   const sessionRows = (feedId) => {
@@ -708,20 +763,26 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   // assembly of a full-history collection landed as one 2.3-second task under whichever tab the
   // reader had moved to, ~700ms of it matching every X post against the book for the first time.
   const discoveryIdentities = discoveryEntities(book, requestedCompanies);
-  const warmReading = { day, includeHistory, touch: (event, feedId) => {
+  const warmReading = { day, includeHistory, keepGoing: readingCurrent, touch: (event, feedId) => {
     sortDay(event);
     if (event.url && (feedId === 'news' || feedId === 'market-news')) eventUrlKey(event);
     if (DISCOVERY_FEEDS.has(feedId)) for (const matched of discoveryFor(event, feedId, discoveryIdentities)) newsSignal(matched);
   } };
   for (const feed of load ? FEEDS : []) {
+    if (!readingCurrent()) return null;
     try {
       // The in-memory records may be a warm module's or a returning session's cold rows: warm the
       // per-row readings in slices before the synchronous read, exactly as the loaded read does.
       if (feed.id === 'news' || feed.id === 'market-news') await warmNewsReadings(feed.id, newsReader, queryWindow, yieldForInput, warmReading);
       else if (WARMERS[feed.id]) await WARMERS[feed.id](yieldForInput, warmReading);
     } catch { /* The read below still answers. */ }
+    if (!readingCurrent()) return null;
     try {
+<<<<<<< HEAD
       settledFeeds.set(feed.id, { ...await readFeedInSlices(feed, { day, includeHistory, queryWindow, newsReader }, yieldForInput), status: 'pending' });
+=======
+      settledFeeds.set(feed.id, { ...await readFeed(feed, { day, includeHistory, queryWindow, newsReader }, yieldForInput), status: 'pending' });
+>>>>>>> sattva/main
     } catch { /* A source with no readable snapshot starts empty. */ }
     if (performance.now() - batchStarted >= 8) { await yieldForInput(); batchStarted = performance.now(); }
   }
@@ -734,17 +795,25 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   const build = async () => {
     // Either news route can finish last. Reconcile companions from both current readers while
     // retaining each request's real pending/failed status; a partial is never a completed check.
+<<<<<<< HEAD
     // Each read below starts with the collector's synchronous pass over the reader's rows, and a
     // reader whose sources moved since it was last prepared — a publisher month landing
     // mid-collection — rebuilt its join in one task there (0.6s at 4x CPU throttle, inside a
     // progress publication). Prepare it in slices first; the read then finds its rows ready. A
     // preparation that fails changes nothing: the read still answers.
+=======
+    // The reads below are synchronous, and a reader whose sources moved since it was last prepared
+    // — a publisher month landing mid-collection — rebuilt its join in one task there (0.6s at 4x
+    // CPU throttle, inside a progress publication). Prepare it in slices first; the read then
+    // finds its rows ready. A preparation that fails changes nothing: the read still answers.
+>>>>>>> sattva/main
     if (queryWindow && ['news', 'market-news'].some(id => settledFeeds.has(id) && !poolSeeded.has(id))) {
       try { await newsReader.prepareRows?.(yieldForInput); } catch { /* The read below still answers. */ }
     }
     if (queryWindow) for (const id of ['news', 'market-news']) {
       const previous = settledFeeds.get(id);
       if (previous && !poolSeeded.has(id)) {
+<<<<<<< HEAD
         try {
           const refreshed = await readFeedInSlices(feedById.get(id), { day, includeHistory, queryWindow, newsReader }, yieldForInput);
           // A loading feed may settle while this publication yields. Keep that newer response
@@ -754,6 +823,11 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
           if (settledFeeds.get(id) === previous) settledFeeds.set(id, { ...previous, status: 'failed', reachesToday: false,
             note: 'This news view could not be rebuilt. Previously read evidence remains visible.' });
         }
+=======
+        try { settledFeeds.set(id, { ...previous, events: (await readFeed(feedById.get(id), { day, includeHistory, queryWindow, newsReader }, yieldForInput)).events }); }
+        catch { settledFeeds.set(id, { ...previous, status: 'failed', reachesToday: false,
+          note: 'This news view could not be rebuilt. Previously read evidence remains visible.' }); }
+>>>>>>> sattva/main
       }
     }
     return assembleInSlices({ day, scope, holdings: book, includeHistory, settledFeeds, requestedCompanies, queryWindow }, yieldForInput);
@@ -812,9 +886,14 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
           schedulePartial();
           return;
         }
+<<<<<<< HEAD
         // A scope/session change abandons its pool read; that is not a pool outage.
         // Let the replacement view own any fallback instead of downloading the whole
         // capture history for a reader that can no longer publish it.
+=======
+        // An obsolete view abandoned its pool read; it did not discover an outage.
+        // Let its replacement own any fallback instead of downloading unused history.
+>>>>>>> sattva/main
         if (load && poolMode && !isCurrent()) return;
       }
       const warm = async () => {
@@ -827,20 +906,37 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
           // supplies companions before the company working set is selected.
           try { await loadFeed('market-news', refresh); } catch { /* Company capture remains useful. */ }
           await refreshFilings(newsReader, refresh);
-          loadedFeeds.add('news'); normalizedFeeds.delete('news');
+          loadedFeeds.add('news'); invalidateNormalizedFeed('news');
         } else if (load) await loadFeed(feed.id, refresh);
+        // Shared source loading can finish after this view has left. Its replacement
+        // can use the records; this abandoned reading must not classify them again.
+        if (!readingCurrent()) return;
         await yieldForInput();
         await warm();
+<<<<<<< HEAD
         out = await readFeedInSlices(feed, args, yieldForInput);
         if (!load && loadErrors.has(feed.id)) out = { ...out, status: 'failed', reachesToday: false, note: `Last read failed: ${loadErrors.get(feed.id)}. Retained records remain visible.` };
         else if (!load && (!loadedFeeds.has(feed.id) || loadingFeeds.has(feed.id)) && LOADERS[feed.id]) out = { ...out, status: 'pending' };
       } catch (err) {
+=======
+        if (!readingCurrent()) return;
+        out = await readFeed(feed, args, yieldForInput);
+        if (!load && loadErrors.has(feed.id)) out = { ...out, status: 'failed', reachesToday: false, note: `Last read failed: ${loadErrors.get(feed.id)}. Retained records remain visible.` };
+        else if (!load && (!loadedFeeds.has(feed.id) || loadingFeeds.has(feed.id)) && LOADERS[feed.id]) out = { ...out, status: 'pending' };
+      } catch (err) {
+        if (!readingCurrent()) return;
+>>>>>>> sattva/main
         // A failed refresh must not erase a last-good capture or masquerade as an empty feed — and
         // the retained records it reads are warmed in slices exactly as a successful load's are.
         // Read cold, every retained filing was classified again in one task: 2.2 seconds at 4x CPU
         // throttle, the longest task of an All Alerts open whose Today was still empty.
         try { await warm(); } catch { /* The read below still answers. */ }
+<<<<<<< HEAD
         try { out = await readFeedInSlices(feed, args, yieldForInput); } catch { out = toFeedRow(feed, { events: [] }, day); }
+=======
+        if (!readingCurrent()) return;
+        try { out = await readFeed(feed, args, yieldForInput); } catch { out = toFeedRow(feed, { events: [] }, day); }
+>>>>>>> sattva/main
         out = { ...out, status: 'failed', reachesToday: false, note: `Read failed: ${String(err?.message || err)}. Retained records remain visible.` };
       }
       settledFeeds.set(feed.id, out);
@@ -853,7 +949,11 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   closed = true;
   if (partialTimer !== null) clearTimeout(partialTimer);
   if (partialBuild) await partialBuild;
+<<<<<<< HEAD
   // An abandoned pool read has unfinished feeds, so it cannot replace the saved window.
+=======
+  // Unfinished abandoned feeds cannot replace the retained device window.
+>>>>>>> sattva/main
   if (load && poolMode && !isCurrent()) return null;
   const completed = await build();
   if (load && !queryWindow) {
@@ -948,16 +1048,18 @@ export function onChange(fn) {
 // objects (above, and in the additional sources), so touching every row in ~12ms slices before
 // the read leaves the read paying for the array and the feed row, never for classifying every
 // filing in one task. A warm-up that fails changes nothing: the read still classifies on demand.
-export async function warmRows(rows, reading, yieldForInput = yieldForInputSlice) {
+export async function warmRows(rows, reading, yieldForInput = yieldForInputSlice, keepGoing = () => true) {
+  if (!keepGoing()) return;
   let started = performance.now();
   for (const row of rows) {
     try { reading(row); } catch { /* The synchronous read reports a bad row in its own way. */ }
-    if (performance.now() - started >= 12) { await yieldForInput(); started = performance.now(); }
+    if (performance.now() - started >= 12) { await yieldForInput(); started = performance.now(); if (!keepGoing()) return; }
   }
 }
 const WARMERS = {
   // The announcement rows are a merge of the exchange capture with the shared, lookup and recovery
   // rows, rebuilt — as all new row objects — whenever one of them lands, and an event is kept per row
+<<<<<<< HEAD
   // object. A merge that moved during the warm-up left the read to classify every retained filing
   // again in one task (0.5s on a cold open, measured), so the warm-up goes again until it holds.
   announcements: async (yieldForInput, reading) => {
@@ -972,6 +1074,22 @@ const WARMERS = {
     }
   },
   insider: (yieldForInput, reading) => warmRows(insider.rows(), (row) => reading.touch(insiderEvent(row), 'insider'), yieldForInput),
+=======
+  // object. A merge that moved during the warm-up left the read to rebuild it and classify every
+  // retained filing again in one task (0.5s on a cold open, measured). So the warm-up goes again over
+  // the newer merge if one landed while it ran.
+  announcements: async (yieldForInput, reading) => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await announcements.warm(yieldForInput);
+      const rows = announcements.rows();
+      await warmRows(rows, (row) => reading.touch(announcementEvent(row), 'announcements'), yieldForInput, reading.keepGoing);
+      if (!reading.keepGoing()) return;
+      await announcements.warm(yieldForInput);
+      if (announcements.rows() === rows) return;
+    }
+  },
+  insider: (yieldForInput, reading) => warmRows(insider.rows(), (row) => reading.touch(insiderEvent(row), 'insider'), yieldForInput, reading.keepGoing),
+>>>>>>> sattva/main
   ...Object.fromEntries(ADDITIONAL_SOURCES.filter((s) => s.warm).map((s) => [s.id, s.warm])),
 };
 
@@ -988,6 +1106,7 @@ const COLLECTORS = {
   ...Object.fromEntries(ADDITIONAL_SOURCES.map((s) => [s.id, s.read])),
 };
 
+<<<<<<< HEAD
 // THE PROJECTION IS KEPT PER SOURCE EVENT. Every read of a feed spread each event into a new
 // object, so every per-row reading downstream — the development fold, the search text, the
 // ranking's own cache — missed on every collection, and a 124,000-row All Alerts stream re-folded
@@ -1014,15 +1133,31 @@ function* toFeedRowSteps(feed, out, day) {
   const events = [];
   let oldestDay = null, newestDay = null, todayCount = 0, visited = 0;
   for (const event of out.events || []) {
+=======
+function toFeedRow(feed, out, day) { return runSteps(toFeedRowSteps(feed, out, day)); }
+// Classification is already warmed in slices. Normalizing its records still copied and
+// deduplicated the whole announcement history in one task (1.1s at 4x CPU slowdown).
+// Both drivers use these same steps, including exact duplicates and source provenance.
+export function* toFeedRowSteps(feed, out, day) {
+  const seen = new Map();
+  const events = [];
+  let oldestDay = null, newestDay = null, todayCount = 0, read = 0;
+  for (const event of out.events || []) {
+    if (++read % 128 === 0) yield;
+>>>>>>> sattva/main
     // Deduplicate exact records within a source, not independent exchange/publisher evidence.
     // Most IDs occur once. Only serialize source records when an ID actually collides.
     const id = String(event.id);
     const prior = seen.get(id);
+<<<<<<< HEAD
     let duplicate = false;
+=======
+>>>>>>> sattva/main
     if (!prior) seen.set(id, { first: event, signatures: null });
     else {
       prior.signatures ||= new Set([JSON.stringify(prior.first.sourceRecord || prior.first)]);
       const signature = JSON.stringify(event.sourceRecord || event);
+<<<<<<< HEAD
       duplicate = prior.signatures.has(signature);
       prior.signatures.add(signature);
     }
@@ -1036,6 +1171,17 @@ function* toFeedRowSteps(feed, out, day) {
       }
     }
     if (++visited % 128 === 0) yield;
+=======
+      if (prior.signatures.has(signature)) continue;
+      prior.signatures.add(signature);
+    }
+    const row = { ...event, day: eventDay(event), feed: feed.id, feedLabel: feed.label, tab: feed.tab };
+    events.push(row);
+    if (row.day === day) todayCount++;
+    if (!row.day) continue;
+    if (oldestDay === null || row.day < oldestDay) oldestDay = row.day;
+    if (newestDay === null || row.day > newestDay) newestDay = row.day;
+>>>>>>> sattva/main
   }
   return {
     ...feed,
@@ -1825,6 +1971,7 @@ export function announcementEvent(r) {
     // is already reproduced in `detail`; naming it separately is what lets the card fall back to
     // it without splitting a joined string, and nothing here is reworded.
     filingSubject: r.title || r.headline || null,
+<<<<<<< HEAD
     // A row lodged on both exchanges is merged keeping the first exchange's subject — NSE's bare
     // "Press Release" — and BSE's full title arrives as `headline` beside it. It is the same filing's
     // other statement of itself, kept so the alert surfaces can print the one that says what happened.
@@ -1839,6 +1986,10 @@ export function announcementEvent(r) {
     // rows are one filing (js/data/alert-developments.js). A top-level field, because the AI pool
     // carries events without their source record.
     documentHash: r.documentHash || null,
+=======
+    filingSubCategory: r.subCategory || null,
+    filingDescription: r.description || null,
+>>>>>>> sattva/main
   };
   announcementEvents.set(r, event);
   return event;
@@ -2057,6 +2208,7 @@ function companyNewsEvent(r) {
     entityId: r.entityId || null,
     company: attributionFor(r).status === 'unrelated' ? 'Unrelated search result' : r.company || attributionFor(r).queryCompany || coverage.holdings().find((h) => h.ticker === r.ticker)?.name || r.ticker || 'Unresolved company',
     headline: r.title || 'Story',
+    storyText: r.summary || r.description || '',
     detail: [r.source ? `Published by ${r.source}` : 'Publisher not carried',
       attributionFor(r).status === 'related' ? attributionFor(r).reason : null].filter(Boolean).join(' · '),
     url: r.url || null,
