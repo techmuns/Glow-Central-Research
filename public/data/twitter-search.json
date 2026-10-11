@@ -1359,8 +1359,8 @@
       "lastSuccessAt": "2026-09-13T23:47:09+00:00"
     },
     "isin:INE855B01025|Rain Industries": {
-      "lastAttemptAt": "2026-10-05T18:39:20+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-10-11T10:56:56+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 8,
       "lastSuccessAt": "2026-10-05T18:39:20+00:00",
       "targetThrough": null,
@@ -2398,6 +2398,6 @@
     "planned": 254,
     "attempted": 1,
     "incomplete": 254,
-    "checkedAt": "2026-10-11T10:24:40.105578+00:00"
+    "checkedAt": "2026-10-11T10:56:56.373053+00:00"
   }
 }
