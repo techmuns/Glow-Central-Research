@@ -1329,8 +1329,8 @@
       "pending": []
     },
     "isin:INE004A01022|PROTEAN": {
-      "lastAttemptAt": "2026-10-05T18:39:20+00:00",
-      "error": null,
+      "lastAttemptAt": "2026-10-11T10:24:40+00:00",
+      "error": "search-unavailable",
       "lastResultCount": 97,
       "targetThrough": "2026-10-02T05:50:51+00:00",
       "pending": [
@@ -2398,6 +2398,6 @@
     "planned": 254,
     "attempted": 1,
     "incomplete": 254,
-    "checkedAt": "2026-10-11T09:51:34.059637+00:00"
+    "checkedAt": "2026-10-11T10:24:40.105578+00:00"
   }
 }
