@@ -1,6 +1,11 @@
 // Changes use dated trades for activity and dated observations for holdings. Never add the two.
 import { deriveMoves, quarterOrder } from './finology-shared.js';
+<<<<<<< HEAD
 import { indiaDay, recentDays } from './date-range.js';
+=======
+import { newsDay as indiaDay } from './news-window.js';
+const recentDays = (days, today) => ({ from: new Date(Date.parse(`${today}T00:00:00Z`) - (days - 1) * 86400000).toISOString().slice(0, 10), to: today });
+>>>>>>> sattva/main
 export { indiaDay };
 
 export const PERIODS = [
@@ -91,6 +96,7 @@ export function matchedDeals(rows, people) {
   }
   return events;
 }
+<<<<<<< HEAD
 export function managerTrades(managers) {
   return managers.flatMap((m) => (m.transactions || []).map((t, i) => ({
     id: `statement|${m.id}|${i}`, date: t.date, person: m.name, personId: m.id,
@@ -98,21 +104,31 @@ export function managerTrades(managers) {
     amount: t.amount, source: 'PMS statement', raw: t,
   })));
 }
+=======
+>>>>>>> sattva/main
 const quarterEnd = (label) => {
   const order = quarterOrder(label), year = Math.floor(order / 100), month = order % 100;
   return order && [3, 6, 9, 12].includes(month) ? iso(new Date(Date.UTC(year, month, 0))) : null;
 };
+<<<<<<< HEAD
 // EVERY COMPARISON ROW CARRIES BOTH DATES IT WAS MEASURED ON, and says which kind of date each is.
 // A public investor's row compares two shareholding patterns, so `from` and `date` are the two
 // QUARTER-END dates the patterns state the holding on; a manager's row compares two statements, so
 // they are the two STATEMENT dates. Neither is a trade date: a pattern never carries one, and a
 // manager's dated trades ride beside the row in `trades.first` / `trades.last` from the statement
 // itself. `sourceCheckedAt` is the separate fact of when the source was last read.
+=======
+// Both quarter-end dates travel with each observation; neither is a trade date.
+>>>>>>> sattva/main
 export const quarterEndDate = quarterEnd;
 export function investorHoldings(books, investors, today = indiaDay()) {
   const names = new Map(investors.map((i) => [i.slug, i.name])), events = [];
   for (const book of books) {
+<<<<<<< HEAD
     const quarters = (book.quarters || []).filter((q) => quarterEnd(q) && quarterEnd(q) <= today)
+=======
+    const quarters = (book.quarters || []).filter((q) => quarterEnd(q) && quarterEnd(q) < today)
+>>>>>>> sattva/main
       .sort((a, b) => quarterOrder(b) - quarterOrder(a));
     for (let i = 0; i < quarters.length - 1; i++) {
       const latest = quarters[i], prior = quarters[i + 1];
@@ -128,6 +144,7 @@ export function investorHoldings(books, investors, today = indiaDay()) {
   }
   return events;
 }
+<<<<<<< HEAD
 export function managerHoldings(managers, { syncedAt = null } = {}) {
   return managers.flatMap((m) => (m.moves || []).filter((move) => move.action !== 'held').map((move) => ({
     ...move, id: `holding|${m.id}|${move.securityKey}`, date: m.window?.to, from: m.window?.from,
@@ -143,3 +160,5 @@ export function tradeWindow(row) {
   if (!t || !t.first) return null;
   return { first: t.first, last: t.last || t.first, buys: t.buys || 0, sells: t.sells || 0 };
 }
+=======
+>>>>>>> sattva/main

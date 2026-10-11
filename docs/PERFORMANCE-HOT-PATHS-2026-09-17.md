@@ -195,3 +195,22 @@ What did not change: the captures, their retention, the live collection, All his
 records, Upcoming and every feed with a live route. `scripts/verify-alert-pool.mjs` is the
 equivalence proof; `scripts/verify-alert-pool-ui.mjs` the browser measurement of what is no longer
 downloaded.
+
+## Follow-up (9 October 2026): normalization and background source status
+
+The October captures exposed a remaining uninterrupted step after sliced classification:
+deduplicating and copying the announcement history into a source feed. A slowed browser profile
+measured 1.1 seconds in that step. `toFeedRowSteps` now drives the same normalization synchronously
+for reference readers and in 12 ms slices for collection. A source revision arriving between
+slices prevents the older interpretation from entering the normalized cache. Distinct original
+records sharing an ID, exact-duplicate removal, dates, counts and failed-source status are covered
+by `verify-announcement-delivery.mjs` and the full-history working-set comparison.
+
+The minute-clock Sources beacon also prepares existing news and announcement unions in slices
+before reading metadata. This starts no source requests, preserves actual coverage status and
+coalesces simultaneous status refreshes. The populated Today view and empty post-midnight view
+are both checked against the existing 1,800 ms longest-task budget.
+
+Post-slice source checks also prepare their underlying reader again before comparing rows. A capture arriving while the higher reader yielded previously let that comparison trigger a cold synchronous history rebuild. Announcement lookup, combined exchange filings and retained news now keep the retry sliced, and the news reader waits for the current source revision rather than returning an obsolete preparation. A native regression injects an arrival into each reader, rejects cold synchronous reads and verifies all 20,001 records survive. CI profiles its full-data sweep while keeping the 1,800 ms alert budget.
+
+Hosted caller tracing located a remaining 2,093–2,240 ms task in `announcements-extra.loadArchive`: shared company histories were still merged synchronously after their downloads. Recent and retained shared additions now use one serialized sliced merge queue, preserve the former flattened occurrence semantics, prepare their current projection before notifying readers, and refuse publication after invalidation. The real loader regression checks 16,001 records with overlapping recent/archive arrivals, duplicate attachment-free occurrences and cancellation at the first input turn.

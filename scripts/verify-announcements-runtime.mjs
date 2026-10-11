@@ -27,7 +27,11 @@ const storage = new Map();
 globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: (k) => storage.delete(k) };
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const publicDir = resolve(repo, 'public');
+<<<<<<< HEAD
 const { buildFixtureIndex } = await import('./lib/announcement-index-fixture.mjs');
+=======
+const { buildFixtureIndex, feedbackPair } = await import('./lib/announcement-index-fixture.mjs');
+>>>>>>> sattva/main
 
 // A stored-member ZIP exactly as upload-artifact writes one at compression-level 0.
 function zip(members) {
@@ -75,6 +79,11 @@ const READING = { readable: true, issuerMatches: true, documentType: 'Exchange f
   keyDetails: [{ label: 'Filing', value: 'As stated', quote: 'EOF', location: 'page 1' }], whyItMatters: 'It changes what is known about the company this period.',
   impact: { direction: 'unclear', horizon: 'unclear', text: 'Could matter if it changes earnings.' } };
 const outbound = { ranges: 0, full: 0, documents: 0, model: 0 };
+<<<<<<< HEAD
+=======
+let streamModel = false, releaseModel;
+const heldModel = new Promise(done => { releaseModel = done; });
+>>>>>>> sattva/main
 const TYPES = { '.json': 'application/json' };
 const mf = new Miniflare({
   modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2026-05-23',
@@ -118,6 +127,26 @@ const mf = new Miniflare({
     if (url === 'https://bedrock-runtime.ap-south-1.amazonaws.com/anthropic/v1/messages') {
       assert.equal(request.headers.get('x-api-key'), 'ABSKtest-key-not-real');
       outbound.model++;
+<<<<<<< HEAD
+=======
+      if (streamModel) {
+        const body = await request.json();
+        assert.equal(body.stream, true);
+        const encoder = new TextEncoder(), text = JSON.stringify(READING), cut = text.indexOf('"keyDetails"');
+        return new Response(new ReadableStream({ async start(controller) {
+          const send = value => controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`));
+          send({ type: 'message_start' });
+          send({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } });
+          send({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: text.slice(0, cut) } });
+          await heldModel;
+          send({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: text.slice(cut) } });
+          send({ type: 'content_block_stop', index: 0 });
+          send({ type: 'message_delta', delta: { stop_reason: 'end_turn' } });
+          send({ type: 'message_stop' });
+          controller.close();
+        } }), { headers: { 'content-type': 'text/event-stream' } });
+      }
+>>>>>>> sattva/main
       return Response.json({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(READING) }] });
     }
     return new Response(`unexpected ${url}`, { status: 500 });
@@ -165,7 +194,13 @@ try {
   console.log('PASS workerd: stitched events (with 304), company profiles, status, same-origin queries');
 
   // 4. Shared feedback: a vote crosses RPC, the model publishes it, and the index re-ranks on it.
+<<<<<<< HEAD
   const top = all.rows[0];
+=======
+  const top = feedbackPair(all.rows)?.row;
+  assert(top, 'the real capture has comparable same-day peers for the feedback check');
+  const beforePosition = all.rows.filter(row => row.date === top.date).findIndex(row => row.id === top.id);
+>>>>>>> sattva/main
   const voted = await post('/api/relevance/feedback', { surface: 'announcements', vote: 'not-important', itemKey: top.id, eventKey: top.event?.id || null,
     device: 'device-runtime-1', features: top.keys, why: 'routine', label: top.title, company: top.company, categories: top.categories });
   assert.equal(voted.status, 200, await voted.clone().text());
@@ -175,7 +210,13 @@ try {
   assert.equal(mine.votes[top.id].vote, 'not-important');
   const reranked = await (await post('/api/announcement-index/query', { period: 'all', limit: 500, modelRevision: model.model.revision })).json();
   const day = reranked.rows.filter((r) => r.date === top.date);
+<<<<<<< HEAD
   assert(day.findIndex((r) => r.id === top.id) > 0, 'the vote moves the filing down its day at once');
+=======
+  const scored = day.find(row => row.id === top.id);
+  assert(scored && scored.relevance < top.relevance, 'the saved vote lowers the score across RPC');
+  assert(day.findIndex((r) => r.id === top.id) > beforePosition, 'the vote moves the filing down its day at once');
+>>>>>>> sattva/main
   assert.equal(reranked.total, all.total, 'and hides nothing');
   console.log('PASS workerd: a vote crosses RPC, publishes in the shared model and re-ranks the index immediately');
 
@@ -194,7 +235,32 @@ try {
   const refused = await (await post('/api/announcement-read', { id: 'x', url: 'https://evil.example/doc.pdf' })).json();
   assert.equal(refused.reason, 'unsupported-source');
   console.log('PASS workerd: AI Read crosses RPC, is stored, and fetches exchange documents only');
+<<<<<<< HEAD
 } finally {
+=======
+  streamModel = true;
+  const streamInput = { id: 'a:stream', url: 'https://www.bseindia.com/xml-data/corpfiling/AttachLive/stream.pdf', company: 'Fixture Co' };
+  const streamed = await fetch(new URL('/api/announcement-read', base), { method: 'POST', headers: { origin: base.origin, 'content-type': 'application/json', accept: 'application/x-ndjson' }, body: JSON.stringify(streamInput) });
+  assert.match(streamed.headers.get('content-type'), /application\/x-ndjson/);
+  const reader = streamed.body.getReader(), decoder = new TextDecoder();
+  let buffer = '', early;
+  while (!early?.reading) {
+    buffer += decoder.decode((await reader.read()).value, { stream: true });
+    early = buffer.trim().split('\n').map(JSON.parse).find(e => e.type === 'progress' && e.reading);
+  }
+  assert.equal(early.reading.whatHappened, READING.whatHappened, 'useful bytes cross RPC before the provider completes');
+  assert(!buffer.includes('"type":"result"'));
+  releaseModel();
+  while (true) { const chunk = await reader.read(); if (chunk.done) break; buffer += decoder.decode(chunk.value, { stream: true }); }
+  const final = buffer.trim().split('\n').map(JSON.parse).find(e => e.type === 'result');
+  assert.equal(final.state, 'ready', JSON.stringify(final));
+  assert.equal(final.reading.keyDetails[0].quote, READING.keyDetails[0].quote);
+  const saved = await (await post('/api/announcement-read', streamInput)).json();
+  assert.equal(saved.stored, true); assert.equal(outbound.model, 2);
+  console.log('PASS workerd: streaming Response crosses real DO RPC before completion, validates, and persists once');
+} finally {
+  releaseModel();
+>>>>>>> sattva/main
   await mf.dispose();
   rmSync(tmp, { recursive: true, force: true });
 }
