@@ -19,13 +19,15 @@
 //     read recomputes it on every pass.
 //
 // Members are addressed by artifact id, so a shard URL is immutable and the browser's HTTP cache
-// answers it without a request. Across builds, an open reader reuses decoded shards only when
+// answers it without a request. Optional per-feed members avoid downloading declined feeds.
+// Across builds, an open reader reuses decoded shards only when
 // their member name and runner-published content hash still match. Capture revisions and source
 // status are checked again even when the shard bytes did not change. A reload uses HTTP caching
 // for the same artifact; another artifact has different URLs and must be downloaded again.
-// Optional per-feed members avoid downloading feeds whose revisions cannot be used.
 import { authHeaders } from '../core/host-context.js';
 import { readEntry, KEYS } from '../core/store.js';
+import { readJsonResponse } from '../core/json-reader.js';
+import { portfolioProjectionSignature } from './alert-pool-projection.js';
 import { validateShard, assembleFeedEvents } from './alert-pool-format.js';
 import { ALERT_POOL_CONTRACT, POOL_FEEDS, POOL_FEED_CAPTURES, isDay, windowDays, dayMember, feedMember } from './alert-pool-shared.js';
 
@@ -66,7 +68,7 @@ async function ask(path, { noCache = false } = {}) {
   const type = response.headers.get('content-type') || '';
   if ([404, 405, 501].includes(response.status) || !/json/i.test(type)) { await response.body?.cancel?.(); return { ok: false, reason: 'no-worker', status: response.status }; }
   if (!response.ok) { await response.body?.cancel?.(); return { ok: false, reason: 'upstream', status: response.status }; }
-  try { return { ok: true, value: await response.json() }; }
+  try { return { ok: true, value: await readJsonResponse(response) }; }
   catch { return { ok: false, reason: 'invalid' }; }
 }
 
@@ -89,7 +91,7 @@ function readIndex(refresh) {
     if (lastIndex?.artifact !== out.value.artifact) {
       // Artifact URLs change on every upload, including byte-identical history. Keep only the
       // content identities this build still advertises; never reuse its predecessor's status.
-      const keep = new Set(memberEntries(out.value).map(({ member }) => shardKey(out.value, member)));
+      const keep = new Set(memberDescriptors(out.value).map(({ member }) => shardKey(out.value, member)));
       for (const key of shards.keys()) if (!keep.has(key)) shards.delete(key);
       results.clear();
     }
@@ -159,16 +161,15 @@ export async function deviceExtras(sessionRows = () => null) {
 
 function memberUrl(index, member) { return `api/alert-pool/${index.artifact}/${member}`; }
 
-function memberEntries(index) {
-  return [...index.days, ...index.ai].flatMap(entry => [entry,
-    ...Object.values(entry.feedMembers || {}).filter(part => part && typeof part.member === 'string')]);
+function memberDescriptors(index) {
+  return [...index.days, ...index.ai, ...(index.portfolioAi?.entries || [])].flatMap(entry => [entry, ...Object.values(entry.feedMembers || {}).filter(Boolean)]);
 }
 
 function shardKey(index, member) {
-  const entry = memberEntries(index).find((entry) => entry.member === member);
+  const entry = memberDescriptors(index).find((entry) => entry.member === member);
   // Older indexes without a valid digest remain safe: their cache identity is the artifact URL.
   return /^[a-f0-9]{64}$/.test(entry?.hash || '')
-    ? `${index.contract}/${member}/${entry.hash}` : memberUrl(index, member);
+    ? `${index.contract}/${index.policy}/${member}/${entry.hash}` : memberUrl(index, member);
 }
 
 function readShard(index, member, expected) {
@@ -199,7 +200,20 @@ async function readShards(index, members, isCurrent) {
   return out;
 }
 
-function membersFor(mode, index, queryWindow, wanted = POOL_FEEDS) {
+function portfolioProjection(index, { mode, scope, book, requestedCompanies = [] }) {
+  if (mode !== 'ai' || scope !== 'portfolio' || requestedCompanies.length) return null;
+  const projection = index.portfolioAi;
+  if (!projection || projection.signature !== portfolioProjectionSignature(book) ||
+      !Array.isArray(projection.entries) || projection.entries.length !== index.ai.length ||
+      !projection.entries.every((entry, i) => entry.span === index.ai[i].span && entry.from === index.ai[i].from &&
+        entry.to === index.ai[i].to && entry.member === index.ai[i].member.replace(/\.json\.gz$/, '.portfolio.json.gz')) ||
+      !POOL_FEEDS.every(id => Number.isSafeInteger(projection.sourceStats?.[id]?.sourceCount) &&
+        projection.sourceStats[id].sourceCount >= 0 && Number.isSafeInteger(projection.sourceStats[id].unresolvedCount) &&
+        projection.sourceStats[id].unresolvedCount >= 0)) return null;
+  return projection;
+}
+
+function membersFor(mode, index, queryWindow, wanted = POOL_FEEDS, projection = null) {
   const select = (entry, expected) => {
     const full = [{ member: entry.member, expected }];
     // Older artifacts remain usable. All-feed reads still use the single complete member;
@@ -217,29 +231,30 @@ function membersFor(mode, index, queryWindow, wanted = POOL_FEEDS) {
     if (!days.every((day) => known.has(day))) return null;
     return days.flatMap((day) => select(known.get(day), { day }));
   }
-  if (mode === 'ai') return index.ai.flatMap((entry) => select(entry, { span: entry.span }));
+  if (mode === 'ai') return (projection?.entries || index.ai).flatMap((entry) => select(entry, { span: entry.span }));
   return null;
 }
 
-const readKey = (mode, day, queryWindow) => JSON.stringify([mode, day, queryWindow || null]);
+const readKey = (mode, day, queryWindow, projection = null) => JSON.stringify([mode, day, queryWindow || null, projection?.signature || null]);
 
 /**
  * The pooled feeds' rows for a collection, or null when the pool cannot stand in at all.
  * `feeds` maps only the feeds the pool may answer for; every other pooled feed's reason is in
  * `declined`, and the caller loads it as before.
  */
-export async function read({ mode, day, queryWindow = null, refresh = false, isCurrent = () => true, book = [], newsState = (meta) => meta, sessionRows = () => null }) {
+export async function read({ mode, day, queryWindow = null, refresh = false, isCurrent = () => true, book = [], scope = null,
+  requestedCompanies = [], newsState = (meta) => meta, sessionRows = () => null }) {
   if (!['window', 'ai'].includes(mode) || !isDay(day)) return null;
   if (Date.now() < disabledUntil && !refresh) return null;
-  // These independent checks used to run in series. Begin the small source/device
-  // checks beside artifact discovery; neither result is adopted before verification.
+  // Source/device checks are independent of artifact discovery; verify all before adoption.
   const indexPending = readIndex(refresh);
   const checksPending = Promise.all([readStatus(refresh), deviceExtras(sessionRows)]);
   const index = await indexPending;
   if (!index || !isCurrent()) return null;
   const active = () => isCurrent() && lastIndex?.artifact === index.artifact;
   if (index.day !== day) return null;
-  const fullMembers = membersFor(mode, index, queryWindow);
+  const projection = portfolioProjection(index, { mode, scope, book, requestedCompanies });
+  const fullMembers = membersFor(mode, index, queryWindow, POOL_FEEDS, projection);
   if (!fullMembers) return null;
   const [status, extras] = await checksPending;
   if (!status || !active()) return null;
@@ -252,7 +267,7 @@ export async function read({ mode, day, queryWindow = null, refresh = false, isC
     if (reason) declined.set(feedId, reason); else wanted.push(feedId);
   }
   if (!wanted.length) return { feeds: new Map(), declined, index, mode, day, queryWindow };
-  const members = wanted.length === POOL_FEEDS.length ? fullMembers : membersFor(mode, index, queryWindow, wanted);
+  const members = wanted.length === POOL_FEEDS.length ? fullMembers : membersFor(mode, index, queryWindow, wanted, projection);
   let decoded;
   try { decoded = await readShards(index, members, active); }
   catch (error) {
@@ -285,22 +300,24 @@ export async function read({ mode, day, queryWindow = null, refresh = false, isC
       }
       Object.assign(row, { count: events.length, todayCount, oldestDay, newestDay });
     }
-    feeds.set(feedId, { ...row, events });
+    feeds.set(feedId, { ...row, events, ...(projection ? { preparedProjection: {
+      signature: projection.signature, ...projection.sourceStats[feedId] } } : {}) });
   }
-  const result = { feeds, declined, index, mode, day, queryWindow, at: Date.now(), members: members.map((entry) => shardKey(index, entry.member)) };
-  results.set(readKey(mode, day, queryWindow), result);
+  const result = { feeds, declined, index, mode, day, queryWindow, projection, at: Date.now(), members: members.map((entry) => shardKey(index, entry.member)) };
+  results.set(readKey(mode, day, queryWindow, projection), result);
   // WHAT STAYS DECODED: the shards behind the latest read of each mode, and nothing else. A
   // reader who looked at Last 30 days and came back to Today would otherwise keep thirty decoded
   // day shards for as long as the build lasts — the memory the live path releases with its readers.
-  for (const held of results.values()) if (held.mode === mode && held !== result) results.delete(readKey(held.mode, held.day, held.queryWindow));
+  for (const held of results.values()) if (held.mode === mode && held !== result) results.delete(readKey(held.mode, held.day, held.queryWindow, held.projection));
   const keep = new Set([...results.values()].flatMap((held) => held.members));
   for (const [url, held] of shards) if (!keep.has(url) && held.settled) shards.delete(url);
   return result;
 }
 
 /** The last successful read for this collection, for a reassembly that must not fetch. */
-export function current({ mode, day, queryWindow = null }) {
-  const held = results.get(readKey(mode, day, queryWindow));
+export function current({ mode, day, queryWindow = null, scope = null, book = [], requestedCompanies = [] }) {
+  const projection = lastIndex && portfolioProjection(lastIndex, { mode, scope, book, requestedCompanies });
+  const held = results.get(readKey(mode, day, queryWindow, projection));
   return held && held.index.artifact === lastIndex?.artifact ? held : null;
 }
 
