@@ -45,7 +45,11 @@ const ok = (label, cond, detail = '') => {
 const root = resolve('public');
 const AT = Date.parse('2026-10-09T06:30:00Z');
 const original = JSON.parse(readFileSync(`${root}/data/technicals.json`));
+<<<<<<< HEAD
 const seed = original.companies.find((r) => !r.error && r.macd && r.cmp > 0);
+=======
+const seed = original.companies.find((r) => !r.error && r.rsi_multi && r.macd && r.sma20 != null);
+>>>>>>> sattva/main
 if (!seed) { console.error('No clean seed row in technicals.json'); process.exit(2); }
 
 const rsiState = (value, cmp) => ({ value, avgGain: 100 / (100 - value) - 1, avgLoss: 1, lastClose: cmp });
@@ -86,7 +90,11 @@ const companies = [
 ];
 const fixture = { ...original, companies, company_count: companies.length, failures: 0 };
 // The prior release's actual renderer proves a warm module cache receives the new criteria UI.
+<<<<<<< HEAD
 const previousModules = Object.fromEntries(['breakouts', 'shell', 'tab-registry'].map(name => [name, readFileSync(resolve(`scripts/fixtures/glow-momentum-previous-${name}.txt`), 'utf8')]));
+=======
+const previousControls = readFileSync(resolve('scripts/fixtures/momentum-controls-previous.txt'), 'utf8');
+>>>>>>> sattva/main
 let previousRelease = false;
 
 // ---- the server ------------------------------------------------------------------------------
@@ -112,8 +120,19 @@ const server = createServer((req, res) => {
       body = body.toString().replace(/const MUNSHOT_SDK = .*;/, "const MUNSHOT_SDK = new URL('/sdk-fixture.js', self.location).href;");
       if (previousRelease) body = body.replace(/const CACHE_NAME = .*;/, 'const CACHE_NAME = `${CACHE_PREFIX}previous-momentum-release`;');
     }
+<<<<<<< HEAD
     const previousModule = { '/js/tabs/breakouts.js': 'breakouts', '/js/ui/shell.js': 'shell', '/js/ui/tab-registry.js': 'tab-registry' }[path];
     if (previousModule && previousRelease) body = previousModules[previousModule];
+=======
+    if (path === '/js/tabs/breakouts.js' && previousRelease) {
+      body = body.toString()
+        .replace(/function momentumControls\([\s\S]*?(?=function momentumControlFocus\()/, () => previousControls)
+        .replace(
+          "'A live momentum screener across the top-500 universe. Adjust the thresholds and the list re-filters instantly.',",
+          "'A live momentum screener across the top-500 universe. Adjust the thresholds and the list re-filters instantly.',\n      meta: livePill().html + scopeSummary({ scope: ctx.scope, count: passers.length, noun: 'passing', book: coverage.meta() }),",
+        );
+    }
+>>>>>>> sattva/main
     if (path === '/css/theme.css' && previousRelease) {
       body = body.toString().replace(/\/\* Momentum criteria[\s\S]*?(?=\/\* Loading rows)/, '');
     }
@@ -166,7 +185,10 @@ const readView = () => ({
   ths: [...document.querySelectorAll('#content-host [data-score-table] thead th')].map((t) => t.textContent.replace(/[▾▴\s]+/g, ' ').trim()),
   gateButtons: document.querySelectorAll('#content-host [data-mgate]').length,
   selectedGate: document.querySelector('#content-host [data-mgate][aria-pressed="true"]')?.dataset.mgate,
+<<<<<<< HEAD
   selectedGateColor: getComputedStyle(document.querySelector('#content-host [data-mgate][aria-pressed="true"]')).color,
+=======
+>>>>>>> sattva/main
   appliedGroups: [...document.querySelectorAll('[data-momentum-group][data-applied="true"]')].map(group => group.dataset.momentumGroup),
   thresholdInputs: document.querySelectorAll('#content-host [data-mthreshold]').length,
   emeraldPills: document.querySelectorAll('#content-host [data-score-table] tbody .bg-emerald-50.text-emerald-700').length,
@@ -244,7 +266,10 @@ try {
       await ruleGroups.count() === 2 && await ruleGroups.first().locator('[data-mthreshold]').count() === 3 && await ruleGroups.last().locator('[data-mthreshold]').count() === 2);
     ok('only Strong Momentum is applied by default, with an accessible selected mode',
       v.selectedGate === 'strong-momentum' && v.appliedGroups.join('|') === 'strong-momentum');
+<<<<<<< HEAD
     ok('the criteria selector keeps Glow’s gold palette', v.selectedGateColor === 'rgb(125, 95, 22)', v.selectedGateColor);
+=======
+>>>>>>> sattva/main
     ok('thresholds have unique accessible names and the volume average is explicit',
       await page.getByRole('spinbutton', { name: 'Strong Momentum · RSI daily >', exact: true }).count() === 1 &&
       await page.getByRole('spinbutton', { name: 'Volume + Momentum · RSI daily >', exact: true }).count() === 1 &&
@@ -383,6 +408,7 @@ try {
     await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => navigator.serviceWorker.controller);
     await page.reload();
+<<<<<<< HEAD
     await page.waitForSelector('#subview-mount [data-dd-trigger]');
     ok('the cached Glow release still opens Strong Breakouts with its three-view dropdown', /strong-breakouts/.test(page.url()) && await page.locator('#subview-mount [data-dd-id]').count() === 3);
     const oldCaches = await page.evaluate(() => caches.keys());
@@ -393,6 +419,17 @@ try {
     await page.waitForSelector('#subview-mount [role=tab]');
     ok('the already-open Glow session automatically receives all four horizontal view tabs', await page.locator('#subview-mount [role=tab]').count() === 4);
     await page.locator('#subview-mount [data-tab-id=momentum-scanner]').click();
+=======
+    await page.waitForSelector('#content-host [data-section-head] [data-live-info]');
+    ok('the cached previous scanner displays both old header badges', /3 passing/.test(await page.locator('#content-host [data-section-head]').textContent()));
+    const oldCaches = await page.evaluate(() => caches.keys());
+    ok('returning-session fixture genuinely uses the old module cache', oldCaches.some(key => key.includes('previous-momentum-release')));
+    ok('returning-session fixture starts on the previous flat criteria panel', await page.locator('[data-mthreshold]').count() === 5 && await page.locator('[data-momentum-group]').count() === 0);
+    previousRelease = false;
+    await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+    await page.waitForFunction(() => document.querySelector('#content-host [data-score-table]') && !document.querySelector('#content-host [data-section-head] [data-live-info]'), null, { timeout: 60000 });
+    ok('the already-open scanner automatically removes both header badges', !(await page.evaluate(readView)).headerHasBadges);
+>>>>>>> sattva/main
     await page.waitForSelector('[data-momentum-group]');
     ok('the already-open scanner receives grouped criteria and their matching stylesheet', await page.locator('[data-momentum-group]').count() === 2 &&
       await page.locator('.momentum-rule-groups').evaluate(el => getComputedStyle(el).display === 'grid'));

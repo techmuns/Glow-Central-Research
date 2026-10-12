@@ -77,6 +77,7 @@ try {
     'super-investors/superstar-investors?scope=universe', 'super-investors/institutions?scope=universe',
     'ipos?scope=universe', 'ipos?scope=universe|directory', 'corp-announcements?scope=universe', 'corp-announcements/corporate-actions?scope=universe',
     'nse-filings?scope=universe', 'insider-trades?scope=universe', 'news?scope=universe',
+<<<<<<< HEAD
     'ai-alerts?scope=universe', 'daily-alerts?scope=universe', 'bookmarks?scope=portfolio',
     'mutual-funds/all-schemes?scope=universe', 'mutual-funds/category-performance?scope=universe',
     'mutual-funds/company-holdings?scope=universe', 'macro-research/commodities?scope=universe',
@@ -84,14 +85,23 @@ try {
     'macro-research/rates?scope=universe', 'macro-research/fpi?scope=universe', 'economy-macro?scope=universe',
     'family-book/all-holdings?scope=portfolio', 'family-book/direct-equity?scope=portfolio',
     'corp-announcements?scope=universe', 'news?scope=portfolio'];
+=======
+    'ai-alerts?scope=universe', 'daily-alerts?scope=universe', 'ask-research?scope=universe',
+    'bookmarks?scope=universe', 'mutual-funds/company-holdings?scope=universe',
+    'mutual-funds/all-schemes?scope=universe', 'mutual-funds/category-performance?scope=universe', 'news?scope=portfolio'];
+>>>>>>> sattva/main
   for (const route of routes) {
     const [path, section] = route.split('|');
     const profiler = process.env.TAB_PERF_PROFILE ? await context.newCDPSession(page) : null;
-    if (profiler) { await profiler.send('Profiler.enable'); await profiler.send('Profiler.start'); }
+    if (profiler) { await profiler.send('Profiler.enable'); await profiler.send('Performance.enable'); await profiler.send('Profiler.start'); }
     const started = await frame.evaluate(route => { window.__longTasks = []; location.hash = `#/research/${route}`; return performance.now(); }, path);
+<<<<<<< HEAD
     await frame.waitForFunction(id => id === 'bookmarks'
       ? document.querySelector('[data-header-bookmarks]')?.getAttribute('aria-current') === 'page'
       : document.querySelector(`[data-tab-id="${id}"]`)?.getAttribute('aria-selected') === 'true', route.split(/[/?]/)[0]);
+=======
+    await frame.waitForFunction(id => document.querySelector('#content-host')?.dataset.activeTab === id, route.split(/[/?]/)[0]);
+>>>>>>> sattva/main
     await frame.waitForFunction(() => {
       const panel = document.querySelector('#content-host');
       return panel?.textContent.trim() && !panel.inert && !panel.querySelector('.skeleton-shimmer');
@@ -109,6 +119,7 @@ try {
       cards: document.querySelectorAll('[data-news-key]').length,
       text: document.querySelector('#content-host')?.textContent.trim().replace(/\s+/g, ' ').slice(0, 220),
       maxTaskMs: Math.max(0, ...window.__longTasks.map(t => t.ms)),
+      longestTask: window.__longTasks.reduce((longest, task) => !longest || task.ms > longest.ms ? task : longest, null),
     }));
     if (path.startsWith('corp-announcements?')) assert.match(result.text, /^Corp Announcements\b/,
       'announcement readiness cannot be satisfied by the previous tab remaining visible');
@@ -147,10 +158,38 @@ try {
     console.log(JSON.stringify(results.at(-1)));
     if (profiler) {
       const { profile } = await profiler.send('Profiler.stop');
+<<<<<<< HEAD
       if (process.env.TAB_PERF_PROFILE_FILE) writeFileSync(`${process.env.TAB_PERF_PROFILE_FILE}-${results.length}.json`, JSON.stringify(profile));
+=======
+      const metrics = await profiler.send('Performance.getMetrics');
+      const frameNow = await frame.evaluate(() => performance.now());
+>>>>>>> sattva/main
       const samples = new Map();
       profile.samples?.forEach((id, i) => samples.set(id, (samples.get(id) || 0) + profile.timeDeltas[i]));
       console.log(JSON.stringify(profile.nodes.map(n => ({ fn: n.callFrame.functionName, file: n.callFrame.url.split('/').at(-1), line: n.callFrame.lineNumber + 1, ms: Math.round((samples.get(n.id) || 0) / 1000) })).sort((a,b) => b.ms-a.ms).slice(0,20)));
+      if (result.longestTask?.ms > 300) {
+        const stamp = metrics.metrics.find(metric => metric.name === 'Timestamp')?.value;
+        const offset = stamp * 1000 - frameNow;
+        const start = (result.longestTask.at + offset) * 1000, end = start + result.longestTask.ms * 1000;
+        const taskSamples = new Map(), parents = new Map(), nodes = new Map(profile.nodes.map(node => [node.id, node]));
+        for (const node of profile.nodes) for (const child of node.children || []) parents.set(child, node.id);
+        let sampleTime = profile.startTime;
+        profile.samples?.forEach((id, i) => {
+          sampleTime += profile.timeDeltas[i];
+          if (sampleTime >= start && sampleTime <= end) taskSamples.set(id, (taskSamples.get(id) || 0) + profile.timeDeltas[i]);
+        });
+        const stack = id => {
+          const names = [];
+          for (let at = id; at && names.length < 12; at = parents.get(at)) {
+            const call = nodes.get(at)?.callFrame;
+            if (call) names.push(`${call.functionName || '(anonymous)'} ${call.url.split('/').at(-1)}:${call.lineNumber + 1}`);
+          }
+          return names;
+        };
+        console.log(JSON.stringify({ route, longestTask: result.longestTask,
+          heapBytes: metrics.metrics.find(metric => metric.name === 'JSHeapUsedSize')?.value,
+          taskStacks: [...taskSamples].sort((a,b) => b[1]-a[1]).slice(0,8).map(([id, us]) => ({ ms: Math.round(us / 1000), stack: stack(id) })) }));
+      }
       await profiler.detach();
     }
     if (!audit) {

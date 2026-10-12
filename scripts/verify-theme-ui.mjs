@@ -42,12 +42,23 @@ async function ready(page, route = 'ask-research') {
   if (!params.has('scope')) params.set('scope', 'universe');
   params.set('test_stream', '1');
   await page.goto(`${origin}/#/research/${path}?${params.toString()}`);
+<<<<<<< HEAD
   // The first paint waits on the committed bootstrap files, and on a generated-data PR those are
   // the enlarged archives the PR exists to add. Fifteen seconds was enough on a code PR and timed
   // out on a data PR (16 September 2026, PR #1059), which stalled every capture behind it. A
   // header control that never appears still fails here — after a minute, not a quarter of one.
   await page.locator('[data-theme-toggle]').waitFor({ timeout: 60000 });
+=======
+  await page.locator('[data-theme-toggle]').waitFor();
+  await panelReady(page, path.split('/')[0]);
+>>>>>>> sattva/main
 }
+// Navigation chrome responds before a deferred renderer is ready. Sampling the
+// old table while it is being replaced returns styles from a detached element.
+const panelReady = (page, tab) => page.waitForFunction(tab => {
+  const panel = document.querySelector('#content-host');
+  return panel?.dataset.activeTab === tab && !panel.inert;
+}, tab);
 const theme = page => page.locator('html').getAttribute('data-theme');
 const toggle = page => page.getByRole('button', { name: 'Dark mode', exact: true });
 async function shot(page, name) {
@@ -56,10 +67,17 @@ async function shot(page, name) {
   await page.screenshot({ path: `${process.env.THEME_SCREENSHOTS}/${name}.png`, fullPage: true });
 }
 async function surface(page, selector) {
-  return page.locator(selector).first().evaluate(el => {
+  // Source arrivals can replace a table between resolving its locator and
+  // reading its styles. Read a connected node in the same browser turn.
+  const sample = await page.waitForFunction(selector => {
+    const el = document.querySelector(selector);
+    if (!el?.isConnected) return false;
     const s = getComputedStyle(el);
     return { bg: s.backgroundColor, color: s.color };
-  });
+  }, selector);
+  const value = await sample.jsonValue();
+  await sample.dispose();
+  return value;
 }
 function rgb(color) { return color.match(/[\d.]+/g).slice(0, 3).map(Number); }
 function luma(color) {
@@ -130,12 +148,23 @@ try {
   await page.evaluate(async () => { const s = await import('/js/ui/screener.js'); s.closeWorkspace(); s.closeDrill(); });
 
   // Real route surfaces, including a sticky table and the source/semantic pills.
+<<<<<<< HEAD
   // Corporate Actions is the second view of Corp Announcements, so it is reached by its sub-view route.
   for (const route of ['daily-alerts', 'ai-alerts', 'earnings-hub', 'concall', 'public-chatter', 'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'corp-announcements/corporate-actions', 'nse-filings', 'insider-trades']) {
     const tab = route.split('/')[0];
     await page.evaluate(route => { location.hash = `#/research/${route}?scope=universe`; }, route);
     await page.waitForFunction(tab => document.querySelector('#tabbar-mount .tab-btn.is-active')?.dataset.tabId === tab, tab);
     await page.waitForFunction(route => location.hash.startsWith(`#/research/${route}`), route);
+=======
+  for (const tab of ['daily-alerts', 'ai-alerts', 'earnings-hub', 'concall', 'public-chatter', 'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'corporate-actions', 'nse-filings', 'insider-trades']) {
+    await page.evaluate(tab => { location.hash = `#/research/${tab}?scope=universe`; }, tab);
+    await panelReady(page, tab);
+    if (tab === 'nse-filings') {
+      assert.equal(await page.locator('[data-tab-id="nse-filings"]').count(), 0, 'saved filing routes render without a navigation button');
+    } else {
+      await page.waitForFunction(tab => document.querySelector('#tabbar-mount .tab-btn.is-active')?.dataset.tabId === tab, tab);
+    }
+>>>>>>> sattva/main
     assert.equal(await theme(page), 'dark', tab);
     assert(contrast((await surface(page, '[data-app-header] h1')).color, 'rgb(11,18,32)') >= 7);
     if (tab === 'ipos') {
@@ -143,11 +172,29 @@ try {
       const head = await surface(page, '[data-table-head]');
       assert(luma(head.bg) < 0.05, 'sticky table header is dark');
       assert(contrast(head.color, head.bg) >= 4.5);
+<<<<<<< HEAD
       await page.evaluate(() => { window.themeContentBefore = document.querySelector('#content-host').firstElementChild; });
       await toggle(page).click();
       assert.equal((await surface(page, '[data-table-head]')).bg, 'rgb(250, 248, 241)', 'Glow champagne palette survives light/dark toggles');
       await toggle(page).click();
       assert(await page.evaluate(() => window.themeContentBefore === document.querySelector('#content-host').firstElementChild), 'theme change does not remount the table');
+=======
+      // Theme changes are synchronous. Keep this identity assertion in that
+      // browser turn so an independent source arrival cannot replace the table
+      // between the clicks and be mistaken for a theme-triggered remount.
+      const toggled = await page.evaluate(() => {
+        const panel = document.querySelector('#content-host');
+        const before = panel.firstElementChild;
+        const button = document.querySelector('[data-theme-toggle]');
+        button.click();
+        const light = getComputedStyle(document.querySelector('[data-table-head]')).backgroundColor;
+        const retainedLight = panel.firstElementChild === before;
+        button.click();
+        return { light, retained: retainedLight && panel.firstElementChild === before };
+      });
+      assert.equal(toggled.light, 'rgb(255, 255, 255)');
+      assert(toggled.retained, 'theme change does not remount the table');
+>>>>>>> sattva/main
     }
     await shot(page, `${route.replace('/', '-')}-dark`);
   }
