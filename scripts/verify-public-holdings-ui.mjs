@@ -52,22 +52,32 @@ try {
   assert.equal(await page.locator('[data-public-row]:visible').count(), expectedRows);
   for (const prior of retained) assert((await page.locator('[data-public-disclosures]').innerText()).includes(prior.asOf), `retains the ${prior.asOf} disclosure`);
   assert(await page.evaluate(async () => (await import('/js/data/public-holdings.js')).newArrivals().some(r => r.id.includes('local-new-til'))));
+  // Verify the actual durable capture, including the lossless binary representation.
+  // Finish real worker/storage work before advancing the page's synthetic clock again.
+  await page.evaluate(async () => {
+    const { unpackJsonAsync } = await import('/js/core/json-codec.js');
+    window.diskCaptureSaved = () => new Promise(resolve => {
+      const request = indexedDB.open('sattva-cache', 1);
+      request.onerror = () => resolve(false);
+      request.onsuccess = () => {
+        const db = request.result;
+        const read = db.transaction('payloads', 'readonly').objectStore('payloads').get('holdings:public');
+        read.onsuccess = async () => {
+          const row = read.result; db.close();
+          try {
+            const value = row?.jsonEncoding === 1 ? await unpackJsonAsync(row.value) : row?.value;
+            resolve(value?.holdings?.some(h => h.id === 'local-new-til-filing') === true);
+          } catch { resolve(false); }
+        };
+        read.onerror = () => { db.close(); resolve(false); };
+      };
+    });
+  });
+  await page.waitForFunction(() => window.diskCaptureSaved());
   unavailable = true;
   await page.clock.fastForward(300100);
   await page.waitForFunction(() => document.querySelector('[data-public-disclosures]')?.textContent.includes('Latest check failed'));
   assert.equal(await page.locator('[data-public-row]:visible').count(), expectedRows, 'outage retains visible evidence');
-  // readEntry can answer from memory while the async disk write is still pending. Wait for
-  // the actual saved record before exercising a reload; do not manufacture a write in the test.
-  await page.waitForFunction(() => new Promise(resolve => {
-    const request = indexedDB.open('sattva-cache', 1);
-    request.onerror = () => resolve(false);
-    request.onsuccess = () => {
-      const db = request.result;
-      const read = db.transaction('payloads', 'readonly').objectStore('payloads').get('holdings:public');
-      read.onsuccess = () => { db.close(); resolve(read.result?.value.holdings.some(h => h.id === 'local-new-til-filing')); };
-      read.onerror = () => { db.close(); resolve(false); };
-    };
-  }));
   await page.reload();
   await page.waitForSelector('[data-changes-ready=true]');
   await open();
