@@ -509,3 +509,22 @@ RSI timeframes; Volume + Momentum needs only its own daily RSI, MACD, 20-day ave
 and volume evidence. Insufficient history is distinct from an overdue refresh or failed source.
 Regression checks must cover the corrected volume shortlist, rollovers, saved-close fallback,
 outdated/mismatched quotes, newer listings, durable window retention and a warm service-worker upgrade.
+
+### Browser working sets and exact portfolio readings (12 October 2026)
+
+Opening, navigation, filtering, search and scrolling must stay responsive in Sattva and Glow,
+including while sources refresh and retained history is prepared. Saved matching evidence remains
+usable; collection, source cadence, coverage and durable history are independent of the UI budget.
+
+Prepared portfolio members are a reading shortcut over the complete AI members. They retain each
+eligible original event, field, order and news companion, including older context, SME aliases and
+tickerless portfolio identities. Exact identity/alias membership and every source revision are
+verified before adoption. A changed book or a public issuer requested outside it immediately uses
+the complete members. A portfolio reading cannot replace the Universe cache or certify its coverage.
+
+Large JSON parsing and source-cache writes run in a browser worker; materialization and news dedupe
+yield to input. Binary cache rows preserve source timestamps and field values, accept preceding
+cache formats, and publish only after source validation. Failed writes retain the current memory
+reading and the previous durable record. Regression checks compare complete records and counts,
+exercise corrections and scope changes, measure input during large reads/writes, and verify that
+a returning session receives the new module and worker graph. Rendering limits remain DOM limits.
