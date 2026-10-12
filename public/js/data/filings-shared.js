@@ -1,3 +1,4 @@
+import { runSteps, runStepsInSlices } from '../core/slices.js';
 // data/filings-shared.js — the vocabulary for news, corporate announcements and insider trades.
 //
 //   parseMarkdownTable(md)        a markdown table -> { headers, rows }
@@ -395,29 +396,35 @@ export const articleStoryKey = row => row?.title && row?.source
   ? `${String(row.date || row.publishedAt || '').slice(0, 10)} :: ${String(row.source).trim().toLowerCase()} :: ${String(row.title).trim().toLowerCase()}`
   : null;
 
-export function dedupeArticles(list = []) {
+export function* dedupeArticleSteps(list = []) {
   const seenUrl = new Set();
   const seenStory = new Set();
   const seenAnonymous = new Set();
-  return list.filter((row) => {
+  const kept = [];
+  let visited = 0;
+  for (const row of list) {
+    if (++visited % 128 === 0) yield;
     const url = articleUrlKey(row);
     if (url) {
-      if (seenUrl.has(url)) return false;
+      if (seenUrl.has(url)) continue;
       seenUrl.add(url);
     }
     const story = articleStoryKey(row);
     if (story) {
-      if (seenStory.has(story)) return false;
+      if (seenStory.has(story)) continue;
       seenStory.add(story);
     }
     if (!url && !story) {
       const content = anonymousArticleContentKey(row);
-      if (seenAnonymous.has(content)) return false;
+      if (seenAnonymous.has(content)) continue;
       seenAnonymous.add(content);
     }
-    return true;
-  });
+    kept.push(row);
+  }
+  return kept;
 }
+export const dedupeArticles = (list = []) => runSteps(dedupeArticleSteps(list));
+export const dedupeArticlesAsync = (list = []) => runStepsInSlices(dedupeArticleSteps(list), { sliceMs: 8 });
 
 /**
  * The insider-trades payload, whichever form it arrives in.

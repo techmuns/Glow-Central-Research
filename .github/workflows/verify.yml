@@ -44,7 +44,7 @@ jobs:
       - name: Verify Glow portfolio and template isolation
         run: node scripts/verify-glow-parity.mjs && node scripts/verify-glow-isolation.mjs && node scripts/check-book.mjs
       - name: Verify filings snapshot recovery
-        run: node scripts/verify-filings-snapshot.mjs
+        run: node scripts/verify-filings-snapshot.mjs && node scripts/verify-news-snapshot-adoption.mjs
       - name: Verify permanent company-news identities and archive
         run: node scripts/verify-company-news-archive.mjs
       - name: Verify recent News calendar windows and lossless archive separation
@@ -52,7 +52,7 @@ jobs:
       - name: Verify bounded memory, lossless saves and exact news reading windows
         # The working-set oracle replays the complete retained news history in one process: about
         # 6 GB on 1 October 2026, past Node's default 4 GB heap on the 16 GB runner.
-        run: node scripts/verify-memory-primitives.mjs && node scripts/verify-news-query-boundaries.mjs && node --max-old-space-size=8192 scripts/verify-news-working-set.mjs
+        run: node scripts/verify-json-preparation.mjs && node scripts/verify-alert-pool-projection.mjs && node scripts/verify-memory-primitives.mjs && node scripts/verify-news-query-boundaries.mjs && node --max-old-space-size=8192 scripts/verify-news-working-set.mjs
       - name: Verify hot-path caches are invisible (same answers, live edits, exact byte counts)
         run: node scripts/verify-hot-path-memo.mjs
       - name: Verify lossless news parts and deployable asset sizes
@@ -311,6 +311,10 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-column-order-ui.mjs && node scripts/verify-column-order-upgrade-ui.mjs
+      - name: Verify responsive JSON preparation and lossless durable replay
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-json-preparation-ui.mjs
       - name: Verify filter transitions, loading placeholders and latest selection
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
