@@ -16,6 +16,7 @@ import { CAPTURE_REGISTRY_LIMIT, CAPTURE_REGISTRATION_BATCH, registeredCompany }
 import { AnnouncementIndexStore } from './announcement-index-store.mjs';
 import { RelevanceFeedbackStore } from './relevance-feedback-store.mjs';
 import { AnnouncementReadStore } from './announcement-read-store.mjs';
+import { ResearchSheetStore } from './research-sheet-store.mjs';
 
 // An RPC error crosses the boundary with its message only, so the three announcement objects answer
 // a failure as a plain `{ ok: false, reason, message }` the route can act on.
@@ -64,6 +65,11 @@ export class CaptureRegistry extends DurableObject {
   get announcementIndex() { return (this._announcementIndex ||= new AnnouncementIndexStore(this.ctx.storage, this.env)); }
   get relevanceFeedback() { return (this._relevanceFeedback ||= new RelevanceFeedbackStore(this.ctx.storage)); }
   get announcementReads() { return (this._announcementReads ||= new AnnouncementReadStore(this.ctx.storage, this.env)); }
+  // The desk's research sheet (research-sheet:v1) — the values typed into the Portfolio and
+  // Watchlist tabs. Glow-owned; built on first use on that one fixed object, like the three above.
+  get researchSheet() { return (this._researchSheet ||= new ResearchSheetStore(this.ctx.storage)); }
+  researchSheetSnapshot() { return this.researchSheet.snapshot(); }
+  researchSheetApply(intents) { return this.researchSheet.apply(intents); }
   annIndexQuery(input) { return settled(() => this.announcementIndex.query(input)); }
   annIndexEvent(id, range) { return settled(() => this.announcementIndex.event(id, range || {})); }
   annIndexProfiles() { return settled(() => this.announcementIndex.profiles()); }

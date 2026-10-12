@@ -23,6 +23,14 @@ export function lazyTab(meta, importer) {
 export const researchTabs = [
   // The landing interface is ready before app-wide source reads take the network slots.
   lazyTab(aiAlerts.meta, () => Promise.resolve(aiAlerts)),
+  // The desk's own two sheets come straight after AI Alerts, then the two filing streams the desk
+  // reads next, then All Alerts (12 October 2026). Glow-owned: see *Portfolio and Watchlist* in
+  // CLAUDE.md. Both are scope-independent — each IS the list it is named for.
+  lazyTab({ id: 'portfolio', title: 'Portfolio', allowEmptyScope: true, scopeIndependent: true }, () => import('../tabs/portfolio.js')),
+  lazyTab({ id: 'watchlist', title: 'Watchlist', allowEmptyScope: true, scopeIndependent: true }, () => import('../tabs/watchlist.js')),
+  lazyTab({ id: 'corp-announcements', title: 'Corp Announcements', subviews: announcementViews, inlineSubviews: true },
+    () => import('../tabs/corp-announcements.js')),
+  lazyTab({ id: 'news', title: 'News' }, () => import('../tabs/news.js')),
   lazyTab({ id: 'daily-alerts', title: 'All Alerts', layout: 'table' }, () => import('../tabs/daily-alerts.js')),
   lazyTab({ id: 'bookmarks', title: 'Bookmarks', allowEmptyScope: true, scopeIndependent: true }, () => import('../tabs/bookmarks.js')),
   lazyTab({ id: 'earnings-hub', title: 'Earnings Hub' }, () => import('../tabs/earnings-hub.js')),
@@ -38,10 +46,7 @@ export const researchTabs = [
     { id: 'superstar-investors', label: 'Superstar Investors' },
     { id: 'institutions', label: 'Institutions' },
   ] }, () => import('../tabs/super-investors.js')),
-  lazyTab({ id: 'news', title: 'News' }, () => import('../tabs/news.js')),
   lazyTab({ id: 'ipos', title: 'IPOs', allowEmptyScope: true }, () => import('../tabs/ipos.js')),
-  lazyTab({ id: 'corp-announcements', title: 'Corp Announcements', subviews: announcementViews, inlineSubviews: true },
-    () => import('../tabs/corp-announcements.js')),
   lazyTab({ id: 'nse-filings', title: 'NSE Filings' }, () => import('../tabs/nse-filings.js')),
   lazyTab({ id: 'insider-trades', title: 'Bulk/Block Deal' }, () => import('../tabs/insider-trades.js')),
   lazyTab({ id: 'mutual-funds', title: 'Mutual Funds', allowEmptyScope: true, inlineSubviews: true, subviews: [

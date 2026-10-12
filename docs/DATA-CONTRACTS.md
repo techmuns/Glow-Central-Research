@@ -664,6 +664,10 @@ one 404s on the served site so a stale import cannot quietly bring the feature b
 
 **The only portfolio file left is `portfolio-companies.json`** — the book, above.
 
+The Portfolio **tab** (12 October 2026, GLOW-OWNED) is not this feature returning: it reads the
+family's real statements and the values the desk types, and its dated history is a different file,
+`sheet-history.json` — see *The desk's research sheet* below.
+
 ## `public/data/universe.json`
 
 The coverage universe: **535 companies, the real NSE-500 Screener export**. Root is an **array**,
@@ -4531,6 +4535,146 @@ all, and the shell decides teardown against what it will actually mount so the u
 destroyed rather than left painting into the content host.
 
 ---
+
+## The desk's research sheet — `GET`/`POST /api/research-sheet` (GLOW-OWNED)
+
+Every value somebody types into the **Portfolio** and **Watchlist** tabs: one record per company,
+shared by both tabs and by every device. `worker/research-sheet-store.mjs` keeps it in SQLite on the
+fixed object `research-sheet:v1` of the provisioned `CaptureRegistry` class (no migration);
+`worker/research-sheet.mjs` is the route; `public/js/data/research-sheet-shared.js` is the one
+definition of a field, a key and an edit, imported by both. The rules are the shared watchlist's,
+above, and the differences are stated where they arise.
+
+### `GET /api/research-sheet`
+
+```jsonc
+{
+  "ok": true,
+  "version": 1,
+  "revision": 12,                     // the server's own counter; moves only on a real change
+  "updatedAt": "2026-10-12T09:41:07.112Z",
+  "values": {                         // company key -> field -> the typed value
+    "SBIN": {
+      "intrinsicValue": { "value": 1250, "at": "2026-10-12T09:41:07.112Z", "by": "Ravi Kumar" },
+      "methodology":    { "value": "DCF", "at": "…", "by": null }
+    },
+    "ISIN:INE000000001": { "dateBought": { "value": "2024-03-12", "at": "…", "by": "…" } }
+  },
+  "rows": [                           // Portfolio holdings added by hand, oldest first
+    { "key": "NEWCO", "name": "New Holding Ltd", "addedAt": "…", "addedBy": "Ravi Kumar" }
+  ],
+  "limits": { "companies": 800, "rows": 200 }
+}
+```
+
+`cache-control: private, max-age=0, must-revalidate`, ETagged, with no `checkedAt` in the tagged
+body, so an unchanged poll is a bodyless 304 — the shared watchlist's arrangement and reasons. A
+failure is `ok: false` with a `reason` and **no `values`**, so it can never be painted as a sheet
+nobody has typed in.
+
+**A company key** is its NSE symbol (the watchlist star's identity) or `ISIN:<code>` for a holding no
+feed can place. A bare ISIN is refused, because twelve letters and digits also pass as a symbol.
+
+| Field | Kind | Unit | Bounds | Shown on |
+| --- | --- | --- | --- | --- |
+| `name` | text | — | ≤ 200 chars | both |
+| `sector` | text | — | ≤ 80 | both |
+| `source` | text | — | ≤ 120 | Watchlist |
+| `dateBought` | date | `YYYY-MM-DD` | a real calendar date in 1950–2100; the editor also refuses a future one | Portfolio |
+| `quantity` | number | shares | > 0 | Portfolio |
+| `buyPrice` | number | ₹ per share | > 0 | Portfolio |
+| `amountInvested` | number | ₹ crore | ≥ 0 | Portfolio |
+| `targetAmount` | number | ₹ crore | ≥ 0 | both |
+| `targetWeight` | number | % of public direct | 0–100 | both |
+| `pendingAmount` | number | ₹ crore | may be negative | Portfolio |
+| `intrinsicValue` | number | ₹ per share | > 0 | both |
+| `entryPrice` | number | ₹ per share | > 0 | Watchlist — the buy price its Expected IRR is measured from; deliberately a separate field from `buyPrice` |
+| `methodology` | text | — | ≤ 60 | both |
+| `reference` | text | — | ≤ 60 | both |
+
+Crore amounts are stored in crore, the unit each column is headed in.
+
+### `POST /api/research-sheet`
+
+Body: `{ "intents": [ … ] }`, at most 60, never two edits to one cell (or two row edits to one
+company) in one batch. Same-origin only, `application/json` only, bounded at 32 KB, rate-limited on
+`SHARED_WATCHLIST_LIMITER` under the key prefix `research-sheet:`. Returns the snapshot above plus
+`outcomes` and `checkedAt`.
+
+| `op` | Carries | Meaning |
+| --- | --- | --- |
+| `set` | `key`, `field`, `value`, `by?` | Somebody typed a value. |
+| `clear` | `key`, `field`, `by?` | Remove the typed value, so the cell shows its default again. The cell is deleted — nothing seeds this sheet, so there is no stale device a tombstone would have to stop. |
+| `add-row` | `key`, `name`, `by?` | A Portfolio holding the statements do not carry yet. |
+| `remove-row` | `key`, `by?` | Take it off again. Its typed values stay; the removal is kept as a record (up to 400). |
+
+`by` is optional on every op, unlike the watchlist's `add`: a cell edit is a smaller act than putting
+a company on a shared list, and an unattributed edit reads *"Edited — name not recorded"*, never as
+somebody else's. Outcomes: `set`, `cleared`, `added`, `removed`, `unchanged` (already in that state,
+`revision` unmoved) and `full` (refused at the company or row limit — never reads as applied).
+
+The browser half, `public/js/core/research-sheet.js`, keeps a mirror (`sattva:research-sheet:v1`)
+and an outbox (`sattva:research-sheet:outbox:v1`, one pending edit per cell, replayed over each
+snapshot). A static origin (404/405/501) is `local`: edits stay in that browser and reach the first
+shared sheet that answers.
+
+## `GET /api/benchmark-quote` — the Nifty 500 now (GLOW-OWNED)
+
+The level the Portfolio tab's alpha is measured to. Read by `worker/benchmark-quote.mjs` with the two
+validated readers the team brief uses (`worker/newsletter-markets.mjs`): Upstox's exact
+`NSE_INDEX|Nifty 500` cash index, then NSE's allIndices snapshot; the newer print wins and a tie goes
+to the exchange.
+
+```jsonc
+{ "ok": true, "id": "nifty500", "name": "Nifty 500", "last": 22410.35, "prev": 22301.1, "changePct": 0.49,
+  "asOf": "2026-10-12T09:44:00.000Z", "sessionDate": "2026-10-12", "state": "live", "origin": "nse",
+  "sources": { "upstox": "not-configured", "nse": null } }
+```
+
+A failure is `ok: false, reason: "unavailable"` with each source's reason and **no `last`**; the tab
+then measures to the last captured close in `sheet-history.json` and says it did. One edge entry per
+deployment (`edgeKey('benchmark-quote:nifty500')`), 30 seconds on success and 15 on failure.
+
+## `public/data/sheet-history.json` — dividends, splits and the Nifty 500 (GLOW-OWNED)
+
+Written by `scripts/scrape-sheet-history.mjs` from Yahoo Finance's chart API
+(`.github/workflows/sheet-history-refresh.yml`, weekdays 08:13 IST, committed straight to main).
+**Not `portfolio-history.json`**: that name belonged to the deleted equity curve, and `verify-ui.mjs`
+still asserts it 404s.
+
+```jsonc
+{
+  "version": 1,
+  "source": "Yahoo Finance chart API",
+  "generatedAt": "2026-10-12T13:02:20.660Z",
+  "coverage": {                       // null = that shared list could not be read (its tickers then
+    "wanted": 33, "publicDirect": 33, //   come from the previous file instead of being dropped)
+    "watchlist": 0, "manual": null, "read": 30, "retained": 0, "sharedListsRead": false
+  },
+  "benchmark": { "id": "nifty-500", "name": "Nifty 500", "symbol": "^CRSLDX", "basis": "price index",
+                 "from": "2005-09-26", "to": "2026-10-12", "checkedAt": "…", "rows": [["2005-09-26", 2245.4], …] },
+  "companies": {
+    "AXISBANK": { "symbol": "AXISBANK.NS", "checkedAt": "…",
+                  "dividends": [ …, ["2026-07-10", 1]],        // ex-date, ₹ per CURRENT share
+                  "splits": [["2014-07-28", 5, 1]] }           // date, numerator, denominator
+    // + "closes": { "basis": "close", "from", "to", "rows": [[date, close], …] } — the last 120 days,
+    //   only for a company the technicals capture has no daily history for
+  },
+  "failed": [{ "ticker": "EMAPARTNER", "reason": "not on Yahoo Finance under this symbol (…)" }]
+}
+```
+
+Which companies: the public-direct holdings (book equity outside PMS, listed), the shared watchlist
+and the hand-added Portfolio rows — the last two read from the deployed Worker; when either cannot be
+read, the previous file's companies are kept rather than dropped. **A failed read is never an empty
+history**: a company Yahoo cannot answer keeps its last entry with `retained: true` and is named in
+`failed`, so *no dividends* (an empty list Yahoo returned) and *could not read* stay different
+answers. A run that cannot read the index and holds no earlier copy refuses to write.
+
+Yahoo expresses a dividend per **current** share (a pre-split dividend is divided by the split),
+which is the basis the sheet's quantity is on, so nothing rescales it. The tab counts each dividend
+whose ex-date falls after the date bought, × the quantity, and only when the company's history was
+read; the index is a **price** index, and the alpha's title says so.
 
 ## The team brief — `GET`/`POST /api/newsletter`, `/api/newsletter/send`, `/api/newsletter/preview`
 

@@ -55,6 +55,11 @@ parameters intact; feature flags must not restore the tab. Retained research-com
 `scripts/lib/research-ui-fixture.mjs`, never a customer-facing registration switch. Shared research
 APIs, stored conversations and the in-flight upgrade guard remain unchanged.
 
+**Navigation (12 October 2026, GLOW-OWNED):** two desk sheets, **Portfolio** and **Watchlist**, sit
+straight after AI Alerts, followed by Corp Announcements, News and then All Alerts. AI Alerts stays
+first and default. Both sheets are scope-independent (each IS the list it is named for). See
+*Portfolio and Watchlist — the desk's two sheets* below before changing a column.
+
 ---
 
 ## Hard rules
@@ -133,6 +138,9 @@ public/
                               AND the Watchlist scope; see the scope section below
       watchlist-people.js     WHO IS ADDING — the shared contributor roster behind the dropdown,
                               plus which of those names THIS device adds under
+      research-sheet.js       THE DESK'S RESEARCH SHEET, this browser's copy — every value typed into
+                              the Portfolio and Watchlist tabs, plus an outbox; the shared watchlist's
+                              arrangement (GLOW-OWNED, see *Portfolio and Watchlist*)
       router.js               hash routing (#/ws/tab/subview?scope=)
       live.js                 live-update polling engine
       watch.js                app-wide feed watchers -> the header notification inbox
@@ -160,6 +168,11 @@ public/
       host-ticker.js          the company the HOST has selected, as one header chip. Absent, not
                               empty-stated, when it has selected none — this app is not ticker-bound
       notifications.js        the header bell and notification inbox
+      sheet-cells.js          the Portfolio / Watchlist cells: typed vs default vs derived, and how each
+                              sorts and exports (GLOW-OWNED)
+      sheet-editor.js         the one cell editor behind both sheets — a popover on <body>, so a
+                              15-second price repaint cannot take the value being typed (GLOW-OWNED)
+      sheet-chrome.js         the sheets' status pill, "How this is derived" modal and company search
       alert-note.js           how the optional AI summary reads on a card, a row and an export cell
       export.js               generic exceljs-from-CDN "Export Excel" helper
       components.js           chrome primitives (tab bar, toggle, search…)
@@ -178,6 +191,13 @@ public/
       watchlist-shared.js     pure shape + identity rules for the shared watchlist, imported by
                               worker/watchlist-store.mjs too — one definition of what a company,
                               a contributor and an edit are
+      research-sheet-shared.js  THE DESK'S EDITABLE FIELDS — one definition of a sheet field, a company
+                              key and an edit, imported by worker/research-sheet-store.mjs too
+      research-sheets.js      the Portfolio and Watchlist ROWS: statement defaults, typed values and
+                              live figures joined, every derived figure with the sentence behind it
+      sheet-market.js         the sheets' market join — CMP, 1D/1M, market cap, sector, dividends,
+                              splits and the Nifty 500 (live, then captured), never typed or stored
+      sheet-math.js           pure date / XIRR / dividend / split arithmetic for the sheets
       daily-alerts.js         RETAINED HISTORY across NINE feeds. Derived: no file, no route of its own
       ai-alerts.js            EXPLAINABLE seven-day company priority over Daily/General readings
       alert-drivers.js        WHICH INVESTOR QUESTION a tracked topic bears on — earnings assumption,
@@ -236,6 +256,10 @@ public/
       corporate-actions.js    the Corporate Actions VIEW — a sub-view, not a tab; its retired tab id
                               `corporate-actions` is aliased to the view by LEGACY_TABS in ui/shell.js
       ai-alerts.js            ranked company insight cards, strongest evidence first
+      portfolio.js            PORTFOLIO — the family's public direct holdings (listed, outside every
+                              PMS mandate) as one editable sheet; live columns never typed (GLOW-OWNED)
+      watchlist.js            WATCHLIST — the shared watchlist as the same sheet, fewer columns, plus
+                              an editable Source column (GLOW-OWNED)
       daily-alerts.js         GENERAL ALERTS — one newest-first historical stream across the research
                               feeds, with direction + importance reasons and feed freshness
       filings-tab.js          the shared body of the last three — one renderer, three column sets
@@ -245,6 +269,8 @@ public/
                               earnings-calendar.json, universe.json,
                               portfolio-companies.json (THE BOOK — names and sectors, the only
                               portfolio data here), mock/*.json
+                              sheet-history.json (Nifty 500 closes + dividends/splits for the
+                              Portfolio and Watchlist sheets; GLOW-OWNED)
 scripts/
   sync-family-book.mjs        THE BOOK'S SOURCE — reads techmuns/Sattva-Family's positions file, one
                               line per equity ISIN, into fixtures/family-book.json, then re-resolves
@@ -272,6 +298,8 @@ scripts/
   scrape-institution-holdings.mjs  REAL filed shareholdings, per fund, off Trendlyne
   lib/trendlyne.mjs           the Trendlyne page parser, pure and testable offline
   stub-chatter.mjs            replays a captured chatter payload, so a verify run needs no egress
+  scrape-sheet-history.mjs    Nifty 500 closes since 2005 + every dividend and split of each sheet
+                              company, from Yahoo -> public/data/sheet-history.json (GLOW-OWNED)
   verify-ui.mjs               the pre-push checklist, driven with Playwright
   lib/                        indicators.mjs, liquidity-estimators.mjs
 .github/workflows/technicals-refresh.yml   weekdays 07:00 IST; EOD prices and derived snapshots
@@ -293,9 +321,15 @@ scripts/
                                            before history. Public mode needs no Telegram account
 .github/workflows/twitter-refresh.yml      every 30 min + workflow_dispatch from the dashboard when
                                            a reader adds an account; posts from the monitored handles
+.github/workflows/sheet-history-refresh.yml weekdays 08:13 IST; the dividend/split/index history behind
+                                           the Portfolio sheet's TSR, XIRR and alpha (GLOW-OWNED)
 worker/watchlist-store.mjs    THE SHARED WATCHLIST'S durable record — SQLite in the provisioned
                               CaptureRegistry class under one fixed object name. Intents, not lists
 worker/watchlist.mjs          GET/POST /api/watchlist — private-cacheable, ETagged, same-origin writes
+worker/research-sheet-store.mjs  THE DESK'S RESEARCH SHEET — one row per (company, field) on the fixed
+                              object research-sheet:v1 of CaptureRegistry. Intents, server-stamped
+worker/research-sheet.mjs     GET/POST /api/research-sheet — private, ETagged, same-origin, rate-limited
+worker/benchmark-quote.mjs    GET /api/benchmark-quote — the Nifty 500's level now, for the sheet's alpha
 worker/alert-notes.mjs        POST /api/alert-notes — the alerts' AI "So what?" line, same-origin, bounded
 worker/alert-notes-store.mjs  THE NOTES' durable record — SQLite in the provisioned CaptureRegistry class
                               under alert-notes:v1, keyed by the text each note was written from
@@ -1317,6 +1351,96 @@ block reading *Coverage & unresolved gaps · 119 of 119 books need attention* ab
 the colour this dashboard reserves for a partial figure; the owner asked for it to go. It opens from
 *How this is derived* beside the freshness chip, every row of it, and `ensureHoldingsFresh()` still
 revalidates its sources on mount — moved, not deleted, and the age stays stated on the page.
+
+### Portfolio and Watchlist — the desk's two sheets (GLOW-OWNED)
+
+The desk asked (12 October 2026) for its portfolio and its watchlist as two tables, in its own
+columns and its own wording, with every field typed by hand except the ones the market answers, and
+for those to move with the market. They are the second and third tabs, after AI Alerts.
+`js/tabs/portfolio.js` and `js/tabs/watchlist.js` draw them; `js/data/research-sheets.js` builds the
+rows; `js/core/research-sheet.js` keeps the typed values. Both declare `scopeIndependent: true` and
+`allowEmptyScope: true`: each tab IS the list it is named for, so the scope toggle is hidden there as
+it is on Bookmarks, and an empty watchlist is a table to add to rather than the shell's empty panel.
+
+**Which rows.** The Portfolio is the family's **public direct** book: `book.counted()` rows whose
+asset class is Equity and whose engagement is not PMS, less the lines the committed
+`portfolio-companies.json` marks `listed: false` (warrants, preference shares), consolidated per
+company by `book.directEquity()` — one row per company, every statement line under it. The `listed`
+flag is read from `coverage.baseHoldings()`, never from the Family session's names-only projection,
+which does not carry it (that let the warrant and preference lines in: 37 rows against 35). A
+holding bought after the latest statement is added by hand (`add-row`) and leaves view the moment a
+statement carries the same key. The Watchlist is the shared watchlist (`core/watchlist.js`),
+added to and removed from through the existing Watchlist editor and its *Who is adding this?*
+prompt — there is no second list.
+
+**Three kinds of figure, and a reader can tell them apart without hovering.**
+
+1. **Live, never typed:** CMP (the minute capture through `breakout-live.js`, the completed daily
+   close standing in and marked `close`, a quote the live check could not confirm marked `saved`),
+   market cap (shares outstanding × CMP; Screener's printed figure, said not to move, where no share
+   count is held), 1-day and 1-month return, current value (quantity × CMP; the statement's own
+   value, marked `stmt`, only while the quantity is the statement's), TSR including dividends, alpha
+   over the Nifty 500, XIRR, weight, upside on CMP, expected IRR on the buy price. CMP and market cap
+   are read-only although the desk's list did not name them: they are the market's inputs to every
+   live column, and a typed CMP would make every return on the row a claim about a price nobody saw.
+2. **Typed by the desk**, shared: name, sector, Source (Watchlist), date bought, quantity, buy price,
+   amount invested, target amount, target weight, pending amount, intrinsic value, methodology,
+   reference — and, on the Watchlist only, `entryPrice`, the buy price its Expected IRR is measured
+   from, set inside that cell. A gold dot marks a typed value, a hollow one an edit not yet accepted.
+3. **Defaults**, muted and dotted until somebody types over them: the statements' quantity (moved
+   onto today's share basis for a split or bonus after the statement date), their average cost
+   (over the shares a cost covers, never the whole quantity), the lot register's oldest date
+   (`heldSince`), and the formulas — amount invested = quantity × buy price, target amount ↔ target
+   weight through the public-direct total, pending = target − invested. A typed value always wins and
+   says who typed it and when; Reset returns the cell to its default.
+
+**One record per company, shared by both tabs.** An intrinsic value is a view about a company, and
+when a watched company is bought its fair value, target and methodology must move with it, so both
+tabs read one record keyed by `sheetKey` (the NSE symbol, else `ISIN:<code>`). `entryPrice` is the
+one exception, so a planned entry on the Watchlist can never rewrite the Portfolio's cost. The
+record lives on the Worker — `/api/research-sheet`, `worker/research-sheet-store.mjs` on the fixed
+object `research-sheet:v1` of the provisioned `CaptureRegistry` class, no migration — under the
+shared watchlist's rules: edits are INTENTS (`set`, `clear`, `add-row`, `remove-row`) applied to the
+sheet as it is now, times are the server's, a read is `private` and ETagged, a write is same-origin
+and rate-limited on the watchlist limiter under its own key prefix, a failed read is never an empty
+sheet, and the outbox is replayed over each snapshot. A static origin (404/405/501) is `local`: edits
+stay in this browser, the pill says so, and the first shared sheet that answers receives them.
+
+Seven refusals, and every one is a rule this file already runs on:
+
+1. **A missing input is named, never zero.** Most statements print no purchase date and many no
+   cost, so TSR, XIRR and alpha read *Needs Date bought* until the desk types one. The table is
+   honest about that rather than computing from a guessed date.
+2. **Dividends are counted only where they can be.** Every ex-date after the date bought, per
+   current share × the quantity, from Yahoo's history in `sheet-history.json` — and only when that
+   history was read. Otherwise the TSR excludes them and says `excl. div` on its face.
+3. **Alpha is in percentage points against the Nifty 500 PRICE index** (`^CRSLDX`), from its close on
+   or before the date bought to its level now (`/api/benchmark-quote`, else the last captured close,
+   labelled). No total-return series for the index is reachable from here, so the title says the
+   index carries no dividends while the TSR does.
+4. **XIRR is money-weighted** (Excel's 365-day convention, dividends as dated flows) and a holding
+   period under a year is marked `<1y`, because it annualises a short run.
+5. **The weight's denominator is the rows on the screen**: current value ÷ the sum of public-direct
+   current values. PMS is excluded by construction, and a row with no value is left out by name.
+6. **Nothing here touches the Portfolio scope or the book.** `portfolio-companies.json` stays names
+   and sectors, the scope toggle's Portfolio is unchanged, and the sheet is not Portfolio Analytics
+   returning: no quantity or cost is invented — each is a statement's or a named person's.
+7. **An export carries the provenance.** Each typed or defaulted column is followed by its
+   *typed / default* marker, and row 1 says which figures are live and which are the desk's.
+
+**`public/data/sheet-history.json` is deliberately NOT named `portfolio-history.json`.** That name
+belonged to the deleted Portfolio Analytics equity curve; `verify-ui.mjs` asserts it 404s, the
+technicals job still stages it if it exists, and the backlog recovery treats it as a technicals
+file. `scripts/scrape-sheet-history.mjs` (`.github/workflows/sheet-history-refresh.yml`, weekdays
+08:13 IST, committed straight to main) writes the Nifty 500's daily closes since 2005, every dividend
+and split of each public-direct and watched company, and recent closes for companies the technicals
+capture does not price. A company Yahoo cannot answer keeps its last entry, marked retained, and is
+named in `failed` (today the three SME holdings), so *no dividends* and *could not read* stay
+different answers.
+
+`node scripts/verify-research-sheet.mjs` (contract, store, arithmetic, routes; offline) and
+`scripts/verify-research-sheet-ui.mjs` (two devices against the real store, a static-origin device,
+the editor, the defaults and every refusal) are the tests.
 
 ### The team brief — two emails a weekday, built at the edge (GLOW-OWNED)
 
@@ -5061,6 +5185,9 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change the device-local scope editor | `js/ui/scope-editor.js` (modal) + `js/core/scope-lists.js` (Portfolio/Universe overlay) + `js/core/watchlist.js` (Watchlist) + `/api/stock-search` in `worker/index.js` / `worker/muns.mjs` |
 | Change what the Portfolio scope filters by | `js/data/coverage.js` — read *What "Portfolio" means* above first. It is the only portfolio data here: names and sectors, never a quantity or a value |
 | Change the Family Book's Direct Equity view, its columns or its drill | `js/tabs/family-book-equity.js` (the view) + `directEquity()` / `directEquityTotals()` in `js/data/book.js` (the rollup) — read *ALL HOLDINGS \| DIRECT EQUITY* first. What is summed must be summable: a return is re-derived and labelled, a price is left per statement, an IRR is reproduced and never blended. `node scripts/verify-direct-equity.mjs` and `scripts/verify-direct-equity-ui.mjs` are the tests |
+| Change a Portfolio or Watchlist column, or what a derived figure means | `js/tabs/portfolio.js` / `js/tabs/watchlist.js` (headings, cells, export) + `js/data/research-sheets.js` (rows, defaults, TSR, alpha, XIRR, weight) + `js/data/sheet-math.js` — read *Portfolio and Watchlist — the desk's two sheets* first. A missing input is named, never zero, and CMP / market cap stay read-only. `node scripts/verify-research-sheet.mjs` and `scripts/verify-research-sheet-ui.mjs` are the tests |
+| Change what the desk may type into a sheet, or the shared sheet's route | `public/js/data/research-sheet-shared.js` (the one definition, imported by the Worker too) + `worker/research-sheet-store.mjs` + `worker/research-sheet.mjs` + `js/core/research-sheet.js`. Edits are INTENTS, never a whole sheet |
+| Change the dividend / split / Nifty 500 history behind the sheets | `scripts/scrape-sheet-history.mjs` (`SHEET_HISTORY_LIMIT=5` for a smoke run) + `.github/workflows/sheet-history-refresh.yml`; the live index is `worker/benchmark-quote.mjs`. Never rename the file `portfolio-history.json` |
 | Change what dated evidence the book carries — trades, capital-gain lots, dividends | `scripts/lib/glow-archive.mjs` (GlowVentures' own precedence and de-duplication rules, reproduced) + the `equityLedger` block in `scripts/build-book.mjs` + the guards in `scripts/check-book.mjs` — read *The dated evidence* in `docs/GLOW-TEMPLATE-SYNC.md` first. The rows go to `public/data/book-ledger.json`, never into `book.json`, and both files are committed by the same `series-refresh` run |
 | Read a MEASUREMENT out of the technicals feed | `technicals.rowFor(ticker)`, never `byTicker(ticker)?.cmp` — the latter returns the scored object and its measurements are one level down, so `.cmp` there is `undefined` for every ticker in the feed and the caller silently renders "not in the capture" |
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
@@ -5228,6 +5355,8 @@ node scripts/verify-shared-watchlist.mjs
 node scripts/verify-shared-watchlist-ui.mjs
 node scripts/verify-direct-equity.mjs
 node scripts/verify-direct-equity-ui.mjs
+node scripts/verify-research-sheet.mjs
+node scripts/verify-research-sheet-ui.mjs
 node --max-old-space-size=4096 scripts/verify-alert-pool.mjs
 node scripts/verify-ui.mjs
 node scripts/verify-sdk.mjs

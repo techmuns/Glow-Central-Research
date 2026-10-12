@@ -109,6 +109,8 @@ jobs:
         run: node scripts/verify-capture-registration.mjs
       - name: Verify the shared watchlist contract, attribution and conflicting edits
         run: node scripts/verify-shared-watchlist.mjs
+      - name: Verify the Portfolio and Watchlist sheet contract, store, arithmetic and routes
+        run: node scripts/verify-research-sheet.mjs
       - name: Verify daily market changes and exchange source reconciliation
         run: node scripts/verify-newsletter-markets.mjs
       - name: Verify the family's price levels — contract, store, minute check, cross-site route and alert rank
@@ -390,6 +392,13 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-shared-watchlist-ui.mjs
+      # The Portfolio and Watchlist tabs against the real sheet and watchlist stores: tab order, the
+      # public-direct rows, live and typed columns, every derived figure recomputed here, two devices
+      # sharing one sheet, and a deployment with no shared sheet.
+      - name: Verify the Portfolio and Watchlist sheets across two devices
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-research-sheet-ui.mjs
   portfolio-research-shard:
     # Every saved portfolio packet, split by company across four browser sessions. A packet takes
     # 4–7 seconds on a shared runner, so one session for the whole portfolio ran 35–62 minutes

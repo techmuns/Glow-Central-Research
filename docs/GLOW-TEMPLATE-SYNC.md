@@ -651,3 +651,42 @@ filing-issuer alias joins them without rewriting statement units/marks or relaxi
 rejection. Saved capture membership checks normalize that same alias. The existing research
 comparison verification uses a larger offline retrieval budget while continuing to enforce the
 unchanged 18,000-character shipped-packet budget and zero omitted verification candidates.
+
+## Portfolio and Watchlist sheets (12 October 2026)
+
+The desk asked for its portfolio and watchlist as two editable tables placed straight after AI
+Alerts, with Corp Announcements and News moved up behind them. This is Glow's own feature (its rows
+are Glow's statement book) and has no Sattva counterpart; **preserve it on a template merge.** How it
+works is in `CLAUDE.md` → *Portfolio and Watchlist — the desk's two sheets*; the contracts are in
+`docs/DATA-CONTRACTS.md` → *The desk's research sheet*, `/api/benchmark-quote` and
+`public/data/sheet-history.json`.
+
+- Files: `public/js/tabs/portfolio.js`, `public/js/tabs/watchlist.js`,
+  `public/js/core/research-sheet.js`, `public/js/data/research-sheet-shared.js`,
+  `public/js/data/research-sheets.js`, `public/js/data/sheet-market.js`,
+  `public/js/data/sheet-math.js`, `public/js/ui/sheet-cells.js`, `public/js/ui/sheet-chrome.js`,
+  `public/js/ui/sheet-editor.js`, `worker/research-sheet.mjs`, `worker/research-sheet-store.mjs`,
+  `worker/benchmark-quote.mjs`, `scripts/scrape-sheet-history.mjs`,
+  `public/data/sheet-history.json`, `.github/workflows/sheet-history-refresh.yml`,
+  `scripts/verify-research-sheet.mjs`, `scripts/verify-research-sheet-ui.mjs`.
+- Hunks in shared files: the tab ORDER in `public/js/ui/tab-registry.js` (AI Alerts, Portfolio,
+  Watchlist, Corp Announcements, News, All Alerts, then the template's order with those two removed
+  from their old places); the two routes and imports in `worker/index.js`; the `researchSheet`
+  getter and its two methods in `worker/capture-registry-object.mjs`; the two registry rows and their
+  imports in `public/js/ui/sources.js`; the `.sheet-*` block at the end of `public/css/glow.css`; the
+  two CI steps in `.github/workflows/verify.yml`; the deep link in `scripts/verify-navigation.mjs`
+  (Super Investors, IPOs' new left-hand neighbour, instead of News); the service-worker marker
+  `glow-portfolio-watchlist-sheets-v1`.
+- **No new binding, secret or migration.** The sheet is a fixed object (`research-sheet:v1`) of the
+  existing `CAPTURE_REGISTRY` class; writes reuse `SHARED_WATCHLIST_LIMITER` under the key prefix
+  `research-sheet:`; the live Nifty 500 reuses the `UPSTOX_ACCESS_TOKEN` the Worker already holds and
+  falls back to NSE's own snapshot without it. The history workflow needs no credential.
+- **Never name the history file `portfolio-history.json`.** That name is the deleted Portfolio
+  Analytics equity curve: `verify-ui.mjs` asserts it 404s, `technicals-refresh.yml` still stages it
+  if present, and `recover-capture-backlog.mjs` lists it as a technicals snapshot.
+- Deployment is the existing merge pipeline; the tabs and their two routes ship together. On a
+  static origin (the verification suite) the tabs run in `local` mode — edits are kept in that
+  browser and sent to a shared sheet the first time one answers — and alpha measures to the last
+  captured Nifty 500 close, labelled. The history file's first scheduled run after the merge also
+  reads the deployed shared watchlist and hand-added rows, which this branch's committed copy could
+  not (`sharedListsRead: false`).

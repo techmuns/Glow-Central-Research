@@ -15,6 +15,9 @@
 //   POST /api/watchlist                        ->  apply add/remove edits, attributed by name
 //   GET  /api/price-levels                     ->  the family's price levels, every one reached, the check
 //   POST /api/price-levels                     ->  set / seed / clear levels (this site and Glow Ventures)
+//   GET  /api/research-sheet                   ->  the desk's typed Portfolio / Watchlist values (Glow)
+//   POST /api/research-sheet                   ->  set / clear a cell, add / remove a hand-added holding
+//   GET  /api/benchmark-quote                  ->  the Nifty 500's current level, for the Portfolio alpha
 //   POST /api/alert-notes                      ->  the alerts' AI "So what?" notes, stored per development
 //   GET  /api/newsletter                       ->  the team brief's list, schedule, timer and log
 //   POST /api/newsletter                       ->  subscribe / unsubscribe / edition edits
@@ -87,6 +90,8 @@ import { handleAnnouncementIndex } from './announcement-index.mjs';
 import { handleAnnouncementRead } from './announcement-read.mjs';
 import { handleRelevanceFeedback } from './relevance-feedback.mjs';
 import { handlePriceLevels } from './price-levels.mjs';
+import { handleResearchSheet } from './research-sheet.mjs';
+import { handleBenchmarkQuote } from './benchmark-quote.mjs';
 import { handleAlertNotes } from './alert-notes.mjs';
 import { readPlatformCollector } from './ipo-platform-collector.mjs';
 import { readScreenerConcallCollector, readScreenerConcallCollection } from './screener-concalls-collector.mjs';
@@ -169,6 +174,8 @@ export default {
     if (['/api/technicals','/api/technicals/atr-history','/api/technicals/source'].includes(url.pathname)) return handleTechnicals(request, env);
     if (url.pathname === '/api/watchlist') return handleWatchlist(request, env);
     if (url.pathname === '/api/price-levels') return handlePriceLevels(request, env);
+    if (url.pathname === '/api/research-sheet') return handleResearchSheet(request, env);
+    if (url.pathname === '/api/benchmark-quote') return handleBenchmarkQuote(request, env, { cacheKey: edgeKey('benchmark-quote:nifty500') });
     if (url.pathname === '/api/alert-notes') return handleAlertNotes(request, env);
     if (url.pathname === '/api/newsletter' || url.pathname.startsWith('/api/newsletter/')) return handleNewsletter(request, env);
     if (url.pathname === '/api/concall-summaries' || url.pathname === '/api/concall-summaries/collector')

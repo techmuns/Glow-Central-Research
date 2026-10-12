@@ -4,6 +4,8 @@ import * as macroSeries from '../data/series.js';
 import * as fpiActivity from '../data/fpi-activity.js';
 import * as familyBook from '../data/book.js';
 import * as familyManagers from '../data/managers.js';
+import * as researchSheet from '../core/research-sheet.js';
+import { historyMeta as sheetHistoryMeta } from '../data/sheet-market.js';
 // ui/sources.js — the data-source registry behind the header's "Sources" button.
 //
 // This is presentation metadata, not a data source: it mirrors docs/DATA-CONTRACTS.md so a
@@ -823,8 +825,43 @@ export function sourceGroups() {
     {
       title: 'Family office',
       icon: '🏛️',
-      tabs: 'Family Book · AI Alerts · Super Investors',
+      tabs: 'Portfolio · Watchlist · Family Book · AI Alerts · Super Investors',
       items: [
+        // GLOW-OWNED. The desk's own sheet behind the Portfolio and Watchlist tabs, and the dated
+        // history their derived columns read. Figures are read from the modules on open, never typed.
+        {
+          id: 'research-sheet',
+          name: 'Portfolio and Watchlist sheets — the desk\u2019s typed values',
+          feeds: 'The <strong>Portfolio</strong> tab lists every listed company the family holds outside a PMS mandate (the Direct and Execution accounts on the statements); the <strong>Watchlist</strong> tab every company on the shared watchlist. Prices, market cap, returns, current value, TSR, alpha, XIRR, weight and upside are <strong>derived live and never typed</strong>. Date bought, quantity, buy price, targets, intrinsic value, methodology, reference and source are <strong>typed by the desk</strong> into one shared record per company on this deployment\u2019s Worker (<code class="rounded bg-slate-100 px-1">/api/research-sheet</code>), each cell signed with who edited it and when; where the statements carry a figure it shows as the default until somebody types over it.'
+            + clause(num(() => researchSheet.keys().size), ' <n> companies carry typed values.'),
+          cadence: 'Saved as it is typed; re-read every minute while either tab is open.',
+          status: 'live',
+          ...(() => {
+            const m = researchSheet.meta();
+            if (m.mode === 'local') return { readState: 'unavailable', readLabel: 'Saved in this browser only' };
+            if (m.error) return { readState: 'unavailable' };
+            return { readState: m.shared ? 'read' : 'unchecked' };
+          })(),
+          file: 'public/js/tabs/portfolio.js · public/js/tabs/watchlist.js · public/js/core/research-sheet.js · public/js/data/research-sheet-shared.js · public/js/data/research-sheets.js · worker/research-sheet.mjs · worker/research-sheet-store.mjs',
+        },
+        {
+          id: 'sheet-history',
+          name: 'Dividends, splits and the Nifty 500 — Yahoo Finance',
+          url: 'https://finance.yahoo.com/quote/%5ECRSLDX/',
+          feeds: 'The dated history behind the Portfolio tab\u2019s TSR, XIRR and alpha: every dividend and split each public-direct holding and watchlist company has paid, per current share, and the Nifty 500 price index\u2019s daily close since 2005. A company Yahoo cannot answer keeps its last capture and is named, never read as paying no dividends — NSE SME listings have no history there, so their TSR is the price return and says so. The live Nifty 500 level comes from <code class="rounded bg-slate-100 px-1">/api/benchmark-quote</code> (Upstox, then NSE), the readers the team brief uses.'
+            + (() => {
+              const h = sheetHistoryMeta();
+              const read = num(() => h.coverage?.read);
+              return `${clause(read, ' <n> companies read')}${h.benchmarkTo ? ` · Nifty 500 closes to ${escapeHtml(h.benchmarkTo)}` : ''}${h.failed?.length ? ` · not available for ${escapeHtml(h.failed.map((f) => f.ticker).join(', '))}` : ''}.`;
+            })(),
+          cadence: 'Weekdays 08:13 IST and on demand (sheet-history-refresh.yml); the live index every minute while the Portfolio tab is visible.',
+          status: 'live',
+          ...(() => {
+            const h = sheetHistoryMeta();
+            return { readState: h.error ? 'unavailable' : sourceReadState({ at: h.generatedAt, partial: !!h.failed?.length, maxAgeMs: 4 * 86400000 }) };
+          })(),
+          file: 'public/data/sheet-history.json · scripts/scrape-sheet-history.mjs · public/js/data/sheet-market.js · worker/benchmark-quote.mjs · .github/workflows/sheet-history-refresh.yml',
+        },
         {
           name: 'The family office book — GlowVentures',
           url: 'https://github.com/techmuns/GlowVentures',

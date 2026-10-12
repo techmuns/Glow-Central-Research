@@ -394,6 +394,8 @@ const routes = await page.evaluate(async () => {
   const REGISTRY = {
     research: [
       'tabs/ai-alerts.js',
+      'tabs/portfolio.js',
+      'tabs/watchlist.js',
       'tabs/ask-research.js',
       'tabs/daily-alerts.js',
       'tabs/earnings-hub.js',

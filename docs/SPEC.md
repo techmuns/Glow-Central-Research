@@ -358,6 +358,23 @@ duplicate catalog are omitted from the model prompt, but remain in the browser f
 The dashboard's own AI Alerts ranking is one of the sixteen sources, so a question about the
 strongest evidence across tabs is answered by the same deterministic model the tab shows.
 
+### Portfolio and Watchlist — `portfolio`, `watchlist` (Glow, LIVE + desk-edited, single view)
+Two editable sheets straight after AI Alerts (12 October 2026), followed by Corp Announcements, News
+and All Alerts. **Portfolio** lists the family's public direct holdings — listed equity outside every
+PMS mandate, one row per company — in the desk's own columns: name, sector, CMP, market cap, 1-day and
+1-month return, date bought, quantity, buy price, TSR including dividends, alpha over the Nifty 500,
+amount invested, current value, XIRR, weight in the public-direct book, target amount and weight,
+pending amount, intrinsic value, methodology, reference, upside on CMP and expected IRR on the buy
+price. **Watchlist** lists the shared watchlist with fewer columns and an editable **Source** column
+between Sector and CMP. Market figures and every figure computed from them are live and read-only;
+everything else is typed by the desk into one shared record per company, with the statements'
+quantity, average cost and lot date, and simple formulas, standing in as visible defaults until
+somebody types over them. Scope does not apply: each tab is the list it is named for.
+
+*Still to come:* a total-return (TRI) Nifty 500 series for the alpha, once a dated source for it is
+reachable; history for the three SME holdings Yahoo does not carry; purchase dates and costs for the
+many statement lines that print neither (TSR, XIRR and alpha wait on them).
+
 ### Earnings Hub — `earnings-hub` (LIVE, single view)
 One table: every company that has reported this quarter, newest first. Ten columns —
 `Date · Company · Rev cur · Rev prior · Rev % · PAT cur · PAT prior · PAT % · MCap · Basis` —

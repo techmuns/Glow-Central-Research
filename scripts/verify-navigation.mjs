@@ -46,18 +46,20 @@ const noOverflow = async () => {
 };
 
 try {
-  await page.goto(`${BASE}/#/research/news?scope=watchlist`);
+  // A deep link to a tab far along the strip, whose right-hand neighbour is IPOs. Glow's order puts
+  // Super Investors there since News moved forward beside Corp Announcements (12 October 2026).
+  await page.goto(`${BASE}/#/research/super-investors?scope=watchlist`);
   await page.locator(active).waitFor();
   await visibleInStrip(active);
   await noOverflow();
   assert.equal(await page.locator('[data-tab-id="ask-research"]').count(), 0);
-  pass('News deep link reveals the active tab without either scrollbar; Ask Research is absent');
+  pass('Super Investors deep link reveals the active tab without either scrollbar; Ask Research is absent');
 
   // The actual shell must preserve the element, its scroll position, and focus across routes.
   await page.evaluate((selector) => { window.navigationList = document.querySelector(selector); }, strip);
   await page.locator(active).focus();
   await page.keyboard.press('ArrowRight');
-  assert.equal(await page.locator(active).getAttribute('data-tab-id'), 'news', 'Arrows must not load a new page');
+  assert.equal(await page.locator(active).getAttribute('data-tab-id'), 'super-investors', 'Arrows must not load a new page');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => location.hash.includes('/ipos'));
   await page.locator(`${strip} [data-tab-id="ipos"][aria-selected="true"]`).waitFor();
