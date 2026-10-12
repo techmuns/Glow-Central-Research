@@ -127,7 +127,7 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   await page.locator('[data-integrity-person]').click();
   await page.waitForSelector('[data-public-disclosures]');
   assert.equal(await page.locator('#modal-overlay.is-open').count(), 0, 'opening a profile closes the audit modal so the workspace is not stacked beneath it');
-  assert.match(await page.locator('[data-public-disclosures]').innerText(), /TIL LIMITED.*Singularity Equity Fund I/s);
+  assert.match(await page.locator('[data-public-disclosures]').innerText(), /TIL LIMITED.*Singularity Equity Fund I/is);
   // Captures advance independently of code. Compare the current and retained observations
   // with the committed source, rather than expecting August's row to remain the latest.
   const captured = JSON.parse(readFileSync(new URL('../public/data/public-holdings.json', import.meta.url)));
