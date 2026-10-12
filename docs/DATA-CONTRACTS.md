@@ -4618,6 +4618,14 @@ and an outbox (`sattva:research-sheet:outbox:v1`, one pending edit per cell, rep
 snapshot). A static origin (404/405/501) is `local`: edits stay in that browser and reach the first
 shared sheet that answers.
 
+**Cadence.** While a Portfolio or Watchlist tab is open and the page is visible, the sheet is
+re-checked every 20 seconds, immediately when the page is shown again, and — at most once per five
+seconds — when the window regains focus or a cell editor opens. Every check is the conditional GET
+above, so an unchanged one is a bodyless 304; on the object, `snapshot()` is held in memory between
+edits (frozen, dropped before each batch and replaced only after its transaction commits), so it
+reads no SQLite rows either. An open cell editor follows a newer shared value while nothing has been
+typed in it, and otherwise keeps the typing and says who changed the cell.
+
 ## `GET /api/benchmark-quote` — the Nifty 500 now (GLOW-OWNED)
 
 The level the Portfolio tab's alpha is measured to. Read by `worker/benchmark-quote.mjs` with the two

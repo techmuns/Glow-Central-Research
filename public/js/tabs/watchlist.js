@@ -22,7 +22,7 @@ import * as coverage from '../data/coverage.js';
 import * as market from '../data/sheet-market.js';
 import { watchlistRows } from '../data/research-sheets.js';
 import { editableCell, derivedCell, FORMAT, sortOf, exportOf, provenanceOf, formatField, cmpTag } from '../ui/sheet-cells.js';
-import { openCellEditor, closeCellEditor, isEditorOpen } from '../ui/sheet-editor.js';
+import { openCellEditor, closeCellEditor, isEditorOpen, refreshCellEditor } from '../ui/sheet-editor.js';
 import { sheetStatusPill, sheetHowModal } from '../ui/sheet-chrome.js';
 import { openScopeEditor } from '../ui/scope-editor.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
@@ -215,7 +215,10 @@ function schedule() {
   requestAnimationFrame(() => {
     paintQueued = false;
     const ctx = ctxRef;
-    if (ctx) paint(ctx);
+    if (!ctx) return;
+    paint(ctx);
+    // A colleague's edit to the cell open in the editor reaches the panel as well as the table.
+    refreshCellEditor((key, field) => rowsNow.find((r) => r.key === key)?.[field] || null);
   });
 }
 
@@ -259,6 +262,9 @@ function onRootClick(event) {
     const field = cellButton.dataset.sheetField;
     const row = rowsNow.find((r) => r.key === key);
     if (!row || !row[field]) return;
+    // Edit the desk's latest value, not this browser's last poll: a check that brings a newer one
+    // redraws the panel before anybody has typed in it.
+    void sheet.freshen();
     openCellEditor({
       anchor: cellButton, key, field, company: company(row), cell: row[field],
       label: field === 'name' ? 'Name of company' : field === 'entryPrice' ? 'Buy price for the expected IRR (in Rs)' : HEAD[field],

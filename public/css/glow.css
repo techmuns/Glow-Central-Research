@@ -76,6 +76,7 @@ tr:hover .sheet-row-action, .sheet-row-action:focus-visible { opacity: 1; }
 .sheet-editor-field input[aria-invalid="true"] { border-color: rgb(var(--text-rose-700, 190 18 60)); }
 .sheet-editor-hint, .sheet-editor-note { margin: 0; color: rgb(var(--text-slate-500, 100 116 139)); font-size: 11px; line-height: 1.45; }
 .sheet-editor-error { margin: 0; color: rgb(var(--text-rose-700, 190 18 60)); font-size: 12px; font-weight: 600; }
+.sheet-editor-changed { margin: 0; padding: 6px 8px; border-radius: 8px; color: rgb(var(--text-amber-700, 180 83 9)); background: rgb(var(--surface-amber-50, 255 251 235)); font-size: 11px; font-weight: 600; line-height: 1.45; }
 .sheet-editor-name { display: flex; align-items: center; gap: 8px; color: rgb(var(--text-slate-500, 100 116 139)); font-size: 11px; white-space: nowrap; }
 .sheet-editor-name input { padding: 5px 8px; font-size: 12px; }
 .sheet-editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }

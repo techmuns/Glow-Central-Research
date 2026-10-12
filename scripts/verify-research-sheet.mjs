@@ -207,6 +207,44 @@ await test('a bad batch changes nothing at all', () => {
   assert.deepEqual(store.snapshot().values, {});
 });
 
+await test('an unchanged read costs no SQL: the sheet is held between edits and replaced by each one', () => {
+  const backing = storage();
+  let statements = 0;
+  const counted = { ...backing, sql: { exec: (...args) => { statements++; return backing.sql.exec(...args); } } };
+  const store = new ResearchSheetStore(counted, { now: () => (clock += 1000) });
+  store.apply([{ op: 'set', key: 'SBIN', field: 'intrinsicValue', value: 1250, by: 'Ravi' }]);
+  const first = store.snapshot();
+  const before = statements;
+  for (let i = 0; i < 50; i++) assert.equal(store.snapshot(), first);
+  assert.equal(statements, before, 'fifty polls read nothing');
+  assert.deepEqual(first, store.read(), 'the held copy is exactly what a fresh read returns');
+  store.apply([{ op: 'set', key: 'SBIN', field: 'methodology', value: 'DCF' }]);
+  const second = store.snapshot();
+  assert.notEqual(second, first);
+  assert.equal(second.revision, first.revision + 1);
+  assert.equal(second.values.SBIN.methodology.value, 'DCF');
+  assert.deepEqual(second, store.read());
+  // An evicted object coming back is a new instance over the same storage: it reads afresh.
+  assert.deepEqual(new ResearchSheetStore(backing).snapshot(), second);
+});
+
+await test('nobody can edit the held copy, and a batch that rolls back leaves no copy of what it undid', () => {
+  const backing = storage();
+  const store = new ResearchSheetStore(backing, { now: () => (clock += 1000) });
+  store.apply([{ op: 'set', key: 'SBIN', field: 'intrinsicValue', value: 1250 }]);
+  const held = store.snapshot();
+  assert.throws(() => { held.values.SBIN.intrinsicValue.value = 1; }, TypeError);
+  assert.throws(() => { held.values.TCS = {}; }, TypeError);
+  assert.throws(() => held.rows.push({}), TypeError);
+  // The writes run, then the commit fails: storage rolls back, and the next read must agree.
+  const flaky = { ...backing, transactionSync: (fn) => backing.transactionSync(() => { fn(); throw new Error('commit failed'); }) };
+  const fragile = new ResearchSheetStore(flaky, { now: () => (clock += 1000) });
+  assert.equal(fragile.snapshot().values.SBIN.intrinsicValue.value, 1250);
+  assert.throws(() => fragile.apply([{ op: 'set', key: 'SBIN', field: 'intrinsicValue', value: 999 }]), /commit failed/);
+  assert.equal(fragile.snapshot().values.SBIN.intrinsicValue.value, 1250, 'the rolled-back value is not served');
+  assert.equal(fragile.snapshot().revision, held.revision);
+});
+
 console.log('\n— the arithmetic —');
 
 await test('dates are read day first, and a date that does not exist is refused', () => {

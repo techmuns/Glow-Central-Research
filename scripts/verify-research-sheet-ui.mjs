@@ -238,6 +238,42 @@ try {
   ok('…and who typed it', /Ravi/.test(await cell(b.page, 'portfolio', 'SBIN', 'buyPrice').getAttribute('title')));
   ok('the pill says the values are the desk\'s shared sheet', (await b.page.locator('[data-sheet-status]').getAttribute('data-sheet-status')) === 'live');
 
+  console.log('\n— a colleague\'s edit reaches a sheet that is already open —');
+  const stored = (field, value) => waitFor(async () => sheetStore.snapshot().values.SBIN?.[field]?.value === value);
+  // Nothing on B is touched here: no reload, no focus, no click. Only its own check can bring it.
+  await editCell(a.page, 'portfolio', 'SBIN', 'methodology', 'DCF — desk');
+  await stored('methodology', 'DCF — desk');
+  ok('an open sheet shows a colleague\'s edit by itself, within its twenty-second check',
+    await waitFor(async () => (await cell(b.page, 'portfolio', 'SBIN', 'methodology').innerText()).includes('DCF — desk'), 25000));
+  await new Promise((done) => setTimeout(done, 5200)); // past the re-check gap since B's last check
+  await editCell(a.page, 'portfolio', 'SBIN', 'reference', 'FY27E · Oct-26');
+  await stored('reference', 'FY27E · Oct-26');
+  await b.page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  ok('a window coming back into focus re-checks at once', await waitFor(async () => (await cell(b.page, 'portfolio', 'SBIN', 'reference').innerText()).includes('FY27E'), 2500));
+
+  // An editor open on B while A changes the same cell.
+  const syncB = () => b.page.evaluate(async () => { await (await import('/js/core/research-sheet.js')).syncNow({ force: true }); });
+  const bInput = b.page.locator('.sheet-editor [data-sheet-input]');
+  await cell(b.page, 'portfolio', 'SBIN', 'intrinsicValue').click();
+  await bInput.waitFor();
+  await editCell(a.page, 'portfolio', 'SBIN', 'intrinsicValue', '1250');
+  await stored('intrinsicValue', 1250);
+  await syncB();
+  ok('an editor nobody has typed in follows the colleague\'s newer value', await waitFor(async () => (await bInput.inputValue()) === '1250'));
+  ok('…and stays open on the same cell', (await b.page.locator('.sheet-editor').count()) === 1
+    && /Intrinsic/i.test(await b.page.locator('.sheet-editor .sheet-editor-title').innerText()));
+  await bInput.fill('1300');
+  await editCell(a.page, 'portfolio', 'SBIN', 'intrinsicValue', '1275');
+  await stored('intrinsicValue', 1275);
+  await syncB();
+  const changedNote = b.page.locator('.sheet-editor [data-sheet-changed]');
+  ok('an editor somebody has typed in says who changed the cell, and to what', await waitFor(async () => (await changedNote.isVisible())
+    && /1,275/.test(await changedNote.innerText()) && /Ravi/.test(await changedNote.innerText())), await changedNote.innerText().catch(() => ''));
+  ok('…and keeps every character typed', (await bInput.inputValue()) === '1300');
+  await bInput.press('Escape');
+  ok('cancelling leaves the colleague\'s value on both devices', await waitFor(async () => (await cell(b.page, 'portfolio', 'SBIN', 'intrinsicValue').innerText()).trim() === '1,275.00')
+    && (await cell(a.page, 'portfolio', 'SBIN', 'intrinsicValue').innerText()).trim() === '1,275.00');
+
   console.log('\n— the watchlist —');
   await a.page.locator('#tabbar-mount [data-tab-id="watchlist"]').click();
   await a.page.locator('[data-watchlist-sheet-empty]').waitFor({ timeout: 15000 });

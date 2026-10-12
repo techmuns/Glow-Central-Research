@@ -11,6 +11,12 @@
 // its cell again by `data-sheet-key` / `data-sheet-field` after one. Same reason, and the same
 // arrangement, as the Filing types checklist on Corp Announcements: the table card clips its
 // overflow and `#dashboard-main` animates a transform, so a panel inside either would be clipped.
+//
+// A COLLEAGUE CAN CHANGE THE CELL WHILE IT IS OPEN HERE, because the sheet is the whole desk's. The
+// owning tab hands every repaint to `refreshCellEditor`: a panel nobody has typed in yet is redrawn
+// with the newer value, so what is about to be edited is what the desk now holds; a panel somebody
+// HAS typed in keeps every character and says, in the panel, who changed the cell and to what —
+// saving still replaces it, as the last edit to a shared cell always does, but never unannounced.
 
 import { escapeHtml } from '../core/dom.js';
 import { FIELDS, editedLabel, fieldValue } from '../data/research-sheet-shared.js';
@@ -105,6 +111,48 @@ export function closeCellEditor({ restoreFocus = true } = {}) {
 
 export const isEditorOpen = () => !!active;
 
+// What the panel was opened over: whether the cell held a typed value, which one, and when it was
+// typed. Not the default: a target amount's default moves with every price tick, and a panel that
+// redrew itself every fifteen seconds would take the cursor from somebody about to type.
+const shownOf = (cell) => JSON.stringify([!!cell?.edited, cell?.edited ? cell.value : null, cell?.entry?.at || null]);
+const typedOf = (cell) => JSON.stringify([!!cell?.edited, cell?.edited ? cell.value : null]);
+
+/**
+ * The owning tab repainted: if the open cell's shared value moved underneath the panel, follow it.
+ * `cellFor(key, field)` returns the cell as the tab now paints it.
+ */
+export function refreshCellEditor(cellFor) {
+  if (!active) return;
+  const next = cellFor(active.key, active.field);
+  if (!next || next.pending || shownOf(next) === active.shown) return;
+  const { panel, options } = active;
+  const input = panel.querySelector('[data-sheet-input]');
+  const byInput = panel.querySelector('[data-sheet-by]');
+  if (input.value === active.initialText) {
+    // Nothing typed yet: redraw over the newer value, keeping the name and the panel where it was.
+    const { left, top } = panel.style;
+    const byText = byInput.value;
+    const byFocused = document.activeElement === byInput;
+    openCellEditor({ ...options, anchor: anchorFor(options.key, options.field) || options.anchor, cell: next });
+    if (!active) return;
+    if (!active.panel.style.left) Object.assign(active.panel.style, { left, top });
+    const freshBy = active.panel.querySelector('[data-sheet-by]');
+    freshBy.value = byText;
+    if (byFocused) freshBy.focus();
+    return;
+  }
+  const changedTyped = typedOf(next) !== active.typed;
+  active.shown = shownOf(next);
+  if (!changedTyped) return;
+  active.typed = typedOf(next);
+  const note = panel.querySelector('[data-sheet-changed]');
+  const format = options.format || ((v) => String(v));
+  note.textContent = next.edited
+    ? `Changed meanwhile to ${format(next.value)} — ${editedLabel(next.entry)}. Saving replaces it.`
+    : 'Cleared by someone else meanwhile. Saving sets it again.';
+  note.hidden = false;
+}
+
 /**
  * Open the editor for one cell.
  *
@@ -115,7 +163,8 @@ export const isEditorOpen = () => !!active;
  *   format     (value) -> string, how the default prints
  *   onSave     (value, by) -> void   onClear (by) -> void
  */
-export function openCellEditor({ anchor, key, field, company, cell, format = (v) => String(v), onSave, onClear, label = null }) {
+export function openCellEditor(options) {
+  const { anchor, key, field, company, cell, format = (v) => String(v), onSave, onClear, label = null } = options;
   closeCellEditor({ restoreFocus: false });
   const spec = FIELDS[field];
   if (!spec) return;
@@ -147,6 +196,7 @@ export function openCellEditor({ anchor, key, field, company, cell, format = (v)
       </label>
       <p class="sheet-editor-hint">${escapeHtml(hintFor(field))}</p>
       <p class="sheet-editor-error" data-sheet-error role="alert" hidden></p>
+      <p class="sheet-editor-changed" data-sheet-changed role="status" hidden></p>
       <p class="sheet-editor-note">${defaultLine}</p>
       ${cell?.edited ? `<p class="sheet-editor-note">${escapeHtml(editedLabel(cell.entry))}.</p>` : ''}
       <label class="sheet-editor-name">
@@ -219,7 +269,10 @@ export function openCellEditor({ anchor, key, field, company, cell, format = (v)
   window.addEventListener('resize', reposition);
   document.addEventListener('scroll', reposition, true);
   active = {
-    panel, key, field,
+    panel, key, field, options,
+    initialText: input.value,
+    shown: shownOf(cell),
+    typed: typedOf(cell),
     cleanup: () => {
       document.removeEventListener('pointerdown', onDown, true);
       window.removeEventListener('resize', reposition);

@@ -1405,6 +1405,12 @@ sheet as it is now, times are the server's, a read is `private` and ETagged, a w
 and rate-limited on the watchlist limiter under its own key prefix, a failed read is never an empty
 sheet, and the outbox is replayed over each snapshot. A static origin (404/405/501) is `local`: edits
 stay in this browser, the pill says so, and the first shared sheet that answers receives them.
+**A colleague's edit reaches an open sheet within twenty seconds** (a third of the watchlist's
+minute, because the desk types into a sheet while others read it), at once when the page is shown
+or the window regains focus, and before a cell editor opens; an editor nobody has typed in follows
+the newer value, and one somebody has typed in keeps the typing and names who changed the cell.
+Affordable on Workers Free because the object holds the snapshot in memory between edits — an
+unchanged check reads no SQLite rows — replaced only after an edit's transaction commits.
 
 Seven refusals, and every one is a rule this file already runs on:
 

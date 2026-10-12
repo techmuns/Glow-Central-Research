@@ -28,6 +28,7 @@ export class ResearchSheetStore {
   constructor(storage, { now = Date.now } = {}) {
     this.storage = storage;
     this.now = now;
+    this.cached = null;
   }
 
   init() {
@@ -61,8 +62,20 @@ export class ResearchSheetStore {
   /**
    * The whole sheet. `revision` moves only when a cell or a row actually changed, so an unchanged
    * poll produces a byte-identical body and the route's ETag answers it with a bodyless 304.
+   *
+   * IT IS HELD IN MEMORY BETWEEN EDITS, because every open sheet asks for it every twenty seconds
+   * and a fresh read scans every typed cell. The Worker's 304 saves the network, not the object's
+   * reads: on Workers Free the account's Durable Objects share five million SQLite rows read a day,
+   * and a few readers polling an 800-cell sheet would spend most of that on answers that had not
+   * changed. Holding the copy is safe because one live instance owns this object and `apply()` is
+   * the only writer: an edit replaces the copy after its transaction commits, and a new instance
+   * starts with none. Frozen, so no caller can edit what the next reader is handed.
    */
   snapshot() {
+    return (this.cached ||= this.read());
+  }
+
+  read() {
     const meta = this.meta();
     const values = {};
     for (const row of this.rows('SELECT company, field, value, updated_at, updated_by FROM sheet_values ORDER BY company, field')) {
@@ -73,14 +86,14 @@ export class ResearchSheetStore {
     const rows = this.rows(
       "SELECT company, name, added_at, added_by FROM sheet_portfolio_rows WHERE state = 'added' ORDER BY seq ASC",
     ).map((row) => ({ key: row.company, name: row.name || null, addedAt: row.added_at || null, addedBy: row.added_by || null }));
-    return {
+    return deepFreeze({
       version: 1,
       revision: meta.revision,
       updatedAt: meta.updatedAt,
       values,
       rows,
       limits: { companies: SHEET_COMPANY_LIMIT, rows: SHEET_ROW_LIMIT },
-    };
+    });
   }
 
   companyCount() {
@@ -109,114 +122,129 @@ export class ResearchSheetStore {
     const intents = sheetIntents(input);
     const at = iso(this.now());
     this.init();
-    return this.storage.transactionSync(() => {
-      const meta = this.meta();
-      let seq = meta.seq;
-      let changed = 0;
-      const outcomes = [];
-      let companies = this.companyCount();
-      let manual = this.rows("SELECT COUNT(*) AS count FROM sheet_portfolio_rows WHERE state = 'added'")[0].count;
+    // The held copy is dropped before the edit and replaced only once the transaction has
+    // committed, so a batch that throws and rolls back can never leave a copy of what it undid.
+    this.cached = null;
+    const result = this.storage.transactionSync(() => this.applyIntents(intents, at));
+    this.cached = result.snapshot;
+    return result;
+  }
 
-      for (const intent of intents) {
-        const base = { key: intent.key, op: intent.op, ...(intent.field ? { field: intent.field } : {}) };
+  applyIntents(intents, at) {
+    const meta = this.meta();
+    let seq = meta.seq;
+    let changed = 0;
+    const outcomes = [];
+    let companies = this.companyCount();
+    let manual = this.rows("SELECT COUNT(*) AS count FROM sheet_portfolio_rows WHERE state = 'added'")[0].count;
 
-        if (intent.op === 'set') {
-          const existing = this.rows('SELECT value FROM sheet_values WHERE company = ? AND field = ?', intent.key, intent.field)[0];
-          if (existing) {
-            let held;
-            try { held = JSON.parse(existing.value); } catch { held = undefined; }
-            if (sameValue(held, intent.value)) {
-              // Re-typing the value that is already there reassigns nothing: whoever set it set it.
-              outcomes.push({ ...base, outcome: 'unchanged' });
-              continue;
-            }
-          } else {
-            const known = this.rows('SELECT 1 AS x FROM sheet_values WHERE company = ? LIMIT 1', intent.key).length > 0;
-            if (!known && companies >= SHEET_COMPANY_LIMIT) {
-              outcomes.push({ ...base, outcome: 'full' });
-              continue;
-            }
-            if (!known) companies++;
-          }
-          seq++;
-          this.rows(
-            `INSERT INTO sheet_values (company, field, value, updated_at, updated_by, seq) VALUES (?,?,?,?,?,?)
-             ON CONFLICT(company, field) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at,
-               updated_by=excluded.updated_by, seq=excluded.seq`,
-            intent.key, intent.field, JSON.stringify(intent.value), at, intent.by, seq,
-          );
-          changed++;
-          outcomes.push({ ...base, outcome: 'set' });
-          continue;
-        }
+    for (const intent of intents) {
+      const base = { key: intent.key, op: intent.op, ...(intent.field ? { field: intent.field } : {}) };
 
-        if (intent.op === 'clear') {
-          const existing = this.rows('SELECT 1 AS x FROM sheet_values WHERE company = ? AND field = ?', intent.key, intent.field)[0];
-          if (!existing) {
+      if (intent.op === 'set') {
+        const existing = this.rows('SELECT value FROM sheet_values WHERE company = ? AND field = ?', intent.key, intent.field)[0];
+        if (existing) {
+          let held;
+          try { held = JSON.parse(existing.value); } catch { held = undefined; }
+          if (sameValue(held, intent.value)) {
+            // Re-typing the value that is already there reassigns nothing: whoever set it set it.
             outcomes.push({ ...base, outcome: 'unchanged' });
             continue;
           }
-          this.rows('DELETE FROM sheet_values WHERE company = ? AND field = ?', intent.key, intent.field);
-          if (!this.rows('SELECT 1 AS x FROM sheet_values WHERE company = ? LIMIT 1', intent.key).length) companies--;
-          seq++;
-          changed++;
-          outcomes.push({ ...base, outcome: 'cleared' });
-          continue;
-        }
-
-        const row = this.rows('SELECT name, state FROM sheet_portfolio_rows WHERE company = ?', intent.key)[0];
-        if (intent.op === 'add-row') {
-          if (row?.state === 'added') {
-            // Adding a holding that is already on the sheet reassigns nothing; a NAME arriving for a
-            // row that had none is still worth keeping, as the watchlist store does.
-            const name = row.name || companyName(intent.name);
-            if (name !== row.name) {
-              this.rows('UPDATE sheet_portfolio_rows SET name = ?, updated_at = ? WHERE company = ?', name, at, intent.key);
-              changed++;
-            }
-            outcomes.push({ ...base, outcome: 'unchanged' });
-            continue;
-          }
-          if (manual >= SHEET_ROW_LIMIT) {
+        } else {
+          const known = this.rows('SELECT 1 AS x FROM sheet_values WHERE company = ? LIMIT 1', intent.key).length > 0;
+          if (!known && companies >= SHEET_COMPANY_LIMIT) {
             outcomes.push({ ...base, outcome: 'full' });
             continue;
           }
-          seq++;
-          this.rows(
-            `INSERT INTO sheet_portfolio_rows (company, name, state, added_at, added_by, removed_at, removed_by, updated_at, seq)
-             VALUES (?,?,'added',?,?,NULL,NULL,?,?)
-             ON CONFLICT(company) DO UPDATE SET name=excluded.name, state='added', added_at=excluded.added_at,
-               added_by=excluded.added_by, removed_at=NULL, removed_by=NULL, updated_at=excluded.updated_at, seq=excluded.seq`,
-            intent.key, companyName(intent.name), at, intent.by, at, seq,
-          );
-          manual++;
-          changed++;
-          outcomes.push({ ...base, outcome: 'added' });
+          if (!known) companies++;
+        }
+        seq++;
+        this.rows(
+          `INSERT INTO sheet_values (company, field, value, updated_at, updated_by, seq) VALUES (?,?,?,?,?,?)
+           ON CONFLICT(company, field) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at,
+             updated_by=excluded.updated_by, seq=excluded.seq`,
+          intent.key, intent.field, JSON.stringify(intent.value), at, intent.by, seq,
+        );
+        changed++;
+        outcomes.push({ ...base, outcome: 'set' });
+        continue;
+      }
+
+      if (intent.op === 'clear') {
+        const existing = this.rows('SELECT 1 AS x FROM sheet_values WHERE company = ? AND field = ?', intent.key, intent.field)[0];
+        if (!existing) {
+          outcomes.push({ ...base, outcome: 'unchanged' });
           continue;
         }
+        this.rows('DELETE FROM sheet_values WHERE company = ? AND field = ?', intent.key, intent.field);
+        if (!this.rows('SELECT 1 AS x FROM sheet_values WHERE company = ? LIMIT 1', intent.key).length) companies--;
+        seq++;
+        changed++;
+        outcomes.push({ ...base, outcome: 'cleared' });
+        continue;
+      }
 
-        // remove-row
-        if (row?.state !== 'added') {
+      const row = this.rows('SELECT name, state FROM sheet_portfolio_rows WHERE company = ?', intent.key)[0];
+      if (intent.op === 'add-row') {
+        if (row?.state === 'added') {
+          // Adding a holding that is already on the sheet reassigns nothing; a NAME arriving for a
+          // row that had none is still worth keeping, as the watchlist store does.
+          const name = row.name || companyName(intent.name);
+          if (name !== row.name) {
+            this.rows('UPDATE sheet_portfolio_rows SET name = ?, updated_at = ? WHERE company = ?', name, at, intent.key);
+            changed++;
+          }
           outcomes.push({ ...base, outcome: 'unchanged' });
+          continue;
+        }
+        if (manual >= SHEET_ROW_LIMIT) {
+          outcomes.push({ ...base, outcome: 'full' });
           continue;
         }
         seq++;
         this.rows(
-          "UPDATE sheet_portfolio_rows SET state = 'removed', removed_at = ?, removed_by = ?, updated_at = ?, seq = ? WHERE company = ?",
-          at, intent.by, at, seq, intent.key,
+          `INSERT INTO sheet_portfolio_rows (company, name, state, added_at, added_by, removed_at, removed_by, updated_at, seq)
+           VALUES (?,?,'added',?,?,NULL,NULL,?,?)
+           ON CONFLICT(company) DO UPDATE SET name=excluded.name, state='added', added_at=excluded.added_at,
+             added_by=excluded.added_by, removed_at=NULL, removed_by=NULL, updated_at=excluded.updated_at, seq=excluded.seq`,
+          intent.key, companyName(intent.name), at, intent.by, at, seq,
         );
-        manual--;
+        manual++;
         changed++;
-        outcomes.push({ ...base, outcome: 'removed' });
+        outcomes.push({ ...base, outcome: 'added' });
+        continue;
       }
 
-      if (changed) {
-        this.pruneTombstones();
-        this.putMeta({ revision: meta.revision + 1, updatedAt: at, seq });
-      } else if (seq !== meta.seq) {
-        this.putMeta({ ...meta, seq });
+      // remove-row
+      if (row?.state !== 'added') {
+        outcomes.push({ ...base, outcome: 'unchanged' });
+        continue;
       }
-      return { outcomes, snapshot: this.snapshot() };
-    });
+      seq++;
+      this.rows(
+        "UPDATE sheet_portfolio_rows SET state = 'removed', removed_at = ?, removed_by = ?, updated_at = ?, seq = ? WHERE company = ?",
+        at, intent.by, at, seq, intent.key,
+      );
+      manual--;
+      changed++;
+      outcomes.push({ ...base, outcome: 'removed' });
+    }
+
+    if (changed) {
+      this.pruneTombstones();
+      this.putMeta({ revision: meta.revision + 1, updatedAt: at, seq });
+    } else if (seq !== meta.seq) {
+      this.putMeta({ ...meta, seq });
+    }
+    return { outcomes, snapshot: this.read() };
   }
+}
+
+function deepFreeze(value) {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const inner of Object.values(value)) deepFreeze(inner);
+    Object.freeze(value);
+  }
+  return value;
 }

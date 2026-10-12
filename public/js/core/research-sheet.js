@@ -8,6 +8,7 @@
 //   sheet.addRow / removeRow
 //   sheet.meta()                 where the copy came from and what has been confirmed about it
 //   sheet.start() -> stop        keep in step with the desk while a sheet tab is open
+//   sheet.freshen()              re-check now unless a check started in the last few seconds
 //
 // The truth is the shared sheet on the Worker (worker/research-sheet-store.mjs); this module keeps
 // a copy so a cell can be painted synchronously during a render, and an OUTBOX of edits not yet
@@ -21,6 +22,15 @@
 //   3. `origin` IS DERIVED, never assigned — `live` only once a read in THIS session vouched for
 //      what is painted, `pending` while the reader's own edit is unsent, `store` for bytes kept
 //      from an earlier visit, `local` on a deployment with no shared sheet at all.
+//
+// A COLLEAGUE'S EDIT ARRIVES WITHIN TWENTY SECONDS, AND AT ONCE WHEN IT MATTERS. A sheet several
+// people type into is read while they type, so it is re-checked every twenty seconds while one of
+// its tabs is open and the page is visible — a third of the watchlist's minute, because a list
+// changes when somebody adds a company and a sheet changes while the desk is working in it. It is
+// also re-checked the moment the page is shown again or the window regains focus, and when a cell
+// editor opens, so the value being edited is the desk's latest rather than this browser's last
+// poll. An unchanged check is a bodyless 304 from a copy the sheet's object holds in memory, which
+// is what makes the shorter interval affordable on the account's free plan.
 //
 // A STATIC ORIGIN IS SUPPORTED, AND IT IS SAID. Served as plain files (how the verification suite
 // runs) there is no Worker: the route answers 404/405/501. Then every edit lives in this browser's
@@ -37,7 +47,9 @@ const ROUTE = '/api/research-sheet';
 const STORE_KEY = 'research-sheet:shared';
 const MIRROR_KEY = 'sattva:research-sheet:v1';
 const OUTBOX_KEY = 'sattva:research-sheet:outbox:v1';
-const POLL_MS = 60_000;
+const POLL_MS = 20_000;
+// Focus, a cell editor opening and a returning page all ask at once; one check serves them all.
+const FRESHEN_GAP_MS = 5_000;
 const RETRY_MS = 30_000;
 const WRITE_DELAY_MS = 600;
 const NO_WORKER = new Set([404, 405, 501]);
@@ -55,6 +67,7 @@ let lastError = null;
 let refused = [];
 let syncing = null;
 let retryAt = 0;
+let lastAskedAt = 0;
 let writeTimer = null;
 let storageFailed = false;
 let memoryOutbox = null;
@@ -244,6 +257,7 @@ export function syncNow({ force = false } = {}) {
   writeTimer = null;
   if (syncing) return syncing;
   if (!force && Date.now() < retryAt) return Promise.resolve(meta());
+  lastAskedAt = Date.now();
   syncing = (async () => {
     try {
       const read = await conditionalJson(ROUTE, { key: STORE_KEY, optional: true });
@@ -284,6 +298,15 @@ export function syncNow({ force = false } = {}) {
   return syncing;
 }
 
+/**
+ * Re-check the shared sheet now, unless a check began a moment ago — for the moments a reader is
+ * about to look at a value (a cell editor opening, the window coming back into focus).
+ */
+export function freshen() {
+  if (Date.now() - lastAskedAt < FRESHEN_GAP_MS) return syncing || Promise.resolve(meta());
+  return syncNow();
+}
+
 let starts = 0;
 let stopPoll = null;
 
@@ -297,6 +320,8 @@ export function start() {
     };
     const timer = setInterval(tick, POLL_MS);
     const onVisible = () => { if (!document.hidden) void syncNow({ force: true }); };
+    // A window that was visible behind another app fires no visibilitychange when it comes back.
+    const onFocus = () => { if (!document.hidden) void freshen(); };
     const onOnline = () => void syncNow({ force: true });
     // Another tab of this browser edited the sheet: re-read the copy it wrote, not the network.
     const onStorage = (event) => {
@@ -304,11 +329,13 @@ export function start() {
       else if (event.key === OUTBOX_KEY) emit();
     };
     document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
     window.addEventListener('online', onOnline);
     window.addEventListener('storage', onStorage);
     stopPoll = () => {
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('storage', onStorage);
       stopPoll = null;
@@ -329,7 +356,7 @@ export function start() {
 /** For the tests: forget everything this module holds in memory (storage is the caller's). */
 export function resetForTests() {
   shared = { revision: null, updatedAt: null, values: {}, rows: [] };
-  mode = 'unknown'; confirmed = false; checkedAt = null; lastError = null; refused = []; retryAt = 0;
+  mode = 'unknown'; confirmed = false; checkedAt = null; lastError = null; refused = []; retryAt = 0; lastAskedAt = 0;
   memoryOutbox = null; storageFailed = false;
   loadMirror();
 }
