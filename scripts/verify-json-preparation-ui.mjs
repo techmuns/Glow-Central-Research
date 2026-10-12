@@ -69,8 +69,8 @@ try {
   assert.equal(reading.largeParses, 0, 'large JSON is never parsed on the page thread');
   assert.equal(reading.largeWrites, 0, 'large record graphs are never cloned into IndexedDB on the page thread');
   assert(reading.maxInputMs < 250, `input paints during preparation (${Math.round(reading.maxInputMs)}ms)`);
-  await page.waitForFunction(async () => !(await import('/js/core/json-reader.js')).jsonPreparationState().worker,
-    null, { timeout: 20000 });
+  await page.evaluate(async () => { window.preparationState = (await import('/js/core/json-reader.js')).jsonPreparationState; });
+  await page.waitForFunction(() => !window.preparationState().worker, null, { timeout: 20000 });
   assert.deepEqual(await page.evaluate(async () => (await import('/js/core/json-reader.js')).jsonPreparationState()),
     { worker: false, pending: 0 }, 'an idle session retains neither a preparation worker nor pending jobs');
   await page.reload(); await page.waitForFunction(() => window.ready);
