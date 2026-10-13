@@ -2,7 +2,7 @@
   "bulkDeals": {
     "source": "Screener.in bulk and block listings captured by Glow",
     "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-10-13T17:09:09.720Z",
+    "capturedAt": "2026-10-13T21:23:25.821Z",
     "from": "2026-08-05",
     "to": "2026-10-13",
     "rows": 12448,
@@ -12,10 +12,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-13T17:09:09.720Z",
-  "oldestDataAt": "2026-10-13T17:09:09.720Z",
-  "from": "2025-10-13",
-  "to": "2026-10-13",
+  "capturedAt": "2026-10-13T21:23:25.821Z",
+  "oldestDataAt": "2026-10-13T21:23:25.821Z",
+  "from": "2025-10-14",
+  "to": "2026-10-14",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -31,13 +31,13 @@
       "id": "bulk",
       "label": "Bulk deal",
       "url": "https://www.screener.in/trades/bulk/?o=-2",
-      "pagesRead": 9,
+      "pagesRead": 2,
       "latestDate": "2026-10-13",
-      "oldestDate": "2026-10-12",
+      "oldestDate": "2026-10-13",
       "bootstrapDays": null,
       "ok": true,
-      "rowCount": 225,
-      "capturedAt": "2026-10-13T17:09:09.720Z",
+      "rowCount": 50,
+      "capturedAt": "2026-10-13T21:23:25.821Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +50,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-13T17:09:09.720Z",
+      "capturedAt": "2026-10-13T21:23:25.821Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +63,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-13T17:09:09.720Z",
+      "capturedAt": "2026-10-13T21:23:25.821Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,7 +76,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-13T17:09:09.720Z",
+      "capturedAt": "2026-10-13T21:23:25.821Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -84,7 +84,7 @@
   "covered": 4,
   "withRows": 2004,
   "emptyCount": 0,
-  "rowCount": 21698,
+  "rowCount": 21693,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -61929,72 +61929,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "ARVINDFASN",
-        "date": "2025-10-13",
-        "cells": {
-          "Company": "Arvind Fashions Ltd",
-          "Insider": "Ankit Arora",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "2000",
-          "Trade %": "0",
-          "Trade Value": "1010500",
-          "Post Holding Shares": "16050",
-          "Post Holding %": "0.01",
-          "Mode": "ESOP",
-          "From Date": "2025-10-13",
-          "To Date": "2025-10-13",
-          "Broadcast Date": "2025-10-13",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ARVINDFASN",
-        "date": "2025-10-13",
-        "cells": {
-          "Company": "Arvind Fashions Ltd",
-          "Insider": "Shishir Gupta",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "3000",
-          "Trade %": "0",
-          "Trade Value": "1515750",
-          "Post Holding Shares": "3000",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-10-13",
-          "To Date": "2025-10-13",
-          "Broadcast Date": "2025-10-13",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ARVINDFASN",
-        "date": "2025-10-13",
-        "cells": {
-          "Company": "Arvind Fashions Ltd",
-          "Insider": "Vinayak Hegde",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "3000",
-          "Trade %": "0",
-          "Trade Value": "1515750",
-          "Post Holding Shares": "8879",
-          "Post Holding %": "0",
-          "Mode": "ESOP",
-          "From Date": "2025-10-13",
-          "To Date": "2025-10-13",
-          "Broadcast Date": "2025-10-13",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "AXISBANK": [
@@ -111318,50 +111252,6 @@
           "From Date": "2025-10-13",
           "To Date": "2025-10-13",
           "Broadcast Date": "2025-10-15",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-10-13",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "HCL Technologies Stock Options Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "2621",
-          "Trade %": "0",
-          "Trade Value": "3808837",
-          "Post Holding Shares": "8148433",
-          "Post Holding %": "0.3",
-          "Mode": "ESOS",
-          "From Date": "2025-10-09",
-          "To Date": "2025-10-09",
-          "Broadcast Date": "2025-10-13",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-10-13",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "HCL Technologies Stock Options Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "3753",
-          "Trade %": "0",
-          "Trade Value": "5336766",
-          "Post Holding Shares": "8151054",
-          "Post Holding %": "0.3",
-          "Mode": "ESOS",
-          "From Date": "2025-10-07",
-          "To Date": "2025-10-07",
-          "Broadcast Date": "2025-10-13",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
