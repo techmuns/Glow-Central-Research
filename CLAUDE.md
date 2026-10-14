@@ -2,6 +2,12 @@
 
 **Glow deployment:** Read [docs/GLOW-TEMPLATE-SYNC.md](docs/GLOW-TEMPLATE-SYNC.md) first. Its statement-book adapter, credentials, palette and extra tabs supersede the Sattva-specific workbook/activation notes retained below.
 
+**Shared interface parity (14 October 2026):** Follow Sattva's shared navigation, readers and
+features; Portfolio and Watchlist are Glow's only extra top-level tabs. Keep both sheets and
+Glow's own holdings, watchlist and stored edits. The global research scope selector stays
+visible on the sheets without changing their membership. The current parity contract in
+`docs/GLOW-TEMPLATE-SYNC.md` supersedes older tab-retention and scope-hiding notes below.
+
 Glow’s All Schemes view opens by default. Its search bar offers the feed’s category labels;
 multiple categories combine by OR, while typed words narrow the selected schemes. Keep chips
 removable and preserve selections across repaints. `js/ui/fund-search.js` owns the control;

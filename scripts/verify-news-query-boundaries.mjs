@@ -7,9 +7,9 @@ import { createHash } from 'node:crypto';
 import { writeNewsJson, readNewsJson } from './lib/news-json-storage.mjs';
 import { shardSpec, shardPath } from '../public/js/core/json-shards.js';
 import { createNewsWorkingSet } from '../public/js/data/news-working-set.js';
-import { newsQueryIndexRow, newsQueryIdentity, newsQueryIdentities } from '../public/js/data/news-query-index.js';
-import { dedupeArticles } from '../public/js/data/filings-shared.js';
+import { newsQueryIndexRow, newsQueryIdentity } from '../public/js/data/news-query-index.js';
 import { newsPeriodBounds } from '../public/js/data/news-window.js';
+import { dedupeArticles } from '../public/js/data/filings-shared.js';
 const dir = mkdtempSync(join(tmpdir(), 'sattva-query-boundaries-'));
 const originalFetch = globalThis.fetch, originalNow = Date.now, originalDocument = globalThis.document, originalTimeout = globalThis.setTimeout;
 const digest = data => createHash('sha256').update(data).digest('hex');
@@ -22,12 +22,6 @@ try {
   rows[3].tradingViewId = 'same-story';
   rows[4].tradingViewId = 'same-story';
   rows[1] = { ...rows[1], url: rows[0].url, lastSeenAt: '2026-09-16T17:00:00Z', title: 'Corrected publication day' };
-  // Same publisher/headline/date, different URLs and publication instants across IST midnight.
-  // The full reader keeps the first observation, which falls outside Today. A date query must
-  // fetch that companion too, rather than resurrecting the second URL as a new Today story.
-  rows.push(...['15:48:24', '22:07:38'].map((time, i) => ({ ticker: 'ALPHA', title: 'Same dated report',
-    source: 'Midnight News', date: '2026-09-15', publishedAt: `2026-09-15T${time}Z`,
-    url: `https://example.test/midnight/${i}` })));
   const value = { capturedAt: '2026-09-16T17:00:00Z', byTicker: { ALPHA: rows, EMPTY: [], FAILED: [{ ...rows[2], ticker: 'FAILED', url: 'https://example.test/failed' }], CHECKED: [] }, failed: { FAILED: { reason: 'source-down' } }, empty: ['CHECKED'] };
   const path = join(dir, 'news.json');
   writeNewsJson(path, value, { maxBytes: 32768 });
@@ -67,10 +61,8 @@ try {
   const projected = (await working.read('data/news.json')).value;
   assert.deepEqual(projected.empty, ['CHECKED'], 'the original source empty list remains unchanged');
   assert.deepEqual(projected.queryEmpty, [], 'failed or never-checked companies are not certified empty');
-  const selected = rows.filter(row => row.date === '2026-09-16' || row.url === rows[0].url || row.tradingViewId === 'same-story' || row.source === 'Midnight News');
+  const selected = rows.filter(row => row.date === '2026-09-16' || row.url === rows[0].url || row.tradingViewId === 'same-story');
   assert.deepEqual(projected.byTicker.ALPHA, selected, 'selected date includes corrected companions in their original order');
-  assert.deepEqual(dedupeArticles(projected.byTicker.ALPHA).filter(row => row.source === 'Midnight News'),
-    dedupeArticles(rows).filter(row => row.source === 'Midnight News'), 'the bounded view uses the same original observation as full history');
   const sourcePaths = new Set(spec.parts.map(part => 'data/'+part.file));
   assert(calls.filter(path => sourcePaths.has(path)).length < spec.parts.length, 'Today skips old source text');
   assert.equal(projected.byTicker.EMPTY.length, 0);
@@ -91,21 +83,6 @@ try {
   assert.deepEqual(checkedAgain.failed, { CHECKED: { reason: 'new-failure' } }, 'a new source failure cannot be concealed by projection reuse');
   writeFileSync(path, JSON.stringify(manifest));
   working.release();
-  const legacyIndexes = structuredClone(manifest);
-  for (const part of legacyIndexes._jsonShards.parts) {
-    const items = JSON.parse(readFileSync(shardPath(path, part.file))).items;
-    const body = JSON.stringify({ items: items.map(([, row]) => {
-      const value = newsQueryIndexRow(row); value[2] = newsQueryIdentities(row, { includeStory: false }); return value;
-    }) });
-    part.queryIndex = { ...part.queryIndex, version: 3, sha256: digest(body), bytes: Buffer.byteLength(body), file: `news.parts/${digest(body)}.json` };
-    writeFileSync(shardPath(path, part.queryIndex.file), body);
-  }
-  writeFileSync(path, JSON.stringify(legacyIndexes));
-  assert.deepEqual(readNewsJson(path, null, { verifyIndexes: true }), value, 'retained v3 index integrity remains verifiable');
-  disk.clear();
-  const upgradedIndex = make(); await upgradedIndex.prepare();
-  assert.deepEqual((await upgradedIndex.read('data/news.json')).value.byTicker.ALPHA, selected, 'v3 indexes rebuild from original bytes before serving v4 companions');
-  upgradedIndex.release(); writeFileSync(path, JSON.stringify(manifest));
   writeFileSync(path, JSON.stringify({...manifest,archive:{index:'../invalid-index.json'}}));
   const partial = make();
   await partial.prepare();
@@ -150,6 +127,41 @@ try {
   assert.equal(newValue.queryWindow.from, window.from, 'in-flight old preparation cannot certify a new period');
   assert.deepEqual(newValue.byTicker.ALPHA, rows.filter(row => row.date === '2026-08-01' || row.url === rows[0].url || row.tradingViewId === 'same-story'));
   switching.release(); gate = null;
+
+  // A REPUBLISHED COPY IS FOLDED ON ITS HEADLINE, SO THE HEADLINE IS A COMPANION. TradingView
+  // republishes an outlet's story under its own address with that outlet's name, headline and date,
+  // and `dedupeArticles` folds the pair on exactly that. Past midnight IST the copy lands on the
+  // next day, and a one-day read that could not see the original kept a copy the full history drops
+  // (Mint's Pine Labs story, 21 September 2026, republished at 00:06 IST on the 22nd).
+  {
+    const synDir = join(dir, 'syndication');
+    mkdirSync(synDir, { recursive: true });
+    const original = { title: 'Mastercard to exit Alpha in a block deal', ticker: 'ALPHA', source: 'Mint', date: '2026-09-15',
+      publishedAt: '2026-09-15T15:15:53Z', url: 'https://publisher.test/alpha-block-deal', description: 'Original detail. '.repeat(150) };
+    const copy = { ...original, publishedAt: '2026-09-15T18:36:26Z', url: 'https://tradingview.test/news/alpha-block-deal', tradingViewId: 'tv-copy' };
+    const otherOutlet = { ...original, source: 'Business Standard', url: 'https://other.test/alpha-block-deal' };
+    const synValue = { capturedAt: value.capturedAt, byTicker: { ALPHA: [original, otherOutlet, copy] } };
+    const synPath = join(synDir, 'news.json');
+    for (const maxBytes of [32768, 4096]) {
+      writeNewsJson(synPath, synValue, { maxBytes });
+      const synWorking = createNewsWorkingSet({ window: () => ({ from: '2026-09-16', to: '2026-09-16', includeUndated: false }),
+        read: async input => input === 'data/news.json' ? { value: JSON.parse(readFileSync(synPath)), checkedAt: now }
+          : { value: { capturedAt: value.capturedAt, byTicker: {} } },
+        fetcher: async input => new Response(readFileSync(join(synDir, String(input).replace(/^data\//, '')))),
+        diskRead: () => undefined, diskWrite: () => {} });
+      assert.equal(!!shardSpec(JSON.parse(readFileSync(synPath))), maxBytes < 32768, 'both the inline and the partitioned index are read');
+      await synWorking.prepare();
+      assert.deepEqual((await synWorking.read('data/news.json')).value.byTicker.ALPHA, [original, copy],
+        `${maxBytes}: a copy published past midnight IST brings the original it folds into, and nothing another outlet printed`);
+      synWorking.release();
+    }
+    assert.deepEqual(dedupeArticles([original, otherOutlet, copy]), [original, otherOutlet], 'the pair folds as the full history folds it');
+    // The rejected duplicate has the original's URL but the accepted copy's earlier
+    // headline/date. It cannot poison that URL and hide a later corrected publication.
+    const corrected = { ...original, date: '2026-09-16' };
+    assert.deepEqual(dedupeArticles([copy, original, corrected]), [copy, corrected],
+      'a discarded headline duplicate cannot suppress a distinct corrected date at its URL');
+  }
 
   // Exercise the real facade and explicit live searches in separate windows. Empty Today
   // must not trigger a company walk; the changing IST day is evaluated on every refresh.

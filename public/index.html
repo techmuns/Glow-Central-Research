@@ -9,11 +9,9 @@
     <meta name="description" content="Glow Central Research — an Indian equities research and portfolio analytics dashboard." />
     <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg" />
     <link rel="preload" as="image" href="/assets/brand/glow-ventures-wordmark.svg" />
-    <!-- Discover the entry and default view beside the document.
-         Other tab interfaces load on use; the service worker warms them after opening. -->
+
     <link rel="modulepreload" href="/js/app.js" />
     <link rel="modulepreload" href="/js/ui/shell.js" />
-    <link rel="modulepreload" href="/js/tabs/ai-alerts.js" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -39,8 +37,9 @@
          scripts/verify-ui.mjs drives it) there is no host, js/core/sdk.js falls back to its no-op
          client, and the dashboard paints from its committed snapshots exactly as before. -->
     <script src="https://munshot.s3.ap-south-1.amazonaws.com/SDK+script/munshot-dashboard-sdk.v1.0.0.min.js"></script>
+
     <script type="module">
-      import { warmStartupData } from '/js/core/startup-data.js';
+      import { warmStartupData } from "/js/core/startup-data.js";
       warmStartupData();
     </script>
 
@@ -72,7 +71,6 @@
       // is no credential here to leak and nothing a reader can spend.
       // `localStorage['sattva:chatter-base']` overrides it, which is how verify-ui.mjs points the
       // feed at a stub.
-      window.AMFIBEAS_API_BASE = 'https://amfibeas.tech-441.workers.dev';
       window.SATTVA_CHATTER_URL = 'https://sentimentdash-api.tech-441.workers.dev/v1';
     </script>
 
@@ -139,31 +137,42 @@
         font-variant-numeric: tabular-nums;
       }
 
-      /* Scrollbars for drill panels, dropdowns and reading lists. Wider than they were (8px) so
-         the thumb can be caught with a mouse rather than aimed at, and narrower than the 14px a
-         data table gets, because a dropdown is a few rows deep and its scrollbar is furniture
-         rather than a control anybody drags. A table surface must NOT carry this class as well:
-         two classes declaring one scrollbar's width is how the tables' own 10px sat unused behind
-         this rule's 8px for as long as both were on the element. */
-      .scrollbar-thin::-webkit-scrollbar {
-        width: 11px;
-        height: 11px;
+      /*
+       * Scrollbars for drill panels, dialogs and dropdowns.
+       *
+       * `:not(.table-scroll-surface)` is load-bearing rather than tidy. Every data table carries
+       * BOTH classes, this block is defined after tailwind.css, and the two selectors have equal
+       * specificity — so the 8px written here silently won over the table contract's own width
+       * for as long as both existed. The table rule was correct, maintained and overridden. The
+       * tables now keep their own, slightly wider bar and this one governs what it says it does.
+       */
+      .scrollbar-thin:not(.table-scroll-surface) {
+        scrollbar-color: rgb(var(--surface-slate-400, 148 163 184) / 1) transparent;
       }
-      .scrollbar-thin::-webkit-scrollbar-track {
+      .scrollbar-thin:not(.table-scroll-surface)::-webkit-scrollbar {
+        width: 12px;
+        height: 12px;
+      }
+      .scrollbar-thin:not(.table-scroll-surface)::-webkit-scrollbar-track {
         background: transparent;
       }
-      .scrollbar-thin::-webkit-scrollbar-thumb {
+      .scrollbar-thin:not(.table-scroll-surface)::-webkit-scrollbar-thumb {
         border: 2px solid transparent;
-        background: rgb(var(--surface-slate-300, 203 213 225) / 1);
-        background-clip: padding-box;
+        background-clip: content-box;
         border-radius: 9999px;
-        min-height: 32px;
-        min-width: 32px;
+        background-color: rgb(var(--surface-slate-300, 203 213 225) / 1);
       }
-      .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-        border-width: 1px;
-        background: rgb(var(--surface-slate-400, 148 163 184) / 1);
-        background-clip: padding-box;
+      .scrollbar-thin:not(.table-scroll-surface)::-webkit-scrollbar-thumb:vertical {
+        min-height: 40px;
+      }
+      .scrollbar-thin:not(.table-scroll-surface)::-webkit-scrollbar-thumb:horizontal {
+        min-width: 40px;
+      }
+      .scrollbar-thin:not(.table-scroll-surface)::-webkit-scrollbar-thumb:hover {
+        background-color: rgb(var(--surface-slate-400, 148 163 184) / 1);
+      }
+      .scrollbar-thin:not(.table-scroll-surface)::-webkit-scrollbar-thumb:active {
+        background-color: rgb(var(--surface-slate-500, 100 116 139) / 1);
       }
 
       @keyframes fade-in {
@@ -291,6 +300,29 @@
         .tab-btn, .tab-btn::after, .tab-scroll-btn { transition: none; }
       }
 
+      /* Reader groups use compact pills beneath the primary navigation. */
+      #subview-mount:is([data-navigation="group"], [data-navigation="tabs"]) .tab-bar {
+        padding: 0 6px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+      }
+      #subview-mount:is([data-navigation="group"], [data-navigation="tabs"]) .tab-list { gap: 8px; }
+      #subview-mount:is([data-navigation="group"], [data-navigation="tabs"]) .tab-btn {
+        min-height: 44px;
+        padding: 9px 16px;
+        border: 1px solid rgb(var(--edge-slate-200, 226 232 240) / 1);
+        border-radius: 999px;
+        background: rgb(var(--surface-white, 255 255 255) / 1);
+      }
+      #subview-mount:is([data-navigation="group"], [data-navigation="tabs"]) .tab-btn::after { display: none; }
+      #subview-mount:is([data-navigation="group"], [data-navigation="tabs"]) .tab-btn.is-active {
+        color: var(--accent-600);
+        border-color: var(--accent-600);
+        background: rgb(var(--surface-indigo-50, 238 242 255) / 1);
+      }
+
       /* scoreTable row numbers come from a CSS counter, not from the markup — that keeps each
          row's HTML position-independent so sorting can reorder cached strings instead of
          regenerating 500+ rows. */
@@ -320,19 +352,6 @@
       #modal-overlay.is-open #modal-container {
         opacity: 1;
         transform: scale(1);
-      }
-      /* A MODAL TALLER THAN THE WINDOW MUST STILL BE CLOSEABLE BY MOUSE.
-         The overlay centres its panel and scrolls, and a flex item centred inside a scroll
-         container overflows EQUALLY in both directions — so the top of a long panel, which is
-         where the x lives, ends up ABOVE the scrollable area and no amount of scrolling reaches
-         it. Measured on the filings source panel: the close button sat at y = -30 in a 1000px
-         viewport, visible, enabled and permanently unclickable. Escape still closed it, which is
-         exactly what made this survive: the overlay was never unusable, only its one visible
-         control was. Cap the panel and let its own body scroll instead; a modal shorter than the
-         cap is untouched, and a body carrying its own scroller keeps it. */
-      #modal-content {
-        max-height: calc(100vh - 8rem);
-        overflow-y: auto;
       }
 
       /* Full-screen workspace overlay (ui/screener.js openWorkspace) — the Con-call Deep Dive
@@ -368,28 +387,35 @@
         }
       }
 
-      /* The fallback for every scroller that declares nothing of its own, the page included.
-         `.scrollbar-thin` and `.table-scroll-surface` both outrank it on specificity whatever the
-         source order, so this sets the floor rather than competing with them. */
+      /*
+       * The floor every other scroller lands on. Same bargain as the table contract above: a
+       * track wide enough to aim at, a visible thumb two pixels inside it, and a minimum length
+       * so a long list still offers something to grab rather than a sliver.
+       */
       ::-webkit-scrollbar {
-        height: 11px;
-        width: 11px;
+        height: 12px;
+        width: 12px;
       }
       ::-webkit-scrollbar-track {
         background: transparent;
       }
       ::-webkit-scrollbar-thumb {
         border: 2px solid transparent;
-        background: rgb(var(--surface-slate-300, 203 213 225) / 1);
-        background-clip: padding-box;
+        background-clip: content-box;
+        background-color: rgb(var(--surface-slate-300, 203 213 225) / 1);
         border-radius: 9999px;
-        min-height: 32px;
-        min-width: 32px;
+      }
+      ::-webkit-scrollbar-thumb:vertical {
+        min-height: 40px;
+      }
+      ::-webkit-scrollbar-thumb:horizontal {
+        min-width: 40px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        border-width: 1px;
-        background: rgb(var(--surface-slate-400, 148 163 184) / 1);
-        background-clip: padding-box;
+        background-color: rgb(var(--surface-slate-400, 148 163 184) / 1);
+      }
+      ::-webkit-scrollbar-thumb:active {
+        background-color: rgb(var(--surface-slate-500, 100 116 139) / 1);
       }
 
       /* Ask Research fills the available frame; only the transcript scrolls. */
@@ -1204,12 +1230,42 @@
       body:has([data-fullscreen-workspace]) #app > [data-app-header], body:has([data-fullscreen-workspace]) #app > [data-app-nav] { flex: 0 0 auto; width: 100%; }
       body:has([data-fullscreen-workspace]) #app > [data-app-content] { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; padding-bottom: 0; }
       body:has([data-fullscreen-workspace]) #dashboard-main, body:has([data-fullscreen-workspace]) #content-host { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-      body:has([data-fullscreen-workspace]) footer { display: none; }
-      
+
       [data-fullscreen-workspace] { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
       [data-fullscreen-workspace] > [data-alerts-controls] { flex: 0 0 auto; }
       [data-fullscreen-workspace] [data-score-table] { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
       [data-fullscreen-workspace] [data-table-scroll] { flex: 1 1 auto; min-height: 0; max-height: none !important; }
+
+      #modal-container:has(.mf-coverage) { background: rgb(var(--surface-white, 255 255 255)); color: var(--ink-900); }
+      .mf-table-control { max-width:100%; min-width:0; padding:7px 10px; border:1px solid rgb(var(--edge-slate-200,226 232 240)); border-radius:8px; background:rgb(var(--surface-slate-50,248 250 252)); color:var(--ink-900); font-size:13px; }
+      .mf-coverage-control { padding:7px 8px; color:var(--accent-600); font-size:12px; white-space:nowrap; }
+      .mf-table-control:focus-visible, .mf-coverage-control:focus-visible { outline:2px solid var(--brand-500); outline-offset:2px; }
+      .mf-holdings [data-table-toolbar] { padding:12px; gap:10px; }
+      .mf-holdings [data-table-toolbar] .relative:has([data-table-search]) { max-width:340px; }
+      .mf-holdings [data-mf-sizes]:empty { display:none; }
+      .mf-holdings [data-table-actions] { justify-content:space-between; flex-wrap:wrap; }
+      .mf-holdings [data-table-actions] > div { display:block; }
+      .mf-holdings [data-table-body] td { padding-block:10px; }
+      .mf-holdings .mf-insight { font-size:13px; line-height:1.45; }
+      .news-toolbar { display:flex; flex-direction:column; align-items:stretch; padding:12px; gap:10px; }
+      .news-toolbar-primary { display:flex; align-items:center; gap:10px; min-width:0; }
+      .news-toolbar .news-toolbar-search { flex:1; width:auto; min-width:0; max-width:none; }
+      .news-toolbar-primary > select { flex:none; max-width:150px; }
+      .news-toolbar-actions { display:flex; align-items:center; gap:12px; flex:none; }
+      .news-toolbar-filters { display:flex; flex-wrap:wrap; gap:8px; min-width:0; }
+      .news-toolbar-filters > select { flex:1; min-width:min(100%,160px); max-width:100%; width:0; }
+      .news-toolbar-filters > [data-watch-toggle] { flex:none; }
+      @media (max-width:700px) {
+        .news-toolbar-primary { flex-wrap:wrap; }
+        .news-toolbar .news-toolbar-search { flex-basis:100%; }
+        .news-toolbar-primary > select { max-width:none; flex:1; }
+        .news-toolbar-actions { width:100%; justify-content:space-between; }
+        .news-toolbar-filters > select { min-width:min(100%,130px); }
+      }
+      .mf-coverage-status { display: inline-block; border-radius: 999px; padding: 3px 9px; font-weight: 600; color: rgb(var(--text-amber-700, 180 83 9) / 1); background: rgb(var(--surface-amber-50, 255 251 235) / 1); }
+      .mf-coverage-status[data-tone="positive"] { color: rgb(var(--text-emerald-700, 4 120 87) / 1); background: rgb(var(--surface-emerald-50, 236 253 245) / 1); }
+      .mf-detail-table th[aria-sort]{cursor:pointer}.mf-sort-header{display:inline-block;width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:inherit;cursor:pointer;white-space:nowrap}.mf-sort-header:hover,.mf-sort-header:focus-visible{color:var(--accent-600)}.mf-sort-header:focus-visible{outline:2px solid currentColor;outline-offset:4px;border-radius:2px}.mf-sort-header [data-mf-sort-arrow]{display:inline-block;width:10px;margin-left:3px;opacity:.55}.mf-detail-table th[aria-sort="ascending"] [data-mf-sort-arrow],.mf-detail-table th[aria-sort="descending"] [data-mf-sort-arrow]{opacity:1}
+      .mf-toolbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:12px 0}.mf-toolbar label{display:flex;align-items:center;gap:8px}.mf-toolbar select,.mf-toolbar input{padding:8px 12px;border:1px solid rgb(var(--edge-slate-200,226 232 240));border-radius:8px;background:rgb(var(--surface-white,255 255 255));color:inherit}.mf-insight{min-width:240px;max-width:460px;white-space:normal;line-height:1.55}.mf-detail-scroll{overflow:auto;max-height:65vh}.mf-detail-table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}.mf-detail-table th,.mf-detail-table td{padding:12px 14px;border-bottom:1px solid rgb(var(--edge-slate-200,226 232 240));white-space:nowrap;text-align:right}.mf-detail-table th{background:rgb(var(--surface-white,255 255 255));font-weight:600}.mf-detail-table thead{position:sticky;top:0;z-index:2}.mf-detail-table .mf-identity{text-align:left}.mf-detail-table td.mf-identity{min-width:220px;max-width:300px;white-space:normal}.mf-detail-table td.mf-identity a{display:block;margin-top:4px}.mf-detail-table tbody tr:nth-child(odd){background:rgb(var(--surface-slate-50,248 250 252))}.mf-insights-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}.mf-buyer,.mf-seller{padding:16px;border-radius:10px;font-size:13px;line-height:1.6}.mf-buyer{background:rgba(16,185,129,.08)}.mf-seller{background:rgba(244,63,94,.07)}
     </style>
     <link rel="stylesheet" href="/css/theme.css" />
     <link rel="stylesheet" href="/css/glow.css" />
@@ -1256,15 +1312,20 @@
     </div>
 
     <!-- "Data flowing in" — the lower-left source beacon, owned by ui/source-beacon.js, which
-         creates this node if it is absent. -->
+         creates this node if it is absent. Declared BEFORE the alert stack so that on a narrow
+         screen, where the two corners meet, a toast paints over the beacon rather than under it:
+         an alert is a fact that just arrived and this is a reference panel. -->
     <div id="source-beacon-root" class="beacon-root"></div>
 
-    <!-- THE LOWER-RIGHT TOAST STACK IS GONE, and its empty container went with it. Arrivals mark
-         the header bell instead; `ui/notifications.js` creates the panel it opens and gives that
-         panel `id="notification-root"`. Leaving the retired div here left TWO elements carrying
-         that id in one document — `getElementById` answered with the empty one, a Playwright
-         `#notification-root` locator raised a strict-mode violation, and every check reading the
-         panel through that id was reading a node nothing renders into. -->
+    <!-- Live alert stack, owned by ui/notifications.js, which creates this node if it is absent.
+         z-30 is deliberate and sits BELOW every overlay above: a toast announcing a result must
+         never land on top of a drill panel or a workspace the reader opened on purpose. -->
+    <div
+      id="notification-root"
+      role="status"
+      aria-live="polite"
+      class="pointer-events-none fixed bottom-4 right-4 z-30 flex w-[min(22rem,calc(100vw-2rem))] flex-col-reverse gap-2"
+    ></div>
 
     <script type="module" src="js/app.js"></script>
   </body>

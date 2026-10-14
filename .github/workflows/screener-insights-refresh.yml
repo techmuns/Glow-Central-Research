@@ -45,8 +45,6 @@ jobs:
         id: collect
         env:
           GH_TOKEN: ${{ github.token }}
-          SCREENER_WATCHLIST_ID: ${{ vars.SCREENER_WATCHLIST_ID }}
-          SCREENER_WATCHLIST_NAME: ${{ vars.SCREENER_WATCHLIST_NAME }}
           SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
           SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/screener-insights-browser/node_modules/playwright

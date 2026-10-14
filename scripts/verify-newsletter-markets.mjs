@@ -148,7 +148,7 @@ test('email HTML, plain text, PDF and delivery summary expose the enriched compa
     return fetcher(url);
   } });
   assert.equal(conflicted.rows.find(r => r.id === 'nasdaq').state, 'unavailable');
-  assert(!conflicted.stored.includes('nasdaq')); assert(conflicted.conflicts.includes('nasdaq'));
+  assert.equal(conflicted.rows.find(r => r.id === 'nasdaq').last, null); assert(conflicted.conflicts.includes('nasdaq'));
 });
 
 const publishedAt = Date.parse('2026-09-24T09:00:00Z');

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
-import { ALERT_POOL_CONTRACT, POOL_CAPTURES, POOL_FEEDS, captureRevision, shiftDay } from '../public/js/data/alert-pool-shared.js';
+import { ALERT_POOL_CONTRACT, ALERT_POOL_POLICY, POOL_CAPTURES, POOL_FEEDS, captureRevision, shiftDay } from '../public/js/data/alert-pool-shared.js';
 
 const storage = new Map();
 globalThis.localStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
@@ -29,7 +29,7 @@ function descriptor(kind, date, suffix = '') {
 }
 function reset() {
   pool.resetForTest(); requests = []; failedMember = null; gate = null; onRequest = null; indexGate = null; statusGate = null;
-  served = { version: 1, contract: ALERT_POOL_CONTRACT, artifact: 1, day, captures: structuredClone(captures), feeds: structuredClone(feeds),
+  served = { version: 1, contract: ALERT_POOL_CONTRACT, policy: ALERT_POOL_POLICY, artifact: 1, day, captures: structuredClone(captures), feeds: structuredClone(feeds),
     days: days.map(date => descriptor('days', date)), ai: days.map(date => descriptor('ai', date)) };
 }
 globalThis.fetch = async input => {
@@ -48,6 +48,37 @@ const read = options => pool.read({ mode: 'ai', day, ...options });
 const downloads = () => requests.filter(path => /^api\/alert-pool\/\d+\//.test(path));
 const window = length => ({ mode: 'window', queryWindow: { from: shiftDay(day, 1 - length), to: day, includeUndated: false } });
 const ids = result => [...result.feeds].map(([id, feed]) => [id, feed.events.map(event => event.id)]);
+
+for (const prefix of ['Read failed:', 'Last read failed:']) {
+  reset();
+  const receipt = `${prefix} Source unavailable. Retained records remain visible.`;
+  served.feeds.news.row = { ...served.feeds.news.row, status: 'failed', reachesToday: false, note: receipt };
+  const newsState = () => ({ status: 'ok', reachesToday: true, note: 'Coverage re-aged' });
+  const retained = await read({ newsState });
+  assert.equal(retained.feeds.get('news').status, 'failed');
+  assert.equal(retained.feeds.get('news').reachesToday, false);
+  assert.equal(retained.feeds.get('news').note, receipt, 'freshness recalculation retains the actual failure receipt');
+  assert(retained.feeds.get('news').events.length > 0, 'failed readings retain their evidence');
+  served.artifact++;
+  captures.companyNews.revision = served.captures.companyNews.revision = 'verified-new-capture';
+  served.feeds.news.row = { ...served.feeds.news.row, status: 'ok', reachesToday: true, note: null };
+  const recovered = await read({ refresh: true, newsState });
+  assert.equal(recovered.feeds.get('news').status, 'ok', 'a newer verified capture replaces the failure receipt');
+  assert.equal(recovered.feeds.get('news').note, 'Coverage re-aged');
+  assert.deepEqual(ids(recovered), ids(retained), 'recovery preserves every retained event');
+  captures.companyNews.revision = 'fixture-v1';
+}
+console.log('PASS failed-read receipts survive re-aging and recover only with a newer verified capture');
+
+reset();
+const failureNote = 'Read failed: Filings coverage is incomplete. Retained records remain visible.';
+served.feeds.news.row = { ...served.feeds.news.row, status: 'failed', reachesToday: false, note: failureNote };
+const failedNews = await read({ newsState: () => ({ status: 'ok', reachesToday: true, note: 'Derived clock status' }) });
+assert.equal(failedNews.feeds.get('news').status, 'failed');
+assert.equal(failedNews.feeds.get('news').reachesToday, false);
+assert.equal(failedNews.feeds.get('news').note, failureNote, 'the saved failed-read explanation survives age revalidation');
+assert.equal(failedNews.feeds.get('news').events.length, 7, 'failed health retains every eligible event');
+console.log('PASS news age revalidation preserves failed collection health, its explanation and retained events');
 
 reset();
 const first = await read();

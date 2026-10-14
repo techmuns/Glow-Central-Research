@@ -24,6 +24,7 @@ import { scoreTable, sectionHead, openModal, closeModal, companySeededView } fro
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { deliveryNote } from '../ui/sources.js';
+import { setCollectionDetails, notifyCollectionDetails, clearCollectionDetails } from '../ui/source-details.js';
 import * as coverage from '../data/coverage.js';
 import { filterByScope, scopePossessive } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
@@ -31,11 +32,16 @@ import * as scopeLists from '../core/scope-lists.js';
 import * as refreshRegistry from '../core/refresh.js';
 import { portfolioNewsEntities, newsRowEntityKey } from '../data/company-news-identity.js';
 import { newsViewStatus } from '../core/news-view-status.js';
+import { seedTableReading } from '../core/view-reading.js';
 
 const REASONS = {
   'no-route': {
-    title: 'This feed needs the Worker',
-    body: 'This origin serves the static files only, so there is no <code>/api/</code> route to answer, and no committed snapshot has been written yet. Run <code>npx wrangler dev</code>, or open the deployed site.',
+    title: 'This feed endpoint is unavailable',
+    body: 'The requested feed endpoint was not found. Previously loaded records remain available.',
+  },
+  'capture-unavailable': {
+    title: 'The saved trade capture is temporarily unavailable',
+    body: 'This view checks again automatically. Retained trades will appear as soon as the capture can be read.',
   },
   'no-token': {
     title: 'No API token is configured',
@@ -65,49 +71,14 @@ const REASONS = {
  * @param {string} cfg.noun          what one row is, for the counts
  * @param {Function} cfg.columns     (meta) => scoreTable columns
  * @param {Function} cfg.searchable  (row) => string
- * @param {Function} cfg.provenance  (meta) => html for the pill's modal
+ * @param {Function} cfg.provenance  (meta, { scope }) => html for the pill's modal
  * @param {Function} [cfg.filters]   (rows) => scoreTable filters
- * @param {Function} [cfg.aboveTable] (ctx, meta, rows, view) => html between the busy strip and the
- *                                   table. `rows` are the scoped rows before the table's own filters
- *                                   and `view` is the table's live view (search, filter slots, sort),
- *                                   so a control drawn here can count against the current period.
- * @param {Function} [cfg.wireAboveTable] (root, ctx) => disposer, for that control's listeners
- *                                   (and for a `toolbarExtra` control, which is in the DOM by then)
- * @param {Function} [cfg.toolbarExtra] (ctx, meta, rows, view) => html for the table toolbar, after
- *                                   the filter selects — a tab's own filter control in the filter row
- * @param {boolean}  [cfg.compactHead] no description under the title and a tighter block; the
- *                                   subtitle then belongs in the provenance panel, never dropped
- * @param {Function} [cfg.headAside]  (ctx) => html drawn on the title's line (a view switch)
  * @param {Function} [cfg.renderRevision] extra revision for time-dependent filters on otherwise unchanged rows
- * @param {Function} [cfg.prepareForPaint] sliced preparation of immutable row readings before painting
  * @param {Function} [cfg.keyFor]    (row, i) => watchlist key
  * @param {Function|false} [cfg.link] custom row-link getter, or false when the tab owns its link cell
  */
 export function makeFilingsTab(cfg) {
-  // Opt in per view: News already prepares its own source publications and keeps
-  // its partially loaded controls mounted while a new reading window loads.
-  const prepareRows = cfg.prepareBeforePaint ? async () => {
-    const generation = token;
-    const keepGoing = () => !!ctxRef && generation === token;
-    await cfg.feed.prepareRows?.();
-    if (!keepGoing() || !cfg.prepareForPaint) return;
-    let prepared = cfg.feed.rows();
-    while (keepGoing()) {
-      await cfg.prepareForPaint(rowsForScope(prepared, ctxRef), { keepGoing });
-      if (!keepGoing()) return;
-      // An archive page can land while text preparation yields. Prepare that publication too,
-      // rather than letting paint's synchronous rows() fallback merge it on the main thread.
-      await cfg.feed.prepareRows?.();
-      if (!keepGoing()) return;
-      const next = cfg.feed.rows();
-      if (next === prepared) return;
-      prepared = next;
-    }
-  } : null;
-  function rowsForScope(all, ctx) {
-    if (cfg.keepRow) all = all.filter(cfg.keepRow);
-    return (cfg.filterByScope || filterByScope)(all, ctx.scope, coverage.holdings());
-  }
+  const detailsOwner = Symbol(cfg.id);
   const meta = { id: cfg.id, title: cfg.title, subtitle: cfg.subtitle, subviews: [] };
 
   let token = 0;
@@ -118,19 +89,6 @@ export function makeFilingsTab(cfg) {
   let routeCompany = null;
   let ctxRef = null;
   let renderedRows = null;
-  let paintFrame = null, paintPending = false;
-  function requestPaint() {
-    if (!ctxRef || paintFrame !== null || paintPending) return;
-    paintFrame = requestAnimationFrame(async () => {
-      paintFrame = null;
-      paintPending = true;
-      const generation = token;
-      try {
-        await prepareRows?.();
-        if (ctxRef && generation === token) paint(ctxRef);
-      } finally { paintPending = false; }
-    });
-  }
   // What the tab's Refresh control should say right now. Module-level because it has to outlive the
   // repaints the refresh itself causes — see `wireRefresh`.
   let refreshLabel = 'Check for new';
@@ -173,24 +131,39 @@ export function makeFilingsTab(cfg) {
     return scopeLists.apply('universe', out);
   }
 
-  // The section head, in the shape this tab asked for. `compactHead` drops the description — the
-  // sentence still exists, in the provenance panel — and `headAside` is drawn on the title's line.
-  function headConfig(ctx) {
+  function viewCoverage(ctx, m, rows) {
+    const scoped = tickersFor(ctx);
     return {
-      title: cfg.title,
-      description: cfg.compactHead ? '' : cfg.subtitle,
-      titleAside: cfg.headAside?.(ctx) || '',
-      compact: cfg.compactHead === true,
+      inScope: scoped.length,
+      withRows: new Set(rows.map((r) => cfg.id === 'news' ? newsRowEntityKey(r) : String(r.ticker || '').toUpperCase()).filter(Boolean)).size,
+      askedEmpty: scoped.filter((c) => cfg.feed.wasAskedEmpty(c.key || c.ticker)).length,
+      failed: scoped.filter((c) => cfg.feed.failureFor(c.key || c.ticker)).length,
+      unlisted: ctx.scope === 'portfolio' && cfg.id !== 'news' ? coverage.meta().uncovered || 0 : 0,
+      noun: cfg.noun,
+      windowDays: m.windowDays,
+      coversUniverse: m.coversUniverse,
     };
   }
 
-  async function render(ctx) {
+  function render(ctx) {
     const t = ++token;
     ctxRef = ctx;
+    if (cfg.methodInSources) setCollectionDetails(detailsOwner, () => ctxRef?.isCancelled ? null : ({
+      label: methodLabel(cfg, cfg.feed.meta()),
+      open: () => {
+        if (!ctxRef || ctxRef.isCancelled) return;
+        const m = cfg.feed.meta();
+        let all = cfg.feed.rows();
+        if (cfg.keepRow) all = all.filter(cfg.keepRow);
+        const rows = (cfg.filterByScope || filterByScope)(all, ctxRef.scope, coverage.holdings());
+        openProvenance(m, viewCoverage(ctxRef, m, rows), ctxRef.scope, rows);
+      },
+    }));
     renderedRows = null;
     const seeded = companySeededView(ctx, routeCompany, view);
     routeCompany = seeded.company;
-    view = cfg.prepareView?.(ctx, seeded.view) ?? seeded.view;
+    const restored = seedTableReading({ initialView: seeded.view, exportName: `glow-${cfg.id}` }, cfg.filters?.([]) || []) || seeded.view;
+    view = cfg.prepareView?.(ctx, restored) ?? restored;
     cfg.prepareReading?.(view);
 
     // SUBSCRIBE BEFORE THE EARLY RETURN, not after it.
@@ -212,7 +185,7 @@ export function makeFilingsTab(cfg) {
     //
     // Released in destroy(), not by the next repaint — otherwise the first arrival tears down the
     // subscription that produced it.
-    if (!unsub) unsub = cfg.feed.onChange(prepareRows ? requestPaint : () => ctxRef && paint(ctxRef));
+    if (!unsub) unsub = cfg.feed.onChange(() => ctxRef && paint(ctxRef));
 
     // THE HEADER'S REFRESH BUTTON IS WHAT WALKS THESE ROUTES, and only while this tab is mounted.
     // Registration is per mounted tab on purpose: a reader on News should not pay for the other two
@@ -236,27 +209,19 @@ export function makeFilingsTab(cfg) {
     // at module level, but which companies are in scope changes with the toggle — and `wanted` is
     // what the freshness strip counts as unchecked and what Refresh walks. Setting it only inside
     // `load()` let the first scope to mount own the list for the life of the page.
-    if (prepareRows) {
-      // The shared content root may still contain another tab. Cover it before
-      // yielding, so a newly selected tab can never expose the old tab's controls.
-      disposers.forEach(dispose => dispose && dispose()); disposers = [];
-      ctx.root.innerHTML = `${sectionHead(headConfig(ctx))}${loadingHtml()}`;
-      await prepareRows();
-      if (t !== token) return;
-    }
     const items = tickersFor(ctx);
     cfg.feed.setWanted(items);
 
     if (!cfg.feed.isLoaded()) {
       // Keep the reading controls and overlapping last-good rows usable while a new period
       // loads. Replacing an already-painted table with a splash loses the user's next choice.
-      if (cfg.preserveReadingPosition && ctx.root.querySelector('[data-filings-info]')) paint(ctx);
+      if (cfg.preserveReadingPosition && ctx.root.querySelector(`[data-filings-view="${cfg.id}"]`)) paint(ctx);
       else {
         disposers.forEach(dispose => dispose && dispose()); disposers = [];
-        ctx.root.innerHTML = `${sectionHead(headConfig(ctx))}${loadingHtml()}`;
+        ctx.root.innerHTML = `${sectionHead({ title: cfg.title, description: cfg.subtitle })}${loadingHtml()}`;
       }
       cfg.feed.load(items).then(() => {
-        if (t === token) prepareRows ? requestPaint() : paint(ctx);
+        if (t === token) paint(ctx);
       });
       return;
     }
@@ -264,15 +229,19 @@ export function makeFilingsTab(cfg) {
   }
 
   function paint(ctx) {
-    const oldScroller = cfg.preserveReadingPosition && ctx.root.querySelector('[data-table-scroll]');
+    if (cfg.methodInSources) notifyCollectionDetails(detailsOwner);
+    const ownsView = !!ctx.root.querySelector(`[data-filings-view="${cfg.id}"]`);
+    const oldScroller = cfg.preserveReadingPosition && ownsView && ctx.root.querySelector('[data-table-scroll]');
     const oldRows = oldScroller ? [...oldScroller.querySelectorAll('tbody tr[data-row-key]')] : [];
     const anchor = oldScroller?.scrollTop > 0
       ? oldRows.find((row) => row.getBoundingClientRect().bottom > oldScroller.getBoundingClientRect().top + 40) : null;
     const position = oldScroller ? { top: oldScroller.scrollTop, left: oldScroller.scrollLeft,
       key: anchor?.dataset.rowKey, offset: anchor ? anchor.getBoundingClientRect().top - oldScroller.getBoundingClientRect().top : 0 } : null;
-    const oldSearch = cfg.preserveReadingPosition && ctx.root.querySelector('[data-table-search]');
+    const oldSearch = cfg.preserveReadingPosition && ownsView && ctx.root.querySelector('[data-table-search]');
     const selection = oldSearch && document.activeElement === oldSearch
       ? { value: oldSearch.value, start: oldSearch.selectionStart, end: oldSearch.selectionEnd } : null;
+    const focusedFilter = cfg.preserveReadingPosition && ownsView && ctx.root.contains(document.activeElement) &&
+      document.activeElement.matches('[data-table-filter]') ? document.activeElement.getAttribute('aria-label') : null;
     const m = cfg.feed.meta();
     let all = cfg.feed.rows();
 
@@ -286,7 +255,9 @@ export function makeFilingsTab(cfg) {
     // published. The company was still COVERED, which is a different fact and one the coverage note
     // below still counts: searched-and-empty is not the same as never-asked, and neither is an
     // article. `keepRow` is where a tab says what a row of its own has to carry to be one.
-    const rows = rowsForScope(all, ctx);
+    if (cfg.keepRow) all = all.filter(cfg.keepRow);
+
+    const rows = (cfg.filterByScope || filterByScope)(all, ctx.scope, coverage.holdings());
     const customEmptyMessage = typeof cfg.emptyMessage === 'function' ? cfg.emptyMessage(m) : cfg.emptyMessage;
     if (cfg.preserveReadingPosition) {
       const revision = cfg.renderRevision?.(m);
@@ -295,12 +266,14 @@ export function makeFilingsTab(cfg) {
         renderedRows.rows.length === rows.length && rows.every((row, i) => row === renderedRows.rows[i]);
       // Archive/check status can change several times in one poll without changing a filing.
       // Keep the mounted search field and rows intact for those notifications.
-      if (sameRows && ctx.root.querySelector('[data-score-table]')) {
+      if (sameRows && ownsView && ctx.root.querySelector('[data-score-table]')) {
         // Keep freshness honest without throwing away the focused search field or scroll window.
         const info = ctx.root.querySelector('[data-filings-info]');
         if (info) info.outerHTML = cfg.status ? cfg.status(m) : pill(m, ctx.scope, rows);
         const busy = ctx.root.querySelector('[data-filings-busy]');
         if (busy) busy.innerHTML = busyStrip(m);
+        const method = ctx.root.querySelector('[data-filings-method]');
+        if (method) method.textContent = methodLabel(cfg, m);
         return;
       }
       renderedRows = { scope: ctx.scope, reason: m.reason, emptyMessage: customEmptyMessage, revision, rows };
@@ -315,17 +288,7 @@ export function makeFilingsTab(cfg) {
     // and 62 genuinely had none, while insider looked short only because a company answering "no
     // trades" was written nowhere. So the strip states the breakdown rather than leaving a
     // subtraction on screen for the reader to misread.
-    const scoped = tickersFor(ctx);
-    const cov = {
-      inScope: scoped.length,
-      withRows: new Set(rows.map((r) => cfg.id === 'news' ? newsRowEntityKey(r) : String(r.ticker || '').toUpperCase()).filter(Boolean)).size,
-      askedEmpty: scoped.filter((c) => cfg.feed.wasAskedEmpty(c.key || c.ticker)).length,
-      failed: scoped.filter((c) => cfg.feed.failureFor(c.key || c.ticker)).length,
-      unlisted: ctx.scope === 'portfolio' && cfg.id !== 'news' ? coverage.meta().uncovered || 0 : 0,
-      noun: cfg.noun,
-      windowDays: m.windowDays,
-      coversUniverse: m.coversUniverse,
-    };
+    const cov = viewCoverage(ctx, m, rows);
 
     // NOTHING AT ALL, AND A REASON WHY. Distinguished from "no rows in this window", which is a
     // real answer and renders as an empty table with its own message.
@@ -337,12 +300,13 @@ export function makeFilingsTab(cfg) {
       // outlive the failure.
       ctx.root.innerHTML = `
         ${sectionHead({
-          ...headConfig(ctx),
+          title: cfg.title,
+          description: cfg.subtitle,
           meta: cfg.status ? cfg.status(m) : pill(m, ctx.scope, []),
         })}
         ${cfg.aboveTable?.(ctx, m) || ''}
         ${unavailablePanel(m, refreshLabel === 'Check for new' ? 'Try again' : refreshLabel)}
-        ${methodFooter(cfg)}`;
+        ${methodFooter(cfg, m)}`;
       wireRefresh(ctx.root);
       disposers.push(cfg.wireAboveTable?.(ctx.root, ctx));
       wireMethod(ctx.root, m, null, ctx.scope, []);
@@ -383,32 +347,36 @@ export function makeFilingsTab(cfg) {
       // — which narrows every feed on this dashboard by symbol — would have nothing to match.
       watchKey: (r) => r.ticker || null,
       watchName: (r) => r.company || cfg.rowName(r) || r.ticker,
+      watchColumn: cfg.watchColumn || null,
+      bookmarkPlacement: cfg.bookmarkPlacement || 'subline',
       name: (r) => cfg.rowName(r),
       nameLabel: cfg.nameLabel || 'Headline',
+      nameAfter: cfg.nameAfter || 0,
+      sharedColumnLayout: ['corp-announcements', 'corporate-actions', 'insider-trades'].includes(cfg.id) ? cfg.id : null,
       sub: (r) => cfg.rowSub(r),
       showRank: false,
       showAvatar: false,
       dense: true,
       wrapHeads: true,
       nameMaxPx: cfg.nameMaxPx || 460,
+      nameWrap: cfg.nameWrap || false,
       stickyHead: cfg.stickyHead || 'max(320px, calc(100vh - 300px))',
       fillMode: cfg.fillMode || 'auto',
       initialRowCount: oldRows.length || 40,
       initialRowKey: position?.key || null,
-      showWatchFilter: cfg.showWatchFilter !== false,
+      showWatchFilter: typeof cfg.showWatchFilter === 'function' ? cfg.showWatchFilter(ctx, view) : cfg.showWatchFilter !== false,
       columns: cfg.columns(m),
       filters: cfg.filters ? cfg.filters(rows) : null,
-      // A tab's own control in the filter row. `view` here is the previous instance's — the
-      // period slot it holds is what a period-aware control needs, and the table it seeds is the
-      // one about to be built from it.
-      toolbarExtra: cfg.toolbarExtra?.(ctx, m, rows, view) || '',
+      filterGroup: cfg.filterGroup || null,
       searchable: cfg.searchable,
       searchControl,
       link: cfg.link === false ? null : cfg.link || ((r) => r.url || null),
       initialSort: cfg.initialSort === null ? null : cfg.initialSort || { key: 'Date', dir: 'desc' },
       initialView: view,
       onRowClick: cfg.onRowClick ? (row) => cfg.onRowClick(row, ctx) : null,
+      rowActionLabel: cfg.rowActionLabel || null,
       afterSub: cfg.afterSub || null,
+      rowContent: cfg.rowContent || null,
       allowSort: cfg.allowSort !== false,
       toolbarControls: cfg.toolbarControls?.(ctx, m) || null,
       loading: cfg.loading?.(m) || false,
@@ -449,7 +417,8 @@ export function makeFilingsTab(cfg) {
 
     ctx.root.innerHTML = `
       ${sectionHead({
-        ...headConfig(ctx),
+        title: cfg.title,
+        description: cfg.subtitle,
         // ONE CHIP, THE SAME ONE THE MARKET-NEWS HALF OF THIS TAB ALREADY WEARS. The scope summary
         // that used to sit beside it — "Portfolio · 23 of 142 companies with articles" — has moved
         // into the modal, whole and worded exactly as it was. The DENOMINATOR RULE is not waived by
@@ -462,11 +431,11 @@ export function makeFilingsTab(cfg) {
         // the description happen to be, and both change as companies are added. A control that
         // moves when you use it reads as a different page.
       })}
-      <div data-filings-busy>${busyStrip(m)}</div>
-      ${cfg.aboveTable?.(ctx, m, rows, view) || ''}
+      <div data-filings-view="${escapeHtml(cfg.id)}" data-filings-busy>${busyStrip(m)}</div>
+      ${cfg.aboveTable?.(ctx, m) || ''}
       ${table.html}
       ${cfg.belowTable?.(ctx, m) || ''}
-      ${methodFooter(cfg)}`;
+      ${methodFooter(cfg, m)}`;
 
     const nextScroller = ctx.root.querySelector('[data-table-scroll]');
     // We restore a specific filing below. Native scroll anchoring must not apply a second
@@ -486,6 +455,8 @@ export function makeFilingsTab(cfg) {
       search.focus({ preventScroll: true });
       search.setSelectionRange(selection.start, selection.end);
     }
+    if (focusedFilter) [...ctx.root.querySelectorAll('[data-table-filter]')]
+      .find(control => control.getAttribute('aria-label') === focusedFilter)?.focus({ preventScroll: true });
     disposers.push(cfg.wireAboveTable?.(ctx.root, ctx));
     disposers.push(cfg.wireBelowTable?.(ctx.root, ctx));
     wireMethod(ctx.root, m, cov, ctx.scope, rows);
@@ -517,10 +488,10 @@ export function makeFilingsTab(cfg) {
     // arrival repaints the panel, so whichever button was pressed is long gone by the time there
     // is anything to report.
     refreshLabel = refreshRegistry.resultLabel(refreshRegistry.summarize([out]));
-    if (ctxRef) prepareRows ? requestPaint() : paint(ctxRef);
+    if (ctxRef) paint(ctxRef);
     labelReset = setTimeout(() => {
       refreshLabel = 'Check for new';
-      if (ctxRef) prepareRows ? requestPaint() : paint(ctxRef);
+      if (ctxRef) paint(ctxRef);
     }, 6000);
   }
 
@@ -546,9 +517,8 @@ export function makeFilingsTab(cfg) {
   }
 
   function destroy() {
+    clearCollectionDetails(detailsOwner);
     token++;
-    if (paintFrame !== null) cancelAnimationFrame(paintFrame);
-    paintFrame = null;
     ctxRef = null;
     renderedRows = null;
     disposers.forEach((d) => d && d());
@@ -572,25 +542,16 @@ export function makeFilingsTab(cfg) {
 
 
 /**
- * The tab's own provenance, reachable — one muted line UNDER the table.
- *
- * `cfg.provenance` was built by all three of these tabs and NOTHING EVER OPENED IT. The only
- * candidate trigger was the freshness pill, which CLAUDE.md deliberately made a passive `<span>`
- * that "must not open a provenance explainer" — so the content was written, maintained, and
- * unreachable, which is worse than absent because it reads as documentation of a working feature.
- *
- * This is not that decision being undone. The pill stays passive and stays where it is; what
- * changes is that the explanation gets a door of its own, placed AFTER the content so it cannot
- * compete with the table for the top of the page — which was the whole reason the chrome was
- * removed. It carries what no static registry can: the MEASURED coverage for the rows on screen —
- * how many companies answered, how many had nothing, how many could not be read at all. CLAUDE.md's
- * denominator rule says that number has to stay reachable, not that it has to stay on the page.
+ * Collection details retain measured coverage and source failures. Announcements
+ * supplies its active reader to the source beacon; other readers keep their
+ * existing footer link. Status pills remain passive.
  */
-const methodFooter = (cfg) => `
+const methodLabel = (cfg, m) => cfg.methodLabel?.(m) || `How ${cfg.title} is collected, and what this view covers`;
+const methodFooter = (cfg, m) => cfg.methodInSources ? '' : `
   <div class="mt-6 border-t border-slate-100 pt-4 text-center">
     <button type="button" data-filings-method
       class="text-xs font-semibold text-slate-400 underline decoration-slate-200 underline-offset-4 transition-colors hover:text-indigo-600 hover:decoration-indigo-300">
-      How ${escapeHtml(cfg.title)} is collected, and what this view covers
+      ${escapeHtml(methodLabel(cfg, m))}
     </button>
   </div>`;
 
@@ -762,7 +723,8 @@ function coverageSentence(m, cov) {
 function openProvenanceFactory(cfg, refreshLabelRef, onRefresh) {
   return function openProvenance(m, cov, scope, rows) {
     openModal(
-      `${cfg.provenance(m)}
+      `<div data-filings-provenance data-scope="${escapeHtml(scope)}" style="max-height:calc(100dvh - 8rem);overflow-y:auto">
+       ${cfg.provenance(m, { scope })}
        <div class="border-t border-slate-100 px-7 py-5">
          <p class="text-xs leading-relaxed text-slate-600">${freshnessLine(m)}${coverageSentence(m, cov)}</p>
          <p class="mt-2 text-xs leading-relaxed text-slate-600">${escapeHtml(scopeTitle(scope, rows, m).replace(' Click for where this comes from.', ''))}</p>
@@ -774,7 +736,7 @@ function openProvenanceFactory(cfg, refreshLabelRef, onRefresh) {
            </svg>
            <span>${escapeHtml(m.pending || m.inFlight ? 'Checking…' : refreshLabelRef())}</span>
          </button>
-       </div>`,
+       </div></div>`,
       { size: 'default' }
     );
     const host = document.getElementById('modal-content');

@@ -35,6 +35,10 @@ display window. Successful checks must retain old evidence and expose new record
 partial checks must remain visibly partial. Repository CI and a healthy connection
 alone do not prove complete upstream coverage.
 
+Insider trade head windows and live query bounds use IST calendar dates. Verify
+date-only current-day records at 00:10 IST, before the UTC day changes, alongside
+the oldest eligible day, future-day exclusion and retained rows after a failed check.
+
 The known limits in [Filings operations](FILINGS-OPERATIONS.md) still apply. NSE's
 latest-window feed and best-effort scheduled captures do not establish a complete
 exchange archive. Finite retained windows and upstream availability must remain
@@ -42,14 +46,31 @@ explicit until a verified collection/backfill path closes the gap. This rule doe
 not itself change production schedules, start captures, provision monitors or
 certify that no records have been missed.
 
-Company search in Corporate Announcements selects an exchange identity, including verified BSE
-codes and provider-symbol aliases. A company named in another issuer's headline is not a filing
-by the selected company. Suggestions do not establish capture coverage; scope, period and filing
-types remain in force, and an empty filtered result must not claim that no exchange filing exists.
-Search failures retain saved suggestions and captured history. Selection survives source refreshes;
-the same predicate controls visible rows, counts and export.
-
 ## Alert evidence retention
+
+AI Alerts story grouping is an additive reading of public news and exchange disclosures.
+Equivalent reports share one development with all source links. Material changes (including
+new terms/figures, approvals, completion, denial, cancellation and corrections) remain separate
+developments, resurface archived alerts and show what changed. Repeated publication cannot
+advance the development's first source time or inflate its event count. Raw source records stay
+searchable through `sourceEvents` and All Alerts. A grouping failure leaves distinct reports
+visible with a partial grouping status, independent of source freshness.
+Checked material developments surface in Portfolio and Universe even when their source tag is
+low or the earlier story has left the 14-day window. Preserve the source tag and measured score;
+the new development itself is a reason to surface it. Old facts and later copies still age out.
+When a source omits the clock, newly checked developments lead other developments of the same
+story on that source day. This saved reading order never supplies an invented publication time;
+copies inherit their existing development's order, and known source clocks still take precedence.
+
+The reader's decision cache provides up to 180 source days of earlier story context; clearing or
+evicting device storage can require rechecking. Semantic checks happen while reading AI Alerts,
+with existing source revalidation, not as an independent ingestion guarantee. Source collectors
+and durable source archives continue unchanged without an open browser. The shared review cache
+lasts seven days, requests are bounded to 80 records / 120 KB, and 300 attempts per rolling day.
+A company whose known context cannot fit a complete check remains partially grouped. These bounds
+must not delete, truncate or hide its reports. No outlet allow-list or publisher-count cap limits
+the news/disclosure reports admitted to grouping.
+
 
 Public Chatter summaries describe the full source-tag split, not the provider's net-score band
 or the latest mention alone. Opposing bullish/bearish tags are Mixed; directional summaries
@@ -77,6 +98,13 @@ retention alone cannot create a Must see priority. A failed refresh does not ret
 Routine news, unresolved identities, undated rows and context-only records have no retention bypass.
 
 The public 14-day alert window persists in IndexedDB and is re-scoped and re-aged on reload.
+Article deduplication registers URL/headline identities only for accepted records. A discarded
+same-headline copy cannot reserve its URL and suppress a later corrected publication at that
+address. Full-history and date-window readers must keep the same eligible corrections; the
+derived alert-pool policy advances when this interpretation changes so older artifacts are
+rejected until the existing automatic build publishes a compatible pool. Raw captures remain
+the authority. `verify-news-query-boundaries.mjs` covers the duplicate/correction sequence, and
+`verify-alert-pool-ui.mjs` compares the resulting live and pooled records and their order.
 First useful evidence can paint while remaining feeds, operating context and private holding
 sizes are still being checked. An early empty partial cannot block later cards or a delayed cache
 read. Partial refreshes add new material arrivals while retaining previously visible companies and
@@ -90,9 +118,9 @@ The device-only alert cache uses approximately 512 KiB integrity-checked parts a
 IndexedDB manifest replacement; there is no 100,000-event rejection threshold. A single larger
 event stays whole. Missing or corrupt parts cannot be treated as a complete window. A failed
 transaction retains the previous disk revision and the complete incoming session copy; the cache
-status records the failure. AI Alerts omits the search, statement-period and offline-cache footnotes
-at the user's request. Statement provenance remains on holding-size tooltips. Superseded cache parts
-are pruned, not captured source history.
+status records the failure. AI Alerts omits the search, workbook and offline-cache footnotes at the
+user's request. Workbook provenance remains on holding-size tooltips. Superseded cache parts are
+pruned, not captured source history.
 Browser quota and memory remain finite: this is not an unlimited offline archive or a guarantee
 against device eviction. No per-alert Cloudflare files are created by this cache.
 
@@ -101,7 +129,7 @@ visibility return or reconnection after that interval. These are source reads, n
 collection-job dispatches or a claim that periodic upstream feeds publish in real time. Holding
 sizes reuse their authenticated snapshot during automatic checks. New evidence for an already
 visible company merges immediately with retained evidence while other sources remain pending or
-failed. Rendering eight cards at a time and a bounded window of timeline rows are presentation
+failed. Rendering eight cards at a time and previewing three evidence items are presentation
 limits only: company/event search evaluates all eligible cards and their evidence, and All Alerts
 remains the broader retained-record view. Routine/unverified records do not gain priority merely
 because they were collected.
@@ -137,43 +165,11 @@ The browser uses the same anonymous content identity to avoid expanding legacy d
 the next normal capture rewrites them; distinct content and attribution remain separate.
 
 AI Alerts defaults to **Newest first**, using the latest noteworthy source event's IST date/time.
-
-AI Alerts' Event types filter reads compact source filing fields, never the AI commentary.
-Schemes, resignations, preferential issues and warrants have explicit choices; a preferential
-warrant issue may match both. Multiple choices combine by OR, then intersect search, scope and
-priority. Explicit type searches, like text searches, include lower-priority company updates
-within the existing 14-day window. Routine notices are hidden by default with a visible toggle;
-unknown updates remain visible. Device-local choices survive refreshes and return visits.
-The card's headline, date, evidence, source count, bookmark and AI note use matching events.
-Company priority and archive identity still describe its complete evidence; filtering never
-deletes, recollects or promotes a record. All Alerts retains the complete company history.
-`verify-ai-alert-types.mjs` and `verify-ai-alert-types-ui.mjs` cover classification, retained
-evidence, filter composition, returning-session upgrades, arrivals and responsive controls.
-
 Routine observations and refresh timestamps cannot make an older material event new. That event
 leads the evidence preview even when older evidence has a higher score. **Largest holdings** and
 **Highest priority** are explicit local sort choices; only the choice persists, never private sizes.
 Receiving holding weights cannot silently switch the selected ordering. Size sorting falls back to
 newest evidence when complete valuations are unavailable. Period-only source dates remain period-only.
-
-All three sort choices remain visible in Portfolio, Watchlist and Universe. Largest holdings
-orders matching companies by their verified share of the complete statement book, followed by
-companies outside the book; it never reduces a Watchlist or Universe view to portfolio members.
-Scope and event filters preserve the chosen sort. Holding weights in Watchlist and Universe
-do not change the base evidence-priority order consumed by Ask Research. A failed size read
-preserves context and scheduled source records, and cannot conceal partial public-feed coverage.
-A session or scope change that abandons a public-pool read is not a source outage: the obsolete
-collector must not start fallback capture downloads or replace the saved window with unfinished
-feeds. The replacement view owns the next read.
-
-The sort control displays the ordering actually applied. A saved Largest holdings preference
-waits for complete valuations with Newest first visibly selected; pending, failed and incomplete
-size reads keep Largest holdings disabled. Its saved preference resumes once verified weights
-arrive. Independent HTML documents, including Glow's portfolio reader, keep separate service-worker
-cache entries from the dashboard shell. `verify-ai-alert-cache-ui.mjs` reproduces the old navigation
-collision and tests a returning-session upgrade, statement weights and read failure/recovery.
-Missing statement sectors may use exact-ticker classifications from the existing company feed;
-unclassified companies never form a sector cluster or gain priority for sharing missing metadata.
 
 Family's position reader revalidates the shared workbook catalog and reuses the adopted book when
 its revision is unchanged. Changed revisions must be adopted before a positions reply. Workbook
@@ -192,16 +188,26 @@ Generic meeting intimations and AGM notices remain routine. Only NSE rows with a
 date and source link can initiate an alert. BSE/NSE use one exchange-disclosure source family for
 corroboration, and duplicate links/subjects are counted once.
 
-AI Alerts preserves every eligible corporate-announcement and publisher record through its event
-fold. Generic subjects and identical headlines are not source identities. Related reports are
-reachable through inline numbered citations led by the corporate announcement; each distinct
-original link stays available, with source dates and headlines in tooltips and accessible names.
-Duplicate routes to the same URL share one citation without deleting captured records. Conflicting order amounts, named counterparties/projects/places, stages and
-financial periods prevent grouping, including when headlines otherwise resemble each other.
-Unknown details cannot establish complete semantic matching or complete upstream collection.
-Filing-description corrections must resurface archived evidence even with an unchanged subject.
-
 ## Operational checks
+
+### Prepared alert delivery and reader lifecycle (8 October 2026)
+
+Prepared announcements must match the captured recovery head as well as the exchange and company
+captures. New failed attempts and unfinished recovery progress invalidate an old prepared reading
+even when its last successful timestamp is unchanged. The runner verifies that every captured
+recovery notice reaches the alert feed, including merged original links and notices without an
+attachment. This verifies delivery of captured evidence, not exhaustive source coverage.
+
+Company legal/statement-name changes replace an in-flight matching context even if ticker and
+display name are unchanged. Abandoned pool reads cannot trigger a full-history fallback or save
+an incomplete alert window. Active readers retain their existing revalidation cadence; passive
+cache observers alone do not keep bulk/block polling alive after readers close. Shared collectors
+and stored history continue independently of view navigation.
+
+Small public opening reads may overlap interface loading, but cached alerts must remain readable
+while source downloads are delayed. Every retained field and offscreen search result must survive.
+Archive merges yield between batches, serialize concurrent arrivals and retain failed-month gaps;
+an unchanged NSE window reuses rows while IST rollover still advances its cutoff.
 
 ### Telegram delivery resilience (7 September 2026)
 
@@ -223,7 +229,8 @@ and This month are IST calendar filters; each
 rolling period includes today, and This month can include 31 days. Date not supplied is a separate
 choice: observation timestamps never make undated articles appear current. Portfolio, Watchlist
 and Universe use these same boundaries. All Alerts also retains All history through today,
-Older than 30 days and its unchanged Upcoming horizon. Explicit company "See all" links select
+Older than 30 days. The Upcoming switch was removed on 12 October 2026; schedule collection and
+retained source records are unchanged. Explicit company "See all" links select
 All history rather than silently applying the Today default. Capture cadence, permanent storage,
 AI Alerts and research history are unchanged; these are reading windows, not deletion policies.
 
@@ -347,6 +354,14 @@ navigation, date rollover and portfolio synchronization using local fixtures.
 These checks test data handling and failure detection. They do not prove exhaustive upstream news
 coverage or delivery to any separate Morning CIO product.
 
+Bulk/Block Deal checks both the exchange archive and the independently saved Screener trade
+capture every minute while visible, and after returning to a stale view or reconnecting. A failed
+opening read retries without a per-company walk. Validated last-good captures survive failed
+reloads; their source times and failed delivery state remain distinct. An HTTP failure or unreadable
+response cannot establish that the deployed Worker is missing. `verify-insider-recovery-ui.mjs`
+tests these cases, retained history, reading controls and an existing service-worker session upgrade
+against isolated local fixtures. It does not certify complete exchange coverage.
+
 
 ## Dashboard-first investment research
 
@@ -390,99 +405,6 @@ health. Initial backfill is quota-limited; same-ID source corrections are not au
 See `CONCALL-SUMMARIES.md` for retention limits, activation gates and the unverified live source
 parser. Offline tests do not certify production capture or complete portfolio summary coverage.
 
-## Performance vs. Data Integrity
-Opening reads the public company identities and sector context alongside module loading, sharing
-each opening promise once with its normal reader. An unused opening promise expires after 30
-seconds; later visits use the existing revalidation policy. Secondary tab interfaces import on
-selection, with all routing/scope flags preserved. Obsolete imports cannot mount over a newer
-route. The service worker still warms all interfaces for offline visits and upgrades existing
-sessions. Source readers, polling cadence, capture, archives and full-data search/export are unchanged.
-
-**DATA INTEGRITY IS A RELEASE-BLOCKING REQUIREMENT.**
-
-Performance improvements must preserve incoming data, historical records, and existing freshness guarantees.
-
-* Do not reduce collection frequency, source coverage, pagination, retries, backfills, or retention to improve performance.
-* Switching tabs may cancel obsolete rendering work, but must not discard incoming records or interrupt shared collection/storage. Unfinished view calculations must remain reproducible from retained data.
-* Rendering limits apply only to mounted DOM rows. Search, filters, sorting, and export must operate on the complete eligible dataset.
-* Coalescing updates must preserve every distinct record and correction. Any deferred update must eventually appear automatically.
-* Keep the last good data during failures. Clearly distinguish loading, partial, stale, failed, and genuinely empty results.
-
-Before release, verify:
-1. Identical source fixtures produce the same eligible record IDs and field values before and after the change.
-2. New records, corrections, and late arrivals appear while scrolling, switching tabs, and returning after inactivity.
-3. Partial failures and interrupted requests do not erase existing records.
-4. Old and offscreen records remain searchable and exportable.
-5. Scope changes neither hide eligible records nor expose unauthorized records.
-
-If any data-integrity check fails, block release even if performance improves. Rollbacks must preserve collected history.
-
-**The customer should receive the same complete data, with smoother interaction and honest freshness status. Fewer visible DOM rows must never mean fewer available records.**
-
-## Newsletter document reading
-
-The newsletter's source-reading queue retains pending work separately from its sent-item ledger.
-Discovery and extraction are not proof of complete upstream capture. Preserve source capture times,
-document check times, full/partial/pending states, original links and distinct transactions through
-failures, restarts and rollover. Generic acquisition or other filing categories cannot establish
-that two documents describe one event. See [Newsletter source reading](NEWSLETTER-SOURCE-CONTENT.md)
-for the first-phase scope, coverage limits and regression checks.
-
-## AI alert reading reuse (28 September 2026)
-
-Data freshness checks must not repurchase a saved AI reading for identical evidence. Notes and
-attempt receipts persist independently of browser sessions and source refreshes. Temporary model
-failures have shared backoff and at most three attempts per content version; rejected, empty or
-unreadable responses remain explicitly unavailable without automatic repurchase. Genuine source
-corrections remain eligible, and all source collection, retention and refresh cadence stay intact.
-All Alerts historical access reuses saved readings beyond 60 days, with their original generation
-context. Local tests cover unchanged refresh, reload, concurrent readers, object interruption,
-day rollover, failed/withheld responses and changed evidence; they do not establish past charges.
-
-
-## Optional factual AI summaries (28 September 2026)
-
-Headline and optional AI summary supersede the earlier investment-implication line. News makes no
-summary request. A conservative shared document-type/detail gate skips routine, unclassified and
-headline-only records without hiding them or altering capture, ranking or retention. Summaries
-condense only available filing text; the linked document is not fetched. Do not invent financial
-implications, current fiscal years, dates, figures or completed status for a proposed action.
-
-An explicit no-summary result is remembered and removes the optional section, without retries.
-Actual failures remain distinguishable. Use the new summary prompt version so old speculative
-readings are never presented as factual summaries; retain their stored records and the existing
-cost ledger. Each eligible source version reuses its saved summary and keeps the existing bounded
-failure retries. Irrelevant sector/related-news changes and refresh times cannot change its key.
-
-
-## AI card timelines (28 September 2026)
-
-The Newest first section is a 288px scrolling timeline (256px on narrow screens), with at most
-20 mounted event rows per card. The full current 14-day card evidence is available by scrolling;
-source copies remain folded and the numbered citations open their original URLs. New latest
-records appear at the top automatically. A reader of older rows keeps the same record and offset,
-with a New alerts / Latest control to return to the top. Ranking, headline selection, search and
-priority continue to use the existing recent window; scrolling does not ask for model summaries.
-
-Near the end, or using Load older alerts, the view lazily reads the existing retained source
-history. Cards share one read and preparation yields between batches; no new collector, paid
-reader, polling loop or retention policy is introduced. This first older-history request can
-load the shared source capture files, rather than a per-company paginated endpoint. Older rows
-respect company identity, source eligibility and selected event types. They are available saved
-evidence, not a ledger certifying which records were historically promoted into AI cards or a
-claim of an exhaustive upstream archive. Existing source capture/retention limits still apply.
-
-Successful source removals remain authoritative. Failed public reads retain already available
-records and show an explicit retry; they never revive revoked private records. Scope/access
-changes and leaving the view revoke pending timeline publication. Normal source refreshes
-reassemble already opened history from shared source memory without extra archive polling.
-
-`verify-alert-timeline.mjs` covers 20,000 records, company/type/eligibility isolation, cancellation,
-shared requests and failed-source/private-record retention. `verify-ai-alert-timeline-ui.mjs`
-exercises 5,000 older rows, bounded DOM, scroll anchors, live insertions, lazy shared reads,
-failures/retries, source links, disposal, mobile and both themes without model requests.
-The existing cache-upgrade suite verifies timelines reach returning sessions through the real SW.
-
 ## Momentum Scanner session alignment
 
 Live screening must combine a fresh quote's price, previous close and cumulative volume from one
@@ -507,8 +429,153 @@ Legacy undated states require restoring the last completed period before a rollo
 Availability is filter-specific. Strong Momentum requires all four moving averages and all three
 RSI timeframes; Volume + Momentum needs only its own daily RSI, MACD, 20-day average, current price
 and volume evidence. Insufficient history is distinct from an overdue refresh or failed source.
+When no company can be evaluated, the existing scanner table retains searchable saved readings
+with dated daily prices and Exception status, including in exports. They are never counted as
+current passes. Ordinary source checks restore passing rows automatically and retain reader filters.
 Regression checks must cover the corrected volume shortlist, rollovers, saved-close fallback,
 outdated/mismatched quotes, newer listings, durable window retention and a warm service-worker upgrade.
+
+Universe editor openings show verified saved identities before directory revalidation completes.
+Reloads restore the complete BSE/NSE union from the device cache with the original source check times;
+reopening in the same session paints immediately. Failed, truncated, regressed or conflicting reads
+retain the last verified directory and remain visibly failed or partial. Search, exclusions and
+offscreen companies survive recovery. Preparation remains sliced and outside startup; mounted rows
+stay bounded. Verify with `verify-exchange-universe.mjs` and `verify-exchange-universe-ui.mjs`.
+
+## Performance vs. Data Integrity
+
+Shared saved screens (13 October 2026) store reading definitions rather than copied datasets.
+Reopening a named screen applies its source table and filters to the current retained data,
+using the dashboard header's currently selected scope rather than forcing the creation scope.
+The builder derives its tab/subtab/view choices from the original navigation metadata and
+opens the original live renderer to configure filters before publishing a definition;
+reader controls must not be reimplemented as a second, drifting filter catalogue.
+Screens with multiple tables retain each table's filter reading, without saving source rows;
+normal source revalidation, partial/failed states, pagination and exports remain authoritative.
+Relative date windows advance in IST and cannot become frozen snapshots. Workspace confirmation
+does not establish source freshness or completeness. Layout changes cannot alter collector budgets,
+cadence, enrollment or history. Shared-state failures retain the last verified definitions and
+pending device edits; version conflicts cannot silently overwrite another user's definition.
+Verify across separate browser storage, failed reads, incoming source rows and a controlled warm
+service-worker upgrade before release. Production validation of workspace features remains read-only.
+
+**DATA INTEGRITY IS A RELEASE-BLOCKING REQUIREMENT.**
+
+Performance improvements must preserve incoming data, historical records, and existing freshness guarantees.
+
+* Do not reduce collection frequency, source coverage, pagination, retries, backfills, or retention to improve performance.
+* Switching tabs may cancel obsolete rendering work, but must not discard incoming records or interrupt shared collection/storage. Unfinished view calculations must remain reproducible from retained data.
+* Rendering limits apply only to mounted DOM rows. Search, filters, sorting, and export must operate on the complete eligible dataset.
+* Coalescing updates must preserve every distinct record and correction. Any deferred update must eventually appear automatically.
+* Keep the last good data during failures. Clearly distinguish loading, partial, stale, failed, and genuinely empty results.
+
+Before release, verify:
+1. Identical source fixtures produce the same eligible record IDs and field values before and after the change.
+2. New records, corrections, and late arrivals appear while scrolling, switching tabs, and returning after inactivity.
+3. Partial failures and interrupted requests do not erase existing records.
+4. Old and offscreen records remain searchable and exportable.
+5. Scope changes neither hide eligible records nor expose unauthorized records.
+
+If any data-integrity check fails, block release even if performance improves. Rollbacks must preserve collected history.
+
+**The customer should receive the same complete data, with smoother interaction and honest freshness status. Fewer visible DOM rows must never mean fewer available records.**
+
+Corporate Announcements offers company-name/ticker suggestions and exact issuer selection.
+The selection intersects scope, date and text filters for rows, counts and export, survives
+refreshes, and remains explicitly outside scope after a scope change. Verified BSE/NSE identities
+join aliases; another issuer mentioning the company is not its filing. Search outages keep saved
+suggestions and ordinary text search available. Collection and retained history are unchanged.
+
+### AI Alerts reading parity (October 2026)
+
+Event-type filters are remembered, use OR within selected types, and intersect scope,
+search and priority. Routine notices are hidden by a visible, reversible control.
+Filtering changes displayed evidence and notebook snapshots, never company priority
+or archive identity. Source citations retain original publisher URLs and checked
+story history. Verified private holding sizes can sort every scope; failed or
+revoked access removes weights without dropping public evidence or masking source failures.
+
+### Factual alert summaries and durable attempts
+
+AI summaries use captured substantive filing/result text only. News, routine notices,
+headline-only items and private sources do not generate summaries. An explicit skip
+omits the section. The new prompt namespace must never reuse an old implication as
+a factual summary. Retain successful summaries and failed-attempt receipts; reserve
+budget and attempts before provider I/O, allow at most three temporary-failure
+attempts per content key, and honor server retry times across readers and restarts.
+Keep Sattva's pinned OpenAI provider and ordinary-object RPC responses.
+
+### Company alert timelines
+
+AI cards expose all selected recent developments in a bounded scrolling window and
+lazily load complete retained older public history. Older evidence must not change
+the 14-day priority or current headline. Preserve checked story members, source
+links, bookmarks, scroll anchors and partial public history when a source fails.
+Clear private history on access changes. Timeline scrolling must not request AI
+summaries; only the visible card headline can carry its optional factual summary.
+
+### Independent announcement recovery
+
+Follow `docs/BSE-COLLECTION.md`. Keep BSE category/date completeness, identity-directory
+health and publisher-index recovery separate. Retain validated partial records,
+archive before checkpointing, resume exact cursors and never advance a failed window.
+A recovery source's success cannot certify exhaustive exchange coverage.
+
+## Mutual-fund returns and category comparisons
+
+Company Holdings retains the authenticated Sattva ownership reader. All Schemes and Category
+Performance use the public AmfiBeas NAV snapshot independently of company scope. They retain
+its NAV date, source cohorts, plan and option; no index comparison or average of displayed
+rows is substituted. Conflicting published cohort statistics are withheld. Schemes without a
+source cohort identity cannot establish category statistics. Direct plans take display preference,
+single-plan ETFs remain, and every raw plan remains available to the cohort projection.
+
+A saved snapshot paints before revalidation; a failed read retains it with a failure label.
+Visible views check every 15 minutes and on return, while the source publishes daily. These
+reader checks do not claim an independent historical NAV archive or complete source coverage.
+
+### Private price levels shared with Sattva Family
+
+The dedicated `sattva-private-price-levels:v1` CaptureRegistry object keeps shared levels,
+deleted-company tombstones and reached history. Family sends changed level kinds only; explicit
+imports seed in batches of at most 40 and never overwrite a known company or deletion. Capacity
+is 600 active companies. Reached history is paginated without an oldest-record cutoff.
+
+`/api/price-levels` is service-only, requires a separate `FAMILY_PRICE_LEVELS_TOKEN` of at least
+32 characters, and grants no access from Origin or the names-only holdings token. The identical
+secret belongs only on the Central Worker and Family Pages production server; it must never be
+put in browser assets, URLs or logs. Adding it is a production configuration action requiring
+specific authorization. Family's existing password gate protects its proxy and every bridge read
+rechecks that session. Central keeps replies in memory, excludes them from public alert caches and
+automatic model requests, and clears them when the connection or authorization is lost.
+
+Explicit saves activate a durable alarm using the existing Upstox credential. GET is read-only.
+Pending levels are checked every minute during the configured weekday exchange window, with
+15-minute wakes outside it. Quotes must match exact NSE ISIN and ticker and the current IST day.
+Last trades preceding a level's set time cannot fire it; day extremes apply only to levels set
+before that session opened. Edits invalidate completeness; partial quotes never advance the last
+complete check. Market closures, credential expiry and source outages remain visible.
+
+A hit records when this service observed the level, its quote time and the evidence basis. This
+is retained history from first capture, not an exhaustive trade archive: minute sampling can miss
+an intraday crossing after a level was set, and outages cannot reconstruct those missed ticks.
+A level fires once until its value changes. Family's current-price status can change back after a
+reversal while Central keeps the dated hit. Sharing currently requires a verified NSE ticker/ISIN;
+unsupported holdings are refused explicitly. No test writes sample levels to production.
+
+### Shared holding sizes by default (12 October 2026)
+
+Dashboard percentages use the existing server-only Family holdings connection, independently
+of a browser's Family session. Every held listed ISIN, including funds and repeated lots,
+contributes to the workbook-value denominator. Missing marks withhold all weights; a failed
+check removes the in-memory snapshot without dropping public alert evidence. Percentages carry
+the workbook period, mark date, source revision and actual check time, never a live-price claim.
+No sizes enter committed snapshots, service-worker caches, IndexedDB or localStorage. Detailed
+ledger analysis and private price alerts retain their existing Family authentication boundary.
+
+A pooled news reading retains an actual failed-read receipt alongside saved records when
+coverage is re-aged. Freshness recalculation cannot replace that failure with a different
+coverage note; a newer verified capture is required to replace the receipt.
 
 ### Browser working sets and exact portfolio readings (12 October 2026)
 
@@ -528,3 +595,8 @@ cache formats, and publish only after source validation. Failed writes retain th
 reading and the previous durable record. Regression checks compare complete records and counts,
 exercise corrections and scope changes, measure input during large reads/writes, and verify that
 a returning session receives the new module and worker graph. Rendering limits remain DOM limits.
+
+Optional story-check status changes do not invalidate the evidence revision or restart collection
+and ranking. Failed checks remain visible in the status heading; new source records and accepted
+grouping decisions still update the complete view. Tests distinguish status publications from
+actual decision changes and verify that a status-only update performs no new assembly.

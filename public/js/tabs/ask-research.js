@@ -1,3 +1,4 @@
+import { TAB_META } from './catalog.js';
 import * as refreshRegistry from '../core/refresh.js';
 import { pauseFamilySession } from '../data/family-session.js';
 // tabs/ask-research.js — a dashboard-wide conversational research workspace.
@@ -21,24 +22,8 @@ import { researchPreview } from '../research/preview.js';
 import { researchHistory } from '../research/history.js';
 import { connectPortfolio, portfolioConnected, privatePortfolioContext, readResearchPortfolio, onPortfolioInvalidation, portfolioConnectionState, onPortfolioConnection, unlockPortfolio, FAMILY_ORIGIN } from '../research/portfolio-bridge.js';
 
-export const meta = {
-  id: 'ask-research',
-  title: 'Ask Research',
-  subtitle: 'Ask across every dashboard tab.',
-  subviews: [],
-  allowEmptyScope: true,
-};
+export const meta = TAB_META['ask-research'];
 
-// ONE SWITCH TURNS THIS TAB OFF, AND IT IS THIS ONE.
-//
-// Ask Research was already stood down on this deployment before the template grew its own way of
-// doing it — by hard-coding `opacity-30 select-none pointer-events-none` onto `.research-layout`.
-// That worked and was invisible: the markup looked like part of the design, nothing named it, and
-// the tab was dead in a way no flag could revive. Two mechanisms for one decision is the pattern
-// this codebase keeps having to un-write, so the classes are gone and the template's flag is the
-// whole of it: the layout is blurred and made inert by `.is-disabled-coming-soon` in the
-// stylesheet, the overlay says why, and `__ENABLE_RESEARCH__` or `enable_research=1` turns the
-// real tab back on without touching markup. The behaviour a reader sees is unchanged.
 export function isComingSoon() {
   if (typeof window !== 'undefined') {
     if (window.__ENABLE_RESEARCH__ === true) return false;
@@ -792,10 +777,12 @@ function citeResolver(companies = []) {
   return (name) => {
     const normalise = value => String(value || '').trim().toLowerCase().replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ');
     const wanted = normalise(name);
-    if (['ask sattva', 'sattva family', 'family book'].includes(wanted)) return { href: '#/research/family-book', title: 'Open the GlowVentures statement book', label: 'Family Book' };
-    const source = DASHBOARD_RESEARCH_SOURCES.find((item) => normalise(item.tab) === wanted) || DASHBOARD_RESEARCH_SOURCES.find((item) => item.id === wanted);
+    // Answers saved before the Screens rename retain their original citation wording.
+    const tabName = wanted === 'breakouts/technical' ? 'screens' : wanted;
+    if (['ask glow', 'glowventures', 'ask sattva', 'sattva family'].includes(wanted)) return { href: 'https://glowventures-1xw.pages.dev', title: 'Open the portfolio source in GlowVentures', label: 'Ask Glow' };
+    const source = DASHBOARD_RESEARCH_SOURCES.find((item) => normalise(item.tab) === tabName) || DASHBOARD_RESEARCH_SOURCES.find((item) => item.id === wanted);
     if (!source) return null;
-    return { href: dashboardHref(source.exactRoute ? source.route : tabRoute(source.route), company?.inScope === false ? 'universe' : scope, company), title: company ? `Open ${source.tab} for ${company.name || company.ticker}` : `Open ${source.tab}`, label: source.tab };
+    return { href: dashboardHref(tabRoute(source.route), company?.inScope === false ? 'universe' : scope, company), title: company ? `Open ${source.tab} for ${company.name || company.ticker}` : `Open ${source.tab}`, label: source.tab };
   };
 }
 
@@ -805,8 +792,7 @@ function citeResolver(companies = []) {
  * The shell resolves a tab with no sub-view to that tab's FIRST sub-view, which is the same rule
  * that makes the WORKSPACES array the landing page (see CLAUDE.md). So this lands a reader on the
  * view the tab itself opens on, rather than on whichever sub-view one contributing source happens
- * to belong to. A source whose citation names the view itself sets `exactRoute` and skips this —
- * Corporate Actions is one, since the label a reader clicks is the sub-view's, not the tab's.
+ * to belong to.
  */
 function tabRoute(route) {
   const [path, query = ''] = String(route || '#').split('?');
@@ -865,7 +851,7 @@ function messageNode(message) {
     context.appendChild(el('p', { class: 'text-xs text-slate-500' }, `Portfolio book: ${p.bookAsOf}. Quotes: ${quotes}. Checked ${checked} IST. Snapshot for this answer, not a live refresh.`));
     if (p.sourceErrors?.length) article.appendChild(el('p', { class: 'text-xs text-slate-500' }, `Sources not read: ${p.sourceErrors.join(', ')}.`));
     const details = el('details');
-    details.appendChild(el('summary', { class: 'research-cite' }, p.mode === 'verified-holdings' ? 'Verified portfolio context' : 'Portfolio source reading · Family Book'));
+    details.appendChild(el('summary', { class: 'research-cite' }, p.mode === 'verified-holdings' ? 'Verified portfolio context' : 'Portfolio source reading · Ask Glow'));
     const reading = el('div', { class: 'research-answer-body' });
     renderResearchAnswer(reading, p.answer, { cite: citeResolver() });
     details.appendChild(reading);

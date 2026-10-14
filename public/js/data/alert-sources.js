@@ -1,3 +1,4 @@
+import * as priceLevels from './price-levels.js';
 // Additional source-tab adapters. No ranking, company walks or upstream job dispatches.
 import * as nse from './nse-filings.js';
 import * as twitter from './twitter-news.js';
@@ -7,7 +8,6 @@ import * as concalls from './concall-scans.js';
 import * as chatter from './chatter-live.js';
 import * as calendar from './earnings-calendar.js';
 import * as ipoFilings from './ipo-filings.js';
-import * as priceLevels from './price-levels.js';
 import { screenerUpcomingKey } from './screener-upcoming-shared.js';
 import { revalidatedJson } from '../core/store.js';
 import { documentRecords, record, istDay } from './alert-records.js';
@@ -74,10 +74,12 @@ export function ipoRecord(r) {
 // and the assembly then hit is exactly what was touched here. A row that throws is left to the
 // synchronous read, which reports it in its own way.
 async function warmRecords(rows, build, feedId, yieldForInput, reading) {
+  const current = () => reading?.keepGoing?.() !== false;
+  if (!current()) return;
   let started = performance.now();
   for (const row of rows) {
     try { const event = build(row); reading?.touch?.(event, feedId); } catch { /* reported by the synchronous read */ }
-    if (performance.now() - started >= 12) { await yieldForInput(); started = performance.now(); }
+    if (performance.now() - started >= 12) { await yieldForInput(); started = performance.now(); if (!current()) return; }
   }
 }
 const warmNse = (yieldForInput, reading) => warmRecords(nse.retainedRows(), nseRecord, 'nse-filings', yieldForInput, reading);
@@ -134,16 +136,9 @@ function privateDocuments(kind, day) {
 }
 
 export const ADDITIONAL_SOURCES = [
-  // THE FAMILY'S OWN PRICE LEVELS, FIRST AMONG THESE because they are the one source the family
-  // wrote themselves — a Buy at, Sell at, Stop loss, Target or Alert above set on a
-  // holding in the Glow Ventures dashboard, checked here against the live price every minute the
-  // market is open. One row per level reached, dated to the minute the Worker first saw it; see
-  // data/price-levels.js. The rows carry high importance and are AI-eligible because the family set
-  // each level for exactly this purpose: to be told when it was reached.
-  { id: priceLevels.PRICE_LEVELS_FEED, label: 'Price levels', tab: 'breakouts',
-    what: 'Price levels the family set on their holdings in the Glow Ventures dashboard \u2014 Buy at, Sell at, Stop loss, Target and Alert above \u2014 each checked against the live price once a minute while the market is open. A row is the minute a level was first reached; a level fires once, and a new value is a new level.',
-    load: () => priceLevels.load(),
-    read: () => priceLevels.readFeed() },
+  {id:'price-levels',label:'Private price alerts',tab:'daily-alerts',private:true,
+    what:'Levels entered in GlowVentures, checked in the background during market hours. Retained reached history is read through this deployment’s own same-origin portfolio connection.',
+    load:()=>priceLevels.load(),read:()=>priceLevels.readFeed()},
   { id: 'nse-filings', label: 'NSE filings', tab: 'nse-filings', what: 'Every filing in the available retained NSE window, including unresolved and undated filings.',
     load: async (refresh) => { await nse.load(); if (refresh) await nse.refresh(); await nse.loadHistory(90, { updateWindow: false }); },
     warm: warmNse,
@@ -174,7 +169,7 @@ export const ADDITIONAL_SOURCES = [
       kind: 'scheduled', scheduledFor: r.date || istDay(r.when) })),
       ...confirmed(concalls.meta()?.fetchedAt, day, !!concalls.meta()?.degraded) }) },
   { id: 'screener-portfolio-upcoming', label: 'Portfolio calendar', tab: 'daily-alerts', portfolioOnly: true,
-    what: 'Upcoming AGMs, postal ballots, results, calls and other scheduled events shown for the exact configured Screener portfolio watchlist. Scheduled, not completed.',
+    what: 'Upcoming AGMs, postal ballots, results, calls and other scheduled events shown for the exact S Screen portfolio watchlist. Scheduled, not completed.',
     load: () => concalls.load(),
     read: ({ day }) => {
       const meta = concalls.meta();
@@ -196,7 +191,7 @@ export const ADDITIONAL_SOURCES = [
           companyUrl: r.companyUrl,
         })),
         // A RETAINED CALENDAR IS DATED TO ITS OWN CAPTURE, NOT TO THE CHECK THAT FAILED.
-        // The configured Screener artifact is a separate upstream to the con-call rows beside it, so its read
+        // The S Screen artifact is a separate upstream to the con-call rows beside it, so its read
         // can fail on its own; the rows above are then the last calendar anybody read, and they
         // stay on screen rather than being reported as an empty day. `asOf` is that capture's time
         // — stamping it with the failed check would be the retained copy claiming a freshness
@@ -212,7 +207,7 @@ export const ADDITIONAL_SOURCES = [
           meta?.portfolioUpcomingCheckedAt || source?.checkedAt,
           day,
           meta?.portfolioUpcomingConfirmed === false || source?.status !== 'ok' || source?.collectorLatestFailed === true || source?.portfolioUpcomingAvailable === false,
-          `Authenticated configured Screener dashboard calendar for the synchronized portfolio watchlist.${meta?.portfolioUpcomingRetained ? ' The latest check could not read the dashboard; these are the retained rows from the last successful capture, not a confirmation that they are still scheduled.' : ''}`,
+          `Authenticated S Screen dashboard calendar for the synchronized portfolio watchlist.${meta?.portfolioUpcomingRetained ? ' The latest check could not read the dashboard; these are the retained rows from the last successful capture, not a confirmation that they are still scheduled.' : ''}`,
         ),
       };
     } },
@@ -252,7 +247,8 @@ export const ADDITIONAL_SOURCES = [
 ];
 
 export const additionalSourceDependencies = [
+  [priceLevels,['price-levels']],
   [nse, ['nse-filings']], [twitter, ['twitter']], [institutions, ['institutions']],
-  [calendar, ['earnings-calendar']], [ipoFilings, ['ipos']], [priceLevels, [priceLevels.PRICE_LEVELS_FEED]],
+  [calendar, ['earnings-calendar']], [ipoFilings, ['ipos']],
 ];
 export const additionalSubscriptions = additionalSourceDependencies.map(([source]) => source);

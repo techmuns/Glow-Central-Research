@@ -1,5 +1,3 @@
-> Template reference: this document includes Sattva deployment assumptions. For Glow source wiring, credentials and activation, follow [GLOW-TEMPLATE-SYNC.md](GLOW-TEMPLATE-SYNC.md).
-
 # Active Family Office holdings
 
 ## Why this changes the connection

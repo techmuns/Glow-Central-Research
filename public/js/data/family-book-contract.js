@@ -40,7 +40,7 @@ export function validateFamilyBook(body) {
   if (!Number.isInteger(body.positions) || body.positions < lines.length) throw new Error('Invalid position count');
   // Explicit projection: a future upstream field cannot accidentally publish money.
   return {
-    schemaVersion: 1, source: 'Sattva Family Office active holdings', storage: body.storage,
+    schemaVersion: 1, source: 'GlowVentures Office active holdings', storage: body.storage,
     sourceWorkbook: { fileKey: w.fileKey, label: w.label.slice(0, 200), uploadedAt: typeof w.uploadedAt === 'string' && Number.isFinite(Date.parse(w.uploadedAt)) ? w.uploadedAt : null },
     asOf: body.asOf, checkedAt: body.checkedAt, revision: body.revision,
     positions: body.positions, count: lines.length, excluded, lines,

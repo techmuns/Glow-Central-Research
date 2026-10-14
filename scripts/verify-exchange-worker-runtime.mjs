@@ -48,7 +48,7 @@ try {
   assert.deepEqual(await (await fetch(statusUrl)).json(), { ok: false, capturedAt: null, artifactId: null, reason: 'unverified' });
   metadataAvailable = true;
   const response = await fetch(url);
-  assert.equal(response.headers.get('x-glow-exchange-fallback'), null);
+  assert.equal(response.headers.get('x-sattva-exchange-fallback'), null);
   assert.deepEqual(await response.json(), payload, 'gzip must be decoded exactly once by HTTP clients');
   let next, cached = false;
   for (let i = 0; i < 10 && !cached; i++) {

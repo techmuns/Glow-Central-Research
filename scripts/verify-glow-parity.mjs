@@ -119,11 +119,10 @@ try {
   assert.equal(readFileSync(file, 'utf8'), bytes);
 } finally { rmSync(scratch, { recursive: true, force: true }); }
 const shell = readFileSync(new URL('../public/js/ui/shell.js', import.meta.url), 'utf8');
-const registry = readFileSync(new URL('../public/js/ui/tab-registry.js', import.meta.url), 'utf8');
+const registry = readFileSync(new URL('../public/js/tabs/registry.js', import.meta.url), 'utf8');
 assert(shell.includes('tabs: researchTabs'), 'the shell uses the research tab registry');
-for (const id of ['mutual-funds', 'macro-research', 'economy-macro', 'family-book']) {
-  assert(registry.includes(`id: '${id}'`), `${id} remains in research navigation`);
-  assert(registry.includes(`import('../tabs/${id}.js')`), `${id} retains its interface`);
+for (const id of ['portfolio', 'watchlist', 'mutual-funds']) {
+  assert(registry.includes(`import('./${id}.js')`), `${id} retains its interface`);
 }
 // `scripts/` IS SCANNED, AND IT IS THE DIRECTORY THE ADAPTER CANNOT REACH. `adaptGlowTemplate`
 // skips every `verify-*` file on purpose — a check may legitimately assert an upstream string, and
@@ -135,7 +134,7 @@ for (const id of ['mutual-funds', 'macro-research', 'economy-macro', 'family-boo
 // the substitution table itself, this checker's own assertions, the documented Sattva bulk/block
 // fallback, and the deliberately foreign cache key in the review-gate fixture.
 const deliberatelyForeign = new Set(['adapt-glow-template.mjs', 'verify-glow-parity.mjs',
-  'sync-bulk-deals.mjs', 'verify-glow-isolation.mjs']);
+  'sync-bulk-deals.mjs', 'verify-glow-isolation.mjs', 'verify-private-price-levels.mjs', 'verify-research-stream-ui.mjs']);
 const scan = dir => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
@@ -163,7 +162,11 @@ const scan = dir => {
 scan('worker'); scan('public/js'); scan('scripts');
 const sync = readFileSync(new URL('../.github/workflows/sync-upstream.yml', import.meta.url), 'utf8');
 assert(!sync.includes('HEAD:main'));
-assert(sync.includes('git restore --source="$base" --staged --worktree'));
+assert(sync.includes('prepare-glow-template-patch.mjs'));
+const baseline = JSON.parse(readFileSync(new URL('../docs/GLOW-TEMPLATE-BASELINE.json', import.meta.url)));
+assert.equal(baseline.mode, 'source-diff');
+for (const path of ['public/data', 'public/js/tabs/portfolio.js', 'public/js/tabs/watchlist.js', 'public/js/core/research-sheet.js'])
+  assert(baseline.preserve.includes(path), `${path} cannot be replaced by an automatic template patch`);
 assert(sync.includes('codex/sattva-sync-'));
 assert(sync.includes('--body-file'));
 console.log(`PASS Glow parity: ${companies.count} identities, complete statement weights, source dates, nulls, portfolio isolation, local asset-only reads and PR-only template sync.`);

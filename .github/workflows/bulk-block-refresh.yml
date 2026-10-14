@@ -6,13 +6,6 @@ on:
     - cron: '5,35 4-16 * * 1-5'
     # Weekend catch-up for late publications.
     - cron: '35 13 * * 0,6'
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/bulk-block-refresh.yml'
-      - 'scripts/capture-exchange-deals.mjs'
-      - 'scripts/lib/exchange-deals.mjs'
-      - 'worker/exchange-artifact.mjs'
   workflow_dispatch:
     inputs:
       source:

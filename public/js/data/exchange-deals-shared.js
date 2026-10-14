@@ -1,4 +1,4 @@
-// GLOW-owned exchange history. Compact tuples keep a year of reports inexpensive to deliver.
+// Sattva-owned exchange history. Compact tuples keep a year of reports inexpensive to deliver.
 // source id, date, exchange security id, display name, client, side, shares, price, remarks.
 import { mergeInsiderTrades } from './insider-history.js';
 export const EXCHANGE_SOURCES = [

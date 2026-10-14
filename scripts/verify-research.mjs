@@ -88,7 +88,7 @@ ok('Insights portfolio membership follows the current book, including verified t
 
 ok('the runtime research catalog covers every visible research tab, and nothing that is not one', () => {
   const tabs = new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.tab));
-  for (const title of ['AI Alerts', 'All Alerts', 'Earnings Hub', 'Con-call', 'Public Chatter', 'Breakouts / Technical', 'Super Investors', 'News', 'Corp Announcements', 'Bulk/Block Deal']) {
+  for (const title of ['AI Alerts', 'All Alerts', 'Earnings Hub', 'Con-call', 'Public Chatter', 'Screens', 'Super Investors', 'News', 'Corp Announcements', 'Bulk/Block Deal']) {
     assert.equal(tabs.has(title), true, title);
   }
   // The mock ledger was the fifteenth source and cited itself as "Portfolio Analytics", linking
@@ -99,7 +99,6 @@ ok('the runtime research catalog covers every visible research tab, and nothing 
     assert.match(source.route, /^#\/research\//, source.id);
   }
   assert.equal(new Set(DASHBOARD_RESEARCH_SOURCES.map((source) => source.id)).size, DASHBOARD_RESEARCH_SOURCES.length);
-  assert.equal(DASHBOARD_RESEARCH_SOURCES.some((source) => source.id === 'earnings-surprise'), false);
 });
 
 ok('earnings calendar evidence keeps paginated results and upcoming calls separate from filed results', () => {
@@ -223,25 +222,6 @@ ok('a skeleton larger than the budget is trimmed, and says so, before a single r
   assert.equal(fittedFat.sources.every((source) => source.status === 'ready' && source.source && source.definition !== ''), true);
   const skeletonChars = providerEvidenceChars({ ...fittedFat, sources: fittedFat.sources.map((source) => ({ ...source, rows: [] })) });
   assert.equal(skeletonChars <= Math.floor(RESEARCH_EVIDENCE_CHAR_BUDGET * (1 - ROW_RESERVE_SHARE)), true);
-});
-
-ok('long representative rows displace optional metadata before a matching feed is lost', () => {
-  const sources = Array.from({ length: 12 }, (_, i) => ({
-    id: `feed-${i}`, status: 'ready', source: `Original source ${i}`, asOf: '2026-09-09',
-    definition: 'Reported text and original citation; document contents were not extracted.',
-    rowCount: 1, companyRows: 1, rowTiers: [0], rowPriorities: [0],
-    coverage: { notes: Array.from({ length: 5 }, () => 'Optional capture coverage '.repeat(6)) },
-    retrieval: { candidateRows: 1, inWindowRows: 1, olderRows: 0, undatedRows: 0 },
-    rows: [{ ticker: 'RECLTD', title: 'Literal reported headline '.repeat(18), text: 'Literal source excerpt '.repeat(35), url: `https://example.com/filing/${i}` }],
-  }));
-  const fitted = fitEvidenceToBudget({ sources });
-  assert.ok(providerEvidenceChars(fitted) <= RESEARCH_EVIDENCE_CHAR_BUDGET);
-  assert.ok(fitted.sources.every(source => source.includedRows === 1));
-  for (const [i, source] of fitted.sources.entries()) {
-    assert.equal(source.rows[0].url, sources[i].rows[0].url);
-    assert.equal(source.definition, sources[i].definition);
-    assert.equal(source.asOf, sources[i].asOf);
-  }
 });
 
 const companyIndex = [

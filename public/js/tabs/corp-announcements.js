@@ -1,16 +1,6 @@
-// tabs/corp-announcements.js — ONE TAB, TWO VIEWS: Announcements and Corporate Actions.
-//
-// The Announcements view is a continuous, scoped stream of source announcements. BSE date captures,
-// live NSE filings and retained Muns company documents share one table and keep their source labels.
-// Corporate Actions is the second view (tabs/corporate-actions.js, unchanged inside), switched on the
-// title row (`inlineSubviews: true`, corp-announcements-views.js); the view that is leaving is torn
-// down before the other mounts.
-//
-// THE FILING-TYPES SWITCH IS GONE, AND NOTHING IS HIDDEN BY DEFAULT ANY MORE. Routine & administrative
-// filings used to start switched off. The desk now asked for every filing to stay visible and for
-// routine ones to rank lower instead, so the Category filter below starts at All and the ranking does
-// the sorting. data/announcement-types.js still reads one type per filing for the alert notes and the
-// AI Alerts type filter; this tab no longer uses it.
+import { TAB_META } from './catalog.js';
+// A continuous, scoped stream of source announcements. BSE date captures, live NSE
+// filings and retained Muns company documents share one table and keep their source labels.
 //
 // SERVED A PAGE AT A TIME. The table asks the Worker's announcement index for one ranked page of the
 // question on screen (period, scope, categories, market cap, search, one company) and receives the
@@ -32,7 +22,7 @@ import { formatDate, formatNumber } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { corporateAnnouncements as identityFeed } from '../data/corporate-announcements.js';
-import { announcementSources, announcementSourceUrls } from '../data/announcements-shared.js';
+import { announcementSources, announcementSourceUrls, announcementUrl } from '../data/announcements-shared.js';
 import { captureCoverageHtml } from '../ui/capture-coverage.js';
 import { announcementCoverage } from '../data/announcement-coverage.js';
 import { announcementSearch } from '../ui/announcement-search.js';
@@ -48,12 +38,34 @@ import * as localEngine from '../data/announcement-query-local.js';
 import { categoryChips } from '../ui/category-chips.js';
 import { openAnnouncementRead } from '../ui/announcement-read.js';
 import { loadModel } from '../data/relevance-feedback.js';
-import * as corporateActions from './corporate-actions.js';
-import { ANNOUNCEMENTS_VIEW, CORPORATE_ACTIONS_VIEW, VIEWS, viewSwitchHtml } from './corp-announcements-views.js';
 
-const DEFAULT_PERIOD = 'all';
+const DEFAULT_PERIOD = '3';
 // The periods this tab has always offered; the index answers any of ANNOUNCEMENT_PERIODS.
 const TAB_PERIODS = ['today', '3', '7', 'month', 'all'].map((value) => ANNOUNCEMENT_PERIODS.find((p) => p.value === value));
+
+function companyCell(row) {
+  const name = row.company || row.ticker || row.scripCode || 'Company unavailable';
+  const symbol = [row.ticker, row.scripCode !== row.ticker ? row.scripCode : null].filter(Boolean).join(' · ');
+  return `<div class="ca-company-cell"><strong>${escapeHtml(name)}</strong>${symbol ? `<small>${escapeHtml(symbol)}</small>` : ''}</div>`;
+}
+
+function filingLinks(row) {
+  const sources = announcementSources(row), links = announcementSourceUrls(row);
+  const anchor = (source, url, reference = false) => `<a data-stop href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="ca-exchange-link"${reference ? ' title="Source reference page; no filing document was supplied"' : ''}>${escapeHtml(source)}${reference ? ' reference' : ''} ↗</a>`;
+  const linkedSources = new Set(links.map(link => link.source));
+  const parts = links.map(link => anchor(link.source, link.url));
+  const primary = announcementUrl(row.url), reference = !primary && !links.length && announcementUrl(row.referenceUrl);
+  for (const source of sources) {
+    if (linkedSources.has(source)) continue;
+    parts.push(reference && sources.length === 1 ? anchor(source, reference, true) : `<span>${escapeHtml(source)}</span>`);
+  }
+  // Legacy combined-source records can carry an unattributed primary URL. Keep it reachable
+  // without assigning that document to an exchange the capture did not identify.
+  if (primary && !links.some(link => link.url === primary)) parts.push(anchor('Open filing', primary));
+  if (reference && sources.length !== 1) parts.push(anchor('Open', reference, true));
+  return parts.length ? `<div class="ca-exchange-links">${parts.join('')}</div>` : 'Not specified';
+}
+
 const FILTERS_KEY = 'sattva:announcement-filters:v1';
 const POLL_ID = 'corporate-announcements-index';
 const POLL_MS = 90_000;
@@ -78,7 +90,20 @@ const readFilters = () => {
   } catch { return { categories: [], mcap: 'all' }; }
 };
 const filters = readFilters();
-const saveFilters = () => { try { localStorage.setItem(FILTERS_KEY, JSON.stringify(filters)); } catch { /* this session still filters */ } };
+const saveFilters = () => { if (currentCtx?.savedView) return; try { localStorage.setItem(FILTERS_KEY, JSON.stringify(filters)); } catch { /* this session still filters */ } };
+let savedSeed = null, normalFilters = null, normalAsked = null;
+export function getSavedView() {
+  const company = asked.state?.selected;
+  return { categories: [...filters.categories], mcap: filters.mcap, period: asked.period, query: asked.q,
+    companyTicker: company?.ticker || '', companyIsin: company?.isin || '', companyBse: company?.bseCode || company?.scripCode || '', companyName: company?.name || '' };
+}
+export function applySavedView(extras = {}, reading = {}) {
+  normalFilters = { categories: [...filters.categories], mcap: filters.mcap };
+  normalAsked = { ...asked };
+  filters.categories = Array.isArray(extras.categories) ? [...extras.categories] : [];
+  filters.mcap = extras.mcap || 'all';
+  savedSeed = { extras, reading };
+}
 
 const query = createAnnouncementQuery({ pageSize: 200 });
 let currentCtx = null;
@@ -153,7 +178,7 @@ const feedbackItem = (row) => ({ surface: 'announcements', itemKey: row.id, even
 
 const mcapCell = (r) => {
   const text = formatMarketCap(r.mcapCr);
-  if (!text) return dash('No market cap is known for this company. Its filings stay visible; the range filter lists it under "Not available".');
+  if (!text) return dash(`No market cap is known for this company. Its filings stay visible; the range filter lists it under "Not available".${r.mcapSource ? ` ${r.mcapSource}` : ''}`);
   const title = `Market cap ${text}${r.mcapAsOf ? ` as of ${String(r.mcapAsOf).slice(0, 10)}` : ''}${r.mcapSource ? ` · ${r.mcapSource}` : ''}`;
   return `<span class="tabular-nums text-slate-700" title="${escapeHtml(title)}">${escapeHtml(text.replace(/^₹/, '₹ '))}</span>`;
 };
@@ -386,13 +411,7 @@ function searchControl({ ctx, rows, view }) {
 }
 
 const tab = makeFilingsTab({
-  id: 'corp-announcements',
-  title: 'Corp Announcements',
-  subtitle: 'Company announcements from BSE, NSE and captured filings — newest day first, the most relevant first within each day.',
-  // THE TITLE ROW IS THE WHOLE HEAD: the view switch is drawn beside the title, the sentence above is
-  // the first line of the provenance panel, and the status label keeps its place on the right.
-  compactHead: true,
-  headAside: (ctx) => viewSwitchHtml(ctx, ANNOUNCEMENTS_VIEW),
+  ...TAB_META['corp-announcements'],
   feed,
   filterByScope: (list) => list,
   keyFor: (r) => r.id,
@@ -411,6 +430,14 @@ const tab = makeFilingsTab({
   searchControl,
   prepareView(ctx, view) {
     currentCtx = ctx;
+    if (savedSeed) {
+      const { extras, reading } = savedSeed;
+      const period = extras.period || reading.filters?.find(filter => filter.label === 'Announcement period (IST)')?.value || DEFAULT_PERIOD;
+      view = { q: extras.query || reading.q || '', filters: [period], savedViewKey: ctx.savedViewKey };
+      asked.state = null;
+      if (extras.companyTicker || extras.companyIsin || extras.companyBse) view.searchState = { q: view.q, selected: { ticker: extras.companyTicker || null, isin: extras.companyIsin || null, bseCode: extras.companyBse || null, name: extras.companyName || null } };
+      savedSeed = null;
+    }
     adopt(view);
     query.setQuery(questionFor(ctx));
     void loadModel();
@@ -429,31 +456,33 @@ const tab = makeFilingsTab({
   toolbarControls,
   belowTable,
   wireBelowTable,
-  status: (m) => {
+  // Collection diagnostics are reached from the source beacon, outside the table.
+  methodInSources: true,
+  status: () => '',
+  methodLabel: (m) => {
     const status = announcementCoverage(m);
-    const qm = m.query || {};
-    const extra = [
-      qm.mode === 'local' ? 'Prepared in this browser from the captures: the server index could not be read.' : null,
-      qm.index?.stale ? `The latest index check failed (${qm.index.error}); the last good build is shown.` : null,
-    ].filter(Boolean).join(' ');
-    const asked = query.query();
-    return `<span data-filings-info data-ca-mode="${escapeHtml(qm.mode || 'unknown')}" data-ca-state="${escapeHtml(qm.state || '')}" data-ca-q="${escapeHtml(asked.q || '')}" data-ca-period="${escapeHtml(asked.period)}" class="text-xs font-semibold ${status.incomplete ? 'text-amber-700' : 'text-slate-500'}" title="${escapeHtml(`${status.detail}${extra ? ` ${extra}` : ''}`)}">${escapeHtml(status.label)}</span>`;
+    const partial = status.incomplete || m.query?.mode === 'local' || m.query?.index?.stale || m.query?.state === 'failed';
+    return `Collection details · ${partial ? 'Partial source coverage' : status.label}`;
   },
   emptyMessage: () => (query.meta().state === 'loading' ? 'Loading announcements…' : 'No announcements match this scope, period, category, market cap or search.'),
   stickyHead: 'max(320px, calc(100vh - 260px))',
   noun: 'announcements',
   nameLabel: 'Subject',
+  nameAfter: 1,
   nameMaxPx: 560,
+  nameWrap: true,
+  watchColumn: 'Company',
+  bookmarkPlacement: 'trailing',
+  rowActionLabel: (row) => `Read announcement: ${cleanFilingText(row.title || row.headline) || '(no subject)'}`,
   // The subject is the exchange's own words, exactly as filed.
   rowName: (r) => cleanFilingText(r.title || r.headline) || '(no subject)',
-  // The company name leads, because a date-indexed feed covers companies this dashboard has no
-  // ticker for and a bare scrip code identifies nothing to a reader.
-  rowSub: (r) => [r.company, r.ticker, r.category && r.category !== r.subCategory ? r.category : null, r.subCategory, r.documentUnavailable ? 'Source supplied no document link' : null].filter(Boolean).join(' · '),
+  rowSub: (r) => [r.category && r.category !== r.subCategory ? r.category : null, r.subCategory, r.documentUnavailable ? 'Source supplied no document link' : null].filter(Boolean).join(' · '),
   afterSub: relatedHtml,
-  link: (r) => r.url || r.referenceUrl || null,
+  link: false,
   onRowClick: (row) => openAnnouncementRead(row, { loadEvent: (event) => query.event(event.id, event), item: feedbackItem(row) }),
   searchable: () => '',
   columns: () => [
+    { label: 'Company', get: companyCell, html: true, sortable: false },
     {
       label: 'Date',
       get: (r) => (r.date
@@ -464,11 +493,13 @@ const tab = makeFilingsTab({
     },
     { label: 'Categories', get: (r) => categoryChips(r.categories || [], { weak: r.weakCategories || [], max: 2, empty: dash('No category matched') }), html: true, sortable: false },
     { label: 'Market cap', get: mcapCell, html: true, align: 'right', sortable: false },
-    { label: 'Source', get: (r) => announcementSources(r).join(' / ') || 'Not specified', sortable: false },
+    { label: 'Link', get: filingLinks, html: true, sortable: false },
   ],
-  provenance: (m) => {
+  provenance: (m, { scope } = {}) => {
     const qm = m.query || {};
     const index = qm.index || {};
+    const marketCaps = index.meta?.profiles?.marketCapCoverage;
+    const capDirectory = index.meta?.profiles?.marketCapDirectory;
     const built = index.builtAt ? new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(index.builtAt)) + ' IST' : 'unavailable';
     return `<div class="px-7 py-6">
     <div class="mb-3 flex items-start justify-between gap-4">
@@ -476,6 +507,8 @@ const tab = makeFilingsTab({
       <button data-modal-close class="text-2xl text-slate-400">&times;</button>
     </div>
     <div class="space-y-3 text-sm leading-relaxed text-slate-600">
+      <p><strong>Collection status:</strong> ${escapeHtml(announcementCoverage(m).detail)}</p>
+      ${index.stale ? `<p>The latest index check failed (${escapeHtml(index.error)}); the last good build is shown.</p>` : ''}
       <p><strong>How this list is served:</strong> ${qm.mode === 'server'
         ? `the server index (built ${escapeHtml(built)} from the committed captures, with NSE's live feed read again every two minutes) answers one ranked page at a time.`
         : 'the server index could not be read, so this browser prepared the list from the captures, as the tab always could. Related filings are linked within the selected period only on this copy.'}</p>
@@ -489,8 +522,19 @@ const tab = makeFilingsTab({
       <p><strong>Related filings</strong> are other filings by the same company about the same underlying event — the board intimation,
         the outcome, the results, the presentation, the call; or an approval, an allotment and a listing — joined by category family,
         time and shared words. Every filing stays its own row.</p>
-      <p><strong>Market cap</strong> is the latest captured figure (Screener's, or Moneycontrol's shares × last price), with its date in the
-        cell's tooltip. A company with no known figure shows “—” and is never treated as small or zero.</p>
+      <p><strong>Market cap</strong> uses public Screener figures across the exchange directory, with the technicals and Moneycontrol
+        captures as fallbacks. The cell's tooltip distinguishes when the figure was checked from the source's price date;
+        a screen that supplies no price date stays undated. Failed checks retain the last figure and its original check time.
+        A company with no known figure shows “—” and is never treated as small or zero.</p>
+      ${marketCaps ? `<p><strong>Market-cap coverage:</strong> ${escapeHtml(marketCaps.known)} of ${escapeHtml(marketCaps.companies)} directory companies have a saved public figure;
+        ${escapeHtml(marketCaps.checked)} source checks were verified in the latest collection attempt${marketCaps.attempted != null ? ` (${escapeHtml(marketCaps.attempted)} attempted)` : ''}.
+        ${escapeHtml(marketCaps.unavailable)} still have no figure from this source.
+        ${marketCaps.directoryPartial || marketCaps.directFailures > 0 || marketCaps.refused || !marketCaps.screenComplete || marketCaps.directRead < marketCaps.directTotal ? 'The latest collection is partial; previous figures retain their own check times.' : ''}
+        ${marketCaps.directFailures ? `${escapeHtml(marketCaps.directFailures)} company-page checks failed.` : ''}</p>` : ''}
+      ${capDirectory ? `<p><strong>Market-cap directory checks:</strong> BSE ${escapeHtml(capDirectory.bse?.checkedAt || 'unavailable')}${capDirectory.bse?.error ? ` (failed: ${escapeHtml(capDirectory.bse.error)})` : ''};
+        NSE main board ${escapeHtml(capDirectory.nse?.equity?.checkedAt || 'unavailable')}${capDirectory.nse?.equity?.error ? ` (failed: ${escapeHtml(capDirectory.nse.equity.error)})` : ''};
+        NSE SME ${escapeHtml(capDirectory.nse?.sme?.checkedAt || 'unavailable')}${capDirectory.nse?.sme?.error ? ` (failed: ${escapeHtml(capDirectory.nse.sme.error)})` : ''}.
+        A later request attempt does not advance a verified directory check.</p>` : ''}
       <p><strong>AI Read</strong> opens only when you click a filing: it reads that one document in full and keeps the reading so the next
         reader pays nothing. The list never shows a generated headline or summary; subjects are the exchange's own.</p>
       <p><strong>BSE:</strong> exchange-wide announcements are captured every two hours, with retained monthly history.
@@ -523,7 +567,7 @@ const tab = makeFilingsTab({
       <p>No PDF is summarized or scored in the list. Missing fields remain blank.</p>
       ${m.archive?.error ? `<p>${escapeHtml(m.archive.error)}</p>` : ''}
       ${m.nse?.historyUnavailable || m.nse?.allMissingDays?.length ? '<p>Some retained NSE history could not be loaded; existing records remain visible.</p>' : ''}
-      ${captureCoverageHtml('announcements')}
+      ${captureCoverageHtml('announcements', null, { scope })}
       ${qm.mode === 'local' ? coverageBlock({ ...m, rowCount: qm.total ?? 0, covered: qm.companies ?? 0 }) : ''}
     </div>
   </div>`;
@@ -553,8 +597,9 @@ const tab = makeFilingsTab({
         { header: 'Company (as filed)', key: 'co', width: 38, get: (r) => (r.__banner ? '' : r.company || '') },
         { header: 'Subject (as filed)', key: 'h', width: 70, get: (r) => (r.__banner ? '' : cleanFilingText(r.title || r.headline)) },
         { header: 'Categories (dashboard)', key: 'cat', width: 40, get: (r) => (r.__banner ? '' : (r.categories || []).map(categoryLabel).join('; ')) },
-        { header: 'Market cap (₹ Cr)', key: 'mc', width: 16, get: (r) => (r.__banner ? '' : Number.isFinite(r.mcapCr) ? Math.round(r.mcapCr) : '') },
+        { header: 'Market cap (₹ Cr)', key: 'mc', width: 16, get: (r) => (r.__banner ? '' : Number.isFinite(r.mcapCr) ? r.mcapCr : '') },
         { header: 'Market cap as of', key: 'mca', width: 14, get: (r) => (r.__banner ? '' : r.mcapAsOf ? String(r.mcapAsOf).slice(0, 10) : '') },
+        { header: 'Market cap provenance', key: 'mcs', width: 70, get: (r) => (r.__banner ? '' : r.mcapSource || '') },
         { header: 'Related filings (same event)', key: 'rel', width: 14, get: (r) => (r.__banner ? '' : r.event?.size > 1 ? r.event.size - 1 : 0) },
         { header: 'Category (as filed)', key: 'c', width: 22, get: (r) => (r.__banner ? '' : r.category || '') },
         { header: 'Sub-category (as filed)', key: 'sb', width: 30, get: (r) => (r.__banner ? '' : r.subCategory || '') },
@@ -569,25 +614,11 @@ const tab = makeFilingsTab({
   },
 });
 
-export { ANNOUNCEMENTS_VIEW, CORPORATE_ACTIONS_VIEW };
-
-// Announcements is first, and first is what the shell opens the tab on: `handleRoute` resolves a
-// missing or unknown sub-view to `subviews[0]`. `inlineSubviews: true` keeps that routing and
-// declines the shell's picker card: the switch is on the title row (corp-announcements-views.js).
-export const meta = {
-  id: tab.meta.id,
-  title: tab.meta.title,
-  subtitle: tab.meta.subtitle,
-  subviews: VIEWS.map((v) => ({ id: v.id, label: v.label })),
-  inlineSubviews: true,
-};
+export const meta = TAB_META['corp-announcements'];
 /** The paged query behind the table — for diagnostics and the browser checks. */
 export const announcementQuery = query;
-
-let mounted = null; // ANNOUNCEMENTS_VIEW | CORPORATE_ACTIONS_VIEW | null
 let liveRef = null;
-
-function mountAnnouncements(ctx) {
+export function render(ctx) {
   currentCtx = ctx;
   tab.render(ctx);
   if (ctx.live && !liveRef) {
@@ -605,8 +636,7 @@ function mountAnnouncements(ctx) {
     liveRef.start(POLL_ID, { fresh: true });
   }
 }
-
-function unmountAnnouncements() {
+export function destroy() {
   clearTimeout(searchTimer);
   closePopover();
   // Nobody is reading this table any more: stop any preparation in this browser now.
@@ -615,26 +645,7 @@ function unmountAnnouncements() {
   liveRef = null;
   currentCtx = null;
   tab.destroy();
-}
-
-export function render(ctx) {
-  // A caller that names no sub-view — the stream's own browser check drives this module with a
-  // bare ctx — gets the Announcements view, the same one the shell resolves to.
-  const wanted = ctx.subview === CORPORATE_ACTIONS_VIEW ? CORPORATE_ACTIONS_VIEW : ANNOUNCEMENTS_VIEW;
-  if (mounted && mounted !== wanted) {
-    if (mounted === CORPORATE_ACTIONS_VIEW) corporateActions.destroy();
-    else unmountAnnouncements();
-  }
-  mounted = wanted;
-  if (wanted === CORPORATE_ACTIONS_VIEW) {
-    corporateActions.render(ctx);
-    return;
-  }
-  mountAnnouncements(ctx);
-}
-
-export function destroy() {
-  if (mounted === CORPORATE_ACTIONS_VIEW) corporateActions.destroy();
-  else if (mounted === ANNOUNCEMENTS_VIEW) unmountAnnouncements();
-  mounted = null;
+  savedSeed = null;
+  if (normalFilters) { filters.categories = normalFilters.categories; filters.mcap = normalFilters.mcap; normalFilters = null; }
+  if (normalAsked) { Object.assign(asked, normalAsked); normalAsked = null; }
 }

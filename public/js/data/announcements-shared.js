@@ -162,7 +162,17 @@ function mergeAnnouncement(previous, row, sources, sourceUrls) {
 }
 
 /** Append new disclosures; only proven same-document/date/company overlap collapses. */
-function* mergeAnnouncementSteps(lists) {
+export function mergeAnnouncements(...lists) {
+  return runSteps(mergeAnnouncementSteps(...lists));
+}
+
+export function mergeAnnouncementsAsync(lists, options) {
+  return runStepsInSlices(mergeAnnouncementSteps(...lists), options);
+}
+
+// The synchronous collector and the browser warm-up share the exact same merge. Yield within
+// each source and the final stable sort so preparing retained history cannot block tab input.
+export function* mergeAnnouncementSteps(...lists) {
   const out = [], seen = new Map();
   let processed = 0;
   for (const list of lists) {
@@ -189,15 +199,6 @@ function* mergeAnnouncementSteps(lists) {
     }
   }
   return yield* sortSteps(out, (a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`));
-}
-
-export function mergeAnnouncements(...lists) {
-  return runSteps(mergeAnnouncementSteps(lists));
-}
-
-/** Same complete merge, with input/render opportunities between bounded batches. */
-export function mergeAnnouncementsAsync(lists, options) {
-  return runStepsInSlices(mergeAnnouncementSteps(lists), options);
 }
 
 /**

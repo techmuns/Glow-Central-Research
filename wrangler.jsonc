@@ -1,7 +1,9 @@
 {
   // MUST match the deployed Worker: https://glow-central-research.tech-441.workers.dev.
-  // Glow-owned identity; the shared source and Durable Object class come from the template.
-  // Keep the Worker, repository and limiter namespaces separate from Sattva.
+  // This said "sattva-central" while the live Worker was "glow-central-research", so
+  // `npx wrangler deploy` would have created a SECOND, empty Worker beside the real one, and
+  // `npx wrangler secret put MUNS_TOKEN` would have put the credential on that empty one — where
+  // nothing reads it, and where it would look like it had been set correctly.
   "name": "glow-central-research",
   "compatibility_date": "2026-05-23",
   "main": "worker/entry.js",
@@ -20,13 +22,7 @@
       // object (team-brief:v1) whose alarm is what sends the morning and evening emails. Same
       // provisioned class, its own storage; see worker/newsletter-schedule.mjs.
       { "name": "NEWSLETTER", "class_name": "CaptureRegistry" },
-      // The alerts' AI "So what?" notes: one fixed object (alert-notes:v1) keeps every note written,
-      // keyed by the text it was written from, and the day's allowance of new ones. Same provisioned
-      // class, its own storage; see worker/alert-notes-store.mjs.
       { "name": "ALERT_NOTES", "class_name": "CaptureRegistry" },
-      // The family's price levels, sent from the Glow Ventures dashboard: the list, every level
-      // reached, and the minute price check that finds them, on one fixed object (price-levels:v1).
-      // Same provisioned class, its own storage and its own alarm; see worker/price-levels-schedule.mjs.
       { "name": "PRICE_LEVELS", "class_name": "CaptureRegistry" }
     ]
   },
@@ -55,8 +51,6 @@
     // secret is present. The key is never a build variable or browser credential.
     // The older CLAUDE_API_KEY name remains an alias; CLAUDE_KEY takes precedence.
     // Muns remains the route only for environments without a dedicated Claude key.
-    // News has its own durable $1/day, $25/month allowance. Missing OpenAI never falls back to uncapped Claude.
-    "NEWSLETTER_NEWS_AI_PROVIDER": "openai",
     "BEDROCK_REGION": "ap-south-1",
     "BEDROCK_MODEL_ID": "global.anthropic.claude-sonnet-5",
     "MUNS_LLM_BASE": "https://fastapi.muns.io",
@@ -70,12 +64,17 @@
     // Where the brief's links and its unsubscribe route point. The email is built on the edge with
     // no request in hand, so the origin cannot be read off one; this is the public dashboard.
     "DASHBOARD_ORIGIN": "https://glow-central-research.tech-441.workers.dev",
-    // The dashboard name on the brief's tagline and caption; the masthead and subject are Glow Ventures.
+    // The dashboard name on the brief's tagline and caption; the masthead and subject are the
+    // family office's own, "Glow Ventures". Read by NewsletterSchedule.renderOptions().
     "NEWSLETTER_PRODUCT_NAME": "Research Central",
-
-    // WHICH OTHER SITES MAY WRITE THE FAMILY'S PRICE LEVELS (POST /api/price-levels), comma-separated.
-    // Only the PRODUCTION Glow Ventures dashboard: a branch preview there must never be able to write
-    // test levels into the family's real list. Not a secret — an origin is public by nature.
+    // News fails closed if its existing OpenAI secret becomes unavailable.
+    "NEWSLETTER_NEWS_AI_PROVIDER": "openai",
+    // The "So what? · AI excerpt reading" line on AI Alerts and All Alerts is one hedged sentence
+    // per development, so it is written by OpenAI's lowest-cost model, gpt-6-luna, on the same
+    // OPENAI_API_KEY secret. Pinned so that if the secret goes missing the cards say "no key"
+    // rather than the notes quietly moving to the costlier Bedrock model. See
+    // noteProvider() in worker/alert-notes-store.mjs.
+    "ALERT_NOTES_AI_PROVIDER": "openai",
     "PRICE_LEVEL_ORIGINS": "https://glowventures-1xw.pages.dev"
   },
 
@@ -104,9 +103,13 @@
       "simple": { "limit": 60, "period": 60 }
     },
     {
-      // The brief's edits and sends. A send costs somebody else's email service one message per
-      // subscriber, so this is deliberately tighter than the watchlist's ceiling; the object adds a
-      // five-minute cooldown on "send to everyone" behind it.
+      // Visible alert excerpts; the shared object also enforces its durable daily allowance.
+      "name": "ALERT_NOTES_LIMITER",
+      "namespace_id": "1805",
+      "simple": { "limit": 30, "period": 60 }
+    },
+    {
+      // Brief edits/sends; the object also enforces manual-send cooldowns and daily attempts.
       "name": "NEWSLETTER_LIMITER",
       "namespace_id": "1804",
       "simple": { "limit": 12, "period": 60 }
@@ -131,14 +134,6 @@
       "name": "ANNOUNCEMENT_INDEX_LIMITER",
       "namespace_id": "1808",
       "simple": { "limit": 240, "period": 60 }
-    },
-    {
-      // The alerts' AI notes. A page asks once per screen of cards, and a stored note costs nothing
-      // to serve, so this is set for a reader paging and scrolling, well below a script; the object's
-      // daily allowance of NEW notes is what bounds the spend behind it.
-      "name": "ALERT_NOTES_LIMITER",
-      "namespace_id": "1805",
-      "simple": { "limit": 30, "period": 60 }
     }
   ]
 

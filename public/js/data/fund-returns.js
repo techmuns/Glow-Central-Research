@@ -1,78 +1,5 @@
-// data/fund-returns.js — the AmfiBeas "Returns & Ranking" feed: per-scheme point-to-point returns,
-// same-cohort peer rank AND the cohort's own published average and median. Saved first, revalidated,
-// called DIRECT from the browser.
-//
-//   load()        fetch, resolve, cache — every failure is a NAMED state, never a thrown error
-//   reload()      revalidate while keeping the last successful table
-//   all()         the schemes the tab shows — DIRECT PLAN, one row per scheme (see below)
-//   allPlans()    every row the source returned, both plans, for counting and for the provenance
-//   meta()        asOfDate, periods, counts, provenance, and a named `reason` on failure
-//   periods()     the periods the payload carries
-//
-// EVERY ROW CARRIES `taxonomy` — WHERE THIS DASHBOARD SHOWS IT, AND WHETHER IT IS ACTIVE OR PASSIVE.
-// `classifyLive(classification, name)` in js/data/mf-taxonomy.js is computed ONCE here, at ingest,
-// so the chips, the table, the search facets and the export all read one answer rather than each
-// re-deriving it. `classification` stays the source's own string on every row; `taxonomy.refiled`
-// is the one case where the two disagree — a tracker the source filed under an active category,
-// shown with the other trackers — and `meta().refiled` counts them so the provenance panel can say
-// how many. See the head of mf-taxonomy.js for the measurement behind that rule.
-//
-// ============================================================================================
-// EVERY RETURN ARRIVES WITH ITS BENCHMARK, AND THE BENCHMARK IS THEIRS
-// ============================================================================================
-//
-// A return with nothing beside it is a number the reader cannot act on: +3.9% over three months is
-// a good quarter or a bad one entirely according to what the rest of the category did. AmfiBeas
-// publish that comparison themselves — `categoryAverage` and `categoryMedian` for the scheme's own
-// cohort, plus `excessVsAverage` / `excessVsMedian`, `percentile` and `quartile` — on the SAME NAV
-// date as the return, computed over the same snapshot. So the benchmark on this feed is the
-// scheme's own category, reproduced unchanged, exactly as the rank already was.
-//
-// THAT IS WHY THIS ASKS FOR `fields=full` RATHER THAN `fields=compact`. The compact projection
-// carries `{ return, rank, peerCount }` and nothing to compare a return against, which is why this
-// view had no benchmark column at all. The full projection is ~5.8 MB against ~1.9 MB (about 610 KB
-// against 205 KB over the wire, gzipped) — a real cost, paid once per visit on a tab nobody opens
-// by accident, and the device store keeps it.
-//
-// IT IS A CATEGORY BENCHMARK, NOT AN INDEX, AND THE VIEW SAYS SO. AMFI's daily NAV snapshot carries
-// no index level, so AmfiBeas publish no index return and none is invented here. The workbook on
-// the other sub-view publishes index returns — on ITS OWN, EARLIER date — and not one of them may
-// cross over. See js/data/mf-weekly.js.
-//
-// ============================================================================================
-// ONE ROW PER SCHEME: THE DIRECT PLAN
-// ============================================================================================
-//
-// The source returns both plans of every scheme — 1,822 regular and 1,617 direct — so the table
-// listed each fund twice, once under each plan, differing only by the expense ratio baked into the
-// NAV. `all()` returns the direct plan.
-//
-// AN ETF HAS NO PLAN TO CHOOSE, AND DROPPING EVERY REGULAR ROW WOULD DELETE ALL OF THEM. A listed
-// fund has one unit and one expense ratio; AmfiBeas file all 234 of them as `regular` because that
-// is the only plan they have. So the rule is not "keep direct" but "keep direct WHERE THE SOURCE
-// LISTS ONE" — a scheme the source files under a single plan is kept as it is, and 232 rows arrive
-// that way. Same shape as `dedupeGroup` in the family book: the duplicate is dropped, the row that
-// exists only once is not.
-//
-// TWO MORE THINGS THE SOURCE'S OWN LABELLING MAKES NECESSARY, AND BOTH ARE VISIBLE ON SCREEN
-// WITHOUT THEM. It files 31 schemes under two ids with identical figures, so both survived the rule
-// above and painted one under the other; and it names hundreds of direct-plan rows "…-Reg(G)",
-// which is the regular plan's label on a direct plan's row. `foldIdenticalRows()` and
-// `displayNameOf()` below close each, and neither touches a figure.
-
-//
-// WHY IT IS CALLED DIRECT, NOT PROXIED. The AmfiBeas API is CORS-open (Access-Control-Allow-Origin:
-// *) and read-only — the same shape as the SentimentDash chatter feed — so the browser reads it
-// straight and revalidates against its ETag through `conditionalJson`. There is no credential to
-// hold, so nothing to proxy for. See js/data/chatter-live.js for the same pattern and the platform
-// rule (Cloudflare error 1042) that makes a Worker proxy impossible for a same-account upstream.
-//
-// THE RETURNS AND RANKS ARE THEIRS. `returns[period].return` is a percentage already (3.4852 →
-// +3.49%): a simple return for 1M/3M/6M/1Y, a CAGR for 3Y/5Y/10Y. `rank`/`peerCount` is the scheme's
-// rank WITHIN ITS COHORT. Nothing here re-bands, re-ranks or recomputes — the same rule the con-call
-// and chatter feeds follow. A null `return` is "no return for that period", never a zero; a null
-// `rank` is "the cohort was too small to rank" and may sit beside a non-null return.
-
+// Public daily NAV returns. Retain exact published figures and cohorts, paint saved
+// data before revalidation, and keep the last usable snapshot on a failed check.
 import { conditionalJson, readEntry, KEYS, isPersistent } from '../core/store.js';
 import { factorsOf, classifyLive } from './mf-taxonomy.js';
 
@@ -82,10 +9,7 @@ export const PERIODS = ['1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y'];
 export const PERIOD_LABEL = { '1M': '1M', '3M': '3M', '6M': '6M', '1Y': '1Y', '3Y': '3Y CAGR', '5Y': '5Y CAGR', '10Y': '10Y CAGR' };
 
 const STORE_KEY = KEYS.fundReturns;
-// AmfiBeas has no committed host yet, so the default is empty — set window.AMFIBEAS_API_BASE in
-// index.html once the API is deployed. An empty base surfaces as the `no-url` state, which the view
-// turns into "configure the host" rather than a broken table.
-const DEFAULT_BASE = '';
+const DEFAULT_BASE = 'https://amfibeas.tech-441.workers.dev';
 
 /** `localStorage` first so a verification run (or a screenshot) can point the whole feed at a stub. */
 function baseUrl() {
@@ -135,7 +59,7 @@ async function build(base) {
     if (saved?.value) {
       try {
         validateFeed(saved.value);
-        ingest({ ok: true, body: saved.value, url: `${base}/api/returns-ranking?fields=full`, saved: true });
+        ingest({ ok: true, body: saved.value, url: `${base}/api/returns-ranking?fields=full`, saved: true, checkedAt: saved.savedAt || null });
         lastTag = saved.tag;
         notify();
       } catch { /* An invalid saved response is a cache miss. */ }
@@ -159,6 +83,8 @@ function validateFeed(value) {
   if (!value || !Array.isArray(value.funds) || !value.funds.length ||
     value.funds.some(f => !f || f.schemecode == null || typeof f.fundName !== 'string' || !f.returns || typeof f.returns !== 'object'))
     throw Error('Invalid returns feed');
+  if (Number.isFinite(value.total) && (value.total !== value.funds.length || (value.offset || 0) !== 0))
+    throw Error('Incomplete returns feed');
 }
 
 /**
@@ -241,7 +167,7 @@ const byName = (a, c) => a.fundName.localeCompare(c.fundName);
  */
 const PLAN_SUFFIX = /\s*[-–]\s*(Reg|Regular|Dir|Direct)\s*(Plan)?\s*(\([A-Za-z]{1,4}\))?\s*$/i;
 function displayNameOf(raw) {
-  const trimmed = String(raw || '').replace(PLAN_SUFFIX, '').trim();
+  const trimmed = String(raw || '').replace(PLAN_SUFFIX, (_all, _plan, _word, option) => option || '').trim();
   // Never strip a name down to nothing: a scheme called only by its plan keeps what it arrived with.
   return trimmed || String(raw || '');
 }
@@ -261,9 +187,8 @@ function displayNameOf(raw) {
  * then by scheme code, so the choice is the same on every reload.
  */
 function foldIdenticalRows(rows) {
-  const key = (r) => `${r.fundName.toLowerCase()}\u0000${r.option}\u0000${r.classification || ''}\u0000${
-    Object.entries(r.returns).map(([p, c]) => `${p}:${c.return}:${c.rank}:${c.categoryMedian}`).join(';')
-  }`;
+  const key = (r) => JSON.stringify([r.fundName.toLowerCase(), r.option, r.classification,
+    r.plan, r.cohortKey, Object.keys(r.returns).sort().map(p => [p, r.returns[p]])]);
   const groups = new Map();
   for (const r of rows) {
     const k = key(r);

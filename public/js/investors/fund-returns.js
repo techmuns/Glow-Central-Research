@@ -1,34 +1,4 @@
-// investors/fund-returns.js — the All Schemes view, on the AmfiBeas "Returns & Ranking" feed.
-//
-//   renderFundReturns(ctx, { disposers, repaint })   the scheme table, its pill and its export
-//
-// One table: every tracked mutual fund and ETF, its point-to-point return for each period, the
-// benchmark that return is measured against, and its rank within its own cohort.
-//
-// EVERY RETURN CARRIES ITS BENCHMARK ON THE FACE OF THE CELL — the scheme's own return above, its
-// category's published median beneath it, shaded by the gap between them. A return with nothing
-// beside it is a figure the reader cannot act on, and the reference is not behind a toggle for the
-// same reason it is not on Category Performance: the whole question is whether this fund beat what
-// it should be compared with, and an answer showing one side of it makes the reader hold the other
-// in their head.
-//
-// THE BENCHMARK IS THE CATEGORY, NOT AN INDEX, AND THE HEADING SAYS SO. AMFI's daily NAV snapshot
-// carries no index level, so AmfiBeas publish `categoryAverage` / `categoryMedian` for each cohort
-// and no index return — and none is borrowed from the weekly workbook on the other sub-view, which
-// is a different date. See js/data/fund-returns.js and js/data/mf-weekly.js.
-//
-// THE RETURNS, THE RANKS AND THE CATEGORY FIGURES ARE ALL THEIRS — reproduced, never recomputed.
-// `returns[p].return` is a percentage already (3.4852 → +3.5%): a simple return for 1M/3M/6M/1Y, a
-// CAGR for 3Y/5Y/10Y. `rank`/`peerCount` is the scheme's rank WITHIN ITS COHORT, rendered "38/149",
-// and `excessVsMedian` is their subtraction rather than one done here. This is the same rule the
-// con-call and chatter feeds follow: no re-banding, no re-ranking, no recomputation. The one thing
-// this view decides is which period columns to show — a period null for every row is hidden — and
-// that is a display choice, not a new number.
-//
-// A NULL IS NOT A ZERO. A null `return` is "no return for that period" and renders an em dash; a
-// null `rank` is "the cohort was too small to rank" and may sit beside a real return. Neither is
-// ever coloured or counted as though it were measured.
-
+// Scheme returns, published cohort comparisons and matching filtered exports.
 import { scoreTable, sectionHead, openModal } from '../ui/screener.js';
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime } from '../core/format.js';
@@ -274,7 +244,7 @@ function returnCell(cell, period, cohortNote = null) {
 /** The same cell in the gap reading: the source's own excess over its category median, in points. */
 function excessCell(cell, period, cohortNote = null) {
   const excess = cell?.excessVsMedian;
-  if (excess == null) {
+  if (excess == null || cell?.return == null || cell?.categoryMedian == null) {
     return dash(
       cell?.return == null
         ? cell?.reason || 'no return for this period'
@@ -337,54 +307,13 @@ function originLabel(m) {
 }
 
 function openProvenance(m, extra = '') {
-  openModal(
-    `<div class="p-6 sm:p-8">
-      <h3 class="font-display text-xl font-bold text-slate-900">Where this comes from</h3>
-      <p class="mt-2 text-sm leading-relaxed text-slate-600">
-        Live from the <strong>AmfiBeas</strong> Returns &amp; Ranking API, called <strong>directly from your browser</strong>
-        rather than through this site’s Worker — the feed is CORS-open and read-only, so there is no credential to hold and
-        nothing to proxy for (and Cloudflare refuses a Worker-to-Worker request inside one account anyway). It computes
-        point-to-point returns from AMFI’s daily NAV snapshot and ranks each scheme within its own cohort.
-      </p>
-      ${extra}
-      <dl class="mt-5 space-y-3 text-sm">
-        <div><dt class="font-semibold text-slate-800">Theirs, reproduced unchanged</dt>
-          <dd class="text-slate-600">Every return, every category median and average, every excess and every rank. A return is a percentage already — a simple return for 1M/3M/6M/1Y and a CAGR for 3Y/5Y/10Y. Nothing here is re-banded, re-ranked or recomputed; even the gap under each return is their <code>excessVsMedian</code> rather than a subtraction done here.</dd></div>
-        <div><dt class="font-semibold text-slate-800">What the benchmark is — and what it is not</dt>
-          <dd class="text-slate-600">The small figure beneath every return is <strong>the scheme’s own category median</strong>, published by the source for that cohort on the <strong>same NAV date</strong> as the return above it. It is a <strong>category</strong> benchmark, not an index: AMFI’s daily NAV snapshot carries no index level, so this feed publishes no index return and <strong>none is invented here</strong>. The index comparison lives on <strong>Category Performance</strong>, which reads a different source on its own earlier date — and no figure crosses between the two.</dd></div>
-        <div><dt class="font-semibold text-slate-800">One row per scheme — the direct plan</dt>
-          <dd class="text-slate-600">The source returns both plans of every scheme, which listed each fund twice under two NAVs that differ only by the distributor’s trail. This table shows the <strong>direct plan wherever the source lists one</strong>${
-            m.hiddenRegular ? `, so ${escapeHtml(formatNumber(m.hiddenRegular))} regular-plan rows are not shown` : ''
-          }. <strong>A scheme with only one plan is kept as it is</strong> — every exchange-traded fund is filed <em>regular</em> because a listed unit has no plan to choose, and dropping those rows would have deleted every ETF from this tab${
-            m.singlePlan ? `; ${escapeHtml(formatNumber(m.singlePlan))} rows arrive that way` : ''
-          }.${
-            m.foldedDuplicates
-              ? ` The source also lists ${escapeHtml(formatNumber(m.foldedDuplicates))} schemes <strong>twice, under two ids</strong>, with the same name bar a plan suffix and <strong>every figure identical</strong>; those are shown once. Only rows that are indistinguishable on screen are folded — a pair differing in any return or rank is two schemes and both stay.`
-              : ''
-          } ${escapeHtml(formatNumber(m.total || m.count))} of the source’s ${escapeHtml(formatNumber(m.universe || m.total || m.count))} rows are listed.</dd></div>
-        <div><dt class="font-semibold text-slate-800">Why a scheme’s name may differ from the source’s</dt>
-          <dd class="text-slate-600">The source names hundreds of <em>direct-plan</em> rows <code>…-Reg(G)</code> — the regular plan’s label on the direct plan’s row, which its own <code>plan</code> field contradicts. The trailing <strong>plan</strong> marker is dropped from the name shown here and <strong>nothing else is</strong>: the option suffix stays, no scheme is renamed, and the export carries the source’s own string in its own column beside ours.</dd></div>
-        <div><dt class="font-semibold text-slate-800">What the rank measures</dt>
-          <dd class="text-slate-600">The scheme’s rank <strong>within its own cohort</strong>, shown <code>rank/peerCount</code> — e.g. <code>38/149</code>. It is a rank against comparable schemes, not against the whole list; the quartile and percentile the source publishes beside it are in each cell’s tooltip.</dd></div>
-        <div><dt class="font-semibold text-slate-800">Active or passive, and where an index fund the source filed under an active category is shown</dt>
-          <dd class="text-slate-600">The <strong>Active / Passive</strong> row above the table is the first cut: a scheme is <strong>passive</strong> where the source files it as <em>Index</em>, <em>Index Funds</em> or <em>ETFs</em>, or where its <strong>own name states a tracked index or ETF</strong> — which SEBI requires of every tracker — and <strong>active</strong> otherwise. ${escapeHtml(formatNumber(m.passive || 0))} of the ${escapeHtml(formatNumber(m.total || m.count))} schemes listed are passive and ${escapeHtml(formatNumber(m.active || 0))} active. The source files some trackers under the <em>active</em> category whose segment they track — a <em>Nifty Midcap 150 Index Fund</em> under <em>Equity : Mid Cap</em>, a target-maturity index fund under a debt duration — and an index fund is not an actively managed fund’s peer, so ${
-            m.refiled ? `<strong>${escapeHtml(formatNumber(m.refiled))} such schemes are shown under Index &amp; smart beta or Exchange traded</strong>, in a category named for both facts (<em>Index · Mid Cap</em>)` : '<strong>any such scheme is shown under Index &amp; smart beta or Exchange traded</strong>, in a category named for both facts (<em>Index · Mid Cap</em>); none arrives that way in this feed'
-          }. That is the <strong>one place this tab shows a scheme somewhere other than the bucket its source chose</strong>, and it is labelled everywhere it surfaces: the source’s classification stays on the row and in the export, the chip and the sub-line say why the scheme moved, and its rank and category median are left as the source’s own cohort — a mid-cap index fund’s <code>7/52</code> is still its rank among the source’s mid-cap funds, active ones included. The source’s own word wins where it gives one: a scheme it files as <em>Index Funds</em> is passive on its say-so, whatever its name says.</dd></div>
-        <div><dt class="font-semibold text-slate-800">“Strategy in the name” is read from the scheme name</dt>
-          <dd class="text-slate-600">Neither this feed nor the weekly workbook classifies a fund as a momentum or a quality fund — the source files every passive equity scheme as <em>Index</em>, <em>Index Funds</em> or <em>ETFs</em> and stops there. The strategy filter reads the word out of the <strong>scheme’s own name</strong>, which is where the tracked index is stated, and it is a separate axis: it never changes a scheme’s classification and a scheme matching nothing is simply not in a strategy.</dd></div>
-        <div><dt class="font-semibold text-slate-800">A dash is not a zero</dt>
-          <dd class="text-slate-600">A missing <strong>return</strong> means the scheme has no return for that period; a missing <strong>median</strong> means the cohort was too small for the source to publish one; a missing <strong>rank</strong> means the same and can sit beside a real return. None is counted or coloured as a measured value.</dd></div>
-        <div><dt class="font-semibold text-slate-800">Which periods are shown</dt>
-          <dd class="text-slate-600">A period that is empty for every scheme is hidden — that is the only display choice this view makes. ${escapeHtml(String((m.periods || []).length))} periods are carried in the feed.</dd></div>
-        <div><dt class="font-semibold text-slate-800">Freshness</dt>
-          <dd class="text-slate-600">${provenanceFreshness(m)}</dd></div>
-      </dl>
-      <div class="mt-6 flex justify-end">
-        <button data-modal-close class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">Close</button>
-      </div>
-    </div>`,
-    { size: 'wide' },
-  );
+  openModal(`<div class="p-6"><h3 class="text-xl font-bold">Fund returns · Sources and coverage</h3>
+    <p class="mt-3">Returns, ranks, category averages and medians are published by AmfiBeas from AMFI NAVs. Figures retain the source’s cohort and NAV date. Category Performance uses this same snapshot.</p>
+    <p class="mt-3">1M–1Y are simple returns; 3Y–10Y are CAGR. The comparison beneath each return is its category median. A missing figure is —. This view displays category comparisons.</p>
+    <p class="mt-3">The direct plan is shown when available; single-plan schemes and ETFs remain. Only identical rows are folded. Source names, plan, option and classification are retained in the export. The source’s cohort remains the basis of each rank, including trackers grouped as passive from their name.</p>
+    <p class="mt-3">${escapeHtml(formatNumber(m.total || m.count))} displayed rows from ${escapeHtml(formatNumber(m.universe))} source rows. ${escapeHtml(formatNumber(m.hiddenRegular))} regular-plan rows omitted; ${escapeHtml(formatNumber(m.foldedDuplicates))} identical display copies folded.</p>
+    <p class="mt-3">${provenanceFreshness(m)}</p>${extra}
+    <button data-modal-close class="mt-6">Close</button></div>`, {size:'wide'});
 }
 
 function provenanceFreshness(m) {
@@ -414,28 +343,11 @@ function failurePanel(m) {
   const reason = m?.reason || 'unknown';
   const url = m?.url || null;
   const REASONS = {
-    'no-url': {
-      title: 'The fund-returns feed has no address',
-      body:
-        'No upstream is configured. Set <code>window.AMFIBEAS_API_BASE</code> in <code>public/index.html</code> to the AmfiBeas host ' +
-        '(or <code>localStorage["sattva:amfibeas-base"]</code> for a one-off), then reload. The API is not yet deployed to a fixed host.',
-    },
-    'not-found': {
-      title: 'The fund-returns upstream answered 404',
-      body: 'The host resolved but <code>/api/returns-ranking</code> was not there. Check the base URL, and that the API branch is deployed.',
-    },
-    unreachable: {
-      title: 'The fund-returns upstream could not be reached',
-      body: 'The request never completed — the host is down, the network is offline, or a CORS preflight was refused.',
-    },
-    upstream: {
-      title: 'The fund-returns upstream returned an error',
-      body: 'It answered, but with an error status. Try again shortly.',
-    },
-    shape: {
-      title: 'The fund-returns upstream returned something unexpected',
-      body: 'It answered, but not in the documented shape — the <code>funds</code> array was missing. Their contract may have changed.',
-    },
+    'no-url': {title:'Fund returns are unavailable',body:'The source is not configured yet.'},
+    'not-found': {title:'Fund returns are unavailable',body:'The source could not supply its returns feed. Please check back.'},
+    unreachable: {title:'Fund returns could not be checked',body:'Check your connection or try again shortly.'},
+    upstream: {title:'Fund returns could not be checked',body:'The source is temporarily unavailable. Please check back.'},
+    shape: {title:'Fund returns could not be verified',body:'The source returned an incomplete response. Please check back.'},
   };
   const r = REASONS[reason] || { title: 'The fund-returns feed could not be read', body: 'No further detail was reported.' };
   return `
@@ -446,8 +358,6 @@ function failurePanel(m) {
         <div class="min-w-0">
           <h3 class="font-display text-base font-bold text-slate-900">${escapeHtml(r.title)}</h3>
           <p class="mt-1.5 text-sm leading-relaxed text-slate-600">${r.body}</p>
-          ${url ? `<p class="mt-3 text-xs text-slate-500">Requested <code class="rounded bg-slate-100 px-1">${escapeHtml(url)}</code> — the exact address, so this can be diagnosed without guessing at it.</p>` : ''}
-          <p class="mt-3 text-xs text-slate-400">Nothing is shown rather than a zero: an empty list and a list we could not read must never look the same.</p>
           <button type="button" data-fund-returns-retry
             class="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-60">
             Try again
@@ -482,7 +392,7 @@ async function exportFunds(visible, m, periods) {
     `(computed over AMFI’s daily NAV snapshot)${m.asOfDate ? `, as of ${formatDateLabel(m.asOfDate)}` : ''}. ` +
     `THE RETURNS, THE CATEGORY FIGURES AND THE RANKS ARE THEIRS — reproduced unchanged, not recomputed or re-ranked here. ` +
     `A return is a percentage already: a simple return for 1M/3M/6M/1Y and a CAGR for 3Y/5Y/10Y. ` +
-    `THE BENCHMARK IN THIS SHEET IS THE SCHEME'S OWN CATEGORY, NOT AN INDEX: AMFI's NAV snapshot carries no index level, so this source publishes no index return and none is substituted. ` +
+    `THE BENCHMARK IN THIS SHEET IS THE SCHEME'S OWN CATEGORY, NOT AN INDEX: This sheet displays published category comparisons. ` +
     `The excess column is the source's own "excessVsMedian", in percentage POINTS, not a subtraction done here. ` +
     `A rank is "rank of peerCount" WITHIN THE SCHEME'S OWN COHORT, not against the whole list. ` +
     `ONE ROW PER SCHEME — the DIRECT plan wherever the source lists one; a scheme with only one plan (every exchange-traded fund) is kept as it is. Regular-plan duplicates are not in this sheet. ` +
@@ -492,7 +402,7 @@ async function exportFunds(visible, m, periods) {
     `"Active / Passive" is this dashboard's reading: PASSIVE where the source files the scheme as Index, Index Funds or ETFs, or where the scheme's own name states a tracked index or ETF; ACTIVE otherwise. ` +
     `"Shown under" is where this dashboard lists the scheme. It is the source's own category except where the source filed a NAME-STATED TRACKER under an active category (e.g. a Nifty Midcap 150 Index Fund under Equity : Mid Cap): such a scheme is shown under Index & smart beta or Exchange traded, its "Classification" column keeps the source's own bucket, and its rank and category median remain the source's own cohort, active schemes included. ` +
     `A blank return means no return for that period; a blank median or rank means the cohort was too small for the source to publish one — NONE IS A ZERO. ` +
-    `NOT COMPARABLE WITH THE CATEGORY PERFORMANCE SHEET, which reads a weekly workbook on an earlier date. ` +
+    `Category Performance uses the same published snapshot and preserves each source cohort. ` +
     `Source: ${m.source || 'AmfiBeas'}. Exported ${new Date().toISOString()}.`;
 
   const columns = [

@@ -32,8 +32,8 @@ import { fileURLToPath } from 'node:url';
 import { CATEGORIES, HEADERS } from '../worker/bse-ann.mjs';
 import { collectBseAnnouncements, bseLastCompleteTo, bseCaptureCoverage, bseIndiaDay } from './lib/bse-collection.mjs';
 import { archiveFilings } from './lib/filing-archive.mjs';
-import { fetchBseIdentityMaster } from './lib/announcement-identities.mjs';
-import { bseCaptureIndex, failedBseCapture } from './lib/bse-capture-state.mjs';
+import { readAnnouncementIdentityDirectory, retainedBseScripIndex } from './lib/announcement-identities.mjs';
+import { failedBseCapture } from './lib/bse-capture-state.mjs';
 import { writeJson } from './lib/company-capture.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -84,13 +84,34 @@ const num = (n) => Number(n).toLocaleString('en-IN');
  * announcement that happened is not less true for our not having a symbol for the filer.
  */
 async function buildScripIndex() {
+  const byCode = new Map();
+
   const mcPath = DATA('mc-ticker-map.json');
+  if (existsSync(mcPath)) {
+    const mc = JSON.parse(readFileSync(mcPath, 'utf8'));
+    for (const entry of Object.values(mc.map || {})) {
+      if (entry?.bseId && entry?.ticker) {
+        byCode.set(String(entry.bseId), { ticker: String(entry.ticker).toUpperCase(), name: entry.fullName || null, source: 'confirmed' });
+      }
+    }
+  }
+  const confirmed = byCode.size;
+
   const identityPath = DATA('announcement-identities.json');
-  return bseCaptureIndex({
-    previous: existsSync(identityPath) ? JSON.parse(readFileSync(identityPath, 'utf8')) : null,
-    mcMap: existsSync(mcPath) ? JSON.parse(readFileSync(mcPath, 'utf8')).map : {},
-    fetchMaster: previous => fetchBseIdentityMaster(previous, { headers: HEADERS }),
-  });
+  let previousIdentities = null;
+  try { previousIdentities = JSON.parse(readFileSync(identityPath, 'utf8')); } catch { /* Preserve raw filings even without a usable registry. */ }
+  const mc = existsSync(mcPath) ? JSON.parse(readFileSync(mcPath, 'utf8')).map : {};
+  const directory = await readAnnouncementIdentityDirectory(previousIdentities, mc, { headers: HEADERS });
+  const master = directory.master;
+  for (const [code, value] of retainedBseScripIndex(directory.identities)) if (!byCode.has(code)) byCode.set(code, value);
+  for (const s of master || []) {
+    const code = String(s?.SCRIP_CD || '').trim();
+    if (!code || byCode.get(code)?.source === 'confirmed') continue;
+    const id = String(s?.scrip_id || '').trim().toUpperCase();
+    byCode.set(code, { ticker: id || null, name: s?.Scrip_Name || null, source: id ? 'bse' : null });
+  }
+
+  return { byCode, confirmed, masterRows: master?.length || null, ...directory };
 }
 
 function loadExisting() {
@@ -110,8 +131,8 @@ function loadExisting() {
 async function main() {
   console.log(`BSE corporate announcements — ${FROM} to ${TO} (${MERGE ? 'merging into' : 'replacing'} the committed file)`);
 
-  const { byCode, confirmed, masterRows, identities, identityError } = await buildScripIndex();
-  if (identityError) console.warn(identityError.message);
+  const { byCode, confirmed, masterRows, identities, publish, health: identityDirectory } = await buildScripIndex();
+  if (!identityDirectory.ok) console.warn('Company directory unavailable; preserving filings with explicitly partial identity coverage.');
   console.log(`  scrip index: ${num(byCode.size)} codes (${num(confirmed)} confirmed from mc-ticker-map, master ${masterRows === null ? 'unavailable; using saved identities' : num(masterRows)})`);
 
   const started = Date.now();
@@ -159,7 +180,7 @@ async function main() {
     throw Object.assign(Error('BSE returned no usable announcements; failed windows remain unchecked.'), { reason: 'upstream' });
   }
 
-  if (identities) writeJson(DATA('announcement-identities.json'), identities);
+  if (publish) writeJson(DATA('announcement-identities.json'), identities);
 
   // Resolve, then merge on NEWSID. BSE's own identifier, so a re-run of an overlapping window
   // updates rather than duplicates — and a row with no id falls back to its content, never to a
@@ -229,7 +250,7 @@ async function main() {
     capturedAt: new Date().toISOString(),
     lastAttemptAt: new Date(started).toISOString(),
     lastError: null,
-    identityError,
+    identityDirectory,
     from: windowFrom,
     to: TO,
     windowDays: Math.max(1, Math.round((Date.parse(TO) - Date.parse(windowFrom)) / 86400000) + 1),
@@ -238,6 +259,7 @@ async function main() {
     // Every company is covered on the company axis for the named category requests. This endpoint
     // exposes no independently verified category inventory, so that separate limitation is explicit.
     ...bseCaptureCoverage(capture, previousCapture),
+    coversUniverse: identityDirectory.ok && bseCaptureCoverage(capture, previousCapture).coversUniverse,
     categoryCoverage: 'configured',
     categoryInventoryVerified: false,
     categories: CATEGORIES,

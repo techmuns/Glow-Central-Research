@@ -1,3 +1,12 @@
+import { readHoldingSizes as readPositionSizes, cachedHoldingSizes as cachedPositionSizes } from '../data/holding-sizes.js';
+import { TAB_META } from './catalog.js';
+import * as generalAlerts from '../data/daily-alerts.js';
+import { createTimelineHistory, timelineKey } from '../data/alert-timeline.js';
+import { mountAlertTimeline } from '../ui/alert-timeline.js';
+import { mountAlertCardGrid } from '../ui/alert-card-grid.js';
+import { AI_EVENT_TYPES, aiEventTypes, matchesAIEvent, loadAIEventFilters, saveAIEventFilters } from '../data/ai-alert-types.js';
+import { developmentOfRow, developmentSource, publisherOf, venuesOf, storyKindOf, KIND_LABEL } from '../data/alert-developments.js';
+import { alertReadingHtml, watchAlertReadings } from '../ui/alert-reading.js';
 // tabs/ai-alerts.js — THE SMALL, EXPLAINABLE READING LIST ABOVE ALL ALERTS.
 //
 // All Alerts is the complete chronological record. This tab deliberately is not: it groups
@@ -6,43 +15,32 @@
 // product rules are pure, testable and available to exports or notifications later.
 
 import { sectionHead } from '../ui/screener.js';
-import { scopeSummary, pill } from '../ui/components.js';
+import { pill } from '../ui/components.js';
+import { scopeBook, scopeLabel } from '../data/scope.js';
+import { canonicalPublisherName } from '../core/news-publishers.js';
 import { escapeHtml } from '../core/dom.js';
 import { normalizeBookmark, snapshotForRow } from '../core/bookmark-record.js';
 import * as alertPool from '../data/alert-pool.js';
-import * as generalAlerts from '../data/daily-alerts.js';
-import { createTimelineHistory, timelineKey } from '../data/alert-timeline.js';
-import { mountAlertTimeline } from '../ui/alert-timeline.js';
 import { bookmarkButton, wireBookmarks } from '../ui/bookmark-button.js';
 import { reconcileMarkup } from '../ui/reconcile-markup.js';
 import { getHostContext } from '../core/host-context.js';
 import { formatNumber } from '../core/format.js';
 import * as refresh from '../core/refresh.js';
 import * as alerts from '../data/ai-alerts.js';
-import { AI_EVENT_TYPES, aiEventTypes, matchesAIEvent, loadAIEventFilters, saveAIEventFilters } from '../data/ai-alert-types.js';
 import { KPI_CHIP_LIMIT, kpiLine, status as kpiStatus } from '../data/kpi-impact.js';
 import { chatterTopic } from '../data/chatter-sentiment.js';
 import { driversFromEvent, QUESTIONS } from '../data/alert-drivers.js';
-import { developmentSource, publisherOf, venuesOf, storyKindOf, KIND_LABEL } from '../data/alert-developments.js';
-import { noteRequestFor, requestNotes, onNotes } from '../data/alert-notes.js';
-import { noteBodyHtml, noteIsSkipped, NOTE_DISCLOSURE } from '../ui/alert-note.js';
 import * as screenerInsights from '../data/screener-insights.js';
 import { onCaptureLanded } from '../data/capture-watchdog.js';
 import * as coverage from '../data/coverage.js';
 import * as mute from '../core/ai-mute.js';
 import { currentDay, relativeAge, formatDay as fmtDay, latestAlertSignal, latestAlertEvent, sortAlertCards, matchesSearch } from '../ui/ai-alert-utils.js';
-import { privatePortfolioContext, readPositionSizes, cachedPositionSizes, onPortfolioInvalidation, onPortfolioReady, onPortfolioConnection, portfolioConnectionState, unlockPortfolio } from '../research/portfolio-bridge.js';
+import { privatePortfolioContext, onPortfolioInvalidation, onPortfolioReady, onPortfolioConnection, portfolioConnectionState } from '../research/portfolio-bridge.js';
 export { relativeAge } from '../ui/ai-alert-utils.js';
 
-export const meta = {
-  id: 'ai-alerts',
-  title: 'AI Alerts',
-  subtitle: `Important portfolio events from the last ${alerts.WINDOW_DAYS} days.`,
-  subviews: [],
-};
+export const meta = TAB_META['ai-alerts'];
 
 const REFRESH_ID = 'ai-alerts';
-const PAGE_SIZE = 8;
 const RECHECK_MS = 90_000;
 const SORT_KEY = 'sattva:ai-alerts:sort:v1';
 const SORTS = { newest: 'Newest first', holdings: 'Largest holdings', priority: 'Highest priority' };
@@ -61,8 +59,21 @@ let filter = 'all';
 let eventFilters = loadAIEventFilters();
 let eventViews = new WeakMap();
 let displayedCards = [];
-let visibleLimit = PAGE_SIZE;
+let cardGrid = null;
+let resetCardScroll = false;
 let query = '';
+let normalSavedReading = null;
+export function getSavedView() {
+  return { aiPriority: filter, aiQuery: query, aiSort: sortOrder, aiEventTypes: [...eventFilters.selected], aiHideRoutine: eventFilters.hideRoutine };
+}
+export function applySavedView(extras = {}) {
+  normalSavedReading ||= { filter, query, sortOrder, eventFilters: structuredClone(eventFilters) };
+  filter = ['all', 'must-see', 'important', 'archived'].includes(extras.aiPriority) ? extras.aiPriority : 'all';
+  query = typeof extras.aiQuery === 'string' ? extras.aiQuery : '';
+  sortOrder = Object.hasOwn(SORTS, extras.aiSort) ? extras.aiSort : 'newest';
+  eventFilters = { selected: (Array.isArray(extras.aiEventTypes) ? extras.aiEventTypes : []).filter(id => AI_EVENT_TYPES.some(type => type.id === id)), hideRoutine: extras.aiHideRoutine === true };
+  eventViews = new WeakMap();
+}
 let sizeController = null;
 let sizesLoading = false;
 let sizeError = '';
@@ -117,8 +128,15 @@ function refreshTimelineHistory() {
     if (reader === historyReader) for (const state of timelines.values()) state.controller.historyFailed();
   });
 }
-function sourceChanged() {
+function sourceChanged(change) {
   if (!ctxRef) return;
+  if (change?.storyStatusOnly) {
+    // Ending an optional check updates the compact status without another full Universe
+    // assembly/ranking. New decisions still follow the normal source reassembly below.
+    const heading = ctxRef.root.querySelector('[data-ai-heading]');
+    if (heading) reconcileMarkup(heading, head(ctxRef));
+    return;
+  }
   captureDirty = true;
   if (collecting || sourceTimer !== null) return;
   sourceTimer = setTimeout(() => {
@@ -159,7 +177,7 @@ onPortfolioInvalidation((version) => {
 });
 
 function portfolioUnavailable() {
-  if (!ctxRef || sizesLoading || (sizeError && awaitingBook === null)) return;
+  if (!ctxRef || sizesLoading || cachedPositionSizes() || (sizeError && awaitingBook === null)) return;
   // Background checks can fail without positions-ready, including repeated
   // failures while the connection is already unavailable.
   loadToken++;
@@ -175,15 +193,17 @@ function portfolioUnavailable() {
 }
 
 export function render(ctx) {
+  if (report && coverage.meta().syncStatus === 'family-unavailable' && !cachedPositionSizes()) {
+    report = alerts.withoutPositionSnapshot(report);
+  }
   if (ctxRef !== ctx) clearTimelines({ history: true });
   actionGeneration++;
   ctxRef = ctx;
 
   if (!unsubs.length) {
+    unsubs.push(watchAlertReadings(ctx.root));
     unsubs.push(watchCalendar());
     unsubs.push(watchFreshness());
-    // An AI summary landing repaints through `reconcileMarkup`, which replaces only the note.
-    unsubs.push(onNotes(() => { if (ctxRef) paint(ctxRef); }));
     unsubs.push(onCaptureLanded(sourceChanged));
     unsubs.push(alerts.onChange(sourceChanged));
     unsubs.push(onPortfolioConnection((connected) => {
@@ -192,6 +212,11 @@ export function render(ctx) {
     }));
     unsubs.push(coverage.onChange(() => {
       if (coverage.meta().syncStatus === 'family-unavailable') portfolioUnavailable();
+      else if (!sizesLoading && report && cachedPositionSizes()?.sizes?.checkedAt !== report.meta?.positionSizes?.checkedAt) {
+        // Shared background reads have no Family-frame notification. Adopt their
+        // new weights/check time through the existing coalesced reassembly path.
+        if (cachedPositionSizes()) sourceChanged();
+      }
     }));
     unsubs.push(onPortfolioReady((version) => {
       if (ctxRef && awaitingBook !== null && version >= awaitingBook && !sizesLoading) {
@@ -217,7 +242,7 @@ export function render(ctx) {
 
   if (report && report.scope !== ctx.scope) {
     report = null;
-    visibleLimit = PAGE_SIZE;
+    resetCardScroll = true;
   }
 
   paint(ctx);
@@ -244,6 +269,11 @@ export function render(ctx) {
 }
 
 export function destroy() {
+  if (normalSavedReading) {
+    ({ filter, query, sortOrder, eventFilters } = normalSavedReading);
+    normalSavedReading = null; eventViews = new WeakMap();
+  }
+  cardGrid?.destroy(); cardGrid = null;
   clearTimelines({ history: true });
   alerts.clearRankingCache();
   offBookmarks?.(); offBookmarks = null;
@@ -296,7 +326,7 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
   // refresh checks it again. Failure handling removes unverified sizes below.
   let checkedSnapshot = previousSnapshot;
   let positions = Promise.resolve(heldSizes);
-  if (privatePortfolioContext() && portfolioConnectionState() !== 'locked') {
+  if (privatePortfolioContext()) {
     if (!heldSizes) {
       const controller = new AbortController();
       sizeController = controller;
@@ -311,8 +341,6 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
   }
   positions = positions.then(snapshot => {
     if (current()) {
-      // A public-feed exception can settle Promise.all before this read finishes.
-      // Clear failed verification here too, even if no replacement report will arrive.
       checkedSnapshot = snapshot;
       report = snapshot ? alerts.withPositionSnapshot(report, snapshot) : alerts.withoutPositionSnapshot(report);
       paint(ctxRef);
@@ -378,14 +406,9 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
   }
 }
 
-function effectiveSort() {
-  return sortOrder === 'holdings' && (!report?.meta?.positionSizes?.complete || sizeError)
-    ? 'newest' : sortOrder;
-}
-
 function paint(ctx) {
   if (!ctx || ctx !== ctxRef) return;
-  const anchor = [...ctx.root.querySelectorAll('[data-ai-card]')].find(node => {
+  const anchor = resetCardScroll ? null : [...ctx.root.querySelectorAll('[data-ai-card]')].find(node => {
     const rect = node.getBoundingClientRect(); return rect.bottom > 0 && rect.top < innerHeight;
   });
   const anchorTop = anchor?.getBoundingClientRect().top;
@@ -393,36 +416,56 @@ function paint(ctx) {
   const matches = candidates.map(eventView).filter(card => card && matchesSearch(card, query));
   displayedCards = matches;
   const cards = sortAlertCards(filteredCards(matches), effectiveSort());
-  const shown = cards.slice(0, visibleLimit);
   // Keep the input node mounted while typing and while independent feeds deliver partials.
   // Replacing the whole root loses the caret, keyboard focus and IME composition.
   if (!ctx.root.querySelector('[data-ai-layout]')) {
-    ctx.root.innerHTML = `<div data-ai-layout><div data-ai-heading></div>${searchMarkup()}<div data-ai-position-status></div><div data-ai-toolbar></div><div data-ai-results></div></div>`;
+    ctx.root.innerHTML = `<div data-ai-layout><div data-ai-heading></div><div data-ai-position-status></div>
+      <div data-ai-toolbar><div data-ai-controls class="ai-alert-toolbar">
+        <div data-ai-priorities class="ai-alert-priorities" role="group" aria-label="Filter AI Alerts by priority"></div>
+        <div class="ai-alert-tools">${searchMarkup()}<div data-ai-view-controls class="ai-alert-view-controls text-xs text-slate-500"></div></div>
+      </div><div data-ai-filter-summary></div></div><div data-ai-results></div></div>`;
     const input = ctx.root.querySelector('[data-ai-search]');
     input.value = query;
     input.addEventListener('input', () => {
       query = input.value;
-      visibleLimit = PAGE_SIZE;
+      resetCardScroll = true;
       paint(ctxRef);
     });
     ctx.root.querySelector('[data-ai-clear]')?.addEventListener('click', clearSearch);
   }
+  const searchInput = ctx.root.querySelector('[data-ai-search]');
+  if (searchInput.value !== query) searchInput.value = query;
+  ctx.root.querySelector('[data-ai-layout]').setAttribute('data-ai-collecting', String(collecting));
   reconcileMarkup(ctx.root.querySelector('[data-ai-heading]'), head(ctx));
   reconcileMarkup(ctx.root.querySelector('[data-ai-position-status]'), positionStatus() + kpiStatusMarkup());
   ctx.root.querySelector('[data-ai-clear]').hidden = !query.length;
+  const toolbar = report ? controls(matches, cards.length) : { priorities: '', view: '' };
   // Identical results keep their DOM, expanded evidence and keyboard focus.
   for (const [selector, markup] of [
-    ['[data-ai-toolbar]', report ? controls(matches, cards.length) + eventFilterSummary() : ''],
-    ['[data-ai-results]', report ? cardsPanel(ctx, shown, cards.length) : loadError ? quietFallbackPanel() : loadingPanel()],
+    ['[data-ai-priorities]', toolbar.priorities],
+    ['[data-ai-view-controls]', toolbar.view],
+    ['[data-ai-filter-summary]', report ? eventFilterSummary() : ''],
   ]) {
     const node = ctx.root.querySelector(selector);
     reconcileMarkup(node, markup);
   }
-  syncTimelines(ctx, shown);
-  wire(ctx, cards.length);
-  // THE SECOND BULLET IS ASKED FOR THE CARDS ON SCREEN AND NO OTHERS — see data/alert-notes.js.
-  // An answered, pending or held question is not asked again; a stored note costs no model call.
-  if (report) requestNotes(shown.map((card) => cardNoteRequest(card)).filter(Boolean));
+  const results = ctx.root.querySelector('[data-ai-results]');
+  if (report && cards.length) {
+    if (!cardGrid || !results.contains(cardGrid.element)) {
+      cardGrid?.destroy();
+      reconcileMarkup(results, '<section data-ai-cards role="feed" aria-label="AI Alerts companies"></section>');
+      cardGrid = mountAlertCardGrid({ element: results.querySelector('[data-ai-cards]'),
+        renderCard: card => cardMarkup(card, ctxRef.scope, currentDay(), filter === 'archived'),
+        onWindow: shown => { if (ctxRef) { syncTimelines(ctxRef, shown); wire(ctxRef); } } });
+    }
+    results.querySelector('[data-ai-cards]').setAttribute('aria-busy', String(collecting || awaitingBook !== null));
+    cardGrid.update(cards, { resetScroll: resetCardScroll });
+  } else {
+    cardGrid?.destroy(); cardGrid = null; clearTimelines();
+    reconcileMarkup(results, report ? emptyPanel(ctx) : loadError ? quietFallbackPanel() : loadingPanel());
+  }
+  resetCardScroll = false;
+  wire(ctx);
   if (anchor?.isConnected && anchorTop != null) {
     const delta = anchor.getBoundingClientRect().top - anchorTop;
     if (Math.abs(delta) > 1) window.scrollBy(0, delta);
@@ -446,24 +489,23 @@ function positionStatus() {
   if ((sizesLoading || awaitingBook !== null) && !sizes) return sortOrder === 'holdings'
     ? `<p class="mb-4 text-xs text-slate-500" role="status">Loading portfolio sizes · Showing newest first until Largest holdings is ready.</p>` : '';
   if (sizes?.complete && !sizeError) return '';
-  return portfolioConnectionState() === 'locked' ? `<p class="mb-4 text-xs text-slate-500"><button type="button" data-ai-unlock class="font-semibold text-indigo-700 hover:underline">Unlock portfolio to include holding sizes</button></p>`
-    : sortOrder === 'holdings' || sizes?.complete === false ? `<p class="mb-4 text-xs text-slate-500" role="status">Portfolio sizes unavailable${sizes?.complete === false ? ' · Statement values could not be fully reconciled' : ''} · ${effectiveSort() === 'priority' ? 'Showing highest priority' : 'Showing newest first'}.</p>` : '';
+  return sortOrder === 'holdings' || sizes?.complete === false ? `<p class="mb-4 text-xs text-slate-500" role="status">Portfolio sizes unavailable${sizes?.complete === false ? ' · Workbook values could not be fully reconciled' : ''} · ${effectiveSort() === 'priority' ? 'Showing highest priority' : 'Showing newest first'}.</p>` : '';
 }
 
 function searchMarkup() {
-  return `<div role="search" aria-label="Search AI Alerts" class="mb-4">
+  return `<div role="search" aria-label="Search AI Alerts" class="ai-alert-search">
     <label for="ai-alert-search" class="sr-only">Search AI Alerts</label>
-    <div class="flex items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-500">
+    <div class="ai-alert-search-box rounded-xl bg-white ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-500">
       <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
-      <input id="ai-alert-search" data-ai-search type="search" autocomplete="off" placeholder="Search company, symbol or alert…" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-slate-900 outline-none placeholder:text-slate-400">
-      <button type="button" data-ai-clear class="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 focus-visible:outline-indigo-500">Clear</button>
+      <input id="ai-alert-search" data-ai-search type="search" autocomplete="off" placeholder="Search alerts…" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-slate-900 outline-none placeholder:text-slate-400">
+      <button type="button" data-ai-clear aria-label="Clear search" title="Clear search" class="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 focus-visible:outline-indigo-500"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
     </div>
   </div>`;
 }
 
 function clearSearch() {
   query = '';
-  visibleLimit = PAGE_SIZE;
+  resetCardScroll = true;
   const input = ctxRef?.root.querySelector('[data-ai-search]');
   if (input) input.value = '';
   if (ctxRef) paint(ctxRef);
@@ -514,47 +556,46 @@ function watchFreshness() {
 
 function head(ctx) {
   const m = report?.meta || {};
+  const stories = alerts.storyStatus(report);
   // Position availability is independent of public source coverage. A failed optional
   // size read must never make partial, pending or stale evidence look complete.
   const health = feedStatus(report);
   const status = loadError ? report?.allCards.length
-    ? { label: 'Partial coverage · retained evidence shown', tone: 'neutral', state: 'partial' }
+    ? { label: 'Partial coverage', tone: 'neutral', state: 'partial' }
     : { label: 'Alert sources unavailable', tone: 'neutral', state: 'failed' }
     : health.state !== 'complete' || m.staleFeeds > 0 ? health
     : sizeError ? { label: 'Latest available', tone: 'neutral', state: 'complete' }
-    : report && (collecting || awaitingBook !== null) ? { label: 'Ready · checking quietly', tone: 'neutral', state: 'pending' } : health;
-  // Coverage and completion are independent: a failed source can already be known while
-  // sliced ranking, retained-evidence merging or the portfolio read is still finishing.
-  const pending = collecting || awaitingBook !== null;
+    : report && (collecting || awaitingBook !== null) ? { label: 'Checking sources', tone: 'neutral', state: 'pending' } : health;
+  const grouping = !stories.total ? 'none' : stories.checking ? 'checking' : stories.partial ? 'partial' : 'grouped';
+  const label = status.label + (grouping === 'checking' ? ' · Grouping' : grouping === 'partial' ? ' · Ungrouped' : '');
+  const book = scopeBook(ctx.scope);
+  const details = [
+    status.state === 'partial' ? `Some alert sources could not be checked.${report?.allCards.length ? ' Captured evidence remains visible.' : ''}` : status.label,
+    report?.pending > 0 ? `${report.pending} source checks still pending.` : '',
+    `${scopeLabel(ctx.scope)}${report ? ` · ${formatNumber(m.activeCompanies || 0)}${book?.count ? ` of ${formatNumber(book.count)}` : ''} companies with recent events` : ''}.`,
+    `${alerts.WINDOW_DAYS}-day window: ${fmtDay(m.firstDay)} through ${fmtDay(report?.day)}.`,
+    stories.total ? `${grouping === 'checking' ? 'Checking repeated coverage.' : grouping === 'partial' ? 'Some reports remain ungrouped.' : 'Repeated coverage grouped.'} Grouping uses captured headlines and descriptions. Uncertain reports remain separate. Earlier story context is retained for up to 180 days; All Alerts holds the source history.` : '',
+  ].filter(Boolean).join(' ');
   return sectionHead({
     title: 'AI Alerts',
     description: `Important company signals from the last ${alerts.WINDOW_DAYS} days.`,
-    meta: `<div class="flex flex-wrap items-center justify-end gap-2">
-      <span data-ai-feed-status data-state="${pending ? 'pending' : status.state}" aria-busy="${pending}">${pill({ label: status.label, tone: status.tone })}</span>
-      ${report ? scopeSummary({
-        scope: ctx.scope,
-        count: m.activeCompanies || 0,
-        noun: 'companies with recent events',
-        book: coverage.meta(),
-      }) : pill({ label: { portfolio: 'Portfolio', watchlist: 'Watchlist', universe: 'Universe' }[ctx.scope], tone: 'neutral' })}
-      ${pill({ label: `${alerts.WINDOW_DAYS}-day window`, tone: 'brand', title: `${fmtDay(m.firstDay)} through ${fmtDay(report?.day)}` })}
-    </div>`,
+    meta: `<span data-ai-feed-status data-state="${status.state}" data-ai-story-status="${grouping}">${pill({ label, tone: grouping === 'partial' || grouping === 'checking' ? 'neutral' : status.tone, title: details })}</span>`,
   });
 }
 
 /** Keep collection state compact, explicit and independently testable. */
 export function feedStatus(rep) {
   const pending = rep ? Number(rep.pending || 0) : null;
-  if (pending === null) return { label: 'Reading feeds…', tone: 'neutral', state: 'pending' };
+  if (pending === null) return { label: 'Checking sources', tone: 'neutral', state: 'pending' };
   if (pending > 0) {
     return {
-      label: `Reading ${pending} more ${pending === 1 ? 'feed' : 'feeds'}…`,
+      label: 'Checking sources',
       tone: 'neutral',
       state: 'pending',
     };
   }
   if (rep.feeds?.some(feed => feed.status === 'failed')) {
-    return { label: 'Partial coverage · retained evidence shown', tone: 'neutral', state: 'partial' };
+    return { label: 'Partial coverage', tone: 'neutral', state: 'partial' };
   }
   const staleFeeds = Number(rep.meta?.staleFeeds || 0);
   if (staleFeeds > 0) {
@@ -565,49 +606,6 @@ export function feedStatus(rep) {
     };
   }
   return { label: 'Updated', tone: 'positive', state: 'complete' };
-}
-
-function eventView(card) {
-  if (eventViews.has(card)) return eventViews.get(card);
-  const view = alerts.cardWithEvents(card, card.events.filter(event => matchesAIEvent(event, eventFilters)));
-  eventViews.set(card, view);
-  return view;
-}
-
-function changeEventFilters(ctx) {
-  clearTimelines();
-  saveAIEventFilters(eventFilters);
-  eventViews = new WeakMap();
-  visibleLimit = PAGE_SIZE;
-  paint(ctx);
-}
-
-function eventTypesControl() {
-  const counts = new Map(AI_EVENT_TYPES.map(type => [type.id, 0]));
-  for (const card of filteredCards(report?.allCards || [])) {
-    for (const id of new Set(card.events.flatMap(aiEventTypes))) counts.set(id, (counts.get(id) || 0) + 1);
-  }
-  return `<details data-ai-types-menu>
-    <summary class="cursor-pointer rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">Event types${eventFilters.selected.length ? ` · ${eventFilters.selected.length}` : ''}</summary>
-    <div class="absolute right-0 z-20 mt-2 rounded-xl bg-white p-4 text-slate-700 shadow-lg ring-1 ring-slate-200" style="width:min(26rem,calc(100vw - 3rem))">
-      <div class="mb-3 flex items-center justify-between gap-3"><span class="font-semibold">Match any selected type</span><button type="button" data-ai-types-clear class="font-semibold text-indigo-700">Clear types</button></div>
-      <div class="grid grid-cols-1 gap-1 sm:grid-cols-2" style="max-height:320px;overflow:auto" role="group" aria-label="AI alert event types">
-        ${AI_EVENT_TYPES.map(type => `<label title="${escapeHtml(type.hint)}" class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 hover:bg-slate-50">
-          <input type="checkbox" data-ai-type="${type.id}" ${eventFilters.selected.includes(type.id) ? 'checked' : ''} class="accent-indigo-600">
-          <span class="flex-1">${escapeHtml(type.label)}</span><span class="tabular-nums text-slate-400">${counts.get(type.id)}</span>
-        </label>`).join('')}
-      </div>
-      <p class="mt-3 text-xs leading-relaxed text-slate-500">Counts show companies by type in this scope and priority. Search narrows the results. Types use source wording across ${alerts.WINDOW_DAYS} days; priority describes the company’s complete evidence.</p>
-    </div>
-  </details>`;
-}
-
-function eventFilterSummary() {
-  return `<div data-ai-event-summary class="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-    <label class="mr-2 flex cursor-pointer items-center gap-2"><input type="checkbox" data-ai-hide-routine ${eventFilters.hideRoutine ? 'checked' : ''} class="accent-indigo-600">Hide routine notices</label>
-    ${eventFilters.selected.map(id => `<button type="button" data-ai-remove-type="${id}" aria-label="Remove ${escapeHtml(AI_EVENT_TYPES.find(type => type.id === id).label)} filter" class="rounded-full bg-indigo-50 px-3 py-1.5 font-semibold text-indigo-700 ring-1 ring-indigo-100">${escapeHtml(AI_EVENT_TYPES.find(type => type.id === id).label)} ×</button>`).join('')}
-    ${eventFilters.selected.length ? '<span>Showing matching events · Company priority unchanged</span>' : ''}
-  </div>`;
 }
 
 function controls(cards, visibleCount) {
@@ -627,13 +625,10 @@ function controls(cards, visibleCount) {
     // from having lost it — and this page's whole promise is that it tells you what happened.
     { id: 'archived', label: `Archived · ${archived}` },
   ];
-  return `
-    <div class="relative mb-4 flex flex-wrap items-center justify-between gap-3" data-ai-controls>
-      <div class="flex flex-wrap gap-2" role="group" aria-label="Filter AI Alerts by priority">
-        ${options.map((option) => `<button type="button" data-ai-filter="${option.id}" aria-pressed="${filter === option.id}"
-          class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${filter === option.id ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200 hover:text-indigo-700 hover:ring-indigo-200'}">${escapeHtml(option.label)}</button>`).join('')}
-      </div>
-      <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+  return {
+    priorities: options.map((option) => `<button type="button" data-ai-filter="${option.id}" aria-pressed="${filter === option.id}"
+      class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${filter === option.id ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200 hover:text-indigo-700 hover:ring-indigo-200'}">${escapeHtml(option.label)}</button>`).join(''),
+    view: `
         ${eventTypesControl()}
         <label class="flex items-center gap-2">Sort
           <select data-ai-sort aria-label="Sort AI Alerts" class="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
@@ -644,18 +639,8 @@ function controls(cards, visibleCount) {
           </select>
         </label>
         ${filter === 'archived' && archived ? `<button type="button" data-ai-unmute-all class="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:text-indigo-700 hover:ring-indigo-200">Restore all</button>` : ''}
-        <span role="status" aria-live="polite" aria-atomic="true"><strong class="font-semibold text-slate-700">${escapeHtml(formatNumber(visibleCount))}</strong> ${visibleCount === 1 ? 'company' : 'companies'} ${query.trim() ? 'matching in this view' : 'in this view'}</span>
-      </div>
-    </div>`;
-}
-
-function cardsPanel(ctx, cards, total) {
-  if (!cards.length) return emptyPanel(ctx, total);
-  return `
-    <section class="grid gap-4 lg:grid-cols-2" data-ai-cards>
-      ${cards.map((card) => cardMarkup(card, ctx.scope, currentDay(), filter === 'archived')).join('')}
-    </section>
-    ${total > cards.length ? `<div class="mt-5 text-center"><button type="button" data-ai-more class="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-300">Show ${escapeHtml(formatNumber(Math.min(PAGE_SIZE, total - cards.length)))} more</button></div>` : ''}`;
+        <span class="ai-alert-count" role="status" aria-live="polite" aria-atomic="true"><strong class="font-semibold text-slate-700">${escapeHtml(formatNumber(visibleCount))}</strong> ${visibleCount === 1 ? 'company' : 'companies'}${query.trim() ? ' matching' : ''}</span>`,
+  };
 }
 
 /**
@@ -720,7 +705,7 @@ function cardSection(kicker, bodyHtml, attrs = '') {
 /**
  * KPIs IN PLAY — which lines of THIS company's sector model the card's evidence names.
  *
- * One section directly under "Headline", drawn exactly as that section is (the same dot, the
+ * One section directly under "What happened", drawn exactly as that section is (the same dot, the
  * same kicker), so the card still reads as one sentence, one line of names and one list. It is
  * absent where the company's sector is not resolved or nothing on the card names a KPI — see
  * data/kpi-impact.js: no sector, no line.
@@ -807,7 +792,14 @@ function driverChipsMarkup(readings) {
   return `<span class="mt-1.5 flex flex-wrap items-center gap-1">${chips.join('')}</span>`;
 }
 
-// Source breadth describes the ranked recent window; the timeline can also reveal saved history.
+/**
+ * The list's own header, and the home of two figures the strip used to carry.
+ *
+ * "5 sources" is a property of the card's evidence rather than of any row, so it belongs to the
+ * list rather than to a cell of its own — and "newest first" is a claim about the order, which is
+ * why `byNewestFirst` sorts what `topEvidence` selected instead of trusting score order to read
+ * as recency. The window is named because an age of 9d means nothing without it.
+ */
 function listHeadMarkup(card) {
   const sources = card.feedCount || 0;
   return `
@@ -819,7 +811,14 @@ function listHeadMarkup(card) {
     </div>`;
 }
 
-// Publisher citations within one development read newest first after its primary filing.
+/**
+ * Newest first, by the day and by the time where the feed published one.
+ *
+ * `topEvidence` chooses WHICH rows (one per source in rounds, capped per source, so a card never
+ * spends every row on one of them), and this decides the order they are read in. Keeping them in
+ * score order under a header that says "newest first" would be the header describing a different
+ * list.
+ */
 function byNewestFirst(events) {
   return [...events].sort((a, b) =>
     String(b.day || '').localeCompare(String(a.day || '')) || String(b.time || '').localeCompare(String(a.time || '')));
@@ -842,72 +841,9 @@ function cardSnapshot(card) {
   cardSnapshots.set(card, snapshot);
   return snapshot;
 }
-/**
- * The "AI summary" question for a card: its lead development's, built from that development's lead
- * alone so the row in All Alerts asks the identical question and shares the note. Kept per card.
- */
-const cardNoteRequests = new WeakMap();
-function cardNoteRequest(card) {
-  if (cardNoteRequests.has(card)) return cardNoteRequests.get(card);
-  const dev = alerts.leadDevelopment(card);
-  // A related-entity report is about somebody else and is never asked about (`noteKindOf`).
-  const request = dev ? noteRequestFor(dev, { fallback: alerts.plainHeadline(dev.lead) }) : null;
-  cardNoteRequests.set(card, request);
-  return request;
-}
-
-// What the lead development IS, in the desk's words — "Corporate announcement" for the company's
-// own filing, "News" for a publisher's report — and the feed's own label for a measurement.
-const MEASUREMENT_LABEL = { earnings: 'Result', concalls: 'Con-call', insider: 'Insider / deal', investors: 'Investor holding',
-  technicals: 'Price & volume', chatter: 'Public chatter', 'screener-insights': 'Insight' };
-function kindLabel(dev) {
-  if (!dev?.lead) return '';
-  return dev.kind ? KIND_LABEL[dev.kind] : MEASUREMENT_LABEL[dev.lead.feed] || dev.lead.feedLabel || dev.lead.feed || '';
-}
-
-/**
- * THE FIRST BULLET: what happened, what kind of item it is, and a link to the record itself.
- *
- * The customer's reading of Puravankara: a ₹2,600 crore redevelopment win was the company's own
- * BSE announcement and the card led with a publisher's write-up of it, as generic news. The lead is
- * now the development's (data/alert-developments.js) — the filing wherever there is one — so the
- * chip says "Corporate announcement", the source says which exchanges filed it, and the sentence
- * opens that filing. Inline numbered citations open the original sources directly.
- */
-function whatHappenedMarkup(card, scope) {
-  const dev = alerts.leadDevelopment(card);
-  const lead = dev?.lead || alerts.leadEvent(card);
-  const destination = lead ? evidenceDestination(lead, scope) : null;
-  const source = dev ? developmentSource(dev) : '';
-  const chipTone = dev?.kind === 'filing' ? 'bg-indigo-50 text-indigo-700 ring-indigo-100' : 'bg-slate-50 text-slate-600 ring-slate-200';
-  const meta = dev ? `
-    <div data-ai-lead-meta class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-      <span data-ai-kind="${escapeHtml(dev.kind || lead?.feed || '')}" class="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${chipTone}">${escapeHtml(kindLabel(dev))}</span>
-      ${source && dev.kind ? `<span data-ai-lead-source class="text-[11px] font-semibold text-slate-500">${escapeHtml(source)}</span>` : ''}
-    </div>` : '';
-  const sentence = escapeHtml(card.insight);
-  const title = lead ? ` title="${escapeHtml(`${lead.feedLabel || lead.feed} · ${lead.headline || ''}`)}"` : '';
-  const body = destination
-    ? `<a data-ai-lead-link href="${escapeHtml(destination.href)}" ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
-        aria-label="${escapeHtml(destination.ariaLabel)}" class="rounded transition hover:text-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${sentence}</a>`
-    : sentence;
-  return `${meta}<p data-ai-insight class="font-display mt-1 text-[17px] font-bold leading-snug text-slate-900"${title}>${body} ${developmentSourcesMarkup(dev, scope, lead)}</p>`;
-}
-
-/**
- * OPTIONAL AI SUMMARY: factual detail from substantive filing text. News, routine notices and
- * already sufficient headlines omit the entire section; see ui/alert-note.js.
- */
-function summaryMarkup(card) {
-  const request = cardNoteRequest(card);
-  if (noteIsSkipped(request)) return '';
-  return cardSection('AI summary', `<p data-ai-note="${escapeHtml(request.handle)}" class="mt-0.5 text-[15px] font-medium leading-snug text-slate-800">${noteBodyHtml(request)}</p>`,
-    `data-ai-summary title="${escapeHtml(NOTE_DISCLOSURE)}"`);
-}
-
 function cardMarkup(card, scope, day, archived = false) {
   const sizes = report?.meta?.positionSizes;
-  const sizeTitle = sizes ? `Statement period · ${fmtDay(sizes.bookAsOf)}. Portfolio checked ${sizes.checkedAt}. ${['workbook', 'statements'].includes(sizes.valuation) ? 'Weights use the source statement marks.' : 'Weights use available prices; quote freshness varies.'} Percentages use the complete equity statement book; other asset classes and the ring-fenced holding are excluded.` : '';
+  const sizeTitle = sizes ? `Workbook period · ${fmtDay(sizes.bookAsOf)}. Portfolio checked ${sizes.checkedAt}. ${sizes.valuation === 'workbook' ? 'Weights use the latest uploaded workbook marks.' : 'Weights use available prices; quote freshness varies.'} Percentages include held equities, ETFs and liquid positions in the listed book.` : '';
   const badge = card.badge || { id: 'important', label: 'Important', tone: 'neutral' };
   const tone = {
     negative: { edge: 'border-l-rose-500', badge: 'bg-rose-600 text-white ring-rose-600' },
@@ -915,8 +851,12 @@ function cardMarkup(card, scope, day, archived = false) {
     neutral: { edge: 'border-l-slate-300', badge: 'bg-white text-slate-600 ring-slate-200' },
   }[badge.tone] || { edge: 'border-l-slate-300', badge: 'bg-white text-slate-600 ring-slate-200' };
   const signal = latestAlertSignal(card);
+  // The sentence is one source's own claim, sometimes chosen from the exchange's description and
+  // sometimes clipped on a word boundary — so the untouched wording, and which feed it came from,
+  // stay one hover away. See `plainHeadline` / `filingClaim`.
+  const lead = alerts.leadEvent(card);
   return `
-    <article data-ai-card data-ai-key="${escapeHtml(card.key || card.ticker || card.entityId)}" data-ticker="${escapeHtml(card.ticker || '')}" data-entity-id="${escapeHtml(card.entityId || '')}" data-priority="${escapeHtml(card.priority)}" data-score="${card.score}"${Number.isFinite(card.holdingWeightPct) ? ` data-holding-weight="${card.holdingWeightPct}"` : ''}${archived ? ' data-ai-archived' : ''}
+    <article data-ai-card data-ai-key="${escapeHtml(card.key || card.ticker || card.entityId)}" data-ticker="${escapeHtml(card.ticker || '')}" data-entity-id="${escapeHtml(card.entityId || '')}" data-priority="${escapeHtml(card.priority)}" data-score="${card.score}"${archived ? ' data-ai-archived' : ''}
       class="flex h-full flex-col overflow-hidden rounded-2xl border-l-4 ${archived ? 'border-l-slate-200' : tone.edge} bg-white shadow-sm ring-1 ring-slate-100"
       style="content-visibility: auto; contain-intrinsic-size: auto none auto 320px;">
       <div class="flex-1 p-5">
@@ -927,25 +867,28 @@ function cardMarkup(card, scope, day, archived = false) {
               ${escapeHtml(card.ticker || 'No exchange ticker')}${card.sector ? ` · ${escapeHtml(card.sector)}` : ''}${card.holding ? ' · In portfolio' : ''}
             </div>
           </div>
-          <span title="Company priority reflects all recent evidence, including events hidden by your filters." class="shrink-0 rounded-md px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider ring-1 ${tone.badge}">${escapeHtml(badge.label)}</span>
+          <span class="shrink-0 rounded-md px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider ring-1 ${tone.badge}">${escapeHtml(badge.label)}</span>
         </div>
 
         <p data-ai-date class="mt-2 text-xs leading-relaxed text-slate-500" title="Date of the newest noteworthy source event behind this alert. Source dates and times use IST; refreshing the page does not make an old event new.">
           ${signal ? `Latest signal · <time datetime="${escapeHtml(signal.datetime)}"><span data-ai-age data-day="${signal.day}" class="font-semibold capitalize text-slate-600">${relativeAge(signal.day, day)}</span> · ${fmtDay(signal.day)}${signal.time ? ` · ${signal.time} IST` : ''}</time>` : 'Signal date unavailable'}
         </p>
-        ${Number.isFinite(card.holdingWeightPct) ? `<p data-ai-holding-size title="${escapeHtml(sizeTitle)}" class="mt-1 text-xs font-semibold text-indigo-700">${card.holdingWeightPct > 0 && card.holdingWeightPct < 0.01 ? '&lt;0.01' : card.holdingWeightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of equity statement book</p>` : ''}
+        ${Number.isFinite(card.holdingWeightPct) ? `<p data-ai-holding-size title="${escapeHtml(sizeTitle)}" class="mt-1 text-xs font-semibold text-indigo-700">${card.holdingWeightPct > 0 && card.holdingWeightPct < 0.01 ? '&lt;0.01' : card.holdingWeightPct.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% of listed portfolio</p>` : ''}
 
-        ${cardSection('Headline', `${whatHappenedMarkup(card, scope)}${confluenceMarkup(card)}`)}
-        ${summaryMarkup(card)}
+        ${cardSection(lead?.storyId && lead.storyChange !== 'new' ? 'Updated · What changed' : 'Headline', whatHappenedMarkup(card, scope) + confluenceMarkup(card))}
+        ${lead ? alertReadingHtml(lead) : ""}
         ${kpiMarkup(card, scope)}
 
         ${listHeadMarkup(card)}
-        <div data-ai-timeline class="ai-alert-timeline" tabindex="0" role="region" aria-label="${escapeHtml(`${card.company} alert timeline, newest first`)}">
-          <ul data-ai-evidence data-ai-timeline-content class="ai-timeline-rows"></ul>
-          <div class="ai-timeline-history">
-            <p data-ai-timeline-status role="status" hidden></p>
-            <button type="button" data-ai-timeline-older>Load older alerts</button>
+        <div data-ai-timeline-frame class="ai-timeline-frame">
+          <div data-ai-timeline class="ai-alert-timeline" tabindex="0" role="region" aria-label="${escapeHtml(`${card.company} alert timeline, newest first`)}">
+            <ul data-ai-evidence data-ai-timeline-content class="ai-timeline-rows"></ul>
+            <div class="ai-timeline-history">
+              <p data-ai-timeline-status role="status" hidden></p>
+              <button type="button" data-ai-timeline-older>Load older alerts</button>
+            </div>
           </div>
+          <span data-ai-timeline-scroll-cue class="ai-timeline-scroll-cue" aria-hidden="true" hidden>Scroll for more ↓</span>
         </div>
         ${contextMarkup(card, scope)}
       </div>
@@ -956,7 +899,7 @@ function cardMarkup(card, scope, day, archived = false) {
           ${archived
             ? `<button type="button" data-ai-unmute data-ticker="${escapeHtml(card.key || card.ticker)}"
                 class="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200 transition hover:ring-indigo-300">Restore</button>`
-            : `<button type="button" data-ai-mute data-ticker="${escapeHtml(card.key || card.ticker)}" data-seen="${escapeHtml(card.evidenceKey || card.topEvent?.id || '')}"
+            : `<button type="button" data-ai-mute data-ticker="${escapeHtml(card.key || card.ticker)}"
                 class="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:text-slate-900 hover:ring-slate-300">Archive</button>`}
           <button type="button" data-open-general data-ticker="${escapeHtml(card.ticker || card.company)}"
             class="rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-slate-700">Open</button>
@@ -984,34 +927,7 @@ const DOT_TONE = {
  * published a clock, the IST time. A relative age invented down to the hour for a day-only feed
  * would be this dashboard being precise about something nobody measured.
  */
-// One number per destination, with the filing first. Full source labels remain on hover and
-// in accessible names; duplicate capture routes to the same URL share one citation.
-function developmentSourcesMarkup(dev, scope, fallback = null) {
-  const ordered = dev ? [dev.lead, ...dev.others.filter(event => storyKindOf(event) === 'filing'),
-    ...byNewestFirst(dev.others.filter(event => storyKindOf(event) !== 'filing'))] : fallback ? [fallback] : [];
-  const sources = new Map();
-  for (const source of ordered) {
-    const dest = evidenceDestination(source, scope);
-    const kind = storyKindOf(source);
-    const label = kind === 'filing' ? `Corporate announcement · ${venuesOf(source).join(' · ') || source.feedLabel || 'Exchange'}`
-      : publisherOf(source) || source.feedLabel || source.feed;
-    const when = `${fmtDay(source.day)}${source.time ? ` · ${source.time} IST` : ''}`;
-    const description = `${label} · ${when} — ${source.headline || alerts.plainHeadline(source)}`;
-    const entry = sources.get(dest.href) || { dest, descriptions: [] };
-    if (!entry.descriptions.includes(description)) entry.descriptions.push(description);
-    sources.set(dest.href, entry);
-  }
-  if (!sources.size) return '';
-  return `<span data-ai-development-sources="${escapeHtml(dev?.id || fallback.id)}" class="ai-source-citations">${[...sources.values()].map(({ dest, descriptions }, index) => {
-    const title = descriptions.join('\n');
-    return `<a data-ai-related-source data-ai-source-id="${escapeHtml(dest.href)}" href="${escapeHtml(dest.href)}"
-      ${dest.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
-      title="${escapeHtml(title)}" aria-label="${escapeHtml(`Source ${index + 1}: ${title}. ${dest.external ? 'Open original source' : 'Open dashboard evidence'}`)}"
-      class="ai-source-citation">${index + 1}</a>`;
-  }).join(' ')}</span>`;
-}
-
-function eventMarkup(event, scope, day, dev = null) {
+function eventMarkup(event, scope, day, dev = developmentOfRow(event)) {
   const destination = evidenceDestination(event, scope);
   const tag = alerts.FEED_TAG[event.feed] || String(event.feedLabel || event.feed || '').toUpperCase();
   const age = relativeAge(event.day, day);
@@ -1029,11 +945,12 @@ function eventMarkup(event, scope, day, dev = null) {
   // newest rows read at full strength and a nine-day-old book change recedes without being hidden.
   const recent = age === 'today' || age === '1d' || age.startsWith('in ');
   return `
-    <li data-ai-timeline-row data-row-key="${escapeHtml(event.id)}" data-ai-notebook-event="${escapeHtml(event.id)}">
+    <li data-ai-development="${escapeHtml(event.developmentId || event.id)}" data-ai-timeline-row data-row-key="${escapeHtml(event.id)}" data-ai-notebook-event="${escapeHtml(event.id)}">
       <div class="flex items-start gap-2">
       <div data-ai-event class="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 transition-colors hover:bg-indigo-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
         <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${DOT_TONE[event.direction] || DOT_TONE.neutral}" aria-hidden="true"></span>
         <span class="min-w-0 flex-1">
+          ${event.storyId && event.storyChange !== 'new' ? '<span data-ai-updated class="block text-xs font-bold text-indigo-700">Updated · What changed</span>' : ''}
           <span class="block text-sm font-medium leading-snug text-slate-800 group-hover:text-slate-900">
             <a data-ai-evidence-link href="${escapeHtml(destination.href)}" ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
               aria-label="${escapeHtml(ariaLabel)}" title="${escapeHtml(event.headline || '')}"
@@ -1045,7 +962,33 @@ function eventMarkup(event, scope, day, dev = null) {
       </div>
       ${bookmarkButton(snapshotForRow(event, { section: 'daily-alerts' }))}
       </div>
+      ${storyHistoryMarkup(event)}
     </li>`;
+}
+
+function storySourcesMarkup(reports) {
+  const links = new Map();
+  for (const report of reports) {
+    const records = [{ url: report.url, publisher: report.publisher || report.sourceRecord?.publisher || report.sourceRecord?.source,
+      feed: report.feed, headline: report.headline }, ...(report.newsProvenance || [])];
+    for (const record of records) {
+      const url = safeSourceUrl(record.url);
+      if (!url || links.has(url)) continue;
+      const label = record.publisher || (record.feed === 'nse-filings' ? 'NSE' : record.feed === 'announcements' ? 'BSE / company filing' : new URL(url).hostname.replace(/^www\./, ''));
+      links.set(url, `<a data-ai-story-source href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="text-indigo-700 hover:underline" title="${escapeHtml(record.headline || report.headline || '')}">${escapeHtml(canonicalPublisherName(label))}</a>`);
+    }
+  }
+  if (!links.size) return '';
+  const all = [...links.values()];
+  return `<div class="mb-2 break-words text-xs text-slate-500" data-ai-story-sources>Sources: ${all.slice(0, 3).join(' · ')}${all.length > 3
+    ? `<details class="mt-1"><summary class="cursor-pointer text-indigo-700">${all.length - 3} more sources</summary><div class="mt-1">${all.slice(3).join(' · ')}</div></details>` : ''}</div>`;
+}
+function storyHistoryMarkup(event) {
+  if (!event.storyHistory?.length) return '';
+  const history = [...event.storyHistory].sort((a, b) => b.reports[0].day.localeCompare(a.reports[0].day));
+  return `<details data-ai-story-history class="mb-2 break-words text-xs text-slate-500"><summary class="cursor-pointer text-indigo-700">Story history · ${history.length} other ${history.length === 1 ? 'development' : 'developments'}</summary>
+    ${history.map(item => `<div class="mt-2"><p>${escapeHtml(fmtDay(item.reports[0].day))} · ${escapeHtml(item.reports[0].headline)}</p>${storySourcesMarkup(item.reports)}</div>`).join('')}
+    <p>Earlier source records remain in All Alerts.</p></details>`;
 }
 
 /**
@@ -1110,7 +1053,7 @@ function filteredCards(cards) {
   return byPriority.filter((card) => !archived(card));
 }
 
-function wire(ctx, total) {
+function wire(ctx) {
   if (bookmarkRoot !== ctx.root) {
     offBookmarks?.();
     bookmarkRoot = ctx.root;
@@ -1142,8 +1085,8 @@ function wire(ctx, total) {
   if (sort) sort.onchange = () => {
     if (!Object.hasOwn(SORTS, sort.value)) return;
     sortOrder = sort.value;
-    try { localStorage.setItem(SORT_KEY, sortOrder); } catch { /* Keep the session preference. */ }
-    visibleLimit = PAGE_SIZE;
+    if (!ctx.savedView) try { localStorage.setItem(SORT_KEY, sortOrder); } catch { /* Keep the session preference. */ }
+    resetCardScroll = true;
     paint(ctxRef);
     ctxRef?.root.querySelector('[data-ai-sort]')?.focus({ preventScroll: true });
   };
@@ -1180,25 +1123,21 @@ function wire(ctx, total) {
     changeEventFilters(ctxRef);
   });
   click('[data-ai-reset-events]', () => { eventFilters = { selected: [], hideRoutine: false }; changeEventFilters(ctxRef); });
-  click('[data-ai-unlock]', unlockPortfolio);
   click('[data-ai-empty-clear]', clearSearch);
   click('[data-ai-controls]', (event) => {
     const button = event.target.closest('[data-ai-filter]');
     if (!button) return;
     filter = button.dataset.aiFilter;
-    visibleLimit = PAGE_SIZE;
-    paint(ctxRef);
-  });
-
-  click('[data-ai-more]', () => {
-    visibleLimit = Math.min(total, visibleLimit + PAGE_SIZE);
+    resetCardScroll = true;
     paint(ctxRef);
   });
 
   click('[data-ai-cards]', (event) => {
     const muteButton = event.target.closest('[data-ai-mute]');
     if (muteButton) {
-      mute.hide(muteButton.dataset.ticker, muteButton.dataset.seen || null);
+      const current = report?.allCards.find(card => String(card.key || card.ticker) === muteButton.dataset.ticker);
+      if (!current) return;
+      mute.hide(muteButton.dataset.ticker, current.evidenceKey || current.topEvent?.id || null);
       paint(ctxRef);
       return;
     }
@@ -1238,6 +1177,7 @@ function emptyPanel(ctx) {
       <button type="button" data-ai-reset-events class="mt-4 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">Clear event filters</button>
     </div>`;
   }
+
   if (query.trim()) {
     return `<div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100" data-ai-empty>
       <h3 class="font-display text-lg font-bold text-slate-900">No matching alerts in this view</h3>
@@ -1255,7 +1195,7 @@ function emptyPanel(ctx) {
       <div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100" data-ai-empty>
         <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-xl text-slate-500 ring-1 ring-slate-200">✓</div>
         <h3 class="font-display mt-4 text-lg font-bold text-slate-900">Nothing is archived</h3>
-        <p class="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">Archive a card once you have read it and it moves here. It comes back on its own if stronger evidence arrives.</p>
+        <p class="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">Archive a card once you have read it and it moves here. It comes back on its own if new material information arrives.</p>
       </div>`;
   }
   if (archivedHere > 0) {
@@ -1264,7 +1204,7 @@ function emptyPanel(ctx) {
         <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-xl text-slate-500 ring-1 ring-slate-200">✓</div>
         <h3 class="font-display mt-4 text-lg font-bold text-slate-900">You have archived everything in this view</h3>
         <p class="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
-          ${escapeHtml(formatNumber(archivedHere))} ${archivedHere === 1 ? 'company is' : 'companies are'} in the archive because you have read ${archivedHere === 1 ? 'it' : 'them'}. Each one comes back on its own if stronger evidence arrives.
+          ${escapeHtml(formatNumber(archivedHere))} ${archivedHere === 1 ? 'company is' : 'companies are'} in the archive because you have read ${archivedHere === 1 ? 'it' : 'them'}. Each one comes back on its own if new material information arrives.
         </p>
         <button type="button" data-ai-unmute-all class="mt-5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Restore them</button>
       </div>`;
@@ -1298,4 +1238,104 @@ function quietFallbackPanel() {
       <p class="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">Open the complete alert stream to continue reviewing recent company events.</p>
       <button type="button" data-ai-empty-general class="mt-5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Open All Alerts</button>
     </div>`;
+}
+
+function effectiveSort() {
+  return sortOrder === 'holdings' && (!report?.meta?.positionSizes?.complete || sizeError)
+    ? 'newest' : sortOrder;
+}
+
+function eventView(card) {
+  if (eventViews.has(card)) return eventViews.get(card);
+  const view = alerts.cardWithEvents(card, card.events.filter(event => matchesAIEvent(event, eventFilters)));
+  eventViews.set(card, view);
+  return view;
+}
+
+function changeEventFilters(ctx) {
+  clearTimelines();
+  if (!ctx.savedView) saveAIEventFilters(eventFilters);
+  eventViews = new WeakMap();
+  resetCardScroll = true;
+  paint(ctx);
+}
+
+function eventTypesControl() {
+  const counts = new Map(AI_EVENT_TYPES.map(type => [type.id, 0]));
+  for (const card of filteredCards(report?.allCards || [])) {
+    for (const id of new Set(card.events.flatMap(aiEventTypes))) counts.set(id, (counts.get(id) || 0) + 1);
+  }
+  return `<details data-ai-types-menu>
+    <summary class="cursor-pointer rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">Event types${eventFilters.selected.length ? ` · ${eventFilters.selected.length}` : ''}</summary>
+    <div class="absolute right-0 z-20 mt-2 rounded-xl bg-white p-4 text-slate-700 shadow-lg ring-1 ring-slate-200" style="width:min(26rem,calc(100vw - 3rem))">
+      <div class="mb-3 flex items-center justify-between gap-3"><span class="font-semibold">Match any selected type</span><button type="button" data-ai-types-clear class="font-semibold text-indigo-700">Clear types</button></div>
+      <div class="grid grid-cols-1 gap-1 sm:grid-cols-2" style="max-height:320px;overflow:auto" role="group" aria-label="AI alert event types">
+        ${AI_EVENT_TYPES.map(type => `<label title="${escapeHtml(type.hint)}" class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 hover:bg-slate-50">
+          <input type="checkbox" data-ai-type="${type.id}" ${eventFilters.selected.includes(type.id) ? 'checked' : ''} class="accent-indigo-600">
+          <span class="flex-1">${escapeHtml(type.label)}</span><span class="tabular-nums text-slate-400">${counts.get(type.id)}</span>
+        </label>`).join('')}
+      </div>
+      <p class="mt-3 text-xs leading-relaxed text-slate-500">Counts show companies by type in this scope and priority. Search narrows the results. Types use source wording across ${alerts.WINDOW_DAYS} days; priority describes the company’s complete evidence.</p>
+    </div>
+  </details>`;
+}
+
+function eventFilterSummary() {
+  return `<div data-ai-event-summary class="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+    <label class="mr-2 flex cursor-pointer items-center gap-2"><input type="checkbox" data-ai-hide-routine ${eventFilters.hideRoutine ? 'checked' : ''} class="accent-indigo-600">Hide routine notices</label>
+    ${eventFilters.selected.map(id => `<button type="button" data-ai-remove-type="${id}" aria-label="Remove ${escapeHtml(AI_EVENT_TYPES.find(type => type.id === id).label)} filter" class="rounded-full bg-indigo-50 px-3 py-1.5 font-semibold text-indigo-700 ring-1 ring-indigo-100">${escapeHtml(AI_EVENT_TYPES.find(type => type.id === id).label)} ×</button>`).join('')}
+    ${eventFilters.selected.length ? '<span>Showing matching events · Company priority unchanged</span>' : ''}
+  </div>`;
+}
+
+function kindLabel(dev) {
+  if (!dev?.lead) return '';
+  return dev.kind ? KIND_LABEL[dev.kind] : MEASUREMENT_LABEL[dev.lead.feed] || dev.lead.feedLabel || dev.lead.feed || '';
+}
+
+function whatHappenedMarkup(card, scope) {
+  const dev = alerts.leadDevelopment(card);
+  const lead = dev?.lead || alerts.leadEvent(card);
+  const destination = lead ? evidenceDestination(lead, scope) : null;
+  const source = dev ? developmentSource(dev) : '';
+  const chipTone = dev?.kind === 'filing' ? 'bg-indigo-50 text-indigo-700 ring-indigo-100' : 'bg-slate-50 text-slate-600 ring-slate-200';
+  const meta = dev ? `
+    <div data-ai-lead-meta class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span data-ai-kind="${escapeHtml(dev.kind || lead?.feed || '')}" class="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${chipTone}">${escapeHtml(kindLabel(dev))}</span>
+      ${source && dev.kind ? `<span data-ai-lead-source class="text-[11px] font-semibold text-slate-500">${escapeHtml(source)}</span>` : ''}
+    </div>` : '';
+  const sentence = escapeHtml(card.insight);
+  const title = lead ? ` title="${escapeHtml(`${lead.feedLabel || lead.feed} · ${lead.headline || ''}`)}"` : '';
+  const body = destination
+    ? `<a data-ai-lead-link href="${escapeHtml(destination.href)}" ${destination.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
+        aria-label="${escapeHtml(destination.ariaLabel)}" class="rounded transition hover:text-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">${sentence}</a>`
+    : sentence;
+  return `${meta}<p data-ai-insight class="font-display mt-1 text-[17px] font-bold leading-snug text-slate-900"${title}>${body} ${developmentSourcesMarkup(dev, scope, lead)}</p>`;
+}
+
+const MEASUREMENT_LABEL = { earnings: 'Result', concalls: 'Con-call', insider: 'Insider / deal', investors: 'Investor holding', technicals: 'Price & volume', chatter: 'Public chatter', 'screener-insights': 'Insight' };
+
+function developmentSourcesMarkup(dev, scope, fallback = null) {
+  const ordered = dev ? [dev.lead, ...dev.others.filter(event => storyKindOf(event) === 'filing'),
+    ...byNewestFirst(dev.others.filter(event => storyKindOf(event) !== 'filing'))] : fallback ? [fallback] : [];
+  const sources = new Map();
+  for (const source of ordered.flatMap(event => [event, ...(event.newsProvenance || []).filter(record => safeSourceUrl(record.url)).map(record => ({ ...event, ...record, sourceRecord: { publisher: record.publisher } }))])) {
+    const dest = evidenceDestination(source, scope);
+    const kind = storyKindOf(source);
+    const label = kind === 'filing' ? `Corporate announcement · ${venuesOf(source).join(' · ') || source.feedLabel || 'Exchange'}`
+      : publisherOf(source) || source.feedLabel || source.feed;
+    const when = `${fmtDay(source.day)}${source.time ? ` · ${source.time} IST` : ''}`;
+    const description = `${label} · ${when} — ${source.headline || alerts.plainHeadline(source)}`;
+    const entry = sources.get(dest.href) || { dest, descriptions: [] };
+    if (!entry.descriptions.includes(description)) entry.descriptions.push(description);
+    sources.set(dest.href, entry);
+  }
+  if (!sources.size) return '';
+  return `<span data-ai-development-sources="${escapeHtml(dev?.id || dev?.lead?.id || fallback?.id || '')}" class="ai-source-citations">${[...sources.values()].map(({ dest, descriptions }, index) => {
+    const title = descriptions.join('\n');
+    return `<a data-ai-related-source data-ai-source-id="${escapeHtml(dest.href)}" href="${escapeHtml(dest.href)}"
+      ${dest.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
+      title="${escapeHtml(title)}" aria-label="${escapeHtml(`Source ${index + 1}: ${title}. ${dest.external ? 'Open original source' : 'Open dashboard evidence'}`)}"
+      class="ai-source-citation">${index + 1}</a>`;
+  }).join(' ')}</span>`;
 }

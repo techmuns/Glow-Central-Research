@@ -5,7 +5,7 @@
 // always network-only, so Family holdings, research answers and private document
 // lookups never cross the persistence boundary.
 
-// Advance a revision on every change under /js/. CACHE_KEY combines the shared release
+// Advance a revision on every change under /js/ OR /css/. CACHE_KEY combines the shared release
 // marker below with the separate module revision, so either change creates a fresh cache.
 // `revalidateInBackground` below deliberately excludes /js/ — modules are treated as immutable and
 // the service-worker file plus this name ARE the code version boundary. So a returning reader with
@@ -15,24 +15,25 @@
 // completely invisible to everyone who has visited before — which is exactly what would have
 // happened to the Telegram section, whose new module is reachable from app.js but would never have
 // been requested. Nothing fails and nothing looks wrong; the feature simply is not there.
+//
+// THE SAME IS TRUE OF /css/, WHICH THIS NOTE USED TO LEAVE OUT. `cacheable` stores it and
+// `revalidateInBackground` does NOT list it, so the compiled stylesheet is as immutable to a
+// returning reader as a module is — while `/index.html` and `/data/` refresh quietly and hide
+// that fact. A purely visual change lands in the worst version of this: the HTML updates, the
+// stylesheet it depends on does not, and the result is a half-applied design nobody can see a
+// fault in. Advancing a revision here is the whole mechanism; editing the CSS is not enough.
 const CACHE_PREFIX = 'sattva-dashboard-';
-const CACHE_NAME = `${CACHE_PREFIX}2026-10-09-glow-momentum-ui-v2`;
+const CACHE_NAME = `${CACHE_PREFIX}2026-10-14-glow-sattva-parity-scope-v1`;
 const APP_ENTRY = '/js/app.js';
 const CORE = ['/', '/index.html', '/css/tailwind.css', '/css/theme.css', '/css/glow.css', '/glow-bridge.html', '/js/core/json-worker.js', '/data/portfolio-companies.json',
-  '/assets/brand/glow-ventures-wordmark.svg', '/assets/brand/favicon.svg'];
+  '/assets/brand/glow-ventures-wordmark.svg', '/assets/brand/favicon.svg', '/assets/brand/favicon.svg'];
 const MUNSHOT_SDK = 'https://munshot.s3.ap-south-1.amazonaws.com/SDK+script/munshot-dashboard-sdk.v1.0.0.min.js';
 const WARM_CONCURRENCY = 8;
-const MODULE_ENTRIES = [APP_ENTRY, '/js/research/glow-bridge.js'];
 
-// Keep reader/content revisions separate from the shared marker: concurrent dashboard
-// releases can advance it without conflicting with these fixes. Every install,
-// read and eviction uses the same combined key, retaining atomic upgrades.
-// Glow's own reader markers lead; the template's follow, so a returning reader upgrades
-// once for both and neither side's revision can be dropped by the next sync.
-const CACHE_KEY = `${CACHE_NAME}-glow-largest-holdings-all-scopes-v5-glow-mf-reliability-v2-glow-price-levels-v1-glow-research-row-floor-v1-glow-table-scrollbars-v1-glow-order-book-topic-v1-glow-alert-filters-v1-glow-portfolio-reader-v3-glow-investor-dates-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v1-all-alerts-restore-v2-ai-card-updates-v1-performance-ownership-v1-ai-impact-triggers-v1-mf-active-passive-v4-ai-impact-links-v1-glow-newsletter-simple-v1-glow-newsletter-multi-add-v1-glow-newsletter-coverage-v1-glow-research-settle-v1-glow-portfolio-watchlist-sheets-v1-glow-sheet-live-edits-v1-sattva-newsletter-v2-bounded-history-memory-v6-news-query-performance-v1-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v1-glow-muns-minute-v1-muns-price-label-v2-glow-kpi-impact-v2-ai-card-parity-v1-glow-alert-developments-v2-announcement-sources-v1-news-story-companions-v1-document-query-priority-v1-company-feed-recovery-v8`;
-
-// This UI revision composes with the shared release without competing for its version line.
-const RELEASE_CACHE_KEY = `${CACHE_KEY}-ai-alerts-clean-search-v1-alert-note-attempts-v1-optional-ai-summary-v1-inline-source-citations-v1-ai-scroll-timeline-v1-remove-ask-research-v1-announcement-company-search-v1-announcement-recovery-v4-announcement-search-clarity-v1-announcement-preparation-v1-alert-startup-context-v1-announcement-pool-freshness-v1-paid-news-market-hours-v1-free-company-news-v1-bulk-block-poller-v1-news-every-2-hours-v1-empty-day-alerts-v1-finology-period-labels-v1-insider-source-gaps-v1-news-identity-retention-v1-progressive-open-v1-relevance-ranking-v1-json-worker-v1-scoped-alert-pool-v2`;
+// Keep content revisions separate from the shared marker: concurrent dashboard
+// releases can update that marker without conflicting with these fixes. Every
+// install, read and eviction uses the same combined key, retaining atomic upgrades.
+const CACHE_KEY = `${CACHE_NAME}-news-story-companions-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v2-dated-grades-all-alerts-restore-v2-ai-card-updates-v1-story-updates-v2-shared-reading-performance-ownership-v1-sattva-newsletter-v3-source-evidence-bounded-history-memory-v5-news-query-performance-v1-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v3-content-reuse-investor-evidence-v2-initial-state-source-reliability-v1-scrollbar-grab-v2-measured-anchor-filing-particulars-v1-table-drag-v2-mutual-funds-v13-upstox-minute-v2-muns-price-label-v2-kpi-impact-v2-alert-notes-luna-v1-announcement-company-search-v1-announcement-search-clarity-v1-source-picker-stability-v1-fund-navigation-v1-private-price-alerts-v2-ai-reading-v2-factual-summaries-v1-alert-timelines-v1-announcement-recovery-v1-sliced-announcement-history-v1-retained-failure-cache-v1-story-order-v1-company-feed-recovery-v9-momentum-calculations-v1-announcement-read-stream-v1-super-investor-ux-v2`;
 
 function moduleSpecifiers(source) {
   const found = new Set();
@@ -40,6 +41,21 @@ function moduleSpecifiers(source) {
   let match;
   while ((match = pattern.exec(source))) found.add(match[1] || match[2]);
   return [...found];
+}
+
+// Compose with every other module revision without editing their shared version lines.
+function releaseCacheKey() {
+  return `${RELEASE_CACHE_KEY}-2026-10-09-full-exchange-universe-v1-directory-recovery-v1-responsive-directory-v1-super-investor-clean-heading-v1-news-coverage-detail-v1-all-alerts-history-only-v1-super-investor-managers-v1-json-worker-v1-scoped-alert-pool-v4`;
+}
+
+// Compose this UI revision without editing another release's version marker.
+function appReleaseCacheKey() {
+  return `${releaseCacheKey()}-compact-ai-status-v2-compact-ai-toolbar-v2-insider-capture-recovery-v2-hide-screener-source-buttons-v1-universe-saved-first-v1-source-cache-recovery-v2-reorder-research-tabs-v2-lift-manager-images-v2-all-investors-clean-layout-v1-investors-audience-first-v1-my-managers-clean-heading-v1-all-investors-clean-heading-v1-screens-label-v1`;
+}
+
+// Keep the News presentation release independent of other UI version markers.
+function newsCardCacheKey() {
+  return `${appReleaseCacheKey()}-news-card-parity-v1`;
 }
 
 async function cacheOne(cache, input, init = {}, timeoutMs = 8000) {
@@ -97,9 +113,10 @@ async function mapBounded(items, worker) {
 }
 
 /** Follow the native ES-module graph so every tab's code is warm without a hand-maintained list. */
-async function cacheModuleGraph(cache, entries) {
-  let pending = entries.map(entry => new URL(entry, self.location.origin));
-  const seen = new Set(pending.map(url => url.href));
+async function cacheModuleGraph(cache, entry) {
+  const first = new URL(entry, self.location.origin);
+  const seen = new Set([first.href]);
+  let pending = [first];
 
   // Walk one breadth at a time. A promise-per-module traversal can deadlock on
   // perfectly valid circular imports (A waits for B while B waits for A).
@@ -124,24 +141,30 @@ async function cacheModuleGraph(cache, entries) {
   }
 }
 
+// This UI revision composes with the shared release without competing for its version line.
+const RELEASE_CACHE_KEY = `${CACHE_KEY}-ai-alerts-clean-search-v1-direct-earnings-reports-v2-paid-news-market-hours-v1-free-company-news-v1-news-every-2-hours-v1-empty-day-alerts-v1-finology-period-labels-v1-insider-source-gaps-v1-research-settle-v1-news-identity-retention-v1-lazy-tab-interfaces-v2-momentum-scanner-v1-momentum-scanner-polish-v1-relevance-ranking-v1-momentum-scanner-names-v1-glow-alert-delivery-v1-recovery-revisions-v1-context-restart-v1-active-deal-poller-v1-startup-reads-v1-cancelled-alert-warmups-v1-empty-news-query-v1-sliced-feed-normalization-v1-source-churn-warmups-v1-shared-company-archives-v1-remove-ask-research-tab-v1-research-navigation-order-v1-alerts-subtabs-v1-alerts-table-spacing-v2-announcements-subtabs-v1-earnings-subtabs-v1-publisher-merge-evidence-v1-results-period-labels-v1-news-subtabs-v1-news-newest-first-v1-remove-chatter-uncovered-tab-v1-telegram-hide-link-only-v1-chatter-table-first-v1`;
+
 self.addEventListener('install', (event) => {
+  // Set the activation intent before asynchronous warm-up. Installation still has to
+  // complete successfully before this version can replace the active worker.
+  event.waitUntil(self.skipWaiting());
   event.waitUntil((async () => {
-    const cache = await caches.open(RELEASE_CACHE_KEY);
+    const cache = await caches.open(tabDialogCacheKey());
     // A new version activates only when its whole required shell is complete;
     // otherwise the previous worker/cache remains the safe fallback.
     await Promise.all(CORE.map((asset) => cacheRequired(cache, asset)));
-    await cacheModuleGraph(cache, MODULE_ENTRIES);
+    await cacheModuleGraph(cache, APP_ENTRY);
+    await cacheModuleGraph(cache, '/js/research/glow-bridge.js');
     // The SDK is a small, versioned public script but its S3 response has no
     // Cache-Control header. Keep an opaque copy so it cannot block every return visit.
     await cacheOne(cache, MUNSHOT_SDK, { mode: 'no-cors' }, 4000);
-    await self.skipWaiting();
   })());
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== RELEASE_CACHE_KEY).map((key) => caches.delete(key)));
+    await Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== tabDialogCacheKey()).map((key) => caches.delete(key)));
     await self.clients.claim();
   })());
 });
@@ -151,11 +174,7 @@ function shellNavigation(request, url) {
 }
 
 function cacheKey(request, url) {
-  // Hash routes share the shell. Independent documents (especially the hidden
-  // portfolio reader) must never read or overwrite the dashboard's HTML cache.
   if (shellNavigation(request, url)) return new Request(new URL('/index.html', self.location.origin));
-  // Cloudflare redirects .html to its extensionless document URL. Both spellings
-  // must reuse the reader document warmed during installation, never the shell.
   if (request.mode === 'navigate' && ['/glow-bridge', '/glow-bridge.html'].includes(url.pathname))
     return new Request(new URL('/glow-bridge.html', self.location.origin));
   return request;
@@ -165,8 +184,11 @@ function cacheable(request, url) {
   if (request.method !== 'GET' || request.headers.has('authorization') || request.cache === 'no-store') return false;
   if (url.href === MUNSHOT_SDK) return true;
   if (url.origin !== self.location.origin || url.pathname === '/sw.js' || url.pathname.startsWith('/api/')) return false;
+  // A filing is server-rendered and keyed by its source, not the dashboard shell. Treating its
+  // navigation as /index.html both hid the document and could overwrite the cached dashboard.
+  if (url.pathname === '/filing' || url.pathname.startsWith('/filing/')) return false;
   return request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html' ||
-    url.pathname.startsWith('/js/') || url.pathname.startsWith('/css/') || url.pathname.startsWith('/data/') || url.pathname.startsWith('/assets/brand/');
+    url.pathname.startsWith('/js/') || url.pathname.startsWith('/css/') || url.pathname.startsWith('/data/') || url.pathname.startsWith('/assets/brand/') || url.pathname.startsWith('/assets/managers/');
 }
 
 const newsPartHash = url => /^\/data\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.parts\/([a-f0-9]{64})\.json$/.exec(url.pathname)?.[1];
@@ -207,12 +229,9 @@ async function fetchAndCache(cache, request, key) {
   const control = response.headers.get('cache-control') || '';
   if (response.ok && !/\b(?:private|no-store)\b/i.test(control) && await validImmutablePart(response, request)) {
     try {
-      // Background document revalidation must preserve the same redirect-free
-      // navigation response as installation (Cloudflare redirects .html URLs).
       const copy = response.clone();
       await cache.put(key, copy.redirected
-        ? new Response(copy.body, { status: copy.status, statusText: copy.statusText, headers: copy.headers })
-        : copy);
+        ? new Response(copy.body, { status: copy.status, statusText: copy.statusText, headers: copy.headers }) : copy);
     } catch { /* A storage failure must not fail the network read. */ }
   }
   return response;
@@ -224,7 +243,7 @@ self.addEventListener('fetch', (event) => {
   if (!cacheable(request, url)) return;
 
   event.respondWith((async () => {
-    const cache = await caches.open(RELEASE_CACHE_KEY);
+    const cache = await caches.open(tabDialogCacheKey());
     const key = cacheKey(request, url);
     // Explicit data revalidation must reach the server in THIS request. Returning
     // the held body while updating it behind the scenes made Refresh one capture
@@ -241,3 +260,36 @@ self.addEventListener('fetch', (event) => {
       (shellNavigation(request, url) ? cache.match('/index.html') : Response.error());
   })());
 });
+
+// Keep this UI revision separate from the shared dashboard release markers.
+function currentCacheKey() {
+  return `${ipoFilingCacheKey()}-all-alerts-clean-header-v13-announcement-deals-subtab-v2-ai-timeline-scroll-cue-v3-deals-reading-layout-v2-alerts-shared-frame-v1-announcements-title-only-v1-source-panel-details-v1-directory-market-caps-v4`;
+}
+
+// Preserve every shared release and upgrade returning readers to the compact Mutual Funds layout.
+function mutualFundsCacheKey() {
+  return `${dashboardCacheKey()}-mutual-funds-table-space-v2-concall-compact-note-v1-news-company-search-v1-news-visible-feedback-v1`;
+}
+
+function dashboardCacheKey() {
+  return `${currentCacheKey()}-clean-announcements-momentum-v5-insider-transaction-filter-v1-earnings-header-switches-v1-earnings-more-filters-v4-technical-scanner-table-focus-v3`;
+}
+
+// Compose column presentation with other releases without changing their version markers.
+function sharedWorkspaceCacheKey() {
+  return `${tableLayoutCacheKey()}-shared-workspace-saved-tabs-v8-scalable-builder-shared-navigation-spacing-v2-announcements-shared-columns-v3-subject-actions-v1`;
+}
+
+// Version the tab dialog independently of concurrent table and navigation releases.
+function tabDialogCacheKey() {
+  return `${sharedWorkspaceCacheKey()}-tab-dialog-dismiss-v1-remove-all-tabs-dropdown-v1-draft-tab-autoscroll-v1`;
+}
+
+function tableLayoutCacheKey() {
+  return `${mutualFundsCacheKey()}-company-columns-lift-v3-insider-more-filters-v1-insider-company-first-v1-concall-assessment-recovery-v1-chatter-clean-header-v2-chatter-source-highlights-v1-chatter-text-colours-v2`;
+}
+
+// Keep the IPO revision independent of other dashboard release markers.
+function ipoFilingCacheKey() {
+  return `${newsCardCacheKey()}-single-ipo-filing-link-v6-insider-ist-v1-ipo-filter-toolbar-v2`;
+}

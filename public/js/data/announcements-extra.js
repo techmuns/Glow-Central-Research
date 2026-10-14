@@ -1,8 +1,8 @@
 import { readEntry, writeEntry, KEYS } from '../core/store.js';
 import { authHeaders } from '../core/host-context.js';
 import { capturedJson, capturedCompany, loadCompanyCaptureIndex, companyCaptureStatus } from './company-captures.js';
-import { announcementRange, announcementUrl, mergeAnnouncements, mergeAnnouncementsAsync } from './announcements-shared.js';
-import { mapSteps, runStepsInSlices } from '../core/slices.js';
+import { announcementRange, announcementUrl, mergeAnnouncements, mergeAnnouncementsAsync, mergeAnnouncementSteps } from './announcements-shared.js';
+import { runSteps, runStepsInSlices, yieldToInput } from '../core/slices.js';
 
 /** Additional company lookups share the table, never the exchange-wide snapshot's coverage claim. */
 export function withAnnouncementLookups(base) {
@@ -12,16 +12,18 @@ export function withAnnouncementLookups(base) {
   const emit = () => subscribers.forEach((fn) => fn());
   let lastQuery = null;
   let shared = [], sharedError = null, sharedPending = false, sharedLoaded = false;
-  let sharedWrites = Promise.resolve(), sharedGeneration = 0;
-  function appendShared(incoming) {
-    const generation = sharedGeneration;
-    const task = sharedWrites.then(async () => {
+  let sharedGeneration = 0, sharedMerges = Promise.resolve();
+  function appendShared(lists, options = {}, generation = sharedGeneration) {
+    const addition = sharedMerges.then(async () => {
       if (generation !== sharedGeneration) return;
-      const next = await mergeAnnouncementsAsync([shared, ...incoming]);
-      if (generation === sharedGeneration) shared = next;
+      const next = await mergeAnnouncementsAsync([shared, ...lists], { ...options,
+        keepGoing: () => generation === sharedGeneration });
+      if (next && generation === sharedGeneration) shared = next;
     });
-    sharedWrites = task.catch(() => {});
-    return task;
+    // Recent and retained captures can finish together. Serialize their additions
+    // so a sliced merge cannot overwrite the other arrival's complete history.
+    sharedMerges = addition.catch(() => {});
+    return addition;
   }
   let recovery = [], recoveryMeta = null, recoveryRevision = null, recoveryPromise = null;
   async function loadRecovery() {
@@ -33,7 +35,7 @@ export function withAnnouncementLookups(base) {
         const revision = `${value.updatedAt}:${value.lastPageAt}:${value.lastAttemptAt}:${value.rowCount}`;
         // In slices: the recovery capture is thousands of filings, and merging it in one task was
         // half a second at 4x CPU throttle on every first read of the announcements feed.
-        if (revision !== recoveryRevision) { recovery = await mergeAnnouncementsAsync([recovery, value.rows]); recoveryRevision = revision; }
+        if (revision !== recoveryRevision) { recovery = await runStepsInSlices(mergeAnnouncementSteps(recovery, value.rows)); recoveryRevision = revision; }
         recoveryMeta = { available: value.bootstrap !== true, lastAttemptAt: value.lastAttemptAt, lastPageAt: value.lastPageAt,
           lastSuccessAt: value.lastSuccessAt, captureStart: value.captureStart, pendingCount: value.pending.length,
           unavailableDocuments: value.rows.filter(r => r.documentUnavailable).length,
@@ -49,10 +51,13 @@ export function withAnnouncementLookups(base) {
   let sharedPromise = null;
   async function loadShared() {
     if (sharedPromise) return sharedPromise;
+    const generation = sharedGeneration;
     sharedPromise = (async () => {
       await loadCompanyCaptureIndex();
+      if (generation !== sharedGeneration) return;
       try {
         const result = await capturedJson('data/filing-capture/announcements-recent.json');
+        if (generation !== sharedGeneration) return;
         if (!Array.isArray(result.value?.rows)) throw new Error('Additional shared announcements have an unfamiliar format.');
         // RE-MERGING AN UNCHANGED CAPTURE IS NOT FREE, AND ITS REAL COST IS PAID BY EVERY LAYER ABOVE.
         //
@@ -72,12 +77,13 @@ export function withAnnouncementLookups(base) {
         const sharedRevision = typeof result.value.updatedAt === 'string' && result.value.updatedAt
           ? `recent:${result.value.updatedAt}|${result.value.rows.length}` : null;
         if (!sharedRevision || !shared.length || sharedRevisions.get(SHARED_RECENT_KEY) !== sharedRevision) {
-          await appendShared([result.value.rows]);
+          await appendShared([result.value.rows], {}, generation);
+          if (generation !== sharedGeneration) return;
           if (sharedRevision) sharedRevisions.set(SHARED_RECENT_KEY, sharedRevision);
         }
         sharedError = result.stale ? 'Showing saved additional announcements; shared capture could not be checked.' : null;
-      } catch (error) { sharedError = error.message; }
-      finally { sharedPromise = null; }
+      } catch (error) { if (generation === sharedGeneration) sharedError = error.message; }
+      finally { if (generation === sharedGeneration) sharedPromise = null; }
     })();
     return sharedPromise;
   }
@@ -92,31 +98,46 @@ export function withAnnouncementLookups(base) {
     })();
     return restored;
   }
-  let rowSnapshot = null;
-  const sourceRow = r => ({ ...r, source: r.source || 'BSE', sources: r.sources || [r.source || 'BSE'], providers: r.providers?.length ? r.providers : ['BSE date index'] });
+  let rowSnapshot = null, preparingRows = null;
+  const inputs = () => ({ source: base.rows(), shared, history, recovery });
+  const sameInputs = (a, b) => !!a && (a.source === b.source || a.source.length === b.source.length &&
+    a.source.every((row, i) => row === b.source[i])) && a.shared === b.shared && a.history === b.history && a.recovery === b.recovery;
+  function* buildRows(input) {
+    const source = [];
+    for (const r of input.source) {
+      source.push({ ...r, source: r.source || 'BSE', sources: r.sources || [r.source || 'BSE'], providers: r.providers?.length ? r.providers : ['BSE date index'] });
+      if (source.length % 128 === 0) yield;
+    }
+    return yield* mergeAnnouncementSteps(source, input.shared, input.history, input.recovery);
+  }
   const rows = () => {
-    const source = base.rows();
-    if (rowSnapshot?.source === source && rowSnapshot.shared === shared && rowSnapshot.history === history && rowSnapshot.recovery === recovery) return rowSnapshot.rows;
-    const value = mergeAnnouncements(source.map(sourceRow), shared, history, recovery);
-    rowSnapshot = { source, shared, history, recovery, rows: value };
+    const input = inputs();
+    if (sameInputs(rowSnapshot, input)) return rowSnapshot.rows;
+    const value = runSteps(buildRows(input));
+    rowSnapshot = { ...input, rows: value };
     return value;
   };
-  let preparing = null;
-  function prepareRows() {
-    if (preparing) return preparing;
-    preparing = (async () => {
+  async function warm(yieldForInput = yieldToInput, { sliceMs } = {}) {
+    await base.warm?.(yieldForInput);
+    await base.prepareRows?.();
+    if (preparingRows) return preparingRows;
+    preparingRows = (async () => {
       for (;;) {
+        await base.warm?.(yieldForInput);
         await base.prepareRows?.();
-        const source = base.rows(), inputs = { source, shared, history, recovery };
-        if (rowSnapshot && Object.entries(inputs).every(([key, value]) => rowSnapshot[key] === value)) return;
-        const projected = await runStepsInSlices(mapSteps(source, sourceRow));
-        const value = await mergeAnnouncementsAsync([projected, inputs.shared, inputs.history, inputs.recovery]);
-        if (source !== base.rows() || inputs.shared !== shared || inputs.history !== history || inputs.recovery !== recovery) continue;
-        rowSnapshot = { ...inputs, rows: value };
-        return;
+        const input = inputs();
+        if (sameInputs(rowSnapshot, input)) return;
+        const value = await runStepsInSlices(buildRows(input), { yieldForInput, sliceMs });
+        // A new archive can arrive between slices. Prepare its own union before
+        // comparing inputs; rows() would otherwise perform that cold merge now.
+        await base.warm?.(yieldForInput);
+        await base.prepareRows?.();
+        // A source can publish or be invalidated between slices. Retry the current inputs;
+        // neither a partial merge nor an obsolete source revision may become the ready snapshot.
+        if (value && sameInputs(input, inputs())) { rowSnapshot = { ...input, rows: value }; return; }
       }
-    })().finally(() => { preparing = null; });
-    return preparing;
+    })().finally(() => { preparingRows = null; });
+    return preparingRows;
   }
   function lookupMeta() {
     return { lookups: queries.size, companies: new Set([...queries.values()].map((q) => q.ticker)).size,
@@ -163,7 +184,7 @@ export function withAnnouncementLookups(base) {
     return task;
   }
   return {
-    ...base, rows, prepareRows,
+    ...base, rows, warm,
     forTicker: (ticker) => rows().filter((row) => row.ticker === String(ticker).toUpperCase()),
     meta() {
       const m = base.meta(), combined = rows();
@@ -172,26 +193,29 @@ export function withAnnouncementLookups(base) {
         archive: { ...m.archive, pending: m.archive?.pending || sharedPending, loaded: m.archive?.loaded && sharedLoaded,
           error: m.archive?.error || sharedError } };
     },
-    async seed() { await Promise.all([base.seed(), restore(), loadShared(), loadRecovery()]); emit(); },
-    async load(...args) { await Promise.all([base.load(...args), restore(), loadShared(), loadRecovery()]); emit(); },
+    async seed() { await Promise.all([base.seed(), restore(), loadShared(), loadRecovery()]); await warm(); emit(); },
+    async load(...args) { await Promise.all([base.load(...args), restore(), loadShared(), loadRecovery()]); await warm(); emit(); },
     // The capture's own answer travels back. Resolving to nothing made every refreshing All Alerts
     // collection read `.available` off undefined and report the BSE feed as failed — and a feed
     // read after a failed load is classified in one task, not warmed in slices first.
     async refreshSnapshot() {
       const [result] = await Promise.all([base.refreshSnapshot(), loadShared(), loadRecovery()]);
-      emit();
+      await warm(); emit();
       return result;
     },
-    async loadArchive({ onlyChanged = false } = {}) {
+    async loadArchive({ onlyChanged = false, yieldForInput = yieldToInput, sliceMs } = {}) {
       if (sharedPending) return;
+      const generation = sharedGeneration;
       sharedPending = true; sharedError = null; emit();
       try {
         await loadCompanyCaptureIndex();
+        if (generation !== sharedGeneration) return;
         const status = companyCaptureStatus('announcements');
         const queue = Object.keys(status.entries), failed = [], incoming = [];
         // Merge once per batch, instead of re-sorting all prior history for every company.
         const results = await Promise.allSettled([Promise.resolve().then(() => base.loadArchive?.({ onlyChanged })), ...Array.from({ length: 3 }, async () => {
           while (queue.length) {
+            if (generation !== sharedGeneration) return;
             const ticker = queue.shift(), entry = status.entries[ticker];
             if (!entry.rowCount) continue;
             // Either source can change the shared company file independently. In particular, an
@@ -206,21 +230,23 @@ export function withAnnouncementLookups(base) {
             if (onlyChanged && !status.error && sharedRevisions.get(ticker) === revision) continue;
             try {
               const result = await capturedCompany('announcements', ticker);
+              if (generation !== sharedGeneration) return;
               incoming.push(result.value.rows);
               if (result.stale) failed.push(ticker);
               else sharedRevisions.set(ticker, revision);
             } catch { failed.push(ticker); }
           }
         })]);
-        // Status-only checks must keep the published array stable, or every
-        // consumer above this layer rebuilds the full announcement history.
-        if (incoming.length) await appendShared([incoming.flat()]);
+        await appendShared([incoming.flat()], { yieldForInput, sliceMs }, generation);
+        if (generation !== sharedGeneration) return;
+        await warm(yieldForInput, { sliceMs });
+        if (generation !== sharedGeneration) return;
         sharedLoaded = status.available && !failed.length && results.every(result => result.status === 'fulfilled');
         sharedError = failed.length ? `Additional company history could not be checked for: ${failed.join(', ')}.` :
           results.some(result => result.status === 'rejected') ? 'Some captured history could not be checked; saved announcements are retained.' :
           !sharedLoaded ? 'Additional company history has not been published yet.' : null;
-      } catch { sharedError = 'Captured company history could not be checked; saved announcements are retained.'; sharedLoaded = false; }
-      finally { sharedPending = false; emit(); }
+      } catch { if (generation === sharedGeneration) { sharedError = 'Captured company history could not be checked; saved announcements are retained.'; sharedLoaded = false; } }
+      finally { if (generation === sharedGeneration) { sharedPending = false; emit(); } }
     },
     lookup, lookupMeta,
     // The normal Refresh remains the inexpensive BSE refresh. The company form repeats additional
@@ -230,6 +256,6 @@ export function withAnnouncementLookups(base) {
       const off = base.onChange(fn);
       return () => { subscribers.delete(fn); off(); };
     },
-    invalidate() { base.invalidate(); sharedGeneration++; restored = null; history = []; shared = []; recovery = []; recoveryMeta = null; recoveryRevision = null; sharedLoaded = false; sharedRevisions.clear(); queries.clear(); lastQuery = null; },
+    invalidate() { base.invalidate(); restored = null; history = []; shared = []; sharedGeneration++; sharedMerges = Promise.resolve(); sharedPending = false; sharedPromise = null; recovery = []; recoveryMeta = null; recoveryRevision = null; sharedLoaded = false; sharedRevisions.clear(); queries.clear(); lastQuery = null; },
   };
 }

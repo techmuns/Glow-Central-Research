@@ -14,17 +14,6 @@ health. `/api/telegram/posts` reads these artifacts with the existing Worker
 SHA-256, download host and public-data schema. No Telegram credentials reach the Worker
 or browser. One-minute edge caching and ETags bound repeated reads.
 
-The `researchreportss-delivery-v1` object in the existing `TELEGRAM_SCHEDULER` binding
-coordinates artifact reads for this channel. It decompresses, validates, strips non-public
-fields and prepares a response inside the Durable Object's CPU allowance, then transfers
-the response stream through RPC. The public Worker handles headers and edge caching without
-decoding or hashing the archive. This fixes the observed resource-limit failure that left
-Glow readers on the September 4 static fallback despite newer successful captures.
-Concurrent readers share one bounded read; a disposable in-memory response lasts at most
-one minute. Failed reads cannot turn expired responses into fresh success. Restarting the
-object recovers from the immutable artifact. This delivery object never arms the collection
-timer, reads Telegram directly, or changes the capture/archive publication policy.
-
 The browser restores validated saved captures before reading the static
 `public/data/telegram-posts.json`. Public Chatter polls the artifact once a minute while
 mounted and visible, retaining newer data if an older static file or failed response
@@ -174,17 +163,20 @@ is published as failed health, even though uploading that health artifact succee
 The integration reads only the configured public broadcast channel, with no joins,
 sending, contact access, read receipts, private-group export or file downloads. Text,
 publication dates, document filenames/sizes and original links are retained. Captionless
-messages remain visible as dated original Telegram links. The UI distinguishes the newest
+messages are retained as dated original Telegram links. The UI distinguishes the newest
 captured publication from the newest readable report; it does not invent unavailable text.
 
 ### Reading captured content
 
-Public Chatter opens with **All posts**, keeping the newest captured publications visible
-even when only their dates and links are available. The Content filter also offers
-**Readable here** (captured text/captions) and **Open in Telegram** (no captured text).
-No archive records are removed. The archive count, newest captured publication, source-check
-time and missing-text notice remain visible in every view, and search/export follow the selected
-filter. A named file without a caption is a filename, not a readable report. Files remain
+Public Chatter opens with **All posts** and **Hide link-only posts** checked. The checkbox
+hides entries with no captured text, filename or identified media type; unchecking restores
+their dates and original links. Named documents and known images/videos remain available
+without captions. The Content filter also offers **Readable here** (captured text/captions)
+and **Open in Telegram** (no captured text).
+No archive records are removed. Source details exposes archive counts, newest captured and
+readable publication times, source checks, verification and history/retry limits. A compact
+status badge remains visible; long descriptions and missing-text notices are removed from the
+table view. Search/export follow the selected filters. A named file without a caption is a filename, not a readable report. Files remain
 in Telegram and are not downloaded or rendered by this integration.
 Rows, post dialogs and exports explicitly label known **Image**, **Video** and **Document**
 media. A captured caption is readable here even though its media opens in Telegram.

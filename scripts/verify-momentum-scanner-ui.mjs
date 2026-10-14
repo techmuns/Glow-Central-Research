@@ -5,7 +5,7 @@
 //
 // Mirrors verify-ui.mjs: it drives the REAL dashboard (served from public/) and prints one
 // PASS/FAIL line per check, exiting non-zero on any failure so it can gate a push and the CI
-// `browser` job. It asserts the Step-3 polish — the stat strip, the hand-built sector mini-bar,
+// `browser` job. It asserts the compact scanner — no summary cards or sector chart,
 // the ranked table's columns, the gate toggle, the threshold controls, the colourful condition
 // pills, the empty state — plus NO horizontal page overflow at 1440px and 390px and zero console
 // errors of ours.
@@ -45,7 +45,7 @@ const ok = (label, cond, detail = '') => {
 const root = resolve('public');
 const AT = Date.parse('2026-10-09T06:30:00Z');
 const original = JSON.parse(readFileSync(`${root}/data/technicals.json`));
-const seed = original.companies.find((r) => !r.error && r.macd && r.cmp > 0);
+const seed = original.companies.find((r) => !r.error && r.rsi_multi && r.macd && r.sma20 != null);
 if (!seed) { console.error('No clean seed row in technicals.json'); process.exit(2); }
 
 const rsiState = (value, cmp) => ({ value, avgGain: 100 / (100 - value) - 1, avgLoss: 1, lastClose: cmp });
@@ -86,8 +86,8 @@ const companies = [
 ];
 const fixture = { ...original, companies, company_count: companies.length, failures: 0 };
 // The prior release's actual renderer proves a warm module cache receives the new criteria UI.
-const previousModules = Object.fromEntries(['breakouts', 'shell', 'tab-registry'].map(name => [name, readFileSync(resolve(`scripts/fixtures/glow-momentum-previous-${name}.txt`), 'utf8')]));
-let previousRelease = false;
+const previousControls = readFileSync(resolve('scripts/fixtures/momentum-controls-previous.txt'), 'utf8');
+let previousRelease = false, quoteUnavailable = false;
 
 // ---- the server ------------------------------------------------------------------------------
 const CT = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.html': 'text/html', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2' };
@@ -99,7 +99,7 @@ const server = createServer((req, res) => {
   // module falls back to it. Every other /api/* answers a benign 200 so no same-origin 404 is logged.
   if (path === '/data/technicals.json') return json(fixture);
   if (path === '/api/breakouts') return json({version:1,state:'complete',targets:companies.map(c=>c.ticker),failures:[],
-    completedAt:new Date(AT).toISOString(),rows:companies.filter(c=>Number.isFinite(c.cmp)&&c.cmp>0).map(c=>({ticker:c.ticker,price:c.cmp,volume:500,prevClose:c.cmp,
+    completedAt:new Date(AT).toISOString(),rows:quoteUnavailable ? [] : companies.filter(c=>Number.isFinite(c.cmp)&&c.cmp>0).map(c=>({ticker:c.ticker,price:c.cmp,volume:500,prevClose:c.cmp,
       sessionDate:'2026-10-09',quoteAt:new Date(AT).toISOString(),checkedAt:new Date(AT).toISOString(),provider:'Upstox',exchange:'NSE',
       volumeBase:{average:1000,from:'2026-09-24',to:'2026-10-08',count:10,exchange:'NSE'}}))});
   if (path.startsWith('/api/')) return json({ ok: false });
@@ -112,8 +112,16 @@ const server = createServer((req, res) => {
       body = body.toString().replace(/const MUNSHOT_SDK = .*;/, "const MUNSHOT_SDK = new URL('/sdk-fixture.js', self.location).href;");
       if (previousRelease) body = body.replace(/const CACHE_NAME = .*;/, 'const CACHE_NAME = `${CACHE_PREFIX}previous-momentum-release`;');
     }
-    const previousModule = { '/js/tabs/breakouts.js': 'breakouts', '/js/ui/shell.js': 'shell', '/js/ui/tab-registry.js': 'tab-registry' }[path];
-    if (previousModule && previousRelease) body = previousModules[previousModule];
+    if (path === '/js/tabs/breakouts.js' && previousRelease) {
+      body = body.toString()
+        // Synthetic previous summary markup proves the immutable cache removes both surfaces.
+        .replace('    ${momentumControls(gate, thresholds)}', '    ${momentumControls(gate, thresholds)}<div class="stat-card">Scanned 4</div><div class="stat-card">Strong Momentum 3</div><div class="stat-card">Volume + Momentum 0</div><div class="stat-card">Pass Both 0</div><section aria-label="Passing stocks by sector">Passers by sector</section>')
+        .replace(/function momentumControls\([\s\S]*?(?=function momentumControlFocus\()/, () => previousControls)
+        .replace(
+          "'A live momentum screener across the top-500 universe. Adjust the thresholds and the list re-filters instantly.',",
+          "'A live momentum screener across the top-500 universe. Adjust the thresholds and the list re-filters instantly.',\n      meta: livePill().html + scopeSummary({ scope: ctx.scope, count: passers.length, noun: 'passing', book: coverage.meta() }),",
+        );
+    }
     if (path === '/css/theme.css' && previousRelease) {
       body = body.toString().replace(/\/\* Momentum criteria[\s\S]*?(?=\/\* Loading rows)/, '');
     }
@@ -166,7 +174,6 @@ const readView = () => ({
   ths: [...document.querySelectorAll('#content-host [data-score-table] thead th')].map((t) => t.textContent.replace(/[▾▴\s]+/g, ' ').trim()),
   gateButtons: document.querySelectorAll('#content-host [data-mgate]').length,
   selectedGate: document.querySelector('#content-host [data-mgate][aria-pressed="true"]')?.dataset.mgate,
-  selectedGateColor: getComputedStyle(document.querySelector('#content-host [data-mgate][aria-pressed="true"]')).color,
   appliedGroups: [...document.querySelectorAll('[data-momentum-group][data-applied="true"]')].map(group => group.dataset.momentumGroup),
   thresholdInputs: document.querySelectorAll('#content-host [data-mthreshold]').length,
   emeraldPills: document.querySelectorAll('#content-host [data-score-table] tbody .bg-emerald-50.text-emerald-700').length,
@@ -184,7 +191,7 @@ try {
     const { page, errors } = await newPage(1440, 1000);
     await page.goto(`${origin}/#/research/breakouts?scope=universe`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#content-host [data-score-table]', { timeout: 20000 });
-    await page.waitForSelector('section[aria-label="Passing stocks by sector"]', { timeout: 20000 }).catch(() => {});
+    await page.waitForSelector('[data-momentum-coverage]', { timeout: 20000 });
     await page.waitForFunction(() => !document.querySelector('[data-rows-pending]'), { timeout: 20000 }).catch(() => {});
     await page.waitForTimeout(300);
     const v = await page.evaluate(readView);
@@ -196,43 +203,30 @@ try {
     ok('the view dropdown is replaced', await page.locator('#subview-mount [data-dd-trigger]').count() === 0);
     ok('Momentum tab is selected', await viewTabs.first().getAttribute('aria-selected') === 'true');
 
-    ok('stat strip renders four cards', v.statCards.length === 4, `${v.statCards.length} cards`);
-    ok('stat strip reads Scanned · Strong Momentum · Volume + Momentum · Pass Both',
-      /Scanned/.test(v.statCards[0]?.text) && /Strong Momentum/.test(v.statCards[1]?.text) && /Volume \+ Momentum/.test(v.statCards[2]?.text) && /Pass Both/.test(v.statCards[3]?.text),
-      v.statCards.map((c) => c.text).join(' | '));
-    ok('the fourth stat card is the gradient hero', v.statCards[3]?.gradient === true);
-    ok('stat-strip counts reflect the fixture (Scanned 4, Strong Momentum = 3, Pass Both = 0)',
-      // The "?" help glyph can sit between a card's label and its value, so skip non-digits to the count.
-      /Scanned\D*4\b/.test(v.statCards[0]?.text) && /Strong Momentum\D*3\b/.test(v.statCards[1]?.text) && /Pass Both\D*0\b/.test(v.statCards[3]?.text),
-      v.statCards.map((c) => c.text).join(' | '));
-    ok('exceptions are counted apart, never as passing, with no pending-refresh claim', /6 Exceptions/.test(v.statCards[0]?.text || '') && !v.pendingNote);
+    ok('summary cards and sector chart are absent', v.statCards.length === 0 && !v.sector);
+    ok('the result count still reflects the eligible fixture', /3 of 4 stocks pass Strong Momentum/.test(await page.locator('#content-host').innerText()));
+    ok('no pending-refresh claim', !v.pendingNote);
     ok('the scanner header has no price-status or scope-count badges', !v.headerHasBadges);
-    const exceptionButton = page.locator('#content-host [data-stat-help="note-0"]');
+    const exceptionButton = page.locator('#content-host [data-momentum-coverage]');
     await exceptionButton.focus();
     await page.keyboard.press('Enter');
     await page.locator('[data-momentum-exception-list]').waitFor();
     const exceptionRows = await page.locator('[data-momentum-exception-list] tbody tr').evaluateAll(rows => rows.map(row => [...row.cells].map(cell => cell.textContent).join(' ')));
     const expectedReasons = ['Epsilon History Price history incomplete', 'Missing Code Stock code not found', 'Missing Price Price unavailable',
       'Short History Not enough price history', 'Source Failure Price history unavailable', 'Young Stock Not enough price history'];
-    ok('the info button lists every excluded stock with its actual short reason', JSON.stringify(exceptionRows.map(text => text.replace(/\s+/g, ' ').trim())) === JSON.stringify(expectedReasons), exceptionRows.join(' | '));
+    ok('the coverage panel lists every excluded stock with its actual short reason', JSON.stringify(exceptionRows.map(text => text.replace(/\s+/g, ' ').trim())) === JSON.stringify(expectedReasons), exceptionRows.join(' | '));
     ok('source failures do not leak technical error text', !/HTTP|bars|Step-1|refresh/.test(await page.locator('#modal-content').textContent()));
     await page.keyboard.press('Escape');
-    ok('Escape closes the exception list and returns focus to the info button', await page.locator('#modal-overlay').evaluate(el => el.classList.contains('hidden')) && await exceptionButton.evaluate(el => el === document.activeElement));
+    ok('Escape closes the coverage panel and returns focus to its button', await page.locator('#modal-overlay').evaluate(el => el.classList.contains('hidden')) && await exceptionButton.evaluate(el => el === document.activeElement));
 
     await page.click('#content-host [data-mgate="volume-momentum"]');
-    await page.waitForFunction(() => /Scanned\D*5\b.*5 Exceptions/s.test(document.querySelector('#content-host .stat-card')?.textContent || ''));
-    const volumeView = await page.evaluate(readView);
-    ok('Volume + Momentum scans the newer listing without 200-day history', /Scanned\D*5\b/.test(volumeView.statCards[0]?.text) && /5 Exceptions/.test(volumeView.statCards[0]?.text));
-    await page.click('#content-host [data-stat-help="note-0"]');
+    await page.waitForSelector('#content-host [data-mgate="volume-momentum"][aria-pressed="true"]');
+    await page.click('#content-host [data-momentum-coverage]');
+    ok('Volume + Momentum scans the newer listing without 200-day history', /5 of 10 stocks.*5 stocks are excluded/s.test(await page.locator('#modal-content').innerText()));
     ok('its exception list no longer excludes the newer listing', await page.locator('[data-momentum-exception-list] tbody tr').count() === 5 && !/Young Stock/.test(await page.locator('[data-momentum-exception-list]').textContent()));
     await page.keyboard.press('Escape');
     await page.click('#content-host [data-mgate="strong-momentum"]');
     await page.waitForSelector('#content-host [data-mgate="strong-momentum"][aria-pressed="true"]');
-
-    ok('sector mini-bar renders', !!v.sector);
-    ok('sector mini-bar has one SVG segment per legend chip', v.sector && v.sector.rects === v.sector.legend && v.sector.rects >= 1, v.sector && `${v.sector.rects} rects / ${v.sector.legend} chips`);
-    ok('sector mini-bar has three segments (three passer sectors)', v.sector?.rects === 3, v.sector && `${v.sector.rects}`);
-    ok('sector segment widths sum to ~100%', v.sector && Math.abs(v.sector.widthSum - 100) < 0.5, v.sector && v.sector.widthSum.toFixed(2));
 
     const expectedCols = ['Stock', 'Price', 'Strong Momentum', 'Volume + Momentum', 'Volume vs 10D Avg', 'RSI Daily', 'RSI Weekly', 'RSI Monthly', 'MACD', '20-DMA Status'];
     ok('ranked table carries every momentum column', expectedCols.every((c) => v.ths.some((th) => th === c || th.startsWith(c))), v.ths.join(' · '));
@@ -244,7 +238,6 @@ try {
       await ruleGroups.count() === 2 && await ruleGroups.first().locator('[data-mthreshold]').count() === 3 && await ruleGroups.last().locator('[data-mthreshold]').count() === 2);
     ok('only Strong Momentum is applied by default, with an accessible selected mode',
       v.selectedGate === 'strong-momentum' && v.appliedGroups.join('|') === 'strong-momentum');
-    ok('the criteria selector keeps Glow’s gold palette', v.selectedGateColor === 'rgb(125, 95, 22)', v.selectedGateColor);
     ok('thresholds have unique accessible names and the volume average is explicit',
       await page.getByRole('spinbutton', { name: 'Strong Momentum · RSI daily >', exact: true }).count() === 1 &&
       await page.getByRole('spinbutton', { name: 'Volume + Momentum · RSI daily >', exact: true }).count() === 1 &&
@@ -264,13 +257,13 @@ try {
     ok('keyboard activation opens Strong Breakouts in the current scope', /strong-breakouts\?scope=universe$/.test(page.url()));
     ok('focus stays on the selected view tab', await page.evaluate(() => document.activeElement?.dataset.tabId === 'strong-breakouts'));
     await page.locator('#subview-mount [data-tab-id="technical-scanner"]').click();
-    await page.getByRole('heading', { name: /Top 10 by Technicals Score/ }).waitFor();
-    ok('Technical Scanner opens its scored table', (await page.locator('#content-host').innerText()).includes('Top 10 by Technicals Score'));
+    await page.locator('#content-host thead [data-sort="score"]').waitFor();
+    ok('Technical Scanner opens its scored table without top cards', await page.locator('#content-host [data-top-idx]').count() === 0);
     await page.locator('#subview-mount [data-tab-id="fii-accumulation"]').click();
     await page.waitForSelector('#content-host [data-chip-group="side"]');
     ok('FII Accumulation opens its holdings table', await page.locator('#content-host thead [data-sort="Chg FII"]').count() === 1);
     await page.goBack();
-    await page.getByRole('heading', { name: /Top 10 by Technicals Score/ }).waitFor();
+    await page.locator('#content-host thead [data-sort="score"]').waitFor();
     ok('Back restores the previous view and selected tab', await page.locator('#subview-mount [data-tab-id="technical-scanner"]').getAttribute('aria-selected') === 'true');
     await viewTabs.first().click();
     await page.waitForSelector('#content-host [data-mgate]');
@@ -319,7 +312,7 @@ try {
       await page.locator('[data-mgate="strong-momentum"]').getAttribute('aria-pressed') === 'true');
     ok('Reset retains keyboard focus', await page.locator('[data-mreset]').evaluate(el => el === document.activeElement));
 
-    // Impossible thresholds → the polished empty state, and the sector bar stands down.
+    // Impossible thresholds retain the polished empty state and coverage access.
     await page.evaluate((o) => { location.hash = '#/research/breakouts/momentum-scanner?scope=universe&mrd1=99&mrw=99&mrm=99'; void o; }, origin);
     await page.waitForFunction(() => {
       const td = [...document.querySelectorAll('#content-host [data-score-table] tbody td')].find((t) => t.getAttribute('colspan'));
@@ -331,12 +324,65 @@ try {
     });
     ok('empty state reads the polished copy', /No stocks currently meet these conditions — try relaxing a threshold/.test(empty.text || ''), empty.text || 'no empty cell');
     ok('the sector mini-bar is absent when nothing passes', empty.sector === false);
-    await page.click('#content-host [data-stat-help="note-0"]');
+    await page.click('#content-host [data-momentum-coverage]');
     ok('changing thresholds keeps all history exceptions available', await page.locator('[data-momentum-exception-list] tbody tr').count() === 6);
     await page.locator('#modal-content [data-modal-close]').click();
 
     const own = [...new Set(errors)].filter(isOurError);
     ok('zero application console errors at 1440px', own.length === 0, own.slice(0, 3).join(' | ') || `${errors.length - own.length} environment error(s) filtered`);
+  }
+
+  // A source gap keeps names and dated readings in the same table, with no certified passes.
+  {
+    const { context, page, errors } = await newPage(1440, 1000);
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#content-host [data-score-table]');
+    quoteUnavailable = true;
+    await page.evaluate(async () => { await (await import('/js/data/breakout-live.js')).refresh(); });
+    await page.waitForFunction(() => /Saved readings are shown as exceptions/.test(document.querySelector('#content-host')?.textContent));
+    const saved = await page.locator('#content-host [data-score-table] tbody').innerText();
+    ok('source failures retain all company names in the existing scanner table', companies.every(c => saved.includes(c.name)));
+    ok('saved rows carry dated prices and Exception status', /Saved daily close/.test(saved) && /Exception/.test(saved) && !/\bPass\b/.test(saved));
+    ok('unavailable data is never counted as a current pass', /0 of 0 stocks pass/.test(await page.locator('#content-host').innerText()));
+    await page.evaluate(() => {
+      window.exported = { columns: [], rows: [] };
+      window.ExcelJS = { Workbook: class {
+        constructor() { this.xlsx = { writeBuffer: async () => new Uint8Array() }; }
+        addWorksheet() { return { set columns(value) { window.exported.columns = value; },
+          addRow(row) { window.exported.rows.push(row); }, getRow() { return {}; } }; }
+      } };
+    });
+    await page.locator('#content-host [data-export]').click();
+    await page.waitForFunction(() => window.exported.rows.length > 0);
+    const exported = await page.evaluate(() => window.exported);
+    ok('exports retain every saved row with dated prices and Exception status', exported.rows.length === companies.length &&
+      exported.rows.every(row => row.f1 === 'Exception' && row.f2 === 'Exception' && /Saved daily close/.test(row.quote_time)));
+    ok('saved export headers make no live freshness claim', exported.columns.every(c => !/\blive\b|so far today/i.test(c.header)));
+    await page.locator('#content-host [data-table-search]').fill('MOMOA');
+    await page.waitForFunction(() => !document.querySelector('[data-rows-pending]'));
+    ok('saved names remain searchable during failure', (await page.locator('#content-host [data-score-table] tbody').innerText()).includes(companies[0].name));
+    quoteUnavailable = false;
+    await page.evaluate(async () => { await (await import('/js/data/breakout-live.js')).refresh(); });
+    await page.waitForFunction(() => !/Saved readings are shown as exceptions/.test(document.querySelector('#content-host')?.textContent));
+    ok('live recovery keeps the reader search', (await page.locator('#content-host [data-table-search]').inputValue()).toUpperCase() === 'MOMOA');
+    ok('recovery restores current Pass status automatically', /\bPass\b/.test(await page.locator('#content-host [data-score-table] tbody').innerText()));
+    ok('saved-first scanner recovery has no application errors', errors.filter(isOurError).length === 0);
+    await context.close();
+  }
+
+  {
+    const { context, page } = await newPage(1440, 1000);
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#content-host [data-score-table]');
+    await page.evaluate(async () => {
+      (await import('/js/core/watchlist.js')).add('MOMOF', 'Young Stock');
+      location.hash = '#/research/breakouts/momentum-scanner?scope=watchlist';
+    });
+    await page.waitForFunction(() => /Current prices are available, but the history required/.test(document.querySelector('#content-host')?.textContent));
+    const text = await page.locator('#content-host').innerText();
+    ok('fresh quotes with insufficient history are never described as a quote outage', text.includes('Young Stock') &&
+      text.includes('Exception') && !/current data is unavailable|Saved daily close/.test(text));
+    await context.close();
   }
 
   // ---- 390px: mobile layout holds ----------------------------------------------------------
@@ -348,15 +394,14 @@ try {
     await page.waitForTimeout(300);
     const v = await page.evaluate(readView);
 
-    ok('stat strip still renders four cards at 390px', v.statCards.length === 4);
-    ok('sector mini-bar still renders at 390px', !!v.sector && v.sector.rects === v.sector.legend);
+    ok('summary cards and sector chart are absent at 390px', v.statCards.length === 0 && !v.sector);
     ok('gate toggle and thresholds still present at 390px', v.gateButtons === 3 && v.thresholdInputs === 5, `gates ${v.gateButtons}, inputs ${v.thresholdInputs}`);
     ok('no horizontal PAGE overflow at 390px', v.docScrollW <= v.winW + 1 && v.bodyScrollW <= v.winW + 1, `doc ${v.docScrollW} / body ${v.bodyScrollW} vs win ${v.winW}`);
     const groupRects = await page.locator('[data-momentum-group]').evaluateAll(groups => groups.map(group => ({ x: group.getBoundingClientRect().x, y: group.getBoundingClientRect().y, bottom: group.getBoundingClientRect().bottom })));
     ok('mobile stacks the groups with all fields inside their panel', groupRects[0].x === groupRects[1].x && groupRects[1].y > groupRects[0].bottom &&
       await page.locator('[data-momentum-controls]').evaluate(panel => panel.scrollWidth <= panel.clientWidth + 1));
     await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
-    await page.click('#content-host [data-stat-help="note-0"]');
+    await page.click('#content-host [data-momentum-coverage]');
     ok('the dark mobile exception list includes every excluded stock', await page.locator('[data-momentum-exception-list] tbody tr').count() === 6);
     const popup = await page.locator('[data-momentum-exception-list]').evaluate(el => ({ width: el.clientWidth, scrollWidth: el.scrollWidth }));
     ok('exception names and reasons fit the mobile popup', popup.scrollWidth <= popup.width + 1, JSON.stringify(popup));
@@ -383,20 +428,21 @@ try {
     await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => navigator.serviceWorker.controller);
     await page.reload();
-    await page.waitForSelector('#subview-mount [data-dd-trigger]');
-    ok('the cached Glow release still opens Strong Breakouts with its three-view dropdown', /strong-breakouts/.test(page.url()) && await page.locator('#subview-mount [data-dd-id]').count() === 3);
+    await page.waitForSelector('#content-host [data-section-head] [data-live-info]');
+    ok('the cached previous scanner displays both old header badges', /3 passing/.test(await page.locator('#content-host [data-section-head]').textContent()));
     const oldCaches = await page.evaluate(() => caches.keys());
+    ok('the cached previous scanner displays summary cards and sector chart', (await page.evaluate(readView)).statCards.length === 4 && !!(await page.evaluate(readView)).sector);
     ok('returning-session fixture genuinely uses the old module cache', oldCaches.some(key => key.includes('previous-momentum-release')));
-    ok('the prior Glow release has no Momentum Scanner controls', await page.locator('[data-mthreshold]').count() === 0);
+    ok('returning-session fixture starts on the previous flat criteria panel', await page.locator('[data-mthreshold]').count() === 5 && await page.locator('[data-momentum-group]').count() === 0);
     previousRelease = false;
     await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
-    await page.waitForSelector('#subview-mount [role=tab]');
-    ok('the already-open Glow session automatically receives all four horizontal view tabs', await page.locator('#subview-mount [role=tab]').count() === 4);
-    await page.locator('#subview-mount [data-tab-id=momentum-scanner]').click();
+    await page.waitForFunction(() => document.querySelector('#content-host [data-score-table]') && !document.querySelector('#content-host [data-section-head] [data-live-info]'), null, { timeout: 60000 });
+    const upgradedView = await page.evaluate(readView);
+    ok('the already-open scanner automatically removes badges, summary cards and sector chart', !upgradedView.headerHasBadges && upgradedView.statCards.length === 0 && !upgradedView.sector);
     await page.waitForSelector('[data-momentum-group]');
     ok('the already-open scanner receives grouped criteria and their matching stylesheet', await page.locator('[data-momentum-group]').count() === 2 &&
       await page.locator('.momentum-rule-groups').evaluate(el => getComputedStyle(el).display === 'grid'));
-    await page.click('#content-host [data-stat-help="note-0"]');
+    await page.click('#content-host [data-momentum-coverage]');
     ok('the upgraded reader can open the complete exception list', await page.locator('[data-momentum-exception-list] tbody tr').count() === 6);
     const newCaches = await page.evaluate(() => caches.keys());
     ok('upgrade removes the old immutable module cache', !newCaches.some(key => key.includes('previous-momentum-release')) && newCaches.some(key => !oldCaches.includes(key)));

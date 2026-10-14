@@ -1,11 +1,4 @@
-import * as fundReturns from '../data/fund-returns.js';
-import * as mfWeekly from '../data/mf-weekly.js';
-import * as macroSeries from '../data/series.js';
-import * as fpiActivity from '../data/fpi-activity.js';
-import * as familyBook from '../data/book.js';
-import * as familyManagers from '../data/managers.js';
-import * as researchSheet from '../core/research-sheet.js';
-import { historyMeta as sheetHistoryMeta } from '../data/sheet-market.js';
+import * as mutualFunds from '../data/mutual-funds.js';
 // ui/sources.js — the data-source registry behind the header's "Sources" button.
 //
 // This is presentation metadata, not a data source: it mirrors docs/DATA-CONTRACTS.md so a
@@ -21,7 +14,6 @@ import { historyMeta as sheetHistoryMeta } from '../data/sheet-market.js';
 // Roadmap-only entries and credential plumbing are not customer-facing data sources.
 
 import * as exchangeDeals from '../data/exchange-deals.js';
-import * as kpiImpact from '../data/kpi-impact.js';
 import { EXCHANGE_SOURCES } from '../data/exchange-deals-shared.js';
 import { companyCaptureStatus } from '../data/company-captures.js';
 import { escapeHtml } from '../core/dom.js';
@@ -46,6 +38,7 @@ import * as superInvestors from '../data/super-investors.js';
 // three read the same constant, so changing it cannot leave one of them describing the old filter.
 import * as dailyAlerts from '../data/daily-alerts.js';
 import * as aiAlerts from '../data/ai-alerts.js';
+import * as kpiImpact from '../data/kpi-impact.js';
 import { ipoSourceGroup } from './ipo-sources.js';
 import { newsSourceItems, newsSourceMeta, screenerInsightsSource } from './news-sources.js';
 import { sourceConnection, sourceSummary, sourceReadState } from './source-connections.js';
@@ -226,10 +219,6 @@ export function portfolioSource() {
  * stale in the first place.
  */
 export function sourceGroups() {
-  const schemes = num(() => fundReturns.meta()?.total || fundReturns.all().length);
-  const mfCats = num(() => mfWeekly.meta()?.categoryCount);
-  const mfSchemes = num(() => mfWeekly.meta()?.fundCount);
-  const mfIndices = num(() => mfWeekly.meta()?.benchmarkCount);
   const breakoutCapture = breakoutLive.snapshot();
   const breakoutHealth = breakoutLive.coverageFor(breakoutCapture?.targets || []);
   const breakoutState = breakoutLive.unavailable() ? 'unavailable' : !breakoutHealth.total ? 'unchecked' : breakoutHealth.partial || breakoutHealth.archiveIncomplete ? 'partial' : 'read';
@@ -237,7 +226,13 @@ export function sourceGroups() {
   const reported = num(() => earningsLive.all().length);
   const calls = num(() => concalls.all().length);
   // Read from the module the view reads, like every other figure here — never typed.
-  const si = { count: num(() => superInvestors.meta().loadedBooks) };
+  const siMeta = superInvestors.meta();
+  const si = { count: num(() => siMeta.loadedBooks) };
+  const siRead = typeof siMeta.checkedAt === 'number' ? siMeta.checkedAt : Date.parse(siMeta.checkedAt || '');
+  const siReadState = sourceReadState({ at: siMeta.checkedAt, failed: !!siMeta.reason || (superInvestors.isLoaded() && !siMeta.ok),
+    partial: !!(siMeta.failedBooks || siMeta.uncheckedBooks || siMeta.stale || siMeta.pending), maxAgeMs: 6 * 3600000 });
+  const siCoverage = `${siMeta.loadedBooks} of ${siMeta.total} tracked books available · ${siMeta.failedBooks} unavailable · ${siMeta.uncheckedBooks} retained books could not be re-checked · ${siMeta.pending} pending. ` +
+    (Number.isFinite(siRead) ? `Oldest source check: ${new Date(siRead).toISOString()}.` : 'Source check time unavailable.');
   const chat = num(() => chatter.all().length);
   const chatResolved = num(() => chatter.companies().length);
   // Read from the module the Telegram section reads. `num()` returns null rather than 0, so a
@@ -260,6 +255,11 @@ export function sourceGroups() {
         .join(' and ');
 
     const groups = [
+    { title: 'Mutual Funds', icon: '📋', tabs: 'Mutual Funds', items: [{
+      name: 'AMC monthly portfolio disclosures', feeds: mutualFunds.health(), cadence: '15-minute collection target, server-side; monthly source publications',
+      status: 'live', readState: sourceReadState({at:mutualFunds.meta().checkedAt,failed:mutualFunds.meta().readFailed,partial:mutualFunds.health()!=='Latest reported disclosures',maxAgeMs:45*60000}),
+      note: 'AmfiBeas public AMC disclosures. Missing and stale AMC reports remain explicit; only adjacent, comparable months contribute to net change. Estimates of company shares outstanding are labelled. Every captured month is retained.'
+    }] },
     {
       // THE ALERT PAIR COMES FIRST because this is the only group whose whole point is that it
       // introduces NOTHING. A reader is owed "no new feed" before looking for a source that does
@@ -319,7 +319,7 @@ export function sourceGroups() {
     {
       title: 'Market data',
       icon: '💹',
-      tabs: 'Breakouts / Technical · Portfolio Analytics',
+      tabs: 'Screens · Portfolio Analytics',
       items: [
         {
           name: 'Yahoo Finance — EOD OHLCV',
@@ -418,10 +418,20 @@ export function sourceGroups() {
           name: 'Screener.in — company filings',
           url: 'https://www.screener.in/',
           feeds:
-            'Annual reports, quarterly-result links and concall transcripts for an Indian ticker. Scheduled collection uses the authenticated Muns service, with a free public Screener company-page fallback when that service has no record for the company. Open Earnings Hub → Company Filings, or follow Reports / Transcripts from a company row. Documents keep their original source links; page availability does not certify an exhaustive issuer archive. This source does not populate a financial quality score or analyst estimates.',
+            'Annual reports, quarterly-result links and concall transcripts for an Indian ticker. Scheduled collection uses the authenticated Muns service, with a free public Screener company-page fallback when that service has no record for the company. Open reports or transcripts from company rows in Earnings Hub or Con-call. Documents keep their original source links; page availability does not certify an exhaustive issuer archive. This source does not populate a financial quality score or analyst estimates.',
           cadence: capturedSourceCadence('domestic'),
           status: 'live', readState: capturedSourceReadState('domestic'),
           file: 'worker/muns.mjs → POST /filings/domestic · /api/domestic-filings/{ticker} · public/js/tabs/company-filings.js',
+        },
+        {
+          name: 'Analyst consensus estimates',
+          planned: true,
+          url: null,
+          feeds:
+            'No verified consensus feed is connected. EPS and revenue estimates, beat/miss tags, surprise percentages and the legacy earnings quality score are unavailable. Generated figures have been removed from the dashboard and Ask Research. Filing PDFs alone do not supply analyst estimates.',
+          cadence: 'Awaiting a real estimates source',
+          status: 'pending',
+          file: 'public/js/tabs/breakouts.js · public/js/research/estate.js',
         },
         {
           name: 'Published results calendar — counts',
@@ -573,13 +583,14 @@ export function sourceGroups() {
           name: 'BSE — corporate announcements, indexed by date',
           url: 'https://www.bseindia.com/corporates/ann.html',
           feeds:
-            "<strong>Real filings across every listing for the configured BSE categories.</strong> Read from BSE's own date index (<code class=\"rounded bg-slate-100 px-1\">AnnSubCategoryGetData</code>), which answers <em>what was filed on these dates</em> rather than <em>what did this company file</em>. The endpoint does not expose a separately verifiable category inventory, so a newly introduced unqueried category remains an explicit coverage limit. The per-company provider route costs one request each against a ~60/minute cap, while the BSE date index costs about twenty requests and needs no credential. BSE's scrip-code all-category index is also read in restartable windows for company history, so newly enrolled portfolio and watchlist companies recover filings older than the market-wide head. Each route keeps independent successful coverage. <strong>Failed or incomplete reads do not prove that no filing exists.</strong> Headlines, categories and sub-categories are BSE's own strings; the filing PDF stays on their server and every row links to it. BSE's own critical flag is reproduced where they set it. The <strong>Type</strong> label on Corp Announcements is the dashboard's reading of BSE's sub-category or the filing's subject line — a navigation label the reader switches on and off in the Show row, remembered on the device, with <em>Routine &amp; administrative</em> (newspaper copies, NAV declarations, trading-window closures, share-certificate and demat notices, compliance certificates, address changes) switched off by default. It is never a materiality judgement, and it hides nothing from capture, the export's disclosure line or All Alerts.",
+            "<strong>Real filings across every listing for the configured BSE categories.</strong> Read from BSE's own date index (<code class=\"rounded bg-slate-100 px-1\">AnnSubCategoryGetData</code>), which answers <em>what was filed on these dates</em> rather than <em>what did this company file</em>. The endpoint does not expose a separately verifiable category inventory, so a newly introduced unqueried category remains an explicit coverage limit. The per-company provider route costs one request each against a ~60/minute cap, while the BSE date index costs about twenty requests and needs no credential. BSE's scrip-code all-category index is also read in restartable windows for company history, so newly enrolled portfolio and watchlist companies recover filings older than the market-wide head. Each route keeps independent successful coverage. <strong>Failed or incomplete reads do not prove that no filing exists.</strong> Headlines, categories and sub-categories are BSE's own strings; the filing PDF stays on their server and every row links to it. Nothing here judges an announcement material or routine — BSE's own critical flag is reproduced where they set it.",
           // Two counts, each dropping its own clause when unknown — the modal opens from every
           // screen and this feed only loads when its tab mounts. A sentence built AROUND a number
           // reads as broken prose the moment it does not arrive.
           cadence:
             `Scheduled every two hours, including weekends; missed date windows are retried and older rows are archived.${clause(num(() => annFeed.meta().windowDays), ' Rolling <n>-day window.')}${clause(num(() => annFeed.meta().baseRowCount), ' <n> filings in the current file.')}${clause(num(() => annFeed.meta().baseCovered), ' <n> companies filed something.')}`,
           status: 'live',
+          details: annFeed.meta().identityDirectory?.ok === false ? ['The company directory could not be refreshed. Filings are retained; company matching is partial.', `Last successful directory check: ${annFeed.meta().identityDirectory?.lastSuccessAt || 'unavailable'}`] : [],
           file: 'worker/bse-ann.mjs · scripts/scrape-bse-announcements.mjs · scripts/capture-company-filings.mjs · .github/workflows/announcements-refresh.yml',
         },
         {
@@ -622,7 +633,7 @@ export function sourceGroups() {
           const meta = exchangeDeals.meta();
           const check = meta?.sources?.find(s => s.id === source.id);
           return { id: source.id, name: `${source.exchange} — ${source.category} reports`, url: source.url,
-            feeds: 'Complete public exchange reports, retaining the client, date, venue, side, quantity and price. Successfully covered exchange intervals take precedence over secondary listings. Portfolio and Watchlist use Sattva company membership.',
+            feeds: 'Complete public exchange reports, retaining the client, date, venue, side, quantity and price. Successfully covered exchange intervals take precedence over secondary listings. Portfolio and Watchlist use Glow company membership.',
             cadence: 'Scheduled every 30 minutes on weekday days/evenings, with weekend catch-up; checked every minute while visible. Retained history survives failed reads.',
             status: 'live', readState: sourceReadState({ at: check?.lastSuccessAt, failed: !!meta?.deliveryError || check?.ok === false, maxAgeMs: 3 * 3600000 }),
             file: 'scripts/capture-exchange-deals.mjs · worker/exchange-deals.mjs · .github/workflows/bulk-block-refresh.yml' };
@@ -641,7 +652,7 @@ export function sourceGroups() {
           url: 'https://devde.muns.io',
           feeds:
             '<strong>Supplemental company detail.</strong> An independent scheduled company walk adds promoter, director and designated-person dealing from <code class="rounded bg-slate-100 px-1">POST /filings/data/insider_trades</code>, routing to NSE, BSE and Trendlyne. Its source-defined markdown columns are retained and combined with the market-wide lists without duplicating matching economic events.',
-          cadence: 'A rotating scheduled walk checks due Sattva portfolio companies first and then the retained universe, with a week of overlap after each successful read. Every company retains its own check time and failures; older disclosures stay available. Manual refresh can supplement the selected companies.',
+          cadence: 'A rotating scheduled walk checks due Glow portfolio companies first and then the retained universe, with a week of overlap after each successful read. Every company retains its own check time and failures; older disclosures stay available. Manual refresh can supplement the selected companies.',
           status: 'live',
           file: 'worker/index.js → /api/insider-trades/{ticker} · worker/muns.mjs · public/js/data/filings-shared.js',
         },
@@ -666,8 +677,8 @@ export function sourceGroups() {
           url: 'https://ticker.finology.in/superstar-portfolios',
           feeds:
             '<strong>Real filings.</strong> The whole Superstar Investors view: every tracked investor Finology carry, and for each one the full book they publish — company by company, one column per quarter of disclosed holding percentage, with their net worth, active and total stock counts and any biography. <strong>Percentages are what the company filed with the exchanges; the ₹ value beside each holding is Finology\'s own derivation</strong> from that percentage and a market cap, reproduced unchanged rather than recomputed. A blank quarter means <strong>not disclosed</strong> — below the threshold a real holding is invisible — so it renders as a dash and is excluded from totals, never counted as zero. The one figure this dashboard computes is the quarter-over-quarter change, headed <em>Change (derived)</em>.',
-          cadence: 'Quarterly, as filings arrive · a committed snapshot covers the grid, live for what it misses',
-          status: 'live',
+          cadence: 'Weekday capture at 07:00 IST · automatic visible checks within the six-hour source cache. Exchange completeness is unverified. ' + siCoverage,
+          status: 'live', readState: siReadState,
           file: 'worker/index.js → /api/super-investors · worker/finology.mjs · public/js/data/finology-shared.js',
         },
         {
@@ -677,8 +688,8 @@ export function sourceGroups() {
             si.count,
             '<strong>Every book in one file.</strong> <code class="rounded bg-slate-100 px-1">public/data/super-investors.json</code>, written by <code class="rounded bg-slate-100 px-1">scripts/scrape-super-investors.mjs</code> reading this dashboard\'s own Worker, carries <n> investors\' books as the Worker itself served them.'
           ) +
-            ' It exists because that view is <strong>one request per investor</strong> — each book is a separate scrape upstream — so a first visit meant ninety-one round trips and most of a minute of the grid filling in. One conditional GET replaces them. <strong>A book the capture could not read is absent, never empty</strong>, and is fetched live instead; a book already on this device wins over the file, because those bytes were confirmed later. The pill says <em>Captured</em> rather than <em>Live</em> for anything nobody has confirmed in this session.',
-          cadence: 'Refreshed on a schedule · re-read on demand from the Live pill',
+            ' It exists because that view is <strong>one request per investor</strong> — each book is a separate scrape upstream — so a first visit meant ninety-one round trips and most of a minute of the grid filling in. One conditional GET replaces them. <strong>A book the capture could not read is absent, never empty</strong>, and is fetched live instead; a book already on this device wins over the file, because those bytes were confirmed later.',
+          cadence: 'Refreshed weekdays at 07:00 IST · revalidated automatically while the view is open',
           status: 'live',
           file: 'scripts/scrape-super-investors.mjs · public/data/super-investors.json · public/js/data/super-investors.js',
         },
@@ -741,154 +752,6 @@ export function sourceGroups() {
   ];
   // News is its own family, not buried inside shareholding flows. The five publisher rows
   // replace the aggregate row, so sources are named individually without double-counting.
-  groups.push(
-    {
-      // GLOW-OWNED: the Mutual Funds tab reads two fund feeds that are dated DIFFERENT DAYS and
-      // answer different questions, so they are listed as two sources and never as one.
-      title: 'Mutual funds',
-      icon: '\u{1F4C8}',
-      tabs: 'Mutual Funds',
-      items: [
-        {
-          name: 'Weekly fund performance workbook — category medians & benchmarks',
-          url: null,
-          feeds:
-            `<strong>Real, and not ours.</strong> The <em>Category Performance</em> sub-view is a weekly point-to-point performance workbook, one sheet per mutual-fund category: every scheme's 1W/1M/3M/6M/1Y/3Y/5Y and since-inception return, its AUM and its direct and regular expense ratios — then the sheet's own published <strong>median</strong> for the category, and the <strong>index rows</strong> it prints beneath it. <strong>The returns, the medians and the index figures are all the workbook's and are reproduced unchanged</strong>; this dashboard adds no scoring and no ranking. The import recomputes every published median from the scheme rows it parsed <em>as a parse check</em> and refuses to write the file when one disagrees — the number that ships is always the published one.${clause(
-              mfCats,
-              ' <n> categories'
-            )}${clause(mfSchemes, ', <n> schemes')}${clause(mfIndices, ' and a master sheet of <n> indices.')}
-            <strong>Exactly two figures are derived</strong>: the gap between a return and its median or its benchmark, in percentage <em>points</em> and never shown where either side is absent, and the heatmap shade, whose meaning is printed in the legend inside the view's own provenance panel. <strong>One sheet prints no index row at all</strong> — rather than leave its schemes with nothing to be read against, an index from the workbook's <em>own</em> master sheet is shown, defaulting to the one it prints first under every sectoral sheet and changeable by the reader, and it is marked <strong>"not the workbook's pairing"</strong> on the cell, the reference row, the picker and row 1 of the export. 3Y and 5Y are annualised; since inception spans a different length for every scheme. AUM is as at the workbook's own stated month, not the return date. <strong>It is a different snapshot from the AmfiBeas feed above</strong> — a different date and a different universe — so nothing is compared, summed or benchmarked across the two.`,
-          cadence: 'Weekly · drop the new workbook in scripts/fixtures/ and re-run the importer',
-          // `static`, not `live`: real data, committed to the repo, refreshed BY HAND. The modal
-          // counts `live` into "N of M are wired to a live feed today", and a card claiming a live
-          // feed beside its own "re-run the importer" cadence would inflate that count by one and
-          // contradict itself in the same breath. The family book is filed the same way.
-          status: 'static',
-          file: 'public/data/mf-weekly.json · scripts/import-mf-weekly.mjs · scripts/lib/xlsx-read.mjs · public/js/data/mf-weekly.js · public/js/data/mf-taxonomy.js · public/js/ui/mf-heatmap.js',
-        },
-        {
-          name: 'AmfiBeas — fund returns & peer ranking',
-          url: null,
-          feeds:
-            `<strong>Real returns, and not ours.</strong> The <em>All Schemes</em> sub-view is every tracked mutual fund and ETF, its point-to-point return for each period — a simple return for 1M/3M/6M/1Y, a CAGR for 3Y/5Y/10Y — the <strong>median its own category returned over the same period</strong>, and its rank <strong>within its own cohort</strong>, shown <code class="rounded bg-slate-100 px-1">rank/peerCount</code>. AmfiBeas compute all of it from AMFI's daily NAV snapshot; <strong>this dashboard reproduces the returns, the category figures and the ranks unchanged and adds no scoring of its own</strong> — even the excess beneath a return is their own subtraction. Called <strong>straight from the browser</strong> — the feed is CORS-open and read-only, so there is no credential to hold. A missing return is "no return for that period", a missing median is "the cohort was too small for the source to publish one" and a missing rank is "too small to rank": all render an em dash, never a zero. Nothing on it is a holding, so nothing joins it to the Super Investors book. <strong>The benchmark here is a CATEGORY, not an index</strong> — AMFI's NAV snapshot carries no index level, so this source publishes no index return and none is borrowed from the weekly workbook below, which is a DIFFERENT DATE. <strong>One row per scheme</strong>: the direct plan wherever the source lists one, and the single plan a listed fund has, because an exchange-traded unit has no plan to choose. A scheme's <em>strategy</em> — momentum, quality, value and the rest — is read from <strong>its own name</strong>, where the tracked index is stated; it is not a classification either source publishes and it changes none.${clause(
-              schemes,
-              ' <n> schemes listed, one per scheme.'
-            )}`,
-          cadence: 'Daily · read live per visit, straight from the browser',
-          status: 'live',
-          file: 'amfibeas.tech-441.workers.dev · public/js/data/fund-returns.js · public/js/investors/fund-returns.js · public/js/tabs/mutual-funds.js · window.AMFIBEAS_API_BASE in index.html',
-        },
-      ],
-    },
-    {
-      // GLOW-OWNED: the two macro tabs read a series store harvested elsewhere and a calendar feed
-      // proxied by this Worker. Both are reproduced, neither is scored or recomputed here.
-      title: 'Macro',
-      icon: '🌐',
-      tabs: 'Macro Research · Economy & Macro',
-      items: [
-        {
-          name: 'GlowVentures series store — harvested macro series',
-          url: 'https://github.com/techmuns/GlowVentures',
-          feeds:
-            `<strong>Measured, and not ours.</strong> Commodities, global equity indices, currencies, benchmark yields and the Indian macro indicators, as a <em>series store</em> harvested nightly by the GlowVentures family-office cockpit (<code class="rounded bg-slate-100 px-1">npm run harvest</code> there: Yahoo Finance, the World Bank Pink Sheet and API, FRED, the RBI, IEX, AMFI) and copied here each morning by <code class="rounded bg-slate-100 px-1">series-refresh.yml</code>. <strong>Every return, span, 52-week figure and stale flag is the harvester's</strong>, computed on the full stored history with every horizon independent — a horizon a series cannot reach is absent, never a shorter window relabelled. This dashboard only slices a range, resamples to a coarser period by taking its last observation, and rebases overlays to 100 — and says so wherever it does.${clause(
-              num(() => macroSeries.meta().live || null),
-              ' <n> series live in the current store.'
-            )}${macroSeries.meta().generatedAt ? ` Harvested ${escapeHtml(macroSeries.meta().generatedAt)}.` : ''}`,
-          cadence: 'Nightly harvest upstream (02:00 UTC) · copied here at 03:30 UTC when GLOWVENTURES_READ_TOKEN is set',
-          status: 'live',
-          file: 'public/data/series/ · public/js/data/series.js · public/js/tabs/macro-research.js · .github/workflows/series-refresh.yml',
-        },
-        {
-          name: 'TradingView economic calendar — via this Worker',
-          url: 'https://in.tradingview.com/economic-calendar/',
-          feeds:
-            "<strong>Reproduced, and not ours.</strong> The data release calendar on Economy &amp; Macro: previous, consensus, actual, the period each reading is for, its unit, the feed's own importance rank and the <strong>agency that published each figure</strong>, from <code class=\"rounded bg-slate-100 px-1\">GET /api/econ-calendar</code>. Proxied because the upstream needs Origin and Referer headers a browser cannot set; it needs no token. Fetched in seven-day slices and merged on the event id because a single response is silently capped at 2,000 rows — a slice still at the cap is reported as incomplete. <strong>Surprise</strong> is actual less consensus, only where both are published, with a sign and no verdict.",
-          cadence: 'Held six hours at the edge, re-read after fifteen minutes · the last held copy is served, marked stale, when the feed does not answer',
-          status: 'live',
-          file: 'worker/econ-calendar.mjs · public/js/data/econ-calendar.js · public/js/tabs/economy-macro.js',
-        },
-        {
-          name: 'NSDL FPI Monitor — foreign portfolio investment',
-          url: 'https://www.fpi.nsdl.co.in/web/Reports/ReportsListing.aspx',
-          feeds:
-            `<strong>The depository's own figures.</strong> The FPI Activity view on Macro Research: what foreign portfolio investors bought and sold in Indian government securities, state development loans, corporate bonds and equities, by reporting day, month, financial year and calendar year, with the debt they hold now. <strong>The equity row is NSDL's published net investment</strong>, reproduced unchanged from their Daily Trends and year-wise reports — nothing here sums it. <strong>The three debt rows are derived</strong>: NSDL publish the outstanding investment held in each instrument on every reporting date and the figure shown is the <em>change in that holding</em> across the window, which a maturity or redemption also moves and is therefore not the same measurement as net purchases. Debt is the general investment route; the long-term investor category, coupon re-investment, VRR and FAR are separate limits and are not folded in. <strong>Total Debt</strong> adds the three debt lines and is the one total that carries an outstanding holding, since every part of it is a published level; <strong>Debt + Equity</strong> adds those three lines and equity, never the subtotal on top of them. Equity carries no outstanding figure because these reports publish none, and a window whose opening level was not captured is an em dash naming the date rather than a difference against an earlier one. The capture adds up the days it holds and compares them to NSDL's own published month, so a month that does not reconcile is not claimed complete.${clause(
-              num(() => fpiActivity.meta().levels || null),
-              ' <n> reporting dates of outstanding investment are captured.'
-            )}${fpiActivity.meta().asOn ? ` Newest reporting date ${escapeHtml(fpiActivity.meta().asOn)}.` : ''}`,
-          cadence: 'Weekday evenings IST (20:00 and 23:00), after NSDL publish the day\'s reports · no credential — these reports are public',
-          status: 'live',
-          file: 'public/data/fpi-activity.json · scripts/lib/nsdl-fpi.mjs · scripts/scrape-fpi-activity.mjs · public/js/data/fpi-activity.js · .github/workflows/fpi-activity-refresh.yml',
-        },
-      ],
-    },
-    {
-      title: 'Family office',
-      icon: '🏛️',
-      tabs: 'Portfolio · Watchlist · Family Book · AI Alerts · Super Investors',
-      items: [
-        // GLOW-OWNED. The desk's own sheet behind the Portfolio and Watchlist tabs, and the dated
-        // history their derived columns read. Figures are read from the modules on open, never typed.
-        {
-          id: 'research-sheet',
-          name: 'Portfolio and Watchlist sheets — the desk\u2019s typed values',
-          feeds: 'The <strong>Portfolio</strong> tab lists every listed company the family holds outside a PMS mandate (the Direct and Execution accounts on the statements); the <strong>Watchlist</strong> tab every company on the shared watchlist. Prices, market cap, returns, current value, TSR, alpha, XIRR, weight and upside are <strong>derived live and never typed</strong>. Date bought, quantity, buy price, targets, intrinsic value, methodology, reference and source are <strong>typed by the desk</strong> into one shared record per company on this deployment\u2019s Worker (<code class="rounded bg-slate-100 px-1">/api/research-sheet</code>), each cell signed with who edited it and when; where the statements carry a figure it shows as the default until somebody types over it.'
-            + clause(num(() => researchSheet.keys().size), ' <n> companies carry typed values.'),
-          cadence: 'Saved as it is typed; re-read every minute while either tab is open.',
-          status: 'live',
-          ...(() => {
-            const m = researchSheet.meta();
-            if (m.mode === 'local') return { readState: 'unavailable', readLabel: 'Saved in this browser only' };
-            if (m.error) return { readState: 'unavailable' };
-            return { readState: m.shared ? 'read' : 'unchecked' };
-          })(),
-          file: 'public/js/tabs/portfolio.js · public/js/tabs/watchlist.js · public/js/core/research-sheet.js · public/js/data/research-sheet-shared.js · public/js/data/research-sheets.js · worker/research-sheet.mjs · worker/research-sheet-store.mjs',
-        },
-        {
-          id: 'sheet-history',
-          name: 'Dividends, splits and the Nifty 500 — Yahoo Finance',
-          url: 'https://finance.yahoo.com/quote/%5ECRSLDX/',
-          feeds: 'The dated history behind the Portfolio tab\u2019s TSR, XIRR and alpha: every dividend and split each public-direct holding and watchlist company has paid, per current share, and the Nifty 500 price index\u2019s daily close since 2005. A company Yahoo cannot answer keeps its last capture and is named, never read as paying no dividends — NSE SME listings have no history there, so their TSR is the price return and says so. The live Nifty 500 level comes from <code class="rounded bg-slate-100 px-1">/api/benchmark-quote</code> (Upstox, then NSE), the readers the team brief uses.'
-            + (() => {
-              const h = sheetHistoryMeta();
-              const read = num(() => h.coverage?.read);
-              return `${clause(read, ' <n> companies read')}${h.benchmarkTo ? ` · Nifty 500 closes to ${escapeHtml(h.benchmarkTo)}` : ''}${h.failed?.length ? ` · not available for ${escapeHtml(h.failed.map((f) => f.ticker).join(', '))}` : ''}.`;
-            })(),
-          cadence: 'Weekdays 08:13 IST and on demand (sheet-history-refresh.yml); the live index every minute while the Portfolio tab is visible.',
-          status: 'live',
-          ...(() => {
-            const h = sheetHistoryMeta();
-            return { readState: h.error ? 'unavailable' : sourceReadState({ at: h.generatedAt, partial: !!h.failed?.length, maxAgeMs: 4 * 86400000 }) };
-          })(),
-          file: 'public/data/sheet-history.json · scripts/scrape-sheet-history.mjs · public/js/data/sheet-market.js · worker/benchmark-quote.mjs · .github/workflows/sheet-history-refresh.yml',
-        },
-        {
-          name: 'The family office book — GlowVentures',
-          url: 'https://github.com/techmuns/GlowVentures',
-          feeds:
-            `<strong>Real, and not computed here.</strong> Every position the family’s wealth platforms report, consolidated: techmuns/GlowVentures reads the PDF statements each platform issues, reconciles them and bakes the book into a generated file; <code class="rounded bg-slate-100 px-1">scripts/build-book.mjs</code> copies it here as <code class="rounded bg-slate-100 px-1">public/data/book.json</code> with the same nulls in the same places, and <code class="rounded bg-slate-100 px-1">scripts/check-book.mjs</code> refuses a file whose sums do not reconcile to the upstream headline. Value, cost, P&amp;L and return are each platform’s own marks on its report date; a holding reported on two members’ statements is counted once in every consolidated figure; a cost the statement does not carry is null, never zero; the ring-fenced promoter holding is outside every total, as it is upstream. The one derived figure — the EOD mark, quantity × the technicals close for listed symbols — is headed as derived wherever it appears. <strong>The dashboard reads the statement book from this file</strong>; the illustrative FIFO ledger under Portfolio Analytics is no longer an evidence source.${clause(
-              num(() => familyBook.meta()?.counted || null),
-              ' <n> positions counted once'
-            )}${clause(num(() => familyBook.meta()?.accounts || null), ' across <n> accounts')}${familyBook.meta()?.asOf ? ` · statements as of ${escapeHtml(familyBook.meta().asOf)}` : ''}${familyBook.meta()?.builtFrom ? ` · GlowVentures@${escapeHtml(familyBook.meta().builtFrom)}` : ''}.`,
-          cadence: 'Copied daily at 03:30 UTC with the series store, when GLOWVENTURES_READ_TOKEN is set · by hand: GLOWVENTURES_DIR=… node scripts/build-book.mjs',
-          status: 'live',
-          file: 'public/data/book.json · public/js/data/book.js · public/js/tabs/family-book.js · public/js/research/book-packet.js · scripts/build-book.mjs · scripts/check-book.mjs',
-        },
-        {
-          name: 'The family’s managers — GlowVentures',
-          url: 'https://github.com/techmuns/GlowVentures',
-          feeds:
-            `<strong>Real, and not computed here.</strong> The My Managers section of Superstar Investors — first under Portfolio — and the <em>Your managers this period</em> block on Quarterly Changes: every PMS mandate, alternative fund and mutual fund house the family’s own statements show it invested with. For a PMS mandate the manager’s two newest holdings statements are compared <strong>by quantity</strong>, with the dated trades between them from its transaction statement; for an alternative fund the units, return series, capital bridge and commitments are carried as the fund prints them (an AIF publishes no portfolio); for a fund house the AMC’s monthly SEBI portfolio disclosure per scheme, read through the family’s AmfiBeas store. The weight of a mandate and its change, and the family’s share of a fund’s underlying, are the derived figures and are headed so; a null is never zero; nothing is scored.${clause(
-              num(() => familyManagers.meta()?.managers || null),
-              ' <n> managers'
-            )}${clause(num(() => familyManagers.meta()?.comparableMandates || null), ' · <n> mandates comparable across two statements')}${clause(num(() => familyManagers.meta()?.trades || null), ' · <n> trades on the statements')}${familyManagers.meta()?.asOf ? ` · statements as of ${escapeHtml(familyManagers.meta().asOf)}` : ''}${familyManagers.meta()?.builtFrom ? ` · GlowVentures@${escapeHtml(familyManagers.meta().builtFrom)}` : ''}.`,
-          cadence: 'Copied daily at 03:30 UTC with the book, when GLOWVENTURES_READ_TOKEN is set · by hand: GLOWVENTURES_DIR=… node scripts/build-managers.mjs',
-          status: 'live',
-          file: 'public/data/managers.json · public/js/data/managers.js · public/js/investors/my-managers.js · scripts/build-managers.mjs · scripts/lib/glowdata.mjs',
-        },
-      ],
-    },
-  );
   const flows = groups.find(g => g.title === 'Shareholding & flows');
   const companyNews = flows.items.find(i => i.id === 'muns-company-news');
   const m = newsSourceMeta();
@@ -918,7 +781,7 @@ export function sourceGroups() {
     if (!item) continue;
     item.readState = sourceReadState({ at: meta?.fetchedAt || meta?.capturedAt || meta?.generated_at || meta?.checkedAt,
       failed: !!meta?.reason || !!meta?.degraded || !!meta?.lastReadFailed || !!meta?.error,
-      partial: Number(meta?.failed) > 0 || (Array.isArray(meta?.failures) ? meta.failures.length > 0 : Number(meta?.failures) > 0), maxAgeMs });
+      partial: meta?.identityDirectory?.ok === false || Number(meta?.failed) > 0 || (Array.isArray(meta?.failures) ? meta.failures.length > 0 : Number(meta?.failures) > 0), maxAgeMs });
   }
   const telegramSource = groups.flatMap(g => g.items).find(i => i.name === 'Telegram — a public research channel');
   const chatterSource = groups.flatMap(g => g.items).find(i => i.name === 'SentimentDash — mention counts and sentiment');

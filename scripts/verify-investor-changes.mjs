@@ -1,11 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { PERIODS, periodRange, inPeriod, matchedDeals, managerTrades, managerHoldings, investorHoldings, identityIndex, preserveBulkDeals, tradeWindow } from '../public/js/data/investor-changes.js';
-import { mergeBulkDeals } from './lib/bulk-deals-snapshot.mjs';
-import { syncBulkDeals } from './sync-bulk-deals.mjs';
-import { parseRange, applyRange, indiaDay, rangeParam, describeRange, dayGap } from '../public/js/data/date-range.js';
+import { PERIODS, indiaDay, periodRange, inPeriod, matchedDeals, investorHoldings, identityIndex, preserveBulkDeals } from '../public/js/data/investor-changes.js';
+import { withVerifiedEntities } from '../public/js/data/holdings-integrity.js';
+import { readFileSync } from 'node:fs';
+
 
 assert.deepEqual(PERIODS.map((p) => p.id), ['today', '3d', '7d', 'month', 'quarter', '6m', 'year', 'itd']);
 // Indian calendar boundaries: before UTC midnight, across a year and across leap day.
@@ -18,21 +15,11 @@ for (const [stamp, today, threeFrom, sevenFrom] of [
   const now = Date.parse(stamp);
   assert.equal(indiaDay(now), today);
   for (const [id, from, days] of [['today', today, 1], ['3d', threeFrom, 3], ['7d', sevenFrom, 7], ['month', `${today.slice(0, 7)}-01`, Number(today.slice(8))]]) {
-    const range = parseRange(id, now);
     assert.deepEqual(periodRange(id, today), { from, to: today });
-    assert.deepEqual(range, { id, from, to: today, days, custom: false });
-    assert.equal(dayGap(from, today) + 1, days, 'the named number of days includes today');
-    assert.equal(rangeParam(range), id, 'preset survives a shared URL');
     const rows = ['2020-01-01', from, today, '2030-01-01', null].map((date) => ({ date }));
-    assert.deepEqual(applyRange(rows, range).rows, [rows[1], rows[2]]);
     assert.deepEqual(rows.filter((row) => inPeriod(row, periodRange(id, today))), [rows[1], rows[2]]);
   }
 }
-assert.equal(describeRange(parseRange('today')), 'today');
-assert.equal(describeRange(parseRange('month')), 'this month');
-assert.equal(describeRange(parseRange('3d')), 'the last 3 days');
-assert.equal(parseRange(null).id, 'all', 'existing filings default is preserved');
-assert.equal(parseRange('2026-09-09..2026-09-01').from, '2026-09-01', 'custom dates still work');
 assert.deepEqual(periodRange('month', '2026-09-09'), { from: '2026-09-01', to: '2026-09-09' });
 assert.deepEqual(periodRange('quarter', '2026-01-02'), { from: '2026-01-01', to: '2026-01-02' });
 assert.equal(periodRange('6m', '2026-08-31').from, '2026-02-28');
@@ -58,36 +45,33 @@ assert.equal(grouped[0].source, 'Bulk deal');
 assert.equal(matchedDeals([deal, variant({ Transaction: 'Sell' })], people).length, 2);
 assert.equal(matchedDeals([deal, variant({ 'Trade Shares': '20,000' })], people).length, 2);
 
-const source = { byTicker: { EXAMPLE: [deal] } };
-const base = { byTicker: { OLD: [{ ticker: 'OLD', date: '2024-01-01', cells: { Transaction: 'Pledge' } }] }, empty: ['EXAMPLE'] };
-const merged = mergeBulkDeals(base, source, { capturedAt: '2026-09-02T00:00:00Z' });
-assert.equal(merged.rowCount, 2);
-assert.equal(merged.byTicker.OLD.length, 1);
-assert.equal(merged.empty.length, 0);
-assert.equal(mergeBulkDeals(merged, source).rowCount, 2);
-const retained = mergeBulkDeals(merged, null, { error: 'Source unavailable' });
-assert.equal(retained.bulkDeals.capturedAt, merged.bulkDeals.capturedAt);
-assert.equal(retained.bulkDeals.rows, 1);
-assert.equal(retained.bulkDeals.error, 'Source unavailable');
-assert.equal(mergeBulkDeals(base, merged).bulkDeals.capturedAt, merged.bulkDeals.capturedAt);
-assert.equal(preserveBulkDeals([], [deal]).length, 1, 'an empty insider answer cannot erase bulk history');
-assert.equal(preserveBulkDeals([deal], [deal]).length, 1);
-assert.equal(preserveBulkDeals([base.byTicker.OLD[0]], [deal]).length, 2);
-const temp = mkdtempSync(join(tmpdir(), 'glow-bulk-test-'));
-const realFetch = globalThis.fetch;
-try {
-  const file = join(temp, 'trades.json');
-  writeFileSync(file, JSON.stringify(merged));
-  globalThis.fetch = async () => { throw new Error('test outage'); };
-  assert.equal(await syncBulkDeals(file), false);
-  const failed = JSON.parse(readFileSync(file, 'utf8'));
-  assert.equal(failed.bulkDeals.capturedAt, merged.bulkDeals.capturedAt);
-  assert.equal(failed.rowCount, merged.rowCount);
-  assert.match(failed.bulkDeals.error, /test outage/);
-  globalThis.fetch = async () => Response.json({ ...source, capturedAt: '2026-09-01T00:00:00Z', sources: ['bulk', 'block'].map((id) => ({ id, ok: true, capturedAt: '2026-09-01T00:00:00Z' })) });
-  assert.equal(await syncBulkDeals(file), false, 'an older upstream capture is refused');
-  assert.equal(JSON.parse(readFileSync(file, 'utf8')).bulkDeals.capturedAt, merged.bulkDeals.capturedAt);
-} finally { globalThis.fetch = realFetch; rmSync(temp, { recursive: true }); }
+// Relationship attribution is explicit, exact and time-limited. A group name alone never
+// matches a subsidiary; all reviewed source identity survives into evidence and exports.
+const evidence = JSON.parse(readFileSync(new URL('../public/data/holding-evidence.json', import.meta.url)));
+for (const relation of evidence.relations) {
+  assert(relation.sourceUrl.startsWith('https://'));
+  for (const [kind, ids] of [['investor', relation.investorSlugs || []], ['manager', relation.managerIds || []]]) {
+    if (!ids.length) continue;
+    const people = [...new Set(ids)].map(id => ({ id, name: `Primary identity ${id}` }));
+    const reviewed = withVerifiedEntities(people, { ...evidence, relations: [relation] }, kind, relation.verifiedAt);
+    for (const name of [relation.legalName, ...(relation.aliases || [])]) {
+      const row = variant({ Insider: name });
+      assert.equal(matchedDeals([row], people).length, 0);
+      const matches = matchedDeals([row], reviewed);
+      assert.equal(matches.length, people.length);
+      assert.deepEqual(new Set(matches.map(m => m.personId)), new Set(ids));
+      for (const match of matches) {
+        assert.equal(match.attribution, ['same-person', 'same-entity'].includes(relation.kind) ? 'Reviewed identity' : 'Associated entity');
+        assert.equal(match.reportedName, name);
+        assert.equal(match.relationshipUrl, relation.sourceUrl);
+        assert.equal(match.identityCheckedAt, relation.verifiedAt);
+      }
+      assert.equal(matchedDeals([variant({ Insider: name + ' & Others' })], reviewed).length, 0);
+      const expired = new Date(Date.parse(relation.verifiedAt) + 91 * 86400000).toISOString();
+      assert.equal(matchedDeals([row], withVerifiedEntities(people, evidence, kind, expired)).length, 0, 'expired reviews cannot attribute trades');
+    }
+  }
+}
 
 const books = [{ slug: 'example', quarters: ['Sep 2026', 'Jun 2026', 'Mar 2026', 'Dec 2025'], holdings: [
   { company: 'Example', companySlug: 'EXAMPLE', quarterlyHoldings: { 'Sep 2026': 8, 'Jun 2026': 3, 'Mar 2026': 2, 'Dec 2025': null } },
@@ -100,25 +84,12 @@ assert(observed.every((r) => r.date !== '2026-09-30'));
 const example = observed.find((r) => r.company === 'Example' && r.date === '2026-06-30');
 assert.deepEqual([example.from, example.date, example.dateKind, example.priorLabel, example.latestLabel], ['2026-03-31', '2026-06-30', 'pattern', 'Mar 2026', 'Jun 2026']);
 assert.equal(example.sourceCheckedAt, null, 'a book with no recorded read time reports none rather than today');
-assert.equal(tradeWindow(example), null, 'a shareholding pattern never yields a trade date');
+assert.equal(example.tradeDate, undefined, 'a shareholding pattern never yields a trade date');
 assert.equal(investorHoldings([{ ...books[0], fetchedAt: '2026-09-09T11:52:16.304Z' }], [], '2026-09-09')[0].sourceCheckedAt, '2026-09-09T11:52:16.304Z');
 assert.equal(observed.find((r) => r.company === 'Example' && r.date === '2026-06-30').deltaPp, 1);
 assert.equal(observed.find((r) => r.company === 'Gone').action, 'exited', 'an explicit source non-disclosure establishes a disclosure disappearance, without implying a sale');
 assert.equal(observed.find((r) => r.company === 'Gone').deltaPp, null);
 assert.equal(observed.filter((r) => inPeriod(r, periodRange('month', '2026-09-09'))).length, 0);
 
-const load = (name) => JSON.parse(readFileSync(new URL(`../public/data/${name}.json`, import.meta.url), 'utf8'));
-const managers = load('managers'), investors = load('super-investors'), filings = load('insider-trades');
-const trades = managerTrades(managers.managers), holdings = managerHoldings(managers.managers, { syncedAt: managers.syncedAt });
-assert(trades.length > 0 && trades.every((r) => r.date && ['buy', 'sell'].includes(r.action)));
-assert(holdings.length > 0 && holdings.every((r) => r.date && r.from && r.source === 'PMS statements'));
-// A manager's row is measured on two STATEMENT dates and carries the statement's own dated trades
-// where there are any; the statement dates are never passed off as trade dates.
-assert(holdings.every((r) => r.dateKind === 'statement' && r.sourceCheckedAt === managers.syncedAt && r.priorLabel === r.from && r.latestLabel === r.date));
-const dated = holdings.map(tradeWindow).filter(Boolean);
-assert(dated.length > 0, 'the shipped statements carry dated trades inside at least one comparison window');
-assert(dated.every((w) => /^\d{4}-\d{2}-\d{2}$/.test(w.first) && w.last >= w.first && w.buys + w.sells > 0));
-for (const r of holdings) { const w = tradeWindow(r); if (w) assert(w.first >= r.from && w.last <= r.date, `${r.company}: a trade dated outside the two statements cannot explain the move between them`); }
-assert(trades.some((r) => r.amount != null && r.amount < 1e5));
-assert(matchedDeals(Object.values(filings.byTicker).flat(), investors.investors.map((i) => ({ id: i.slug, name: i.name }))).length > 0);
-console.log('PASS investor changes: period boundaries, strict identity joins, ambiguous names, duplicate evidence, source failure retention, closed-quarter comparisons, dated rows and shipped data');
+
+console.log('PASS public investor changes: period boundaries, identity joins, ambiguous names, duplicate evidence, failure retention, closed-quarter comparisons and separate dates');

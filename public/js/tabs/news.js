@@ -1,3 +1,4 @@
+import { TAB_META } from './catalog.js';
 // tabs/news.js — recent news for the companies in scope.
 //
 // IT LOADS ON ITS OWN, AND IT DID NOT USED TO. This tab once opened on a company picker: the news
@@ -21,14 +22,9 @@
 // reproduced, the article is linked, and nothing is summarised into our own words. See the header
 // of tabs/filings-tab.js for the machinery all three of these tabs share.
 //
-// NO SENTIMENT COLUMN, AND RELEVANCE ONLY WITHIN A DAY. Stories stay newest day first; within a day
-// the one a buy-side analyst would read first comes first — the same reading Corporate Announcements
-// and All Alerts use (data/relevance.js: what the story is about, the company's size and sector, any
-// amount it states against that size, whether it names the company, and the desk's shared Important
-// / Not important votes). No label is printed and no story is hidden by its rank. Scoring a headline
-// as positive or negative would still be a judgement of ours beside somebody else's reporting, and
-// this tab still does not do it. The row keeps opening the article; the small ⋯ beside it is a
-// separate control for the vote.
+// NEWEST PUBLICATION FIRST. Source clocks order stories within their source day; neither relevance
+// nor the desk's Important / Not important votes moves an older story above a newer one. Category
+// tags and visible feedback remain available below the story, separately from its article link.
 
 import { escapeHtml } from '../core/dom.js';
 import { formatDate, formatNumber } from '../core/format.js';
@@ -37,16 +33,19 @@ import { newsViewStatus } from '../core/news-view-status.js';
 import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { recentNews as feed } from '../data/filings.js';
-import { newsPeriodFilter, newsPublicationDay, newsPeriodBounds } from '../data/news-window.js';
+import { newsPeriodFilter, newsPublicationDay, newsPublicationKey, newsPeriodBounds } from '../data/news-window.js';
 import * as marketNews from './market-news-view.js';
 import { KEYWORDS, GROUPS, classifyStory, topicFilterOptions, matchesTopic, groupLabel } from '../data/news-keywords.js';
 import { filterByScope as filterTickerRows } from '../data/scope.js';
 import { attributionFor, attributionLabel, newsSearchText } from '../data/company-news-attribution.js';
 import { filterCompanyNewsByScope } from '../data/company-news-identity.js';
-import { surfaceReading, feedbackItemFor, rankedKey, istClock, relevanceRevision, onRelevanceChange, primeRelevance, warmReadings } from '../data/surface-relevance.js';
+import { surfaceReading, feedbackItemFor, relevanceRevision, onRelevanceChange, primeRelevance, warmReadings } from '../data/surface-relevance.js';
 import { categoryChips } from '../ui/category-chips.js';
 import { categoryLabel as categoryLabelOf } from '../data/announcement-categories.js';
-import { feedbackMenuButton, installFeedbackMenus } from '../ui/relevance-feedback-ui.js';
+import { newsFeedbackBar, installNewsFeedback } from '../ui/relevance-feedback-ui.js';
+import { newsSearchControl } from '../ui/news-search.js';
+import { arrangeNewsToolbar } from '../ui/news-toolbar.js';
+import { newsStoryHtml } from '../ui/news-story.js';
 
 const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">—</span>`;
 
@@ -81,10 +80,9 @@ function readingFor(row) {
 // and whether the story names the company (company-news-attribution.js).
 const newsRelevance = (r) => surfaceReading(r, { surface: 'news', kind: 'news', context: { match: attributionFor(r).status } });
 
-// Under the headline: the category tags, and the ⋯ that asks Important / Not important. The row's
-// own link still opens the article; the ⋯ never does.
+// Under the headline: category tags, then visible importance controls outside the article link.
 export function newsRowExtras(entry, r) {
-  return `<div class="news-row-extras">${categoryChips(entry.categories, { weak: entry.weak, max: 3 })}${feedbackMenuButton(feedbackItemFor(entry, r))}</div>`;
+  return `<div class="news-row-extras">${categoryChips(entry.categories, { weak: entry.weak, max: 3 })}</div>${newsFeedbackBar(feedbackItemFor(entry, r))}`;
 }
 
 function deliveryDetails(meta) {
@@ -115,14 +113,11 @@ function deliveryDetails(meta) {
 }
 
 const tab = makeFilingsTab({
-  id: 'news',
-  title: 'News',
-  subtitle:
-    'Company news, updated automatically. Opens on Today (IST); choose another period up to 30 days or This month. ' +
-    'Undated stories have their own filter; older news stays saved in All Alerts.',
+  ...TAB_META['news'],
   feed,
   prepareReading: view => feed.setWindow?.(() => newsPeriodBounds(view?.filters?.[3] || 'today')) || false,
   preserveReadingPosition: true,
+  fillMode: 'windowed',
   noun: 'articles',
   emptyMessage: (m) => {
     const status = newsViewStatus(m);
@@ -145,9 +140,29 @@ const tab = makeFilingsTab({
   rowName: (r) => r.title || '(untitled)',
   rowSub: (r) => [attributionLabel(r), r.company || r.ticker, r.company && r.ticker, canonicalPublisherName(r.source)].filter(Boolean).join(' · '),
   afterSub: (r) => newsRowExtras(newsRelevance(r), r),
-  // The order depends on the shared model and the company profiles, so either moving repaints it.
+  rowContent: (r, controls) => {
+    const entry = newsRelevance(r);
+    const day = newsPublicationDay(r);
+    const instant = /\d{1,2}:\d{2}/.test(r.publishedAt || '') ? Date.parse(r.publishedAt) : NaN;
+    const when = Number.isFinite(instant) ? new Date(instant).toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+    }) : day ? formatDate(day) : 'Date not supplied';
+    const meta = [
+      `<span class="font-semibold">${escapeHtml(canonicalPublisherName(r.source))}</span>`,
+      `<span class="tabular-nums">${escapeHtml(when)}</span>`,
+      categoryChips(entry.categories, { weak: entry.weak, max: 3 }),
+      ...readingFor(r).keywords.map(k => `<span title="${escapeHtml(`Matched in the ${k.where === 'title' ? 'headline' : 'standfirst only'}`)}">${escapeHtml(k.label)}</span>`),
+    ].filter(Boolean).join('<span aria-hidden="true">·</span>');
+    return newsStoryHtml(r, { ...controls, meta,
+      company: [attributionLabel(r), r.company || r.ticker, r.company && r.ticker].filter(Boolean).join(' · '),
+      feedback: newsFeedbackBar(feedbackItemFor(entry, r)),
+    });
+  },
+  // Category/feedback decorations follow the shared model; publication owns the default order.
   renderRevision: () => relevanceRevision(),
   searchable: newsSearchText,
+  searchControl: ({ view }) => newsSearchControl({ q: view?.q || '', searchable: newsSearchText }),
+  toolbarControls: () => ({ html: '', wire: arrangeNewsToolbar }),
   // News is name-searched and can therefore scope private/BSE-only companies by stable entity id.
   // Watchlist remains symbol-based because a saved watch item is a ticker by construction.
   filterByScope: (rows, scope, holdings) =>
@@ -157,9 +172,7 @@ const tab = makeFilingsTab({
       label: 'Date',
       get: (r) => (newsPublicationDay(r) ? `<span class="whitespace-nowrap tabular-nums text-slate-600">${escapeHtml(formatDate(newsPublicationDay(r)))}</span>` : dash('the article carried no readable date')),
       html: true,
-      // Newest day first; within each of the last seven days the most relevant story first, then the
-      // latest. A row with no date sorts last rather than first. An unreadable date is not "today".
-      sortValue: (r) => rankedKey(r, { day: newsPublicationDay(r), time: istClock(r.publishedAt), surface: 'news', read: newsRelevance }),
+      sortValue: newsPublicationKey,
     },
     {
       // THE TOPIC COLUMN TOOK THE OUTLET COLUMN'S PLACE RATHER THAN BEING ADDED BESIDE IT. The
@@ -306,10 +319,8 @@ const tab = makeFilingsTab({
           <li><strong>Headline, outlet and date</strong> — the upstream's, unchanged.</li>
           <li><strong>The article itself</strong> — not here. Every row links to the publisher, and nothing is summarised
               into our words.</li>
-          <li><strong>No sentiment of ours, and relevance only within a day.</strong> Stories are ordered newest source day first; within a day
-              the stories an analyst would read first come first (what the story is about, the company's size and sector, any amount it
-              states against that size, whether it names the company, and the desk's shared Important / Not important votes). Nothing is
-              hidden by its rank and no rank label is printed. Undated articles remain undated, never borrowing their capture time.
+          <li><strong>Newest publication first.</strong> Stories are ordered by source publication day and time, newest to oldest.
+              Date-only stories follow known clocks on the same day. Undated articles remain undated, never borrowing their capture time.
               A topic identifies the subject, not a trade recommendation.</li>
           <li><strong>Categories</strong> under each headline come from the same master list Corporate Announcements uses. The ⋯ beside
               a row records Important / Not important (with an optional why) into one shared preference for the desk; opening the
@@ -379,7 +390,7 @@ const tab = makeFilingsTab({
   },
 });
 
-export const meta = tab.meta;
+export const meta = TAB_META['news'];
 
 // ---------------------------------------------------------------------------------------
 // TWO FEEDS UNDER ONE TAB, CHOSEN BY THE SCOPE TOGGLE
@@ -405,10 +416,12 @@ export const meta = tab.meta;
 let mounted = null; // 'universe' | 'companies'
 let lastCtx = null;
 let offRelevance = null;
+export function getSavedView() { return mounted === 'universe' ? marketNews.getSavedView() : {}; }
+export function applySavedView(extras) { marketNews.applySavedView(extras); }
 
 export function render(ctx) {
   lastCtx = ctx;
-  installFeedbackMenus();
+  installNewsFeedback();
   primeRelevance();
   // A vote anywhere, or company sizes arriving, re-orders the day; repaint whichever half is mounted.
   offRelevance ||= onRelevanceChange(() => { if (lastCtx && mounted) render(lastCtx); });

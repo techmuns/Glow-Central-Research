@@ -1,0 +1,84 @@
+// Warm immutable module upgrade through the shipped SW, with synthetic private data only.
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { resolve, extname, sep } from 'node:path';
+const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
+const root = resolve('public');
+let upgraded = false;
+const revision = JSON.stringify(Array.from({ length: 60 }, (_, i) => [`workbook-${i}`, `revision-${i}`, '2026-10-01T00:00:00Z', null]));
+const openPeriod = `${new Date().getUTCFullYear() + 1}-03-31`;
+const fixture = { version: 1, valuation: 'workbook', bookAsOf: openPeriod, listedValuationAt: null, listedValuationBasis: null, archiveVersion: 1, sourceRevision: revision,
+  coverage: { note: 'Synthetic workbook coverage', transactionAsOf: '2026-08-31', sourceCount: 6, privateCount: 0 },
+  managers: [{ id: 'custodian-example', name: 'Ashika', kind: 'custodian', asOf: openPeriod, positions: [], transactions: [],
+    values: { marketValue: 100, costBasis: 80, unrealised: 20, cashValue: 0, positionCount: 0 } }] };
+const html = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"><main id="fixture" class="p-4"></main><script type="module">
+import { renderManagers } from '/js/investors/my-managers.js';
+import { watchWorkerChanges } from '/js/core/app-updates.js';
+const view = renderManagers({scope:'portfolio'}); fixture.innerHTML = view.html; view.wire(fixture, []);
+watchWorkerChanges(navigator.serviceWorker, () => location.reload());
+await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready; window.ready = true;
+</script>`;
+const peerHtml = `<script>
+const send = m => parent.postMessage({channel:'sattva-portfolio-v1', ...m}, location.origin);
+addEventListener('message', async e => {
+ if(e.origin !== location.origin || e.source !== parent || e.data.channel !== 'sattva-portfolio-v1') return;
+ const m = e.data;
+ if(m.type === 'hello') send({id:m.id,type:'ready',capabilities:['manager-workbook']});
+ if(m.type === 'managers') {
+  const fixture = await (await fetch('/api/managers-fixture', {cache:'no-store'})).json();
+  send({id:m.id,type:'result',managers:fixture});
+ }
+});
+</script>`;
+const server = createServer((req, res) => {
+  const path = new URL(req.url, 'http://localhost').pathname;
+  res.setHeader('cache-control', 'no-cache');
+  try {
+    if (path === '/glow-bridge.html') { res.setHeader('content-type', 'text/html'); res.end(peerHtml); return; }
+    if (path === '/api/managers-fixture') { res.setHeader('cache-control', 'private, no-store'); res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({...fixture, checkedAt:new Date().toISOString()})); return; }
+    if (path === '/' || path === '/index.html') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
+    if (path === '/sdk-fixture.js') { res.end('/* isolated SDK */'); return; }
+    const file = resolve(root, '.' + path); if (!file.startsWith(root + sep)) throw Error();
+    let body = readFileSync(file);
+    if (path === '/sw.js') {
+      body = body.toString().replace(/const MUNSHOT_SDK = .*;/, "const MUNSHOT_SDK = new URL('/sdk-fixture.js', self.location).href;");
+      if (!upgraded) body = body.replace(/const CACHE_NAME = .*;/, 'const CACHE_NAME = `${CACHE_PREFIX}previous-manager-release`;');
+    }
+    if (path === '/js/data/managers-contract.js' && !upgraded) body = body.toString().replace("if (!day(v.bookAsOf)) return 'period';", "if (!day(v.bookAsOf) || v.bookAsOf > new Date(Date.now() + 19800000).toISOString().slice(0, 10)) return 'period';");
+    if (path === '/js/investors/my-managers.js' && !upgraded) body = body.toString().replace("import { managerAvatar } from './manager-images.js';", '').replace('${managerAvatar(m)}', '');
+    res.setHeader('content-type', { '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp' }[extname(file)] || 'application/octet-stream');
+    res.end(body);
+  } catch { res.writeHead(404).end(); }
+});
+await new Promise(done => server.listen(0, '127.0.0.1', done));
+const origin = `http://127.0.0.1:${server.address().port}`;
+const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
+try {
+  const page = await browser.newPage(), errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.route('**/*', route => {
+    return new URL(route.request().url()).origin === origin ? route.continue() : route.abort();
+  });
+  await page.goto(origin); await page.waitForFunction(() => window.ready && navigator.serviceWorker.controller);
+  await page.reload(); await page.waitForFunction(() => window.ready);
+  await page.waitForFunction(() => document.querySelector('[data-manager-unavailable]')?.textContent.includes('period'));
+  assert.equal(await page.locator('[data-open-manager]').count(), 0, 'old cached future-period guard reproduces the unavailable view');
+  const before = await page.evaluate(() => caches.keys()); assert(before.some(k => k.includes('previous-manager-release')));
+  upgraded = true;
+  await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+  await page.waitForSelector('[data-open-manager="custodian-example"]');
+  assert.match(await page.locator('[data-open-manager="custodian-example"]').innerText(), /open period/);
+  assert.equal(await page.locator('[data-manager-unavailable]').count(), 0, 'already-open page reloads the new contract and recovers automatically');
+  const after = await page.evaluate(() => caches.keys()); assert(!after.some(k => k.includes('previous-manager-release')));
+  await page.waitForFunction(() => document.querySelector('[data-manager-image="ashika"]')?.naturalWidth > 0);
+  await page.locator('[data-manager-search]').fill('Ashika');
+  assert.equal(await page.locator('[data-open-manager]').count(), 1);
+  const cachedPrivate = await page.evaluate(async () => {
+    for (const key of await caches.keys()) for (const req of await (await caches.open(key)).keys()) if (req.url.includes('research-bridge') || req.url.includes('/api/')) return true;
+    return false;
+  });
+  assert.equal(cachedPrivate, false, 'private API replies never enter the public cache; the same-origin bridge shell contains no fixture data');
+  assert.deepEqual(errors, []);
+  console.log('PASS warm manager session: old open-period failure, automatic immutable-module upgrade, locally decoded manager image, old-cache eviction and private-cache exclusion');
+} finally { await browser.close(); await new Promise(done => server.close(done)); }

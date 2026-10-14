@@ -48,8 +48,8 @@
 // Worker named, and the pill says how many could not be read. Rendering them as zero rows would
 // report an outage as an absence of events.
 
-import { conditionalJson, readEntries, writeEntry, KEYS, isPersistent } from '../core/store.js';
-import { mergeInsiderTrades, mergeInsiderHeaders } from './insider-history.js';
+import { conditionalJson, readEntry, readEntries, writeEntry, KEYS, isPersistent } from '../core/store.js';
+import { mergeInsiderTrades, mergeInsiderHeaders, insiderRetentionWindow } from './insider-history.js';
 import { withFilingArchive } from './filing-archives.js';
 import { withAnnouncementLookups } from './announcements-extra.js';
 import { dedupeArticles, dedupeArticlesAsync } from './filings-shared.js';
@@ -155,7 +155,24 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
   let loading = null;
   let seeding = null;
   const subscribers = new Set();
+  const activeReaders = new Set();
+  let snapshotTimer = null, snapshotAttemptAt = 0, snapshotRecheck = null;
   const emit = () => [...subscribers].forEach((fn) => fn());
+  // The exchange API and Screener capture are independent inputs. Polling only the former left
+  // a failed opening capture pinned until reload, and never delivered later SAST/insider rows.
+  // These checks read saved public captures only; they never start a per-company source walk.
+  function checkInsiderSnapshot() {
+    if (kind !== 'insider' || !state.loaded || document.hidden || innerWidth === 0 ||
+        snapshotRecheck || Date.now() - snapshotAttemptAt < 55000) return;
+    snapshotRecheck = refreshSnapshot().catch(() => {}).finally(() => { snapshotRecheck = null; });
+  }
+  function stopSnapshotChecks() {
+    if (!snapshotTimer) return;
+    clearInterval(snapshotTimer); snapshotTimer = null;
+    document.removeEventListener('visibilitychange', checkInsiderSnapshot);
+    window.removeEventListener('focus', checkInsiderSnapshot);
+    window.removeEventListener('online', checkInsiderSnapshot);
+  }
   function adoptLiveNews(ticker, saved, notify = true) {
     const newer = saved.at > (Date.parse(state.snapshotUpdatedAt || state.capturedAt || '') || 0);
     const previous = state.rows.get(ticker) || [];
@@ -202,6 +219,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
       // one is a real answer rather than a gap in our budget.
       coversUniverse: false,
       exchangeCompanies: null,
+      identityDirectory: null,
       unnamedRows: 0,
       // The window the snapshot actually holds, which a date-indexed capture knows and a per-company
       // walk does not. Falls back to the feed's own constant.
@@ -232,7 +250,6 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
       pending: 0,
       truncated: 0,
       headers: [], // insider trades keeps the upstream's own column headings
-      bulkDeals: null,
       // The companies in scope, as the tab last asked for them. `refresh()` re-reads these, so the
       // button asks about what is on screen rather than about everything the module has ever seen.
       wanted: [],
@@ -284,13 +301,13 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     const coreFresh = Number.isFinite(stamp) && stamp <= Date.now() + 600000 && Date.now() - stamp <= 4 * 3600000;
     return {
       kind,
-      bulkDeals: state.bulkDeals,
       exchanges: kind === 'insider' ? exchangeDeals.meta() : null,
       disclosuresStatus: kind === 'insider' ? exchangeDeals.disclosuresStatus(state.wanted) : null,
-      ok: covered > 0 || state.failures.size === 0,
+      ok: (covered > 0 || state.failures.size === 0) && !(kind === 'insider' && state.snapshotReadError),
       loaded: state.loaded,
       reason: state.reason,
       message: state.message,
+      snapshotReadError: state.snapshotReadError,
       covered,
       failed: state.failures.size,
       pending: state.pending,
@@ -303,6 +320,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
       askedEmpty: state.askedEmpty.size,
       coversUniverse: state.coversUniverse,
       exchangeCompanies: state.exchangeCompanies,
+      identityDirectory: state.identityDirectory,
       unnamedRows: state.unnamedRows,
       capturedAt: state.capturedAt,
       sourceCheck: state.sourceCheck || null,
@@ -333,7 +351,8 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
         pending: state.snapshotPending, error: state.snapshotReadError ||
           (state.snapshotChecked && !queryComplete ? 'Some company searches are incomplete or unchecked.' :
             state.snapshotChecked && !coreFresh ? 'Company-search source checks are stale or unavailable.' : null),
-        capturedAt: state.capturedAt, checkedAt: state.capturedAt, readerCheckedAt: state.checkedAt,
+        capturedAt: state.capturedAt,
+      sourceCheck: state.sourceCheck || null, checkedAt: state.capturedAt, readerCheckedAt: state.checkedAt,
       } } } : {}),
       enrichmentCoverage: state.enrichmentCoverage,
       tradingViewCoverage: state.tradingViewCoverage,
@@ -359,8 +378,6 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
         const row = list[0] || {};
         state.identities.set(key, { ticker: row.ticker || (row.entityId ? null : key), name: state.names.get(key) || row.company || row.query });
       }
-      // Announcement/insider projections use only the ticker. A new scope picker
-      // object must not invalidate every retained row in those feeds.
       return [key, list, kind === 'news' ? state.identities.get(key) : null];
     });
     const exchangeRevision = kind === 'insider' ? exchangeDeals.revision() : null;
@@ -625,12 +642,12 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
    * yesterday's rows as soon as the new deployment reaches the browser.
    */
   async function refreshSnapshot() {
-    const before = `${state.snapshotUpdatedAt || state.capturedAt}|${state.bulkDeals?.capturedAt}`;
+    const before = state.snapshotUpdatedAt || state.capturedAt;
     const available = await seedFromSnapshot({ replace: true });
     if (kind === 'insider') await seedFromDevice([...state.rows.keys()]);
     state.loaded = true;
     emit();
-    return { available, changed: before !== `${state.snapshotUpdatedAt || state.capturedAt}|${state.bulkDeals?.capturedAt}`, capturedAt: state.capturedAt };
+    return { available, changed: !!state.snapshotUpdatedAt && state.snapshotUpdatedAt !== before, capturedAt: state.capturedAt };
   }
 
   const rowCountNow = () => [...state.rows.values()].reduce((a, r) => a + r.length, 0);
@@ -642,7 +659,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
 
   function storeRows(ticker, incoming) {
     const list = kind === 'insider'
-      ? mergeInsiderTrades(state.rows.get(ticker) || [], incoming, { from: daysAgo(WINDOW_DAYS.insider), to: iso(Date.now()) })
+      ? mergeInsiderTrades(state.rows.get(ticker) || [], incoming, insiderRetentionWindow(WINDOW_DAYS.insider))
       : kind === 'news' ? dedupeArticles([...incoming, ...(state.rows.get(ticker) || [])])
       : incoming;
     state.rows.set(ticker, list);
@@ -723,26 +740,46 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     return job;
   }
   async function applySnapshot(options) {
+    snapshotAttemptAt = Date.now();
     try { return await applySnapshotRows(options); }
     finally { state.snapshotPending = false; }
   }
   async function applySnapshotRows({ replace = false } = {}) {
     if (kind === 'insider') void exchangeDeals.refresh();
+    const validCapture = value => value && typeof value === 'object' &&
+      (kind === 'announcements' || value.byTicker && typeof value.byTicker === 'object' && !Array.isArray(value.byTicker)) &&
+      (kind !== 'insider' || Number.isFinite(Date.parse(value.capturedAt || value.generated_at)) &&
+        Object.values(value.byTicker).every(Array.isArray));
     let res;
     state.snapshotPending = true;
     try {
-      res = await read(SNAPSHOT[kind], { key: KEYS.filings(kind), optional: true });
+      res = await read(SNAPSHOT[kind], { key: KEYS.filings(kind), optional: true,
+        ...(kind === 'insider' ? { validate: value => { if (!validCapture(value)) throw Error('Unreadable trade capture'); } } : {}) });
     } catch {
       res = null;
     }
-    const body = res?.value;
+    let body = res?.value;
     state.snapshotChecked = true;
-    state.checkedAt = res?.checkedAt || Date.now();
-    if (!body || typeof body !== 'object' || (kind === 'news' && (!body.byTicker || typeof body.byTicker !== 'object' || Array.isArray(body.byTicker)))) {
-      state.snapshotReadError = 'Company-news capture could not be verified. Previously loaded records remain visible.';
+    const verified = validCapture(body);
+    if (kind === 'insider' && !verified) {
+      state.snapshotReadError = 'The latest saved trade capture could not be read. Retained trades remain available; this view checks again automatically.';
+      // A last-good whole-universe capture includes companies outside the current Portfolio.
+      // Per-company device entries alone cannot recover that history after an opening failure.
+      const saved = await readEntry(KEYS.filings(kind));
+      if (validCapture(saved?.value)) { body = saved.value; state.checkedAt ||= saved.savedAt || null; }
+    }
+    if (!validCapture(body)) {
+      state.snapshotReadError ||= 'Company-news capture could not be verified. Previously loaded records remain visible.';
+      if (kind === 'insider') { state.reason = 'capture-unavailable'; state.message = state.snapshotReadError; }
       return false;
     }
-    state.snapshotReadError = null;
+    if (verified) {
+      state.checkedAt = res?.checkedAt || Date.now();
+      state.snapshotReadError = null;
+    }
+    if (kind === 'insider' && ['capture-unavailable', 'no-route', 'unreachable', 'upstream', 'shape', 'timeout'].includes(state.reason)) {
+      state.reason = null; state.message = null;
+    }
 
     const capturedAt = body.capturedAt || body.generated_at || null;
     // An independent source may enrich a last-good core capture. Its revision changes the
@@ -767,10 +804,6 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     const projectionChanged = kind === 'news' && body.queryRevision != null && body.queryRevision !== state.queryRevision;
     const newer = replace && Number.isFinite(nextCaptured) && (!Number.isFinite(heldCaptured) || nextCaptured > heldCaptured || projectionChanged);
     if (!replace || newer) { state.capturedAt = capturedAt; state.snapshotUpdatedAt = revisionAt; state.queryRevision = body.queryRevision ?? null; }
-    // GLOW: the bulk/block fallback rides on the insider snapshot under its own capture time, so a
-    // newer deal list is adopted even when the insider capture itself has not moved.
-    const bulkNewer = kind === 'insider' && Date.parse(body.bulkDeals?.capturedAt || '') > (Date.parse(state.bulkDeals?.capturedAt || '') || 0);
-    if (body.bulkDeals && (!state.bulkDeals || Date.parse(body.bulkDeals.capturedAt || '') >= Date.parse(state.bulkDeals.capturedAt || ''))) state.bulkDeals = body.bulkDeals;
     if (!replace || newer) {
       state.oldestDataAt = body.oldestDataAt || capturedAt;
       state.fallbackCount = Number.isFinite(body.fallbackCount) ? body.fallbackCount : 0;
@@ -781,9 +814,10 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     }
     // What the file declares about its own coverage and window. Read before the early return, so a
     // re-read that finds nothing newer still leaves these describing the file we actually hold.
-    state.coversUniverse = body.coversUniverse === true;
-    state.sourceCheck = { lastAttemptAt: body.lastAttemptAt || body.capturedAt,
-      error: body.lastError || null, identityError: body.identityError || null };
+    state.sourceCheck = { lastAttemptAt: body.lastAttemptAt || body.capturedAt, error: body.lastError || null,
+      identityError: body.identityDirectory?.ok === false ? { message: 'The BSE company directory could not be refreshed. Saved identities are in use.' } : null };
+    state.identityDirectory = body.identityDirectory && typeof body.identityDirectory === 'object' ? body.identityDirectory : null;
+    state.coversUniverse = body.coversUniverse === true && state.identityDirectory?.ok !== false;
     state.exchangeCompanies = Number.isFinite(body.exchangeCompanies) ? body.exchangeCompanies : null;
     state.unnamedRows = Number.isFinite(body.unnamedRows) ? body.unnamedRows : 0;
     state.snapshotWindowDays = Number.isFinite(body.windowDays) ? body.windowDays : null;
@@ -807,14 +841,16 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
         // AN UNCHANGED IDENTITY KEEPS ITS OBJECT, as the picker's merge in `setWanted` does. The
         // shared poller re-reads this capture every two minutes, and a re-read can parse a fresh
         // body without anything changing (an evicted memory copy, an origin with no ETag). `rows()`
-        // then re-attributed every head row of all 170 portfolio identities — 66,567 rows on the
+        // then re-attributed every head row of all 116 portfolio identities — 80,762 rows on the
         // 2 October capture — and every cache keyed on those rows downstream missed at once.
         const held = state.identities.get(key);
         if (held !== entity && JSON.stringify(held) !== JSON.stringify(entity)) state.identities.set(key, entity);
         if (entity.name) state.names.set(key, entity.name);
       }
     }
-    if (replace && !newer && !bulkNewer) return state.rows.size > 0 || !!body.queryWindow;
+    // The first capture may have been a verified empty result. Rechecking those same bytes is
+    // still a successful read, and must not report unavailable or trigger a company walk.
+    if (replace && !newer) return kind === 'insider' ? !!verified : state.rows.size > 0 || !!body.queryWindow;
 
     if (newer) {
       // Announcement snapshots replace rows. Companies that aged out
@@ -897,7 +933,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     // whoever asks first — a poller as easily as the tab. Warm the head's readings here, in
     // slices, so that first read pays for the join and not for every story's attribution.
     await warmRows(yieldToInput);
-    return state.rows.size > 0 || state.askedEmpty.size > 0 || !!body.queryWindow;
+    return kind === 'insider' ? !!verified : state.rows.size > 0 || state.askedEmpty.size > 0 || !!body.queryWindow;
   }
 
   /** The rows out of one company's payload, deduplicated where duplication is meaningless. */
@@ -930,7 +966,9 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     if (kind === 'insider') await seedFromDevice([t]);
     state.asked.add(t);
 
-    const range = `from=${daysAgo(WINDOW_DAYS[kind])}&to=${iso(Date.now())}`;
+    const bounds = kind === 'insider' ? insiderRetentionWindow(WINDOW_DAYS.insider)
+      : { from: daysAgo(WINDOW_DAYS[kind]), to: iso(Date.now()) };
+    const range = `from=${bounds.from}&to=${bounds.to}`;
     const path = ROUTE[kind](kind === 'news' ? queryFor(t) : t, range);
     let res;
     const abort = new AbortController();
@@ -945,11 +983,18 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     const body = res?.value;
 
     if (!body) {
-      // No route at this origin at all — a plain static server rather than the Worker.
-      state.failures.set(t, { reason: 'no-route', message: `This origin has no /api/${kind} route. The live feed needs the Cloudflare Worker.` });
+      // A missing optional value also represents timeouts, failed HTTP replies and unreadable
+      // 200s. It is not evidence that this deployment is a static server without a Worker.
+      const status = res?.status || 0;
+      const reason = status === 404 || status === 405 ? 'no-route' : status === 401 || status === 403 ? 'unauthorised'
+        : status === 429 ? 'rate-limited' : status === 408 || status === 504 ? 'timeout'
+        : status === 200 ? 'shape' : status ? 'upstream' : 'unreachable';
+      const message = status ? `The feed request could not be read (HTTP ${status}). Retained records remain available.`
+        : 'The feed request did not complete. Retained records remain available.';
+      state.failures.set(t, { reason, message });
       if (!state.reason) {
-        state.reason = 'no-route';
-        state.message = 'This origin serves the static files only, so there is no live route to answer. Run `npx wrangler dev`, or open the deployed site.';
+        state.reason = reason;
+        state.message = message;
       }
       return null;
     }
@@ -1021,16 +1066,27 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
       for (const ticker of state.rows.keys()) if (!state.fromSnapshot.has(ticker)) return true;
       return false;
     },
-    dispose() { state = fresh(); rowSnapshot = null; subscribers.clear(); liveNewsSubscribers.delete(adoptLiveNews); },
+    dispose() { stopSnapshotChecks(); activeReaders.clear(); state = fresh(); rowSnapshot = null; subscribers.clear(); liveNewsSubscribers.delete(adoptLiveNews); },
     invalidate() {
       state = fresh();
       loading = null;
       seeding = null;
+      snapshotAttemptAt = 0;
     },
     onChange(fn, options) {
       subscribers.add(fn);
       const stop = kind === 'insider' ? exchangeDeals.onChange(fn, options) : null;
-      return () => { subscribers.delete(fn); stop?.(); };
+      if (kind === 'insider' && options?.poll !== false && typeof document !== 'undefined') {
+        activeReaders.add(fn);
+        if (!snapshotTimer) {
+          snapshotTimer = setInterval(checkInsiderSnapshot, 60000);
+          document.addEventListener('visibilitychange', checkInsiderSnapshot);
+          window.addEventListener('focus', checkInsiderSnapshot);
+          window.addEventListener('online', checkInsiderSnapshot);
+        }
+        checkInsiderSnapshot();
+      }
+      return () => { subscribers.delete(fn); stop?.(); activeReaders.delete(fn); if (!activeReaders.size) stopSnapshotChecks(); };
     },
   };
 }
@@ -1126,4 +1182,4 @@ export function createQueryNews(window, { extraRows = () => marketNews.rows(), a
   };
 }
 export const announcements = withAnnouncementLookups(withFilingArchive(createFeed('announcements'), 'announcements'));
-export const insider = withFilingArchive(createFeed('insider'), 'insider');
+export const insider = withFilingArchive(createFeed('insider', { allowColdStart: false }), 'insider');

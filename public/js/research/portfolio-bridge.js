@@ -1,3 +1,6 @@
+import { validHoldings, validPositionSizes } from '../data/position-sizes-contract.js';
+import { snapshotIssue } from '../data/managers-contract.js';
+export { validPositionSizes } from '../data/position-sizes-contract.js';
 import { useFamilyBook, invalidateFamilyBook, failFamilyBook } from '../data/coverage.js';
 // The authenticated Family reader runs in a hidden frame inside Central Research.
 // No token, raw ledger, or portfolio reply is persisted here.
@@ -10,6 +13,8 @@ export const PORTFOLIO_MAX_CHARS = 6000;
 let transportReady = false;
 let connection = null;
 let positionSizesSupported = false;
+let priceLevelsSupported = false;
+let managersSupported = false;
 const listeners = new Set();
 const invalidations = new Set();
 const portfolioReady = new Set();
@@ -50,27 +55,6 @@ export function validPortfolioReply(value, startedAt = Date.now()) {
     JSON.stringify(reading).length <= PORTFOLIO_MAX_CHARS && validHoldings(value.holdings);
 }
 
-function validHoldings(holdings) {
-  return Array.isArray(holdings) && holdings.length <= 2000 && holdings.every((h) => typeof h?.isin === 'string' && /^[A-Z]{2}[A-Z0-9]{10}$/.test(h.isin) && typeof h.name === 'string' && h.name.length <= 300 &&
-      typeof h.sector === 'string' && h.sector.length <= 200 && (h.ticker === null || (typeof h.ticker === 'string' && /^[A-Z0-9&.-]{1,30}$/.test(h.ticker))));
-}
-
-export function validPositionSizes(value, startedAt = Date.now()) {
-  const sizes = value?.sizes;
-  const checked = Date.parse(sizes?.checkedAt || '');
-  const bookDay = Date.parse(`${sizes?.bookAsOf}T00:00:00Z`);
-  if (!sizes || !['listed-market-value', 'statement-equity-value'].includes(sizes.basis) ||
-      (sizes.basis === 'statement-equity-value' && sizes.sourceKind !== 'glow-statements') || typeof sizes.complete !== 'boolean' ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(sizes.bookAsOf) || !Number.isFinite(bookDay) || new Date(bookDay).toISOString().slice(0, 10) !== sizes.bookAsOf ||
-      !Number.isSafeInteger(sizes.archiveVersion) || sizes.archiveVersion < 0 ||
-      !Number.isFinite(checked) || checked < startedAt - 1000 || checked > Date.now() + 10_000 ||
-      !validHoldings(value.holdings) || new Set(value.holdings.map((h) => h.isin)).size !== value.holdings.length ||
-      JSON.stringify(value).length > 1_500_000) return false;
-  if (!sizes.complete) return value.holdings.every((h) => h.weightPct === null);
-  return value.holdings.every((h) => Number.isFinite(h.weightPct) && h.weightPct >= 0 && h.weightPct <= 100) &&
-    Math.abs(value.holdings.reduce((sum, h) => sum + h.weightPct, 0) - 100) < 0.001;
-}
-
 function ensureTarget() {
   if (target) return target;
   {
@@ -102,8 +86,10 @@ function ensureTarget() {
         setConnection('locked');
         for (const fn of invalidations) fn(-1);
       } else if (event.data.type === 'available') {
+        const reloaded = transportReady || managersSupported || positionSizesSupported || priceLevelsSupported;
         transportReady = false;
         lastPositionReply = null;
+        if (reloaded) for (const fn of invalidations) fn(-1);
         if (state !== 'unavailable') setConnection('connecting');
         connectPortfolio();
       } else if (Number.isSafeInteger(event.data.version)) {
@@ -155,7 +141,9 @@ function request(type, question, signal, timeoutMs) {
 export function connectPortfolio() {
   if (transportReady) return Promise.resolve(true);
   if (!connection) connection = request('hello', null, null, 15_000).then((reply) => {
+    priceLevelsSupported = Array.isArray(reply.capabilities) && reply.capabilities.includes('price-levels');
     positionSizesSupported = Array.isArray(reply.capabilities) && reply.capabilities.includes('position-sizes');
+    managersSupported = Array.isArray(reply.capabilities) && reply.capabilities.includes('manager-workbook');
     transportReady = true;
     if (state !== 'unavailable') setConnection('connected');
     return true;
@@ -175,7 +163,7 @@ async function readPortfolioNow(question, signal) {
   return reply;
 }
 
-/** A direct, ephemeral size snapshot from the statement reader; no model or public ledger. */
+/** A direct, ephemeral size snapshot from the authenticated reader; no model or public ledger. */
 async function readPositionSizesNow() {
   if (!transportReady && !await connectPortfolio()) return null;
   if (!positionSizesSupported) return null;
@@ -201,16 +189,6 @@ let readTail = Promise.resolve();
 let reading = false;
 export const portfolioReadBusy = () => reading;
 let pendingSizes = null;
-// WHEN THE PENDING READ WAS ASKED FOR, not when it settles. `pauseFamilySession()` stops the NEXT
-// background recheck but cannot make one already in flight this question's own, and a forced read
-// that adopts a check begun before it was asked for answers from a book verified for somebody
-// else's earlier check — the staleness `force` exists to refuse. So a forced read may only join a
-// pending one requested at or after its own moment: simultaneous callers still share one read, and
-// a question arriving mid-refresh gets its own, queued behind it.
-let pendingSizesAskedAt = 0;
-// Whether the current `pendingSizes` read has begun asking the host, rather than still sitting in
-// the queue behind an earlier one. Only a started read withholds itself from a later forced caller.
-let pendingSizesStarted = false;
 const cancelled = () => new DOMException('Cancelled', 'AbortError');
 function forConsumer(operation, signal) {
   if (!signal) return operation;
@@ -221,22 +199,22 @@ function forConsumer(operation, signal) {
     if (signal.aborted) abort();
   });
 }
-function enqueueRead(read, signal) {
+function enqueueRead(read, signal, { adoptHoldings = true } = {}) {
   const operation = readTail.then(async () => {
     if (signal?.aborted) throw cancelled();
     reading = true;
     try {
       const reply = await read();
-      if (reply) useFamilyBook(reply.holdings, reply.sizes.bookAsOf, reply.sizes.checkedAt);
-      else {
+      if (reply && adoptHoldings) useFamilyBook(reply.holdings, reply.sizes.bookAsOf, reply.sizes.checkedAt);
+      else if (!reply && adoptHoldings) {
         lastPositionReply = null;
         failFamilyBook();
       }
-      if (reply) setConnection('connected');
-      else if (state !== 'locked') setConnection('unavailable');
+      if (adoptHoldings && reply) setConnection('connected');
+      else if (adoptHoldings && state !== 'locked') setConnection('unavailable');
       return reply;
     } catch (error) {
-      if (error?.name !== 'AbortError') {
+      if (adoptHoldings && error?.name !== 'AbortError') {
         lastPositionReply = null;
         failFamilyBook();
         if (state !== 'locked') setConnection('unavailable');
@@ -263,7 +241,7 @@ export function needsPortfolioAnalysis(question, history = []) {
 
 export async function readResearchPortfolio(question, signal, history = []) {
   if (needsPortfolioAnalysis(question, history)) return readPortfolio(question, signal);
-  // Recheck the workbook revision, coalescing with an already-running check.
+  // Recheck the workbook after this question; share only a read that has not started.
   // A failed read never falls back to cached ownership or an extra model call.
   const reply = await readPositionSizes(signal, { force: true });
   if (!reply) throw new Error(state === 'locked' ? 'Unlock your portfolio above to answer with your holdings.' : 'Your portfolio connection is unavailable. Please try again; no old holdings were used.');
@@ -271,8 +249,7 @@ export async function readResearchPortfolio(question, signal, history = []) {
   return { ...reply, reading: {
     status: sizes.complete ? 'ready' : 'limited',
     mode: 'verified-holdings',
-    sourceKind: sizes.sourceKind,
-    answer: `Verified ${reply.holdings.length} equity holdings from the GlowVentures statement book. The complete position set supplies ownership, sectors and ${sizes.complete ? (sizes.basis === 'statement-equity-value' ? 'equity statement-book weights' : 'listed-market-value weights') : 'unavailable weights'}.${['workbook', 'statements'].includes(sizes.valuation) ? ' Weights use source statement marks, not live quotes.' : ''} Costs, tax, account balances and returns were not read.`,
+    answer: `Verified ${reply.holdings.length} research equity holdings from the GlowVentures statement book. The complete equity position set supplies ownership, sectors and ${sizes.complete ? 'statement-equity-value weights' : 'unavailable weights'}. Statement dates remain the ownership and valuation dates; this is not a live broker book. Costs, tax, account balances and returns were not read.`,
     bookAsOf: sizes.bookAsOf, checkedAt: sizes.checkedAt, archiveVersion: sizes.archiveVersion,
     valuation: sizes.valuation, sourceRevision: sizes.sourceRevision,
     quotes: sizes.quotes, sourceErrors: sizes.sourceErrors,
@@ -280,7 +257,6 @@ export async function readResearchPortfolio(question, signal, history = []) {
 }
 export function readPositionSizes(signal, { force = false } = {}) {
   if (signal?.aborted) return Promise.reject(cancelled());
-  const askedAt = Date.now();
   const cached = force ? null : cachedPositionSizes();
   if (cached) {
     // A visibility transition may have marked the current Family book as
@@ -289,27 +265,33 @@ export function readPositionSizes(signal, { force = false } = {}) {
     useFamilyBook(cached.holdings, cached.sizes.bookAsOf, cached.sizes.checkedAt);
     return Promise.resolve(cached);
   }
-  // A FORCED READ MAY SHARE ONE THAT HAS NOT ASKED THE HOST ANYTHING YET. `enqueueRead` runs its
-  // callback in a later microtask, so a read created earlier in this same burst has posted nothing
-  // so far, and sharing it cannot return anything staler than opening a second one would - the
-  // reply is stamped when the host answers, which is after both callers asked either way.
-  //
-  // The guard was `pendingSizesAskedAt >= askedAt` alone, and `Date.now()` is quantised to the
-  // millisecond: two callers in one burst shared only when they happened to land inside the same
-  // millisecond, and otherwise opened a SECOND read of the Family reader - the exact thing the
-  // `peak === 1` assertion beside this one exists to forbid. It read as a flaky test and was a
-  // real duplicate read; measured on main, one failure in twelve local runs and more under CI
-  // load, where it intermittently blocked generated-data publication.
-  //
-  // Freshness is unchanged for a read that HAS started: that one is still not shared with a later
-  // forced caller, because the host may already have read the book.
-  if (pendingSizes && (!force || !pendingSizesStarted || pendingSizesAskedAt >= askedAt)) return forConsumer(pendingSizes, signal);
-  // `enqueueRead` serialises behind whatever is running, so a second read is never posted into a
-  // frame that answers one at a time.
-  pendingSizesStarted = false;
-  const read = enqueueRead(() => { pendingSizesStarted = true; return readPositionSizesNow(); });
-  pendingSizes = read;
-  pendingSizesAskedAt = askedAt;
-  read.catch(() => {}).finally(() => { if (pendingSizes === read) pendingSizes = null; });
-  return forConsumer(read, signal);
+  // Callers may share a queued read, but a forced caller cannot accept a source
+  // check already in progress. Keep state per operation: an older queued read
+  // must not change the state of a newer one waiting behind it.
+  if (pendingSizes && (!force || !pendingSizes.started)) return forConsumer(pendingSizes.promise, signal);
+  const entry = { started: false, promise: null };
+  entry.promise = enqueueRead(() => { entry.started = true; return readPositionSizesNow(); });
+  pendingSizes = entry;
+  entry.promise.catch(() => {}).finally(() => { if (pendingSizes === entry) pendingSizes = null; });
+  return forConsumer(entry.promise, signal);
+}
+
+export const priceLevelsAvailable = () => transportReady && state === 'connected' && priceLevelsSupported;
+/** Manager projection shares the authenticated read queue, but never changes company scope. */
+export function readManagerWorkbook(signal) {
+  return forConsumer(enqueueRead(async () => {
+    if (!transportReady && !await connectPortfolio()) throw Error(state === 'locked' ? 'Unlock GlowVentures to see your managers.' : 'GlowVentures is unavailable.');
+    if (!managersSupported) throw Error('The Family manager connection is not available yet.');
+    const startedAt = Date.now(); // Freshness belongs to the actual queued source read.
+    const value = (await request('managers', null, signal, 125_000)).managers;
+    const issue = snapshotIssue(value, startedAt);
+    if (issue) throw Error(`The Family manager workbook could not be verified (${issue}). It will be checked again automatically.`);
+    return value;
+  }, signal, { adoptHoldings: false }), signal);
+}
+export async function readPriceLevels(cursor = null) {
+  if (!priceLevelsAvailable()) throw Error('Unlock GlowVentures to read shared price alerts.');
+  const reply = await request('price-levels', cursor, null, 30000);
+  if (!reply.priceLevels || JSON.stringify(reply.priceLevels).length > 1500000) throw Error('Invalid private alert reply');
+  return reply.priceLevels;
 }

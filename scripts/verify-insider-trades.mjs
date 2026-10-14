@@ -6,8 +6,10 @@ import { dirname, join } from 'node:path';
 import { createServer } from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mergeInsiderTrades, insiderTradeIdentity } from '../public/js/data/insider-history.js';
+import { mergeInsiderTrades, insiderTradeIdentity, insiderRetentionWindow } from '../public/js/data/insider-history.js';
 import { normaliseInsiderTrades } from '../public/js/data/filings-shared.js';
+import { insiderTransactionType } from '../public/js/data/insider-transaction.js';
+import { tradeFilters } from '../public/js/tabs/insider-trades.js';
 import { mergeLastGoodFilings } from './lib/filings-snapshot.mjs';
 import { buildScreenerTradesSnapshot, hasScreenerTradeOverlap, indexPriorScreenerTradeIdentities, normaliseScreenerTrade, SCREENER_TRADE_SOURCES } from './lib/screener-trades.mjs';
 import { fetchInsiderTrades } from '../worker/muns.mjs';
@@ -15,6 +17,7 @@ import { createFeed } from '../public/js/data/filings.js';
 import { clearAll, readEntry, writeEntry, KEYS } from '../public/js/core/store.js';
 
 const now = Date.now();
+const sourceWindow = { from: insiderRetentionWindow(365, now).from, to: insiderRetentionWindow(365, now).to };
 const day = (offset) => new Date(now + offset * 86400000).toISOString().slice(0, 10);
 const trade = (name, source = 'NSE', date = day(-1)) => ({
   ticker: 'TEST', date, cells: { Insider: name, Transaction: 'Acquisition', 'Trade Shares': '100', Source: source },
@@ -84,6 +87,52 @@ assert.deepEqual([screenerRows[0].cells['Trade Shares'], screenerRows[0].cells.P
 assert.deepEqual([screenerRows[1].cells.Transaction, screenerRows[2].cells.Transaction], ['Sell', 'Acquisition']);
 assert.deepEqual([screenerRows[2].cells['Trade %'], screenerRows[2].cells.Mode], ['17.17', 'Off Market']);
 assert.deepEqual([screenerRows[3].date, screenerRows[3].cells.Category], ['2026-09-04', 'Promoter And Director']);
+// Real legacy captures put an action-less security quantity in Transaction. Never make that
+// quantity a dropdown choice or infer a buy/sell direction from the omitted source wording.
+for (const quantity of ['1,00,000 Equity', '1,20,00,000 Any Other Instrument']) {
+  const row = normaliseScreenerTrade(source('insiders'), extracted('MISSING', 'Missing Ltd', ['Director'],
+    '04 Sep 2026', [quantity], ['7.14 lacs']), { capturedAt: captureAt });
+  assert(row, 'missing action must not discard the disclosure');
+  assert.equal(row.cells.Transaction, undefined);
+  assert.equal(row.cells['Trade Shares'], quantity.split(' ')[0].replaceAll(',', ''));
+  assert.equal(row.cells['Security Type'], quantity.split(' ').slice(1).join(' '));
+  const legacy = structuredClone(row);
+  legacy.cells.Transaction = quantity;
+  delete legacy.cells['Trade Shares']; delete legacy.cells['Security Type'];
+  assert.equal(insiderTradeIdentity(legacy), insiderTradeIdentity(row), 'corrected captures overlap their legacy event');
+  const corrected = mergeInsiderTrades([legacy], [row]);
+  assert.equal(corrected.length, 1, 'a corrected action-less capture must not double its retained disclosure');
+  assert.equal(mergeInsiderTrades(corrected, [row]).length, 1, 'corrected overlap remains idempotent');
+  assert.equal(corrected[0].cells.Transaction, quantity, 'retain the original source cell');
+  assert.equal(corrected[0].cells['Trade Shares'], row.cells['Trade Shares']);
+  assert.equal(mergeInsiderTrades([legacy], [{ ...row, cells: { ...row.cells, Transaction: 'Acquisition' } }]).length, 2,
+    'do not guess an absent direction when matching events');
+  assert.equal(mergeInsiderTrades([legacy], [{ ...row, cells: { ...row.cells, 'Trade Shares': '123' } }]).length, 2);
+}
+const splitQuantity = normaliseScreenerTrade(source('insiders'), extracted('SPLIT', 'Split Ltd', ['Director'],
+  '04 Sep 2026', ['Bought', '10,000', 'Equity'], ['7.14 lacs']), { capturedAt: captureAt });
+assert.deepEqual([splitQuantity.cells.Transaction, splitQuantity.cells['Trade Shares'], splitQuantity.cells['Security Type']],
+  ['Bought', '10000', 'Equity'], 'security detail can span source lines');
+const malformed = ['1,00,000 Equity', '1,20,00,000 Any Other Instrument', '1290773', '2026-09-04'];
+const legacyRows = malformed.map(Transaction => ({ cells: { Transaction } }));
+const alternate = { cells: { Transaction: '27,000 Equity', 'Acq/Disp': 'Disposal' } };
+assert.equal(insiderTransactionType(alternate), 'Disposal', 'a usable alternate heading survives');
+const sourceTypes = ['Acquisition', 'Disposal', 'Pledge', 'Revoke', 'Invoke', 'Gift', 'Off Market',
+  'Scheme of Amalgamation/Merger/Demerger/Arrangement', 'Unfamiliar source action'];
+const otherRows = sourceTypes.map(Transaction => ({ cells: { 'Transaction Type': Transaction } }));
+const filterRows = [...screenerRows, ...legacyRows, alternate, ...otherRows];
+const beforeFilter = structuredClone(filterRows);
+const transactionFilter = tradeFilters(filterRows).find(field => field.label === 'Transaction type');
+const offered = transactionFilter.options.slice(1).map(option => option.value);
+assert(malformed.every(value => !offered.includes(value)), 'share counts and dates are not transaction types');
+assert(sourceTypes.every(value => offered.includes(value)), 'preserve all supplied source action wording');
+for (const value of offered) {
+  const matched = filterRows.filter(row => transactionFilter.match(row, value));
+  assert(matched.length > 0);
+  assert(matched.every(row => insiderTransactionType(row) === value), 'selection matches its exact source action');
+}
+assert.equal(filterRows.filter(row => transactionFilter.match(row, 'Disposal')).length, 2);
+assert.deepEqual(filterRows, beforeFilter, 'filtering preserves malformed and offscreen disclosures unchanged');
 const priorBulkIdentities = new Set([insiderTradeIdentity(screenerRows[0])]);
 assert.equal(hasScreenerTradeOverlap(priorBulkIdentities, [{ ...screenerRows[0], cells: { ...screenerRows[0].cells, Insider: 'New same-day seller' } }]), false, 'a matching date is not enough to stop a high-volume incremental walk');
 assert.equal(hasScreenerTradeOverlap(priorBulkIdentities, [screenerRows[0]]), true, 'an exact prior event establishes safe pagination overlap');
@@ -102,9 +151,6 @@ const captures = SCREENER_TRADE_SOURCES.map((item, index) => ({
 const screenerSnapshot = buildScreenerTradesSnapshot(null, captures, { capturedAt: captureAt });
 const flattenSnapshot = (snapshot) => Object.values(snapshot.byTicker || {}).flat();
 assert.equal(screenerSnapshot.coversUniverse, true);
-assert.equal(screenerSnapshot.bulkDeals.rows, 2);
-assert.equal(screenerSnapshot.bulkDeals.capturedAt, captureAt);
-assert.match(screenerSnapshot.bulkDeals.source, /captured by Glow/);
 assert.deepEqual(screenerSnapshot.categories, ['Bulk deal', 'Block deal', 'SAST', 'Insider trade']);
 assert.equal(screenerSnapshot.rowCount, 4, 'repeat listing rows are collapsed before publication');
 assert.equal(new Set(flattenSnapshot(screenerSnapshot).map(insiderTradeIdentity)).size, screenerSnapshot.rowCount);
@@ -151,8 +197,8 @@ try {
     if (path === 'data/insider-trades.json') return Response.json(snapshot);
     const url = new URL(path, 'http://localhost');
     assert.equal(url.pathname, '/api/insider-trades/TEST');
-    assert.equal(url.searchParams.get('from'), window.from);
-    assert.equal(url.searchParams.get('to'), window.to);
+    assert.equal(url.searchParams.get('from'), sourceWindow.from);
+    assert.equal(url.searchParams.get('to'), sourceWindow.to);
     return Response.json(live, { headers: { etag: `"live-${tag}"` } });
   };
   const feed = createFeed('insider');
@@ -196,17 +242,61 @@ try {
   await feed.refreshSnapshot();
   assert.equal(feed.rows().length, 3);
   assert.equal(feed.failureFor('TEST').reason, 'timeout', 'a failed bulk capture stays visible beside retained rows');
-  const originalCoreTime = feed.meta().capturedAt;
-  const bulkOnly = { ticker: 'TEST', date: day(-1), cells: { Insider: 'New bulk participant', Transaction: 'Buy', 'Trade Category': 'Bulk deal', 'Trade Shares': '17' } };
-  snapshot = { ...snapshot, bulkDeals: { capturedAt: new Date(now - 60000).toISOString(), rows: 1 }, byTicker: { TEST: [bulkOnly] } };
-  assert.equal((await feed.refreshSnapshot()).changed, true, 'independent bulk fallback arrivals are visible without a new core capture');
-  assert.equal(feed.rows().length, 4, 'bulk-only arrivals preserve all live and retained disclosures');
-  assert.equal(feed.meta().capturedAt, originalCoreTime, 'fallback arrivals do not restamp the core source');
-
 } finally {
   globalThis.fetch = realFetch;
   await clearAll();
 }
+
+// A failed optional read is classified by its actual response, never assumed to be a static host.
+try {
+  const emptyCapture = { kind: 'insider', capturedAt: new Date(now).toISOString(), coversUniverse: true, byTicker: {} };
+  for (const [status, reason] of [[404, 'no-route'], [503, 'upstream'], [403, 'unauthorised'],
+    [429, 'rate-limited'], [504, 'timeout'], [200, 'shape'], [0, 'unreachable']]) {
+    await clearAll();
+    globalThis.fetch = async () => { if (!status) throw Error('offline'); return new Response('not readable JSON', { status }); };
+    const feed = createFeed('insider', { read: async () => ({ value: emptyCapture }), allowColdStart: false });
+    await feed.load(['TEST']);
+    assert.equal((await feed.refreshSnapshot()).available, true, 'a verified empty capture is an available feed');
+    await feed.loadOne('TEST', { force: true });
+    assert.equal(feed.failureFor('TEST').reason, reason, `HTTP ${status} has its own failure category`);
+    feed.dispose();
+  }
+} finally { globalThis.fetch = realFetch; await clearAll(); }
+
+// A source day advances at IST midnight, independently of UTC, in saved captures and live reads.
+const realNow = Date.now;
+try {
+  assert.deepEqual(insiderRetentionWindow(365, Date.parse('2026-10-13T18:29:59Z')),
+    { from: '2025-10-13', to: '2026-10-13' });
+  const midnight = Date.parse('2026-10-13T18:30:00Z');
+  Date.now = () => midnight;
+  assert.deepEqual(insiderRetentionWindow(365), { from: '2025-10-14', to: '2026-10-14' });
+  await clearAll();
+  const row = (name, date) => ({ ...trade(name, 'NSE', date), ticker: 'NIGHT' });
+  const capture = { kind: 'insider', capturedAt: new Date(midnight).toISOString(), coversUniverse: true,
+    byTicker: { NIGHT: [row('Current IST day', '2026-10-14'), row('Boundary', '2025-10-14'),
+      row('Expired', '2025-10-13'), row('Future', '2026-10-15'), row('Undated', null)] } };
+  let liveReads = 0;
+  globalThis.fetch = async path => {
+    if (path === 'data/insider-trades.json') return Response.json(capture);
+    const url = new URL(path, 'http://localhost');
+    assert.equal(url.pathname, '/api/insider-trades/NIGHT');
+    assert.equal(url.searchParams.get('from'), '2025-10-14');
+    assert.equal(url.searchParams.get('to'), '2026-10-14');
+    liveReads++;
+    return Response.json({ ok: true, trades: [row('Live IST day', '2026-10-14')] });
+  };
+  const feed = createFeed('insider', { allowColdStart: false });
+  await feed.load(['NIGHT']);
+  assert.deepEqual(feed.rows().map(row => row.cells.Insider).sort(), ['Boundary', 'Current IST day', 'Undated'],
+    'IST-today records survive while expired and future rows respect the documented window');
+  await feed.loadOne('NIGHT', { force: true });
+  assert.equal(liveReads, 1, 'the live request uses the same IST calendar window');
+  assert(feed.rows().some(row => row.cells.Insider === 'Live IST day'));
+  feed.invalidate(); await feed.load(['NIGHT']);
+  assert.equal(feed.rows().length, 4, 'captured and live IST records survive reload');
+  feed.dispose();
+} finally { Date.now = realNow; globalThis.fetch = realFetch; await clearAll(); }
 
 // Run the real capture against a localhost fixture in a disposable copy. In particular, the
 // news collapse guard and FILINGS_FORCE must not bypass additive insider retention.
@@ -218,8 +308,8 @@ const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
     assert.equal(req.method, 'GET');
-    assert.equal(url.searchParams.get('from'), window.from);
-    assert.equal(url.searchParams.get('to'), window.to);
+    assert.equal(url.searchParams.get('from'), sourceWindow.from);
+    assert.equal(url.searchParams.get('to'), sourceWindow.to);
     assert.match(url.pathname, /^\/api\/insider-trades\/TEST[0-7]$/);
   } catch (error) { fixtureErrors.push(error); }
   const ticker = url.pathname.split('/').at(-1);
@@ -229,11 +319,11 @@ const server = createServer((req, res) => {
 try {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   for (const file of ['scripts/scrape-filings.mjs', 'scripts/lib/filings-snapshot.mjs', 'scripts/lib/company-capture.mjs', 'scripts/lib/filing-archive.mjs', 'scripts/lib/company-news-archive.mjs', 'worker/muns.mjs', 'worker/free-news.mjs',
-    'scripts/lib/news-json-storage.mjs', 'scripts/lib/bulk-deals-snapshot.mjs', 'public/js/data/investor-changes.js', 'public/js/data/date-range.js', 'public/js/data/finology-shared.js', 'public/js/core/json-shards.js',
-    'public/js/core/memory-cache.js', 'public/js/data/news-query-index.js', 'public/js/data/news-window.js',
+    'scripts/lib/news-json-storage.mjs', 'public/js/core/json-shards.js', 'public/js/core/memory-cache.js', 'public/js/core/slices.js',
     'public/js/core/json-reader.js', 'public/js/core/json-codec.js', 'public/js/core/json-worker.js',
+    'public/js/data/news-query-index.js', 'public/js/data/news-window.js',
     'scripts/lib/active-portfolio.mjs', 'public/js/data/family-book-contract.js',
-    'public/js/core/slices.js', 'public/js/data/filings-shared.js', 'public/js/data/insider-history.js', 'public/js/data/announcements-shared.js', 'public/js/data/announcement-identity.js', 'public/js/data/market-identity.js', 'public/js/data/company-security-identities.js', 'public/js/data/domestic-filings-shared.js', 'public/js/data/company-news-identity.js', 'public/js/data/company-news-reviewed.js']) {
+    'public/js/data/filings-shared.js', 'public/js/data/insider-history.js', 'public/js/data/announcements-shared.js', 'public/js/data/announcement-identity.js', 'public/js/data/exchange-universe.js', 'public/js/data/market-identity.js', 'public/js/data/company-security-identities.js', 'public/js/data/domestic-filings-shared.js', 'public/js/data/company-news-identity.js', 'public/js/data/company-news-reviewed.js']) {
     await mkdir(dirname(join(scratch, file)), { recursive: true });
     await copyFile(new URL(`../${file}`, import.meta.url), join(scratch, file));
   }

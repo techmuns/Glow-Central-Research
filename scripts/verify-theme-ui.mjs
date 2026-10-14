@@ -1,5 +1,4 @@
 // Real app, static local data, no production requests. Exercises the CSS as well as preferences.
-import { researchFixtureAsset } from './lib/research-ui-fixture.mjs';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFileSync, mkdirSync } from 'node:fs';
@@ -8,14 +7,14 @@ import { fileURLToPath } from 'node:url';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = fileURLToPath(new URL('../public', import.meta.url));
 const server = createServer((req, res) => {
-  const path = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+  const path = new URL(req.url, 'http://localhost').pathname;
   res.setHeader('cache-control', 'no-store');
   if (path.startsWith('/api/')) { res.setHeader('content-type', 'application/json'); res.end('{"ok":false,"error":"Local appearance test"}'); return; }
   const file = resolve(root, `.${path === '/' ? '/index.html' : path}`);
   if (!file.startsWith(root + sep)) { res.writeHead(404).end(); return; }
   try {
     res.setHeader('content-type', { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' }[extname(file)] || 'text/plain');
-    res.end(researchFixtureAsset(path, readFileSync(file)));
+    res.end(readFileSync(file));
   } catch { res.writeHead(404).end(); }
 });
 await new Promise(done => server.listen(0, '127.0.0.1', done));
@@ -32,7 +31,7 @@ async function context(options = {}) {
   });
   ctx.on('page', page => {
     page.on('pageerror', error => errors.push(error.message));
-    page.on('console', message => { if (message.type() === 'error') errors.push(`${message.text()} (${message.location().url || 'unknown resource'})`); });
+    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   });
   return ctx;
 }
@@ -42,12 +41,15 @@ async function ready(page, route = 'ask-research') {
   if (!params.has('scope')) params.set('scope', 'universe');
   params.set('test_stream', '1');
   await page.goto(`${origin}/#/research/${path}?${params.toString()}`);
-  // The first paint waits on the committed bootstrap files, and on a generated-data PR those are
-  // the enlarged archives the PR exists to add. Fifteen seconds was enough on a code PR and timed
-  // out on a data PR (16 September 2026, PR #1059), which stalled every capture behind it. A
-  // header control that never appears still fails here — after a minute, not a quarter of one.
-  await page.locator('[data-theme-toggle]').waitFor({ timeout: 60000 });
+  await page.locator('[data-theme-toggle]').waitFor();
+  await panelReady(page, path.split('/')[0]);
 }
+// Navigation chrome responds before a deferred renderer is ready. Sampling the
+// old table while it is being replaced returns styles from a detached element.
+const panelReady = (page, tab) => page.waitForFunction(tab => {
+  const panel = document.querySelector('#content-host');
+  return panel?.dataset.activeTab === tab && !panel.inert;
+}, tab);
 const theme = page => page.locator('html').getAttribute('data-theme');
 const toggle = page => page.getByRole('button', { name: 'Dark mode', exact: true });
 async function shot(page, name) {
@@ -56,10 +58,17 @@ async function shot(page, name) {
   await page.screenshot({ path: `${process.env.THEME_SCREENSHOTS}/${name}.png`, fullPage: true });
 }
 async function surface(page, selector) {
-  return page.locator(selector).first().evaluate(el => {
+  // Source arrivals can replace a table between resolving its locator and
+  // reading its styles. Read a connected node in the same browser turn.
+  const sample = await page.waitForFunction(selector => {
+    const el = document.querySelector(selector);
+    if (!el?.isConnected) return false;
     const s = getComputedStyle(el);
     return { bg: s.backgroundColor, color: s.color };
-  });
+  }, selector);
+  const value = await sample.jsonValue();
+  await sample.dispose();
+  return value;
 }
 function rgb(color) { return color.match(/[\d.]+/g).slice(0, 3).map(Number); }
 function luma(color) {
@@ -130,26 +139,52 @@ try {
   await page.evaluate(async () => { const s = await import('/js/ui/screener.js'); s.closeWorkspace(); s.closeDrill(); });
 
   // Real route surfaces, including a sticky table and the source/semantic pills.
-  // Corporate Actions is the second view of Corp Announcements, so it is reached by its sub-view route.
-  for (const route of ['daily-alerts', 'ai-alerts', 'earnings-hub', 'concall', 'public-chatter', 'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'corp-announcements/corporate-actions', 'nse-filings', 'insider-trades']) {
-    const tab = route.split('/')[0];
-    await page.evaluate(route => { location.hash = `#/research/${route}?scope=universe`; }, route);
-    await page.waitForFunction(tab => document.querySelector('#tabbar-mount .tab-btn.is-active')?.dataset.tabId === tab, tab);
-    await page.waitForFunction(route => location.hash.startsWith(`#/research/${route}`), route);
+  for (const tab of ['daily-alerts', 'ai-alerts', 'earnings-hub', 'concall', 'public-chatter', 'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'corporate-actions', 'nse-filings', 'insider-trades']) {
+    await page.evaluate(tab => { location.hash = `#/research/${tab}?scope=universe`; }, tab);
+    await panelReady(page, tab);
+    if (tab === 'nse-filings') {
+      assert.equal(await page.locator('[data-tab-id="nse-filings"]').count(), 0, 'saved filing routes render without a navigation button');
+    } else {
+      const navigationTab = ['daily-alerts', 'ai-alerts'].includes(tab) ? 'alerts'
+        : ['corp-announcements', 'corporate-actions', 'ipos', 'insider-trades'].includes(tab) ? 'announcements'
+          : ['earnings-hub', 'concall'].includes(tab) ? 'earnings'
+            : ['news', 'public-chatter'].includes(tab) ? 'news-section' : tab;
+      await page.waitForFunction(tab => document.querySelector('#tabbar-mount .tab-btn.is-active')?.dataset.tabId === tab, navigationTab);
+      if (['alerts', 'announcements', 'earnings', 'news-section'].includes(navigationTab)) {
+        assert.equal(await page.locator(`#subview-mount [data-tab-id="${tab}"]`).getAttribute('aria-selected'), 'true');
+      }
+    }
     assert.equal(await theme(page), 'dark', tab);
+    if (tab === 'daily-alerts') {
+      await page.locator('[data-filter-group-toggle]').click();
+      const groupedFilters = await surface(page, '[data-filter-group-panel]');
+      assert(luma(groupedFilters.bg) < 0.05 && contrast(groupedFilters.color, groupedFilters.bg) >= 4.5, 'grouped alert filters follow the dark theme with readable labels');
+      await shot(page, 'all-alerts-filter-panel-dark');
+      await page.locator('[data-filter-group-panel]').press('Escape');
+    }
     assert(contrast((await surface(page, '[data-app-header] h1')).color, 'rgb(11,18,32)') >= 7);
     if (tab === 'ipos') {
       await page.locator('[data-table-body] tr:not([aria-hidden="true"])').first().waitFor();
       const head = await surface(page, '[data-table-head]');
       assert(luma(head.bg) < 0.05, 'sticky table header is dark');
       assert(contrast(head.color, head.bg) >= 4.5);
-      await page.evaluate(() => { window.themeContentBefore = document.querySelector('#content-host').firstElementChild; });
-      await toggle(page).click();
-      assert.equal((await surface(page, '[data-table-head]')).bg, 'rgb(250, 248, 241)', 'Glow champagne palette survives light/dark toggles');
-      await toggle(page).click();
-      assert(await page.evaluate(() => window.themeContentBefore === document.querySelector('#content-host').firstElementChild), 'theme change does not remount the table');
+      // Theme changes are synchronous. Keep this identity assertion in that
+      // browser turn so an independent source arrival cannot replace the table
+      // between the clicks and be mistaken for a theme-triggered remount.
+      const toggled = await page.evaluate(() => {
+        const panel = document.querySelector('#content-host');
+        const before = panel.firstElementChild;
+        const button = document.querySelector('[data-theme-toggle]');
+        button.click();
+        const light = getComputedStyle(document.querySelector('[data-table-head]')).backgroundColor;
+        const retainedLight = panel.firstElementChild === before;
+        button.click();
+        return { light, retained: retainedLight && panel.firstElementChild === before };
+      });
+      assert.equal(toggled.light, 'rgb(255, 255, 255)');
+      assert(toggled.retained, 'theme change does not remount the table');
     }
-    await shot(page, `${route.replace('/', '-')}-dark`);
+    await shot(page, `${tab}-dark`);
   }
   // A small component matrix tests actual generated utility selectors and alpha syntax.
   await page.evaluate(async () => {

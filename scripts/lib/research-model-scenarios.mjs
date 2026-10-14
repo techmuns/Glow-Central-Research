@@ -1,8 +1,8 @@
 // Controlled answer-quality probes using REAL portfolio company identities and
 // deliberately SYNTHETIC facts/weights. Never publish these as company research.
 import { readFileSync } from 'node:fs';
-const book = JSON.parse(readFileSync(new URL('../fixtures/template-portfolio-companies.json', import.meta.url)));
-const targets = ['JAYNECOIND', 'IIFL', 'ALANKIT'].map(t => book.holdings.find(h => h.ticker === t));
+const book = JSON.parse(readFileSync(new URL('../../public/data/portfolio-companies.json', import.meta.url)));
+const targets = ['JAYNECOIND', 'ABCAPITAL', 'AARTIDRUGS'].map(t => book.holdings.find(h => h.ticker === t));
 const probes = [
   ['latest', 'What is the latest info on COMPANY for me?', ['2026-09-05|5 September|September 5', 'order', '73'], ['guaranteed']],
   ['earnings', 'What do the latest earnings show for COMPANY?', ['2026-06|June 2026|Jun.? 2026|Q1', '120', '8', 'crore|cr\\b'], []],
@@ -27,19 +27,19 @@ export function modelScenarios() {
     review: 'Check every factual claim, citation, date, unit, exposure, conflict and missing-data statement against this exact synthetic packet. Reject invented facts and unsupported advice.',
   }))).concat([
     { id: 'follow-up', category: 'follow-up', index: 0, question: 'And what are its risks?', history: [{ role: 'user', text: 'Latest information on Jayaswal Neco Industries?' }], must: ['Jayaswal|Neco', '70|73'], forbidden: [] },
-    { id: 'issuer-switch', category: 'issuer-switch', index: 1, question: 'What changed at IIFL Finance?', history: [{ role: 'user', text: 'Latest information on Jayaswal Neco Industries?' }], must: ['IIFL'], forbidden: [] },
+    { id: 'issuer-switch', category: 'issuer-switch', index: 1, question: 'What changed at Aditya Birla Capital?', history: [{ role: 'user', text: 'Latest information on Jayaswal Neco Industries?' }], must: ['Aditya|Birla'], forbidden: [] },
     { id: 'stale-only', category: 'stale-only', index: 0, question: 'What happened at Jayaswal Neco today?', must: ['old|stale|no .*today|not .*today|not .*current|August|2026-08'], forbidden: ['today.{0,30}(won|announced)'] },
     { id: 'feed-failure', category: 'feed-failure', index: 0, question: 'Is there no recent news on Jayaswal Neco?', must: ['unavailable|failed|cannot|not .*confirm'], forbidden: ['there (is|was) no recent news'] },
     { id: 'unknown-weight', category: 'unknown-weight', index: 0, question: 'What is the weight of Jayaswal Neco in my portfolio?', must: ['unavailable|unknown|incomplete|cannot'], forbidden: ['45%|45 percent'] },
     { id: 'zero-profit', category: 'zero-profit', index: 0, question: 'What is the latest net profit of Jayaswal Neco?', must: ['zero|0', 'crore|cr\\b'], forbidden: ['profit.{0,25}(unavailable|unknown)'] },
     { id: 'sample-absence', category: 'sample-absence', index: 0, question: 'Are these all the announcements for Jayaswal Neco?', must: ['sample|bounded|omitted|not all|not exhaustive|partial'], forbidden: ['these are all'] },
-    { id: 'unresolved', category: 'unresolved', index: 3, question: 'What do you know about Ashika Credit Capital in my portfolio?', must: ['Ashika', 'missing|unavailable|no .*ticker|unresolved|not .*available'], forbidden: ['not (held|in your portfolio)'] },
+    { id: 'unresolved', category: 'unresolved', index: 3, question: 'What do you know about Everest Fleet in my portfolio?', must: ['Everest', 'missing|unavailable|no .*ticker|unresolved|not .*available'], forbidden: ['not (held|in your portfolio)'] },
   ]);
 }
 
 export function scenarioBody(test, now = new Date()) {
   const checkedAt = now.toISOString();
-  const entries = [...targets, book.holdings.find(h => h.name === 'Ashika Credit Capital')];
+  const entries = [...targets, book.holdings.find(h => h.name === 'Everest Fleet')];
   const holdings = entries.map((h, i) => ({ isin: h.isin, ticker: h.ticker, name: h.name, sector: h.sector, weightPct: [45, 35, 19, 1][i] }));
   const target = holdings[test.index];
   const sizes = { complete: true, basis: 'listed-market-value', checkedAt, archiveVersion: 1, bookAsOf: '2026-08-31', quotes: { asOf: '2026-09-04', status: 'ready', priced: 4, notLive: 0 } };
@@ -49,7 +49,7 @@ export function scenarioBody(test, now = new Date()) {
     source('earnings-hub', 'Earnings Hub', [{ resultDate: '2026-08-12', period: '2026-06-30', basis: 'consolidated', revenueCr: { current: 120, prior: 100 }, netProfitCr: { current: 8, prior: -2, change: 'loss-to-profit' } }], '₹ crore. Same quarter year-on-year. No valid profit growth percentage across a sign change. Analyst estimates and consensus target prices are not connected.'),
     source('company-filings', 'Earnings Hub', [{ date: '2026-09-05', title: 'Investor presentation', url: 'https://example.invalid/synthetic-presentation.pdf' }], 'Document metadata only; PDF contents and guidance have NOT been read.'),
     source('announcements', 'Corp Announcements', [{ date: '2026-09-05', title: 'Order disclosure: ₹70 crore' }, { date: '2026-09-04', title: 'Board meeting scheduled for 2026-09-09', scheduledFor: '2026-09-09' }]),
-    source('technicals', 'Breakouts / Technical', [{ date: '2026-09-04', rsi14: 58, above200DayAverage: false }]),
+    source('technicals', 'Screens', [{ date: '2026-09-04', rsi14: 58, above200DayAverage: false }]),
     source('public-chatter', 'Public Chatter', [{ date: '2026-09-04', mentions: 30, priorMentions: 10, mentionChangePct: 200 }], 'Mention counts, not price returns; sentiment is not a company filing.'),
     source('super-investors', 'Super Investors', [{ investor: 'Synthetic investor', latestPeriod: 'Jun 2026', priorPeriod: 'Mar 2026', priorHoldingPct: 1.2, action: 'no longer disclosed' }], 'Falling below the disclosure threshold does not establish a sale.'),
     source('screener-insights', 'AI Alerts', [{ metric: 'Output', unit: 'thousand tonnes', periodicity: 'quarterly', period: '2026-06-30', value: 17 }]),
@@ -70,7 +70,7 @@ export function scenarioBody(test, now = new Date()) {
 
 export function checkModelAnswer(test, answer, body = null) {
   const normalizePage = value => value.toLowerCase().replace(/\s*\/\s*/g, '/').trim();
-  const pages = body && new Set(['Ask Sattva', ...body.evidence.sources.map(s => s.tab)].filter(Boolean).map(normalizePage));
+  const pages = body && new Set(['Ask Glow', ...body.evidence.sources.map(s => s.tab)].filter(Boolean).map(normalizePage));
   const citations = [...answer.matchAll(/\[Dashboard: ([^\]]+)\]/g)].map(m => m[1]);
   return [
     ...test.must.filter(pattern => !new RegExp(pattern, 'i').test(answer)).map(pattern => `missing:${pattern}`),

@@ -45,14 +45,19 @@ import * as twitterNews from '../data/twitter-news.js';
 import * as twitterHandles from '../core/twitter-handles.js';
 import { openTwitterSources } from '../ui/twitter-sources.js';
 import { classifyStory, topicFilterOptions, matchesTopic, topicLabel } from '../data/news-keywords.js';
-import { newsPublicationDay } from '../data/news-window.js';
-import { surfaceReading, feedbackItemFor, relevanceRevision, rankedKey } from '../data/surface-relevance.js';
+import { newsPublicationKey } from '../data/news-window.js';
+import { surfaceReading, feedbackItemFor, relevanceRevision } from '../data/surface-relevance.js';
 import { categoryChips } from '../ui/category-chips.js';
 import { categoryLabel } from '../data/announcement-categories.js';
-import { feedbackMenuButton } from '../ui/relevance-feedback-ui.js';
+import { newsFeedbackBar } from '../ui/relevance-feedback-ui.js';
+import { newsStoryHtml, newsLinkable } from '../ui/news-story.js';
+import { createNewsMatcher, prepareNewsSearch } from '../data/news-search.js';
+import { newsSearchText } from '../data/company-news-attribution.js';
+import { arrangeNewsToolbar } from '../ui/news-toolbar.js';
 
 // The shared relevance reading of a market-wide story or post. These carry no company, so size and
-// sector read as unknown for every one of them alike; what orders a day is what each story is about.
+// sector read as unknown for every one of them alike. This supplies category tags and feedback;
+// publication time owns the list order.
 const relevanceOf = (r) => surfaceReading(r, { surface: 'news', kind: 'news', context: r.kind === twitterNews.KIND ? { feed: 'twitter' } : { feed: 'market-news' } });
 
 // The same thirty keywords the company half of this tab filters by, over the same reading. Cached
@@ -86,10 +91,18 @@ let failure = null;
 // The reader's own filters. Module state, not node state: every repaint rebuilds the list, so a
 // value held on the input would be discarded the moment a capture landed.
 let listView = { q: '', section: 'all', publisher: 'all', topic: 'all', source: 'all', period: DEFAULT_NEWS_PERIOD };
+export function getSavedView() { return Object.fromEntries(Object.entries(listView).map(([key, value]) => [`news${key[0].toUpperCase()}${key.slice(1)}`, value])); }
+export function applySavedView(extras = {}) {
+  for (const key of Object.keys(listView)) {
+    const saved = extras[`news${key[0].toUpperCase()}${key.slice(1)}`];
+    if (typeof saved === 'string') listView[key] = saved;
+  }
+}
 let fillStop = null;
 let filterFrame = 0;
 let filterTask = 0;
 let releaseFilterLoading = null;
+let searchPreparation = null;
 
 function cancelFilterPaint() {
   if (filterFrame) cancelAnimationFrame(filterFrame);
@@ -196,8 +209,8 @@ const FIRST_PAINT = 24;
 // THE MERGED SORT IS BY TIME, NOT BY THE PUBLISHER'S ID. market-news.js orders by Moneycontrol's
 // own article id, which increases with publication and works even for the stories whose timestamp
 // was never read — correct within one publisher and meaningless across two. So the merged list
-// sorts on `publishedAt` where both sides have one, and a story with no time keeps the publisher's
-// relative order among the others rather than being dated with something we made up.
+// sorts on the source publication day and instant. Date-only stories follow known clocks on that
+// day; undated stories retain their source order at the end without an invented publication time.
 // ---------------------------------------------------------------------------------------
 
 /** Every story in the list: the publisher feed plus the posts from monitored handles. */
@@ -216,41 +229,11 @@ function feedRows() {
 function orderedFeed(window, sources, postSource) {
   const publisher = sources.filter(row => inNewsWindow(row, window));
   const posts = postSource.filter(row => inNewsWindow(row, window));
-  if (!posts.length) {
-    const order = new Map(publisher.map((r, i) => [r, i]));
-    return rankWithinDay([...publisher], (a, b) => order.get(a) - order.get(b));
-  }
-
-  // Publisher stories keep their own order and their index becomes the tie-break, so a story with
-  // no readable time still sits where the publisher put it rather than falling to the bottom.
-  const order = new Map(publisher.map((r, i) => [r.id, i]));
-  const timeOf = (r) => {
-    const t = Date.parse(r.publishedAt || '');
-    return Number.isFinite(t) ? t : null;
-  };
-  return rankWithinDay([...publisher, ...posts], (a, b) => {
-    const ta = timeOf(a);
-    const tb = timeOf(b);
-    if (ta !== null && tb !== null) return tb - ta;
-    // One side has no time. Keep the timed one first — it is the only one whose position is known.
-    if (ta !== null) return -1;
-    if (tb !== null) return 1;
-    return (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0);
-  });
-}
-
-/**
- * Newest publication day first; within each of the last seven days, the shared relevance reading;
- * then the order the rows already had (time, or the publisher's own). Undated stories stay last, in
- * their own order. The readings are made within one short budget and the rest in slices
- * (surface-relevance.js), so a long period never freezes the list while it is ordered.
- */
-function rankWithinDay(rows, within) {
-  const keys = new Map(rows.map((r) => [r, rankedKey(r, { day: newsPublicationDay(r), surface: 'news', read: relevanceOf })]));
+  const rows = [...publisher, ...posts];
+  const keys = new Map(rows.map(row => [row, newsPublicationKey(row)]));
   return rows.sort((a, b) => {
     const ka = keys.get(a), kb = keys.get(b);
-    if (ka !== kb) return ka < kb ? 1 : -1;
-    return within(a, b);
+    return ka === kb ? 0 : ka < kb ? 1 : -1;
   });
 }
 
@@ -328,6 +311,7 @@ async function requestMore(root) {
 }
 
 /** Which stories the search box and the four filters leave. */
+const matchesSearch = createNewsMatcher(r => `${newsSearchText(r)} ${r.section || ''} ${r.publisher || ''} ${canonicalPublisherName(r.publisher)} ${r.handle || ''} ${r.displayName || ''}`);
 function visibleRows(rows) {
   const q = (listView.q || '').trim().toLowerCase();
   const section = listView.section;
@@ -344,13 +328,12 @@ function visibleRows(rows) {
       // A post has no publisher, no section and no keyword reading, so any of those narrowing to a
       // named value excludes it — the honest answer, and not the same as pretending it matched.
       if ((publisher && publisher !== 'all') || (section && section !== 'all') || (topic && topic !== 'all')) return false;
-      return !q || `${r.title || ''} ${r.handle || ''} ${r.displayName || ''}`.toLowerCase().includes(q);
+      return matchesSearch(r, q);
     }
     if (publisher && publisher !== 'all' && canonicalPublisherName(r.publisher) !== publisher) return false;
     if (section && section !== 'all' && r.section !== section) return false;
     if (topic && topic !== 'all' && !matchesTopic(readingFor(r), topic)) return false;
-    if (!q) return true;
-    return `${r.title || ''} ${r.summary || ''} ${r.section || ''} ${r.publisher || ''} ${canonicalPublisherName(r.publisher)} ${r.handle || ''} ${r.displayName || ''}`.toLowerCase().includes(q);
+    return matchesSearch(r, q);
   });
 }
 
@@ -358,7 +341,7 @@ function visibleRows(rows) {
 // same rule the Deep Dive panel follows applies: external content may not decide what a click does.
 // A story that fails it still renders — with its headline and its standfirst — as a plain block
 // saying the link could not be used, because dropping the row would report a bad URL as no story.
-const linkable = (u) => /^https?:\/\//i.test(String(u || ''));
+const linkable = newsLinkable;
 
 const sectionLabel = (value) => String(value || '').replace(/-/g, ' ');
 
@@ -425,36 +408,12 @@ function cardHtml(r) {
     .filter(Boolean)
     .join('<span class="text-slate-300">·</span>');
 
-  // `onerror` rather than a broken-image icon: the thumbnails are on the publisher's CDN, and a
-  // reader offline (or a verification run with no egress) should get a clean placeholder.
-  const thumb = r.image
-    ? `<img src="${escapeHtml(r.image)}" alt="" loading="lazy" decoding="async"
-           class="h-full w-full object-cover" onerror="this.style.display='none'">`
-    : '';
-
-  const body = isPost(r) ? postBody(r, canLink) : `
-      <div class="h-[62px] w-[110px] flex-shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 sm:h-[76px] sm:w-[135px]">${thumb}</div>
-      <div class="min-w-0 max-w-4xl flex-1">
-        <h3 class="font-display text-[15px] font-bold leading-snug text-slate-900 ${canLink ? 'group-hover:text-indigo-700' : ''}">${escapeHtml(r.title || '(untitled)')}</h3>
-        ${r.summary ? `<p class="mt-1 line-clamp-2 text-sm leading-relaxed text-slate-500">${escapeHtml(r.summary)}</p>` : ''}
-        <div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-400">${meta}</div>
-      </div>`;
-  const key = escapeHtml(String(r.id || r.url));
-  const shell = 'group flex gap-4 px-5 py-4 transition-colors';
-
-  if (!canLink) {
-    return `<div data-news-key="${key}" data-news-unlinkable class="${shell}">${body}
-      ${bookmarkButton(snapshotForRow(r, { section: 'news' }))}
-      <span class="self-start rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500" title="The capture carried no usable http(s) address for this story.">no link</span>
-    </div>`;
-  }
-  // The ⋯ sits beside the bookmark, OUTSIDE the anchor: the card's own click still opens the article.
-  return `
-    <article data-news-key="${key}" class="flex items-start gap-1 pr-3 hover:bg-slate-50">
-      <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer"
-         class="${shell} min-w-0 flex-1 focus:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">${body}</a>
-      <span class="mt-4 flex items-center gap-0.5">${bookmarkButton(snapshotForRow(r, { section: 'news' }))}${feedbackMenuButton(feedbackItemFor(relevanceOf(r), r))}</span>
-    </article>`;
+  return newsStoryHtml(r, {
+    meta,
+    body: isPost(r) ? postBody(r, canLink) : null,
+    feedback: newsFeedbackBar(feedbackItemFor(relevanceOf(r), r)),
+    bookmark: bookmarkButton(snapshotForRow(r, { section: 'news' })),
+  });
 }
 
 /**
@@ -506,11 +465,11 @@ function listHtml(rows) {
   const allPublishers = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   return `
     <section data-mcnews-list class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100"${pending ? ` data-rows-pending="${pending}"` : ''}>
-      <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
+      <div data-news-toolbar class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <div class="relative w-full min-w-[180px] flex-1 sm:w-auto sm:max-w-md">
             <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-            <input type="text" data-news-search placeholder="Search headlines..." value="${escapeHtml(listView.q || '')}"
+            <input type="text" data-news-search aria-label="Search company, ticker or headline" placeholder="Search company, ticker or headline…" value="${escapeHtml(listView.q || '')}"
               class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
           ${sourceSelect}
@@ -543,7 +502,7 @@ function listHtml(rows) {
               .join('')}
           </select>
         </div>
-        <div class="flex items-center gap-3">
+        <div data-news-actions class="flex items-center gap-3">
           <span data-news-count class="whitespace-nowrap text-sm text-slate-500"><strong class="text-slate-800">${escapeHtml(formatNumber(rows.length))}</strong> of ${escapeHtml(formatNumber(feedRows().length))} stories</span>
           <button type="button" data-news-export
             class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">
@@ -951,6 +910,7 @@ function failureText(out) {
 
 /** Search, section and export. Rebound on every list rebuild, because the nodes are new. */
 function wireList(root) {
+  arrangeNewsToolbar(root);
   offBookmarks?.();
   offBookmarks = wireBookmarks(root, button => {
     const key = button.closest('[data-news-key]')?.dataset.newsKey;
@@ -961,6 +921,11 @@ function wireList(root) {
   search?.addEventListener('input', () => {
     listView.q = search.value;
     requestRelist(root);
+    if (listView.q.trim().length >= 2 && !searchPreparation) {
+      searchPreparation = prepareNewsSearch().then(changed => {
+        if (changed && ctxRef?.root === root && root.isConnected) requestRelist(root);
+      }).finally(() => { searchPreparation = null; });
+    }
   });
 
   const topic = root.querySelector('[data-news-topic]');

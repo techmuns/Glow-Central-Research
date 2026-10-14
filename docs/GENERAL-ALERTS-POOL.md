@@ -79,7 +79,7 @@ the shared service worker's data-freshness policy; only its module release revis
 | Con-call | Held-call analysis, full source tags and market-wide scheduled calls |
 | Portfolio calendar | Upcoming AGMs, postal ballots, results, calls and other dated events from the authenticated S Screen dashboard; available only in Portfolio scope |
 | Public Chatter | Every company/topic summary, including unresolved topics; individual posts already requested in the source tab |
-| Breakouts / Technical | Every real technical snapshot, including unavailable-price rows and below-threshold price changes; material price/volume/breakout events retain existing labels |
+| Screens | Every real technical snapshot, including unavailable-price rows and below-threshold price changes; material price/volume/breakout events retain existing labels |
 | Super Investors | Disclosed changes, every retained holding (including unchanged/filing-due states), and institutional/AMC disclosures |
 | News | Retained company stories, all available market-news archive shards, and captured posts from currently monitored X accounts |
 | Corp Announcements | Every retained BSE announcement |
@@ -119,6 +119,16 @@ All Alerts / Universe. The initial reviewed mismatch is the user's exact Lululem
 summary against JAYNECOIND. Changed text invalidates that exclusion. There is no publisher blacklist,
 generic other-company rejection, or guarantee that every unverified search result is relevant.
 
+The Company relationship selector in All Alerts was removed at the user's request on 13 October
+2026. Its stream keeps all retained relationship states; attribution labels, source evidence,
+search and export continue to distinguish confirmed and possible matches.
+
+The redundant All Alerts table Watchlist button is also removed. Use the global Watchlist scope
+to select the shared company list; per-company stars remain available in the table.
+
+Priority and Direction are consolidated behind one Signal & priority control. The panel retains
+both independent predicates and the button shows their active values; Clear affects only that pair.
+
 Only confirmed news can score, corroborate or enrich AI Alerts; legacy cached news without current
 attribution cannot bypass that rule. This is separate from All Alerts visibility and topic filters.
 Ask Research and exports carry query provenance, status and reasons so a query label is not presented
@@ -142,16 +152,26 @@ source record as JSON alongside the readable columns.
 
 ## Table-first reading layout
 
+All Alerts reveals the full selected record set automatically as its table scrolls, with a
+bounded row window and no Show more button. Scrolling preserves the selected date and filters;
+counts, search and export still include records outside the currently mounted window.
+AI Alerts uses the same measured-window approach for its company grid, with at most six grid
+rows mounted. Its 14-day ranking window and each company's retained-history timeline are unchanged.
+
+Headlines emphasize fraud, default, arrest and insolvency/bankruptcy terms in red and bold.
+The Signal / priority column and repeated explanation lines below the headline are removed.
+Company follows Date / time directly. The combined filtering control and export retain the
+underlying readings; export also retains their reasons and all original source records.
+Keyword emphasis reproduces source wording; it does not classify a row or verify an allegation.
+
 All Alerts opts into a wider, compact app frame. Source filters start collapsed behind **Sources**;
 the control always states **All sources** or the number selected. The same source checkboxes open
 in an overlaid panel, so using them does not reduce the table's height. Selection persists across
 feed repaints. **Done**, Escape and an outside click close the panel; closing does not clear filters.
 
-**Focus table** hides only this app's brand header and navigation, not the embedding host's controls.
-**Exit focus** or Escape restores them. Search, filters, the current reading anchor, source counts,
-date/scope metadata and the complete export model survive layout changes. Leaving All Alerts resets
-focus mode. Other research tabs keep their existing layout. No source records, attribution rules,
-row font sizes, row heights or retention policies change.
+Search, filters, the current reading anchor, source counts, date/scope metadata and the complete
+export model survive layout changes. Other research tabs keep their existing layout. No source
+records, attribution rules or retention policies change.
 
 The table is sized from its actual position inside the host frame, including after window resizing
 or control/status wrapping. Existing virtual scrolling keeps the DOM bounded without truncating

@@ -1,3 +1,6 @@
+import { developmentOfRow, developmentLine } from './alert-developments.js';
+import { clip, isTypeOnly, sourceStatement, filingClaim, CLAIM_MAX } from './alert-claims.js';
+export { isTypeOnly, sourceStatement, filingClaim, CLAIM_MAX } from './alert-claims.js';
 // data/ai-alerts.js — THE EXPLAINABLE PRIORITY LAYER OVER GENERAL ALERTS.
 //
 // This module adds no source and makes no factual claim that is not already carried by a General
@@ -14,30 +17,34 @@
 // from the authenticated Family parent can order cards by holding size. Size changes ordering
 // within the selected filter; the materiality threshold and alert priority remain evidence-based.
 
+import { storyGrouping } from './alert-stories.js';
+import { STORY_FEEDS, storyRecord, storyKey, isMaterialStoryUpdate, compareStoryRecency } from './alert-stories-shared.js';
 import * as generalAlerts from './daily-alerts.js';
 import { newsCanSupportAI, isRelatedNewsContext } from './company-news-attribution.js';
 import * as kpiImpact from './kpi-impact.js';
 import { defaultCompanyNewsEntityId, portfolioNewsEntities } from './company-news-identity.js';
 import * as coverage from './coverage.js';
 import * as screenerInsights from './screener-insights.js';
-import * as technicals from './technicals.js';
 import { enrichCardFromAllAlerts, indexAlertContext } from './intelligence-graph.js';
+import { canonicalArticleUrl } from './filings-shared.js';
 import { getHostContext } from '../core/host-context.js';
 import { AI_ALERT_WINDOW_DAYS as WINDOW_DAYS } from '../core/alert-window.js';
 import { runSteps, runStepsInSlices } from '../core/slices.js';
-import { CLAIM_MAX, clip, isTypeOnly, sourceStatement, filingClaim } from './alert-claims.js';
-import { foldDevelopments, developmentLine, storyKindOf } from './alert-developments.js';
-export { CLAIM_MAX, sourceStatement, filingClaim } from './alert-claims.js';
 export { AI_ALERT_WINDOW_DAYS as WINDOW_DAYS } from '../core/alert-window.js';
 
 export const MIN_SCORE = 64;
 export const MUST_SEE_SCORE = 82;
-export const onChange = generalAlerts.onChange;
+export const onChange = fn => {
+  const a = generalAlerts.onChange(fn), b = storyGrouping.onChange(({ changed = true } = {}) => fn({ storyStatusOnly: !changed }));
+  return () => { a(); b(); };
+};
+export const storyStatus = report => storyGrouping.status(report?.allCards?.flatMap(card => card.sourceEvents || card.events) || []);
 // Keep ranking inputs in memory only; private position sizes must never enter a saved report.
 const rankingOptions = new WeakMap();
 const rankingEvidence = new WeakMap();
 
 const FEED_WEIGHT = {
+  'price-levels': 18,
   earnings: 12,
   announcements: 10,
   'nse-filings': 10,
@@ -55,14 +62,6 @@ const FEED_WEIGHT = {
   // material portfolio disclosures remain visible for the whole 14-day review window.
   news: 6,
   'market-news': 6,
-  // THE FAMILY'S OWN PRICE LEVELS WEIGH THE MOST, AND THE ARITHMETIC SAYS WHY. A level they set in
-  // Glow Ventures and asked to be told about is not a signal this desk inferred — it is an
-  // instruction, and the day it is reached it must read MUST SEE. A Target reached today on a book
-  // company scores 30 (high importance) + 18 + 16 (today) + 6 (positive) + 12 (in the book) = 82,
-  // exactly MUST_SEE_SCORE; a Stop loss hit scores more (negative +10, and +4 consistent negative).
-  // After the day it ages like everything else; `materialPortfolioEvent` below keeps it on the list
-  // for the whole review window.
-  'price-levels': 18,
 };
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
@@ -114,47 +113,36 @@ const normalizedHeadline = dayCache((value) => String(value || '')
 
 const feedFamily = (event) => event.feed === 'nse-filings' ? 'announcements' : event.feed === 'market-news' ? 'news' : event.feed;
 
-/** Keep every story source for event folding; suppress repeated non-story measurements. */
+/** Syndicated links and duplicate exchange disclosures are not independent corroboration. */
 function dedupe(events) {
   const seen = new Set();
-  // Stable ordering stops equivalent source arrival order changing read state.
+  events = storyGrouping.project(events);
+  // Prefer the useful copy when one exchange supplied a generic label and the other a full
+  // subject. Stable ordering also stops equivalent source arrival order changing read state.
   return [...events].sort((a, b) => Number(b.importance === 'high') - Number(a.importance === 'high') ||
     String(a.feed).localeCompare(String(b.feed)) || String(a.id).localeCompare(String(b.id))).filter((event) => {
-    // Keep source records for the lossless development fold. Generic subjects (e.g.
-    // General Updates) and equal headlines at different URLs are not record identities.
-    if (storyKindOf(event)) return true;
+    if (STORY_FEEDS.has(event.feed)) return true;
     const family = feedFamily(event);
     const key = `${family}:${event.day}:${normalizedHeadline(event.headline) || event.id}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
+    const link = event.url && ['announcements', 'news'].includes(family) ? `${family}:url:${canonicalArticleUrl(event.url)}` : null;
+    if (seen.has(key) || (link && seen.has(link))) return false;
+    seen.add(key); if (link) seen.add(link);
     return true;
   });
 }
 
 // Stable content identities for read/dismiss state. A new material item must resurface a company
 // even when an older, higher-scoring item remains on top. Routine observations do not wake it.
-//
-// ONE IDENTITY PER DEVELOPMENT, NOT PER ROW. Puravankara's Goregaon win reached the desk as a BSE
-// filing, two NSE rows and a stream of publisher write-ups over the following days; keyed per row,
-// every new write-up of a development the reader had already archived was "new material evidence"
-// and brought the card back. So the identity is the development's first row of the kind that leads
-// it (see data/alert-developments.js): a further report of the same development, or the second
-// exchange's copy of the same filing, leaves it unchanged, while a new development, a source's
-// corrected headline or the company's own filing arriving after the news of it is new. A row that
-// folds with nothing is its own development and keeps exactly the identity it always had.
-// Kept on the development, which is one object for as long as its members are unchanged.
-function evidenceIdentity(dev) {
-  if (dev.evidenceIdentity === undefined) {
-    const anchor = dev.members.length === 1 ? dev.lead : dev.members.find((event) => storyKindOf(event) === dev.kind) || dev.lead;
-    dev.evidenceIdentity = JSON.stringify([feedFamily(anchor), anchor.id || null, anchor.day, anchor.headline, anchor.direction, dev.importance,
-      ...(storyKindOf(anchor) === 'filing' ? [anchor.filingSubject, anchor.filingHeadline, anchor.filingDescription, anchor.documentHash, anchor.url] : [])]);
-  }
-  return dev.evidenceIdentity;
-}
-
-export function materialEvidence(events = [], developments = foldDevelopments(events)) {
-  const material = developments.filter((dev) => dev.importance === 'high');
-  return [...new Set((material.length ? material : developments).map(evidenceIdentity))].sort();
+export function materialEvidence(events = []) {
+  const material = events.filter((event) => event.importance === 'high' || isMaterialStoryUpdate(event));
+  const identity = event => {
+    const record = storyRecord(event);
+    return record ? JSON.stringify(['story-source', storyKey(record)])
+      : JSON.stringify([feedFamily(event), event.id || null, event.day, event.headline, event.direction, event.importance]);
+  };
+  return [...new Set((material.length ? material : events).map(event => event.developmentId
+    ? JSON.stringify(['story-development', event.developmentId, event.direction, event.importance,
+      (event.storyReports || [event]).map(identity).sort()]) : identity(event.storyReports?.[0] || event)))].sort();
 }
 
 function eventScore(event, day, feedState) {
@@ -444,6 +432,7 @@ export function confluenceOf(events, { feedById = new Map() } = {}) {
  * title carries the feed's own label and its time, and the row opens that feed's own tab.
  */
 export const FEED_TAG = {
+  'price-levels': 'LEVEL',
   earnings: 'RESULT',
   concalls: 'CALL',
   'screener-insights': 'INSIGHT',
@@ -455,10 +444,11 @@ export const FEED_TAG = {
   chatter: 'CHATTER',
   news: 'NEWS',
   'market-news': 'NEWS',
-  'price-levels': 'LEVEL',
 };
 
 const CRORE = 10_000_000;
+
+
 
 /**
  * The measurable size of an insider or block-deal disclosure, from the fields the collector wrote.
@@ -548,23 +538,20 @@ function resultFigures(event) {
  */
 export const MAX_PER_SOURCE = 3;
 
-export function topEvidence(card, limit = 3, { maxPerSource = MAX_PER_SOURCE, first = null } = {}) {
-  // ONE ROW PER DEVELOPMENT. A card ranked here carries its developments (see
-  // data/alert-developments.js), and each is offered once, by its lead: the company's own filing
-  // rather than a publisher's account of it. Thirty write-ups of one order win are one row with a
-  // count, never three rows of a card's four. A card built without them (a fixture, a saved
-  // snapshot) is read row by row as before.
-  let rows = card?.developments?.length ? card.developments.map((dev) => dev.lead) : card?.events || [];
-  // `first` pins a row to the top of its source's queue — the tab's newest signal — by its
-  // development's lead, so the event that advanced the card cannot reappear as a second row.
-  if (first) {
-    const pinned = developmentOfEvent(card, first)?.lead || first;
-    rows = [pinned, ...rows.filter((event) => event !== pinned)];
-  }
+export function topEvidence(card, limit = 3, { maxPerSource = MAX_PER_SOURCE } = {}) {
   // Grouped by FAMILY, in the order each family's strongest event appears — so the rounds below
   // hand out slots by independent source, in score order within each one.
   const bySource = new Map();
-  for (const event of rows) {
+  const latest = new Map();
+  for (const event of card?.events || []) if (event.storyId) {
+    const held = latest.get(event.storyId);
+    if (!held || compareStoryRecency(event, held) > 0) latest.set(event.storyId, event);
+  }
+  const emitted = new Set();
+  for (const source of card?.events || []) {
+    const event = source.storyId ? latest.get(source.storyId) : source;
+    if (emitted.has(event)) continue;
+    emitted.add(event);
     const family = feedFamily(event);
     const found = bySource.get(family);
     if (found) found.push(event);
@@ -646,65 +633,13 @@ export function plainHeadline(event) {
  * Nothing is reordered either — a lower-scoring event leading the sentence does not promote it.
  */
 export function leadEvent(card) {
-  const dev = leadDevelopment(card);
-  if (dev) return dev.lead;
   const events = card?.events || [];
+  const newest = [...events].filter(e => e.importance === 'high' || isMaterialStoryUpdate(e)).sort((a, b) => compareStoryRecency(b, a))[0];
+  if (newest?.storyId && newest.storyChange !== 'new' && !isTypeOnly(plainHeadline(newest))) return newest;
   return events.find((event) => !isTypeOnly(plainHeadline(event)))
     || events.find((event) => plainHeadline(event).trim())
     || card?.topEvent
     || null;
-}
-
-/** The development `event` belongs to on this card — every member answers, not only its lead. */
-export function developmentOfEvent(card, event) {
-  if (!event) return null;
-  return (card?.developments || []).find((dev) => dev.lead === event || dev.members.includes(event)) || null;
-}
-
-/**
- * LINE 1 of a development — see `developmentLine`. A measurement (a price move, a book change, an
- * insider disclosure, a filed result) has no statement of its own to shorten, so it keeps the line
- * `plainHeadline` writes for it.
- */
-const developmentClaims = new WeakMap();
-export function developmentClaim(dev) {
-  if (!dev?.lead) return '';
-  // A development is one object for as long as its members are unchanged, and its line depends on
-  // nothing else — so a ranking that asks about every card's developments asks once.
-  let claim = developmentClaims.get(dev);
-  if (claim === undefined) {
-    claim = developmentLine(dev, { fallback: plainHeadline(dev.lead) });
-    developmentClaims.set(dev, claim);
-  }
-  return claim;
-}
-
-/**
- * The development a card leads with: the strongest one that names something that happened.
- *
- * Developments are in score order — the fold keeps each where its strongest member stands — so
- * this is the ranking's own answer, lifted from the event to the development: when a publisher's
- * write-up scored highest and the company's own filing of the same event sits beside it, the card
- * leads with the filing (Puravankara's ₹2,600 crore Goregaon project read as a news story because
- * it did not). A development whose line is still only a filing TYPE is skipped exactly as
- * `leadEvent` always skipped one, and keeps its row.
- */
-export function leadDevelopment(card) {
-  const developments = card?.developments;
-  if (!developments?.length) return null;
-  return developments.find((dev) => !isTypeOnly(developmentClaim(dev)))
-    || developments.find((dev) => developmentClaim(dev).trim())
-    || developments[0];
-}
-
-/**
- * THE FIRST BULLET — what happened, in the fewest words that still say it: "₹2,600 Cr
- * redevelopment project in Goregaon". The lead development's own statement, never a rewording (see
- * `developmentLine`); a card with no developments states its lead event as it always did.
- */
-export function whatHappened(card) {
-  const dev = leadDevelopment(card);
-  return dev ? developmentClaim(dev) : plainHeadline(leadEvent(card));
 }
 
 const asSentence = (text) => {
@@ -728,7 +663,7 @@ const asSentence = (text) => {
  */
 export function plainInsight(card) {
   if (isRelatedNewsContext(card.topEvent)) return `Related-entity report: ${plainHeadline(card.topEvent)}. ${card.topEvent.attribution.reason}`;
-  const claim = asSentence(whatHappened(card));
+  const claim = asSentence(plainHeadline(leadEvent(card)));
   const conflict = card.mixed ? ' Sources disagree — check both directions below.' : '';
   // A card with no statable event cannot be summarised, and inventing a summary for one is the
   // one thing that would be worse than saying so. In practice every surfaced card has at least
@@ -759,26 +694,6 @@ function directionSummary(events) {
   return count;
 }
 
-/** A display-only slice: company priority and archive identity keep their complete evidence,
- * while every statement, date, source count and AI note reads only the matching events. */
-export function cardWithEvents(card, events) {
-  if (!events.length) return null;
-  if (events.length === card.events.length) return card;
-  const directions = directionSummary(events.filter(newsCanSupportAI));
-  const feeds = [...new Set(events.map(feedFamily))];
-  const view = { ...card, events, topEvent: events[0], directions,
-    mixed: directions.positive > 0 && directions.negative > 0,
-    developments: foldDevelopments(events, { companyNames: [card.company, card.ticker].filter(Boolean) }),
-    feeds, feedCount: feeds.length, feedLabels: [...new Set(events.map(event => event.feedLabel || event.feed))],
-    // Broad cross-feed context belongs to the complete company reading, not a filtered claim.
-    confluence: [], contextEvents: [], upcomingEvents: [], contextSummary: '',
-    filteredEvents: true };
-  view.insight = plainInsight(view);
-  view.kpis = kpiImpact.kpiImpactOf(view, kpiImpact.snapshot());
-  view.badge = cardBadge(view);
-  return view;
-}
-
 // Both the first checked snapshot and the completed rank use the same identity
 // aliases, including tickerless securities and grouped warrant ISINs.
 let lastPositionIndex = null;
@@ -803,49 +718,34 @@ function positionSnapshotIndex({ holdings, sizes }) {
  * product rules; testing only whatever today's capture happens to contain would leave branches
  * unexercised most days.
  */
-const knownSector = value => typeof value === 'string' && !/^(unclassified|unknown|n\/a|[-—])?$/i.test(value.trim()) ? value.trim() : null;
-
 const rankCache = [];
 const sameRows = (left, right) => left.length === right.length && left.every((row, i) => row === right[i]);
-export function clearRankingCache() { rankCache.length = 0; lastPositionIndex = null; cardFolds.clear(); }
-
-// A company's developments, kept between rankings while its evidence is the same rows in the same
-// order: a partial publication that changed one company re-folds that company and no other.
-const cardFolds = new Map();
-function cardDevelopments(key, events, names) {
-  const signature = names.join('\u0001');
-  const hit = cardFolds.get(key);
-  if (hit && hit.names === signature && sameRows(hit.events, events)) return hit.value;
-  const value = foldDevelopments(events, { companyNames: names });
-  if (cardFolds.size > 8192) cardFolds.clear();
-  cardFolds.set(key, { events, names: signature, value });
-  return value;
-}
+export function clearRankingCache() { rankCache.length = 0; lastPositionIndex = null; }
 
 // ONE IMPLEMENTATION, TWO DRIVERS. `rankReport` is the synchronous reference the contract tests
 // assert; `rankReportAsync` walks the same generator and yields to input between cards, so a
 // Universe ranking (~1s of CPU here, once per partial publication) no longer lands as one task.
 // The generator yields once per card in each pass; a driver decides whether a yield costs
 // anything. Nothing about the result depends on the driver: same events, same order, same cards.
-function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = null, insightCompanies = screenerInsights.all(), companyMetadata = technicals.all().map(row => row.company), sectorKpis = kpiImpact.snapshot() } = {}) {
+function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = null, insightCompanies = screenerInsights.all(), sectorKpis = kpiImpact.snapshot() } = {}) {
   const day = report?.day || generalAlerts.today();
   const events = report?.events || [];
   const { token, email, orgId } = getHostContext().session;
   // Source records are immutable publications. Compare every reference, not counts/timestamps;
   // a same-ID correction publishes a new record. Copy arrays so in-place additions/removals
   // cannot defeat the comparison. Small membership and health values are compared by content.
-  const input = { day, scope: report?.scope || 'universe', events,
+  const input = { storyRevision: storyGrouping.revision(), day, scope: report?.scope || 'universe', events,
     health: JSON.stringify((report?.feeds || []).map(feed => [feed.id, feed.status, feed.reachesToday])),
     book: JSON.stringify(holdings), positions: JSON.stringify(positionSizes),
-    insights: insightCompanies, sectors: companyMetadata, kpis: sectorKpis, session: JSON.stringify([token, email, orgId]) };
-  const cached = rankCache.find(entry => entry.input.day === day && entry.input.scope === input.scope &&
+    insights: insightCompanies, kpis: sectorKpis, session: JSON.stringify([token, email, orgId]) };
+  const cached = rankCache.find(entry => entry.input.storyRevision === input.storyRevision && entry.input.day === day && entry.input.scope === input.scope &&
     entry.input.health === input.health && entry.input.book === input.book && entry.input.positions === input.positions &&
     entry.input.session === input.session && entry.input.kpis === sectorKpis && sameRows(entry.input.events, events) &&
-    sameRows(entry.input.insights, insightCompanies) && sameRows(entry.input.sectors, companyMetadata));
+    sameRows(entry.input.insights, insightCompanies));
   if (cached) {
     const result = { ...cached.result, pending: report?.pending || 0, feeds: report?.feeds || [],
       meta: { ...cached.result.meta, cacheSavedAt: report?.cacheSavedAt || null } };
-    rankingOptions.set(result, { holdings, positionSizes, insightCompanies, companyMetadata });
+    rankingOptions.set(result, { holdings, positionSizes, insightCompanies });
     rankingEvidence.set(result, rankingEvidence.get(cached.result));
     return result;
   }
@@ -854,9 +754,6 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
   const weights = positionSizes?.sizes.complete
     ? positionSnapshotIndex({ ...positionSizes, holdings: positionSizes.holdings || holdings }) : new Map();
   const feedById = new Map((report?.feeds || []).map((feed) => [feed.id, feed]));
-  // Exact identifiers only: a missing statement classification can use the
-  // existing company feed, but an unknown sector is never a shared industry.
-  const sectors = new Map(companyMetadata.map(company => [String(company.ticker || '').toUpperCase(), knownSector(company.sector)]));
   const holdingByTicker = new Map(
     (holdings || [])
       .filter((holding) => holding.ticker)
@@ -881,30 +778,21 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
   for (const [key, rawEvents] of grouped) {
     const ticker = rawEvents.find(e => e.ticker)?.ticker || null;
     const entityId = rawEvents.find(e => e.entityId)?.entityId || null;
-    const events = dedupe(rawEvents);
+    const events = dedupe(rawEvents).filter(event => event.day >= firstDay && event.day <= day);
+    if (!events.length) { yield; continue; }
     const scoredEvents = events
       .map((event) => ({ event, score: eventScore(event, day, feedById.get(event.feed)) }))
       .sort((a, b) => b.score.points - a.score.points || String(b.event.day).localeCompare(String(a.event.day)) || String(b.event.time || '').localeCompare(String(a.event.time || '')));
     const top = scoredEvents[0];
-    const holding = holdingByTicker.get(ticker) || holdingByEntity.get(entityId) || null;
-    // ONE DEVELOPMENT IS ONE PIECE OF EVIDENCE. The exchange copies of a filing and the publishers'
-    // write-ups of it fold into one development (data/alert-developments.js), in score order, so
-    // the counts below read developments: thirty reports of one order win are one high-importance
-    // event and one direction, not thirty. Corroboration is still counted by independent FEED, and
-    // the confluence patterns still read every event, because both are about which sources agree.
-    const developments = cardDevelopments(key, scoredEvents.map((entry) => entry.event), [holding?.name].filter(Boolean));
-    const directDevelopments = developments.filter((dev) => newsCanSupportAI(dev.lead));
     const directEvents = events.filter(newsCanSupportAI);
-    const directions = directionSummary(directDevelopments);
+    const directions = directionSummary(directEvents);
     const feeds = [...new Set(events.map(feedFamily))];
     const feedLabels = [...new Set(events.map((event) => event.feedLabel || event.feed))];
-    const highCount = developments.filter((dev) => dev.importance === 'high').length;
+    const highCount = events.filter((event) => event.importance === 'high').length;
     const hasMaterialNegative = events.some((event) => event.importance === 'high' && event.direction === 'negative');
-    // A LEVEL THE FAMILY SET AND ASKED TO BE TOLD ABOUT is material by construction — they chose the
-    // company, the price and the reason. It carries no document link (it is this Worker's own
-    // observation), so it is named here rather than being made to pass a filing's test.
-    const materialPortfolioEvent = !!holding && events.some((event) => event.importance === 'high' && (event.feed === 'price-levels' ||
-      (!!event.url && (materialFiling(event) || (feedFamily(event) === 'news' && event.namesCompany === true) || isRelatedNewsContext(event)))));
+    const holding = holdingByTicker.get(ticker) || holdingByEntity.get(entityId) || null;
+    const materialPortfolioEvent = !!holding && events.some((event) => event.importance === 'high' &&
+      !!event.url && (event.feed === 'price-levels' || materialFiling(event) || (feedFamily(event) === 'news' && event.namesCompany === true) || isRelatedNewsContext(event)));
     const mixed = directions.positive > 0 && directions.negative > 0;
     const scoreBreakdown = [...(top?.score.parts || [])];
 
@@ -924,7 +812,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     // draft gave another feed twelve points and promoted nearly every well-covered company; six
     // keeps the independent confirmation valuable without rewarding mere data availability.
     const independentFeeds = new Set(directEvents.map(feedFamily)).size;
-    const directHighCount = directDevelopments.filter((dev) => dev.importance === 'high').length;
+    const directHighCount = directEvents.filter(e => e.importance === 'high').length;
     if (independentFeeds > 1) scoreBreakdown.push({ label: `${independentFeeds} independent feeds`, points: Math.min(12, (independentFeeds - 1) * 6) });
     if (directHighCount > 1) scoreBreakdown.push({ label: `${directHighCount} high-importance events`, points: Math.min(6, (directHighCount - 1) * 3) });
     if (mixed) scoreBreakdown.push({ label: 'Conflicting directional evidence needs review', points: 6 });
@@ -936,18 +824,19 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
       entityId,
       ticker,
       company: top?.event.company || holding?.name || key,
-      sector: knownSector(holding?.sector) || sectors.get(ticker) || null,
+      sector: holding?.sector || null,
       holding: !!holding,
       holdingWeightPct: weights.get(key) ?? weights.get(entityId) ?? null,
       // Cards show the strongest evidence first. General Alerts remains the chronological record.
       events: scoredEvents.map((entry) => entry.event),
-      developments,
+      sourceEvents: rawEvents,
       topEvent: top?.event || events[0],
       directions,
       mixed,
       highCount,
       materialPortfolioEvent,
-      evidenceKey: JSON.stringify(materialEvidence(events, developments)),
+      materialStoryUpdate: events.some(isMaterialStoryUpdate),
+      evidenceKey: JSON.stringify(materialEvidence(events)),
       hasMaterialNegative,
       feedCount: feeds.length,
       feeds,
@@ -985,7 +874,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
       // would push a company above the deliberately bounded 100-point scale.
       card.scoreBreakdown.push({ label: '100-point priority scale cap', points: card.score - unclamped });
     }
-    card.priority = card.score >= MUST_SEE_SCORE ? 'must-see' : card.score >= MIN_SCORE || card.materialPortfolioEvent ? 'important' : 'watch';
+    card.priority = card.score >= MUST_SEE_SCORE ? 'must-see' : card.score >= MIN_SCORE || card.materialPortfolioEvent || card.materialStoryUpdate ? 'important' : 'watch';
     card.insight = plainInsight(card);
     // WHICH OF THE COMPANY'S OWN SECTOR KPIs the evidence names — read off the same events, through
     // the desk's sector → KPI ontology. Like the topic chips on the rows it adds no score and no
@@ -1001,7 +890,9 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
   cards.sort(
     (a, b) => (report?.scope === 'portfolio' && weights.size ? (b.holdingWeightPct ?? -1) - (a.holdingWeightPct ?? -1) : 0) || b.score - a.score || b.highCount - a.highCount || String(b.topEvent?.day || '').localeCompare(String(a.topEvent?.day || '')) || a.company.localeCompare(b.company)
   );
-  const surfaced = cards.filter((card) => card.score >= MIN_SCORE || card.materialPortfolioEvent);
+  // A new checked development must stand on its own after the original evidence ages out.
+  // Keep the measured score and the source's importance tag; neither is a new-facts gate.
+  const surfaced = cards.filter((card) => card.score >= MIN_SCORE || card.materialPortfolioEvent || card.materialStoryUpdate);
   const marketWide = (report?.events || []).filter(
     (event) => !event.ticker && !event.entityId && event.day && event.day >= firstDay && event.day <= day
   ).length;
@@ -1033,11 +924,11 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
       cacheSavedAt: report?.cacheSavedAt || null,
     },
   };
-  rankingOptions.set(result, { holdings, positionSizes, insightCompanies, companyMetadata });
+  rankingOptions.set(result, { holdings, positionSizes, insightCompanies });
   rankingEvidence.set(result, windowEvidence);
   // Bound private, in-memory derivations; alternate partial/final envelopes must not evict
   // each other's identical evidence on every notification.
-  rankCache.unshift({ input: { ...input, events: [...events], insights: [...insightCompanies], sectors: [...companyMetadata] }, result });
+  rankCache.unshift({ input: { ...input, events: [...events], insights: [...insightCompanies] }, result });
   if (rankCache.length > 4) rankCache.pop();
   return result;
 }
@@ -1075,15 +966,27 @@ const cardKey = card => card.key || card.ticker || card.entityId;
 function mergePlan(previous, next) {
   if (!previous || previous.scope !== next.scope || previous.day !== next.day) return null;
   const eventKey = event => `${event.feed}:${event.id || JSON.stringify([event.ticker, event.entityId, event.day, event.url, event.headline])}`;
-  const nextEvidence = new Set((rankingEvidence.get(next) || []).map(eventKey));
-  for (const card of next.allCards) for (const event of [...card.events, ...(card.contextEvents || []), ...(card.upcomingEvents || [])]) nextEvidence.add(eventKey(event));
+  const nextEvidence = new Set(), superseded = new Set();
+  const accept = event => {
+    const id = eventKey(event);
+    nextEvidence.add(id);
+    // The completed publisher projection keeps the chosen copy and provenance
+    // for its other routes. An earlier partial must not restore those copies.
+    for (const source of event.newsProvenance || []) {
+      const copy = `${source.feed}:${source.eventId}`;
+      if (source.feed && source.eventId && copy !== id) superseded.add(copy);
+    }
+  };
+  for (const event of rankingEvidence.get(next) || []) accept(event);
+  for (const card of next.allCards) for (const event of [...(card.sourceEvents || card.events), ...(card.contextEvents || []), ...(card.upcomingEvents || [])]) accept(event);
   // Union EVIDENCE, not whole cards. Keeping the old card until every prior source answers
   // hides a new material story about that same company behind an unrelated slow feed.
   const evidence = new Map();
   let needsMerge = false;
   for (const report of [previous, next]) for (const card of report.allCards) {
-    for (const event of [...card.events, ...(card.contextEvents || []), ...(card.upcomingEvents || [])]) {
+    for (const event of [...(card.sourceEvents || card.events), ...(card.contextEvents || []), ...(card.upcomingEvents || [])]) {
       const id = eventKey(event);
+      if (report === previous && superseded.has(id)) continue;
       if (report === previous && !nextEvidence.has(id)) needsMerge = true;
       evidence.set(id, event); // New source corrections win under their stable identity.
     }
@@ -1115,22 +1018,6 @@ function finishMerge(previous, next, merged) {
   } };
   rankingOptions.set(result, rankingOptions.get(merged));
   rankingEvidence.set(result, rankingEvidence.get(merged));
-  return result;
-}
-
-/** Remove optional weights by projection, retaining the complete evidence and visible queue. */
-export function withoutPositionSnapshot(report) {
-  if (!report) return report;
-  const replacements = new Map();
-  const clear = card => {
-    if (!replacements.has(card)) replacements.set(card, card.holdingWeightPct == null ? card : { ...card, holdingWeightPct: null });
-    return replacements.get(card);
-  };
-  const allCards = report.allCards.map(clear), cards = report.cards.map(clear);
-  if (!report.meta.positionSizes && sameRows(allCards, report.allCards) && sameRows(cards, report.cards)) return report;
-  const result = { ...report, allCards, cards, meta: { ...report.meta, positionSizes: null, sortedByHolding: false } };
-  rankingOptions.set(result, { ...rankingOptions.get(report), positionSizes: null });
-  rankingEvidence.set(result, rankingEvidence.get(report));
   return result;
 }
 
@@ -1169,10 +1056,10 @@ export function withPositionSnapshot(report, snapshot) {
 export async function cached({ scope = 'portfolio', holdings = null, positionSizes = null, isCurrent = () => true } = {}) {
   const book = holdings || coverage.holdings();
   // The sector → KPI file is small and static; it is read beside the cached window, never after it.
-  const kpis = kpiImpact.load();
+  const readings = Promise.all([kpiImpact.load(), storyGrouping.load()]);
   const report = await generalAlerts.readCachedAlertWindow({ scope, holdings: book });
   if (!report || !isCurrent()) return null;
-  await kpis;
+  await readings;
   if (!isCurrent()) return null;
   return rankReportAsync(report, { holdings: book, positionSizes, insightCompanies: screenerInsights.all() }, { isCurrent });
 }
@@ -1221,6 +1108,11 @@ export async function collect({ scope = 'portfolio', holdings = null, positionSi
   });
   closed = true;
   queued = null;
+  if (typeof window !== 'undefined' && isCurrent()) {
+    const first = shiftDay(report.day || generalAlerts.today(), -(WINDOW_DAYS - 1));
+    void storyGrouping.review(report.events.filter(event => event.day >= first && event.day <= report.day &&
+      (newsCanSupportAI(event) || isRelatedNewsContext(event))), { isCurrent });
+  }
   if (publishing) await publishing;
   await kpiRead;
   if (!isCurrent()) return null; // Shared collection/storage finishes; obsolete view work stops.
@@ -1241,4 +1133,43 @@ export async function collect({ scope = 'portfolio', holdings = null, positionSi
   const updatedInsights = screenerInsights.all();
   return updatedInsights.length === insights.length && updatedInsights.every((company, i) => company === insights[i])
     ? ready : rankReportAsync(report, options(updatedInsights), { isCurrent });
+}
+
+export function leadDevelopment(card) {
+  return developmentOfRow(leadEvent(card));
+}
+export function developmentClaim(dev) {
+  return dev?.lead ? developmentLine(dev, { fallback: plainHeadline(dev.lead) }) : "";
+}
+
+export function cardWithEvents(card, events) {
+  if (!events.length) return null;
+  if (events.length === card.events.length) return card;
+  const directions = directionSummary(events.filter(newsCanSupportAI));
+  const feeds = [...new Set(events.map(feedFamily))];
+  const view = { ...card, events, topEvent: events[0], directions,
+    mixed: directions.positive > 0 && directions.negative > 0,
+    developments: events.map(developmentOfRow),
+    feeds, feedCount: feeds.length, feedLabels: [...new Set(events.map(event => event.feedLabel || event.feed))],
+    // Broad cross-feed context belongs to the complete company reading, not a filtered claim.
+    confluence: [], contextEvents: [], upcomingEvents: [], contextSummary: '',
+    filteredEvents: true };
+  view.insight = plainInsight(view);
+  view.kpis = kpiImpact.kpiImpactOf(view, kpiImpact.snapshot());
+  view.badge = cardBadge(view);
+  return view;
+}
+export function withoutPositionSnapshot(report) {
+  if (!report) return report;
+  const replacements = new Map();
+  const clear = card => {
+    if (!replacements.has(card)) replacements.set(card, card.holdingWeightPct == null ? card : { ...card, holdingWeightPct: null });
+    return replacements.get(card);
+  };
+  const allCards = report.allCards.map(clear), cards = report.cards.map(clear);
+  if (!report.meta.positionSizes && sameRows(allCards, report.allCards) && sameRows(cards, report.cards)) return report;
+  const result = { ...report, allCards, cards, meta: { ...report.meta, positionSizes: null, sortedByHolding: false } };
+  rankingOptions.set(result, { ...rankingOptions.get(report), positionSizes: null });
+  rankingEvidence.set(result, rankingEvidence.get(report));
+  return result;
 }

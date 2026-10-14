@@ -1,4 +1,3 @@
-import { runSteps, runStepsInSlices } from '../core/slices.js';
 // data/filings-shared.js — the vocabulary for news, corporate announcements and insider trades.
 //
 //   parseMarkdownTable(md)        a markdown table -> { headers, rows }
@@ -9,7 +8,8 @@ import { runSteps, runStepsInSlices } from '../core/slices.js';
 //
 // PURE, AND IMPORTED BY `worker/muns.mjs`. Same arrangement as stockscans-shared.js and
 // finology-shared.js: one definition of what a row is, so the Worker and the browser cannot drift.
-// Nothing here touches the DOM, `fetch` or any global.
+// Nothing here touches the DOM or `fetch`. Both dedupe drivers use the same pure generator.
+import { runSteps, runStepsInSlices } from '../core/slices.js';
 //
 // WHY EVERYTHING HERE IS DELIBERATELY LOOSE ABOUT FIELD NAMES
 //   These three payloads are not ours and their shapes are not pinned by any contract we control.
@@ -392,9 +392,15 @@ export function articleUrlKey(row) {
   return key;
 }
 
-export const articleStoryKey = row => row?.title && row?.source
-  ? `${String(row.date || row.publishedAt || '').slice(0, 10)} :: ${String(row.source).trim().toLowerCase()} :: ${String(row.title).trim().toLowerCase()}`
-  : null;
+// One outlet's headline on one date: what `dedupeArticles` folds two addresses on. TradingView
+// republishes an outlet's story under its own address with that outlet's name, headline and date,
+// so this is the only thing the copy shares with the original. Exported because the news query
+// index has to find every row this can fold, or a period read keeps a copy the full history drops.
+export function articleStoryKey(row) {
+  return row?.title && row?.source
+    ? `${String(row.date || row.publishedAt || '').slice(0, 10)} :: ${String(row.source).trim().toLowerCase()} :: ${String(row.title).trim().toLowerCase()}`
+    : null;
+}
 
 export function* dedupeArticleSteps(list = []) {
   const seenUrl = new Set();
@@ -405,20 +411,18 @@ export function* dedupeArticleSteps(list = []) {
   for (const row of list) {
     if (++visited % 128 === 0) yield;
     const url = articleUrlKey(row);
-    if (url) {
-      if (seenUrl.has(url)) continue;
-      seenUrl.add(url);
-    }
+    if (url && seenUrl.has(url)) continue;
     const story = articleStoryKey(row);
-    if (story) {
-      if (seenStory.has(story)) continue;
-      seenStory.add(story);
-    }
+    if (story && seenStory.has(story)) continue;
     if (!url && !story) {
       const content = anonymousArticleContentKey(row);
       if (seenAnonymous.has(content)) continue;
       seenAnonymous.add(content);
     }
+    // A discarded same-headline copy must not reserve its URL: a later corrected
+    // publication at that address may have a distinct story/date and still be eligible.
+    if (url) seenUrl.add(url);
+    if (story) seenStory.add(story);
     kept.push(row);
   }
   return kept;

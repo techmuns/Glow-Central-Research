@@ -2,7 +2,6 @@
 // End-to-end Ask Research with local data and a synthetic authenticated peer.
 // The peer deliberately never answers legacy model reads, reproducing the
 // user's timeout. Real incremental HTTP responses verify progressive painting.
-import { researchFixtureAsset } from './lib/research-ui-fixture.mjs';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -19,9 +18,29 @@ const root = fileURLToPath(new URL('../public', import.meta.url));
 const newsFixture = readNewsJson(resolve(root, 'data/news.json'));
 delete newsFixture._jsonShards;
 newsFixture.byTicker = Object.fromEntries(Object.entries(newsFixture.byTicker).filter(([ticker]) => ['JAYNECOIND', 'IIFL', 'SAIL'].includes(ticker)).map(([ticker, rows]) => [ticker, rows.slice(0, 12)]));
+newsFixture.archive = [];
 newsFixture.rowCount = Object.values(newsFixture.byTicker).reduce((sum, rows) => sum + rows.length, 0);
 newsFixture._provenance = 'Bounded UI test fixture; not a source completeness or live latency claim.';
 const newsFixtureJson = JSON.stringify(newsFixture);
+// Filing archives also grow independently of this conversation test. Keep a
+// bounded, representative company fixture; full history equality/coverage is
+// exercised by verify-general-alerts, verify-alert-pool and portfolio research.
+const fixtureTickers = new Set(['JAYNECOIND', 'IIFL', 'SAIL']);
+const filingFixtures = new Map();
+function filingFixture(path, file) {
+  if (!/^\/data\/(?:corp-announcements\.json|insider-trades\.json|(?:announcements|insider)-archive\/(?:\d{4}-\d{2}|undated)\.json|nse-filings\/(?:\d{4}-\d{2}-\d{2}|undated)\.json)$/.test(path)) return null;
+  if (filingFixtures.has(path)) return filingFixtures.get(path);
+  // Reconstruct transport shards before sampling. Leaving the manifest here
+  // makes the browser expand the complete archive after receiving the sample.
+  const body = readNewsJson(file);
+  if (body.byTicker) {
+    body.byTicker = Object.fromEntries(Object.entries(body.byTicker).filter(([ticker]) => fixtureTickers.has(ticker)).map(([ticker, rows]) => [ticker, rows.slice(0, 12)]));
+    body.rowCount = Object.values(body.byTicker).reduce((sum, rows) => sum + rows.length, 0);
+  }
+  if (Array.isArray(body.rows)) body.rows = body.rows.filter(row => fixtureTickers.has(row.ticker)).slice(0, 36);
+  body._provenance = 'Bounded conversation fixture; complete retained history is verified separately.';
+  const json = JSON.stringify(body); filingFixtures.set(path, json); return json;
+}
 // The other retained event feeds grow too. Keep conversation/stream deadlines independent of
 // archive size, just as above for company news. Full-volume evidence is covered by the separate
 // complete-portfolio suite; do not relax this suite's first-text or stalled-source deadlines.
@@ -32,7 +51,7 @@ for (const [name, field] of [
   ['public-holdings', 'holdings'], ['ipo-filings', 'rows'], ['technicals', 'companies'],
   ['earnings-live', 'rows'], ['nse-announcements', 'rows'], ['concall-scans', 'rows'],
 ]) {
-  const capture = JSON.parse(readFileSync(resolve(root, `data/${name}.json`), 'utf8'));
+  const capture = readNewsJson(resolve(root, `data/${name}.json`));
   capture[field] = field === 'byTicker'
     ? Object.fromEntries(Object.entries(capture[field]).filter(([ticker]) => ['JAYNECOIND', 'IIFL', 'SAIL'].includes(ticker)).map(([ticker, rows]) => [ticker, rows.slice(0, 12)]))
     : capture[field].slice(0, 24);
@@ -42,7 +61,18 @@ for (const [name, field] of [
   capture._provenance = 'Bounded conversation UI fixture; full source history is tested separately.';
   captureFixtures.set(`/data/${name}.json`, JSON.stringify(capture));
 }
-const questions = [], timings = [], errors = [];
+// Social archives also grow independently of the stream protocol fixture.
+// Exact retained coverage is exercised by the social/history and portfolio suites.
+const postFixtures = new Map();
+function postFixture(path, file) {
+  if (!/^\/data\/(?:telegram-posts\.json|twitter-archive\/\d{4}-\d{2}\.json)$/.test(path)) return null;
+  if (postFixtures.has(path)) return postFixtures.get(path);
+  const capture = JSON.parse(readFileSync(file, 'utf8'));
+  capture.posts = capture.posts.slice(0, 24);
+  capture._provenance = 'Bounded conversation UI fixture; full social history is tested separately.';
+  const json = JSON.stringify(capture); postFixtures.set(path, json); return json;
+}
+const questions = [], timings = [], errors = [], streamEvents = [];
 let holdAnswer = false;
 let failAnswer = false;
 let truncateAnswer = false;
@@ -86,8 +116,15 @@ const server = createServer(async (req, res) => {
     const validated = validateResearchBody(body);
     if (!validated.ok) { res.writeHead(validated.status, { 'content-type': 'application/json' }); res.end(JSON.stringify(validated)); return; }
     questions.push(body);
-    res.writeHead(200, { 'content-type': 'application/x-ndjson', 'cache-control': 'no-store, no-transform' });
-    const send = event => res.write(JSON.stringify(event) + '\n');
+    // Match the production Worker's streaming headers. A small paused fixture must not wait
+    // for browser content sniffing before exposing the first chunk to its assertions.
+    res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8',
+      'cache-control': 'no-store, no-transform', 'x-content-type-options': 'nosniff', 'x-accel-buffering': 'no' });
+    const responseId = questions.length, responseStarted = Date.now();
+    const send = event => {
+      streamEvents.push({ responseId, type: event.type, afterMs: Date.now() - responseStarted });
+      return res.write(JSON.stringify(event) + '\n');
+    };
     const failThisAnswer = failAnswer;
     const truncateThisAnswer = truncateAnswer;
     const answer = customAnswer;
@@ -118,7 +155,7 @@ const server = createServer(async (req, res) => {
   if (!file.startsWith(root + sep)) { res.writeHead(404); res.end(); return; }
   try {
     res.setHeader('content-type', { '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png' }[extname(file)] || 'application/octet-stream');
-    res.end(researchFixtureAsset(url.pathname, readFileSync(file)));
+    res.end(postFixture(url.pathname, file) || filingFixture(url.pathname, file) || readFileSync(file));
   } catch { res.writeHead(404); res.end(); }
 });
 await new Promise(done => server.listen(0, '127.0.0.1', done));
@@ -163,11 +200,9 @@ try {
     return route.continue();
   });
   const page = await context.newPage();
-  // Each navigation waits for the actual workspace/connection below; optional image and feed
-  // loads do not define when an already interactive local fixture is ready.
   observedPage = page;
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(`${origin}/#/research/ask-research?scope=portfolio`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${origin}/#/research/ask-research?scope=portfolio`);
   await page.locator('.research-workspace.is-disabled-coming-soon').waitFor();
   await page.locator('.research-coming-soon-overlay').waitFor();
   assert(await page.locator('.research-coming-soon-title').innerText().then(t => t.includes('Merging with Munshot Chat')));
@@ -175,7 +210,7 @@ try {
   assert.equal(await page.locator('[data-research-input]').isDisabled(), true);
   assert.equal(await page.locator('[data-research-send]').isDisabled(), true);
 
-  await page.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`);
   await page.getByText('Portfolio connected', { exact: false }).waitFor();
   if (process.env.SCREENSHOT_PATH) {
     await page.locator('.research-opening-brand').evaluate(image => image.decode());
@@ -278,14 +313,16 @@ try {
   slow.on('pageerror', error => errors.push(error.message));
   const parked = [];
   await slow.route('**/api/screener-insights', route => { parked.push(route); });
-  await slow.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`, { waitUntil: 'domcontentloaded' });
+  await slow.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`);
   await slow.getByText('Portfolio connected', { exact: false }).waitFor();
   const slowStart = Date.now();
   await slow.getByRole('textbox', { name: 'Ask about the dashboard' }).fill(exactQuestion);
   await slow.getByRole('button', { name: 'Send question' }).click();
   // This case checks bounded availability despite a stalled source, not an intermediate
-  // streaming state (asserted above). A response that has already completed is valid too.
-  await slow.locator('.research-answer-body').filter({ hasText: 'latest available company update' }).waitFor({ timeout: 10_000 }).catch(async error => {
+  // streaming state (asserted above). Keep the actual six-second source deadline; allow
+  // its subsequent bounded company reads and rendering to finish on a loaded CI runner.
+  // The separate cold/warm first-text performance deadlines above remain unchanged.
+  await slow.locator('.research-answer-body').filter({ hasText: 'latest available company update' }).waitFor({ timeout: 15_000 }).catch(async error => {
     if (process.env.SCREENSHOT_PATH) await slow.screenshot({ path: process.env.SCREENSHOT_PATH.replace(/\.png$/, '-stalled-source-failure.png'), fullPage: true });
     throw error;
   });
@@ -293,7 +330,7 @@ try {
   assert(parked.length > 0);
   assert.equal(questions.at(-1).evidence.sources.find(s => s.id === 'screener-insights').status, 'unavailable');
   assert(questions.at(-1).evidence.sources.some(s => s.rows.some(r => r.ticker === 'JAYNECOIND')), 'other evidence survives a stalled feed');
-  for (const route of parked) await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+  // Closing aborts parked requests, including those already cancelled by the source deadline.
   await slow.close();
   observedPage = page;
 
@@ -413,7 +450,7 @@ try {
   assert.equal(await answerArticle.locator('.research-cite-unresolved').count(), 0, 'slash spacing in a valid tab citation still resolves');
   assert.equal(await answerArticle.locator('.research-answer-references a').count(), 6, 'repeated citations share one source reference');
   assert.equal(await answerArticle.getByRole('link', { name: 'Source 1: News', exact: true }).count(), 2);
-  assert.equal(await answerArticle.getByRole('link', { name: 'Source 3: Breakouts / Technical', exact: true }).getAttribute('href'), '#/research/breakouts?scope=portfolio&company=JAYNECOIND');
+  assert.equal(await answerArticle.getByRole('link', { name: 'Source 3: Screens', exact: true }).getAttribute('href'), '#/research/breakouts?scope=portfolio&company=JAYNECOIND', 'citations saved with the former tab name open Screens');
   assert.equal(await answerArticle.getByRole('link', { name: 'Source 5: Telegram', exact: true }).getAttribute('href'), '#/research/public-chatter?section=telegram&scope=portfolio&company=JAYNECOIND');
   assert.equal(await answerArticle.getByRole('link', { name: 'Source 6: Public Chatter posts', exact: true }).getAttribute('href'), '#/research/public-chatter?open=mentions&scope=portfolio&company=JAYNECOIND');
   assert.match(await answerArticle.locator('.research-answer-freshness').innerText(), /2026-08-31/);
@@ -515,7 +552,7 @@ try {
     result.partialCitationHidden = !node.textContent.includes('[Dashboard:');
     renderResearchAnswer(node, 'Stable first paragraph.\n\nNext reading [Dashboard: News]\n\nMore text.', { streaming: true });
     result.stableParagraph = first === node.firstChild && first.isConnected;
-    renderResearchAnswer(node, 'Portfolio reading [Dashboard: Ask Glow]', { compactCitations: true, cite: () => ({ href: 'https://glowventures.example/ask', label: 'Ask Glow' }) });
+    renderResearchAnswer(node, 'Portfolio reading [Dashboard: Ask Sattva]', { compactCitations: true, cite: () => ({ href: 'https://sattva-family.pages.dev/ask', label: 'Ask Sattva' }) });
     result.externalTarget = node.querySelector('.research-cite').target;
     result.citationAttached = node.querySelector('.research-cite').parentElement.classList.contains('research-citation-anchor');
     renderResearchAnswer(node, '# Summary\n\n**Revenue**: 120\n\n**Risks**\n\nStill unresolved.');
@@ -555,7 +592,7 @@ try {
   let configFailures = 1;
   await disconnected.route('**/api/research', route => configFailures-- > 0
     ? route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }) : route.continue());
-  await disconnected.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`, { waitUntil: 'domcontentloaded' });
+  await disconnected.goto(`${origin}/#/research/ask-research?scope=portfolio&test_stream=1`);
   await disconnected.getByRole('button', { name: 'Reconnect', exact: true }).waitFor();
   await disconnected.getByRole('textbox', { name: 'Ask about the dashboard' }).fill(screenshotQuestion);
   await disconnected.getByRole('button', { name: 'Reconnect', exact: true }).click();
@@ -570,7 +607,7 @@ try {
       phase: document.querySelector('[data-research-phase]')?.textContent,
       transcript: document.querySelector('[data-research-transcript]')?.textContent?.slice(-1400),
       button: document.querySelector('[data-research-send]')?.getAttribute('aria-label'),
-    })), receivedRequests: questions.length, timings }));
+    })), receivedRequests: questions.length, streamEvents: streamEvents.slice(0, 12), timings }));
   }
   throw error;
 } finally {

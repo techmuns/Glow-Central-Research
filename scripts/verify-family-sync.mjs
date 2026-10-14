@@ -13,7 +13,6 @@ import { bindFamilySyncLifecycle } from '../public/js/data/family-sync-lifecycle
 
 const read = name => JSON.parse(readFileSync(new URL(`../public/data/${name}.json`, import.meta.url)));
 const saved = JSON.parse(readFileSync(new URL('./fixtures/template-portfolio-companies.json', import.meta.url)));
-
 const savedPath = new URL('./fixtures/template-portfolio-companies.json', import.meta.url);
 const sources = { scans: read('concall-scans'), mc: read('mc-ticker-map'), universe: read('universe') };
 const prior = JSON.parse(readFileSync(new URL('./fixtures/family-book.json', import.meta.url)));
@@ -30,7 +29,7 @@ const incoming = {
 const token = 'test-only-token-not-a-real-credential';
 const assetEnv = {
   FAMILY_HOLDINGS_TOKEN: token,
-  ASSETS: { fetch: async req => { const name = new URL(req.url).pathname.split('/').at(-1).replace('.json', ''); return Response.json(name === 'portfolio-companies' ? saved : read(name)); } },
+  ASSETS: { fetch: async req => Response.json(read(new URL(req.url).pathname.split('/').at(-1).replace('.json', ''))) },
 };
 
 test('existing ISIN/ticker resolution is unchanged by extracting the shared resolver', async () => {

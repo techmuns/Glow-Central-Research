@@ -34,7 +34,7 @@ export async function readCachedAllAlerts(options) {
 }
 export async function collect(options) {
   const make=(groups={},states={})=>adoptAllAlertsReport(window.make(groups,states),null,options);
-  options.onPartial?.(make());
+  if (!window.skipSeed) options.onPartial?.(make());
   return new Promise(resolve=>window.calls.push({options,
     partial:(groups,states)=>options.onPartial?.(make(groups,states)),
     complete:(groups,states)=>resolve(make(groups,states))}));
@@ -50,13 +50,20 @@ const server = createServer((req, res) => {
     if (path === '/js/data/daily-alerts.js') body = body.toString()
       .replace('export async function readCachedAllAlerts(', 'async function realReadCachedAllAlerts(')
       .replace('export async function collect(', 'async function realCollect(') + wrappers;
+    if (path === '/js/data/alert-developments.js') body = body.toString()
+      .replace('export async function foldAlertRowsAsync(', 'async function realFoldAlertRowsAsync(') + `
+export async function foldAlertRowsAsync(events, options) {
+  const rows = await realFoldAlertRowsAsync(events, options);
+  if (window.holdGrouping) await new Promise(release => (window.groupings ||= []).push({events, release}));
+  return options?.isCurrent?.() === false ? null : rows;
+}`;
     res.setHeader('content-type', { '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' }[extname(file)] || 'application/octet-stream');
     res.end(body);
   } catch { res.writeHead(404); res.end('{}'); }
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
+const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
@@ -81,27 +88,6 @@ try {
   await contains('Saved current-day alert');
   console.log('PASS disk restores after an empty seed; fast sources publish independently; failed sources retain saved evidence.');
 
-  // A failed combined news source still canonicalizes its successfully read copies. A partial
-  // publisher copy must not be retained beside its final TradingView copy merely because an
-  // independent company-search feed is unavailable; that changes ownership of the market row.
-  await page.evaluate(() => {
-    window.show();
-    window.publisher=window.event('publisher-copy',{feed:'market-news',headline:'Alpha wins a new contract',
-      url:'https://publisher.test/alpha-contract',sourceRecord:{source:'Mint'}});
-    window.searchCopy={...window.publisher,id:'search-copy',feed:'news',attribution:{status:'confirmed'}};
-    window.finalCopy={...window.searchCopy,id:'trading-copy',url:'https://tradingview.test/alpha-contract'};
-    window.calls.at(-1).partial({news:[window.searchCopy],'market-news':[window.publisher]},
-      {news:'failed','market-news':'ok'});
-  });
-  await contains('Alpha wins a new contract');
-  await page.waitForFunction(() => document.querySelector('[data-feed="market-news"]')?.textContent.trim().endsWith('0'));
-  await page.evaluate(() => window.calls.at(-1).complete({news:[window.finalCopy],'market-news':[window.publisher]},
-    Object.fromEntries(window.alerts.FEEDS.map(f=>[f.id,['news','nse-filings'].includes(f.id)?'failed':'ok']))));
-  await page.waitForFunction(() => document.querySelector('[data-feed="market-news"]')?.textContent.trim().endsWith('1'));
-  assert((await page.locator('#root tbody').innerText()).includes('Saved current-day alert'),
-    'settled evidence from before collection still survives an independent source failure');
-  console.log('PASS final canonical source copies replace provisional copies while prior saved evidence survives failure.');
-
   // Invalidate while an old collection still holds callbacks, with the scope label unchanged.
   await page.evaluate(() => { window.show(); window.oldCall=window.calls.at(-1); window.coverage.useFamilyBook([{ticker:'BBB',name:'Beta Ltd'}]); });
   await page.waitForFunction(() => !document.querySelector('#root tbody')?.textContent.includes('Saved current-day alert'));
@@ -109,7 +95,8 @@ try {
   await page.evaluate(() => window.calls.at(-1).partial({'nse-filings':[window.event('Beta current alert',{ticker:'BBB',company:'Beta Ltd'})]}, {'nse-filings':'ok'}));
   await contains('Beta current alert');
   assert(!(await page.locator('#root tbody').innerText()).includes('Stale Alpha response'));
-  assert((await page.locator('[data-alerts-meta]').innerText()).includes('1 of 1'));
+  assert(!(await page.locator('#root tbody').innerText()).includes('Saved current-day alert'), 'the previous company membership stays excluded');
+  assert.equal(await page.locator('[data-alerts-meta]').count(), 0, 'restoring a report does not restore the removed header badges');
   console.log('PASS same-scope membership changes revoke old rows and reject late callbacks.');
 
   await page.evaluate(() => {
@@ -162,5 +149,66 @@ try {
   await page.evaluate(() => window.calls.at(-1).complete({},Object.fromEntries(window.alerts.FEEDS.map(f=>[f.id,'ok']))));
   await page.waitForFunction(() => !document.querySelector('#root tbody')?.textContent.includes('Corrected live result'));
   console.log('PASS late disk cannot replace a live correction; confirmed empty sources clear old rows.');
+
+  // Completed source reads are not completed presentation: grouping can yield for input long
+  // after every source chip has settled. An obsolete projection must not clear the current one.
+  await page.reload(); await page.waitForFunction(() => window.ready);
+  await page.evaluate(() => { window.holdGrouping = true; window.show(); });
+  await page.waitForFunction(() => window.calls.length === 1 && window.releaseCache);
+  await page.evaluate(() => {
+    window.copies = ['one', 'two'].map(id => window.event(id, {feed:'nse-filings', headline:'Alpha wins a new contract',
+      url:'https://example.test/filing', detail:'Contract awarded today'}));
+    window.okStates = Object.fromEntries(window.alerts.FEEDS.map(f => [f.id, 'ok']));
+    window.calls[0].complete({'nse-filings':window.copies}, window.okStates);
+  });
+  await contains('Alpha wins a new contract');
+  await page.waitForFunction(() => window.groupings?.some(job => job.events.length === 2));
+  assert.equal(await page.locator('[data-alerts-workspace]').getAttribute('aria-busy'), 'true');
+  assert.equal(await page.locator('#root tbody tr[data-row-key]').count(), 2, 'source reports stay usable while grouping');
+  await page.evaluate(() => {
+    window.show();
+    window.calls.at(-1).complete({'nse-filings':[...window.copies, window.event('A separate development', {
+      feed:'nse-filings', url:'https://example.test/separate'})]}, window.okStates);
+  });
+  await contains('A separate development');
+  await page.waitForFunction(() => window.groupings?.some(job => job.events.length === 3));
+  await page.evaluate(async () => {
+    for (const job of window.groupings.filter(job => job.events.length !== 3)) job.release();
+    await new Promise(resolve => requestAnimationFrame(resolve));
+  });
+  assert.equal(await page.locator('[data-alerts-workspace]').getAttribute('aria-busy'), 'true', 'obsolete completion cannot mark a new projection ready');
+  await page.evaluate(() => { window.holdGrouping = false; for (const job of window.groupings) job.release(); });
+  await page.waitForFunction(() => document.querySelector('[data-alerts-workspace]')?.getAttribute('aria-busy') === 'false'
+    && document.querySelectorAll('#root tbody tr[data-row-key]').length === 2);
+  await contains('A separate development');
+  assert.equal(await page.locator('#root').getAttribute('data-alerts-source-count'), '3',
+    'the table callback retains the original source count during incremental repaint');
+  assert.equal(await page.locator('[data-alerts-reading-count]').count(), 0, 'grouping does not restore the removed summary');
+  console.log('PASS grouping readiness follows the current projection; copies fold after completion and distinct developments remain.');
+
+  await page.evaluate(() => {
+    window.holdGrouping = true; window.show();
+    window.calls.at(-1).complete({'nse-filings':[...window.copies,
+      window.event('A separate development', {feed:'nse-filings',url:'https://example.test/separate'}),
+      window.event('Latest development', {feed:'nse-filings',url:'https://example.test/latest'})]}, window.okStates);
+  });
+  await contains('Latest development');
+  await page.waitForFunction(() => window.groupings.some(job => job.events.length === 4));
+  await page.evaluate(async () => {
+    window.tab.destroy();
+    for (const job of window.groupings) job.release();
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    window.previousGroupings = window.groupings.length;
+    window.skipSeed = true;
+    window.show();
+  });
+  await page.waitForFunction(() => window.groupings.length > window.previousGroupings);
+  assert.equal(await page.locator('[data-alerts-workspace]').getAttribute('aria-busy'), 'true');
+  await page.evaluate(() => { window.holdGrouping = false; for (const job of window.groupings) job.release(); });
+  await page.waitForFunction(() => document.querySelector('[data-alerts-workspace]')?.getAttribute('aria-busy') === 'false'
+    && document.querySelectorAll('#root tbody tr[data-row-key]').length === 3);
+  assert.equal(await page.locator('#root').getAttribute('data-alerts-source-count'), '4');
+  assert.equal(await page.locator('[data-alerts-history-summary]').count(), 0, 'returning does not restore Till Today');
+  console.log('PASS returning to an unchanged retained report restarts cancelled grouping and settles the complete counts.');
   assert.deepEqual(errors, []);
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }

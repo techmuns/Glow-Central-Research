@@ -1,5 +1,6 @@
 // Real Sattva app and saved portfolio. All requests remain on the local fixture server.
 import assert from 'node:assert/strict';
+import { tmpdir } from 'node:os';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { resolve, extname, sep } from 'node:path';
@@ -34,16 +35,9 @@ try {
   await page.route('**/api/bulk-block-deals/refresh*', route => route.fulfill({ json: { ok: true, dispatched: false } }));
   await page.route('**/*', route => new URL(route.request().url()).origin === base ? route.fallback() : route.abort());
   await page.goto(`${base}/#/research/insider-trades?scope=portfolio`);
-  // This deployment keeps the Bulk/Block head to one quiet freshness label, so there is no
-  // `[data-exchange-status]` line on this tab to read the source names off — `verify-exchange-
-  // deals-ui.mjs` asserts its absence. Wait on the rows themselves instead, which is the thing
-  // this check is actually about, and read source health where it lives here: the provenance panel.
-  await page.waitForFunction(() => document.querySelectorAll('[data-insider-source-link]').length > 0);
+  await page.locator('[data-insider-source-link]').first().waitFor();
   const period = () => page.getByRole('combobox', { name: 'Trade period', exact: true });
   assert.equal(await period().inputValue(), '30');
-  for (const name of ['Trade category', 'Exchange', 'Category', 'Transaction type', 'Mode']) assert(await page.getByRole('combobox', { name, exact: true }).isVisible());
-  assert.equal(await page.getByRole('columnheader', { name: 'Exchange', exact: true }).count(), 1);
-  assert(await page.locator('[data-insider-source-link]').count());
   const expected = async scope => page.evaluate(async scope => {
     const { insider } = await import('/js/data/filings.js');
     const { filterByScope } = await import('/js/data/scope.js');
@@ -66,6 +60,16 @@ try {
       Number(document.querySelector('[data-row-count]')?.textContent.replace(/,/g, '').match(/\d+/)?.[0]) === window.expectedDealCount(scope), scope);
   };
   await settleCaptures(); await assertCount('portfolio');
+  // Check the popup after opening source arrivals have finished replacing the initial table.
+  assert.equal(await page.getByRole('combobox', { name: 'Category', exact: true }).count(), 0);
+  assert(await page.getByRole('combobox', { name: 'Trade category', exact: true }).isVisible());
+  assert.equal(await page.locator('[data-watch-toggle]').count(), 0);
+  for (const name of ['Exchange', 'Transaction type', 'Mode']) assert(!await page.getByRole('combobox', { name, exact: true }).isVisible());
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  for (const name of ['Exchange', 'Transaction type', 'Mode']) assert(await page.getByRole('combobox', { name, exact: true }).isVisible());
+  await page.getByRole('dialog', { name: 'Filters', exact: true }).getByRole('button', { name: 'Done', exact: true }).click();
+  assert.equal(await page.getByRole('columnheader', { name: 'Exchange', exact: true }).count(), 1);
+  assert(await page.locator('[data-insider-source-link]').count());
   const portfolioCount = await count();
   for (const [value, range] of [['today', 'today'], ['7', '7d'], ['3m', '3m'], ['1y', '1y'], ['all', 'all']]) {
     await period().selectOption(value);
@@ -109,26 +113,38 @@ try {
   assert(Object.values(exported.at(-1)).includes('NSE'), 'Excel includes exchange');
   payload = { ...payload, updatedAt: '2026-09-10T04:02:00Z', sources: payload.sources.map(s => s.id === 'bse-bulk' ? { ...s, ok: false, error: 'Test outage' } : s) };
   await page.clock.fastForward(61000);
-  await page.waitForFunction(async () => (await import('/js/data/exchange-deals.js')).meta()?.summary?.includes('Test outage'));
-  // The snapshot is adopted before refresh finishes its dispatch check and notifies the UI.
-  // Await that same in-flight refresh so a fast click cannot open the previous paint's metadata.
-  await page.evaluate(async () => { await (await import('/js/data/exchange-deals.js')).refresh(); });
+  await page.waitForFunction(async () => (await import('/js/data/filings.js')).insider.meta().exchanges?.summary.includes('Test outage'));
   await page.locator('[data-filings-method]').click();
-  assert.match(await page.locator('#modal-content').innerText(), /Test outage/, 'a failed source is named in the provenance panel');
-  await page.locator('[data-modal-close]').first().click();
+  await page.getByRole('dialog').getByText(/Test outage/).waitFor();
+  const supplement = await page.evaluate(async () => (await import('/js/data/filings.js')).insider.meta().disclosuresStatus);
+  if (supplement) await page.getByRole('dialog').getByText(supplement, { exact: false }).first().waitFor();
+  assert((await page.getByRole('dialog').innerText()).includes('Screener.in'), 'the checked capture source is disclosed');
+  for (const size of [{width:1440,height:1000},{width:390,height:844}]) {
+    await page.setViewportSize(size);
+    const close = await page.getByRole('dialog').locator('[data-modal-close]').boundingBox();
+    assert(close && close.y >= 0 && close.y + close.height <= size.height,
+      'complete source coverage keeps the close button inside the viewport');
+  }
+  await page.setViewportSize({width:1440,height:1000});
+  await page.getByRole('dialog').locator('[data-modal-close]').click();
   assert(await page.getByText('NEW SATTVA DEAL', { exact: true }).count(), 'failed source retains visible evidence');
   await search().fill(''); await period().selectOption('30');
-  await page.screenshot({ path: '/tmp/sattva-deals-desktop.png', fullPage: true });
+  await search().blur();
+  await page.screenshot({ path: `${tmpdir()}/glow-deals-desktop.png`, fullPage: true });
   await page.evaluate(() => window.sattvaTheme.toggle());
-  await page.screenshot({ path: '/tmp/sattva-deals-dark.png', fullPage: true });
+  await page.evaluate(async () => {
+    await Promise.all(document.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity)
+      .map(animation => animation.finished.catch(() => {})));
+  });
+  await page.screenshot({ path: `${tmpdir()}/glow-deals-dark.png`, fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-  await page.screenshot({ path: '/tmp/sattva-deals-mobile.png', fullPage: true });
+  await page.screenshot({ path: `${tmpdir()}/glow-deals-mobile.png`, fullPage: true });
   await period().selectOption('today');
   await page.clock.setSystemTime(new Date('2026-09-11T00:01:00+05:30'));
   await page.clock.fastForward(61000);
   await page.waitForFunction(() => !document.body.textContent.includes('NEW SATTVA DEAL'));
   assert.equal(await period().inputValue(), 'today', 'Today advances at midnight without a new capture revision');
   assert.deepEqual(errors, []);
-  console.log('PASS Sattva deals: portfolio/universe/watchlist, six filters, retained history, URL reload, automatic arrivals, Excel, failures, midnight, themes and mobile');
+  console.log('PASS Sattva deals: portfolio/universe/watchlist, five filters, retained history, URL reload, automatic arrivals, Excel, failures, midnight, themes and mobile');
 } finally { await browser.close(); server.closeAllConnections(); await new Promise(done => server.close(done)); }

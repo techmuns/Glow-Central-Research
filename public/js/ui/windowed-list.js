@@ -35,44 +35,53 @@ export function rowGeometry(count, estimate = 72) {
 
 export function mountWindowedList({ scroller, content, items, key, renderRows, renderParts = null, spacerHtml,
   rowSelector, estimateHeight = 72, initialKey = null, onScrollActivity = null, onWindow = null,
-  minRows = 40, maxRows = 100, overscan = 8, patchRow = null }) {
+  minRows = 40, maxRows = 100, overscan = 8, patchRow = null, viewportInset = () => 0, pageScroll = false }) {
+  // Page-sized card grids share the measured window without adding a nested scroll container.
+  const scrollTarget = pageScroll ? window : scroller;
+  const scrollTop = () => pageScroll ? window.scrollY : scroller.scrollTop;
+  const viewportHeight = () => pageScroll ? innerHeight : scroller.clientHeight;
+  const viewportBox = () => pageScroll ? { top: 0, left: 0 } : scroller.getBoundingClientRect();
+  const setScrollTop = top => {
+    if (pageScroll) window.scrollTo({ top: Math.max(0, top), behavior: 'instant' });
+    else scroller.scrollTop = top;
+  };
+  const previousOverflowAnchor = scroller.style.overflowAnchor;
   const rendered = new Map(); // only mounted nodes and their last generated markup
   const measured = new Map(); // at most one small measurement per currently retained record
   let rows = items, geometry, start = -1, end = 0, frame = 0, measureFrame = 0, disposed = false;
   let width = scroller.clientWidth;
+  let draggingScrollbar = false;
+  let settleScrollbar = false;
+  let pendingRows = null;
   const head = () => content === scroller ? 0 : Math.max(0,
-    content.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop);
-  const rowTop = () => Math.max(0, scroller.scrollTop - head());
+    content.getBoundingClientRect().top - viewportBox().top + scrollTop());
+  const rowTop = () => Math.max(0, scrollTop() - head());
   const resetGeometry = () => {
     geometry = rowGeometry(rows.length, estimateHeight);
     rows.forEach((row, i) => { const old = measured.get(String(key(row))); if (old?.row === row) geometry.set(i, old.height); });
   };
-  // THE RECORD AT THE READING BOUNDARY, and how far inside it the boundary sits — read from the
-  // geometry, never from the DOM. Every paint leaves the geometry describing what it painted (see
-  // settle), so this is the row the reader last saw at the boundary even when the DOM has moved on
-  // since: a NEW badge above the viewport expiring, a row re-rendered taller. Anchoring on the DOM
-  // would keep whatever that change did to the reader's row; anchoring here undoes it.
-  const anchor = () => { const top = rowTop(), index = geometry.indexAt(top); return { index, inside: top - geometry.offset(index) }; };
-  // Put the held record back at its offset. Written only when it would move the scroller: a write
-  // that changes nothing still raises a scroll event, and the callers coalesce their paints on quiet.
-  function restore(held) {
-    const target = head() + geometry.offset(held.index) + held.inside;
-    if (Math.abs(target - scroller.scrollTop) >= 0.5) scroller.scrollTop = target;
-  }
+  // Preserve the first readable row. A sticky header can hide the geometric top row;
+  // holding that hidden row lets arrivals below it push the visible record down.
+  const anchor = () => {
+    const position = scrollTop() - head() + viewportInset();
+    // A page can still be above the grid. Retain that leading space so measuring row zero
+    // does not scroll the toolbar out of view when the reader returns to the page top.
+    const top = pageScroll ? position : Math.max(0, position), index = geometry.indexAt(Math.max(0, top));
+    return { index, inside: top - geometry.offset(index) };
+  };
   function spacers() {
     const top = content.querySelector('[data-window-spacer="top"]');
     const bottom = content.querySelector('[data-window-spacer="bottom"]');
     if (top) top.style.height = `${geometry.offset(start)}px`;
     if (bottom) bottom.style.height = `${geometry.offset(rows.length) - geometry.offset(end)}px`;
   }
-  // Bring the geometry of the mounted rows into line with what the DOM is showing, now. One
-  // layout read for the whole window; the spacers are written only if a height moved.
-  function measureMounted() {
-    if (disposed || !rows.length) return false;
-    // Read all geometry before writing spacer heights: no per-row read/write layout loop.
-    const heights = [...content.querySelectorAll(rowSelector)].map(el => el.getBoundingClientRect().height);
+  function restore(held) {
+    const target = head() + geometry.offset(held.index) + held.inside - viewportInset();
+    if (Math.abs(target - scrollTop()) >= 0.5) setScrollTop(target);
+  }
+  function measureBoxes(boxes) {
     let changed = false;
-    heights.forEach((height, n) => {
+    boxes.forEach(({ height }, n) => {
       const index = start + n, row = rows[index];
       if (!row || height <= 0) return;
       measured.set(String(key(row)), { row, height });
@@ -81,45 +90,75 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
     if (changed) spacers();
     return changed;
   }
-  // PAINT, MEASURE AND PLACE IN ONE TASK. A row the paint mounts carries the estimate until it is
-  // measured — replaced row objects, a fresh mount, a resize, a window moved by scrolling — while
-  // the DOM renders it at its real height at once. Measuring on the next frame left a gap in which
-  // the geometry described rows the reader had never seen at that height, and anything that read
-  // the anchor in that gap read the wrong record: a scroll before the frame, an update, or the
-  // deferred measurement itself once the scroller had moved. That is the All Alerts failure on a
-  // third of capture branches ("visible row moved 111px / 195px during refresh"), traced on
-  // 17 September 2026: an update that replaced every row object landed while the reader was at
-  // the bottom of the history, so rows 0–39 were back at the 120px estimate; the scroll to the top
-  // painted them at 82–99px and deferred the measurement; the suite's scroll to 900 landed in that
-  // gap; and the deferred measure() re-anchored on the estimate — row 7 at 20px inside, rows above
-  // the one the reader was on — and wrote scrollTop 705 for 900. The refresh then preserved the
-  // wrong row faithfully, so the assertion read it as movement during the refresh.
-  // So the geometry is brought into line in the same task as the paint, and the held record is put
-  // back from measured heights before anything else can run. The layout read costs nothing extra:
-  // the placement forces one anyway, and a paint that mounts nothing new returns before reading.
+  // Adopt natural heights before another task can read an estimated anchor.
+  // During a thumb drag, retain the frozen scroll range until release.
   function settle(index, { force = false, held = null } = {}) {
-    if (!paint(index, force)) return false;
-    measureMounted();
-    if (held) restore(held);
-    return true;
+    if (!paint(index, force)) return;
+    if (!draggingScrollbar) {
+      const changed = measureBoxes([...content.querySelectorAll(rowSelector)].map(el => el.getBoundingClientRect()));
+      if (held) restore(held);
+      if (changed) scheduleViewport();
+    }
   }
-  function place(index, inside) { settle(index, { force: true, held: { index, inside } }); }
-  // The DOM changed under a geometry that matched it — a badge added or removed, a font arriving,
-  // a resize. The anchor still names the row the reader was looking at; measure, then put it back.
   function measure() {
     measureFrame = 0;
-    if (disposed || !rows.length) return;
-    const held = anchor();
-    const changed = measureMounted();
-    if (changed && scroller.scrollTop > 0) restore(held);
-    onWindow?.(start, rows.length);
+    // Native thumb dragging maps pointer movement to the scroll range at grab time. Changing
+    // that range and writing scrollTop on each newly measured window makes the thumb lag behind
+    // the pointer. Keep painting records during the gesture; settle their heights on release.
+    if (disposed || !rows.length || draggingScrollbar) return;
+    let held = anchor();
+    // Read all geometry before writing spacer heights: no per-row read/write layout loop.
+    const boxes = [...content.querySelectorAll(rowSelector)].map(el => el.getBoundingClientRect());
+    if (settleScrollbar) {
+      // The drag displayed natural heights against frozen estimates. Keep the row actually
+      // under the reader's eyes when adopting those heights, rather than the estimated row.
+      const top = viewportBox().top + viewportInset();
+      const visible = boxes.findIndex(box => box.bottom > top);
+      if (visible >= 0) held = { index: start + visible, inside: top - boxes[visible].top };
+      settleScrollbar = false;
+    }
+    const changed = measureBoxes(boxes);
+    if (changed && scrollTop() > 0) restore(held);
+    onWindow?.(start, pendingRows?.length ?? rows.length);
     // Measuring shorter rows can expose an unpainted part of the viewport without another
     // user scroll. Recheck coverage on the next frame after the spacer/anchor correction.
     if (changed) scheduleViewport();
+    if (pendingRows) {
+      const next = pendingRows;
+      pendingRows = null;
+      update(next);
+    }
   }
   const scheduleMeasure = () => { if (!measureFrame && !disposed) measureFrame = requestAnimationFrame(measure); };
+  function onPointerDown(event) {
+    if (event.button !== 0 || event.target !== scroller || scroller.scrollHeight <= scroller.clientHeight) return;
+    const box = viewportBox();
+    const left = box.left + scroller.clientLeft;
+    const right = left + scroller.clientWidth;
+    const top = box.top + scroller.clientTop;
+    if (event.clientY < top || event.clientY >= top + scroller.clientHeight) return;
+    const style = getComputedStyle(scroller);
+    const gutter = scroller.offsetWidth - scroller.clientWidth
+      - (parseFloat(style.borderLeftWidth) || 0) - (parseFloat(style.borderRightWidth) || 0);
+    // Native overlay thumbs hit the scroller itself but sit inside its client box. Ordinary
+    // row/control presses still target their own elements and were excluded above.
+    const overlayEdge = gutter < 1 && (style.direction === 'rtl'
+      ? event.clientX <= left + 16 : event.clientX >= right - 16);
+    if (event.clientX < left || event.clientX >= right || overlayEdge) draggingScrollbar = true;
+  }
+  function endScrollbarDrag() {
+    if (!draggingScrollbar) return;
+    draggingScrollbar = false;
+    settleScrollbar = true;
+    scheduleMeasure();
+  }
   function paint(index, force = false) {
-    const count = Math.max(minRows, Math.min(maxRows, Math.ceil(scroller.clientHeight / 40) + overscan * 2));
+    const visibleHeight = Math.max(0, viewportHeight() - (pageScroll ? Math.max(0, head() - scrollTop()) : 0));
+    const lastVisible = geometry.indexAt(rowTop() + visibleHeight);
+    const needed = pageScroll ? lastVisible - index + 1 + Math.min(overscan, index)
+      + Math.min(overscan, Math.max(0, rows.length - lastVisible - 1))
+      : Math.ceil(viewportHeight() / 40) + overscan * 2;
+    const count = Math.max(minRows, Math.min(maxRows, needed));
     const next = Math.max(0, Math.min(Math.max(0, rows.length - count), index - overscan));
     if (!force && next === start && end === Math.min(rows.length, next + count)) return false;
     start = next; end = Math.min(rows.length, start + count);
@@ -168,14 +207,11 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
       syncListDOM(content, topHtml + renderRows(rows, start, end) + bottomHtml, start + 1);
       rendered.clear();
     }
-    if (active?.isConnected && content.contains(active)) active.focus({ preventScroll: true });
-    else if (active) {
+    if (active) {
       const replacement = [...content.querySelectorAll(rowSelector)].find(el => (el.dataset.rowKey || el.dataset.newsKey) === activeKey);
       (replacement?.querySelectorAll('a,button,input,[tabindex]')[focusIndex] || scroller).focus({ preventScroll: true });
     }
-    onWindow?.(start, rows.length);
-    // The same-task measurement above is what places the rows; this catches what lands after
-    // the task — a caller's mutation observer decorating the rows it was just handed.
+    onWindow?.(start, pendingRows?.length ?? rows.length);
     scheduleMeasure();
     return true;
   }
@@ -183,49 +219,77 @@ export function mountWindowedList({ scroller, content, items, key, renderRows, r
     if (frame || disposed) return;
     frame = requestAnimationFrame(() => {
       frame = 0;
-      const held = scroller.scrollTop > 0 ? anchor() : null;
-      const index = held ? held.index : geometry.indexAt(rowTop());
-      const lastVisible = geometry.indexAt(rowTop() + scroller.clientHeight);
-      if (index < start + overscan / 2 || lastVisible >= end - overscan / 2) settle(index, { held });
+      const index = geometry.indexAt(rowTop());
+      const lastVisible = geometry.indexAt(rowTop() + viewportHeight());
+      if (index < start + overscan / 2 || lastVisible >= end - overscan / 2) settle(index, { held: draggingScrollbar ? null : anchor() });
     });
   }
   function onScroll() { onScrollActivity?.(); scheduleViewport(); }
+  function update(next, { resetScroll = false, anchorKey = null, anchorOffset = 0 } = {}) {
+    if (draggingScrollbar && !resetScroll) {
+      const nextByKey = new Map(next.map(row => [String(key(row)), row]));
+      if (rows.every(row => nextByKey.has(String(key(row))))) {
+        // The caller has already adopted the complete source model for counts/search/export.
+        // Delay only additions/reordering in this rendered view. Patch existing identities now
+        // so corrections (including changes to private content) are never held until release.
+        pendingRows = next;
+        rows = rows.map(row => nextByKey.get(String(key(row))));
+        paint(geometry.indexAt(rowTop()), true);
+        return;
+      }
+    }
+    // Explicit filters and removals take precedence over the gesture: revoked records must
+    // disappear immediately, and an older queued presentation must never restore them.
+    pendingRows = null;
+    draggingScrollbar = false;
+    const held = anchorKey != null ? { index: 0, inside: anchorOffset }
+      : !resetScroll && scrollTop() > 0 ? anchor() : null;
+    const heldKey = anchorKey != null ? String(anchorKey) : held && rows[held.index] ? String(key(rows[held.index])) : null;
+    rows = next;
+    const keys = new Set(rows.map(row => String(key(row))));
+    for (const k of measured.keys()) if (!keys.has(k)) measured.delete(k);
+    resetGeometry();
+    if (resetScroll) setScrollTop(0);
+    const nextIndex = heldKey == null ? -1 : rows.findIndex(row => String(key(row)) === heldKey);
+    if (nextIndex >= 0) {
+      // Source updates can insert rows or replace their objects without changing the record
+      // being read. Preserve that record and its within-row offset across new measurements.
+      settle(nextIndex, { force: true, held: { index: nextIndex, inside: held.inside } });
+    } else settle(geometry.indexAt(rowTop()), { force: true });
+  }
   resetGeometry();
   scroller.style.overflowAnchor = 'none';
-  scroller.addEventListener('scroll', onScroll, { passive: true });
+  scrollTarget.addEventListener('scroll', onScroll, { passive: true });
+  scroller.addEventListener('pointerdown', onPointerDown, { passive: true });
+  document.addEventListener('pointerup', endScrollbarDrag, true);
+  document.addEventListener('pointercancel', endScrollbarDrag, true);
+  window.addEventListener('blur', endScrollbarDrag);
   const initialIndex = initialKey == null ? -1 : rows.findIndex(row => String(key(row)) === initialKey);
-  if (initialIndex >= 0) place(initialIndex, 0);
-  else settle(geometry.indexAt(rowTop()), { force: true });
+  if (initialIndex >= 0) setScrollTop(geometry.offset(initialIndex));
+  settle(initialIndex >= 0 ? initialIndex : geometry.indexAt(rowTop()), { force: true });
+  if (initialIndex >= 0) setScrollTop(head() + geometry.offset(initialIndex));
   const observer = new ResizeObserver(() => {
     if (width !== scroller.clientWidth) {
       const held = anchor(); width = scroller.clientWidth;
       measured.clear(); resetGeometry();
-      place(held.index, held.inside);
+      settle(held.index, { force: true, held });
     }
     scheduleMeasure();
     scheduleViewport();
   });
   observer.observe(scroller); observer.observe(content);
   return {
-    update(next, { resetScroll = false } = {}) {
-      const held = !resetScroll && scroller.scrollTop > 0 ? anchor() : null;
-      const heldKey = held && rows[held.index] ? String(key(rows[held.index])) : null;
-      rows = next;
-      const keys = new Set(rows.map(row => String(key(row))));
-      for (const k of measured.keys()) if (!keys.has(k)) measured.delete(k);
-      resetGeometry();
-      if (resetScroll) scroller.scrollTop = 0;
-      const nextIndex = heldKey == null ? -1 : rows.findIndex(row => String(key(row)) === heldKey);
-      if (nextIndex >= 0) {
-        // Source updates can insert rows or replace their objects without changing the record
-        // being read. Preserve that record and its within-row offset across new measurements.
-        place(nextIndex, held.inside);
-      } else settle(geometry.indexAt(rowTop()), { force: true });
-    },
-    refresh() { settle(geometry.indexAt(rowTop()), { force: true, held: scroller.scrollTop > 0 ? anchor() : null }); },
+    update,
+    refresh() { settle(geometry.indexAt(rowTop()), { force: true, held: scrollTop() > 0 ? anchor() : null }); },
     destroy() {
       disposed = true;
-      observer.disconnect(); scroller.removeEventListener('scroll', onScroll);
+      pendingRows = null;
+      if (pageScroll) scroller.style.overflowAnchor = previousOverflowAnchor;
+      observer.disconnect(); scrollTarget.removeEventListener('scroll', onScroll);
+      scroller.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('pointerup', endScrollbarDrag, true);
+      document.removeEventListener('pointercancel', endScrollbarDrag, true);
+      window.removeEventListener('blur', endScrollbarDrag);
       cancelAnimationFrame(frame); cancelAnimationFrame(measureFrame); measured.clear(); rendered.clear();
     },
   };

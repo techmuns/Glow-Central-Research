@@ -102,7 +102,7 @@ function capState() {
   const watched = safe(() => watchlistCompanies().map((c) => c.ticker).filter(Boolean), []);
 
   const context = {
-    dashboard: 'sattva-central-research',
+    dashboard: 'glow-central-research',
     route: cut(typeof location === 'undefined' ? null : location.hash || '#/', 200),
     workspace: state.workspace ?? null,
     tab: state.tab ?? null,

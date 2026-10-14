@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { assertGlowWatchlist } from './lib/screener-upcoming.mjs';
 // Authenticated Screener read -> immutable Actions artifact. No cookies, credentials, HTML or
 // account details are logged or written; the only output is the validated public concall index.
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -34,7 +33,6 @@ import { readScreenerConcallCollector } from '../worker/screener-concalls-collec
 import { writeDocumentCheckpoint, recognisedCalendar } from './lib/concall-document-checkpoint.mjs';
 import { summaryResponseError } from './lib/read-screener-summary.mjs';
 
-assertGlowWatchlist();
 const output = process.argv[2];
 if (!output) throw Error('Provide a staging artifact output path');
 const documentOutput = `${output}.documents.gz`;
@@ -312,7 +310,7 @@ async function main() {
         await page.waitForTimeout(2500 * attempt);
       }
     }
-    throw Error('configured Screener dashboard unavailable');
+    throw Error('S Screen dashboard unavailable');
   };
   const portfolioUpcoming = await readPortfolioUpcoming();
 

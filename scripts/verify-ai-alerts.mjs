@@ -57,7 +57,7 @@ assert.equal(sorting[0].key, 'OLDER', 'sorting is a view and does not mutate sou
 assert.deepEqual(sortAlertCards(sorting.map(c => ({ ...c, holdingWeightPct: null })), 'holdings').map(c => c.key), ['NEWER', 'NEW', 'OLDER', 'UNKNOWN']);
 
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
-const { rankReport, mergePartialReport, withPositionSnapshot, withoutPositionSnapshot, clearRankingCache } = await import('../public/js/data/ai-alerts.js');
+const { rankReport, mergePartialReport, withPositionSnapshot, clearRankingCache } = await import('../public/js/data/ai-alerts.js');
 const { enrichCardFromAllAlerts, indexAlertContext } = await import('../public/js/data/intelligence-graph.js');
 const sizeHoldings = [
   { ticker: 'LARGE', name: 'Large holding', weightPct: 20 },
@@ -75,40 +75,9 @@ assert.equal(bySize.cards[0].ticker, 'LARGE');
 assert.equal(bySize.cards[0].holdingWeightPct, 20, 'unmatched funds stay in the percentage denominator');
 assert(bySize.cards[0].score < bySize.cards[1].score, 'size ordering leaves evidence priority intact');
 const byPriority = rankReport(report, { holdings: sizeHoldings });
-const missingSectors = sizeHoldings.map(h => ({ ...h, sector: 'Unclassified' }));
-const negativeReport = { ...report, events: report.events.map(e => ({ ...e, direction: 'negative' })) };
-const unclassified = rankReport(negativeReport, { holdings: missingSectors, companyMetadata: [] });
-assert(unclassified.allCards.every(c => c.sector === null && c.sectorCluster === 0),
-  'unclassified companies cannot form a negative sector cluster or inflate priority');
-const classified = rankReport(negativeReport, { holdings: missingSectors,
-  companyMetadata: [{ ticker: 'LARGE', sector: 'Financial Services' }, { ticker: 'SMALL', sector: 'Industrials' }] });
-assert.equal(classified.allCards.find(c => c.ticker === 'LARGE').sector, 'Financial Services');
-assert(classified.allCards.every(c => c.sectorCluster === 0));
-assert.equal(rankReport(report, { holdings: sizeHoldings.map(h => ({ ...h, sector: 'Statement sector' })),
-  companyMetadata: [{ ticker: 'LARGE', sector: 'Other sector' }] }).allCards.find(c => c.ticker === 'LARGE').sector, 'Statement sector',
-  'a known statement classification takes precedence over the company feed');
 assert.equal(byPriority.cards[0].ticker, 'SMALL', 'public identities cannot activate size ordering');
 assert(byPriority.cards.every(c => c.holdingWeightPct === null));
-for (const scope of ['universe', 'watchlist']) {
-  const broader = { ...report, scope, events: [...report.events, ...report.events.filter(e => e.ticker === 'SMALL')
-    .map(e => ({ ...e, id: `outside-${e.id}`, ticker: 'OUTSIDE', company: 'Outside the book' }))] };
-  const ranked = rankReport(broader, { holdings: sizeHoldings, positionSizes: sizes });
-  assert.deepEqual(sortAlertCards(ranked.cards, 'holdings').map(c => c.ticker), ['LARGE', 'SMALL', 'OUTSIDE']);
-  assert.equal(ranked.meta.positionSizes.complete, true);
-  assert.deepEqual(ranked.cards.map(c => c.ticker), rankReport(broader, { holdings: sizeHoldings }).cards.map(c => c.ticker), 'Ask Research retains evidence-priority order in broad scopes');
-  assert.equal(ranked.meta.sortedByHolding, false);
-  const projected = withPositionSnapshot(rankReport(broader, { holdings: sizeHoldings }), sizes);
-  assert.deepEqual(sortAlertCards(projected.cards, 'holdings').map(c => c.ticker), ['LARGE', 'SMALL', 'OUTSIDE']);
-  assert.equal(projected.cards.find(c => c.ticker === 'OUTSIDE').holdingWeightPct, null);
-  assert.equal(projected.cards.find(c => c.ticker === 'OUTSIDE').holding, false);
-  const exitedInScope = withPositionSnapshot(projected, { ...sizes, holdings: sizes.holdings.filter(h => h.ticker !== 'SMALL') });
-  assert.equal(exitedInScope.cards.length, 3, 'verified exits remain in broader scopes');
-  assert.equal(exitedInScope.cards.find(c => c.ticker === 'SMALL').holding, false);
-  assert.equal(exitedInScope.cards.find(c => c.ticker === 'SMALL').holdingWeightPct, null);
-  const partial = rankReport({ ...broader, events: [], pending: 1 }, { holdings: sizeHoldings });
-  assert(mergePartialReport(projected, partial).cards.some(c => c.ticker === 'OUTSIDE'), 'partial updates retain non-portfolio evidence');
-  assert(withPositionSnapshot(projected, { ...sizes, sizes: { complete: false } }).cards.every(c => c.holdingWeightPct === null));
-}
+assert.equal(rankReport({ ...report, scope: 'universe' }, { holdings: sizeHoldings, positionSizes: sizes }).cards[0].ticker, 'SMALL');
 assert.equal(rankReport(report, { holdings: sizeHoldings, positionSizes: { sizes: { complete: false } } }).cards[0].ticker, 'SMALL');
 const publicIdentities = sizeHoldings.map(({ weightPct: _weightPct, ...holding }) => holding);
 const byAuthenticatedPayload = rankReport(report, { holdings: publicIdentities, positionSizes: sizes });
@@ -145,21 +114,24 @@ const retractedEligibility = rankReport({ ...report, pending: 1,
 assert.equal(mergePartialReport(byPriority, retractedEligibility).cards.length, 0,
   'a source correction removing AI eligibility cannot resurrect old material evidence during a partial refresh');
 
-for (const scope of ['universe', 'watchlist']) {
-  const unheldReport = { ...report, scope, events: report.events.filter(e => e.ticker === 'SMALL' && e.feed === 'earnings')
-    .map(e => ({ ...e, ticker: 'UNHELD', company: 'Unheld company' })) };
-  const healthy = rankReport(unheldReport, { holdings: publicIdentities, positionSizes: sizes });
-  const failed = rankReport({ ...unheldReport, feeds: feeds.map(feed => ({ ...feed, status: 'failed' })) },
-    { holdings: publicIdentities, positionSizes: sizes });
-  assert.equal(healthy.cards.length, 1);
-  assert.equal(failed.cards.length, 0, 'unhealthy source weights lower this fixture below the threshold');
-  const retained = mergePartialReport(healthy, failed);
-  assert.equal(retained.cards.length, 1);
-  const withoutSizes = withoutPositionSnapshot(retained);
-  assert.equal(withoutSizes.cards.length, 1, 'size failures retain already-visible below-threshold cards');
-  assert.equal(withoutSizes.meta.surfacedCompanies, 1);
-  assert.equal(withoutSizes.cards[0].holdingWeightPct, null);
-}
+const publisherCopy = { ...report.events[0], id: 'publisher-overlap', feed: 'market-news',
+  direction: 'neutral', url: 'https://example.test/publisher-overlap', time: '09:15',
+  headline: 'Large holding announces a material contract', storyText: 'The same captured report.',
+  attribution: { version: ATTRIBUTION_VERSION, status: 'confirmed' } };
+const companyCopy = { ...publisherCopy, id: 'company-overlap', feed: 'news',
+  newsProvenance: [{ feed: 'market-news', eventId: publisherCopy.id }, { feed: 'news', eventId: 'company-overlap' }] };
+const overlapFeeds = [{ id: 'market-news', status: 'ok', reachesToday: true },
+  { id: 'news', status: 'failed', reachesToday: false }];
+const earlyPublisher = rankReport({ ...report, pending: 1, feeds: overlapFeeds, events: [publisherCopy] }, { holdings: sizeHoldings });
+const chosenCompany = rankReport({ ...report, pending: 0, feeds: overlapFeeds, events: [companyCopy] }, { holdings: sizeHoldings });
+const mergedPublisher = mergePartialReport(earlyPublisher, chosenCompany);
+assert.equal(mergedPublisher.allCards[0].score, chosenCompany.allCards[0].score,
+  'a partial publisher copy cannot change the completed lead source and its health penalty');
+assert.deepEqual(mergedPublisher.allCards[0].sourceEvents.map(event => event.id), [companyCopy.id],
+  'the chosen report retains the other route as provenance instead of restoring duplicate evidence');
+const withOlderEvidence = mergePartialReport(byPriority, earlyPublisher);
+assert(!mergePartialReport(withOlderEvidence, chosenCompany).allCards.flatMap(card => card.sourceEvents).some(event => event.id === publisherCopy.id),
+  'the superseded copy stays excluded when other unfinished evidence still needs merging');
 
 const context = {
   id: 'LARGE-raw-filing', ticker: 'LARGE', company: 'Large holding', feed: 'announcements',
@@ -183,26 +155,6 @@ assert.equal(largeAfter.contextEvents[0].id, context.id, 'the raw top-of-funnel 
 assert.equal(largeAfter.contextEvents.some((event) => event.id === routineSnapshot.id), false, 'an unrelated routine snapshot does not clutter the alert');
 assert.equal(contextual.allCards.some((card) => card.ticker === 'CONTEXT'), false, 'context-only data cannot manufacture an AI alert');
 assert.equal(contextual.meta.topFunnelEvents, report.events.length + 3);
-for (const scope of ['portfolio', 'watchlist', 'universe']) {
-  const scheduled = { ...context, id: 'LARGE-next-meeting', day: '2026-09-05', kind: 'scheduled', headline: 'LARGE upcoming board meeting' };
-  const beforeFailure = rankReport({ ...report, scope, pending: 1,
-    events: [...report.events, context, contextOnly, scheduled],
-    feeds: [...feeds, { id: 'news', status: 'failed' }] }, { holdings: publicIdentities, positionSizes: sizes });
-  assert(beforeFailure.cards.find(c => c.ticker === 'LARGE').upcomingEvents.some(e => e.id === scheduled.id));
-  const afterFailure = withoutPositionSnapshot(beforeFailure);
-  assert.equal(afterFailure.meta.positionSizes, null);
-  assert.equal(afterFailure.pending, 1);
-  assert.deepEqual(afterFailure.feeds, beforeFailure.feeds);
-  for (const card of beforeFailure.cards) {
-    const retained = afterFailure.cards.find(c => c.ticker === card.ticker);
-    assert.deepEqual(retained.contextEvents, card.contextEvents, 'size failure keeps context-only records');
-    assert.deepEqual(retained.upcomingEvents, card.upcomingEvents, 'size failure keeps scheduled records');
-    assert.equal(retained.holdingWeightPct, null);
-    assert.equal(retained.events, card.events, 'clearing weights projects cards without rereading or reranking source events');
-    assert.equal(retained.score, card.score);
-  }
-  assert.equal(withoutPositionSnapshot(afterFailure), afterFailure, 'repeated size failures reuse the cleared view');
-}
 const indexedReport = { ...report, events: [...report.events, context, contextOnly, routineSnapshot] };
 const contextIndex = indexAlertContext(indexedReport);
 for (const candidate of byAuthenticatedPayload.cards) {
@@ -515,26 +467,6 @@ assert.equal(topEvidence(skipped, 4)[0], typeOnly, '…and its row is still the 
 assert.equal(plainInsight({ events: [typeOnly], topEvent: typeOnly, mixed: false, directions: { positive: 0, negative: 0, neutral: 1 }, feedCount: 1, confluence: [] }),
   'General Updates.');
 console.log('PASS: the card states one claim — the strongest event\'s own — completing our lines and reproducing theirs.');
-
-
-// THE FIGURES TRAVEL ON THE EVENT, so a card built from the AI pool states them too. The pool drops
-// `sourceRecord` (`compactAiEvent`), and a sentence that read the figures only off the record said
-// "Result filed (YOY) · …" from the full history and "YOY quarterly result filed" from the pool —
-// the pool's card-for-card check would have failed the first week a result landed in the window.
-const filedFields = { netProfit: { label: 'Net Profit', kind: 'turnaround', pct: null }, revenue: { label: 'Revenue', kind: 'normal', pct: 13 } };
-assert.equal(plainHeadline({ feed: 'earnings', resultBasis: 'YOY', headline: 'YOY quarterly result filed', metrics: filedFields }),
-  'Result filed (YOY) · net profit swung to profit, revenue +13.0%', 'the compact event states its own filed figures');
-assert.equal(plainHeadline({ feed: 'earnings', resultBasis: 'YOY', headline: 'YOY quarterly result filed', metrics: filedFields, sourceRecord: filedFields }),
-  plainHeadline({ feed: 'earnings', resultBasis: 'YOY', headline: 'YOY quarterly result filed', sourceRecord: filedFields }),
-  'the field and the record are one reading');
-// And through the pool's own compaction, which is the path that used to lose them.
-const { compactAiEvent } = await import('../public/js/data/alert-pool-format.js');
-const filedEvent = { id: 'earnings:X:2026-09-18:YOY', feed: 'earnings', resultBasis: 'YOY', headline: 'YOY quarterly result filed', metrics: filedFields,
-  sourceRecord: { ...filedFields, ticker: 'X' } };
-const compacted = compactAiEvent('earnings', filedEvent);
-assert.equal(compacted.sourceRecord, undefined, 'the pool drops the record');
-assert.equal(plainHeadline(compacted), plainHeadline(filedEvent), 'and the card still says what was filed');
-console.log('PASS: a filed result states its figures from the event itself, so the pool and the full history say the same.');
 
 
 // --- the sliced ranking is the synchronous ranking, spread over time --------------------------

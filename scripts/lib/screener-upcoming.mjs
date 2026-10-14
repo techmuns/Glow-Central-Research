@@ -1,4 +1,4 @@
-// Pure parser for the Upcoming panel on the authenticated configured Screener dashboard. Publisher HTML is
+// Pure parser for the Upcoming panel on the authenticated S Screen dashboard. Publisher HTML is
 // data only: nothing in it is executed, followed as an instruction, or allowed to select another
 // watchlist or origin.
 import {
@@ -7,14 +7,9 @@ import {
   validateScreenerUpcomingRows,
 } from '../../public/js/data/screener-upcoming-shared.js';
 
-export const SCREENER_PORTFOLIO_WATCHLIST_ID = process.env.SCREENER_WATCHLIST_ID || '';
-export const SCREENER_PORTFOLIO_WATCHLIST_NAME = process.env.SCREENER_WATCHLIST_NAME || '';
-export const SCREENER_PORTFOLIO_DASHBOARD = `https://www.screener.in/dash/${SCREENER_PORTFOLIO_WATCHLIST_ID}/`;
-export function assertGlowWatchlist() {
-  if (!/^\d+$/.test(SCREENER_PORTFOLIO_WATCHLIST_ID) || !SCREENER_PORTFOLIO_WATCHLIST_NAME.trim())
-    throw Error('Configure the Glow SCREENER_WATCHLIST_ID and SCREENER_WATCHLIST_NAME before collection');
-  if (SCREENER_PORTFOLIO_WATCHLIST_ID === '10850427') throw Error('Sattva’s watchlist cannot be used by Glow');
-}
+export const SCREENER_PORTFOLIO_DASHBOARD = 'https://www.screener.in/dash/10850427/';
+export const SCREENER_PORTFOLIO_WATCHLIST_ID = '10850427';
+export const SCREENER_PORTFOLIO_WATCHLIST_NAME = 'S Screen';
 
 const MONTHS = new Map(
   ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((name, i) => [name.toLowerCase(), i + 1]),

@@ -8,6 +8,7 @@
 // no wrangler, no egress and no second copy of the rules that could drift from the deployed one.
 
 import assert from 'node:assert/strict';
+import { tmpdir } from 'node:os';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
@@ -15,12 +16,15 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { NewsletterStore, NEWSLETTER_OBJECT } from '../worker/newsletter-store.mjs';
 import { NewsletterSchedule, EMAIL_SEND_URL } from '../worker/newsletter-schedule.mjs';
-import { MARKET_ROWS } from '../worker/newsletter-brief.mjs';
 import { handleNewsletter } from '../worker/newsletter.mjs';
 
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
 const { chromium } = await import(`${PW_ROOT}/index.mjs`);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
+// A screenshot taken the instant the form appears catches the 180ms `brief-enter` animation
+// mid-flight, so an opaque panel photographs as a translucent one. Wait for it to settle.
+const settled = async (locator) => { await locator.evaluate((n) => Promise.all(n.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {})))); };
+
 const fixture = (name) => readFileSync(new URL(`./fixtures/newsletter/${name}`, import.meta.url), 'utf8');
 
 // ---- the stand-in Worker ---------------------------------------------------------------------------
@@ -41,18 +45,7 @@ const storage = {
 const emails = [];
 const fetcher = async (input, init = {}) => {
   const url = String(input);
-  if (url.startsWith('https://query1.finance.yahoo.com/')) {
-    const body = JSON.parse(fixture('yahoo-sp500.json'));
-    body.chart.result[0].meta.symbol = decodeURIComponent(new URL(url).pathname.split('/').at(-1));
-    if (MARKET_ROWS.find(r => r.symbol === body.chart.result[0].meta.symbol)?.group === 'india') {
-      const r = body.chart.result[0], meta = r.meta;
-      const day = new Date(meta.regularMarketTime * 1000).toISOString().slice(0, 10);
-      meta.exchangeTimezoneName = 'Asia/Kolkata'; meta.currency = 'INR';
-      meta.regularMarketTime = Date.parse(`${day}T15:31:00+05:30`) / 1000;
-      r.timestamp = r.timestamp.map(t => Date.parse(`${new Date(t * 1000).toISOString().slice(0, 10)}T09:15:00+05:30`) / 1000);
-    }
-    return Response.json(body);
-  }
+  if (url.startsWith('https://query1.finance.yahoo.com/')) return new Response(fixture('yahoo-sp500.json'), { headers: { 'content-type': 'application/json' } });
   if (url.startsWith('https://nsearchives.nseindia.com/')) return new Response(fixture('nse-announcements.xml'), { headers: { 'content-type': 'application/xml' } });
   if (url === EMAIL_SEND_URL) {
     const body = JSON.parse(init.body);
@@ -78,7 +71,6 @@ const object = {
     return { ...out, snapshot: store.snapshot(), schedule: await schedule().status() };
   },
   newsletterSend: (input, token) => schedule().sendNow(input, token),
-  newsletterPdf: (id) => store.document(id),
   newsletterPreview: (input) => schedule().preview(input),
 };
 let offline = false;
@@ -193,7 +185,7 @@ try {
   // The desk copies a column of addresses out of a table, so the paste arrives with NEWLINES — which
   // a single-line field strips rather than separates on, merging six addresses into one that never
   // existed. Driven as a real paste event, because `fill()` sets the value and would not exercise it.
-  const team = ['bharat@glowventures.in', 'gaurav@glowventures.in', 'prateek@glowventures.in', 'ashwini@glowventures.in', 'ankita@glowventures.in', 'yamini@glowventures.in'];
+  const team = ['bharat@example.test', 'gaurav@example.test', 'prateek@example.test', 'ashwini@example.test', 'ankita@example.test', 'yamini@example.test'];
   await page.evaluate((text) => {
     const field = document.querySelector('form[data-brief-form="add"] input[name="email"]');
     const data = new DataTransfer();
@@ -210,34 +202,26 @@ try {
     team.every((e) => held.some((s) => s.email === e)) && held.length === team.length + 1 && held.every((s) => s.addedBy === 'pratik@muns.io'), held.map((s) => s.email).join(','));
   ok('...with the note counting what the SERVER did, not what was sent', /\b6 added\b/.test(await page.locator('.brief-note').innerText()));
   // A batch is one request, so a duplicate inside it is the store's answer rather than a refusal.
-  await page.locator('[data-brief-form="add"] input[name="email"]').fill(`${team[0]}, kiran@glowventures.in`);
+  await page.locator('[data-brief-form="add"] input[name="email"]').fill(`${team[0]}, kiran@example.test`);
   await page.locator('[data-brief-form="add"] button[type="submit"]').click();
   await page.waitForFunction(() => /already on the list/.test(document.querySelector('.brief-note')?.textContent || ''));
   ok('...and re-adding someone already there says so beside the one that was new', store.snapshot().count === team.length + 2 && /added/.test(await page.locator('.brief-note').innerText()));
-  await page.locator('[data-brief-action="remove"][data-email="kiran@glowventures.in"]').click();
+  await page.locator('[data-brief-action="remove"][data-email="kiran@example.test"]').click();
   await page.waitForFunction(() => ![...document.querySelectorAll('.brief-row')].some((r) => r.textContent.includes('kiran@')));
   const before = store.snapshot().count;
-  await page.locator('[data-brief-form="add"] input[name="email"]').fill('ravi@glowventures.in, nope, sana@glowventures.in');
+  await page.locator('[data-brief-form="add"] input[name="email"]').fill('ravi@example.test, nope, sana@example.test');
   await page.locator('[data-brief-form="add"] button[type="submit"]').click();
   await page.locator('.brief-note[data-tone="error"]').waitFor();
   ok('a token that is not an address refuses the WHOLE paste, names it, and keeps the text to correct',
     store.snapshot().count === before
     && (await page.locator('.brief-note').innerText()).includes('"nope"')
-    && (await page.locator('[data-brief-form="add"] input[name="email"]').inputValue()).includes('ravi@glowventures.in'));
+    && (await page.locator('[data-brief-form="add"] input[name="email"]').inputValue()).includes('ravi@example.test'));
   await page.locator('[data-brief-form="add"] input[name="email"]').fill('');
 
   console.log('\n— preview —');
   const [preview] = await Promise.all([context.waitForEvent('page'), page.locator('[data-brief-action="preview"][data-edition="evening"]').click()]);
   await preview.waitForLoadState();
   ok('Preview Evening opens the edition as it would send now, in a new tab', /^Glow Ventures · \d+ updates?/.test(await preview.title()) && (await preview.locator('body').innerText()).includes('GLOW VENTURES') && new URL(preview.url()).searchParams.get('edition') === 'evening');
-  const download = preview.getByRole('link', { name: 'Download PDF' });
-  ok('the preview has a prominent PDF download', await download.isVisible() && (await download.boundingBox()).y < 160);
-  const downloadUrl = new URL(await download.getAttribute('href'));
-  const downloaded = await preview.request.get(new URL(downloadUrl.pathname + downloadUrl.search, preview.url()).href);
-  ok('the download returns a branded PDF without sending an email', downloaded.status() === 200
-    && downloaded.headers()['content-type'] === 'application/pdf'
-    && downloaded.headers()['content-disposition'].includes('glow-')
-    && (await downloaded.body()).subarray(0, 8).toString() === '%PDF-1.4');
   await preview.close();
   ok('...and nothing was emailed from the panel', emails.length === 0);
 
@@ -250,11 +234,7 @@ try {
   tokenConfigured = true;
   await page.locator('[data-brief-action="unsubscribe-me"]').click();
   await page.locator('[data-brief-form="me"]').waitFor();
-  // Unsubscribe removes the READER, and only the reader: the team added above is somebody else's row.
-  ok('Unsubscribe returns the reader to the form and clears the dot, leaving the rest of the desk on the list',
-    !(await page.locator('[data-brief-dot]').isVisible())
-    && !store.snapshot().subscribers.some((s) => s.email === 'pratik@muns.io')
-    && store.snapshot().count === team.length);
+  ok('Unsubscribe removes only the reader and clears the dot', !(await page.locator('[data-brief-dot]').isVisible()) && store.snapshot().count === team.length && !store.snapshot().subscribers.some(row => row.email === 'pratik@muns.io'));
   await page.keyboard.press('Escape');
   offline = true;
   await button().click();
@@ -284,7 +264,8 @@ try {
   await page.locator('[data-brief-form="me"]').waitFor();
   const dark = await panel().evaluate((n) => getComputedStyle(n).backgroundColor);
   ok('the dark panel paints an opaque dark surface', /^rgb\(/.test(dark) && dark !== 'rgb(255, 255, 255)', dark);
-  await page.screenshot({ path: '/tmp/glow-newsletter-dark.png' });
+  await settled(panel());
+  await page.screenshot({ path: `${tmpdir()}/glow-newsletter-dark.png` });
   await page.keyboard.press('Escape');
   await page.evaluate(() => window.sattvaTheme.toggle());
   await page.setViewportSize({ width: 390, height: 844 });
@@ -294,12 +275,32 @@ try {
   ok('on a phone the panel stays inside the viewport and the page does not scroll sideways',
     bounds.x >= 0 && bounds.x + bounds.width <= 391 && bounds.y + bounds.height <= 845 && (await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)), JSON.stringify(bounds));
   ok('...and the button is a 44px touch target', (await button().boundingBox()).height >= 44);
-  await page.screenshot({ path: '/tmp/glow-newsletter-mobile.png' });
+
+  await settled(panel());
+  await page.screenshot({ path: `${tmpdir()}/glow-newsletter-mobile.png` });
   await page.keyboard.press('Escape');
+  // Ask Research is the landing tab and reserves its viewport for the answer, so at 560px and under
+  // the control cluster is flattened into the header row and this button is ordered up beside the
+  // scope toggle at 2rem. That is a deliberate trade against the 44px target above — a fourth 44px
+  // icon does not fit beside the status pill at 390px and wrapping the cluster costs the transcript
+  // a whole 44px row (scripts/verify-research-stream-ui.mjs asserts that reading space). Assert the
+  // exception rather than leaving it to hold by accident of which route this suite happens to open.
+  await page.goto(`${base}/#/research/ask-research?scope=portfolio`);
+  // The header mounts before the destination workspace; compact styling depends on that workspace.
+  await page.locator('.research-workspace').waitFor();
+  await button().waitFor();
+  const compact = await button().evaluate((n) => {
+    const r = n.getBoundingClientRect();
+    return { w: Math.round(r.width), h: Math.round(r.height), label: n.getAttribute('aria-label'), name: (n.textContent || '').trim() };
+  });
+  ok('on Ask Research at 390px it stays visible and named, at the compact size that keeps the answer its row',
+    compact.w >= 32 && compact.h >= 32 && compact.w <= 36 && /Newsletter/.test(compact.label || '') && /Newsletter/.test(compact.name),
+    JSON.stringify(compact));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await button().click();
   await page.locator('[data-brief-form="me"]').waitFor();
-  await page.screenshot({ path: '/tmp/glow-newsletter-desktop.png' });
+  await settled(panel());
+  await page.screenshot({ path: `${tmpdir()}/glow-newsletter-desktop.png` });
 
   ok('zero page errors throughout', errors.length === 0, errors.join(' | '));
 } finally {

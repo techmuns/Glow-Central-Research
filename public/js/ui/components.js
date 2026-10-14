@@ -1,4 +1,5 @@
 import { installColumnOrder } from './column-order.js';
+import { restoreTabOrder, wireTabOrder } from './tab-order.js';
 // ui/components.js — shared UI primitives reused by every tab. Each primitive is a pure
 // function: it returns either a plain HTML string, or `{ html, wire(root) }` when it needs
 // event listeners / measurement after being inserted into the DOM. `wire()` never mutates
@@ -96,22 +97,31 @@ export function scopeSummary({ scope, count, noun = 'companies', book = null }) 
 }
 
 // Scrollable tabs with explicit overflow controls and manual keyboard activation.
-export function tabBar({ tabs, activeId, onSelect, label = 'Sections' }) {
+export function tabBar({ tabs, activeId, onSelect, label = 'Sections', orderKey = null, sharedOrder = null, onOrderChange = null, draft = null }) {
+  const defaults = tabs.map(tab => tab.id);
+  if (sharedOrder) {
+    const rank = new Map(sharedOrder.map((id, index) => [id, index]));
+    tabs = [...tabs].sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity));
+  } else if (orderKey) tabs = restoreTabOrder(tabs, orderKey);
   let list = null;
   let revealActive = () => {};
+  let syncButtonOrder = () => {};
   const tabStopId = () => tabs.some((tab) => tab.id === activeId) ? activeId : tabs[0]?.id;
   const html = `
-    <div class="tab-bar" data-tab-bar>
+    <div class="tab-bar" data-tab-bar${orderKey ? ' data-tab-reorderable' : ''}>
       <div class="tab-list" role="tablist" aria-label="${escapeHtml(label)}" data-tab-list>
       ${tabs
         .map(
           (t) => `
         <button type="button" role="tab" data-tab-id="${escapeHtml(t.id)}" aria-selected="${t.id === activeId}"
+          ${orderKey ? `data-tab-default-index="${defaults.indexOf(t.id)}" title="Drag to rearrange. Alt + Left/Right moves this tab; Alt + Home resets the order." aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Alt+Home"` : ''}
           tabindex="${t.id === tabStopId() ? 0 : -1}" class="tab-btn${t.id === activeId ? ' is-active' : ''}">
+          ${orderKey ? '<span class="tab-drag-handle" data-tab-drag-handle aria-hidden="true"><svg viewBox="0 0 10 16" fill="currentColor"><circle cx="3" cy="4" r="1"/><circle cx="7" cy="4" r="1"/><circle cx="3" cy="8" r="1"/><circle cx="7" cy="8" r="1"/><circle cx="3" cy="12" r="1"/><circle cx="7" cy="12" r="1"/></svg></span>' : ''}
           ${escapeHtml(t.label)}
         </button>`
         )
         .join('')}
+      ${draft ? `<button type="button" role="tab" class="tab-btn tab-draft" data-tab-draft aria-selected="${draft.id === activeId}" tabindex="${draft.id === activeId ? 0 : -1}" title="${escapeHtml(draft.label)} — unsaved. Select filters below, then Save tab."><span>${escapeHtml(draft.label)}</span><small>Unsaved</small></button>` : ''}
       </div>
       <div class="tab-scroll-controls" data-tab-scroll-controls hidden>
         <button type="button" class="tab-scroll-btn" data-tab-scroll="-1" aria-label="Scroll tabs left" title="Scroll tabs left">
@@ -127,6 +137,16 @@ export function tabBar({ tabs, activeId, onSelect, label = 'Sections' }) {
     const bar = root.querySelector('[data-tab-bar]');
     list = bar.querySelector('[data-tab-list]');
     const buttons = [...list.querySelectorAll('[data-tab-id]')];
+    const draftButton = list.querySelector('[data-tab-draft]');
+    const navigable = () => [...buttons, ...(draftButton ? [draftButton] : [])];
+    const activeButton = () => activeId === draft?.id ? draftButton : buttons.find(button => button.dataset.tabId === activeId);
+    syncButtonOrder = () => {
+      buttons.splice(0, buttons.length, ...list.querySelectorAll('[data-tab-id]'));
+      const byId = new Map(tabs.map(tab => [tab.id, tab]));
+      tabs = buttons.map(button => byId.get(button.dataset.tabId));
+      // Shared reordering appends saved tabs; the unsaved tab stays after them.
+      if (draftButton && list.lastElementChild !== draftButton) list.append(draftButton);
+    };
     const controls = bar.querySelector('[data-tab-scroll-controls]');
     const previous = bar.querySelector('[data-tab-scroll="-1"]');
     const next = bar.querySelector('[data-tab-scroll="1"]');
@@ -154,15 +174,16 @@ export function tabBar({ tabs, activeId, onSelect, label = 'Sections' }) {
       // Compare against the FULL available width, including the space controls would release.
       // Otherwise controls can keep themselves visible after the viewport grows to fit all tabs.
       controls.hidden = list.scrollWidth <= bar.clientWidth - 12 + 1;
-      const focused = buttons.includes(document.activeElement) ? document.activeElement : null;
-      reveal(focused || buttons.find((button) => button.dataset.tabId === activeId), false);
+      const focused = navigable().includes(document.activeElement) ? document.activeElement : null;
+      reveal(focused || activeButton(), false);
       syncEdges();
     };
     revealActive = () => {
-      reveal(buttons.find((button) => button.dataset.tabId === activeId));
+      // A restored view can be far along the strip. Reveal its selected tab immediately.
+      reveal(activeButton(), false);
       syncEdges();
     };
-    const tabStop = (button) => buttons.forEach((item) => { item.tabIndex = item === button ? 0 : -1; });
+    const tabStop = (button) => navigable().forEach((item) => { item.tabIndex = item === button ? 0 : -1; });
     const onClick = (event) => {
       const button = event.target.closest('[data-tab-id]');
       if (!button) return;
@@ -170,13 +191,13 @@ export function tabBar({ tabs, activeId, onSelect, label = 'Sections' }) {
       onSelect(button.dataset.tabId);
     };
     const onKeydown = (event) => {
-      const index = buttons.indexOf(event.target);
+      const items = navigable(), index = items.indexOf(event.target);
       if (index < 0 || event.altKey || event.ctrlKey || event.metaKey) return;
       let target;
-      if (event.key === 'ArrowRight') target = buttons[(index + 1) % buttons.length];
-      else if (event.key === 'ArrowLeft') target = buttons[(index - 1 + buttons.length) % buttons.length];
-      else if (event.key === 'Home') target = buttons[0];
-      else if (event.key === 'End') target = buttons.at(-1);
+      if (event.key === 'ArrowRight') target = items[(index + 1) % items.length];
+      else if (event.key === 'ArrowLeft') target = items[(index - 1 + items.length) % items.length];
+      else if (event.key === 'Home') target = items[0];
+      else if (event.key === 'End') target = items.at(-1);
       else return; // Enter/Space activate the native button; arrows only move focus.
       event.preventDefault();
       tabStop(target);
@@ -192,6 +213,12 @@ export function tabBar({ tabs, activeId, onSelect, label = 'Sections' }) {
       frame = requestAnimationFrame(syncEdges);
     };
 
+    const disposeOrder = orderKey ? wireTabOrder(list, orderKey, () => {
+      syncButtonOrder();
+      if (buttons.includes(document.activeElement)) tabStop(document.activeElement);
+      measure();
+    }, onOrderChange) : null;
+
     list.addEventListener('click', onClick);
     list.addEventListener('keydown', onKeydown);
     list.addEventListener('scroll', onScroll, { passive: true });
@@ -199,10 +226,11 @@ export function tabBar({ tabs, activeId, onSelect, label = 'Sections' }) {
     const observer = new ResizeObserver(measure);
     observer.observe(list);
     // Font loading can change the content width without changing the container's width.
-    buttons.forEach((button) => observer.observe(button));
+    navigable().forEach((button) => observer.observe(button));
     measure();
 
     return () => {
+      disposeOrder?.();
       observer.disconnect();
       cancelAnimationFrame(frame);
       list.removeEventListener('click', onClick);
@@ -214,16 +242,27 @@ export function tabBar({ tabs, activeId, onSelect, label = 'Sections' }) {
     };
   }
 
-  function update(nextActiveId) {
+  function update(nextActiveId, nextOrder = null) {
     activeId = nextActiveId;
     if (!list) return;
+    if (nextOrder && !list.querySelector('[data-tab-dragging]')) {
+      const focused = list.contains(document.activeElement) ? document.activeElement : null;
+      const byId = new Map([...list.querySelectorAll('[data-tab-id]')].map(button => [button.dataset.tabId, button]));
+      const desired = nextOrder.filter(id => byId.has(id));
+      if (desired.some((id, index) => [...byId.keys()][index] !== id)) {
+        for (const id of desired) list.append(byId.get(id));
+        syncButtonOrder(); focused?.focus({ preventScroll: true });
+      }
+    }
     for (const button of list.querySelectorAll('[data-tab-id]')) {
       const selected = button.dataset.tabId === activeId;
       button.setAttribute('aria-selected', String(selected));
       button.classList.toggle('is-active', selected);
       // Header destinations have no selected tab, but the strip stays keyboard-accessible.
-      button.tabIndex = button.dataset.tabId === tabStopId() ? 0 : -1;
+      button.tabIndex = activeId === draft?.id ? -1 : button.dataset.tabId === tabStopId() ? 0 : -1;
     }
+    const draftButton = list.querySelector('[data-tab-draft]');
+    if (draftButton) { draftButton.setAttribute('aria-selected', String(activeId === draft.id)); draftButton.tabIndex = activeId === draft.id ? 0 : -1; }
     revealActive();
   }
 

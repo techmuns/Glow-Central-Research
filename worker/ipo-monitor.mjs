@@ -35,7 +35,7 @@ export async function handleIpoMonitor(
       signal,
       redirect: 'manual',
       cache: 'no-store',
-      headers: { accept: 'application/json', 'user-agent': 'Glow-IPO-Monitor' },
+      headers: { accept: 'application/json', 'user-agent': 'Sattva-IPO-Monitor' },
     });
     if (!response.ok) {
       await response.body?.cancel();

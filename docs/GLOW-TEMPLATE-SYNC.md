@@ -1,5 +1,53 @@
 # Glow deployment and Sattva template sync
 
+## Current parity contract — 14 October 2026
+
+The shared application is aligned to `techmuns/Sattva-Central-Research` revision
+`3342259219924f97987e9c3a6b24ab4cc7c3c5de` (14 October 2026). This supersedes older
+notes below about retaining different shared interfaces or additional Glow navigation.
+`GLOW-TEMPLATE-BASELINE.json` records that exact revision. Future three-way source diffs
+start there, preserving Glow integrations without copying Sattva's generated capture
+ancestry into Glow's repository. The protected path list also prevents automatic patches
+from replacing the two sheets, their storage, Glow's producers or any capture file.
+Glow uses Sattva's Alerts, Announcements, Earnings, Screens, Mutual Funds, News and
+Super Investors navigation, including their subviews, saved screens, shared ordering,
+column layouts, readers, collection/recovery code and source-status behavior.
+**Portfolio and Watchlist are the only additional top-level tabs.** Their implementations,
+sheet storage, editable values, default holdings and calculations are preserved.
+
+The header's Portfolio / Watchlist / Universe selector remains visible on both sheets.
+It selects the research-feed scope; each sheet retains its own membership. Bookmarks
+keeps the template's scope-independent behavior. A warm-session browser regression
+reproduces the former hidden selector, installs the next worker and verifies its return,
+both sheet memberships, all three research scopes and light/dark responsive layout.
+
+Glow ownership remains separate from template parity:
+
+- All pre-existing captures, archives, portfolio assets and watchlist/sheet durable object
+  identities remain Glow's. Source observations, check times, archive ranges and verified
+  portfolio-check metadata are retained unchanged. BUILDPRO's reviewed
+  subdivision alias remains an issuer relationship, without rewriting statement holdings.
+- The same-origin Glow statement reader backs names, complete equity percentages and the
+  shared My Managers interface. It validates the matching Glow book/manager revision and
+  retains statement dates, unknown costs and explicit projection gaps. It never reads a
+  Sattva family workbook or treats a statement recheck as current broker ownership.
+- Existing price-level history stays on `price-levels:v1`. The newer lossless paging,
+  tombstones and complete-check rules are adopted while Glow Ventures' existing ingress
+  and origin allow-list remain in place. Watchlist and research-sheet object names also
+  stay unchanged; no migration clears or replaces desk state.
+- New public mutual-fund ownership snapshots and market-cap reference data are shared
+  market evidence, not Sattva portfolio/watchlist membership. Glow's own holdings select
+  its rows; missing source coverage remains visible. Existing Glow captures are not
+  overwritten by these additions, and source dates are not advanced by importing them.
+- Branding, Worker/repository identifiers, cache namespaces and rate-limit namespaces
+  remain Glow's. No credentials are copied or collector manually activated by this sync.
+
+The previous Family Book, Macro Research and Economy modules/assets remain in history
+and retained storage; they are not extra navigation entries in the aligned product.
+Future syncs must preserve the two sheets and these data adapters while adopting shared
+changes. Conflicting adaptations require a reviewed PR, never an unresolved merge or a
+replacement of Glow's book with an upstream capture.
+
 Audited on 9 September 2026; template baseline advanced on 16 September 2026 to
 `techmuns/Sattva-Central-Research` commit `cf7eb444` and on 18 September 2026 to `955324e5` (the last
 code commit being `7c0947be`, PR #230) — see *Sync of 16 September 2026* and *Sync of 18 September
@@ -366,16 +414,19 @@ market-wide discovery context. Preserve these on a later template merge. The v2 
 contract-scoped edge keys must advance together; a v1 pool cannot establish complete AI context.
 
 `Sync from Sattva` checks merged upstream changes every six hours and on manual invocation.
-Changes only to Sattva capture data are skipped. It prepares a `codex/sattva-sync-*` **merge commit and pull request**, preserving every existing
-Glow capture (including nested archives), applying product/repository substitutions, rebuilding
-Tailwind and checking the Glow contract. Newly introduced upstream portfolio caches are excluded.
+Changes only to Sattva capture data are skipped. It prepares a `codex/sattva-sync-*` **source-diff commit and pull request** from the recorded
+template revision, preserving every existing Glow capture (including nested archives), applying
+product/repository substitutions, rebuilding Tailwind and checking the Glow contract. Protected
+sheet, producer, branding and data paths are excluded before a patch is applied. The exact source
+revision is advanced on the review branch and only reaches main through the passing PR.
 It does not push to main. Conflicts or failed checks produce a draft requiring resolution;
 missing PR permission produces an actionable error with the branch preserved.
 
 The full Verify workflow and review gates still govern each PR. This is automatic PR preparation,
 not a claim that arbitrary future changes can merge without adaptation. Review shared code
 changes, preserve the Glow adapter and extensions, address actionable bot feedback, and merge
-when checks pass. Use a merge commit so upstream ancestry remains known. The existing deployment
+when checks pass. Merge the PR through the normal review gates; the recorded baseline keeps the
+upstream source revision known without importing its capture history. The existing deployment
 pipeline may run on merge; other production actions require explicit authorization.
 
 Upstream operational documents retained in this repository describe the template's history.

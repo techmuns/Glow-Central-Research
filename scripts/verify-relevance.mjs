@@ -32,7 +32,7 @@ const { handleRelevanceFeedback } = await import('../worker/relevance-feedback.m
 const { handleAnnouncementIndex } = await import('../worker/announcement-index.mjs');
 const { handleAnnouncementRead } = await import('../worker/announcement-read.mjs');
 const { sqliteStorage, directorySource } = await import('./lib/announcement-test-server.mjs');
-const { buildFixtureIndex } = await import('./lib/announcement-index-fixture.mjs');
+const { buildFixtureIndex, feedbackPair } = await import('./lib/announcement-index-fixture.mjs');
 
 let checks = 0;
 const ok = (label) => { checks++; console.log(`  PASS  ${label}`); };
@@ -340,15 +340,22 @@ try {
   ok(`related filings: an event of ${event.members.length} filings reads back whole`);
 
   // Shared feedback moves the order within a day, and never removes a row.
-  const today = await store.query({ period: 'all', limit: 50 });
-  const top = today.rows[0];
+  const beforeVote = await store.query({ period: 'all', limit: 500 });
+  // A new capture can begin with one filing on the newest day, or a leader whose
+  // score is too far above its peers for one bounded vote to overtake it. Exercise
+  // the ordering contract on two equally scored, equally featured peers instead.
+  const top = feedbackPair(beforeVote.rows)?.row;
+  assert(top, 'the real capture contains equally scored same-day peers for the feedback check');
+  const beforePosition = beforeVote.rows.filter(row => row.date === top.date).findIndex(row => row.id === top.id);
   model = fb.aggregateModel([{ surface: 'announcements', vote: 'not-important', itemKey: top.id, features: top.keys, at: Date.now() }]);
   store.modelCache.at = 0;
   store.queries.clear();
   const after = await store.query({ period: 'all', limit: 500 });
   assert.equal(after.total, all.total, 'a vote hides nothing');
   const sameDay = after.rows.filter((r) => r.date === top.date);
-  assert(sameDay.findIndex((r) => r.id === top.id) > 0, 'a Not important vote moves the filing down its day');
+  const voted = sameDay.find(row => row.id === top.id);
+  assert(voted && voted.relevance < top.relevance, 'a Not important vote lowers the filing score');
+  assert(sameDay.findIndex((r) => r.id === top.id) > beforePosition, 'a Not important vote moves the filing down its day');
   ok('a Not important vote re-orders the day without removing the filing');
 
   // Profiles for News and All Alerts.

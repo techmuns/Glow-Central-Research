@@ -7,8 +7,11 @@ const BASE = (process.argv[2] || 'http://localhost:8080').replace(/\/$/, '');
 assert(['localhost', '127.0.0.1', '[::1]'].includes(new URL(BASE).hostname), 'Use a local test server');
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
 const { chromium } = await import(`${PW_ROOT}/index.mjs`);
-const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
-const context = await browser.newContext({ viewport: { width: 1100, height: 800 } });
+const browser = await chromium.launch({
+  executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+});
+// Keep the shortened parent strip overflowing so native scrolling remains exercised.
+const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 768, height: 800 } });
 await context.route('**/*', (route) => {
   const url = new URL(route.request().url());
   if (url.origin === new URL(BASE).origin && !url.pathname.startsWith('/api/')) return route.continue();
@@ -46,25 +49,20 @@ const noOverflow = async () => {
 };
 
 try {
-  // A deep link to a tab far along the strip, whose right-hand neighbour is IPOs. Glow's order puts
-  // Super Investors there since News moved forward beside Corp Announcements (12 October 2026).
-  await page.goto(`${BASE}/#/research/super-investors?scope=watchlist`);
+  await page.goto(`${BASE}/#/research/news?scope=watchlist`);
   await page.locator(active).waitFor();
   await visibleInStrip(active);
   await noOverflow();
-  assert.equal(await page.locator('[data-tab-id="ask-research"]').count(), 0);
-  pass('Super Investors deep link reveals the active tab without either scrollbar; Ask Research is absent');
+  pass('News deep link reveals the active tab without either scrollbar');
 
   // The actual shell must preserve the element, its scroll position, and focus across routes.
   await page.evaluate((selector) => { window.navigationList = document.querySelector(selector); }, strip);
   await page.locator(active).focus();
   await page.keyboard.press('ArrowRight');
-  assert.equal(await page.locator(active).getAttribute('data-tab-id'), 'super-investors', 'Arrows must not load a new page');
+  assert.equal(await page.locator(active).getAttribute('data-tab-id'), 'news-section', 'Arrows must not load a new page');
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => location.hash.includes('/ipos'));
-  await page.locator(`${strip} [data-tab-id="ipos"][aria-selected="true"]`).waitFor();
-  await page.locator('[data-ipo-filings] [data-score-table]').waitFor();
-  pass('The primary IPOs tab loads its capture even with an empty watchlist');
+  await page.waitForFunction(() => location.hash.includes('/super-investors'));
+  await page.locator(`${strip} [data-tab-id="super-investors"][aria-selected="true"]`).waitFor();
   await visibleInStrip(active);
   assert(await page.evaluate((selector) => window.navigationList === document.querySelector(selector), strip));
   assert(await page.locator(active).evaluate((button) => document.activeElement === button));
@@ -73,18 +71,18 @@ try {
   pass('Keyboard activation preserves the mounted strip, focus, and horizontal position');
 
   await page.keyboard.press('End');
-  await visibleInStrip(`${strip} [data-tab-id="family-book"]`);
-  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'family-book');
+  await visibleInStrip(`${strip} [data-tab-id="super-investors"]`);
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'super-investors');
   await page.keyboard.press('ArrowRight');
-  await visibleInStrip(`${strip} [data-tab-id="ai-alerts"]`);
-  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'ai-alerts');
+  await visibleInStrip(`${strip} [data-tab-id="alerts"]`);
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'alerts');
   await page.keyboard.press('ArrowLeft');
-  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'family-book');
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.tabId), 'super-investors');
   await page.keyboard.press('Home');
-  await visibleInStrip(`${strip} [data-tab-id="ai-alerts"]`);
+  await visibleInStrip(`${strip} [data-tab-id="alerts"]`);
   await page.keyboard.press('Space');
   await page.waitForFunction(() => location.hash.includes('/ai-alerts'));
-  await page.locator(`${strip} [data-tab-id="ai-alerts"][aria-selected="true"]`).waitFor();
+  await page.locator(`${strip} [data-tab-id="alerts"][aria-selected="true"]`).waitFor();
   pass('Home, End, wrapping arrow keys, Enter and Space work with manual activation');
 
   await page.waitForFunction(() => document.querySelector('#tabbar-mount [data-tab-scroll="-1"]').disabled);
@@ -103,19 +101,106 @@ try {
 
   // Keep the off-screen active tab in view after browser history and viewport changes.
   await page.goBack();
-  await page.waitForFunction(() => location.hash.includes('/ipos'));
-  await page.locator(`${strip} [data-tab-id="ipos"][aria-selected="true"]`).waitFor();
+  await page.waitForFunction(() => location.hash.includes('/super-investors'));
+  await page.locator(`${strip} [data-tab-id="super-investors"][aria-selected="true"]`).waitFor();
+
+  await page.locator('#tabbar-mount [data-tab-id="news-section"]').click();
+  const newsChildren = '#subview-mount [data-tab-list]';
+  await page.locator(`${newsChildren} [data-tab-id="news"][aria-selected="true"]`).waitFor();
+  assert.deepEqual(await page.locator(`${newsChildren} [data-tab-id]`).evaluateAll(tabs =>
+    tabs.map(tab => [tab.dataset.tabId, tab.textContent.trim()])),
+    [['news', 'Market News'], ['public-chatter', 'Public Chatter']]);
+  assert.equal(await page.locator('#tabbar-mount [data-tab-id="public-chatter"]').count(), 0);
+  await page.evaluate(selector => { window.newsList = document.querySelector(selector); }, newsChildren);
+  await page.locator(`${newsChildren} [data-tab-id="news"]`).focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await page.locator(`${newsChildren} [aria-selected="true"]`).getAttribute('data-tab-id'), 'news');
+  await page.keyboard.press('Enter');
+  await page.locator(`${newsChildren} [data-tab-id="public-chatter"][aria-selected="true"]`).waitFor();
+  assert(await page.evaluate(selector => window.newsList === document.querySelector(selector), newsChildren));
+  assert(await page.locator(`${newsChildren} [data-tab-id="public-chatter"]`).evaluate(button => document.activeElement === button));
+  const chatterUrl = page.url();
+  await page.locator('#tabbar-mount [data-tab-id="news-section"]').click();
+  assert.equal(page.url(), chatterUrl, 'the active News parent retains Public Chatter');
+  await page.locator(`${newsChildren} [data-tab-id="public-chatter"]`).focus();
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Enter');
+  await page.locator(`${newsChildren} [data-tab-id="news"][aria-selected="true"]`).waitFor();
+  assert.match(page.url(), /news\?scope=watchlist/);
+  await page.goBack();
+  await page.locator(`${newsChildren} [data-tab-id="public-chatter"][aria-selected="true"]`).waitFor();
+  pass('News defaults to Market News; keyboard subtabs, empty Watchlist and saved Chatter history retain focus and scope');
+
+  await page.evaluate(() => { location.hash = '#/research/corporate-actions?scope=watchlist'; });
+  await page.locator(`${strip} [data-tab-id="announcements"][aria-selected="true"]`).waitFor();
+  const children = '#subview-mount [data-tab-list]';
+  const selectedChild = `${children} [aria-selected="true"]`;
+  await page.locator(`${children} [data-tab-id="corporate-actions"][aria-selected="true"]`).waitFor();
+  await page.evaluate(selector => { window.announcementList = document.querySelector(selector); }, children);
+  await page.locator(selectedChild).focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await page.locator(selectedChild).getAttribute('data-tab-id'), 'corporate-actions', 'subtab arrows must only move focus');
+  await page.keyboard.press('Enter');
+  await page.locator(`${children} [data-tab-id="ipos"][aria-selected="true"]`).waitFor();
+  await page.locator('[data-ipo-filings] [data-score-table]').waitFor();
+  assert(await page.evaluate(selector => window.announcementList === document.querySelector(selector), children));
+  assert(await page.locator(selectedChild).evaluate(button => document.activeElement === button));
+  assert.equal(await page.locator(`${children} [tabindex="0"]`).count(), 1);
+  pass('Saved Announcements routes and keyboard subtabs preserve focus; IPOs loads with an empty watchlist');
+  await page.locator(selectedChild).focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await page.locator(selectedChild).getAttribute('data-tab-id'), 'ipos');
+  await page.keyboard.press('Enter');
+  await page.locator(`${children} [data-tab-id="insider-trades"][aria-selected="true"]`).waitFor();
+  assert(await page.evaluate(selector => window.announcementList === document.querySelector(selector), children));
+  assert(await page.locator(selectedChild).evaluate(button => document.activeElement === button));
+  assert.equal(await page.locator(`${strip} [data-tab-id="insider-trades"]`).count(), 0);
+  await page.evaluate(() => { location.hash = '#/research/insider-trades?scope=universe&range=all'; });
+  await page.locator('[data-active-tab="insider-trades"]').waitFor();
+  await page.waitForFunction(() => document.querySelector('#scope-toggle-mount [aria-pressed="true"]')?.textContent.trim() === 'Universe');
+  const dealUrl = page.url();
+  await page.locator(`${strip} [data-tab-id="announcements"]`).click();
+  assert.equal(page.url(), dealUrl, 'active Announcements retains the saved deals route and period');
+  await page.goBack();
+  await page.waitForFunction(() => location.hash.includes('insider-trades?scope=watchlist'));
+  await page.locator(`${children} [data-tab-id="insider-trades"][aria-selected="true"]`).waitFor();
+  pass('Bulk/Block Deal is an Announcements subtab; keyboard activation and saved links retain scope, period and history');
+  for (const width of [1440, 1100, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 850 });
+    await visibleInStrip(active);
+    await page.waitForFunction(selector => {
+      const button = document.querySelector(selector).getBoundingClientRect();
+      const list = document.querySelector('#subview-mount [data-tab-list]').getBoundingClientRect();
+      return button.left >= list.left - 1 && button.right <= list.right + 1;
+    }, selectedChild);
+    await noOverflow();
+    const childMetrics = await page.locator(children).evaluate(list => ({ height: list.clientHeight, scrollHeight: list.scrollHeight }));
+    assert.equal(childMetrics.height, childMetrics.scrollHeight, 'subtabs must not overflow vertically');
+    pass(`Active parent, subtab and page layout remain usable at ${width}px`);
+  }
+
+  await page.locator('#tabbar-mount [data-tab-id="earnings"]').click();
+  await page.locator(`${children} [data-tab-id="earnings-hub"][aria-selected="true"]`).waitFor();
+  await page.locator(selectedChild).focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await page.locator(selectedChild).getAttribute('data-tab-id'), 'earnings-hub', 'Results stays selected until keyboard activation');
+  await page.keyboard.press('Enter');
+  await page.locator(`${children} [data-tab-id="concall"][aria-selected="true"]`).waitFor();
+  assert(await page.locator(selectedChild).evaluate(button => document.activeElement === button));
   for (const width of [1440, 1100, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 850 });
     await visibleInStrip(active);
     await noOverflow();
-    pass(`Active tab and page layout remain usable at ${width}px`);
+    assert(await page.locator('#subview-mount [data-tab-scroll-controls]').isHidden(), 'Results and Concall fit without overflow controls');
+    assert(await page.locator(`${children} [data-tab-id="earnings-hub"]`).isVisible());
+    assert(await page.locator(selectedChild).isVisible());
   }
+  pass('Earnings defaults to Results; Concall keyboard activation and both subtabs fit at 320–1440px');
 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.locator(active).focus();
   await page.keyboard.press('End');
-  await visibleInStrip(`${strip} [data-tab-id="family-book"]`);
+  await visibleInStrip(`${strip} [data-tab-id="super-investors"]`);
   assert((await page.locator(active).evaluate((button) => parseFloat(getComputedStyle(button).transitionDuration))) <= 0.00001);
   pass('Reduced motion removes the animation while keeping navigation functional');
 

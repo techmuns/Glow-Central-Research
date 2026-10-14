@@ -1,23 +1,28 @@
 // Announcement identities are independent of quote-provider symbols and book-date listing labels.
+import { runSteps } from '../core/slices.js';
 // These three Yahoo SME aliases are verified against NSE filings (see DATA-CONTRACTS.md).
 const SME = { 'ALPEXSOLAR-SM': 'ALPEXSOLAR', 'JAYBEE-SM': 'JAYBEE', 'SAHANA-SM': 'SAHANA' };
-// These warrant lines refer to issuers whose equity ISINs are recorded in the same Family book.
+// Reviewed warrant-to-issuer relationships resolve against the current exchange directories.
 // Only company announcements use this relationship; the holdings themselves remain untouched.
-// BUILDPRO subdivision effective 2026-10-08: NSE/CML/76711
+// BUILDPRO subdivision effective 2026-10-08: NSE/CML/76711.
 // https://nsearchives.nseindia.com/content/circulars/CML76711.pdf
-// Filing issuer identity only; the dated statement's ISIN, units and values are unchanged.
+// The dated Glow holding is retained; only the filing issuer identity advances.
 const ISSUER_EQUITY = { INE24OJ01011: 'INE24OJ01029', INE564S13022: 'INE564S01019', INE0R4713012: 'INE0R4701017', INE666D13019: 'INE666D01022' };
 export const announcementIssuerIsin = value => ISSUER_EQUITY[upper(value)] || upper(value);
 const upper = value => String(value || '').trim().toUpperCase();
 export const filingTicker = value => SME[upper(value)] || upper(value);
 // Exchange ISINs join the directories. Keep old exchange/provider symbols as exact aliases.
 export function mergeExchangeIdentities(...lists) {
+  return runSteps(mergeExchangeIdentitySteps(...lists));
+}
+export function* mergeExchangeIdentitySteps(...lists) {
   const entries = new Map();
   for (const sourceEntry of lists.flat()) {
     const entry = { ...sourceEntry, isin: announcementIssuerIsin(sourceEntry.isin) };
     const previous = entries.get(entry.isin);
     entries.set(entry.isin, { ...previous, ...entry,
       aliases: [...new Set([...(previous?.aliases || []), previous?.ticker, ...(entry.aliases || [])].filter(Boolean))] });
+    yield;
   }
   return [...entries.values()];
 }

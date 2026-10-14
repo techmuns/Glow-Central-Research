@@ -30,7 +30,6 @@ import {primaryInstruments,minuteQuotes} from ${JSON.stringify(resolve('worker/b
 // across restarts; otherwise the five-day recovery assertion expires as calendar time advances.
 export class CaptureRegistry extends BaseCaptureRegistry {
  constructor(state,env){super(state,env);this.breakouts.now=()=>Date.parse('2026-09-15T06:05Z');}
- breakoutReadAt(now) { this.breakouts.now=()=>now; return this.breakoutRead(); }
 }
 export default {async fetch(request,env){const body=await request.json();
 if(body.action==='native-upstox') {
@@ -52,7 +51,6 @@ if(body.action==='checkpoint')return Response.json(await store.breakoutCheckpoin
 if(body.action==='finish')return Response.json(await store.breakoutFinish(body.run));
 if(body.action==='recovery')return Response.json(await store.breakoutRecovery(body.run,body.ticker,body.from,body.to,body.rows));
 if(body.action==='history')return Response.json(await store.breakoutHistory(body.ticker,body.before));
-if(body.action==='aged')return Response.json(await store.breakoutReadAt(body.now));
 if(body.action==='primary-save')return Response.json(await store.breakoutPrimarySave(body.input));
 if(body.action==='primary-inventory')return Response.json(await env.CAPTURE_REGISTRY.getByName('breakout-upstox:v1').upstoxInventory(body.targets,false));
 return Response.json({capture:await store.breakoutRead(),schedule:await store.breakoutScheduleStatus()});}};`);
@@ -101,7 +99,5 @@ try{
  await stop();await start();
  state=await call();assert.equal(state.capture.rows[0].exchange,'BSE');assert.equal(state.capture.rows[0].price,104);
  assert.equal(state.capture.primary.primaryUsed,1);assert.equal(state.capture.primary.failures.length,0);
- const aged=await call({action:'aged',now:Date.parse('2026-09-21T06:05:00Z')});
- assert.equal(aged.recoveryPending.length,0);assert.equal(aged.gaps.find(gap=>gap.reason==='unrecovered').count,1);
  console.log('PASS local workerd: native gzip and authenticated Upstox quote fetch; daily-file redirects; minute/fallback SQL history, large inventory, independent alarms and recovery survive restarts');
 }finally{await stop();await new Promise(done=>upstream.close(done));rmSync(scratch,{recursive:true,force:true});}

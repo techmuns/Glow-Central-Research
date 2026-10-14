@@ -8,7 +8,7 @@
 // stubbed — nothing leaves this machine. A second server with no index proves the browser still
 // answers from the captures when the index cannot be read.
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,7 +18,7 @@ globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k,
 const here = dirname(fileURLToPath(import.meta.url));
 const publicDir = resolve(here, '../public');
 const { startAnnouncementServer } = await import('./lib/announcement-test-server.mjs');
-const { buildFixtureIndex } = await import('./lib/announcement-index-fixture.mjs');
+const { buildFixtureIndex, feedbackPair } = await import('./lib/announcement-index-fixture.mjs');
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
 const { chromium } = await import(`${PW_ROOT}/index.mjs`);
 
@@ -37,20 +37,47 @@ const READING = { readable: true, issuerMatches: true, documentType: 'Exchange f
   keyDetails: [{ label: 'Filing', value: 'As stated in the document', quote: 'trailer', location: 'page 1' }],
   whyItMatters: 'It matters to an investor because it changes what is known about the company this period.',
   impact: { direction: 'unclear', horizon: 'unclear', text: 'Could matter if it changes earnings or plans; the document alone does not say.' } };
+let readGate = null, releaseRead;
 const readFetcher = async (url, init = {}) => {
   const href = String(url);
   if (/^https:\/\/(?:www\.)?bseindia\.com\/|^https:\/\/(?:nsearchives|archives)\.nseindia\.com\//.test(href)) { counts.documents++; return new Response(pdf, { headers: { 'content-type': 'application/pdf' } }); }
-  if (href.startsWith('https://bedrock-runtime.')) { counts.model++; void init; return Response.json({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(READING) }] }); }
+  if (href.startsWith('https://bedrock-runtime.')) {
+    counts.model++;
+    if (readGate) {
+      const gate = readGate, encoder = new TextEncoder(), text = JSON.stringify(READING), cut = text.indexOf('"keyDetails"');
+      assert.equal(JSON.parse(init.body).stream, true);
+      return new Response(new ReadableStream({ async start(c) {
+        const send = value => c.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`));
+        send({ type: 'message_start' });
+        send({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } });
+        send({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: text.slice(0, cut) } });
+        await gate;
+        send({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: text.slice(cut) } });
+        send({ type: 'content_block_stop', index: 0 });
+        send({ type: 'message_delta', delta: { stop_reason: 'end_turn' } });
+        send({ type: 'message_stop' }); c.close();
+      } }), { headers: { 'content-type': 'text/event-stream' } });
+    }
+    return Response.json({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(READING) }] });
+  }
   return new Response('unexpected', { status: 500 });
 };
 const now = () => clock.getTime();
 const srv = await startAnnouncementServer({ indexDir: tmp, publicDir, readFetcher, now });
-const fallback = await startAnnouncementServer({ indexDir: null, publicDir, readFetcher: async () => new Response('down', { status: 503 }), now });
+let fallbackCaps = null, capReads = 0;
+const fallback = await startAnnouncementServer({ indexDir: null, publicDir, readFetcher: async () => new Response('down', { status: 503 }), now,
+  transformAsset(path, bytes) {
+    if (path === '/sw.js') return bytes.toString().replace(/const MUNSHOT_SDK = .*;/, "const MUNSHOT_SDK = new URL('/assets/brand/favicon.svg', self.location).href;");
+    if (path === '/data/market-caps.json' && fallbackCaps) { capReads++; return Buffer.from(JSON.stringify(fallbackCaps())); }
+    return bytes;
+  } });
 
 const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
 const errors = [];
 try {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  // Reader/data behavior is independent of asset prefetch. Dedicated cache-upgrade suites
+  // verify controlled sessions; keep their background precache out of these source fixtures.
+  const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 1440, height: 900 } });
   // Nothing leaves the machine: CDNs and publishers answer empty, new windows are noted and closed.
   await context.route('**/*', (route) => (route.request().url().startsWith('http://127.0.0.1') ? route.continue() : route.fulfill({ status: 200, body: '' })));
   const opened = [];
@@ -58,7 +85,7 @@ try {
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
   await page.clock.install({ time: clock });
-  const ready = () => page.waitForFunction(() => document.querySelector('[data-filings-info]')?.dataset.caState === 'ready' && document.querySelectorAll('tbody tr[data-row-key]').length > 0, null, { timeout: 60000 });
+  const ready = () => page.waitForFunction(() => window.__ca?.meta().state === 'ready' && document.querySelectorAll('tbody tr[data-row-key]').length > 0, null, { timeout: 60000 });
   // waitForFunction predicates must be synchronous, so the query is held on window once it exists.
   const hold = (p = page) => p.evaluate(async () => { window.__ca = (await import('/js/tabs/corp-announcements.js')).announcementQuery; });
   const caMeta = () => page.evaluate(() => window.__ca.meta());
@@ -67,16 +94,51 @@ try {
 
   // ---- Corporate Announcements, served by the index -------------------------------------------
   await page.goto(`${srv.url}#/research/corp-announcements?scope=universe`);
-  await ready();
   await hold();
-  assert.equal(await page.locator('[data-filings-info]').getAttribute('data-ca-mode'), 'server', 'the index answers');
+  await ready();
+  assert.equal((await caMeta()).mode, 'server', 'the index answers');
+  assert.equal(await page.locator('[data-section-head] [data-filings-info]').count(), 0, 'no collection-status banner');
+  const period = page.getByRole('combobox', { name: 'Announcement period (IST)' });
+  assert.equal(await period.inputValue(), '3', 'Last 3 days is selected on opening');
+  assert.equal(await page.evaluate(() => window.__ca.query().period), '3', 'the initial query uses Last 3 days');
+  assert.equal(srv.stats.queries, 1, 'one initial page request');
+  ok('Last 3 days is the default dropdown and server query');
+  assert.equal(await page.locator('[data-app-content] > footer, #content-host [data-filings-method]').count(), 0,
+    'collection and registry links leave the reading column');
+  await period.focus();
+  await page.locator('[data-beacon-toggle]').hover();
+  await page.clock.runFor(400);
+  const sources = page.locator('#source-beacon-panel');
+  await sources.waitFor();
+  assert(await period.evaluate(el => document.activeElement === el), 'hover does not take focus from the reader');
+  const method = sources.locator('.beacon-panel-foot [data-filings-method]');
+  assert((await method.innerText()).startsWith('Collection details · '));
+  assert(await sources.locator('.beacon-panel-foot [data-sources-open]').isVisible());
+  await method.click();
+  const collection = await page.locator('#modal-content').innerText();
+  assert(collection.includes('Collection status:') && collection.includes('How this list is served:') && /companies appear on this feed/.test(collection),
+    'the relocated link retains live collection, serving and measured coverage details');
+  assert.equal(await page.locator('[data-filings-provenance]').getAttribute('data-scope'), 'universe', 'collection details use the active scope');
+  assert.equal(await sources.count(), 0, 'the source panel closes before its details dialog opens');
+  await page.keyboard.press('Escape');
+  assert(await page.locator('[data-beacon-toggle]').evaluate(el => el === document.activeElement), 'closing details restores the source launcher');
+  await page.locator('[data-beacon-toggle]').click();
+  await page.locator('#source-beacon-panel [data-sources-open]').click();
+  assert((await page.locator('#modal-content').innerText()).includes('Google News search'), 'the canonical registry remains reachable from the panel footer');
+  await page.keyboard.press('Escape');
+  assert.equal(srv.stats.queries, 1, 'source presentation starts no announcement query');
+  ok('table footer links move into the hover panel; measured details, registry and keyboard return remain available');
+  await period.focus();
+  await period.selectOption('all');
+  await page.waitForFunction(() => window.__ca.query().period === 'all' && window.__ca.meta().state === 'ready');
+  assert(await period.evaluate(el => el === document.activeElement), 'arriving query rows preserve the focused period control');
   const heads = await page.locator('thead th').allInnerTexts();
-  for (const head of ['SUBJECT', 'DATE', 'CATEGORIES', 'MARKET CAP', 'SOURCE']) assert(heads.map((h) => h.trim().toUpperCase()).includes(head), `column ${head}`);
+  assert.deepEqual(heads.map(h => h.trim().toUpperCase()), ['COMPANY', 'SUBJECT', 'DATE', 'CATEGORIES', 'MARKET CAP', 'LINK'], 'company leads and exchange links replace the separate Source column');
   const meta = await caMeta();
   assert.equal(meta.total, index.counts.rows, 'All time counts every filing');
-  assert.equal(srv.stats.queries, 1, 'one page request, not the history');
+  assert.equal(srv.stats.queries, 2, 'one page request per selected period, not the history');
   const rows = await caRows();
-  const firstSubject = await page.locator('tbody tr[data-row-key]').first().locator('div.truncate.font-semibold').getAttribute('title');
+  const firstSubject = await page.locator('tbody tr[data-row-key]').first().locator('[data-record-name]').getAttribute('title');
   assert.equal(firstSubject, rows[0].title.replace(/\s+/g, ' ').trim(), 'the subject is the exchange’s own words');
   assert.doesNotMatch(await page.locator('tbody').innerText(), /\b(?:High|Medium|Low) (?:priority|relevance|importance)\b/i, 'no rank label is printed');
   for (let i = 1; i < rows.length; i++) {
@@ -87,6 +149,31 @@ try {
   assert(await page.locator('tbody .category-chip').count() > 0, 'category tags are visible');
   assert(await page.locator('tbody td.text-right').filter({ hasText: /₹/ }).count() > 0, 'market caps are visible');
   ok(`server mode: ${meta.total} real filings, one page request, exchange subjects, categories, market cap, ranked within day, no labels`);
+
+  const subjects = await page.locator('tbody tr[data-row-key]').evaluateAll(items => items.map(row => {
+    const subject = row.querySelector('[data-record-name]'), bookmark = row.querySelector('.record-identity-actions [data-bookmark-key]');
+    const text = subject.getBoundingClientRect(), action = bookmark.getBoundingClientRect();
+    return { title: subject.textContent, height: text.height, line: parseFloat(getComputedStyle(subject).lineHeight),
+      wraps: getComputedStyle(subject).whiteSpace === 'normal', actionRight: action.left >= text.right - 1,
+      aligned: Math.abs(action.top + action.height / 2 - text.top - parseFloat(getComputedStyle(subject).lineHeight) / 2) < 7,
+      misplacedWatch: !!row.querySelector('.record-subject-column [data-watch]'),
+      companyWatch: !row.querySelector('[data-watch]') || !!row.querySelector('.record-company-column [data-watch]') };
+  }));
+  assert(subjects.every(item => item.wraps && item.actionRight && item.aligned && !item.misplacedWatch && item.companyWatch), 'actions stay beside their own content, aligned with the first title line');
+  assert(subjects.some(item => item.height > item.line * 1.5), 'a real long exchange subject wraps completely');
+  const firstRow = page.locator('tbody tr[data-row-key]').first();
+  const readCount = srv.stats.reads;
+  await firstRow.locator('.record-identity-actions [data-bookmark-key]').focus(); await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.querySelector('tbody tr[data-row-key] [data-bookmark-key]')?.getAttribute('aria-pressed') === 'true');
+  assert.equal(srv.stats.reads, readCount, 'bookmarking does not open the announcement reader');
+  await firstRow.locator('[data-bookmark-key]').click();
+  await page.waitForFunction(() => document.querySelector('tbody tr[data-row-key] [data-bookmark-key]')?.getAttribute('aria-pressed') === 'false');
+  await page.locator('[data-notebook-toast] [aria-label="Dismiss"]').click();
+  await page.locator('.record-company-column [data-watch]').first().click();
+  await page.locator('[data-watch-attribution]').waitFor();
+  assert.equal(srv.stats.reads, readCount, 'the company watch control keeps its own interaction');
+  await page.keyboard.press('Escape');
+  ok('complete wrapped subjects, fixed first-line bookmarks, company watch controls, keyboard saving and independent actions');
 
   // Category filter (multi-select).
   await page.locator('[data-ca-open="categories"]').click();
@@ -142,10 +229,10 @@ try {
   // AI Read: one click, one read, the same five sections, the original filing one click away.
   // An exchange PDF: the stand-in answers with a PDF, and which filing leads the page moves with the
   // data (an NSE XBRL file there is read as XBRL and correctly refused as unreadable).
-  const target = (await caRows()).find((r) => /bseindia|nseindia/.test(r.url || '') && /\.pdf(?:$|[?#])/i.test(r.url || ''));
-  assert(target, 'the newest page holds an exchange PDF filing to read');
+  const target = feedbackPair(await caRows(), { pdf: true })?.row;
+  assert(target, 'the page holds an exchange PDF with a comparable same-day peer for the read and feedback checks');
   const targetRow = page.locator(`tbody tr[data-row-key="${target.id}"]`);
-  await targetRow.locator('td').nth(1).click();
+  await targetRow.locator('[data-row-open]').focus(); await page.keyboard.press('Enter');
   const popup = page.locator('#modal-content [data-ann-read]');
   await popup.waitFor();
   assert.deepEqual(await popup.locator('.ann-read-section h3').allInnerTexts().then((t) => t.map((s) => s.trim().toLowerCase())),
@@ -156,13 +243,14 @@ try {
   assert.match(await popup.locator('[data-slot="why"]').innerText(), /Investment impact/);
   assert.equal(counts.model, 1, 'one model read');
   await page.locator('#modal-content [data-modal-close]').first().click();
-  await targetRow.locator('td').nth(1).click();
+  await targetRow.locator('.ca-company-cell').click();
   await popup.locator('[data-slot="what"]').filter({ hasText: 'read in full' }).waitFor();
   assert.equal(counts.model, 1, 'reopening costs nothing');
-  ok('AI Read on click: five fixed sections, the exchange subject, Open Original Filing, read once and kept');
+  ok('AI Read by keyboard and click: five fixed sections, the exchange subject, Open Original Filing, read once and kept');
 
   // Important / Not important inside the popup trains the shared model and re-orders the list.
   const beforeRows = await caRows();
+  const beforeTotal = (await caMeta()).total;
   const sameDay = beforeRows.filter((r) => r.date === target.date);
   const beforeAt = sameDay.findIndex((r) => r.id === target.id);
   await popup.locator('[data-vote="not-important"]').click();
@@ -175,43 +263,87 @@ try {
   await page.waitForFunction(() => /shared ranking learns/.test(document.querySelector('#modal-content [data-feedback-status]')?.textContent || ''));
   assert(srv.feedback.model().recent.some((v) => v.why === 'routine for a company this size'), 'the why travels with the vote');
   await page.locator('#modal-content [data-modal-close]').first().click();
-  await page.waitForFunction(([id, at]) => {
+  await page.waitForFunction(([id, score]) => {
     const q = window.__ca;
-    const rows = q.rows(); const day = rows.find((r) => r.id === id)?.date;
-    return q.meta().state === 'ready' && rows.filter((r) => r.date === day).findIndex((r) => r.id === id) > at;
-  }, [target.id, beforeAt], { timeout: 30000 });
-  assert((await caRows()).some((r) => r.id === target.id), 'the filing is still listed');
+    const row = q.rows().find(r => r.id === id);
+    return q.meta().state === 'ready' && !q.meta().refreshing && (!row || row.relevance < score);
+  }, [target.id, target.relevance], { timeout: 30000 });
+  // A bounded first page is not the whole ranked day. A valid vote can move the
+  // filing beyond it; follow the real pagination before asserting retention/order.
+  while (!(await caRows()).some(row => row.id === target.id) && (await caMeta()).nextOffset !== null) {
+    await page.evaluate(() => window.__ca.loadMore());
+    await settle();
+  }
+  const afterRows = await caRows();
+  assert(afterRows.some(row => row.id === target.id), 'the filing is still listed');
+  assert(afterRows.find(row => row.id === target.id).relevance < target.relevance, 'the saved negative vote lowers its score');
+  assert(afterRows.filter(row => row.date === target.date).findIndex(row => row.id === target.id) > beforeAt, 'the vote reorders the actual day');
+  assert.equal((await caMeta()).total, beforeTotal, 'a vote never removes captured filings');
   ok('Important / Not important + Why? in the popup re-orders the day and hides nothing');
 
-  // ---- News: the row still opens the article; the ⋯ is a separate control ---------------------
+  // ---- News: visible controls below the story, separate from the article link ----------------
   await page.goto(`${srv.url}#/research/news?scope=universe`);
-  await page.waitForSelector('[data-news-key] [data-feedback-menu]', { timeout: 60000 });
-  // The order within a day can still be settling (readings past the first budget are made in
-  // slices); act on the list once it has, as a reader would after the first second.
+  await page.locator('[data-active-tab="news"]').waitFor();
+  await page.evaluate(async () => (await import('/js/ui/source-beacon.js')).openBeacon());
+  assert(await page.locator('#source-beacon-panel [data-filings-method]').isHidden(), 'leaving Announcements clears its collection action');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('[data-news-key] [data-news-feedback]', { timeout: 60000 });
   await page.evaluate(async () => {
     const { relevanceSettled } = await import('/js/data/surface-relevance.js');
     await relevanceSettled();
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   });
-  const card = page.locator('[data-news-key]').filter({ has: page.locator('a[href^="http"]') }).first();
-  const articleHref = await card.locator('a[href^="http"]').first().getAttribute('href');
+  const firstCard = page.locator('[data-news-key]').filter({ has: page.locator('a[href^="http"]') }).first();
+  const articleHref = await firstCard.locator('a[href^="http"]').first().getAttribute('href');
   assert(/^https?:/.test(articleHref), 'the card is still a link to the article');
+  const feedbackKey = await firstCard.locator('[data-news-feedback]').getAttribute('data-news-feedback');
+  const control = page.locator(`[data-news-feedback=${JSON.stringify(feedbackKey)}]`);
+  assert.equal(await page.locator('[data-feedback-menu]').count(), 0, 'no hidden News importance menu');
+  const placement = await firstCard.evaluate(card => ({
+    storyBottom: card.querySelector('a').getBoundingClientRect().bottom,
+    feedbackTop: card.querySelector('[data-news-feedback]').getBoundingClientRect().top,
+    insideLink: !!card.querySelector('a [data-news-feedback]'),
+  }));
+  assert(!placement.insideLink && placement.feedbackTop >= placement.storyBottom, 'importance controls are directly below and outside the story link');
   const pagesBefore = opened.length;
-  await card.locator('[data-feedback-menu]').click();
-  const menu = page.locator('.relevance-menu');
-  await menu.waitFor();
-  assert.equal(opened.length, pagesBefore, 'the ⋯ does not open the article');
-  await menu.locator('[data-vote="important"]').click();
-  await page.waitForFunction(() => document.querySelector('.relevance-menu [data-vote="important"]')?.getAttribute('aria-pressed') === 'true');
-  await page.waitForFunction(() => /shared ranking learns|Saved on this device/.test(document.querySelector('.relevance-menu [data-feedback-status]')?.textContent || ''));
-  assert(srv.feedback.model().recent.some((v) => v.surface === 'news' && v.vote === 'important'), 'the News vote reached the shared store');
-  await page.keyboard.press('Escape');
+  await control.locator('[data-why]').click();
+  await control.locator('[data-why-text]').fill('material update for the company');
+  // Relevance settling/source updates can replace the card while someone is explaining their vote.
+  await page.evaluate(async () => {
+    await (await import('/js/data/market-news.js')).refresh();
+  });
+  assert.equal(await control.locator('[data-why-text]').inputValue(), 'material update for the company', 'an optional draft survives repainting');
+  const waitVote = (value) => page.waitForFunction(([key, vote]) => {
+    const host = document.querySelector(`[data-news-feedback="${CSS.escape(key)}"]`);
+    return host?.querySelector(`[data-vote="${vote}"]`)?.getAttribute('aria-pressed') === 'true'
+      && /shared ranking learns/.test(host.querySelector('[data-feedback-status]')?.textContent || '');
+  }, [feedbackKey, value]);
+  await control.locator('[data-vote="important"]').click(); await waitVote('important');
+  assert.equal(await control.locator('[data-why-text]').inputValue(), 'material update for the company', 'rating keeps an unsaved optional draft');
+  await control.locator('[data-vote="important"]').click();
+  await page.waitForFunction(key => /Vote withdrawn/.test(document.querySelector(`[data-news-feedback="${CSS.escape(key)}"] [data-feedback-status]`)?.textContent || ''), feedbackKey);
+  assert.equal(await control.locator('[data-vote="important"]').getAttribute('aria-pressed'), 'false', 'clicking the chosen answer withdraws it');
+  await control.locator('[data-vote="not-important"]').click(); await waitVote('not-important');
+  assert(srv.feedback.model().recent.some(v => v.surface === 'news' && v.vote === 'not-important'), 'the visible negative vote reaches the shared store');
+  await control.locator('[data-why-save="important"]').click();
+  await page.waitForFunction(key => document.querySelector(`[data-news-feedback="${CSS.escape(key)}"] [data-vote="important"]`)?.getAttribute('aria-pressed') === 'true', feedbackKey);
+  await page.waitForFunction(key => /shared ranking learns|Saved on this device/.test(document.querySelector(`[data-news-feedback="${CSS.escape(key)}"] [data-feedback-status]`)?.textContent || ''), feedbackKey);
+  assert(srv.feedback.model().recent.some(v => v.surface === 'news' && v.vote === 'important' && v.why === 'material update for the company'), 'the inline News vote and optional reason reached the shared store');
+  assert.equal(opened.length, pagesBefore, 'feedback does not open the article');
   assert(await page.locator('[data-news-key] .category-chip').count() > 0, 'news carries category tags');
-  ok('News: ⋯ menu votes without opening the article; tags under the headline');
+  const article = control.locator('xpath=ancestor::article').locator('a[href]').first();
+  const [articlePage] = await Promise.all([context.waitForEvent('page'), article.click()]);
+  await articlePage.waitForLoadState('domcontentloaded');
+  assert.equal(articlePage.url(), articleHref, 'the story still opens its original publisher URL');
+  await articlePage.close();
+  ok('News: visible Important / Not important / Why? below the article, retained drafts and saved feedback after repaint');
 
   // ---- All Alerts: after opening an item, it asks --------------------------------------------
   await page.goto(`${srv.url}#/research/daily-alerts?scope=universe`);
   await page.waitForSelector('tbody tr[data-row-key]', { timeout: 90000 });
+  // The first partial can be replaced while the initial view is still covered. Vote only once
+  // the workspace permits interaction, as the reader does after the source handoff.
+  await page.waitForFunction(() => document.querySelector('[data-alerts-workspace]')?.getAttribute('aria-busy') === 'false', null, { timeout: 90000 });
   await page.locator('tbody tr[data-row-key]').first().locator('td').first().click();
   const prompt = page.locator('.relevance-prompt');
   await prompt.waitFor();
@@ -229,14 +361,75 @@ try {
   assert(Object.keys(model.model.weights).length, 'and every vote trained the shared weights');
   ok('one shared model: votes from all three surfaces');
 
+  // Real popup: neither a held event-history request nor the model's held tail blocks useful text.
+  const requestsBefore = srv.stats.reads, modelsBefore = counts.model;
+  readGate = new Promise(done => { releaseRead = done; });
+  await page.evaluate(async () => {
+    const { openAnnouncementRead } = await import('/js/ui/announcement-read.js');
+    window.latencyRow = { id: 'a:latency-ui', title: 'Latency fixture', company: 'Fixture Co', sources: ['BSE'],
+      url: 'https://www.bseindia.com/xml-data/corpfiling/AttachLive/latency-ui.pdf', event: { id: 'event-latency-ui', size: 2 } };
+    window.historyReleases = [];
+    window.openLatencyRead = () => openAnnouncementRead(window.latencyRow, {
+      loadEvent: () => new Promise(done => window.historyReleases.push(done)),
+      item: { surface: 'announcements', itemKey: window.latencyRow.id, features: [] },
+    });
+    window.openLatencyRead();
+  });
+  await popup.locator('[data-slot="what"]').filter({ hasText: 'read in full' }).waitFor();
+  assert.match(await popup.locator('[data-read-status]').innerText(), /in progress/);
+  assert.equal(await popup.locator('[data-slot="why"] .ann-read-loading').count(), 1, 'analysis waits for validation');
+  assert.equal(await popup.locator('[data-slot="history"] .ann-read-loading').count(), 1, 'held history did not delay the read');
+  assert.equal(srv.stats.reads, requestsBefore + 1);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.openLatencyRead());
+  await popup.locator('[data-slot="what"]').filter({ hasText: 'read in full' }).waitFor();
+  assert.equal(srv.stats.reads, requestsBefore + 1, 'close/reopen shares the pending browser request');
+  await page.evaluate(() => {
+    for (const done of window.historyReleases) done({ members: [window.latencyRow, { id: 'related-latency', title: 'Prior approval', sources: ['BSE'] }] });
+  });
+  await popup.locator('[data-slot="history"]').filter({ hasText: 'Prior approval' }).waitFor();
+  readGate = null;
+  await page.evaluate(async () => {
+    const { openAnnouncementRead } = await import('/js/ui/announcement-read.js');
+    openAnnouncementRead({ id: 'a:replacement', title: 'Replacement filing', url: 'https://evil.example/no.pdf' },
+      { item: { surface: 'announcements', itemKey: 'a:replacement', features: [] } });
+  });
+  await popup.locator('.ann-read-unavailable').waitFor();
+  releaseRead();
+  await page.evaluate(async () => {
+    const { requestAnnouncementRead } = await import('/js/data/announcement-read-client.js');
+    await requestAnnouncementRead(window.latencyRow);
+  });
+  assert.equal(await popup.locator('.ann-read-subject').innerText(), 'Replacement filing');
+  assert.equal(await popup.locator('.ann-read-unavailable').count(), 1, 'a late answer cannot overwrite another filing');
+  await page.evaluate(() => window.openLatencyRead());
+  await popup.locator('[data-slot="why"]').filter({ hasText: 'Investment impact' }).waitFor();
+  assert.equal(counts.model, modelsBefore + 1, 'the completed shared read is reused');
+  assert.equal(srv.stats.reads, requestsBefore + 2, 'only the original and the replacement requested the server');
+  await page.keyboard.press('Escape');
+  ok('streamed facts precede held history/model completion; pending and saved reopen share one request; late answers stay in their own popup');
+
   // Phone width and dark appearance.
   await page.goto(`${srv.url}#/research/corp-announcements?scope=universe`);
   await ready();
+  await settle();
   for (const theme of ['light', 'dark']) {
     await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
     await page.setViewportSize({ width: 390, height: 844 });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${theme}: no sideways page scroll at 390px`);
-    await page.locator('tbody tr[data-row-key]').first().locator('td').nth(1).click();
+    // Resolve the mounted row inside the same browser task as its measurements: arriving
+    // rows can replace a locator's earlier element handle while the viewport is resized.
+    const controls = await page.evaluate(() => {
+      const row = document.querySelector('table[data-shared-column-layout="corp-announcements"] tbody tr[data-row-key]');
+      return {
+        subjectWatch: row.querySelector('.record-subject-column [data-watch]') !== null,
+        bookmark: row.querySelector('.record-identity-actions [data-bookmark-key]').getBoundingClientRect().width,
+        bookmarkStyle: getComputedStyle(row.querySelector('.record-identity-actions [data-bookmark-key]')).width,
+        wrap: getComputedStyle(row.querySelector('[data-record-name]')).whiteSpace,
+      };
+    });
+    assert(!controls.subjectWatch && controls.bookmark >= 28 && controls.wrap === 'normal', `${theme}: mobile keeps separate reachable actions and complete title wrapping ${JSON.stringify(controls)}`);
+    await page.locator('tbody tr[data-row-key]').first().locator('.ca-company-cell').click();
     await popup.waitFor();
     const box = await popup.boundingBox();
     assert(box.x >= 0 && box.x + box.width <= 390 + 1, `${theme}: the popup fits the phone`);
@@ -251,13 +444,55 @@ try {
   ok('phone width and dark appearance');
 
   // ---- No index: the browser answers from the captures, and says so ---------------------------
-  const local = await context.newPage();
+  // This part explicitly tests a service-worker-held source capture. Give it a separate
+  // controlled context so the reader fixture's disabled precache and fake clock cannot leak in.
+  const fallbackContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await fallbackContext.route('**/*', route => route.request().url().startsWith(fallback.url) ? route.continue() : route.fulfill({ status: 200, body: '' }));
+  const local = await fallbackContext.newPage();
   local.on('pageerror', (e) => errors.push(String(e)));
   await local.clock.install({ time: clock });
-  await local.goto(`${fallback.url}#/research/corp-announcements?scope=universe`);
-  await local.waitForFunction(() => document.querySelector('[data-filings-info]')?.dataset.caMode === 'local' && document.querySelectorAll('tbody tr[data-row-key]').length > 0, null, { timeout: 180000 });
+  await local.goto(`${fallback.url}#/research/corp-announcements?scope=universe`, { waitUntil: 'domcontentloaded' });
+  await hold(local);
+  await local.waitForFunction(() => window.__ca?.meta().mode === 'local' && document.querySelectorAll('tbody tr[data-row-key]').length > 0, null, { timeout: 180000 });
+  assert.equal(await local.getByRole('combobox', { name: 'Announcement period (IST)' }).inputValue(), '3', 'fallback opens on Last 3 days');
+  assert.equal(await local.evaluate(() => window.__ca.query().period), '3', 'fallback query uses Last 3 days');
+  await local.evaluate(async () => (await import('/js/ui/source-beacon.js')).openBeacon());
+  assert.equal(await local.locator('#source-beacon-panel [data-filings-method]').innerText(), 'Collection details · Partial source coverage',
+    'the moved action still discloses local fallback coverage');
+  await local.locator('#source-beacon-panel [data-filings-method]').click();
+  assert((await local.locator('#modal-content').innerText()).includes('server index could not be read'), 'fallback diagnostics remain reachable');
+  await local.keyboard.press('Escape');
   assert(await local.locator('tbody .category-chip').count() > 0, 'categories still show');
-  await local.locator('tbody tr[data-row-key]').first().locator('td').nth(1).click();
+  const localTarget = await local.evaluate(() => window.__ca.rows().find(r => /^IN[A-Z0-9]{10}$/.test(r.isin || '')));
+  assert(localTarget, 'a verified issuer exercises fallback profile refresh');
+  const capFixture = JSON.parse(readFileSync(resolve(publicDir, 'data/market-caps.json')));
+  // Warm a real service-worker-held data response, then replace the server's capture.
+  // Install explicitly in this fixture: the application's deferred registration may still
+  // be waiting for its complete static-history preparation after the first rows appear.
+  await local.evaluate(() => navigator.serviceWorker.register('/sw.js'));
+  await local.waitForFunction(() => navigator.serviceWorker.controller, null, { timeout: 90000 });
+  await local.evaluate(() => fetch('/data/market-caps.json').then(r => r.json()));
+  let capPhase = 1;
+  fallbackCaps = () => {
+    const entries = capFixture.entries.filter(e => e.isin !== localTarget.isin);
+    const old = capFixture.entries.find(e => e.isin === localTarget.isin) || {};
+    entries.push({ ...old, isin: localTarget.isin, ticker: localTarget.ticker, bseCode: localTarget.scripCode || old.bseCode,
+      exchanges: old.exchanges || ['NSE'], cr: capPhase === 1 ? 3333.33 : 4444.44,
+      checkedAt: clock.toISOString(), priceDateLabel: null, priceAsOf: null, error: null });
+    return { ...capFixture, generated_at: new Date(clock.getTime() + capPhase * 1000).toISOString(), entries };
+  };
+  await local.evaluate(() => { window.capRefreshClock = Date.now() + 16 * 60_000; Date.now = () => window.capRefreshClock; });
+  await local.evaluate(() => window.__ca.refresh());
+  assert.equal(await local.evaluate(id => window.__ca.rows().find(r => r.id === id)?.mcapCr, localTarget.id), 3333.33);
+  capPhase = 2;
+  await local.evaluate(() => { window.capRefreshClock += 16 * 60_000; });
+  await local.evaluate(() => window.__ca.refresh());
+  assert.equal(await local.evaluate(id => window.__ca.rows().find(r => r.id === id)?.mcapCr, localTarget.id), 4444.44,
+    'the normal fallback refresh re-reads profiles even after the source stream has loaded once');
+  assert(capReads >= 2);
+  fallbackCaps = null;
+  ok('a long-lived static fallback adopts updated market caps through its ordinary refresh path');
+  await local.locator('tbody tr[data-row-key]').first().locator('.ca-company-cell').click();
   await local.locator('#modal-content [data-ann-read]').waitFor();
   await local.locator('.ann-read-unavailable').waitFor();
   assert.match(await local.locator('.ann-read-unavailable').innerText(), /AI reading unavailable/);
@@ -267,6 +502,7 @@ try {
   assert.deepEqual(errors, [], 'no page errors');
   ok('no page errors');
 } finally {
+  releaseRead?.();
   await browser.close();
   await srv.close();
   await fallback.close();

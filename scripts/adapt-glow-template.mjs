@@ -5,6 +5,8 @@ import { join, resolve, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 export function adaptGlowText(old, path = '') {
   if (/^(<<<<<<<|=======|>>>>>>>)/m.test(old)) return old;
+  // This retained public AMC fallback copies market disclosures only, never a family book.
+  if (path.replaceAll('\\', '/').endsWith('public/js/data/mutual-fund-holdings.js')) return old;
   // This constant identifies the shared public AMC service, not Glow's deployment.
   // Preserve only the source declaration; all other deployment substitutions still apply.
   const sharedMfSource = basename(path) === 'mutual-fund-holdings.js'
@@ -34,6 +36,16 @@ export function adaptGlowText(old, path = '') {
     .replaceAll('download = `sattva-notebook-', 'download = `glow-notebook-')
     .replaceAll('/^sattva-/', '/^glow-/')
     .replaceAll('Sattva Research', 'Glow Research').replaceAll('SATTVA CENTRAL RESEARCH', 'GLOW CENTRAL RESEARCH')
+    .replaceAll('sattva-central-research', 'glow-central-research')
+    .replaceAll('SattvaCentralResearch', 'GlowCentralResearch')
+    .replaceAll('Sattva Family', 'GlowVentures')
+    .replaceAll('Sattva company membership', 'Glow company membership')
+    .replaceAll('Sattva portfolio companies', 'Glow portfolio companies')
+    .replaceAll('Sattva notebook', 'Glow notebook')
+    .replaceAll('Ask Sattva', 'Ask Glow')
+    .replaceAll('`sattva-${brief.day}-${brief.edition}-brief.pdf`', '`glow-${brief.day}-${brief.edition}-brief.pdf`')
+    .replaceAll('/^sattva-[0-9-]+-', '/^(?:glow|sattva)-[0-9-]+-')
+    .replaceAll("'sattva-portfolio-brief.pdf'", "'glow-portfolio-brief.pdf'")
     .replaceAll("'Sattva-Central-Research'", "'Glow-Central-Research'");
   if (basename(path) === 'wrangler.jsonc') next = next
     .replace(/("name"\s*:\s*")sattva-central-research(")/g, '$1glow-central-research$2')

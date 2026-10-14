@@ -13,7 +13,8 @@ rule below is generic — no company, filing or headline is special-cased.
 | Event stitching | `public/js/data/event-stitching.js` | runner (index), browser fallback |
 | Shared feedback | `public/js/data/relevance-feedback-shared.js`, `relevance-feedback.js`, `worker/relevance-feedback*.mjs` | Worker object + browser |
 | Announcement index | `public/js/data/announcement-index-*.js`, `scripts/build-announcement-index.mjs`, `worker/announcement-index*.mjs` | runner → Actions artifact → Worker object |
-| News / All Alerts ordering | `public/js/data/surface-relevance.js` | browser |
+| All Alerts ordering | `public/js/data/surface-relevance.js` | browser |
+| News publication ordering | `newsPublicationKey()` in `public/js/data/news-window.js` | browser |
 | AI Read | `public/js/data/announcement-read-shared.js`, `worker/announcement-read*.mjs`, `public/js/ui/announcement-read.js` | Worker object (on click) |
 
 ## 1. Categories — one editable master list
@@ -68,7 +69,11 @@ undated last** under a plain descending comparison.
 
 - **Corporate Announcements** — every day, server-side (the index stores each filing's base reading;
   the query adds the current shared adjustment).
-- **News and All Alerts** — in the browser (`surface-relevance.js`), within each of the last
+- **News** — newest source publication day and instant first in every scope (13 October 2026).
+  Date-only stories follow known clocks on their day; undated stories retain their source order.
+  Category readings and Important / Not important feedback remain available without changing
+  chronological order. Capture time never supplies a missing publication date.
+- **All Alerts** — in the browser (`surface-relevance.js`), within each of the last
   `RECENT_RELEVANCE_DAYS` (7) IST days, today included; an older day keeps its plain time order.
   A sort makes at most 120 ms of new readings per synchronous run; the rest are made in slices behind
   the paint and `onRelevanceChange` fires once when they settle, so the table re-sorts in place. A
@@ -134,7 +139,7 @@ the table has stayed open for 600 ms, so a tab passed through on the way to anot
 
 Corporate Announcements and All Alerts ask **Important / Not important** (with an optional
 **Why?**) after an item is opened; News keeps its click-to-article behaviour and offers the same
-controls behind a small ⋯ beside each story. Every vote goes to the `relevance-feedback:v1` object:
+controls directly below each story, outside its article link. Optional Why? drafts and vote status survive list repainting; votes still never hide a story. Every vote goes to the `relevance-feedback:v1` object:
 
 | Route | |
 | --- | --- |
@@ -160,3 +165,15 @@ sections — **What happened**, **Key details**, **Why it matters**, **Investmen
 event history** — then **Source** and **Open Original Filing**. Limits: 150 new readings a day
 across all readers, 3 attempts per document with backoff, no investment advice, figures only as the
 filing states them. A failure is named in words and the original filing link always remains.
+
+The popup starts the read immediately while related history loads independently. Already loaded
+event members remain optional model context. Browser and server share pending requests by exchange
+document identity, including a close/reopen or another row for the same document. Saved v1 readings
+remain reusable; this transport improvement does not invalidate paid history.
+With `Accept: application/x-ndjson`, the same POST streams progress and a terminal result across
+Durable Object RPC. Claude streams completed factual sections after its readable/issuer checks;
+these remain visibly in progress. Investment analysis and durable storage require a complete,
+normally finished, validated answer. Failure retracts provisional sections and keeps the original
+filing link. Closing a popup never cancels another reader's shared read. The full source and existing
+budgets, attempt receipts and cooldowns remain unchanged. Generation returns document, first useful
+section and total durations for diagnosis; these are not source freshness timestamps.

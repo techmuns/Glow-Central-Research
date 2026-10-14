@@ -8,6 +8,7 @@ const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = resolve('public'), initialAt = '2026-09-15T12:00:00Z';
 let now = initialAt, generation = initialAt, revision = 1, failed = false, malformed = false, delayMs = 0, postDelayMs = 0;
 let calls = 0, postCalls = 0, indexDelayMs = 0, olderUnavailable = false;
+const detailPages = [];
 let collection = { intervalMinutes: 120, state: 'ok', discoveryOnly: true,
   sources: Object.fromEntries(['valuepickr', 'news', 'tradingqna'].map(source => [source, { state: 'ok', lastSuccessAt: initialAt, history: { complete: true } }])) };
 const state = { readable: true, ok: true, collection };
@@ -64,6 +65,7 @@ const server = createServer((request, response) => {
     setTimeout(() => {
       if (history?.[1] === '2026-07' && olderUnavailable) return json({ error: 'offline' }, 503);
       const slug = detail?.[1] || 'old-company';
+      if (detail) detailPages.push({ slug, offset: Number(url.searchParams.get('offset') || 0) });
       const rows = history ? posts.slice(0, history[1] === '2026-08' ? 3 : 2).map((post, i) => ({ ...post, id: `${history[1]}-${i}`, timestamp: `${history[1]}-0${3-i}T12:00:00Z` })) : posts;
       const offset = Number(url.searchParams.get('offset') || 0), page = rows.slice(offset, offset + 1000);
       json({ ticker: slug, name: history ? 'Old Company' : 'Tata Consultancy Services', generatedAt: generation,
@@ -89,16 +91,21 @@ try {
   await page.route('**/*', route => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort());
   await page.clock.install({ time: new Date(now) });
   await page.goto(origin);
-  await page.locator('[data-chatter-state="updated"]').waitFor();
+  await page.waitForFunction(() => chatter.meta()?.health?.state === 'updated');
+  assert.equal(await page.locator('[data-chatter-live]').count(), 0, 'collection status is absent from the page header');
   assert.equal(await page.evaluate(() => chatter.meta().total), 3, 'every dashboard page is included');
   assert.equal(await page.locator('#root tbody tr[data-row-key]').count(), 2);
   assert.equal(calls, 2, 'two pages, with no duplicate initial read');
+  assert.equal(await page.locator('[data-top-cards]').count(), 0, 'Coverage opens directly on its table');
+  await page.locator('[data-chatter-source-details]').click();
+  assert((await page.locator('[data-chatter-source-dialog]').innerText()).includes('Source coverage and captured history can have gaps'));
+  await page.getByRole('button', { name: 'Close source details', exact: true }).click();
   const search = page.locator('#root [data-table-search]');
   await search.fill('Tata');
   await search.evaluate(input => { window.originalSearch = input; });
   collection = { ...collection, sources: { ...collection.sources, news: { ...collection.sources.news, state: 'partial' } } }; revision++;
   await page.evaluate(() => chatter.refresh());
-  assert.equal(await page.locator('[data-chatter-live]').getAttribute('data-chatter-state'), 'partial');
+  assert.equal(await page.evaluate(() => chatter.meta().health.state), 'partial');
   assert(await page.evaluate(() => originalSearch === document.querySelector('#root [data-table-search]')), 'status changes preserve the mounted search input');
   assert.equal(await search.inputValue(), 'Tata');
 
@@ -109,8 +116,8 @@ try {
   await page.reload();
   await page.locator('#root tbody tr[data-row-key]').first().waitFor({ timeout: 1500 });
   assert(performance.now() - start < 1500, 'saved rows paint before slow revalidation');
-  assert.equal(await page.locator('[data-chatter-live]').getAttribute('data-chatter-state'), 'checking');
-  await page.locator('[data-chatter-state="failed"]').waitFor();
+  assert.equal(await page.evaluate(() => chatter.meta().health.state), 'checking');
+  await page.waitForFunction(() => chatter.meta()?.health?.state === 'failed');
   assert.equal(await page.locator('#root tbody tr[data-row-key]').count(), 2, 'failed first revalidation retains disk data');
   delayMs = 0; failed = false;
   await page.evaluate(() => chatter.refresh());
@@ -130,7 +137,7 @@ try {
   await page.locator('#root tbody tr[data-row-key="tata-consultancy-services"]').click();
   await page.waitForFunction(() => chatter.loadedPosts().some(group => group.posts.length === 1002));
   assert.equal(await page.locator('[data-chatter-mention-row]').count(), 40, 'large detail lists have a bounded first paint');
-  assert.equal(postCalls, 2, 'all mention pages, including beyond 1000, are retained');
+  assert(detailPages.some(page => page.slug === 'tata-consultancy-services' && page.offset === 1000), 'all mention pages, including beyond 1000, are retained by the shared highlight/dialog reader');
   assert.deepEqual(await page.locator('[data-mention-id]').evaluateAll(rows => rows.slice(0, 3).map(row => row.dataset.mentionId)), ['new-post', 'post-0', 'post-1'], 'publication instants, not timestamp text, sentiment or source pagination, determine newest first');
   const dialog = page.locator('[data-chatter-mentions-dialog]');
   // Complete the opening transform before measuring a reading anchor.
@@ -138,8 +145,9 @@ try {
   await dialog.evaluate(node => { node.scrollTop = node.scrollHeight; });
   await page.waitForFunction(() => document.querySelectorAll('[data-chatter-mention-row]').length === 80);
   assert.equal(await page.locator('[data-mention-id]').nth(40).getAttribute('data-mention-id'), 'post-39', 'scroll continues with the next older card');
-  await page.locator('[data-chatter-more]').evaluate(button => button.focus({ preventScroll: true }));
-  await page.keyboard.press('Enter');
+  const more = page.locator('[data-chatter-more]');
+  await more.evaluate(button => button.focus({ preventScroll: true }));
+  await more.press('Enter');
   assert.equal(await page.locator('[data-chatter-mention-row]').count(), 120, 'keyboard-accessible pagination remains available');
   // New arrivals go first without replacing the mention currently being read.
   await dialog.evaluate(node => { node.scrollTop = 1600; });
@@ -206,13 +214,16 @@ try {
   await page.clock.setSystemTime(new Date('2026-09-15T18:00:00Z'));
   await page.evaluate(() => window.dispatchEvent(new Event('pageshow')));
   await page.waitForFunction(() => chatter.meta().health.state === 'delayed' && !chatter.meta().checking);
-  assert.equal(await page.locator('[data-chatter-live]').getAttribute('data-chatter-state'), 'delayed', 'unchanged transport success cannot refresh source-check times');
+  assert.equal(await page.locator('[data-chatter-live]').count(), 0, 'delayed collection does not add the removed header badge');
+  await page.locator('[data-chatter-source-details]').click();
+  assert((await page.locator('[data-chatter-source-dialog]').innerText()).includes('Collection delayed'), 'source details retain the actual collection state');
+  await page.getByRole('button', { name: 'Close source details', exact: true }).click();
   malformed = true;
   await page.evaluate(() => chatter.refresh());
   failed = true; malformed = false;
   await page.reload();
   await page.locator('#root tbody tr[data-row-key]').first().waitFor();
-  await page.locator('[data-chatter-state="failed"]').waitFor();
+  await page.waitForFunction(() => chatter.meta()?.health?.state === 'failed');
   assert.equal(await page.evaluate(() => chatter.byTicker('TCS').mentions), 1002, 'malformed responses never replace the last-good disk capture');
   failed = false; generation = '2026-09-14T00:00:00Z'; revision++;
   await page.evaluate(() => chatter.refresh());
@@ -264,12 +275,11 @@ try {
   await cold.evaluate(() => { tab.destroy(); window.renderScope('universe'); });
   await cold.evaluate(() => chatter.refresh());
   await cold.locator('[data-table-search]').first().fill('');
-  for (const section of ['coverage', 'not-in-coverage']) {
-    await cold.locator(`[data-chatter-section-tabs] [data-tab-id="${section}"]`).click();
-    await cold.locator('th[data-sort]').filter({ hasText: /^Sentiment/ }).click();
-    const labels = await cold.locator('tbody tr[data-row-key]').evaluateAll(rows => rows.map(row => [...row.querySelectorAll('td')].map(cell => cell.textContent.trim()).find(text => ['Mixed', 'Bullish', 'Bearish'].includes(text))));
-    assert.deepEqual(labels, ['Mixed', 'Bullish', 'Bearish'], `${section} sorts displayed summaries, not deliberately conflicting source scores`);
-  }
+  await cold.locator('th[data-sort]').filter({ hasText: /^Sentiment/ }).click();
+  const labels = await cold.locator('tbody tr[data-row-key]').evaluateAll(rows => rows.map(row => [...row.querySelectorAll('td')].map(cell => cell.textContent.trim()).find(text => ['Mixed', 'Bullish', 'Bearish'].includes(text))));
+  assert.deepEqual(labels, ['Mixed', 'Bullish', 'Bearish'], 'Coverage sorts displayed summaries, not deliberately conflicting source scores');
+  assert.equal(await cold.evaluate(() => chatter.uncovered().length), 3, 'removing the tab does not discard unresolved source records');
+  assert.equal(await cold.locator('[data-chatter-section-tabs] [data-tab-id="not-in-coverage"]').count(), 0);
   await cold.close();
   console.log('PASS exact chatter collector reading, delayed company resolution and dismissed-dialog stability');
   assert.deepEqual(errors, []);

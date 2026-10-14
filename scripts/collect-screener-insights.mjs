@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-import { assertGlowWatchlist } from './lib/screener-upcoming.mjs';
 // Authenticated Insights -> resumable immutable checkpoints, one due company at a time.
 import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { parseScreenerInsightsPage } from './lib/screener-insights.mjs';
+import { parseScreenerInsightsPage, insightAccessRefused } from './lib/screener-insights.mjs';
 import { parseWatchlistExport } from './lib/screener-watchlist.mjs';
 import { buildInsightInventory, insightInventoryDiagnostic } from './lib/screener-insights-inventory.mjs';
 import { runInsightCollection } from './lib/screener-insights-run.mjs';
@@ -24,7 +23,6 @@ import {
   SCREENER_PORTFOLIO_WATCHLIST_NAME,
 } from './lib/screener-upcoming.mjs';
 
-assertGlowWatchlist();
 const output = process.argv[2];
 const stateOutput = process.argv[3];
 const ORIGIN = 'https://www.screener.in';
@@ -68,7 +66,7 @@ export async function exportPortfolioTargets(page) {
   const response = await page.goto(WATCHLIST, { waitUntil: 'domcontentloaded' });
   checkResponse(response);
   if (!response?.ok() || new URL(page.url()).pathname !== `/watchlist/${SCREENER_PORTFOLIO_WATCHLIST_ID}/` ||
-      !(await page.getByText(SCREENER_PORTFOLIO_WATCHLIST_NAME, { exact: true }).count())) throw Error('configured Screener watchlist identity could not be verified');
+      !(await page.getByText(SCREENER_PORTFOLIO_WATCHLIST_NAME, { exact: true }).count())) throw Error('S Screen watchlist identity could not be verified');
   const form = page.locator('form[action^="/api/export/screen/"]').first();
   stage = 'watchlist export discovery';
   const action = await form.getAttribute('action');
@@ -137,6 +135,7 @@ export async function readInsightCompany(page, item, checkedAt, { tabTimeout = 1
         // Observe the lazy request itself: a 429/403 must not be mislabeled a table timeout.
         const [quarterResponse] = await Promise.all([responsePromise, quarterly.click()]);
         checkResponse(quarterResponse);
+        if (insightAccessRefused(await quarterResponse.text())) throw insightError('access-denied');
       }
       // A lazy-tab timeout is a failed company read, never an empty quarterly series.
       await section.locator('#quarterly-insights table').waitFor({ state: 'attached', timeout: tabTimeout }).catch(() => { throw insightError('structure-changed'); });
@@ -145,7 +144,10 @@ export async function readInsightCompany(page, item, checkedAt, { tabTimeout = 1
   const html = await page.content();
   if (Buffer.byteLength(html) > MAX_PAGE_BYTES) throw insightError('oversized');
   let parsed;
-  try { parsed = parseScreenerInsightsPage(html); } catch { throw insightError('structure-changed'); }
+  try { parsed = parseScreenerInsightsPage(html); } catch (error) {
+    if (error.insightCode === 'access-denied') throw insightError('access-denied');
+    throw insightError('structure-changed');
+  }
   const rows = parsed.rows.map((row) => ({ ...row, id: screenerInsightKey({ companyKey: item.companyKey, ...row }) }));
   if (!rows.length && previousCompany?.rows?.length) throw insightError('structure-changed');
   const company = { ...item, checkedAt, readStatus: 'ok', rows };

@@ -29,11 +29,9 @@ concurrency:
 
 jobs:
   scrape:
-    # Company history reads BSE directly too. Keep both BSE callers on the same verified host.
-    # This combined job also needs Chrome for Screener; see docs/BSE-COLLECTION.md.
-    runs-on: ${{ vars.BSE_COLLECTION_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     # The trade lane can use 45 minutes and company recovery 25. Leave time to publish both.
-    timeout-minutes: 90
+    timeout-minutes: 80
     permissions:
       contents: write
     steps:
@@ -66,11 +64,6 @@ jobs:
           PWDEBUG: ""
         run: node scripts/scrape-screener-trades.mjs
 
-      - name: Retain shared public bulk/block fallback when Glow capture is unavailable
-        id: bulk_fallback
-        if: ${{ !cancelled() && steps.insider.outcome != 'success' }}
-        run: node scripts/sync-bulk-deals.mjs
-
       - name: Check whether company filings are due
         id: company_due
         if: ${{ !cancelled() }}
@@ -94,7 +87,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Commit filing and trade captures to main
-        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (steps.company.outcome == 'success' || steps.insider.outcome == 'success' || steps.bulk_fallback.outcome == 'success') }}
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (steps.company.outcome == 'success' || steps.insider.outcome == 'success') }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

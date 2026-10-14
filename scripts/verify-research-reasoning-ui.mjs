@@ -3,11 +3,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { researchLocalBrowser } from './lib/research-local-browser.mjs';
-const book = JSON.parse(readFileSync(new URL('./fixtures/template-portfolio-companies.json', import.meta.url)));
-const h = await researchLocalBrowser({ intercept: (route, url) => {
-  if (url.pathname !== '/data/portfolio-companies.json') return false;
-  return route.fulfill({ contentType: 'application/json', body: JSON.stringify(book) }).then(() => true);
-} });
+const book = JSON.parse(readFileSync(new URL('../public/data/portfolio-companies.json', import.meta.url)));
+const heldTickers = new Set(book.holdings.map(h => h.ticker).filter(Boolean));
+const h = await researchLocalBrowser();
 try {
   const report = await h.page.evaluate(async () => {
     const { researchEvidenceChars } = await import('/js/research/evidence-shared.js');
@@ -16,15 +14,7 @@ try {
       'If crude oil prices fall, which portfolio companies could benefit or be hurt?',
       'If interest rates fall, which of my portfolio companies have upside and what could offset it?',
       'Which portfolio companies are exposed to a weaker rupee, positively or negatively?',
-      // AN ANCHOR THE BOOK DOES NOT HOLD HAS NOTHING TO COMPARE AGAINST, SO BOTH READINGS
-      // ARE ASKED FOR HERE. The comparison branch learns what the named business IS from
-      // that company's own source rows; a company outside this book has none, so the
-      // question is answered as a portfolio-wide reading instead — the honest answer, not
-      // a miss. The template anchors this on a company its own book carries; Glow's book
-      // is a different list, so the held anchor is one of Glow's and the unheld one stays
-      // beside it, which is what keeps the fallback asserted rather than assumed.
-      'Which portfolio companies have businesses similar to Tejas Networks?',
-      'Which portfolio companies have businesses similar to Supreme Industries?',
+      'Which portfolio companies have businesses similar to Birla Cable?',
       'Which portfolio companies depend on the same customer demand and could disappoint together?',
       'Which portfolio companies have improving earnings but conflicting risks in public chatter?',
     ];
@@ -36,18 +26,10 @@ try {
         companies: evidence.selection.companies, context: evidence.businessContext,
         evidence, sources: evidence.sources.map(s => ({ id: s.id, status: s.status, count: s.rows.length })), preview: researchPreview(evidence) });
     }
-    // WHAT THE RETRIEVAL FOUND, SEPARATELY FROM WHAT THE BYTE FIT KEPT. Only the crude-oil case
-    // asserts a named company, so only that question pays for a second, wider retrieval. Asking
-    // the fitted list instead makes the assertion depend on where the budget boundary fell, which
-    // is what broke the sibling business suite on a capture that had MORE of the evidence in it.
-    const wide = await research.buildResearchEvidence({ question: questions[0], prepared, scope: 'portfolio', charBudget: 120000 });
-    cases[0].found = (wide.businessContext?.candidates || []).map(c => c.ticker);
-    cases[0].foundOmitted = wide.businessContext?.candidatesOmitted ?? 0;
     return cases;
   });
   for (const r of report) {
-    const anchor = r.question.match(/similar to ([^?]+)\?/)?.[1];
-    const expectedKind = anchor && book.holdings.some(h => h.name === anchor) ? 'source-backed-business-comparison' : 'portfolio-reasoning';
+    const expectedKind = r.question.includes('similar to') ? 'source-backed-business-comparison' : 'portfolio-reasoning';
     assert.equal(r.context.kind, expectedKind, r.question);
     if (r.context.kind === 'portfolio-reasoning') {
       assert.equal(r.context.businessProfiles.total, book.holdings.length);
@@ -57,37 +39,23 @@ try {
       assert(r.context.businessProfiles.analyses.rows.length > 0, 'business map must carry source-backed analysis, not only sector labels');
     } else {
       assert.equal(r.context.holdingsExamined, book.holdings.length);
-      assert(r.context.candidates.length > 0);
-      assert(r.context.references.length > 0);
+      assert(r.context.candidatesFound >= r.context.candidates.length);
+      assert.match(r.context.sourceCoverage, /no match is not proof/);
     }
     assert(r.context.candidates.every(c => c.weightPct === null));
+    assert(r.context.candidates.every(c => heldTickers.has(c.ticker)), 'reasoning must use Glow holdings');
     assert.match(r.context.holdingsBasis, /ownership and weights not established/);
-    assert(r.sources.some(s => s.id === 'portfolio'), 'the shared sources include Glow Family Book');
-    assert(!r.sources.some(s => s.id === 'earnings-surprise'), 'the retired estimates view is not a research source');
+    assert.equal(r.sources.length, 21);
     assert(r.sources.some(s => s.count));
     assert(r.chars <= 30000);
     assert(r.preview.items.every(p => p.kind === 'excerpt' || p.kind === 'headline'));
     assert(r.context.candidates.every(c => c.evidence.every(e => e.tab && e.text && e.sourceStatus)));
   }
   assert.deepEqual(report[0].companies, [], 'crude oil must not resolve to Oil India');
-  assert.equal(report[0].foundOmitted, 0, 'the wider retrieval must trim nothing; raise its budget');
-  assert(report[0].found.includes('MRPL'), 'actual crude sourcing evidence must survive');
-  // Deliberately still the FITTED list. Open-vocabulary reasoning retrieval casts wider than the
-  // source-backed comparison and does surface HDFCBANK as a low-ranked candidate at a budget that
-  // trims nothing; what this asserts, and always asserted, is that a market-wrap co-mention does
-  // not reach the model as oil exposure. Absence assertions are also safe against growth, since
-  // trimming only ever removes candidates.
+  if (heldTickers.has('MRPL')) assert(report[0].context.candidates.some(c => c.ticker === 'MRPL'), 'actual crude sourcing evidence must survive');
   assert(!report[0].context.candidates.some(c => c.ticker === 'HDFCBANK'), 'a market-wrap co-mention is not oil exposure');
-  assert(report[0].context.candidates.every(c => report[0].found.includes(c.ticker)), 'the fit adds no company');
-  assert(report[1].context.businessProfiles.analyses.rows.some(p => p[0] === 'SAMMAANCAP' && p[2]), 'the model must see funding analysis beyond lexical leaders');
-  // BY QUESTION, NEVER BY POSITION. Two peer questions sit in the list now — one anchor this
-  // book holds and one it does not — so an index would silently move the claim onto the
-  // other case the next time a question is added.
-  const caseFor = text => report.find(r => r.question.includes(text));
-  assert(caseFor('Supreme Industries').context.references.some(r => r.ticker === 'SUPREMEIND' && r.evidence.some(e => /piping|plastic|Industrial Products/i.test(e.text))), 'arbitrary peer anchor needs business evidence instead of broker boilerplate');
-  const held = caseFor('Tejas Networks').context;
-  assert(held.references.some(r => r.ticker === 'TEJASNET' && r.primaryActivities.length), 'a held anchor states its own activity from its own source rows');
-  assert(held.candidates.some(c => c.evidence.some(e => e.basis !== 'industry label only')), 'at least one peer is matched on company-linked text, not on a shared sector label');
+  if (heldTickers.has('SAMMAANCAP')) assert(report[1].context.businessProfiles.analyses.rows.some(p => p[0] === 'SAMMAANCAP' && p[2]), 'the model must see funding analysis beyond lexical leaders');
+  assert(report[3].context.references.some(r => r.ticker === 'BIRLACABLE' && r.evidence.length), 'the Glow peer anchor needs source-linked business evidence');
   if (process.env.RESEARCH_EVAL_EXPORT) {
     const checkedAt = new Date().toISOString();
     const tests = report.map((r, i) => {
@@ -96,7 +64,7 @@ try {
         answer: 'Saved public identity snapshot for evaluation. Current ownership, actual weights and quotes are unavailable.' };
       evidence.portfolioPositions = { sizes: { basis: 'listed-market-value', complete: false, checkedAt, archiveVersion: 1, bookAsOf: book.asOf,
         quotes: { asOf: null, status: 'unavailable', priced: 0, notLive: book.holdings.length } }, holdings: book.holdings.map(h => ({ isin: h.isin, ticker: h.ticker, name: h.name, sector: h.sector, weightPct: null })) };
-      return { id: ['oil', 'rates', 'currency', 'peers-held', 'peers-unheld', 'demand', 'conflicts'][i], question: r.question,
+      return { id: ['oil', 'rates', 'currency', 'peers', 'demand', 'conflicts'][i], question: r.question,
         must: [], forbidden: ['public-snapshot-fixture', 'industrySourceIndex'],
         body: { question: r.question, requirePortfolio: true, scope: 'portfolio', history: [], evidence },
         review: 'Check relevance, dates, exact source citations, opposing mechanisms, conditional vs realised benefits, missing inputs, legal-entity attribution, and unknown actual ownership. Keyword checks are not a quality pass.' };

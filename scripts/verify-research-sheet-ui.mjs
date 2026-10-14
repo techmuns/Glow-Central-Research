@@ -161,9 +161,9 @@ try {
   await a.page.goto(`${origin}/#/research/portfolio`, { waitUntil: 'domcontentloaded' });
   await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor({ timeout: 30000 });
   const tabs = (await a.page.locator('#tabbar-mount [data-tab-id]').evaluateAll((els) => els.map((e) => e.textContent.trim()))).slice(0, 6);
-  ok('the bar reads AI Alerts, Portfolio, Watchlist, Corp Announcements, News, All Alerts', JSON.stringify(tabs) === JSON.stringify(['AI Alerts', 'Portfolio', 'Watchlist', 'Corp Announcements', 'News', 'All Alerts']), JSON.stringify(tabs));
-  ok('AI Alerts is still the first tab, so still the landing page', tabs[0] === 'AI Alerts');
-  ok('the scope toggle is hidden: this tab IS the portfolio', await a.page.locator('[data-scope-controls]').evaluate((el) => el.hidden));
+  ok('Sattva navigation is retained with the two Glow sheets after Alerts', JSON.stringify(tabs) === JSON.stringify(['Alerts', 'Portfolio', 'Watchlist', 'Announcements', 'Earnings', 'Screens']), JSON.stringify(tabs));
+  ok('Alerts is still the first navigation group', tabs[0] === 'Alerts');
+  ok('the research scope selector stays visible beside the unchanged portfolio sheet', await a.page.locator('[data-scope-controls]').isVisible());
 
   console.log('\n— the portfolio rows —');
   const keys = await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').evaluateAll((els) => els.map((e) => e.dataset.rowKey));
@@ -278,7 +278,7 @@ try {
   await a.page.locator('#tabbar-mount [data-tab-id="watchlist"]').click();
   await a.page.locator('[data-watchlist-sheet-empty]').waitFor({ timeout: 15000 });
   ok('an empty watchlist says so and offers the way to add', await a.page.locator('[data-watchlist-sheet-empty] [data-watchlist-sheet-add]').isVisible());
-  ok('the scope toggle is hidden here too', await a.page.locator('[data-scope-controls]').evaluate((el) => el.hidden));
+  ok('the research scope selector stays visible beside the unchanged watchlist sheet', await a.page.locator('[data-scope-controls]').isVisible());
   await a.page.locator('[data-watchlist-sheet-empty] [data-watchlist-sheet-add]').click();
   await a.page.locator('[data-scope-search]').fill('SBIN');
   await a.page.locator('[data-scope-result]').first().click();

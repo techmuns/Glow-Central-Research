@@ -26,19 +26,13 @@ if (!existsSync(join(poolDir, 'index.json'))) {
 }
 const index = JSON.parse(readFileSync(join(poolDir, 'index.json'), 'utf8'));
 const exchange = { text: readFileSync(resolve(root, 'data/exchange-deals.json'), 'utf8'), id: EXCHANGE_ID };
-const status = captureStatusFor({ root, exchange });
+const status = captureStatusFor({ root, exchange, servedAt: index.builtAt });
 const served = { status: JSON.parse(JSON.stringify(status)), artifact: 1, requests: [] };
 
 const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   served.requests.push(url.pathname);
   if (req.method !== 'GET') { res.writeHead(503); res.end('{}'); return; }
-  // Keep the pool's committed names-only book stable. Authenticated statement handoffs and
-  // holdings weights have their own browser suite; they must not race this public-pool fixture.
-  if (url.pathname === '/glow-bridge.html') {
-    res.setHeader('content-type', 'text/html');
-    res.end(`<script>addEventListener('message', e => { if (e.data.channel === 'sattva-portfolio-v1') parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'}, '*'); });</script>`); return;
-  }
   if (url.pathname === '/api/alert-pool/index') {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' });
     res.end(JSON.stringify({ ...index, artifact: served.artifact })); return;
@@ -76,10 +70,16 @@ const captureReads = (since = 0) => served.requests.slice(since).filter((path) =
 const poolReads = (since = 0) => served.requests.slice(since).filter((path) => path.startsWith('/api/alert-pool/'));
 
 async function openPage() {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
+  // Compare the completed data presentation, not two independent entrance-animation clocks.
+  // Normal-motion queue timing and complete-model export are covered by verify-general-alerts-ui.
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block', reducedMotion: 'reduce' });
   await context.route('**/*', (route) => route.request().url().startsWith(origin + '/') ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
   await context.addInitScript((base) => { localStorage.setItem('sattva:chatter-base', `${base}/fixture/chatter`); }, origin);
   const page = await context.newPage();
+  // Both readers compare one immutable captured instant, including freshness and the IST day.
+  // Timer-driven lifecycle/rollover checks have dedicated suites; this oracle must not age its
+  // inputs between the fast pooled reading and the slower full-history reading.
+  await page.clock.setFixedTime(new Date(index.builtAt));
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
@@ -91,44 +91,105 @@ async function openPage() {
 // pooled page read "no pool" too, went down the live path and failed the later pooled checks.
 const withoutPool = (page) => page.route('**/api/alert-pool/index', (route) =>
   route.fulfill({ status: 404, contentType: 'application/json', body: '{"ok":false,"reason":"no-pool"}' }));
+const alertSnapshot = page => page.evaluate(() => {
+  const keys = [...document.querySelectorAll('tbody tr[data-row-key]')].map(row => row.dataset.rowKey);
+  const count = document.querySelector('[data-row-count]')?.textContent.trim() || '';
+  const chips = Object.fromEntries([...document.querySelectorAll('[data-feed]')].map(chip =>
+    [chip.dataset.feed, chip.textContent.trim().replace(/\s+/g, ' ')]));
+  const empty = /^No loaded event\b/.test(document.querySelector('tbody')?.textContent.trim() || '') && /^0\b/.test(count);
+  const ready = (keys.length > 0 || empty) && Object.keys(chips).length > 0 &&
+    !Object.values(chips).some(label => label.includes('reading…')) &&
+    document.querySelector('[data-alerts-workspace]')?.getAttribute('aria-busy') === 'false' &&
+    document.querySelector('[data-alerts-workspace]')?.getAttribute('data-alerts-collecting') === 'false' &&
+    !document.querySelector('[data-table-loading]');
+  return { keys, count, chips, ready };
+});
 // Settled also means the relevance order is final: within the recent days a large table reads
 // relevance in slices after its first paint (surface-relevance.js), and rows not yet read sort by
 // time until then. Comparing two pages mid-way would compare two partial orders.
 const settledAlerts = async (page) => {
+  // Relevance warm-up alone does not wait for its asynchronously loaded inputs.
+  // A fast pooled page can otherwise be sampled with unknown size bands while
+  // the slower live page already has company profiles and a different final order.
+  await page.evaluate(async () => {
+    const [profiles, feedback] = await Promise.all([
+      import('/js/data/company-profiles.js'), import('/js/data/relevance-feedback.js'),
+    ]);
+    await Promise.all([profiles.loadProfiles(), feedback.loadModel()]);
+  });
   await page.waitForFunction(() => {
     const rows = document.querySelectorAll('tbody tr[data-row-key]').length;
     const chips = [...document.querySelectorAll('[data-feed]')];
+    // Today is empty after IST midnight until something dated today is captured: settled then means
+    // the table's own empty state over a zero count, never the placeholders of a read still running.
     const empty = /^No loaded event\b/.test(document.querySelector('tbody')?.textContent.trim() || '')
       && /^0\b/.test(document.querySelector('[data-row-count]')?.textContent.trim() || '');
-    return (rows > 0 || empty) && chips.length > 0 && !chips.some((chip) => chip.textContent.includes('reading…')) && !document.querySelector('[data-table-loading]');
+    // The feeds may be ready while sliced story grouping still shows the original reports.
+    // Compare completed line items, never a fixed-delay sample of an intermediate count.
+    return (rows > 0 || empty) && chips.length > 0 && !chips.some((chip) => chip.textContent.includes('reading…'))
+      && document.querySelector('[data-alerts-workspace]')?.getAttribute('aria-busy') === 'false'
+      && document.querySelector('[data-alerts-workspace]')?.getAttribute('data-alerts-collecting') === 'false'
+      && !document.querySelector('[data-table-loading]');
   }, null, { timeout: 120000 });
-  // Story grouping can hand the table new row objects after the first paint, and those are read in
-  // slices too, so settled means the readings are done and two reads a moment apart agree.
+  // Story grouping folds exact duplicate reports after the first paint and hands the table new row
+  // objects, which are read in slices too; a refresh repaints the unfolded rows until the fold runs
+  // again. So settled means the readings are done and two reads a moment apart agree on the painted
+  // rows AND on the complete count, which counts rows that are not painted.
   let previous = null;
   for (let attempt = 0; attempt < 40; attempt++) {
     await page.evaluate(async () => { await (await import('/js/data/surface-relevance.js')).relevanceSettled(); });
-    const keys = JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('tbody tr[data-row-key]')].map((row) => row.dataset.rowKey)));
-    if (keys === previous) return;
-    previous = keys;
-    await page.waitForTimeout(750);
+    // The normal 90-second refresh can start after the first readiness check,
+    // retaining rows while its chips read "reading". Recheck readiness and take
+    // rows, count and chips in one atomic DOM read; never compare separate clocks.
+    const snapshot = await alertSnapshot(page), state = JSON.stringify(snapshot);
+    if (snapshot.ready && state === previous) return snapshot;
+    previous = snapshot.ready ? state : null;
+    await page.waitForTimeout(1500);
   }
+  throw Error('the alert rows, count and source chips did not settle');
 };
 const rowKeys = (page) => page.evaluate(() => [...document.querySelectorAll('tbody tr[data-row-key]')].map((row) => row.dataset.rowKey));
 // THE RANKING IS SETTLED when the tab is no longer reading — `complete`, or `partial` where a live
 // route this sandbox cannot answer left a feed failed — and the cards have stopped changing.
 const settledRanking = async (page, timeout) => {
-  await page.waitForFunction(() => { const state = document.querySelector('[data-ai-feed-status]')?.dataset.state; return !!state && state !== 'pending'; }, null, { timeout });
+  const snapshot = () => {
+    const status = document.querySelector('[data-ai-feed-status]');
+    const cards = [...document.querySelectorAll('[data-ai-card]')].map(card => card.dataset.ticker);
+    const firstPosition = Number(document.querySelector('[data-ai-card]')?.getAttribute('aria-posinset') || 0);
+    const total = Number(document.querySelector('[data-ai-cards]')?.dataset.aiTotal || 0);
+    // A source failure has priority in the compact status label while the remaining sources
+    // still read. Collection readiness is separate from that truthful coverage label.
+    const ready = !!status?.dataset.state && status.dataset.state !== 'pending' &&
+      document.querySelector('[data-ai-cards]')?.getAttribute('aria-busy') === 'false' &&
+      document.querySelector('[data-ai-layout]')?.getAttribute('data-ai-collecting') === 'false';
+    return { cards, firstPosition, total, ready, coverage: status?.dataset.state, grouping: status?.dataset.aiStoryStatus };
+  };
+  await page.waitForFunction(() => {
+    const status = document.querySelector('[data-ai-feed-status]');
+    return !!status?.dataset.state && status.dataset.state !== 'pending' &&
+      document.querySelector('[data-ai-cards]')?.getAttribute('aria-busy') === 'false' &&
+      document.querySelector('[data-ai-layout]')?.getAttribute('data-ai-collecting') === 'false';
+  }, null, { timeout }).catch(async error => {
+    console.error('AI ranking did not finish collection:', await page.evaluate(snapshot));
+    throw error;
+  });
   let previous = null;
   for (let i = 0; i < 40; i++) {
-    const cards = await page.evaluate(() => [...document.querySelectorAll('[data-ai-card]')].map((card) => card.dataset.ticker).join(','));
-    if (cards && cards === previous) return cards.split(',');
-    previous = cards;
+    // Live arrivals preserve the company being read. Compare the same first eight companies,
+    // independent of that reading anchor or the adaptive number of mounted grid rows.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(100);
+    // Recheck readiness with the order: another source arrival can start a reassembly.
+    const state = await page.evaluate(snapshot), cards = state.cards.join(',');
+    if (state.ready && state.firstPosition === 1 && cards && cards === previous) return { cards: state.cards.slice(0, 8), total: state.total };
+    previous = state.ready && state.firstPosition === 1 ? cards : null;
     await page.waitForTimeout(1500);
   }
   throw new Error('the ranking did not settle');
 };
 const rowCount = (page) => page.evaluate(() => document.querySelector('[data-row-count]')?.textContent.trim() || '');
 const feedChips = (page) => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-feed]')].map((chip) => [chip.dataset.feed, chip.textContent.trim().replace(/\s+/g, ' ')])));
+
 const environment = (message) => /ExcelJS|fonts\.googleapis|exceljs|Failed to load resource|net::ERR|503/.test(message);
 
 try {
@@ -136,11 +197,8 @@ try {
   const pooled = await openPage();
   const from = served.requests.length;
   await pooled.page.goto(`${origin}/#/research/daily-alerts?scope=universe`);
-  await settledAlerts(pooled.page);
-  await pooled.page.waitForTimeout(1500);
-  const pooledKeys = await rowKeys(pooled.page);
-  const pooledCount = await rowCount(pooled.page);
-  const pooledChips = await feedChips(pooled.page);
+  const pooledReading = await settledAlerts(pooled.page);
+  const { keys: pooledKeys, count: pooledCount, chips: pooledChips } = pooledReading;
   assert(poolReads(from).some((path) => path.endsWith(`/days/${index.day}.json.gz`)), `today's shard is read (${poolReads(from).join(', ')})`);
   assert.deepEqual(captureReads(from), [], `no pooled capture is downloaded for Today (${captureReads(from).join(', ')})`);
   const poolState = await pooled.page.evaluate(async () => (await import('/js/data/alert-pool.js')).status());
@@ -179,8 +237,17 @@ try {
   const handoffFrom = served.requests.length;
   await handoff.page.goto(`${origin}/#/research/daily-alerts?scope=universe`);
   await indexWaiting;
-  await handoff.page.evaluate(async () => {
-    const coverage = await import('/js/data/coverage.js');
+  // Keep the test's module promise rooted while the index is deliberately held.
+  // A bare async DevTools evaluation can lose its promise during a browser GC;
+  // apply the book change synchronously after the dependency is available.
+  await handoff.page.evaluate(() => {
+    window.handoffCoverageReady = import('/js/data/coverage.js').then(module => {
+      window.handoffCoverage = module;
+    });
+  });
+  await handoff.page.waitForFunction(() => !!window.handoffCoverage, null, { timeout: 10000 });
+  await handoff.page.evaluate(() => {
+    const coverage = window.handoffCoverage;
     coverage.useFamilyBook(coverage.holdings().map(h => ({ ...h, bookName: `${h.name} statement name` })));
   });
   releaseIndex();
@@ -191,9 +258,9 @@ try {
   await settledAlerts(handoff.page);
   assert.deepEqual(captureReads(handoffFrom), [], 'the replacement context still uses the pool instead of raw captures');
   assert(poolReads(handoffFrom).some(path => path.endsWith(`/days/${index.day}.json.gz`)), 'the replacement reads the current-day shard');
-  await handoff.page.evaluate(async () => {
+  await handoff.page.evaluate(() => {
     window.handoffSearch = document.querySelector('[data-table-search]');
-    const coverage = await import('/js/data/coverage.js');
+    const coverage = window.handoffCoverage;
     coverage.useFamilyBook(coverage.holdings().map(h => ({ ...h, cmp: 123, holdingWeightPct: 2.5 })));
     coverage.invalidateFamilyBook(); coverage.failFamilyBook();
   });
@@ -209,12 +276,11 @@ try {
   await withoutPool(live.page);
   const liveFrom = served.requests.length;
   await live.page.goto(`${origin}/#/research/daily-alerts?scope=universe`);
-  await settledAlerts(live.page);
-  await live.page.waitForTimeout(1500);
+  const liveReading = await settledAlerts(live.page);
   assert(captureReads(liveFrom).length > 0, 'the live path downloads captures');
-  assert.deepEqual(pooledKeys, await rowKeys(live.page), 'the pool paints the rows the live collection paints, in the same order');
-  assert.equal(pooledCount, await rowCount(live.page), 'the same total');
-  const liveChips = await feedChips(live.page);
+  assert.deepEqual(pooledKeys, liveReading.keys, 'the pool paints the rows the live collection paints, in the same order');
+  assert.equal(pooledCount, liveReading.count, 'the same total');
+  const liveChips = liveReading.chips;
   // A source chip is compared where the live read succeeded here. A sandbox that times out an
   // archive read paints that feed partial on the live page; the runner read it whole, and the pool
   // says so — that is the environment failing the live path, not the pool disagreeing with it.
@@ -229,15 +295,13 @@ try {
   // Today can legitimately be empty after IST midnight. Keep that exact comparison above,
   // and also require a populated period so an empty rendering regression cannot pass it.
   await pooled.page.getByRole('combobox', { name: 'Date range', exact: true }).selectOption('7d');
-  await settledAlerts(pooled.page);
-  await pooled.page.waitForTimeout(1500);
-  const recentKeys = await rowKeys(pooled.page), recentCount = await rowCount(pooled.page);
+  const recentReading = await settledAlerts(pooled.page);
+  const { keys: recentKeys, count: recentCount } = recentReading;
   assert(recentKeys.length > 0, 'the retained seven-day fixture must paint actual events');
   await live.page.getByRole('combobox', { name: 'Date range', exact: true }).selectOption('7d');
-  await settledAlerts(live.page);
-  await live.page.waitForTimeout(1500);
-  assert.deepEqual(await rowKeys(live.page), recentKeys, 'a populated period also paints identical rows in order');
-  assert.equal(await rowCount(live.page), recentCount, 'the populated period has identical complete counts');
+  const recentLive = await settledAlerts(live.page);
+  assert.deepEqual(recentLive.keys, recentKeys, 'a populated period also paints identical rows in order');
+  assert.equal(recentLive.count, recentCount, 'the populated period has identical complete counts');
   await pooled.page.getByRole('combobox', { name: 'Date range', exact: true }).selectOption('today');
   await settledAlerts(pooled.page);
   console.log('PASS empty Today and populated seven-day windows both preserve exact pool/live results');
@@ -270,36 +334,28 @@ try {
   await pooled.page.goto(`${origin}/#/research/ai-alerts?scope=universe`);
   const fromAi = served.requests.length;
   await pooled.page.reload();
-  const pooledCards = await settledRanking(pooled.page, 180000);
+  const pooledRanking = await settledRanking(pooled.page, 180000), pooledCards = pooledRanking.cards;
   const aiReads = poolReads(fromAi).filter((path) => path.includes('/ai/'));
   assert(aiReads.length >= index.ai.length, `every AI shard is read (${aiReads.length} of ${index.ai.length})`);
   assert.deepEqual(captureReads(fromAi).filter((path) => path !== '/data/insider-trades.json' && !path.startsWith('/data/insider-archive/')), [], `no pooled capture is downloaded for the ranking (${captureReads(fromAi).join(', ')})`);
   assert(pooledCards.length > 0, 'cards surface from the AI pool');
   const aiState = await pooled.page.evaluate(async () => (await import('/js/data/alert-pool.js')).status().feeds);
   assert(Object.values(aiState).every((state) => state.pooled), `every pooled feed came from the AI pool (${JSON.stringify(aiState)})`);
+  const real = pooled.errors.filter((message) => !environment(message));
+  assert.deepEqual(real, [], `zero console errors (${pooled.errors.length - real.length} environment failures dropped)`);
+  // The completed card identities are the comparison input. Release the first
+  // reader's retained history before loading the second full-history reader.
+  await pooled.context.close();
   const liveAi = await openPage();
   await withoutPool(liveAi.page);
   await liveAi.page.goto(`${origin}/#/research/ai-alerts?scope=universe`);
-  const liveCards = await settledRanking(liveAi.page, 300000);
+  const liveRanking = await settledRanking(liveAi.page, 300000), liveCards = liveRanking.cards;
+  assert.equal(pooledRanking.total, liveRanking.total, 'the AI pool retains the same complete company count as full history');
   assert.deepEqual(pooledCards, liveCards, 'the AI pool ranks the same companies in the same order as the full history');
+  assert.deepEqual(liveAi.errors.filter(message => !environment(message)), [], 'zero live ranking console errors');
   console.log(`PASS AI Alerts from the AI pool: ${pooledCards.length} cards, identical to the live ranking`);
   await liveAi.context.close();
 
-  // A capture check can publish a new artifact without changing any retained rows. Exercise the
-  // real header refresh: all AI shards stay decoded, while the new index/status are checked.
-  const fromRefresh = served.requests.length;
-  served.artifact++;
-  await pooled.page.locator('[data-header-refresh]').click();
-  await pooled.page.waitForFunction(async artifact => (await import('/js/data/alert-pool.js')).status().artifact === artifact,
-    served.artifact, { timeout: 120000 });
-  assert.deepEqual(await settledRanking(pooled.page, 180000), pooledCards, 'refresh keeps identical ranked cards');
-  assert.deepEqual(poolReads(fromRefresh).filter(path => /\/\d+\//.test(path)), [], 'unchanged shards are not downloaded from the new artifact');
-  assert(served.requests.slice(fromRefresh).includes('/api/capture-status'), 'refresh still checks live capture revisions');
-  console.log(`PASS new artifact reuses ${index.ai.length} unchanged AI shards: zero shard requests, identical cards`);
-
-  const real = pooled.errors.filter((message) => !environment(message));
-  assert.deepEqual(real, [], `zero console errors (${pooled.errors.length - real.length} environment failures dropped)`);
-  await pooled.context.close();
   console.log('PASS alert pool in the browser: exact rows, exact cards, honest fallback, zero console errors.');
 } finally {
   await browser.close();
