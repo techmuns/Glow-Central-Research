@@ -52,6 +52,7 @@ jobs:
             gh pr create --draft --base main --head "$branch" --title "Review Sattva template sync (${upstream:0:12})" --body-file "$body"
             exit 0
           fi
+          base=$(git rev-parse HEAD)
           git switch -c "$branch"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -65,6 +66,7 @@ jobs:
             fi
           fi
           node scripts/adapt-glow-template.mjs
+          git diff --exit-code "$base" -- public/data public/js/tabs/portfolio.js public/js/tabs/watchlist.js
           node scripts/prepare-glow-template-patch.mjs --record "$upstream"
           conflicts=$(git diff --name-only --diff-filter=U)
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
@@ -83,7 +85,6 @@ jobs:
         run: |
           npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs -i scripts/tailwind-input.css -o public/css/tailwind.css --minify
           node --experimental-vm-modules --no-warnings scripts/verify-syntax.mjs
-          node scripts/rebuild-glow-capture-index.mjs
           node scripts/verify-glow-parity.mjs
           node scripts/check-book.mjs
           npx --yes wrangler@4 deploy --dry-run

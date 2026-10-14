@@ -24,8 +24,8 @@ both sheet memberships, all three research scopes and light/dark responsive layo
 Glow ownership remains separate from template parity:
 
 - All pre-existing captures, archives, portfolio assets and watchlist/sheet durable object
-  identities remain Glow's. The only capture metadata reconciliation is issuer priority;
-  source observations, check times and archive ranges are retained. BUILDPRO's reviewed
+  identities remain Glow's. Source observations, check times, archive ranges and verified
+  portfolio-check metadata are retained unchanged. BUILDPRO's reviewed
   subdivision alias remains an issuer relationship, without rewriting statement holdings.
 - The same-origin Glow statement reader backs names, complete equity percentages and the
   shared My Managers interface. It validates the matching Glow book/manager revision and
