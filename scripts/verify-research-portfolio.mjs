@@ -9,6 +9,15 @@ import { matchesCapturedNews } from './lib/research-news-oracle.mjs';
 import { validateResearchBody } from '../worker/research.mjs';
 import { researchPreview } from '../public/js/research/preview.js';
 const book = JSON.parse(readFileSync(new URL('../public/data/portfolio-companies.json', import.meta.url)));
+// Independent capture identity oracle: a source can retain a renamed issuer under
+// the name explicitly linked to its ticker in the shipped Screener universe.
+// Statement labels remain unchanged (for example Rural Electrification / REC).
+const universe = JSON.parse(readFileSync(new URL('../public/data/universe.json', import.meta.url)));
+const reportedNames = new Map();
+for (const row of universe) {
+  const ticker = String(row['Screener URL'] || '').match(/^https:\/\/(?:www\.)?screener\.in\/company\/([^/]+)\//)?.[1];
+  if (ticker && row.Company) reportedNames.set(ticker, [...(reportedNames.get(ticker) || []), row.Company]);
+}
 const portfolio = researchQuestionBank(book.holdings).filter(c => ['latest', 'earnings', 'filings'].includes(c.category));
 // The suite outgrew one browser session per CI step: 510 packets at 4–7 seconds each took 34–62
 // minutes on shared runners (1–2 October 2026). CI runs RESEARCH_SHARD=k/n (1-based) as n parallel
@@ -49,7 +58,7 @@ try {
     if (!bounds.ok) failures.push(`packet_${bounds.error}`);
     const clean = value => String(value || '').toLowerCase().replace(/^the\s+/, '').replace(/\b(limited|ltd)\b\.?/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
     const sources = packet.sources.map(s => ({ id: s.id, status: s.status, companyRows: s.companyRows || 0, included: s.includedRows,
-      companyIncluded: s.rows.filter(r => (target.isin && r.isin && r.isin === target.isin) || (target.ticker && r.ticker && r.ticker === target.ticker) || [target.name, target.bookName, target.matchedName, ...packet.selection.companies.map(c => c.name)].filter(Boolean).some(name => clean(r.company) === clean(name))).length }));
+      companyIncluded: s.rows.filter(r => (target.isin && r.isin && r.isin === target.isin) || (target.ticker && r.ticker && r.ticker === target.ticker) || [target.name, target.bookName, target.matchedName, ...(reportedNames.get(target.ticker) || []), ...packet.selection.companies.map(c => c.name)].filter(Boolean).some(name => clean(r.company) === clean(name))).length }));
     for (const s of sources) if (s.companyRows > 0 && !s.companyIncluded) failures.push(`${s.id}_company_rows_lost`);
     // Independent source-store oracle: a confirmed article must survive when
     // present, even if the adapter accidentally reports companyRows = 0.
