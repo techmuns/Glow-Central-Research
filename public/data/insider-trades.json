@@ -1,19 +1,10 @@
 {
-  "bulkDeals": {
-    "source": "Screener.in bulk and block listings captured by Glow",
-    "sourceUrl": "https://www.screener.in/trades/bulk/",
-    "capturedAt": "2026-10-14T18:45:27.414Z",
-    "from": "2026-08-05",
-    "to": "2026-10-14",
-    "rows": 12665,
-    "error": null
-  },
   "_provenance": "REAL DATA, NOT OURS. Market-wide Bulk deal, Block deal, SAST, Insider trade listings are read from Screener.in in newest-first order. All four categories must succeed before this file changes. Exact repeat captures and cross-provider representations of the same ticker/date/person/direction/quantity event are merged once; distinct categories remain distinct. Rows are retained for 365 days; verified four-list coverage starts 2026-09-08. Portfolio and Watchlist are exact ticker filters over this same exchange-wide capture; Universe shows the whole retained feed.",
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-14T18:45:27.414Z",
-  "oldestDataAt": "2026-10-14T18:45:27.414Z",
+  "capturedAt": "2026-10-14T20:09:10.990Z",
+  "oldestDataAt": "2026-10-14T20:09:10.990Z",
   "from": "2025-10-15",
   "to": "2026-10-15",
   "windowDays": 365,
@@ -37,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-14T18:45:27.414Z",
+      "capturedAt": "2026-10-14T20:09:10.990Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -50,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-14T18:45:27.414Z",
+      "capturedAt": "2026-10-14T20:09:10.990Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -63,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-14T18:45:27.414Z",
+      "capturedAt": "2026-10-14T20:09:10.990Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -76,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-14T18:45:27.414Z",
+      "capturedAt": "2026-10-14T20:09:10.990Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -9596,9 +9587,11 @@
           "Company": "Olympia Industri",
           "Insider": "Navin Kumar Pansari",
           "Category": "Promoter And Director",
-          "Transaction": "1,51,516 Equity",
+          "Security Type": "Equity",
+          "Trade Shares": "151516",
           "Broadcast Date": "2026-10-13",
-          "Source": "Screener.in"
+          "Source": "Screener.in",
+          "Transaction": "1,51,516 Equity"
         }
       }
     ],
@@ -169943,10 +169936,12 @@
           "Company": "AXISCADES Tech.",
           "Insider": "Jupiter Capital Private Limited",
           "Category": "Promoter",
-          "Transaction": "27,000 Equity",
+          "Security Type": "Equity",
+          "Trade Shares": "27000",
           "Trade Value": "6.18 crore",
           "Broadcast Date": "2026-10-08",
-          "Source": "Screener.in"
+          "Source": "Screener.in",
+          "Transaction": "27,000 Equity"
         }
       },
       {
@@ -399490,10 +399485,12 @@
           "Company": "Aequs",
           "Insider": "Melligeri Private Family Foundation Mellwood Trust...",
           "Category": "Promoter",
-          "Transaction": "10,05,13,070 Equity",
+          "Security Type": "Equity",
+          "Trade Shares": "100513070",
           "Trade Value": "2,317 crore",
           "Broadcast Date": "2026-10-09",
-          "Source": "Screener.in"
+          "Source": "Screener.in",
+          "Transaction": "10,05,13,070 Equity"
         }
       },
       {
