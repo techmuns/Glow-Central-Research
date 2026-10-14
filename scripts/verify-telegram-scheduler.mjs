@@ -104,6 +104,8 @@ assert.equal(await storage.getAlarm(), null);
 // Actual 13 September request: GitHub kept it queued with zero jobs while newer
 // collections completed. It must not permanently suppress the independent timer.
 const queueFixture = JSON.parse(readFileSync(new URL('./fixtures/telegram-empty-queued-run.json', import.meta.url)));
+// Reuse the captured queue shape as an inert run belonging to this deployment.
+queueFixture.head_repository = { full_name: 'techmuns/Glow-Central-Research' };
 const queueTime = Date.parse('2026-09-15T13:00:00Z');
 const queueCfg = { token: 'local-test-secret', owner: 'techmuns', repo: 'Glow-Central-Research', ref: 'main', now: () => queueTime };
 function queuedAPI({ mode = 'safe', queues = 1, edit = () => {}, jobInventory = { total_count: 0, jobs: [] } } = {}) {
