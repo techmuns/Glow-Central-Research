@@ -5,6 +5,10 @@
 The shared application is aligned to `techmuns/Sattva-Central-Research` revision
 `3342259219924f97987e9c3a6b24ab4cc7c3c5de` (14 October 2026). This supersedes older
 notes below about retaining different shared interfaces or additional Glow navigation.
+`GLOW-TEMPLATE-BASELINE.json` records that exact revision. Future three-way source diffs
+start there, preserving Glow integrations without copying Sattva's generated capture
+ancestry into Glow's repository. The protected path list also prevents automatic patches
+from replacing the two sheets, their storage, Glow's producers or any capture file.
 Glow uses Sattva's Alerts, Announcements, Earnings, Screens, Mutual Funds, News and
 Super Investors navigation, including their subviews, saved screens, shared ordering,
 column layouts, readers, collection/recovery code and source-status behavior.
@@ -410,16 +414,19 @@ market-wide discovery context. Preserve these on a later template merge. The v2 
 contract-scoped edge keys must advance together; a v1 pool cannot establish complete AI context.
 
 `Sync from Sattva` checks merged upstream changes every six hours and on manual invocation.
-Changes only to Sattva capture data are skipped. It prepares a `codex/sattva-sync-*` **merge commit and pull request**, preserving every existing
-Glow capture (including nested archives), applying product/repository substitutions, rebuilding
-Tailwind and checking the Glow contract. Newly introduced upstream portfolio caches are excluded.
+Changes only to Sattva capture data are skipped. It prepares a `codex/sattva-sync-*` **source-diff commit and pull request** from the recorded
+template revision, preserving every existing Glow capture (including nested archives), applying
+product/repository substitutions, rebuilding Tailwind and checking the Glow contract. Protected
+sheet, producer, branding and data paths are excluded before a patch is applied. The exact source
+revision is advanced on the review branch and only reaches main through the passing PR.
 It does not push to main. Conflicts or failed checks produce a draft requiring resolution;
 missing PR permission produces an actionable error with the branch preserved.
 
 The full Verify workflow and review gates still govern each PR. This is automatic PR preparation,
 not a claim that arbitrary future changes can merge without adaptation. Review shared code
 changes, preserve the Glow adapter and extensions, address actionable bot feedback, and merge
-when checks pass. Use a merge commit so upstream ancestry remains known. The existing deployment
+when checks pass. Merge the PR through the normal review gates; the recorded baseline keeps the
+upstream source revision known without importing its capture history. The existing deployment
 pipeline may run on merge; other production actions require explicit authorization.
 
 Upstream operational documents retained in this repository describe the template's history.

@@ -162,7 +162,11 @@ const scan = dir => {
 scan('worker'); scan('public/js'); scan('scripts');
 const sync = readFileSync(new URL('../.github/workflows/sync-upstream.yml', import.meta.url), 'utf8');
 assert(!sync.includes('HEAD:main'));
-assert(sync.includes('git restore --source="$base" --staged --worktree'));
+assert(sync.includes('prepare-glow-template-patch.mjs'));
+const baseline = JSON.parse(readFileSync(new URL('../docs/GLOW-TEMPLATE-BASELINE.json', import.meta.url)));
+assert.equal(baseline.mode, 'source-diff');
+for (const path of ['public/data', 'public/js/tabs/portfolio.js', 'public/js/tabs/watchlist.js', 'public/js/core/research-sheet.js'])
+  assert(baseline.preserve.includes(path), `${path} cannot be replaced by an automatic template patch`);
 assert(sync.includes('codex/sattva-sync-'));
 assert(sync.includes('--body-file'));
 console.log(`PASS Glow parity: ${companies.count} identities, complete statement weights, source dates, nulls, portfolio isolation, local asset-only reads and PR-only template sync.`);
