@@ -26,9 +26,9 @@ jobs:
           "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= .github/workflows/mutual-funds-refresh.yml .github/workflows/investor-disclosures-refresh.yml .github/workflows/verify.yml .github/workflows/announcements-refresh.yml .github/workflows/corporate-actions-refresh.yml .github/workflows/bse-access-check.yml .github/workflows/announcement-index-refresh.yml
   contracts:
     runs-on: ubuntu-latest
-    # Full-history alert checks exceeded the former ten-minute job budget while
-    # still passing; retain every check and allow the growing captures to finish.
-    timeout-minutes: 20
+    # Keep the full retained Glow history and the upstream checks. Their growing
+    # alert pools plus Glow sheet checks need room beyond the upstream job budget.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -187,9 +187,9 @@ jobs:
   browser-tests:
     name: browser (${{ matrix.part }}/3)
     runs-on: ubuntu-latest
-    # The complete suite now exceeds one runner's 30-minute budget. Keep every
-    # check, split the independent fixtures, and require all three parts below.
-    timeout-minutes: 20
+    # Keep every upstream browser check plus Glow isolation/returning-reader checks.
+    # Split independent fixtures and allow the full retained history to finish.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

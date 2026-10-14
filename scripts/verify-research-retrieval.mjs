@@ -34,7 +34,8 @@ assert(cases.some(c => c.ticker === null));
 
 const ambiguousIndex = [...index, { ticker: 'BIRLACORPN', name: 'Birla Corporation' }];
 assert.deepEqual(queryPlan('Latest on Aditya Birla Capital?', ambiguousIndex).companies.map(c => c.ticker), ['ABCAPITAL']);
-const demerged = queryPlan('Latest on Vedanta Iron and Steel?', index, { scope: 'portfolio', holdings: index });
+const demergedIndex = [...index, { ticker: null, isin: 'INE1CLE01013', name: 'Vedanta Iron and Steel' }];
+const demerged = queryPlan('Latest on Vedanta Iron and Steel?', demergedIndex, { scope: 'portfolio', holdings: demergedIndex });
 assert.equal(demerged.companies.length, 1);
 assert.equal(demerged.companies[0].isin, 'INE1CLE01013');
 assert.equal(demerged.companies[0].inScope, true);

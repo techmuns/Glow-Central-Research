@@ -243,7 +243,7 @@ try {
   await filtersPage.evaluate(() => {
     tab.destroy();
     ctx.params = {};
-    enterView({ key: 'legacy-saved-results', preset: { reading: { tableKey: 'sattva-earnings', q: 'filter',
+    enterView({ key: 'legacy-saved-results', preset: { reading: { tableKey: 'glow-earnings', q: 'filter',
       sort: { key: 'Date', dir: 'asc' }, filters: [{ label: 'Result shape', value: 'pat-up' }, { label: 'Reporting basis', value: 'con' }] } } });
     tab.render(ctx);
   });

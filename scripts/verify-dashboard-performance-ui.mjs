@@ -19,7 +19,7 @@ let offline = false;
 let upgradeAssetsOnly = false;
 let cacheMeasurements = false;
 let previousRelease = true;
-const previousTabOrder = ['ai-alerts', 'ask-research', 'daily-alerts', 'bookmarks', 'earnings-hub',
+const previousTabOrder = ['ai-alerts', 'portfolio', 'watchlist', 'ask-research', 'daily-alerts', 'bookmarks', 'earnings-hub',
   'concall', 'public-chatter', 'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements',
   'corporate-actions', 'nse-filings', 'insider-trades', 'mutual-funds'];
 const currentTabOrder = ['alerts', 'portfolio', 'watchlist', 'announcements',
@@ -33,7 +33,7 @@ const sdkUrl = 'https://munshot.s3.ap-south-1.amazonaws.com/SDK+script/munshot-d
 const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   requests.push(url.pathname);
-  const upgradeAsset = /^\/(?:$|index\.html$|sw\.js$|sdk-fixture\.js$|js\/|css\/|assets\/brand\/|data\/portfolio-companies\.json$)/.test(url.pathname);
+  const upgradeAsset = /^\/(?:$|index\.html$|glow-bridge\.html$|sw\.js$|sdk-fixture\.js$|js\/|css\/|assets\/brand\/|data\/portfolio-companies\.json$)/.test(url.pathname);
   const cacheFixture = cacheMeasurements && [immutablePath, mutablePath, corruptPath].includes(url.pathname);
   if (offline && !(upgradeAssetsOnly && upgradeAsset) && !cacheFixture) {
     res.writeHead(503, { 'cache-control': 'no-store' }); res.end('offline'); return;

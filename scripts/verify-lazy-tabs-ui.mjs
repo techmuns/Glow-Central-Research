@@ -106,9 +106,9 @@ try {
     assert.deepEqual(scripts.filter(row => row.path.startsWith('/js/tabs/')).map(row => row.path).sort(),
       ['/js/tabs/ai-alerts.js', '/js/tabs/ask-research.js', '/js/tabs/catalog.js', '/js/tabs/registry.js']);
     assert(!requests.includes('/data/institution-holdings.json'), 'unrelated holdings are not fetched at startup');
-    assert.equal(await page.locator('[data-tab-id], [data-header-bookmarks]').count(), 8, 'all retained navigation remains available before its code loads');
+    assert.equal(await page.locator('[data-tab-id], [data-header-bookmarks]').count(), 10, 'all retained navigation remains available before its code loads');
     assert.deepEqual(await page.locator('[data-tab-id]').evaluateAll(tabs => tabs.map(tab => [tab.dataset.tabId, tab.textContent.trim()])), [
-      ['alerts', 'Alerts'], ['announcements', 'Announcements'], ['earnings', 'Earnings'],
+      ['alerts', 'Alerts'], ['portfolio', 'Portfolio'], ['watchlist', 'Watchlist'], ['announcements', 'Announcements'], ['earnings', 'Earnings'],
       ['breakouts', 'Screens'], ['mutual-funds', 'Mutual Funds'],
       ['news-section', 'News'], ['super-investors', 'Super Investors'],
     ], 'navigation matches the requested parent order and labels');

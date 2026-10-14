@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Sattva-specific boundaries around the Glow source-reading upgrade. No external I/O.
+// Glow-specific boundaries around the shared source-reading upgrade. No external I/O.
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { NewsletterStore } from '../worker/newsletter-store.mjs';
@@ -62,7 +62,7 @@ assert.ok(wrapper.includes('/filing?src='));
 assert.ok(wrapper.endsWith('&view=2'), 'preserve the released readable-filing version');
 for (const output of [renderBriefHtml(pending), renderBriefText(pending), new TextDecoder().decode(renderBriefPdf(pending))]) {
   assert.ok(output.includes(wrapper) || output.includes(wrapper.replace(/&/g, '&amp;')), 'HTML, text and PDF retain the readable filing route');
-  assert.ok(!/Glow Ventures|statement quantities|rupee day change/i.test(output));
+  assert.ok(!/Sattva Ventures|statement quantities|rupee day change/i.test(output));
 }
 const prices = await readPerformance({ env:{ ASSETS:{ fetch(){throw new Error('private book must never be read');} } },
   holdings:[{ticker:'CEAT',name:'CEAT Limited'},{ticker:'UNKNOWN',name:'Unknown'}],

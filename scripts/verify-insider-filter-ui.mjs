@@ -193,7 +193,7 @@ try {
     watchlist.add('TEST', 'Test Company');
     tab.destroy();
     enterView({ key: 'legacy-deals', source: 'insider-trades', preset: { reading: {
-      tableKey: 'sattva-insider-trades', q: 'Window party 249', watchOnly: true, sort: { key: 'Date', dir: 'desc' },
+      tableKey: 'glow-insider-trades', q: 'Window party 249', watchOnly: true, sort: { key: 'Date', dir: 'desc' },
       filters: [{ label: 'Category', value: 'Public' }, { label: 'Trade category', value: 'Bulk deal' },
         { label: 'Exchange', value: 'NSE' }, { label: 'Transaction type', value: 'Buy' },
         { label: 'Mode', value: 'On Market' }, { label: 'Trade period', value: 'today' }],

@@ -32,6 +32,9 @@ try{
  const fixtureBook=JSON.parse(readFileSync(root+'/data/portfolio-companies.json')).holdings;
  const ownershipFixtures=fixtureSeed.rows.filter(r=>r.totalShares>0&&fixtureBook.some(h=>h.isin===r.isin)).slice(0,3);
  ownershipFixtures.forEach((r,i)=>Object.assign(r,{companyPct:i===1?5:10,denominator:{shares:r.totalShares*(i===1?20:10),checkedAt:new Date(Date.now()-(i===2?8:0)*86400000).toISOString(),sourceName:'Moneycontrol',source:'https://example.com/shares',kind:i===1?'estimate':'reported'}}));
+ // Exercise an unavailable disclosure independently of the current public snapshot.
+ const noDisclosure = fixtureSeed.rows.find(r=>!ownershipFixtures.includes(r)&&fixtureBook.some(h=>h.isin===r.isin));
+ assert(noDisclosure);Object.assign(noDisclosure,{totalShares:null,companyPct:null,denominator:null,pendingFunds:0,comparableFunds:0,holders:0});
  let seedGate=null;
  await page.route('**/*',async route=>{
    const u=new URL(route.request().url());
@@ -59,7 +62,7 @@ try{
  const a=await net.boundingBox(),b=await shares.boundingBox();await page.mouse.move(a.x+a.width/2,a.y+a.height/2);await page.mouse.down();await page.mouse.move(b.x+b.width-2,b.y+b.height/2,{steps:8});await page.mouse.up();
  assert.match(await page.locator('[data-table-head] th').nth(3).textContent(),/Net monthly shares/,'requested MF layout');
 
- const book=JSON.parse(readFileSync(root+'/data/portfolio-companies.json'));const seed=JSON.parse(readFileSync(root+'/data/mutual-funds/index.json'));const held=seed.rows.find(r=>r.funds===undefined&&r.holders>10);assert(held);
+ const book=JSON.parse(readFileSync(root+'/data/portfolio-companies.json'));const seed=JSON.parse(readFileSync(root+'/data/mutual-funds/index.json'));const held=seed.rows.find(r=>r.funds===undefined&&r.holders>10&&book.holdings.some(h=>h.isin===r.isin));assert(held);
  await page.evaluate(h=>{window.testBook=[{isin:h.isin,weightPct:90}];window.mount('portfolio');},held);await page.waitForTimeout(400);
  const first=page.locator('[data-row-key]').first();assert.equal(await first.getAttribute('data-row-key'),held.isin,'Largest holdings uses private portfolio weight');
  await first.click();await page.waitForSelector('.mf-detail-table tbody tr');assert(await page.locator('th:has-text("AUM (Cr)")').count());assert(await page.locator('th:has-text("Month Change")').count());

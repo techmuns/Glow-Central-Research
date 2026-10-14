@@ -19,10 +19,24 @@ const view = renderManagers({scope:'portfolio'}); fixture.innerHTML = view.html;
 watchWorkerChanges(navigator.serviceWorker, () => location.reload());
 await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready; window.ready = true;
 </script>`;
+const peerHtml = `<script>
+const send = m => parent.postMessage({channel:'sattva-portfolio-v1', ...m}, location.origin);
+addEventListener('message', async e => {
+ if(e.origin !== location.origin || e.source !== parent || e.data.channel !== 'sattva-portfolio-v1') return;
+ const m = e.data;
+ if(m.type === 'hello') send({id:m.id,type:'ready',capabilities:['manager-workbook']});
+ if(m.type === 'managers') {
+  const fixture = await (await fetch('/api/managers-fixture', {cache:'no-store'})).json();
+  send({id:m.id,type:'result',managers:fixture});
+ }
+});
+</script>`;
 const server = createServer((req, res) => {
   const path = new URL(req.url, 'http://localhost').pathname;
   res.setHeader('cache-control', 'no-cache');
   try {
+    if (path === '/glow-bridge.html') { res.setHeader('content-type', 'text/html'); res.end(peerHtml); return; }
+    if (path === '/api/managers-fixture') { res.setHeader('cache-control', 'private, no-store'); res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({...fixture, checkedAt:new Date().toISOString()})); return; }
     if (path === '/' || path === '/index.html') { res.setHeader('content-type', 'text/html'); res.end(html); return; }
     if (path === '/sdk-fixture.js') { res.end('/* isolated SDK */'); return; }
     const file = resolve(root, '.' + path); if (!file.startsWith(root + sep)) throw Error();
@@ -44,16 +58,6 @@ try {
   const page = await browser.newPage(), errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.route('**/*', route => {
-    if (route.request().url() === `${origin}/glow-bridge.html`) return route.fulfill({ contentType: 'text/html', body: `<script>
-      const fixture = ${JSON.stringify(fixture)};
-      const send = m => parent.postMessage({channel:'sattva-portfolio-v1', ...m}, ${JSON.stringify(origin)});
-      addEventListener('message', e => {
-        if(e.origin !== ${JSON.stringify(origin)} || e.source !== parent || e.data.channel !== 'sattva-portfolio-v1') return;
-        const m = e.data;
-        if(m.type === 'hello') send({id:m.id,type:'ready',capabilities:['manager-workbook']});
-        if(m.type === 'managers') send({id:m.id,type:'result',managers:{...fixture,checkedAt:new Date().toISOString()}});
-      });
-    </script>` });
     return new URL(route.request().url()).origin === origin ? route.continue() : route.abort();
   });
   await page.goto(origin); await page.waitForFunction(() => window.ready && navigator.serviceWorker.controller);
@@ -74,7 +78,7 @@ try {
     for (const key of await caches.keys()) for (const req of await (await caches.open(key)).keys()) if (req.url.includes('research-bridge') || req.url.includes('/api/')) return true;
     return false;
   });
-  assert.equal(cachedPrivate, false, 'authenticated replies never enter the public static cache');
+  assert.equal(cachedPrivate, false, 'private API replies never enter the public cache; the same-origin bridge shell contains no fixture data');
   assert.deepEqual(errors, []);
   console.log('PASS warm manager session: old open-period failure, automatic immutable-module upgrade, locally decoded manager image, old-cache eviction and private-cache exclusion');
 } finally { await browser.close(); await new Promise(done => server.close(done)); }

@@ -1,5 +1,6 @@
 // Real Sattva app and saved portfolio. All requests remain on the local fixture server.
 import assert from 'node:assert/strict';
+import { tmpdir } from 'node:os';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { resolve, extname, sep } from 'node:path';
@@ -115,7 +116,9 @@ try {
   await page.waitForFunction(async () => (await import('/js/data/filings.js')).insider.meta().exchanges?.summary.includes('Test outage'));
   await page.locator('[data-filings-method]').click();
   await page.getByRole('dialog').getByText(/Test outage/).waitFor();
-  await page.getByRole('dialog').getByText(/Muns insider disclosures/).waitFor();
+  const supplement = await page.evaluate(async () => (await import('/js/data/filings.js')).insider.meta().disclosuresStatus);
+  if (supplement) await page.getByRole('dialog').getByText(supplement, { exact: false }).first().waitFor();
+  assert((await page.getByRole('dialog').innerText()).includes('Screener.in'), 'the checked capture source is disclosed');
   for (const size of [{width:1440,height:1000},{width:390,height:844}]) {
     await page.setViewportSize(size);
     const close = await page.getByRole('dialog').locator('[data-modal-close]').boundingBox();
@@ -127,16 +130,16 @@ try {
   assert(await page.getByText('NEW SATTVA DEAL', { exact: true }).count(), 'failed source retains visible evidence');
   await search().fill(''); await period().selectOption('30');
   await search().blur();
-  await page.screenshot({ path: '/tmp/sattva-deals-desktop.png', fullPage: true });
+  await page.screenshot({ path: `${tmpdir()}/glow-deals-desktop.png`, fullPage: true });
   await page.evaluate(() => window.sattvaTheme.toggle());
   await page.evaluate(async () => {
     await Promise.all(document.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity)
       .map(animation => animation.finished.catch(() => {})));
   });
-  await page.screenshot({ path: '/tmp/sattva-deals-dark.png', fullPage: true });
+  await page.screenshot({ path: `${tmpdir()}/glow-deals-dark.png`, fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-  await page.screenshot({ path: '/tmp/sattva-deals-mobile.png', fullPage: true });
+  await page.screenshot({ path: `${tmpdir()}/glow-deals-mobile.png`, fullPage: true });
   await period().selectOption('today');
   await page.clock.setSystemTime(new Date('2026-09-11T00:01:00+05:30'));
   await page.clock.fastForward(61000);

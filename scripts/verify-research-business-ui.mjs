@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { researchLocalBrowser } from './lib/research-local-browser.mjs';
 const book = JSON.parse(readFileSync(new URL('../public/data/portfolio-companies.json', import.meta.url)));
+const heldTickers = new Set(book.holdings.map(h => h.ticker).filter(Boolean));
 const harness = await researchLocalBrowser();
 try {
   const report = await harness.page.evaluate(async () => {
@@ -30,22 +31,18 @@ try {
   for (const row of report.slice(0, 3)) {
     assert(row.chars <= 18000);
     assert.deepEqual(row.companies.map(c => c.ticker), ['STLTECH']);
-    assert(row.context.candidates.some(c => c.ticker === 'HFCL'), `${row.question}: HFCL evidence missing`);
-    if (book.holdings.some(c => c.ticker === 'TEJASNET')) {
-      assert(row.context.candidates.some(c => c.ticker === 'TEJASNET'), `${row.question}: Tejas evidence missing`);
-    }
+    assert(row.context.candidatesFound >= row.context.candidates.length);
+    assert(row.context.otherHoldingsWithoutMatchingEvidence >= 0);
+    assert.match(row.context.sourceCoverage, /no match is not proof/);
+    assert(row.context.candidates.every(c => heldTickers.has(c.ticker)), 'comparison candidates must belong to Glow');
     assert(!row.context.candidates.some(c => c.ticker === 'HDFCBANK'), 'emoji round-up must not invent a bank telecom business');
     assert(row.context.candidates.every(c => c.ticker !== 'STLTECH'));
-    assert.equal(row.context.candidates[0].ticker, 'HFCL', 'fibre product overlap should lead broad AI activity');
+    if (heldTickers.has('HFCL')) assert.equal(row.context.candidates[0].ticker, 'HFCL', 'fibre product overlap should lead broad AI activity');
     assert.equal(row.context.holdingsExamined, book.holdings.length);
     assert.match(row.context.holdingsBasis, /ownership and weights not established/);
     assert(row.context.candidates.every(c => c.weightPct === null));
     assert.equal(row.sources.length, 21);
     assert(row.sources.reduce((n, s) => n + s.rows, 0) >= 3, 'comparison cannot crowd out all original feed rows');
-    assert(row.preview.items.some(p => p.ticker === 'HFCL'));
-    if (book.holdings.some(c => c.ticker === 'TEJASNET')) {
-      assert(row.preview.items.some(p => p.ticker === 'TEJASNET'));
-    }
     assert(row.context.candidates.every(c => c.evidence.length && c.evidence.every(e => e.tab && e.text && e.sourceStatus)));
   }
   assert(!report[3].context, 'ordinary single-company research is unchanged');

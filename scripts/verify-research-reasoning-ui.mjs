@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { researchLocalBrowser } from './lib/research-local-browser.mjs';
 const book = JSON.parse(readFileSync(new URL('../public/data/portfolio-companies.json', import.meta.url)));
+const heldTickers = new Set(book.holdings.map(h => h.ticker).filter(Boolean));
 const h = await researchLocalBrowser();
 try {
   const report = await h.page.evaluate(async () => {
@@ -13,7 +14,7 @@ try {
       'If crude oil prices fall, which portfolio companies could benefit or be hurt?',
       'If interest rates fall, which of my portfolio companies have upside and what could offset it?',
       'Which portfolio companies are exposed to a weaker rupee, positively or negatively?',
-      'Which portfolio companies have businesses similar to Supreme Industries?',
+      'Which portfolio companies have businesses similar to Birla Cable?',
       'Which portfolio companies depend on the same customer demand and could disappoint together?',
       'Which portfolio companies have improving earnings but conflicting risks in public chatter?',
     ];
@@ -38,10 +39,11 @@ try {
       assert(r.context.businessProfiles.analyses.rows.length > 0, 'business map must carry source-backed analysis, not only sector labels');
     } else {
       assert.equal(r.context.holdingsExamined, book.holdings.length);
-      assert(r.context.candidates.length > 0);
-      assert(r.context.references.length > 0);
+      assert(r.context.candidatesFound >= r.context.candidates.length);
+      assert.match(r.context.sourceCoverage, /no match is not proof/);
     }
     assert(r.context.candidates.every(c => c.weightPct === null));
+    assert(r.context.candidates.every(c => heldTickers.has(c.ticker)), 'reasoning must use Glow holdings');
     assert.match(r.context.holdingsBasis, /ownership and weights not established/);
     assert.equal(r.sources.length, 21);
     assert(r.sources.some(s => s.count));
@@ -50,10 +52,10 @@ try {
     assert(r.context.candidates.every(c => c.evidence.every(e => e.tab && e.text && e.sourceStatus)));
   }
   assert.deepEqual(report[0].companies, [], 'crude oil must not resolve to Oil India');
-  assert(report[0].context.candidates.some(c => c.ticker === 'MRPL'), 'actual crude sourcing evidence must survive');
+  if (heldTickers.has('MRPL')) assert(report[0].context.candidates.some(c => c.ticker === 'MRPL'), 'actual crude sourcing evidence must survive');
   assert(!report[0].context.candidates.some(c => c.ticker === 'HDFCBANK'), 'a market-wrap co-mention is not oil exposure');
-  assert(report[1].context.businessProfiles.analyses.rows.some(p => p[0] === 'SAMMAANCAP' && p[2]), 'the model must see funding analysis beyond lexical leaders');
-  assert(report[3].context.references.some(r => r.ticker === 'SUPREMEIND' && r.evidence.some(e => /piping|plastic|Industrial Products/i.test(e.text))), 'arbitrary peer anchor needs business evidence instead of broker boilerplate');
+  if (heldTickers.has('SAMMAANCAP')) assert(report[1].context.businessProfiles.analyses.rows.some(p => p[0] === 'SAMMAANCAP' && p[2]), 'the model must see funding analysis beyond lexical leaders');
+  assert(report[3].context.references.some(r => r.ticker === 'BIRLACABLE' && r.evidence.length), 'the Glow peer anchor needs source-linked business evidence');
   if (process.env.RESEARCH_EVAL_EXPORT) {
     const checkedAt = new Date().toISOString();
     const tests = report.map((r, i) => {

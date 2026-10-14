@@ -149,7 +149,7 @@ try {
   await page.keyboard.press('Escape');
   check('combined filter closes with Escape and returns keyboard focus', await page.locator('[data-filter-group-toggle]').evaluate(el => el === document.activeElement));
   await page.evaluate(() => window.showIpos({}, { id: 'saved-ipo', reading: {
-    tableKey: 'sattva-ipo-filings', q: '', watchOnly: true, filters: [{ label: 'Boards', value: 'SME' }, { label: 'Sources', value: 'BSE SME' }],
+    tableKey: 'glow-ipo-filings', q: '', watchOnly: true, filters: [{ label: 'Boards', value: 'SME' }, { label: 'Sources', value: 'BSE SME' }],
     extras: { ipoHistory: '30', ipoMode: 'filings' },
   } })); await ready();
   check('existing saved board/source choices and date range restore in the combined toolbar', await history.inputValue() === '30' &&
