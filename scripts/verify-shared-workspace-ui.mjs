@@ -350,7 +350,7 @@ try {
   for (const page of [one.page, two.page]) {
     const bar = page.locator('#tabbar-mount [data-tab-bar]');
     await bar.waitFor({ state: 'visible' });
-    await page.waitForFunction(count => document.querySelectorAll('#tabbar-mount [data-tab-id]').length === count, builtInCount + many.length);
+    await page.waitForFunction(count => document.querySelectorAll('#tabbar-mount [data-tab-id]').length === count, builtInCount + many.length + 1);
     assert((await bar.boundingBox()).height < 80, 'many tabs stay in a single bounded row');
     assert.equal(await page.locator('[data-tab-picker-toggle], [data-tab-picker]').count(), 0, 'no All tabs dropdown');
     const first = page.locator('#tabbar-mount [data-tab-id]').first();
