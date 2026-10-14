@@ -22,7 +22,7 @@ let previousRelease = true;
 const previousTabOrder = ['ai-alerts', 'ask-research', 'daily-alerts', 'bookmarks', 'earnings-hub',
   'concall', 'public-chatter', 'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements',
   'corporate-actions', 'nse-filings', 'insider-trades', 'mutual-funds'];
-const currentTabOrder = ['alerts', 'announcements',
+const currentTabOrder = ['alerts', 'portfolio', 'watchlist', 'announcements',
   'earnings', 'breakouts', 'mutual-funds', 'news-section', 'super-investors'];
 const requests = [];
 const partBody = '{"items":[{"title":"Original retained story"}]}';
@@ -163,7 +163,7 @@ try {
   assert.equal(cacheState.names.length, 1, 'one current app cache is active');
   assert(cacheState.urls.filter((url) => url.includes('/js/')).length > 90, 'complete native module graph is warm');
   assert(cacheState.urls.some((url) => url.endsWith('/data/portfolio-companies.json')), 'critical portfolio identity snapshot is warm');
-  for (const asset of ['sattva-ventures-wordmark.png', 'sattva-ventures-mark.svg', 'favicon.svg']) {
+  for (const asset of ['glow-ventures-wordmark.svg', 'favicon.svg']) {
     assert(cacheState.urls.some(url => url.endsWith(`/assets/brand/${asset}`)), 'product identity is available on an offline repeat visit');
   }
   for (const asset of ['/js/theme-init.js', '/js/ui/theme-toggle.js', '/css/theme.css']) {

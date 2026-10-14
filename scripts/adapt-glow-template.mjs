@@ -43,6 +43,9 @@ export function adaptGlowText(old, path = '') {
     .replaceAll('Sattva portfolio companies', 'Glow portfolio companies')
     .replaceAll('Sattva notebook', 'Glow notebook')
     .replaceAll('Ask Sattva', 'Ask Glow')
+    .replaceAll('`sattva-${brief.day}-${brief.edition}-brief.pdf`', '`glow-${brief.day}-${brief.edition}-brief.pdf`')
+    .replaceAll('/^sattva-[0-9-]+-', '/^(?:glow|sattva)-[0-9-]+-')
+    .replaceAll("'sattva-portfolio-brief.pdf'", "'glow-portfolio-brief.pdf'")
     .replaceAll("'Sattva-Central-Research'", "'Glow-Central-Research'");
   if (basename(path) === 'wrangler.jsonc') next = next
     .replace(/("name"\s*:\s*")sattva-central-research(")/g, '$1glow-central-research$2')

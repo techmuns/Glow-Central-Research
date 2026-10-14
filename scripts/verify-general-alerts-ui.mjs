@@ -202,7 +202,7 @@ try {
   assert.equal(await page.evaluate(() => window.alertHeadlineInjection), undefined);
   const emphasis = await riskHeadline.locator('[data-alert-risk]').first().evaluate(node => ({ color:getComputedStyle(node).color, weight:getComputedStyle(node).fontWeight }));
   assert.equal(emphasis.weight, '700');
-  assert.equal(emphasis.color, 'rgb(190, 18, 60)', 'light-theme risk words are red');
+  assert.equal(emphasis.color, 'rgb(153, 27, 27)', 'light-theme risk words are red');
   const riskRow = page.locator('tbody tr[data-row-key]').first();
   assert(!/Signal ·|Priority ·/.test(await riskRow.innerText()), 'rows omit both repeated explanation lines');
   assert.equal(await riskRow.locator('[data-alert-signal]').count(), 0, 'the signal/priority marker column is removed');

@@ -2,7 +2,7 @@
 // deliberately SYNTHETIC facts/weights. Never publish these as company research.
 import { readFileSync } from 'node:fs';
 const book = JSON.parse(readFileSync(new URL('../../public/data/portfolio-companies.json', import.meta.url)));
-const targets = ['JAYNECOIND', 'IIFL', 'ALANKIT'].map(t => book.holdings.find(h => h.ticker === t));
+const targets = ['JAYNECOIND', 'ABCAPITAL', 'AARTIDRUGS'].map(t => book.holdings.find(h => h.ticker === t));
 const probes = [
   ['latest', 'What is the latest info on COMPANY for me?', ['2026-09-05|5 September|September 5', 'order', '73'], ['guaranteed']],
   ['earnings', 'What do the latest earnings show for COMPANY?', ['2026-06|June 2026|Jun.? 2026|Q1', '120', '8', 'crore|cr\\b'], []],
@@ -27,19 +27,19 @@ export function modelScenarios() {
     review: 'Check every factual claim, citation, date, unit, exposure, conflict and missing-data statement against this exact synthetic packet. Reject invented facts and unsupported advice.',
   }))).concat([
     { id: 'follow-up', category: 'follow-up', index: 0, question: 'And what are its risks?', history: [{ role: 'user', text: 'Latest information on Jayaswal Neco Industries?' }], must: ['Jayaswal|Neco', '70|73'], forbidden: [] },
-    { id: 'issuer-switch', category: 'issuer-switch', index: 1, question: 'What changed at IIFL Finance?', history: [{ role: 'user', text: 'Latest information on Jayaswal Neco Industries?' }], must: ['IIFL'], forbidden: [] },
+    { id: 'issuer-switch', category: 'issuer-switch', index: 1, question: 'What changed at Aditya Birla Capital?', history: [{ role: 'user', text: 'Latest information on Jayaswal Neco Industries?' }], must: ['Aditya|Birla'], forbidden: [] },
     { id: 'stale-only', category: 'stale-only', index: 0, question: 'What happened at Jayaswal Neco today?', must: ['old|stale|no .*today|not .*today|not .*current|August|2026-08'], forbidden: ['today.{0,30}(won|announced)'] },
     { id: 'feed-failure', category: 'feed-failure', index: 0, question: 'Is there no recent news on Jayaswal Neco?', must: ['unavailable|failed|cannot|not .*confirm'], forbidden: ['there (is|was) no recent news'] },
     { id: 'unknown-weight', category: 'unknown-weight', index: 0, question: 'What is the weight of Jayaswal Neco in my portfolio?', must: ['unavailable|unknown|incomplete|cannot'], forbidden: ['45%|45 percent'] },
     { id: 'zero-profit', category: 'zero-profit', index: 0, question: 'What is the latest net profit of Jayaswal Neco?', must: ['zero|0', 'crore|cr\\b'], forbidden: ['profit.{0,25}(unavailable|unknown)'] },
     { id: 'sample-absence', category: 'sample-absence', index: 0, question: 'Are these all the announcements for Jayaswal Neco?', must: ['sample|bounded|omitted|not all|not exhaustive|partial'], forbidden: ['these are all'] },
-    { id: 'unresolved', category: 'unresolved', index: 3, question: 'What do you know about Ashika Credit Capital in my portfolio?', must: ['Ashika', 'missing|unavailable|no .*ticker|unresolved|not .*available'], forbidden: ['not (held|in your portfolio)'] },
+    { id: 'unresolved', category: 'unresolved', index: 3, question: 'What do you know about Everest Fleet in my portfolio?', must: ['Everest', 'missing|unavailable|no .*ticker|unresolved|not .*available'], forbidden: ['not (held|in your portfolio)'] },
   ]);
 }
 
 export function scenarioBody(test, now = new Date()) {
   const checkedAt = now.toISOString();
-  const entries = [...targets, book.holdings.find(h => h.name === 'Ashika Credit Capital')];
+  const entries = [...targets, book.holdings.find(h => h.name === 'Everest Fleet')];
   const holdings = entries.map((h, i) => ({ isin: h.isin, ticker: h.ticker, name: h.name, sector: h.sector, weightPct: [45, 35, 19, 1][i] }));
   const target = holdings[test.index];
   const sizes = { complete: true, basis: 'listed-market-value', checkedAt, archiveVersion: 1, bookAsOf: '2026-08-31', quotes: { asOf: '2026-09-04', status: 'ready', priced: 4, notLive: 0 } };

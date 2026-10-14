@@ -37,7 +37,7 @@ import {
 const ACCENT = "0.31 0.27 0.90",
   TINT = "0.93 0.95 1.00";
 export const pdfFilename = (brief) =>
-  `sattva-${brief.day}-${brief.edition}-brief.pdf`;
+  `glow-${brief.day}-${brief.edition}-brief.pdf`;
 const signed = (value) =>
   value == null || !Number.isFinite(value)
     ? "Unavailable"

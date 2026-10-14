@@ -23,14 +23,14 @@ async function fixture({ fail = 'head', hasSnapshot = true, hasDocuments = true 
   const entries = new Map();
   const jobs = [];
   const upstream = [];
-  const put = (key, value) => entries.set(`https://cache.invalid/sattva-central-research/concalls/${key}`, value);
+  const put = (key, value) => entries.set(`https://cache.invalid/glow-central-research/concalls/${key}`, value);
   const head = { rows: [scan], meta: { quarter: '202606', quarters: ['202606'], next: fail === 'tail' ? 1 : null,
     total: fail === 'tail' ? 2 : 1, fetchedAt: '2026-09-20T11:00:00Z' } };
   put('head-v2', head);
   put('history-v2/202606/202606', { rows: [scan], meta: { truncated: false } });
   put('schedule-v2', { upcoming: [], today: { day: null, rows: [] }, errors: [] });
   const key = fail === 'tail' ? 'history-v2/202606/202606' : `${fail}-v2`;
-  if (fail) entries.delete(`https://cache.invalid/sattva-central-research/concalls/${key}`);
+  if (fail) entries.delete(`https://cache.invalid/glow-central-research/concalls/${key}`);
   put('screener-documents-v1', { capture: hasDocuments ? { rows: sourceRows, portfolioUpcoming: calendar } : null,
     source: { status: hasDocuments ? 'ok' : 'failed', checkedAt: new Date().toISOString(), records: hasDocuments ? 3 : 0 } });
   globalThis.caches = { default: {

@@ -1,15 +1,18 @@
 // Read-only host qualification. No credentials, browser session or capture files are written.
+import { filingTicker } from '../public/js/data/announcement-identity.js';
 import { captureCompanies } from './lib/company-capture.mjs';
 import { createScreenerCompanyFallback } from './lib/screener-company-filings.mjs';
 const targets = ['HEG', 'DHOOTTRANS', 'JBCHEPHARM', 'BAGMANE', 'VERTIS', '543225', 'INDIGRID', 'MINDSPACE', 'EMBASSY', 'BIRET', 'NHIT',
-  'ALPEXSOLAR-SM', 'ASHIKA', 'FCONSUMER', 'FSC', 'JAYBEE-SM'];
+  'ALPEXSOLAR-SM', 'ASHIKA', 'FCONSUMER', 'ABCAPITAL', 'JAYBEE-SM'];
 const scope = captureCompanies(new URL('../public/data/', import.meta.url).pathname, { announcements: true });
 const read = createScreenerCompanyFallback();
 let failures = 0;
 for (const ticker of targets) {
-  const company = scope.companies.find(c => c.ticker === ticker);
+  // A host-access probe is independent of either family's portfolio membership.
+  // ASHIKA is the retained quote alias for the directory's reviewed ASHIKAG issuer.
+  const symbol = ticker === 'ASHIKA' ? 'ASHIKAG' : filingTicker(ticker);
+  const company = scope.companies.find(c => filingTicker(c.ticker) === symbol) || { ticker: symbol, name: symbol };
   try {
-    if (!company) throw Error('Company is absent from the current scope');
     const page = await read(company);
     if (page.skipped || page.announcementSkipped || !page.announcementReadable) throw Error('Partial or unrecognized page');
     console.log(`${ticker}: PASS ${page.documents.length} document links, ${page.announcements.length} recent notices; ${page.fetchedAt}`);

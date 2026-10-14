@@ -102,7 +102,7 @@ brief.actions = { from:'2026-09-17',to:'2026-09-24',more:0,source:{ok:true},rows
 brief.performance = {state:'capture',session:'2026-09-16',quoted:1,listed:2,unquoted:1,
  summary:{up:1,down:0,flat:0,median:5},rows:[{ticker:'LONGTICKER',company:'International Infrastructure Development Company Limited',last:123456.78,pct:5}]};
 const html = renderBriefHtml(brief, { pdfUrl: 'https://example.test/api/newsletter/pdf/test-document' });
-assert.ok(html.includes('Download PDF ↓') && html.indexOf('Download PDF ↓') < html.indexOf('SATTVA VENTURES</div>'));
+assert.ok(html.includes('Download PDF ↓') && html.indexOf('Download PDF ↓') < html.indexOf('GLOW VENTURES</div>'));
 assert.ok(html.includes('AI SUMMARY') && html.includes('POTENTIAL IMPACT · AI'));
 assert.ok(html.includes('Related coverage') && html.includes('https://example.test/related?x=1&amp;y=2'));
 assert.ok(html.includes('Automated by Munshot') && renderBriefText(brief).includes('Automated by Munshot'));
@@ -128,7 +128,7 @@ assert.ok(pdfText.includes('Another publisher'));
 assert.ok(pdfText.includes('/URI (https://example.test/related?x=1&y=2)'));
 const xrefAt = Number(pdfText.match(/startxref\n(\d+)/)[1]);
 assert.equal(pdfText.slice(xrefAt, xrefAt + 4), 'xref');
-assert.equal((pdfText.match(/SATTVA VENTURES \/ Automated by Munshot/g) || []).length, Number(pdfText.match(/\/Type \/Pages \/Count (\d+)/)[1]));
+assert.equal((pdfText.match(/GLOW VENTURES \/ Automated by Munshot/g) || []).length, Number(pdfText.match(/\/Type \/Pages \/Count (\d+)/)[1]));
 
 const db = new DatabaseSync(':memory:');
 const storage = {
@@ -151,7 +151,7 @@ const callsBefore = aiCalls;
 const response = await handleNewsletter(new Request(download), apiEnv);
 assert.equal(response.status, 200);
 assert.equal(response.headers.get('content-type'), 'application/pdf');
-assert.match(response.headers.get('content-disposition'), /^attachment; filename="sattva-2026-09-17-morning-brief.pdf"$/);
+assert.match(response.headers.get('content-disposition'), /^attachment; filename="glow-2026-09-17-morning-brief.pdf"$/);
 assert.deepEqual(new Uint8Array(await response.arrayBuffer()), saved.body);
 assert.equal(aiCalls, callsBefore, 'downloads never call the model or current source feeds');
 assert.equal((await handleNewsletter(new Request(`${PRODUCTION_ORIGIN}/api/newsletter/pdf/${crypto.randomUUID()}`), apiEnv)).status, 404);

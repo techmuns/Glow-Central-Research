@@ -158,7 +158,7 @@ addEventListener('message', event => {
     reading: { status: 'limited', checkedAt, bookAsOf, archiveVersion, answer: 'Local test holdings are available; position sizes are not supplied by this fixture.' } });
 });
 </script>`;
-await context.route('**/research-bridge', route => route.fulfill({ contentType: 'text/html', body: familyHtml }));
+await context.route('**/glow-bridge.html', route => route.fulfill({ contentType: 'text/html', body: familyHtml }));
 await context.route('**/api/family-portfolio', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
   ...familyFixture, ok: true, syncStatus: 'live', storage: 'shared', sourceRevision: 'a'.repeat(64),
   sourceWorkbook: { fileKey: 'local-fixture', label: 'Local test workbook', uploadedAt: '2026-09-01T00:00:00Z' },

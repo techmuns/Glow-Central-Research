@@ -13,7 +13,7 @@ globalThis.document = { hidden: false, body: { appendChild() {} }, addEventListe
 globalThis.location = { origin: 'https://central.test' };
 const bridge = await import('../public/js/research/portfolio-bridge.js');
 const managers = await import('../public/js/data/managers.js');
-const emit = data => { for (const fn of [...(listeners.get('message') || [])]) fn({ origin: bridge.FAMILY_ORIGIN, source: peer, data: { channel: bridge.PORTFOLIO_CHANNEL, ...data } }); };
+const emit = data => { for (const fn of [...(listeners.get('message') || [])]) fn({ origin: location.origin, source: peer, data: { channel: bridge.PORTFOLIO_CHANNEL, ...data } }); };
 const tick = () => new Promise(done => setImmediate(done));
 let clock = Date.now();
 const realNow = Date.now;

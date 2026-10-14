@@ -95,7 +95,7 @@ await context.route('**/*', route => {
   const url = new URL(route.request().url());
   const json = body => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
   if (url.origin === hostOrigin) return route.continue();
-  if (url.origin === familyOrigin && url.pathname === '/research-bridge') return route.fulfill({ contentType:'text/html', body:familyHtml });
+  if (url.origin === familyOrigin && url.pathname === '/glow-bridge.html') return route.fulfill({ contentType:'text/html', body:familyHtml });
   if (url.origin !== origin) return route.fulfill({ status:503, body:'External network disabled' });
   if (url.pathname === '/data/portfolio-companies.json') return json({ asOf:'2026-06-30', count:1, resolved:1, holdings:[other] });
   if (url.pathname === '/data/news.json') return json({

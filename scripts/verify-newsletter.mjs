@@ -342,16 +342,16 @@ await test('the morning brief builds from the fixtures and every section states 
   for (const g of morning.news.groups) for (const item of g.items) assert.ok(item.at >= morning.window.from && item.at < morning.window.to);
 });
 
-await test('the broadsheet carries the Sattva Ventures masthead, escapes the exchanges\' text and dates every figure', () => {
+await test('the broadsheet carries the Glow Ventures masthead, escapes the exchanges\' text and dates every figure', () => {
   const html = renderBriefHtml(morning, { dashboardUrl: 'https://example.test', recipient: { email: 'pratik@muns.io', addedBy: 'Ravi' } });
   assert.match(html, /^<!doctype html>/);
   assert.ok(html.includes('<meta name="color-scheme" content="light">'));
-  assert.ok(html.includes('letter-spacing:3px;color:#0f172a;">SATTVA VENTURES</div>'), 'the masthead is the family office\'s name');
-  assert.ok(!html.includes('MUNSHOT'), 'no Munshot masthead on a Sattva Ventures brief');
+  assert.ok(html.includes('letter-spacing:3px;color:#0f172a;">GLOW VENTURES</div>'), 'the masthead is the family office\'s name');
+  assert.ok(!html.includes('MUNSHOT'), 'no Munshot masthead on a Glow Ventures brief');
   assert.ok(html.includes('border-top:3px double #0f172a'), 'the double rule');
   assert.ok(html.includes('Research Central — Morning Portfolio Brief'));
   assert.ok(html.includes('Edition: Portfolio companies'));
-  assert.ok(html.includes('Sattva Ventures · Research Central'), 'the caption under the sheet');
+  assert.ok(html.includes('Glow Ventures · Research Central'), 'the caption under the sheet');
   assert.ok(html.includes('https://example.test/#/research/ask-research?newsletter=manage'), 'the unsubscribe link lands on the panel');
   assert.ok(html.includes('Added by Ravi'));
   assert.ok(html.includes('Global market scan'));
@@ -367,9 +367,9 @@ await test('the broadsheet carries the Sattva Ventures masthead, escapes the exc
   assert.ok(!html.includes('<style') && !html.includes('<script'), 'no stylesheet, no script');
   assert.ok(html.length < 200000);
   const subject = briefSubject(morning);
-  assert.match(subject, /^Sattva Ventures · \d+ updates? on your portfolio companies — 17 Sep 2026 · Morning$/, subject);
+  assert.match(subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep 2026 · Morning$/, subject);
   const text = renderBriefText(morning);
-  assert.ok(text.startsWith('SATTVA VENTURES') && text.includes('GLOBAL MARKET SCAN') && text.includes('Aarti Drugs'));
+  assert.ok(text.startsWith('GLOW VENTURES') && text.includes('GLOBAL MARKET SCAN') && text.includes('Aarti Drugs'));
   assert.ok(text.indexOf('YOUR PORTFOLIO COMPANIES') < text.indexOf('GLOBAL MARKET SCAN'), 'the text copy leads with the companies too');
 });
 
@@ -422,7 +422,7 @@ await test('with nothing filed or published the sheet says so, and only about wh
     assert.ok(html.includes('Quiet window — nothing to report.'));
     assert.ok(html.includes('Nothing was filed, published, traded or moved about a portfolio company in this window.'));
   }
-  assert.ok(html.includes('SATTVA VENTURES'));
+  assert.ok(html.includes('GLOW VENTURES'));
 });
 
 // ---- nothing falls between two briefs -------------------------------------------------------------
@@ -796,7 +796,7 @@ await test('unread exchange filings stay conservative while specific publisher a
   const html = renderBriefHtml(brief, { dashboardUrl: 'https://example.test' });
   assert.ok(html.includes('5 updates from 8 source items'), 'the company header says how many items the updates fold');
   assert.ok(html.includes(`<strong style="color:#0f172a;">${stats.updates} updates</strong>`), 'the summary line counts updates');
-  assert.match(briefSubject(brief), new RegExp(`^Sattva Ventures · ${stats.updates} updates on your`));
+  assert.match(briefSubject(brief), new RegExp(`^Glow Ventures · ${stats.updates} updates on your`));
   assert.ok(html.includes('Related coverage'), 'the copies travel as related links');
   assert.ok(html.includes('Economic Times · 17 Sept, 14:40 IST · Puravankara Ltd eyes Rs 2,600 cr revenue'), 'a related story keeps its source, time and headline');
   assert.ok(html.includes('https://example.test/et-1'), 'and its link');
@@ -986,8 +986,8 @@ await test('the alarm sends the morning brief to its subscribers once, with html
     assert.equal(e.method, 'POST');
     assert.equal(e.auth, 'Bearer team-secret-token');
     assert.ok(e.html && e.text === undefined, 'exactly one of html/text');
-    assert.match(e.subject, /^Sattva Ventures · \d+ updates? on your portfolio companies — 17 Sep 2026 · Morning(?: · Part \d+ of \d+)?$/);
-    assert.ok(e.html.includes('SATTVA VENTURES'));
+    assert.match(e.subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep 2026 · Morning(?: · Part \d+ of \d+)?$/);
+    assert.ok(e.html.includes('GLOW VENTURES'));
   }
   const delivery = store.delivery('2026-09-17:morning');
   assert.equal(delivery.sent, 2); assert.equal(delivery.failed, 0); assert.equal(delivery.source, 'timer');
@@ -1086,9 +1086,9 @@ await test('a preview builds the edition up to now without sending, in html or t
     return fetcher(url, init);
   };
   const html = await schedule.preview({ edition: 'morning' });
-  assert.equal(html.ok, true); assert.ok(html.body.startsWith('<!doctype html>')); assert.match(html.subject, /^Sattva Ventures ·/);
+  assert.equal(html.ok, true); assert.ok(html.body.startsWith('<!doctype html>')); assert.match(html.subject, /^Glow Ventures ·/);
   const text = await schedule.preview({ edition: 'morning', format: 'text' });
-  assert.ok(text.body.startsWith('SATTVA VENTURES'));
+  assert.ok(text.body.startsWith('GLOW VENTURES'));
   assert.equal(log.filter((l) => l.kind === 'email').length, 0);
   assert.equal(paidCalls, 0, 'public previews cannot invoke either paid model pass');
   assert.equal((await schedule.preview({ edition: 'weekly' })).reason, 'invalid-edition');
@@ -1228,7 +1228,7 @@ await test('saved PDFs and confirmed part outcomes survive failures, interruptio
   assert.deepEqual(result.outcomes[0].parts.map(p => p.messageId), good.emails.map((_e, i) => `<part-${i + 1}@muns.io>`));
   const saved = good.store.document(pdfIds[0]);
   assert.equal(new TextDecoder().decode(saved.body.slice(0, 8)), '%PDF-1.4');
-  assert.equal(saved.filename, 'sattva-2026-09-17-morning-brief.pdf');
+  assert.equal(saved.filename, 'glow-2026-09-17-morning-brief.pdf');
   assert.equal((await good.schedule.deliver(deliveryArgs)).reason, 'already-sent');
   assert.equal(good.emails.length, result.summary.emailParts);
   const firstKeys = good.emails[0].html;
@@ -1336,7 +1336,7 @@ await test('PDF download routes, preview limits and manual budgets are explicit 
   const base = 'https://example.test/api/newsletter';
   const response = await handleNewsletter(new Request(`${base}/pdf/${id}`), apiEnv);
   assert.equal(response.status, 200); assert.equal(response.headers.get('content-type'), 'application/pdf');
-  assert.ok(response.headers.get('content-disposition').includes('attachment; filename="sattva-'));
+  assert.ok(response.headers.get('content-disposition').includes('attachment; filename="glow-'));
   assert.equal(response.headers.get('cache-control'), 'private, no-store');
   assert.deepEqual(new Uint8Array(await response.arrayBuffer()), pdf);
   assert.equal((await handleNewsletter(new Request(`${base}/pdf/00000000-0000-0000-0000-000000000000`), apiEnv)).status, 404);
@@ -1379,7 +1379,7 @@ await test('current shipped assets build source-only with direct-company scope a
     if (story.kind === 'news') assert.equal(story.mood.id, 'neutral');
   }
   const html = renderBriefHtml(real);
-  assert.ok(html.includes('SATTVA VENTURES'));
+  assert.ok(html.includes('GLOW VENTURES'));
   assert.ok(!html.includes('<script'));
 });
 

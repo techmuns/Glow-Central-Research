@@ -48,23 +48,28 @@ assert.equal(matchedDeals([deal, variant({ 'Trade Shares': '20,000' })], people)
 // Relationship attribution is explicit, exact and time-limited. A group name alone never
 // matches a subsidiary; all reviewed source identity survives into evidence and exports.
 const evidence = JSON.parse(readFileSync(new URL('../public/data/holding-evidence.json', import.meta.url)));
-const reviewedAt = evidence.relations[0].verifiedAt;
-const goldman = [{ id: 'goldman-sachs', name: 'Goldman Sachs' }];
 for (const relation of evidence.relations) {
   assert(relation.sourceUrl.startsWith('https://'));
-  assert.equal(relation.investorSlugs[0], 'goldman-sachs');
-  for (const name of [relation.legalName, ...(relation.aliases || [])]) {
-    const row = variant({ Insider: name });
-    assert.equal(matchedDeals([row], goldman).length, 0);
-    const matches = matchedDeals([row], withVerifiedEntities(goldman, evidence, 'investor', reviewedAt));
-    assert.equal(matches.length, 1);
-    assert.equal(matches[0].attribution, 'Associated entity');
-    assert.equal(matches[0].reportedName, name);
-    assert.equal(matches[0].relationshipUrl, relation.sourceUrl);
-    assert.equal(matches[0].identityCheckedAt, relation.verifiedAt);
-    assert.equal(matchedDeals([variant({ Insider: name + ' & Others' })], withVerifiedEntities(goldman, evidence, 'investor', reviewedAt)).length, 0);
-    const expired = new Date(Date.parse(reviewedAt) + 91 * 86400000).toISOString();
-    assert.equal(matchedDeals([row], withVerifiedEntities(goldman, evidence, 'investor', expired)).length, 0, 'expired reviews cannot attribute trades');
+  for (const [kind, ids] of [['investor', relation.investorSlugs || []], ['manager', relation.managerIds || []]]) {
+    if (!ids.length) continue;
+    const people = [...new Set(ids)].map(id => ({ id, name: `Primary identity ${id}` }));
+    const reviewed = withVerifiedEntities(people, { ...evidence, relations: [relation] }, kind, relation.verifiedAt);
+    for (const name of [relation.legalName, ...(relation.aliases || [])]) {
+      const row = variant({ Insider: name });
+      assert.equal(matchedDeals([row], people).length, 0);
+      const matches = matchedDeals([row], reviewed);
+      assert.equal(matches.length, people.length);
+      assert.deepEqual(new Set(matches.map(m => m.personId)), new Set(ids));
+      for (const match of matches) {
+        assert.equal(match.attribution, ['same-person', 'same-entity'].includes(relation.kind) ? 'Reviewed identity' : 'Associated entity');
+        assert.equal(match.reportedName, name);
+        assert.equal(match.relationshipUrl, relation.sourceUrl);
+        assert.equal(match.identityCheckedAt, relation.verifiedAt);
+      }
+      assert.equal(matchedDeals([variant({ Insider: name + ' & Others' })], reviewed).length, 0);
+      const expired = new Date(Date.parse(relation.verifiedAt) + 91 * 86400000).toISOString();
+      assert.equal(matchedDeals([row], withVerifiedEntities(people, evidence, kind, expired)).length, 0, 'expired reviews cannot attribute trades');
+    }
   }
 }
 

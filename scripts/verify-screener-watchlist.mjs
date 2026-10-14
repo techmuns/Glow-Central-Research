@@ -41,8 +41,10 @@ assert.throws(() => matchRemovalButtons(plan.removals, [
 assert.equal(additionsCsv(plan.additions), 'ISIN Code\nINE000A01002\n');
 
 const source = await readFile(new URL('./sync-screener-watchlist.mjs', import.meta.url), 'utf8');
-assert.match(source, /const WATCHLIST_ID = '10850427'/, 'the existing watchlist ID must be fixed');
-assert.match(source, /const WATCHLIST_NAME = 'S Screen'/, 'the existing watchlist name must be verified');
+assert.match(source, /const WATCHLIST_ID = process.env.SCREENER_WATCHLIST_ID/, 'Glow must use its own configured watchlist identity');
+assert.match(source, /assertGlowWatchlist\(\)/, 'verify Glow identity before any mutation');
+assert.doesNotMatch(source, /10850427/, 'never use the upstream family watchlist');
+assert.match(source, /const WATCHLIST_NAME = process.env.SCREENER_WATCHLIST_NAME/, 'Glow must verify its own configured watchlist name');
 assert.doesNotMatch(source, /watchlist\/(?:add|create|new)/i, 'the mirror must not create watchlists');
 assert.doesNotMatch(source, /console\.(?:log|error)\([^\n]*(?:\.isin|\.name|bookName)/, 'logs must not expose portfolio identifiers');
 

@@ -194,7 +194,7 @@ try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1050 }, serviceWorkers: 'block' });
   await context.route('**/*', route => {
     const url = new URL(route.request().url());
-    if (url.origin === familyOrigin && url.pathname === '/research-bridge') return route.fulfill({ contentType: 'text/html', body: familyHtml });
+    if (url.origin === familyOrigin && url.pathname === '/glow-bridge.html') return route.fulfill({ contentType: 'text/html', body: familyHtml });
     if (url.origin !== origin) return route.fulfill({ status: 503, body: 'External network disabled' });
     if (url.pathname.startsWith('/api/') && url.pathname !== '/api/research') return route.fulfill({ status: 503, contentType: 'application/json', body: '{"ok":false,"error":"Test API unavailable"}' });
     return route.continue();
@@ -221,7 +221,7 @@ try {
     await page.screenshot({ path: process.env.SCREENSHOT_PATH.replace(/\.png$/, '-welcome-mobile.png'), fullPage: true });
     await page.setViewportSize({ width: 1440, height: 1050 });
   }
-  const family = page.frames().find(frame => frame.url().startsWith(familyOrigin));
+  const family = page.frames().find(frame => frame.url() === `${familyOrigin}/glow-bridge.html`);
   assert(family);
   const input = page.getByRole('textbox', { name: 'Ask about the dashboard' });
   const send = page.getByRole('button', { name: 'Send question' });
@@ -330,7 +330,7 @@ try {
   assert(parked.length > 0);
   assert.equal(questions.at(-1).evidence.sources.find(s => s.id === 'screener-insights').status, 'unavailable');
   assert(questions.at(-1).evidence.sources.some(s => s.rows.some(r => r.ticker === 'JAYNECOIND')), 'other evidence survives a stalled feed');
-  for (const route of parked) await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+  // Closing aborts parked requests, including those already cancelled by the source deadline.
   await slow.close();
   observedPage = page;
 
