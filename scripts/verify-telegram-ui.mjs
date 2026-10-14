@@ -89,7 +89,7 @@ const capture = {
 };
 
 const shellStyles = [...readFileSync(resolve(root, 'index.html'), 'utf8').matchAll(/<style[^>]*>[\s\S]*?<\/style>/g)].map((m) => m[0]).join('');
-const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css">${shellStyles}</head><body class="bg-slate-50 p-4"><main id="content-host"></main><div id="modal-overlay" class="hidden"><div id="modal-container"><div id="modal-content"></div></div></div><script type="module">
+const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css">${shellStyles}<link rel="stylesheet" href="/css/theme.css"></head><body class="bg-slate-50 p-4"><main id="content-host"></main><div id="modal-overlay" class="hidden"><div id="modal-container"><div id="modal-content"></div></div></div><script type="module">
 import * as tab from '/js/tabs/public-chatter.js';
 import * as coverage from '/js/data/coverage.js';
 import * as watchlist from '/js/core/watchlist.js';
@@ -132,38 +132,63 @@ const server = createServer((request, response) => {
 await new Promise((ready) => server.listen(0, '127.0.0.1', ready));
 const base = `http://127.0.0.1:${server.address().port}`;
 
+async function sourceDetailsText(page) {
+  await page.locator('[data-chatter-source-details]').click();
+  const text = await page.locator('[data-chatter-source-dialog]').innerText();
+  await page.getByRole('button', { name: 'Close source details', exact: true }).click();
+  return text;
+}
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage();
   const errors = [];
-  page.on('pageerror', (e) => errors.push(String(e.message)));
+  page.on('pageerror', (e) => { errors.push(String(e.message)); console.error(e.message); });
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
   // Every external origin is refused, so the chatter API is unreachable — which is the state this
   // section has to survive.
   await page.route('**/*', (route) => (new URL(route.request().url()).origin === base ? route.continue() : route.abort()));
 
   await page.goto(base + '/', { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => document.querySelectorAll('#content-host [data-chatter-section-tabs] [role="tab"]').length === 3, null, { timeout: 20000 });
+  await page.waitForFunction(() => document.querySelectorAll('#content-host [data-chatter-section-tabs] [role="tab"]').length === 2, null, { timeout: 20000 });
 
   const tabs = await page.$$eval('#content-host [data-chatter-section-tabs] [role="tab"]', (els) => els.map((e) => e.textContent.trim()));
-  assert.deepEqual(tabs, ['Coverage', 'Not in coverage', 'Telegram'], 'the three in-page sections');
+  assert.deepEqual(tabs, ['Coverage', 'Telegram'], 'the two remaining in-page sections');
   await page.evaluate(() => window.renderScope('portfolio', { section: 'telegram', company: 'JAYNECOIND' }));
   await page.locator('[data-chatter-section-tabs] [role="tab"][aria-selected="true"]', { hasText: 'Telegram' }).waitFor();
+  await page.evaluate(() => window.renderScope('portfolio', { section: 'not-in-coverage' }));
+  await page.locator('[data-chatter-section-tabs] [role="tab"][aria-selected="true"]', { hasText: 'Coverage' }).waitFor();
+  assert.equal(await page.locator('[data-chatter-panel]').getAttribute('data-chatter-panel'), 'coverage', 'removed-section links fall back to Coverage even after Telegram was selected');
 
   await page.locator('#content-host [data-chatter-section-tabs] [role="tab"]', { hasText: 'Telegram' }).click();
   await page.waitForSelector('[data-chatter-panel="telegram"] tbody tr', { timeout: 20000 });
 
   const content = page.locator('[data-chatter-panel="telegram"] select[aria-label="Content"]');
-  assert.equal(await content.inputValue(), 'all', 'latest metadata-only posts must remain visible by default');
+  const hideLinks = page.getByRole('checkbox', { name: 'Hide link-only posts', exact: true });
+  assert.equal(await content.inputValue(), 'all', 'the separate content selector still opens on All posts');
+  assert(await hideLinks.isChecked(), 'link-only posts are hidden by default');
+  assert.equal(await page.locator('[data-chatter-panel="telegram"] tbody tr[data-row-key]').count(), 6);
+  assert.equal(await page.locator('[data-row-key="tg:researchreportss:499"]').count(), 0, 'the generic link-only placeholder is hidden');
+  assert.equal(await page.locator('[data-row-key="tg:researchreportss:498"]').count(), 1, 'a named report remains available without a caption');
+  await hideLinks.focus();
+  await hideLinks.press('Space');
+  assert(!(await hideLinks.isChecked()), 'keyboard users can include link-only posts');
   assert.equal(await page.locator('[data-chatter-panel="telegram"] tbody tr[data-row-key]').count(), 7);
+  await hideLinks.check();
   await content.selectOption('readable');
   assert.equal(await page.locator('[data-chatter-panel="telegram"] tbody tr[data-row-key]').count(), 5, 'filenames and missing text are not readable reports');
-  assert((await page.locator('[data-telegram-content-notice]').innerText()).includes('2 posts are saved with dates and original links, but no readable text'));
+  assert.equal(await page.locator('[data-telegram-content-notice]').count(), 0, 'no explanation banner precedes the table');
+  assert((await sourceDetailsText(page)).includes('2 messages have no captured text'), 'capture limits remain available on demand');
   assert(!(await page.locator('[data-chatter-panel="telegram"]').innerText()).includes('Content available in Telegram'));
   await content.selectOption('telegram');
+  assert.equal(await page.locator('[data-chatter-panel="telegram"] tbody tr[data-row-key]').count(), 1, 'both content filters apply to the same row model');
+  await hideLinks.uncheck();
   assert.equal(await page.locator('[data-chatter-panel="telegram"] tbody tr[data-row-key]').count(), 2);
+  await page.locator('[data-tab-id="coverage"]').click();
+  await page.locator('[data-tab-id="telegram"]').click();
+  assert(!(await hideLinks.isChecked()), 'the opt-out survives switching in-page sections');
   await content.selectOption('all');
 
+  const sourceInfo = await sourceDetailsText(page);
   const view = await page.evaluate(async () => {
     const t = await import('/js/data/telegram-posts.js');
     const host = document.querySelector('#content-host');
@@ -179,15 +204,19 @@ try {
       actualTimes: t.posts().every((r) => r.publishedAt === '2026-05-13T10:57:05.000Z'),
       hidden: t.posts().filter((r) => r.contentStatus === 'telegram-only').length,
       starIsButton: !!host.querySelector('[data-chatter-panel="telegram"] tbody tr button[data-watch]'),
-      footnotes: host.querySelector('[data-telegram-footnotes]')?.textContent.replace(/\s+/g, ' ') || '',
-      description: host.querySelector('p')?.textContent.replace(/\s+/g, ' ') || '',
+      headerHeight: host.querySelector('[data-chatter-toolbar]').getBoundingClientRect().height,
+      tableGap: host.querySelector('[data-score-table]').getBoundingClientRect().top - host.querySelector('[data-chatter-toolbar]').getBoundingClientRect().bottom,
+      tableBottom: host.querySelector('[data-table-scroll]').getBoundingClientRect().bottom,
       pill: host.querySelector('[data-telegram-live]')?.textContent.replace(/\s+/g, ' ').trim() || '',
       pillTag: host.querySelector('[data-telegram-live]')?.tagName || '',
     };
   });
 
-  assert(view.pill.includes('7 archived') && view.pill.includes('5 readable here'));
-  assert((await page.locator('[data-telegram-source-status]').innerText()).includes('has not been verified'));
+  assert(sourceInfo.includes('7 archived') && sourceInfo.includes('5 readable here'));
+  assert(sourceInfo.includes('has not been verified'));
+  assert(view.headerHeight <= 56, 'the title, section tabs and source controls share a compact desktop row');
+  assert(view.tableGap <= 16, 'the table follows the compact header directly');
+  assert(view.tableBottom <= 720, 'the table fits the actual browser viewport');
   assert.equal(view.count, 7, 'every post in the capture is read');
   // All verified publications stay dated and linked, even when their text is Telegram-only.
   assert.equal(view.drawn, view.count, 'all captured posts remain visible, including Telegram-only publications');
@@ -199,13 +228,13 @@ try {
   assert(view.actualTimes, 'source dates survive normalisation');
   assert.equal(view.hidden, 1, 'a confirmed hidden post stays in the archive');
   assert(view.heads.includes('Published (IST)'));
-  assert(/original publication dates/i.test(view.description));
+  assert(/Publication dates come from Telegram/i.test(sourceInfo));
   assert.equal(view.span, 10);
   assert.equal(view.readable, 7);
   assert.equal(view.unreadable, 3);
-  assert(/Older history is incomplete/i.test(view.footnotes));
-  assert(/awaiting retry/i.test(view.footnotes));
-  assert(/Checked/i.test(view.pill), 'collector success time is visible');
+  assert(/Older history is incomplete/i.test(sourceInfo));
+  assert(/awaiting retry/i.test(sourceInfo));
+  assert(/Delayed/i.test(view.pill), 'an old successful check is visibly delayed');
   assert(await page.locator('[data-chatter-panel="telegram"]').innerText().then((t) => t.includes('13 May 2026')));
   const search = page.locator('[data-chatter-panel="telegram"] [data-table-search]');
   assert.equal(await search.getAttribute('placeholder'), 'Search posts, reports or message number…');
@@ -238,23 +267,27 @@ try {
   await search.fill('');
   if (process.env.EXCELJS_ROOT) {
     await page.addScriptTag({ path: `${process.env.EXCELJS_ROOT}/dist/exceljs.min.js` });
-    const [download] = await Promise.all([
-      page.waitForEvent('download'),
-      page.locator('[data-chatter-panel="telegram"] [data-export]').click(),
-    ]);
     const ExcelJS = (await import(`${process.env.EXCELJS_ROOT}/excel.js`)).default;
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(await download.path());
-    const sheet = workbook.getWorksheet('Telegram');
-    assert.equal(sheet.rowCount, view.drawn + 2, 'headers + provenance + every listed post');
-    const exportedIds = [];
-    sheet.eachRow((row, index) => { if (index > 2) exportedIds.push(row.getCell('B').value); });
-    assert.deepEqual(exportedIds, [500, 499, 498, 496, 495, 493, 491],
-      'export preserves all captured rows, including Telegram-only and document-only posts');
-    assert.equal(sheet.getCell('C3').value, '2026-05-13T10:57:05.000Z');
-    assert.equal(sheet.getCell('G3').value, capturedAt, 'collector time is a separate column');
-    assert.equal(sheet.getCell('A5').value, 'Broker C sector update.pdf');
-    assert.equal(sheet.getCell('E5').value, 'Broker C sector update.pdf');
+    for (const hide of [true, false]) {
+      await hideLinks.setChecked(hide);
+      const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        page.locator('[data-chatter-panel="telegram"] [data-export]').click(),
+      ]);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(await download.path());
+      const sheet = workbook.getWorksheet('Telegram');
+      const expectedIds = hide ? [500, 498, 496, 495, 493, 491] : [500, 499, 498, 496, 495, 493, 491];
+      assert.equal(sheet.rowCount, expectedIds.length + 2, 'headers + provenance + every filtered post');
+      const exportedIds = [];
+      sheet.eachRow((row, index) => { if (index > 2) exportedIds.push(row.getCell('B').value); });
+      assert.deepEqual(exportedIds, expectedIds, 'export follows the checkbox while retaining named reports');
+      assert.equal(sheet.getCell('C3').value, '2026-05-13T10:57:05.000Z');
+      assert.equal(sheet.getCell('G3').value, capturedAt, 'collector time is a separate column');
+      const fileRow = expectedIds.indexOf(498) + 3;
+      assert.equal(sheet.getCell(`A${fileRow}`).value, 'Broker C sector update.pdf');
+      assert.equal(sheet.getCell(`E${fileRow}`).value, 'Broker C sector update.pdf');
+    }
   }
   // `capturedAt` moves when the CHANNEL posts, not when the job ran, so the label may not claim it.
   assert(!/\bLive\b/i.test(view.pill), `the status label must not claim Live, got: ${view.pill}`);
@@ -278,19 +311,25 @@ try {
   // Posts carry no company, so the scope cannot narrow them — and an empty watchlist must not let
   // the shell hide the section while claiming the tab has nothing to show.
   await page.evaluate(() => window.renderScope('watchlist'));
-  await page.waitForFunction(() => document.querySelectorAll('#content-host [data-chatter-section-tabs] [role="tab"]').length === 3, null, { timeout: 20000 });
+  await page.waitForFunction(() => document.querySelectorAll('#content-host [data-chatter-section-tabs] [role="tab"]').length === 2, null, { timeout: 20000 });
   await page.locator('#content-host [data-chatter-section-tabs] [role="tab"]', { hasText: 'Telegram' }).click();
   await page.waitForSelector('[data-chatter-panel="telegram"] tbody tr', { timeout: 20000 });
   await content.selectOption('all');
+  await hideLinks.uncheck();
   const watchRows = await page.$$eval('[data-chatter-panel="telegram"] tbody tr', (r) => r.length);
   // Compared against what the Universe scope actually drew, not a typed number: the claim is that
   // the watchlist does not NARROW this section, and only the two counts together say that.
   assert.equal(watchRows, view.drawn, 'an empty watchlist neither hides the section nor narrows it');
 
+  await search.focus();
+  await page.locator('[data-chatter-source-details]').click();
   servedCapture = { ...capture, lastRun: { status: 'failed', error: 'upstream unavailable' } };
   await page.evaluate(async () => (await import('/js/data/telegram-posts.js')).refresh());
   await page.waitForFunction(() => document.querySelector('[data-telegram-live]')?.textContent.includes('needs attention'));
+  assert((await page.locator('[data-chatter-source-dialog]').innerText()).includes('Collection needs attention'), 'open source facts update when a source fails');
+  await page.getByRole('button', { name: 'Close source details', exact: true }).click();
   assert.equal(await page.locator('[data-chatter-panel="telegram"] tbody tr[data-row-key]').count(), view.drawn, 'source failures retain the archive');
+  assert(!(await hideLinks.isChecked()), 'automatic refresh preserves the reader\'s choice to include link-only posts');
   servedCapture = { ...capture, posts: [] };
   await page.evaluate(async () => (await import('/js/data/telegram-posts.js')).refresh());
   assert.equal(await page.locator('[data-chatter-panel="telegram"] tbody tr[data-row-key]').count(), view.drawn, 'empty refresh retains last-good rows');
@@ -304,19 +343,21 @@ try {
     lastCheckedAt: freshAt, latestVerifiedAt: freshAt, posts: [post(501, 'New API report'), ...capture.posts] };
   await page.evaluate(async () => (await import('/js/data/telegram-posts.js')).refresh());
   assert.equal(await page.locator('[data-chatter-panel="telegram"] tbody tr[data-row-key]').count(), view.drawn + 1);
-  assert((await page.locator('[data-telegram-source-status]').innerText()).includes('Latest channel post verified'));
+  assert((await sourceDetailsText(page)).includes('Latest channel post verified'));
   servedArtifact = null;
   await page.evaluate(async () => (await import('/js/data/telegram-posts.js')).refresh());
   assert.equal(await page.locator('[data-chatter-panel="telegram"] tbody tr[data-row-key]').count(), view.drawn + 1, 'older static capture cannot regress a newer artifact');
   servedArtifact = { ...capture, route:'mtproto', lastRun:{at:new Date(Date.parse(freshAt)+1000).toISOString(),status:'failed'},
     apiSafety:{paused:true,reason:'account-attention',failures:1}, posts:[post(501,'New API report'),...capture.posts] };
   await page.evaluate(async () => (await import('/js/data/telegram-posts.js')).refresh());
-  assert((await page.locator('[data-telegram-live]').innerText()).includes('Account collection paused for review'));
+  assert((await page.locator('[data-telegram-live]').innerText()).includes('Collection paused'));
+  assert((await sourceDetailsText(page)).includes('Account collection paused for review'));
   assert.equal(await page.locator('[data-chatter-panel="telegram"] tbody tr[data-row-key]').count(),view.drawn+1,'account pause retains every visible row');
   servedArtifact = { ...capture, route:'embed+permalink', lastRun:{at:new Date(Date.parse(freshAt)+2000).toISOString(),status:'partial'},
     publicSafety:{reason:'rate-limit',nextAttemptAt:new Date(Date.now()+3600000).toISOString()}, posts:[post(501,'New API report'),...capture.posts] };
   await page.evaluate(async () => (await import('/js/data/telegram-posts.js')).refresh());
-  assert((await page.locator('[data-telegram-live]').innerText()).includes('Public source retry after'));
+  assert((await page.locator('[data-telegram-live]').innerText()).includes('Collection paused'));
+  assert((await sourceDetailsText(page)).includes('Public source retry after'));
   assert.equal(await page.locator('[data-chatter-panel="telegram"] tbody tr[data-row-key]').count(),view.drawn+1,'public source backoff retains every visible row');
   // Validated persistent data must survive a malformed response AND a full browser reload.
   const cacheAt = new Date(Date.parse(freshAt) + 3000).toISOString();
@@ -324,7 +365,7 @@ try {
     posts: [{ ...post(502, null), publishedAt: cacheAt }, post(501, 'New API report'), ...capture.posts] };
   await page.evaluate(async () => (await import('/js/data/telegram-posts.js')).refresh());
   assert.equal(await page.locator('[data-chatter-panel="telegram"] tbody tr[data-row-key]').count(), view.drawn + 2);
-  assert((await page.locator('[data-telegram-source-status]').innerText()).includes('Newest readable text:'), 'new restricted publications cannot masquerade as an old feed');
+  assert((await sourceDetailsText(page)).includes('Newest readable text:'), 'new restricted publications cannot masquerade as an old feed');
   await page.waitForFunction(() => new Promise(resolve => {
     const open = indexedDB.open('sattva-cache');
     open.onsuccess = () => { const db = open.result; const req = db.transaction('payloads').objectStore('payloads').get('telegram-artifact-v1');
@@ -344,6 +385,8 @@ try {
   await page.waitForFunction(() => typeof window.renderScope === 'function');
   await page.evaluate(() => window.renderScope('universe', { section: 'telegram' }));
   await content.selectOption('all');
+  assert(await hideLinks.isChecked(), 'a reopened table defaults to hiding link-only posts');
+  await hideLinks.uncheck();
   await page.waitForFunction(() => document.querySelectorAll('[data-chatter-panel="telegram"] tbody tr[data-row-key]').length === 9);
   assert((await page.locator('[data-telegram-live]').innerText()).includes('needs attention'));
   // An older but valid fallback can replace its HTTP cache entry; it cannot erase the
@@ -365,6 +408,8 @@ try {
   await page.waitForFunction(() => typeof window.renderScope === 'function');
   await page.evaluate(() => window.renderScope('universe', { section: 'telegram' }));
   await content.selectOption('all');
+  assert(await hideLinks.isChecked(), 'a reopened table defaults to hiding link-only posts');
+  await hideLinks.uncheck();
   await page.waitForFunction(() => document.querySelectorAll('[data-chatter-panel="telegram"] tbody tr[data-row-key]').length === 9);
   const offline = await page.evaluate(async () => (await import('/js/data/telegram-posts.js')).meta());
   assert(offline.reason && offline.count === 9, 'offline reload retains validated records and reports unavailable collection');
@@ -374,9 +419,13 @@ try {
   servedCapture = { ...capture, posts: capture.posts.map(p => ({ ...p, text: null, attachments: [], mediaType: null })) };
   servedArtifact = { ...servedCapture, lastRun: { at: laterAt, status: 'ok' }, lastCheckedAt: laterAt };
   await content.selectOption('readable');
+  await hideLinks.check();
   await search.fill('Broker A');
+  await search.focus();
   await page.evaluate(async () => (await import('/js/data/telegram-posts.js')).refresh());
   assert.equal(await content.inputValue(), 'readable', 'content filter survives automatic refresh');
+  assert(await hideLinks.isChecked(), 'the link-only checkbox survives automatic refresh');
+  assert(await search.evaluate(input => document.activeElement === input), 'automatic refresh retains Telegram search focus');
   assert.equal((await search.inputValue()).toLowerCase(), 'broker a', 'search survives automatic refresh');
   assert.equal(await page.locator('[data-chatter-panel="telegram"] tbody tr[data-row-key]').count(), 1);
   let retained = await page.evaluate(async () => {
@@ -400,16 +449,17 @@ try {
   await page.waitForFunction(() => typeof window.renderScope === 'function');
   await page.evaluate(() => window.renderScope('universe', { section: 'telegram' }));
   await page.waitForSelector('[data-chatter-panel="telegram"] tbody tr[data-row-key]');
-  assert.equal(await content.inputValue(), 'all', 'reopening restores the newest posts, including those without text');
+  assert.equal(await content.inputValue(), 'all', 'reopening restores the All posts content selector');
   assert.equal(await page.evaluate(async () => (await import('/js/data/telegram-posts.js')).byId(499).text), 'Recovered older caption', 'recovered text survives offline reload');
   assert.equal(await page.evaluate(async () => (await import('/js/data/telegram-posts.js')).byId(500).text), 'New corrected report');
   await page.setViewportSize({ width: 390, height: 844 });
   assert(await page.locator('[data-chatter-panel="telegram"]').isVisible());
   assert(await content.isVisible(), 'content selector remains reachable on mobile');
+  assert(await hideLinks.isVisible(), 'the link-only checkbox is reachable on mobile');
   await page.screenshot({ path: '/tmp/sattva-telegram-readable-mobile.png', fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: '/tmp/sattva-telegram-readable-desktop.png', fullPage: true });
-  // With no captured text at all, the default must expose the source links and honest zero.
+  // Known media and named files remain useful even when none has a captured caption.
   const emptyContext = await browser.newContext();
   const emptyPage = await emptyContext.newPage();
   await emptyPage.route('**/*', route => new URL(route.request().url()).origin === base ? route.continue() : route.abort());
@@ -421,8 +471,9 @@ try {
   await emptyPage.evaluate(() => window.renderScope('universe', { section: 'telegram' }));
   const emptyContent = emptyPage.locator('[data-chatter-panel="telegram"] select[aria-label="Content"]');
   await emptyContent.waitFor();
-  assert.equal(await emptyContent.inputValue(), 'all', 'no readable text still opens on the saved links');
-  assert((await emptyPage.locator('[data-telegram-live]').innerText()).includes('0 readable here'), 'photos and filenames are not counted as readable text');
+  assert.equal(await emptyContent.inputValue(), 'all', 'known media and named reports remain in All posts');
+  assert(await emptyPage.getByRole('checkbox', { name: 'Hide link-only posts', exact: true }).isChecked());
+  assert((await sourceDetailsText(emptyPage)).includes('0 readable here'), 'photos and filenames are not counted as readable text');
   assert((await emptyPage.locator('[data-chatter-panel="telegram"] tbody').innerText()).includes('Image · Open in Telegram'));
   assert((await emptyPage.locator('[data-chatter-panel="telegram"] tbody').innerText()).includes('Video · Open in Telegram'));
   assert((await emptyPage.locator('[data-chatter-panel="telegram"] tbody').innerText()).includes('Document in Telegram'));
@@ -430,7 +481,7 @@ try {
   assert((await emptyPage.locator('[data-telegram-content-type]').innerText()).includes('Image in Telegram'));
   await emptyPage.locator('[data-modal-close]').click();
   await emptyContent.selectOption('readable');
-  assert((await emptyPage.locator('[data-chatter-panel="telegram"]').innerText()).includes('Change the Content filter'));
+  assert((await emptyPage.locator('[data-chatter-panel="telegram"]').innerText()).includes('Uncheck Hide link-only posts'));
   servedCapture = { ...servedCapture, posts: servedCapture.posts.map(p => p.id === 499 ? { ...p, text: 'Caption for the broker chart' } : p) };
   await emptyPage.evaluate(async () => (await import('/js/data/telegram-posts.js')).refresh());
   const imageRow = emptyPage.locator('[data-row-key="tg:researchreportss:499"]');
@@ -440,7 +491,7 @@ try {
   assert.equal(await emptyPage.locator('tbody tr[data-row-key]').count(), 1, 'media labels are searchable even with a caption');
   await emptyContext.close();
   assert.deepEqual(errors, [], `console errors: ${errors.join(' | ')}`);
-  console.log('PASS telegram section: newest posts visible by default, readable/media filters, honest media labels, source dates, modal, text recovery and offline retention, live edits, empty-watchlist scope and mobile');
+  console.log('PASS telegram section: link-only checkbox default, keyboard access, filtered exports and refresh retention, readable/media filters, honest media labels, source dates, modal, text recovery and offline retention, live edits, empty-watchlist scope and mobile');
 } finally {
   await browser.close();
   await new Promise((done) => server.close(done));

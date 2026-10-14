@@ -301,13 +301,12 @@ export function resetForTest() {
 
 
 /** Only the sources used by the current view; no new job on navigation. */
-export function captureNamesForView({ tab, scope, subview = null, params = {} }) {
+export function captureNamesForView({ tab, scope, params = {} }) {
   if (params.view === 'filings') return [];
   switch (tab) {
     case 'news': return scope === 'universe' ? ['marketNews'] : ['companyNews'];
-    // Corporate Actions is a view of Corp Announcements, and the two views read different captures:
-    // the button must check the one on screen, not both.
-    case 'corp-announcements': return subview === 'corporate-actions' ? ['corporateActions'] : ['announcements'];
+    case 'corp-announcements': return ['announcements'];
+    case 'corporate-actions': return ['corporateActions'];
     case 'insider-trades': return ['insider'];
     case 'breakouts': return ['technicals'];
     case 'ai-alerts': case 'daily-alerts': case 'ask-research':

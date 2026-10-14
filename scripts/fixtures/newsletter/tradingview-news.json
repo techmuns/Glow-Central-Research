@@ -1,0 +1,210 @@
+{
+  "_fixture": "A stand-in for public/data/tradingview-news/latest.json, the headlines TradingView tags to each holding's symbol. Story 1 is the same story the publisher fixture carries and must fold into it. Story 2 names the company and joins. Story 3 is tagged to the symbol but never names the company, so the dashboard's attribution reads it as unverified and it stays off the sheet. Story 4 is before the window.",
+  "capturedAt": "2026-09-17T02:20:00.000Z",
+  "generator": "scripts/enrich-tradingview-news.mjs",
+  "retention": "permanent-archive",
+  "entities": [
+    {
+      "entityId": "isin:INE423A01024",
+      "key": "ADANIENT",
+      "name": "Adani Enterprises",
+      "legalName": "Adani Enterprises",
+      "ticker": "ADANIENT",
+      "portfolioIsins": [
+        "INE423A01024"
+      ],
+      "formerNames": [],
+      "brands": [],
+      "subsidiaries": [],
+      "aliases": [],
+      "searchAliases": [],
+      "officialDomains": [],
+      "officialPages": [],
+      "evidenceUrls": [],
+      "relatedEntities": [],
+      "portfolio": true
+    },
+    {
+      "entityId": "isin:INE674K01013",
+      "key": "ABCAPITAL",
+      "name": "Aditya Birla Capital",
+      "legalName": "Aditya Birla Capital",
+      "ticker": "ABCAPITAL",
+      "portfolioIsins": [
+        "INE674K01013"
+      ],
+      "formerNames": [],
+      "brands": [],
+      "subsidiaries": [],
+      "aliases": [],
+      "searchAliases": [],
+      "officialDomains": [],
+      "officialPages": [],
+      "evidenceUrls": [],
+      "relatedEntities": [],
+      "portfolio": true
+    },
+    {
+      "entityId": "isin:INE599A01015",
+      "key": "ALANKIT",
+      "name": "Alankit",
+      "legalName": "Alankit",
+      "ticker": "ALANKIT",
+      "portfolioIsins": [
+        "INE599A01015"
+      ],
+      "formerNames": [],
+      "brands": [],
+      "subsidiaries": [],
+      "aliases": [],
+      "searchAliases": [],
+      "officialDomains": [],
+      "officialPages": [],
+      "evidenceUrls": [],
+      "relatedEntities": [],
+      "portfolio": true
+    }
+  ],
+  "byTicker": {
+    "ADANIENT": [
+      {
+        "title": "Adani Enterprises opens its new logistics park",
+        "source": "Business Standard",
+        "url": "https://in.tradingview.com/news/fixture:1:0-x/",
+        "publishedAt": "2026-09-16T17:06:00.000Z",
+        "date": "2026-09-16",
+        "tradingViewId": "fixture:1:0",
+        "tradingViewUrl": "https://in.tradingview.com/news/fixture:1:0-x/",
+        "sourceUrls": [
+          "https://in.tradingview.com/news/fixture:1:0-x/"
+        ],
+        "discoverySource": "tradingview-public-news",
+        "discoverySources": [
+          "tradingview-public-news"
+        ],
+        "sourcePage": "https://in.tradingview.com/symbols/NSE-ADANIENT/news/",
+        "relatedSymbols": [],
+        "sourceSymbol": "NSE:ADANIENT",
+        "paywall": false,
+        "access": "public",
+        "permission": "headline",
+        "ticker": "ADANIENT",
+        "entityId": "isin:INE423A01024",
+        "company": "Adani Enterprises",
+        "query": "NSE:ADANIENT",
+        "matchedQueries": [
+          "NSE:ADANIENT"
+        ],
+        "firstSeenAt": "2026-09-16T17:06:00.000Z",
+        "lastSeenAt": "2026-09-16T17:06:00.000Z"
+      },
+      {
+        "title": "Adani Enterprises names a new head for its airports business",
+        "source": "Mint",
+        "url": "https://in.tradingview.com/news/fixture:2:0-x/",
+        "publishedAt": "2026-09-16T18:30:00.000Z",
+        "date": "2026-09-16",
+        "tradingViewId": "fixture:2:0",
+        "tradingViewUrl": "https://in.tradingview.com/news/fixture:2:0-x/",
+        "sourceUrls": [
+          "https://in.tradingview.com/news/fixture:2:0-x/"
+        ],
+        "discoverySource": "tradingview-public-news",
+        "discoverySources": [
+          "tradingview-public-news"
+        ],
+        "sourcePage": "https://in.tradingview.com/symbols/NSE-ADANIENT/news/",
+        "relatedSymbols": [],
+        "sourceSymbol": "NSE:ADANIENT",
+        "paywall": false,
+        "access": "public",
+        "permission": "headline",
+        "ticker": "ADANIENT",
+        "entityId": "isin:INE423A01024",
+        "company": "Adani Enterprises",
+        "query": "NSE:ADANIENT",
+        "matchedQueries": [
+          "NSE:ADANIENT"
+        ],
+        "firstSeenAt": "2026-09-16T18:30:00.000Z",
+        "lastSeenAt": "2026-09-16T18:30:00.000Z"
+      },
+      {
+        "title": "Five safe dividend stocks to beat inflation in India",
+        "source": "Mint",
+        "url": "https://in.tradingview.com/news/fixture:3:0-x/",
+        "publishedAt": "2026-09-16T19:00:00.000Z",
+        "date": "2026-09-16",
+        "tradingViewId": "fixture:3:0",
+        "tradingViewUrl": "https://in.tradingview.com/news/fixture:3:0-x/",
+        "sourceUrls": [
+          "https://in.tradingview.com/news/fixture:3:0-x/"
+        ],
+        "discoverySource": "tradingview-public-news",
+        "discoverySources": [
+          "tradingview-public-news"
+        ],
+        "sourcePage": "https://in.tradingview.com/symbols/NSE-ADANIENT/news/",
+        "relatedSymbols": [],
+        "sourceSymbol": "NSE:ADANIENT",
+        "paywall": false,
+        "access": "public",
+        "permission": "headline",
+        "ticker": "ADANIENT",
+        "entityId": "isin:INE423A01024",
+        "company": "Adani Enterprises",
+        "query": "NSE:ADANIENT",
+        "matchedQueries": [
+          "NSE:ADANIENT"
+        ],
+        "firstSeenAt": "2026-09-16T19:00:00.000Z",
+        "lastSeenAt": "2026-09-16T19:00:00.000Z"
+      },
+      {
+        "title": "Adani Enterprises reported earlier in the week",
+        "source": "Business Standard",
+        "url": "https://in.tradingview.com/news/fixture:4:0-x/",
+        "publishedAt": "2026-09-14T06:00:00.000Z",
+        "date": "2026-09-14",
+        "tradingViewId": "fixture:4:0",
+        "tradingViewUrl": "https://in.tradingview.com/news/fixture:4:0-x/",
+        "sourceUrls": [
+          "https://in.tradingview.com/news/fixture:4:0-x/"
+        ],
+        "discoverySource": "tradingview-public-news",
+        "discoverySources": [
+          "tradingview-public-news"
+        ],
+        "sourcePage": "https://in.tradingview.com/symbols/NSE-ADANIENT/news/",
+        "relatedSymbols": [],
+        "sourceSymbol": "NSE:ADANIENT",
+        "paywall": false,
+        "access": "public",
+        "permission": "headline",
+        "ticker": "ADANIENT",
+        "entityId": "isin:INE423A01024",
+        "company": "Adani Enterprises",
+        "query": "NSE:ADANIENT",
+        "matchedQueries": [
+          "NSE:ADANIENT"
+        ],
+        "firstSeenAt": "2026-09-14T06:00:00.000Z",
+        "lastSeenAt": "2026-09-14T06:00:00.000Z"
+      }
+    ],
+    "ABCAPITAL": [],
+    "ALANKIT": []
+  },
+  "newsUpdatedAt": "2026-09-17T02:20:00.000Z",
+  "rowCount": 4,
+  "empty": [
+    "ABCAPITAL",
+    "ALANKIT"
+  ],
+  "tradingViewCoverage": {
+    "checkedAt": "2026-09-17T02:20:00.000Z",
+    "activeCompanies": 3,
+    "mappedCompanies": 3,
+    "portfolioStatus": "live"
+  }
+}

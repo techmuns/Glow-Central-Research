@@ -35,7 +35,7 @@
 // module with JSDoc types. The structure below — probe order, the no-op fallback's return types,
 // the single module-scoped client — is a one-to-one port and should be kept that way.
 
-export const DASHBOARD_ID = 'sattva-central-research';
+export const DASHBOARD_ID = 'glow-central-research';
 export const DASHBOARD_NAME = 'Glow Central Research';
 
 /**

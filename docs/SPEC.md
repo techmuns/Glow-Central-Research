@@ -40,17 +40,19 @@ inactive slate with hover. Order is fixed:
 4. Earnings Hub
 5. Con-call
 6. Public Chatter
-7. Breakouts / Technical
+7. Screens
 8. Super Investors
 9. News
 10. Corp Announcements
 11. NSE Filings
 12. Insider Trades
 
-### (c) Sub-view — one dropdown, at every width
+### (c) Sub-view — horizontal scanner tabs
 
-A styled dropdown button (custom menu, not a bare `<select>`) above the content, kickered
-*View*, showing the current sub-view and a chevron. There is no left rail: the content column
+Screens shows four horizontal tabs above the content, with Momentum Scanner
+selected by default. Clicking a tab switches the results below. The strip scrolls on narrow
+screens and supports arrow-key focus with Enter/Space activation. It stays mounted across
+view and scope changes. Super Investors keeps its styled *View* dropdown. The content column
 spans the full 1400px on every tab.
 
 | Tab | Sub-views |
@@ -60,31 +62,31 @@ spans the full 1400px on every tab.
 | Ask Research | *(none — one conversation workspace, so the picker is hidden)* |
 | Earnings Hub | *(none — one table, so the picker is hidden)* |
 | Con-call | *(no sub-views)* — one scan table, with no schedule or feed-status chips above it |
-| Public Chatter | *(no shell sub-views)* — in-page **Coverage** and **Not in coverage** tabs, one table at a time |
-| Breakouts / Technical | Momentum Scanner *(default)* · Strong Breakouts · Technical Scanner · FII Accumulation |
+| Public Chatter | *(no shell sub-views)* — in-page **Coverage** (default) and **Telegram** tabs, one feed at a time |
+| Screens | Momentum Scanner *(default)* · Strong Breakouts · Technical Scanner · FII Accumulation |
 | Super Investors | Superstar Investors · Institutions |
 | News · Corp Announcements · NSE Filings · Insider Trades | *(no sub-views)* — one table each, off the shared filings renderer |
 
 Only Breakouts and Super Investors have sub-views; every other tab hides the picker entirely.
 
 Corporate Announcements has an **Announcement period (IST)** selector: Today, Last 3 days,
-Last 7 days, This month and All time (the default). Recent windows include today and exclude
+Last 7 days, This month and All time (Last 3 days is the default). Recent windows include today and exclude
 undated or invalid publication dates; All time includes every retained record. The selector
 combines with company search and scope and narrows counts and exports. Source refreshes preserve
 the choice; the existing automatic poll reapplies relative windows after midnight in IST even
 when the source rows are unchanged. Collection and historical retention are independent of this
 display filter, and All time does not claim an exhaustive exchange archive.
 
+Corporate Announcements leads with Company in bold and ticker/scrip code below it, followed
+by Subject, Date, Categories, Market cap and Link. Link names the exchange (for example, NSE ↗).
+Merged filings keep each exchange's own document link. Subjects, bookmarks, watchlist actions
+and related filings retain their existing behavior.
+
 **Ask Research is first, and first is the default.** The shell falls back to `ws.tabs[0]` for an
 unknown or absent tab, so the order of the `WORKSPACES` array *is* the landing page — there is no
 second place recording it that could disagree with the array.
 
-The picker is the same control at every width. It used to be a 240px left rail above 1024px and
-a dropdown below it — the rail cost the content 240px of its 1400px, permanently, to show at most
-four short labels, while the tables beside it are the widest things in this dashboard and were
-scrolling inside their own containers to fit what was left. Measured on removal: Breakouts goes
-from a 248px inner scroll to **none**, Super Investors 380px → 116px, Portfolio Overview
-453px → 189px.
+Subview navigation sits above the full-width content at every screen size.
 
 A tab with `subviews: []` renders no picker at all.
 
@@ -358,23 +360,6 @@ duplicate catalog are omitted from the model prompt, but remain in the browser f
 The dashboard's own AI Alerts ranking is one of the sixteen sources, so a question about the
 strongest evidence across tabs is answered by the same deterministic model the tab shows.
 
-### Portfolio and Watchlist — `portfolio`, `watchlist` (Glow, LIVE + desk-edited, single view)
-Two editable sheets straight after AI Alerts (12 October 2026), followed by Corp Announcements, News
-and All Alerts. **Portfolio** lists the family's public direct holdings — listed equity outside every
-PMS mandate, one row per company — in the desk's own columns: name, sector, CMP, market cap, 1-day and
-1-month return, date bought, quantity, buy price, TSR including dividends, alpha over the Nifty 500,
-amount invested, current value, XIRR, weight in the public-direct book, target amount and weight,
-pending amount, intrinsic value, methodology, reference, upside on CMP and expected IRR on the buy
-price. **Watchlist** lists the shared watchlist with fewer columns and an editable **Source** column
-between Sector and CMP. Market figures and every figure computed from them are live and read-only;
-everything else is typed by the desk into one shared record per company, with the statements'
-quantity, average cost and lot date, and simple formulas, standing in as visible defaults until
-somebody types over them. Scope does not apply: each tab is the list it is named for.
-
-*Still to come:* a total-return (TRI) Nifty 500 series for the alpha, once a dated source for it is
-reachable; history for the three SME holdings Yahoo does not carry; purchase dates and costs for the
-many statement lines that print neither (TSR, XIRR and alpha wait on them).
-
 ### Earnings Hub — `earnings-hub` (LIVE, single view)
 One table: every company that has reported this quarter, newest first. Ten columns —
 `Date · Company · Rev cur · Rev prior · Rev % · PAT cur · PAT prior · PAT % · MCap · Basis` —
@@ -412,10 +397,11 @@ Deep Dive — were removed rather than kept behind a ribbon; see `docs/HANDOFF.m
 
 ### Public Chatter — `public-chatter`
 Community sentiment.
-- Simple in-page tabs: **Coverage** (default), **Not in coverage** — each owning its table and its own sentiment selector — and **Telegram**
+- Simple in-page tabs: **Coverage** (default) and **Telegram**, each owning its independent feed and table
 - **Telegram** is a second, independent feed on the tab: posts from a public research channel, reproduced as published, ordered by message number because the route publishes no post times. Either feed may be down without taking the other's section with it
+- Telegram has a **Hide link-only posts** checkbox, checked by default. Unchecking restores saved date/link entries; named files, captured text and identified media remain available.
 - Clicking a company or its mention count opens the underlying mentions, newest first, with a direct link to every source item
-- No summary-card row; coverage, posts, market mood and scrape timing appear as footnotes below the tables
+- A compact row holds the title, section tabs, source status and Source details/History controls. Tables fill the remaining viewport; descriptions, ranking cards, explanatory banners and default footnotes are removed. Source details shows capture counts, source check times, publication dates and history limits on demand.
 - Real-time ValuePickr thread crawler with dedup
 - ~~Telegram channel ingestion via bot API~~ — **built, by a different route.** Posts from a
   public channel now have their own section on this tab. Not via the Bot API, which was never
@@ -427,7 +413,7 @@ Community sentiment.
 - Spam / promotional post filtering
 - Cross-source mention aggregation
 
-### Breakouts / Technical — `breakouts`
+### Screens — `breakouts`
 Technical scans across coverage. **This is the one genuinely live feed — shipped in prompt 3.**
 
 Sixteen rules, 24 points, five categories, scored by `js/scoring/tech-scoring.js` from a daily
@@ -447,18 +433,17 @@ became one small passive **Live** pill in the section head. The pill is green on
 schedule's worst case (72 hours — Friday's capture is still current on Monday); past that it is
 muted and prints the age.
 
-Sub-views: **Strong Breakouts** (6-week base breakouts, URL-reflected filter chips) — first in the
-picker and so the view the tab opens on — then **Technical Scanner** (the full scored universe),
-**FII Accumulation** (shareholding changes joined to the score). Earnings Surprise is removed
-until a real data feed is available, because analyst consensus estimates are not connected; old
-links resolve to Strong Breakouts and its mock corpus is excluded from startup and Ask Research.
+Sub-views: **Momentum Scanner** (momentum and volume conditions) — first and default — then
+**Strong Breakouts** (6-week base breakouts, URL-reflected filter chips), **Technical Scanner**
+(the full scored universe) and **FII Accumulation** (shareholding changes joined to the score).
+Explicit view links are preserved; absent or unknown views resolve to Momentum Scanner.
 
-Volume Confirm, 52W Proximity and Trend Filter are available in all three technical views.
-Each starts on **All**. Volume uses today's volume divided by the prior 30-session base average;
-proximity includes the exact 5%, 10% and 20% boundaries. Chip counts reflect the current scope
-and the other chip selections, including FII's institutional-side and holding-change filters.
-Scanner cards, table rows, exports and price-refresh candidates follow the selected chips.
-Search, score filters and sort survive a chip change; chip selections remain in the URL.
+Momentum Scanner's criteria panel leads with a three-way screen selector. Strong Momentum and
+Volume + Momentum thresholds sit in separate labelled groups, with the applied group marked;
+Both signals requires every condition in both groups. Compact number fields retain the comparison
+operators and volume's 10-day-average unit. The fixed conditions appear below each group's fields.
+All five thresholds remain editable, including the other group's settings, and Reset defaults
+restores Strong Momentum and its default thresholds without changing scope or unrelated filters.
 
 Every Strong Breakouts filter group leads with **All** and defaults to it, so the sub-view opens on
 the widest answer it can give. The trend filter used to ship on *Above 200 DMA only*, which meant a
@@ -486,13 +471,14 @@ roadmap* card that used to close each tab has been removed from the UI:
 ### Super Investors — `super-investors`
 Superstar holdings and institutional ownership.
 
-**Superstar Investors has three in-page tabs.** *All Investors* opens first with only the investor
-cards. *Quarterly Changes* follows with the cross-book roll-up, so a reader can see companies bought
-or sold down by more than one tracked investor, new entrants, the largest increases and reductions,
-and positions no longer disclosed without opening ninety books one at a time. *Data Table* sits
-after Quarterly Changes and owns the complete all-disclosed-positions grid, including search,
-investor/change filters, watchlist control and Excel export. The chosen in-page tab survives scope
-changes and live-data repaints until the reader leaves Super Investors.
+**Superstar Investors has four in-page tabs.** *Changes* opens first with My Managers /
+All Investors audiences, period filters, dated ledger/public-deal activity and separately
+labelled holdings observations. *My Managers* uses the authenticated Sattva Family workbook
+for custodian holdings, private fund capital and held fund units, with searchable workspaces
+and exports. Unsupported statement returns and AMC look-through remain unavailable.
+*All Investors* owns the public investor card directory. *Data Table* owns the complete
+public positions grid, search, investor/change filters, Watchlist and Excel export. The
+chosen tab survives scope/data repaints until the reader leaves Super Investors.
 
 The view stays intentionally quiet around that content: it renders no per-view cache/status pill,
 scope-count tag, progressive-reading strip, or source/action badge in an investor workspace. Scope
@@ -557,7 +543,7 @@ success or fall back to temporary in-memory bookmarks. Tabs synchronize after co
 | --- | --- | --- |
 | 1 | Foundation + shell | File layout, nav model, scope toggle, routing, design system, UI primitives, live engine, mock data, placeholder panels, docs. ✅ *this prompt* |
 | 2 | Technicals/breakouts data pipeline | Live Yahoo Finance EOD across NSE 500, Node 22 scripts in `scripts/`, GitHub Actions refresh, produces `public/data/technicals.json`. ✅ |
-| 3 | Breakouts / Technical tab UI | 16-rule scoring model, three live sub-views, drill panel with per-rule provenance, Excel export. ✅ |
+| 3 | Screens tab UI | 16-rule scoring model, four live sub-views, drill panel with per-rule provenance, Excel export. ✅ |
 | 4 | Earnings Hub | 15-rule / 21-point Result Quality & Growth model, three sub-views (Latest Results, Result Scans, Quality & Growth), 8 built-in scans + a custom scan builder, drill panel with 8-quarter series and per-rule provenance, two-sheet Excel export. Earnings data is **synthetic but real-shaped** — generated by `scripts/gen-mock-earnings.mjs` and labelled as illustrative on every surface; wiring the real filings feed is a three-file change documented in `docs/DATA-CONTRACTS.md`. ✅ |
 | 5 | Con-call + Deep Dive | Runtime keyword engine (scans transcript text in the browser — no stored counts), a full keyword-set editor persisted to localStorage, a 5s live-call ticker, a companies × keywords matrix with quarter-on-quarter deltas, catalyst tracking, and the six-view Deep Dive in a new full-screen `openWorkspace` overlay. Transcripts are **synthetic but real-shaped** — and unlike the earnings set, every person and brokerage named in them is fictional. ✅ |
 | 6 | Public Chatter + Super Investors | Chatter: forum threads with claim extraction, Telegram groups with a transparent 0–3 pump-risk heuristic, and a cross-source Trending view joined to the **real** technicals feed with a chatter-vs-price quadrant. Investors: investor-first cards, a four-view per-investor workspace, a mandate view for funds, FII/DII and MF category flow charts, and an overlap heatmap. Both data sets are **synthetic** — and the investor names are **real people**, so their positions carry an attribution ribbon on every surface and the data set holds numbers only, never a quote or rationale. ✅ |
@@ -567,9 +553,8 @@ success or fall back to temporary in-memory bookmarks. Tabs synchronize after co
 | 8 | Tracked news keywords + cross-feed correlation | The desk's thirty keywords as one shared vocabulary (`public/js/data/news-keywords.js`), driving a counted Topic filter and column on both News surfaces, the materiality rule for company news in All Alerts, and a participation event (volume ≥ `VOLUME_X`, or a confirmed base break) on the technicals feed. AI Alerts gains `confluenceOf()` — seven **named** cross-feed patterns that say *"volume 3.2x its average, and a tracked investor's latest book shows buying"* instead of *"three feeds"*. A keyword is a **topic and never a direction**, so no story anywhere gains a sentiment of ours. Measured: 11,060 captured stories → 3,278 tracked. ✅ |
 | 9 | Provenance reachable again | The filings tabs' provenance and the source registry were both built and had no caller — correct, maintained and unreachable, which reads as documentation of a working feature. Each now has a door placed **after** the content it qualifies: a footer line for the registry, one muted line under each filings table for that tab's measured coverage. The chrome that was deliberately removed stays removed — no Sources button in the header, every status pill still a passive `<span>` that opens nothing. Also fixes two defects found alongside: `earnings-calendar` had no `load()` and threw on every Ask Research question, so that source had never once been read; and a `[Dashboard: …]` citation resolved by first-match across four shared tab names, sending a question about strong breakouts to the Technical Scanner. ✅ |
 | 10 | Portfolio means a list of names | **Portfolio Analytics deleted.** Four modules, the FIFO engine, `js/data/portfolio.js`, the illustrative ledger, the mock transactions and 290KB of equity-curve history are gone, and the Ask Research evidence registry drops from fifteen sources to fourteen. It was `hidden: true` — routable but not clickable — and an Ask Research citation linked straight into it, so a reader landed on a screen of invented money with nothing on the page that led back and no address bar inside the host iframe. The only portfolio information left is the synced book of 142 company names. The rules that survive: *a surface that is not offered must not be reachable*, *an evidence source must be a tab the reader can open*, and *prefer deletion to labelling* — for the third time. ✅ |
-| 11 | AI Alerts cards built for time to insight | The ranking was already honest and the card still took twenty seconds to read: the leading pattern's sentence was printed as the insight AND again, verbatim, in a *Signals lining up* panel below it, in the feeds' own wording, above evidence rows carrying full timestamps, direction pills, importance pills and each rule's reason. It is now one short sentence in ordinary English, the numbers behind it as four figures, and three evidence lines — with an **Archive** that is a place rather than a deletion. Every phrase rewords an event already on the card and every figure reads a field the collector writes (`volumeX`, `movePct`, `deltaPp`), never a regex over prose. Volume takes no colour, because participation has no sign. Three evidence rows mean three different sources where the card has them: taking the top three by score put three near-identical fund rows on a card whose strip announced four sources. ✅ |
+| 11 | AI Alerts cards built for time to insight | The ranking was already honest and the card still took twenty seconds to read: the leading pattern's sentence was printed as the insight AND again, verbatim, in a *Signals lining up* panel below it, above evidence rows carrying full timestamps and pills. It is now **one claim and four dated rows, newest first** — with an **Archive** that is a place rather than a deletion. The four-figure strip and the per-question paragraph between the sentence and the rows were removed on 19 September 2026 at the desk's request; every figure the strip carried still has a place (the sentence's own subject, the direction dot on each row, the list header's source count, the footer's door to All Alerts), and the per-question reading moved onto the row whose record backs it. **The sentence was then the problem, which is worse, because the card looked finished:** it led with the PATTERN — already a chip directly beneath it — and appended figures drawn from two feeds only, so a card led by a filing, a result, a story or an insider disclosure could never state one; measured on the shipped capture, a company whose own filing that day was a ten-year supply contract got *"An insider and a big holder moved the same way"*, and with no pattern the card fell back to our own tally (*"8 good, 6 bad"*) or to filler. It now states the strongest event's own claim and nothing else — the chip carries the correlation, the rows carry the breadth, a disagreement is stated as the action it implies. Filings needed their own rule: **1,995 of 15,506** retained NSE rows carry a subject naming the filing TYPE rather than the event (*General Updates*, *Updates*, *Press Release*) and **1,911** of those carry a description that says what it is, so a filing's claim is CHOSEN between its own subject, the source's own description and the exchange's own sub-category — never paraphrased — with the exchange's mechanical lead-in removed (it cost 71 of 150 characters on one row) and a clip on a word boundary that keeps the untouched wording on the sentence's tooltip. Every phrase rewords an event already on the card and every figure reads a field the collector writes (`volumeX`, `movePct`, `deltaPp`, `tradeValue`, `tradePct`, `resultBasis`, the filed metrics), never a regex over prose. Volume takes no colour, because participation has no sign. Rows go one per source in rounds, at most three from any one source and at most four in all. ✅ |
 | 12 | One intelligence funnel, minimal UI | All twenty All Alerts categories now feed one company evidence graph shared by AI Alerts and Ask Research. Material `aiEligible` events remain the only triggers; raw filings, documents, snapshots and schedules contribute zero-score context selected by exact company, source health, time and topic. Screener Insights adds source-backed yearly/quarterly operating series through a daily authenticated artifact covering the synchronized portfolio plus the 535-company universe. AI cards gain one linked context sentence only when useful; Ask gets the same correlations, holding weights and future milestones. The authenticated ranker also reads weights from the actual positions payload rather than the public names-only book. ✅ |
-| 13 | Two bullets per company, and the three triggers as filters | Every AI Alerts card now reads as the desk asked: **What happened** (the plain insight) and **Earnings assumption, valuation or thesis?** — one line saying which of the three questions the evidence bears on, read deterministically from each event's tracked keyword, filing rule or the owning feed's own threshold (`impactOf` in `public/js/data/ai-alerts.js`). It says *could change*, names the trigger, and states in words which question nothing tracked bears on; every trigger it names is a link to the record it was read from, the same door as the evidence rows; a holder's or insider's move is the first bullet's business and bears on none of the three by itself. The three questions are a second chip group beside the priority chips — *Earnings · n*, *Valuation · n*, *Thesis · n* — counted with the priority band held fixed, one pressed at a time and cleared by pressing again. ✅ |
 
 **Still to come**
 
@@ -596,22 +581,3 @@ export function destroy();     // detach listeners/pollers; called on nav away
 `ctx.root` is the content host element, already emptied by the previous tab's teardown.
 `ctx.data` is the fully-loaded data set (see `docs/DATA-CONTRACTS.md`).
 `ctx.live` is the live engine module.
-
-### Momentum Scanner (Glow)
-
-Breakouts / Technical opens on Momentum Scanner and displays four horizontal view tabs.
-Strong Breakouts, Technical Scanner and FII Accumulation retain their explicit routes. Missing
-or retired view links use the new default. Native arrow/Home/End navigation changes focus;
-Enter/Space activates a view. Narrow screens scroll the strip without page overflow.
-
-The criteria panel starts with Strong Momentum, Volume + Momentum and Both signals. Two labelled
-groups show three RSI thresholds and the daily RSI/ten-day volume threshold respectively, with
-Applied badges and the engine’s fixed conditions. Both signals requires all conditions in both
-groups. All thresholds are editable and saved in the URL. Reset defaults restores the default
-gate and five values while preserving scope and unrelated filters. Keyboard focus survives
-repaints. Desktop groups sit side by side; small screens stack them in both themes.
-
-Counts, table and export use one evaluated model. Scanned excludes stocks with unavailable
-required history or current quotes; Exceptions opens every excluded stock with a short reason.
-Until the existing scheduled daily refresh first supplies the additive fields, stocks with
-missing indicator state remain exceptions. No data is copied from Sattva.

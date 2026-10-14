@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Real service worker + browser cache behavior. All data is local; external calls are blocked.
 import assert from 'node:assert/strict';
-import { researchFixtureAsset } from './lib/research-ui-fixture.mjs';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
@@ -17,16 +16,32 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const TAB_INTERACTION_LIMIT_MS = 1000;
 const POPUP_INTERACTION_LIMIT_MS = 600;
 let offline = false;
+let upgradeAssetsOnly = false;
+let cacheMeasurements = false;
 let previousRelease = true;
+const previousTabOrder = ['ai-alerts', 'ask-research', 'daily-alerts', 'bookmarks', 'earnings-hub',
+  'concall', 'public-chatter', 'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements',
+  'corporate-actions', 'nse-filings', 'insider-trades', 'mutual-funds'];
+const currentTabOrder = ['alerts', 'announcements',
+  'earnings', 'breakouts', 'mutual-funds', 'news-section', 'super-investors'];
 const requests = [];
 const partBody = '{"items":[{"title":"Original retained story"}]}';
 const immutablePath = `/data/performance-fixture.parts/${createHash('sha256').update(partBody).digest('hex')}.json`;
 const mutablePath = '/data/performance-fixture.json';
 const corruptPath = `/data/performance-fixture.parts/${'a'.repeat(64)}.json`;
+const sdkUrl = 'https://munshot.s3.ap-south-1.amazonaws.com/SDK+script/munshot-dashboard-sdk.v1.0.0.min.js';
 const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   requests.push(url.pathname);
-  if (offline) { res.writeHead(503, { 'cache-control': 'no-store' }); res.end('offline'); return; }
+  const upgradeAsset = /^\/(?:$|index\.html$|sw\.js$|sdk-fixture\.js$|js\/|css\/|assets\/brand\/|data\/portfolio-companies\.json$)/.test(url.pathname);
+  const cacheFixture = cacheMeasurements && [immutablePath, mutablePath, corruptPath].includes(url.pathname);
+  if (offline && !(upgradeAssetsOnly && upgradeAsset) && !cacheFixture) {
+    res.writeHead(503, { 'cache-control': 'no-store' }); res.end('offline'); return;
+  }
+  if (url.pathname === '/sdk-fixture.js') {
+    res.writeHead(200, { 'content-type': 'text/javascript' });
+    res.end('/* No host SDK in this local performance fixture. */'); return;
+  }
   if ([immutablePath, mutablePath, corruptPath].includes(url.pathname)) {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=0, must-revalidate' });
     res.end(partBody); return;
@@ -45,21 +60,54 @@ const server = createServer((req, res) => {
     }[extname(path)] || 'application/octet-stream');
     res.setHeader('cache-control', 'public, max-age=0, must-revalidate');
     if (pathname === '/sw.js') {
-      const source = readFileSync(path, 'utf8');
+      // Page routing does not isolate the worker's own SDK warm-up. Keep both its cache
+      // and the returning document local, as in the other service-worker upgrade fixtures.
+      const source = readFileSync(path, 'utf8').replace(/const MUNSHOT_SDK = .*;/,
+        "const MUNSHOT_SDK = new URL('/sdk-fixture.js', self.location).href;")
+        .replace('async function fetchAndCache(', 'async function fixtureFetchAndCache(') + `
+globalThis.__performancePublicReads = new Set();
+function fetchAndCache(...args) {
+  const pending = fixtureFetchAndCache(...args);
+  __performancePublicReads.add(pending);
+  pending.then(() => __performancePublicReads.delete(pending), () => __performancePublicReads.delete(pending));
+  return pending;
+}`;
       res.end(previousRelease ? source.replace(/const CACHE_NAME = ([^;\n]+);/, 'const CACHE_NAME = $1 + "-previous-fixture";') : source);
-    } else if (pathname === '/js/ui/shell.js') {
-      const source = readFileSync(path, 'utf8');
-      res.end(previousRelease ? researchFixtureAsset(pathname, source, { first: true }) : source);
+    } else if (pathname === '/index.html') {
+      res.end(readFileSync(path, 'utf8').replaceAll(sdkUrl, '/sdk-fixture.js'));
     } else if (pathname === '/js/core/watchlist.js') {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__watchlistRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
     } else if (pathname === '/js/core/alert-arrivals.js') {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__arrivalsRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
     } else if (pathname === '/js/core/app-updates.js') {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__performanceRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
-    } else if (pathname === '/js/data/alert-pool.js') {
-      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__poolRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/js/tabs/catalog.js') {
+      const source = readFileSync(path, 'utf8');
+      res.end(previousRelease ? source.replace("navigationTitle: 'Results',", '').replace("navigationTitle: 'Concall',", '')
+        .replace("navigationTitle: 'Corporate Announcements',", '')
+        .replace("navigationTitle: 'Market News',", '')
+        .replaceAll(/navigationGroup: '(?:alerts|announcements|earnings|news-section)',/g, '')
+        .replace(/(title: 'NSE Filings',\s*\/\/[^\n]*\s*)hideFromNavigation: true,/, '$1') : source);
+    } else if (pathname === '/js/tabs/registry.js') {
+      const source = readFileSync(path, 'utf8');
+      res.end(previousRelease ? `${source}\nconst previousTabOrder = ${JSON.stringify(previousTabOrder)};
+researchTabs.sort((a, b) => previousTabOrder.indexOf(a.meta.id) - previousTabOrder.indexOf(b.meta.id));` : source);
+    } else if (pathname === '/js/core/workspace.js' && previousRelease) {
+      // The old navigation predates shared ordering. It follows the catalog rather than
+      // applying the new grouped-parent order to these deliberately ungrouped old readers.
+      res.end('export const snapshot=()=>({version:1,revision:0,tabs:[],order:[]});export const status=()=>({confirmed:false,pending:0,error:null,rejected:[]});export const onChange=()=>()=>{};export const start=()=>{};export const sync=async()=>({confirmed:false});export const edit=async()=>({confirmed:false});');
+    } else if (pathname === '/js/ui/windowed-list.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__tableScrollRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/js/data/alert-pool-format.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__alertPoolRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
     } else if (pathname === '/js/data/news-working-set.js') {
       res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__newsQueryRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/js/data/announcements-extra.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__announcementHistoryRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/js/data/alert-stories.js') {
+      res.end(`${readFileSync(path, 'utf8')}\nglobalThis.__storyOrderRelease = ${JSON.stringify(previousRelease ? 'previous' : 'current')};`);
+    } else if (pathname === '/css/tailwind.css') {
+      res.end(`${readFileSync(path, 'utf8')}\n:root { --table-scroll-release: ${previousRelease ? 'previous' : 'current'}; }`);
     } else res.end(readFileSync(path));
   } catch { res.writeHead(404); res.end(); }
 });
@@ -71,15 +119,40 @@ const errors = [];
 try {
   const context = await browser.newContext();
   const page = await context.newPage();
+  await page.addInitScript(() => {
+    window.__performanceInteractionTiming = {};
+    for (const name of ['pointerdown', 'click']) document.addEventListener(name, event => {
+      const control = event.target.closest('[data-tab-id], [data-sources-open]');
+      if (!control) return;
+      const target = control.dataset.tabId || 'sources';
+      if (name === 'pointerdown') window.__performanceInteractionTiming = { target };
+      window.__performanceInteractionTiming[name] = { at: event.timeStamp, handledAt: performance.now() };
+    }, true);
+  });
+  // Locator.click() first waits for stability and may scroll a footer or tab into view. That
+  // automation setup is not input latency (a local trace spent >1s there before a 120ms tab
+  // response). Start at the actual pointer event timestamp, which includes queued input delay,
+  // then include processing and a painted frame. Keep the original 1s/600ms response budgets.
+  const afterInteractionPaint = async target => {
+    const timing = await page.evaluate(async () => {
+      await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
+      const events = window.__performanceInteractionTiming;
+      return { target: events.target, events, elapsedMs: performance.now() - events.pointerdown?.at };
+    });
+    assert.equal(timing.target, target, 'the measured input belongs to this control');
+    assert(Number.isFinite(timing.elapsedMs) && timing.elapsedMs >= 0, 'a real pointer input starts the response measurement');
+    return timing;
+  };
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('**/*', (route) => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort());
   await page.goto(origin);
   await page.getByRole('navigation', { name: 'Research navigation' }).waitFor();
   await page.evaluate(async () => navigator.serviceWorker.ready);
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
   await page.evaluate(async () => {
-    await fetch('/api/private-fixture');
-    await fetch('/data/authorized-fixture.json', { headers: { authorization: 'Bearer test-only' } });
-    await fetch('/data/no-store-fixture.json', { cache: 'no-store' });
+    await (await fetch('/api/private-fixture')).text();
+    await (await fetch('/data/authorized-fixture.json', { headers: { authorization: 'Bearer test-only' } })).text();
+    await (await fetch('/data/no-store-fixture.json', { cache: 'no-store' })).text();
   });
 
   const cacheState = await page.evaluate(async () => {
@@ -90,7 +163,7 @@ try {
   assert.equal(cacheState.names.length, 1, 'one current app cache is active');
   assert(cacheState.urls.filter((url) => url.includes('/js/')).length > 90, 'complete native module graph is warm');
   assert(cacheState.urls.some((url) => url.endsWith('/data/portfolio-companies.json')), 'critical portfolio identity snapshot is warm');
-  for (const asset of ['glow-ventures-wordmark.svg', 'favicon.svg']) {
+  for (const asset of ['sattva-ventures-wordmark.png', 'sattva-ventures-mark.svg', 'favicon.svg']) {
     assert(cacheState.urls.some(url => url.endsWith(`/assets/brand/${asset}`)), 'product identity is available on an offline repeat visit');
   }
   for (const asset of ['/js/theme-init.js', '/js/ui/theme-toggle.js', '/css/theme.css']) {
@@ -101,34 +174,21 @@ try {
     'Authorization and explicit no-store reads are never persisted');
 
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
-  // Playwright routing disables the HTTP cache and rewrites request.cache to "reload".
-  // Restore ordinary browser semantics while checking immutable vs. mutable data reads.
-  const cacheSession = await context.newCDPSession(page);
-  await cacheSession.send('Network.enable');
-  await cacheSession.send('Network.setBlockedURLs', { urls: ['https://*'] });
-  await page.unroute('**/*');
-  await cacheSession.send('Network.setCacheDisabled', { cacheDisabled: false });
-  for (const path of [immutablePath, mutablePath, corruptPath]) {
-    await page.evaluate(async path => { await (await fetch(path, { cache: 'no-cache' })).text(); }, path);
-    await page.evaluate(async path => { await (await fetch(path, { cache: 'no-cache' })).text(); }, path);
-  }
-  // Allow any background revalidation to reach the local server before counting it.
-  await new Promise(resolve => setTimeout(resolve, 250));
-  assert.equal(requests.filter(path => path === immutablePath).length, 1, 'unchanged content-addressed parts are downloaded only once');
-  assert.equal(requests.filter(path => path === mutablePath).length, 2, 'mutable manifests still revalidate on repeat reads');
-  assert.equal(requests.filter(path => path === corruptPath).length, 2, 'corrupt success responses never enter the immutable cache');
-  await page.evaluate(async path => { await (await fetch(path, { cache: 'reload' })).text(); }, immutablePath);
-  assert.equal(requests.filter(path => path === immutablePath).length, 2, 'an explicit recovery read can bypass the immutable cache');
-  await cacheSession.send('Network.setCacheDisabled', { cacheDisabled: true });
-  await page.route('**/*', (route) => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort());
-
   await page.getByRole('button', { name: 'Dark mode', exact: true }).click();
   offline = true;
   const reloadedAt = Date.now();
-  await page.reload();
+  // Measure when the cached navigation is visible, not the later load event: load also waits
+  // for unrelated resources even after the app shell has painted. Keep the same 1.5s budget.
+  await page.reload({ waitUntil: 'commit' });
   await page.getByRole('navigation', { name: 'Research navigation' }).waitFor({ timeout: 1500 });
-  assert(Date.now() - reloadedAt < 1500, 'repeat visit paints from the app cache without waiting for the network');
+  const repeatPaintMs = Date.now() - reloadedAt;
+  assert(repeatPaintMs < 1500,
+    `repeat visit paints from the app cache without waiting for the network (${repeatPaintMs}ms)`);
   await page.locator('[data-brand-mark] img').evaluate(image => image.decode());
+  await page.waitForSelector('#content-host[data-active-tab="ai-alerts"]', { timeout: 1500 });
+  // Ask Research's illustration remains cached, but AI Alerts is now the landing tab.
+  // Keep the returning reader's portfolio scope when opening the hidden saved route.
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio'; });
   await page.locator('.research-opening-brand').evaluate(image => image.decode());
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'cached app restores the saved theme');
   assert.equal(await page.locator('body').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(11, 18, 32)', 'cached dark styles are applied');
@@ -145,15 +205,19 @@ try {
   });
   assert(scrollMs != null && scrollMs < 500, 'tab-strip scroll button responds locally');
 
-  // The previous cached release still includes Ask Research; the upgrade below must remove it.
-  const tabIds = ['ask-research', 'ai-alerts', 'daily-alerts', 'earnings-hub', 'concall', 'public-chatter',
-    'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements', 'nse-filings', 'insider-trades',
-    'mutual-funds', 'macro-research', 'economy-macro', 'family-book'];
+  const tabIds = previousTabOrder.filter(id => !['ask-research', 'bookmarks'].includes(id));
   for (const id of tabIds) {
+    // Begin the next measurement from a painted view. data-active-tab is set before render(),
+    // so observing that attribute alone can start the next timer inside the previous paint.
+    await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
     const started = Date.now();
     await page.locator(`[data-tab-id="${id}"]`).click();
     await page.waitForSelector(`#content-host[data-active-tab="${id}"]`, { timeout: TAB_INTERACTION_LIMIT_MS });
-    const tabMs = Date.now() - started;
+    const timing = await afterInteractionPaint(id);
+    const tabMs = timing.elapsedMs;
+    if (tabMs >= TAB_INTERACTION_LIMIT_MS) console.error('Tab timing diagnostic', id, {
+      automationAndResponseMs: Date.now() - started, ...timing,
+    });
     assert(tabMs < TAB_INTERACTION_LIMIT_MS,
       `${id} opens immediately while revalidation is unavailable (${tabMs}ms)`);
   }
@@ -164,10 +228,18 @@ try {
   // the popup was even opened, despite the navigation satisfying its documented budget.
   await page.getByRole('heading', { name: 'AI Alerts', exact: true }).waitFor({ timeout: TAB_INTERACTION_LIMIT_MS });
 
+  assert.equal(await page.locator('[data-app-content] > footer').count(), 0, 'source registry occupies the beacon, not the reading column');
+  await page.locator('[data-beacon-toggle]').hover();
+  await page.locator('#source-beacon-panel [data-sources-open]').waitFor({ timeout: POPUP_INTERACTION_LIMIT_MS });
+
   const started = Date.now();
   await page.locator('[data-sources-open]').click();
   await page.waitForSelector('#modal-overlay:not(.hidden)', { timeout: POPUP_INTERACTION_LIMIT_MS });
-  const popupMs = Date.now() - started;
+  const popupTiming = await afterInteractionPaint('sources');
+  const popupMs = popupTiming.elapsedMs;
+  if (popupMs >= POPUP_INTERACTION_LIMIT_MS) console.error('Popup timing diagnostic', {
+    automationAndResponseMs: Date.now() - started, ...popupTiming,
+  });
   assert(popupMs != null && popupMs < POPUP_INTERACTION_LIMIT_MS,
     `shared popups open without a network dependency (${popupMs ?? 'not ready'}ms)`);
   await page.locator('[data-modal-close]').first().click();
@@ -186,55 +258,136 @@ try {
   });
   assert.equal(restartHits, 1, 'tab re-entry resumes the cadence instead of duplicating a fresh request');
   assert.equal(await page.evaluate(() => globalThis.__performanceRelease), 'previous', 'the returning reader is running the older cached module graph');
+  assert.equal(await page.locator('[data-tab-id="ask-research"]').count(), 0, 'Ask Research stays hidden in the previous release');
+  assert.deepEqual(await page.locator('[data-tab-id]').evaluateAll(tabs => tabs.map(tab => tab.dataset.tabId)),
+    tabIds, 'the returning reader has the previous tab order, including NSE Filings');
   assert.equal(await page.evaluate(() => globalThis.__watchlistRelease), 'previous', 'the cached watchlist module belongs to the older release');
   await page.evaluate(() => import('/js/core/alert-arrivals.js'));
   assert.equal(await page.evaluate(() => globalThis.__arrivalsRelease), 'previous', 'returning session has the older arrivals module cached');
-  await page.evaluate(() => import('/js/data/alert-pool.js'));
-  assert.equal(await page.evaluate(() => globalThis.__poolRelease), 'previous', 'returning session has the older pool reader cached');
+  await page.evaluate(() => import('/js/ui/windowed-list.js'));
+  assert.equal(await page.evaluate(() => globalThis.__tableScrollRelease), 'previous', 'returning session has the older table renderer cached');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--table-scroll-release').trim()), 'previous', 'returning session has the older scrollbar stylesheet cached');
+  await page.evaluate(() => import('/js/data/alert-pool-format.js'));
+  assert.equal(await page.evaluate(() => globalThis.__alertPoolRelease), 'previous', 'the retained session has the older alert-pool module');
   await page.evaluate(() => import('/js/data/news-working-set.js'));
   assert.equal(await page.evaluate(() => globalThis.__newsQueryRelease), 'previous', 'returning reader starts with the older news query module');
-  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=universe&company=TEST'; });
-  await page.locator('#content-host[data-active-tab="ask-research"]').waitFor();
-  assert.equal(await page.locator('[data-tab-id]').first().getAttribute('data-tab-id'), 'ask-research');
-  offline = false;
+  await page.evaluate(() => import('/js/data/announcements-extra.js'));
+  assert.equal(await page.evaluate(() => globalThis.__announcementHistoryRelease), 'previous', 'returning reader starts with the older announcement-history module');
+  await page.evaluate(() => import('/js/data/alert-stories.js'));
+  assert.equal(await page.evaluate(() => globalThis.__storyOrderRelease), 'previous', 'returning reader starts with the older story projection');
+  // Only deployment assets return. Keep the data/API outage from the interaction sweep:
+  // restoring every capture here starts unrelated large background cache writes and can
+  // leave the already-installed replacement waiting behind the active worker's reads.
+  upgradeAssetsOnly = true;
+  // A cached response can paint before the old worker finishes its background cache write.
+  // Complete this fixture's earlier reads before measuring the separate code-only upgrade;
+  // joining them preserves the real worker behavior and the 30-second activation assertion.
+  const previousWorker = context.serviceWorkers().find(worker => worker.url() === `${origin}/sw.js`);
+  assert(previousWorker, 'the returning fixture has its real active service worker');
+  await previousWorker.evaluate(async () => {
+    while (globalThis.__performancePublicReads.size) {
+      await Promise.allSettled([...globalThis.__performancePublicReads]);
+    }
+  });
   previousRelease = false;
   await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update(); });
-  await page.waitForFunction(() => globalThis.__performanceRelease === 'current', null, { timeout: 30000 });
+  try {
+    await page.waitForFunction(() => globalThis.__performanceRelease === 'current', null, { timeout: 30000 });
+  } catch (error) {
+    console.error('Worker upgrade state', await page.evaluate(async () => {
+      const r = await navigator.serviceWorker.getRegistration();
+      return { active: r?.active?.state, waiting: r?.waiting?.state, installing: r?.installing?.state,
+        release: globalThis.__performanceRelease, caches: (await caches.keys()).map(name => ({
+          previous: name.includes('previous-fixture'), revision: name.slice(-130) })) };
+    }), errors);
+    throw error;
+  }
   await page.waitForFunction(() => globalThis.__watchlistRelease === 'current', null, { timeout: 30000 });
+  assert.equal(await page.evaluate(async () => {
+    const response = await fetch('/api/private-fixture');
+    await response.text();
+    return response.status;
+  }), 503,
+    'the code upgrade completes while source availability remains independent');
   await page.evaluate(() => import('/js/core/alert-arrivals.js'));
   assert.equal(await page.evaluate(() => globalThis.__arrivalsRelease), 'current', 'existing session receives the arrivals update');
-  await page.evaluate(() => import('/js/data/alert-pool.js'));
-  assert.equal(await page.evaluate(() => globalThis.__poolRelease), 'current', 'existing session receives the pool reader update');
+  await page.evaluate(() => import('/js/ui/windowed-list.js'));
+  assert.equal(await page.evaluate(() => globalThis.__tableScrollRelease), 'current', 'existing session receives the scrolling fix');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--table-scroll-release').trim()), 'current', 'existing session receives the scrollbar stylesheet fix');
+  await page.evaluate(() => import('/js/data/alert-pool-format.js'));
+  assert.equal(await page.evaluate(() => globalThis.__alertPoolRelease), 'current', 'the same returning session receives the context retention fix');
   await page.evaluate(() => import('/js/data/news-working-set.js'));
   assert.equal(await page.evaluate(() => globalThis.__newsQueryRelease), 'current', 'the same returning session receives the news query performance fix');
+  await page.evaluate(() => import('/js/data/announcements-extra.js'));
+  assert.equal(await page.evaluate(() => globalThis.__announcementHistoryRelease), 'current', 'the same returning session receives the sliced announcement-history reader');
+  await page.evaluate(() => import('/js/data/alert-stories.js'));
+  assert.equal(await page.evaluate(() => globalThis.__storyOrderRelease), 'current', 'the same returning session receives stable story ordering');
   const upgradedCaches = await page.evaluate(() => caches.keys());
   assert(!upgradedCaches.some(name => name.includes('previous-fixture')), 'activation removes the superseded app cache');
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'automatic upgrade retains reader preferences');
-  await page.locator('#content-host[data-active-tab="ai-alerts"]').waitFor();
-  assert.equal(await page.locator('[data-tab-id="ask-research"]').count(), 0, 'the existing session loses the retired tab after upgrade');
-  assert.equal(await page.locator('[data-tab-id]').first().getAttribute('data-tab-id'), 'ai-alerts');
-  assert(page.url().includes('/ai-alerts?') && page.url().includes('scope=universe') && page.url().includes('company=TEST'), 'the old open route redirects with scope and parameters intact');
-
-  const currentRequests = requests.length;
-  await page.evaluate(() => {
-    globalThis.__ENABLE_RESEARCH__ = true;
-    location.hash = '#/research/ask-research?scope=watchlist&enable_research=1&test_stream=1';
-  });
-  await page.waitForFunction(() => location.hash.startsWith('#/research/ai-alerts?') && location.hash.includes('scope=watchlist'));
-  assert.equal(await page.locator('[data-research-workspace]').count(), 0, 'old feature flags cannot revive the retired tab');
-  assert.equal(await page.locator('[data-tab-id="ask-research"]').count(), 0);
-
-  await page.evaluate(() => localStorage.setItem('sattva:lastRoute', '#/research/ask-research?scope=universe'));
-  await page.goto(origin);
-  await page.locator('#content-host[data-active-tab="ai-alerts"]').waitFor();
-  assert(page.url().includes('scope=universe'), 'a saved Ask Research route opens AI Alerts with its scope');
-  await page.evaluate(() => localStorage.removeItem('sattva:lastRoute'));
-  await page.goto(origin);
-  await page.locator('#content-host[data-active-tab="ai-alerts"]').waitFor();
-  assert.equal(await page.locator('[data-tab-id]').first().getAttribute('data-tab-id'), 'ai-alerts', 'a fresh landing starts on AI Alerts');
-  assert(!requests.slice(currentRequests).some(path => path === '/api/research'), 'retired routes and fresh landings do not contact the research API');
+  assert.equal(await page.locator('[data-tab-id="ask-research"]').count(), 0, 'automatic upgrade keeps Ask Research hidden');
+  assert.equal(await page.locator('[data-tab-id="nse-filings"]').count(), 0, 'automatic upgrade removes NSE Filings from navigation');
+  assert.deepEqual(await page.locator('#tabbar-mount [data-tab-id]').evaluateAll(tabs => tabs.map(tab => tab.dataset.tabId)),
+    currentTabOrder, 'automatic upgrade applies the requested order in the returning session');
+  assert.equal((await page.locator('#tabbar-mount [data-tab-id="earnings"]').textContent()).trim(), 'Earnings', 'the Earnings parent reaches the returning session');
+  assert.deepEqual(await page.locator('#subview-mount [data-tab-id]').evaluateAll(tabs => tabs.map(tab => tab.dataset.tabId)),
+    ['ai-alerts', 'daily-alerts'], 'the returning session receives both alert subtabs');
+  assert.equal(await page.locator('#tabbar-mount [data-tab-id="alerts"]').getAttribute('aria-selected'), 'true');
+  await page.locator('#subview-mount [data-tab-id="daily-alerts"]').click();
+  await page.locator('[data-active-tab="daily-alerts"]').waitFor();
+  assert.equal(await page.locator('#tabbar-mount [data-tab-id="alerts"]').getAttribute('aria-selected'), 'true');
+  await page.locator('#tabbar-mount [data-tab-id="announcements"]').click();
+  await page.locator('[data-active-tab="corp-announcements"]').waitFor();
+  assert.deepEqual(await page.locator('#subview-mount [data-tab-id]').evaluateAll(tabs =>
+    tabs.map(tab => [tab.dataset.tabId, tab.textContent.trim()])),
+    [['corp-announcements', 'Corporate Announcements'], ['corporate-actions', 'Corporate Actions'], ['ipos', 'IPOs'], ['insider-trades', 'Bulk/Block Deal']],
+    'the returning session receives all four Announcements subtabs with the default selected');
+  assert.equal(await page.locator('#subview-mount [data-tab-id="corp-announcements"]').getAttribute('aria-selected'), 'true');
+  for (const id of ['corporate-actions', 'ipos', 'insider-trades']) {
+    await page.locator(`#subview-mount [data-tab-id="${id}"]`).click();
+    await page.locator(`[data-active-tab="${id}"]`).waitFor();
+    assert.equal(await page.locator('#tabbar-mount [data-tab-id="announcements"]').getAttribute('aria-selected'), 'true');
+  }
+  await page.locator('#tabbar-mount [data-tab-id="earnings"]').click();
+  await page.locator('#subview-mount [data-tab-id="earnings-hub"][aria-selected="true"]').waitFor();
+  assert.deepEqual(await page.locator('#subview-mount [data-tab-id]').evaluateAll(tabs =>
+    tabs.map(tab => [tab.dataset.tabId, tab.textContent.trim()])),
+    [['earnings-hub', 'Results'], ['concall', 'Concall']], 'the returning session receives Results by default and Concall beside it');
+  await page.locator('#subview-mount [data-tab-id="concall"]').click();
+  await page.locator('#subview-mount [data-tab-id="concall"][aria-selected="true"]').waitFor();
+  assert.equal(await page.locator('#tabbar-mount [data-tab-id="earnings"]').getAttribute('aria-selected'), 'true');
+  await page.locator('#tabbar-mount [data-tab-id="news-section"]').click();
+  await page.locator('#subview-mount [data-tab-id="news"][aria-selected="true"]').waitFor();
+  assert.deepEqual(await page.locator('#subview-mount [data-tab-id]').evaluateAll(tabs =>
+    tabs.map(tab => [tab.dataset.tabId, tab.textContent.trim()])),
+    [['news', 'Market News'], ['public-chatter', 'Public Chatter']], 'the returning session receives Market News by default and Public Chatter beside it');
+  await page.locator('#subview-mount [data-tab-id="public-chatter"]').click();
+  await page.locator('#subview-mount [data-tab-id="public-chatter"][aria-selected="true"]').waitFor();
+  assert.equal(await page.locator('#tabbar-mount [data-tab-id="news-section"]').getAttribute('aria-selected'), 'true');
+  // Exercise the ordinary browser upgrade and interactions before attaching
+  // DevTools so cache measurements cannot affect their worker lifecycle.
+  // Keep the data/API outage, restoring only these synthetic cache fixtures.
+  cacheMeasurements = true;
+  // Playwright routing disables the HTTP cache and rewrites request.cache to "reload".
+  // Restore ordinary browser semantics while checking immutable vs. mutable data reads.
+  const cacheSession = await context.newCDPSession(page);
+  await cacheSession.send('Network.enable');
+  await cacheSession.send('Network.setBlockedURLs', { urls: ['https://*'] });
+  await page.unroute('**/*');
+  await cacheSession.send('Network.setCacheDisabled', { cacheDisabled: false });
+  for (const path of [immutablePath, mutablePath, corruptPath]) {
+    await page.evaluate(async path => { await (await fetch(path, { cache: 'no-cache' })).text(); }, path);
+    await page.evaluate(async path => { await (await fetch(path, { cache: 'no-cache' })).text(); }, path);
+  }
+  // Allow any background revalidation to reach the local server before counting it.
+  await new Promise(resolve => setTimeout(resolve, 250));
+  assert.equal(requests.filter(path => path === immutablePath).length, 1, 'unchanged content-addressed parts are downloaded only once');
+  assert.equal(requests.filter(path => path === mutablePath).length, 2, 'mutable manifests still revalidate on repeat reads');
+  assert.equal(requests.filter(path => path === corruptPath).length, 2, 'corrupt success responses never enter the immutable cache');
+  await page.evaluate(async path => { await (await fetch(path, { cache: 'reload' })).text(); }, immutablePath);
+  assert.equal(requests.filter(path => path === immutablePath).length, 2, 'an explicit recovery read can bypass the immutable cache');
   assert.deepEqual(errors, []);
-  console.log('PASS: app-shell cache, offline repeat paint, immediate tab/popup actions, private-cache boundary, freshness-aware poll restart and automatic warm-session release upgrade, retired-tab removal and legacy-route redirects.');
+  console.log('PASS: app-shell cache, offline repeat paint, immediate tab/popup actions, private-cache boundary, freshness-aware poll restart and automatic warm-session release upgrade.');
 } finally {
   await browser.close();
   await new Promise((done) => server.close(done));

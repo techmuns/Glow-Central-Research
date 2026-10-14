@@ -3,6 +3,9 @@
 export function researchFixtureAsset(path, body, { first = false } = {}) {
   if (path !== '/js/ui/shell.js') return body;
   const source = String(body);
+  // The current template retains the hidden research route in its real registry.
+  if (source.includes("from '../tabs/registry.js'")) return first ? source.replace('tabs: researchTabs',
+    "tabs: [researchTabs.find(tab => tab.meta.id === 'ask-research'), ...researchTabs.filter(tab => tab.meta.id !== 'ask-research')]") : body;
   if (source.includes('tabs: researchTabs')) return source
     .replace("import { researchTabs } from './tab-registry.js';", "$&\nimport * as askResearch from '../tabs/ask-research.js';")
     .replace('tabs: researchTabs', first ? 'tabs: [askResearch, ...researchTabs]' : 'tabs: [researchTabs[0], askResearch, ...researchTabs.slice(1)]')

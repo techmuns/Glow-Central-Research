@@ -4,28 +4,26 @@ The daily technical score and the current price are separate measurements. The
 16-rule score still uses the completed daily series. Strong Breakouts recomputes
 its 30-session base breakout and volume classification from captured price and
 cumulative session volume. Table and popup share the same price and source time.
-The customer-facing price-service label is **Muns API**. Stored `provider` fields
-and detailed Sources retain Upstox/Yahoo provenance and original timestamps.
-The primary collector uses Upstox for one shared snapshot per minute in market hours;
-this requires Glow's own Worker secret. A label or a GitHub secret alone does not
-prove that the primary collector is active.
+The customer-facing price-service label is **Muns API**. Stored provider fields,
+original timestamps and detailed Sources retain Upstox/Yahoo provenance.
+Upstox supplies one shared price/volume snapshot per minute in market hours.
 The existing 15-minute GitHub capture is the fallback and supplies daily bases
 and candle recovery. These are periodic snapshots, not a trade-by-trade stream.
 
-## Glow primary minute feed (21 September 2026)
+## Primary minute feed (20 September 2026)
 
 - The `breakout-upstox:v1` object has its own one-minute alarm; it does not dispatch
   GitHub jobs. It runs without open dashboards, within 09:15–16:15 IST collection
   hours, with the same holiday calendar. Its alarm is persisted before external I/O;
   failures keep the next attempt armed and duplicate wakes do not collect twice.
-- Upstox full quotes are batched at 500 instruments. Approximately 630 mapped
+- Upstox full quotes are batched at 500 instruments. Approximately 592 mapped
   targets need two quote requests per minute, shared by all readers. Exact NSE/BSE
   identities are cached daily, with failed instrument lists retried after 15 minutes.
   The large official gzip lists are streamed and only cash identities are retained.
-  Native Worker requests explicitly identify `GlowCentralResearch/1.0`; unlike
-  Node fetch, Workers supplies no default User-Agent. The upstream Sattva audit
-  on 21 September reproduced a CDN 403 without this header; identified requests
-  loaded both lists successfully. The client version invalidates the prior failed list cache once,
+  Native Worker requests explicitly identify `SattvaCentralResearch/1.0`; unlike
+  Node fetch, Workers supplies no default User-Agent. On 21 September the missing
+  header reproduced a CDN 403 for both lists, while the identified request loaded
+  them successfully. The client version invalidates the prior failed list cache once,
   so the next normal minute alarm retries after this transport correction is published.
 - Authenticated fallback runs publish the complete discovered inventory, including
   portfolio ISINs, names and explicit symbol aliases. Bases come from the current
@@ -43,8 +41,8 @@ and candle recovery. These are periodic snapshots, not a trade-by-trade stream.
 - Visible readers check saved data every 15 seconds and immediately on opening,
   focus, visibility return and reconnect. The shared edge cache lasts five seconds.
   Opening a dashboard never exposes the token or starts another provider request.
-- Detailed minute observations expire after **four calendar days**, using the shared template
-  retention policy. They stay in Cloudflare SQLite, not GitHub files or
+- Detailed minute observations expire after **four calendar days**, as approved by
+  the user on 20 September 2026. They stay in Cloudflare SQLite, not GitHub files or
   the dashboard's browser cache. The latest-price index is separate; an outage can
   retain the last known price with its true date after the detailed archive expires.
   Cleanup runs every 15 minutes through the minute timer even on holidays, without
@@ -67,7 +65,7 @@ and candle recovery. These are periodic snapshots, not a trade-by-trade stream.
   company-specific, 100-row paginated endpoint. Minute captures order by capture time;
   source quote times remain unchanged. Breakout changes appear once, whether their
   minute snapshot is still retained or has expired. Storage remains finite.
-- The shared local 600-company, 30-minute fixture stored 1,421,230 bytes versus 6,205,200 bytes
+- A local 600-company, 30-minute fixture stored 1,421,230 bytes versus 6,205,200 bytes
   for full quote copies (77% smaller). Its current response was 211,981 bytes raw and
   20,169 bytes gzip. These are synthetic measurements, not production transfer or
   database-size guarantees; company names, values and breakout activity vary.
@@ -87,7 +85,7 @@ and candle recovery. These are periodic snapshots, not a trade-by-trade stream.
 
 The GitHub secret is available only inside GitHub jobs. Add the **same** Analytics
 Token as an encrypted Cloudflare Worker secret named `UPSTOX_ACCESS_TOKEN` on
-`glow-central-research`. Do not add it as a plain-text variable. The Worker reads
+`sattva-central-research`. Do not add it as a plain-text variable. The Worker reads
 this secret only on the server; public status exposes only whether it is configured.
 The existing post-merge bootstrap arms both independent timers after publishing.
 Without the Worker secret, the 15-minute fallback remains active and Sources says
@@ -201,10 +199,11 @@ With no backup token, missing closing bases retry the primary history instead,
 within the same budget and rate-limit guard. A failed history request retains the
 usable closing observation and continues to report its missing base.
 
-The Analytics token lasts one year. Renew before the expiry shown by Upstox;
-Glow's issue and expiry dates must be checked on its token. Generate a replacement in [Upstox Apps](https://account.upstox.com/developer/apps#analytics),
+The user configured the Analytics token on 16 September 2026 with a one-year
+validity. Renew before the expiry shown by Upstox (expected around 16 September
+2027): generate a replacement in [Upstox Apps](https://account.upstox.com/developer/apps#analytics),
 then replace `UPSTOX_ACCESS_TOKEN` in
-[repository Actions secrets](https://github.com/techmuns/Glow-Central-Research/settings/secrets/actions).
+[repository Actions secrets](https://github.com/techmuns/Sattva-Central-Research/settings/secrets/actions).
 Keep `UPSTOX_BACKUP_ENABLED=true`. A saved secret alone does not verify the token;
 check the next capture's backup result and actual saved Upstox observations.
 
@@ -270,9 +269,7 @@ Manual deployment or production-run dispatch requires explicit authorization.
 
 ## Individual quote gaps: 21 September 2026
 
-The upstream Sattva audit of ten failed identities found the causes below. Glow
-uses the same reviewed identity rules; this table is not a certification that every
-Glow company has current quotes or sufficient daily history:
+The follow-up audit of all ten failed identities found different causes:
 
 | Company / stored identity | Finding and treatment |
 | --- | --- |

@@ -1,0 +1,42 @@
+{
+  "_fixture": "A stand-in for public/data/technicals.json, the closes General Alerts reads. Two book companies moved 5% or more on the 16 September session (one verified against the exchange, one not), one moved 1.2%, and one mover is not held.",
+  "generated_at": "2026-09-17T01:45:00.000Z",
+  "source": "Yahoo Finance",
+  "price_date": "2026-09-16",
+  "companies": [
+    {
+      "ticker": "ABCAPITAL",
+      "name": "Aditya Birla Capital",
+      "cmp": 212.35,
+      "bar_date": "2026-09-16",
+      "prev_bar_date": "2026-09-15",
+      "pct_change_today": 6.21,
+      "move_check": "confirmed"
+    },
+    {
+      "ticker": "ALANKIT",
+      "name": "Alankit",
+      "cmp": 18.4,
+      "bar_date": "2026-09-16",
+      "prev_bar_date": "2026-09-15",
+      "pct_change_today": 5.4
+    },
+    {
+      "ticker": "ADANIENT",
+      "name": "Adani Enterprises",
+      "cmp": 2400.1,
+      "bar_date": "2026-09-16",
+      "prev_bar_date": "2026-09-15",
+      "pct_change_today": 1.2
+    },
+    {
+      "ticker": "NOTINBOOK",
+      "name": "Some Company Not Held",
+      "cmp": 10,
+      "bar_date": "2026-09-16",
+      "prev_bar_date": "2026-09-15",
+      "pct_change_today": 9.9,
+      "move_check": "confirmed"
+    }
+  ]
+}

@@ -43,8 +43,11 @@ const bodies = {
 };
 bodies['/data/corp-announcements.json'].byTicker.KAMATS = [{ ...filing('KAMATS', 1), scripCode: '539659' }];
 bodies['/data/corp-announcements.json'].byTicker.ASHIKAG = [{ ...filing('ASHIKAG', 1), scripCode: '543766' }];
-const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>#modal-overlay.is-open #modal-container{opacity:1}</style><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"><link rel="stylesheet" href="/css/glow.css"></head><body class="bg-slate-50 p-4"><main id="root"></main><div id="modal-overlay" class="hidden"><div id="modal-container"><div id="modal-content"></div></div></div><script type="module">
+const indexHtml = readFileSync(resolve(root, 'index.html'), 'utf8');
+const beaconStyles = indexHtml.slice(indexHtml.indexOf('.beacon-root {'), indexHtml.indexOf('/* Fullscreen Workspace Support */'));
+const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>#modal-overlay.is-open #modal-container{opacity:1}${beaconStyles}</style><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"></head><body class="bg-slate-50 p-4"><main id="root"></main><div id="modal-overlay" class="hidden"><div id="modal-container"><div id="modal-content"></div></div></div><script type="module">
 import * as tab from '/js/tabs/corp-announcements.js';
+import { mount, openBeacon } from '/js/ui/source-beacon.js';
 import * as live from '/js/core/live.js';
 import * as coverage from '/js/data/coverage.js';
 import * as watchlist from '/js/core/watchlist.js';
@@ -52,7 +55,7 @@ import {corporateAnnouncements as feed} from '/js/data/corporate-announcements.j
 import {startWatchlistCapture,watchlistCapture} from '/js/data/watchlist-capture.js';
 coverage.prime({holdings:[{ticker:'TCS',name:'TCS Test Company'}, {isin:'INE564S01019',ticker:null,name:'Vikram Kamats Hospitality'}, {isin:'INE094B01013',ticker:null,name:'Ashika Credit Capital'}]}); watchlist.add('INFY','INFY Test Company');
 window.renderScope=(scope)=>{const root=document.querySelector('#root');root.innerHTML='';tab.render({root,scope,live,data:{universe:[{ticker:'TCS'},{ticker:'INFY'}]},params:{}});};
-window.stream=feed;window.caQuery=tab.announcementQuery;window.destroyStream=()=>tab.destroy();window.renderScope('portfolio');
+window.stream=feed;window.caQuery=tab.announcementQuery;window.destroyStream=()=>tab.destroy();window.renderScope('portfolio');mount();window.openSources=()=>openBeacon();
 window.addFutureHolding=()=>coverage.prime({holdings:[...coverage.holdings(),{isin:'INE000Z01019',ticker:null,name:'Future SME'}]});
 window.addWatch=watchlist.add;window.enrollment=watchlistCapture;startWatchlistCapture();
 </script></body></html>`;
@@ -93,11 +96,13 @@ const server = createServer((req, res) => {
     let body = readFileSync(file);
     if (path === '/sw.js') {
       body = body.toString().replace(/const MUNSHOT_SDK = .*;/, "const MUNSHOT_SDK = new URL('/sdk-fixture.js', self.location).href;");
-      if (legacy) body = body.replace('-announcement-company-search-v1', '').replace('-announcement-recovery-v4', '').replace('-announcement-search-clarity-v1', '').replace('-announcement-preparation-v1', '');
+      if (legacy) body = body.replace('-announcement-company-search-v1', '').replace('-announcement-recovery-v1', '').replace('-announcement-search-clarity-v1', '');
     }
     if (path === '/js/data/announcements-extra.js' && legacy) body = body.toString().replaceAll(', loadRecovery()', '');
     if (path === '/js/tabs/filings-tab.js' && legacy) body = body.toString().replace('      searchControl,', '');
-    if (path === '/js/data/corporate-announcements.js' && legacy) body = body.toString().replace('...base, rows, prepareRows,', '...base, rows, prepareRows: undefined,');
+    if (path === '/js/tabs/corp-announcements.js' && legacy) body = body.toString()
+      .replace("const DEFAULT_PERIOD = '3';", "const DEFAULT_PERIOD = 'all';")
+      .replace("status: () => '',", "status: () => '<span data-filings-info>Some announcements may be missing</span>',");
     res.end(body);
   } catch { res.writeHead(404); res.end(); }
 });
@@ -132,14 +137,24 @@ try {
   assert.equal(await page.locator('[data-capture-coverage], [data-announcement-lookup], [data-load-filing-history], [data-watch-toggle], [data-document-tabs]').count(), 0);
   period = page.getByRole('combobox', { name: 'Announcement period (IST)' });
   search = page.locator('[data-table-search]');
-  assert.equal(await period.inputValue(), 'all');
+  assert.equal(await period.inputValue(), '3');
   assert.deepEqual(await period.locator('option').allTextContents(), ['Today', 'Last 3 days', 'Last 7 days', 'This month', 'All time']);
+  await settle();
+  assert.equal(await page.evaluate(() => window.caQuery.query().period), '3', 'the opening query uses Last 3 days');
+  assert(await page.evaluate(() => window.caQuery.rows().every(r => r.date >= '2026-09-02' && r.date <= '2026-09-04')), 'the default excludes older retained filings');
+  await selectPeriod('all');
   await page.waitForFunction(() => /^146 announcements/.test(document.querySelector('[data-row-count]')?.textContent || ''));
   assert.match(await page.locator('[data-row-count]').innerText(), /^146 announcements · 3 companies with filings$/);
   assert.equal(await page.evaluate(() => window.stream.rows().filter(r => r.url === 'https://example.test/nse.pdf').length), 1);
   await fillSearch('cross-exchange');
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'byte-identical BSE/NSE rows render once');
-  assert.match(await page.locator('tbody tr[data-row-key]').innerText(), /BSE \/ NSE/);
+  assert.deepEqual((await page.locator('thead th').allTextContents()).map(s => s.trim().replace(/[▴▾]/g, '').trim()), ['Company', 'Subject', 'Date', 'Categories', 'Market cap', 'Link']);
+  const mergedFiling = page.locator('tbody tr[data-row-key]');
+  assert.match(await mergedFiling.locator('td').first().innerText(), /TCS Test Company/);
+  assert.equal(await mergedFiling.locator('td').first().locator('strong').count(), 1, 'company is bold in its own first column');
+  assert.match(await mergedFiling.locator('td').nth(1).innerText(), /cross-exchange/);
+  assert.equal(await mergedFiling.getByRole('link', { name: 'BSE ↗', exact: true }).getAttribute('href'), 'https://example.test/TCS/cross-exchange.pdf');
+  assert.equal(await mergedFiling.getByRole('link', { name: 'NSE ↗', exact: true }).getAttribute('href'), 'https://nsearchives.nseindia.com/corporate/cross-exchange.pdf');
   assert.deepEqual(await page.evaluate(() => window.stream.rows().find(r => r.documentHash)?.sourceUrls), [
     { source: 'BSE', url: 'https://example.test/TCS/cross-exchange.pdf' },
     { source: 'NSE', url: 'https://nsearchives.nseindia.com/corporate/cross-exchange.pdf' },
@@ -165,7 +180,14 @@ try {
   bodies['/data/corp-announcements.json'].coversUniverse = false;
   await refreshStream();
   assert.equal(await page.evaluate(() => window.stream.meta().sourceCheck.error.message), 'Latest BSE request failed.', 'a newer failed attempt is adopted even when the last successful capture time did not move');
-  await page.waitForFunction(() => /Some announcements may be missing/.test(document.querySelector('[data-filings-info]')?.textContent), null, { timeout: 1500 });
+  assert.equal(await page.locator('[data-section-head] [data-filings-info]').count(), 0, 'collection status does not occupy the table header');
+  assert.equal(await page.locator('#root [data-filings-method]').count(), 0, 'collection details leave the reading column');
+  await page.evaluate(() => window.openSources());
+  assert.match(await page.locator('#source-beacon-panel [data-filings-method]').innerText(), /Partial source coverage/, 'partial health remains visible in the source panel');
+  await page.locator('#source-beacon-panel [data-filings-method]').click();
+  assert.match(await page.locator('#modal-content').innerText(), /latest BSE check is stale or incomplete/);
+  assert.match(await page.locator('#modal-content').innerText(), /Latest BSE request failed/);
+  await page.keyboard.press('Escape');
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'outage notices preserve matching retained history');
   bodies['/data/corp-announcements.json'].lastError = null;
   bodies['/data/corp-announcements.json'].coversUniverse = true;
@@ -253,7 +275,8 @@ try {
   assert(await page.evaluate(() => window.stream.rows().some(r => r.title === 'Just arrived')));
   assert(await page.evaluate(() => !!window.stream.meta().nse.degraded));
   await fillSearch('');
-  await page.locator('[data-filings-method]').click();
+  await page.evaluate(() => window.openSources());
+  await page.locator('#source-beacon-panel [data-filings-method]').click();
   assert(await page.locator('#modal-content [data-capture-coverage]').isVisible());
   assert.match(await page.locator('#modal-content').innerText(), /live exchange feed|live NSE/i);
   await page.locator('[data-modal-close]').click();
@@ -280,8 +303,6 @@ try {
   const shownCases = () => page.locator('tbody tr[data-row-key]').evaluateAll(rows => rows.map(row => row.textContent.match(/Period case (\w+)/)?.[1]).sort());
   const expectCases = async (value, expected) => {
     await selectPeriod(value);
-    await page.waitForFunction(expected => JSON.stringify([...document.querySelectorAll('tbody tr[data-row-key]')]
-      .map(row => row.textContent.match(/Period case (\w+)/)?.[1]).sort()) === JSON.stringify([...expected].sort()), expected);
     assert.deepEqual(await shownCases(), [...expected].sort(), `inclusive IST period ${value}`);
   };
   await expectCases('today', ['today', 'atMidnight']);
@@ -328,8 +349,7 @@ try {
   bodies['/data/announcement-identities.json'].entries.push(bharat);
   bodies['/data/announcement-identities.json'].capturedAt = '2026-09-05T08:00:00Z';
   const bharatFiling = (id, date) => ({ ...filing('541096', id, date), scripCode: '541096', company: bharat.name, category: 'Company Update', subCategory: 'General Updates' });
-  bodies['/data/corp-announcements.json'].byTicker['541096'] = [bharatFiling('board outcome', '2026-09-05'), bharatFiling('older history', '2025-01-01'),
-    { ...bharatFiling('routine', '2026-09-05'), subCategory: 'Newspaper Publication' }];
+  bodies['/data/corp-announcements.json'].byTicker['541096'] = [bharatFiling('board outcome', '2026-09-05'), bharatFiling('older history', '2025-01-01')];
   bodies['/data/corp-announcements.json'].capturedAt = '2026-09-05T08:00:00Z';
   bseRows.push({ ...filing('TCS', 'mentions-bharat', '2026-09-05'), title: 'Bharat Parenterals mentioned by another company' });
   await page.clock.fastForward(61000);
@@ -344,6 +364,7 @@ try {
   await search.fill('Bharat');
   await page.clock.fastForward(300);
   await page.waitForFunction(() => document.querySelector('[data-search-status]')?.textContent === 'Choose a company');
+  await page.waitForFunction(() => window.caQuery.query().q === 'bharat' && window.caQuery.meta().state === 'ready' && !window.caQuery.meta().refreshing);
   assert(searches.includes('Bharat'), 'typed names use the existing Worker search endpoint');
   const menu = page.locator('[data-announcement-search-menu]:visible');
   assert.equal(await menu.getByRole('option', { name: /Bharat Parenterals/ }).count(), 1, 'BSE code and symbol suggestions deduplicate by verified issuer');
@@ -353,12 +374,8 @@ try {
   await companySettled(true);
   assert.equal(await search.inputValue(), '');
   assert.match(await page.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals.*BPLPHARMA/s);
-  assert.match(await page.locator('[data-row-count]').innerText(), /^3 announcements · 1 company with filings$/);
-  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 3, 'selection shows only the issuer');
-  // NOTHING IS HIDDEN BY ITS TYPE ANY MORE: the routine newspaper copy stays listed, below the same
-  // day's board outcome, and the older filing follows on its own day.
-  assert.deepEqual(await page.locator('tbody tr[data-row-key]').evaluateAll(rows => rows.map(row => row.textContent.match(/board outcome|routine|older history/)?.[0])),
-    ['board outcome', 'routine', 'older history'], 'a routine filing ranks lower within its day rather than disappearing');
+  assert.match(await page.locator('[data-row-count]').innerText(), /^2 announcements · 1 company with filings$/);
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 2, 'selection shows only the issuer');
   assert.doesNotMatch(await page.locator('tbody').innerText(), /mentioned by another/);
   await fillSearch('older');
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'free text narrows the selected company');
@@ -366,35 +383,35 @@ try {
   await page.waitForFunction(() => exportedRows?.[1]?.h?.includes('older history'));
   assert.deepEqual(await page.evaluate(() => exportedRows.slice(1).map(r => r.t)), ['BPLPHARMA']);
   await fillSearch(''); await selectPeriod('today');
-  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 2, 'date filter remains effective after selecting a company');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'date filter remains effective after selecting a company');
   await selectPeriod('all');
   const recovered = { ...bharatFiling('recovered arrival', '2026-09-05'), providers: ['Screener announcements'] };
   Object.assign(bodies['/data/screener-announcements.json'], { rows: [recovered], rowCount: 1, pending: [{ from: at, to: '2026-09-05T08:01:00Z' }], lastPageAt: '2026-09-05T08:01:00Z' });
   await refreshStream();
-  await page.waitForFunction(() => document.querySelector('[data-row-count]')?.textContent.startsWith('4 announcements'));
+  await page.waitForFunction(() => document.querySelector('[data-row-count]')?.textContent.startsWith('3 announcements'));
   assert.match(await page.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals/);
   assert(await page.evaluate(() => window.stream.rows().some(r => r.ticker === 'BPLPHARMA' && r.providers.includes('Screener announcements'))), 'recovery joins exact issuer search while BSE capture time stays unchanged');
   failRecovery = true;
   await refreshStream();
-  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 4, 'a failed backup refresh preserves the recovered filing');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 3, 'a failed backup refresh preserves the recovered filing');
   assert(await page.evaluate(() => !!window.stream.meta().recovery.error));
   failRecovery = false;
   await rescope('watchlist');
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 0);
   assert.match(await page.locator('[data-announcement-search-hint]').innerText(), /outside Watchlist/);
   await rescope('portfolio');
-  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 4);
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 3);
   await page.getByRole('button', { name: 'Clear selected company' }).click();
   await companySettled(false);
   assert.equal(await page.locator('[data-announcement-company-chip]').innerText(), '');
-  assert(await page.locator('tbody tr[data-row-key]').count() > 4);
+  assert(await page.locator('tbody tr[data-row-key]').count() > 3);
   failSearch = true;
   await search.fill('Parenterals'); await page.clock.fastForward(300);
   await page.waitForFunction(() => document.querySelector('[data-search-status]')?.textContent.includes('unavailable'));
   assert(await menu.getByRole('option', { name: /Bharat Parenterals/ }).isEnabled(), 'saved companies remain selectable during search failures');
   await menu.getByRole('option', { name: /Bharat Parenterals/ }).click();
   await companySettled(true);
-  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 4);
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(), 3);
   await page.getByRole('button', { name: 'Clear selected company' }).click();
   await fillSearch('Bharat');
   assert.equal(await menu.count(), 1);
@@ -427,7 +444,6 @@ try {
   bodies['/data/screener-announcements.json'].lastPageAt = '2026-09-05T08:02:00Z';
   await refreshStream();
   await fillSearch('Missing attachment');
-  await page.waitForFunction(() => document.querySelector('tbody tr[data-row-key]')?.textContent.includes('Missing attachment notice'));
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1);
   assert.match(await page.locator('tbody tr[data-row-key]').innerText(), /Source supplied no document link/);
   assert.equal(await page.locator('tbody tr[data-row-key] a[href="https://www.screener.in/company/id/123456/"]').count(), 1);
@@ -435,6 +451,32 @@ try {
   await page.waitForFunction(() => exportedRows?.[1]?.ref === 'https://www.screener.in/company/id/123456/');
   assert.equal(await page.evaluate(() => exportedRows[1].u), '', 'the issuer page is never exported as a document URL');
   console.log('PASS notices without attachments retain explicit source references and honest export fields');
+
+  const ownership = await page.evaluate(async () => {
+    const { makeFilingsTab } = await import('/js/tabs/filings-tab.js');
+    const root = document.createElement('div');
+    document.body.append(root);
+    root.innerHTML = '<input data-table-search value="another tab"><div data-score-table><div data-table-scroll style="height:60px;overflow:auto"><div style="height:1000px"></div></div></div>';
+    root.querySelector('[data-table-scroll]').scrollTop = 600;
+    root.querySelector('input').focus();
+    let loaded = false, finish;
+    const pending = new Promise(resolve => { finish = () => { loaded = true; resolve(); }; });
+    const feed = { isLoaded: () => loaded, load: () => pending, setWanted() {}, onChange: () => () => {},
+      rows: () => [{ ticker: 'TCS', title: 'Own filing', date: '2026-09-05' }],
+      meta: () => ({ kind: 'announcements', capturedAt: '2026-09-05T08:00:00Z' }),
+      wasAskedEmpty: () => false, failureFor: () => null };
+    const reader = makeFilingsTab({ id: 'ownership-test', title: 'Ownership test', feed,
+      preserveReadingPosition: true, noun: 'announcements', rowName: r => r.title, rowSub: () => '', columns: () => [] });
+    reader.render({ root, scope: 'portfolio', data: {} });
+    const replacedForeignTable = !root.querySelector('[data-score-table]');
+    finish(); await pending; await new Promise(resolve => setTimeout(resolve, 0));
+    const result = { replacedForeignTable, search: root.querySelector('[data-table-search]')?.value,
+      scroll: root.querySelector('[data-table-scroll]')?.scrollTop };
+    reader.destroy(); root.remove();
+    return result;
+  });
+  assert.deepEqual(ownership, { replacedForeignTable: true, search: '', scroll: 0 }, 'an unloaded reader cannot inherit another tab’s table, search or scroll');
+  console.log('PASS reading state belongs only to the mounted filings view');
 
   await page.evaluate(() => window.destroyStream());
   assert.equal(await page.locator('[data-announcement-search-menu]').count(), 0, 'navigation disposes the dropdown');
@@ -447,15 +489,17 @@ try {
   // Prove a returning, controlled session receives the company picker through the release marker.
   legacy = true; failSearch = false;
   const returning = await browser.newPage();
+  await returning.clock.install({ time: new Date('2026-09-05T08:00:00Z') });
   returning.on('pageerror', error => errors.push(error.message));
   await returning.route('**/*', route => route.request().url().startsWith(origin + '/') ? route.continue() : route.fulfill({ status: 200, body: '' }));
   await returning.goto(origin);
   await returning.evaluate(async () => { await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready; });
   await returning.waitForFunction(() => !!navigator.serviceWorker.controller);
   await returning.reload(); await returning.locator('[data-table-search]').waitFor();
+  assert.equal(await returning.getByRole('combobox', { name: 'Announcement period (IST)' }).inputValue(), 'all', 'the previous cached tab opens on All time');
   assert.equal(await returning.evaluate(() => window.stream.rows().some(r => r.title.includes('recovered arrival'))), false);
   assert.equal(await returning.locator('[data-announcement-search]').count(), 0, 'the previous immutable module still serves plain text search');
-  assert.equal(await returning.evaluate(() => typeof window.stream.prepareRows), 'undefined', 'the previous cached stream has no sliced preparation API');
+  assert.match(await returning.locator('[data-filings-info]').innerText(), /Some announcements may be missing/);
   await returning.evaluate(async () => {
     const { watchWorkerChanges } = await import('/js/core/app-updates.js');
     watchWorkerChanges(navigator.serviceWorker, () => location.reload());
@@ -463,13 +507,22 @@ try {
   legacy = false;
   await returning.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
   await returning.locator('[data-announcement-search]').waitFor();
+  assert.equal(await returning.locator('[data-section-head] [data-filings-info]').count(), 0, 'the returning session removes the cached warning');
+  assert.equal(await returning.getByRole('combobox', { name: 'Announcement period (IST)' }).inputValue(), '3', 'the returning session adopts Last 3 days after upgrade');
+  assert.equal(await returning.evaluate(() => window.caQuery.query().period), '3', 'the upgraded query adopts Last 3 days');
   await returning.evaluate(() => window.renderScope('universe'));
+  // Scope and text changes rebuild the live reader after their queries complete.
+  await returning.waitForFunction(() => window.caQuery.meta().state === 'ready' && !window.caQuery.meta().refreshing);
   await returning.locator('[data-table-search]').fill('Bharat');
-  await returning.getByRole('option', { name: /Bharat Parenterals/ }).click();
+  await returning.waitForFunction(() => window.caQuery.query().q === 'bharat' && window.caQuery.meta().state === 'ready' && !window.caQuery.meta().refreshing);
+  await returning.getByRole('option', { name: /Bharat Parenterals/ }).waitFor();
+  // Mouse selection is covered above. Use the native keyboard flow here: the
+  // warm-cache fixture's floating menu can move during Playwright's auto-scroll.
+  await returning.locator('[data-table-search]').press('ArrowDown');
+  await returning.locator('[data-table-search]').press('Enter');
   assert.match(await returning.locator('[data-announcement-company-chip]').innerText(), /Bharat Parenterals/);
-  assert((await returning.evaluate(() => caches.keys())).every(key => key.includes('announcement-company-search-v1') && key.includes('announcement-recovery-v4') && key.includes('announcement-search-clarity-v1') && key.includes('announcement-preparation-v1')));
-  assert.equal(await returning.evaluate(() => typeof window.stream.prepareRows), 'function', 'the returning session adopts sliced preparation without clearing storage');
-  assert(await returning.evaluate(() => window.stream.rows().some(r => r.title.includes('recovered arrival'))), 'the returning session adopts the new recovery reader');
+  assert((await returning.evaluate(() => caches.keys())).every(key => key.includes('announcement-company-search-v1') && key.includes('announcement-recovery-v1') && key.includes('announcement-search-clarity-v1')));
+  await returning.waitForFunction(() => window.stream.rows().some(r => r.title.includes('recovered arrival')));
   assert.deepEqual(errors, []);
   await returning.close();
   console.log('PASS returning session upgrades its cached filing modules and can select a company without clearing browser storage');

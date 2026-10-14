@@ -1,3 +1,4 @@
+import { TAB_META } from './catalog.js';
 // tabs/insider-trades.js — market-wide Bulk, Block, SAST and Insider disclosures.
 //
 // Muns insider rows arrive as markdown while Screener's four market-wide lists arrive as HTML.
@@ -6,7 +7,8 @@
 // THE HEADINGS ARE REPRODUCED, NOT TRANSLATED. If the source writes "Acq/Disp" this says
 // "Acq/Disp", not "Action" — mapping their vocabulary onto ours would put our word on their data,
 // and it would break silently the day they add a column. The one thing read out of the row is the
-// date, and only so the table can sort; every other cell is passed through as text.
+// date, and only so the table can sort. Numeric cells gain Indian digit grouping for reading;
+// source units, decimal digits, original tooltips and exported values remain unchanged.
 //
 // NOTHING IS SUMMED. A quantity column may hold "1,20,000" or "1,20,000 (pledged)" and a value
 // column may be blank; totalling those would either crash or, worse, quietly produce a number.
@@ -18,8 +20,8 @@ import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { insider as feed } from '../data/filings.js';
 import { insiderTradeSourceUrl, pickField } from '../data/filings-shared.js';
-import { matchesNewsPeriod, NEWS_PERIODS } from '../data/news-window.js';
-import { parseRange, inRange } from '../data/date-range.js';
+import { insiderTransactionType } from '../data/insider-transaction.js';
+import { matchesNewsPeriod, NEWS_PERIODS, newsDay, inNewsWindow } from '../data/news-window.js';
 
 export { insiderTradeSourceUrl };
 
@@ -29,18 +31,25 @@ const dash = (why) => `<span class="text-slate-300" title="${escapeHtml(why)}">�
 const looksLikeDate = (h) => /date|when/i.test(h);
 const looksLikeInsiderName = (h) => /person|insider|holder|acquirer/i.test(h);
 const looksLikeName = (h) => /name/i.test(h) || looksLikeInsiderName(h);
+const looksLikeCompany = (h) => /^\s*(?:company|issuer)(?:\s+name)?\s*$/i.test(h);
 const looksLikeSource = (h) => /^\s*(source|exchange)\s*$/i.test(h);
 const looksLikeLink = (h) => /^\s*(link|url|source[\s_-]*url|filing[\s_-]*(link|url)|document[\s_-]*(link|url))\s*$/i.test(h);
 
 const nameKeyFor = (row) => {
   const keys = Object.keys(row?.cells || {});
-  return keys.find(looksLikeInsiderName) || keys.find(looksLikeName) || null;
+  return keys.find(looksLikeInsiderName) || keys.find(h => looksLikeName(h) && !looksLikeCompany(h)) || null;
 };
 
 const insiderNameFor = (row) => {
   const key = nameKeyFor(row);
   const value = key ? row?.cells?.[key] : null;
   return value == null ? null : String(value).trim() || null;
+};
+
+// Use the issuer named by this disclosure; a missing company name remains an identifying ticker.
+const companyNameFor = (row) => {
+  const company = String(pickField(row.cells, ['company', 'company name', 'issuer', 'issuer name']) || row.company || '').trim();
+  return company || row.ticker || '(not named)';
 };
 
 function sourceCell(row) {
@@ -66,18 +75,26 @@ function directionTint(v) {
   return 'text-slate-600';
 }
 
+// Group digits as text so large quantities and trailing decimals never lose precision.
+function numberText(raw) {
+  const match = /^([+-]?)(0|[1-9]\d*)(\.\d+)?$/.exec(raw);
+  if (!match || match[2].length <= 3) return raw;
+  const lead = match[2].slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',');
+  return `${match[1]}${lead},${match[2].slice(-3)}${match[3] || ''}`;
+}
+
 // The upstream owns both the headings and the values, so these filters only locate likely heading
 // variants and reproduce the cell text as-is. In particular, "Transaction" is presented as
 // "Transaction type" on the control because that is the question the reader is asking; its option
 // values remain the source's own words (Acquisition, Disposal, Pledge, and so on).
 const FILTER_FIELDS = [
-  { label: 'Trade category', allLabel: 'All trade categories', keys: ['trade category'], maxWidthPx: 220 },
+  { label: 'Trade category', allLabel: 'All trade types', keys: ['trade category'], maxWidthPx: 220 },
   { label: 'Exchange', allLabel: 'All exchanges', keys: ['exchange'], maxWidthPx: 160 },
-  { label: 'Category', allLabel: 'All categories', keys: ['category'], maxWidthPx: 220 },
   {
     label: 'Transaction type',
     allLabel: 'All transaction types',
     keys: ['transaction', 'transaction type', 'acq/disp', 'acquisition/disposal'],
+    read: insiderTransactionType,
     maxWidthPx: 200,
   },
   { label: 'Mode', allLabel: 'All modes', keys: ['mode', 'transaction mode', 'method'], maxWidthPx: 240 },
@@ -85,17 +102,17 @@ const FILTER_FIELDS = [
 
 const rowKeys = new WeakMap();
 // Read once per row and filter field: the dropdown options ask every row for every field, and the
-// active filters ask again per evaluation. Rows are immutable, and the keys lists are the module
-// constants above, so the (row, keys) pair is a stable key.
+// active filters ask again per evaluation. Rows are immutable, and field definitions are module
+// constants above, so the (row, field) pair is a stable key.
 const filterCells = new WeakMap();
-const filterCell = (row, keys) => {
+const filterCell = (row, field) => {
   if (row === null || typeof row !== 'object') return null;
   let cells = filterCells.get(row);
   if (!cells) { cells = new Map(); filterCells.set(row, cells); }
-  if (cells.has(keys)) return cells.get(keys);
-  const value = pickField(row.cells, keys);
+  if (cells.has(field)) return cells.get(field);
+  const value = field.read ? field.read(row) : pickField(row.cells, field.keys);
   const out = value == null ? null : String(value).trim() || null;
-  cells.set(keys, out);
+  cells.set(field, out);
   return out;
 };
 
@@ -105,20 +122,21 @@ const TRADE_PERIODS = [...NEWS_PERIODS,
   { value: '3m', label: 'Last 3 months' }, { value: '6m', label: 'Last 6 months' },
   { value: '1y', label: 'Last year' }, { value: 'all', label: 'All captured' }];
 
-function tradeFilters(rows) {
-  const longRanges = new Map(['3m', '6m', '1y'].map(id => [id, parseRange(id)]));
+export function tradeFilters(rows) {
+  const today = newsDay();
+  const longRanges = new Map([['3m', 91], ['6m', 182], ['1y', 365]].map(([id, days]) =>
+    [id, { from: new Date(Date.parse(`${today}T00:00:00Z`) - (days - 1) * 86400000).toISOString().slice(0, 10), to: today }]));
   const fields = FILTER_FIELDS.map((field) => {
-    // A numeric/date-only value under Transaction or Mode is a ragged upstream markdown row, not
-    // a transaction choice. It remains visible under "All" but is not promoted into a misleading
-    // dropdown option. Every genuine value in this feed contains a word.
-    const values = [...new Set(rows.map((r) => filterCell(r, field.keys)).filter((v) => v && /[A-Za-z]/.test(v)))].sort((a, b) =>
+    // The transaction reader also rejects numeric security descriptions from legacy captures.
+    // All rows remain available, including disclosures with no supplied transaction action.
+    const values = [...new Set(rows.map((r) => filterCell(r, field)).filter((v) => v && /[A-Za-z]/.test(v)))].sort((a, b) =>
       a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }),
     );
     return {
       label: field.label,
       maxWidthPx: field.maxWidthPx,
       options: [{ value: 'all', label: field.allLabel }, ...values.map((value) => ({ value, label: value }))],
-      match: (row, value) => filterCell(row, field.keys) === value,
+      match: (row, value) => filterCell(row, field) === value,
     };
   });
   return [
@@ -129,24 +147,26 @@ function tradeFilters(rows) {
       maxWidthPx: 180,
       options: TRADE_PERIODS,
       match: (row, value) => longRanges.has(value)
-        ? inRange(row.date, longRanges.get(value)) : value === 'all' || matchesNewsPeriod(row, value),
+        ? inNewsWindow(row, longRanges.get(value)) : value === 'all' || matchesNewsPeriod(row, value),
     },
   ];
 }
 
 const tab = makeFilingsTab({
-  id: 'insider-trades',
-  title: 'Bulk/Block Deal',
-  subtitle: 'Automatically refreshed bulk deals, block deals, SAST and insider disclosures for the companies in scope. Last 30 days shown by default; choose another period to see retained trades.',
+  ...TAB_META['insider-trades'],
   feed,
   noun: 'trades',
-  nameLabel: 'Insider',
+  nameLabel: 'Company',
   nameMaxPx: 260,
-  rowName: (r) => {
-    return insiderNameFor(r) || r.ticker || '(not named)';
-  },
-  rowSub: (r) => r.ticker || '',
-  searchable: (r) => `${r.ticker || ''} ${Object.values(r.cells || {}).join(' ')}`,
+  nameWrap: true,
+  rowName: companyNameFor,
+  rowSub: (r) => insiderNameFor(r) || '(not named)',
+  afterSub: (r) => r.ticker ? `<span class="deal-ticker">${escapeHtml(r.ticker)}</span>` : '',
+  // Keep the exact scope intersection of legacy saved screens until the reader clears it.
+  showWatchFilter: (_ctx, reading) => !!reading?.watchOnly,
+  searchable: (r) => `${companyNameFor(r)} ${r.ticker || ''} ${Object.values(r.cells || {}).join(' ')} ${Object.entries(r.cells || {})
+    .filter(([header]) => /shares|quantity|price|value|amount|stake|%/i.test(header))
+    .map(([, value]) => numberText(String(value ?? ''))).join(' ')}`,
   // The whole row, because these rows have no id of their own: no URL, no headline, and two filings
   // on one day by two people are a legitimate pair. NEVER the row's index — see the note beside the
   // key builder in filings-tab.js for what that cost the News tab.
@@ -157,7 +177,18 @@ const tab = makeFilingsTab({
     return key;
   },
   filters: tradeFilters,
-  // Keep the template's compact period selector and the Glow link/reload contract.
+  filterGroup: {
+    label: 'Filters',
+    indices: [1, 2, 3],
+    position: 'end',
+    summary: filters => {
+      const count = [1, 2, 3].filter(i => filters[i] !== 'all').length;
+      return count ? `Filters · ${count}` : 'Filters';
+    },
+  },
+  preserveReadingPosition: true,
+  renderRevision: m => `${newsDay()}:${m.snapshotReadError || ''}`,
+  // Keep the selected period in the URL across links and reloads.
   // Range selection changes only the displayed rows; automatic capture retains its full history.
   prepareView: (ctx, previous) => {
     const raw = ctx.params?.range;
@@ -169,6 +200,24 @@ const tab = makeFilingsTab({
     return { ...previous, filters };
   },
   wireAboveTable: (root, ctx) => {
+    const table = root.querySelector('[data-score-table]');
+    table?.setAttribute('data-deals-table', '');
+    const search = table?.querySelector('[data-table-search]');
+    if (search) {
+      search.placeholder = 'Search company or investor…';
+      search.setAttribute('aria-label', 'Search company or investor');
+      search.previousElementSibling.innerHTML = '<svg class="deal-control-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>';
+    }
+    const exportIcon = table?.querySelector('[data-export] [aria-hidden]');
+    if (exportIcon) exportIcon.innerHTML = '<svg class="deal-control-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/></svg>';
+    const toolbar = table?.querySelector('[data-table-toolbar]');
+    const watchButton = toolbar?.querySelector('[data-watch-toggle]');
+    if (watchButton) {
+      watchButton.children[1].textContent = 'Watchlist only';
+      watchButton.title = 'Restrict this scope to watchlisted companies';
+    }
+    const exportButton = toolbar?.querySelector('[data-export]');
+    if (exportButton) toolbar.firstElementChild.append(exportButton);
     const select = root.querySelector('[data-table-filter][aria-label="Trade period"]');
     if (!select) return;
     const changed = () => ctx.setParamsQuiet({ ...ctx.params, range: PERIOD_TO_RANGE[select.value] || select.value });
@@ -182,9 +231,11 @@ const tab = makeFilingsTab({
   // identity/date fields and the source/link fields consolidated into the one Source arrow below.
   // A source that adds any other column still gets a column.
   columns: (m) => {
-    const headers = (m.headers || []).filter((h) => !looksLikeName(h) && !looksLikeSource(h) && !looksLikeLink(h));
+    const order = ['trade category', 'transaction', 'transaction type', 'acq/disp', 'trade shares', 'quantity', 'price', 'value'];
+    const priority = h => { const index = order.indexOf(h.toLowerCase()); return index < 0 ? order.length : index; };
+    const headers = (m.headers || []).filter((h) => !looksLikeName(h) && !looksLikeCompany(h) && !looksLikeSource(h) && !looksLikeLink(h))
+      .sort((a, b) => priority(a) - priority(b));
     const cols = [
-      { label: 'Exchange', get: (r) => r.cells?.Exchange || '—' },
       {
         label: 'Date',
         get: (r) => (r.date ? `<span class="whitespace-nowrap tabular-nums text-slate-600">${escapeHtml(formatDate(r.date))}</span>` : dash('the row carried no readable date')),
@@ -196,10 +247,19 @@ const tab = makeFilingsTab({
       if (looksLikeDate(h)) continue; // already the Date column
       cols.push({
         label: h,
+        align: /shares|quantity|price|value|amount|stake|%/i.test(h) ? 'right' : 'left',
         get: (r) => {
           const v = r.cells?.[h];
           if (v == null || v === '') return dash('the source left this cell empty');
-          return `<span class="${directionTint(v)}">${escapeHtml(String(v))}</span>`;
+          const text = escapeHtml(String(v));
+          if (/^trade category$/i.test(h)) return `<span class="deal-type">${text}</span>`;
+          if (/^(transaction|transaction type|acq\/disp|acquisition\/disposal)$/i.test(h)) {
+            const tint = directionTint(v);
+            const direction = tint.includes('emerald') ? 'buy' : tint.includes('rose') ? 'sell' : 'other';
+            return `<span class="deal-transaction" data-direction="${direction}">${text}</span>`;
+          }
+          if (/shares|quantity|price|value|amount|stake|%/i.test(h)) return `<span class="deal-number" title="${text}">${escapeHtml(numberText(String(v)))}</span>`;
+          return `<span class="deal-cell">${text}</span>`;
         },
         html: true,
         // Sorted as text, because these cells are text. A quantity written "1,20,000 (pledged)" is
@@ -207,6 +267,7 @@ const tab = makeFilingsTab({
         sortValue: (r) => String(r.cells?.[h] ?? ''),
       });
     }
+    cols.push({ label: 'Exchange', get: (r) => r.cells?.Exchange ? `<span class="deal-exchange">${escapeHtml(String(r.cells.Exchange))}</span>` : dash('the source supplied no exchange'), html: true });
     cols.push({
       label: 'Source',
       get: sourceCell,
@@ -215,7 +276,7 @@ const tab = makeFilingsTab({
     });
     return cols;
   },
-  // Source health remains available in the help panel without a status line above the table.
+  // Source checks stay in the existing provenance dialog, out of the table header.
   status: () => '',
   provenance: (m) => `<div class="px-7 py-6">
       <div class="mb-3 flex items-start justify-between gap-4">
@@ -223,7 +284,7 @@ const tab = makeFilingsTab({
         <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
       </div>
       <div class="text-sm leading-relaxed text-slate-600">
-        <p class="mb-3"><strong>Bulk and block deals</strong> come directly from the full NSE CSV exports and BSE historical reports. Official exchange reports take precedence for dates successfully covered; the shared Screener capture supplies other available dates. Buy and sell sides, bulk and block reports, and trades on different exchanges stay separate. They also power Changes under Super Investors. The capture checks every 30 minutes during the day and evening on weekdays, plus weekend catch-up. Both tabs check for updates every minute while visible. These are published disclosures, not a streaming trade tape. ${escapeHtml(m.exchanges?.summary || '')} ${m.bulkDeals ? `Supplementary Screener: ${m.bulkDeals.rows} retained records before overlap removal; captured ${escapeHtml(formatDate(m.bulkDeals.capturedAt))}. ${escapeHtml(m.bulkDeals.error || '')}` : 'Bulk/block coverage is unavailable.'}</p>
+        <p class="mb-3"><strong>Bulk and block deals</strong> come directly from the full NSE CSV exports and BSE historical reports. Official exchange reports take precedence for dates successfully covered; the shared Screener capture supplies other available dates. Buy and sell sides, bulk and block reports, and trades on different exchanges stay separate. The capture checks every 30 minutes during the day and evening on weekdays, plus weekend catch-up. This tab checks for updates every minute while visible. These are published disclosures, not a streaming trade tape. ${escapeHtml(m.exchanges?.summary || '')}</p>
         <p><strong>Real market disclosures.</strong> The scheduled capture reads Screener.in’s complete market-wide
            <strong>Bulk deal, Block deal, SAST and Insider trade</strong> lists. Independently refreshed Muns insider rows supplement
            those lists where they carry more exchange fields.</p>
@@ -250,6 +311,8 @@ const tab = makeFilingsTab({
         ${m.headers?.length ? `<p class="mt-2 text-xs">Their columns on this pull: ${m.headers.map((h) => `<code class="rounded bg-slate-100 px-1">${escapeHtml(h)}</code>`).join(' ')}</p>` : ''}
 
         ${coverageBlock(m)}
+        ${m.snapshotReadError ? `<p class="mt-2 text-xs">${escapeHtml(m.snapshotReadError)}</p>` : ''}
+        ${m.disclosuresStatus ? `<p class="mt-2 text-xs">${escapeHtml(m.disclosuresStatus)}</p>` : ''}
 
         <p class="mt-4 text-xs text-slate-500">A dash means <em>the source left that cell empty</em> — never zero.</p>
       </div>
@@ -269,7 +332,7 @@ const tab = makeFilingsTab({
               ? `REAL DISCLOSURES, NOT OURS. Bulk deals, block deals, SAST and insider trades from NSE/BSE reports and Screener.in, supplemented by Muns disclosures, reaching back ${m.windowDays} days, exported ${new Date().toISOString()}. ` +
                 `THE SOURCE-SPECIFIC COLUMNS AND THEIR HEADINGS ARE RETAINED; Trade Category is the common four-list classifier. Duplicate economic events appear once. ` +
                 `No aggregate totals or judgement about what a trade means. Official quantity × price is an approximate rupee trade value marked ≈; other values retain source units. ` +
-                `${visible.length} visible trades from ${new Set(visible.map(r => r.ticker)).size} companies. ${m.exchanges?.summary || ''} ${m.disclosuresStatus || ''} ` +
+                `${visible.length} visible trades from ${new Set(visible.map(r => r.ticker)).size} companies. ${m.exchanges?.summary || ''} ${m.disclosuresStatus || ''} ${m.snapshotReadError || ''} ` +
                 `A blank cell is one the source left empty, never a zero.`
               : r.date || '',
         },
@@ -282,6 +345,6 @@ const tab = makeFilingsTab({
   },
 });
 
-export const meta = tab.meta;
+export const meta = TAB_META['insider-trades'];
 export const render = tab.render;
 export const destroy = tab.destroy;

@@ -134,8 +134,7 @@ export function createNseFeed({
     return pending;
   }
 
-  // Stable arrays let all consumers reuse their projections. The IST cutoff is
-  // part of the key so a quiet source still advances its reading window at midnight.
+  // Reuse unchanged windows; the IST cutoff still advances on quiet date rollovers.
   const windows = new Map();
   function windowRows(days) {
     const cutoff = firstHistoryDay(days, now()), cached = windows.get(days);

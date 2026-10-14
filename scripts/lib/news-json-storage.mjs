@@ -3,7 +3,7 @@ import { dirname, basename, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { JSON_SHARD_BYTES, shardSpec, shardPath, parseShard, assembleShards } from '../../public/js/core/json-shards.js';
-import { newsQueryIndexRow, newsQueryIdentities, NEWS_QUERY_INDEX_VERSION } from '../../public/js/data/news-query-index.js';
+import { newsQueryIndexRow, NEWS_QUERY_INDEX_VERSION } from '../../public/js/data/news-query-index.js';
 
 const hash = text => createHash('sha256').update(text).digest('hex');
 const atomic = (path, text) => {
@@ -28,18 +28,16 @@ function pruneGeneratedParts(path, keep = new Set()) {
 
 function verifyQueryIndex(path, part, field, items) {
   const index = part.queryIndex;
-  if (!index) return;
-  if (![3, NEWS_QUERY_INDEX_VERSION].includes(index.version) || index.sourceSha256 !== part.sha256 || index.rows !== part.rows)
+  // An index of another version is never read: the browser requires the current one and rebuilds
+  // from the verified part otherwise, exactly as for a missing index. So it cannot misreport a
+  // record, and it is not a failure. A capture written by the previous code between a version
+  // bump and its merge would otherwise fail every asset check until that capture ran again.
+  if (!index || index.version !== NEWS_QUERY_INDEX_VERSION) return;
+  if (index.sourceSha256 !== part.sha256 || index.rows !== part.rows)
     throw Error('News query index source mismatch');
   const body = readFileSync(shardPath(path, index.file), 'utf8');
   if (Buffer.byteLength(body) !== index.bytes || hash(body) !== index.sha256) throw Error('News query index integrity mismatch');
-  const expected = items.map(item => {
-    const row = field === 'byTicker' ? item[1] : item, value = newsQueryIndexRow(row);
-    // Retained v3 indexes are still checked against their exact original contract. Browsers
-    // rebuild v4 from verified source bytes; the next source publication writes v4 indexes.
-    if (index.version === 3) value[2] = newsQueryIdentities(row, { includeStory: false });
-    return value;
-  });
+  const expected = items.map(item => newsQueryIndexRow(field === 'byTicker' ? item[1] : item));
   if (!isDeepStrictEqual(parseShard(body, index), expected)) throw Error('News query index changed source dates or identities');
 }
 

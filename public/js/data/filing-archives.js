@@ -44,6 +44,7 @@ export function withFilingArchive(base, kind) {
     if (preparing) return preparing;
     preparing = (async () => {
       for (;;) {
+        await base.warm?.();
         await base.prepareRows?.();
         const source = base.rows(), archive = rows;
         if (memo?.base === source && memo.rows === archive) return;

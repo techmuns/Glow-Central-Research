@@ -15,31 +15,44 @@
  * Tables keep native scrolling — trackpads, wheels and touch screens already do that best — but
  * the surface now carries momentum on iOS, contains overscroll instead of handing a diagonal
  * gesture to the page, and is keyboard-focusable wherever the markup supplies tabindex="0".
- * Do not add scroll snapping here: stopping a financial table between rows/columns is a feature,
- * not an error — and do not add `scroll-behavior: smooth` either, because the windowed list
- * writes `scrollTop` to put a held record back and an animated write would land the reader
- * somewhere else.
+ * A slightly larger, higher-contrast thumb is easier to acquire without becoming dashboard
+ * chrome. Do not add scroll snapping here: stopping a financial table between rows/columns is a
+ * feature, not an error.
  *
- * THE BAR IS WIDE ENOUGH TO GRAB WITH A MOUSE, WHICH IS THE WHOLE JOB OF A SCROLLBAR ON A TABLE
- * OF TWENTY THOUSAND ROWS. It was an 8px thumb (`.scrollbar-thin` on the same element overrode
- * the 10px declared here — two classes making contradictory claims about one scrollbar, so the
- * table surfaces now carry this one alone), which is a target a reader has to aim at rather than
- * reach for, and the owner's complaint was exactly that: hard to catch, easy to lose mid-drag.
- * The track is 14px, the thumb sits 2px inside it so it reads as 10px at rest, and the inset
- * closes to 1px under the pointer — the bar thickens as you approach it instead of appearing
- * from nowhere. `min-height`/`min-width` matter more than the width does: on a full alert
- * history the thumb is a sliver a few pixels long, and a 40px floor is what makes it draggable
- * at all. Firefox gets `auto` rather than `thin` for the same reason; `thin` is the one value
- * that cannot be widened.
+ * THE THUMB NEEDS A FLOOR, AND THAT IS THE HALF THAT MADE DRAGGING HARD. A scrollbar thumb is
+ * sized in proportion to what it scrolls, so a retained history is a sliver: All Alerts measures
+ * 167,944px of scrollHeight inside a 400px scroller, which is a thumb UNDER ONE PIXEL TALL. No
+ * width setting can rescue that — the bar was wide enough to see and too short to grab, which
+ * reads as a broken control rather than a small one. A per-axis floor is the fix — `min-height`
+ * on the vertical thumb and `min-width` on the horizontal one, never both on both, which would
+ * ask a vertical thumb to be 48px WIDE inside a 14px track — and
+ * the width below is what makes it a comfortable target rather than a precise one.
+ *
+ * The 14px track carries a 2px transparent border under `background-clip: content-box`, so the
+ * bar a reader SEES is 10px — a little thicker than the 8px it replaces — while the area a
+ * pointer may grab is the full 14px. Widening the visible thumb to the whole track would read as
+ * chrome on a page whose tables are the content; widening only the hit area would leave the
+ * control looking exactly as hard to grab as before. This is both.
+ *
+ * `scrollbar-width` is `auto`, never `thin`. Browsers with ::-webkit-scrollbar support must
+ * also keep scrollbar-color at auto: a non-auto colour overrides the entire pseudo-element
+ * family, including the track width and thumb length floor. Firefox uses the standard colour
+ * fallback. Widening it costs the widest table 6px of its own room and that
+ * was measured before it shipped: the tightest table here (All Alerts) stops shrinking at
+ * 1,224px inside a 1,392px scroller, so every one of them keeps well over 100px of headroom.
  */
 .table-scroll-surface {
   max-width: 100%;
   overscroll-behavior: contain;
   scroll-padding: 1rem;
-  scrollbar-color: rgb(var(--edge-slate-400, 148 163 184) / 1) rgb(var(--surface-slate-100, 241 245 249) / 1);
+  scrollbar-color: rgb(var(--edge-slate-400, 148 163 184) / 1) transparent;
   scrollbar-width: auto;
   touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  .table-scroll-surface { scrollbar-color: auto; }
 }
 
 .table-scroll-surface::-webkit-scrollbar {
@@ -47,41 +60,32 @@
   height: 14px;
 }
 
-/* A gutter the reader can see is a gutter the reader can aim at — kept faint so it reads as the
-   table's own edge rather than as chrome. */
 .table-scroll-surface::-webkit-scrollbar-track {
-  background: rgb(var(--surface-slate-100, 241 245 249) / 0.75);
-  border-radius: 9999px;
+  background: transparent;
 }
 
 .table-scroll-surface::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
-  background: rgb(var(--surface-slate-400, 148 163 184) / 0.8);
-  background-clip: padding-box;
+  background-clip: content-box;
   border-radius: 9999px;
-  min-height: 40px;
-  min-width: 40px;
+  background-color: rgb(var(--surface-slate-400, 148 163 184) / 1);
 }
 
-/* Contrast on hover comes from ALPHA, not from a darker token: the surface ramp inverts under the
-   dark theme, where slate-500 is darker than slate-400 and "hover" would dim the thumb. Compositing
-   further toward the thumb's own colour stands out against the card in both themes. */
+/* The floor is per axis: a length on the bar that scrolls, never a width on the other one. */
+.table-scroll-surface::-webkit-scrollbar-thumb:vertical {
+  min-height: 48px;
+}
+
+.table-scroll-surface::-webkit-scrollbar-thumb:horizontal {
+  min-width: 48px;
+}
+
 .table-scroll-surface::-webkit-scrollbar-thumb:hover {
-  border-width: 1px;
-  background: rgb(var(--surface-slate-400, 148 163 184) / 1);
-  background-clip: padding-box;
+  background-color: rgb(var(--surface-slate-500, 100 116 139) / 1);
 }
 
 .table-scroll-surface::-webkit-scrollbar-thumb:active {
-  border-width: 1px;
-  background: rgb(var(--surface-slate-500, 100 116 139) / 1);
-  background-clip: padding-box;
-}
-
-/* Where both axes overflow, the square where they meet is not a scrollbar and must not paint as
-   one. */
-.table-scroll-surface::-webkit-scrollbar-corner {
-  background: transparent;
+  background-color: rgb(var(--surface-slate-600, 71 85 105) / 1);
 }
 
 .table-scroll-surface:focus-visible {
@@ -91,23 +95,12 @@
 
 .table-sticky-head { box-shadow: inset 0 -1px 0 rgb(var(--edge-slate-200, 226 232 240)); }
 
-/* All Alerts is a reading workspace: spend the viewport on records, not chrome. Other tabs
-   retain their existing framing. No row typography, virtual stride or data policy changes. */
-[data-reading-layout="table"] [data-app-header] { padding-top: 12px; padding-bottom: 4px; }
-[data-reading-layout="table"] [data-app-content] { max-width: 1800px; padding-left: 24px; padding-right: 24px; padding-top: 12px; padding-bottom: 0; }
-/* The brand block is compacted and the strapline hidden in this layout, and that is not decoration:
-   it is the difference between the table owning most of an embedded frame and owning under half of
-   it. `verify-portfolio-view-ui.mjs` measures the ratio at 1440x900 inside the host iframe, and a
-   template merge that dropped these three rules put it at 375.5px of a 688px viewport — 54.6%
-   against a 55% floor, which reads as "chrome grew back" because that is exactly what happened. */
-[data-reading-layout="table"] [data-brand-mark] { flex: 0 1 auto; width: 14rem; height: 36px; display: flex; flex-direction: column; justify-content: center; }
-[data-reading-layout="table"] [data-app-header] h1 { margin: 0; }
-[data-reading-layout="table"] #brand-subtitle { display: none; }
-.alerts-workspace [data-section-head] { margin-bottom: 8px; }
+/* Table density belongs inside the reader; the shared shell owns navigation spacing. */
+.alerts-workspace [data-section-head] { margin-bottom: 4px; }
 .alerts-workspace [data-section-head] > div { align-items: center; gap: 8px; }
 .alerts-workspace [data-section-head] h2 { font-size: 20px; }
 .alerts-controls { position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 8px; }
-/* Incoming records enter the existing Till Today table in a short, real-data sequence. */
+/* Incoming records enter the existing history table in a short, real-data sequence. */
 .alert-stream-enter { animation: alert-row-enter 220ms ease-out both; animation-delay: var(--stream-age, 0ms); }
 .alert-just-arrived > td { animation: alert-row-arrival 20s ease-out both; animation-delay: var(--arrival-age, 0ms); }
 .alert-arrival-badge { display: table; margin-top: 5px; padding: 1px 5px; border-radius: 4px; font-size: 9px; font-weight: 800; letter-spacing: .06em; color: rgb(var(--text-indigo-700, 67 56 202)); background: rgb(var(--surface-indigo-100, 224 231 255)); }
@@ -117,70 +110,63 @@
   .alert-stream-enter { animation: none; }
   .alert-just-arrived > td { animation: none; background-color: rgb(var(--surface-indigo-50, 238 242 255)); }
 }
-.alerts-horizon-control, .alerts-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+.alerts-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; width: 100%; justify-content: space-between; }
 .alerts-view-controls [data-table-actions] { flex-shrink: 0; }
 .alerts-workspace [data-export] { white-space: nowrap; }
-.alerts-horizon-control [role="tablist"] { border-radius: 12px; padding: 3px; }
-.alerts-horizon-control [role="tab"] { border-radius: 9px; padding-top: 6px; padding-bottom: 6px; }
-.alerts-horizon-caption { display: none; }
 .alerts-layout-button { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px; padding: 7px 12px; border: 1px solid rgb(var(--edge-slate-200, 226 232 240) / 1); border-radius: 10px; background: rgb(var(--surface-white, 255 255 255) / 1); color: rgb(var(--text-slate-600, 71 85 105) / 1); font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .alerts-layout-button:hover { border-color: rgb(var(--edge-indigo-200, 199 210 254) / 1); background: rgb(var(--surface-slate-50, 248 250 252) / 1); color: rgb(var(--text-indigo-600, 79 70 229) / 1); }
 .alerts-layout-button:focus-visible { outline: 2px solid rgb(var(--text-indigo-500, 99 102 241) / 1); outline-offset: 2px; }
-.alerts-layout-button[aria-pressed="true"] { border-color: rgb(var(--edge-indigo-200, 199 210 254) / 1); color: rgb(var(--text-indigo-600, 79 70 229) / 1); background: rgb(var(--surface-indigo-50, 238 242 255) / 1); }
 .alerts-selection { border-radius: 6px; background: rgb(var(--surface-indigo-50, 238 242 255) / 1); padding: 2px 6px; color: rgb(var(--text-indigo-600, 79 70 229) / 1); font-size: 12px; }
 .alerts-source-picker > summary { list-style: none; }
 .alerts-source-picker > summary::-webkit-details-marker { display: none; }
 .alerts-source-picker[open] .alerts-source-chevron { transform: rotate(180deg); }
 .alerts-source-panel { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; width: min(820px, 100%); max-height: min(440px, 55vh); overflow-y: auto; overscroll-behavior: contain; padding: 16px; border: 1px solid rgb(var(--edge-slate-200, 226 232 240) / 1); border-radius: 14px; background: rgb(var(--surface-white, 255 255 255) / 1); box-shadow: 0 16px 48px #0f172a26; }
 .alerts-source-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 14px; font-size: 14px; }
-.alerts-workspace [data-table-toolbar] { padding: 10px 12px; gap: 8px; }
+.alerts-workspace [data-table-toolbar] { padding: 8px 12px; gap: 8px; }
 .alerts-workspace [data-table-toolbar] > div:first-child > div:first-child { min-width: 180px; }
-html[data-alerts-focus-mode="true"] [data-reading-layout="table"] [data-app-header],
-html[data-alerts-focus-mode="true"] [data-reading-layout="table"] [data-app-nav] { display: none; }
+.table-filter-group { flex: 0 1 186px; min-width: 0; }
+.table-filter-group-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 38px; padding: 8px 12px; border: 1px solid rgb(var(--edge-slate-200, 226 232 240)); border-radius: 8px; background: rgb(var(--surface-slate-50, 248 250 252)); color: rgb(var(--text-slate-600, 71 85 105)); font-size: 14px; text-align: left; }
+.table-filter-group-toggle [data-filter-group-summary] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.table-filter-group-toggle[data-active="true"] { border-color: rgb(var(--edge-indigo-200, 199 210 254)); background: rgb(var(--surface-indigo-50, 238 242 255)); color: rgb(var(--text-indigo-700, 67 56 202)); }
+.table-filter-group-panel { position: fixed; inset: auto; margin: 0; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow: auto; padding: 14px; border: 1px solid rgb(var(--edge-slate-200, 226 232 240)); border-radius: 12px; background: rgb(var(--surface-white, 255 255 255)); color: rgb(var(--text-slate-900, 15 23 42)); box-shadow: 0 12px 36px #0f172a26; }
+.table-filter-group-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+.table-filter-group-heading button { min-height: 32px; padding: 4px 8px; color: rgb(var(--text-indigo-600, 79 70 229)); font-size: 12px; }
+.table-filter-group-field { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; color: rgb(var(--text-slate-600, 71 85 105)); font-size: 12px; font-weight: 600; }
+.table-filter-group-field select { width: 100%; min-height: 40px; font-weight: 400; }
+.table-filter-group-done { width: 100%; min-height: 36px; margin-top: 14px; border-radius: 8px; background: rgb(var(--surface-indigo-50, 238 242 255)); color: rgb(var(--text-indigo-700, 67 56 202)); font-size: 13px; font-weight: 600; }
+.table-filter-group :where(button, select):focus-visible { outline: 2px solid rgb(var(--text-indigo-600, 79 70 229)); outline-offset: 2px; }
 @media (min-width: 768px) {
   .alerts-workspace [data-section-head] > div { display: grid; grid-template-columns: auto minmax(0, 1fr); }
 }
 @media (min-width: 960px) {
-  /* Native selects size themselves to their longest option. Four independent filters must
-     share the laptop reading row instead; opening a selector still shows every full label. */
+  /* The grouped signal control and date selector stay compact beside company search. */
   .alerts-workspace [data-table-toolbar] > div:first-child { flex-wrap: nowrap; }
-  .alerts-workspace [data-table-filter] { flex: 1 1 0; min-width: 0; }
-  .alerts-workspace [data-table-filter="2"], .alerts-workspace [data-table-filter="3"] { flex-grow: 1.35; }
-  .alerts-workspace [data-watch-toggle] { flex-shrink: 0; }
+  .alerts-workspace [data-table-toolbar] > div:first-child > [data-table-filter] { flex: 0 1 230px; min-width: 0; }
 }
 @media (min-width: 960px) and (max-width: 1199px) {
-  .alerts-workspace [data-table-filter], .alerts-workspace [data-watch-toggle] { padding-left: 8px; padding-right: 8px; font-size: 12px; }
+  .alerts-workspace [data-table-toolbar] > div:first-child > [data-table-filter], .alerts-workspace .table-filter-group-toggle { padding-left: 8px; padding-right: 8px; font-size: 12px; }
 }
 @media (min-width: 768px) and (max-width: 1199px) {
   /* Keep the view row on one line on smaller laptops, including wider fallback fonts. */
   .alerts-controls { column-gap: 8px; }
   .alerts-view-controls, .alerts-view-controls [data-table-actions] { gap: 8px; }
   .alerts-view-controls .alerts-layout-button { padding-left: 8px; padding-right: 8px; font-size: 12px; gap: 6px; }
-  .alerts-horizon-control [role="tab"] { padding-left: 8px; padding-right: 8px; gap: 4px; }
   .alerts-workspace [data-export-format] { display: none; }
   .alerts-workspace [data-export] { padding-left: 10px; padding-right: 10px; }
 }
 @media (max-width: 767px) {
-  [data-reading-layout="table"] [data-app-frame] { padding-left: 12px; padding-right: 12px; }
-  [data-reading-layout="table"] [data-app-content] { padding-top: 8px; }
   .alerts-workspace [data-section-head] { margin-bottom: 8px; }
   .alerts-controls { gap: 8px 6px; margin-bottom: 8px; }
   .alerts-view-controls { width: 100%; justify-content: space-between; gap: 6px; }
-  .alerts-horizon-control [role="tab"] { padding-left: 6px; padding-right: 6px; gap: 4px; white-space: nowrap; }
-  .alerts-horizon-control [role="tab"] > span { padding-left: 2px; padding-right: 2px; }
   .alerts-workspace [data-export-format] { display: none; }
   .alerts-workspace [data-export] { padding-left: 10px; padding-right: 10px; }
   .alerts-source-panel { padding: 12px; max-height: 50vh; }
   .alerts-view-controls .alerts-layout-button { padding-left: 8px; padding-right: 8px; font-size: 12px; gap: 6px; }
   .alerts-view-controls .alerts-selection { font-size: 11px; padding-left: 4px; padding-right: 4px; }
   .alerts-workspace [data-table-toolbar] { padding-top: 8px; padding-bottom: 8px; }
-  /* Search and Watchlist share the first row; four selectors then occupy two equal rows.
+  /* Search fills the first row; the remaining selectors wrap below it.
      The shared table's inline search minimum is for standalone toolbars, not this phone grid. */
-  .alerts-workspace [data-table-toolbar] > div:first-child > div:first-child { order: -2; flex-basis: calc(100% - 128px); min-width: 0 !important; max-width: none; }
-  .alerts-workspace [data-table-filter], .alerts-workspace [data-watch-toggle] { flex: 1 1 calc(50% - 4px); min-width: 0; width: calc(50% - 4px); max-width: calc(50% - 4px); }
-  .alerts-workspace [data-watch-toggle] { order: -1; flex: 0 0 120px; width: 120px; max-width: 120px; padding-left: 8px; padding-right: 8px; font-size: 12px; }
-}
-@media (min-width: 350px) and (max-width: 767px) {
-  .alerts-horizon-control { padding-right: 90px; }
-  .alerts-view-controls [data-alerts-table-actions] { position: absolute; top: 3px; right: 0; }
+  .alerts-workspace [data-table-toolbar] > div:first-child > div:first-child { order: -2; flex-basis: 100%; min-width: 0 !important; max-width: none; }
+  .alerts-workspace [data-table-toolbar] > div:first-child > :is([data-table-filter], [data-filter-group]) { flex: 1 1 calc(50% - 4px); min-width: 0; width: calc(50% - 4px); max-width: calc(50% - 4px); }
+  .alerts-workspace .table-filter-group-toggle { font-size: 12px; }
 }

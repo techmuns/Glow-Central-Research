@@ -42,7 +42,7 @@ async function guardWrite(request, env, url) {
 
 const pdfHeaders = filename => ({
   'content-type': 'application/pdf',
-  'content-disposition': `attachment; filename="${/^glow-[0-9-]+-(?:morning|evening)-brief\.pdf$/.test(filename || '') ? filename : 'glow-portfolio-brief.pdf'}"`,
+  'content-disposition': `attachment; filename="${/^sattva-[0-9-]+-(?:morning|evening)-brief\.pdf$/.test(filename || '') ? filename : 'sattva-portfolio-brief.pdf'}"`,
   'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer', 'x-robots-tag': 'noindex, nofollow',
 });

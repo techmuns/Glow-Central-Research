@@ -41,10 +41,8 @@ assert.throws(() => matchRemovalButtons(plan.removals, [
 assert.equal(additionsCsv(plan.additions), 'ISIN Code\nINE000A01002\n');
 
 const source = await readFile(new URL('./sync-screener-watchlist.mjs', import.meta.url), 'utf8');
-assert.match(source, /const WATCHLIST_ID = process.env.SCREENER_WATCHLIST_ID/, 'watchlist ID belongs to the deployment');
-assert.match(source, /const WATCHLIST_NAME = process.env.SCREENER_WATCHLIST_NAME/, 'the deployment watchlist name must be verified');
-assert.match(source, /throw Error\('Configure Glow Screener watchlist identity before syncing'\)/, 'missing identity fails before mutation');
-assert.doesNotMatch(source, /10850427|S Screen/, 'Glow must never default to Sattva’s watchlist');
+assert.match(source, /const WATCHLIST_ID = '10850427'/, 'the existing watchlist ID must be fixed');
+assert.match(source, /const WATCHLIST_NAME = 'S Screen'/, 'the existing watchlist name must be verified');
 assert.doesNotMatch(source, /watchlist\/(?:add|create|new)/i, 'the mirror must not create watchlists');
 assert.doesNotMatch(source, /console\.(?:log|error)\([^\n]*(?:\.isin|\.name|bookName)/, 'logs must not expose portfolio identifiers');
 

@@ -1,5 +1,6 @@
 // Display helpers keep calendar ages independent of a cached report's collection date.
 import { isRelatedNewsContext } from '../data/company-news-attribution.js';
+import { isMaterialStoryUpdate, compareStoryRecency } from '../data/alert-stories-shared.js';
 const DAY_MS = 86_400_000;
 const DATE_FORMATTER = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 export const currentDay = (now = Date.now()) => new Date(now + 5.5 * 3600_000).toISOString().slice(0, 10);
@@ -35,19 +36,10 @@ export function latestSignal(events = []) {
 }
 
 /** Only a noteworthy source event advances an alert's default reading order.
- * Routine observations and a refreshed capture timestamp cannot make old news new — and neither can
- * a fresh write-up of a development already on the card: a card that carries its developments is
- * dated by each development's lead (the company's own filing where there is one), so the fortieth
- * report of last week's order win does not move the card to the top as if it were today's news. */
+ * Routine observations and a refreshed capture timestamp cannot make old news new. */
 function alertSignals(card) {
-  const noteworthy = event => event.importance === 'high' && (event.aiEligible !== false || isRelatedNewsContext(event));
-  const developments = card?.developments;
-  if (developments?.length) {
-    const material = developments.filter(dev => dev.importance === 'high' && dev.members.some(event => event.aiEligible !== false || isRelatedNewsContext(event)));
-    return (material.length ? material : developments).map(dev => dev.lead);
-  }
   const events = card?.events || [];
-  const material = events.filter(noteworthy);
+  const material = events.filter(event => (event.importance === 'high' || isMaterialStoryUpdate(event)) && (event.aiEligible !== false || isRelatedNewsContext(event)));
   return material.length ? material : events;
 }
 
@@ -57,8 +49,7 @@ export function latestAlertSignal(card) {
 
 /** Keep the event that advanced the card visible, even when older evidence scores higher. */
 export function latestAlertEvent(card) {
-  return alertSignals(card).filter(event => Number.isFinite(dayMillis(event.day))).sort((a, b) =>
-    b.day.localeCompare(a.day) || String(latestSignal([b])?.time || '').localeCompare(String(latestSignal([a])?.time || '')))[0] || null;
+  return alertSignals(card).filter(event => Number.isFinite(dayMillis(event.day))).sort((a, b) => compareStoryRecency(b, a))[0] || null;
 }
 
 export function sortAlertCards(cards, order = 'newest') {
@@ -88,7 +79,7 @@ export function matchesSearch(card, query) {
     card.kpis?.groupLabel, ...(card.kpis?.items || []).flatMap((item) => [item.name, item.triggerLabel]),
     ...(card.feedLabels || []),
     ...(card.confluence || []).flatMap((pattern) => [pattern.label, pattern.short, pattern.detail]),
-    ...(card.events || []).flatMap((event) => [event.company, event.ticker, event.headline, event.detail, event.feedLabel, event.feed, event.day, formatDay(event.day), event.time]),
+    ...(card.sourceEvents || card.events || []).flatMap((event) => [event.company, event.ticker, event.headline, event.detail, event.feedLabel, event.feed, event.day, formatDay(event.day), event.time]),
     ...(card.contextEvents || []).flatMap((event) => [event.headline, event.detail, event.feedLabel, event.metric, event.day]),
     ...(card.upcomingEvents || []).flatMap((event) => [event.headline, event.detail, event.feedLabel, event.day]),
   ].join(' '));

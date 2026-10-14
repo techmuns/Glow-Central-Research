@@ -1,3 +1,5 @@
+import { researchTabs, bookmarks } from '../tabs/registry.js';
+import { TAB_GROUPS } from '../tabs/catalog.js';
 // ui/shell.js — the generic app chrome: header, workspace dropdown, top tabs, left rail,
 // and the content host that every tab/portfolio module mounts into. This file owns the
 // workspace/tab registry; individual tab modules stay ignorant of navigation entirely.
@@ -9,7 +11,7 @@ import * as live from '../core/live.js';
 import * as watch from '../core/watch.js';
 import * as refreshRegistry from '../core/refresh.js';
 import { tabBar, segmentedToggle, statusControl, emptyState } from './components.js';
-import { coverTableResults, loadingGrid } from './loading.js';
+import { coverTableResults } from './loading.js';
 import { closeDrill, closeModal, closeWorkspace, openModal, watchlistEmptyPanel } from './screener.js';
 import { SCOPES, scopeLabel } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
@@ -18,16 +20,15 @@ import * as coverage from '../data/coverage.js';
 import { startFamilySession } from '../data/family-session.js';
 import { bindFamilySyncLifecycle } from '../data/family-sync-lifecycle.js';
 import { openScopeEditor } from './scope-editor.js';
-import { sourcesModalHtml } from './sources.js';
 import { mountHostTicker } from './host-ticker.js';
 import { mountThemeToggle } from './theme-toggle.js';
 import { BOOKMARK_ICON } from './bookmark-button.js';
 import * as sourceBeacon from './source-beacon.js';
 import * as notifications from './notifications.js';
 import * as newsletter from './newsletter.js';
-
-import { researchTabs } from './tab-registry.js';
-const bookmarks = researchTabs.find(tab => tab.meta.id === 'bookmarks');
+import * as workspace from '../core/workspace.js';
+import { enterView, hasTableReading, captureTableReading } from '../core/view-reading.js';
+import { VIEW_ID, VIEW_SOURCES } from '../data/workspace-shared.js';
 
 // The nav model in one place: each workspace an ordered list of tab modules. Every module's
 // `meta.subviews` supplies the rail/rail-dropdown items — nothing here is duplicated per module.
@@ -56,17 +57,6 @@ const WORKSPACES = [
   { id: 'research', label: 'Research Central', tabs: researchTabs },
 ];
 
-// A TAB THAT BECAME A SUB-VIEW KEEPS ITS OLD ADDRESS WORKING. Corporate Actions was its own tab in
-// the bar until 17 September 2026 and is now the second view of Corp Announcements. Bookmarks, Ask
-// Research citations in saved conversations and the host's own links still name the old tab id, and
-// an unknown tab falls through to the landing page — which reads as the link being broken, not as
-// the view having moved. So the retired id resolves to the view it became, and `replaceRoute` below
-// corrects the URL, exactly as an old `#/portfolio/…` link lands on Research Central.
-const LEGACY_TABS = {
-  'ask-research': { tab: 'ai-alerts', subview: null },
-  'corporate-actions': { tab: 'corp-announcements', subview: 'corporate-actions' },
-};
-
 let contentHost = null;
 let currentTabModule = null;
 let chromeDisposers = [];
@@ -75,8 +65,147 @@ let topTabs = null;
 let subviewTabs = null;
 let shellRenderRequest = 0;
 let releaseRouteLoading = null;
+const customModules = new Map();
+let workspaceDisposer = null;
+let workspaceFrame = 0;
+let viewDraft = null;
+const savedTabsUI = () => import('./saved-tabs.js');
+
+function workspaceTabs(ws) {
+  return [...ws.tabs, ...[...workspace.snapshot().tabs.filter(view => view.id !== viewDraft?.view.id), ...(viewDraft ? [viewDraft.view] : [])].map(view => {
+    const cached = customModules.get(view.id);
+    if (cached) cached.module.meta.hideFromNavigation = viewDraft?.view.id === view.id;
+    if (cached && cached.revision === view.revision && cached.definition === JSON.stringify(view)) return cached.module;
+    const readingSignature = JSON.stringify([view.source, view.subview, view.params, view.reading]);
+    if (cached?.readingSignature === readingSignature) {
+      cached.module.meta.title = view.title; cached.module.meta.navigationTitle = view.title; cached.module.meta.savedView = view;
+      cached.revision = view.revision; cached.definition = JSON.stringify(view);
+      return cached.module;
+    }
+    const source = ws.tabs.find(tab => tab.meta.id === view.source);
+    let ui, reader, applied = false;
+    const module = {
+      meta: { ...(source?.meta || {}), id: view.id, title: view.title, navigationTitle: view.title, navigationGroup: null, hideFromNavigation: viewDraft?.view.id === view.id, subviews: source?.meta.subviews || [], allowEmptyScope: source?.meta.allowEmptyScope || !source, savedView: view,
+        readingKey: `${view.id}:${(cached?.generation || 0) + 1}` },
+      async load() { ui = await savedTabsUI(); if (source) reader = await source.load(); },
+      render(ctx) {
+        if (source) {
+          if (!applied) { reader.applySavedView?.(view.reading.extras, view.reading); applied = true; }
+          const readerCtx = { ...ctx, savedView: module.meta.savedView, savedViewKey: module.meta.readingKey, get isCancelled() { return ctx.isCancelled; } };
+          readerCtx.setParamsQuiet = next => { ctx.setParamsQuiet(next); readerCtx.params = next; };
+          source.render(readerCtx);
+        }
+        else {
+          ctx.root.innerHTML = ui.blankTabHtml(view);
+          ctx.root.querySelector('[data-saved-choose]').addEventListener('click', () => editSavedTab(module.meta.savedView));
+        }
+      },
+      destroy() { source?.destroy?.(); applied = false; },
+      getSavedView() { return reader?.getSavedView?.() || {}; },
+    };
+    customModules.set(view.id, { revision: view.revision, definition: JSON.stringify(view), readingSignature, generation: (cached?.generation || 0) + 1, module });
+    return module;
+  })];
+}
+
+async function editSavedTab(tab = null, seed = null) {
+  const ui = await savedTabsUI();
+  ui.openTabEditor({ tab, seed, onPreview: beginViewDraft, onSaved: view => router.navigate({ workspace: 'research', tab: view.id, subview: view.subview, scope: state.scope }) });
+}
+
+function beginViewDraft(view, original = null) {
+  const previous = viewDraft;
+  const returnRoute = viewDraft?.returnRoute || router.parseHash();
+  const base = original || viewDraft?.original || null;
+  viewDraft = { view: { ...view, id: previous?.view.id || `view-${crypto.randomUUID()}` }, original: base, returnRoute };
+  router.navigate({ workspace: 'research', tab: viewDraft.view.id, subview: view.subview, scope: state.scope, params: view.params });
+  if (previous) handleRoute(document.querySelector('#app'), router.parseHash());
+}
+
+async function publishViewDraft() {
+  const draft = viewDraft, module = currentTabModule;
+  const emptyScope = !module && !!contentHost.querySelector('[data-watchlist-add]');
+  if (!draft || router.parseHash().tab !== draft.view.id || (!emptyScope && module?.meta.id !== draft.view.id)) return;
+  const button = document.querySelector('[data-builder-save]'), status = document.querySelector('[data-builder-status]');
+  // Source controls must be mounted before capturing. No partial empty definition
+  // can replace the view while its original reader is still loading.
+  if (!emptyScope && draft.view.source && !hasTableReading(contentHost) && !contentHost.querySelector('[data-ai-search], [data-news-search], [data-live-section-tabs]')) {
+    status.textContent = 'Wait for this view to finish opening, then save its filters.'; return;
+  }
+  button.disabled = true;
+  const ui = await savedTabsUI();
+  const seed = emptyScope ? { scope: state.scope } : await ui.captureSavedTab({ root: contentHost, source: draft.view.source, scope: state.scope, subview: state.subview, params: router.parseHash().params, module });
+  const saved = { ...draft.view, ...seed, id: draft.original?.id || draft.view.id };
+  const result = await workspace.edit({ op: 'put', tab: saved, expected: draft.original?.revision ?? null });
+  if (viewDraft !== draft) return;
+  button.disabled = false;
+  if (result.confirmed || result.pending) {
+    viewDraft = null;
+    router.navigate({ workspace: 'research', tab: saved.id, subview: saved.subview, scope: state.scope });
+    // New drafts keep their ID when published, so no hashchange is needed.
+    handleRoute(document.querySelector('#app'), router.parseHash());
+  } else status.textContent = result.error || 'This tab could not be saved. Your filters remain here.';
+}
+
+async function addSavedTab() {
+  const ui = await savedTabsUI(), tab = currentTabModule;
+  const saved = tab?.meta.savedView, source = saved?.source || tab?.meta.id;
+  const readingContext = { scope: state.scope, subview: state.subview, params: router.parseHash().params };
+  ui.openTabEditor({ seed: { title: '', source: VIEW_SOURCES.includes(source) ? source : 'corp-announcements', subview: state.subview, scope: state.scope }, draftOnly: true,
+    onPreview: beginViewDraft, onSaved: view => router.navigate({ workspace: 'research', tab: view.id, subview: view.subview, scope: state.scope }),
+    captureCurrent: VIEW_SOURCES.includes(source) ? async () => ui.captureSavedTab({ root: contentHost, source, ...readingContext, module: saved ? tab : await tab.load() }) : null });
+}
+
+async function saveReaderFilters(tabModule, resolved, current) {
+  const ui = await savedTabsUI();
+  const seed = await ui.captureSavedTab({ root: contentHost, source: current.source, scope: resolved.scope, subview: resolved.subview, params: router.parseHash().params, module: tabModule });
+  const result = await workspace.edit({ op: 'put', tab: { ...current, ...seed }, expected: current.revision });
+  const status = document.querySelector('[data-workspace-status]');
+  if (status) status.textContent = result.confirmed ? 'View saved for everyone.' : result.error || 'View changes are waiting to be shared.';
+}
+
+function renderSavedControls(root, tabModule, resolved) {
+  const mount = root.querySelector('#saved-view-mount'), saved = tabModule.meta.savedView;
+  const building = !!viewDraft && viewDraft.view.id === saved?.id;
+  root.querySelector('[data-app-content]').toggleAttribute('data-building-tab', building);
+  root.querySelector('[data-add-saved-tab]').disabled = building;
+  mount.toggleAttribute('data-builder-mount', building);
+  mount.hidden = !saved;
+  contentHost.toggleAttribute('data-saved-view', !!saved);
+  if (mount.hidden) { mount.innerHTML = ''; return; }
+  if (viewDraft?.view.id === saved.id) {
+    const sourceTitle = WORKSPACES[0].tabs.find(tab => tab.meta.id === saved.source)?.meta.title || '';
+    mount.innerHTML = `<div class="saved-view-head" data-view-builder><div><div class="tab-builder-label">Building a tab <span>Unsaved</span></div><h2>${escapeHtml(saved.title)}</h2><p>Select filters in the live view below. Click <strong>Save tab</strong> when ready to share it with everyone.</p><p class="tab-builder-source">${escapeHtml(sourceTitle)} · Scope follows the filter above</p><p data-builder-status role="status"></p></div><div class="saved-tab-actions"><button type="button" data-builder-choose>Change view</button><button type="button" data-builder-cancel>Cancel</button><button type="button" class="tab-save-primary" data-builder-save>Save tab</button></div></div>`;
+    mount.querySelector('[data-builder-save]').addEventListener('click', () => void publishViewDraft());
+    mount.querySelector('[data-builder-choose]').addEventListener('click', async () => {
+      const ui = await savedTabsUI(), draft = viewDraft;
+      const reading = await ui.captureSavedTab({ root: contentHost, source: saved.source, scope: state.scope, subview: state.subview, params: router.parseHash().params, module: tabModule });
+      if (viewDraft !== draft) return;
+      ui.openTabEditor({ seed: { ...saved, ...reading }, onPreview: beginViewDraft, draftOnly: true });
+    });
+    mount.querySelector('[data-builder-cancel]').addEventListener('click', () => {
+      const route = viewDraft.returnRoute; viewDraft = null;
+      router.navigate({ ...route, scope: state.scope });
+    });
+    return;
+  }
+  mount.innerHTML = `<div class="saved-view-head"><div><h2>${escapeHtml(saved.title)}</h2>${saved.source ? `<p>From ${escapeHtml(WORKSPACES[0].tabs.find(tab => tab.meta.id === saved.source)?.meta.navigationTitle || WORKSPACES[0].tabs.find(tab => tab.meta.id === saved.source)?.meta.title || saved.source)}</p>` : ''}</div><div class="saved-tab-actions">${saved.source ? '<button type="button" data-save-reading>Save filters</button>' : ''}<button type="button" data-edit-saved>Edit tab</button><button type="button" data-remove-saved>Remove tab</button></div></div>`;
+  mount.querySelector('[data-save-reading]')?.addEventListener('click', () => void saveReaderFilters(tabModule, resolved, tabModule.meta.savedView));
+  mount.querySelector('[data-edit-saved]')?.addEventListener('click', () => void editSavedTab(tabModule.meta.savedView));
+  mount.querySelector('[data-remove-saved]')?.addEventListener('click', () => {
+    const saved = tabModule.meta.savedView;
+    openModal(`<div class="saved-tab-editor"><h2>Remove ${escapeHtml(saved.title)}?</h2><p>This removes the shared tab for everyone. Source records remain available in their original table.</p><div class="saved-tab-actions"><button type="button" data-remove-cancel>Keep tab</button><button type="button" data-remove-confirm>Remove shared tab</button></div><p data-remove-error role="status"></p></div>`);
+    document.querySelector('[data-remove-cancel]').addEventListener('click', closeModal);
+    document.querySelector('[data-remove-confirm]').addEventListener('click', async () => {
+      const result = await workspace.edit({ op: 'remove', tabId: saved.id, expected: saved.revision });
+      if (result.confirmed || result.pending) { closeModal(); goTab('alerts'); }
+      else document.querySelector('[data-remove-error]').textContent = result.error;
+    });
+  });
+}
 
 export function mount(root) {
+  workspaceDisposer?.();
   releaseRouteLoading?.(); releaseRouteLoading = null;
   topTabs?.dispose();
   topTabs = null;
@@ -150,6 +279,38 @@ export function mount(root) {
   });
 
   router.start((rawRoute) => handleRoute(root, rawRoute));
+  workspaceDisposer = workspace.onChange(() => {
+    cancelAnimationFrame(workspaceFrame);
+    workspaceFrame = requestAnimationFrame(() => {
+      const route = router.parseHash(), ws = WORKSPACES[0];
+      const tab = workspaceTabs(ws).find(tab => tab.meta.id === route.tab);
+      const status = workspace.status(), message = root.querySelector('[data-workspace-status]');
+      if (message) message.textContent = status.pending ? (status.error || 'Changes are waiting to be shared…') : status.error ? 'Shared tab sync unavailable. Checking again…' : '';
+      if (message && status.rejected.length) {
+        message.textContent = status.error || 'A shared edit could not be saved.';
+        const draft = status.rejected.at(-1), review = document.createElement('button');
+        review.type = 'button'; review.className = 'workspace-review'; review.textContent = draft.intent.op === 'put' ? 'Review unsaved tab' : 'Dismiss';
+        review.addEventListener('click', () => {
+          if (draft.intent.op === 'put') {
+            const latest = workspace.snapshot().tabs.find(tab => tab.id === draft.intent.tab.id);
+            void savedTabsUI().then(ui => ui.openTabEditor({ tab: latest ? { ...draft.intent.tab, revision: latest.revision } : null, seed: draft.intent.tab,
+              onPreview: beginViewDraft, onSaved: view => { workspace.dismissRejected(draft.intent.id); router.navigate({ workspace: 'research', tab: view.id, subview: view.subview, scope: state.scope }); } }));
+          } else workspace.dismissRejected(draft.intent.id);
+        });
+        message.append(' ', review);
+      }
+      if (tab) {
+        renderTopNavigation(root, ws, TAB_GROUPS[tab.meta.navigationGroup]?.id || tab.meta.id);
+        if (VIEW_ID.test(route.tab) && currentTabModule !== tab) handleRoute(root, { ...route, scope: route.scope || state.scope, subview: tab.meta.savedView.subview, params: tab.meta.savedView.params });
+        else if (VIEW_ID.test(route.tab) && root.querySelector('.saved-view-head h2')?.textContent !== tab.meta.title) {
+          renderSavedControls(root, tab, route); document.title = `${tab.meta.title} · Glow Central Research`;
+        }
+      } else if (VIEW_ID.test(route.tab) && status.confirmed) {
+        if (currentTabModule?.meta.id === route.tab) goTab('alerts'); else handleRoute(root, route);
+      }
+    });
+  });
+  workspace.start();
 }
 
 function shellTemplate() {
@@ -186,7 +347,8 @@ function shellTemplate() {
     </header>
 
     <nav data-app-nav data-app-frame class="mx-auto max-w-[1400px] px-6" aria-label="Research navigation">
-      <div id="tabbar-mount" class="min-w-0"></div>
+      <div class="workspace-navigation"><div id="tabbar-mount" class="min-w-0"></div><button type="button" class="saved-tab-add" data-add-saved-tab aria-label="+ Add tab" title="Add tab">+ <span>Add tab</span></button></div>
+      <div class="workspace-status" data-workspace-status role="status"></div>
     </nav>
 
     <div data-app-content data-app-frame class="mx-auto max-w-[1400px] px-6 py-6">
@@ -196,27 +358,9 @@ function shellTemplate() {
            toggle and status pill are this app's own chrome, and a picture of the tab is what the
            host is asking for. (No backticks in here: this comment is inside a template literal.) -->
       <main id="dashboard-main" class="fade-in min-w-0">
+        <div id="saved-view-mount" hidden></div>
         <div id="content-host"></div>
       </main>
-      <!-- THE DOOR TO THE SOURCE REGISTRY, AND THE ONLY ONE.
-           CLAUDE.md removed the header's Sources button and made every status pill passive, for a
-           good reason: those chips were competing with the tables they qualified. It also says, in
-           the same breath, that "canonical provenance remains in the source registry" — and the
-           registry had NO CALLER AT ALL, so that sentence was a promise the app did not keep.
-           sourcesModalHtml() was exported and unreachable, and sourceGroups() was named only in
-           a comment. (No backticks in here: this comment is inside a template literal — which is
-           exactly how this footer broke the page the first time it was written.)
-           A footer is what closes that without reopening what was closed. It sits AFTER the
-           content, so by construction it cannot compete with anything for the top of the page;
-           it adds nothing to the header; and it leaves every pill exactly as passive as before.
-           One muted line is also what a reader looking for provenance already expects to find at
-           the bottom of a page. -->
-      <footer class="border-t border-slate-100 pb-8 pt-5 text-center">
-        <button type="button" data-sources-open
-          class="text-xs font-semibold text-slate-400 underline decoration-slate-200 underline-offset-4 transition-colors hover:text-indigo-600 hover:decoration-indigo-300">
-          Data sources and how each feed is collected
-        </button>
-      </footer>
     </div>`;
 }
 
@@ -237,6 +381,8 @@ function shellTemplate() {
  * dashboard; Refresh and the appearance toggle share this compact header cluster.
  */
 function wireStaticHeader(root) {
+  const addTab = root.querySelector('[data-add-saved-tab]');
+  addTab?.addEventListener('click', () => void addSavedTab());
   headerDisposer?.();
   const offTheme = mountThemeToggle(root.querySelector('[data-theme-toggle]'));
   const offNotifications = notifications.mountBell(root.querySelector('[data-notification-bell]'));
@@ -244,7 +390,7 @@ function wireStaticHeader(root) {
   const status = statusControl({
     getTimestamp: () => live.getLastDataTick(),
     subscribeTick: live.onGlobalTick,
-    onRefresh: () => watch.refreshNow({ tab: state.tab, scope: state.scope, subview: state.subview, params: router.parseHash().params }),
+    onRefresh: () => watch.refreshNow({ tab: currentTabModule?.meta.savedView?.source || state.tab, scope: state.scope, subview: state.subview, params: router.parseHash().params }),
     getRefreshKey: () => JSON.stringify([state.tab, state.scope, state.subview, router.parseHash().params, refreshRegistry.registered().map((r) => r.id)]),
     subscribeContext: (fn) => { const off = subscribe(fn); const offRegistry = refreshRegistry.onChange(fn); return () => { off(); offRegistry(); }; },
   });
@@ -259,16 +405,6 @@ function wireStaticHeader(root) {
   // header rather than to whichever tab happens to be mounted.
   const offHostTicker = mountHostTicker($('#host-ticker-mount', root));
 
-  // The footer's registry link. Wired here rather than per route for the reason above: the footer
-  // is static, and a listener flushed on every route change would leave a link that silently stops
-  // working the first time the reader switches tab — the same failure the status pill's clock had.
-  //
-  // `sourcesModalHtml()` is a FUNCTION, called on open, so every figure in the modal is read from
-  // the module that owns it at the moment it is shown. That is deliberate and is why the registry
-  // may be reached from a static control without going stale — see *Data sources* in CLAUDE.md.
-  const sourcesBtn = root.querySelector('[data-sources-open]');
-  const onSources = () => openModal(sourcesModalHtml(), { size: 'wide' });
-  sourcesBtn?.addEventListener('click', onSources);
 
   headerDisposer = () => {
     offTheme();
@@ -276,26 +412,38 @@ function wireStaticHeader(root) {
     offNewsletter();
     offStatus?.();
     offHostTicker?.();
-    sourcesBtn?.removeEventListener('click', onSources);
   };
 }
 
 // ---- Route-dependent chrome: workspace dropdown, rail, top tabs, scope toggle ---------------
 
 function handleRoute(root, rawRoute) {
+  if (viewDraft && rawRoute.tab !== viewDraft.view.id) viewDraft = null;
   const ws = WORKSPACES.find((w) => w.id === rawRoute.workspace) || WORKSPACES[0];
-  const legacy = LEGACY_TABS[rawRoute.tab] || null;
-  const wantedTab = legacy ? legacy.tab : rawRoute.tab;
-  const wantedSubview = legacy ? legacy.subview : rawRoute.subview;
-  const tabModule = ws.tabs.find((t) => t.meta.id === wantedTab) || ws.tabs[0];
+  const tabModule = workspaceTabs(ws).find((t) => t.meta.id === rawRoute.tab) || (VIEW_ID.test(rawRoute.tab) ? null : ws.tabs[0]);
+  if (!tabModule) {
+    ++shellRenderRequest;
+    currentTabModule?.destroy?.(); currentTabModule = null;
+    releaseRouteLoading?.(); releaseRouteLoading = null;
+    enterView(null); contentHost.removeAttribute('data-active-tab'); contentHost.removeAttribute('data-saved-view');
+    root.querySelector('#saved-view-mount').hidden = true;
+    root.querySelector('[data-app-content]').removeAttribute('data-building-tab');
+    root.querySelector('[data-add-saved-tab]').disabled = false;
+    renderTopNavigation(root, ws, null);
+    setRoute({ workspace: ws.id, tab: rawRoute.tab, subview: null, scope: rawRoute.scope || state.scope, params: rawRoute.params || {} });
+    contentHost.innerHTML = emptyState({ title: workspace.status().confirmed ? 'This shared tab is unavailable' : 'Loading shared tab…', message: workspace.status().error || 'The workspace will check its saved tabs automatically.' });
+    if (!workspace.status().confirmed) void workspace.sync();
+    return;
+  }
   const subviews = tabModule.meta.subviews || [];
-  const subviewValid = subviews.some((s) => s.id === wantedSubview);
-  const subview = subviewValid ? wantedSubview : subviews[0]?.id || null;
+  const requestedSubview = rawRoute.subview || tabModule.meta.savedView?.subview;
+  const subviewValid = subviews.some((s) => s.id === requestedSubview);
+  const subview = subviewValid ? requestedSubview : subviews[0]?.id || null;
   const scope = rawRoute.scope || state.scope;
 
   // Tab-owned filter params ride along in the query string so a filtered view is shareable.
   // The shell doesn't interpret them — it just preserves them across route changes.
-  const resolved = { workspace: ws.id, tab: tabModule.meta.id, subview, scope, params: rawRoute.params || {} };
+  const resolved = { workspace: ws.id, tab: tabModule.meta.id, subview, scope, params: { ...(tabModule.meta.savedView?.params || {}), ...(rawRoute.params || {}) } };
 
   if (state.scope !== scope) setScope(scope);
   setRoute(resolved);
@@ -317,12 +465,16 @@ function editScope(root, scope) {
 
 function renderRouteChrome(root, ws, tabModule, resolved) {
   disposeChrome();
+  renderSavedControls(root, tabModule, resolved);
   const bookmarksLink = root.querySelector('[data-header-bookmarks]');
   bookmarksLink.href = router.buildHash({ workspace: ws.id, tab: bookmarks.meta.id, scope: resolved.scope });
   if (tabModule === bookmarks) bookmarksLink.setAttribute('aria-current', 'page');
   else bookmarksLink.removeAttribute('aria-current');
-  // Table-first is an opt-in layout, not a redesign of the other research views.
-  
+  // Grouped readers share framing from the first navigation paint, including while
+  // their renderer loads or the selected scope is empty.
+  const group = TAB_GROUPS[tabModule.meta.navigationGroup];
+  root.dataset.navigationGroup = group?.id || '';
+  root.dataset.readingLayout = (group?.layout || tabModule.meta.layout) === 'table' ? 'table' : 'standard';
 
   const subtitleEl = $('#brand-subtitle', root);
   if (subtitleEl) subtitleEl.textContent = `${ws.label} · Indian equities`;
@@ -337,7 +489,12 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   });
   const toggleMount = $('#scope-toggle-mount', root);
   // Personal saved records keep their original company membership after a portfolio exit.
-  root.querySelector('[data-scope-controls]').hidden = tabModule.meta.scopeIndependent === true;
+  const sheet = ['portfolio', 'watchlist'].includes(tabModule.meta.id);
+  const scopeControls = root.querySelector('[data-scope-controls]');
+  scopeControls.hidden = tabModule.meta.scopeIndependent === true && !sheet;
+  scopeControls.title = sheet
+    ? 'Research scope for the research feeds. Portfolio and Watchlist sheets keep their own company lists.'
+    : 'Data scope: Portfolio, Watchlist or the complete Universe.';
   toggleMount.innerHTML = toggle.html;
   chromeDisposers.push(toggle.wire(toggleMount));
 
@@ -364,24 +521,20 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   //
   // Portfolio Analytics itself is untouched and still routes; see WORKSPACES above.
 
-  // THE SUB-VIEW RAIL IS A DROPDOWN NOW, AT EVERY WIDTH.
-  //
-  // It used to be a 240px left column above 1024px and a dropdown below it. The column cost the
-  // content 240px of the 1400px it has, permanently, to show at most four short labels — and the
-  // tables it sat beside are the widest things here: Institutions carries thirteen numeric
-  // columns and the Earnings Hub ten, both tuned column by column (`dense`, `wrapHeads`,
-  // `nameMaxPx`) to fit inside what was left. Giving the content the full width is worth more
-  // than a permanently-visible list of four.
-  //
-  // The kicker reads "View" rather than the tab's own title: the section head immediately below
-  // prints that title as the page's heading, and the rail card's header was repeating it.
-  // Breakouts exposes its four views as horizontal tabs. Keep that strip mounted across
-  // subview and scope changes so keyboard focus and horizontal scroll survive navigation.
-  const subviewItems = (tabModule.meta.subviews || []).map((s) => ({ id: s.id, label: s.label, badge: s.badge }));
-  const hasSubviews = subviewItems.length > 0 && !tabModule.meta.inlineSubviews;
-  const useSubviewTabs = hasSubviews && tabModule.meta.subviewNavigation === 'tabs';
+  // Grouped readers use their existing tab routes as subtabs. Keep the strip mounted across
+  // reader, subview and scope changes so keyboard focus and horizontal scroll survive.
+  const navigationId = group?.id || resolved.tab;
+  const subviewItems = group
+    ? ws.tabs.filter((t) => t.meta.navigationGroup === group.id && !t.meta.hideFromNavigation)
+      .map((t) => ({ id: t.meta.id, label: t.meta.navigationTitle || t.meta.title }))
+    : (tabModule.meta.subviews || []).map((s) => ({ id: s.id, label: s.label, badge: s.badge }));
+  const activeSubview = group ? resolved.tab : resolved.subview;
+  // These views keep their route metadata while owning a compact selector in their toolbar.
+  const hasSubviews = subviewItems.length > 0 && tabModule.meta.subviewNavigation !== 'toolbar';
+  const useSubviewTabs = hasSubviews && (group || tabModule.meta.subviewNavigation === 'tabs');
   const subviewMount = $('#subview-mount', root);
-  if (!useSubviewTabs || subviewTabs?.tab !== resolved.tab) {
+  subviewMount.dataset.navigation = group ? 'group' : useSubviewTabs ? 'tabs' : 'views';
+  if (!useSubviewTabs || subviewTabs?.tab !== navigationId) {
     subviewTabs?.dispose();
     subviewTabs = null;
   }
@@ -390,11 +543,12 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
     subviewMount.innerHTML = '';
   } else if (useSubviewTabs) {
     if (subviewTabs) {
-      subviewTabs.bar.update(resolved.subview);
+      subviewTabs.bar.update(activeSubview);
     } else {
-      const bar = tabBar({ tabs: subviewItems, activeId: resolved.subview, onSelect: goSubview, label: `${tabModule.meta.title} views` });
+      const bar = tabBar({ tabs: subviewItems, activeId: activeSubview,
+        onSelect: group ? goTab : goSubview, label: `${group?.title || tabModule.meta.title} views` });
       subviewMount.innerHTML = bar.html;
-      subviewTabs = { tab: resolved.tab, bar, dispose: bar.wire(subviewMount) };
+      subviewTabs = { tab: navigationId, bar, dispose: bar.wire(subviewMount) };
     }
   } else {
     const subviewPicker = dropdownMenu({
@@ -415,24 +569,39 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
 
   // Keep the strip mounted across routes: replacing it resets horizontal scroll and drops
   // keyboard focus on every selection, including changes to the scope or subview.
-  if (topTabs?.workspace === ws.id) {
-    topTabs.bar.update(resolved.tab);
-  } else {
-    topTabs?.dispose();
-    // Saved events are reached from the header beside the appearance control.
-    const tabItems = ws.tabs.filter((t) => t !== bookmarks).map((t) => ({ id: t.meta.id, label: t.meta.title }));
-    const bar = tabBar({ tabs: tabItems, activeId: resolved.tab, onSelect: goTab, label: 'Research sections' });
-    const tabBarMount = $('#tabbar-mount', root);
-    tabBarMount.innerHTML = bar.html;
-    topTabs = { workspace: ws.id, bar, dispose: bar.wire(tabBarMount) };
-  }
+  renderTopNavigation(root, ws, navigationId);
 
   document.title = `${tabModule.meta.title} · Glow Central Research`;
 
-  // The tab we just left called `live.stop()` on the pollers it owns, and two of those are the
-  // ones the alert watchers depend on. Re-assert the claim: `start()` is a no-op on a poller that
-  // is already running, so this only matters on the navigation that would otherwise silence them.
   watch.ensureRunning();
+}
+
+function renderTopNavigation(root, ws, navigationId) {
+  const shared = workspace.snapshot();
+  const sharedOrder = (shared.navigationRevision ?? shared.revision) > 0 ? shared.order : null;
+  const tabItems = [...new Map(workspaceTabs(ws).filter((t) => t !== bookmarks && !t.meta.hideFromNavigation)
+    .map(t => {
+      const parent = TAB_GROUPS[t.meta.navigationGroup], id = parent?.id || t.meta.id;
+      return [id, { id, label: parent?.title || t.meta.navigationTitle || t.meta.title, saved: !!t.meta.savedView }];
+    })).values()];
+  const draft = viewDraft ? { id: viewDraft.view.id, label: viewDraft.view.title } : null;
+  const signature = JSON.stringify([tabItems, draft]);
+  if (topTabs?.workspace === ws.id && topTabs.signature === signature) {
+    topTabs.bar.update(navigationId, sharedOrder);
+  } else {
+    const focusedId = document.activeElement?.closest('#tabbar-mount [data-tab-id]')?.dataset.tabId;
+    const scroll = root.querySelector('#tabbar-mount [data-tab-list]')?.scrollLeft || 0;
+    topTabs?.dispose();
+    // Saved events are reached from the header beside the appearance control.
+    const bar = tabBar({ tabs: tabItems, activeId: navigationId, onSelect: goTab, label: 'Research sections', orderKey: ws.id,
+      sharedOrder, onOrderChange: intent => workspace.edit(intent), draft });
+    const tabBarMount = $('#tabbar-mount', root);
+    tabBarMount.innerHTML = bar.html;
+    topTabs = { workspace: ws.id, signature, bar, dispose: bar.wire(tabBarMount) };
+    tabBarMount.querySelector('[data-tab-list]').scrollLeft = scroll;
+    if (focusedId) tabBarMount.querySelector(`[data-tab-id="${focusedId}"]`)?.focus({ preventScroll: true });
+    bar.update(navigationId, sharedOrder);
+  }
 }
 
 function disposeChrome() {
@@ -537,8 +706,7 @@ function mountTab(root, tabModule, resolved) {
   // Keep old controls out of reach during that yield: otherwise a fast follow-up search can
   // edit a table that the queued render is about to replace. The current tab still owns its DOM
   // and view state; only the temporary cover is removed before the latest render runs.
-  if (!contentHost.children.length) contentHost.innerHTML = loadingGrid({ label: `Loading ${tabModule.meta.title}` });
-  releaseRouteLoading = coverTableResults(contentHost.parentElement, contentHost);
+  if (contentHost.children.length) releaseRouteLoading = coverTableResults(contentHost.parentElement, contentHost);
   if (typeof requestAnimationFrame === 'function') {
     requestAnimationFrame(() => setTimeout(runRender, 0));
   } else {
@@ -548,16 +716,16 @@ function mountTab(root, tabModule, resolved) {
   async function runRender() {
     if (shellRenderRequest !== reqId) return; // Reader clicked away before this frame
     try {
-      const loaded = tabModule.load ? await tabModule.load() : tabModule;
-      // Import completion belongs to the route that asked for it. Rapid tab, scope and subview
-      // changes can share the download but only the latest request may mount its interface.
-      if (shellRenderRequest !== reqId) return;
+      // Load only the requested interface. The cover remains until it is ready;
+      // shared collectors and retained data continue independently of navigation.
+      if (tabModule.load) await tabModule.load();
+      if (ctx.isCancelled) return;
       releaseRouteLoading?.(); releaseRouteLoading = null;
-      root.dataset.readingLayout = loaded.meta.layout === 'table' ? 'table' : 'standard';
-      contentHost.setAttribute('data-active-tab', loaded.meta.id);
-      loaded.render(ctx);
+      contentHost.setAttribute('data-active-tab', tabModule.meta.id);
+      enterView({ root: contentHost, key: tabModule.meta.readingKey || null, source: tabModule.meta.savedView?.source || tabModule.meta.id, preset: tabModule.meta.savedView || null });
+      tabModule.render(ctx);
     } catch (err) {
-      if (shellRenderRequest !== reqId) return;
+      if (ctx.isCancelled) return;
       releaseRouteLoading?.(); releaseRouteLoading = null;
       console.error(`[shell] render() failed for "${tabModule.meta?.id}"`, err);
       contentHost.innerHTML = emptyState({ title: 'This panel hit a snag', message: String(err?.message || err), icon: '⚠️' });
@@ -577,8 +745,12 @@ function mountTab(root, tabModule, resolved) {
 // eslint-disable-next-line no-unused-vars
 function goTab(tabId) {
   const ws = WORKSPACES.find((w) => w.id === state.workspace) || WORKSPACES[0];
-  const tabModule = ws.tabs.find((t) => t.meta.id === tabId) || ws.tabs[0];
-  router.navigate({ workspace: ws.id, tab: tabModule.meta.id, subview: tabModule.meta.subviews?.[0]?.id ?? null, scope: state.scope });
+  // Clicking the active parent retains its selected reader and filters. Entering from another
+  // section opens the group's first reader; explicit subtab selections still change readers.
+  const activeModule = workspaceTabs(ws).find((t) => t.meta.id === state.tab);
+  if (TAB_GROUPS[tabId] && activeModule?.meta.navigationGroup === tabId) return;
+  const tabModule = workspaceTabs(ws).find((t) => t.meta.id === tabId || t.meta.navigationGroup === tabId) || ws.tabs[0];
+  router.navigate({ workspace: ws.id, tab: tabModule.meta.id, subview: tabModule.meta.savedView?.subview || tabModule.meta.subviews?.[0]?.id || null, scope: state.scope });
 }
 
 // Filter params belong to a specific sub-view, so switching sub-view (or tab, or workspace)
@@ -588,6 +760,11 @@ function goSubview(subviewId) {
 }
 
 function goScope(scope) {
+  if (viewDraft && currentTabModule?.meta.id === viewDraft.view.id && (hasTableReading(contentHost) || contentHost.querySelector('[data-ai-search], [data-news-search]'))) {
+    const reading = captureTableReading(contentHost);
+    reading.extras = currentTabModule.getSavedView();
+    viewDraft.view = { ...viewDraft.view, reading, subview: state.subview, params: router.parseHash().params };
+  }
   router.navigate({ workspace: state.workspace, tab: state.tab, subview: state.subview, scope, params: router.parseHash().params });
 }
 

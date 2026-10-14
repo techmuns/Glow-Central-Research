@@ -1,204 +1,214 @@
-// GLOW: one audience and period control, dated activity first, holdings evidence below it.
-import { tabBar } from '../ui/components.js';
+// Public exchange trades and dated quarterly observations are separate evidence.
 import { scoreTable, openModal, closeModal } from '../ui/screener.js';
+import { tabBar } from '../ui/components.js';
 import { escapeHtml as esc } from '../core/dom.js';
 import { formatDate, formatNumber, formatCroreCompact } from '../core/format.js';
 import * as managers from '../data/managers.js';
+import * as watchlist from '../core/watchlist.js';
+import { openManager, managerUnavailable, wireManagerUnlock } from './my-managers.js';
 import * as investors from '../data/super-investors.js';
 import { insider } from '../data/filings.js';
 import { insiderTradeSourceUrl } from '../data/filings-shared.js';
-import * as watchlist from '../core/watchlist.js';
-import { scopeAllowsTicker } from '../data/scope.js';
-import { openManager } from './my-managers.js';
+import { scopeMatcher, scopeLabel } from '../data/scope.js';
+import { buildHash } from '../core/router.js';
 import { exportRows } from '../ui/export.js';
 import { withVerifiedEntities } from '../data/holdings-integrity.js';
+import { currentRelation } from '../data/public-holdings-shared.js';
 import { loadEvidence, evidence } from '../data/holding-evidence.js';
-import { PERIODS, periodRange, inPeriod, matchedDeals, managerTrades, managerHoldings, investorHoldings, tradeWindow } from '../data/investor-changes.js';
+import { PERIODS, periodRange, inPeriod, matchedDeals, investorHoldings, managerTrades } from '../data/investor-changes.js';
 
-const audiences = [{ id: 'my-managers', label: 'My Managers' }, { id: 'investors', label: 'All Investors' }];
 const date = (value) => value ? formatDate(value) : '—';
-const num = (value) => value == null ? '—' : typeof value === 'number' ? formatNumber(value, { decimals: Number.isInteger(value) ? 0 : 2 }) : value;
-const pp = (value) => value == null ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(2)} pp`;
-const money = (value) => Math.abs(value) >= 1e7 ? formatCroreCompact(Math.abs(value) / 1e7)
-  : `₹${formatNumber(Math.abs(value), { decimals: 2 })}`;
 const pct = (value) => value == null ? '—' : `${value.toFixed(2)}%`;
-const actionLabels = { new: 'Newly reported', added: 'Increased', trimmed: 'Reduced', exited: 'No longer reported', awaiting: 'Incomplete disclosure' };
-// DATES ON EVERY ROW. A comparison row prints the two dates it was measured on — quarter-end
-// dates for two shareholding patterns, statement dates for two PMS statements — and never
-// implies a day inside the window. A trade date is printed only where the statement carries one.
-const dateSpan = (from, to) => `${from ? date(from) : '—'} → ${to ? date(to) : '—'}`;
-function statementDatesCell(r) {
-  const kind = r.dateKind === 'pattern' ? 'shareholding patterns, dated on the quarter end' : 'manager statements';
-  return `<span class="whitespace-nowrap tabular-nums text-slate-800">${esc(dateSpan(r.from, r.date))}</span><span class="block text-[10px] text-slate-400">${esc(r.period)} · ${esc(kind)}</span>`;
-}
-function tradeDatesCell(r) {
-  if (r.dateKind === 'pattern') return `<span class="text-slate-400" title="A quarterly shareholding pattern states the holding on the quarter-end date. The exchange filing does not carry the date of any trade behind the change.">Not in a pattern</span>`;
-  const w = tradeWindow(r);
-  if (!w) return `<span class="text-slate-400" title="The manager’s transaction statement lists no trade in this security between the two statement dates.">${r.via?.length ? esc(`Corporate action: ${r.via.join(', ')}`) : 'No dated trade in the window'}</span>`;
-  const sides = [w.buys ? `${w.buys} buy${w.buys === 1 ? '' : 's'}` : null, w.sells ? `${w.sells} sell${w.sells === 1 ? '' : 's'}` : null].filter(Boolean).join(', ');
-  return `<span class="whitespace-nowrap tabular-nums text-slate-800">${esc(w.first === w.last ? date(w.first) : dateSpan(w.first, w.last).replace('→', '–'))}</span><span class="block text-[10px] text-slate-400">${esc(sides)} on the statement</span>`;
-}
+const pp = (value) => value == null ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(2)} pp`;
+const actions = { new: 'Newly disclosed', added: 'Increased', trimmed: 'Reduced', exited: 'No longer disclosed' };
+const audiences = [{ id: 'my-managers', label: 'My Managers' }, { id: 'investors', label: 'All Investors' }];
+const money = v => v === null || v === undefined ? '—' : Math.abs(v) >= 1e7 ? formatCroreCompact(v / 1e7) : `₹${formatNumber(v, { decimals: 2 })}`;
 
-export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor, includeHolding } = {}) {
+export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor, includeHolding, embedded = false, toolbarControls } = {}) {
   const state = { audience: 'my-managers', period: 'quarter', ...view };
-  let host, disposed = false, ready = false, tableDisposers = [];
-  function rememberSources() {
-    const sources = host?.querySelector('[data-changes-sources]');
-    // Update the shared view object without publishing it during disposal: the
-    // parent may already have reset its selected period for a navigation.
-    if (sources) state.sourcesOpen = sources.open;
+  if (!audiences.some(a => a.id === state.audience)) state.audience = 'my-managers';
+  if (!PERIODS.some((p) => p.id === state.period)) state.period = 'quarter';
+  let host, disposed = false, ready = false, tableDisposers = [], stopManagers = null;
+  function remember() {
+    for (const [selector, key] of [['sources', 'sourcesOpen'], ['holdings', 'holdingsOpen']]) {
+      const item = host?.querySelector(`[data-changes-${selector}]`);
+      if (item) state[key] = item.open;
+    }
   }
   function paint(focus = null) {
     if (disposed || !host?.isConnected) return;
-    // A source update can repaint before the browser dispatches the native
-    // details toggle event. Read the current DOM state before replacing it.
-    rememberSources();
-    tableDisposers.forEach((d) => d?.());
-    tableDisposers = [];
+    const reading = focus ? [] : ['activity', 'observations'].map(key => {
+      const panel = host.querySelector(`[data-changes-${key}]`), search = panel?.querySelector('[data-table-search]'), scroll = panel?.querySelector('[data-table-scroll]');
+      return { key, focused: search === document.activeElement, start: search?.selectionStart, end: search?.selectionEnd,
+        direction: search?.selectionDirection, top: scroll?.scrollTop || 0, left: scroll?.scrollLeft || 0 };
+    });
+    remember(); tableDisposers.forEach((d) => d?.()); tableDisposers = [];
+    const list = investors.list();
     const mine = state.audience === 'my-managers';
-    const allManagers = managers.all(), list = investors.list();
-    const basePeople = mine ? allManagers.map((m) => ({ id: m.id, name: m.name,
-      aliases: [m.house, list.find((i) => i.slug === m.finologySlug)?.name].filter(Boolean) }))
-      : list.map((i) => ({ id: i.slug, name: i.name }));
-    const people = withVerifiedEntities(basePeople, evidence(), mine ? 'manager' : 'investor');
-    const allows = (row) => mine ? ctx.scope !== 'watchlist' || watchlist.has(row.ticker)
-      : row.ticker ? scopeAllowsTicker(ctx.scope, row.ticker) : !includeHolding || includeHolding(row.company);
-    const deals = matchedDeals(insider.rows(), people);
-    const activity = [...(mine ? managerTrades(allManagers) : []), ...deals].filter(allows);
-    const holdings = (mine ? managerHoldings(allManagers, { syncedAt: managers.meta()?.syncedAt || null }) : investorHoldings(investors.books(), list)).filter(allows);
+    const directoryPending = !mine && !investors.isLoaded();
+    const trackedIds = new Set(list.map(i => i.slug));
+    const unverifiedRelations = mine ? [] : evidence().relations.filter(r => r.investorSlugs?.some(id => trackedIds.has(id)) && !currentRelation(r, new Date().toISOString()));
+    const people = withVerifiedEntities(mine ? managers.all().map(m => ({ id: m.id, name: m.name })) : list.map((i) => ({ id: i.slug, name: i.name })), evidence(), mine ? 'manager' : 'investor');
+    const companyScope = scopeMatcher(ctx.scope), universe = scopeMatcher('universe');
+    const allows = (r) => mine ? ctx.scope !== 'watchlist' || r.ticker && watchlist.has(r.ticker) : r.ticker ? companyScope.has(r.ticker, r.raw || r) : !includeHolding || includeHolding(r.company, r);
+    const allActivity = [...(mine ? managerTrades(managers.all()) : []), ...matchedDeals(insider.rows(), people)];
+    const activity = allActivity.filter(allows);
     const range = periodRange(state.period);
     const events = activity.filter((r) => inPeriod(r, range)).sort((a, b) => b.date.localeCompare(a.date));
-    const observations = holdings.filter((r) => inPeriod(r, range)).sort((a, b) => b.date.localeCompare(a.date));
-    const tabs = tabBar({ tabs: audiences, activeId: state.audience, onSelect: (audience) => {
-      state.audience = audience; state.activityView = null; state.holdingsView = null;
-      onView(state); paint('audience');
+    const universeEvents = mine ? [] : allActivity.filter(r => (!r.ticker || universe.has(r.ticker, r.raw)) && inPeriod(r, range));
+    const history = activity.filter(r => inPeriod(r, periodRange('itd')));
+    const observations = (mine ? [] : investorHoldings(investors.books(), list)).filter(allows).filter((r) => inPeriod(r, range)).sort((a, b) => b.date.localeCompare(a.date));
+    const tabs = tabBar({ tabs: audiences, activeId: state.audience, onSelect: audience => {
+      state.audience = audience; state.activityView = null; state.holdingsView = null; onView(state);
+      stopManagers?.(); stopManagers = audience === 'my-managers' ? managers.watchFreshness() : null; paint('audience');
     } });
-    const openPerson = (row) => mine ? openManager(row.personId) : openInvestor?.(row.personId);
-    const table = scoreTable({
-      rows: events, key: (r) => r.id, name: (r) => r.company, sub: (r) => r.reportedName && r.reportedName.toLowerCase() !== r.person.toLowerCase() ? `${r.person} · reported: ${r.reportedName}` : r.person,
+    const openPerson = (r) => mine ? openManager(r.personId, ctx) : openInvestor?.(r.personId);
+    const table = scoreTable({ rows: events, key: (r) => r.id, name: (r) => r.company,
+      sub: (r) => r.reportedName && r.reportedName.toLowerCase() !== r.person.toLowerCase() ? `${r.person} · reported: ${r.reportedName}` : r.person,
       watchKey: (r) => r.ticker || null, watchName: (r) => r.company,
-      nameMaxPx: 220, showAvatar: false, dense: true, stickyHead: '400px', fillMode: 'scroll',
+      nameMaxPx: 240, showAvatar: false, dense: true, stickyHead: '400px', fillMode: 'scroll',
+      showBookmarks: !mine,
       searchable: (r) => `${r.company} ${r.person} ${r.reportedName || ''} ${r.source}`,
-      searchPlaceholder: 'Search company or investor...',
-      initialView: state.activityView,
-      onExport: (rows) => exportChanges(rows, state, range, false),
+      searchPlaceholder: 'Search company or investor...', initialView: state.activityView,
+      toolbarControls, showWatchFilter: embedded ? 'selected' : true,
+      onFilterChange: () => onView(state),
+      onExport: (rows) => exportChanges(rows, state, range, false, ctx.scope),
       filters: [{ label: 'Direction', options: [{ value: 'all', label: 'All activity' }, { value: 'buy', label: 'Buys' }, { value: 'sell', label: 'Sells' }], match: (r, v) => r.action === v }],
-      emptyMessage: ready ? 'No matching trades in the available records for this period.' : 'Loading statement trades and bulk/block deals…',
-      onRowClick: (r) => openEvidence(r, mine, openPerson),
+      emptyMessage: directoryPending ? 'Loading the tracked investor directory…' : mine && !managers.meta() ? 'Manager records have not been verified.' : ready ? 'No matching trades in the available records for this period.' : 'Loading captured bulk/block deals…',
+      onRowClick: (r) => openEvidence(r, openPerson, mine),
       columns: [
-        { label: 'Action', html: true, get: (r) => `<span class="font-semibold ${r.action === 'buy' ? 'text-emerald-700' : 'text-rose-700'}">${r.action === 'buy' ? 'Bought' : 'Sold'}</span>` },
-        { label: 'Date', get: (r) => date(r.date), sortValue: (r) => r.date },
-        { label: 'Shares / units', get: (r) => num(r.quantity) },
-        { label: 'Trade value', get: (r) => r.amount == null ? r.value || '—' : money(r.amount) },
+        { label: 'Action', get: (r) => r.action === 'buy' ? 'Bought' : 'Sold' },
+        { label: mine ? 'Ledger / trade date' : 'Trade date', get: (r) => date(r.date), sortValue: (r) => r.date },
+        { label: 'Shares / units', get: (r) => r.quantity ?? '—' },
+        { label: 'Reported value', get: (r) => r.amount === undefined ? r.value || '—' : money(r.amount) },
         { label: 'Evidence', get: (r) => r.source },
       ],
     });
     state.activityView = table.view;
     const holdingTable = scoreTable({ rows: observations, key: (r) => r.id, name: (r) => r.company, sub: (r) => r.person,
-      watchKey: (r) => r.ticker || null, watchName: (r) => r.company,
-      nameMaxPx: 280, dense: true, showAvatar: false, stickyHead: '360px', fillMode: 'scroll', initialView: state.holdingsView,
+      watchKey: (r) => r.ticker || null, watchName: (r) => r.company, nameMaxPx: 260,
+      dense: true, showAvatar: false, stickyHead: '360px', fillMode: 'scroll', initialView: state.holdingsView,
       searchable: (r) => `${r.company} ${r.person}`, onRowClick: openPerson,
       searchPlaceholder: 'Search company or investor...', showWatchFilter: false,
-      onExport: (rows) => exportChanges(rows, state, range, true),
-      emptyMessage: 'No holdings comparison ends in this period. Reports may arrive after the period ends.',
+      onExport: (rows) => exportChanges(rows, state, range, true, ctx.scope),
+      onFilterChange: () => onView(state),
+      emptyMessage: 'No confirmed holdings change ends in this period. Reports may arrive after the period ends.',
       columns: [
-        { label: mine ? 'Statement dates' : 'Pattern dates', html: true, get: statementDatesCell, sortValue: (r) => r.date || '' },
-        { label: 'Change', get: (r) => actionLabels[r.action] || r.action },
-        { label: mine ? 'Prior weight' : 'Prior stake', get: (r) => pct(r.before) },
-        { label: mine ? 'Latest weight' : 'Latest stake', get: (r) => pct(r.now) },
+        { label: 'Pattern dates', get: (r) => `${date(r.from)} → ${date(r.date)}`, sortValue: (r) => r.date },
+        { label: 'Change', get: (r) => actions[r.action] || r.action },
+        { label: 'Prior stake', get: (r) => pct(r.before) },
+        { label: 'Latest stake', get: (r) => pct(r.now) },
         { label: 'Change (derived)', get: (r) => pp(r.deltaPp) },
-        { label: 'Trade dates', html: true, get: tradeDatesCell, sortValue: (r) => tradeWindow(r)?.last || '' },
-        { label: 'Source read', get: (r) => date(r.sourceCheckedAt), sortValue: (r) => r.sourceCheckedAt || '' },
+        { label: 'Trade dates', get: () => 'Not stated in a pattern' },
+        { label: 'Source checked', get: (r) => date(r.sourceCheckedAt), sortValue: (r) => r.sourceCheckedAt || '' },
       ],
     });
-    state.holdingsView = holdingTable.view;
-    onView(state);
+    state.holdingsView = holdingTable.view; onView(state);
+    const meta = insider.meta(), exchanges = meta.exchanges;
     const dates = activity.map((r) => r.date).filter(Boolean).sort();
-    const bulk = insider.meta().bulkDeals, exchanges = insider.meta().exchanges;
-    const buys = events.filter((r) => r.action === 'buy').length;
-    const sells = events.filter((r) => r.action === 'sell').length;
-    const earliest = dates[0], latest = dates.at(-1);
+    const buys = events.filter(r => r.action === 'buy').length, sells = events.filter(r => r.action === 'sell').length;
+    const activitySummary = `<div class="mb-2 flex flex-wrap items-baseline justify-between gap-2" data-changes-summary><h2 class="font-display text-lg font-bold text-slate-900">${mine ? 'Your managers · ledger events & reported deals' : 'Tracked investors · reported trades'}</h2><span class="text-xs text-slate-500">${directoryPending ? 'Investor directory is loading…' : mine && !managers.meta() ? 'Manager records are not yet available' : `${buys} buys · ${sells} sells · ${new Set(events.map(r => r.personId)).size} ${mine ? 'managers' : 'investors'}`}</span></div>`;
+    const periodNote = `<p class="mb-3 text-xs text-slate-500" data-changes-period-note>${range.from ? `${esc(date(range.from))} – ${esc(date(range.to))}` : 'ITD · all available captured history'} · ${mine ? 'Family ledger events and matched public bulk/block deals' : 'matched public bulk/block deals'}. Click a row for evidence.</p>`;
+    const exchangeStatus = `<p class="mb-3 text-xs text-slate-500" data-exchange-status>${esc(exchanges?.summary || (ready ? 'Exchange coverage has not been verified.' : 'NSE / BSE reports are loading.'))}</p>`;
+    const coverageNote = `<p class="my-3 text-xs text-slate-500" data-changes-coverage>${ready ? dates.length ? `${mine ? 'Retained ledger / reported deal dates' : `Matched trade dates in ${esc(scopeLabel(ctx.scope))}`}: ${esc(date(dates[0]))} – ${esc(date(dates.at(-1)))}. ` : 'No matching records loaded. ' : 'Loading source records. '}${mine ? 'Ledger events include labelled transfers and unverified carried purchase dates. Public deals concern the named institution, not your account. ' : 'Matched trade dates are not the source’s capture coverage. '}ITD covers retained records and may not reach inception. Deals do not establish total allocation.</p>`;
     host.dataset.changesReady = String(ready);
     host.innerHTML = `
-      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+      ${embedded ? '' : `<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div data-changes-audience>${tabs.html}</div>
         <label class="flex items-center gap-2 text-xs font-semibold text-slate-500">Period
           <select data-changes-period aria-label="Changes period" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
             ${PERIODS.map((p) => `<option value="${p.id}" ${p.id === state.period ? 'selected' : ''}>${p.label}</option>`).join('')}
           </select>
         </label>
-      </div>
-      <div role="tabpanel" aria-label="${mine ? 'My Managers changes' : 'All Investors changes'}" data-changes-panel="${state.audience}" data-activity-total="${events.length}" data-holdings-total="${observations.length}">
-        ${ready && mine && !managers.meta() ? '<p class="mb-3 text-sm text-amber-700">Manager statements could not be loaded. The activity below may contain only matched public deals.</p>' : ''}
-        <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 class="font-display text-lg font-bold text-slate-900">${mine ? 'Your managers' : 'Tracked investors'} · buys &amp; sells</h2>
-          <span class="text-xs text-slate-500">${buys} buys · ${sells} sells · ${new Set(events.map((r) => r.personId)).size} ${mine ? 'managers' : 'investors'}</span>
-        </div>
-        <p class="mb-3 text-xs text-slate-500">${range.from ? `${esc(date(range.from))} – ${esc(date(range.to))}` : 'ITD · all available captured history'} · ${mine ? 'PMS statement trades and matched bulk/block deals' : 'Matched bulk/block deals'}. Click a row for evidence.</p>
-        <p class="mb-3 text-xs text-slate-500" data-exchange-status>${esc(exchanges?.summary || 'NSE / BSE reports are loading.')}</p>
+      </div>`}
+      <div data-changes-panel="${state.audience}" data-activity-total="${events.length}" data-holdings-total="${observations.length}">
+        ${mine && !managers.meta() ? managerUnavailable() : ''}
+        ${unverifiedRelations.length ? `<p class="mb-3 text-xs text-slate-500" data-changes-identity-warning>${unverifiedRelations.length} entity relationships await renewed verification. Their reports remain in Insider Trades and are excluded from these attributed totals.</p>` : ''}
+        ${!mine && ready && !directoryPending && !events.length ? `<div class="mb-3 rounded-2xl bg-white p-4 ring-1 ring-slate-100" data-changes-empty-context>
+          <p class="text-sm text-slate-700">No matched reported trades in the available records for ${esc(scopeLabel(ctx.scope))} companies in ${esc(PERIODS.find(p => p.id === state.period).label)}. This does not establish that investors made no trades.</p>
+          <div class="mt-2 flex flex-wrap gap-4">
+            ${ctx.scope !== 'universe' && universeEvents.length ? `<a data-changes-universe href="${esc(buildHash({ workspace: 'research', tab: 'super-investors', subview: 'superstar-investors', scope: 'universe' }))}" class="font-semibold text-indigo-600">View ${universeEvents.length} ${universeEvents.length === 1 ? 'trade' : 'trades'} in Universe for this period →</a>` : ''}
+            ${state.period !== 'itd' && history.length ? `<button data-changes-history class="font-semibold text-indigo-600">View ${history.length} retained ${history.length === 1 ? 'trade' : 'trades'} in ${esc(scopeLabel(ctx.scope))} (ITD) →</button>` : ''}
+          </div>
+        </div>` : ''}
         <div data-changes-activity>${table.html}</div>
-        <p class="my-3 text-xs text-slate-500" data-changes-coverage>${ready ? (earliest ? `Matching trade records: ${esc(date(earliest))} – ${esc(date(latest))}. ` : 'No matching trade records loaded. ') : 'Loading source records. '}${mine ? 'PMS activity covers the family’s accounts; public deals are at the named manager/fund level. ' : ''}ITD covers retained records, not necessarily inception. Deals do not establish total allocation.</p>
-        <details class="mb-4 rounded-2xl bg-white p-4 ring-1 ring-slate-100" data-changes-holdings ${state.holdingsOpen ? 'open' : ''}>
-          <summary class="cursor-pointer text-sm font-semibold text-slate-700">Holdings changes · ${observations.length} comparisons in this period</summary>
-          <p class="my-3 text-xs text-slate-500">Every row prints the two dates it was measured on${mine ? ' — the two statement dates — and the dated trades the transaction statement carries between them.' : ' — the quarter-end dates of the two shareholding patterns. A pattern states a holding on a date and carries no trade date.'} Filtered by the later of the two dates, not a trade date. ${mine ? 'The two latest PMS statements compare quantities; weights are derived from statement values.' : 'Quarterly disclosures compare the stake in a company. A missing disclosure does not prove a sale.'} Source read is when this dashboard last read the source. These comparisons are separate from the trades above.</p>
-          <div data-changes-observations>${holdingTable.html}</div>
+        <details class="mt-3 mb-4 rounded-2xl bg-white p-4 ring-1 ring-slate-100" data-changes-holdings ${state.holdingsOpen ? 'open' : ''}>
+          <summary class="cursor-pointer text-sm font-semibold text-slate-700">Holdings changes · ${mine ? 'paired reports unavailable' : `${observations.length} dated comparisons`}</summary>
+          <p class="my-3 text-xs text-slate-500">${mine ? 'Paired manager statements are not supplied by the Sattva workbook. Current holdings are available in My Managers; quantity/value differences are not inferred as trades.' : 'Both quarter-end dates are shown. The period filter uses the later date; these are holdings observations, not trade dates. A missing or unavailable disclosure does not prove a purchase or sale. Unknown comparisons remain in the holding book and coverage review.'}</p>
+          <div data-changes-observations>${mine ? '' : holdingTable.html}</div>
         </details>
         <details class="text-xs text-slate-500" data-changes-sources ${state.sourcesOpen ? 'open' : ''}>
           <summary class="cursor-pointer font-semibold">Sources &amp; coverage</summary>
           <div class="mt-2 space-y-2 leading-relaxed">
-            <p>${mine ? `PMS holdings and transactions come from the manager statements in GlowVentures. Only two holdings statements per account are retained here; the transaction archive can cover a longer period. AIF/fund-house activity appears only where a public deal matches the reported legal name. Manager data as of ${esc(date(managers.meta()?.asOf))}.` : `Holdings come from Ticker Finology’s retained quarterly disclosures. Public trading between reports is visible only where a captured bulk/block deal matches a tracked investor’s name. ${investors.meta().failedBooks || 0} investor books could not be read.`}</p>
-            <p>Bulk/block deals come from the full NSE exports and BSE historical reports, shared with the Bulk/Block Deal tab. The capture checks every 30 minutes on weekdays during the day and evening; this view checks for updates every minute while visible. These are published disclosures, not streaming trades. Official records replace overlapping Screener coverage. Exact full-name matches allow punctuation and equivalent legal suffixes; ambiguous and unmatched names are excluded. ${bulk ? `Supplementary Screener capture: ${esc(date(bulk.capturedAt))}; ${bulk.rows} retained records before overlap removal. ${esc(bulk.error || '')}` : 'Bulk/block coverage metadata is unavailable.'} ${insider.meta().failed ? `${insider.meta().failed} company lookups could not be read.` : ''}</p>
-            ${exchanges ? `<ul>${exchanges.sources.map((s) => `<li>${esc(s.id.toUpperCase())}: ${s.coverage.map((w) => `${esc(date(w.from))} – ${esc(date(w.to))}`).join(', ') || 'No successful capture'} · ${s.ok ? 'read successfully' : esc(s.error || 'unavailable')}; latest reported deal ${esc(date(s.latestDate))}.</li>`).join('')}</ul>` : ''}
-            <p>Duplicate reports are removed within the same exchange and report type. BSE and NSE trades, and buy and sell sides, remain separate. Exchange trade values are estimates from reported quantity × weighted average price. Public deals do not show the manager’s complete portfolio allocation.</p>
-            <a href="#/research/insider-trades" class="font-semibold text-indigo-600">Open Bulk/Block Deal →</a>
+            ${activitySummary}
+            ${periodNote}
+            ${!mine ? `<p class="mb-3 text-xs text-slate-500" data-changes-context>${directoryPending ? 'Loading tracked investors' : `${list.length} tracked investors`} · Company scope: ${esc(scopeLabel(ctx.scope))}. All Investors includes the tracked directory; the company scope still applies.</p>` : ''}
+            ${exchangeStatus}${coverageNote}
+            <p>${mine ? esc(managers.meta()?.coverage.note || 'Manager coverage has not been verified.') : `Holdings come from Ticker Finology’s retained quarterly disclosures. ${investors.meta().failedBooks || 0} investor books could not be read.`} Public deals are matched by exact full name, allowing punctuation and equivalent legal suffixes. Associated entities require a current, evidenced relationship; ambiguous names remain unmatched.</p>
+            <p>Bulk/block deals share the captured NSE/BSE and supplementary Screener records with Insider Trades. This view rechecks saved captures every minute while visible. A successful delivery does not establish complete exchange coverage. ${esc(meta.bulkDeals?.error || '')}</p>
+            ${exchanges ? `<ul>${(exchanges.sources || []).map((s) => `<li>${esc(s.id.toUpperCase())}: ${(s.coverage || []).map((w) => `${esc(date(w.from))} – ${esc(date(w.to))}`).join(', ') || 'No successful capture'} · ${s.ok ? 'read successfully' : esc(s.error || 'unavailable')}; latest reported deal ${esc(date(s.latestDate))}.</li>`).join('')}</ul>` : ''}
+            <p>Identical reports are grouped only within the same exchange and report type. NSE and BSE, and buy and sell sides, stay separate. An estimated exchange trade value is quantity × reported weighted average price.</p>
+            <a href="#/research/insider-trades" class="font-semibold text-indigo-600">Open Insider Trades →</a>
           </div>
         </details>
       </div>`;
-    tableDisposers.push(tabs.wire(host.querySelector('[data-changes-audience]')),
-      table.wire(host.querySelector('[data-changes-activity]')), holdingTable.wire(host.querySelector('[data-changes-observations]')));
-    host.querySelector('[data-changes-period]').addEventListener('change', (e) => {
-      state.period = e.target.value; onView(state); paint('period');
-    });
-    host.querySelector('[data-changes-holdings]').addEventListener('toggle', (e) => { state.holdingsOpen = e.target.open; onView(state); });
-    host.querySelector('[data-changes-sources]').addEventListener('toggle', (e) => {
-      if (!disposed && e.currentTarget.isConnected) { rememberSources(); onView(state); }
-    });
-    if (focus) host.querySelector(focus === 'period' ? '[data-changes-period]' : '[data-changes-audience] [aria-selected="true"]')?.focus();
+    if (!embedded) tableDisposers.push(tabs.wire(host.querySelector('[data-changes-audience]')));
+    tableDisposers.push(table.wire(host.querySelector('[data-changes-activity]')));
+    if (!mine) tableDisposers.push(holdingTable.wire(host.querySelector('[data-changes-observations]')));
+    wireManagerUnlock(host);
+    host.querySelector('[data-changes-period]')?.addEventListener('change', (e) => { state.period = e.target.value; onView(state); paint('period'); });
+    host.querySelector('[data-changes-history]')?.addEventListener('click', () => { state.period = 'itd'; state.activityView = null; onView(state); paint('period'); });
+    host.querySelectorAll('[data-changes-holdings], [data-changes-sources]').forEach((el) => el.addEventListener('toggle', () => { if (!disposed && el.isConnected) { remember(); onView(state); } }));
+    for (const saved of reading) {
+      const panel = host.querySelector(`[data-changes-${saved.key}]`), scroll = panel?.querySelector('[data-table-scroll]');
+      if (scroll) { scroll.scrollTop = saved.top; scroll.scrollLeft = saved.left; }
+      if (saved.focused) { const search = panel?.querySelector('[data-table-search]'); search?.focus({ preventScroll: true }); search?.setSelectionRange(saved.start, saved.end, saved.direction); }
+    }
+    if (focus) host.querySelector(focus === 'audience' ? '[data-changes-audience] [aria-selected="true"]' : '[data-changes-period]')?.focus();
   }
   return { html: '<div data-investor-changes></div>', wire(root, disposers) {
     host = root.querySelector('[data-investor-changes]');
     const unsubscribe = insider.onChange(() => paint());
-    disposers.push(() => { rememberSources(); disposed = true; unsubscribe(); tableDisposers.forEach((d) => d?.()); });
-    paint();
-    Promise.all([managers.load(), loadEvidence(), insider.isLoaded() ? insider.refreshSnapshot() : insider.seed()]).then(() => { ready = true; paint(); });
+    const offManagers = managers.onChange(() => { if (state.audience === 'my-managers') paint(); const modal = document.querySelector('[data-private-change]'); if (modal && (!managers.meta() || modal.dataset.privateChange !== managers.meta().sourceRevision)) closeModal(); });
+    if (state.audience === 'my-managers') stopManagers = managers.watchFreshness();
+    let pending = false;
+    async function refresh() {
+      if (pending || disposed || document.hidden) return;
+      pending = true;
+      try { await Promise.all([loadEvidence(), insider.isLoaded() ? insider.refreshSnapshot() : insider.seed()]); }
+      finally { pending = false; ready = true; paint(); }
+    }
+    const onVisible = () => { if (!document.hidden) refresh().catch(() => {}); };
+    const timer = setInterval(onVisible, 60000);
+    document.addEventListener('visibilitychange', onVisible); window.addEventListener('focus', onVisible);
+    disposers.push(() => { remember(); disposed = true; unsubscribe(); offManagers(); stopManagers?.(); if (document.querySelector('[data-private-change]')) closeModal(); clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', onVisible); tableDisposers.forEach((d) => d?.()); });
+    paint(); refresh().catch(() => {});
   } };
 }
 
-function openEvidence(row, mine, openPerson) {
+function openEvidence(row, openPerson, mine = false) {
   const raw = row.raw;
-  const fields = raw.cells || { Date: raw.date, Quantity: raw.quantity, 'Statement amount (₹)': raw.amount,
-    'Statement document': raw.source, Account: raw.accountId, Owner: raw.owner };
-  const source = raw.cells ? insiderTradeSourceUrl(raw) : null;
-  openModal(`<div class="scrollbar-thin max-h-[80vh] overflow-y-auto px-7 py-6">
+  const fields = raw.cells || { 'Ledger date': raw.date, 'Source purchase date (when restamped)': raw.dateSheet, Quantity: raw.quantity, 'Amount (INR)': raw.amount, 'Unit price (INR)': raw.unitPrice, 'Family transfer': raw.transfer ? 'Yes' : 'No' };
+  openModal(`<div ${row.dateKind === 'ledger' ? `data-private-change="${esc(managers.meta()?.sourceRevision || '')}"` : ''} class="scrollbar-thin max-h-[80vh] overflow-y-auto px-7 py-6">
     <div class="mb-4 flex justify-between gap-3"><div><h2 class="font-display text-xl font-bold text-slate-900">${esc(row.company)}</h2><p class="text-sm text-slate-500">${esc(row.person)} · ${esc(row.source)}</p></div><button data-modal-close aria-label="Close" class="text-2xl text-slate-400">×</button></div>
-    <p class="mb-4 text-xs text-slate-500">${mine && raw.cells ? 'This is the named entity’s public deal. It is not proof of a trade in the family’s PMS account.' : 'The source’s reported fields are shown below.'}${row.evidence?.length > 1 ? ` ${row.evidence.length} reports with identical trade details are shown as one activity row.` : ''}</p>
+    <p class="mb-4 text-xs text-slate-500">${raw.dateSheet ? 'The purchase date was carried at a year boundary. The displayed date is the earliest retained ledger sighting, not a verified execution date.' : mine && raw.cells ? 'This public deal belongs to the named institution; it does not establish a trade in your account.' : 'The source’s reported fields are shown below.'}${row.evidence.length > 1 ? ` ${row.evidence.length} identical reports are grouped in this row.` : ''}</p>
+    ${row.relationshipUrl ? `<p class="mb-4 text-xs text-slate-500" data-change-attribution>${esc(row.attribution)} · ${esc(row.relationship)}. Reported entity: ${esc(row.reportedName)}. <a href="${esc(row.relationshipUrl)}" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-600">Identity evidence ↗</a> · reviewed ${esc(date(row.identityCheckedAt))}. An associated entity’s deal does not establish a personal trade by the tracked investor.</p>` : ''}
     <dl class="space-y-2 text-sm">${Object.entries(fields).map(([key, value]) => `<div><dt class="font-semibold text-slate-500">${esc(key)}</dt><dd class="text-slate-800">${esc(value == null || value === '' ? '—' : String(value))}</dd></div>`).join('')}</dl>
-    <div class="mt-4 flex flex-wrap gap-4">${source ? (row.evidence || [raw]).map((e) => `<a href="${esc(insiderTradeSourceUrl(e))}" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-600">${esc(e.cells?.['Trade Category'] || 'Open source')} ↗</a>`).join('') : ''}<button data-change-person class="font-semibold text-indigo-600">Open ${mine ? 'manager' : 'investor'}</button></div>
+    <div class="mt-4 flex flex-wrap gap-4">${row.evidence.map((e) => `<a href="${esc(insiderTradeSourceUrl(e))}" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-600">${esc(e.cells?.['Trade Category'] || 'Open source')} ↗</a>`).join('')}<button data-change-person class="font-semibold text-indigo-600">Open ${mine ? 'manager' : 'investor'}</button></div>
   </div>`, { size: 'wide' });
   document.querySelector('#modal-content [data-change-person]')?.addEventListener('click', () => { closeModal(); openPerson(row); });
 }
 
-function exportChanges(rows, state, range, holdings) {
-  const keys = holdings ? ['from', 'date', 'dateKind', 'period', 'person', 'company', 'action', 'before', 'now', 'deltaPp', 'unit', 'source', 'sourceCheckedAt']
-    : ['date', 'person', 'company', 'ticker', 'action', 'quantity', 'amount', 'value', 'source', 'reportedName'];
-  const headers = { amount: 'Statement amount (INR)', from: 'Measured from (date)', date: holdings ? 'Measured to (date)' : 'Trade date', dateKind: 'Date kind (pattern = quarter end, statement = statement date)', sourceCheckedAt: 'Source read' };
-  const tradeColumns = holdings ? [
-    { header: 'First trade in window', key: 'tradeFirst', width: 20, get: (r) => tradeWindow(r)?.first ?? null },
-    { header: 'Last trade in window', key: 'tradeLast', width: 20, get: (r) => tradeWindow(r)?.last ?? null },
-    { header: 'Buys / sells in window', key: 'tradeSides', width: 20, get: (r) => { const w = tradeWindow(r); return w ? `${w.buys} / ${w.sells}` : null; } },
-  ] : [];
-  return exportRows({ filename: `${state.audience}-${holdings ? 'holdings' : 'activity'}-${state.period}`, sheetName: holdings ? 'Holdings comparisons' : 'Trades',
-    columns: [...keys.map((key) => ({ header: headers[key] || key, key, width: 24, get: (r) => r[key] ?? null })), ...tradeColumns,
-      { header: 'Evidence', key: 'evidence', width: 60, get: (r) => r.raw?.cells ? insiderTradeSourceUrl(r.raw) : r.raw?.source || r.period || '' },
-      { header: 'Period and scope', key: 'periodNote', width: 70, get: () => `${state.audience}; ${range.from || 'All retained history'} to ${range.to}. ${holdings ? 'Each row is measured on the two dates printed (quarter ends of two shareholding patterns, or two statement dates); weights/stakes are derived observations, not trade sizes, and only a statement trade carries a trade date.' : 'Reported trades only; public deals are not family account trades. Duplicate identical reports grouped.'} ITD may not reach inception.` }], rows });
+function exportChanges(rows, state, range, holdings, scope) {
+  const privateExport = state.audience === 'my-managers', revision = managers.meta()?.sourceRevision;
+  const keys = holdings ? ['from', 'date', 'period', 'person', 'company', 'action', 'before', 'now', 'deltaPp', 'unit', 'source', 'sourceCheckedAt']
+    : ['date', 'dateKind', 'person', 'company', 'ticker', 'action', 'quantity', 'amount', 'value', 'source', 'reportedName', 'attribution', 'relationship', 'relationshipUrl', 'identityCheckedAt'];
+  const headers = { from: 'Prior quarter end', date: holdings ? 'Latest quarter end' : privateExport ? 'Ledger / reported trade date' : 'Trade date', deltaPp: 'Change (percentage points)', sourceCheckedAt: 'Source checked', relationshipUrl: 'Identity evidence URL', identityCheckedAt: 'Identity reviewed at' };
+  return exportRows({ filename: `glow-${state.audience}-${holdings ? 'holdings' : 'activity'}-${state.period}`, sheetName: holdings ? 'Holdings comparisons' : privateExport ? 'Ledger and deals' : 'Trades',
+    canExport: () => !privateExport || !!revision && managers.meta()?.sourceRevision === revision,
+    columns: [...keys.map((key) => ({ header: headers[key] || key, key, width: 24, get: (r) => r[key] ?? null })),
+      { header: 'Carried purchase date', key: 'dateSheet', width: 24, get: r => r.raw?.dateSheet || null },
+      { header: 'Family transfer', key: 'transfer', width: 24, get: r => r.dateKind === 'ledger' ? r.raw.transfer : null },
+      { header: 'Evidence', key: 'evidence', width: 60, get: (r) => r.dateKind === 'ledger' ? 'Authenticated GlowVentures ledger' : r.raw?.cells ? insiderTradeSourceUrl(r.raw) : `https://ticker.finology.in/investor/${encodeURIComponent(r.personId)}` },
+      { header: 'Period and scope', key: 'periodNote', width: 70, get: () => `${scope}; ${range.from || 'All retained history'} to ${range.to}. ${holdings ? 'Measured on the two quarter ends; changes in disclosed stakes do not establish trades.' : privateExport ? 'Family ledger events include unverified carried purchase dates and labelled transfers; public deals concern the institution, not your account.' : 'Reported public deals; identical reports grouped within exchange/category.'} ITD may not reach inception.` }], rows });
 }

@@ -20,11 +20,14 @@ export { NOTE_REASON } from './alert-notes-shared.js';
 const ROUTE = 'api/alert-notes';
 const REQUEST_TIMEOUT_MS = 45_000;
 // How long a reason holds before the same question may be asked again this session.
-const RETRY_MS = { 'rate-limited': 60_000, budget: 30 * 60_000, 'no-key': 10 * 60_000, refused: 10 * 60_000,
+const RETRY_MS = { quota: 600_000, unavailable: 120_000, 'rate-limited': 60_000, budget: 30 * 60_000, 'no-key': 10 * 60_000, refused: 10 * 60_000,
   upstream: 2 * 60_000, timeout: 2 * 60_000, error: 2 * 60_000, unreadable: 5 * 60_000, empty: 5 * 60_000 };
 // Reasons that are about the deployment rather than the item: every other question would get the
 // same answer, so none is sent until the hold lapses.
-const DEPLOYMENT_REASONS = new Set(['no-worker', 'no-key', 'refused', 'budget', 'rate-limited']);
+const DEPLOYMENT_REASONS = new Set(['no-service', 'unavailable', 'quota', 'no-worker', 'no-key', 'refused', 'budget', 'rate-limited']);
+
+const PERMANENT_REASONS = new Set(['no-worker', 'no-service']);
+const SERVER_REASON = { 'notes-unavailable': 'unavailable', 'notes-unconfigured': 'no-service' };
 
 const states = new Map(); // content key -> { state, note?, model?, reason?, retryAt? }
 const handles = new Map(); // content key -> short DOM handle
@@ -39,7 +42,7 @@ let flushTimer = 0;
  * con-call's third-party analysis and a social post have no stated development to assess. */
 export function noteKindOf(dev) {
   const lead = dev?.lead;
-  if (!lead || !(lead.ticker || lead.entityId)) return null;
+  if (!lead || lead.private || lead.portfolioOnly || !(lead.ticker || lead.entityId)) return null;
   const story = storyKindOf(lead);
   if (story === 'filing') return 'filing';
   // Publisher headlines, trades and holding changes already state their event without a summary.
@@ -150,7 +153,7 @@ async function flush() {
 async function ask(batch) {
   const keys = batch.map(([key]) => key);
   const fail = (reason) => {
-    const retryAt = reason === 'no-worker' ? Infinity : Date.now() + (RETRY_MS[reason] ?? RETRY_MS.error);
+    const retryAt = PERMANENT_REASONS.has(reason) ? Infinity : Date.now() + (RETRY_MS[reason] ?? RETRY_MS.error);
     if (DEPLOYMENT_REASONS.has(reason)) hold = { reason, until: retryAt };
     settle(keys, { state: 'missing', reason, retryAt });
   };
@@ -173,7 +176,7 @@ async function ask(batch) {
   try { body = await response.json(); } catch { body = null; }
   if (!body || typeof body !== 'object') { fail(response.ok ? 'no-worker' : 'error'); return; }
   if (response.status === 429 || body.reason === 'rate-limited') { fail('rate-limited'); return; }
-  if (!response.ok || body.ok !== true) { fail(body.reason === 'notes-unavailable' ? 'no-worker' : 'error'); return; }
+  if (!response.ok || body.ok !== true) { fail(SERVER_REASON[body.reason] || 'error'); return; }
   const changed = [];
   batch.forEach(([key, item], index) => {
     const id = String(index);

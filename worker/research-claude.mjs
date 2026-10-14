@@ -44,7 +44,7 @@ export function buildClaudeRequest(input, instructions, env = {}) {
       ACTIVE_SCOPE: input.scope,
       QUESTION: input.question,
       DASHBOARD_EVIDENCE: providerEvidence(input.evidence),
-      OUTPUT_CONTRACT: 'Answer QUESTION directly, within 250 words (220 for portfolio implications). A narrow fact needs only its answer, citation and material caveat; omit unrelated holdings, filings and metrics. Cite each factual paragraph with exact source.tab names, including portfolio weights as [Dashboard: Family Book]. Preserve each source date and conflicting amount separately; never smooth them into a range. Do not infer company activities from memory or from an unclassified sector. Non-disclosure does not prove a sale or that a holding fell below a threshold. Return only the final answer, without XML framing or internal narration.',
+      OUTPUT_CONTRACT: 'Answer QUESTION directly, within 250 words (220 for portfolio implications). A narrow fact needs only its answer, citation and material caveat; omit unrelated holdings, filings and metrics. Cite each factual paragraph with exact source.tab names, including portfolio weights as [Dashboard: Ask Glow]. Preserve each source date and conflicting amount separately; never smooth them into a range. Do not infer company activities from memory or from an unclassified sector. Non-disclosure does not prove a sale or that a holding fell below a threshold. Return only the final answer, without XML framing or internal narration.',
     }) }],
   };
 }
@@ -86,7 +86,7 @@ export async function streamClaudeChat(request, env, input, instructions, cancel
   }
 }
 
-export async function consumeClaudeStream(stream, emit) {
+export async function consumeClaudeStream(stream, emit, { maxTextChars = 8000 } = {}) {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = '', data = [], eventSize = 0, textChars = 0, bytes = 0;
@@ -97,7 +97,7 @@ export async function consumeClaudeStream(stream, emit) {
   const write = text => {
     if (typeof text !== 'string') { malformed(); return; }
     textChars += text.length;
-    if (textChars > 8000) { providerStreamFailure = 'The answer reached its display limit. The partial answer and source readings are saved.'; return; }
+    if (textChars > maxTextChars) { providerStreamFailure = 'The answer reached its display limit. The partial answer and source readings are saved.'; return; }
     wroteText ||= !!text.trim();
     if (text) emit(text);
   };

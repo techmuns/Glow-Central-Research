@@ -1,5 +1,49 @@
 # Glow deployment and Sattva template sync
 
+## Current parity contract — 14 October 2026
+
+The shared application is aligned to `techmuns/Sattva-Central-Research` revision
+`3342259219924f97987e9c3a6b24ab4cc7c3c5de` (14 October 2026). This supersedes older
+notes below about retaining different shared interfaces or additional Glow navigation.
+Glow uses Sattva's Alerts, Announcements, Earnings, Screens, Mutual Funds, News and
+Super Investors navigation, including their subviews, saved screens, shared ordering,
+column layouts, readers, collection/recovery code and source-status behavior.
+**Portfolio and Watchlist are the only additional top-level tabs.** Their implementations,
+sheet storage, editable values, default holdings and calculations are preserved.
+
+The header's Portfolio / Watchlist / Universe selector remains visible on both sheets.
+It selects the research-feed scope; each sheet retains its own membership. Bookmarks
+keeps the template's scope-independent behavior. A warm-session browser regression
+reproduces the former hidden selector, installs the next worker and verifies its return,
+both sheet memberships, all three research scopes and light/dark responsive layout.
+
+Glow ownership remains separate from template parity:
+
+- All pre-existing captures, archives, portfolio assets and watchlist/sheet durable object
+  identities remain Glow's. The only capture metadata reconciliation is issuer priority;
+  source observations, check times and archive ranges are retained. BUILDPRO's reviewed
+  subdivision alias remains an issuer relationship, without rewriting statement holdings.
+- The same-origin Glow statement reader backs names, complete equity percentages and the
+  shared My Managers interface. It validates the matching Glow book/manager revision and
+  retains statement dates, unknown costs and explicit projection gaps. It never reads a
+  Sattva family workbook or treats a statement recheck as current broker ownership.
+- Existing price-level history stays on `price-levels:v1`. The newer lossless paging,
+  tombstones and complete-check rules are adopted while Glow Ventures' existing ingress
+  and origin allow-list remain in place. Watchlist and research-sheet object names also
+  stay unchanged; no migration clears or replaces desk state.
+- New public mutual-fund ownership snapshots and market-cap reference data are shared
+  market evidence, not Sattva portfolio/watchlist membership. Glow's own holdings select
+  its rows; missing source coverage remains visible. Existing Glow captures are not
+  overwritten by these additions, and source dates are not advanced by importing them.
+- Branding, Worker/repository identifiers, cache namespaces and rate-limit namespaces
+  remain Glow's. No credentials are copied or collector manually activated by this sync.
+
+The previous Family Book, Macro Research and Economy modules/assets remain in history
+and retained storage; they are not extra navigation entries in the aligned product.
+Future syncs must preserve the two sheets and these data adapters while adopting shared
+changes. Conflicting adaptations require a reviewed PR, never an unresolved merge or a
+replacement of Glow's book with an upstream capture.
+
 Audited on 9 September 2026; template baseline advanced on 16 September 2026 to
 `techmuns/Sattva-Central-Research` commit `cf7eb444` and on 18 September 2026 to `955324e5` (the last
 code commit being `7c0947be`, PR #230) — see *Sync of 16 September 2026* and *Sync of 18 September

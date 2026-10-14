@@ -1,7 +1,6 @@
 // Full Research shell with a synthetic authenticated Family peer. All network
 // traffic is intercepted locally; no customer book or production action.
 import assert from 'node:assert/strict';
-import { researchFixtureAsset } from './lib/research-ui-fixture.mjs';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
@@ -10,11 +9,12 @@ const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = fileURLToPath(new URL('../public', import.meta.url));
 const server = createServer((req, res) => {
   const path = new URL(req.url, 'http://localhost').pathname;
+  if(path==='/js/data/holding-sizes.js'){res.setHeader('content-type','text/javascript');res.end("import * as b from '../research/portfolio-bridge.js';export const cachedHoldingSizes=b.cachedPositionSizes;export const readHoldingSizes=(...args)=>b.portfolioConnectionState()==='locked'?Promise.resolve(null):b.readPositionSizes(...args);");return;}
   const file = resolve(root, `.${path === '/' ? '/index.html' : path}`);
   if (!file.startsWith(root + sep)) { res.writeHead(404); res.end(); return; }
   try {
     res.setHeader('content-type', { '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png' }[extname(file)] || 'application/octet-stream');
-    res.end(researchFixtureAsset(path, readFileSync(file)));
+    res.end(readFileSync(file));
   } catch { res.writeHead(404); res.end(); }
 });
 await new Promise(done => server.listen(0, '127.0.0.1', done));
@@ -57,7 +57,8 @@ const concallRows = [
   concallRow({ ticker: 'OUTSIDE', name: 'Outside universe concall', type: 'Recording' }),
   concallRow({ ticker: null, name: 'Unresolved BSE concall' }),
 ];
-const todayIst = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+const fixtureNow = Date.now();
+const todayIst = new Date(fixtureNow + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 const calendarRows = [
   { eventId: `result:${todayIst}:KISSHT`, eventType: 'Result', eventSource: 'Moneycontrol', scId: 'KISSHT', ticker: 'KISSHT', name: 'OnEMI scheduled result', resultDate: todayIst, quarter: 'Q2', time: null, exchange: 'N', noticeUrl: null },
   { eventId: 'concall:newco', eventType: 'Con-call', eventSource: 'Screener', scId: 'screener:newco', ticker: 'NEWCO', name: 'New holding scheduled call', resultDate: todayIst, quarter: null, time: '16:00:00', exchange: 'B', noticeUrl: 'https://www.bseindia.com/newco.pdf' },
@@ -85,7 +86,8 @@ addEventListener('message', event => {
 send({ id:'connector',type:'available' });
 </script>`;
 const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
-const context = await browser.newContext({ viewport: { width: 1365, height: 900 } });
+// This fixture owns every source response; service-worker fetches bypass its routed mocks.
+const context = await browser.newContext({ viewport: { width: 1365, height: 900 }, serviceWorkers: 'block' });
 const errors = [], questions = [];
 let searches = 0, calendarRequests = 0, calendarVersion = 0;
 await context.addInitScript(() => localStorage.setItem('sattva:scope-lists:v1', JSON.stringify({ portfolio: { added: [{ ticker:'MANUAL',name:'Manual research selection' }], removed:[{ ticker:'KISSHT',name:'OnEMI' }] } })));
@@ -93,7 +95,7 @@ await context.route('**/*', route => {
   const url = new URL(route.request().url());
   const json = body => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
   if (url.origin === hostOrigin) return route.continue();
-  if (url.origin === familyOrigin && url.pathname === '/glow-bridge.html') return route.fulfill({ contentType:'text/html', body:familyHtml });
+  if (url.origin === familyOrigin && url.pathname === '/research-bridge') return route.fulfill({ contentType:'text/html', body:familyHtml });
   if (url.origin !== origin) return route.fulfill({ status:503, body:'External network disabled' });
   if (url.pathname === '/data/portfolio-companies.json') return json({ asOf:'2026-06-30', count:1, resolved:1, holdings:[other] });
   if (url.pathname === '/data/news.json') return json({
@@ -159,6 +161,8 @@ await context.route('**/*', route => {
 let page;
 try {
   page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
+  // This single-day book/layout fixture may span IST midnight; rollover has dedicated suites.
+  await page.clock.setFixedTime(new Date(fixtureNow));
   await page.goto(`${origin}/#/research/news?scope=portfolio`);
   await page.waitForFunction(async () => (await import('/js/data/coverage.js')).meta().syncStatus === 'family-session');
   const peer = await (await page.locator('iframe[title="Private portfolio connection"]').elementHandle()).contentFrame(); assert.ok(peer);
@@ -197,13 +201,26 @@ try {
   await page.getByRole('button', { name:'Done',exact:true }).click();
   await page.getByText('NEWCO announces dividend', { exact:true }).waitFor();
   assert.equal(await page.getByText('EDELWEISS announces dividend', { exact:true }).count(), 0);
-  // Customer tabs and the retained local-only research fixture share the same identity set.
+  // Every tab shares the same identity set, including direct links and empty feeds.
   for (const tab of ['daily-alerts','earnings-hub','concall','public-chatter','breakouts','super-investors','ipos','corp-announcements','nse-filings','insider-trades','ai-alerts','ask-research']) {
     await page.evaluate(tab => { location.hash = `#/research/${tab}?scope=portfolio${tab === 'ask-research' ? '&test_stream=1' : ''}`; }, tab);
     await page.waitForFunction(async tab => (await import('/js/core/state.js')).state.tab === tab, tab);
     await page.getByRole('button', { name:'View Portfolio',exact:true }).click();
     assert.equal(await page.locator('[data-scope-count]').innerText(), '3', tab);
     await page.getByRole('button', { name:'Done',exact:true }).click();
+    if (tab === 'daily-alerts') {
+      assert.equal(await page.locator('[data-watch-toggle]').count(), 0);
+      await page.locator('[data-watch="KISSHT"]').first().click();
+      await page.getByRole('textbox', { name:'Your name',exact:true }).fill('Local fixture');
+      await page.getByRole('button', { name:'Add to watchlist',exact:true }).click();
+      await page.locator('#scope-toggle-mount').getByRole('button', { name:'Watchlist',exact:true }).click();
+      await page.waitForFunction(async () => (await import('/js/core/state.js')).state.scope === 'watchlist');
+      await page.getByText('KISSHT announces dividend', { exact:true }).waitFor();
+      assert.equal(await page.getByText('NEWCO announces dividend', { exact:true }).count(), 0, 'global Watchlist scope limits All Alerts to starred companies');
+      assert.equal(await page.locator('[data-watch="KISSHT"]').first().innerText(), '★', 'company stars keep editing the shared Watchlist');
+      await page.locator('#scope-toggle-mount').getByRole('button', { name:'Portfolio',exact:true }).click();
+      await page.getByText('NEWCO announces dividend', { exact:true }).waitFor();
+    }
     if (tab === 'concall') {
       await page.getByRole('heading', { name:'Concall Library', exact:true }).waitFor();
       const portfolioCalls = await page.locator('#content-host').innerText();
@@ -235,7 +252,10 @@ try {
       await page.evaluate(async () => { (await import('/js/core/watchlist.js')).add('KISSHT', 'OnEMI scheduled result'); });
       await page.evaluate(date => { location.hash = `#/research/earnings-hub?scope=watchlist&view=calendar&date=${date}`; }, todayIst);
       await page.waitForFunction(async () => (await import('/js/core/state.js')).state.scope === 'watchlist');
-      await page.getByText('Watchlist ·', { exact:false }).waitFor();
+      await page.locator('#scope-toggle-mount [data-value="watchlist"][aria-pressed="true"]').waitFor();
+      await page.waitForFunction(() => !document.querySelector('#content-host')?.inert &&
+        document.querySelector('#content-host [data-view="calendar"]')?.getAttribute('aria-pressed') === 'true' &&
+        document.querySelectorAll('#content-host tr[data-row-key]').length === 2);
       await page.getByText('OnEMI scheduled result', { exact:true }).waitFor();
       const watchlistCalendar = await page.locator('#content-host').innerText();
       assert.doesNotMatch(watchlistCalendar, /New holding scheduled call|Outside scheduled call|Unresolved scheduled call/);
@@ -310,7 +330,11 @@ try {
     await settleLayout();
     const measure = () => frame.evaluate(() => {
       const table = document.querySelector('[data-table-scroll]').getBoundingClientRect();
+      const nav = document.querySelector('[data-app-nav]').getBoundingClientRect();
+      const subtabs = document.querySelector('#subview-mount').getBoundingClientRect();
       return { top: table.top, height: table.height, bottom: table.bottom, viewport: innerHeight,
+        navigationGap: subtabs.top - nav.bottom,
+        readerGap: document.querySelector('#dashboard-main').getBoundingClientRect().top - subtabs.bottom,
         visibleHeight: Math.max(0, Math.min(table.bottom, innerHeight) - Math.max(table.top, 0)),
         pageWidth: document.documentElement.scrollWidth, width: innerWidth,
         controls: document.querySelector('[data-alerts-controls]').getBoundingClientRect().height,
@@ -318,23 +342,41 @@ try {
         headerVisible: getComputedStyle(document.querySelector('[data-app-header]')).display !== 'none' };
     });
     const normal = await measure();
+    assert(await frame.locator('#subview-mount [data-tab-id="ai-alerts"]').isVisible(), 'AI Alerts stays available beside the All Alerts reader');
+    assert(await frame.locator('#subview-mount [data-tab-id="daily-alerts"]').isVisible(), 'All Alerts retains its selected subtab');
     assert.equal(await frame.locator('[data-alert-arrivals]').count(), 0, 'rows stream directly without a separate live banner');
     assert(normal.pageWidth <= normal.width + 2, `no horizontal page clipping at ${size.width}px`);
-    assert(normal.toolbar <= (size.width >= 1024 ? 66 : 165), `search, watchlist and all filters retain a compact row budget: ${JSON.stringify(normal)}`);
-    // Source arrivals can replace the field between waitFor and boundingBox. Read atomically.
-    await frame.waitForFunction(() => (document.querySelector('[data-table-search]')?.getBoundingClientRect().width || 0) >= 160, null, { timeout: 30000 });
-    const clipped = await frame.evaluate(() => [...document.querySelectorAll('[data-alerts-workspace] button, [data-sources-summary], [data-table-search], [data-table-filter]')]
+    assert(normal.toolbar <= (size.width >= 1024 ? 66 : 124), `grouped filters save a toolbar row on phones: ${JSON.stringify(normal)}`);
+    assert((await frame.locator('[data-table-search]').boundingBox()).width >= 160, 'company search remains a usable text field, not a collapsed icon');
+    const clipped = await frame.evaluate(() => [...document.querySelectorAll('[data-app-header] button, [data-header-bookmarks], [data-alerts-workspace] button, [data-sources-summary], [data-table-search], [data-table-filter]')]
       .filter(node => !node.closest('tbody') && node.getBoundingClientRect().width > 0)
       .filter(node => node.getBoundingClientRect().left < 0 || node.getBoundingClientRect().right > innerWidth + 1)
       .map(node => node.textContent.trim() || node.getAttribute('aria-label') || node.placeholder));
     assert.deepEqual(clipped, [], 'layout controls stay reachable, not merely hidden by page overflow clipping');
+    assert.equal(await frame.locator('[data-table-filter]').count(), 3, 'All Alerts retains both independent predicates and the date filter');
+    assert.equal(await frame.locator('[data-table-toolbar] select:visible').count(), 1, 'only Date occupies a separate selector in the closed toolbar');
+    const signalControl = frame.locator('[data-filter-group-toggle]');
+    assert((await signalControl.boundingBox()).width <= 210, 'the grouped control stays compact');
+    await signalControl.click();
+    const signalPanel = frame.locator('[data-filter-group-panel]');
+    const panelGeometry = await signalPanel.evaluate(panel => {
+      const box = panel.getBoundingClientRect();
+      return { left:box.left,right:box.right,bottom:box.bottom,width:innerWidth,height:innerHeight,
+        reachable:panel.contains(document.elementFromPoint(box.left + 20, box.top + 20)) };
+    });
+    assert(panelGeometry.left >= 0 && panelGeometry.right <= panelGeometry.width && panelGeometry.bottom <= panelGeometry.height && panelGeometry.reachable, `the panel stays reachable above the clipped table at ${size.width}px: ${JSON.stringify(panelGeometry)}`);
+    assert.equal(await signalPanel.locator('select:visible').count(), 2);
+    await signalPanel.press('Escape');
+    assert.equal(await frame.locator('[data-watch-toggle]').count(), 0, 'the redundant Watchlist button is removed at every viewport size');
+    assert.equal(await frame.getByRole('combobox', { name: 'Company relationship' }).count(), 0, 'the company relationship filter is removed at every viewport size');
     if (size.width >= 1024) {
       const brand = await frame.locator('[data-brand-mark] img').evaluate(async image => { await image.decode(); return image.getBoundingClientRect().width; });
       assert(brand >= 180, `the full wordmark remains legible in the compact table header (${brand}px at ${size.width}px)`);
       assert(normal.controls <= 52, `desktop view controls fit on one row: ${JSON.stringify(normal)}`);
-      assert.equal(await frame.locator('[data-table-filter]').count(), 4, 'the compact layout retains all four independent filters');
-      assert(await frame.getByRole('combobox', { name: 'Company relationship' }).isVisible(), 'company relationship remains directly available');
-      assert(normal.height >= normal.viewport * 0.55, `table owns at least 55% of the embedded viewport: ${JSON.stringify(normal)}`);
+      // Shared navigation reserves space above the reader. Keep the table usable in the
+      // remaining frame rather than requiring the former compressed header's 55% budget.
+      assert(normal.navigationGap >= 20 && normal.readerGap >= 19, `main tabs, subtabs and content keep dedicated space: ${JSON.stringify(normal)}`);
+      assert(normal.height >= Math.min(240, Math.max(120, normal.viewport - normal.top)) - 2, `the table keeps readable rows in the remaining viewport: ${JSON.stringify(normal)}`);
       assert(normal.bottom <= normal.viewport + 2, `table ends inside the frame: ${JSON.stringify(normal)}`);
     }
     // Native details updates `open` now but queues `toggle` for a later task. Force the
@@ -350,11 +392,16 @@ try {
     });
     assert.deepEqual(pickerState, { afterOpenRepaint: true, afterCloseRepaint: false }, 'repaints preserve native source-menu state before the queued toggle event');
     await settleLayout();
-    const beforePicker = await measure();
-    await frame.locator('[data-sources-summary]').click();
+    // Compare the menu's own effect in one browser turn; a concurrent source-status update
+    // can independently wrap the header between separate automation calls.
+    const pickerLayout = await frame.evaluate(() => {
+      const height = () => document.querySelector('[data-table-scroll]').getBoundingClientRect().height;
+      const before = height();
+      document.querySelector('[data-sources-summary]').click();
+      return { before, expanded: height() };
+    });
     await frame.locator('[data-alerts-coverage]').waitFor({ state: 'visible' });
-    const expanded = await measure();
-    assert.equal(expanded.height, beforePicker.height, 'filters overlay, rather than consume, the reading space');
+    assert.equal(pickerLayout.expanded, pickerLayout.before, 'filters overlay, rather than consume, the reading space');
     // Repeated source arrivals must not stack handlers on the preserved panel. A single
     // source selection and its description must agree after every repaint.
     for (let repaint = 0; repaint < 3; repaint++) {
@@ -373,18 +420,16 @@ try {
     assert(panel.width <= normal.width, 'source picker stays within the host frame');
     await frame.locator('[data-sources-close]').click();
     await frame.locator('[data-table-search]').fill('KISSHT');
-    await frame.locator('[data-alerts-focus]').click();
-    const focused = await measure();
-    assert.equal(focused.headerVisible, false);
-    assert(focused.controls <= (size.width >= 1024 ? 52 : 100), `view controls keep their compact row budget: ${JSON.stringify(focused)}`);
-    assert(focused.visibleHeight > normal.visibleHeight + 60, `focus gains meaningful visible reading room: ${JSON.stringify({ normal, focused })}`);
-    assert(focused.visibleHeight >= focused.viewport * (size.width >= 1024 ? 0.6 : 0.45), `focus leaves a useful reading area even with wrapped mobile controls: ${JSON.stringify(focused)}`);
+    assert.equal(await frame.locator('[data-alerts-focus]').count(), 0, 'Focus table is removed at every viewport size');
+    assert.equal(await frame.locator('[data-alerts-meta]').count(), 0, 'company and date-count badges are removed');
+    assert.equal(await frame.locator('[data-alerts-history-summary]').count(), 0, 'Till Today is removed at every viewport size');
+    assert.equal(await frame.locator('[data-alerts-reading-count]').count(), 0, 'the item/source-report summary is removed at every viewport size');
+    assert.equal((await measure()).headerVisible, true, 'the app header remains visible');
+    assert(await frame.locator('#subview-mount').isVisible(), 'Alerts subtabs remain available without table focus');
     // The shared table case-folds its saved query on a source repaint. Verify the search term,
-    // not whether that asynchronous repaint has happened between fill and the layout click.
-    assert.equal((await frame.locator('[data-table-search]').inputValue()).toLowerCase(), 'kissht', 'layout controls preserve search');
+    // not whether that asynchronous repaint has happened after typing.
+    assert.equal((await frame.locator('[data-table-search]').inputValue()).toLowerCase(), 'kissht', 'the compact layout preserves search');
     await frame.locator('[data-table-search]').fill('');
-    if (size.width === 1440 && process.env.ALERTS_FOCUS_SCREENSHOT) await page.screenshot({ path: process.env.ALERTS_FOCUS_SCREENSHOT });
-    if (size.width === 390 && process.env.ALERTS_FOCUS_SCREENSHOT) await page.screenshot({ path: process.env.ALERTS_FOCUS_SCREENSHOT.replace('.png', '-mobile.png') });
     // Font fallback differs between macOS and Linux. Exercise wider control-label metrics too
     // so a toolbar that only fits with the developer's system font cannot silently ship.
     const widerFont = await frame.addStyleTag({ content: '.alerts-controls, .alerts-workspace [data-table-toolbar] { font-family: Verdana, sans-serif; }' });
@@ -392,21 +437,17 @@ try {
     assert(fallback.controls <= (size.width >= 1024 ? 52 : 100), `fallback-font controls stay compact: ${JSON.stringify(fallback)}`);
     assert(fallback.toolbar <= (size.width >= 1024 ? 66 : 165), `fallback-font filters stay compact: ${JSON.stringify(fallback)}`);
     await widerFont.evaluate(node => node.remove());
-    await frame.locator('[data-alerts-focus]').press('Escape');
-    assert.equal((await measure()).headerVisible, true, 'Escape restores the header and navigation');
+    assert.equal((await measure()).headerVisible, true, 'the header remains visible after source and layout interactions');
     if (size.width === 1440 && process.env.ALERTS_LAYOUT_SCREENSHOT) await page.screenshot({ path: process.env.ALERTS_LAYOUT_SCREENSHOT });
     if (size.width === 1024 && process.env.ALERTS_LAYOUT_SCREENSHOT) await page.screenshot({ path: process.env.ALERTS_LAYOUT_SCREENSHOT.replace('.png', '-tablet.png') });
-    console.log(`Table-first iframe ${size.width}x${size.height}: ${Math.round(normal.height)}px normal, ${Math.round(focused.height)}px focus (${normal.viewport}px inner viewport)`);
+    console.log(`Table-first iframe ${size.width}x${size.height}: ${Math.round(normal.height)}px table (${normal.viewport}px inner viewport)`);
   }
-  await frame.locator('[data-alerts-focus]').click();
   await frame.evaluate(() => { location.hash = '#/research/news?scope=portfolio'; });
   await frame.waitForFunction(() => document.querySelector('#app')?.dataset.readingLayout === 'standard');
-  assert.equal(await frame.evaluate(() => document.documentElement.hasAttribute('data-alerts-focus-mode')), false, 'navigation out of All Alerts resets focus mode');
   assert(await frame.locator('[data-app-nav]').isVisible(), 'other tabs retain their normal navigation');
   assert.deepEqual(errors, []);
   console.log('PASS: any-tab startup, OnEMI name/ticker/ISIN search, read-only ownership, uncovered holdings, legacy Watchlist migration, whole-book parity, additions/exits while open, Con-call and Earnings Calendar scope isolation across Portfolio/Watchlist/Universe, open-calendar refresh, all tabs, Ask exposure, outage status and verified recovery.');
 } catch(error) {
-  if (page && process.env.FAILURE_SCREENSHOT) await page.screenshot({ path: process.env.FAILURE_SCREENSHOT });
   if(page) console.error((await page.locator('body').innerText()).slice(-5000), errors);
   throw error;
 } finally { await browser.close(); await new Promise(done => server.close(done)); await new Promise(done => hostServer.close(done)); }

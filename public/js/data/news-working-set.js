@@ -118,8 +118,8 @@ async function indexSources(sources, extra, window, signal, partIndex) {
     return groups.get(id);
   };
   const indexRow = item => {
-    // Close over every existing identity (URLs, TradingView IDs and same-source dated
-    // headlines) before any of the existing deduplicators run.
+    // The same TradingView story can change URLs. Close over both identities, including
+    // cross-route URL companions, before any of the existing deduplicators run.
     const inWindow = selected(item, window);
     if (!item[2].length) return inWindow ? 1 : 0;
     let group = root(groupFor(item[2][0]));

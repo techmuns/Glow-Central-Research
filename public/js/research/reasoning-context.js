@@ -130,7 +130,7 @@ export function portfolioReasoningContext({ plan, packets, technicalRows = [] })
     const sector = own.find(r => r.sourceId === 'technicals' && r.industry) || own.find(r => r.industry);
     const tags = [...(operating?.row.sourceTags || [])].sort((a, b) => reasoningTerms(b).filter(t => profileTerms.has(t)).length - reasoningTerms(a).filter(t => profileTerms.has(t)).length);
     return [holding.ticker || holding.isin, holding.name, sector?.industry || holding.sector || null,
-      sector?.tab || 'Ask Sattva', operating?.date || null,
+      sector?.tab || 'Ask Glow', operating?.date || null,
       tags[0] || null];
   });
   const references = plan.companies.map(company => ({ ticker: company.ticker, isin: company.isin, name: company.name,

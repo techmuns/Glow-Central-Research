@@ -121,13 +121,7 @@ try {
   const expectedCheck = new Date(alarmAt+31*60000);
   const oldDay=expectedCheck.toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',weekday:'long'});
   assert(checkBack.includes(oldDay),'the check-back date uses the Indian calendar day');
-  // Format the expectation IN THE PAGE. The call is identical to the app's, but Node's ICU and the
-  // browser's disagree about one comma in `en-IN` ("Friday, 18 September" against "Friday 18
-  // September"), so comparing a browser-rendered string against a Node-rendered one tests which
-  // runtimes the checkout happens to have rather than what the message says. The instant being
-  // asserted is still computed here, which is the part this check is about.
-  const expectedText = await page.evaluate(at => new Date(at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit',hour12:true}), expectedCheck.getTime());
-  assert.equal(checkBack,`Please check back — ${expectedText} IST.`,
+  assert.equal(checkBack,`Please check back — ${expectedCheck.toLocaleString('en-IN',{timeZone:'Asia/Kolkata',weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit',hour12:true})} IST.`,
     'a cooldown between timer runs allows both the next alarm and :41 cron slot, including the Indian date rollover');
   cooldownUntil=new Date(Date.parse(cooldownUntil)+86400000).toISOString();
   await page.evaluate(async()=>{await (await import('/js/data/concall-summaries.js')).refresh({force:true});});
@@ -138,10 +132,7 @@ try {
   await page.waitForFunction(()=>document.querySelector('[data-summary-check-back]')?.textContent==='Please check back later.');
   pendingActive=true;pendingNextAttemptAt=new Date(alarmAt+6*86400000+10*60000).toISOString();
   await page.evaluate(async()=>{await (await import('/js/data/concall-summaries.js')).refresh({force:true});});
-  // Formatted in the page for the same reason as the check-back text above: `en-IN` puts a comma
-  // after the weekday in one ICU build and not the other, and this string is matched against what
-  // the browser rendered.
-  const deferredDay=await page.evaluate(at=>new Date(at).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',weekday:'long',day:'numeric',month:'long'}),alarmAt+6*86400000+31*60000);
+  const deferredDay=new Date(alarmAt+6*86400000+31*60000).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',weekday:'long',day:'numeric',month:'long'});
   await page.waitForFunction(day=>document.querySelector('[data-summary-check-back]')?.textContent.includes(day),deferredDay);
   pendingId='124';savedIds=['123'];pendingNextAttemptAt=null;readBudget=1;
   await page.evaluate(async()=>{await (await import('/js/data/concall-summaries.js')).refresh({force:true});});
@@ -179,8 +170,8 @@ try {
   }
   await page.setViewportSize({width:1440,height:1000});await page.keyboard.press('Escape');
   // Logging out after navigating away still clears bodies; the next account cannot inherit them.
-  await page.evaluate(()=>location.hash='#/research/bookmarks?scope=universe');
-  await page.locator('#content-host[data-active-tab="bookmarks"]').waitFor();
+  await page.evaluate(()=>location.hash='#/research/ask-research?scope=universe');
+  await page.locator('.research-workspace').waitFor();
   await page.evaluate(()=>{window.fixtureSession(null);window.fixtureSession('local-test-token');});
   denied=true;
   const result=await page.evaluate(async()=>{try {await (await import('/js/data/concall-summaries.js')).read(['123']);return 'leaked';}catch{return 'refused';}});

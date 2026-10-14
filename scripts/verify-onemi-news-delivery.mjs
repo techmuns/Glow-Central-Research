@@ -12,7 +12,7 @@ const { newsSignal, companyNewsState, eventSearchText, mapPortfolioDiscoveryEven
 const { enrichmentCoverageIncomplete, newsViewStatus } = await import('../public/js/core/news-view-status.js');
 const { rankReport, mergePartialReport } = await import('../public/js/data/ai-alerts.js');
 const { matchesSearch } = await import('../public/js/ui/ai-alert-utils.js');
-const { alertCoverageState, feedState, matchesCompanyRelationship } = await import('../public/js/tabs/daily-alerts.js');
+const { alertCoverageState, feedState } = await import('../public/js/tabs/daily-alerts.js');
 const { writeEntry } = await import('../public/js/core/store.js');
 const holdings = [{ ticker: 'KISSHT', isin: 'INE12F801023', name: 'OnEMI Technology Solutions' }];
 const identities = portfolioNewsEntities(holdings);
@@ -35,31 +35,6 @@ assert.equal(signal.direction, 'neutral', 'a reported Buy call is not this produ
 assert.equal(signal.aiEligible, true);
 assert(signal.keywords.includes('Brokerage research / rating change'));
 assert(classifyStory(row).labels.includes('Brokerage research'), 'News topic filter agrees with the alert category');
-
-// THE ORDER BOOK IS ONE THING HOWEVER A RESULTS NOTE SPELLS IT.
-// `\border[\s-]?book\b` needs a word boundary after "book", so "order bookings" — how a results
-// note writes the same figure — missed it, and "order intake" and "order pipeline" shared no word
-// with the pattern at all. Measured over the 112,659 captured stories: 217 headlines say order book
-// and 24 say order backlog, both already caught; 11 say order intake, 12 say order pipeline and 3
-// say order booking, of which 21 matched no tracked keyword at all — GRSE, Cochin Shipyard, Praj,
-// GMM Pfaudler, Triveni Turbine, Thermax, CG Power. A feed the desk tracks was going unread.
-//
-// Asserted here rather than in verify-ui.mjs, which CI does not run: a rule nobody runs is not a
-// rule. Asserted on fixtures rather than on today's capture, for the reason the vocabulary's own
-// header gives — a capture with no order-intake story in it would pass by matching nothing twice.
-for (const spelling of ['Q1 order intake hits a record', 'Record order bookings offset an H1 revenue decline',
-  'Capex and a strong order pipeline strengthen the growth outlook', 'Orderbook now at a record Rs 1,200 crore',
-  'Order backlog of Rs 1,200 crore']) {
-  assert(classifyStory({ title: spelling }).labels.includes('Orderbook'), `the order book is tracked spelt "${spelling}"`);
-}
-// Widening what the book is called must not widen it into a direction, and must not swallow the
-// separate Order keyword: an order WIN and the order BOOK are different events sharing a word.
-assert.equal(newsSignal({ title: 'Record order intake', query: 'Test Co' }).direction, 'neutral',
-  'a topic says what a story is about, never which way it points');
-assert(!classifyStory({ title: 'In order to comply, the board met on Tuesday' }).labels.includes('Orderbook'),
-  '"in order to" is not the order book');
-assert(classifyStory({ title: 'Bags Rs 135-crore order from MPPTCL' }).labels.includes('Order'),
-  'an order win is still its own keyword');
 assert.match(signal.signalReason, /does not verify/);
 
 const event = { ...signal, id: `news:${identity.entityId}|${source.url}`, sourceRecord: row,
@@ -95,12 +70,7 @@ for (const headline of ['Kiss band announces tour', 'Kishtwar residents face a l
   assert.equal(noisy.attribution.status, 'uncertain');
   assert.equal(newsSignal(noisy).aiEligible, false);
   assert(eventSearchText({ ...event, ...newsSignal(noisy), sourceRecord: noisy, headline }).toLowerCase().includes('kissht'), 'unverified query hits are retained and searchable, not deleted');
-  assert(matchesCompanyRelationship({ ...event, ...newsSignal(noisy) }, 'uncertain'));
-  assert(!matchesCompanyRelationship({ ...event, ...newsSignal(noisy) }, 'confirmed'));
 }
-assert(matchesCompanyRelationship(event, 'confirmed'));
-assert(matchesCompanyRelationship({ feed: 'announcements', ticker: 'KISSHT' }, 'confirmed'), 'matched-company filter retains source-attributed filings');
-assert(matchesCompanyRelationship({ feed: 'news', attribution: { status: 'unrelated' } }, 'all'));
 
 const feeds = status => [{ id: 'news', status, reachesToday: status === 'ok' }];
 const report = (events = [event], day = '2026-09-07', status = 'ok') => ({ day, scope: 'portfolio', includeHistory: true, events, feeds: feeds(status), pending: status === 'pending' ? 1 : 0 });

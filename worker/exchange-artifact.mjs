@@ -1,4 +1,4 @@
-// GLOW-owned read-only delivery of scheduled captures. Uses the existing Actions-read secret.
+// Sattva-owned read-only delivery of scheduled captures. Uses the existing Actions-read secret.
 export const EXCHANGE_WORKFLOW = 'bulk-block-refresh.yml';
 export const ARTIFACT_NAME = 'exchange-deals';
 export const ARTIFACT_FILE = 'exchange-deals.json.gz';
@@ -46,7 +46,7 @@ export async function unzipCapture(bytes) {
 function github(repo, token) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo || '') || !token) throw new Error('Exchange archive delivery is not configured');
   const base = `https://api.github.com/repos/${repo}`;
-  const headers = { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'user-agent': 'Glow-exchange-capture', 'x-github-api-version': '2022-11-28' };
+  const headers = { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'user-agent': 'Sattva-exchange-capture', 'x-github-api-version': '2022-11-28' };
   return { base, headers };
 }
 

@@ -45,7 +45,7 @@ export const KEYS = {
   concalls: 'concalls',
   // The portfolio calendar half of /api/concalls, kept separate from the response above and its
   // ETag. The route assembles two independent upstreams — StockScans' rows and the authenticated
-  // configured Screener artifact — and either can fail alone, arriving as a payload that carries no calendar
+  // S Screen artifact — and either can fail alone, arriving as a payload that carries no calendar
   // at all. Retaining it here is what stops one upstream's outage emptying the other's feed, and
   // what makes that survive a reload; the same reasoning as `nse-filings:history`.
   concallPortfolioUpcoming: 'concalls:portfolio-upcoming',
@@ -113,7 +113,7 @@ const MEMORY_BUDGET = 24 * 1024 * 1024;
 const memory = createMemoryCache(MEMORY_BUDGET);
 // Unknown/user-authored keys and unsaved writes stay pinned. These public representations can
 // be read from the verified disk copy; no disk eviction or retention rule is introduced here.
-const reconstructible = key => /^(filings:news(?::|$)|news-history:|snapshot:tradingview-news$|market-news(?::|$)|(?:all-alerts:public-pool|ai-alerts:public-window):|news-query:)/.test(key);
+const reconstructible = key => /^(filings:news(?::|$)|news-history:|snapshot:tradingview-news$|market-news(?::|$)|(?:all-alerts:public-pool|ai-alerts:public-window):|news-query:|mf:|mf-detail:|mf-snapshot:)/.test(key);
 function remember(key, row, durable = false) {
   memory.set(key, row, reconstructible(key) ? estimateMemoryBytes(row, MEMORY_BUDGET) : 0,
     durable && reconstructible(key));
@@ -513,12 +513,14 @@ async function readConditionalJson(path, { key, optional = false, signal, valida
  */
 const inFlightJson = new Map();
 
-export function revalidatedJson(path, { optional = false, allowCached = false } = {}) {
-  const requestKey = `${allowCached ? 'bootstrap' : 'revalidate'}:${path}`;
+export function revalidatedJson(path, { optional = false, allowCached = false, fresh = false } = {}) {
+  const requestKey = `${fresh ? 'fresh' : allowCached ? 'bootstrap' : 'revalidate'}:${path}`;
   const existing = inFlightJson.get(requestKey);
   if (existing) return optional ? existing.catch(() => null) : existing;
 
-  const p = fetch(path, { cache: 'no-cache', ...(allowCached ? { headers: { 'x-sattva-bootstrap': '1' } } : {}), signal: AbortSignal.timeout(20000) })
+  // An explicit freshness read must bypass the service worker's held data in this request.
+  // no-cache still permits the browser to reuse unchanged HTTP bytes after revalidation.
+  const p = fetch(path, { cache: 'no-cache', ...(fresh ? { headers: { 'x-sattva-refresh': '1' } } : allowCached ? { headers: { 'x-sattva-bootstrap': '1' } } : {}), signal: AbortSignal.timeout(20000) })
     .then((res) => {
       if (!res.ok) throw new Error(`${path} (${res.status})`);
       return readJsonResponse(res).then(value => hydrateJsonShards(value, path));

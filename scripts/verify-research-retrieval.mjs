@@ -20,11 +20,21 @@ assert.equal(cases.length, book.holdings.length * 14);
 assert.equal(new Set(cases.map(c => c.id)).size, cases.length, 'every case is unique including unknown symbols');
 assert(cases.some(c => c.ticker === null));
 
+// A named document's filename is literal evidence of availability, not its contents.
+{
+  const plan = queryPlan('Show the PDF attachment for Example Industries', [{ ticker: 'EXAMPLE', name: 'Example Industries' }]);
+  const rows = [
+    ...Array.from({ length: 40 }, (_, i) => ({ ticker: 'EXAMPLE', date: '2026-09-24', text: `Example Industries routine update ${i}` })),
+    { ticker: 'EXAMPLE', date: '2026-09-10', text: 'Example Industries', attachments: [{ name: 'Example Industries investor note.pdf' }], url: 'https://t.me/example/1' },
+  ];
+  const selected = chooseRows(rows, plan, row => row, (a, b) => b.date.localeCompare(a.date));
+  assert.equal(selected.rows[0].attachments?.[0].name, 'Example Industries investor note.pdf');
+  assert.equal(selected.rows[0].text, 'Example Industries', 'filename prioritisation cannot invent document text');
+}
+
 const ambiguousIndex = [...index, { ticker: 'BIRLACORPN', name: 'Birla Corporation' }];
 assert.deepEqual(queryPlan('Latest on Aditya Birla Capital?', ambiguousIndex).companies.map(c => c.ticker), ['ABCAPITAL']);
-// Keep the upstream demerger regression independent of which family holds it.
-const templateIndex = JSON.parse(readFileSync(new URL('./fixtures/template-portfolio-companies.json', import.meta.url), 'utf8')).holdings;
-const demerged = queryPlan('Latest on Vedanta Iron and Steel?', templateIndex, { scope: 'portfolio', holdings: templateIndex });
+const demerged = queryPlan('Latest on Vedanta Iron and Steel?', index, { scope: 'portfolio', holdings: index });
 assert.equal(demerged.companies.length, 1);
 assert.equal(demerged.companies[0].isin, 'INE1CLE01013');
 assert.equal(demerged.companies[0].inScope, true);
@@ -38,7 +48,7 @@ assert.equal(exact.companyRows, 1, 'keywords and query metadata cannot create co
 assert.equal(exact.rows[0].title, 'Actual company disclosure', 'confirmed company evidence precedes uncertain search results');
 assert(!exact.rows.some(r => r.ticker === 'OTHER'), 'an unrelated issuer is not fallback evidence for a company question');
 assert(exact.rows.some(r => r.attribution === 'uncertain'), 'possible coverage for the requested issuer retains its uncertainty label');
-const latestPlan = queryPlan('any new updates on jayaswal neco?', templateIndex);
+const latestPlan = queryPlan('any new updates on jayaswal neco?', index);
 assert.deepEqual(latestPlan.tokens, [], 'generic latest-update vocabulary cannot promote a stock quote page');
 const newsRanking = chooseRows([
   { ticker: 'JAYNECOIND', recordType: 'reference-page', date: '2026-09-06', title: 'Share Price, Stock Price' },

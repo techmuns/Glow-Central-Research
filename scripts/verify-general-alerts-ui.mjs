@@ -18,29 +18,23 @@ const data = (path) => JSON.parse(readFileSync(resolve(root, `data/${path}`)));
 const IST_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
 const UPCOMING_DAY = IST_DAY.format(new Date(Date.now() + 5 * 86400000));
 const UPCOMING_FAR_DAY = IST_DAY.format(new Date(Date.now() + 40 * 86400000));
-// News intentionally exposes at most thirty recent days. Keep these attribution fixtures
-// inside that window as the suite advances; older real records are tested in All Alerts.
-const NEWS_DAY = IST_DAY.format(new Date(Date.now() - 7 * 86400000));
 const newsCases = JSON.parse(readFileSync(new URL('./fixtures/company-news-attribution.json', import.meta.url))).cases
   .filter(test => ['accent', 'ticker-brand', 'no-keyword', 'snippet-only', 'reported-mismatch'].includes(test.id));
-const newsFixture = { capturedAt: `${NEWS_DAY}T08:00:00Z`, entities: newsCases.map(test => ({ ...test.identity, key: test.identity.ticker })),
-  byTicker: Object.groupBy(newsCases.map(test => ({ date: NEWS_DAY, company: test.identity.name,
+// Attribution examples must stay inside News' 30-day reader window as the test runs over time.
+const newsFixture = { capturedAt: new Date().toISOString(), entities: newsCases.map(test => ({ ...test.identity, key: test.identity.ticker })),
+  byTicker: Object.groupBy(newsCases.map(test => ({ company: test.identity.name,
     ticker: test.identity.ticker, query: test.identity.name, source: 'Synthetic test publisher',
-    url: `https://example.test/${test.id}`, ...test.row })), row => row.ticker) };
-// THE SCHEDULED EVENT HAS TO BE SCHEDULED WHEN THE SUITE RUNS. The Upcoming AGM row below was
-// dated 2026-09-10 - a future date on the day it was written - and `isUpcomingEvent` reads
-// `event.day > day || (event.day === day && kind === 'scheduled')` against the tab's own IST day.
-// So the fixture aged out of the Upcoming horizon the moment IST rolled past it and the wait for
-// "AGM scheduled" timed out. Measured: it began failing at 18:30 UTC, midnight IST, and a fixed
-// date only gets older, so every later run would have failed too. The tab takes its day in IST
-// rather than UTC, so this derives the same day and sets the row to TOMORROW - a same-day row is
-// upcoming only while its source still calls it scheduled, and this fixture should not rest on
-// that second condition. Every other date in this suite is already derived from `today()`; this
-// stub is built before the page exists, so it computes the same day here.
+    url: `https://example.test/${test.id}`, ...test.row, date: IST_DAY.format(new Date()) })), row => row.ticker) };
 let version = 1;
 const calls = [];
 const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"></head><body style="padding:16px;background:#f6f7fb"><button id="refresh">Refresh</button><main id="root"></main>
 <script>
+const nativeFetch=window.fetch.bind(window);
+window.testFetches=[];
+window.fetch=(input,init)=>{
+  window.testFetches.push(new URL(input?.url||String(input),location.href).pathname);
+  return nativeFetch(input,init);
+};
 const activeListeners=new Map();
 const listenerSets=new WeakMap();
 const nativeAdd=EventTarget.prototype.addEventListener;
@@ -66,7 +60,10 @@ window.SATTVA_CHATTER_URL=location.origin+'/chatter';
 import * as tab from '/js/tabs/daily-alerts.js';
 import * as coverage from '/js/data/coverage.js';
 import * as refresh from '/js/core/refresh.js';
-import { clearPrivateRecords } from '/js/data/alert-records.js';
+import { today } from '/js/data/daily-alerts.js';
+import { recordDocuments, clearPrivateRecords } from '/js/data/alert-records.js';
+window.testToday = today;
+window.testRecordDocuments = recordDocuments;
 window.testClearPrivateRecords = clearPrivateRecords;
 coverage.prime({holdings:[{ticker:'STLTECH',name:'Sterlite Technologies'},{ticker:'RELIANCE',name:'Reliance Industries'},{ticker:'JAYNECOIND',name:'Jayaswal Neco Industries'},{ticker:'NESTLEIND',name:'Nestle India'},{ticker:'DMART',name:'Avenue Supermarts'}]});
 window.show=(scope='universe',params={})=>tab.render({root:document.querySelector('#root'),params,scope,data:{}});
@@ -79,6 +76,7 @@ const server = createServer((req, res) => {
   calls.push(url.pathname);
   const json = (value) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(value)); };
   try {
+    if (url.pathname === '/fixture-before-dispose') { res.writeHead(204); res.end(); return; }
     if (url.pathname === '/embed') {
       res.setHeader('content-type', 'text/html');
       res.end(`<!doctype html><html><body style="margin:0;overflow:hidden;background:#475569"><main style="position:fixed;inset:16px 16px 16px 64px;display:flex;flex-direction:column;background:white"><header style="height:48px;flex:none">Local dashboard host</header><iframe title="Research dashboard" src="/" style="width:100%;flex:1;min-height:0;border:0"></iframe></main></body></html>`);
@@ -98,6 +96,7 @@ const server = createServer((req, res) => {
     if (url.pathname === '/api/super-investors') { const x = data('super-investors.json'); json({ ok: true, investors: x.investors, fetchedAt: x.capturedAt }); return; }
     if (url.pathname === '/api/nse-announcements') { json({ capturedAt: '2026-09-04T08:00:00Z', rows: [
       { company: 'Sterlite Technologies', ticker: 'STLTECH', publishedAt: '2026-09-04T07:00:00Z', subject: 'Analyst day complete source record', description: 'Original analyst presentation', url: 'https://example.test/analyst.pdf' },
+      { company: 'Sterlite Technologies', ticker: 'STLTECH', publishedAt: '2026-09-04T07:01:00Z', subject: 'Fraud/Default/Arrest & defaultValue <img src=x onerror="window.alertHeadlineInjection=true">', description: 'Original risk disclosure', url: 'https://example.test/risk.pdf' },
       { company: 'Undated issuer', ticker: null, publishedAt: null, subject: 'Undated retained item', url: 'https://example.test/undated.pdf' },
       ...(version > 1 ? [{ company: 'Sterlite Technologies', ticker: 'STLTECH', publishedAt: '2026-09-04T08:00:00Z', subject: 'Newly arrived NSE record', url: 'https://example.test/new.pdf' }] : []),
       ...(version > 2 ? [
@@ -145,30 +144,89 @@ const settled = async (target = page) => {
 // A finished provider read can still leave the tab's 250ms source coalescer / 180ms
 // scroll-quiet paint queued. Start geometry gestures only after the rendered surface itself
 // is stable; a chip that no longer says "reading" does not establish that condition.
-const stableReadingSurface = (target = page) => target.evaluate(async () => {
+const stableReadingSurface = (target = page) => target.evaluate(async preparationTimeout => {
+  const [profiles, feedback, relevance] = await Promise.all([
+    import('/js/data/company-profiles.js'), import('/js/data/relevance-feedback.js'),
+    import('/js/data/surface-relevance.js'),
+  ]);
+  await Promise.all([profiles.loadProfiles(), feedback.loadModel()]);
+  const preparedBy = performance.now() + preparationTimeout;
+  for (;;) {
+    await relevance.relevanceSettled();
+    await new Promise(requestAnimationFrame);
+    const workspace = document.querySelector('[data-alerts-workspace]');
+    if (workspace?.getAttribute('aria-busy') === 'false' &&
+        workspace.getAttribute('data-alerts-collecting') === 'false' && !document.querySelector('[data-table-loading]')) break;
+    if (performance.now() > preparedBy) throw Error('Alert presentation did not finish preparation');
+  }
   let previous = null, previousNode = null, stableAt = performance.now();
   const deadline = performance.now() + 10000;
   for (;;) {
+    // Source chips can finish before sliced grouping and deferred relevance change row order.
+    await relevance.relevanceSettled();
     await new Promise(requestAnimationFrame);
+    const workspace = document.querySelector('[data-alerts-workspace]');
+    const ready = workspace?.getAttribute('aria-busy') === 'false' &&
+      workspace.getAttribute('data-alerts-collecting') === 'false' && !document.querySelector('[data-table-loading]');
     const node = document.querySelector('[data-table-scroll]');
     const box = node?.getBoundingClientRect();
     const rows = [...(node?.querySelectorAll('tr[data-row-key]') || [])];
     const stamp = JSON.stringify([box?.x, box?.y, box?.width, box?.height, node?.scrollTop,
       node?.scrollHeight, node?.querySelector('thead')?.offsetHeight,
       node?.closest('[data-score-table]')?.dataset.virtualTotal, rows[0]?.dataset.rowKey, rows.at(-1)?.dataset.rowKey]);
-    if (!node || node !== previousNode || stamp !== previous) stableAt = performance.now();
+    if (!ready || !node || node !== previousNode || stamp !== previous) stableAt = performance.now();
     else if (performance.now() - stableAt >= 400) return;
     if (performance.now() > deadline) throw Error('Rendered reading surface did not stabilize');
     previous = stamp; previousNode = node;
   }
-});
+}, Number(process.env.GENERAL_ALERTS_SETTLE_MS || 90000));
 try {
   await page.clock.install();
   await page.goto(origin);
   await settled();
   console.log('Rendered complete All Alerts pool');
+  assert.equal(await page.getByRole('button', { name: /^Show .*more$/i }).count(), 0, 'All Alerts reaches all retained rows through scrolling');
   const period = page.getByRole('combobox', { name: 'Date range', exact: true });
   assert.equal(await period.inputValue(), 'today', 'All Alerts opens on Today');
+  assert.equal(await page.locator('[data-watch-toggle]').count(), 0, 'All Alerts uses the global Watchlist scope instead of a second table toggle');
+  const signalControl = page.locator('[data-filter-group-toggle]');
+  assert.equal(await page.locator('[data-filter-group-summary]').innerText(), 'Signal & priority');
+  assert.equal(await page.getByRole('combobox', { name:'Priority',exact:true }).isVisible(), false, 'Priority and Direction occupy one closed toolbar control');
+  await period.selectOption('all');
+  await page.locator('[data-table-search]').fill('defaultValue');
+  await page.waitForFunction(() => document.querySelector('[data-score-table]')?.dataset.virtualTotal === '1');
+  const riskHeadline = page.locator('tbody [data-alert-headline]');
+  assert.deepEqual(await riskHeadline.locator('[data-alert-risk]').allTextContents(), ['Fraud', 'Default', 'Arrest'], 'risk words are emphasized in the headline without matching defaultValue');
+  assert((await riskHeadline.innerText()).includes('& defaultValue <img src=x onerror="window.alertHeadlineInjection=true">'), 'source punctuation and HTML-like text remain literal');
+  assert.equal(await riskHeadline.locator('img').count(), 0, 'highlighting cannot inject source HTML');
+  assert.equal(await page.evaluate(() => window.alertHeadlineInjection), undefined);
+  const emphasis = await riskHeadline.locator('[data-alert-risk]').first().evaluate(node => ({ color:getComputedStyle(node).color, weight:getComputedStyle(node).fontWeight }));
+  assert.equal(emphasis.weight, '700');
+  assert.equal(emphasis.color, 'rgb(190, 18, 60)', 'light-theme risk words are red');
+  const riskRow = page.locator('tbody tr[data-row-key]').first();
+  assert(!/Signal ·|Priority ·/.test(await riskRow.innerText()), 'rows omit both repeated explanation lines');
+  assert.equal(await riskRow.locator('[data-alert-signal]').count(), 0, 'the signal/priority marker column is removed');
+  await period.selectOption('today');
+  const routineHeadline = 'Jayaswal Neco Industries shares an update';
+  await page.locator('[data-table-search]').fill(routineHeadline);
+  await signalControl.click();
+  await page.getByRole('combobox', { name:'Priority',exact:true }).selectOption('low');
+  await page.getByRole('combobox', { name:'Direction',exact:true }).selectOption('neutral');
+  await page.locator('[data-filter-group-panel]').press('Escape');
+  await page.waitForFunction(() => document.querySelector('[data-score-table]')?.dataset.virtualTotal === '1' && document.querySelector('tbody [data-alert-headline]')?.textContent.includes('Jayaswal Neco Industries shares an update'));
+  assert.equal(await page.locator('[data-filter-group-summary]').innerText(), 'Low · Neutral');
+  assert.equal(await signalControl.evaluate(node => node === document.activeElement), true, 'Escape returns keyboard focus to the grouped control');
+  await page.evaluate(() => window.show());
+  await settled();
+  assert.equal(await page.locator('[data-filter-group-summary]').innerText(), 'Low · Neutral', 'a source repaint retains both independent choices');
+  await page.locator('[data-filter-group-toggle]').click();
+  await page.getByRole('button', { name:'Clear signal & priority',exact:true }).click();
+  assert.equal(await page.getByRole('combobox', { name:'Priority',exact:true }).inputValue(), 'all');
+  assert.equal(await page.getByRole('combobox', { name:'Direction',exact:true }).inputValue(), 'all');
+  assert.equal(await period.inputValue(), 'today', 'Clear preserves the selected date');
+  assert.equal((await page.locator('[data-table-search]').inputValue()).toLowerCase(), routineHeadline.toLowerCase(), 'Clear preserves company search');
+  await page.getByRole('button', { name:'Done',exact:true }).click();
+  await page.locator('[data-table-search]').fill('');
   assert.equal(await page.locator('[data-alert-arrivals]').count(), 0, 'no separate live banner');
   assert.equal(await page.locator('[data-arrival-badge]').count(), 0, 'initial history is not a live arrival');
   // THE TIMELINE IS A WINDOWED TABLE, SO `tbody` IS ONE SCREEN AND NOT THE ROW SET.
@@ -218,6 +276,16 @@ try {
     await period.selectOption(value);
     await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
   };
+  const search = async value => {
+    try {
+      await page.locator('[data-table-search]').fill(value);
+      // Large histories defer filtering until after the loading cover paints.
+      await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
+    } catch (error) {
+      const state = await page.locator('#root').innerText().catch(() => 'root unavailable');
+      throw new Error(`All Alerts search ${JSON.stringify(value)} failed: ${state.slice(0, 1000)}; errors: ${errors.join(' | ') || 'none'}`, { cause: error });
+    }
+  };
   for (const label of ['Today', 'Last 3 days', 'Last 7 days', 'Last 14 days', 'Last 30 days', 'This month', 'Date not supplied', 'All history through today']) {
     assert((await period.locator('option').allTextContents()).includes(label), `All Alerts offers ${label}`);
   }
@@ -246,9 +314,12 @@ try {
   await page.locator('[data-feed-toggle="__all"]').press('Escape');
   assert.equal(await picker.getAttribute('open'), null);
   assert(await sourceSummary.evaluate(node => node === document.activeElement), 'Escape returns focus to the source control');
-  assert.equal(await page.locator('[data-feed]').count(), 20, 'Universe hides the portfolio-only calendar (21 sources, one of them portfolio-only)');
-  assert.equal(await page.locator('[data-horizon-toggle]').count(), 2);
-  assert.equal(await page.locator('[data-horizon-toggle="through"]').getAttribute('aria-selected'), 'true');
+  assert.equal(await page.locator('[data-feed]').count(), 20, 'Universe includes private price status and hides the portfolio-only calendar');
+  assert.equal(await page.locator('[data-horizon-toggle]').count(), 0, 'All Alerts has no horizon switch');
+  assert.equal(await page.locator('[data-alerts-history-summary]').count(), 0, 'the redundant Till Today label is removed');
+  assert.equal(await page.locator('[data-alerts-reading-count]').count(), 0, 'the item/source-report summary is removed');
+  assert.equal(await page.locator('[data-alerts-focus]').count(), 0, 'Focus table is removed');
+  assert.equal(await page.locator('[data-alerts-meta]').count(), 0, 'company and date-count badges are removed');
   const sourceControl = await page.locator('[data-feed]').first().evaluate((node) => {
     const checkbox = node.querySelector('span');
     return {
@@ -260,19 +331,13 @@ try {
     sourceControl.touchTarget && sourceControl.checkbox,
     'source controls ship comfortable touch targets and legible checkboxes',
   );
-  await page.locator('[data-horizon-toggle="through"]').press('ArrowRight');
-  assert.equal(await page.locator('[data-horizon-toggle="upcoming"]').getAttribute('aria-selected'), 'true', 'time horizon is keyboard operable');
-  await page.locator('[data-horizon-toggle="upcoming"]').press('ArrowLeft');
-  assert.equal(await page.locator('[data-horizon-toggle="through"]').getAttribute('aria-selected'), 'true');
   await page.evaluate(() => window.show('portfolio'));
   await settled();
-  const dateFixture = await page.evaluate(async () => {
-    const { today } = await import('/js/data/daily-alerts.js');
-    const records = await import('/js/data/alert-records.js');
-    const day = today();
+  const dateFixture = await page.evaluate(() => {
+    const day = window.testToday();
     const dates = [0,1,2,3,6,7,13,14,29,30,60].map(offset =>
       new Date(Date.parse(day + 'T00:00:00Z') - offset * 86400000).toISOString().slice(0,10));
-    records.recordDocuments('company-documents', { rows: [...dates,null].map((date,i) => ({
+    window.testRecordDocuments('company-documents', { rows: [...dates,null].map((date,i) => ({
       key: 'date-window-fixture-' + i, ticker: 'STLTECH', title: 'Date window fixture ' + i,
       date, url: 'https://example.test/date-window-' + i,
     })) }, { ticker: 'STLTECH', name: 'Sterlite Technologies' });
@@ -306,39 +371,18 @@ try {
   await page.evaluate(() => window.show('portfolio', { company: 'STLTECH' }));
   await settled();
   assert.equal(await period.inputValue(), 'all', 'company See all link explicitly restores complete history');
-  await page.locator('[data-table-search]').fill('Date window fixture 10');
-  // A large table applies a search on the next frame; count once it has, as the checks below do.
-  await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
+  await search('Date window fixture 10');
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, '60-day evidence remains reachable through See all');
+  assert.equal(await page.locator('tbody a[href="https://example.test/date-window-10"]').count(), 1, 'the result is the retained 60-day record');
   await page.evaluate(() => { window.testClearPrivateRecords(); window.show('portfolio'); });
   await settled();
   console.log('Verified exact All Alerts periods, retained user choice and complete-history company links');
   assert.equal(await page.locator('[data-feed="screener-portfolio-upcoming"]').count(), 1);
-  await page.locator('[data-horizon-toggle="upcoming"]').click();
-  assert.equal(await page.locator('[data-alert-arrivals]').count(), 0, 'live arrivals stay in Till Today');
-  await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('AGM scheduled'));
-  assert.equal(await page.locator('[data-horizon-toggle="upcoming"]').getAttribute('aria-selected'), 'true');
-  await page.locator('[data-sources-summary]').click();
-  assert((await page.locator('[data-alerts-coverage]').innerText()).includes('Portfolio calendar'));
-  assert(!(await page.locator('[data-alerts-coverage]').innerText()).includes('Price & volume'), 'Upcoming hides sources that cannot schedule events');
-  const upcomingHeaders = await page.locator('thead').innerText();
-  assert(upcomingHeaders.includes('WHAT IS SCHEDULED'));
-  assert(!upcomingHeaders.includes('DIRECTION') && !upcomingHeaders.includes('IMPORTANCE'));
-  await page.locator('[data-feed-toggle="screener-portfolio-upcoming"]').click();
-  await page.locator('[data-table-search]').fill('Sterlite');
-  for (const [value, count] of [['next7', 1], ['next30', 1], ['all', 2]]) {
-    await selectPeriod(value);
-    assert.equal(await page.locator('tbody tr[data-row-key]').count(), count, `upcoming search respects ${value}`);
-  }
-  await page.locator('[data-table-search]').fill('');
-  await page.locator('[data-feed-toggle="__all"]').click();
-  if (process.env.GENERAL_ALERTS_UPCOMING_SCREENSHOT) await page.screenshot({ path: process.env.GENERAL_ALERTS_UPCOMING_SCREENSHOT });
-  await page.locator('[data-sources-close]').click();
-  await page.locator('[data-horizon-toggle="through"]').click();
-  await page.waitForFunction(() => document.querySelector('[data-horizon-toggle="through"]')?.getAttribute('aria-selected') === 'true');
+  assert.equal(await page.getByRole('button', { name: /^Upcoming/ }).count(), 0, 'Upcoming remains absent after scope changes');
+  assert(!(await page.locator('tbody').innerText()).includes('AGM scheduled'), 'future schedules stay outside the history view');
   await page.evaluate(() => window.show('universe'));
   await settled();
-  assert.equal(await page.locator('[data-alerts-meta] [data-alerts-info]').count(), 0,
+  assert.equal(await page.locator('[data-section-head] [data-alerts-info]').count(), 0,
     'source-check badges stay out of the customer reading header');
   await page.locator('[data-sources-summary]').click();
   const coverageText = await page.locator('[data-alerts-coverage]').innerText();
@@ -373,17 +417,12 @@ try {
   assert.equal(await page.locator('[data-arrival-badge]').count(), 1, 'newly received filing is highlighted in the existing table');
   assert((await page.locator('tbody [data-event-day]').innerText()).includes('4 Sept 2026'), 'old source dates never become published-now claims');
   if (process.env.GENERAL_ALERTS_ARRIVAL_SCREENSHOT) await page.screenshot({ path: process.env.GENERAL_ALERTS_ARRIVAL_SCREENSHOT });
-  await page.locator('[data-table-search]').fill('no matching arrival');
-  await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
+  await search('no matching arrival');
   assert.equal(await page.locator('[data-arrivals-announcement]').textContent(), '', 'receipt announcements respect search filters');
-  await page.locator('[data-table-search]').fill('Newly arrived NSE record');
-  // The highlight lasts 20s and is cleared by a one-second repaint, so this waits on the expiry
-  // rather than on a clock of its own. The budget is wider than that sum because this deployment's
-  // pool is tens of thousands of records: a search refill repaints a large table and the expiry
-  // lands a few seconds behind its own deadline here. Measured at ~24s; 25s was a coin toss.
-  await page.waitForFunction(() => document.querySelectorAll('[data-arrival-badge]').length === 0, null, { timeout: 60000 });
-  await page.locator('[data-table-search]').fill('');
-  await page.locator('[data-table-search]').fill('Newly arrived NSE record');
+  await search('Newly arrived NSE record');
+  await page.waitForFunction(() => document.querySelectorAll('[data-arrival-badge]').length === 0, null, { timeout: 25000 });
+  await search('');
+  await search('Newly arrived NSE record');
   assert.equal(await page.locator('[data-arrival-badge]').count(), 0, 'remounting an old row does not restart the highlight');
   await page.locator('[data-table-search]').fill('');
   await selectPeriod('today');
@@ -409,13 +448,7 @@ try {
   assert.deepEqual(streamed.map(item => item.title), ['Stream batch first arrival', 'Stream batch second arrival', 'Stream batch automatic arrival at the top']);
   assert(streamed[1].at - streamed[0].at >= 80 && streamed[2].at - streamed[1].at >= 80,
     `one source batch enters as three separate rows: ${JSON.stringify(streamed)}`);
-  // THE BUDGET IS A RUNNER'S REPAINT COST, NOT THE STREAM'S CADENCE. The stream itself is 110ms a
-  // row, but every release repaints the mounted window of a pool of tens of thousands of records,
-  // and on a shared CI runner that repaint is what the clock measures. At 1.5s this failed on
-  // capture branches whose diff touched nothing here, and said nothing about how long it took;
-  // a failure that cannot be diagnosed from its own artefact is half a failure. What this asserts
-  // is that the batch does not drag on — a stalled queue would sit for the 20s highlight or longer.
-  assert(streamed[2].at - streamed[0].at < 6000, `the visible stream completes quickly: ${JSON.stringify(streamed.map(item => ({ title: item.title, at: Math.round(item.at) })))}`);
+  assert(streamed[2].at - streamed[0].at < 1500, 'the visible stream completes quickly');
   assert.equal(await page.locator('[data-arrival-badge]').count(), 3, 'each genuine new row receives its own highlight');
   assert.equal(await period.inputValue(), 'today', 'automatic arrival retains Today');
   assert.equal(await page.locator('[data-table-scroll]').evaluate(node => node.scrollTop), 0, 'newest record is inserted at the top without a click');
@@ -444,15 +477,16 @@ try {
   assert(jayaswalResults.includes('Indian manufacturer shares a business update'), 'snippet-only coverage remains in company search');
   assert(jayaswalResults.includes('Possible match — unverified'), 'uncertainty is visible without a hover');
   if (process.env.NEWS_ATTRIBUTION_SCREENSHOT) await page.screenshot({ path: process.env.NEWS_ATTRIBUTION_SCREENSHOT });
+  // Read through `searchedText` for the reason given above it: on 23 September 2026 the NESTLEIND
+  // search matched 58 rows, the window drew 40 of them down to 7 September, and this 4 September
+  // fixture sat below it — a check on the capture's size that had turned red on its own.
   for (const [query, title] of [['NESTLEIND', 'Nestlé India'], ['Avenue Supermarts', 'DMart reports']]) {
-    await page.locator('[data-table-search]').fill(query);
-    await page.waitForFunction(text => document.querySelector('tbody')?.textContent.includes(text), title);
+    assert((await searchedText(query)).includes(title), `a ${query} search finds "${title}" wherever the capture places it`);
   }
   await page.evaluate(() => window.show('universe'));
   await settled();
   await page.locator('[data-table-search]').fill('lululemon');
   await page.waitForFunction(() => document.querySelector('tbody')?.textContent.toLowerCase().includes('lululemon'));
-  await stableReadingSurface();
   assert((await page.locator('tbody').innerText()).includes('Lululemon'), 'the retained story remains searchable by its own publisher text');
   assert((await page.locator('tbody').innerText()).includes('Unrelated search result'));
   assert(!(await page.locator('tbody').innerText()).includes('JAYNECOIND'), 'the unrelated row is not labelled as the company');
@@ -460,7 +494,7 @@ try {
   await settled();
 
   await page.locator('[data-table-search]').fill('Session-private fixture');
-  await page.evaluate(async () => (await import('/js/data/alert-records.js')).recordDocuments('company-documents', {
+  await page.evaluate(() => window.testRecordDocuments('company-documents', {
     rows: [{ key: 'session-private', ticker: 'STLTECH', title: 'Session-private fixture', date: null, url: 'https://example.test/private.pdf' }],
   }, { ticker: 'STLTECH', name: 'Sterlite Technologies' }));
   await page.waitForFunction(() => document.querySelector('tbody')?.textContent.includes('Session-private fixture'));
@@ -475,8 +509,6 @@ try {
     const first = document.querySelector('tbody [data-event-day]');
     return first?.getAttribute('data-event-day');
   });
-  await page.waitForFunction(() => !document.querySelector('[data-table-loading]'));
-  await stableReadingSurface();
   assert(!(await page.locator('tbody tr').first().innerText()).includes('Date not supplied'), 'undated rows sort after dated records');
 
   const tableContract = await page.evaluate(() => {
@@ -490,14 +522,10 @@ try {
       label: scroller.getAttribute('aria-label'),
       overscroll: style.overscrollBehavior,
       touchAction: style.touchAction,
-      signals: [...document.querySelectorAll('[data-alert-signal]')].map((cell) => ({
-        direction: cell.dataset.alertDirection,
-        importance: cell.dataset.alertImportance,
-        label: cell.getAttribute('aria-label'),
-      })),
+      signals: document.querySelectorAll('[data-alert-signal]').length,
     };
   });
-  assert.deepEqual(tableContract.headers.slice(0, 3), ['DATE / TIME', 'SIGNAL / PRIORITY', 'COMPANY']);
+  assert.deepEqual(tableContract.headers, ['DATE / TIME', 'COMPANY', 'WHAT HAPPENED', 'FEED', 'LINK']);
   assert(!tableContract.headers.includes('DIRECTION') && !tableContract.headers.includes('IMPORTANCE'));
   assert(tableContract.className.includes('table-scroll-surface'));
   assert.equal(tableContract.tabIndex, 0);
@@ -505,10 +533,7 @@ try {
   assert.equal(tableContract.label, 'All Alerts history table');
   assert.equal(tableContract.overscroll, 'contain');
   assert.equal(tableContract.touchAction, 'pan-x pan-y');
-  assert(tableContract.signals.length > 0 && tableContract.signals.every((signal) =>
-    ['positive', 'negative', 'neutral'].includes(signal.direction) &&
-    ['high', 'low'].includes(signal.importance) &&
-    /direction, (High|Low) priority/.test(signal.label)));
+  assert.equal(tableContract.signals, 0);
 
   const virtualContract = await page.evaluate(() => {
     const host = document.querySelector('[data-score-table]');
@@ -532,19 +557,29 @@ try {
   assert(virtualContract.elements < 3000, `bounded timeline DOM has ${virtualContract.elements} elements`);
   assert.equal(virtualContract.scrollListeners, 1, 'feed repaints retain exactly one active table scroll listener');
   assert.equal(virtualContract.resizeListeners, 1, 'feed repaints retain exactly one active resize listener');
+  await stableReadingSurface();
+  await page.locator('[data-filter-group-toggle]').click();
+  await page.locator('[data-table-scroll]').evaluate(node => { node.scrollTop = 120; });
+  await stableReadingSurface();
+  assert(await page.locator('[data-filter-group-panel]').isVisible(), 'table scrolling does not detach the toolbar or close its filter panel');
+  await page.getByRole('combobox', { name:'Priority',exact:true }).selectOption('low');
+  await page.waitForFunction(() => document.querySelector('[data-table-scroll]')?.scrollTop === 0);
+  assert(await page.locator('[data-filter-group-panel]').isVisible(), 'a filter resetting table scroll keeps the second choice available');
+  await page.getByRole('combobox', { name:'Direction',exact:true }).selectOption('neutral');
+  await page.getByRole('button', { name:'Clear signal & priority',exact:true }).click();
+  await page.getByRole('button', { name:'Done',exact:true }).click();
+  await stableReadingSurface();
   // The export button moved out of the table toolbar, but must still use the full filtered
-  // model. Capture its count at the export click, rather than the earlier virtualization
-  // snapshot: asynchronous feed repaints can change that model between the two interactions.
-  // A local workbook stand-in counts rows without a CDN or a large artifact on disk.
+  // model. Capture its count at the export click, rather than an earlier snapshot that
+  // asynchronous feed repaints can change. A local workbook stand-in counts full rows.
   await page.evaluate(() => {
     window.exportedRows = 0;
     window.exportFinished = false;
-    // Source settlement and sliced development grouping can publish a newer model between
-    // the geometry assertions above and this click. Compare against the model the reader
-    // actually exports, captured before the button's handler runs in the same browser task.
-    document.addEventListener('click', event => {
+    window.expectedExportRows = null;
+    document.addEventListener('click', (event) => {
       if (event.target.closest('[data-alerts-table-actions] [data-export]')) {
-        window.exportExpectedRows = Number(document.querySelector('[data-score-table]').dataset.virtualTotal) + 1;
+        // Grouped items can contain several originals; the export retains every source report.
+        window.expectedExportRows = Number(document.querySelector('[data-alerts-source-count]').dataset.alertsSourceCount) + 1;
       }
     }, { capture: true, once: true });
     window.ExcelJS = { Workbook: class {
@@ -554,11 +589,10 @@ try {
   });
   await page.locator('[data-alerts-table-actions] [data-export]').click();
   await page.waitForFunction(() => window.exportFinished);
-  const exported = await page.evaluate(() => ({ actual: window.exportedRows, expected: window.exportExpectedRows }));
-  assert(exported.expected > virtualContract.mounted + 1, 'export snapshot includes offscreen records');
+  const exported = await page.evaluate(() => ({ actual: window.exportedRows, expected: window.expectedExportRows }));
+  assert.ok(exported.expected > virtualContract.mounted, 'the export model includes unmounted records');
   assert.equal(exported.actual, exported.expected,
     'relocated export includes every matching record plus provenance, not just mounted rows');
-  console.log(`Verified complete ${exported.actual - 1}-record export from its click-time model`);
 
   await page.locator('[data-table-scroll]').evaluate((scroller) => { scroller.scrollTop = scroller.scrollHeight; });
   await page.waitForFunction((firstKey) => {
@@ -576,10 +610,15 @@ try {
 
   // A source refresh can insert rows above the viewport. Preserve the visible event, not merely
   // its old pixel offset, so a reader never loses their place while the stream is live.
-  const beforeRefresh = await page.locator('[data-table-scroll]').evaluate((scroller) => {
+  await page.locator('[data-table-scroll]').evaluate((scroller) => {
     scroller.style.scrollBehavior = 'auto';
     scroller.scrollTop = Math.min(900, scroller.scrollHeight - scroller.clientHeight);
     scroller.style.removeProperty('scroll-behavior');
+  });
+  // Native scroll events and the virtual row measurements run on later frames. Record the
+  // reader's settled position, rather than geometry from before that gesture has finished.
+  await stableReadingSurface();
+  const beforeRefresh = await page.locator('[data-table-scroll]').evaluate((scroller) => {
     const boundary = scroller.getBoundingClientRect().top + (scroller.querySelector('thead')?.offsetHeight || 0);
     const row = [...scroller.querySelectorAll('tbody tr[data-row-key]')].find((item) => item.getBoundingClientRect().bottom > boundary);
     return { key: row?.dataset.rowKey || null, offset: row ? row.getBoundingClientRect().top - boundary : 0 };
@@ -606,21 +645,8 @@ try {
     return { key: row?.dataset.rowKey || null, offset: row ? row.getBoundingClientRect().top - boundary : null };
   }, beforeRefresh.key);
   assert.equal(afterRefresh.key, beforeRefresh.key);
-  assert(Math.abs(afterRefresh.offset - beforeRefresh.offset) <= 2, `visible row moved ${afterRefresh.offset - beforeRefresh.offset}px during refresh`);
+  assert(Math.abs(afterRefresh.offset - beforeRefresh.offset) <= 2, `visible row moved ${afterRefresh.offset - beforeRefresh.offset}px during refresh: ${JSON.stringify({before:beforeRefresh,after:afterRefresh})}`);
   assert(await page.evaluate(() => window.observedReadingArrival), 'new row arrived above the preserved reading position');
-
-  await page.locator('[data-alerts-focus]').click();
-  assert.equal(await page.locator('[data-alerts-focus]').getAttribute('aria-pressed'), 'true');
-  assert.equal(await page.evaluate(() => document.documentElement.dataset.alertsFocusMode), 'true');
-  const focusAnchor = await page.locator('[data-table-scroll]').evaluate((scroller, key) => {
-    const row = [...scroller.querySelectorAll('tbody tr[data-row-key]')].find(node => node.dataset.rowKey === key);
-    return row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - scroller.querySelector('thead').offsetHeight;
-  }, beforeRefresh.key);
-  assert(Math.abs(focusAnchor - beforeRefresh.offset) <= 2,
-    `focus mode keeps the same reading anchor: ${JSON.stringify({ beforeRefresh, afterRefresh, focusAnchor })}`);
-  await page.locator('[data-table-scroll]').press('Escape');
-  assert.equal(await page.locator('[data-alerts-focus]').getAttribute('aria-pressed'), 'false');
-  assert.equal(await page.evaluate(() => document.documentElement.hasAttribute('data-alerts-focus-mode')), false);
 
   for (const width of [1440, 1024, 390]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -628,34 +654,44 @@ try {
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), `no page overflow at ${width}px`);
     if (width === 390 && process.env.GENERAL_ALERTS_MOBILE_SCREENSHOT) await page.screenshot({ path: process.env.GENERAL_ALERTS_MOBILE_SCREENSHOT });
   }
+  await stableReadingSurface();
   await page.locator('[data-sources-summary]').click();
   const lastSource = page.locator('[data-feed-toggle]').last();
   await lastSource.scrollIntoViewIfNeeded();
   const sourceOffset = await page.locator('[data-alerts-coverage]').evaluate(node => node.scrollTop);
   assert(sourceOffset > 0, 'narrow source picker has a genuine scroll position to preserve');
+  const heldSource = await lastSource.elementHandle();
+  const wasChecked = await lastSource.getAttribute('aria-checked');
   await lastSource.click();
+  await page.waitForFunction(({node, before}) => node.isConnected && node.getAttribute('aria-checked') !== before, {node: heldSource, before: wasChecked});
   assert.equal(await page.locator('[data-alerts-coverage]').evaluate(node => node.scrollTop), sourceOffset,
     'source selection preserves the picker scroll position');
   await page.locator('[data-feed-toggle="__all"]').click();
   await page.locator('[data-sources-close]').click();
   await page.setViewportSize({ width: 1440, height: 1000 });
   if (process.env.GENERAL_ALERTS_SCREENSHOT) await page.screenshot({ path: process.env.GENERAL_ALERTS_SCREENSHOT });
-  await page.locator('[data-alerts-focus]').click();
+  // A browser read can reach this server after teardown even though it started before it.
+  // Hold one at the transport boundary so this distinction is exercised on every run.
+  let heldTeardownRead, markTeardownReadHeld;
+  const teardownReadHeld = new Promise(done => { markTeardownReadHeld = done; });
+  await page.route('**/fixture-before-dispose', route => { heldTeardownRead = route; markTeardownReadHeld(); });
+  await page.evaluate(() => { window.pendingTeardownRead = fetch('/fixture-before-dispose'); });
+  await teardownReadHeld;
   await page.evaluate(() => window.dispose());
-  assert.equal(await page.evaluate(() => document.documentElement.hasAttribute('data-alerts-focus-mode')), false, 'tab teardown restores navigation');
   assert.equal(await page.evaluate(() => window.testListenerCount('scroll')), 0, 'destroy removes the table scroll listener');
   assert.equal(await page.evaluate(() => window.testListenerCount('resize')), 0, 'destroy removes the table resize listener');
-  const count = calls.length;
-  await page.evaluate(async () => { (await import('/js/data/alert-records.js')).clearPrivateRecords(); });
+  const count = await page.evaluate(() => window.testFetches.length);
+  assert(!calls.includes('/fixture-before-dispose'), 'the already-started read has not reached the server');
+  await heldTeardownRead.continue();
+  await page.evaluate(async () => {
+    await window.pendingTeardownRead;
+    (await import('/js/data/alert-records.js')).clearPrivateRecords();
+  });
   await page.waitForTimeout(400);
-  // Name the request. A bare count mismatch here is unfalsifiable: it says something was read and
-  // never says what, so the only way to diagnose one is to reproduce it, which is precisely what a
-  // CI-only race does not allow.
-  assert.equal(
-    calls.length,
-    count,
-    `destroy removes source listeners and does not start another read (started: ${calls.slice(count).join(', ') || 'none'})`,
-  );
+  assert(calls.includes('/fixture-before-dispose'), 'the pending read can finish after teardown');
+  const startedAfterTeardown = await page.evaluate(start => window.testFetches.slice(start), count);
+  assert.deepEqual(startedAfterTeardown, [],
+    `destroy removes source listeners and does not start another read (started: ${startedAfterTeardown.join(', ') || 'none'})`);
   assert(!calls.some((p) => /\/api\/(combined-filings|drhp-filings|super-investors\/)/.test(p)), 'no per-company fanout');
   await page.evaluate(async () => {
     const newsTab = await import('/js/tabs/news.js');
@@ -676,63 +712,61 @@ try {
 
   // Exercise the actual tab inside a short host iframe, with real wheel input. Measured rows
   // may have different natural heights; verify contiguous geometry across window replacements.
-  // Source-refresh tests above fast-forward a simulated clock. Native compositor input
-  // gets its own real-time context; receipt timers below install a clock only afterwards.
-  await page.close();
-  const inputPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-  inputPage.on('pageerror', error => errors.push(error.message));
-  inputPage.on('console', message => { if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) errors.push(message.text()); });
-  await inputPage.route('**/*', route => route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
-  await inputPage.goto(`${origin}/embed`);
-  const embedded = await (await inputPage.locator('iframe').elementHandle()).contentFrame();
-  await settled(embedded);
-  await embedded.evaluate(() => {
-    window.nativeWheelEvents = [];
-    addEventListener('wheel', event => {
-      const table = event.target.closest?.('[data-table-scroll]');
-      window.nativeWheelEvents.push({ target: event.target.tagName, inTable: !!table,
-        top: table?.scrollTop, deltaY: event.deltaY, prevented: event.defaultPrevented, trusted: event.isTrusted });
-      if (window.nativeWheelEvents.length > 3) window.nativeWheelEvents.shift();
-    }, { passive: true });
-  });
-  assert.equal(await embedded.getByRole('combobox', { name: 'Date range' }).inputValue(), 'today', 'fresh embedded dashboard also defaults to Today');
-  await embedded.getByRole('combobox', { name: 'Date range' }).selectOption('all');
-  // WAIT FOR THE HISTORY THIS STEP SCROLLS, NOT FOR A STILL SURFACE. Choosing All history starts a
-  // read of the whole retained history, and until it lands the table keeps the rows it has (Today's
-  // — four at 02:00 IST, when nothing overflows) or shows loading rows over an inert scroller. Either
-  // is as still as a settled table, so a stability check alone let the wheel reach a table with
-  // nothing to scroll whenever Today was short. Wait for the sources to finish reading, as on entry,
-  // and for the table's own loading state to clear, as `selectPeriod` does.
-  await settled(embedded);
-  await embedded.waitForFunction(() => !document.querySelector('[data-table-loading]'));
+  // Native gestures must use the browser's real animation clock. Earlier
+  // inactivity checks installed a context-wide fake requestAnimationFrame.
+  const wheelPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  wheelPage.on('pageerror', error => errors.push(error.message));
+  wheelPage.on('console', message => { if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) errors.push(message.text()); });
+  await wheelPage.route('**/*', route => route.request().url().startsWith(origin) ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
+  await wheelPage.goto(`${origin}/embed`);
+  const wheelFrame = await (await wheelPage.locator('iframe').elementHandle()).contentFrame();
+  await settled(wheelFrame);
+  assert.equal(await wheelFrame.getByRole('combobox', { name: 'Date range' }).inputValue(), 'today', 'fresh embedded dashboard also defaults to Today');
+  await wheelFrame.getByRole('combobox', { name: 'Date range' }).selectOption('all');
+  // Switching from Today starts a separate historical source read. The old
+  // four-row table can remain geometrically stable while that read is pending.
+  await settled(wheelFrame);
+  await wheelFrame.waitForFunction(() =>
+    document.querySelector('[data-table-filter="2"]')?.value === 'all' &&
+    Number(document.querySelector('[data-score-table]')?.dataset.virtualTotal) > 1000 &&
+    !document.querySelector('[data-table-loading]'));
+  await settled(wheelFrame);
   for (const size of [{ width: 1440, height: 800 }, { width: 1024, height: 640 }]) {
-    await inputPage.setViewportSize(size);
-    const scroller = embedded.locator('[data-table-scroll]');
-    await stableReadingSurface(embedded);
+    await wheelPage.setViewportSize(size);
+    const scroller = wheelFrame.locator('[data-table-scroll]');
+    await stableReadingSurface(wheelFrame);
     await scroller.evaluate(el => { el.scrollTop = 0; el.scrollIntoView({ block: 'end' }); });
-    await stableReadingSurface(embedded);
-    const box = await scroller.boundingBox();
-    let previous = 0;
+    await stableReadingSurface(wheelFrame);
+    // Measured virtual rows can rebase pixel offsets while preserving the
+    // record under the reader's eyes. Assert logical reading progress instead.
+    const readingPosition = (previous = null) => {
+      const el = document.querySelector('[data-table-scroll]');
+      const boundary = el.getBoundingClientRect().top + el.querySelector('thead').offsetHeight;
+      const row = [...el.querySelectorAll('tr[data-row-key]')].find(r => r.getBoundingClientRect().bottom > boundary);
+      if (!row) return null;
+      const box = row.getBoundingClientRect();
+      const position = Number(row.getAttribute('aria-rowindex')) + (boundary - box.top) / box.height;
+      return previous === null ? position : position > previous;
+    };
+    let previous = await wheelFrame.evaluate(readingPosition);
+    assert(Number.isFinite(previous), 'a visible record establishes the initial reading position');
     const starts = new Set();
     for (let step = 0; step < 24; step++) {
-      // A wheel call returns before native scrolling and variable-row measurement finish.
-      // Settle the preceding gesture and hit-test the current rows before the next one;
-      // otherwise the browser can target the surrounding SECTION after row replacement.
-      await stableReadingSurface(embedded);
-      await scroller.hover({ position: { x: 200, y: Math.min(box.height - 40, box.height / 2) } });
-      await embedded.waitForFunction(() => document.querySelector('[data-table-scroll]').matches(':hover'));
-      const beforeWheel = await scroller.evaluate(el => el.scrollTop);
-      await inputPage.mouse.wheel(0, 180);
+      // Locator hover waits for a stable, hittable target after iframe resize
+      // and window replacement; a cached bounding-box point does not.
+      await scroller.hover({ position: { x: 4, y: 100 } });
+      await wheelPage.mouse.wheel(0, 180);
       try {
-        await embedded.waitForFunction(top => document.querySelector('[data-table-scroll]').scrollTop > top, beforeWheel);
+        await wheelFrame.waitForFunction(readingPosition, previous);
       } catch (error) {
         const state = await scroller.evaluate(el => ({ top: el.scrollTop, height: el.clientHeight,
           scrollHeight: el.scrollHeight, bounds: el.getBoundingClientRect().toJSON(),
-          documentScroll: window.scrollY, viewport: { width: innerWidth, height: innerHeight },
-          wheelEvents: window.nativeWheelEvents, connected: el.isConnected }));
-        throw Error(`Native iframe wheel did not advance: ${JSON.stringify({ size, step, previous, beforeWheel, box, state })}`, { cause: error });
+          documentScroll: window.scrollY, virtualTotal: el.closest('[data-score-table]')?.dataset.virtualTotal, viewport: { width: innerWidth, height: innerHeight } }));
+        throw Error(`Native iframe wheel did not advance: ${JSON.stringify({ size, step, previous, state })}`, { cause: error });
       }
-      const sample = await embedded.evaluate(async () => {
+      await stableReadingSurface(wheelFrame);
+      const position = await wheelFrame.evaluate(readingPosition);
+      const sample = await wheelFrame.evaluate(async () => {
         await new Promise(requestAnimationFrame);
         await new Promise(requestAnimationFrame);
         const el = document.querySelector('[data-table-scroll]');
@@ -745,20 +779,26 @@ try {
           gaps: boxes.slice(1).map((box, i) => Math.abs(box.top - boxes[i].bottom)),
           visible: !!visible && visible.getBoundingClientRect().top < el.getBoundingClientRect().bottom };
       });
-      assert(sample.top > previous && sample.visible, `wheel advances through visible records inside ${size.width}px iframe (step ${step}, previous ${previous}): ${JSON.stringify(sample)}`);
+      assert(position > previous && sample.visible, `wheel advances through visible records inside ${size.width}px iframe (step ${step}, previous ${previous}, position ${position}): ${JSON.stringify(sample)}`);
       assert(sample.count <= 64 && sample.heights.every(height => height > 0), 'natural-height rows remain visible and bounded');
       assert(Math.max(0, ...sample.gaps) <= 2, `window replacement keeps rows contiguous: ${Math.max(0, ...sample.gaps)}px gap/overlap`);
-      previous = sample.top;
+      previous = position;
       starts.add(sample.start);
     }
     assert(starts.size >= 2, 'wheel crosses multiple virtual windows');
-    console.log(`Verified 24 native wheel steps in ${size.width}px iframe`);
   }
+  await wheelFrame.evaluate(() => window.dispose());
+
+  await wheelPage.close();
+
+  // Return to the clock-controlled context for receipt timing assertions.
+  await page.goto(`${origin}/embed`);
+  const embedded = await (await page.locator('iframe').elementHandle()).contentFrame();
+  await settled(embedded);
   await embedded.evaluate(() => window.dispose());
 
   // Controlled receipts exercise queue boundaries without waiting for another source cycle.
-  await inputPage.clock.install();
-  await inputPage.clock.pauseAt(new Date(await inputPage.evaluate(() => Date.now()) + 1000));
+  await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
   await embedded.evaluate(async () => {
     const { scoreTable } = await import('/js/ui/screener.js');
     const { arrivalsHtml, createArrivalsUI } = await import('/js/ui/alert-arrivals.js');
@@ -785,20 +825,60 @@ try {
   await embedded.locator('[data-export]').dispatchEvent('click');
   assert.deepEqual(await embedded.evaluate(() => window.streamExport), ['third', 'second', 'first', 'existing'], 'export includes the entire batch during the entrance sequence');
   await embedded.locator('[data-table-search]').fill('second');
-  await inputPage.clock.runFor(500);
+  await page.clock.runFor(500);
   assert.deepEqual(await embedded.locator('tr[data-row-key]').evaluateAll(rows => rows.map(r => r.dataset.rowKey)), ['second'], 'a changed filter finishes the queue and shows only matching rows');
   await embedded.locator('[data-table-search]').fill('');
-  await inputPage.clock.runFor(250);
+  await page.clock.runFor(250);
   await embedded.evaluate(() => { window.streamFixture.add(['revoked-two', 'revoked-one']); window.streamFixture.remove(['revoked-two', 'revoked-one']); });
-  await inputPage.clock.runFor(500);
+  await page.clock.runFor(500);
   assert.equal(await embedded.locator('tr[data-row-key^="revoked-"]').count(), 0, 'removed records cannot return from an entrance timer');
-  await inputPage.emulateMedia({ reducedMotion: 'reduce' });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await embedded.evaluate(() => window.streamFixture.add(['quiet-two', 'quiet-one']));
   assert.equal(await embedded.locator('tr[data-row-key^="quiet-"]').count(), 2, 'reduced motion shows the complete batch immediately');
-  await inputPage.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   const updatesAtDispose = await embedded.evaluate(() => { window.streamFixture.add(['leave-two', 'leave-one']); return window.streamFixture.dispose(); });
-  await inputPage.clock.runFor(500);
+  await page.clock.runFor(500);
   assert.equal(await embedded.evaluate(() => window.streamFixture.updates()), updatesAtDispose, 'leaving the table cancels queued entrances');
+  // Keep this lifecycle regression independent of the ordinary reader's scrolling timers.
+  const savedContext = await browser.newContext({ serviceWorkers: 'block' });
+  await savedContext.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.fulfill({ status: 404, body: '' }));
+  const savedPage = await savedContext.newPage();
+  savedPage.on('pageerror', error => errors.push(error.message));
+  await savedPage.goto(origin); await settled(savedPage);
+  const savedPeriod = savedPage.getByRole('combobox', { name: 'Date range', exact: true });
+  await savedPeriod.selectOption('all');
+  await savedPage.locator('[data-sources-summary]').click();
+  await savedPage.locator('[data-feed-toggle="news"]').click();
+  await savedPage.locator('[data-feed-toggle="announcements"]').click();
+  await savedPage.locator('[data-sources-close]').click();
+  // Closing a shared preset must return every ordinary-reader choice, including its source set.
+  const searchBeforeSaved = await savedPage.locator('[data-table-search]').inputValue();
+  await savedPage.locator('[data-table-search]').fill('Baseline reader filter');
+  const normalReading = await savedPage.evaluate(async () => ({
+    reading: (await import('/js/core/view-reading.js')).captureTableReading(document.querySelector('#root')),
+    extras: (await import('/js/tabs/daily-alerts.js')).getSavedView(),
+  }));
+  await savedPage.evaluate(async () => {
+    window.dispose();
+    const tab = await import('/js/tabs/daily-alerts.js'), views = await import('/js/core/view-reading.js');
+    const reading = { q: 'Saved screen only', filters: [{ label: 'Priority', value: 'high' }, { label: 'Direction', value: 'positive' }, { label: 'Date range', value: '7d' }], extras: { allSources: false, sources: ['earnings'] } };
+    views.enterView({ source: 'daily-alerts', key: 'fixture-saved-alerts', preset: { reading } });
+    tab.applySavedView(reading.extras, reading);
+    tab.render({ root: document.querySelector('#root'), scope: 'universe', params: { company: 'STLTECH' }, data: {}, savedView: { reading }, savedViewKey: 'fixture-saved-alerts' });
+  });
+  await settled(savedPage);
+  assert.equal(await savedPage.locator('[data-table-search]').inputValue(), 'Saved screen only');
+  assert.equal(await savedPeriod.inputValue(), '7d');
+  assert.deepEqual(await savedPage.evaluate(async () => (await import('/js/tabs/daily-alerts.js')).getSavedView().sources), ['earnings']);
+  await savedPage.evaluate(async () => { window.dispose(); (await import('/js/core/view-reading.js')).enterView(null); window.show(); });
+  await settled(savedPage);
+  const restoredReading = await savedPage.evaluate(async () => ({
+    reading: (await import('/js/core/view-reading.js')).captureTableReading(document.querySelector('#root')),
+    extras: (await import('/js/tabs/daily-alerts.js')).getSavedView(),
+  }));
+  assert.deepEqual(restoredReading, normalReading, 'ordinary sources, search, priority, direction, sort and date window survive a shared saved screen');
+  await savedPage.locator('[data-table-search]').fill(searchBeforeSaved);
+  await savedContext.close();
   assert.deepEqual(errors, [], 'zero application errors');
   console.log('PASS: source updates, privacy, filters, cleanup and native iframe wheel scrolling with stable virtual geometry.');
 } finally { await browser.close(); await new Promise((done) => server.close(done)); }

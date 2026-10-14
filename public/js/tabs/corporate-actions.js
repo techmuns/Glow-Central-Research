@@ -1,11 +1,6 @@
+import { TAB_META } from './catalog.js';
 // Exchange-wide corporate actions from NSE and Screener, scoped at paint time to the current portfolio,
 // watchlist or full captured universe.
-//
-// THIS IS A SUB-VIEW, NOT A TAB. It is the Corporate Actions view of Corp Announcements
-// (`tabs/corp-announcements.js`), which owns the tab id, the sub-view picker and the dispatch; this
-// module keeps the whole of the view — feed, columns, provenance, export — and the same
-// `{ meta, render, destroy }` shape so `scripts/verify-corporate-actions-ui.mjs` can drive it
-// directly. `meta.id` here is the refresh-registry id and the bookmark section key, not a route.
 
 import { escapeHtml } from '../core/dom.js';
 import { formatDate, formatNumber, formatRelativeTime } from '../core/format.js';
@@ -13,7 +8,6 @@ import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { corporateActions as feed } from '../data/corporate-actions.js';
 import { screenerActionDetails } from '../data/corporate-actions-shared.js';
-import { CORPORATE_ACTIONS_VIEW, viewSwitchHtml } from './corp-announcements-views.js';
 
 const LABELS = {
   bonus: 'Bonus', rights: 'Rights', split: 'Split', buyback: 'Buyback', dividend: 'Dividend',
@@ -45,8 +39,7 @@ const detailsCell = (row) => {
 const sourceCell = (row) => {
   const links = [];
   if ((row.sources || [row.source]).includes('NSE')) links.push(`<a href="${escapeHtml(row.sourceUrl)}" target="_blank" rel="noopener noreferrer" data-stop aria-label="Open NSE corporate action for ${escapeHtml(row.company)}" title="Open the official NSE record" class="inline-flex h-7 items-center justify-center rounded-md px-2 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200 transition-colors hover:bg-indigo-50">NSE ↗</a>`);
-  if ((row.sources || [row.source]).includes('Screener')) links.push(`<a href="${escapeHtml(row.screenerUrl || row.sourceUrl)}" target="_blank" rel="noopener noreferrer" data-stop aria-label="Open Screener corporate action for ${escapeHtml(row.company)}" title="Open the Screener action catalogue" class="inline-flex h-7 items-center justify-center rounded-md px-2 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200 transition-colors hover:bg-emerald-50">SCR ↗</a>`);
-  return `<span class="flex gap-1">${links.join('')}</span>`;
+  return links.length ? `<span class="flex gap-1">${links.join('')}</span>` : dash('No official NSE link is available for this action');
 };
 
 function filters(rows) {
@@ -79,22 +72,19 @@ function filters(rows) {
   ];
 }
 
-const SUBTITLE = 'One deduplicated feed of NSE actions, enriched with Screener ratios, terms, prices and additional records.';
-
 const tab = makeFilingsTab({
-  id: 'corporate-actions',
-  title: 'Corporate Actions',
-  subtitle: SUBTITLE,
-  // Same head as the Announcements view: title, the switch between the two views, the status label.
-  // The sentence above leads the provenance panel instead of sitting under the title.
-  compactHead: true,
-  headAside: (ctx) => viewSwitchHtml(ctx, CORPORATE_ACTIONS_VIEW),
+  ...TAB_META['corporate-actions'],
   feed,
   filterByScope: feed.filterByScope,
   noun: 'actions',
   nameLabel: 'Purpose',
+  nameAfter: 1,
   nameMaxPx: 560,
-  rowName: (row) => row.purpose,
+  // Screener-only purposes are our generated labels. Show their terms once in Terms; retain
+  // every original purpose in the model/search/export, and keep NSE's wording exactly as filed.
+  rowName: (row) => row.purposeSource === 'Derived from Screener fields' && screenerActionDetails(row.screener)
+    ? ({ split: 'Stock split', rights: 'Rights issue', buyback: 'Buyback', dividend: 'Dividend', bonus: 'Bonus' }[row.actionType] || row.purpose)
+    : row.purpose,
   rowSub: (row) => [row.company, row.ticker, row.series].filter(Boolean).join(' · '),
   searchable: (row) => `${row.purpose} ${row.company} ${row.ticker || ''} ${row.isin || ''} ${LABELS[row.actionType] || ''} ${screenerActionDetails(row.screener)}`,
   keyFor: (row) => row.id,
@@ -127,6 +117,7 @@ const tab = makeFilingsTab({
   },
   emptyMessage: 'No corporate actions match this scope and filter.',
   columns: () => [
+    { label: 'Company', get: (row) => `<span class="font-semibold text-slate-900">${escapeHtml(row.company || row.ticker || 'Company not supplied')}</span>`, html: true, sortValue: (row) => row.company || row.ticker || '' },
     { label: 'Type', get: (row) => badge(row.actionType), html: true, sortValue: (row) => LABELS[row.actionType] || 'Other' },
     { label: 'Ex date', get: (row) => dateCell(row.exDate, 'NSE supplied no ex date'), html: true, sortValue: (row) => row.exDate || '' },
     { label: 'Record / end date', get: (row) => dateCell(row.recordDate || row.screener?.endDate, 'Neither source supplied a record or end date'), html: true, sortValue: (row) => row.recordDate || row.screener?.endDate || '' },
@@ -142,9 +133,8 @@ const tab = makeFilingsTab({
       <button data-modal-close class="text-2xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
     </div>
     <div class="space-y-3 text-sm leading-relaxed text-slate-600">
-      <p>${escapeHtml(SUBTITLE)}</p>
       <p><strong>Summative source feed.</strong> NSE supplies the official market-wide company, symbol, ISIN, purpose, face value, ex date, record date and book-closure dates. Screener adds bonus and rights ratios, rights premium, split face values, buyback terms and dividend type and percentage. An NSE purpose stays exactly as filed.</p>
-      <p>A Screener action joins an NSE row only when ticker, action type and ex date form one unambiguous one-to-one match. The terms enrich that row and both source links remain. Ambiguous matches and actions found by only one source remain separate, so the merge neither guesses nor drops source records. Screener-only purpose text is visibly derived from its structured fields.</p>
+      <p>A Screener action joins an NSE row only when ticker, action type and ex date form one unambiguous one-to-one match. The terms enrich that row; its official NSE link remains available where supplied. Ambiguous matches and actions found by only one source remain separate, so the merge neither guesses nor drops source records. Screener-only purpose text is visibly derived from its structured fields.</p>
       <p>Action type is a navigation label so dividends, distributions, bonuses, rights, splits, buybacks, demergers, interest, redemptions and capital reductions can be filtered. Meeting-only AGM/EGM diary entries from NSE are excluded; a meeting row that also declares an action remains.</p>
       <p>The retained snapshot covers <strong>${escapeHtml(meta.requestedFrom || 'an unknown start')}</strong> through <strong>${escapeHtml(meta.requestedTo || 'an unknown end')}</strong>. Incremental source checks run every 15 minutes and a full Screener reconciliation runs daily. The dashboard checks the committed file every 90 seconds while visible. Either upstream can fail without erasing its last valid layer.</p>
       <p>Because the capture is exchange-wide, adding a stock to the portfolio or watchlist needs no new company scrape: the same file is filtered on the next paint. Portfolio matching uses ISIN as well as NSE symbol so a rename does not detach earlier actions. Company changes in the family book refresh independently every minute.</p>
@@ -184,7 +174,7 @@ const tab = makeFilingsTab({
   }),
 });
 
-export const meta = tab.meta;
+export const meta = TAB_META['corporate-actions'];
 let liveRef = null;
 export function render(ctx) {
   tab.render(ctx);

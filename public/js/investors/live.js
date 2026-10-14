@@ -1,4 +1,3 @@
-import { sectionsFor, renderManagers, managerSummaryBlock, openManager } from './my-managers.js';
 // investors/live.js — Superstar Investors, live off Ticker Finology.
 //
 //   renderLive(ctx, { disposers })   the whole sub-view
@@ -45,8 +44,9 @@ import { wireIntegrity, ensureHoldingsFresh, associatedEvidenceHtml } from './in
 import { loadEvidence } from '../data/holding-evidence.js';
 import * as publicHoldings from '../data/public-holdings.js';
 import { publicDisclosuresHtml, wirePublicDisclosures } from './public-disclosures.js';
+import { sectionsFor, renderManagers } from './my-managers.js';
 
-const SOURCE = 'Ticker Finology via this dashboard’s Worker; scheduled every six hours. Exchange completeness is unverified.';
+const SOURCE = 'Ticker Finology via this dashboard’s Worker; scheduled daily and checked automatically while visible. Exchange completeness is unverified.';
 const FINOLOGY_COMPANY = (slug) => `https://ticker.finology.in/company/${encodeURIComponent(slug)}`;
 
 const dash = '<span class="text-slate-300">—</span>';
@@ -70,29 +70,27 @@ const SECTIONS = [
   { id: 'data-table', label: 'Data Table' },
 ];
 
-export function renderLive(ctx, { disposers = [], section = 'quarterly-changes', tableView, onView, onSection, changesView, onChangesView } = {}) {
+export function renderLive(ctx, { disposers = [], section = 'quarterly-changes', tableView, onView, onSection, changesView, onChangesView, managersView, onManagersView, embedded = false, toolbarControls, overviewView = {}, onOverviewView = () => {} } = {}) {
   const m = feed.meta();
 
-  disposers.push(feed.watchFreshness());
+  disposers.push(feed.watchFreshness(), publicHoldings.watchFreshness());
   const rows = scopedHoldings(ctx);
   const quarters = feed.quarterLabels();
   const investorList = feed.list();
-  const sections = sectionsFor(ctx.scope, SECTIONS);
+  const sections = sectionsFor(SECTIONS);
   const activeSection = sections.some((item) => item.id === section) ? section : sections[0].id;
   const sectionTabs = tabBar({ tabs: sections, activeId: activeSection, onSelect: onSection || (() => {}) });
 
-  const summary = activeSection === 'quarterly-changes' ? renderChanges(ctx, { view: changesView, onView: onChangesView, openInvestor, includeHolding: scopeFilter(ctx) }) : null;
-  // `limit: 0` asks for the counts and the quarter pair only — the modal's figures — and none of
-  // the ranked rows, which this view draws from its own Changes reader.
-  const derivation = feed.quarterSummary({ include: scopeFilter(ctx), limit: 0 });
-  const table = activeSection === 'data-table' ? holdingsTable(ctx, rows, quarters, tableView) : null;
+  const summary = activeSection === 'quarterly-changes' ? renderChanges(ctx, { view: changesView, onView: onChangesView, openInvestor, includeHolding: scopeFilter(ctx), embedded, toolbarControls }) : null;
+  const mine = activeSection === 'my-managers' ? renderManagers(ctx, { view: managersView, onView: onManagersView }) : null;
+  const table = activeSection === 'data-table' ? holdingsTable(ctx, rows, quarters, tableView, { embedded, toolbarControls, onFilterChange: () => onView?.(table.view) }) : null;
   if (table) onView?.(table.view);
 
-  const mine = activeSection === 'my-managers' ? renderManagers(ctx, { openInvestor }) : null;
   const panel =
-    activeSection === 'my-managers' ? mine.html :
-    activeSection === 'quarterly-changes'
+    mine ? mine.html : activeSection === 'quarterly-changes'
       ? summary.html
+      : !feed.isLoaded()
+      ? '<div role="status" aria-busy="true" class="skeleton-shimmer h-96 rounded-2xl bg-slate-100"><span class="sr-only">Loading investor holdings…</span></div>'
       : !m.ok
       ? unavailableHtml(m)
       : activeSection === 'data-table'
@@ -102,42 +100,43 @@ export function renderLive(ctx, { disposers = [], section = 'quarterly-changes',
           <span class="text-[11px] text-slate-400">${escapeHtml(coverageNote(rows, quarters))}</span>
         </div>
         ${table.html}`
-        : `<div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">${investorList.map(investorCard).join('')}</div>`;
+        : `${embedded ? `<div class="investor-overview-controls"><label>Find an investor<input data-investor-search type="search" aria-label="Search investors" value="${escapeHtml(overviewView.query || '')}" placeholder="Investor name"></label>${toolbarControls?.html || ''}</div>` : ''}<div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-investor-cards>${investorList.map(investorCard).join('')}</div><p data-investor-empty class="text-sm text-slate-500" hidden>No matching investors. Try another name or clear the search.</p>`;
 
   ctx.root.innerHTML = `
-    ${sectionHead({
+    ${embedded ? '' : sectionHead({
       title: 'Superstar Investors',
-      description: 'Follow your managers and tracked investors through holdings reports, statement trades and bulk/block deals.',
-      // The chip stays a passive label — it states the age on its face and opens nothing. The door
-      // is its own control beside it, because the explanation behind it is the one that says which
-      // books could not be re-checked and which investors have no book at all. That sentence had
-      // no caller on this deployment at all once this view replaced the template's roll-up: the
-      // button was built into a block nothing renders here any more, which is the worst state for
-      // an explanation to be in — maintained, correct and unreachable.
-      meta: `${freshnessChip(m)}${derivationButton}`,
+      description: 'Follow your managers and tracked investors through holdings, ledger activity and reported bulk/block deals.',
     })}
-    ${!m.ok && activeSection === 'quarterly-changes' ? unavailableHtml(m) : ''}
-    <div class="mb-5 rounded-2xl bg-white px-3 shadow-sm ring-1 ring-slate-100" data-live-section-tabs>
+    ${feed.isLoaded() && !m.ok && activeSection === 'quarterly-changes' && changesView?.audience === 'investors' ? unavailableHtml(m) : ''}
+    ${embedded ? '' : `<div class="mb-5 rounded-2xl bg-white px-3 shadow-sm ring-1 ring-slate-100" data-live-section-tabs>
       ${sectionTabs.html}
-    </div>
-    <div role="tabpanel" aria-label="${escapeHtml(sections.find((item) => item.id === activeSection)?.label || '')}" data-live-panel="${escapeHtml(activeSection)}">
+    </div>`}
+    <div role="tabpanel" aria-label="${escapeHtml(embedded ? activeSection === 'quarterly-changes' ? 'Changes' : activeSection === 'data-table' ? 'Holdings' : 'Overview' : sections.find((item) => item.id === activeSection)?.label || '')}" data-live-panel="${escapeHtml(activeSection)}">
       ${panel}
     </div>`;
 
-  // EVERY "How this is derived" button on this view opens the one provenance modal — the head's
-  // and the quarterly roll-up's alike — and the coverage audit lives inside it. See integrity.js
-  // for why it is behind this door rather than at the top of the page.
-  ctx.root.querySelectorAll('[data-summary-help]').forEach((btn) =>
-    btn.addEventListener('click', () => openDerivation(derivation, m)));
   // The sources the audit reads are revalidated on mount whether or not the audit is opened:
   // "refresh on opening" is a standing requirement, not a side effect of a panel.
   ensureHoldingsFresh().catch(() => {});
 
-  disposers.push(sectionTabs.wire(ctx.root.querySelector('[data-live-section-tabs]')));
+  if (!embedded) disposers.push(sectionTabs.wire(ctx.root.querySelector('[data-live-section-tabs]')));
   summary?.wire(ctx.root, disposers);
   mine?.wire(ctx.root, disposers);
   if (table) disposers.push(table.wire(ctx.root));
-  if (activeSection === 'investors') wireCards(ctx.root);
+  if (activeSection === 'investors') {
+    wireCards(ctx.root);
+    const search = ctx.root.querySelector('[data-investor-search]');
+    if (search) {
+      const filter = () => {
+        overviewView.query = search.value; onOverviewView(overviewView);
+        const cards = [...ctx.root.querySelector('[data-investor-cards]').children];
+        cards.forEach((card, index) => card.hidden = !investorList[index].name.toLowerCase().includes(search.value.trim().toLowerCase()));
+        ctx.root.querySelector('[data-investor-empty]').hidden = cards.some(card => !card.hidden);
+      };
+      search.addEventListener('input', filter); filter();
+      disposers.push(toolbarControls?.wire?.(ctx.root));
+    }
+  }
 }
 
 
@@ -262,9 +261,7 @@ function quarterSummaryBlock(ctx, m) {
     }),
   ];
 
-  const mine = managerSummaryBlock(ctx);
   const html = `
-    ${mine?.html || ''}
     <section class="mb-6" data-quarter-summary>
       ${summaryHead(q, scope)}
       <div class="mb-3 rounded-xl bg-white px-4 py-3 text-xs text-slate-500 ring-1 ring-slate-200" data-si-coverage>
@@ -277,7 +274,6 @@ function quarterSummaryBlock(ctx, m) {
     </section>`;
 
   function wire(root, disposers) {
-    mine?.wire(root, disposers);
     for (const panel of panels) disposers.push(panel.wire(root));
     root.querySelector('[data-si-universe]')?.addEventListener('click', () => {
       const [path, search = ''] = location.hash.split('?');
@@ -299,7 +295,7 @@ function openDerivation(q, m) {
   const audit = [];
   openModal(summaryHelpBody(q, m), { size: 'wide', onClose: () => audit.forEach((d) => d?.()) });
   const host = document.getElementById('modal-content')?.querySelector('[data-holdings-integrity]');
-  if (host) wireIntegrity(host, audit, openInvestor, openManager);
+  if (host) wireIntegrity(host, audit, openInvestor);
 }
 
 const COMPANY_ACTION = {
@@ -501,7 +497,7 @@ function summaryHelpBody(q, m = {}) {
       <div class="space-y-3 text-[13px] leading-relaxed text-slate-700">
         <p>Finology publishes a holding <strong>percentage</strong> per company per quarter. Changes subtract the prior percentage from the latest one. Counts and rankings are derived from those disclosures; these are not independently verified exchange filings.</p>
         <p><strong>Every book uses the same comparison pair:</strong> ${escapeHtml(q.latest || 'unavailable')} vs ${escapeHtml(q.prior || 'unavailable')}. Only consecutive calendar quarters that have ended are eligible. ${q.excludedBooks.length} loaded books lack this pair and are excluded; the dashboard does not mix older periods into this quarter.</p>
-        <p><strong>A missing or conflicting figure is incomplete data.</strong> Filing notes survive the feed and cache. An unavailable prior quarter cannot establish a new entrant. A missing current stake is called no longer disclosed only when the source also reports zero current value; otherwise its status remains incomplete.</p>
+        <p><strong>A missing or conflicting figure is incomplete data.</strong> Filing notes survive the feed and cache. An unavailable prior quarter cannot establish a new entrant. Only an explicit non-disclosure in the source establishes that a prior stake is no longer disclosed. A zero valuation cannot turn a missing stake into an exit.</p>
         <p><strong>A blank is not zero, and a new disclosure is not necessarily a new investment.</strong> A holder may reappear or cross the disclosure threshold. Appearances and disappearances carry no percentage-point trade size.</p>
         <p><strong>Stake changes do not establish purchases or sales.</strong> Issuance, buybacks and other changes in share capital can change ownership percentages. Current rupee values estimate holdings, not money traded.</p>
         <p><strong>Shared changes count distinct investors in the same company and quarter pair.</strong> Source company identifiers join names; duplicate rows never add votes. A combined percentage-point change is shown only when every included change has a measured delta.</p>
@@ -519,30 +515,30 @@ function summaryHelpBody(q, m = {}) {
 
 const REASONS = {
   'no-route': {
-    title: 'The live investor feed needs the Worker',
-    body: 'This origin serves the static files only, so there is no <code>/api/super-investors</code> route to answer. Run <code>npx wrangler dev</code>, or open the deployed site.',
+    title: 'Investor holdings unavailable',
+    body: 'The investor source is unavailable at this address. Please open Glow Central Research from your usual dashboard link.',
   },
   'no-token': {
-    title: 'No API token is configured',
-    body: 'The super-investor API requires a bearer token, and this deployment has none. An operator sets it with <code>npx wrangler secret put MUNS_TOKEN</code> — it lives on the Worker and never reaches the browser.',
+    title: 'Investor source access unavailable',
+    body: 'Access to the investor source needs attention. Please check back.',
   },
   unauthorised: {
-    title: 'The API rejected the token',
-    body: 'The token configured on the Worker was refused, which usually means it has expired. Renewing it is <code>npx wrangler secret put MUNS_TOKEN</code>.',
+    title: 'Investor source access unavailable',
+    body: 'The investor source could not be accessed. Please check back.',
   },
   // This is a deployment fact, not a data condition, so it says so rather than implying the
   // investor list came back empty. The credential is fine; the endpoint is simply not there.
   'route-missing': {
-    title: 'That service does not have the super-investor endpoints',
-    body: 'The token works, but <code>GET /super-investors</code> returns 404 on the host this dashboard is pointed at. Its own OpenAPI document (<code>/api-json</code>) lists no route matching "investor", so this is not a bad path on our side — the endpoint is not deployed there. Whoever owns that backend needs to ship it, or point us at the host that already has it.',
+    title: 'Investor holdings unavailable',
+    body: 'The investor source could not be found. Please check back.',
   },
   timeout: {
-    title: 'The super-investor API did not answer in time',
-    body: 'The request was given 15 seconds and retried, and the upstream did not respond. It answers in about a second when healthy, so this usually means the service is restarting.',
+    title: 'Investor source took too long to respond',
+    body: 'Holdings could not be checked. Please try again later.',
   },
-  unreachable: { title: 'The super-investor API could not be reached', body: 'The upstream service did not answer. Nothing is wrong with this page; there is nothing to show until it does.' },
-  upstream: { title: 'The super-investor API returned an error', body: 'The upstream answered, but not with data. This usually clears on its own.' },
-  shape: { title: 'The super-investor API returned something unreadable', body: 'The response was not JSON in the shape this dashboard knows. That is a change on their side worth looking at.' },
+  unreachable: { title: 'Investor source could not be reached', body: 'Holdings could not be checked. Please try again later.' },
+  upstream: { title: 'Investor holdings temporarily unavailable', body: 'The source did not supply a usable holdings book. Please check back.' },
+  shape: { title: 'Investor holdings could not be verified', body: 'The source reading was incomplete or invalid. Please check back.' },
 };
 
 /**
@@ -568,63 +564,13 @@ function unavailableHtml(m) {
         <div class="min-w-0 flex-1">
           <h3 class="font-display text-base font-bold text-slate-900">${escapeHtml(r.title)}</h3>
           <p class="mt-1.5 text-sm leading-relaxed text-slate-600">${r.body}</p>
-          ${m.message ? `<p class="mt-2 rounded-lg bg-slate-50 px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-500">${escapeHtml(m.message)}</p>` : ''}
           <p class="mt-3 text-xs leading-relaxed text-slate-500">
-            <strong>No positions are shown.</strong> Not an empty book and not last week's figures — there is nothing to display
-            until the feed answers, and inventing furniture to fill the space would be worse than the gap.
+            No verified holdings are available to display. This does not establish that an investor has no holdings.
           </p>
         </div>
       </div>
     </div>`;
 }
-
-// AGE IS THE MATERIAL CONDITION, AND IT IS ALL OF IT THAT BELONGS IN THE CHROME.
-//
-// This used to be a full-width amber block above the grid: a warning triangle, three sentences
-// about the Worker serving the copy it already had, and the upstream's own error string —
-// `/super-investors returned HTTP 502` — in monospace, on a customer screen. It sat over a
-// complete, correct, ninety-book grid of real filed holdings, because the ONLY thing wrong with
-// those figures was that they were a few hours old.
-//
-// Every rule in this codebase about caveats points the same way — "prefer a passive status label
-// whenever a caveat is competing with the content it qualifies", "internal retry states do not
-// appear in customer chrome", "move the explanation behind a control that still states the claim,
-// and never delete the claim". So the claim survives, in the one form a reader can act on: the
-// date the source was read. Whose data it is, why it is that age and what failed are all still
-// written down — in the provenance modal on this panel and in the source registry, which is where
-// a reader who wants the mechanism goes looking.
-//
-// It is DELIBERATELY NOT COLOURED. Amber is semantic here — it means partial — and a quarterly
-// disclosure read this morning is not partial, it is current. Colouring age as a fault taught the
-// reader to distrust figures that were never in doubt.
-//
-// AND IT IS STILL NOT THE MOCK RIBBON, which is the one thing the strip it replaced got right.
-// Every figure under this label is a real filing read from the real source. What can be wrong with
-// it is its AGE and nothing else, so the label gives the age and makes no other claim — the
-// alternative both versions replaced was showing a reader with a perfectly good copy of a
-// quarterly disclosure a page of prose about a restarting service.
-function freshnessLabel(m) {
-  const read = Date.parse(m.fetchedAt || m.capturedAt || '');
-  if (!Number.isFinite(read)) return 'Ticker Finology · updating';
-  // Shareholding data moves when a company files — four times a year — so nothing here goes out of
-  // date in hours. The window is the Worker's own six-hour source cache: inside it, the figure on
-  // screen is the figure the source would give, and saying anything else would invite the reader
-  // to read staleness into a number that could not have changed.
-  const fresh = Date.now() - read < 6 * 60 * 60 * 1000;
-  return `Ticker Finology · ${fresh ? 'up to date' : `read ${formatRelativeTime(read)}`}`;
-}
-
-const derivationButton = `
-  <button type="button" data-summary-help
-    class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
-    <span>How this is derived</span><span aria-hidden="true">?</span>
-  </button>`;
-
-const freshnessChip = (m) => `
-  <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500" data-si-freshness>
-    <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-400" aria-hidden="true"></span>
-    ${escapeHtml(freshnessLabel(m))}
-  </span>`;
 
 // THERE IS NO FRESHNESS HERO ON THIS VIEW, deliberately.
 //
@@ -719,7 +665,7 @@ function wireCards(root) {
 // horizontal scrollbar — see the layout-knobs table in CLAUDE.md.
 // ---------------------------------------------------------------------------------------
 
-function holdingsTable(ctx, rows, quarters, initialView) {
+function holdingsTable(ctx, rows, quarters, initialView, { embedded = false, toolbarControls, onFilterChange } = {}) {
   const investorNames = [...new Set(rows.map((r) => r.investor))].sort();
 
   return scoreTable({
@@ -780,7 +726,8 @@ function holdingsTable(ctx, rows, quarters, initialView) {
         match: (r, v) => r.investor === v,
       },
       {
-        label: 'This quarter',
+        label: embedded ? 'Disclosure change' : 'This quarter',
+        readingAliases: ['This quarter'],
         options: [
           { value: 'all', label: 'Any change' },
           { value: 'new', label: 'New positions' },
@@ -800,6 +747,7 @@ function holdingsTable(ctx, rows, quarters, initialView) {
     onExport: () => runExport(),
     emptyMessage: scopePossessive(ctx.scope) ? `None of ${scopePossessive(ctx.scope)} is disclosed by a tracked investor.` : 'No positions match your filters.',
     initialView,
+    toolbarControls, onFilterChange, showWatchFilter: embedded ? 'selected' : true,
   });
 }
 
@@ -820,7 +768,7 @@ function changeOf(r) {
 const ACTION = {
   unknown: ['Unconfirmed', 'bg-slate-100 text-slate-600 ring-slate-200'],
   awaiting: ['Filing due', 'bg-slate-100 text-slate-600 ring-slate-200'],
-  new: ['New', 'bg-indigo-50 text-indigo-700 ring-indigo-200'],
+  new: ['Newly disclosed', 'bg-indigo-50 text-indigo-700 ring-indigo-200'],
   added: ['Added', 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
   held: ['Held', 'bg-slate-100 text-slate-600 ring-slate-200'],
   trimmed: ['Trimmed', 'bg-amber-50 text-amber-800 ring-amber-200'],

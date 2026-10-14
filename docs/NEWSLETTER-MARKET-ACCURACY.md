@@ -1,11 +1,11 @@
 # Newsletter market accuracy — 24 September 2026
 
-The 23 September customer report showed correct index levels with incorrect daily
+The upstream Glow investigation and Sattva parity audit identified correct index levels with incorrect daily
 changes. `readMarkets` requested five daily bars but subtracted Yahoo's
 `meta.chartPreviousClose`, the reference at the beginning of that range. That also
 affected global indices, currencies, commodities and yields.
 
-The screenshot supplies these regression cases:
+Captured public-source fixtures from Glow supply these regression cases:
 
 | Index | Level | NSE previous close | Daily points | Daily percent |
 | --- | ---: | ---: | ---: | ---: |
@@ -15,40 +15,19 @@ The screenshot supplies these regression cases:
 
 ## Source and comparison rules
 
-`worker/newsletter-markets.mjs` owns quote validation. Global rows first use Yahoo's
-published daily quote comparison from the same response: `fulldayPrice`,
-`fulldayChange` and `fulldayChangePercent`. The price must exactly equal the dated
-`regularMarketPrice`; identity, instrument type, currency and timezone must match
-the configured instrument. The implied reference must be positive and both supplied
-percentages must agree with the arithmetic within 0.00051 percentage points. The
-final percent is calculated from price and point change to avoid double rounding
-(S&P's reported −0.755% represents −58.61 / 7,764.64 = −0.75% at two decimals).
-Missing numbers never become zero; extended-session/mismatched prices, non-finite
-values and contradictions cannot supply a change.
+`worker/newsletter-markets.mjs` owns quote validation. Indian Yahoo comparisons require
+the immediately preceding dated unadjusted daily bar in an ordered daily series.
+Global quotes may use the validated published comparison described below.
+The quote's session must be represented in that series. A null prior bar, missing
+session, invalid value or conflicting explicit previous close withholds the
+daily change. For Indian indices, the existing known exchange calendar also
+checks the predecessor date. Unknown calendars are not certified. No range
+reference, older non-null bar, opening price or adjusted close substitutes for it.
 
-This is **provider-reported**, not an independent cross-check or an observed dated
-previous close. Rows say “quoted daily change”; delivery summaries retain the
-identities in `quotesReportedChanges`. No additional request is needed. For cash
-indices, an available preceding dated close is still checked for contradiction.
-Currencies and rolling futures use their quoted comparison because a historical
-bar can use a different fixing or contract. If their quote comparison is missing,
-we do not substitute a chart-based daily move. In the captured 24 September Brent
-response, that substitution would incorrectly show −2.60% instead of +2.32%.
-
-Indian indices continue to require the exchange/calendar rules below. A captured
-Nifty quote's otherwise coherent +32.50 / +0.139% also uses the wrong reference,
-so global quote enrichment must never override India's verified exchange path.
-Where global cash quote fields are absent, the immediately preceding dated,
-unadjusted daily bar can supply the comparison. The quote's session must be
-represented in an ordered daily series. A null prior bar, missing session,
-invalid value or conflicting explicit previous close withholds that fallback.
-For India, the known exchange calendar also checks the predecessor date. Unknown
-calendars are not certified. No range reference, older non-null bar, opening price
-or adjusted close substitutes for a daily comparison.
 The captured `yahoo-nifty-missing-close.json` is an actual public-source response
-read during this investigation. Its 22 and 23 September daily closes are null.
+retained by the upstream Glow investigation. Its 22 and 23 September daily closes are null.
 A separate one-day/minute request returned `previousClose: 23414.3`, also different
-from the screenshot's NSE previous close. Switching to that field alone would not
+from the captured NSE previous close. Switching to that field alone would not
 establish accuracy. The fixture retains these missing bars; its expected result is
 a dated level with no daily change until another valid source supplies one.
 
@@ -66,8 +45,8 @@ The official NSE `allIndices` snapshot supplies seven NSE indices in one bounded
 unauthenticated request; Sensex is never substituted with an NSE instrument. Its
 own timestamp, previous close, point change and percentage are validated. The
 published percentage is retained only when consistent with the rounding interval
-of its two-decimal levels (material for India VIX). A read-only 23 September
-snapshot confirms Nifty IT −0.87% and India VIX 10.29 / −6.41%, additional Yahoo
+of its two-decimal levels (material for India VIX). The retained 23 September
+snapshot records Nifty IT −0.87% and India VIX 10.29 / −6.41%, additional Yahoo
 errors beyond the three screenshot comparisons. Both source fixtures are retained.
 Blocked/unavailable exchange reads fall back without access-control workarounds.
 
@@ -79,18 +58,10 @@ closes must agree within floating-point/quote-rounding tolerance: max(0.011,
 0.0001% of the reference). Closing levels use the same tolerance; intraday prices
 from different seconds are not compared. A prior-close disagreement withholds the
 change; a closing-level disagreement withholds the level and changes. Never
-average providers or combine unmatched providers' levels and previous closes. The
-strictly matched Nasdaq EOD enrichment below is the sole explicit exception.
+average providers or combine one's level with the other's previous close.
 Missing/invalid/stale primary rows fall back individually and say single source.
 An unavailable cross-check does not claim verification. Provider authentication,
 partial reads and failures appear in source coverage.
-
-Yahoo's published feed delays are recorded separately from observation age:
-Nikkei/Shanghai/NYMEX/COMEX/ICE Futures US 30 minutes, Taiwan/Korea 20 minutes,
-Hang Seng/Cboe/Sensex 15 minutes. An intraday delayed feed cannot say Live just
-because its observation is recent. Completed quotes retain Close and the feed
-delay. Source: [Yahoo exchange coverage](https://help.yahoo.com/kb/SLN2310.html),
-checked 24 September 2026; provider terms and entitlements still apply.
 
 Every HTML, text and PDF row retains its full source date/time and provider, plus
 single-source/cross-check status and any withheld-change reason. Earlier and
@@ -98,14 +69,13 @@ delayed observations stay labelled. Global quotes older than four days or still
 preceding a provider session that opened more than 20 minutes ago are earlier
 quotes, excluded from the headline summary; an intraday observation cannot become
 a close just because the market shut. Section headings do not promise today's
-close. A macro-series fallback retains its own date and never conceals a known
-provider conflict. Stale or unverified rows are excluded from the headline glance.
+close. Sattva has no macro-series store; an unavailable source cannot acquire a stored fallback. Stale or unverified rows are excluded from the headline glance.
 Delivery summaries retain unavailable, unverified and conflict identities.
 
 ## Verification and limits
 
 Run `node scripts/verify-newsletter-markets.mjs`, `verify-newsletter.mjs` and
-`verify-newsletter-ui.mjs`. The first covers all fifteen captured published global quote comparisons, the original customer figures, captured global
+`verify-newsletter-ui.mjs`. The first covers the customer figures, captured global
 and incomplete Yahoo responses, session/date boundaries, identity validation,
 partial/error/duplicate Upstox responses, credential isolation and HTML/text/PDF
 output. It runs in the existing Verify workflow. The UI suite drives the real
@@ -136,9 +106,7 @@ The captured 24 September response exposes why its header clock must not date a
 quote: `LatestTime` still says 09:00:59 while the last cash point is 09:38:38.
 The parser uses the point's full date/time in IST. At that point Sensex is 74,267.72
 against 74,828.25, or −560.53 / −0.75%. BSE participates in the same exchange-first
-reconciliation as NSE, including withholding unresolved disagreements. A local
-read of the public feeds also verified all eight Indian indices with current
-exchange quotes; this is a dated observation, not a perpetual availability claim.
+reconciliation as NSE, including withholding unresolved disagreements. The upstream Glow PR reported all eight Indian indices during its own dated public-feed check; this port does not certify present source availability.
 
 Upstox's [global instrument master](https://assets.upstox.com/market-quote/instruments/exchange/global.json.gz)
 and [API announcement](https://upstox.com/developer/api-documentation/announcements/global-instruments/)
@@ -160,50 +128,10 @@ comparison but never becomes a close or enters the headline glance.
 `IXIX` in that master is US Tech 100, **not Nasdaq Composite**. Its Brent indicator
 is also a different product from Yahoo's Brent futures contract. Neither is used
 as a substitute. USD/INR feeds can have different daily fixing boundaries, so that
-indicator is not silently interchanged either. Kospi, DXY,
+indicator is not silently interchanged either. Nasdaq Composite, Kospi, DXY,
 USD/JPY, USD/INR and US 10-year yield therefore still depend on their existing
 validated feeds. Broader coverage needs a source with those exact instruments,
 dated previous closes and appropriate access; no source guarantees perfect data.
-
-## Nasdaq closing-comparison enrichment
-
-`worker/newsletter-market-enrichment.mjs` reads the public
-[Nasdaq Composite history table](https://indexes.nasdaq.com/Index/History/COMP)
-using the same read-only `POST /Index/HistoryData` form as that page: `id=COMP`,
-`timeOfDay=EOD`, and seven calendar days ending on the quote's session. COMP is
-the price-return Nasdaq Composite, not NDX/Nasdaq-100. The fixed request establishes
-the instrument identity (the response does not echo its symbol); USD, the quote's
-identity and the matching current close are also mandatory. No credentials,
-redirect following or additional subscription is introduced. One request, an
-eight-second timeout and a 64 KiB body limit bound its cost and failure impact.
-
-This is enrichment of a missing closing comparison, not replacement of a quote.
-Yahoo must still supply the Nasdaq quote, its full timestamp, a closing observation
-at or after 16:00 New York, and the exact immediately preceding daily-series date.
-The null bar is never skipped. Nasdaq's complete, descending EOD records must begin
-with those same two dates, have valid positive levels, coherent high/low values,
-and agree with its own published net change. The two current closes must match
-at their displayed two-decimal precision. Any explicit Yahoo previous close must
-also agree; known conflicts cannot be repaired away. Missing, duplicate, future,
-out-of-range, partial and out-of-order history is rejected. Its midnight date
-markers never replace the original market observation's time.
-
-Only after these checks is the previous close normalized to the index's published
-two-decimal precision and the missing daily change filled. The level, original
-provider and source timestamp stay intact. HTML, text and PDF say `daily change:
-Nasdaq history` and `level cross-checked`; this does not claim that two independent
-sources supplied the daily change. Coverage and delivery summaries record attempts,
-successful enrichment and failures. An outage leaves the existing dated quote and
-unverified-change label; a confirmed closing-level disagreement withholds the level
-and cannot fall through to an older series-store value.
-
-The captured 23 September fixtures reproduce 26,936.04 versus 27,244.28, a daily
-change of −308.24 / −1.13%. Both the public endpoint and the same request from an
-isolated Cloudflare development preview returned these records on 24 September.
-This is evidence for the integration, not a guarantee of perpetual source coverage.
-The regression suite covers dates, DST/weekends, failures, contradictory values,
-credential isolation and all three customer output formats. Other instruments are
-not substituted or inferred from this feed, and their remaining gaps stay explicit.
 
 Session references: [NYSE](https://www.nyse.com/trade/trading-information),
 [JPX](https://www.jpx.co.jp/english/equities/trading/domestic/01.html),
@@ -216,39 +144,29 @@ Indian close labels also require a known session calendar: unknown Muhurat hours
 or future-year calendars cannot turn an intraday point into the next morning's
 close merely because it occurred after the ordinary 15:30 cutoff.
 
-## Existing CI reliability gate
 
-The full-history versus bounded-news check also exposed a pre-existing failure in
-23 September captures: the same International Trade Administration headline and
-source date appeared at different URLs on either side of IST midnight. The
-canonicalizer deduplicated on publisher/date/headline, while the bounded index
-looked only for URL/TradingView companions. The narrow view therefore chose a
-record the full history had already deduplicated away.
+Ported from Glow #1285 and #1291, retaining Sattva’s portfolio, branding, readable filing links, subscriber ledger and existing schedule. Validation is local with injected source responses; no production send or manual deployment is needed.
 
-Index version 4 now includes the canonicalizer's shared story identity. Its
-fingerprints select extra source records only; they never delete or merge them.
-Existing company-scoped canonicalization still decides the output. Old indexes
-fall back to verified source parts and rebuild locally. The shipped-capture
-comparison stays intact, a small midnight fixture reproduces the bug, and the
-service-worker release advances with a returning-session module-upgrade test.
+## Published global changes and Nasdaq history (October 2026)
 
+A global quote may provide its own daily price/change/percent tuple. Accept it only
+when the exact instrument, currency and timezone match, the published comparison
+price equals the regular-session quote, and the arithmetic agrees. Keep its original
+observation time and identify the comparison as provider-reported; a calculated
+reference does not acquire an invented historical date or independent verification.
+Cash-index historical comparisons must agree when available. FX fixings and rolling
+futures chart bars cannot substitute for their quoted comparison. Missing or
+contradictory values remain withheld. Published feed delays stay visible.
 
-## Published-quote regression evidence
+For a closed Nasdaq Composite (^IXIC) quote with a known missing predecessor, a
+bounded read of [Nasdaq COMP history](https://indexes.nasdaq.com/Index/History/COMP)
+can supply the comparison only when the closing level, both exact trading dates,
+currency and adjacent EOD arithmetic match. Preserve the quote and its clock.
+Never substitute Nasdaq-100, skip an absent session or overwrite a conflict with
+a fallback. This adds no paid model call and does not alter Indian-index validation.
 
-`yahoo-published-global-2026-09-24.json` retains the fifteen actual global chart
-responses captured around 08:49 UTC. The fixture verifies S&P 500 −58.61 / −0.75%,
-Dow −352.10 / −0.68%, Nasdaq −308.24 / −1.13%, Kospi +63.01 / +0.90%, USD/JPY
-+0.14 / +0.09%, USD/INR +0.21 / +0.22%, and US 10-year yield +14.6 bp / +2.94%.
-The currency/commodity values describe their own captured times, not permanent
-expected current values. Tests cover all fifteen rows through HTML, text, PDF and
-the delivery summary, plus malformed/contradictory fields, exact identities,
-stale/future timestamps, published zero, cash-reference conflicts and the original
-NSE regressions. Nasdaq history remains a fallback when the quote fields are absent;
-tests explicitly remove those fields from a copy of the original capture to exercise
-that path. A complete quote avoids the extra history request.
-
-A read-only Cloudflare development-preview check at 08:56 UTC on 24 September
-returned all 23 market rows with prices and comparisons: seven NSE, one BSE and
-fifteen Yahoo published quotes, no missing comparisons, stored substitutes or
-conflicts. The actual source timestamps and documented delays remained on each
-row. This is a point-in-time source check, not a guarantee of future availability.
+Regression fixtures from Glow's public-source captures cover all fifteen global
+quotes, missing Nasdaq comparisons, DST/weekends, null or duplicate sessions,
+identity mismatches, partial responses, stale observations and source conflicts.
+HTML, plain text, PDF and delivery metadata disclose the comparison source. The
+existing saved editions, delivery ledger and OpenAI budgets remain unchanged.

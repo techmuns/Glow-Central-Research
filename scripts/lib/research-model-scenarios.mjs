@@ -1,7 +1,7 @@
 // Controlled answer-quality probes using REAL portfolio company identities and
 // deliberately SYNTHETIC facts/weights. Never publish these as company research.
 import { readFileSync } from 'node:fs';
-const book = JSON.parse(readFileSync(new URL('../fixtures/template-portfolio-companies.json', import.meta.url)));
+const book = JSON.parse(readFileSync(new URL('../../public/data/portfolio-companies.json', import.meta.url)));
 const targets = ['JAYNECOIND', 'IIFL', 'ALANKIT'].map(t => book.holdings.find(h => h.ticker === t));
 const probes = [
   ['latest', 'What is the latest info on COMPANY for me?', ['2026-09-05|5 September|September 5', 'order', '73'], ['guaranteed']],
@@ -49,7 +49,7 @@ export function scenarioBody(test, now = new Date()) {
     source('earnings-hub', 'Earnings Hub', [{ resultDate: '2026-08-12', period: '2026-06-30', basis: 'consolidated', revenueCr: { current: 120, prior: 100 }, netProfitCr: { current: 8, prior: -2, change: 'loss-to-profit' } }], '₹ crore. Same quarter year-on-year. No valid profit growth percentage across a sign change. Analyst estimates and consensus target prices are not connected.'),
     source('company-filings', 'Earnings Hub', [{ date: '2026-09-05', title: 'Investor presentation', url: 'https://example.invalid/synthetic-presentation.pdf' }], 'Document metadata only; PDF contents and guidance have NOT been read.'),
     source('announcements', 'Corp Announcements', [{ date: '2026-09-05', title: 'Order disclosure: ₹70 crore' }, { date: '2026-09-04', title: 'Board meeting scheduled for 2026-09-09', scheduledFor: '2026-09-09' }]),
-    source('technicals', 'Breakouts / Technical', [{ date: '2026-09-04', rsi14: 58, above200DayAverage: false }]),
+    source('technicals', 'Screens', [{ date: '2026-09-04', rsi14: 58, above200DayAverage: false }]),
     source('public-chatter', 'Public Chatter', [{ date: '2026-09-04', mentions: 30, priorMentions: 10, mentionChangePct: 200 }], 'Mention counts, not price returns; sentiment is not a company filing.'),
     source('super-investors', 'Super Investors', [{ investor: 'Synthetic investor', latestPeriod: 'Jun 2026', priorPeriod: 'Mar 2026', priorHoldingPct: 1.2, action: 'no longer disclosed' }], 'Falling below the disclosure threshold does not establish a sale.'),
     source('screener-insights', 'AI Alerts', [{ metric: 'Output', unit: 'thousand tonnes', periodicity: 'quarterly', period: '2026-06-30', value: 17 }]),
@@ -70,7 +70,7 @@ export function scenarioBody(test, now = new Date()) {
 
 export function checkModelAnswer(test, answer, body = null) {
   const normalizePage = value => value.toLowerCase().replace(/\s*\/\s*/g, '/').trim();
-  const pages = body && new Set(['Ask Sattva', ...body.evidence.sources.map(s => s.tab)].filter(Boolean).map(normalizePage));
+  const pages = body && new Set(['Ask Glow', ...body.evidence.sources.map(s => s.tab)].filter(Boolean).map(normalizePage));
   const citations = [...answer.matchAll(/\[Dashboard: ([^\]]+)\]/g)].map(m => m[1]);
   return [
     ...test.must.filter(pattern => !new RegExp(pattern, 'i').test(answer)).map(pattern => `missing:${pattern}`),

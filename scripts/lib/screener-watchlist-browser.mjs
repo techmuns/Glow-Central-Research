@@ -1,5 +1,25 @@
 import { parseWatchlistExport } from './screener-watchlist.mjs';
 
+const INVENTORY_FAILURES = new Map([
+  ['Screener page unavailable', 'source-page-unavailable'],
+  ['Unexpected watchlist identity', 'watchlist-identity'],
+  ['Watchlist management controls are unavailable', 'management-controls'],
+  ['Unrecognized company removal controls', 'removal-controls'],
+  ['Watchlist manage link is unavailable', 'management-link'],
+  ['Nonempty watchlist export is unavailable', 'missing-export'],
+  ['Ambiguous watchlist export controls', 'ambiguous-export'],
+  ['Unexpected export target', 'export-target'],
+  ['Watchlist export download failed', 'export-download'],
+  ['Watchlist export stream unavailable', 'export-stream'],
+  ['Watchlist export is oversized', 'export-size'],
+  ['Export and manage counts differ', 'inventory-count'],
+  ['Screener export has no ISIN column', 'export-identity'],
+  ['Screener export contains a duplicate ISIN', 'export-identity'],
+  ['A stale Screener company could not be matched unambiguously', 'removal-identity'],
+]);
+export const watchlistFailureReason = error => error?.name === 'TimeoutError' ? 'source-timeout'
+  : INVENTORY_FAILURES.get(error?.message) || 'unclassified';
+
 // Read both independent views before allowing a membership change. Screener
 // omits its export form for a brand-new empty watchlist.
 export async function readWatchlistInventory(page, { origin, watchlistId, watchlistName }) {
@@ -24,7 +44,9 @@ export async function readWatchlistInventory(page, { origin, watchlistId, watchl
     const companyId = /removeCompany\(['"](\d+)['"]\)/.exec(onclick)?.[1] || '';
     const container = button.closest('li, tr') || button.parentElement;
     const link = container?.querySelector('a[href^="/company/"]');
-    return { companyId, href: link?.getAttribute('href') || '', name: (link?.textContent || container?.textContent || '').trim() };
+    // Current management rows use a name span without a company link. Exclude
+    // the removal control's label from the exact-name reconciliation.
+    return { companyId, href: link?.getAttribute('href') || '', name: (link?.textContent || container?.querySelector('.shrink-text')?.textContent || container?.textContent || '').trim() };
   }));
   if (manageRows.some(row => !row.companyId) || new Set(manageRows.map(row => row.companyId)).size !== manageRows.length) {
     throw new Error('Unrecognized company removal controls');
@@ -39,6 +61,7 @@ export async function readWatchlistInventory(page, { origin, watchlistId, watchl
     if (manageRows.length || manageCompanyLinks || tableCompanyLinks) throw new Error('Nonempty watchlist export is unavailable');
     return { current: [], manageRows };
   }
+  if (await forms.count() !== 1) throw new Error('Ambiguous watchlist export controls');
   const form = forms.first();
   const exportUrl = new URL(await form.getAttribute('action') || '', origin);
   if (exportUrl.origin !== origin || exportUrl.searchParams.get('sublist_id') !== watchlistId) throw new Error('Unexpected export target');
@@ -48,9 +71,16 @@ export async function readWatchlistInventory(page, { origin, watchlistId, watchl
   ]);
   if (await download.failure()) throw new Error('Watchlist export download failed');
   const chunks = [];
-  const stream = await download.createReadStream();
-  for await (const chunk of stream) chunks.push(chunk);
-  await download.delete().catch(() => {});
+  let bytes = 0;
+  try {
+    const stream = await download.createReadStream();
+    if (!stream) throw new Error('Watchlist export stream unavailable');
+    for await (const chunk of stream) {
+      bytes += chunk.length;
+      if (bytes > 8 * 1024 * 1024) { stream.destroy(); throw new Error('Watchlist export is oversized'); }
+      chunks.push(chunk);
+    }
+  } finally { await download.delete().catch(() => {}); }
   const current = parseWatchlistExport(Buffer.concat(chunks));
   if (manageRows.length !== current.length) throw new Error('Export and manage counts differ');
   return { current, manageRows };

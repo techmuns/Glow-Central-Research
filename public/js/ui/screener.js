@@ -1,4 +1,5 @@
 import { installColumnOrder } from './column-order.js';
+import { activeView, seedTableReading, registerTableReading } from '../core/view-reading.js';
 // ui/screener.js — the screener kit. Five components every tab is assembled from.
 //
 //   statStrip(cards)      4-up KPI row; card 4 is always the gradient freshness hero
@@ -24,6 +25,8 @@ import { state } from '../core/state.js';
 import * as notebook from '../core/bookmarks.js';
 import { snapshotForRow, SECTION_LABELS } from '../core/bookmark-record.js';
 import { bookmarkButton, wireBookmarks } from './bookmark-button.js';
+import { tabBar } from './components.js';
+import { tableFilterGroup } from './table-filter-group.js';
 
 // ---------------------------------------------------------------------------------------
 // Overlay focus management — shared by the drill, the modal and the workspace.
@@ -42,6 +45,12 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
 function trapFocus(el, { label } = {}) {
   if (!el) return () => {};
   const previous = document.activeElement;
+  // A source refresh may replace a table opener while the dialog is open.
+  // Keep its identity so closing can return to the current row button.
+  const previousRow = previous?.matches('[data-row-open]') ? {
+    host: previous.closest('[data-score-table]')?.parentElement,
+    key: previous.dataset.rowOpen,
+  } : null;
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-modal', 'true');
   if (label) el.setAttribute('aria-label', label);
@@ -54,7 +63,7 @@ function trapFocus(el, { label } = {}) {
 
   const onKey = (e) => {
     if (e.key !== 'Tab') return;
-    const items = [...el.querySelectorAll(FOCUSABLE)].filter((n) => n.offsetParent !== null || n === document.activeElement);
+    const items = [...el.querySelectorAll(FOCUSABLE)].filter((n) => n.tabIndex >= 0 && (n.offsetParent !== null || n === document.activeElement));
     if (!items.length) {
       e.preventDefault();
       el.focus({ preventScroll: true });
@@ -79,7 +88,8 @@ function trapFocus(el, { label } = {}) {
     // elsewhere, yanking it back would be the more surprising behaviour.
     const wasInside = el.contains(document.activeElement);
     if (!wasInside && document.activeElement !== document.body) return;
-    if (previous?.isConnected && typeof previous.focus === 'function') previous.focus({ preventScroll: true });
+    const returnTarget = previous?.isConnected ? previous : previousRow?.host?.querySelector(`[data-row-open="${CSS.escape(previousRow.key)}"]`);
+    if (typeof returnTarget?.focus === 'function') returnTarget.focus({ preventScroll: true });
     // The opener is often a table row, which is not focusable, so the focus() above is a no-op
     // and focus would stay parked inside a panel the user can no longer see. Blur out of it so
     // the next Tab restarts from the document rather than from an invisible dialog.
@@ -116,13 +126,13 @@ export const watchlist = store;
 /**
  * statStrip(cards)
  * `cards` is up to 4 entries. Cards 1–3 are white surfaces:
- *   { label, value, note?, help?: { title, body } }
+ *   { label, value, note?, help?: { title, body }, noteHelp?: { title, body } }
  * Card 4 is ALWAYS the gradient freshness hero, declared as:
  *   { hero: true, label: 'Last Refresh', value: '5h ago', note: 'Yahoo Finance EOD' }
  * If the caller omits a hero card the strip renders 3 cards and leaves the slot empty rather
  * than inventing a freshness claim.
  *
- * `help` adds a ? beside the label; `noteHelp` adds an accessible information button beside the note.
+ * `help` adds a ? button beside the label; `noteHelp` adds an ⓘ button beside the note.
  */
 export function statStrip(cards = []) {
   const helpRegistry = [];
@@ -358,16 +368,10 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *  showSignals   default false. When true, supply signals(row) => [{ label, status }]
  *  link          (row) => url for the right-aligned ↗, or null to omit the column
  *  onRowClick    (row) => void
- *  filters       { label, options: [{ value, label }], match(row, value), value? } — the <select>.
- *                A def with `hidden: true` is APPLIED but draws no control: it renders as one hidden
- *                input holding its slot, so a tab can offer a control the kit does not (a remembered
- *                multi-select) and still have the count label, the empty message and the export read
- *                the one predicate. The tab re-applies it by dispatching `change` on that input.
- *  toolbarExtra  trusted markup rendered in the toolbar after the filter selects — the slot a tab's
- *                own control (the Corp Announcements filing-types checklist) sits in, so a filter
- *                that is not a <select> still lives in the one filter row rather than in a band of
- *                its own above the table. The tab wires it; the kit only places it.
- *                Pass an ARRAY of these for several dropdowns; they AND together.
+ *  rowActionLabel optional (row) => accessible label; makes the company name a native drilldown button.
+ *  filters       { label, options: [{ value, label }], match(row, value), value? } — toolbar filters.
+ *                Pass an ARRAY for several controls; they AND together. `type: 'checkbox'`
+ *                toggles between 'all' and the single other option, including restored views.
  *  searchable    (row) => haystack string. Defaults to name(row).
  *  initialSort   { key, dir } where key is a column label, 'name', or 'score'
  *  emptyMessage  string shown when nothing matches
@@ -379,8 +383,11 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *  showRank      default true. false drops the leading rank column; the watchlist star moves
  *                inside the identity cell so the first column can be a real column.
  *  nameAfter     default 0. How many of `columns` render before the identity column.
+ *  watchColumn   optional data-column label owning the company watch control when rank is hidden.
+ *  bookmarkPlacement  default subline; trailing keeps the record bookmark beside the first title line.
  *  nameMaxPx     default null. Hard px cap on the identity column so long names/subs truncate
  *                instead of widening the table.
+ *  nameWrap      default false. Wrap complete names/subs within the identity column's cap.
  *  dense         default false. true tightens horizontal cell padding for wide numeric tables.
  *  fillMode      'auto' (default) windows large scrollable tables with natural measured heights;
  *                'idle'/'scroll' retain legacy fill; 'virtual' uses an explicitly fixed stride.
@@ -407,6 +414,7 @@ export function scoreTable(config) {
     // The name recorded alongside the ticker, so the Watchlist scope can print "Reliance
     // Industries" for a company whose feed has not loaded yet rather than echoing the symbol.
     watchName = null,
+    watchColumn = null, // Place the company control beside its own data column.
     name = (r) => r.name,
     searchPlaceholder = 'Search company...',
     nameLabel = 'Company', // header for the identity column — set it when rows aren't companies
@@ -418,21 +426,24 @@ export function scoreTable(config) {
     signals = null,
     link = null,
     onRowClick = null,
+    rowActionLabel = null,
     // All record tables can save a snapshot. A specialized adapter may replace the default.
     bookmark = null,
-    bookmarkSection = state.tab || '',
+    showBookmarks = true,
+    bookmarkPlacement = 'subline',
+    bookmarkSection = activeView()?.source || state.tab || '',
     bookmarkDate = null,
     bookmarkSource = null,
     filters = null,
-    toolbarExtra = '',
     searchable = null,
-    // Glow owns the category picker; the shared table uses its predicate for rows and export.
+    // A custom search control owns one predicate for rows, counts and export.
     searchControl = null,
     initialSort = null,
     emptyMessage = 'No companies match your filters.',
     countNoun = '',
     countLabel = null,
     columnLayoutKey = null,
+    sharedColumnLayout = null,
     exportName = 'glow-export',
     onExport = null, // (visibleRows, exportName) => void — see ui/export.js
     // Drop the leading rank column. The watchlist star does NOT go with it — the watchlist filter
@@ -448,6 +459,7 @@ export function scoreTable(config) {
     // the inner block is what actually makes the ellipsis engage. Without it one long sub-line
     // ("Aluminium & Aluminium Products") takes 474px and pushes the numeric columns off-screen.
     nameMaxPx = null,
+    nameWrap = false,
     // Tighter horizontal padding. For wide numeric tables where the alternative is a horizontal
     // scrollbar, which is worse than slightly closer columns.
     dense = false,
@@ -479,6 +491,7 @@ export function scoreTable(config) {
     // the complete model. Explicit legacy idle/scroll modes remain available for specialized views;
     // `virtual` is the fixed-stride All Alerts layout, `windowed` preserves natural row heights.
     fillMode = 'auto',
+    // 'selected' exposes a retained legacy intersection until cleared; global scope owns new choices.
     showWatchFilter = true,
     initialRowCount = 40,
     initialRowKey = null,
@@ -491,11 +504,16 @@ export function scoreTable(config) {
     // Trusted markup drawn under a row's sub-line, inside the identity cell — e.g. an expandable
     // "3 related filings" list. Give interactive content `data-norow` so it does not open the row.
     afterSub = null,
+    // Optional full-width story markup. Filtering, ordering, identity, windowing and export
+    // still use the complete table model; the caller receives the existing shared controls.
+    rowContent = null,
     // False when the rows arrive in an order the server chose (a ranked, paged result): sorting the
     // loaded page alone would misstate the whole result, so no heading offers it.
     allowSort = true,
     // Extra trusted controls in the toolbar, after the filters: { html, wire(host) => disposer }.
     toolbarControls = null,
+    // Optional adjacent filters grouped behind one compact, independently adjustable control.
+    filterGroup = null,
   } = config;
 
   // `watchKey` defaults to the row key, which is correct wherever a row is a company. `watchName`
@@ -532,10 +550,11 @@ export function scoreTable(config) {
     return snapshotForRow(row, context);
   }
 
-  // `filters` takes one config or several. Several render as several <select>s and AND together,
+  // `filters` takes one config or several. Controls AND together,
   // which is what lets "PAT grew" and "Consolidated only" be asked at the same time — folding both
   // into one dropdown would make them mutually exclusive for no reason.
   let filterDefs = filters ? (Array.isArray(filters) ? filters : [filters]) : [];
+  initialView = seedTableReading(config, filterDefs) || initialView;
 
   // Internal view state — search text, one value per filter, watchlist-only, sort.
   const view = {
@@ -544,6 +563,7 @@ export function scoreTable(config) {
     watchOnly: false,
     sort: initialSort ? { ...initialSort } : null,
   };
+  if (activeView()?.preset) view.savedViewKey = activeView().key;
   if (initialView) {
     if (typeof initialView.q === 'string') view.q = initialView.q;
     if (typeof initialView.watchOnly === 'boolean') view.watchOnly = initialView.watchOnly;
@@ -632,7 +652,7 @@ export function scoreTable(config) {
 
   // ---- markup -------------------------------------------------------------------------
 
-  const colCount = (showRank ? 1 : 0) + 1 + (showScore ? 1 : 0) + (showSignals ? 1 : 0) + columns.length + (link ? 1 : 0);
+  const colCount = rowContent ? 1 : (showRank ? 1 : 0) + 1 + (showScore ? 1 : 0) + (showSignals ? 1 : 0) + columns.length + (link ? 1 : 0);
 
   const PX = dense ? 'px-2' : 'px-4';
   // Letter-spacing on 13 uppercase headers is ~50px of table width. Worth keeping normally,
@@ -641,8 +661,11 @@ export function scoreTable(config) {
   // Columns rendered before / after the identity column. See `nameAfter`.
   const leadCols = columns.slice(0, nameAfter);
   const restCols = columns.slice(nameAfter);
+  const watchInColumn = !showRank && columns.some(column => column.label === watchColumn);
+  const trailingBookmark = bookmarkPlacement === 'trailing';
 
   function headHtml() {
+    if (rowContent) return `<tr><th scope="col">${escapeHtml(nameLabel)}</th></tr>`;
     const th = (label, sortKey, align = 'left') => {
       const sortable = allowSort && sortKey !== null;
       const active = view.sort && view.sort.key === sortKey;
@@ -709,6 +732,10 @@ export function scoreTable(config) {
 
   function rowHtml(row, slug, isWatched, watchSlug = null, watchLabel = null, rowIndex = null) {
         const label = String(name(row));
+        const nameClasses = `${nameWrap ? 'whitespace-normal break-words' : 'truncate'} font-semibold text-slate-900`;
+        const nameCell = onRowClick && rowActionLabel
+          ? `<button type="button" data-record-name data-row-open="${escapeHtml(slug)}" aria-label="${escapeHtml(rowActionLabel(row))}" title="${escapeHtml(label)}" class="block max-w-full rounded-sm text-left ${nameClasses} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">${escapeHtml(label)}</button>`
+          : `<div data-record-name class="${nameClasses}" title="${escapeHtml(label)}">${escapeHtml(label)}</div>`;
         const { color, initials } = avatarFor(label);
         const sc = showScore && score ? score(row) : null;
         const redFlag = !!(sc && sc.redFlag);
@@ -717,9 +744,13 @@ export function scoreTable(config) {
         // a company. The span keeps the cell's layout identical either way.
         const star = watchSlug
           ? `<button type="button" data-watch="${escapeHtml(watchSlug)}" data-watch-name="${escapeHtml(watchLabel || '')}"
+                  ${watchInColumn ? `aria-label="${escapeHtml(`${isWatched ? 'Remove' : 'Add'} ${watchLabel || watchSlug} ${isWatched ? 'from' : 'to'} your watchlist`)}" aria-pressed="${isWatched}"` : ''}
                   title="${isWatched ? `Remove ${escapeHtml(watchLabel || watchSlug)} from your watchlist` : `Add ${escapeHtml(watchLabel || watchSlug)} to your watchlist`}"
                   class="watch-star flex-shrink-0 text-base leading-none transition-colors ${isWatched ? 'text-amber-400' : 'text-slate-300 hover:text-amber-400'}">${isWatched ? '★' : '☆'}</button>`
           : '<span class="watch-star flex-shrink-0 text-base leading-none text-transparent" aria-hidden="true">☆</span>';
+        if (rowContent) return `<tr data-row-key="${escapeHtml(slug)}"${row.revision ? ` data-revision="${escapeHtml(row.revision)}"` : ''} class="row-line border-b border-slate-100"${rowIndex === null ? '' : ` aria-rowindex="${rowIndex + 2}"`}>
+          <td class="news-card-cell">${rowContent(row, { key: slug, watch: watchSlug ? star : '', bookmark: showBookmarks ? bookmarkButton(bookmarkEntry(row)) : '' })}</td>
+        </tr>`;
         const rowLink = link ? link(row) : null;
         // A CSS height on <tr> is only a minimum. Constrain each cell's content as well, so a
         // longer attribution/reason cannot change the physical stride behind virtual spacers.
@@ -727,8 +758,13 @@ export function scoreTable(config) {
         const td = (content, classes = '') => `<td class="${PX} ${isFixed ? '' : 'py-3'} ${classes}"${isFixed ? ' style="padding-top:0;padding-bottom:0"' : ''}>${isFixed
           ? `<div data-virtual-cell style="height:${VIRTUAL_ROW_HEIGHT - 1}px;display:flex;align-items:center;overflow:hidden"><div style="width:100%;min-width:0;max-height:${VIRTUAL_ROW_HEIGHT - 25}px;overflow:hidden">${content}</div></div>`
           : content}</td>`;
-        const dataTd = (c) =>
-          td(c.html ? c.get(row) : escapeHtml(c.get(row)), `whitespace-nowrap text-sm text-slate-700 ${c.align === 'right' ? 'text-right tabular-nums' : ''}`);
+        const dataTd = (c) => {
+          const content = c.html ? c.get(row) : escapeHtml(c.get(row));
+          const ownsWatch = watchInColumn && c.label === watchColumn;
+          return td(ownsWatch ? `<div class="record-company-actions"><div class="record-company-copy">${content}</div>${star}</div>` : content,
+            `${ownsWatch ? 'record-company-column ' : ''}whitespace-nowrap text-sm text-slate-700 ${c.align === 'right' ? 'text-right tabular-nums' : ''}`);
+        };
+        const subText = sub(row);
         const styles = [];
         if (redFlag) styles.push('box-shadow: inset 3px 0 0 #f43f5e');
         if (isFixed) styles.push(`height:${VIRTUAL_ROW_HEIGHT}px`);
@@ -741,15 +777,16 @@ export function scoreTable(config) {
                 : ''
             }
             ${leadCols.map(dataTd).join('')}
-            ${td(`<div class="flex items-center gap-2"${nameMaxPx ? ` style="max-width:${nameMaxPx}px"` : ''}>
-                ${showRank ? '' : star}
+            ${td(`<div data-record-identity class="flex items-center gap-2${trailingBookmark ? ' record-identity-trailing' : ''}"${nameMaxPx ? ` style="max-width:${nameMaxPx}px${nameWrap && !trailingBookmark ? `;width:${nameMaxPx}px` : ''}"` : ''}>
+                ${showRank || watchInColumn ? '' : star}
                 ${showAvatar ? `<div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${color} text-xs font-bold text-white shadow-sm">${escapeHtml(initials)}</div>` : ''}
-                <div class="min-w-0">
-                  <div class="truncate font-semibold text-slate-900" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
-                  <div class="flex items-center gap-1"><span class="truncate text-xs text-slate-500" title="${escapeHtml(sub(row))}">${escapeHtml(sub(row))}</span>${bookmarkButton(bookmarkEntry(row))}</div>
+                <div class="min-w-0${trailingBookmark ? ' record-identity-copy' : ''}">
+                  ${nameCell}
+                  ${!trailingBookmark || subText ? `<div class="flex items-center gap-1${trailingBookmark ? ' record-identity-subline' : ''}"><span class="${nameWrap ? 'min-w-0 whitespace-normal break-words' : 'truncate'} text-xs text-slate-500" title="${escapeHtml(subText)}">${escapeHtml(subText)}</span>${showBookmarks && !trailingBookmark ? bookmarkButton(bookmarkEntry(row)) : ''}</div>` : ''}
                   ${afterSub ? afterSub(row) || '' : ''}
                 </div>
-              </div>`)}
+                ${showBookmarks && trailingBookmark ? `<div class="record-identity-actions">${bookmarkButton(bookmarkEntry(row))}</div>` : ''}
+              </div>`, trailingBookmark ? 'record-subject-column' : '')}
             ${
               sc
                 ? td(`<div class="flex items-center gap-2">
@@ -835,6 +872,27 @@ export function scoreTable(config) {
   // is the truth for an unmounted table.
   let updateRows = () => 0;
 
+  const renderSelect = i => {
+    const f = filterDefs[i];
+    if (f.type === 'checkbox') {
+      const checkedValue = f.options.find(option => option.value !== 'all').value;
+      return `<label class="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+        <input type="checkbox" data-table-filter="${i}" value="${escapeHtml(checkedValue)}"${view.filters[i] === checkedValue ? ' checked' : ''}
+          class="h-4 w-4 rounded border-slate-300 accent-indigo-600 focus:ring-2 focus:ring-indigo-500">
+        <span>${escapeHtml(f.label)}</span>
+      </label>`;
+    }
+    return `<select data-table-filter="${i}" ${f.label ? `aria-label="${escapeHtml(f.label)}" title="${escapeHtml(f.label)}"` : ''}
+      ${Number.isFinite(f.maxWidthPx) ? `style="max-width:${Math.max(120, Math.min(400, Math.round(f.maxWidthPx)))}px"` : ''}
+      class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      ${f.options.map(o => `<option value="${escapeHtml(o.value)}"${o.value === view.filters[i] ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+    </select>`;
+  };
+  renderSelect.label = i => filterDefs[i].label;
+  const groupedFilters = new Set(filterGroup?.indices || []);
+  const groupControl = filterGroup ? tableFilterGroup(filterGroup, renderSelect, view) : null;
+  let activeFilterGroup = null;
+
   const html = `
     <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100" data-score-table${fillMode === 'scroll' || isVirtual ? ' data-scroll-paged' : ''}${isVirtual ? ` data-virtualized data-virtual-total="${initialList.length}" data-virtual-start="${initialVirtualStart}"` : ''}${!isVirtual && initialList.length > FIRST_PAINT_ROWS ? ` data-rows-pending="${initialList.length - FIRST_PAINT_ROWS}"` : ''}>
       <div data-table-toolbar class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
@@ -856,23 +914,19 @@ export function scoreTable(config) {
               // shortening anyone's labels. `maxWidthPx` is the optional tighter desktop cap for a
               // toolbar with several filters; Insider Trades uses it so a long Mode value does not
               // force the Watchlist control onto another row.
-              (f, i) => f.hidden
-                ? `<input type="hidden" data-table-filter="${i}" data-table-filter-hidden value="${escapeHtml(view.filters[i])}">`
-                : `<select data-table-filter="${i}" ${f.label ? `aria-label="${escapeHtml(f.label)}" title="${escapeHtml(f.label)}"` : ''}
-                   ${Number.isFinite(f.maxWidthPx) ? `style="max-width:${Math.max(120, Math.min(400, Math.round(f.maxWidthPx)))}px"` : ''}
-                   class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                   ${f.options.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === view.filters[i] ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
-                 </select>`
+              (_f, i) => groupedFilters.has(i)
+                ? (filterGroup.position !== 'end' && i === filterGroup.indices[0] ? groupControl.html : '')
+                : renderSelect(i)
             )
             .join('')}
+          ${filterGroup?.position === 'end' ? groupControl.html : ''}
           ${toolbarControls?.html || ''}
-          ${showWatchFilter ? `<button type="button" data-watch-toggle title="Show only watchlisted companies"
+          ${showWatchFilter && (showWatchFilter !== 'selected' || view.watchOnly) ? `<button type="button" data-watch-toggle title="Show only watchlisted companies"
             class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition-colors hover:border-amber-200 hover:bg-amber-50">
             <span data-watch-icon class="text-amber-400">${view.watchOnly ? '★' : '☆'}</span>
-            <span>Watchlist</span>
+            <span>Watchlist${showWatchFilter === 'selected' ? ' only' : ''}</span>
             <span data-watch-count class="min-w-[18px] rounded-full bg-slate-200/70 px-1.5 py-0.5 text-center text-[10px] font-bold text-slate-500">${watchlist.size()}</span>
           </button>` : ''}
-          ${toolbarExtra || ''}
         </div>
         <div data-table-actions class="flex items-center gap-3">
           <div class="hidden text-xs text-slate-500 sm:block">
@@ -885,9 +939,9 @@ export function scoreTable(config) {
         </div>
       </div>
 
-      <div class="table-scroll-surface overflow-x-auto" data-table-scroll tabindex="0" role="region" aria-label="${escapeHtml(scrollLabel)}" ${stickyHead ? `style="max-height:${stickyHead};overflow-y:auto${isVirtual ? ';overflow-anchor:none' : ''}"` : ''}>
-        <table data-column-layout="${escapeHtml(columnLayoutKey || `${exportName.replace(/\d{4}-\d{2}-\d{2}/g, 'date')}:${nameLabel}`)}" class="w-full text-sm"${isVirtual ? ` aria-rowcount="${initialList.length + 1}"` : ''}>
-          <thead data-table-head class="sticky top-0 z-10 ${stickyHead ? 'bg-slate-50 table-sticky-head' : 'bg-slate-50/70'}">${headHtml()}</thead>
+      <div class="table-scroll-surface scrollbar-thin overflow-x-auto" data-table-scroll tabindex="0" role="region" aria-label="${escapeHtml(scrollLabel)}" ${stickyHead ? `style="max-height:${stickyHead};overflow-y:auto${isVirtual ? ';overflow-anchor:none' : ''}"` : ''}>
+        <table data-column-layout="${escapeHtml(columnLayoutKey || `${exportName.replace(/\d{4}-\d{2}-\d{2}/g, 'date')}:${nameLabel}`)}"${sharedColumnLayout ? ` data-shared-column-layout="${escapeHtml(sharedColumnLayout)}"` : ''} class="w-full text-sm${rowContent ? ' news-card-table' : ''}"${isVirtual ? ` aria-rowcount="${initialList.length + 1}"` : ''}>
+          <thead data-table-head class="sticky top-0 z-10 ${stickyHead ? 'bg-white shadow-sm' : 'bg-slate-50/70'}">${headHtml()}</thead>
           <tbody data-table-body>${isVirtual ? virtualBodyHtml(initialList, initialVirtualStart) : bodyHtml(initialList, 0, FIRST_PAINT_ROWS)}</tbody>
         </table>
       </div>
@@ -897,6 +951,7 @@ export function scoreTable(config) {
     installColumnOrder();
     const host = root.querySelector('[data-score-table]');
     if (!host) return () => {};
+    registerTableReading(root, host, config, view, filterDefs);
     const head = host.querySelector('[data-table-head]');
     const body = host.querySelector('[data-table-body]');
     const countEl = host.querySelector('[data-row-count]');
@@ -933,10 +988,7 @@ export function scoreTable(config) {
       const started = performance.now();
       let worked = 0;
       while (searchWarmAt < rows.length && (worked < 100 || (performance.now() - started < 4 && (!deadline || deadline.timeRemaining() > 1)))) {
-        // Custom company search owns its matching rules and normalized text.
-        // Warm the index it actually reads, rather than an unused plain-text copy.
-        if (searchControl?.prepare) searchControl.prepare(rows[searchWarmAt]);
-        else haystack(rows[searchWarmAt], searchWarmAt);
+        haystack(rows[searchWarmAt], searchWarmAt);
         searchWarmAt++;
         worked++;
       }
@@ -1075,6 +1127,7 @@ export function scoreTable(config) {
     }
     const windowed = isWindowed ? mountWindowedList({
       scroller, content: body, items: current, key, rowSelector: 'tr[data-row-key]',
+      viewportInset: () => host.querySelector('[data-table-head]')?.offsetHeight || 0,
       renderRows: bodyHtml, renderParts: bodyParts, estimateHeight: VIRTUAL_ROW_HEIGHT, initialKey: initialRowKey,
       spacerHtml: (height, edge) => `<tr aria-hidden="true"><td data-window-spacer="${edge}" colspan="${colCount}" style="height:${height}px;padding:0;border:0"></td></tr>`,
       onScrollActivity,
@@ -1364,18 +1417,31 @@ export function scoreTable(config) {
     });
 
     const releaseToolbar = toolbarControls?.wire?.(host) || null;
-    const releaseSearch = searchControl ? searchControl.wire(host, {
-      onQuery: q => { view.q = q; repaint(); },
-      onChange: repaint,
-    }) : null;
+    activeFilterGroup = groupControl?.wire(host, indices => {
+      for (const i of indices) {
+        view.filters[i] = 'all';
+        const control = host.querySelector(`[data-table-filter="${i}"]`);
+        if (control.type === 'checkbox') control.checked = false;
+        else control.value = 'all';
+      }
+      activeFilterGroup.sync();
+      requestFilterPaint();
+      for (const i of indices) onFilterChange?.(view, i);
+    }) || null;
+    const releaseSearch = searchControl?.wire(host, {
+      onQuery: q => { view.q = q; requestFilterPaint(); },
+      onChange: () => requestFilterPaint(),
+    });
     if (!searchControl) searchEl.addEventListener('input', () => {
       view.q = searchEl.value.trim().toLowerCase();
       requestFilterPaint();
     });
 
-    filterEls.forEach((el, i) =>
+    filterEls.forEach(el =>
       el.addEventListener('change', () => {
-        view.filters[i] = el.value;
+        const i = Number(el.dataset.tableFilter);
+        view.filters[i] = el.type === 'checkbox' && !el.checked ? 'all' : el.value;
+        activeFilterGroup?.sync();
         requestFilterPaint();
         onFilterChange?.(view, i);
       })
@@ -1388,6 +1454,7 @@ export function scoreTable(config) {
       watchBtn.classList.toggle('bg-amber-100', view.watchOnly);
       watchBtn.classList.toggle('border-amber-300', view.watchOnly);
       watchBtn.classList.toggle('text-amber-800', view.watchOnly);
+      if (showWatchFilter === 'selected' && !view.watchOnly) { watchBtn.hidden = true; watchBtn.classList.add('hidden'); }
       requestFilterPaint();
     });
 
@@ -1419,9 +1486,10 @@ export function scoreTable(config) {
     };
 
     return () => {
+      isDisposed = true;
       releaseSearch?.();
       releaseToolbar?.();
-      isDisposed = true;
+      activeFilterGroup?.dispose(); activeFilterGroup = null;
       rowHtmlCache.clear(); staleKeys.clear();
       activeRepaint = null;
       activePresentation = null;
@@ -1469,6 +1537,7 @@ export function scoreTable(config) {
         if (f.options.some(o => o.value === existing)) return existing;
         return f.value || 'all';
       });
+      activeFilterGroup?.sync();
     }
     
     totalCount = rows.length;
@@ -1706,6 +1775,10 @@ export function openWorkspace({
 
   const { color, initials } = avatarFor(avatarName || title);
   const activeId = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0].id;
+  const navigation = tabBar({ tabs, activeId, onSelect: selectWorkspaceTab, label: `${title} views` });
+  // Replacing a workspace must release its old navigation and Escape listener.
+  workspaceState?.stopNavigation?.();
+  if (workspaceState?.keyHandler) document.removeEventListener('keydown', workspaceState.keyHandler);
 
   content.innerHTML = `
     <div class="sticky top-0 z-10 border-b border-slate-200 bg-white ">
@@ -1720,38 +1793,26 @@ export function openWorkspace({
         </div>
         <div class="flex flex-shrink-0 items-center gap-2">
           ${actionsHtml}
-          <button data-ws-close class="rounded-lg px-2 text-2xl leading-none text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="Close">×</button>
+          <button data-ws-close class="flex h-11 w-11 items-center justify-center rounded-lg text-2xl leading-none text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="Close">×</button>
         </div>
       </div>
-      <div class="scrollbar-thin mt-3 flex gap-1 overflow-x-auto px-6" role="tablist">
-        ${tabs
-          .map(
-            (t) => `
-          <button data-ws-tab="${escapeHtml(t.id)}" role="tab" aria-selected="${t.id === activeId}"
-            class="ws-tab relative flex-shrink-0 whitespace-nowrap px-3 py-2.5 text-sm font-semibold transition-colors ${
-              t.id === activeId ? 'text-indigo-700' : 'text-slate-500 hover:text-slate-800'
-            }">
-            ${escapeHtml(t.label)}
-            ${t.badge != null ? `<span class="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-slate-600">${escapeHtml(t.badge)}</span>` : ''}
-            <span class="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-transform duration-200 ${
-              t.id === activeId ? 'scale-x-100' : 'scale-x-0'
-            }"></span>
-          </button>`
-          )
-          .join('')}
-      </div>
+      <div class="mt-3 px-6" data-workspace-navigation>${navigation.html}</div>
     </div>
     <div id="workspace-panel" class="scrollbar-thin max-h-[calc(100vh-11rem)] overflow-y-auto px-6 py-5"></div>`;
 
-  workspaceState = { tabs, activeId, onTabChange, onClose };
+  workspaceState = { tabs, activeId, onTabChange, onClose, navigation };
 
   content.querySelector('[data-ws-close]')?.addEventListener('click', () => closeWorkspace());
-  content.querySelectorAll('[data-ws-tab]').forEach((btn) => {
-    btn.addEventListener('click', () => selectWorkspaceTab(btn.dataset.wsTab));
+  content.querySelectorAll('[data-workspace-navigation] [data-tab-id]').forEach((btn) => {
+    btn.dataset.wsTab = btn.dataset.tabId;
+    btn.classList.add('ws-tab');
+    const badge = tabs.find(t => t.id === btn.dataset.tabId)?.badge;
+    if (badge != null) btn.insertAdjacentHTML('beforeend', `<span class="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-slate-600">${escapeHtml(badge)}</span>`);
   });
 
   overlay.classList.remove('hidden');
   overlay.classList.add('is-open');
+  workspaceState.stopNavigation = navigation.wire(content.querySelector('[data-workspace-navigation]'));
   releaseWorkspaceFocus?.();
   releaseWorkspaceFocus = trapFocus(container, { label: `${title} workspace` });
   document.body.classList.add('workspace-open');
@@ -1794,15 +1855,7 @@ function renderWorkspacePanel(id) {
 export function selectWorkspaceTab(id) {
   if (!workspaceState || !workspaceState.tabs.some((t) => t.id === id)) return;
   workspaceState.activeId = id;
-  document.querySelectorAll('[data-ws-tab]').forEach((btn) => {
-    const on = btn.dataset.wsTab === id;
-    btn.setAttribute('aria-selected', String(on));
-    btn.classList.toggle('text-indigo-700', on);
-    btn.classList.toggle('text-slate-500', !on);
-    const bar = btn.querySelector('span:last-child');
-    bar?.classList.toggle('scale-x-100', on);
-    bar?.classList.toggle('scale-x-0', !on);
-  });
+  workspaceState.navigation.update(id);
   renderWorkspacePanel(id);
   workspaceState.onTabChange?.(id);
 }
@@ -1824,6 +1877,7 @@ export function closeWorkspace({ silent = false } = {}) {
   workspaceState = null;
 
   if (state?.keyHandler) document.removeEventListener('keydown', state.keyHandler);
+  state?.stopNavigation?.();
   overlay?.classList.remove('is-open');
   overlay?.classList.add('hidden');
   container?.classList.add('translate-y-4', 'scale-[0.98]');
@@ -1887,19 +1941,12 @@ export function closeModal() {
 // row out, where the overflow-x:hidden backstop clipped it rather than scrolling — so the chips
 // were simply unreachable and nothing on screen said so. The inner block already carries
 // flex-wrap, so letting the slot shrink makes them stack instead of vanish.
-/**
- * `titleAside` is trusted markup drawn on the title's own line, after the heading — a segmented
- * view switch is the reference use. `compact` tightens the block for a tab whose table is the
- * point: no description (its sentence belongs in the provenance panel), the title row vertically
- * centred, and the margin under it reduced. Corp Announcements is the first consumer of both.
- */
-export function sectionHead({ title, description = '', meta = '', controls = '', titleAside = '', compact = false }) {
+export function sectionHead({ title, description = '', meta = '', controls = '' }) {
   return `
-    <div class="${compact ? 'mb-3' : 'mb-5'}" data-section-head${compact ? ' data-section-head-compact' : ''}>
-      <div class="flex flex-wrap ${compact ? 'items-center' : 'items-start'} justify-between gap-3">
-        <div class="${titleAside ? 'flex min-w-0 flex-wrap items-center gap-3' : ''}">
+    <div class="mb-5" data-section-head>
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
           <h2 class="font-display text-xl font-bold text-slate-900">${escapeHtml(title)}</h2>
-          ${titleAside || ''}
           ${description ? `<p class="mt-1 max-w-5xl text-sm text-slate-500">${escapeHtml(description)}</p>` : ''}
         </div>
         ${meta ? `<div class="min-w-0 max-w-full">${meta}</div>` : ''}

@@ -35,6 +35,7 @@ export async function collect({scope,onPartial}) {
 }`;
 const server = createServer((req, res) => {
   const path = new URL(req.url, 'http://localhost').pathname;
+  if(path==='/js/data/holding-sizes.js'){res.setHeader('content-type','text/javascript');res.end("import * as b from '../research/portfolio-bridge.js';export const cachedHoldingSizes=b.cachedPositionSizes;export const readHoldingSizes=(...args)=>b.portfolioConnectionState()==='locked'?Promise.resolve(null):b.readPositionSizes(...args);");return;}
   res.setHeader('cache-control', 'no-cache');
   try {
     if (path === '/' || path === '/index.html') { res.setHeader('content-type', 'text/html'); return res.end(html); }
@@ -61,7 +62,7 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH });
 const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
 const errors = []; page.on('pageerror', error => errors.push(error.message));
-await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
+await page.route('**/*', route => route.request().url() === `${origin}/glow-bridge.html` ? route.fulfill({ contentType:'text/html', body:`<script>addEventListener('message', e => { if (e.data.channel === 'sattva-portfolio-v1') parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'}, '*'); });</script>` }) : new URL(route.request().url()).origin === origin ? route.continue() : route.fulfill({ status: 503, body: '{}' }));
 const card = ticker => page.locator(`[data-ai-card][data-ticker="${ticker}"]`);
 const open = async () => { if (!await page.locator('[data-ai-types-menu]').getAttribute('open').then(value => value !== null)) await page.locator('[data-ai-types-menu] summary').click(); };
 const pick = async id => { await open(); await page.locator(`[data-ai-type="${id}"]`).check(); };
@@ -80,6 +81,9 @@ try {
   legacy = false;
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
   await page.waitForSelector('[data-ai-types-menu]');
+  await page.waitForLoadState('networkidle');
+  await page.waitForFunction(async () => (await import('/js/research/portfolio-bridge.js')).portfolioConnectionState() === 'locked');
+  await page.waitForSelector('[data-ai-card]');
   assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').count(), 1, 'an existing session upgrades to the restored menu');
   assert(!(await page.evaluate(() => caches.keys())).some(key => key.includes('previous-event-filter-release')));
   assert.equal(await card('ROUTINE').count(), 0);
@@ -96,8 +100,14 @@ try {
   assert.equal(await page.locator('[data-ai-card]').count(), 1);
   assert.match(await card('WARRANT').textContent(), /Preferential issue of warrants/);
   await page.locator('[data-ai-search]').fill('');
-  await page.locator('[data-ai-more]').click();
-  assert.equal(await page.locator('[data-ai-card]').count(), 12, 'OR selections include all matching companies beyond the first page');
+  assert.equal(await page.locator('[data-ai-more]').count(), 0);
+  const seen = new Set();
+  for (let step = 0; step < 20 && seen.size < 12; step++) {
+    for (const key of await page.locator('[data-ai-card]').evaluateAll(nodes => nodes.map(node => node.dataset.aiKey))) seen.add(key);
+    await page.evaluate(() => window.scrollBy(0, innerHeight * .75));
+    await page.waitForTimeout(50);
+  }
+  assert.equal(seen.size, 12, 'scrolling exposes every company matching either selected type');
   await page.reload(); await page.waitForSelector('[data-ai-remove-type="warrants"]');
   assert.equal(await page.locator('[data-ai-remove-type]').count(), 2, 'choices survive reload');
   await page.evaluate(() => window.arrive());
@@ -142,9 +152,11 @@ try {
     await close();
   }
   await page.setViewportSize({ width: 1280, height: 1000 });
-  await open(); await page.screenshot({ path: '/tmp/glow-ai-alert-event-filters.png' });
+  await open(); await page.screenshot({ path: '/tmp/sattva-ai-alert-event-filters.png' });
   await close(); await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
-  await open(); await page.screenshot({ path: '/tmp/glow-ai-alert-event-filters-dark.png' });
+  await open();
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-ai-lead-link]')).color === 'rgb(241, 245, 249)');
+  await page.screenshot({ path: '/tmp/sattva-ai-alert-event-filters-dark.png' });
   assert.deepEqual(errors, []);
-  console.log('PASS: warm-session upgrade, matching cards, OR filters, search, counts/pagination, saved choices, arrivals, routine recovery, archive, keyboard and 320–1280px layouts.');
+  console.log('PASS: warm-session upgrade, matching cards, OR filters, search, counts/infinite scrolling, saved choices, arrivals, routine recovery, archive, keyboard and 320–1280px layouts.');
 } finally { await browser.close(); await new Promise(done => server.close(done)); }

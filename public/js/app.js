@@ -1,5 +1,8 @@
 import { installColumnOrder } from './ui/column-order.js';
-// app.js — bootstrap: adopt the early identity read, then mount the shell (which starts the
+// The default interface must be ready before source downloads occupy browser connections.
+// Secondary interfaces retain their shared lazy loaders and navigation ownership checks.
+import './tabs/ai-alerts.js';
+// app.js — bootstrap: load the JSON data set once, then mount the shell (which starts the
 // router and renders the first tab). Every tab reads its slice off `state.data` via ctx.data,
 // so there is exactly one fetch pass at startup and pollers handle everything after that.
 
@@ -9,10 +12,7 @@ import { revalidatedJson } from './core/store.js';
 import { startupJson } from './core/startup-data.js';
 import { watchAppUpdates, watchWorkerChanges } from './core/app-updates.js';
 import { mount } from './ui/shell.js';
-import { prime as primeBook } from './data/book.js';
-import { prime as primeTrackedUniverse } from './data/tracked-universe.js';
 import { adaptUniverse } from './data/universe.js';
-import { prime as primeFiled } from './data/institution-holdings.js';
 import { prime as primeCoverage, restoreLastGood } from './data/coverage.js';
 import { loadCompanyCaptureIndex } from './data/company-captures.js';
 import { startCaptureWatchdog } from './data/capture-watchdog.js';
@@ -44,7 +44,7 @@ import { installFilingReader } from './ui/xbrl-filing.js';
 //   own idempotent `load()`; priming them from here is an optimisation, not the mechanism.
 const CRITICAL_SOURCES = {
   // The family's direct-equity book — 142 company lines, names resolved to NSE symbols, synced
-  // from techmuns/GlowVentures statement snapshots. This is what the scope toggle filters the research tabs by, and
+  // from techmuns/Sattva-Family. This is what the scope toggle filters the research tabs by, and
   // it is the ONLY portfolio information this dashboard holds: names and sectors, no quantities,
   // no costs, no valuations. See js/data/coverage.js.
   portfolioCompanies: 'data/portfolio-companies.json',
@@ -52,11 +52,6 @@ const CRITICAL_SOURCES = {
 
 const DEFERRED_SOURCES = {
   universe: 'data/universe.json',
-  book: 'data/book.json',
-  trackedUniverse: 'data/tracked-universe.json',
-  // REAL: filed shareholdings scraped from Trendlyne, plus the AMC monthly portfolios. 347KB, and
-  // read by exactly one sub-view.
-  filedHoldings: 'data/institution-holdings.json',
 };
 
 async function fetchAll(sources, options = {}) {
@@ -89,7 +84,7 @@ async function loadCritical() {
  * Replacing the object would leave every mounted tab holding the empty one.
  *
  * A failure here is not fatal and must not blank the app — the four modules below each fall back
- * to fetching their own file, and consumers that read `ctx.data` directly wait on this promise
+ * to fetching their own file, and the two tabs that read `ctx.data` directly wait on this promise
  * and then check what actually arrived.
  */
 function loadDeferred(data) {
@@ -103,11 +98,8 @@ function loadDeferred(data) {
       data.universeRaw = data.universe;
       data.universe = adaptUniverse(data.universeRaw);
 
-      // Institutions: filed shareholdings and AMC portfolios. The Superstar half of that tab loads
-      // nothing from here — it is live off /api/super-investors, cached by js/core/store.js.
-      primeFiled(data.filedHoldings);
-      primeBook(data.book);
-      primeTrackedUniverse(data.trackedUniverse);
+      // Institutions loads its own complete capture on demand through filed.load().
+      // Its download must not delay unrelated readers of the company index.
 
       // NOTHING HERE LOADS A LEDGER. The mock transactions file, portfolio.json and the 290KB
       // equity-curve history were fetched on every visit for the Portfolio Analytics workspace,

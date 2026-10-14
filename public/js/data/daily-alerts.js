@@ -1,3 +1,5 @@
+import { insiderSignal, INSIDER_HIGH_PCT, INSIDER_HIGH_VALUE } from './insider-signal.js';
+export { insiderSignal, INSIDER_HIGH_PCT, INSIDER_HIGH_VALUE } from './insider-signal.js';
 // data/daily-alerts.js — A NEWEST-FIRST TIMELINE ACROSS THIS DASHBOARD'S RESEARCH FEEDS.
 //
 //   const day = today();                     // the IST trading date
@@ -52,13 +54,12 @@ import * as screenerInsights from './screener-insights.js';
 // ONE definition of what a filed-book change is — see `isMove` there. A negative filter here
 // (`action !== 'held'`) admitted every future state by default, which is how an outstanding
 // filing would have become a negative alert about a named investor.
-import { isMove, periodEnd } from './finology-shared.js';
+import { isMove } from './finology-shared.js';
 import { announcements, insider, news, createQueryNews } from './filings.js';
 import { insiderTradeSourceUrl, articleUrlKey, canonicalArticleUrl } from './filings-shared.js';
 import { runSteps, runStepsInSlices, sortSteps, yieldToInput as yieldForInputSlice } from '../core/slices.js';
 import { classifyStory } from './news-keywords.js';
 import { announcementSignal } from './filing-signals.js';
-import { INSIDER_HIGH_PCT, INSIDER_HIGH_VALUE, insiderSignal, parseIndianAmount } from './insider-signal.js';
 export { announcementSignal, BSE_CRITICAL_IS_MATERIAL } from './filing-signals.js';
 import { scopeMatcher } from './scope.js';
 import * as coverage from './coverage.js';
@@ -104,7 +105,7 @@ function shiftDay(day, amount) {
 
 export function materializePublicAlertWindow(report) {
   const firstDay = shiftDay(report.day, -(ALERT_WINDOW_CACHE_DAYS - 1));
-  const privateFeeds = new Set(['company-documents', 'drhp-documents']);
+  const privateFeeds = new Set(['price-levels', 'company-documents', 'drhp-documents']);
   return {
     version: 1,
     day: report.day,
@@ -124,7 +125,7 @@ function scopedWindowCache(scope) {
 }
 
 function validAlertWindow(value, throughDay) {
-  const privateFeeds = new Set(['company-documents', 'drhp-documents']);
+  const privateFeeds = new Set(['price-levels', 'company-documents', 'drhp-documents']);
   if (value?.version !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(value.day || '') ||
       !Array.isArray(value.events) || !Array.isArray(value.feeds)) return false;
   const captured = Date.parse(`${value.day}T00:00:00Z`);
@@ -253,9 +254,6 @@ function istDay(value) {
 // A material day move. This is an importance threshold, no longer a collection threshold:
 // below-threshold measurements remain in the pool and do not change the existing AI policy.
 export const MOVE_PCT = 5;
-// The insider thresholds and the reading over a trade row live in `insider-signal.js` (pure, shared
-// with the team brief) and are re-exported here for every consumer that reads them from this module.
-export { INSIDER_HIGH_PCT, INSIDER_HIGH_VALUE, insiderSignal };
 export const INVESTOR_HIGH_PP = 1;
 export const CHATTER_HIGH_MENTIONS = 10;
 export const CHATTER_HIGH_CHANGE_PCT = 100;
@@ -393,8 +391,16 @@ export function eventSearchText(event = {}) {
   return `${event.day || ''} ${event.time || ''} ${identity} ${event.direction || ''} ${event.importance || ''} ${event.headline || ''} ${event.detail || ''} ${event.signalReason || ''} ${event.importanceReason || ''} ${event.feedLabel || ''}`;
 }
 
-const numeric = parseIndianAmount;
-
+const numeric = (value) => {
+  if (value == null || value === '') return null;
+  const text = String(value).trim();
+  if (!/\d/.test(text)) return null;
+  const n = Number(text.replace(/[^0-9.+-]/g, ''));
+  if (!Number.isFinite(n)) return null;
+  if (/\b(?:crore|cr)\b/i.test(text)) return n * 10_000_000;
+  if (/\b(?:lakh|lac|lacs)\b/i.test(text)) return n * 100_000;
+  return n;
+};
 
 // ---------------------------------------------------------------------------------------
 // Feed registry — id, label, which tab owns it, and what it can contribute
@@ -422,29 +428,13 @@ const listeners = new Set();
 // alive while the tab is unmounted so a change elsewhere cannot resurrect an old snapshot.
 // No poller or durable storage here; private document feeds are always read directly.
 const normalizedFeeds = new Map();
-// A LOADER THAT REJECTED HAS STILL SETTLED, AND ITS RECORDS ARE STILL WORTH CACHING.
-//
-// `readFeed`'s memo was gated on `loadedFeeds`, which only a RESOLVED loader joins. On this
-// deployment the insider capture legitimately carries failed companies, so `refreshFilings`
-// throws "Filings coverage is incomplete" on every collection — the retained rows are read and
-// painted exactly as before, but the feed never became cacheable. `assemble` reuses the sorted
-// timeline only when EVERY feed hands back the same event array, so one feed rebuilding its rows
-// re-sorted the whole retained pool on every scope change. Nothing threw and no row was wrong;
-// only the optimisation was silently off, which is the version of this that never gets noticed.
-//
-// A failed read returns the same retained records as the read before it, and every source still
-// invalidates its own entry through `onChange` above — so what makes an entry safe to keep is
-// that the load has STOPPED, not that it succeeded.
-const settledLoads = new Set();
-
-// The repeat-visit window is written OFF the reader's path on purpose: a fortnight of this
-// deployment's pool is thousands of events across many cache parts, and making a collection wait
-// for it would charge every paint for a copy only the NEXT visit reads. But a discarded promise
-// leaves nothing to wait on, so anything wanting a settled window could only sleep and hope. This
-// handle is the signal instead — awaited by nothing in the app, and never a reason to block a paint.
-let alertWindowWrite = Promise.resolve();
-export const whenAlertWindowSaved = () => alertWindowWrite;
-const PRIVATE_FEEDS = new Set(['company-documents', 'drhp-documents']);
+const normalizedRevisions = new Map();
+let normalizedEpoch = 0;
+function invalidateNormalizedFeed(id) {
+  normalizedFeeds.delete(id);
+  normalizedRevisions.set(id, (normalizedRevisions.get(id) || 0) + 1);
+}
+const PRIVATE_FEEDS = new Set(['price-levels', 'company-documents', 'drhp-documents']);
 let observingSources = false;
 function observeSources() {
   if (observingSources) return;
@@ -456,22 +446,20 @@ function observeSources() {
     [announcements, ['announcements']], [insider, ['insider']], [news, ['news']],
     [marketNews, ['market-news']], [records, []], ...additionalSourceDependencies,
   ];
-  // This observer only invalidates cached readings and stays for the page's lifetime, so it must
-  // not keep the insider feed's bulk/block poller running after every tab that reads it has left.
   for (const [source, ids] of dependencies) source.onChange?.(() => {
-    for (const id of ids) normalizedFeeds.delete(id);
+    for (const id of ids) invalidateNormalizedFeed(id);
     if (ids.includes('news') || ids.includes('market-news')) {
       newsCandidates = null;
       lastNewsSourceQuery = null;
       // Full source interpretations are independent. Only period queries depend on companions
       // from the other route; do not reclassify full news on every market-feed status change.
       const other = ids.includes('news') ? 'market-news' : 'news';
-      if (normalizedFeeds.get(other)?.windowKey !== 'null') normalizedFeeds.delete(other);
+      if (normalizedFeeds.get(other)?.windowKey !== 'null') invalidateNormalizedFeed(other);
     }
     listeners.forEach((fn) => fn());
   }, source === insider ? { poll: false } : undefined);
   // Some collectors resolve issuer names against the current in-memory portfolio.
-  coverage.onChange(({ changed }) => { if (changed) normalizedFeeds.clear(); });
+  coverage.onChange(({ changed }) => { if (changed) { normalizedEpoch++; normalizedFeeds.clear(); } });
 }
 
 export function inAlertQuery(event, window) {
@@ -499,6 +487,7 @@ function queryEvents(events, queryWindow) {
 // Raw history remains the authority; only the expensive alert interpretation is narrowed.
 let newsCandidates = null;
 const queryNewsReaders = new Map();
+const queryNewsReadErrors = new WeakMap();
 let activeCollections = 0, releaseRequested = false, researchOwnsSources = false;
 function trimQueryReaders() {
   for (const [key, entry] of queryNewsReaders) {
@@ -515,7 +504,7 @@ function releaseInactiveMemory() {
   // Research keeps a prepared estate between questions. Its source owner is independent of
   // alert navigation; clearing that store would make a cached research preparation incomplete.
   if (!researchOwnsSources) { news.invalidate(); loadedFeeds.delete('news'); loadErrors.delete('news'); }
-  normalizedFeeds.delete('news'); normalizedFeeds.delete('market-news');
+  invalidateNormalizedFeed('news'); invalidateNormalizedFeed('market-news');
   newsCandidates = null; lastNewsSourceQuery = null; lastAssembleInput = null; lastAssembleOutput = null;
   releaseRequested = false;
 }
@@ -528,8 +517,8 @@ function queryNewsReader(queryWindow) {
     // add a second independent poller that keeps revisiting old history after a period switch.
     const reader = createQueryNews(queryWindow, { extraRows: () => marketNews.rows(), autoRefresh: false });
     const off = reader.onChange(() => {
-      normalizedFeeds.delete('news'); newsCandidates = null; lastNewsSourceQuery = null;
-      if (normalizedFeeds.get('market-news')?.windowKey !== 'null') normalizedFeeds.delete('market-news');
+      invalidateNormalizedFeed('news'); newsCandidates = null; lastNewsSourceQuery = null;
+      if (normalizedFeeds.get('market-news')?.windowKey !== 'null') invalidateNormalizedFeed('market-news');
       listeners.forEach(fn => fn());
     });
     entry = { reader, off, active: 0 };
@@ -552,18 +541,14 @@ function newsQueryRows(reader, queryWindow, companyReader = news) {
   if (newsCandidates?.companyRows !== companyRows || newsCandidates.marketRows !== marketRows || newsCandidates.key !== key) {
     const selected = row => inAlertQuery({ at: row.publishedAt || row.date }, queryWindow);
     const urls = new Set([...companyRows, ...marketRows].filter(selected).filter(row => row.url).map(rowUrlKey));
-    const matches = row => selected(row) || row.url && urls.has(rowUrlKey(row));
+    // An empty period has no publisher companions. Avoid parsing every older
+    // article's address just to test membership in an empty set.
+    const matches = row => selected(row) || urls.size > 0 && row.url && urls.has(rowUrlKey(row));
     newsCandidates = { companyRows, marketRows, key, company: companyRows.filter(matches), market: marketRows.filter(matches) };
   }
   return reader === companyReader ? newsCandidates.company : newsCandidates.market;
 }
-function readFeed(feed, { day, includeHistory, queryWindow = null, newsReader = news }) {
-  return runSteps(readFeedSteps(feed, { day, includeHistory, queryWindow, newsReader }));
-}
-function readFeedInSlices(feed, args, yieldForInput) {
-  return runStepsInSlices(readFeedSteps(feed, args), { yieldForInput });
-}
-function* readFeedSteps(feed, { day, includeHistory, queryWindow = null, newsReader = news }) {
+function readFeed(feed, { day, includeHistory, queryWindow = null, newsReader = news }, yieldForInput = null) {
   const newsFeed = ['news', 'market-news'].includes(feed.id);
   const windowKey = alertWindowKey(newsFeed ? queryWindow : null);
   const cached = normalizedFeeds.get(feed.id);
@@ -571,19 +556,23 @@ function* readFeedSteps(feed, { day, includeHistory, queryWindow = null, newsRea
     // Re-age the wall-clock discovery note without reclassifying thousands of unchanged stories.
     return feed.id === 'news' ? { ...cached.row, ...companyNewsState(day, newsReader.meta()) } : cached.row;
   }
+  const revision = normalizedRevisions.get(feed.id), epoch = normalizedEpoch;
   const out = COLLECTORS[feed.id]({ day, includeHistory, queryWindow, newsReader, scope: 'universe', wanted: null }) || {};
-  // Source changes invalidate this reservation too. An older sliced read may still finish for
-  // its caller, but cannot overwrite a newer reading or cache itself after invalidation.
-  const reservation = {};
-  normalizedFeeds.set(feed.id, reservation);
-  try {
-    const row = yield* toFeedRowSteps(feed, { ...out,
-      events: (out.events || []).filter((e) => includeHistory || eventDay(e) === day) }, day);
-    if (normalizedFeeds.get(feed.id) === reservation && settledLoads.has(feed.id) && !PRIVATE_FEEDS.has(feed.id)) {
+  const steps = toFeedRowSteps(feed, { ...out,
+    events: (out.events || []).filter((e) => includeHistory || eventDay(e) === day) }, day);
+  // A first source check may fail after retaining useful captured rows. Their unchanged public
+  // interpretation is reusable too; collect() still overlays the failed check on every report.
+  // This does not mark the source loaded/successful, and source arrivals or a successful retry
+  // invalidate the interpretation through the existing subscriptions/load completion below.
+  const finish = row => {
+    // A source arriving between slices invalidates the old interpretation. The current
+    // partial may retain it, but it must never be cached as the newly arrived revision.
+    if (epoch === normalizedEpoch && revision === normalizedRevisions.get(feed.id) &&
+      (loadedFeeds.has(feed.id) || loadErrors.has(feed.id)) && !PRIVATE_FEEDS.has(feed.id))
       normalizedFeeds.set(feed.id, { day, includeHistory, windowKey, newsReader: newsFeed ? newsReader : null, row });
-    }
     return row;
-  } finally { if (normalizedFeeds.get(feed.id) === reservation) normalizedFeeds.delete(feed.id); }
+  };
+  return yieldForInput ? runStepsInSlices(steps, { yieldForInput }).then(finish) : finish(runSteps(steps));
 }
 
 function loadFeed(id, refresh) {
@@ -591,18 +580,13 @@ function loadFeed(id, refresh) {
   const pending = Promise.resolve().then(() => LOADERS[id]?.(refresh)).then(
     () => {
       // A loader may update freshness without publishing row changes (e.g. HTTP 304).
-      if (refresh || !loadedFeeds.has(id)) normalizedFeeds.delete(id);
-      loadErrors.delete(id); loadedFeeds.add(id); settledLoads.add(id);
+      if (refresh || !loadedFeeds.has(id)) invalidateNormalizedFeed(id);
+      loadErrors.delete(id); loadedFeeds.add(id);
     },
-    (error) => {
-      // Same invalidation as a success: this attempt may have seeded rows on its way to failing.
-      if (refresh || !settledLoads.has(id)) normalizedFeeds.delete(id);
-      loadErrors.set(id, String(error?.message || error)); settledLoads.add(id);
-      throw error;
-    },
+    (error) => { loadErrors.set(id, String(error?.message || error)); throw error; },
   ).finally(() => {
     // The bulk calendar adapter owns a capture outside earnings-calendar's event store.
-    if (id === 'earnings-calendar') normalizedFeeds.delete(id);
+    if (id === 'earnings-calendar') invalidateNormalizedFeed(id);
     loadingFeeds.delete(id); listeners.forEach((fn) => fn());
     releaseInactiveMemory();
   });
@@ -653,7 +637,7 @@ export async function prepareSources({ refresh = false, feedIds = null } = {}) {
 // object, so touching them here in ~12ms slices with a yield between each turns that one task into
 // forty small ones. Nothing is skipped and nothing is decided here — the collector still reads
 // every row itself and reports its own failures; this only changes when the work happens.
-async function warmNewsReadings(feedId, reader, queryWindow, yieldForInput, { day, includeHistory, touch = null } = {}) {
+async function warmNewsReadings(feedId, reader, queryWindow, yieldForInput, { day, includeHistory, touch = null, keepGoing = () => true } = {}) {
   let rows;
   try {
     if (feedId === 'news') await reader.warm?.(yieldForInput);
@@ -663,8 +647,14 @@ async function warmNewsReadings(feedId, reader, queryWindow, yieldForInput, { da
     else if (queryWindow) await reader.prepareRows?.(yieldForInput);
     rows = feedId === 'news' ? newsQueryRows(reader, queryWindow, reader) : newsQueryRows(marketNews, queryWindow, reader);
   } catch { return; }
+  if (!keepGoing()) return;
   let started = performance.now();
   for (let i = 0; i < rows.length; i++) {
+    // Skipped historical rows still consume CPU on an empty new day.
+    if (performance.now() - started >= 12) {
+      await yieldForInput(); started = performance.now();
+      if (!keepGoing()) return;
+    }
     const row = rows[i];
     try {
       // Only what the collector will read: on a single day it reads that day's rows and nothing
@@ -693,6 +683,7 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   // (js/data/alert-pool.js). A feed the pool declines — or a pool that cannot be read at all —
   // loads below exactly as it always has. A reassembly without loading reuses the last read.
   const poolMode = pool === 'window' || pool === 'ai' ? pool : null;
+  const readingCurrent = () => !load || !poolMode || isCurrent();
   // What the pool cannot carry is what the feed modules hold beyond the capture THIS SESSION — a
   // live walk, a live search, a device copy a tab loaded — and the modules answer that themselves.
   const sessionRows = (feedId) => {
@@ -723,20 +714,22 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   // assembly of a full-history collection landed as one 2.3-second task under whichever tab the
   // reader had moved to, ~700ms of it matching every X post against the book for the first time.
   const discoveryIdentities = discoveryEntities(book, requestedCompanies);
-  const warmReading = { day, includeHistory, touch: (event, feedId) => {
+  const warmReading = { day, includeHistory, keepGoing: readingCurrent, touch: (event, feedId) => {
     sortDay(event);
     if (event.url && (feedId === 'news' || feedId === 'market-news')) eventUrlKey(event);
     if (DISCOVERY_FEEDS.has(feedId)) for (const matched of discoveryFor(event, feedId, discoveryIdentities)) newsSignal(matched);
   } };
   for (const feed of load ? FEEDS : []) {
+    if (!readingCurrent()) return null;
     try {
       // The in-memory records may be a warm module's or a returning session's cold rows: warm the
       // per-row readings in slices before the synchronous read, exactly as the loaded read does.
       if (feed.id === 'news' || feed.id === 'market-news') await warmNewsReadings(feed.id, newsReader, queryWindow, yieldForInput, warmReading);
       else if (WARMERS[feed.id]) await WARMERS[feed.id](yieldForInput, warmReading);
     } catch { /* The read below still answers. */ }
+    if (!readingCurrent()) return null;
     try {
-      settledFeeds.set(feed.id, { ...await readFeedInSlices(feed, { day, includeHistory, queryWindow, newsReader }, yieldForInput), status: 'pending' });
+      settledFeeds.set(feed.id, { ...await readFeed(feed, { day, includeHistory, queryWindow, newsReader }, yieldForInput), status: 'pending' });
     } catch { /* A source with no readable snapshot starts empty. */ }
     if (performance.now() - batchStarted >= 8) { await yieldForInput(); batchStarted = performance.now(); }
   }
@@ -749,26 +742,19 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   const build = async () => {
     // Either news route can finish last. Reconcile companions from both current readers while
     // retaining each request's real pending/failed status; a partial is never a completed check.
-    // Each read below starts with the collector's synchronous pass over the reader's rows, and a
-    // reader whose sources moved since it was last prepared — a publisher month landing
-    // mid-collection — rebuilt its join in one task there (0.6s at 4x CPU throttle, inside a
-    // progress publication). Prepare it in slices first; the read then finds its rows ready. A
-    // preparation that fails changes nothing: the read still answers.
+    // The reads below are synchronous, and a reader whose sources moved since it was last prepared
+    // — a publisher month landing mid-collection — rebuilt its join in one task there (0.6s at 4x
+    // CPU throttle, inside a progress publication). Prepare it in slices first; the read then
+    // finds its rows ready. A preparation that fails changes nothing: the read still answers.
     if (queryWindow && ['news', 'market-news'].some(id => settledFeeds.has(id) && !poolSeeded.has(id))) {
       try { await newsReader.prepareRows?.(yieldForInput); } catch { /* The read below still answers. */ }
     }
     if (queryWindow) for (const id of ['news', 'market-news']) {
       const previous = settledFeeds.get(id);
       if (previous && !poolSeeded.has(id)) {
-        try {
-          const refreshed = await readFeedInSlices(feedById.get(id), { day, includeHistory, queryWindow, newsReader }, yieldForInput);
-          // A loading feed may settle while this publication yields. Keep that newer response
-          // and its completed/failed status; a partial cannot turn it back into pending.
-          if (settledFeeds.get(id) === previous) settledFeeds.set(id, { ...previous, events: refreshed.events });
-        } catch {
-          if (settledFeeds.get(id) === previous) settledFeeds.set(id, { ...previous, status: 'failed', reachesToday: false,
-            note: 'This news view could not be rebuilt. Previously read evidence remains visible.' });
-        }
+        try { settledFeeds.set(id, { ...previous, events: (await readFeed(feedById.get(id), { day, includeHistory, queryWindow, newsReader }, yieldForInput)).events }); }
+        catch { settledFeeds.set(id, { ...previous, status: 'failed', reachesToday: false,
+          note: 'This news view could not be rebuilt. Previously read evidence remains visible.' }); }
       }
     }
     return assembleInSlices({ day, scope, holdings: book, includeHistory, settledFeeds, requestedCompanies, queryWindow }, yieldForInput);
@@ -827,9 +813,8 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
           schedulePartial();
           return;
         }
-        // A scope/session change abandons its pool read; that is not a pool outage.
-        // Let the replacement view own any fallback instead of downloading the whole
-        // capture history for a reader that can no longer publish it.
+        // An obsolete view abandoned its pool read; it did not discover an outage.
+        // Let its replacement own any fallback instead of downloading unused history.
         if (load && poolMode && !isCurrent()) return;
       }
       const warm = async () => {
@@ -841,22 +826,46 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
           // The publisher route can correct dates at the same URL. Its complete original pool
           // supplies companions before the company working set is selected.
           try { await loadFeed('market-news', refresh); } catch { /* Company capture remains useful. */ }
-          await refreshFilings(newsReader, refresh);
-          loadedFeeds.add('news'); normalizedFeeds.delete('news');
+          try {
+            await refreshFilings(newsReader, refresh);
+            queryNewsReadErrors.delete(newsReader);
+            loadedFeeds.add('news'); invalidateNormalizedFeed('news');
+          } catch (error) {
+            // The source failure belongs to this reading period even if a later redraw
+            // supersedes the collection that observed it. A cached read must keep it failed.
+            queryNewsReadErrors.set(newsReader, String(error?.message || error));
+            throw error;
+          } finally {
+            listeners.forEach(fn => fn());
+          }
         } else if (load) await loadFeed(feed.id, refresh);
+        // Shared source loading can finish after this view has left. Its replacement
+        // can use the records; this abandoned reading must not classify them again.
+        if (!readingCurrent()) return;
         await yieldForInput();
         await warm();
-        out = await readFeedInSlices(feed, args, yieldForInput);
-        if (!load && loadErrors.has(feed.id)) out = { ...out, status: 'failed', reachesToday: false, note: `Last read failed: ${loadErrors.get(feed.id)}. Retained records remain visible.` };
-        else if (!load && (!loadedFeeds.has(feed.id) || loadingFeeds.has(feed.id)) && LOADERS[feed.id]) out = { ...out, status: 'pending' };
+        if (!readingCurrent()) return;
+        out = await readFeed(feed, args, yieldForInput);
+        const readError = feed.id === 'news' && newsReader !== news ? queryNewsReadErrors.get(newsReader) : loadErrors.get(feed.id);
+        if (!load && readError) {
+          if (feed.id !== 'news' || out.status !== 'failed') out = { ...out, status: 'failed', reachesToday: false, note: `Last read failed: ${readError}. Retained records remain visible.` };
+        }
+        else if (!load && (feed.id === 'news' && newsReader !== news
+          ? !newsReader.isLoaded()
+          : !loadedFeeds.has(feed.id) || loadingFeeds.has(feed.id)) && LOADERS[feed.id]) out = { ...out, status: 'pending' };
       } catch (err) {
+        if (!readingCurrent()) return;
         // A failed refresh must not erase a last-good capture or masquerade as an empty feed — and
         // the retained records it reads are warmed in slices exactly as a successful load's are.
         // Read cold, every retained filing was classified again in one task: 2.2 seconds at 4x CPU
         // throttle, the longest task of an All Alerts open whose Today was still empty.
         try { await warm(); } catch { /* The read below still answers. */ }
-        try { out = await readFeedInSlices(feed, args, yieldForInput); } catch { out = toFeedRow(feed, { events: [] }, day); }
-        out = { ...out, status: 'failed', reachesToday: false, note: `Read failed: ${String(err?.message || err)}. Retained records remain visible.` };
+        if (!readingCurrent()) return;
+        try { out = await readFeed(feed, args, yieldForInput); } catch { out = toFeedRow(feed, { events: [] }, day); }
+        // A partial company-news capture already describes its required sources,
+        // archive gaps and failure times. Preserve that failed reading across the
+        // live and pooled paths instead of replacing it with a generic exception.
+        if (feed.id !== 'news' || out.status !== 'failed') out = { ...out, status: 'failed', reachesToday: false, note: `Read failed: ${String(err?.message || err)}. Retained records remain visible.` };
       }
       settledFeeds.set(feed.id, out);
       schedulePartial();
@@ -868,7 +877,7 @@ export async function collect({ scope = 'universe', day = today(), holdings = nu
   closed = true;
   if (partialTimer !== null) clearTimeout(partialTimer);
   if (partialBuild) await partialBuild;
-  // An abandoned pool read has unfinished feeds, so it cannot replace the saved window.
+  // Unfinished abandoned feeds cannot replace the retained device window.
   if (load && poolMode && !isCurrent()) return null;
   const completed = await build();
   if (load && !queryWindow) {
@@ -929,12 +938,14 @@ async function refreshFilings(feed, refresh) {
   if (refresh && !(await feed.refreshSnapshot()).available) throw Error('Latest filings capture unavailable');
   // `meta()` below rebuilds the reader's rows synchronously, and after a load every row is new:
   // warm the readings that rebuild will hit in slices first, so it pays for the join, not for
-  // attributing every retained story in one task. Announcements also prepare their archive
-  // merge before meta() can reach its synchronous fallback.
+  // attributing every retained story in one task. A feed without `warm` (announcements, insider)
+  // is unchanged.
   await feed.warm?.(yieldToInput);
-  await feed.prepareRows?.();
   const m = feed.meta();
-  if (m.reason || m.failed || m.truncated) throw Error(m.message || 'Filings coverage is incomplete');
+  // News builds its failure state from these coverage flags and the individual delivery sources.
+  // Throwing for known partial coverage would replace that detail with a generic read error,
+  // while the prepared reader retains it. Actual read failures still take the failure path.
+  if (m.reason || (m.kind !== 'news' && (m.failed || m.truncated))) throw Error(m.message || 'Filings coverage is incomplete');
 }
 
 // Read-only source notifications; the tab reassembles loaded records without triggering fetches.
@@ -969,30 +980,31 @@ export function onChange(fn) {
 // objects (above, and in the additional sources), so touching every row in ~12ms slices before
 // the read leaves the read paying for the array and the feed row, never for classifying every
 // filing in one task. A warm-up that fails changes nothing: the read still classifies on demand.
-export async function warmRows(rows, reading, yieldForInput = yieldForInputSlice) {
+export async function warmRows(rows, reading, yieldForInput = yieldForInputSlice, keepGoing = () => true) {
+  if (!keepGoing()) return;
   let started = performance.now();
   for (const row of rows) {
     try { reading(row); } catch { /* The synchronous read reports a bad row in its own way. */ }
-    if (performance.now() - started >= 12) { await yieldForInput(); started = performance.now(); }
+    if (performance.now() - started >= 12) { await yieldForInput(); started = performance.now(); if (!keepGoing()) return; }
   }
 }
 const WARMERS = {
   // The announcement rows are a merge of the exchange capture with the shared, lookup and recovery
   // rows, rebuilt — as all new row objects — whenever one of them lands, and an event is kept per row
-  // object. A merge that moved during the warm-up left the read to classify every retained filing
-  // again in one task (0.5s on a cold open, measured), so the warm-up goes again until it holds.
+  // object. A merge that moved during the warm-up left the read to rebuild it and classify every
+  // retained filing again in one task (0.5s on a cold open, measured). So the warm-up goes again over
+  // the newer merge if one landed while it ran.
   announcements: async (yieldForInput, reading) => {
-    await announcements.prepareRows();
-    let prepared = announcements.rows();
-    for (;;) {
-      await warmRows(prepared, row => reading.touch(announcementEvent(row), 'announcements'), yieldForInput);
-      await announcements.prepareRows();
-      const next = announcements.rows();
-      if (next === prepared) return;
-      prepared = next;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await announcements.warm(yieldForInput);
+      const rows = announcements.rows();
+      await warmRows(rows, (row) => reading.touch(announcementEvent(row), 'announcements'), yieldForInput, reading.keepGoing);
+      if (!reading.keepGoing()) return;
+      await announcements.warm(yieldForInput);
+      if (announcements.rows() === rows) return;
     }
   },
-  insider: (yieldForInput, reading) => warmRows(insider.rows(), (row) => reading.touch(insiderEvent(row), 'insider'), yieldForInput),
+  insider: (yieldForInput, reading) => warmRows(insider.rows(), (row) => reading.touch(insiderEvent(row), 'insider'), yieldForInput, reading.keepGoing),
   ...Object.fromEntries(ADDITIONAL_SOURCES.filter((s) => s.warm).map((s) => [s.id, s.warm])),
 };
 
@@ -1009,54 +1021,33 @@ const COLLECTORS = {
   ...Object.fromEntries(ADDITIONAL_SOURCES.map((s) => [s.id, s.read])),
 };
 
-// THE PROJECTION IS KEPT PER SOURCE EVENT. Every read of a feed spread each event into a new
-// object, so every per-row reading downstream — the development fold, the search text, the
-// ranking's own cache — missed on every collection, and a 124,000-row All Alerts stream re-folded
-// from nothing on each partial publication (measured: 0.4–1.2s of sliced work per update, long
-// enough for a newly arrived filing to reach the table after the reader had looked). Rows are
-// replaced, never edited, so the same source event under the same feed is the same projection.
-const projections = new WeakMap();
-function projectedEvent(event, feed) {
-  const day = eventDay(event);
-  const hit = projections.get(event);
-  if (hit && hit.day === day && hit.feed === feed.id && hit.feedLabel === feed.label && hit.tab === feed.tab) return hit;
-  const value = { ...event, day, feed: feed.id, feedLabel: feed.label, tab: feed.tab };
-  projections.set(event, value);
-  return value;
-}
-
-function toFeedRow(feed, out, day) {
-  return runSteps(toFeedRowSteps(feed, out, day));
-}
-// Per-source deduplication/projection can be larger than the final visible report. Slice this
-// pass too: warming classifications and slicing the final sort cannot bound its Map/JSON work.
-function* toFeedRowSteps(feed, out, day) {
+function toFeedRow(feed, out, day) { return runSteps(toFeedRowSteps(feed, out, day)); }
+// Classification is already warmed in slices. Normalizing its records still copied and
+// deduplicated the whole announcement history in one task (1.1s at 4x CPU slowdown).
+// Both drivers use these same steps, including exact duplicates and source provenance.
+export function* toFeedRowSteps(feed, out, day) {
   const seen = new Map();
   const events = [];
-  let oldestDay = null, newestDay = null, todayCount = 0, visited = 0;
+  let oldestDay = null, newestDay = null, todayCount = 0, read = 0;
   for (const event of out.events || []) {
+    if (++read % 128 === 0) yield;
     // Deduplicate exact records within a source, not independent exchange/publisher evidence.
     // Most IDs occur once. Only serialize source records when an ID actually collides.
     const id = String(event.id);
     const prior = seen.get(id);
-    let duplicate = false;
     if (!prior) seen.set(id, { first: event, signatures: null });
     else {
       prior.signatures ||= new Set([JSON.stringify(prior.first.sourceRecord || prior.first)]);
       const signature = JSON.stringify(event.sourceRecord || event);
-      duplicate = prior.signatures.has(signature);
+      if (prior.signatures.has(signature)) continue;
       prior.signatures.add(signature);
     }
-    if (!duplicate) {
-      const projected = projectedEvent(event, feed);
-      events.push(projected);
-      if (projected.day === day) todayCount++;
-      if (projected.day) {
-        if (oldestDay === null || projected.day < oldestDay) oldestDay = projected.day;
-        if (newestDay === null || projected.day > newestDay) newestDay = projected.day;
-      }
-    }
-    if (++visited % 128 === 0) yield;
+    const row = { ...event, day: eventDay(event), feed: feed.id, feedLabel: feed.label, tab: feed.tab };
+    events.push(row);
+    if (row.day === day) todayCount++;
+    if (!row.day) continue;
+    if (oldestDay === null || row.day < oldestDay) oldestDay = row.day;
+    if (newestDay === null || row.day > newestDay) newestDay = row.day;
   }
   return {
     ...feed,
@@ -1274,7 +1265,7 @@ function* assembleSteps({ day, scope, holdings, includeHistory, settledFeeds, re
       feed = readFeed(feedById.get(settled.id), { day, includeHistory, queryWindow });
     }
     const all = mapPortfolioDiscoveryEvents(feed.id, feed.events, portfolioEntities);
-    // The configured Screener calendar is already scoped by the exact synchronized portfolio membership.
+    // The S Screen calendar is already scoped by the exact synchronized portfolio membership.
     // That fact lets BSE-only holdings survive even when they have no NSE ticker; it must not make
     // the private portfolio schedule leak into Universe or the reader's personal watchlist.
     // Company News has the same legitimate no-ticker case, but carries a stable ISIN entity id
@@ -1731,7 +1722,7 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
   const m = investors.meta() || {};
   const confirmedAt = (move) => investors.confirmedAtFor(move.slug) || m.checkedAt || m.capturedAt || m.fetchedAt;
   const moves = investors.allMoves().filter((move) => {
-    const confirmedDay = periodEnd(move.latest);
+    const confirmedDay = istDay(confirmedAt(move));
     const ticker = investorTicker(move);
     return isMove(move.action)
       && inRequestedWindow(confirmedDay, day, includeHistory)
@@ -1740,7 +1731,7 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
   const events = moves.map((move) => {
     const ticker = investorTicker(move);
     const bookConfirmedAt = confirmedAt(move);
-    const confirmedDay = periodEnd(move.latest);
+    const confirmedDay = istDay(bookConfirmedAt);
     const positive = move.action === 'new' || move.action === 'added';
     const direction = positive ? DIRECTION.POSITIVE : DIRECTION.NEGATIVE;
     const presenceChange = move.action === 'new' || move.action === 'exited';
@@ -1765,10 +1756,9 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
             ? `High: the disclosed holding changed by at least ${INVESTOR_HIGH_PP} percentage point.`
             : `Low: the disclosed holding changed by less than ${INVESTOR_HIGH_PP} percentage point.`
       ),
-      time: null,
-      at: confirmedDay,
+      time: istTime(bookConfirmedAt),
+      at: bookConfirmedAt || confirmedDay,
       day: confirmedDay,
-      sourceCheckedAt: bookConfirmedAt,
       ticker,
       company: move.company || ticker || '—',
       headline: `${move.investor}: ${actionText}`,
@@ -1797,7 +1787,7 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
     note: coverage.incomplete
       ? `${coverage.problems.join('; ')}. This reading is incomplete.`
       : coverageDay === day
-      ? 'Investor changes are quarterly disclosure comparisons dated to their quarter end. Source checks are recorded separately; these are not trade timestamps.'
+      ? 'Investor changes are quarterly disclosure comparisons dated to each investor book confirmation, not trade timestamps.'
       : `Investor changes are quarterly disclosure comparisons; the oldest current book confirmation is ${coverageDay || 'unknown'}, not a trade date.`,
   };
 }
@@ -1848,20 +1838,8 @@ export function announcementEvent(r) {
     // is already reproduced in `detail`; naming it separately is what lets the card fall back to
     // it without splitting a joined string, and nothing here is reworded.
     filingSubject: r.title || r.headline || null,
-    // A row lodged on both exchanges is merged keeping the first exchange's subject — NSE's bare
-    // "Press Release" — and BSE's full title arrives as `headline` beside it. It is the same filing's
-    // other statement of itself, kept so the alert surfaces can print the one that says what happened.
-    filingHeadline: r.title && r.headline && r.headline !== r.title ? r.headline : null,
     filingSubCategory: r.subCategory || null,
-    // NSE's own description of a filing reaches this feed as `summary` on the company-capture rows
-    // ("…titled \"Puravankara secures Rs 2,600 crore redevelopment project…\"") and as `description`
-    // on the exchange-wide ones. Reading only the second left those rows with the bare subject
-    // "Press Release" as their claim.
-    filingDescription: r.description || r.summary || null,
-    // One PDF lodged on both exchanges carries one hash, which is how the alert surfaces know the two
-    // rows are one filing (js/data/alert-developments.js). A top-level field, because the AI pool
-    // carries events without their source record.
-    documentHash: r.documentHash || null,
+    filingDescription: r.description || null,
   };
   announcementEvents.set(r, event);
   return event;
@@ -2080,6 +2058,7 @@ function companyNewsEvent(r) {
     entityId: r.entityId || null,
     company: attributionFor(r).status === 'unrelated' ? 'Unrelated search result' : r.company || attributionFor(r).queryCompany || coverage.holdings().find((h) => h.ticker === r.ticker)?.name || r.ticker || 'Unresolved company',
     headline: r.title || 'Story',
+    storyText: r.summary || r.description || '',
     detail: [r.source ? `Published by ${r.source}` : 'Publisher not carried',
       attributionFor(r).status === 'related' ? attributionFor(r).reason : null].filter(Boolean).join(' · '),
     url: r.url || null,

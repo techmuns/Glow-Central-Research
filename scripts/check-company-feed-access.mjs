@@ -1,7 +1,8 @@
 // Read-only host qualification. No credentials, browser session or capture files are written.
 import { captureCompanies } from './lib/company-capture.mjs';
 import { createScreenerCompanyFallback } from './lib/screener-company-filings.mjs';
-const targets = ['HEG', 'DHOOTTRANS', 'JBCHEPHARM', 'BAGMANE', 'VERTIS', '543225', 'INDIGRID', 'MINDSPACE', 'EMBASSY', 'BIRET', 'NHIT'];
+const targets = ['HEG', 'DHOOTTRANS', 'JBCHEPHARM', 'BAGMANE', 'VERTIS', '543225', 'INDIGRID', 'MINDSPACE', 'EMBASSY', 'BIRET', 'NHIT',
+  'ALPEXSOLAR-SM', 'ASHIKA', 'FCONSUMER', 'FSC', 'JAYBEE-SM'];
 const scope = captureCompanies(new URL('../public/data/', import.meta.url).pathname, { announcements: true });
 const read = createScreenerCompanyFallback();
 let failures = 0;

@@ -1,4 +1,4 @@
-// Portfolio-only forward calendar captured from the authenticated configured Screener dashboard.
+// Portfolio-only forward calendar captured from the authenticated S Screen dashboard.
 //
 // The publisher page is a discovery surface, not a causal or directional signal. These rows are
 // deliberately schedules: they can appear in All Alerts' Upcoming view and Ask Research evidence,

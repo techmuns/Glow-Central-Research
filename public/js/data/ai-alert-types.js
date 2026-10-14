@@ -49,7 +49,7 @@ export function matchesAIEvent(event, { selected = [], hideRoutine = true } = {}
   return (!hideRoutine || !types.includes('routine')) && (!selected.length || selected.some(id => types.includes(id)));
 }
 
-export const AI_EVENT_FILTER_KEY = 'glow:ai-alerts:event-types:v1';
+export const AI_EVENT_FILTER_KEY = 'sattva:ai-alerts:event-types:v1';
 export function normalizeAIEventFilters(value = {}) {
   return { selected: [...new Set((Array.isArray(value?.selected) ? value.selected : []).filter(id => ids.has(id)))],
     hideRoutine: value?.hideRoutine !== false };

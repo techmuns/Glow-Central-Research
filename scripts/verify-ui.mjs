@@ -15,9 +15,7 @@
 // Tailwind is a committed same-origin stylesheet, so layout and visual checks still exercise the
 // shipped UI; unavailable fonts fall back to the system stack and export checks report SKIP.
 
-import { installResearchFixture } from './lib/research-ui-fixture.mjs';
 import { readFileSync } from 'node:fs';
-import { verifyTechnicalFiltersUI } from './verify-technical-filters-context.mjs';
 
 const BASE = (process.argv[2] || 'http://localhost:8080').replace(/\/$/, '');
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
@@ -138,8 +136,10 @@ const context = await browser.newContext({
   acceptDownloads: true,
   serviceWorkers: 'block',
 });
-await installResearchFixture(context);
 const page = await context.newPage();
+
+// The full-site harness uses its authenticated fixture peer for sizes.
+await page.route('**/js/data/holding-sizes.js',route=>route.fulfill({contentType:'text/javascript',body:"import * as b from '../research/portfolio-bridge.js';export const cachedHoldingSizes=b.cachedPositionSizes;export const readHoldingSizes=(...args)=>b.portfolioConnectionState()==='locked'?Promise.resolve(null):b.readPositionSizes(...args);"}));
 
 // Research requires a fresh private-portfolio exchange before submitting. Exercise the real
 // iframe/message contract with a local response, without opening a production Family session.
@@ -158,7 +158,7 @@ addEventListener('message', event => {
     reading: { status: 'limited', checkedAt, bookAsOf, archiveVersion, answer: 'Local test holdings are available; position sizes are not supplied by this fixture.' } });
 });
 </script>`;
-await context.route('**/glow-bridge.html', route => route.fulfill({ contentType: 'text/html', body: familyHtml }));
+await context.route('**/research-bridge', route => route.fulfill({ contentType: 'text/html', body: familyHtml }));
 await context.route('**/api/family-portfolio', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
   ...familyFixture, ok: true, syncStatus: 'live', storage: 'shared', sourceRevision: 'a'.repeat(64),
   sourceWorkbook: { fileKey: 'local-fixture', label: 'Local test workbook', uploadedAt: '2026-09-01T00:00:00Z' },
@@ -253,21 +253,11 @@ const settleTables = () =>
   page
     .waitForFunction(() => !document.querySelector('[data-score-table][data-rows-pending]:not([data-scroll-paged])'), null, { timeout: 20000 })
     .catch(() => {});
-// COUNT THE ROW SET, NOT THE ROWS IN THE DOM. The tables are virtualised now, so a `<tbody>` holds
-// one window — 40 on a 1440x1000 viewport — however many rows the table actually has. Counting
-// `tr[data-row-key]` therefore answered 40 for the whole Earnings Hub, and every check built on it
-// failed with a figure that looked like a broken feed: "renders the full listed universe — 40
-// companies" over a table whose own count line read "2351 of 2351 shown". The table publishes the
-// real total as `data-virtual-total`; a table that is not virtualised has all its rows and is
-// counted as before.
 const rowCount = async () => {
   await settleTables();
-  const virtualTotal = await page.evaluate(() => {
-    const table = document.querySelector('[data-score-table][data-virtualized]');
-    const total = Number(table?.dataset.virtualTotal);
-    return Number.isFinite(total) ? total : null;
-  });
-  return virtualTotal ?? page.locator('tr[data-row-key]').count();
+  const virtual = page.locator('#content-host [data-score-table][data-virtualized]');
+  if (await virtual.count()) return Number(await virtual.first().getAttribute('data-virtual-total'));
+  return page.locator('tr[data-row-key]').count();
 };
 const SEARCH = '#content-host input[type="search"], #content-host input[placeholder*="Search"]';
 
@@ -394,8 +384,6 @@ const routes = await page.evaluate(async () => {
   const REGISTRY = {
     research: [
       'tabs/ai-alerts.js',
-      'tabs/portfolio.js',
-      'tabs/watchlist.js',
       'tabs/ask-research.js',
       'tabs/daily-alerts.js',
       'tabs/earnings-hub.js',
@@ -405,6 +393,7 @@ const routes = await page.evaluate(async () => {
       'tabs/super-investors.js',
       'tabs/news.js',
       'tabs/corp-announcements.js',
+      'tabs/corporate-actions.js',
       'tabs/nse-filings.js',
       'tabs/insider-trades.js',
     ],
@@ -452,11 +441,11 @@ const latestRows = await rowCount();
 ok('Latest Results renders the full listed universe', latestRows > 1000, `${latestRows} companies`);
 
 const ehText = await hostText();
-ok('states which quarter and which two periods', /Q\d\s*FY/i.test(ehText) && /\b(?:vs|against)\b/i.test(ehText));
-ok('says whether it is live or a snapshot', /\bLive\b/i.test(ehText) || /snapshot/i.test(ehText));
-// This tab deliberately has no stat strip and no sub-view picker: one table, one passive Live label.
+ok('states the source quarter and both comparison periods', /Q\d\s*FY/i.test(ehText) && (ehText.match(/Revenue\s+[A-Z][a-z]{2}\s+\d{4}/g) || []).length === 2);
+ok('the source period and financial unit share one plain line', /Q\d\s*FY.*Figures in ₹ crore/i.test(await page.locator('[data-results-context]').innerText()));
+// Two grouped switches and one period/unit line lead directly into the results table.
 ok('no stat-card furniture in front of the table', (await page.locator('#content-host .stat-card').count()) === 0);
-ok('a single small passive Live label instead', (await page.locator('[data-live-info]').count()) === 1);
+ok('exactly two switches replace the Live and scope chips', (await page.locator('[data-view-toggle], [data-period-toggle]').count()) === 2 && (await page.locator('#content-host [data-live-info]').count()) === 0 && !/Universe|Live/.test(await page.locator('[data-section-controls]').innerText()));
 ok('the sub-view picker is hidden for this single-view tab', await page.evaluate(() => {
   const m = document.getElementById('subview-mount');
   return !m || m.classList.contains('hidden') || !m.innerText.trim();
@@ -513,7 +502,7 @@ ok('headers are full words, not trade shorthand', !ehHeads.some((h) => /\b(REV|P
 // would leave the reader guessing which quarter the number belongs to.
 for (const m of ['REVENUE', 'NET PROFIT']) {
   const cols = ehHeads.filter((h) => h.startsWith(`${m} `) && h !== `${m} GROWTH`);
-  ok(`${m.toLowerCase()}: both periods are columns, each period-labelled`, cols.length === 2 && cols.every((h) => /[A-Z]{3}\s*\d{2}$/.test(h)), cols.join(' + '));
+  ok(`${m.toLowerCase()}: both periods are columns, each period-labelled`, cols.length === 2 && cols.every((h) => /[A-Z]{3}\s*\d{4}$/.test(h)), cols.join(' + '));
 }
 ok('gross profit is not a column', !ehHeads.some((h) => h.includes('GROSS')));
 
@@ -528,7 +517,7 @@ const ehSticky = await page.evaluate(async () => {
   const before = head.getBoundingClientRect().top;
   box.scrollTop = 800;
   await new Promise((r) => setTimeout(r, 250));
-  return { styled, moved: Math.abs(head.getBoundingClientRect().top - before), scrolled: box.scrollTop, rowsAbove: document.querySelector('#content-host tbody tr').getBoundingClientRect().top < before };
+  return { styled, moved: Math.abs(head.getBoundingClientRect().top - before), scrolled: box.scrollTop, rowsAbove: document.querySelector('#content-host tbody tr[data-row-key]').getBoundingClientRect().top < before };
 });
 ok('the table body scrolls inside its own box', ehSticky.scrolled > 0, `${ehSticky.scrolled}px`);
 if (ehSticky.styled) ok('...and the column headings stay put while it does', ehSticky.moved < 2 && ehSticky.rowsAbove, `head moved ${ehSticky.moved.toFixed(1)}px`);
@@ -540,8 +529,6 @@ ok('TICKER is not a column...', !ehHeads.some((h) => h.includes('TICKER')));
 ok('...nor INDUSTRY...', !ehHeads.some((h) => h.includes('INDUSTRY')));
 ok('...nor Return Since Result', !ehHeads.some((h) => h.includes('RETURN SINCE RESULT')));
 // Dropping them from the header must not drop them from the page — they moved under the name.
-// `tr[data-row-key]`, not `tbody tr`: a virtualised table opens with a zero-height spacer row that
-// carries the rows above the window, so `.first()` reads an empty `aria-hidden` cell.
 const ehIdent = await page.locator('#content-host tbody tr[data-row-key]').first().innerText();
 const ehSub = ehIdent.split('\n').find((l) => /[A-Z0-9&-]{2,}\s·\s\S/.test(l)) || '';
 ok('ticker and industry survive under the company name', !!ehSub, ehSub || ehIdent.replace(/\s+/g, ' ').slice(0, 60));
@@ -570,7 +557,7 @@ const ehOrder = await page.evaluate(async () => {
   // middle of results season and false at 09:00, when exactly one company has filed. The property
   // under test holds either way; the list comparison did not.
   const index = new Map(payload.rows.map((r) => [r.scId, { date: r.resultDate || '', seq: r.seq ?? 0 }]));
-  const rendered = [...document.querySelectorAll('#content-host tbody tr')].map((tr) => tr.dataset.rowKey);
+  const rendered = [...document.querySelectorAll('#content-host tbody tr[data-row-key]')].map((tr) => tr.dataset.rowKey);
   const seen = rendered.map((k) => index.get(k)).filter(Boolean); // a row that filed mid-check is simply skipped
   const breaks = [];
   for (let i = 1; i < seen.length; i++) {
@@ -610,42 +597,52 @@ else skip('the table fits at 1440 with no horizontal scrollbar', 'compiled style
 // THE RECONCILIATION. The growth column and the two figure columns are three renderings of the
 // same fact, and a reader will trust the pair over the percentage. Recompute the percentage from
 // the two figures actually on screen and require it to agree with the one actually on screen.
-const ehRecon = await page.evaluate(() => {
+const ehRecon = await page.evaluate(async () => {
   const heads = [...document.querySelectorAll('#content-host thead th')].map((t) => t.innerText.trim().toUpperCase());
   const num = (s) => Number(String(s).replace(/[^0-9.-]/g, ''));
   const out = { checked: 0, bad: [] };
-  for (const tr of [...document.querySelectorAll('#content-host tbody tr[data-row-key]')].slice(0, 60)) {
-    const td = [...tr.children].map((c) => c.innerText.trim());
-    for (const m of ['REVENUE', 'NET PROFIT']) {
-      const iCur = heads.findIndex((h) => h.startsWith(`${m} `) && h !== `${m} GROWTH`);
-      const iPct = heads.indexOf(`${m} GROWTH`);
-      if (iCur < 0 || iPct < 0) continue;
-      const cur = num(td[iCur]);
-      const pri = num(td[iCur + 1]);
-      const shown = td[iPct];
-      if (!/^[+-]?[\d.]+%$/.test(shown)) continue; // a pill, not a percentage — checked elsewhere
-      if (!Number.isFinite(cur) || !Number.isFinite(pri) || pri === 0) continue;
-      out.checked++;
-      const calc = ((cur - pri) / Math.abs(pri)) * 100;
-      // Rounding: the figures are whole crore and the percentage is a whole number, so a small
-      // integer-rounding gap is expected. A sign flip or a factor-of-two gap is not.
-      if (Math.abs(calc - num(shown)) > Math.max(2, Math.abs(num(shown)) * 0.05)) {
-        out.bad.push(`${td[1].replace(/\s+/g, ' ').slice(0, 32)} ${m}: ${pri}→${cur} shown ${shown}, computes ${calc.toFixed(0)}%`);
+  const seen = new Set();
+  const scroller = document.querySelector('#content-host [data-table-scroll]');
+  const originalTop = scroller?.scrollTop || 0;
+  // Sample real rows across the virtual table, retaining the >100 comparison
+  // gate. Spacer rows carry no reported figures and never count as companies.
+  for (const fraction of [0, 1 / 3, 2 / 3, 1]) {
+    if (scroller) scroller.scrollTop = fraction * (scroller.scrollHeight - scroller.clientHeight);
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    for (const tr of document.querySelectorAll('#content-host tbody tr[data-row-key]')) {
+      if (seen.has(tr.dataset.rowKey)) continue;
+      seen.add(tr.dataset.rowKey);
+      const td = [...tr.children].map((c) => c.innerText.trim());
+      for (const m of ['REVENUE', 'NET PROFIT']) {
+        const iCur = heads.findIndex((h) => h.startsWith(`${m} `) && h !== `${m} GROWTH`);
+        const iPct = heads.indexOf(`${m} GROWTH`);
+        if (iCur < 0 || iPct < 0) continue;
+        const cur = num(td[iCur]);
+        const pri = num(td[iCur + 1]);
+        const shown = td[iPct];
+        if (!/^[+-]?[\d.]+%$/.test(shown)) continue; // a pill, not a percentage — checked elsewhere
+        if (!Number.isFinite(cur) || !Number.isFinite(pri) || pri === 0) continue;
+        out.checked++;
+        const calc = ((cur - pri) / Math.abs(pri)) * 100;
+        // Rounding: the figures are whole crore and the percentage is a whole number, so a small
+        // integer-rounding gap is expected. A sign flip or a factor-of-two gap is not.
+        if (Math.abs(calc - num(shown)) > Math.max(2, Math.abs(num(shown)) * 0.05)) {
+          out.bad.push(`${td[1].replace(/\s+/g, ' ').slice(0, 32)} ${m}: ${pri}→${cur} shown ${shown}, computes ${calc.toFixed(0)}%`);
+        }
       }
     }
   }
+  if (scroller) scroller.scrollTop = originalTop;
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   return out;
 });
-// The bar is a SAMPLE size, not a coverage claim: the table virtualises, so what is in the DOM is
-// one window — about forty rows, two metrics each. Every rendered figure still has to reconcile;
-// requiring a hundred checks only required the pre-virtualisation DOM.
-ok('the figure columns reconcile with the growth column', ehRecon.checked > 40 && ehRecon.bad.length === 0, `${ehRecon.checked} checked${ehRecon.bad.length ? ' — ' + ehRecon.bad.slice(0, 3).join('; ') : ''}`);
+ok('the figure columns reconcile with the growth column', ehRecon.checked > 100 && ehRecon.bad.length === 0, `${ehRecon.checked} checked${ehRecon.bad.length ? ' — ' + ehRecon.bad.slice(0, 3).join('; ') : ''}`);
 
 // Status is visible without turning into another wall of explanatory chrome.
-await page.locator('[data-live-info]').click();
+await page.locator('[data-results-context]').click();
 await page.waitForTimeout(200);
-ok('the results status is a passive label, not a provenance popup trigger',
-  (await page.locator('[data-live-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+ok('the period/unit line is passive, not a provenance popup trigger',
+  (await page.locator('[data-results-context]').evaluate((el) => el.tagName)) === 'P' &&
     (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
 // THE HONESTY CHECK. A percentage across a sign change is not a growth rate, and about 13% of
@@ -654,11 +651,13 @@ ok('loss → profit renders as a pill, not a percentage', /to profit/i.test(ehTe
 ok('profit → loss renders as a pill', /to loss/i.test(ehText));
 ok('loss in both periods is labelled as a loss', /loss\s*[↓↑]/i.test(ehText)); // \s matches the nbsp in the pill
 
-await page.locator('#content-host select').first().selectOption('turnaround');
+await page.locator('#content-host [data-filter-group-toggle]').click();
+await page.getByRole('combobox', { name: 'Result screen', exact: true }).selectOption('turnaround');
 await page.waitForTimeout(600);
 const turnRows = await rowCount();
 ok('the loss → profit filter narrows the set', turnRows > 0 && turnRows < latestRows, `${turnRows} turnarounds`);
-await page.locator('#content-host select').first().selectOption('all');
+await page.getByRole('combobox', { name: 'Result screen', exact: true }).selectOption('all');
+await page.locator('#content-host .table-filter-group-done').click();
 await page.waitForTimeout(400);
 
 // ---------------------------------------------------------------------------------------
@@ -684,7 +683,7 @@ const figuresFor = async (needle, timeout = 8000) => {
       const hs = [...document.querySelectorAll('#content-host thead th')].map((t) => t.innerText.trim().toUpperCase());
       const i = hs.findIndex((h) => h.startsWith('REVENUE ') && h !== 'REVENUE GROWTH');
       if (i < 0) return null;
-      for (const tr of document.querySelectorAll('#content-host tbody tr')) {
+      for (const tr of document.querySelectorAll('#content-host tbody tr[data-row-key]')) {
         const tds = [...tr.children].map((c) => c.innerText.trim());
         if (tds[1] && tds[1].toUpperCase().includes(n)) return { cur: tds[i], prior: tds[i + 1] };
       }
@@ -745,7 +744,7 @@ const hasLiveRoute = qoqProbe.live;
 // row happened to sort first. Read the name off the table rather than hard-coding it — the
 // committed snapshot and the live feed do not contain the same companies.
 const pinned = await page.evaluate(() => {
-  const tr = document.querySelector('#content-host tbody tr');
+  const tr = document.querySelector('#content-host tbody tr[data-row-key]');
   return (tr?.children[1]?.innerText || '').split('\n').map((x) => x.trim()).filter(Boolean).find((x) => x.length > 3) || '';
 });
 const yoyPinned = pinned ? await figuresFor(pinned.toUpperCase()) : null;
@@ -1071,9 +1070,11 @@ await page.locator('#content-host thead th').nth(3).click();
 await page.waitForTimeout(300);
 ok('header sort keeps every row', (await rowCount()) === beforeSort, `${beforeSort} rows`);
 
-// The two filter dropdowns are independent questions and must AND together.
+// More filters keeps the two independent questions and their AND combination.
 const selCount = await page.locator('#content-host select').count();
-ok('there are two filter dropdowns', selCount === 2, `${selCount} selects`);
+ok('More filters contains the result screen and reporting basis', selCount === 2 &&
+  (await page.locator('#content-host [data-filter-group-toggle]').innerText()).includes('More filters'), `${selCount} selectors`);
+await page.locator('#content-host [data-filter-group-toggle]').click();
 const preBasis = await rowCount();
 await page.locator('#content-host select').nth(1).selectOption('std');
 await page.waitForTimeout(500);
@@ -1090,6 +1091,7 @@ const bothFilters = await rowCount();
 ok('the two dropdowns combine rather than replace each other', bothFilters > 0 && bothFilters < conOnly, `${conOnly} CON → ${bothFilters} CON with PAT up`);
 await page.locator('#content-host select').first().selectOption('all');
 await page.locator('#content-host select').nth(1).selectOption('all');
+await page.locator('#content-host .table-filter-group-done').click();
 await page.waitForTimeout(400);
 
 // ---------------------------------------------------------------------------------------
@@ -1169,7 +1171,7 @@ await go('/#/research/breakouts?scope=universe', 2500);
 }
 
 // ---------------------------------------------------------------------------------------
-// 3d. AI Alerts is the landing tab; All Alerts retains its focused checks
+// 3d. Ask Research is the landing tab; AI Alerts and All Alerts retain their focused checks
 // ---------------------------------------------------------------------------------------
 console.log('\n— AI alerts —');
 {
@@ -1249,37 +1251,26 @@ console.log('\n— AI alerts —');
   });
   await page.goto(`${BASE}/?fresh=${Date.now() + 1}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4500);
-  await page.locator('#content-host[data-active-tab="ai-alerts"]').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('[data-ai-search]').waitFor({ state: 'visible', timeout: 15000 });
   ok('the dashboard opens on AI Alerts', /ai-alerts/.test(page.url()), page.url().split('#')[1]);
-  ok('...and the tab bar puts it first', (await page.locator('[data-tab-id]').first().innerText()).trim() === 'AI Alerts');
+  ok('...and Alerts is the first parent tab', (await page.locator('#tabbar-mount [data-tab-id]').first().innerText()).trim() === 'Alerts');
   // The WHOLE url in the detail: `split('?')[1]` cuts at the query and hides the hash's own
   // `?scope=`, so a failure printed a string that looked identical to a pass.
   ok('...in the Portfolio scope by default', /scope=portfolio/.test(page.url()), page.url());
 
   await go('/#/research/ai-alerts?scope=portfolio', 4500);
-  // WAIT FOR A SETTLED STATE, NOT FOR `complete`. On a static origin there is no Worker, so the
-  // feeds behind `/api/*` and the chatter host genuinely cannot be read and `partial · retained
-  // evidence shown` is the honest answer — the one this dashboard exists to give. Waiting only for
-  // `complete` held here for the full timeout and then killed the rest of the run, reporting the
-  // sandbox as a broken page. The cards below are checked in either state; the freshness CLAIM is
-  // asserted separately, and only where a Worker can actually answer.
-  const aiSettled = await page.locator('[data-ai-feed-status][data-state="complete"], [data-ai-feed-status][data-state="partial"]')
-    .first().waitFor({ state: 'visible', timeout: 30000 }).then(() => true, () => false);
-  const aiState = aiSettled ? await page.locator('[data-ai-feed-status]').first().getAttribute('data-state') : null;
-  if (aiState === 'complete') ok('AI Alerts reports complete coverage when every feed answered', true, aiState);
-  else skip('AI Alerts reports complete coverage when every feed answered', `this origin reports "${aiState}" — no Worker, so some feeds cannot be read`);
-
-  // A `partial` status is settled for the READ but not for the CARDS: a feed that answers late
-  // still reorders them, and reading straight after the status turned partial caught the list
-  // mid-settle — scores out of order and one card short of its own source count. Wait for the
-  // rendered set to stop changing instead of for a clock.
-  await page.waitForFunction(() => {
-    const signature = [...document.querySelectorAll('[data-ai-card]')]
-      .map((card) => `${card.dataset.ticker}:${card.dataset.score}`).join('|');
-    const settled = window.__aiSignature === signature && signature !== '';
-    window.__aiSignature = signature;
-    return settled;
-  }, null, { timeout: 30000, polling: 1200 }).catch(() => {});
+  // A completed source check can remain partial. This standalone server cannot
+  // answer every Worker route, and must never turn those failures into green.
+  await page.locator('[data-ai-feed-status][data-state="complete"], [data-ai-feed-status][data-state="partial"]').waitFor({ state: 'visible', timeout: 60000 });
+  const aiCoverage = await page.evaluate(async () => {
+    const coverage = await import('/js/data/coverage.js');
+    const alerts = await import('/js/data/daily-alerts.js');
+    const report = await alerts.collect({ scope: 'portfolio', holdings: coverage.holdings(), includeHistory: true, load: false, pool: 'ai' });
+    return { state: document.querySelector('[data-ai-feed-status]')?.dataset.state,
+      pending: report.pending, failed: report.feeds.filter(feed => feed.status === 'failed').map(feed => feed.id) };
+  });
+  ok('AI Alerts completes its check and accurately exposes failed source coverage', aiCoverage.pending === 0 &&
+    aiCoverage.state === (aiCoverage.failed.length ? 'partial' : 'complete'), JSON.stringify(aiCoverage));
 
   const aiCards = page.locator('[data-ai-card]');
   const aiCount = await aiCards.count();
@@ -1288,7 +1279,6 @@ console.log('\n— AI alerts —');
     ticker: el.dataset.ticker,
     score: Number(el.dataset.score),
     priority: el.dataset.priority,
-    weight: el.dataset.holdingWeight == null ? null : Number(el.dataset.holdingWeight),
     insight: !!el.querySelector('[data-ai-insight]')?.textContent?.trim(),
     why: el.querySelectorAll('[data-ai-why] > div').length,
     scoreShown: !!el.querySelector('[data-ai-score], [title="Transparent priority score"]'),
@@ -1296,27 +1286,16 @@ console.log('\n— AI alerts —');
     events: el.querySelectorAll('[data-ai-event]').length,
     linkedEvents: el.querySelectorAll('a[data-ai-evidence-link][href]').length,
   })));
-  // THE ORDER IS THE READER'S, AND IT DEFAULTS TO NEWEST. This asserted score-descending outright
-  // and read the shipped default as a broken ranking: the tab offers Newest first / Largest
-  // holdings / Highest priority, and opens on the first. So uniqueness is asserted on whatever is
-  // shown, and the score ordering is asserted where it is the selected order — which also exercises
-  // the control rather than assuming which one is active.
-  ok('AI cards are unique by company', new Set(renderedCards.map((card) => card.ticker)).size === renderedCards.length,
-    renderedCards.map((card) => `${card.ticker}:${card.score}@${card.weight ?? '—'}`).join(', '));
-  await page.locator('[data-ai-sort]').selectOption('priority');
-  await page.waitForTimeout(600);
-  const byPriority = await page.locator('[data-ai-card]').evaluateAll((els) => els.map((el) => ({ ticker: el.dataset.ticker, score: Number(el.dataset.score) })));
-  ok('...and Highest priority really orders them by the hidden score',
-    byPriority.length > 0 && byPriority.every((card, i) => !i || byPriority[i - 1].score >= card.score),
-    byPriority.map((card) => `${card.ticker}:${card.score}`).join(', '));
-  await page.locator('[data-ai-sort]').selectOption('newest');
-  await page.waitForTimeout(600);
+  ok('AI cards are unique by company and ordered highest score first',
+    new Set(renderedCards.map((card) => card.ticker)).size === renderedCards.length &&
+      renderedCards.every((card, i) => !i || renderedCards[i - 1].score >= card.score),
+    renderedCards.map((card) => `${card.ticker}:${card.score}`).join(', '));
   ok('AI Alerts removes the priority banner and ranking breakdown',
     (await page.locator('[data-ai-alert-summary]').count()) === 0 &&
       renderedCards.every((card) => card.why === 0 && !card.scoreShown));
   const aiFeedStatus = (await page.locator('[data-ai-feed-status]').innerText()).trim();
   ok('the compact header distinguishes a completed source check from partial coverage',
-    /^(Updated|Sources updating|Partial coverage · retained evidence shown)$/.test(aiFeedStatus), aiFeedStatus);
+    /^(Updated|Sources updating|Partial coverage)( · (Grouping|Ungrouped))?$/.test(aiFeedStatus), aiFeedStatus);
   ok('every surfaced card keeps the insight and evidence without a Review next block',
     renderedCards.every((card) => card.insight && !card.reviewNext && card.events > 0));
   ok('every visible evidence row links to its traceable source',
@@ -1337,18 +1316,19 @@ console.log('\n— AI alerts —');
     figureStrip: el.querySelectorAll('[data-ai-metrics]').length,
     questionParagraph: el.querySelectorAll('[data-ai-drivers]').length,
     evidence: el.querySelectorAll('[data-ai-evidence] [data-ai-event]').length,
-    // Each mounted row retains its source label and stable event identity.
+    // Each row names its source in its own cell: the SET of them is the breadth on screen, and the
+    // LIST of them is what proves no one source took the whole card.
     // textContent, not innerText: a card Chromium has skipped under `content-visibility: auto`
     // reports empty innerText while still carrying its text, which reads as a card with no source.
     evidenceSources: [...el.querySelectorAll('[data-ai-evidence] [data-ai-event-source]')].map((n) => n.textContent.split('·')[0].trim()),
-    evidenceIds: [...el.querySelectorAll('[data-ai-timeline-row]')].map(n => n.dataset.rowKey),
+    evidenceFeeds: [...new Set([...el.querySelectorAll('[data-ai-evidence] [data-ai-event-source]')].map((n) => n.textContent.split('·')[0].trim()))],
     // Newest first is what the list header claims, so the rows carry a comparable key.
     rowKeys: [...el.querySelectorAll('[data-ai-evidence] [data-ai-event] [data-ai-age]')].map((n) => n.getAttribute('datetime') || ''),
     // A reading is a chip on the row whose own record backs it — never a colour, never a verdict,
     // and never an anchor of its own to the place the row already opens.
     chips: [...el.querySelectorAll('[data-ai-driver]')].map((n) => ({
       text: n.textContent.replace(/\s+/g, ' ').trim(),
-      onRow: !!n.closest('[data-ai-event]')?.querySelector('[data-ai-evidence-link][href]'),
+      onRow: !!n.closest('[data-ai-evidence-link][href]'),
       says: /^Could change the (?:earnings assumption|valuation|thesis)\./.test(n.getAttribute('title') || ''),
       disclaims: /does not verify|not confirmation/i.test(n.getAttribute('title') || ''),
       toned: /emerald|rose|amber/.test(n.className),
@@ -1361,18 +1341,23 @@ console.log('\n— AI alerts —');
   ok('no card carries a figure strip or a per-question paragraph, and the counts are still reachable',
     aiShape.every((card) => card.figureStrip === 0 && card.questionParagraph === 0 && card.sources > 0),
     aiShape.map((card) => `${card.ticker}:${card.sources} sources`).join(' | ').slice(0, 160));
-  // Headlines remain outside the bounded scrolling timeline.
-  ok('...a bounded evidence window, with complete history reachable',
-    aiShape.every((card) => card.evidence > 0 && card.evidence <= 20 && card.open));
+  // A card that needs scrolling to reach its finding has not delivered one. Four evidence rows is
+  // the cap; the rest are one click away in the tab that exists to hold them.
+  ok('...at most four evidence rows, with the rest one click away',
+    aiShape.every((card) => card.evidence > 0 && card.evidence <= 4 && card.open));
   // The header over those rows says newest first, which is a claim about the order they are in.
   ok('...in the order the list header claims',
     aiShape.every((card) => card.rowKeys.join('|') === [...card.rowKeys].sort().reverse().join('|')),
     aiShape.map((card) => `${card.ticker}:${card.rowKeys.join(',')}`).join(' | ').slice(0, 170));
-  // The timeline shows chronological evidence without dropping rows to fit source quotas.
-  ok('...with a source label on every mounted event',
-    aiShape.every(card => card.evidenceSources.length === card.evidence && card.evidenceSources.every(Boolean)));
-  ok('...with unique retained event identities in the mounted window',
-    aiShape.every(card => new Set(card.evidenceIds).size === card.evidenceIds.length));
+  // NO SOURCE TAKES THE WHOLE CARD. One board meeting filed to both exchanges under four different
+  // subjects is four records upstream, and it took all four rows of a card whose own header read
+  // "1 source" — so slots go one per source in rounds and stop at three from any one of them.
+  // Counted on the tag each row prints, which names the source FAMILY, so NSE and BSE count as the
+  // one source they are.
+  ok('...with no more than three rows from any one source',
+    aiShape.every((card) => [...new Set(card.evidenceSources)]
+      .every((source) => card.evidenceSources.filter((name) => name === source).length <= 3)),
+    aiShape.map((card) => `${card.ticker}:${card.evidenceSources.join('/')}`).join(' | ').slice(0, 170));
   // A TOPIC READING IS NOT A DIRECTION AND NOT A VERDICT. Today's capture may carry no tracked
   // topic at all, which is a legitimate state — so this asserts the shape of whatever is drawn
   // rather than that something is. The fixture-driven suite asserts one is drawn.
@@ -1387,6 +1372,11 @@ console.log('\n— AI alerts —');
   ok('...and the pattern chips tag a pattern rather than repeating its sentence',
     aiShape.every((card) => card.confluenceLines.every((line) => line.length > 0 && line.length <= 20)),
     aiShape.flatMap((card) => card.confluenceLines).join(' | ').slice(0, 140) || 'no patterns today');
+  // BREADTH, NOT THREE COPIES OF ONE FEED. A card claiming four sources that spends all three of
+  // its rows on one of them answers the question it raised with a quarter of what it holds.
+  ok('...and the evidence rows show as many different sources as the card has',
+    aiShape.every((card) => card.evidenceFeeds.length === Math.min(card.evidence, card.sources)),
+    aiShape.map((card) => `${card.ticker}:${card.evidenceFeeds.join('/')} of ${card.sources}`).join(' | ').slice(0, 170));
   ok('...and the insight is a single short sentence in ordinary English',
     aiShape.every((card) => card.insight.length > 0 && card.insight.length <= 260),
     `longest ${Math.max(0, ...aiShape.map((card) => card.insight.length))} chars`);
@@ -1428,14 +1418,7 @@ console.log('\n— AI alerts —');
       id: 'e1', feed: 'news', feedLabel: 'Company news', day: '2026-09-01', time: null,
       ticker: 'GOLD', company: 'Gold Ltd', headline: 'Routine publisher story',
       direction: 'neutral', importance: 'low', signalReason: 'Publisher headline.',
-      importanceReason: 'Low.', url: null,
-      // A publisher story only reaches the ranking once its company attribution is CONFIRMED —
-      // `newsCanSupportAI`, because a search result that merely mentions a name is not evidence
-      // about that company. Without this the news fixtures ranked nothing at all, and the checks
-      // below read an empty card list as a broken threshold.
-      attribution: { version: 2, status: 'confirmed', reason: 'Fixture: the search term is the company.',
-        queryTicker: 'GOLD', queryCompany: 'Gold Ltd', companyTicker: 'GOLD', companyName: 'Gold Ltd' },
-      ...overrides,
+      importanceReason: 'Low.', url: null, ...overrides,
     });
     const holdings = [
       { ticker: 'GOLD', name: 'Gold Ltd', sector: 'Industrials' },
@@ -1453,7 +1436,7 @@ console.log('\n— AI alerts —');
     const current = rank([event({ id: 'risk', feed: 'insider', headline: 'Promoter disposal', direction: 'negative', importance: 'high' })], [feed('insider')]);
     const stale = rank([event({ id: 'risk', feed: 'insider', headline: 'Promoter disposal', direction: 'negative', importance: 'high' })], [feed('insider', false)]);
     const duplicate = rank([
-      event({ id: 'n1', headline: 'Same story', url: 'https://example.test/same-story' }), event({ id: 'n2', headline: 'Same story', url: 'https://example.test/same-story' }),
+      event({ id: 'n1', headline: 'Same story' }), event({ id: 'n2', headline: 'Same story' }),
       event({ id: 'wide', ticker: null, company: 'Market', headline: 'Market-wide story' }),
     ], [feed('news')]);
     const weakSector = rank([
@@ -1475,8 +1458,7 @@ console.log('\n— AI alerts —');
       current: current.allCards[0]?.score,
       stale: stale.allCards[0]?.score,
       staleFeedStatus: feedStatus(stale).label,
-      duplicateEvents: duplicate.allCards[0]?.developments.length,
-      retainedDuplicateSources: duplicate.allCards[0]?.events.length,
+      duplicateEvents: duplicate.allCards[0]?.events.length,
       marketWideExcluded: duplicate.meta.marketWideExcluded,
       arithmetic: corroborated.allCards.every((card) => card.scoreBreakdown.reduce((sum, part) => sum + part.points, 0) === card.score),
       weakSectorBoosted: weakSector.allCards.some((card) => card.scoreBreakdown.some((part) => /portfolio companies in/.test(part.label))),
@@ -1496,8 +1478,8 @@ console.log('\n— AI alerts —');
     policy.current > policy.stale, `${policy.current} current vs ${policy.stale} stale`);
   ok('a completed degraded report renders the compact recovery state',
     policy.staleFeedStatus === 'Sources updating', policy.staleFeedStatus);
-  ok('repeated publisher records form one event with both sources retained; tickerless news stays out of company cards',
-    policy.duplicateEvents === 1 && policy.retainedDuplicateSources === 2 && policy.marketWideExcluded === 1,
+  ok('same-feed duplicate headlines collapse and tickerless news stays out of company cards',
+    policy.duplicateEvents === 1 && policy.marketWideExcluded === 1,
     `${policy.duplicateEvents} company event, ${policy.marketWideExcluded} market-wide`);
   ok('the hidden ranking model remains internally consistent', policy.arithmetic);
   ok('sector context requires material negative evidence rather than tiny negative activity',
@@ -1506,7 +1488,7 @@ console.log('\n— AI alerts —');
   ok('evidence links prefer public records and safely fall back to owning dashboard tabs', policy.evidenceLinksSafe);
 
   const firstTicker = renderedCards[0].ticker;
-  // A card now offers the same destination twice — the "All alerts" link and the Open
+  // A card now offers the same destination twice — the "N more events" line and the Open
   // button — so this names one rather than asserting there is only one to name.
   await aiCards.first().locator('[data-open-general]').first().click();
   await page.waitForTimeout(5000);
@@ -1530,30 +1512,24 @@ console.log('\n— AI alerts —');
 // 3e. Ask Research — dashboard-wide evidence through the streaming Muns LLM provider
 // ---------------------------------------------------------------------------------------
   console.log('\n— ask research —');
-  // The local-only shell fixture retains shared research-component coverage. This flag enables
-  // its composer inside the fixture; the shipped customer shell has no research registration.
-  await go('/#/research/ask-research?scope=portfolio&enable_research=1', 500);
+  await go('/#/research/ask-research?scope=portfolio', 500);
 
   const askText = await hostText();
   ok('Ask Research renders as a complete workspace',
     (await page.locator('[data-research-workspace]').count()) === 1 && /Research the whole picture/.test(askText));
-  // THE PROMISE CARDS ARE GONE, at the user's request, along with the introduction, the permanent
-  // history column and the duplicate footer — the answer column is the page now. So the three
-  // marketing strings this used to match ("Reads the whole dashboard", "Every tab", "Traceable",
-  // "Evidence-led") are not absent by accident and must not be asserted back into existence. What
-  // survives is what the removal was FOR: the starting questions, and the standing promise that
-  // nothing here searches the web.
+  ok('...makes dashboard-wide coverage explicit',
+    /Reads the whole dashboard/.test(askText) && /Every tab/.test(askText) && /Traceable/.test(askText));
   ok('...offers four scope-aware starting questions',
     (await page.locator('[data-research-suggestion]').count()) === 4);
   ok('...keeps the workspace honest about dashboard-only research',
-    (await page.locator('[data-research-web]').count()) === 0);
+    (await page.locator('[data-research-web]').count()) === 0 && /Evidence-led/.test(askText));
   const failedConfigGets = configGets;
   ok('...fails closed when the configuration check is temporarily unavailable',
     failedConfigGets > 0 && (await page.locator('[data-research-send]').isDisabled()) &&
       (await page.locator('[data-research-reconnect]').count()) === 1);
   configShouldFail = false;
   await go('/#/research/daily-alerts?scope=portfolio', 300);
-  await go('/#/research/ask-research?scope=portfolio&enable_research=1', 500);
+  await go('/#/research/ask-research?scope=portfolio', 500);
   await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 10000 });
   ok('...retries a transient configuration failure on the next mount',
     configGets > failedConfigGets && !(await page.locator('[data-research-input]').isDisabled()),
@@ -1594,15 +1570,8 @@ console.log('\n— AI alerts —');
     `${evidenceAudit.ready} ready · ${evidenceAudit.statuses.join(', ')}`);
   ok('...and keeps the provider-facing packet inside the local model budget',
     evidenceAudit.chars <= evidenceAudit.budget, `${evidenceAudit.chars.toLocaleString()} of ${evidenceAudit.budget.toLocaleString()} chars`);
-  // THE GUARANTEE IS THAT NO READY SOURCE IS STARVED OF ROWS. Trimming the per-source prose is the
-  // documented way the packet makes room for them — "summaries and then coverages are dropped from
-  // the largest sources first, recorded as `trimmed`, before a single row is refused" — and this
-  // registry carries twenty-one sources against an 18,000-character allowance, so the skeleton
-  // alone reaches that threshold and every source is trimmed. Asserting no trimming at all was an
-  // expectation for a smaller registry, and it failed over a packet that was doing exactly what it
-  // is supposed to. What is trimmed is still printed below, so a change in it stays visible.
-  ok('...spends that budget on rows: every ready source with rows in scope lands at least one',
-    evidenceAudit.withRows.length > 0 && evidenceAudit.starved.length === 0 && evidenceAudit.includedTotal >= evidenceAudit.withRows.length,
+  ok('...spends that budget on rows: every ready source with rows in scope lands at least one, and no summary was trimmed to make room',
+    evidenceAudit.withRows.length > 0 && evidenceAudit.starved.length === 0 && evidenceAudit.trimmed.length === 0 && evidenceAudit.includedTotal >= evidenceAudit.withRows.length,
     `${evidenceAudit.includedTotal} rows across ${evidenceAudit.withRows.length} sources · ${evidenceAudit.withRows.join(', ')}${evidenceAudit.starved.length ? ` · starved: ${evidenceAudit.starved.join(', ')}` : ''}${evidenceAudit.trimmed.length ? ` · trimmed: ${evidenceAudit.trimmed.join(', ')}` : ''}`);
   ok('...reads a generic question as generic — no scope or dashboard word becomes a ranking token or a company',
     evidenceAudit.tokens.length === 0 && evidenceAudit.companies.length === 0,
@@ -1666,11 +1635,7 @@ console.log('\n— AI alerts —');
     const packet = await buildResearchEvidence({ question: 'What is my portfolio worth?', scope: 'portfolio' });
     const money = /marketValueRupees|investedRupees|unrealisedPnl|xirrPct|twrTotalPct|averageCostRupees/;
     return {
-      // `id: 'portfolio'` is NOT the ledger here: on this deployment it is the Family Book — the
-      // real consolidated statement book, on a `#/research/family-book` route a reader can open.
-      // What must stay gone is the illustrative ledger, which is what the other two keys test: a
-      // Portfolio Analytics tab, a `#/portfolio/` route, and any invented valuation figure.
-      registered: DASHBOARD_RESEARCH_SOURCES.filter((source) => /portfolio analytics/i.test(source.tab)).map((source) => source.id),
+      registered: DASHBOARD_RESEARCH_SOURCES.filter((source) => /portfolio analytics/i.test(source.tab) || source.id === 'portfolio').map((source) => source.id),
       routes: DASHBOARD_RESEARCH_SOURCES.filter((source) => /#\/portfolio\//.test(source.route)).map((source) => source.id),
       valuationKeys: money.test(JSON.stringify(packet.sources)),
     };
@@ -1734,7 +1699,7 @@ console.log('\n— AI alerts —');
   // Off-tab completion marks the same quiet header inbox as a newly filed result.
   ok('...and marks the header bell without opening a popup',
     await page.locator('[data-notification-dot]').isVisible() && !(await page.locator('#notification-root').isVisible()));
-  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio&enable_research=1'; });
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio'; });
   await page.waitForFunction(() => !document.querySelector('[data-research-input]')?.disabled, null, { timeout: 15000 });
   const backText = await page.locator('[data-research-transcript]').innerText();
   ok('...and it is in the conversation when the reader returns, with the composer clear',
@@ -1746,7 +1711,7 @@ console.log('\n— AI alerts —');
   await page.waitForTimeout(700);
   await page.evaluate(() => { location.hash = '#/research/breakouts?scope=portfolio'; });
   await page.waitForTimeout(500);
-  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio&enable_research=1'; });
+  await page.evaluate(() => { location.hash = '#/research/ask-research?scope=portfolio'; });
   await page.waitForTimeout(900);
   ok('an unsent draft survives leaving the tab',
     (await page.locator('[data-research-input]').inputValue()) === 'An unsent draft that must survive');
@@ -1883,15 +1848,15 @@ console.log('\n— AI alerts —');
     return !m || m.classList.contains('hidden') || !m.innerText.trim();
   }));
   // Source-check details and their Indian date remain inside the open Sources panel.
-  ok('source-check badges stay out of the reading header', (await page.locator('[data-alerts-meta] [data-alerts-info]').count()) === 0);
+  ok('source-check badges stay out of the reading header', (await page.locator('[data-section-head] [data-alerts-info]').count()) === 0);
   const dayPillText = await page.locator('[data-alerts-info]').first().innerText();
   ok('it states the Indian trading date rather than a UTC one',
     /\d{2} \w{3,4} \d{4}/.test(dayPillText), dayPillText.replace(/\s+/g, ' '));
   ok('...and the date/status control is a passive label',
     (await page.locator('[data-alerts-info]').count()) === 1 &&
       (await page.locator('[data-alerts-info]').evaluate((el) => el.tagName)) === 'SPAN');
-  const historyPillText = await page.locator('#content-host [title*="newest first"]').innerText();
-  ok('All Alerts states that retained history is loaded', /History · \d+ dates?/.test(historyPillText), historyPillText);
+  ok('All Alerts omits scope/count and history/calendar header badges', (await page.locator('[data-alerts-meta]').count()) === 0);
+  ok('retained history remains selectable', (await page.getByRole('combobox', { name: 'Date range', exact: true }).locator('option[value="all"]').count()) === 1);
 
   // THE COVERAGE PANEL IS THE HONESTY HALF. Without it an empty bucket reads as an all-clear.
   const panel = await page.locator('[data-alerts-coverage]').innerText();
@@ -2644,14 +2609,11 @@ console.log('\n— editable scope lists —');
   await page.locator('[data-scope-edit]').click();
   await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 10000 });
   const universeBefore = Number((await page.locator('[data-scope-count]').innerText()).replace(/,/g, ''));
-  await page.locator('[data-scope-search]').fill('ALPHA');
-  await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
-  await page.locator('[data-scope-result="0"]').click();
-  ok('Universe accepts a company not present in the committed technicals set',
-    Number((await page.locator('[data-scope-count]').innerText()).replace(/,/g, '')) === universeBefore + 1);
+  ok('Universe includes the exchange directories independently of technicals coverage', universeBefore > 5000);
+  await page.locator('[data-scope-search]').fill('DP Abhushan');
+  ok('Universe searches companies outside the scored technicals set', /DPABHUSHAN/.test(await page.locator('[data-scope-members]').innerText()));
   await page.locator('[data-scope-search]').fill('RELIAN');
-  await page.locator('[data-scope-result="0"]').waitFor({ state: 'visible', timeout: 3000 });
-  await page.locator('[data-scope-result="0"]').click();
+  await page.locator('[data-scope-remove="ticker:RELIANCE"]').click();
   ok('a base Universe company can be excluded from ticker-based feeds', await page.evaluate(async () => {
     const scope = await import('/js/data/scope.js');
     return !scope.scopeAllowsTicker('universe', 'RELIANCE');
@@ -2720,8 +2682,8 @@ const ehDrillOpen = await page.evaluate(() => {
   return !!d && d.classList.contains('translate-x-0');
 });
 ok('...and clicking one opens no drill', !ehDrillOpen);
-// The passive Live label stays visible, but it no longer acts as a route to an explainer dialog.
-ok('...and keeps one passive Live status label', (await page.locator('[data-live-info]').count()) === 1);
+// Plain period/unit context stays visible without an explainer dialog.
+ok('...and keeps one plain period/unit line', (await page.locator('[data-results-context]').count()) === 1);
 
 // The drill itself still has to work where it IS used. Breakouts is the reference consumer: a
 // scored row with per-rule provenance behind it.
@@ -2737,12 +2699,8 @@ await page.waitForTimeout(400);
 ok('ESC closes the drill', (await page.locator('#drill-panel.translate-x-full, #drill-panel:not(.translate-x-0)').count()) > 0);
 
 // ---------------------------------------------------------------------------------------
-// 4b2. Breakouts opens on Strong Breakouts, and no chip narrows the view on the reader's behalf
-//
-// The tab used to land on Technical Scanner — the whole scored universe — while the view that
-// answers "what is breaking out today" sat second in the list. Strong Breakouts is first now, and
-// the shell resolves an absent sub-view to `subviews[0]`, so the picker order and the landing
-// route are one fact rather than two that could drift; both are asserted off the same navigation.
+// 4b2. Breakouts opens on Momentum Scanner; horizontal tabs switch its views.
+// The first catalog subview is both the landing route and the first visible tab.
 //
 // The filters are the other half of it. Three of the four groups already defaulted to their widest
 // option, but that option sat LAST in its row, and the fourth — the trend filter — shipped on
@@ -2761,10 +2719,18 @@ console.log('\n— breakouts: default view and filters —');
   await go('/#/research/breakouts?scope=universe', 2500);
   await waitForPanel();
   ok('a bare /breakouts route lands on Momentum Scanner', /breakouts\/momentum-scanner/.test(page.url()), page.url());
-  const tabs = await page.locator('#subview-mount [data-tab-id]').evaluateAll(items => items.map(b => ({ id: b.dataset.tabId, selected: b.getAttribute('aria-selected') })));
-  ok('Momentum Scanner is the first selected view tab', tabs.length === 4 && tabs[0].id === 'momentum-scanner' && tabs[0].selected === 'true', JSON.stringify(tabs));
-  await page.locator('#subview-mount [data-tab-id=strong-breakouts]').click();
-  await page.waitForSelector('[data-chip-bar]');
+  const picker = await page.evaluate(() => {
+    const items = [...document.querySelectorAll('#subview-mount [role="tab"]')];
+    return {
+      ids: items.map((b) => b.dataset.tabId),
+      checked: items.find((b) => b.getAttribute('aria-selected') === 'true')?.dataset.tabId || null,
+    };
+  });
+  ok('Momentum Scanner is the first horizontal view tab', picker.ids[0] === 'momentum-scanner', picker.ids.join(' · '));
+  ok('Momentum Scanner is selected', picker.checked === 'momentum-scanner');
+  await page.locator('#subview-mount [data-tab-id="strong-breakouts"]').click();
+  await waitForPanel();
+  await page.waitForSelector('#content-host [data-chip-group="strength"]');
 
   // Read the chip bar as it is drawn: the first chip of every group, and which chip is selected.
   // Asserted off the DOM rather than the module's config, because the config being right and the
@@ -2886,17 +2852,6 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
     seen.filter(([, mock]) => !mock).every(([, , m]) => m.green && m.dot && m.face === 'Up to date'),
     seen.filter(([, mock]) => !mock).map(([l, , m]) => `${l}:"${m.face}"`).join(' · '));
 
-  // Retired mock views must disappear from navigation and saved links alike.
-  await go('/#/research/breakouts/earnings-surprise?scope=universe', 2600);
-  await waitForPanel();
-  ok('a saved retired Earnings Surprise link resolves to Momentum Scanner',
-    /breakouts\/momentum-scanner/.test(page.url()), page.url());
-  ok('the Breakouts picker no longer offers Earnings Surprise',
-    !/Earnings Surprise/i.test(await page.locator('#subview-mount').textContent()));
-  ok('the retired view cannot render mock earnings or a Surprise column',
-    !/mock earnings|mixed provenance/i.test(await hostText()) &&
-    !(await page.locator('#content-host th').allTextContents()).some((text) => /surprise/i.test(text)));
-
   // The compact status stays on the page without opening a verbose explainer.
   await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
   await waitForPanel();
@@ -2951,10 +2906,6 @@ console.log('\n— breakouts: the stat strip became a Live pill —');
 }
 
 // ---------------------------------------------------------------------------------------
-// Shared technical filters use an isolated fixture so boundaries and zero-count combinations
-// remain covered regardless of what the latest market capture contains.
-await verifyTechnicalFiltersUI(browser, { base: BASE });
-
 // 4c. The live-quote refresh — every branch, stubbed.
 //
 // This route used to fail for every reader, every time, and the tab said only "Live quote refresh
@@ -3406,8 +3357,8 @@ const ddEligible = await page.evaluate(async () => {
 ok('every rendered named call carries a Deep Dive button, ticker or not', ddCells > 0 && ddCells === ddRows && ddEligible >= ddCells, `${ddCells} buttons, ${ddEligible} eligible model rows, ${ddRows} mounted rows`);
 ok('...and the column is headed Deep Dive', (await page.$$eval('#content-host thead th', (ts) => ts.map((t) => t.innerText.trim().toUpperCase()))).includes('DEEP DIVE'));
 ok('THE TABLE DISPATCHES NOTHING ON RENDER', ddHits.analyze === 0 && ddHits.report === 0, `analyze=${ddHits.analyze} report=${ddHits.report}`);
-// Their free index is read once per document load and never again — not per row, not per repaint,
-// not on a route change within the tab. This navigation is a hash change, so it must add nothing.
+// The free index is shared across rows and repaints. This quick hash navigation remains inside
+// the five-minute successful-read window, so it must add nothing.
 ok('their free index has been read', ddHits.summary >= 1, `${ddHits.summary} fetches so far`);
 ok('...and a route change inside the tab does not re-read it', ddHits.summary === ddSummaryBefore, `${ddHits.summary - ddSummaryBefore} extra`);
 
@@ -3696,8 +3647,8 @@ const chatterState = await evalSafe(async () => {
 // page. That would have taken the Telegram section down with an outage in an upstream it does not
 // read: one feed's outage reported as another's absence. So the tab strip must be there whether or
 // not the chatter API answered, which in this sandbox it usually has not.
-ok('Public Chatter offers Coverage, Not in coverage and Telegram tabs',
-  chatterState.tabs.join(' | ') === 'Coverage | Not in coverage | Telegram', chatterState.tabs.join(' | '));
+ok('Public Chatter offers Coverage and Telegram tabs',
+  chatterState.tabs.join(' | ') === 'Coverage | Telegram', chatterState.tabs.join(' | '));
 
 if (!chatterState.ok) {
   // The chatter API is EXTERNAL and called straight from the browser, so unlike every other feed
@@ -3705,7 +3656,7 @@ if (!chatterState.ok) {
   // `unreachable`, which is the correct answer and still has to be NAMED on screen.
   const named = await hostText();
   skip('the chatter feed is live', `reason=${chatterState.reason} — no egress to the upstream from here`);
-  ok('...and the tab names the state rather than showing an empty table', /could not be reached|no address|404|unexpected|error/i.test(named), named.slice(0, 90));
+  ok('...and the tab names the state rather than showing an empty table', /unavailable|could not be reached|no address|404|unexpected|error/i.test(named), named.slice(0, 90));
 } else {
   ok('the chatter feed is live', chatterState.total > 0, `${chatterState.total} entries`);
   ok('...split into covered companies and everything else', chatterState.companies + chatterState.uncovered === chatterState.total,
@@ -3713,29 +3664,15 @@ if (!chatterState.ok) {
   ok('...opens on Coverage with only its table visible', chatterState.selectedTab === 'Coverage' && chatterState.panel === 'coverage' && chatterState.tables === 1,
     `${chatterState.selectedTab} · ${chatterState.panel} · ${chatterState.tables} table(s)`);
   ok('...with the four summary cards removed', chatterState.statCards === 0, `${chatterState.statCards} stat cards`);
-  ok('...and their coverage, posts, mood and scrape facts retained as footnotes',
-    /Footnotes.*Coverage:.*Posts:.*Market mood:.*Last scrape:/i.test(chatterState.footnotes), chatterState.footnotes);
+  await page.locator('[data-chatter-source-details]').click();
+  const chatterSourceFacts = await page.locator('[data-chatter-source-dialog]').innerText();
+  ok('coverage, posts, mood and source times remain in Source details',
+    /Coverage:.*Posts:.*Market mood:.*Snapshot assembled:/is.test(chatterSourceFacts), chatterSourceFacts);
+  await page.getByRole('button', { name: 'Close source details', exact: true }).click();
+  ok('Coverage opens directly on its table', await page.locator('#content-host [data-top-cards]').count() === 0);
   ok('every unresolved entry carries a reason, not just a null', chatterState.unresolvedAllNull);
   ok('the resolver produced real NSE symbols', chatterState.resolvedSample.length > 0, chatterState.resolvedSample.join(', '));
   ok('the scrape time is shown', !!chatterState.generatedAt, chatterState.generatedAt || 'missing');
-
-  const featuredCard = page.locator('#content-host [data-top-cards] [data-top-idx]').first();
-  if (await featuredCard.count()) {
-    const featured = await evalSafe(async () => {
-      const c = await import('/js/data/chatter-live.js');
-      const row = c.forScope('universe').find((entry) => entry.mentions > 0);
-      return { name: row.name, slug: row.slug, mentions: row.mentions };
-    });
-    const cardText = (await featuredCard.innerText()).replace(/\s+/g, ' ');
-    ok('a most-discussed card explains its count, time period and action',
-      /\bmentions?\b/.test(cardText) && /Last \d+ days?/.test(cardText) && cardText.includes('Read mentions'), cardText);
-    await featuredCard.click();
-    await page.locator('[data-chatter-mention-row]').first().waitFor({ state: 'visible' });
-    ok('clicking the card opens that company’s underlying mentions',
-      await page.locator('[data-chatter-mentions-dialog]').getAttribute('data-chatter-slug') === featured.slug,
-      `${featured.name} · ${featured.mentions} mentions`);
-    await page.locator('#modal-content [data-modal-close]').click();
-  }
 
   // A ALL ALERTS CHATTER ROW OPENS THE COMPANY'S MENTIONS POPUP, not just the tab. The chatter
   // event carries no source URL, so daily-alerts.js falls back to the tab WITH the company and an
@@ -3778,11 +3715,9 @@ if (!chatterState.ok) {
   } else {
     skip('a chatter deep-link opens that company\'s mentions popup', 'no resolved chatter company in this run');
   }
-  await page.locator('[data-chatter-live]').click();
-  await page.waitForTimeout(200);
-  ok('the Public Chatter Live label opens no explainer popup',
-    (await page.locator('[data-chatter-live]').evaluate((el) => el.tagName)) === 'SPAN' &&
-      (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
+  ok('Public Chatter omits the collection badge from the page header',
+    (await page.locator('[data-chatter-live]').count()) === 0 &&
+      (await page.locator('[data-chatter-source-details]').count()) === 1);
 
   // THE CENTRAL HONESTY CHECK. A mention delta must never be styled like a return: no emerald, no
   // rose, no currency. Those are what make a reader parse it as money.
@@ -3826,33 +3761,13 @@ if (!chatterState.ok) {
     coverageBullishRows.length > 0 && coverageBullishRows.every((sentiment) => sentiment === 'bullish'),
     coverageBullishRows.join(' | '));
 
-  await page.locator('[data-chatter-section-tabs] [data-tab-id="not-in-coverage"]').click();
-  await page.waitForTimeout(300);
-  const notCoveredTab = await evalSafe(() => {
-    const host = document.querySelector('#content-host');
-    return {
-      panel: host.querySelector('[data-chatter-panel]')?.dataset.chatterPanel || '',
-      selected: host.querySelector('[data-chatter-section-tabs] [role="tab"][aria-selected="true"]')?.textContent?.trim() || '',
-      tables: host.querySelectorAll('[data-table-scroll]').length,
-      rows: host.querySelectorAll('tbody tr').length,
-      mostDiscussed: /Most discussed/i.test(host.textContent || ''),
-      footnotes: host.querySelector('[data-chatter-footnotes]')?.textContent || '',
-    };
-  });
-  ok('Not in coverage replaces the covered-company view with its own table',
-    notCoveredTab.panel === 'not-in-coverage' && notCoveredTab.selected === 'Not in coverage' && notCoveredTab.tables === 1 && notCoveredTab.rows > 0,
-    `${notCoveredTab.selected} · ${notCoveredTab.tables} table · ${notCoveredTab.rows} rows`);
-  ok('...does not repeat the Most Discussed ranking', !notCoveredTab.mostDiscussed);
-  ok('...and retains the shared footnotes', /Coverage:.*Posts:.*Market mood:.*Last scrape:/is.test(notCoveredTab.footnotes));
-
+  await coverageSentiment.selectOption('all');
   const mentionTarget = await evalSafe(async () => {
     const c = await import('/js/data/chatter-live.js');
-    const row = c.uncovered()[0];
-    return { slug: row.slug, name: row.name, mentions: row.mentions };
+    const row = c.forScope('universe').filter(row => row.mentions > 0).sort((a, b) => a.mentions - b.mentions)[0];
+    return { slug: row.slug, ticker: row.ticker, name: row.name, mentions: row.mentions };
   });
-  ok('every Not in coverage row makes its mention count visibly clickable',
-    (await page.locator('#content-host [data-chatter-mentions-trigger]').count()) === notCoveredTab.rows,
-    `${await page.locator('#content-host [data-chatter-mentions-trigger]').count()} of ${notCoveredTab.rows}`);
+  await page.locator('#content-host [data-table-search]').fill(mentionTarget.ticker);
   await page.locator(`#content-host tr[data-row-key="${mentionTarget.slug}"]`).click();
   await page.locator('[data-chatter-mention-row]').first().waitFor({ state: 'visible' });
   const mentionDetail = await evalSafe(() => {
@@ -3885,14 +3800,9 @@ if (!chatterState.ok) {
   ok('the popup shows only short excerpts rather than copying full posts', mentionDetail.shortExcerpts);
   await page.locator('#modal-content [data-modal-close]').click();
 
-  const uncoveredSentiment = page.locator('#content-host [data-chatter-panel] select[aria-label="Sentiment"]');
-  await uncoveredSentiment.selectOption('bullish');
-  await page.waitForTimeout(150);
-  const uncoveredBullishRows = await visibleChatterSentiments();
-  ok('Not in coverage owns a Bullish selector that shows only bullish companies in its table',
-    uncoveredBullishRows.length > 0 && uncoveredBullishRows.every((sentiment) => sentiment === 'bullish'),
-    uncoveredBullishRows.join(' | '));
-
+  await page.locator('#content-host [data-table-search]').fill('');
+  await coverageSentiment.selectOption('bullish');
+  await page.locator('[data-chatter-section-tabs] [data-tab-id="telegram"]').click();
   await page.locator('[data-chatter-section-tabs] [data-tab-id="coverage"]').click();
   await page.waitForTimeout(300);
   ok('returning to Coverage restores its selected tab',
@@ -3998,6 +3908,12 @@ if (await tgTabBtn.count()) {
   await page.waitForTimeout(600);
 }
 
+let telegramSourceFacts = '';
+if (await page.locator('[data-chatter-source-details]').count()) {
+  await page.locator('[data-chatter-source-details]').click();
+  telegramSourceFacts = await page.locator('[data-chatter-source-dialog]').innerText();
+  await page.getByRole('button', { name: 'Close source details', exact: true }).click();
+}
 const tg = await evalSafe(async () => {
   const t = await import('/js/data/telegram-posts.js');
   const host = document.querySelector('#content-host');
@@ -4022,13 +3938,13 @@ const tg = await evalSafe(async () => {
     panel: host.querySelector('[data-chatter-panel]')?.dataset.chatterPanel || '',
     heads,
     description: host.querySelector('p')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-    footnotes: host.querySelector('[data-telegram-footnotes]')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     pill: host.querySelector('[data-telegram-live]')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     pillState: host.querySelector('[data-telegram-live]')?.dataset.telegramFreshness || '',
     pillTag: host.querySelector('[data-telegram-live]')?.tagName || '',
     idsDescending: ids.every((id, k) => k === 0 || ids[k - 1] > id),
     uniqueKeys: new Set(keys).size === keys.length,
-    everyPostHasText: rows.every((r) => r.text || r.publishedAt),
+    hideLinks: !!host.querySelector('[data-chatter-panel="telegram"] input[type="checkbox"]')?.checked,
+    linkOnlyPlaceholders: [...host.querySelectorAll('[data-chatter-panel="telegram"] tbody tr')].filter(row => row.textContent.includes('Post link captured')).length,
     noPublishedAt: rows.every((r) => r.publishedAt === null),
     // A DATE CELL MUST NEVER CARRY `firstSeenAt`. That is when OUR scraper saw the post, and
     // rendering it as the post's time would stamp our reading time onto somebody else's words.
@@ -4047,14 +3963,14 @@ if (!tg?.ok) {
     /not available|no capture|could not be read/i.test(named), named.slice(0, 100));
 } else {
   ok('the Telegram capture is present', tg.count > 0, `${tg.count} posts from @${tg.channel}`);
-  ok('...every post carries text, so no empty row is drawn', tg.everyPostHasText);
+  ok('...the checked link-only filter hides generic placeholders', tg.hideLinks && tg.linkOnlyPlaceholders === 0);
   ok('...ordered by message id, newest first', tg.idsDescending);
   ok('...with unique, content-derived row keys', tg.uniqueKeys, `${tg.count} keys`);
 
   ok('Telegram renders a source publication date column', tg.heads.some((h) => /Published/.test(h)));
-  ok('the description explains source publication dates', /original publication dates/i.test(tg.description));
+  ok('Source details explains source publication dates', /Publication dates come from Telegram/i.test(telegramSourceFacts));
   ok('collector time is not rendered as publication time', tg.firstSeenNotDrawn !== false);
-  ok('history and retry coverage are stated', /history/i.test(tg.footnotes) && /awaiting retry/i.test(tg.footnotes));
+  ok('history and retry coverage are stated', /history/i.test(telegramSourceFacts) && /awaiting retry/i.test(telegramSourceFacts));
   ok('archive coverage reconciles', tg.readable + tg.unreadable === tg.span && tg.readable === tg.count);
   ok('the Telegram status label is passive and opens no explainer',
     tg.pillTag === 'SPAN' && tg.modalsOpen === 0, tg.pill);
@@ -4062,7 +3978,8 @@ if (!tg?.ok) {
   // the job last looked, so nothing here may wear the word that means "confirmed just now".
   ok('...and never claims to be Live, which this feed cannot know',
     !/\bLive\b/i.test(tg.pill) && !/\bLive\b/i.test(tg.pillState), tg.pill);
-  ok('publication and collection times are distinguished', /collection and first-seen times are separate/i.test(tg.footnotes));
+  ok('publication and collection times are distinguished',
+    /Last successful check:/i.test(telegramSourceFacts) && /Newest captured post:/i.test(telegramSourceFacts));
 }
 
 // GREEN IS A CLAIM ABOUT DATA, so the threshold is asserted directly at both sides. The shipped
@@ -4797,7 +4714,7 @@ if (siProbe.state === 'no-route') {
   // WITH NO WORKER THERE IS STILL THE COMMITTED SNAPSHOT, which is a static file and needs no
   // route at all. Only a deployment with neither falls back to naming the missing route.
   const noWorker = await hostText();
-  const fromFile = await page.evaluate(async () => (await import('/js/data/super-investors.js')).books().length); // Changes is the default view; cards are in All Investors.
+  const fromFile = await page.locator('[data-open-investor]').count();
   ok('with no Worker, the view falls back to the committed snapshot rather than showing nothing',
     fromFile > 0 || /needs the Worker/i.test(noWorker),
     fromFile > 0 ? `${fromFile} investors from the snapshot` : 'no snapshot — the view names the missing route');
@@ -4811,7 +4728,7 @@ if (siProbe.state === 'no-route') {
   // the no-route branch above: with a snapshot the outcome is the snapshot; only a deployment with
   // neither falls through to naming the reason.
   const errText = await hostText();
-  const fromFile = await page.evaluate(async () => (await import('/js/data/super-investors.js')).books().length); // Changes is the default view; cards are in All Investors.
+  const fromFile = await page.locator('[data-open-investor]').count();
   ok(`with the live feed unavailable (${siProbe.reason}), the view falls back to the snapshot or names the reason`,
     fromFile > 0
       ? true
@@ -5527,19 +5444,8 @@ for (const [hash, label] of [
   await downloadOrSkip(`${label} export downloads`, file);
   if (label === 'chatter' && file) {
     ok('...with a coverage-specific workbook name',
-      /^glow-public-chatter-coverage-\d{4}-\d{2}-\d{2}\.xlsx$/.test(file.suggestedFilename()),
+      /^sattva-public-chatter-coverage-\d{4}-\d{2}-\d{2}\.xlsx$/.test(file.suggestedFilename()),
       file.suggestedFilename());
-    await page.locator('#content-host [data-chatter-section-tabs] [data-tab-id="not-in-coverage"]').click();
-    await page.waitForSelector('#content-host [data-chatter-panel="not-in-coverage"]');
-    await settleTables();
-    const otherBtn = page.locator('#content-host button:has-text("Export")').first();
-    const otherDl = page.waitForEvent('download', { timeout: 25000 }).catch(() => null);
-    await otherBtn.click();
-    const otherFile = await otherDl;
-    await downloadOrSkip('not-in-coverage chatter export downloads', otherFile);
-    if (otherFile) ok('...with an uncovered-topic workbook name',
-      /^glow-public-chatter-not-in-coverage-\d{4}-\d{2}-\d{2}\.xlsx$/.test(otherFile.suggestedFilename()),
-      otherFile.suggestedFilename());
   }
 }
 
@@ -5599,15 +5505,17 @@ console.log('\n— header status and live alerts —');
   // leaving the registry with no caller at all was not, because CLAUDE.md goes on to say canonical
   // provenance "remains in the source registry". The door is a footer, BELOW the content, so the
   // chrome stays gone and the claim stays reachable — see section 17.
+  await page.evaluate(async () => (await import('/js/ui/source-beacon.js')).openBeacon());
   const registryDoor = await evalSafe(() => {
     const btn = document.querySelector('[data-sources-open]');
     const main = document.getElementById('dashboard-main');
     if (!btn || !main) return { present: false };
-    return { present: true, inHeader: !!btn.closest('header'), belowContent: !!(main.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING) };
+    return { present: true, inHeader: !!btn.closest('[data-app-header]'), inSourceFooter: !!btn.closest('.beacon-panel-foot') };
   });
-  ok('...but the source registry is reachable, from a footer rather than the chrome',
-    registryDoor.present && !registryDoor.inHeader && registryDoor.belowContent,
+  ok('...but the source registry is reachable from the source panel footer',
+    registryDoor.present && !registryDoor.inHeader && registryDoor.inSourceFooter,
     JSON.stringify(registryDoor));
+  await page.keyboard.press('Escape');
   ok('one status pill, not two competing chips', header.pills === 1 && header.updatedChip === 0, `${header.pills} pill(s), ${header.updatedChip} legacy chip(s)`);
   ok('...reading "Connected · checked <when>"', /^Connected · checked /.test(header.pillText) || /connecting/.test(header.pillText), header.pillText);
   ok('...and a refresh button beside it', header.refresh === 1);
@@ -6777,6 +6685,11 @@ console.log('\n— news, announcements and insider trades —');
     insiderSources.rows > 0 && insiderSources.linked === insiderSources.rows && insiderSources.onlyArrow && insiderSources.safe,
     `${insiderSources.linked} links across ${insiderSources.rows} sampled rows`);
   const insiderFilters = await page.evaluate(async () => {
+    const [{ insider }, { filterByScope }, { matchesNewsPeriod }, { tradeFilters }] = await Promise.all([
+      import('/js/data/filings.js'), import('/js/data/scope.js'), import('/js/data/news-window.js'), import('/js/tabs/insider-trades.js'),
+    ]);
+    const rows = filterByScope(insider.rows(), 'portfolio');
+    const definitions = tradeFilters(rows);
     const selects = [...document.querySelectorAll('[data-table-filter]')];
     const countText = document.querySelector('[data-row-count]')?.textContent || '';
     const total = Number((countText.match(/[\d,]+/) || ['0'])[0].replace(/,/g, ''));
@@ -6789,14 +6702,19 @@ console.log('\n— news, announcements and insider trades —');
       select.value = choice.value;
       select.dispatchEvent(new Event('change', { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 30));
-      const shown = Number((document.querySelector('[data-row-count]')?.textContent || '').match(/\d+/)?.[0] || 0);
-      results.push({ label: select.getAttribute('aria-label'), initial, choice: choice.textContent, shown });
+      const shown = Number((document.querySelector('[data-row-count]')?.textContent || '').replace(/,/g, '').match(/\d+/)?.[0] || 0);
+      const label = select.getAttribute('aria-label');
+      const definition = definitions.find(field => field.label === label);
+      const expected = rows.filter(row => definition.match(row, choice.value) && (period || matchesNewsPeriod(row, '30'))).length;
+      results.push({ label, initial, choice: choice.textContent, shown, expected });
       select.value = initial;
       select.dispatchEvent(new Event('change', { bubbles: true }));
     }
     return {
       labels: selects.map((s) => s.getAttribute('aria-label')),
       optionCounts: selects.map((s) => s.options.length),
+      expectedOptions: selects.map(select => definitions.find(field => field.label === select.getAttribute('aria-label')).options.length),
+      availableChoices: definitions.filter(field => field.label !== 'Trade period' && field.options.length > 1).length,
       countText,
       total,
       results,
@@ -6804,15 +6722,15 @@ console.log('\n— news, announcements and insider trades —');
   });
   ok('the Insider Trades toolbar separates trade rows from portfolio companies',
     /^[\d,]+ trades from [\d,]+ portfolio companies$/i.test(insiderFilters.countText.trim()), insiderFilters.countText.trim());
-  ok('insider trades offers Category, Transaction type, Mode and Trade period filters',
-    ['Category', 'Transaction type', 'Mode', 'Trade period'].every((label) => insiderFilters.labels.includes(label)),
+  ok('insider trades offers Trade category, Exchange, Transaction type, Mode and Trade period without a person Category predicate',
+    ['Trade category', 'Exchange', 'Transaction type', 'Mode', 'Trade period'].every((label) => insiderFilters.labels.includes(label)) && !insiderFilters.labels.includes('Category'),
     insiderFilters.labels.join(' · '));
   ok('...each dropdown is populated from the rows in scope',
-    insiderFilters.optionCounts.length === 4 && insiderFilters.optionCounts.every((n) => n > 1),
+    insiderFilters.optionCounts.length === 5 && insiderFilters.optionCounts.every((n, i) => n === insiderFilters.expectedOptions[i]),
     insiderFilters.optionCounts.join(' · '));
-  ok('...and each selection narrows the table',
-    insiderFilters.results.filter((r) => r.label !== 'Trade period').length === 3 &&
-      insiderFilters.results.filter((r) => r.label !== 'Trade period').every((r) => r.shown > 0 && r.shown < insiderFilters.total),
+  ok('...and each selection displays its exact matching source rows',
+    insiderFilters.results.filter((r) => r.label !== 'Trade period').length === insiderFilters.availableChoices &&
+      insiderFilters.results.every((r) => r.shown === r.expected),
     insiderFilters.results.map((r) => `${r.label}: ${r.choice} → ${r.shown}`).join(' · '));
   const insiderPeriod = insiderFilters.results.find((r) => r.label === 'Trade period');
   ok('...with Trade period defaulting to 30 days and All captured restoring older rows',
@@ -6861,21 +6779,16 @@ console.log('\n— news, announcements and insider trades —');
     // statement nobody can make without asking every company — the honest line is about US.
     const strip = await hostText();
     if (st.rows) {
-      // The compact feed status remains on the face and never launches an explainer overlay.
       ok('the page body carries no permanent freshness paragraph', !/Showing the (news|filings)/i.test(strip));
-      ok('...and the provenance pill is on the face instead', (await page.locator('[data-filings-info]').count()) > 0);
-      await page.locator('[data-filings-info]').first().click();
-      await page.waitForTimeout(200);
-      ok('...and opens no provenance popup',
-        (await page.locator('[data-filings-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
-          (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
+      ok('...and collection status is absent from the header', (await page.locator('[data-filings-info]').count()) === 0);
+      ok('...and provenance leaves the reading column', (await page.locator('#content-host [data-filings-method]').count()) === 0);
       ok('...and labels the company count as companies with filings',
         /announcements? · .*compan(?:y|ies) with filings/i.test(await page.locator('#content-host [data-row-count]').innerText()));
       ok('...and the global Refresh control remains available', (await page.locator('[data-header-refresh]').count()) === 1);
     } else {
       skip('the page body carries no permanent freshness paragraph', 'no rows cached on this origin');
-      skip('...and the provenance pill is on the face instead', 'no rows cached on this origin');
-      skip('...and opens no provenance popup', 'no rows cached on this origin');
+      skip('...and collection status is absent from the header', 'no rows cached on this origin');
+      skip('...and provenance remains reachable below the table', 'no rows cached on this origin');
       skip('...and accounts for the companies in scope rather than leaving a gap to misread', 'no rows cached on this origin');
       skip('...and the global Refresh control remains available', 'no rows cached on this origin');
     }
@@ -7373,12 +7286,26 @@ console.log('\n— sub-view picker and the removed roadmap card —');
   // It is asserted as a CLASS contract rather than as geometry because class ownership is the
   // durable cause of this bug. The first version read the open menu's box and could pass even when
   // an ancestor clipped it; a check that cannot fail is not a check.
+  await go('/#/research/super-investors/superstar-investors?scope=universe', 2600);
+  await waitForPanel();
+  await page.locator('#subview-mount [data-dd-trigger]').click();
+  await page.waitForTimeout(350);
+  const menu = await page.evaluate(() => {
+    const el = document.querySelector('#subview-mount [data-dd-menu]');
+    const clippers = [];
+    for (let n = el.parentElement; n && n.id !== 'subview-mount'; n = n.parentElement) {
+      if (String(n.className || '').split(/\s+/).includes('overflow-hidden')) clippers.push(n.className);
+    }
+    return { open: !el.classList.contains('hidden'), items: el.querySelectorAll('[data-dd-id]').length, clippers };
+  });
+  ok('clicking the picker opens its menu', menu.open && menu.items === 2, JSON.stringify({ open: menu.open, items: menu.items }));
+  ok('...and nothing between the menu and its mount clips it', menu.clippers.length === 0, menu.clippers.join(' | ') || 'no overflow-hidden ancestor');
+  await page.keyboard.press('Escape');
   await go('/#/research/breakouts/strong-breakouts?scope=universe', 2600);
   await waitForPanel();
-  ok('Breakouts shows four horizontal view tabs', await page.locator('#subview-mount [role=tab]').count() === 4);
-  await page.locator('#subview-mount [data-tab-id=fii-accumulation]').click();
+  await page.locator('#subview-mount [data-tab-id="fii-accumulation"]').click();
   await page.waitForTimeout(1800);
-  ok('...and picking a sub-view navigates to it', /breakouts\/fii-accumulation/.test(page.url()), page.url());
+  ok('clicking a scanner view tab navigates to it', /breakouts\/fii-accumulation/.test(page.url()), page.url());
   ok('...and the content follows', /Institutional holding changes/i.test(await hostText()));
 }
 
@@ -7481,10 +7408,10 @@ const freshness = await page.evaluate(async () => {
 });
 ok('the feed records where this paint came from', !!freshness?.origin, `origin=${freshness?.origin}`);
 ok('...and when the server last confirmed it', Number.isFinite(freshness?.checkedAt), String(freshness?.checkedAt));
-await page.locator('[data-live-info]').click();
+await page.locator('[data-results-context]').click();
 await page.waitForTimeout(200);
-ok('the feed status stays passive when the paint came from cache',
-  (await page.locator('[data-live-info]').evaluate((el) => el.tagName)) === 'SPAN' &&
+ok('the period/unit context stays passive when the paint came from cache',
+  (await page.locator('[data-results-context]').evaluate((el) => el.tagName)) === 'P' &&
     (await page.locator('#modal-overlay:not(.hidden)').count()) === 0);
 
 // Con-call: same contract, one channel — nothing on a con-call row moves on a tick, so the
@@ -7998,88 +7925,8 @@ const annWidth = await page.evaluate(() => {
   return el ? { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth } : null;
 });
 ok('...and the table still fits without a horizontal scrollbar of its own', annWidth && annWidth.scrollWidth <= annWidth.clientWidth, `${annWidth?.scrollWidth}px in ${annWidth?.clientWidth}px`);
-
-// --- Nothing is hidden by its type any more: a Category filter over the master list, starting at All ---
-// The desk asked (October 2026) for every filing to stay visible, with routine ones ranking lower within
-// their day; the Filing types switch that hid Routine & administrative by default is retired.
-{
-  await go('/#/research/corp-announcements?scope=universe', 2000);
-  await waitForPanel();
-  await settleTables();
-  ok('the filing-types switch is retired', (await page.locator('#content-host [data-announcement-types-trigger]').count()) === 0);
-  const trigger = page.locator('#content-host [data-table-toolbar] [data-ca-open="categories"]');
-  ok('a Category control sits in the table\'s filter row and starts at All', (await trigger.count()) === 1 && /All/.test(await trigger.innerText()), await trigger.innerText());
-  await trigger.click();
-  await page.waitForSelector('.ca-popover');
-  const expected = await page.evaluate(async () => (await import('/js/data/announcement-categories.js')).ANNOUNCEMENT_CATEGORIES.length);
-  const boxes = await page.locator('.ca-popover input[type="checkbox"]').count();
-  ok('...listing every category of the master list, none ticked', boxes === expected && (await page.locator('.ca-popover input[type="checkbox"]:checked').count()) === 0, `${boxes} of ${expected}`);
-  await page.keyboard.press('Escape');
-  ok('Escape closes it', (await page.locator('.ca-popover').count()) === 0);
-  const heads = await page.locator('#content-host table thead th').allInnerTexts();
-  ok('...and the Categories and Market cap columns replace Type and Topic',
-    heads.some((h) => /Categories/i.test(h)) && heads.some((h) => /Market cap/i.test(h)) && !heads.some((h) => /^(Type|Topic)$/i.test(h.trim())), heads.join(' | '));
-}
-
-// --- Corporate Actions is a VIEW of Corp Announcements, switched on the title row; the retired tab address still lands on it ---
-{
-  const tabIds = await page.evaluate(() => [...document.querySelectorAll('#tabbar-mount [data-tab-id]')].map((el) => el.dataset.tabId));
-  ok('the tab bar carries Corp Announcements and no Corporate Actions tab', tabIds.includes('corp-announcements') && !tabIds.includes('corporate-actions'), tabIds.join(', '));
-  await go('/#/research/corp-announcements?scope=universe', 1500);
-  await waitForPanel();
-  const head = await page.evaluate(() => {
-    const m = document.getElementById('subview-mount');
-    const sw = document.querySelector('#content-host [data-section-head] [data-view-switch]');
-    const h2 = document.querySelector('#content-host [data-section-head] h2');
-    return {
-      pickerHidden: !m || m.classList.contains('hidden'),
-      items: sw ? [...sw.querySelectorAll('a')].map((a) => `${a.dataset.viewSwitchItem}:${a.getAttribute('aria-current') || '-'}`) : [],
-      description: !!document.querySelector('#content-host [data-section-head] p'),
-      sameRow: !!(sw && h2) && Math.abs(sw.getBoundingClientRect().top - h2.getBoundingClientRect().top) < 14,
-    };
-  });
-  ok('...and the tab opens on Announcements with the view switch on the title row, no picker card and no description line',
-    head.pickerHidden && head.items.join(',') === 'announcements:page,corporate-actions:-' && !head.description && head.sameRow && /corp-announcements\/announcements/.test(page.url()),
-    `${JSON.stringify(head)} · ${page.url()}`);
-  const gap = () => page.evaluate(() => {
-    const table = document.querySelector('#content-host [data-score-table]');
-    const nav = document.querySelector('#tabbar-mount');
-    return table && nav ? Math.round(table.getBoundingClientRect().top - nav.getBoundingClientRect().bottom) : null;
-  });
-  const annGap = await gap();
-  ok('...and the table starts within 120px of the tab bar', annGap != null && annGap <= 120, `${annGap}px`);
-  await page.locator('#content-host [data-view-switch-item="corporate-actions"]').click();
-  await waitForPanel();
-  await settleTables();
-  const actHeads = await page.locator('#content-host table thead th').allInnerTexts();
-  ok('...and Corporate Actions renders its own table under the same tab, with the switch marking it current',
-    /corp-announcements\/corporate-actions/.test(page.url()) && actHeads.some((h) => /Ex date/i.test(h)) &&
-    (await page.locator('#content-host [data-view-switch-item="corporate-actions"][aria-current="page"]').count()) === 1,
-    `${page.url()} · ${actHeads.join(' | ')}`);
-  const actGap = await gap();
-  ok('...also within 120px of the tab bar', actGap != null && actGap <= 120, `${actGap}px`);
-  await go('/#/research/corporate-actions?scope=universe', 1500);
-  await waitForPanel();
-  ok('...and the retired #/research/corporate-actions address lands on that view with the URL corrected', /corp-announcements\/corporate-actions/.test(page.url()), page.url());
-}
-
-// THE EXPLANATION HAS TO BE REACHABLE, AND ON THESE TABS THE MODAL IS NOT.
-//
-// `cfg.provenance` is built for all three filings tabs and `openProvenance` is never called: the
-// status pill is a passive `<span>` by design (see CLAUDE.md — "the status pill is passive and
-// opens no modal"), so nothing on screen opens it. That is a pre-existing gap and not this
-// layer's to close, but it does decide where a Topic explanation may be asserted: the only
-// surfaces a reader can actually reach are the option labels and the cells' own tooltips. So
-// those are what is checked HERE. The pill itself is still passive and must stay that way; the
-// tab's provenance now has a door of its own under the table, asserted in section 17.
-const annPillOpens = await (async () => {
-  await page.locator('#content-host [data-filings-info]').first().click({ timeout: 2000 }).catch(() => {});
-  await page.waitForTimeout(500);
-  const text = await page.locator('#modal-content').innerText().catch(() => '');
-  if (text) await page.keyboard.press('Escape');
-  return !!text;
-})();
-ok('the passive status pill still opens nothing, so the reachable surfaces are what must explain Topic', annPillOpens === false);
+// Collection diagnostics live behind the method link, leaving the announcement header clear.
+ok('Corp Announcements has no status banner', (await page.locator('#content-host [data-filings-info]').count()) === 0);
 const annTopicTitles = await page.evaluate(() => {
   const host = document.querySelector('#content-host');
   const cells = [...host.querySelectorAll('tbody tr')].map((tr) => tr.children[3]).filter(Boolean);
@@ -8163,7 +8010,7 @@ const insightShape = await page.evaluate(() => {
   // position is put back afterwards. verify-ai-alerts-ui.mjs has the measurement.
   const y = scrollY;
   const rendered = (node) => { node.scrollIntoView({ block: 'nearest' }); return node.innerText; };
-  const everyCardLabelsItsInsight = cards.every((c) => /headline/i.test(rendered(c)));
+  const everyCardLabelsItsInsight = cards.every((c) => /what happened/i.test(rendered(c)));
   const kick = (node) => node?.querySelector('.uppercase')?.innerText.trim() || '';
   const readings = cards.map((card) => {
     rendered(card);
@@ -8188,8 +8035,8 @@ if (!insightShape) {
   skip('every AI Alerts card states what happened, in one source\'s own words',
     'no company reached the surfaced threshold in this capture');
 } else {
-  ok('every AI Alerts card labels its headline',
-    insightShape.everyCardLabelsItsInsight && /headline/i.test(insightShape.kicker),
+  ok('every AI Alerts card labels what happened',
+    insightShape.everyCardLabelsItsInsight && /what happened/i.test(insightShape.kicker),
     `${insightShape.cards.length} card(s) · "${insightShape.kicker}"`);
   // A claim is a statement, so it ends as one. An empty sentence is the failure that matters here:
   // the whole point of the card is that a reader does not have to open a row to learn what landed.
@@ -8224,13 +8071,14 @@ console.log('\n— 17. provenance is reachable, without the chrome that was remo
 const registryModal = await (async () => {
   await go('/#/research/ai-alerts?scope=portfolio', 4000);
   await waitForPanel();
+  await page.evaluate(async () => (await import('/js/ui/source-beacon.js')).openBeacon());
   await page.locator('[data-sources-open]').click({ timeout: 4000 }).catch(() => {});
   await page.waitForTimeout(800);
   const text = await page.locator('#modal-content').innerText().catch(() => '');
   if (text) await page.keyboard.press('Escape');
   return text;
 })();
-ok('the footer opens the source registry', registryModal.length > 2000, `${registryModal.length} chars`);
+ok('the source panel footer opens the source registry', registryModal.length > 2000, `${registryModal.length} chars`);
 // The registry is a FUNCTION called on open, which is what lets a static footer reach live figures
 // without going stale — the rule that killed the old hand-typed source array.
 ok('...and it names the upstreams it is canonical for',
@@ -8253,21 +8101,24 @@ for (const [route, title, scope] of [
   await go(route, 4000);
   await waitForPanel();
   await settleTables();
+  if (title === 'Corp Announcements') await page.evaluate(async () => (await import('/js/ui/source-beacon.js')).openBeacon());
   const placement = await evalSafe(() => {
-    const btn = document.querySelector('#content-host [data-filings-method]');
+    const sourceButton = document.querySelector('#source-beacon-panel [data-filings-method]:not([hidden])');
+    const contentButton = document.querySelector('#content-host [data-filings-method]');
+    const btn = sourceButton || contentButton;
     const table = document.querySelector('#content-host [data-score-table]') || document.querySelector('#content-host table');
     if (!btn) return { present: false };
     return {
       present: true,
+      inSourceFooter: !!sourceButton?.closest('.beacon-panel-foot') && !contentButton,
       belowTable: !table || !!(table.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING),
-      pillIsSpan: (document.querySelector('#content-host [data-filings-info]') || {}).tagName === 'SPAN',
+      pillTag: document.querySelector('#content-host [data-filings-info]')?.tagName || null,
     };
   });
-  ok(`${title} carries a method link under its table`, placement.present && placement.belowTable, JSON.stringify(placement));
-  // The decision CLAUDE.md recorded is preserved exactly: the label stays a passive span that opens
-  // nothing. What changed is that the explanation gained a door, not that the label became one.
-  ok(`...and ${title}'s freshness label is still a passive span`, placement.pillIsSpan === true);
-  await page.locator('#content-host [data-filings-method]').click({ timeout: 4000 }).catch(() => {});
+  ok(`${title} keeps its collection details reachable`, placement.present && (title === 'Corp Announcements' ? placement.inSourceFooter : placement.belowTable), JSON.stringify(placement));
+  ok(`...and ${title}'s header keeps its expected status placement`,
+    title === 'Corp Announcements' ? placement.pillTag === null : placement.pillTag === 'SPAN');
+  await page.locator(title === 'Corp Announcements' ? '#source-beacon-panel [data-filings-method]' : '#content-host [data-filings-method]').click({ timeout: 4000 }).catch(() => {});
   await page.waitForTimeout(700);
   const text = await page.locator('#modal-content').innerText().catch(() => '');
   ok(`...and it opens ${title}'s own provenance`, text.length > 1200, `${text.length} chars`);

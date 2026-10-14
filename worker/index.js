@@ -1,3 +1,5 @@
+import { handlePriceLevels } from './glow-price-levels.mjs';
+import { handleMutualFunds } from './mutual-funds.mjs';
 // Cloudflare Worker entry point.
 //
 // The dashboard is static assets (./public), served through the ASSETS binding. This Worker
@@ -13,12 +15,6 @@
 //   GET  /api/super-investors/{slug}           ->  one investor's book, quarter by quarter
 //   GET  /api/watchlist                        ->  the one shared watchlist + contributor roster
 //   POST /api/watchlist                        ->  apply add/remove edits, attributed by name
-//   GET  /api/price-levels                     ->  the family's price levels, every one reached, the check
-//   POST /api/price-levels                     ->  set / seed / clear levels (this site and Glow Ventures)
-//   GET  /api/research-sheet                   ->  the desk's typed Portfolio / Watchlist values (Glow)
-//   POST /api/research-sheet                   ->  set / clear a cell, add / remove a hand-added holding
-//   GET  /api/benchmark-quote                  ->  the Nifty 500's current level, for the Portfolio alpha
-//   POST /api/alert-notes                      ->  the alerts' AI "So what?" notes, stored per development
 //   GET  /api/newsletter                       ->  the team brief's list, schedule, timer and log
 //   POST /api/newsletter                       ->  subscribe / unsubscribe / edition edits
 //   POST /api/newsletter/send                  ->  build an edition now and send it
@@ -26,11 +22,13 @@
 //   GET  /api/stock-search?q=                   ->  company search for the scope editor (Muns)
 //   GET  /api/research                          ->  whether Ask Research is configured
 //   POST /api/research                          ->  streamed dashboard-grounded research answer
+//   GET  /api/nse-filing?src=                  ->  one NSE XBRL announcement, as the exchange's own facts
 //   POST /api/announcement-index/query         ->  one ranked, filtered page of Corporate Announcements
 //   GET  /api/announcement-index/event?id=     ->  every filing stitched into one event
 //   POST /api/announcement-read                ->  AI Read of one filing, on request, cached
 //   GET  /api/relevance/model                  ->  the desk's one shared relevance preference
 //   POST /api/relevance/feedback               ->  Important / Not important, with an optional why
+//   GET  /filing?src=                          ->  the same filing as a PAGE — where a team-brief link lands
 //
 // Data reads are read-through overlays on committed data. The POST-only refresh routes dispatch
 // fixed repository workflows; credentials remain in the Worker and duplicate runs are declined.
@@ -47,13 +45,13 @@
 // waste in the system. So each response carries a content-derived ETag, and a request that
 // arrives with a matching `If-None-Match` gets a 304 with no body at all.
 
-import { TELEGRAM_DELIVERY_NAME } from './telegram-delivery.mjs';
 import { readTelegramCollector } from './telegram-collector.mjs';
+import { TELEGRAM_DELIVERY_NAME } from './telegram-delivery.mjs';
 import { handleBreakouts, handleTechnicals } from './breakouts.mjs';
-import { handleNewsletter } from './newsletter.mjs';
 import { TELEGRAM_SCHEDULER_NAME, TELEGRAM_PRODUCTION_HOST } from './telegram-scheduler.mjs';
 import { fetchLatestResults, freshnessOf, resolveMissing, applyIdentity, fetchCalendarStrip, fetchCalendarDay, CALENDAR_PAGE_SIZE } from './mc.mjs';
-import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans, PAGE_SIZE } from './stockscans.mjs';
+import { fetchConcallScans, fetchUpcoming, fetchToday, mergeScans } from './stockscans.mjs';
+import { newConcallHistory, advanceConcallHistory } from './concall-history.mjs';
 import { fetchInvestorList, fetchInvestorPortfolio, isSlug } from './finology.mjs';
 import { fetchNews, fetchAnnouncements, fetchInsiderTrades, fetchDomesticFilings, searchStocks, withCallerToken, MunsError } from './muns.mjs';
 import { fetchGoogleNews } from './free-news.mjs';
@@ -77,22 +75,23 @@ import {
   DEPLOY_WORKFLOW,
 } from './github-actions.mjs';
 import { handleResearch } from './research.mjs';
-import { handleGlowPortfolio as handleFamilyPortfolio } from './glow-portfolio.mjs';
-import { handleEconCalendar } from './econ-calendar.mjs';
+import { handleGlowPortfolio as handleFamilyPortfolio, handleGlowHoldingSizes as handleHoldingSizes } from './glow-portfolio.mjs';
+import { handleResearchSheet } from './research-sheet.mjs';
+import { handleBenchmarkQuote } from './benchmark-quote.mjs';
 import { handleConcallSummaries } from './concall-summaries.mjs';
 import { handleCombinedFilings } from './combined-filings.mjs';
 import { handleDrhpFilings } from './drhp-filings.mjs';
 import { handleIpoMonitor } from './ipo-monitor.mjs';
 import { handleIpoFilings } from './ipo-filings.mjs';
 import { handleCaptureRegistration } from './capture-registration.mjs';
-import { handleWatchlist } from './watchlist.mjs';
+import { handleAlertNotes } from './alert-notes.mjs';
+import { handleAlertStories } from './alert-stories.mjs';
 import { handleAnnouncementIndex } from './announcement-index.mjs';
 import { handleAnnouncementRead } from './announcement-read.mjs';
 import { handleRelevanceFeedback } from './relevance-feedback.mjs';
-import { handlePriceLevels } from './price-levels.mjs';
-import { handleResearchSheet } from './research-sheet.mjs';
-import { handleBenchmarkQuote } from './benchmark-quote.mjs';
-import { handleAlertNotes } from './alert-notes.mjs';
+import { handleWatchlist } from './watchlist.mjs';
+import { handleWorkspace } from './workspace.mjs';
+import { handleNewsletter } from './newsletter.mjs';
 import { readPlatformCollector } from './ipo-platform-collector.mjs';
 import { readScreenerConcallCollector, readScreenerConcallCollection } from './screener-concalls-collector.mjs';
 import { enrichConcallScans, SCREENER_CONCALL_FRESH_MS, SCREENER_CONCALL_WORKFLOW } from '../public/js/data/screener-concalls-shared.js';
@@ -101,6 +100,7 @@ import { readScreenerInsightsCollector } from './screener-insights-collector.mjs
 import { SCREENER_INSIGHTS_FRESH_MS, SCREENER_INSIGHTS_WORKFLOW } from '../public/js/data/screener-insights-shared.js';
 import { FEED_URL as NSE_FEED_URL, HEADERS as NSE_HEADERS, parseAnnouncements, assertShape as assertNseShape, buildResolver, resolveAll as resolveNse } from './nse-ann.mjs';
 import { isXbrlFilingUrl, parseXbrlFiling } from '../public/js/data/nse-xbrl-shared.js';
+import { renderFilingFailure, renderFilingPage } from './filing-page.mjs';
 
 import { handleExchangeDeals, exchangeCaptureStatus } from './exchange-deals.mjs';
 import { handleAlertPool } from './alert-pool.mjs';
@@ -170,19 +170,22 @@ export default {
     if (url.pathname === '/api/ipo-monitor') return handleIpoMonitor(request);
     if (url.pathname === '/api/ipo-filings') return handleIpoFilings(request, { readPlatform: ({ signal }) => readPlatformCollector({ token: env.GH_DISPATCH_TOKEN, signal }) });
     if (url.pathname === '/api/capture-registration') return handleCaptureRegistration(request, env);
+    if (['/api/mutual-funds','/api/mutual-funds/company','/api/mutual-funds/collector','/api/mutual-funds/health','/api/mutual-funds/private','/api/mutual-funds/private/company'].includes(url.pathname)) return handleMutualFunds(request, env);
     if (['/api/breakouts', '/api/breakouts/collector', '/api/breakouts/history', '/api/breakouts/health', '/api/breakouts/fallback'].includes(url.pathname)) return handleBreakouts(request, env);
     if (['/api/technicals','/api/technicals/atr-history','/api/technicals/source'].includes(url.pathname)) return handleTechnicals(request, env);
+    if (url.pathname === '/api/alert-notes') return handleAlertNotes(request, env);
+    if (url.pathname === '/api/alert-stories') return handleAlertStories(request, env);
+    if (url.pathname.startsWith('/api/announcement-index/')) return handleAnnouncementIndex(request, env);
+    if (url.pathname === '/api/announcement-read' || url.pathname === '/api/announcement-read/status') return handleAnnouncementRead(request, env);
+    if (url.pathname.startsWith('/api/relevance/')) return handleRelevanceFeedback(request, env);
     if (url.pathname === '/api/watchlist') return handleWatchlist(request, env);
     if (url.pathname === '/api/price-levels') return handlePriceLevels(request, env);
     if (url.pathname === '/api/research-sheet') return handleResearchSheet(request, env);
     if (url.pathname === '/api/benchmark-quote') return handleBenchmarkQuote(request, env, { cacheKey: edgeKey('benchmark-quote:nifty500') });
-    if (url.pathname === '/api/alert-notes') return handleAlertNotes(request, env);
+    if (url.pathname === '/api/workspace') return handleWorkspace(request, env);
     if (url.pathname === '/api/newsletter' || url.pathname.startsWith('/api/newsletter/')) return handleNewsletter(request, env);
     if (url.pathname === '/api/concall-summaries' || url.pathname === '/api/concall-summaries/collector')
       return handleConcallSummaries(request, env);
-    if (url.pathname.startsWith('/api/announcement-index/')) return handleAnnouncementIndex(request, env);
-    if (url.pathname === '/api/announcement-read' || url.pathname === '/api/announcement-read/status') return handleAnnouncementRead(request, env);
-    if (url.pathname.startsWith('/api/relevance/')) return handleRelevanceFeedback(request, env);
 
     // THE READER'S OWN TOKEN, BUT ONLY WHERE THIS DEPLOYMENT HAS NONE. The dashboard runs inside
     // the Munshot host, which hands the browser the signed-in reader's session JWT; the browser
@@ -202,10 +205,10 @@ export default {
     if (url.pathname === '/api/research') {
       return handleResearch(request, env);
     }
-    if (url.pathname === '/api/econ-calendar') return handleEconCalendar(request, env, ctx);
     if (url.pathname === '/api/family-portfolio') {
       return handleFamilyPortfolio(request, env);
     }
+    if (url.pathname === '/api/holding-sizes') return handleHoldingSizes(request, env);
     if (url.pathname === '/api/live-prices') {
       return handleLivePrices(request, env, ctx);
     }
@@ -393,6 +396,11 @@ export default {
     }
     if (url.pathname.startsWith('/api/')) {
       return json({ error: 'Not implemented', path: url.pathname }, 404);
+    }
+    // The readable filing page — a page rather than JSON, because this is where an email's links
+    // land. See `handleFilingPage`.
+    if (url.pathname === '/filing') {
+      return handleFilingPage(request, env, ctx);
     }
 
     return env.ASSETS.fetch(request);
@@ -1102,18 +1110,19 @@ async function handleNseAnnouncements(request, env, ctx) {
 const NSE_FILING_TTL_S = 86400;
 const NSE_FILING_FAIL_TTL_S = 15;
 
-async function handleNseFiling(request, ctx) {
-  if (request.method !== 'GET') return json({ ok: false, reason: 'method', error: 'GET only' }, 405);
-  const src = new URL(request.url).searchParams.get('src') || '';
-  if (!isXbrlFilingUrl(src)) {
-    return json({ ok: false, reason: 'unsupported', url: src,
-      error: 'Only NSE XBRL announcement files (nsearchives.nseindia.com/corporate/xbrl/....xml) can be rendered here.' }, 400);
-  }
-
+/**
+ * One XBRL filing, read once and held at the edge — the body both readers of it share.
+ *
+ * TWO SURFACES, ONE READ. `/api/nse-filing` answers the dashboard's panel with JSON and `/filing`
+ * answers a link out of the team brief with a page; they are the same document and must never be
+ * able to disagree about it, so the fetch, the allow-list, the shape check and the cache entry are
+ * here and the routes are presentation.
+ */
+async function readNseFiling(src, ctx) {
   const cache = caches.default;
   const cacheKey = edgeKey(`nse-filing:${src}`);
   const hit = await cache.match(cacheKey);
-  if (hit) return revalidate(request, new Response(hit.body, { headers: { ...Object.fromEntries(hit.headers), 'x-sattva-cache': 'hit' } }), 'hit');
+  if (hit) return { payload: await hit.json(), state: 'hit' };
 
   try {
     const res = await fetch(src, { headers: NSE_HEADERS, signal: AbortSignal.timeout(15000) });
@@ -1125,18 +1134,73 @@ async function handleNseFiling(request, ctx) {
     const filing = parseXbrlFiling(xml);
     if (!filing.ok) throw new Error(`NSE returned ${xml.length} bytes carrying no XBRL facts.`);
 
-    const { body, tag } = withTag({ ok: true, url: src, fetchedAt: new Date().toISOString(), ...filing });
-    const stored = tagged(body, tag, NSE_FILING_TTL_S, { 'x-sattva-cache': 'live' });
-    ctx?.waitUntil?.(cache.put(cacheKey, stored.clone()));
-    return revalidate(request, stored, 'miss');
+    const payload = { ok: true, url: src, fetchedAt: new Date().toISOString(), ...filing };
+    const { body, tag } = withTag(payload);
+    ctx?.waitUntil?.(cache.put(cacheKey, tagged(body, tag, NSE_FILING_TTL_S, { 'x-sattva-cache': 'live' })));
+    return { payload, state: 'miss' };
   } catch (err) {
     // NAME THE FAILURE AND CARRY THE URL INTO IT. The reader still has the original document a
-    // click away, and the panel says so rather than implying the filing itself is gone - the
+    // click away, and both surfaces say so rather than implying the filing itself is gone - the
     // chatter route's bare-404 lesson, which cost a long investigation into a healthy upstream.
-    const { body, tag } = withTag({ ok: false, url: src, reason: 'unreachable',
-      error: `NSE could not be read for this filing: ${String(err?.message || err)}` });
-    return revalidate(request, tagged(body, tag, NSE_FILING_FAIL_TTL_S), 'fallback');
+    return {
+      payload: { ok: false, url: src, reason: 'unreachable', error: `NSE could not be read for this filing: ${String(err?.message || err)}` },
+      state: 'fallback',
+    };
   }
+}
+
+async function handleNseFiling(request, ctx) {
+  if (request.method !== 'GET') return json({ ok: false, reason: 'method', error: 'GET only' }, 405);
+  const src = new URL(request.url).searchParams.get('src') || '';
+  if (!isXbrlFilingUrl(src)) {
+    return json({ ok: false, reason: 'unsupported', url: src,
+      error: 'Only NSE XBRL announcement files (nsearchives.nseindia.com/corporate/xbrl/....xml) can be rendered here.' }, 400);
+  }
+  const { payload, state } = await readNseFiling(src, ctx);
+  const { body, tag } = withTag(payload);
+  return revalidate(request, tagged(body, tag, payload.ok ? NSE_FILING_TTL_S : NSE_FILING_FAIL_TTL_S, { 'x-sattva-cache': state === 'hit' ? 'hit' : state === 'miss' ? 'live' : 'fallback' }), state);
+}
+
+// ---------------------------------------------------------------------------------------
+// GET /filing?src=... — THE SAME FILING AS A PAGE, FOR A READER WHO IS NOT ON THE DASHBOARD.
+//
+// The team brief is read in a mail client, so its links have to land somewhere finished. An XBRL
+// announcement linked at its own archive address opens as a tree of SEBI namespaces under "This
+// XML file does not appear to have any style information associated with it" — the exchange's data
+// with none of its meaning, which is what the desk was getting. This route is where those links go
+// now; the original file stays linked from the page, twice.
+//
+// It is a GET that only reads, it is the same allow-list and the same edge entry as the JSON route
+// above, and it renders through `worker/filing-page.mjs` — no script, no stylesheet, no request of
+// its own, because a link out of an email must open the document rather than an application that
+// then fetches it.
+async function handleFilingPage(request, env, ctx) {
+  const url = new URL(request.url);
+  const src = url.searchParams.get('src') || '';
+  const html = (body, status, seconds) => new Response(body, {
+    status,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': `public, max-age=${seconds}`,
+      'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; img-src https: data:",
+      'referrer-policy': 'no-referrer',
+      'x-content-type-options': 'nosniff',
+    },
+  });
+
+  if (request.method !== 'GET') return html(renderFilingFailure({ url: src, reason: 'unsupported' }), 405, 0);
+  // NOTHING ON THIS PAGE COMES FROM ITS QUERY STRING BUT THE ADDRESS OF THE FILING, and that one
+  // parameter is an allow-list rather than a value. A `?subject=` or `?company=` reflected into the
+  // heading would read as this dashboard's own words about a filing while being whoever sent the
+  // link's, on our origin — so the page is titled by the document itself and by nothing else.
+  if (!isXbrlFilingUrl(src)) {
+    return html(renderFilingFailure({ url: src, reason: 'unsupported' }), 400, 0);
+  }
+  const { payload } = await readNseFiling(src, ctx);
+  if (!payload.ok) return html(renderFilingFailure({ url: src, reason: payload.reason, error: payload.error }), 502, 0);
+  const dashboardUrl = String(env.DASHBOARD_ORIGIN || url.origin).replace(/\/+$/, '');
+  // Parsed source facts remain cached for a day; presentation must revalidate after a release.
+  return html(renderFilingPage({ filing: payload, url: src, dashboardUrl }), 200, 0);
 }
 
 function screenerNeedsRefresh(source, now = Date.now()) {
@@ -1279,25 +1343,54 @@ async function handleConcalls(request, env, ctx) {
     return { value, fresh: true };
   };
 
-  // SETTLED ON ITS OWN, OUTSIDE THE `Promise.all` BELOW. The configured Screener artifact is a different
+  // SETTLED ON ITS OWN, OUTSIDE THE `Promise.all` BELOW. The S Screen artifact is a different
   // upstream to StockScans, and a `Promise.all` that rejects on the first failure would throw its
   // result away with the rest — so a StockScans outage would empty a portfolio calendar that had
   // been read perfectly well, which is the failure this whole route was just fixed for. On a cold
   // device there is no retained copy to fall back to, so the loss would reach the screen.
   const screenerRead = readCachedScreenerCollector(request, env, ctx, true).catch(() => null);
+  const snapshotRead = loadConcallSnapshot(env, request);
+  // Schedule endpoints and published analysis fail independently. A missing calendar must not
+  // replace a healthy assessment feed with an old snapshot.
+  const scheduleRead = cached('schedule-v2', CONCALL_SCHEDULE_TTL_S, async () => {
+    const [upcoming, today] = await Promise.allSettled([fetchUpcoming(), fetchToday()]);
+    return {
+      upcoming: upcoming.status === 'fulfilled' ? upcoming.value : null,
+      today: today.status === 'fulfilled' ? today.value : null,
+      errors: [upcoming, today].flatMap((part, i) => part.status === 'rejected'
+        ? [`StockScans ${i ? 'today' : 'upcoming'} schedule is unavailable (${part.reason?.message || 'unreachable'}).`] : []),
+    };
+  }).catch(error => ({ value: { upcoming: null, today: null, errors: [`StockScans schedule is unavailable (${error.message}).`] } }));
 
   try {
-    const [head, tail, sched] = await Promise.all([
-      cached('head', CONCALL_HEAD_TTL_S, () => fetchConcallScans({ pages: 1 })),
-      cached('tail', CONCALL_TAIL_TTL_S, () => fetchConcallScans({ pages: 'all', startOffset: PAGE_SIZE })),
-      cached('schedule', CONCALL_SCHEDULE_TTL_S, async () => {
-        const [upcoming, today] = await Promise.all([fetchUpcoming(), fetchToday()]);
-        return { upcoming, today };
-      }),
-    ]);
+    const head = await cached('head-v2', CONCALL_HEAD_TTL_S, () => fetchConcallScans({ pages: 1 }));
+    const historyKey = `history-v2/${head.value.meta.quarter}/${(head.value.meta.quarters || []).join(',')}`;
+    const [historyHit, sched, baseline] = await Promise.all([cache.match(edgeKey(`concalls/${historyKey}`)), scheduleRead, snapshotRead]);
+    let history = historyHit ? await historyHit.json() : newConcallHistory(head.value);
+    // Earlier rollout entries held a completed history rather than a cursor checkpoint.
+    if (!history.quarters) history = { ...newConcallHistory(head.value), rows: history.rows,
+      checks: history.meta?.quarterChecks || [], complete: !history.meta?.truncated };
+    if (!history.complete && history.retryAt <= Date.now() && !(history.leasedUntil > Date.now())) {
+      const reserved = { ...history, leaseId: crypto.randomUUID(), leasedUntil: Date.now() + 60000 };
+      const save = async value => {
+        const entry = await cache.match(edgeKey(`concalls/${historyKey}`));
+        const owner = entry && await entry.json();
+        if (owner?.leaseId && owner.leaseId !== reserved.leaseId) return false;
+        await cache.put(edgeKey(`concalls/${historyKey}`), tagged(JSON.stringify(value), contentTag(historyKey), value.complete ? CONCALL_TAIL_TTL_S : 3600));
+        return true;
+      };
+      await cache.put(edgeKey(`concalls/${historyKey}`), tagged(JSON.stringify(reserved), contentTag(historyKey), 3600));
+      ctx?.waitUntil?.(advanceConcallHistory(reserved, { save }));
+    }
+    const tail = { value: { rows: history.rows, meta: { truncated: !history.complete,
+      historyError: history.error || null, quarterChecks: history.checks || [] } } };
     const screener = (await screenerRead) || { value: { capture: null, source: null } };
 
-    const stockscansRows = mergeScans(head.value.rows, tail.value.rows);
+    const published = mergeScans(head.value.rows, tail.value.rows);
+    const publishedKeys = new Set(published.map(row => `${row.companyKey}|${row.when}|${row.ssUrl || row.pptSsUrl || ''}`));
+    const retained = (baseline?.rows || []).filter(row => !publishedKeys.has(`${row.companyKey}|${row.when}|${row.ssUrl || row.pptSsUrl || ''}`))
+      .map(row => ({ ...row, analysisRetained: true, analysisCheckedAt: row.analysisCheckedAt || baseline?.meta?.fetchedAt || null }));
+    const stockscansRows = mergeScans(published, retained);
     if (!stockscansRows.length) throw new Error('upstream returned no rows');
     const rows = screener.value.capture
       ? enrichConcallScans(stockscansRows, screener.value.capture.rows)
@@ -1305,10 +1398,12 @@ async function handleConcalls(request, env, ctx) {
 
     const payload = {
       ok: true,
-      degraded: null,
+      degraded: [...(sched.value.errors || []), ...(tail.value.meta.historyError
+        ? [`Historical analysis is unavailable (${tail.value.meta.historyError}); current calls and retained history are shown.`]
+        : tail.value.meta.truncated ? ['Published analysis history is updating; current calls and retained assessments remain available.'] : [])].join(' ') || null,
       rows,
-      upcoming: sched.value.upcoming || [],
-      // Portfolio-only schedule from the exact configured Screener dashboard. Kept separate from the
+      upcoming: sched.value.upcoming ?? baseline?.upcoming ?? [],
+      // Portfolio-only schedule from the exact S Screen dashboard. Kept separate from the
       // market-wide StockScans schedule so the browser can enforce scope without guessing.
       //
       // NULL WHERE IT COULD NOT BE READ, NEVER `[]`. This half comes from an entirely different
@@ -1321,11 +1416,17 @@ async function handleConcalls(request, env, ctx) {
       // have, and `source.portfolioUpcomingAvailable` already reports it as such. Sending `[]` for
       // one would state that the dashboard is clear on the strength of a capture that never asked.
       portfolioUpcoming: Array.isArray(screener.value.capture?.portfolioUpcoming) ? screener.value.capture.portfolioUpcoming : null,
-      today: sched.value.today || { day: null, rows: [] },
+      today: sched.value.today ?? baseline?.today ?? { day: null, rows: [] },
       meta: {
         ...head.value.meta,
         total: rows.length,
         stockscansTotal: stockscansRows.length,
+        analysisLive: true,
+        analysisRetained: retained.length,
+        analysisRetainedAt: baseline?.meta?.fetchedAt || null,
+        quarterChecks: tail.value.meta.quarterChecks || [],
+        historyError: tail.value.meta.historyError || null,
+        scheduleErrors: sched.value.errors || [],
         headRows: head.value.rows.length,
         tailRows: tail.value.rows.length,
         screener: screener.value.source,
@@ -1342,22 +1443,37 @@ async function handleConcalls(request, env, ctx) {
     const { body, tag } = withTag(payload);
     return revalidate(request, tagged(body, tag, CONCALL_HEAD_TTL_S, { 'x-sattva-head': head.fresh ? 'fresh' : 'cached' }), head.fresh ? 'miss' : 'hit');
   } catch (err) {
-    const fallback = await loadConcallSnapshot(env, request);
-    if (!fallback) {
+    const fallback = await snapshotRead;
+    const sched = await scheduleRead;
+    const screener = (await screenerRead) || { value: { capture: null, source: null } };
+    const stockscansRows = Array.isArray(fallback?.rows) ? fallback.rows : [];
+    // The independently collected documents must survive every analysis failure too. Otherwise
+    // a failed StockScans schedule removes all Summary buttons despite healthy private coverage.
+    // Even a missing analysis snapshot can still serve the validated document-only library.
+    const rows = screener.value.capture
+      ? enrichConcallScans(stockscansRows, screener.value.capture.rows)
+      : stockscansRows;
+    if (!fallback && !rows.length) {
       return json({ ok: false, degraded: `StockScans is unreachable and no snapshot is available: ${String(err.message || err)}`, rows: [] }, 502);
     }
     // The calendar read is carried INTO the fallback. The committed snapshot is a capture of
     // StockScans alone and has never held a portfolio calendar, so without this a StockScans
-    // outage reads to the browser as the configured Screener dashboard having nothing on it — one upstream's
+    // outage reads to the browser as the S Screen dashboard having nothing on it — one upstream's
     // failure emptying an unrelated one's feed, on a cold device with nothing retained to soften
     // it. `null` where the artifact genuinely could not be read; its rows where it could.
-    const screener = (await screenerRead) || { value: { capture: null, source: null } };
     const { body, tag } = withTag({
       ...fallback,
       ok: true,
+      rows,
+      upcoming: sched.value.upcoming ?? fallback?.upcoming ?? [],
+      today: sched.value.today ?? fallback?.today ?? { day: null, rows: [] },
       portfolioUpcoming: Array.isArray(screener.value?.capture?.portfolioUpcoming) ? screener.value.capture.portfolioUpcoming : null,
-      meta: { ...(fallback.meta || {}), screener: screener.value?.source || fallback.meta?.screener || null },
-      degraded: `StockScans is unavailable (${String(err.message || err)}) — showing the last committed snapshot.`,
+      meta: { ...(fallback?.meta || {}), total: rows.length, stockscansTotal: stockscansRows.length,
+        analysisLive: false, scheduleErrors: sched.value.errors || [],
+        screener: screener.value?.source || fallback?.meta?.screener || null },
+      degraded: `StockScans is unavailable (${String(err.message || err)}) — ${stockscansRows.length
+        ? 'showing the last committed analysis snapshot with available collected documents.'
+        : 'no analysis snapshot is available; showing collected documents only.'}`,
     });
     return revalidate(request, tagged(body, tag, 15), 'fallback'); // retry sooner than a normal window
   }
@@ -1442,9 +1558,6 @@ const ERROR_TTL_S = 15;
 const INVESTOR_SOURCE = 'Ticker Finology, via devde.muns.io';
 
 function handleInvestorList(request, env, ctx) {
-  // Answered BEFORE the edge cache: `investorRoute` serves a fresh hit without calling the
-  // client, so a secret removed while that cache is warm would go on looking healthy.
-  if (!env.MUNS_TOKEN) return json({ ok: false, reason: 'no-token', message: 'Configure the MUNS_TOKEN Worker secret.', investors: [], count: 0 });
   return investorRoute(
     request,
     ctx,
@@ -1464,9 +1577,6 @@ function handleInvestorPortfolio(request, env, ctx, slug) {
   if (!isSlug(slug)) {
     return json({ ok: false, error: 'bad-slug', message: 'An investor slug may only contain a-z, 0-9 and hyphens.' }, 400);
   }
-  // Answered BEFORE the edge cache: `investorRoute` serves a fresh hit without calling the
-  // client, so a secret removed while that cache is warm would go on looking healthy.
-  if (!env.MUNS_TOKEN) return json({ ok: false, reason: 'no-token', message: 'Configure the MUNS_TOKEN Worker secret.', slug, quarters: [], holdings: [] });
   return investorRoute(
     request,
     ctx,
@@ -1552,13 +1662,7 @@ async function investorRoute(request, ctx, key, load, empty, snapshot = null) {
     // It is a floor, never a substitute: it is reached only after a live read has failed AND the
     // edge had nothing, it keeps the capture's OWN read time rather than being restamped, and it
     // travels as `stale: true` so nothing downstream can mistake it for this moment's figures.
-    // ...BUT NEVER OVER AN OPERATOR STATE. `no-token` and `unauthorised` are things a person fixes,
-    // and a complete committed capture served in their place reads as a working feed — the secret
-    // is gone and every screen still looks right, which is the one way this floor could do harm.
-    // Those two keep their named failure; a service condition gets the floor.
-    const stale = ['no-token', 'unauthorised'].includes(reason)
-      ? null
-      : (await readLastGood(cache, lastGoodKey)) || (await readSnapshotFallback(snapshot));
+    const stale = (await readLastGood(cache, lastGoodKey)) || (await readSnapshotFallback(snapshot));
     const { body, tag } = stale
       ? withTag({
           ...stale,
@@ -2265,8 +2369,6 @@ async function handleCaptureStatus(request, env, ctx) {
   }
 
   const captures = {};
-  // Start the small metadata check beside the asset reads, not after them. It performs no capture
-  // or archive download; a failed check leaves insider trades on the existing live path.
   const exchangeIdentity = exchangeCaptureStatus(request, env, { cache });
   await Promise.all(
     Object.entries(CAPTURE_FILES).map(async ([name, path]) => {
@@ -2331,8 +2433,6 @@ function json(obj, status = 200) {
 
 /** Cache keys live on a hostname that cannot resolve, so an entry can never be confused for a fetch. */
 function edgeKey(path) {
-  // caches.default is shared across same-account Workers. Every caller, including
-  // helpers without an inbound request, must stay in this deployment's namespace.
   return new Request(`https://cache.invalid/glow-central-research/${path}`, { method: 'GET' });
 }
 
@@ -2345,8 +2445,8 @@ async function handleTelegramPosts(request, env, ctx) {
   try {
     if (!env.TELEGRAM_SCHEDULER) throw Error('Telegram delivery binding unavailable');
     const response = await env.TELEGRAM_SCHEDULER.getByName(TELEGRAM_DELIVERY_NAME).telegramPosts();
-    // RPC transfers the prepared response stream. Never parse, re-encode or hash this archive
-    // in the public Worker: a valid growing capture exceeded its resource limit in production.
+    // Forward the prepared stream; archive decompression, validation and encoding happen
+    // in the durable delivery object, independently of collection and its timer.
     if (!response.ok) return response;
     ctx.waitUntil(caches.default.put(key, response.clone()));
     return revalidate(request, response, 'live');

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = fileURLToPath(new URL('../public', import.meta.url));
 const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"><link rel="stylesheet" href="/css/glow.css"></head>
+<link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"></head>
 <body style="padding:16px"><main id="root"></main><script type="module">
 import * as coverage from '/js/data/coverage.js';
 import * as tab from '/js/tabs/ai-alerts.js';
@@ -24,6 +24,9 @@ window.historyReads=0;window.memoryReads=0;window.failHistory=false;window.holdH
 window.refreshAlerts=()=>refresh.refreshAll();window.tab=tab;
 window.heartbeat=0;setInterval(()=>window.heartbeat++,10);
 window.render=()=>tab.render({root:document.querySelector('#root'),scope:'universe',params:{}});
+// Establish the locked fixture before timeline interactions. A late auth-required
+// correctly destroys private timeline state, which otherwise races this scroll test.
+await (await import('/js/research/portfolio-bridge.js')).connectPortfolio();
 window.render();
 </script></body></html>`;
 const feedModule = `
@@ -54,7 +57,7 @@ const origin=`http://127.0.0.1:${server.address().port}`;
 const browser=await chromium.launch({executablePath:process.env.CHROME_PATH});
 const page=await browser.newPage({viewport:{width:1280,height:1000}}),errors=[];
 page.on('pageerror',error=>errors.push(error.message));
-await page.context().route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.fulfill({status:200,body:'{}'}));
+await page.context().route('**/*',route=>route.request().url()===`${origin}/glow-bridge.html` ? route.fulfill({contentType:'text/html',body:`<script>addEventListener('message',e=>{if(e.data.channel==='sattva-portfolio-v1')setTimeout(()=>parent.postMessage({channel:e.data.channel,id:e.data.id,type:'auth-required'},'*'),100)});</script>`}) : new URL(route.request().url()).origin===origin?route.continue():route.fulfill({status:200,body:'{}'}));
 const card=page.locator('[data-ai-card][data-ticker="KPIL"]'), timeline=card.locator('[data-ai-timeline]'), rows=card.locator('[data-ai-timeline-row]');
 const settled=()=>page.waitForFunction(()=>document.querySelector('[data-ticker="KPIL"] [data-ai-timeline]')?.getAttribute('aria-busy')==='false' && document.querySelector('[data-ticker="KPIL"] [data-ai-timeline-row]'));
 const bottom=()=>timeline.evaluate(node=>{node.scrollTop=node.scrollHeight;node.dispatchEvent(new Event('scroll'));});
@@ -66,6 +69,12 @@ try{
  assert.equal(await page.evaluate(()=>window.historyReads),0,'opening a card does not read full history');
  assert((await rows.count())<=20);assert.equal(await rows.first().getAttribute('data-row-key'),'recent-79');
  assert((await timeline.boundingBox()).height<=288);
+ await card.locator('[data-ai-timeline-scroll-cue]').waitFor();
+ assert(await page.locator('[data-ticker="OTHER"] [data-ai-timeline-scroll-cue]').isHidden(),'a fitting timeline must not suggest scrolling');
+ await timeline.focus();await page.keyboard.press('PageDown');
+ await page.waitForFunction(()=>document.querySelector('[data-ticker="KPIL"] [data-ai-timeline]').scrollTop>8);
+ assert.equal(await page.evaluate(()=>window.historyReads),0,'the scroll cue and keyboard movement do not eagerly read the archive');
+ await top();
  const headline=await card.locator('[data-ai-lead-link]').textContent();
  await page.evaluate(()=>{window.holdHistory=true;window.failHistory=true;});await bottom();
  await page.waitForFunction(()=>window.historyReads===1);assert((await rows.count())>0,'pending history leaves current evidence usable');
@@ -82,6 +91,7 @@ try{
  assert((await rows.count())<=20,'five thousand records keep a bounded DOM');
  assert(!(await card.textContent()).includes('other-old'),'company history cannot leak across cards');
  assert.equal(await rows.last().getAttribute('data-row-key'),'old-0000','oldest retained event is reachable');
+ await page.waitForFunction(()=>document.querySelector('[data-ticker="KPIL"] [data-ai-timeline-scroll-cue]').hidden);
  await card.locator('[data-row-key="old-0000"] [data-bookmark-key]').click();
  await page.waitForFunction(async()=> (await import('/js/core/bookmarks.js')).all().some(entry=>entry.title==='Quarterly result report old-0000'));
  // Another card shares the one completed history read.
@@ -107,6 +117,7 @@ try{
   await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   assert(await timeline.evaluate(node=>node.scrollWidth<=node.clientWidth+1));
+  assert(await card.locator('[data-ai-timeline-scroll-cue]').isVisible(),'overflow is discoverable after theme and viewport changes');
   if(process.env.TIMELINE_SCREENSHOT)await page.screenshot({path:process.env.TIMELINE_SCREENSHOT+'-'+width+'-'+theme+'.png',fullPage:true,animations:'disabled'});
  }}
  // A history completion after leaving cannot repopulate the retired view or start model work.

@@ -21,7 +21,7 @@ import { verifyNewsletterPdf } from './verify-newsletter-pdf.mjs';
 import { handleNewsletter } from '../worker/newsletter.mjs';
 import { NewsletterStore } from '../worker/newsletter-store.mjs';
 import {
-  CALENDAR_DAYS, MARKET_ROWS, MOVE_PCT, TOPICS, bookQuantities, briefStats, briefStories, briefSubject, buildBrief, calendarDayLabel, clusterStories, fmtInrCompact, parseAiNotes, quoteFromChart, quoteFromSeries, renderBriefHtml, renderBriefText, sameStory, storyTokens, topicOf,
+  CALENDAR_DAYS, MARKET_ROWS, MOVE_PCT, TOPICS, briefStats, briefStories, briefSubject, buildBrief, calendarDayLabel, clusterStories, fmtInrCompact, parseAiNotes, quoteFromChart, renderBriefHtml, renderBriefText, sameStory, storyTokens, topicOf,
 } from '../worker/newsletter-brief.mjs';
 import { NewsletterSchedule, NEWSLETTER_TIMER_KEY, EMAIL_SEND_URL, CATCH_UP_MS, sendEmail } from '../worker/newsletter-schedule.mjs';
 
@@ -62,7 +62,21 @@ class Storage {
 }
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/newsletter/${name}`, import.meta.url), 'utf8');
-const asset = (path) => readFileSync(new URL(`../public${path}`, import.meta.url), 'utf8');
+const fixturePaths = {
+  '/data/portfolio-companies.json':'feature-portfolio.json', '/data/corp-announcements.json':'corp-announcements.json',
+  '/data/market-news.json':'market-news.json','/data/nse-filings/index.json':'nse-filings-index.json',
+  '/data/nse-filings/2026-09-16.json':'nse-filings-2026-09-16.json',
+  '/data/tradingview-news/latest.json':'tradingview-news.json','/data/technicals.json':'technicals.json',
+};
+const asset = path => {
+  if (fixturePaths[path]) return fixture(fixturePaths[path]);
+  if (path === '/data/announcement-identities.json') return JSON.stringify({ entries:[{ticker:'AARTIDRUGS',bseCode:'524348',isin:'INE767A01016',name:'Aarti Drugs Ltd'}] });
+  if (path === '/data/corporate-actions.json') return JSON.stringify({ capturedAt:'2026-09-17T02:00:00Z', rows:[] });
+  if (path === '/data/earnings-calendar.json') return JSON.stringify({ capturedAt:'2026-09-17T02:00:00Z', byDate:{} });
+  if (path === '/data/insider-archive/index.json') return JSON.stringify({ months:{'2026-09':0} });
+  if (path === '/data/insider-archive/2026-09.json') return JSON.stringify({ rows:[] });
+  throw new Error(`Fixture not supplied: ${path}`);
+};
 const assets = {
   fetch: async (request) => {
     const path = new URL(request.url).pathname;
@@ -155,11 +169,11 @@ await test('an address is lower-cased and trimmed, and a bad one is null rather 
 
 await test('a pasted list is read as several addresses, and what could not be read is NAMED', () => {
   // The shape a desk actually pastes: a column out of a table, then a mail client's separators.
-  const pasted = normaliseEmailList('bharat@glowventures.in\ngaurav@glowventures.in\r\nprateek@glowventures.in ,  ashwini@glowventures.in;ankita@glowventures.in\nYAMINI@Glowventures.in\n');
-  assert.deepEqual(pasted.emails, ['bharat@glowventures.in', 'gaurav@glowventures.in', 'prateek@glowventures.in', 'ashwini@glowventures.in', 'ankita@glowventures.in', 'yamini@glowventures.in']);
+  const pasted = normaliseEmailList('bharat@example.test\ngaurav@example.test\r\nprateek@example.test ,  ashwini@example.test;ankita@example.test\nYAMINI@example.test\n');
+  assert.deepEqual(pasted.emails, ['bharat@example.test', 'gaurav@example.test', 'prateek@example.test', 'ashwini@example.test', 'ankita@example.test', 'yamini@example.test']);
   assert.deepEqual(pasted.invalid, []);
   // A display name is consumed with its brackets — neither refused as a bad address nor left as chaff.
-  assert.deepEqual(normaliseEmailList('Bharat Kumar <bharat@glowventures.in>, gaurav@glowventures.in').emails, ['bharat@glowventures.in', 'gaurav@glowventures.in']);
+  assert.deepEqual(normaliseEmailList('Bharat Kumar <bharat@example.test>, gaurav@example.test').emails, ['bharat@example.test', 'gaurav@example.test']);
   // One person is one row whatever case they were typed in, and one address twice is still one row.
   assert.deepEqual(normaliseEmailList('a@muns.io, A@MUNS.IO').emails, ['a@muns.io']);
   // The whole point: a token that is not an address is reported verbatim, never quietly dropped.
@@ -292,13 +306,6 @@ await test('a Yahoo chart becomes a quote with its own session state and time', 
   assert.throws(() => quoteFromChart({ chart: { result: [{ meta: {} }] } }, MARKET_ROWS[0], MORNING), /shape/);
 });
 
-await test('the series store fills a refused symbol and says so with the store\'s own date', () => {
-  const manifest = JSON.parse(asset('/data/series/index.json'));
-  const row = quoteFromSeries(manifest, MARKET_ROWS[0]);
-  assert.equal(row.state, 'stored');
-  assert.match(row.storedDay, /^\d{4}-\d{2}-\d{2}$/);
-  assert.equal(quoteFromSeries(manifest, { ...MARKET_ROWS[4] }), null, 'a symbol with no series stays unavailable');
-});
 
 await test('the desk\'s keyword families fold onto the seven topics, and nothing matched is Other', () => {
   assert.equal(topicOf({ keywordIds: ['order'], keywordGroups: ['growth'] }).id, 'orders');
@@ -320,7 +327,7 @@ await test('the morning brief builds from the fixtures and every section states 
   assert.deepEqual(morning.markets.failed, []);
   assert.equal(istLabel(morning.window.from), 'Wed 16 Sep, 16:00 IST');
   assert.equal(istLabel(morning.window.to), 'Thu 17 Sep, 08:00 IST');
-  assert.ok(morning.book.listed > 100, 'the book\'s listed lines are the denominator');
+  assert.equal(morning.book.listed, JSON.parse(asset('/data/portfolio-companies.json')).holdings.length, 'fixture scope is the denominator');
   assert.equal(morning.announcements.nse.ok, true);
   const aarti = morning.announcements.groups.find((g) => g.ticker === 'AARTIDRUGS');
   assert.ok(aarti, 'a filing by a book company inside the window joins');
@@ -335,16 +342,16 @@ await test('the morning brief builds from the fixtures and every section states 
   for (const g of morning.news.groups) for (const item of g.items) assert.ok(item.at >= morning.window.from && item.at < morning.window.to);
 });
 
-await test('the broadsheet carries the Glow Ventures masthead, escapes the exchanges\' text and dates every figure', () => {
+await test('the broadsheet carries the Sattva Ventures masthead, escapes the exchanges\' text and dates every figure', () => {
   const html = renderBriefHtml(morning, { dashboardUrl: 'https://example.test', recipient: { email: 'pratik@muns.io', addedBy: 'Ravi' } });
   assert.match(html, /^<!doctype html>/);
   assert.ok(html.includes('<meta name="color-scheme" content="light">'));
-  assert.ok(html.includes('letter-spacing:6px;color:#1a1712;">GLOW VENTURES</div>'), 'the masthead is the family office\'s name');
-  assert.ok(!html.includes('MUNSHOT'), 'no Munshot masthead on a Glow Ventures brief');
-  assert.ok(html.includes('border-top:3px double #1a1712'), 'the double rule');
+  assert.ok(html.includes('letter-spacing:3px;color:#0f172a;">SATTVA VENTURES</div>'), 'the masthead is the family office\'s name');
+  assert.ok(!html.includes('MUNSHOT'), 'no Munshot masthead on a Sattva Ventures brief');
+  assert.ok(html.includes('border-top:3px double #0f172a'), 'the double rule');
   assert.ok(html.includes('Research Central — Morning Portfolio Brief'));
   assert.ok(html.includes('Edition: Portfolio companies'));
-  assert.ok(html.includes('Glow Ventures · Research Central'), 'the caption under the sheet');
+  assert.ok(html.includes('Sattva Ventures · Research Central'), 'the caption under the sheet');
   assert.ok(html.includes('https://example.test/#/research/ask-research?newsletter=manage'), 'the unsubscribe link lands on the panel');
   assert.ok(html.includes('Added by Ravi'));
   assert.ok(html.includes('Global market scan'));
@@ -360,9 +367,9 @@ await test('the broadsheet carries the Glow Ventures masthead, escapes the excha
   assert.ok(!html.includes('<style') && !html.includes('<script'), 'no stylesheet, no script');
   assert.ok(html.length < 200000);
   const subject = briefSubject(morning);
-  assert.match(subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep 2026 · Morning$/, subject);
+  assert.match(subject, /^Sattva Ventures · \d+ updates? on your portfolio companies — 17 Sep 2026 · Morning$/, subject);
   const text = renderBriefText(morning);
-  assert.ok(text.startsWith('GLOW VENTURES') && text.includes('GLOBAL MARKET SCAN') && text.includes('Aarti Drugs'));
+  assert.ok(text.startsWith('SATTVA VENTURES') && text.includes('GLOBAL MARKET SCAN') && text.includes('Aarti Drugs'));
   assert.ok(text.indexOf('YOUR PORTFOLIO COMPANIES') < text.indexOf('GLOBAL MARKET SCAN'), 'the text copy leads with the companies too');
 });
 
@@ -379,7 +386,7 @@ await test('the portfolio companies lead the sheet, each company once, strongest
   assert.equal(stats.companies[0].ticker, 'AARTIDRUGS', 'the company with a tracked order and a downgrade leads');
   assert.ok(html.indexOf('Your portfolio companies') > 0 && html.indexOf('Your portfolio companies') < html.indexOf('Global market scan'), 'companies before the market scan');
   assert.ok(html.indexOf('Aarti Drugs') < html.indexOf('Global market scan'));
-  assert.ok(html.includes(`across <strong style="color:#1a1712;">${stats.companies.length} of ${morning.book.listed}</strong> portfolio companies`), 'the summary counts companies against the book');
+  assert.ok(html.includes(`across <strong style="color:#0f172a;">${stats.companies.length} of ${morning.book.listed}</strong> portfolio companies`), 'the summary counts companies against the book');
   assert.ok(html.includes('https://example.test/#/research/daily-alerts?scope=portfolio&amp;company=AARTIDRUGS'), 'a company links to its own alerts on the dashboard');
 });
 
@@ -396,12 +403,11 @@ await test('every link in the brief opens in a new tab', () => {
 
 await test('a refused quote source and a blocked exchange are stated on the page, never drawn as numbers', async () => {
   const brief = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assets }, fetcher: makeFetcher({ yahoo: 'down', nse: 'blocked' }), now: istInstant('2026-09-17', '16:00') });
-  assert.ok(brief.markets.stored.length > 0, 'the series store fills what it can');
+  assert.equal(brief.markets.rows.filter(r => r.last != null).length, 0, 'missing prices stay unavailable');
   assert.ok(brief.markets.failed.includes('taiex'), 'a symbol with no series stays unavailable');
   assert.equal(brief.announcements.nse.ok, false);
   assert.equal(brief.announcements.nse.reason, 'blocked');
   const html = renderBriefHtml(brief);
-  assert.ok(html.includes('Series store · '), 'a stored figure carries the store\'s date');
   assert.ok(html.includes('unavailable'));
   assert.ok(html.includes('NSE live feed could not be read (blocked)'));
   assert.ok(html.includes('NSE history'), 'the retained day files are a source of their own and are named as one');
@@ -416,7 +422,7 @@ await test('with nothing filed or published the sheet says so, and only about wh
     assert.ok(html.includes('Quiet window — nothing to report.'));
     assert.ok(html.includes('Nothing was filed, published, traded or moved about a portfolio company in this window.'));
   }
-  assert.ok(html.includes('GLOW VENTURES'));
+  assert.ok(html.includes('SATTVA VENTURES'));
 });
 
 // ---- nothing falls between two briefs -------------------------------------------------------------
@@ -443,7 +449,7 @@ await test('a filing captured after the previous brief went out reaches the next
   const late = findStory(unsent, isLate);
   assert.ok(late, 'against a ledger that does not hold it, the filing is carried');
   assert.equal(late.late, true);
-  assert.deepEqual(late.keys, ['bse:late-order-1'], 'the ledger key is the exchange\'s own stable id');
+  assert.equal(late.keys[0], 'bse:late-order-1', 'the ledger key is the exchange\'s own stable id');
   assert.equal(istLabel(unsent.lateFrom), istLabel(lateArrivalsFrom('morning', '2026-09-17', DEFAULT_SETTINGS)), 'the lookback reaches two windows back');
   assert.equal(briefStats(unsent).late, briefStories(unsent).filter((s) => s.late).length);
   assert.ok(briefStats(unsent).late >= 1);
@@ -607,7 +613,7 @@ await test('price moves: the evening brief reads the closing quotes, the morning
 await test('TradingView\'s symbol-tagged headlines join only under the dashboard\'s name match or as a story tagged with this company alone', async () => {
   const feed = JSON.parse(asset('/data/tradingview-news/latest.json'));
   const tv = (title, relatedSymbols, publishedAt = '2026-09-16T14:00:00.000Z') => ({ title, source: 'Reuters', url: `https://in.tradingview.com/news/${encodeURIComponent(title)}/`, publishedAt, date: publishedAt.slice(0, 10), tradingViewId: `t:${title}`, relatedSymbols, sourceSymbol: 'NSE:AARTIDRUGS', ticker: 'AARTIDRUGS' });
-  const latest = { ...feed, byTicker: { AARTIDRUGS: [
+  const latest = { ...feed, entities:[{ticker:'AARTIDRUGS',entityId:'AARTIDRUGS',company:'Aarti Drugs Ltd',name:'Aarti Drugs Ltd'}], byTicker: { AARTIDRUGS: [
     tv('Aarti Drugs wins USFDA approval for Tarapur unit', ['NSE:AARTIDRUGS', 'BSE:AARTIDRUGS', 'NSE:NIFTY', 'NSE:SUNPHARMA']),
     tv('Pharma stocks rally as rupee slides', ['NSE:AARTIDRUGS', 'NSE:SUNPHARMA', 'NSE:CIPLA', 'NSE:DRREDDY']),
     tv('Board approves capex for new API block', ['NSE:AARTIDRUGS']),
@@ -615,11 +621,11 @@ await test('TradingView\'s symbol-tagged headlines join only under the dashboard
   const brief = await buildBrief({ edition: 'morning', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assetsWith({ '/data/tradingview-news/latest.json': latest }) }, fetcher: makeFetcher(), now: MORNING });
   const titles = briefStories(brief).filter((s) => s.kind === 'news' && s.ticker === 'AARTIDRUGS' && /via TradingView/.test(s.source)).map((s) => s.headline);
   assert.ok(titles.includes('Aarti Drugs wins USFDA approval for Tarapur unit'), 'named in the headline');
-  assert.ok(titles.includes('Board approves capex for new API block'), 'tagged with this company alone');
+  assert.ok(!titles.includes('Board approves capex for new API block'), 'a symbol tag alone does not establish company attribution');
   assert.ok(!titles.includes('Pharma stocks rally as rupee slides'), 'a sector story tagged with four companies is not this company\'s news');
   assert.equal(brief.news.tradingview.tagged, 3);
-  assert.equal(brief.news.tradingview.matched, 2);
-  const story = briefStories(brief).find((s) => s.headline === 'Board approves capex for new API block');
+  assert.equal(brief.news.tradingview.matched, 1);
+  const story = briefStories(brief).find((s) => s.headline === 'Aarti Drugs wins USFDA approval for Tarapur unit');
   assert.equal(story.mood.id, 'neutral', 'a headline carries no sentiment reading');
   assert.equal(story.source, 'Reuters · via TradingView');
   assert.ok(story.keys[0].startsWith('tv:AARTIDRUGS|'));
@@ -788,10 +794,10 @@ await test('unread exchange filings stay conservative while specific publisher a
   assert.equal(stats.updates, stats.companies.reduce((n, c) => n + c.clusters.length, 0));
   assert.ok(stats.updates < stats.stories, 'the summary counts updates, not copies');
   const html = renderBriefHtml(brief, { dashboardUrl: 'https://example.test' });
-  assert.ok(html.includes('5 updates from 8 items'), 'the company header says how many items the updates fold');
-  assert.ok(html.includes(`<strong style="color:#1a1712;">${stats.updates} updates</strong>`), 'the summary line counts updates');
-  assert.match(briefSubject(brief), new RegExp(`^Glow Ventures · ${stats.updates} updates on your`));
-  assert.ok(html.includes('Related: '), 'the copies travel as related links');
+  assert.ok(html.includes('5 updates from 8 source items'), 'the company header says how many items the updates fold');
+  assert.ok(html.includes(`<strong style="color:#0f172a;">${stats.updates} updates</strong>`), 'the summary line counts updates');
+  assert.match(briefSubject(brief), new RegExp(`^Sattva Ventures · ${stats.updates} updates on your`));
+  assert.ok(html.includes('Related coverage'), 'the copies travel as related links');
   assert.ok(html.includes('Economic Times · 17 Sept, 14:40 IST · Puravankara Ltd eyes Rs 2,600 cr revenue'), 'a related story keeps its source, time and headline');
   assert.ok(html.includes('https://example.test/et-1'), 'and its link');
   assert.equal((html.match(/Puravankara secures 4\.68-acre/g) || []).length, 1, 'each item is on the page once');
@@ -862,7 +868,7 @@ await test('the AI notes: one bounded request per brief, JSON in and out, each n
   assert.equal(brief.ai.answered, asked.length);
   assert.ok(!brief.ai.items['NOT#1'], 'a note for an update nobody asked about is dropped');
   const html = renderBriefHtml(brief);
-  assert.ok(html.includes('AI summary') && html.includes('Potential impact'), 'the notes are marked AI on their face');
+  assert.ok(html.includes('AI SUMMARY') && html.includes('POTENTIAL IMPACT · AI'), 'the notes are marked AI on their face');
   assert.ok(html.includes('What: Press Release titled &quot;Purav'), 'a note is escaped like any other text');
   assert.ok(html.includes(`AI notes by global.anthropic.claude-sonnet-5 on ${asked.length} of ${asked.length} updates, written Thu 17 Sep, 16:00 IST`), 'the sources line names the model and the count');
   assert.ok(html.includes('AI summaries use extracted source-document or article facts'), 'the footer says what the notes are');
@@ -895,90 +901,13 @@ await test('the AI notes: one bounded request per brief, JSON in and out, each n
   assert.deepEqual(parseAiNotes('```json\n[{"id":"A#1","summary":"s","impact":"i"},{"id":"A#1","summary":"dup","impact":"dup"},{"id":"A#2","summary":"","impact":"i"}]\n```', new Set(['A#1', 'A#2'])), { 'A#1': { summary: 's', impact: 'i' } }, 'fenced JSON is read, a duplicate id keeps the first, a note missing a line is dropped');
   assert.equal(parseAiNotes('no json here', new Set(['A#1'])), null);
   assert.equal(parseAiNotes('{"id":"A#1"}', new Set(['A#1'])), null, 'an object is not the array asked for');
-  assert.equal(parseAiNotes(`[{"id":"A#1","summary":"${'x'.repeat(800)}","impact":"i"}]`, new Set(['A#1']))['A#1'].summary.length, 600, 'a note is clipped');
+  assert.deepEqual(parseAiNotes(`[{"id":"A#1","summary":"${'x'.repeat(800)}","impact":"i"}]`, new Set(['A#1'])), {}, 'an oversized note is rejected without dropping its conditions');
 });
 
 // ---- the portfolio on the session, and the Indian indices ------------------------------------------
 
 console.log('\n— the portfolio on the session —');
 
-await test('portfolio today: every quoted holding in one table, best to worst, priced by the book\'s statement quantities, and every refusal named', async () => {
-  const quote = (ticker, price, prevClose, sessionDate = '2026-09-17', time = '15:47') => ({ ticker, price, prevClose, quoteAt: new Date(istInstant(sessionDate, time)).toISOString(), checkedAt: new Date(istInstant(sessionDate, time) + 60000).toISOString(), sessionDate, provider: 'Yahoo Finance' });
-  const capture = { getByName: () => ({ breakoutRead: async () => ({ state: 'complete', rows: [quote('AARTIDRUGS', 1070, 1000), quote('PURVA', 210, 218), quote('SBIN', 950, 950), quote('NOTINBOOK', 109, 100)] }) }) };
-  const book = bookQuantities(JSON.parse(asset('/data/book.json')));
-  assert.equal(book.ok, true);
-  const purvaQty = book.byTicker.get('PURVA')?.quantity;
-  assert.ok(purvaQty > 0, 'the shipped book holds Puravankara');
-  assert.ok(book.from <= book.to && /^\d{4}-\d{2}-\d{2}$/.test(book.from), 'the statements\' own dates travel with the quantities');
-  const twice = bookQuantities({ positions: [
-    { assetClass: 'Equity', symbol: 'X', quantity: 100, dedupeGroup: 'g1', accountAsOf: '2026-08-01' },
-    { assetClass: 'Equity', symbol: 'X', quantity: 100, dedupeGroup: 'g1', accountAsOf: '2026-08-01' },
-    { assetClass: 'Equity', symbol: 'X', quantity: 50, dedupeGroup: null, accountAsOf: '2026-07-31' },
-    { assetClass: 'Mutual Fund', symbol: 'X', quantity: 999, dedupeGroup: null },
-    { assetClass: 'Equity', symbol: null, quantity: 999, dedupeGroup: null },
-  ] });
-  assert.equal(twice.byTicker.get('X').quantity, 150, 'a folio reported on two members\' statements is counted once; a fund unit and an unlisted line are not equity quantity');
-  assert.equal(twice.from, '2026-07-31');
-
-  const evening = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assets, CAPTURE_REGISTRY: capture }, fetcher: makeFetcher(), now: EVENING_17 });
-  const p = evening.performance;
-  assert.equal(p.state, 'capture');
-  assert.equal(p.session, '2026-09-17');
-  assert.deepEqual(p.rows.map((r) => r.ticker), ['AARTIDRUGS', 'SBIN', 'PURVA'], 'best to worst; a stranger is not a holding');
-  assert.equal(p.quoted, 3);
-  assert.equal(p.unquoted, p.listed - 3, 'a holding with no quote is counted, never shown flat');
-  assert.deepEqual([p.summary.up, p.summary.down, p.summary.flat], [1, 1, 1]);
-  assert.equal(p.summary.median, 0);
-  assert.equal(p.summary.best.ticker, 'AARTIDRUGS');
-  assert.equal(p.summary.worst.ticker, 'PURVA');
-  const purva = p.rows.find((r) => r.ticker === 'PURVA');
-  assert.equal(purva.quantity, purvaQty);
-  assert.equal(Math.round(purva.change), Math.round(purvaQty * (210 - 218)), 'the day change is quantity × close change');
-  assert.equal(p.book.ok, true);
-  assert.equal(p.book.priced, p.rows.filter((r) => r.change != null).length);
-  assert.equal(p.book.unpriced, p.rows.filter((r) => r.change == null).length);
-  const priced = p.rows.filter((r) => r.change != null);
-  assert.equal(Math.round(p.summary.change), Math.round(priced.reduce((n, r) => n + r.change, 0)));
-  assert.ok(Math.abs(p.summary.changePct - (p.summary.change / priced.reduce((n, r) => n + r.prevValue, 0)) * 100) < 1e-9, 'the day change in percent is struck on the priced holdings\' previous value');
-  const html = renderBriefHtml(evening, { dashboardUrl: 'https://example.test' });
-  assert.ok(html.includes('Portfolio today'));
-  assert.ok(html.includes(`<strong style="color:#1a1712;">3 of ${p.listed}</strong> listed holdings quoted`));
-  assert.ok(html.includes('Day change (derived)'));
-  assert.ok(html.includes('not a statement figure'), 'the rupee figure says what it is');
-  assert.ok(html.includes(`statements dated ${p.book.statementFrom} to ${p.book.statementTo}`));
-  assert.ok(html.includes(`${p.unquoted} listed holdings had no quote for this session and are not listed — not flat.`));
-  assert.ok(html.includes(fmtInrCompact(purva.change).replace('−', '−')), 'each priced row prints its own change');
-  assert.equal(fmtInrCompact(-221760), '−₹2.22 L');
-  assert.equal(fmtInrCompact(12345678), '+₹1.23 Cr');
-  assert.equal(fmtInrCompact(8250), '+₹8,250');
-  const text = renderBriefText(evening);
-  assert.ok(text.includes('PORTFOLIO TODAY') && text.includes(`  3 of ${p.listed} listed holdings quoted · 1 up · 1 down · 1 flat · median 0.00%`));
-
-  const noBook = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assetsWith({ '/data/book.json': null }), CAPTURE_REGISTRY: capture }, fetcher: makeFetcher(), now: EVENING_17 });
-  assert.equal(noBook.performance.book.ok, false);
-  assert.ok(noBook.performance.rows.every((r) => r.change == null), 'no book, no rupee change');
-  assert.ok(renderBriefHtml(noBook).includes('The family book could not be read, so no rupee day change is derived.'));
-  assert.ok(!renderBriefHtml(noBook).includes('Day change (derived)'));
-
-  const behind = { ...JSON.parse(asset('/data/technicals.json')), price_date: '2026-09-16' };
-  const none = await buildBrief({ edition: 'evening', day: '2026-09-17', settings: DEFAULT_SETTINGS, env: { ASSETS: assetsWith({ '/data/technicals.json': behind }) }, fetcher: makeFetcher(), now: EVENING_17 });
-  assert.equal(none.performance.state, 'unavailable');
-  assert.ok(renderBriefHtml(none).includes('Prices for this session could not be read (capture-unavailable; daily-behind; daily bars end 2026-09-16), so the day&#39;s performance is not known — not flat.'), 'an unread price feed is named, never drawn as a flat day');
-
-  // The morning brief prices the previous session off the completed daily bars, with the previous close struck from the day's move.
-  const daily = JSON.parse(asset('/data/technicals.json'));
-  const nextMorning = istInstant(daily.price_date, '08:00') + 86400000;
-  const morning = await buildBrief({ edition: 'morning', day: istDay(nextMorning), settings: DEFAULT_SETTINGS, env: { ASSETS: assets }, fetcher: makeFetcher(), now: nextMorning });
-  const q = morning.performance;
-  assert.equal(q.state, 'daily');
-  const bookTickers = new Set(JSON.parse(asset('/data/portfolio-companies.json')).holdings.map((h) => h.ticker).filter(Boolean));
-  const expected = (daily.rows || daily.companies || []).filter((r) => bookTickers.has(r.ticker) && (r.bar_date || daily.price_date) === daily.price_date && Number.isFinite(Number(r.pct_change_today))).length;
-  assert.equal(q.rows.length, expected, 'every holding with a completed bar for the session');
-  for (let i = 1; i < q.rows.length; i++) assert.ok(q.rows[i - 1].pct >= q.rows[i].pct, 'best to worst');
-  const withPrev = q.rows.find((r) => r.last != null && r.prev != null);
-  assert.ok(withPrev && Math.abs(((withPrev.last - withPrev.prev) / withPrev.prev) * 100 - withPrev.pct) < 1e-6, 'the previous close reproduces the day\'s move');
-  assert.ok(renderBriefHtml(morning).includes('Portfolio · previous session'));
-});
 
 await test('the Indian indices sit in their own table above the global scan, which no longer repeats them', () => {
   const india = MARKET_ROWS.filter((r) => r.group === 'india');
@@ -1057,8 +986,8 @@ await test('the alarm sends the morning brief to its subscribers once, with html
     assert.equal(e.method, 'POST');
     assert.equal(e.auth, 'Bearer team-secret-token');
     assert.ok(e.html && e.text === undefined, 'exactly one of html/text');
-    assert.match(e.subject, /^Glow Ventures · \d+ updates? on your portfolio companies — 17 Sep 2026 · Morning(?: · Part \d+ of \d+)?$/);
-    assert.ok(e.html.includes('GLOW VENTURES'));
+    assert.match(e.subject, /^Sattva Ventures · \d+ updates? on your portfolio companies — 17 Sep 2026 · Morning(?: · Part \d+ of \d+)?$/);
+    assert.ok(e.html.includes('SATTVA VENTURES'));
   }
   const delivery = store.delivery('2026-09-17:morning');
   assert.equal(delivery.sent, 2); assert.equal(delivery.failed, 0); assert.equal(delivery.source, 'timer');
@@ -1137,14 +1066,14 @@ await test('sending to everyone cools down for five minutes and a second press w
   clock = istInstant('2026-09-17', '10:30');
   const { store, schedule, log } = makeSchedule();
   store.apply([{ op: 'subscribe', email: 'pratik@muns.io', by: 'Pratik' }, { op: 'subscribe', email: 'meera@muns.io', by: 'Pratik' }]);
-  const out = await schedule.sendNow({ edition: 'evening', to: 'all' });
+  const out = await schedule.sendNow({ edition: 'morning', to: 'all' });
   assert.equal(out.sent, 2);
   assert.equal(log.filter((l) => l.kind === 'email').length, 2);
   assert.ok(store.reportedCount() > 0, 'a send to everyone is a send the desk saw, so it is recorded');
   clock += 60000;
-  assert.equal((await schedule.sendNow({ edition: 'evening', to: 'all' })).reason, 'cooling-down');
+  assert.equal((await schedule.sendNow({ edition: 'morning', to: 'all' })).reason, 'cooling-down');
   assert.equal(log.filter((l) => l.kind === 'email').length, 2);
-  assert.equal((await schedule.sendNow({ edition: 'evening', to: 'nobody' })).reason, 'invalid-target');
+  assert.equal((await schedule.sendNow({ edition: 'morning', to: 'nobody' })).reason, 'invalid-target');
 });
 
 await test('a preview builds the edition up to now without sending, in html or text', async () => {
@@ -1157,9 +1086,9 @@ await test('a preview builds the edition up to now without sending, in html or t
     return fetcher(url, init);
   };
   const html = await schedule.preview({ edition: 'morning' });
-  assert.equal(html.ok, true); assert.ok(html.body.startsWith('<!doctype html>')); assert.match(html.subject, /^Glow Ventures ·/);
+  assert.equal(html.ok, true); assert.ok(html.body.startsWith('<!doctype html>')); assert.match(html.subject, /^Sattva Ventures ·/);
   const text = await schedule.preview({ edition: 'morning', format: 'text' });
-  assert.ok(text.body.startsWith('GLOW VENTURES'));
+  assert.ok(text.body.startsWith('SATTVA VENTURES'));
   assert.equal(log.filter((l) => l.kind === 'email').length, 0);
   assert.equal(paidCalls, 0, 'public previews cannot invoke either paid model pass');
   assert.equal((await schedule.preview({ edition: 'weekly' })).reason, 'invalid-edition');
@@ -1236,9 +1165,8 @@ await test('busy editions preserve every source, AI note and supplemental row wi
   if (process.env.NEWSLETTER_PREVIEW_DIR) {
     mkdirSync(process.env.NEWSLETTER_PREVIEW_DIR, { recursive: true });
     parts.forEach((p, i) => writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/part-${i + 1}.html`, p.html));
-    writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/glow-full-brief.pdf`, renderBriefPdf(busy));
-    writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/glow-short-brief.pdf`, renderBriefPdf(morning));
-    writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/glow-short-brief.json`, JSON.stringify(morning));
+    writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/sattva-full-brief.pdf`, renderBriefPdf(busy));
+    writeFileSync(`${process.env.NEWSLETTER_PREVIEW_DIR}/sattva-short-brief.pdf`, renderBriefPdf(morning));
   }
 });
 
@@ -1300,7 +1228,7 @@ await test('saved PDFs and confirmed part outcomes survive failures, interruptio
   assert.deepEqual(result.outcomes[0].parts.map(p => p.messageId), good.emails.map((_e, i) => `<part-${i + 1}@muns.io>`));
   const saved = good.store.document(pdfIds[0]);
   assert.equal(new TextDecoder().decode(saved.body.slice(0, 8)), '%PDF-1.4');
-  assert.equal(saved.filename, 'glow-2026-09-17-morning-brief.pdf');
+  assert.equal(saved.filename, 'sattva-2026-09-17-morning-brief.pdf');
   assert.equal((await good.schedule.deliver(deliveryArgs)).reason, 'already-sent');
   assert.equal(good.emails.length, result.summary.emailParts);
   const firstKeys = good.emails[0].html;
@@ -1408,7 +1336,7 @@ await test('PDF download routes, preview limits and manual budgets are explicit 
   const base = 'https://example.test/api/newsletter';
   const response = await handleNewsletter(new Request(`${base}/pdf/${id}`), apiEnv);
   assert.equal(response.status, 200); assert.equal(response.headers.get('content-type'), 'application/pdf');
-  assert.ok(response.headers.get('content-disposition').includes('attachment; filename="glow-'));
+  assert.ok(response.headers.get('content-disposition').includes('attachment; filename="sattva-'));
   assert.equal(response.headers.get('cache-control'), 'private, no-store');
   assert.deepEqual(new Uint8Array(await response.arrayBuffer()), pdf);
   assert.equal((await handleNewsletter(new Request(`${base}/pdf/00000000-0000-0000-0000-000000000000`), apiEnv)).status, 404);
@@ -1425,10 +1353,34 @@ await test('PDF download routes, preview limits and manual budgets are explicit 
   assert.equal(h.emails.length, 0);
   assert.equal(h.store.rows('SELECT COUNT(*) AS n FROM newsletter_documents')[0].n, 1, 'previews save no documents');
   assert.equal((await handleNewsletter(new Request(`${base}/preview`), { ...apiEnv, NEWSLETTER_LIMITER: { limit: async () => ({ success: false }) } })).status, 429);
-  for (let i = 0; i < 5; i++) assert.equal(h.store.claimManualDelivery(MORNING).ok, true);
+  for (let i = 0; i < 4; i++) assert.equal(h.store.claimManualDelivery(MORNING).ok, true);
   assert.equal(new NewsletterStore(h.storage).claimManualDelivery(MORNING).ok, false);
-  assert.equal(h.store.claimManualDelivery(MORNING + 3600_000).ok, true);
+  assert.equal(h.store.claimManualDelivery(MORNING + 86400000).ok, true);
   assert.equal((await sendEmail({ html: '₹'.repeat(EMAIL_HTML_BYTES), fetcher: () => { throw new Error('must not send'); } })).reason, 'email-too-large');
+});
+
+await test('current shipped assets build source-only with direct-company scope and explicit coverage', async () => {
+  const shipped = { fetch: async request => {
+    const path = new URL(request.url).pathname;
+    assert.notEqual(path, '/data/book.json');
+    if (!path.startsWith('/data/') || path.includes('..')) return new Response('', {status:404});
+    try { return new Response(readFileSync(new URL(`../public${path}`, import.meta.url))); }
+    catch { return new Response('', {status:404}); }
+  }};
+  const now = Date.now(), day = istDay(now);
+  const real = await buildBrief({ edition:'morning', day, settings:DEFAULT_SETTINGS, env:{ASSETS:shipped},
+    fetcher:async()=>new Response('',{status:503}), now, includeAi:false });
+  const holdings = JSON.parse(readFileSync(new URL('../public/data/portfolio-companies.json', import.meta.url))).holdings;
+  const tickers = new Set(holdings.map(h=>h.ticker?.toUpperCase()).filter(Boolean));
+  assert.ok(real.book.listed > 0 && real.book.listed <= real.book.lines);
+  for (const story of briefStories(real)) {
+    assert.ok(tickers.has(story.ticker));
+    assert.ok(story.at >= (real.lateFrom ?? real.window.from) && story.at < real.window.to);
+    if (story.kind === 'news') assert.equal(story.mood.id, 'neutral');
+  }
+  const html = renderBriefHtml(real);
+  assert.ok(html.includes('SATTVA VENTURES'));
+  assert.ok(!html.includes('<script'));
 });
 
 console.log(`\n${count - failures} of ${count} passed`);

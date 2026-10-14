@@ -1,5 +1,5 @@
-import * as book from '../data/book.js';
-import { bookEvidence } from './book-packet.js';
+import * as mutualFunds from '../data/mutual-funds.js';
+import {mutualFundEvidenceRows} from '../data/mutual-funds-evidence.js';
 // research/estate.js — the bounded, runtime dashboard catalog behind Ask Research.
 //
 // Every source below is read through the same module the owning page uses. Adding a compatible
@@ -43,8 +43,6 @@ import * as telegram from '../data/telegram-posts.js';
 import { telegramReadHealth } from '../data/telegram-health.js';
 import * as technicals from '../data/technicals.js';
 import * as investors from '../data/super-investors.js';
-import { loadEvidence } from '../data/holding-evidence.js';
-import * as publicHoldings from '../data/public-holdings.js';
 import * as institutions from '../data/institution-holdings.js';
 import { news, announcements, insider } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
@@ -60,8 +58,9 @@ import { reasoningReadings, portfolioReasoningContext, reasoningSourceSamples } 
 import { businessIntent, holdingForBusinessRow, businessReadings, portfolioBusinessContext, fitBusinessContext, businessPeerSamples } from './business-context.js';
 
 export const DASHBOARD_RESEARCH_SOURCES = [
+  { id: 'mutual-funds', tab: 'Mutual Funds', route: '#/research/mutual-funds', description: 'Portfolio-wide monthly mutual fund shares, comparable additions and reductions, net changes and largest fund buyers/sellers.' },
   { id: 'ai-alerts', tab: 'AI Alerts', route: '#/research/ai-alerts', description: 'The dashboard\'s deterministic seven-day company priority over All Alerts: which companies carry the most material, corroborated recent evidence.' },
-  { id: 'daily-alerts', tab: 'All Alerts', route: '#/research/daily-alerts', description: 'The complete normalized top-of-funnel pool across all twenty dashboard feed categories, including raw filings, schedules, snapshots, documents, posts and market events.' },
+  { id: 'daily-alerts', tab: 'All Alerts', route: '#/research/daily-alerts', description: 'The complete normalized top-of-funnel pool across the available dashboard feed categories, including raw filings, schedules, snapshots, documents, posts and market events.' },
   { id: 'screener-insights', tab: 'AI Alerts', route: '#/research/ai-alerts', description: 'Source-backed yearly and quarterly operating metrics extracted by Screener from company filings and presentations; context only, never an alert trigger by itself.' },
   { id: 'earnings-hub', tab: 'Earnings Hub', route: '#/research/earnings-hub', description: 'Reported quarterly figures, comparison periods, prices and result-date returns. Analyst consensus estimates are not connected.' },
   { id: 'company-filings', tab: 'Earnings Hub', route: '#/research/earnings-hub?view=filings', description: 'Company document titles, periods and source links already read in Company Filings. PDF contents are not extracted.' },
@@ -70,18 +69,14 @@ export const DASHBOARD_RESEARCH_SOURCES = [
   { id: 'public-chatter', tab: 'Public Chatter', route: '#/research/public-chatter', description: 'Retail mention counts and sentiment across ValuePickr, TradingQnA and Google News.' },
   { id: 'chatter-posts', tab: 'Public Chatter posts', route: '#/research/public-chatter?open=mentions', description: 'Question-selected company posts from the same detail reader as Public Chatter; source text and links, with bounded topic coverage.' },
   { id: 'telegram', tab: 'Telegram', route: '#/research/public-chatter?section=telegram', description: 'Retained public-channel text and document names mentioning companies in scope. Attachment contents are not extracted.' },
-  { id: 'technicals', tab: 'Breakouts / Technical', route: '#/research/breakouts/technical-scanner', description: 'The dashboard\'s 16-rule technical score and its underlying market readings.' },
+  { id: 'technicals', tab: 'Screens', route: '#/research/breakouts/technical-scanner', description: 'The dashboard\'s 16-rule technical score and its underlying market readings.' },
   { id: 'super-investors', tab: 'Super Investors', route: '#/research/super-investors/superstar-investors', description: 'Filed superstar-investor holdings and quarter-on-quarter disclosed changes.' },
-  { id: 'portfolio', tab: 'Family Book', route: '#/research/family-book', description: 'GlowVentures platform statements, consolidated once with account dates and unknown values preserved.' },
   { id: 'institutions', tab: 'Super Investors', route: '#/research/super-investors/institutions', description: 'Institutional shareholding patterns and AMC portfolio disclosures.' },
   { id: 'company-news', tab: 'News', route: '#/research/news', description: 'Permanently retained company news, including portfolio companies without exchange symbols.' },
   { id: 'market-news', tab: 'News', route: '#/research/news', description: 'Market-wide Moneycontrol stories; intentionally not company-scopeable.' },
   { id: 'announcements', tab: 'Corp Announcements', route: '#/research/corp-announcements', description: 'BSE exchange-wide capture plus retained company/date lookups from BSE, NSE and DRHP.' },
   { id: 'nse-filings', tab: 'NSE Filings', route: '#/research/nse-filings', description: 'Retained NSE disclosure history, with publication dates, original document links and coverage gaps.' },
-  // `exactRoute`: the citation names the VIEW, not the tab, so the resolver keeps the sub-view rather
-  // than collapsing to the tab's first one — a `[Dashboard: Corporate Actions]` link that opened the
-  // Announcements stream would be a link to the wrong feed.
-  { id: 'corporate-actions', tab: 'Corporate Actions', route: '#/research/corp-announcements/corporate-actions', exactRoute: true, description: 'Retained NSE and Screener dividends, splits, bonuses and other actions, with distinct announcement and effective dates.' },
+  { id: 'corporate-actions', tab: 'Corporate Actions', route: '#/research/corporate-actions', description: 'Retained NSE and Screener dividends, splits, bonuses and other actions, with distinct announcement and effective dates.' },
   { id: 'ipos', tab: 'IPOs', route: '#/research/ipos', description: 'Retained official IPO filings; a filing does not establish an approved or open offer.' },
   { id: 'insider-trades', tab: 'Bulk/Block Deal', route: '#/research/insider-trades', description: 'Insider and promoter disclosures in the upstream\'s own vocabulary.' },
 ];
@@ -99,12 +94,7 @@ const MATCH_ROW_LIMIT = 14;
 export const RESEARCH_EVIDENCE_CHAR_BUDGET = 18_000;
 // The share of the budget that rows are guaranteed. The skeleton is trimmed before a row is refused.
 export const ROW_RESERVE_SHARE = 0.5;
-// The share literal rows keep beside a derived business context, which may take `businessContextShare`
-// of the budget — 65% for portfolio reasoning — so the reserve above cannot hold there. The skeleton
-// of every ready source is most of the rest: measured on 23 September 2026, a question with all but
-// three sources loaded came to 29,836 of 30,000 characters before a single row, and the same code
-// sent five rows when four slow sources had missed their deadline. Below this floor the context is
-// refitted smaller through `fitBusinessContext`'s own order, never a row refused for it.
+// Reserve literal evidence beside derived business descriptions.
 export const ROW_FLOOR_SHARE = 0.08;
 // The score a row earns when the question named its company. Above any number of token hits, so a
 // company question lists that company's rows from every source before anything else.
@@ -815,13 +805,8 @@ function insiderRow(row) {
   };
 }
 
-function moveRow(row, knownTickers) {
-  // Finology's exchange symbol survives issuer renames. Only use a slug as a
-  // ticker when the loaded company directory recognises it (SCRIP-* is not NSE).
-  const slug = String(row.companySlug || '').trim().toUpperCase();
-  const ticker = knownTickers.has(slug) ? slug : null;
+function moveRow(row) {
   return {
-    ticker: ticker || null,
     investor: clipped(row.investor, 60),
     company: clipped(row.company, 60),
     action: row.action || null,
@@ -1091,41 +1076,43 @@ const BUILDERS = [
   },
   {
     id: 'super-investors',
-    load: () => Promise.all([investors.load(), loadEvidence(), publicHoldings.load()]),
-    read({ scope, plan, identities }) {
-      const knownTickers = new Set(identities.map(company => company.ticker).filter(Boolean));
-      const tickerByIsin = new Map(identities.filter(company => company.isin && company.ticker).map(company => [company.isin, company.ticker]));
+    load: () => investors.load(),
+    read({ scope, plan }) {
       const include = plan.companies.length ? null : investorScopeFilter(scope);
-      const moves = include ? investors.allMoves().filter((row) => include(row.company)) : investors.allMoves();
-      const original = (publicHoldings.report()?.holdings || []).filter((h) => !include || include(h.company)).map((h) => ({ primary: true,
-        company: h.company, ticker: tickerByIsin.get(h.isin) || (knownTickers.has(h.ticker) ? h.ticker : null), person: h.person, profileKind: h.kind, legalHolder: h.legalHolder, isin: h.isin, asOf: h.asOf,
-        shares: h.state === 'source-conflict' ? null : h.shares, stakePct: h.state === 'source-conflict' ? null : h.stakePct,
-        status: h.state, comparison: h.comparison, associatedEntity: h.associated,
-        // Keep dated source citations and each conflicting figure. Archive hashes and the
-        // full identity registry remain in the disclosure viewer/export, outside answer space.
-        sources: h.sources.map(s => ({ source: s.source, url: s.url, filedAt: s.filedAt,
-          ...(h.state === 'source-conflict' ? { legalHolder: s.legalHolder, shares: s.shares, stakePct: s.stakePct } : {}),
-          ...(s.partial ? { partial: true } : {}), ...(s.refreshError ? { refreshError: s.refreshError } : {}) })),
-        relationshipUrl: h.associated ? h.relationshipUrl : null }));
-      const rows = [...original, ...moves];
+      const rows = include ? investors.allMoves().filter((row) => include(row.company)) : investors.allMoves();
       const meta = investors.meta() || {};
       const summary = investors.quarterSummary({ include, limit: 5 });
       return sourcePacket(this.id, {
-        source: 'Original NSE/BSE shareholding filings and Ticker Finology portfolios',
+        source: 'Ticker Finology filed portfolios',
         asOf: meta.capturedAt || meta.checkedAt || null,
         rowCount: rows.length,
         coverage: { trackedInvestors: investors.list().length, loadedBooks: investors.books().length, latestQuarter: investors.latestQuarter(), failedBooks: meta.failedBooks || 0 },
         summary: {
-          publicDisclosureCoverage: publicHoldings.report()?.coverage || null,
           counts: summary.counts,
           comparableBooks: summary.comparableBooks,
           contributingBooks: summary.contributingBooks,
           periodPairs: summary.pairs.slice(0, 3).map((pair) => `${pair.latest} vs ${pair.prior}`),
           mostCommonHoldings: investors.overlaps().filter((item) => !include || include(item.company)).slice(0, 3).map((item) => ({ company: clipped(item.company, 60), holders: item.holders.length })),
         },
-        definition: 'Original exchange records establish the legal holder and stake on the stated date. Conflicting reports require review. Associated entities remain separate from personal ownership. Quarterly changes use completed quarters; unknown cells do not establish trades. Capture coverage is bounded.',
-        ...chooseRows(rows, plan, (row) => row.primary ? row : moveRow(row, knownTickers), (a, b) => Number(!!b.primary) - Number(!!a.primary) || Math.abs(b.changePp ?? 0) - Math.abs(a.changePp ?? 0)),
+        definition: 'changePp is percentage points of the company\'s equity. Exited = no longer disclosed, not necessarily sold. latestValueCr is Finology\'s current value, not a trade value.',
+        ...chooseRows(rows, plan, moveRow, (a, b) => Math.abs(b.changePp ?? 0) - Math.abs(a.changePp ?? 0)),
       });
+    },
+  },
+  {
+    id: 'mutual-funds',
+    load: () => undefined,
+    async read({question,scope,holdings,plan}) {
+      const requested = /\b(mutual funds?|mfs?|funds? (?:added|bought|sold|reduced)|(?:added|bought|sold|reduced).*fund)\b/i.test(question);
+      if (!requested) return sourcePacket(this.id,{source:'AMC monthly disclosures via AmfiBeas',status:'not-requested',rowCount:null,rows:[]});
+      await mutualFunds.load(plan.companies.length?'universe':scope,{holdings});
+      const wanted = new Set(plan.companies.map(c=>c.isin || c.ticker));
+      const all = plan.companies.length ? mutualFunds.all().filter(r=>wanted.has(r.isin)||wanted.has(r.ticker)) : mutualFunds.scopedRows(scope,holdings);
+      const meta=mutualFunds.meta(),rows=mutualFundEvidenceRows(all,meta),supplemented=rows.some(r=>r.mfScanner);
+      return sourcePacket(this.id,{source:`AMC monthly portfolio disclosures via AmfiBeas${supplemented?'; private MF Scanner supplement':''}`,asOf:meta.checkedAt,
+        rowCount:rows.length,coverage:{companies:all.length,state:mutualFunds.health(),...(supplemented?{supplementReadFailed:!!meta.supplementReadFailed,scannerCurrentCompanies:meta.supplement?.currentCompanies,scannerExpectedCompanies:meta.supplement?.expectedCompanies}:{})},dataQuality:'partial',
+        definition:'Complete requested company list; only comparable adjacent months contribute to net. Each row states its actual month; older months do not answer last month. Source check dates and any MF Scanner contribution are recorded per row; the packet asOf is the primary check only. Share changes can reflect corporate actions. Missing data is not zero.',
+        rows,rowTiers:rows.map(()=>0),rowPriorities:rows.map(()=>-2000000)});
     },
   },
   {
@@ -1239,16 +1226,6 @@ const BUILDERS = [
         definition: 'Transaction wording is the upstream\'s; no dashboard sentiment or materiality score is attached.',
         ...chooseRows(rows, plan, insiderRow, byDateDesc('date')),
       });
-    },
-  },
-  {
-    // GLOW DIVERGENCE: the real book, not the mock ledger. Everything the packet says is built in
-    // research/book-packet.js; this entry only wraps it with the two helpers that live here.
-    id: 'portfolio',
-    load: () => Promise.all([book.load({ force: true }), technicals.load().catch(() => null)]),
-    read({ scope, plan }) {
-      const packet = bookEvidence({ scope, tickers: scope === 'watchlist' ? watchlist.tickers() : null });
-      return sourcePacket(this.id, { ...packet.details, ...chooseRows(packet.rows, plan, packet.mapRow, packet.compare) });
     },
   },
   {
@@ -1443,6 +1420,7 @@ export async function buildResearchEvidence({ question, scope = 'portfolio', por
   const general = plan.business && (plan.business.mode === 'portfolio-reasoning' || !comparison?.candidates?.length);
   const reasoningPackets = general ? packets.map(packet => ({ ...packet, reasoningReadings: reasoningReadings(packet.reasoningRows || [], plan) })) : packets;
   const businessContext = general ? portfolioReasoningContext({ plan, packets: reasoningPackets, technicalRows }) : comparison;
+  if (/\b(mutual funds?|mfs?|funds? (?:added|bought|sold|reduced)|(?:added|bought|sold|reduced).*fund)\b/i.test(question)) charBudget ??= 37_000;
   charBudget ??= general ? PORTFOLIO_REASONING_CHAR_BUDGET : RESEARCH_EVIDENCE_CHAR_BUDGET;
   const fittedBusiness = fitBusinessContext(businessContext, Math.floor(charBudget * businessContextShare({ businessContext })));
   return fitEvidenceToBudget({

@@ -1,9 +1,9 @@
+import { TAB_META } from './catalog.js';
 // tabs/earnings-hub.js — LIVE quarterly results for the whole listed universe.
 //
 // This tab is genuinely live. It paints from a committed snapshot instantly, then polls
-// /api/earnings every 30s; a company that files at 14:32 is on this table by about 14:33. The
-// header pill shows which of the two you are looking at, and the "just reported" strip names
-// anything that arrived while the tab was open.
+// /api/earnings every 30s; the table updates in place as new filings arrive. The header keeps
+// the source period and financial unit together without repeating the scope and row count.
 //
 // THE TABLE IS THE POINT. No score, no signal dots, no hero cards on the main view — this is a
 // dense sortable table because that is what a results screen is for. The screener kit's
@@ -14,8 +14,9 @@
 //   The old Earnings Hub scored synthetic financials against a 15-rule model. Moneycontrol
 //   publishes three figures per company — revenue, gross profit, net profit — which is nowhere
 //   near enough to feed that model. Rather than run a real model on fake numbers next to a live
-//   table of real ones, the scoring sub-views are gone. The legacy scoring module and mock
-//   fixtures remain in the repo, but no active view or research source loads them.
+//   table of real ones, the scoring sub-views are gone. `js/scoring/earnings-scoring.js` and the
+//   legacy scoring code remain available, but the synthetic set is no longer loaded. Analyst
+//   estimates are unavailable; Reports opens the original document for the displayed quarter.
 //
 // THE PERCENTAGE THAT ISN'T ONE
 //   13% of companies have a sign flip between the two periods. "+199%" on a loss-to-profit
@@ -33,13 +34,12 @@
 //   There was one, and the six reported figures were the bulk of what it said — so once those
 //   became columns it was mostly restating the row you clicked. Rows are not clickable now.
 //   Nothing accountable was lost with it: the return-since-result figure it explained is no
-//   longer a column at all, and the passive Live label reports status without opening a dialog.
+//   longer a column at all, and the plain snapshot notice reports failures without opening a dialog.
 //   Detailed source metadata remains in the canonical registry.
 //
 //   Do not re-add a drill to hold a number that could be a column. Add the column.
 
 import { scoreTable, sectionHead, companySeededView } from '../ui/screener.js';
-import { scopeSummary } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { withoutPublisherName } from '../core/source-copy.js';
 import { formatCroreCompact, formatPct, formatNumber, formatRupee } from '../core/format.js';
@@ -51,19 +51,14 @@ import { filterByScope, scopePossessive } from '../data/scope.js';
 import { renderCompanyFilings } from './company-filings.js';
 import { wireEarningsReports } from '../ui/earnings-report.js';
 import { safeDocumentUrl } from '../data/screener-concalls-shared.js';
+import { reportPeriod } from '../data/domestic-filings-shared.js';
 
-export const meta = {
-  id: 'earnings-hub',
-  title: 'Earnings Hub',
-  subtitle: 'Live quarterly results across the listed universe, updated as companies report.',
-  // No sub-views: this tab is one table. The shell hides the rail entirely when this is empty.
-  subviews: [],
-};
+export const meta = TAB_META['earnings-hub'];
 
 // Filed results and scheduled results. Old document links remain readable.
 const VIEWS = [
-  { value: 'reported', label: 'Earnings Reported', help: 'Companies that have already filed this quarter' },
-  { value: 'calendar', label: 'Earnings Calendar', help: 'Scheduled results and upcoming con-calls, by date' },
+  { value: 'reported', label: 'Reported', help: 'Published quarterly results' },
+  { value: 'calendar', label: 'Calendar', help: 'Scheduled results and upcoming con-calls, by date' },
 ];
 
 let disposers = [];
@@ -215,12 +210,10 @@ function paint(ctx) {
  */
 function viewToggle(active) {
   return `
-    <div class="inline-flex items-center gap-1 rounded-full bg-slate-100 p-0.5 ring-1 ring-slate-200" data-view-toggle>
+    <div class="earnings-switch" data-view-toggle role="group" aria-label="Earnings view">
       ${VIEWS.map(
         (v) => `<button type="button" data-view="${v.value}" title="${escapeHtml(v.help)}" aria-pressed="${v.value === active}"
-             class="rounded-full px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${
-               v.value === active ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'
-             }">${escapeHtml(v.label)}</button>`
+             class="earnings-switch-option">${escapeHtml(v.label)}</button>`
       ).join('')}
     </div>`;
 }
@@ -332,34 +325,16 @@ function basisPill(basis) {
 }
 
 // ---------------------------------------------------------------------------------------
-// Chrome — one small passive live status label.
-//
-// This page used to open with a green ribbon, a "just reported" strip and a 4-card stat row
-// before you reached a single result. That is a lot of furniture in front of the thing people
-// came for. It is now a pill in the section head.
-//
-// The compact label reports whether the feed is live or a snapshot without opening an explainer
-// dialog. Task-oriented dialogs, such as the schedule, remain separate controls.
-// ---------------------------------------------------------------------------------------
-function liveButton(m, rows) {
-  if (!m) return '';
-  const degraded = !!m.degraded;
-  const cls = degraded
-    ? 'bg-amber-50 text-amber-800 ring-amber-300'
-    : 'bg-emerald-50 text-emerald-800 ring-emerald-300';
-  const dot = degraded
-    ? '<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>'
-    : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
+// The source period and financial unit are plain reading context. Failures still stay visible;
+// source timestamps and coverage remain in the canonical Sources panel.
+function resultsContext(m) {
+  const period = m?.quarter || reportingPeriodLabel(m?.currentPeriod, 'Period not supplied');
+  const status = m?.degraded ? 'Snapshot · update unavailable' : !m?.isLive ? 'Snapshot' : '';
+  return `<p data-results-context class="earnings-context">${escapeHtml(period)} · Figures in ₹ crore${status ? `<span data-results-status> · ${status}</span>` : ''}</p>`;
+}
 
-  const arrivals = feed.newArrivals().length;
-  return `
-    <span data-live-info title="Current results-feed status"
-      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${cls}">
-      ${dot}
-      <span>${degraded ? 'Snapshot' : 'Live'}</span>
-      <span class="font-normal opacity-70">${escapeHtml(m.quarter || '')} · ${escapeHtml(formatNumber(rows.length))} reported</span>
-      ${arrivals ? `<span class="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">+${arrivals} new</span>` : ''}
-    </span>`;
+function earningsControls(active, context, comparison = '') {
+  return `<div class="earnings-reading-controls"><div class="earnings-switches">${viewToggle(active)}${comparison}</div>${context}</div>`;
 }
 
 /**
@@ -371,13 +346,11 @@ function periodToggle(m) {
   const active = m?.subType || feed.currentSubType();
   const help = { yoy: 'Compare against the same quarter last year', qoq: 'Compare against the previous quarter' };
   return `
-    <div class="inline-flex items-center gap-1 rounded-full bg-slate-100 p-0.5 ring-1 ring-slate-200" data-period-toggle>
+    <div class="earnings-switch" data-period-toggle role="group" aria-label="Growth comparison">
       ${feed.SUB_TYPES.map(
         (s) => `<button type="button" data-period="${s.value}" title="${escapeHtml(help[s.value] || '')}"
              aria-pressed="${s.value === active}"
-             class="rounded-full px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${
-               s.value === active ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'
-             }">${escapeHtml(s.label)}</button>`
+             class="earnings-switch-option">${escapeHtml(s.label)}</button>`
       ).join('')}
     </div>`;
 }
@@ -407,15 +380,29 @@ function wirePeriodToggle(root, ctx) {
 // ---------------------------------------------------------------------------------------
 // Latest Results — the table
 // ---------------------------------------------------------------------------------------
+const PERIOD_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function reportingPeriodLabel(value, fallback) {
+  const period = reportPeriod(value);
+  return period ? `${PERIOD_MONTHS[Number(period.slice(5, 7)) - 1]} ${period.slice(0, 4)}` : String(value || fallback);
+}
+
 function renderLatest(ctx) {
   const rows = rowsFor(ctx);
   const m = feed.meta();
 
-  // Column headers name the actual periods being compared — "REV JUN 26" / "REV JUN 25" — rather
-  // than "current" and "prior". A screenshot of this table should say which quarters it is,
-  // because a growth percentage is meaningless without knowing what it is measured against.
-  const cur = m?.currentPeriod || 'Current';
-  const pri = m?.priorPeriod || 'Prior';
+  // Periods belong to the displayed source, including an older snapshot. Keep the subtitle
+  // evergreen and put unambiguous years beside the figures, using the report-matching parser.
+  const cur = reportingPeriodLabel(m?.currentPeriod, 'Current period');
+  const pri = reportingPeriodLabel(m?.priorPeriod, 'Comparison period');
+  // The kit keys sort by heading. Carry the same metric/comparison across a period rollover.
+  if (panel?.periods && tableView?.sort) {
+    const previousSort = tableView.sort.key;
+    for (const metric of ['Revenue', 'Net Profit']) for (const [side, label] of [['current', cur], ['prior', pri]]) {
+      if (previousSort === `${metric} ${panel.periods[side]}`) {
+        tableView = { ...tableView, sort: { ...tableView.sort, key: `${metric} ${label}` } };
+      }
+    }
+  }
 
   // Ticker and industry are not columns any more: they live on the second line of the identity
   // cell, where they stay searchable and visible without costing two columns of width. The width
@@ -469,17 +456,25 @@ function renderLatest(ctx) {
 
       { label: 'Market Cap', get: (r) => (r.marketCap == null ? '<span class="text-slate-300">—</span>' : escapeHtml(formatCroreCompact(r.marketCap))), html: true, align: 'right', sortValue: (r) => r.marketCap ?? -1 },
       { label: 'Basis', get: (r) => basisPill(r.basis), html: true, align: 'right', sortValue: (r) => r.basis || '' },
-      { label: 'Filings', get: (r) => r.ticker ? `<button type="button" data-norow data-earnings-report="${escapeHtml(r.ticker)}" data-report-period="${escapeHtml(m?.currentPeriod || '')}" data-report-date="${escapeHtml(r.resultDate || '')}" class="font-semibold text-indigo-600" aria-label="Open ${escapeHtml(r.company)} ${escapeHtml(m?.currentPeriod || '')} filing">Reports</button>` : '—', html: true, sortable: false },
+      { label: 'Filings', get: (r) => r.ticker ? `<button type="button" data-norow data-earnings-report="${escapeHtml(r.ticker)}" data-report-period="${escapeHtml(m?.currentPeriod || '')}" data-report-date="${escapeHtml(r.resultDate || '')}" class="font-semibold text-indigo-600" aria-label="Open ${escapeHtml(r.company)} ${escapeHtml(cur)} filing">Reports</button>` : '—', html: true, sortable: false },
     ],
-    // Two dropdowns, not one: "PAT grew" and "Consolidated only" are different questions and a
-    // reader should be able to ask both at once.
+    // Keep performance and reporting basis independent, behind one compact toolbar control.
+    filterGroup: {
+      label: 'More filters',
+      indices: [0, 1],
+      summary: values => {
+        const count = values.filter(value => value !== 'all').length;
+        return count ? `More filters (${count})` : 'More filters';
+      },
+    },
     filters: [
       {
-        label: 'Result shape',
+        label: 'Result screen',
+        readingAliases: ['Result shape'],
         options: [
           { value: 'all', label: 'All results' },
-          { value: 'pat-up', label: 'PAT grew' },
-          { value: 'pat-down', label: 'PAT fell' },
+          { value: 'pat-up', label: 'Profit growth (%) · no losses' },
+          { value: 'pat-down', label: 'Profit decline (%) · no losses' },
           { value: 'turnaround', label: 'Loss → profit' },
           { value: 'to-loss', label: 'Profit → loss' },
           { value: 'rev-up-20', label: 'Revenue +20% or more' },
@@ -503,7 +498,7 @@ function renderLatest(ctx) {
         // the same three-way choice for the same reason. The Basis column shows which each row is.
         label: 'Reporting basis',
         options: [
-          { value: 'all', label: 'All' },
+          { value: 'all', label: 'All reporting bases' },
           { value: 'con', label: 'Consolidated' },
           { value: 'std', label: 'Standalone' },
         ],
@@ -520,25 +515,26 @@ function renderLatest(ctx) {
     // No onRowClick, deliberately — see "WHY THERE IS NO DRILL PANEL" at the top of this file.
     exportName: 'glow-earnings',
     onExport: (visible) => exportResults(visible, feed.meta()),
-    emptyMessage: scopePossessive(ctx.scope) ? `None of ${scopePossessive(ctx.scope)} has reported in this quarter yet.` : 'No results match your filters.',
+    emptyMessage: scopePossessive(ctx.scope) ? `None of ${scopePossessive(ctx.scope)} has results in this reporting period.` : 'No results match your filters.',
     initialView: tableView,
   });
   const header = `
     ${sectionHead({
       title: 'Latest Results',
-      description: `Every company that has reported this quarter, newest first. Reported figures in ₹ crore${m?.currentPeriod ? `, ${m.currentPeriod} against ${m.priorPeriod}` : ''}.`,
-      controls: `${viewToggle('reported')}${periodToggle(m)}${liveButton(m, rows)}${scopeSummary({ scope: ctx.scope, count: rows.length, noun: 'reported', book: coverage.meta() })}`,
+      description: 'Latest reported quarterly results, newest first.',
+      controls: earningsControls('reported', resultsContext(m), periodToggle(m)),
     })}
     ${
       periodError
         ? `<div class="mb-4 rounded-xl bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 ring-1 ring-amber-200">
              <strong>Comparison not switched.</strong> ${escapeHtml(periodError)}
-             You are still looking at ${escapeHtml((m?.subType || 'yoy').toUpperCase())} — ${escapeHtml(m?.currentPeriod || '')} against ${escapeHtml(m?.priorPeriod || '')}, as the column headers say.
+             You are still looking at ${escapeHtml((m?.subType || 'yoy').toUpperCase())} — ${escapeHtml(cur)} against ${escapeHtml(pri)}, as the column headers say.
            </div>`
         : ''
     }
   `;
   const table = paintPanel(ctx, JSON.stringify(['reported', ctx.scope, cur, pri, m?.subType]), header, makeTable, rows);
+  panel.periods = { current: cur, prior: pri };
   tableView = table.view;
   wireViewToggle(ctx.root, ctx);
   wirePeriodToggle(ctx.root, ctx);
@@ -793,7 +789,7 @@ function renderCalendar(ctx) {
     ${sectionHead({
       title: 'Earnings Calendar',
       description: 'Scheduled results and upcoming con-calls, by date. Pick a date from the strip.',
-      controls: `${viewToggle('calendar')}${calendarPill(payload, err)}${scopeSummary({ scope: ctx.scope, count: scoped.length, noun: 'scheduled', book: coverage.meta() })}`,
+      controls: earningsControls('calendar', calendarStatus(payload, err)),
     })}
     ${dateStrip(wanted, today)}
   `;
@@ -878,30 +874,20 @@ function priceChangeCell(pct) {
  * list comes from the committed capture when the calendar page is blocked. Screener's invitation
  * list is a frequently refreshed Actions artifact. The label must describe that provenance.
  */
-function calendarPill(payload, err) {
+function calendarStatus(payload, err) {
   if (!payload && !err) {
     return `
       <span data-cal-info title="Loading the current calendar feed"
-        class="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-        <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400"></span><span>Loading calendar</span>
+        class="earnings-context">
+        <span>Loading calendar</span>
       </span>`;
   }
   const bad = !!err || !!payload?.degraded || payload?.complete !== true || !payload?.countSource || !payload?.listSource || !payload?.screenerUpcomingSource;
-  // Either half can be a capture and either makes the pill say so. The list and the counts fail
+  // Either half can be a capture and either makes the status say so. The list and the counts fail
   // independently — the calendar page is bot-walled while the count API is not, and on 14 Aug 2026
   // the count API went flat while the list capture was fine — so "Live" may only be claimed when
   // BOTH were read live.
   const captured = payload?.listSource === 'snapshot' || payload?.countSource === 'snapshot' || payload?.screenerUpcomingSource === 'artifact';
-  const cls = bad
-    ? 'bg-slate-50 text-slate-600 ring-slate-200'
-    : captured
-      ? 'bg-sky-50 text-sky-800 ring-sky-300'
-      : 'bg-emerald-50 text-emerald-800 ring-emerald-300';
-  const dot = bad
-    ? ''
-    : captured
-      ? '<span class="h-1.5 w-1.5 rounded-full bg-sky-500"></span>'
-      : '<span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span></span>';
   // A count of zero on a date that has named companies is the count endpoint failing, not a quiet
   // day. Say "schedule" rather than assert a number we do not believe.
   const count = believableCount(payload);
@@ -909,9 +895,9 @@ function calendarPill(payload, err) {
     <span data-cal-info title="${escapeHtml(err
       ? `${payload ? 'Showing the saved schedule. ' : ''}The latest calendar check failed; retrying automatically.`
       : 'Current calendar-feed status')}"
-      class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${cls}">
-      ${dot}<span>${err ? (payload ? 'Saved schedule · retrying' : 'Unavailable · retrying') : bad ? 'Updating' : captured ? 'Schedule updated' : 'Up to date'}</span>
-      <span class="font-normal opacity-70">${count != null ? `${escapeHtml(formatNumber(count))} scheduled` : 'schedule'}</span>
+      class="earnings-context">
+      <span>${err ? (payload ? 'Saved schedule · retrying' : 'Unavailable · retrying') : bad ? 'Updating' : captured ? 'Schedule updated' : 'Up to date'}</span>
+      <span> · ${count != null ? `${escapeHtml(formatNumber(count))} scheduled` : 'schedule'}</span>
     </span>`;
 }
 
@@ -967,7 +953,7 @@ async function exportResults(rows, m) {
   const banner = {
     __banner:
       `REAL DATA. Quarterly results from the live published-results feed — ${m?.quarter || ''}, ` +
-      `${(m?.subType || 'yoy').toUpperCase()}: ${m?.currentPeriod || ''} vs ${m?.priorPeriod || ''}, ` +
+      `${(m?.subType || 'yoy').toUpperCase()}: ${reportingPeriodLabel(m?.currentPeriod, 'Current period')} vs ${reportingPeriodLabel(m?.priorPeriod, 'Comparison period')}, ` +
       `captured ${new Date().toISOString()}. Figures in Rs. crore. Where the sign flips between periods the "growth" column reads ` +
       `"To profit" / "To loss" / "Loss narrowed" instead of a percentage, because a percentage change across zero is not a growth rate. ` +
       `Return since result = live price vs the close on the result date. Blank cells mean not joined, not zero.`,
@@ -976,8 +962,8 @@ async function exportResults(rows, m) {
   // The sheet carries the same three metrics × two periods the table does. Ticker and industry
   // stay as columns here even though they are no longer columns on screen: a spreadsheet has no
   // second line under the company name, and a workbook you cannot filter by ticker is less useful.
-  const cur = m?.currentPeriod || 'Current';
-  const pri = m?.priorPeriod || 'Prior';
+  const cur = reportingPeriodLabel(m?.currentPeriod, 'Current period');
+  const pri = reportingPeriodLabel(m?.priorPeriod, 'Comparison period');
   const val = (mm, field) => (mm?.[field] ?? '');
   await exportRows({
     filename: 'glow-earnings',

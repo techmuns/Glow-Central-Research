@@ -4,7 +4,7 @@
 // their old keys; they must never be relabelled as factual summaries.
 import { announcementTypeOf } from './announcement-types.js';
 
-export const NOTES_PROMPT_VERSION = 'alert-summary:v1';
+export const NOTES_PROMPT_VERSION = 'sattva-alert-summary:v1';
 /** Items in one request; the page asks for the cards on screen, never the whole ranking. */
 export const NOTE_REQUEST_ITEMS = 8;
 export const NOTE_REQUEST_BYTES = 32_000;
@@ -104,22 +104,29 @@ export function noteRequest(items, model) {
 
 /** The model's reply as raw notes keyed by id: only requested ids, with explicit null meaning no summary is needed. */
 export function parseNotes(reply, ids) {
-  const raw = String(reply || '');
-  const start = raw.indexOf('[');
-  const end = raw.lastIndexOf(']');
-  if (start < 0 || end <= start) return null;
-  let list;
-  try { list = JSON.parse(raw.slice(start, end + 1)); } catch { return null; }
-  if (!Array.isArray(list)) return null;
-  const out = {};
+  if (typeof reply !== 'string') return null;
+  let list = null;
+  try {
+    const whole = JSON.parse(reply);
+    list = Array.isArray(whole) ? whole : Array.isArray(whole?.notes) ? whole.notes : null;
+  } catch { /* Not one JSON value: look for the array inside it. */ }
+  if (!list) {
+    const start = reply.indexOf('[');
+    const end = reply.lastIndexOf(']');
+    if (start < 0 || end <= start) return null;
+    try { list = JSON.parse(reply.slice(start, end + 1)); } catch { return null; }
+    if (!Array.isArray(list)) return null;
+  }
+  const out = Object.create(null);
   for (const entry of list) {
     const id = typeof entry?.id === 'string' ? entry.id : null;
     if (!id || !ids.has(id) || Object.hasOwn(out, id)) continue;
     if (entry.note === null) { out[id] = null; continue; }
+    if (typeof entry.note !== 'string' || entry.note.length > NOTE_MAX) continue;
     const note = text(entry.note, NOTE_MAX);
     if (note) out[id] = note;
   }
-  return out;
+  return { ...out };
 }
 
 const numbersIn = (value) => {
@@ -146,6 +153,7 @@ const FORBIDDEN = [
  * A refused note is not repaired — it is absent, and the card says why.
  */
 export function acceptNote(note, item) {
+  if (typeof note !== 'string' || note.length > NOTE_MAX) return { ok: false, reason: 'unreadable' };
   const value = text(note, NOTE_MAX);
   if (!value) return { ok: false, reason: 'empty' };
   for (const [pattern, reason] of FORBIDDEN) if (pattern.test(value)) return { ok: false, reason };
@@ -160,6 +168,10 @@ export function acceptNote(note, item) {
 /** Why a note is absent, in the words a card prints. */
 export const NOTE_REASON = {
   'no-worker': 'AI summary unavailable here — this copy of the dashboard has no AI service.',
+  'no-service': 'AI summary unavailable — this deployment has no note service configured.',
+  unavailable: 'AI summary unavailable — the note service failed; it will be retried.',
+  quota: 'AI summary paused — the model account has no credit left.',
+  declined: 'AI summary unavailable — the model declined to write this summary.',
   'no-key': 'AI summary unavailable — no model key is configured on this deployment.',
   refused: 'AI summary unavailable — the model provider refused the request.',
   'rate-limited': 'AI summary paused — too many requests; it will be retried.',
@@ -175,3 +187,21 @@ export const NOTE_REASON = {
   'retry-exhausted': 'AI summary unavailable — retries stopped to avoid further charges for unchanged evidence.',
   error: 'AI summary unavailable — the request failed.',
 };
+
+// Keep Sattva's pinned low-cost Responses API path and strict provider response shape.
+export const NOTE_OPENAI_INSTRUCTIONS = NOTE_INSTRUCTIONS.slice(0, NOTE_INSTRUCTIONS.indexOf('Return ONLY'))
+  + 'Return {"notes": [{"id":"...","note":"..."}]} with one entry per item. Use note: null when no summary is needed. Copy ids exactly.';
+export const NOTE_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['notes'],
+  properties: { notes: { type: 'array', items: {
+    type: 'object', additionalProperties: false, required: ['id', 'note'],
+    properties: { id: { type: 'string' }, note: { type: ['string', 'null'] } },
+  } } },
+};
+export function noteOpenAIRequest(items, model) {
+  const input = JSON.parse(noteRequest(items, model).messages[0].content);
+  input.OUTPUT_CONTRACT = 'Return the notes object described, one entry per item.';
+  return { model, store: false, service_tier: 'default', reasoning: { effort: 'none' },
+    max_output_tokens: 1200, instructions: NOTE_OPENAI_INSTRUCTIONS, input: JSON.stringify(input),
+    text: { format: { type: 'json_schema', name: 'alert_notes', strict: true, schema: NOTE_SCHEMA } } };
+}

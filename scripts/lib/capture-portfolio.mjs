@@ -5,7 +5,7 @@ import { assertBookChange, validateResolvedPortfolio } from '../../public/js/dat
 
 // Public capture state contains names/identifiers only, never the API's unknown future fields.
 function project(book) {
-  const fields = ['ok', 'syncStatus', 'storage', 'sourceRevision', 'sourceKind', 'asOf', 'syncedAt', 'count', 'resolved'];
+  const fields = ['ok', 'syncStatus', 'storage', 'sourceRevision', 'asOf', 'syncedAt', 'count', 'resolved'];
   return { ...Object.fromEntries(fields.map(key => [key, book[key]])),
     sourceWorkbook: { fileKey: book.sourceWorkbook.fileKey, label: book.sourceWorkbook.label, uploadedAt: book.sourceWorkbook.uploadedAt },
     holdings: book.holdings.map(h => ({ isin: h.isin, name: h.name, ticker: h.ticker,
@@ -40,6 +40,5 @@ export async function loadCapturePortfolio(dataDir, { live = process.env.FAMILY_
   }
   return { holdings: book.holdings,
     portfolio: { status: origin, liveRequested: live, error, attemptedAt: new Date(now()).toISOString(),
-      checkedAt: book.syncedAt || null, revision: book.sourceRevision || null, count: book.holdings.length,
-      unresolvedHoldings: book.holdings.filter(h => !h.ticker).map(h => ({ isin: h.isin, name: h.name })) } };
+      checkedAt: book.syncedAt || null, revision: book.sourceRevision || null, count: book.holdings.length } };
 }

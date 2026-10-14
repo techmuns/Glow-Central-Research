@@ -1,8 +1,9 @@
+import { TAB_META } from './catalog.js';
 // tabs/public-chatter.js — retail chatter across ValuePickr, TradingQnA and Google News.
 //
-// ONE PAGE, TWO SIMPLE IN-PAGE TABS, ONE PROVENANCE.
-//   Covered companies    entries whose slug resolves to an NSE symbol we cover. Scope-aware.
-//   Not in our coverage  everything else, whole, in both scopes.
+// ONE PAGE, TWO INDEPENDENT IN-PAGE FEEDS.
+//   Coverage  company mentions whose slug resolves to an NSE symbol we cover. Scope-aware.
+//   Telegram  retained posts from a public channel, independent of company coverage.
 //
 // The tab used to be three sub-views over a synthetic corpus — ValuePickr threads, Telegram groups
 // and a Trending join — with fictional handles, because inventing words for a named person is not
@@ -20,7 +21,7 @@
 // is mention volume between scrapes, never a price move, so it is never coloured like a P&L and
 // the column says "Mentions Δ". `sparkline` is per-SCRAPE, not per-day, so it carries no time axis.
 
-import { topCards, scoreTable, sectionHead, openModal } from '../ui/screener.js';
+import { scoreTable, openModal } from '../ui/screener.js';
 import { scopeSummary, pill, tabBar } from '../ui/components.js';
 import { escapeHtml } from '../core/dom.js';
 import { snapshotForRow } from '../core/bookmark-record.js';
@@ -35,30 +36,19 @@ import { newestMentions } from '../data/chatter-mentions.js';
 import * as coverage from '../data/coverage.js';
 import * as telegram from '../data/telegram-posts.js';
 import { telegramReadHealth } from '../data/telegram-health.js';
+import { fitTableViewport } from '../ui/table-viewport.js';
+import { chatterHighlightsCell, latestChatterHighlights, wireChatterHighlights } from '../ui/chatter-highlights.js';
+import { chatterHighlightReading, shortChatterHighlight } from '../data/chatter-highlight-reading.js';
 
-export const meta = {
-  id: 'public-chatter',
-  title: 'Public Chatter',
-  subtitle: 'What retail is actually discussing, across ValuePickr, TradingQnA and Google News.',
-  // No shell sub-view picker: Coverage, Not in coverage and Telegram are simple tabs inside this
-  // page.
-  subviews: [],
-  // TWO OF THIS TAB'S THREE SECTIONS CARRY NO COMPANY AT ALL, so an empty watchlist is not an
-  // empty page. Without this the shell replaces the whole tab with its zero-watchlist panel and
-  // states, in those words, that "Public Chatter has nothing to show in this scope" — while the
-  // Telegram section holds a hundred-odd posts and the uncovered section holds every entry that
-  // resolved to no symbol, neither of which the scope can narrow. That is a false claim made by
-  // the chrome about content it is hiding, and it is the same reason Ask Research and IPOs declare
-  // this. The Coverage section keeps its own scope-aware empty state, which names the watchlist
-  // explicitly rather than blaming a filter the reader never set.
-  allowEmptyScope: true,
-};
+export const meta = TAB_META['public-chatter'];
 
 let renderToken = 0;
 let disposers = [];
 let paintDisposers = [];
-let tableViews = { covered: null, other: null, telegram: null };
+let tableViews = { covered: null, telegram: null };
 let chatterSection = 'coverage';
+export function getSavedView() { return { chatterSection }; }
+export function applySavedView(extras = {}) { chatterSection = ['coverage', 'telegram'].includes(extras.chatterSection) ? extras.chatterSection : 'coverage'; }
 let mentionRequestToken = 0;
 // A company deep-link from a General Alerts chatter row: `?company=TICKER&open=mentions`. Tracked at
 // module level so a live repaint (chatter.onChange) does not re-open the popup on every tick, and a
@@ -67,15 +57,14 @@ let mentionRequestToken = 0;
 let routeCompany = null;
 let openedFor = null;
 let paintedChatter = null;
+let paintedTelegram = null;
 let historyCatalogueOff = null;
+let sourceDetailsOff = null;
 
 const SECTIONS = [
   { id: 'coverage', label: 'Coverage' },
-  { id: 'not-in-coverage', label: 'Not in coverage' },
-  // A THIRD SECTION OVER A SECOND, INDEPENDENT FEED. The first two are two readings of one chatter
-  // payload; this one is a committed capture of a public Telegram channel and shares nothing with
-  // them but the page. That independence is load-bearing in `paint()`: either feed may be down
-  // without taking the other's section with it.
+  // Telegram is an independent capture. Either feed may be down without taking the other's
+  // section with it.
   { id: 'telegram', label: 'Telegram' },
 ];
 
@@ -83,9 +72,6 @@ function windowLabel(window = '30d') {
   const days = String(window).match(/^(\d+)d$/);
   return days ? `${Number(days[1])} ${Number(days[1]) === 1 ? 'day' : 'days'}` : String(window);
 }
-
-const description = (window = '30d') =>
-  `Company mentions across ValuePickr, TradingQnA and Google News over the last ${windowLabel(window)}. Select a company to read the mentions.`;
 
 // ---------------------------------------------------------------------------------------
 // Entry
@@ -117,11 +103,14 @@ export function render(ctx) {
   };
   if (requestedCompany && requestedCompany !== routeCompany) {
     chatterSection = 'coverage';
-    tableViews = { covered: { q: requestedCompany }, other: tableViews.other, telegram: tableViews.telegram };
+    tableViews = { covered: { q: requestedCompany }, telegram: tableViews.telegram };
   }
   routeCompany = requestedCompany || null;
   if (ctx?.params?.section === 'telegram') {
     chatterSection = 'telegram';
+  } else if (ctx?.params?.section) {
+    // Older links to a removed section return to the default company view.
+    chatterSection = 'coverage';
   }
 
   ctx.root.innerHTML = loadingHtml();
@@ -172,6 +161,7 @@ export function render(ctx) {
 }
 
 export function destroy() {
+  sourceDetailsOff?.(); sourceDetailsOff = null;
   mentionBookmarkOff?.(); mentionBookmarkOff = null;
   mentionLiveOff?.(); mentionLiveOff = null;
   historyCatalogueOff?.(); historyCatalogueOff = null;
@@ -179,7 +169,7 @@ export function destroy() {
   renderToken++;
   cleanup();
   chatterSection = 'coverage';
-  tableViews = { covered: null, other: null, telegram: null };
+  tableViews = { covered: null, telegram: null };
   // Forget the deep-link so returning to the same company from another chatter alert re-seeds and
   // re-opens rather than being silently ignored as "unchanged".
   routeCompany = null;
@@ -196,6 +186,7 @@ function cleanup() {
     }
   }
   paintedChatter = null;
+  paintedTelegram = null;
 }
 
 function clearPaint() {
@@ -217,14 +208,8 @@ function clearPaint() {
  * that a route check with a short settle found an all-but-empty panel. Every other tab renders its
  * chrome immediately; this one now does too, and only the body arrives late.
  */
-const loadingHtml = () => `
-  ${sectionHead({
-    title: 'Public Chatter',
-    description: description(),
-  })}
-  <div class="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm ring-1 ring-slate-100">
-    Loading chatter…
-  </div>`;
+const loadingHtml = () => `<div class="chatter-toolbar"><h2 class="chatter-title">Public Chatter</h2></div>
+  <div class="chatter-empty" role="status">Loading chatter…</div>`;
 
 // ---------------------------------------------------------------------------------------
 // Paint
@@ -242,20 +227,26 @@ function paint(ctx) {
   const chatterPending = !chatterOk && (!chatter.isLoaded() || m?.checking);
   const activeSection = SECTIONS.some((item) => item.id === chatterSection) ? chatterSection : SECTIONS[0].id;
   const onTelegram = activeSection === 'telegram';
+  if (onTelegram && paintedTelegram?.rows === telegram.posts() && paintedTelegram.scope === ctx.scope &&
+      ctx.root.querySelector('[data-chatter-head-meta]')) {
+    ctx.root.querySelector('[data-chatter-head-meta]').innerHTML = chatterHeadMeta(ctx, m, true);
+    wireChatterActions(ctx, true);
+    return;
+  }
   // A source check or a mention-popup update must not replace the focused table controls.
   if (!onTelegram && chatterOk && paintedChatter?.rows === chatter.all() &&
       paintedChatter.scope === ctx.scope && paintedChatter.section === activeSection &&
       ctx.root.querySelector('[data-chatter-head-meta]')) {
     ctx.root.querySelector('[data-chatter-head-meta]').innerHTML = chatterHeadMeta(ctx, m);
-    ctx.root.querySelector('[data-chatter-footnotes]')?.replaceWith(htmlElement(chatterFootnotes(m)));
-    wireHistoryButton(ctx);
+    wireChatterActions(ctx, false);
     return;
   }
-  const search = ctx.root.querySelector('[data-table-search]');
+  const samePanel = ctx.root.querySelector('[data-chatter-panel]')?.dataset.chatterPanel === activeSection;
+  const search = samePanel ? ctx.root.querySelector('[data-table-search]') : null;
   const searchValue = search?.value;
   const focusedSearch = search && document.activeElement === search;
   const selection = focusedSearch ? [search.selectionStart, search.selectionEnd] : null;
-  const scrollTop = ctx.root.querySelector('[data-table-scroll]')?.scrollTop || 0;
+  const scrollTop = samePanel ? ctx.root.querySelector('[data-table-scroll]')?.scrollTop || 0 : 0;
   clearPaint();
 
   // THE TAB NO LONGER DIES WITH ONE FEED, AND THAT IS THE WHOLE REASON THIS FUNCTION WAS
@@ -277,11 +268,8 @@ function paint(ctx) {
   });
 
   const covered = chatterOk ? chatter.forScope(ctx.scope) : [];
-  const other = chatterOk ? chatter.uncovered() : [];
 
-  const cards = chatterOk && activeSection === 'coverage' ? buildTopCards(covered) : null;
   const coveredTable = chatterOk && activeSection === 'coverage' ? buildCoveredTable(covered) : null;
-  const otherTable = chatterOk && activeSection === 'not-in-coverage' ? buildOtherTable(other) : null;
   const telegramTable = onTelegram ? buildTelegramTable() : null;
 
   let panel;
@@ -289,42 +277,31 @@ function paint(ctx) {
     maybeAutoRefreshTelegram();
     panel = telegramPanel(telegramTable);
   } else if (chatterPending) {
-    panel = `<div class="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm ring-1 ring-slate-100">Loading chatter…</div>`;
+    panel = `<div class="chatter-empty" role="status">Loading chatter…</div>`;
   } else if (!chatterOk) {
-    panel = unavailablePanel(m?.reason, m?.url);
-  } else if (activeSection === 'coverage') {
-    panel = `${cards ? cards.html : ''}${coveredTable ? coveredTable.html : m.resolving ? '<p class="text-sm text-slate-500">Matching companies…</p>' : emptyCovered(ctx.scope)}`;
+    panel = `<div data-chatter-unavailable class="chatter-empty">Company mentions unavailable.</div>`;
   } else {
-    panel = `${sectionHead({
-      title: 'Not in our coverage',
-      description:
-        'Entries whose slug does not resolve to a symbol in our universe or the book. This is a statement about OUR coverage, not about them — the list mixes Indian companies we do not carry, foreign names and bare themes, and we do not guess which is which. Shown in full in every scope, because a holding cannot be filtered out of a list that has no tickers.',
-    })}${otherTable.html}`;
+    panel = coveredTable ? coveredTable.html : m.resolving ? '<div class="chatter-empty" role="status">Matching companies…</div>' : emptyCovered(ctx.scope);
   }
 
   ctx.root.innerHTML = `
-    ${sectionHead({
-      title: 'Public Chatter',
-      description: onTelegram ? telegramDescription() : chatterOk ? description(m.window) : meta.subtitle,
-      meta: onTelegram
-        ? telegramHeadMeta()
-        : `<div data-chatter-head-meta class="flex flex-wrap items-center justify-end gap-2">${chatterHeadMeta(ctx, m)}</div>`,
-    })}
-    <div class="mb-5 rounded-2xl bg-white px-3 shadow-sm ring-1 ring-slate-100" data-chatter-section-tabs>
-      ${sectionTabs.html}
+    <div class="chatter-toolbar" data-chatter-toolbar>
+      <div class="chatter-toolbar-main">
+        <h2 class="chatter-title">Public Chatter</h2>
+        <div data-chatter-section-tabs>${sectionTabs.html}</div>
+      </div>
+      <div data-chatter-head-meta class="chatter-toolbar-actions">${chatterHeadMeta(ctx, m, onTelegram)}</div>
     </div>
     <div role="tabpanel" aria-label="${escapeHtml(SECTIONS.find((item) => item.id === activeSection)?.label || '')}" data-chatter-panel="${escapeHtml(activeSection)}">
       ${panel}
-      ${onTelegram ? telegramFootnotes() : chatterOk ? chatterFootnotes(m) : ''}
     </div>`;
 
   paintDisposers.push(sectionTabs.wire(ctx.root.querySelector('[data-chatter-section-tabs]')));
-  if (cards) cards.wire(ctx.root);
   if (coveredTable) paintDisposers.push(coveredTable.wire(ctx.root));
-  if (otherTable) paintDisposers.push(otherTable.wire(ctx.root));
   if (telegramTable) paintDisposers.push(telegramTable.wire(ctx.root));
-  wireHistoryButton(ctx);
-  if (!onTelegram) {
+  wireChatterActions(ctx, onTelegram);
+  paintDisposers.push(fitTableViewport(ctx.root, { bottomGap: 16 }));
+  if (samePanel) {
     const scroller = ctx.root.querySelector('[data-table-scroll]');
     if (scroller) scroller.scrollTop = scrollTop;
     if (focusedSearch) {
@@ -335,20 +312,52 @@ function paint(ctx) {
     }
   }
   paintedChatter = chatterOk && !onTelegram ? { rows: chatter.all(), scope: ctx.scope, section: activeSection } : null;
+  paintedTelegram = onTelegram && telegram.meta().ok ? { rows: telegram.posts(), scope: ctx.scope } : null;
 }
 
-function htmlElement(html) { const template = document.createElement('template'); template.innerHTML = html.trim(); return template.content.firstElementChild; }
-function chatterHeadMeta(ctx, m) {
-  return `${m ? livePill(m) : ''}${m?.readable ? scopeSummary({ scope: ctx.scope, count: new Set(chatter.forScope(ctx.scope).map(row => row.ticker)).size, noun: `mentioned · ${m.window}`, book: coverage.meta() }) : ''}
-    <button data-chatter-history class="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-indigo-600 ring-1 ring-slate-200">Captured history</button>`;
+function chatterHeadMeta(ctx, m, onTelegram = false) {
+  return `${onTelegram ? telegramStatus() : ''}
+    <button type="button" data-chatter-source-details class="chatter-action">Source details</button>
+    ${onTelegram ? '' : '<button type="button" data-chatter-history class="chatter-action" title="Captured mention history" aria-label="Captured history">History</button>'}`;
 }
-function wireHistoryButton(ctx) { ctx.root.querySelector('[data-chatter-history]')?.addEventListener('click', () => openHistoryCatalogue(ctx)); }
+function wireChatterActions(ctx, onTelegram) {
+  ctx.root.querySelector('[data-chatter-history]')?.addEventListener('click', () => openHistoryCatalogue(ctx));
+  ctx.root.querySelector('[data-chatter-source-details]')?.addEventListener('click', () => openSourceDetails(ctx, onTelegram));
+}
+function openSourceDetails(ctx, onTelegram) {
+  sourceDetailsOff?.(); sourceDetailsOff = null;
+  const details = () => {
+    const m = chatter.meta();
+    if (onTelegram) {
+      const t = telegram.meta();
+      if (!t.loaded) return '<p class="text-sm text-slate-600">Checking the Telegram archive…</p>';
+      if (!t.ok) return '<p class="text-sm text-slate-600">The Telegram archive could not be read. Returning to the tab will retry.</p>';
+      return `${telegramSourceInfo()}${telegramFootnotes()}`;
+    }
+    if (!m?.readable && (!chatter.isLoaded() || m?.checking)) return '<p class="text-sm text-slate-600">Checking company mentions…</p>';
+    return m?.readable
+      ? `${scopeSummary({ scope: ctx.scope, count: new Set(chatter.forScope(ctx.scope).map(row => row.ticker)).size, noun: 'mentioned companies', book: coverage.meta() })}${chatterFootnotes(m)}`
+      : unavailablePanel(m?.reason, m?.url);
+  };
+  openModal(`<div data-chatter-source-dialog class="chatter-source-dialog">
+    <div class="chatter-source-head"><h2>Source details</h2><button type="button" data-modal-close aria-label="Close source details">&times;</button></div>
+    <div data-chatter-source-body>${details()}</div>
+  </div>`, { size: 'wide', onClose: () => {
+    sourceDetailsOff?.(); sourceDetailsOff = null;
+    ctx.root.querySelector('[data-chatter-source-details]')?.focus({ preventScroll: true });
+  } });
+  const refresh = () => {
+    const body = document.querySelector('[data-chatter-source-body]');
+    if (body) body.innerHTML = details();
+  };
+  sourceDetailsOff = onTelegram ? telegram.onChange(refresh) : chatter.onChange(refresh);
+}
 
 /**
  * Open the real items behind one dashboard count. The detail request is lazy so this table stays a
  * small summary read, while repeated company visits use the saved mentions cache.
  */
-function openMentions(entry) {
+function openMentions(entry, mentionId = null) {
   if (!entry?.slug) return;
   historyCatalogueOff?.(); historyCatalogueOff = null;
   mentionBookmarkOff?.(); mentionBookmarkOff = null;
@@ -358,6 +367,7 @@ function openMentions(entry) {
   const archived = !!entry.archiveTopic;
   let monthIndex = 0, visibleLimit = 40, payloads = new Map();
   let olderPending = false, olderFailed = false;
+  let focusedMention = false;
   openModal(mentionsFrame(entry), {
     size: 'wide',
     onClose: () => {
@@ -379,6 +389,8 @@ function openMentions(entry) {
     const anchorId = anchor?.dataset.mentionId, anchorTop = anchor?.getBoundingClientRect().top;
     const anchorIndex = anchorId ? all.findIndex(post => post.id === anchorId) : -1;
     if (anchorIndex >= visibleLimit) combined.visibleLimit = visibleLimit = anchorIndex + 40;
+    const requestedIndex = mentionId && !focusedMention ? all.findIndex(post => post.id === mentionId) : -1;
+    if (requestedIndex >= visibleLimit) combined.visibleLimit = visibleLimit = requestedIndex + 1;
     mentionBookmarkOff?.();
     // Finish the current month's pages before offering the next older month.
     body.innerHTML = mentionsBody(entry, combined) + (archived && payloads.get(months[monthIndex])?.complete && visibleLimit >= all.length && monthIndex < months.length - 1
@@ -415,6 +427,10 @@ function openMentions(entry) {
     dialog.scrollTop = top;
     const restored = anchorId && [...body.querySelectorAll('[data-mention-id]')].find(row => row.dataset.mentionId === anchorId);
     if (restored) dialog.scrollTop += restored.getBoundingClientRect().top - anchorTop;
+    if (requestedIndex >= 0) {
+      const target = [...body.querySelectorAll('[data-mention-id]')].find(row => row.dataset.mentionId === mentionId);
+      target?.scrollIntoView({ block: 'center' }); target?.focus({ preventScroll: true }); focusedMention = true;
+    }
     // Keep keyboard-accessible buttons while allowing uninterrupted reading by scroll.
     dialog.onscroll = () => {
       if (token !== mentionRequestToken || dialog.scrollTop <= 0 || dialog.scrollHeight - dialog.scrollTop - dialog.clientHeight > 240) return;
@@ -460,7 +476,7 @@ function openHistoryCatalogue(ctx) {
     if (!body) return;
     historyCatalogueOff?.();
     const resolved = chatter.resolveArchiveTopics(value);
-    const rows = chatterSection === 'not-in-coverage' ? resolved.filter(row => !row.ticker) : chatter.forScope(ctx.scope, resolved.filter(row => row.ticker));
+    const rows = chatter.forScope(ctx.scope, resolved.filter(row => row.ticker));
     const table = scoreTable({ rows, key: row => row.slug, name: row => row.name, sub: row => row.ticker || row.slug,
       nameLabel: 'Company / topic', showRank: false, showAvatar: false, showWatchFilter: false,
       watchKey: () => null, searchable: row => `${row.name} ${row.ticker || ''} ${row.slug}`,
@@ -534,7 +550,7 @@ function mentionRow(post, entry, index) {
   const when = Number.isFinite(Date.parse(post.at)) ? `${formatDate(post.at)} · ${formatTime(post.at)}` : 'Time not published';
   const excerpt = shortExcerpt(post.text);
   return `
-    <article class="rounded-xl border border-slate-200 bg-white p-4" data-chatter-mention-row data-mention-index="${index}" data-mention-id="${escapeHtml(post.id)}">
+    <article tabindex="-1" class="rounded-xl border border-slate-200 bg-white p-4" data-chatter-mention-row data-mention-index="${index}" data-mention-id="${escapeHtml(post.id)}">
       <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
         <span class="font-semibold text-slate-700">${escapeHtml(post.sourceLabel || post.community || 'Source')}</span>
         <span aria-hidden="true">·</span>
@@ -584,32 +600,28 @@ const titleCase = (value) => {
 // Chrome
 // ---------------------------------------------------------------------------------------
 
+function sourceFacts(rows) {
+  return `<dl class="chatter-source-facts">${rows.map(([label, value]) => `<div><dt>${escapeHtml(label)}:</dt><dd>${escapeHtml(String(value ?? 'Not reported'))}</dd></div>`).join('')}</dl>`;
+}
 function chatterFootnotes(m) {
   const mood = chatter.overview()?.marketMood;
-  const moodText = mood
-    ? `${escapeHtml(mood.labelText)} (${escapeHtml(String(mood.percent.bullish))}% bullish, ${escapeHtml(String(mood.percent.bearish))}% bearish, ${escapeHtml(String(mood.percent.neutral))}% neutral)`
-    : 'not reported';
-  const scrapeText = m.generatedAt ? formatRelativeTime(new Date(m.generatedAt)) : 'not reported';
-  const sourceAge = m.ageSeconds != null ? `${Math.round(m.ageSeconds / 3600)}h since this snapshot` : 'source age unavailable';
-  return `
-    <div data-chatter-footnotes class="mt-4 border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-500">
-      <p><strong class="font-semibold text-slate-600">Footnotes.</strong>
-        Coverage: ${escapeHtml(formatNumber(m.companies))} of ${escapeHtml(formatNumber(m.total))} feed entries resolve to a company we cover.
-        Posts: ${m.totalPosts == null ? 'not reported' : escapeHtml(formatNumber(m.totalPosts))} over ${escapeHtml(m.window)}, across ${escapeHtml(sourceSummary(m.sourceTotals))}.
-        Market mood: ${moodText}; keyword-scored by SentimentDash and reproduced unchanged.
-        Company summaries describe the source tags: opposing bullish/bearish tags are Mixed; Bullish or Bearish requires a majority of all mentions and no opposing tags. Missing or inconsistent counts are Unconfirmed. These are not investment assessments.
-        Snapshot assembled: ${escapeHtml(scrapeText)} (${escapeHtml(sourceAge)}).
-        Company matches count mentions found, not successful checks of every holding.
-      </p>
-      <details class="mt-2"><summary class="cursor-pointer font-semibold">Source coverage and captured history</summary><div class="mt-2 space-y-1">
-        ${['valuepickr', 'news', 'tradingqna'].map(key => {
-          const source = m.collection?.sources?.[key];
-          return `<p>${escapeHtml(chatter.sourceLabel(key))}: ${source?.lastSuccessAt ? `last successful check ${escapeHtml(formatDate(source.lastSuccessAt))} · ${escapeHtml(formatTime(source.lastSuccessAt))}` : 'successful check not reported'}${source?.state && source.state !== 'ok' ? ` · ${escapeHtml(source.state)}` : ''}${source?.history?.complete === false ? ' · history catch-up in progress' : ''}.</p>`;
-        }).join('')}
-        <p>Source checks are requested every two hours; scheduling and sources can delay delivery. This page checks for published updates every five minutes while visible and on return. Saved data stays available through a failed check.</p>
-        <p>Forums and broad news searches discover mentions; they do not verify every company or every public post. Captured history is retained separately from this 30-day view. ${m.collection?.archive?.recovery?.complete === false ? 'Earlier real captures are still being recovered.' : ''}</p>
-      </div></details>
-    </div>`;
+  const facts = [
+    ['Status', m.health?.label || 'Source checks unconfirmed'],
+    ['Sources', sourceSummary(m.sourceTotals)], ['Window', windowLabel(m.window)],
+    ['Coverage', `${formatNumber(m.companies)} of ${formatNumber(m.total)} topics matched to covered companies`],
+    ['Posts', m.totalPosts == null ? 'Not reported' : formatNumber(m.totalPosts)],
+    ['Market mood', mood ? `${mood.labelText} (${mood.percent.bullish}% bullish, ${mood.percent.bearish}% bearish, ${mood.percent.neutral}% neutral)` : 'Not reported'],
+    ['Snapshot assembled', m.generatedAt ? `${formatDate(m.generatedAt)} · ${formatTime(m.generatedAt)}` : 'Not reported'],
+    ...['valuepickr', 'news', 'tradingqna'].map(key => {
+      const source = m.collection?.sources?.[key];
+      return [chatter.sourceLabel(key), `${source?.lastSuccessAt ? `${formatDate(source.lastSuccessAt)} · ${formatTime(source.lastSuccessAt)}` : 'Successful check not reported'}${source?.state ? ` · ${source.state}` : ''}${source?.history?.complete === false ? ' · history catch-up in progress' : ''}`];
+    }),
+    ['Captured history', m.collection?.archive?.recovery?.complete === false ? 'Earlier captures are still being recovered' : 'Retained separately from the current window'],
+  ];
+  return `<div data-chatter-footnotes>${sourceFacts(facts)}
+    <p class="chatter-source-note">Source coverage and captured history can have gaps. Discovery does not check every company or public post.</p>
+    <p class="chatter-source-note">Sentiment uses keyword tags from SentimentDash. Opposing tags are Mixed; incomplete counts are Unconfirmed. Mentions Δ measures volume between captures.</p>
+  </div>`;
 }
 
 const sourceSummary = (totals) => {
@@ -622,10 +634,9 @@ const sourceSummary = (totals) => {
 
 /**
  * Export the currently visible table rows, not the whole feed hidden behind the reader's search
- * and sentiment filters. Both in-page tables use the same upstream metrics, but only Coverage can
- * honestly carry an NSE symbol; the uncovered export keeps the resolver's reason instead.
+ * and sentiment filters. Coverage exports retain the matched company and original forum topic.
  */
-function exportChatterRows(rows, { covered }) {
+function exportChatterRows(rows) {
   const m = chatter.meta();
   const banner = {
     __banner: true,
@@ -638,17 +649,14 @@ function exportChatterRows(rows, { covered }) {
   };
   const value = (row, get) => (row.__banner ? '' : get(row));
   const columns = [
-    { header: covered ? 'Company' : 'Topic', key: 'name', width: 30, get: (r) => (r.__banner ? r.text : r.name || '') },
-    ...(covered
-      ? [
-          { header: 'NSE ticker', key: 'ticker', width: 16, get: (r) => value(r, (x) => x.ticker || '') },
-          { header: 'Forum topic', key: 'slug', width: 24, get: (r) => value(r, (x) => x.slug || '') },
-          { header: 'Matched company', key: 'matched', width: 30, get: (r) => value(r, (x) => x.matchedName || '') },
-        ]
-      : [
-          { header: 'Topic slug', key: 'slug', width: 24, get: (r) => value(r, (x) => x.slug || '') },
-          { header: 'Coverage result', key: 'coverage', width: 46, get: (r) => value(r, (x) => x.unresolvedReason || 'No NSE symbol resolved') },
-        ]),
+    { header: 'Company', key: 'name', width: 30, get: (r) => (r.__banner ? r.text : r.name || '') },
+    { header: 'NSE ticker', key: 'ticker', width: 16, get: (r) => value(r, (x) => x.ticker || '') },
+    { header: 'Forum topic', key: 'slug', width: 24, get: (r) => value(r, (x) => x.slug || '') },
+    { header: 'Latest source highlights', key: 'highlights', width: 70, get: r => value(r, x => latestChatterHighlights(x).map(post => {
+      const reading = chatterHighlightReading(post.text);
+      return `${shortChatterHighlight(post.text, reading) || 'No excerpt published'} [Text: ${reading.label}; Source tag: ${post.sentiment || 'unclassified'}; ${post.at || 'time not published'}] ${safeExternalUrl(post.url) || 'Original link unavailable'}`;
+    }).join('\n') || 'Excerpts not loaded; open company to read') },
+    { header: 'Matched company', key: 'matched', width: 30, get: (r) => value(r, (x) => x.matchedName || '') },
     { header: 'Mentions', key: 'mentions', width: 14, get: (r) => value(r, (x) => x.mentions ?? '') },
     { header: 'Previous mentions', key: 'mentions_prev', width: 18, get: (r) => value(r, (x) => x.mentionsPrev ?? '') },
     { header: 'Mention change %', key: 'mention_change', width: 18, get: (r) => value(r, (x) => x.mentionsChangePct ?? '') },
@@ -663,41 +671,12 @@ function exportChatterRows(rows, { covered }) {
   ];
 
   return exportRows({
-    filename: `glow-public-chatter-${covered ? 'coverage' : 'not-in-coverage'}-${todayStamp()}`,
-    sheetName: covered ? 'Coverage' : 'Not in coverage',
+    filename: `glow-public-chatter-coverage-${todayStamp()}`,
+    sheetName: 'Coverage',
     columns,
     rows: [banner, ...rows],
   });
 }
-
-function buildTopCards(rows) {
-  const ranked = rows.filter((r) => r.mentions > 0).slice(0, 10);
-  if (ranked.length < 3) return null;
-  return topCards({
-    title: 'Most discussed companies',
-    compact: true,
-    items: ranked.map((r) => ({
-      key: r.slug,
-      name: r.name,
-      sub: `${r.ticker} · ${r.sentimentReading.labelText}`,
-      value: formatNumber(r.mentions),
-      unit: r.mentions === 1 ? 'mention' : 'mentions',
-      caption: `Last ${windowLabel(chatter.meta()?.window)}`,
-      actionLabel: 'Read mentions',
-      tone: 'neutral',
-    })),
-    valueFormat: 'metric',
-    onSelect: (item) => openMentions(rows.find((r) => r.slug === item.key)),
-  });
-}
-
-/** A readable response does not certify the source collector. */
-const livePill = (m) => {
-  const health = m.health || { state: 'unconfirmed', label: 'Source checks unconfirmed' };
-  const tone = health.state === 'updated' ? 'bg-emerald-50 text-emerald-700 ring-emerald-100' : health.state === 'checking' ? 'bg-slate-50 text-slate-600 ring-slate-200' : 'bg-amber-50 text-amber-800 ring-amber-200';
-  const time = health.checkedAt ? ` · ${formatRelativeTime(health.checkedAt)}` : '';
-  return `<span data-chatter-live data-chatter-state="${escapeHtml(health.state)}" class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${tone}">${escapeHtml(health.label + time)}</span>`;
-};
 
 // ---------------------------------------------------------------------------------------
 // Tables
@@ -761,10 +740,11 @@ function buildCoveredTable(rows) {
     searchable: (r) => `${r.name} ${r.ticker} ${r.matchedName || ''} ${r.slug || ''}`,
     dense: true,
     wrapHeads: true,
+    nameMaxPx: 220,
     initialSort: { key: 'Mentions', dir: 'desc' },
     initialView: tableViews.covered,
     exportName: 'chatter-companies',
-    onExport: (visible) => exportChatterRows(visible, { covered: true }),
+    onExport: (visible) => exportChatterRows(visible),
     onRowClick: openMentions,
     filters: [sentimentFilter()],
     columns: [
@@ -793,6 +773,7 @@ function buildCoveredTable(rows) {
         sortValue: (r) => r.sentiment.bullish - r.sentiment.bearish,
       },
       { label: 'Sources', get: sourceCell, html: true },
+      { label: 'Highlights', get: chatterHighlightsCell, html: true },
     ],
   });
   // The table rebuilds on every live tick, so its search/sort/filter state has to survive that or
@@ -801,12 +782,14 @@ function buildCoveredTable(rows) {
     html: table.html,
     wire: (root) => {
       const off = table.wire(root);
+      const highlightsOff = wireChatterHighlights(root, rows, openMentions);
       return () => {
         // `scoreTable` returns `view` as a live OBJECT, not a getter. Calling it threw a
         // TypeError on every teardown, so the reader's search and sort were silently discarded on
         // each live tick — the exact thing this disposer exists to prevent. It went unseen because
         // the console was already noisy with the Tailwind CDN failing in the sandbox.
         tableViews.covered = table.view ?? tableViews.covered;
+        highlightsOff();
         off?.();
       };
     },
@@ -818,59 +801,9 @@ function buildCoveredTable(rows) {
  * pending here: the feed was read successfully and nothing in it matched. "Nobody is discussing
  * your holdings" is a finding, and dressing it as a missing feature would hide a real answer.
  */
-const emptyCovered = (scope) => `
-  <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
-    <h3 class="font-display text-base font-bold text-slate-900">${
-      scope === 'portfolio' ? 'No book holding appears in this scrape' : scope === 'watchlist' ? 'None of your watchlist companies appears in this scrape' : 'Nothing resolved to a company we cover'
-    }</h3>
-    <p class="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-600">${
-      scope === 'portfolio'
-        ? 'No mentions matched the current book in this captured snapshot. Discovery sources do not check every holding; switch to Universe or captured history to browse more.'
-        : 'No captured mentions matched this scope. Source discovery and identity matching can have gaps; browse Not in coverage or captured history for more.'
-    }</p>
-  </div>`;
-
-function buildOtherTable(rows) {
-  const table = scoreTable({
-    rows,
-    key: (r) => r.slug,
-    // The uncovered half is BY DEFINITION the entries that resolved to no company — that is what
-    // puts them in this table — so there is nothing to star.
-    watchKey: () => null,
-    name: (r) => r.name,
-    sub: (r) => r.slug,
-    // A function, not `true` — see the covered table above; `scoreTable` calls it to build the
-    // search haystack, so a bare `true` throws the moment anyone types in this box.
-    searchable: (r) => `${r.name || ''} ${r.slug || ''}`,
-    dense: true,
-    wrapHeads: true,
-    showAvatar: false,
-    showRank: false,
-    initialSort: { key: 'Mentions', dir: 'desc' },
-    initialView: tableViews.other,
-    exportName: 'chatter-uncovered',
-    onExport: (visible) => exportChatterRows(visible, { covered: false }),
-    stickyHead: 'max(320px, calc(100vh - 420px))',
-    onRowClick: openMentions,
-    filters: [sentimentFilter()],
-    columns: [
-      { label: 'Mentions', get: mentionsCell, html: true, align: 'right', sortable: true, sortValue: (r) => r.mentions },
-      { label: 'Mentions Δ', get: mentionsDeltaCell, html: true, align: 'right', sortable: true, sortValue: (r) => r.mentionsChangePct ?? -Infinity },
-      { label: 'Sentiment', get: (r) => sentimentPill(r.sentimentReading), html: true, sortable: true, sortValue: (r) => r.sentimentReading.labelText },
-      { label: 'Sources', get: sourceCell, html: true },
-    ],
-  });
-  return {
-    html: table.html,
-    wire: (root) => {
-      const off = table.wire(root);
-      return () => {
-        tableViews.other = table.view ?? tableViews.other;
-        off?.();
-      };
-    },
-  };
-}
+const emptyCovered = (scope) => `<div class="chatter-empty">${
+  scope === 'portfolio' ? 'No captured mentions match the current portfolio.' : scope === 'watchlist' ? 'No captured mentions match the watchlist.' : 'No captured mentions match covered companies.'
+}</div>`;
 
 // ---------------------------------------------------------------------------------------
 // Telegram — retained posts with source dates and collection progress.
@@ -888,18 +821,14 @@ const telegramContentLabel = (r) => {
   if (media) return `${media} in Telegram · ${r.text ? 'Caption readable here' : r.attachments?.length ? 'Filename only' : 'No caption captured'}`;
   return r.text ? 'Text readable here' : 'Type unavailable · Date and link captured';
 };
+const telegramLinkOnly = (r) => !r.text && !r.attachments?.length && !telegramMediaLabel(r);
 const postLabel = (r) => r.text || r.attachments?.map((a) => a.name).join(', ') ||
   (telegramMediaLabel(r) ? `${telegramMediaLabel(r)} · Open in Telegram` : 'Post link captured · Open in Telegram');
 const TELEGRAM_DATE_FORMAT = new Intl.DateTimeFormat('en-IN', {
   day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata',
 });
 const telegramDate = (value) => value ? TELEGRAM_DATE_FORMAT.format(new Date(value)) : 'Date not captured yet';
-function telegramDescription() {
-  const t = telegram.meta();
-  return `Posts from ${escapeHtml(t.channel ? `@${t.channel}` : 'the public Telegram channel')}, newest first, with original publication dates in IST. ` +
-    'Read captured text and captions here. Images, videos and documents open in Telegram. Posts appear in every portfolio scope.';
-}
-function telegramHeadMeta() {
+function telegramSourceInfo() {
   const t = telegram.meta();
   const health = telegramReadHealth(t);
   const failed = health.failed || health.partial;
@@ -908,21 +837,33 @@ function telegramHeadMeta() {
   const paused = t.apiSafety?.paused || (failed && Date.parse(t.apiSafety?.nextAttemptAt || '') > Date.now());
   const publicPaused = t.route !== 'mtproto' && Date.parse(t.publicSafety?.nextAttemptAt || '') > Date.now();
   const label = publicPaused ? `Public source retry after ${telegramDate(t.publicSafety.nextAttemptAt)}` : paused ? (t.apiSafety?.paused ? 'Account collection paused for review' : `Account collection paused until ${telegramDate(t.apiSafety.nextAttemptAt)}`) : failed ? 'Collection needs attention' : t.lastCheckedAt ? `Checked ${formatRelativeTime(new Date(t.lastCheckedAt))}` : 'Check time unavailable';
-  return `<div class="flex flex-wrap items-center gap-2">
-    <span data-telegram-live data-telegram-freshness="${state}" class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${warning ? 'bg-amber-50 text-amber-700 ring-amber-100' : 'bg-slate-50 text-slate-600 ring-slate-200'}">
-      ${escapeHtml(formatNumber(t.count || 0))} archived · ${escapeHtml(formatNumber(t.listed || 0))} readable here · ${escapeHtml(label)}
-    </span>
-    <p data-telegram-source-status class="text-xs text-slate-500">Newest captured post: ${escapeHtml(telegramDate(t.newestPublishedAt))}. ${t.newestReadableAt !== t.newestPublishedAt ? `Newest readable text: ${t.newestReadableAt ? escapeHtml(telegramDate(t.newestReadableAt)) : 'none captured'}. ` : ''}${t.delivery?.collectorInProgress ? 'Collection is continuing. ' : ''}${t.latestVerifiedAt && !failed ? `Latest channel post verified ${escapeHtml(formatRelativeTime(new Date(t.latestVerifiedAt)))}.` : 'Latest channel post has not been verified.'}</p>
-  </div>`;
+  return `<div data-telegram-source-summary>${sourceFacts([
+    ['Source', t.channel ? `@${t.channel}` : 'Public Telegram channel'],
+    ['Route', t.route === 'mtproto' ? 'Official Telegram API' : 'Public message pages and embeds'],
+    ['Status', label],
+    ['Last successful check', health.at ? `${telegramDate(health.at)} IST` : 'Not reported'],
+    ['Archive', `${formatNumber(t.count || 0)} archived · ${formatNumber(t.listed || 0)} readable here`],
+    ['Newest captured post', `${telegramDate(t.newestPublishedAt)}${t.newestPublishedAt ? ' IST' : ''}`],
+    ...(t.newestReadableAt !== t.newestPublishedAt ? [['Newest readable text', t.newestReadableAt ? `${telegramDate(t.newestReadableAt)} IST` : 'None captured']] : []),
+    ['Verification', t.latestVerifiedAt && !failed ? `Latest channel post verified ${formatRelativeTime(new Date(t.latestVerifiedAt))}` : 'Latest channel post has not been verified'],
+    ['Collection', t.delivery?.collectorInProgress ? 'Continuing' : 'No active collection reported'],
+  ])}</div>`;
+}
+
+function telegramStatus() {
+  const t = telegram.meta(), health = telegramReadHealth(t);
+  const label = !t.loaded ? 'Checking…' : !t.ok ? 'Unavailable' : health.paused ? 'Collection paused' :
+    health.failed || health.partial ? 'Collection needs attention' : health.stale ? `Delayed · ${formatRelativeTime(health.at)}` :
+    health.at ? `Checked ${formatRelativeTime(health.at)}` : 'Check time unavailable';
+  const tone = health.state === 'checked' ? 'bg-slate-50 text-slate-600 ring-slate-200' : 'bg-amber-50 text-amber-700 ring-amber-100';
+  return `<span data-telegram-live data-telegram-freshness="${escapeHtml(health.state)}" class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${tone}">${escapeHtml(label)}</span>`;
 }
 function telegramPanel(table) {
   const t = telegram.meta();
-  if (!t.loaded) return '<div class="rounded-2xl bg-white p-10 text-center text-sm text-slate-400">Loading Telegram posts…</div>';
-  if (!t.ok) return '<div data-telegram-unavailable class="rounded-2xl bg-white p-8 text-sm text-slate-600">Telegram posts are not available. The archive could not be read; returning to this tab will retry.</div>';
-  if (!t.count) return '<div data-telegram-empty class="rounded-2xl bg-white p-8 text-sm text-slate-600">No posts have been captured yet.</div>';
-  const unavailable = t.count - t.listed;
-  const notice = unavailable ? `<p data-telegram-content-notice class="mb-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">${escapeHtml(formatNumber(unavailable))} posts are saved with dates and original links, but no readable text. Their content opens in Telegram. Known media are labelled Image, Video or Document; <strong>Type unavailable</strong> means Telegram did not expose the type. Choose <strong>Readable here</strong> to browse captured text and captions.</p>` : '';
-  return notice + (table?.html || '');
+  if (!t.loaded) return '<div class="chatter-empty" role="status">Loading Telegram posts…</div>';
+  if (!t.ok) return '<div data-telegram-unavailable class="chatter-empty">Telegram archive unavailable.</div>';
+  if (!t.count) return '<div data-telegram-empty class="chatter-empty">No captured posts yet.</div>';
+  return table?.html || '';
 }
 function openTelegramPost(r) {
   openModal(`<div data-telegram-post-dialog class="scrollbar-thin max-h-[82vh] overflow-y-auto p-6">
@@ -954,8 +895,8 @@ function maybeAutoRefreshTelegram() {
 }
 
 function buildTelegramTable() {
-  // A captured publication remains visible even when Telegram withholds its public text.
-  // Its date and original link distinguish new restricted posts from a stalled collection.
+  // Link-only publications stay in the full model and archive. The visible checkbox hides them
+  // by default; named files and identified media remain useful even without a captured caption.
   const rows = telegram.posts();
   if (!rows.length) return null;
   const table = scoreTable({
@@ -964,10 +905,13 @@ function buildTelegramTable() {
     searchable: (r) => `${postLabel(r)} ${telegramContentLabel(r)} ${r.id} ${r.publishedAt || ''} ${r.attachments.map((a) => a.name).join(' ')}`,
     searchPlaceholder: 'Search posts, reports or message number…',
     dense: true, wrapHeads: true, showAvatar: false, showRank: false, nameMaxPx: 620,
-    nameLabel: 'Post', emptyMessage: 'No posts match this view. Change the Content filter or search to see other archived posts.', showWatchFilter: false,
+    nameLabel: 'Post', emptyMessage: 'No posts match this view. Uncheck Hide link-only posts, change the Content filter or search to see other archived posts.', showWatchFilter: false,
     filters: [{ label: 'Content', value: 'all',
       options: [{ value: 'all', label: 'All posts' }, { value: 'readable', label: 'Readable here' }, { value: 'telegram', label: 'Open in Telegram' }],
-      match: (r, value) => value === 'readable' ? !!r.text : !r.text }],
+      match: (r, value) => value === 'readable' ? !!r.text : !r.text },
+      { type: 'checkbox', label: 'Hide link-only posts', value: 'hide',
+        options: [{ value: 'all', label: 'Include link-only posts' }, { value: 'hide', label: 'Hide link-only posts' }],
+        match: (r) => !telegramLinkOnly(r) }],
     initialView: tableViews.telegram, exportName: 'telegram-posts', onExport: exportTelegramRows,
     stickyHead: 'max(320px, calc(100vh - 420px))', onRowClick: openTelegramPost,
     columns: [
@@ -980,19 +924,18 @@ function buildTelegramTable() {
 function telegramFootnotes() {
   const t = telegram.meta();
   if (!t.ok) return '';
-  const progress = t.historyComplete ? 'The historical scan has reached the start of the channel.' :
-    t.historyNextId ? `Older history is incomplete; the next collection continues below message ${formatNumber(t.historyNextId + 1)}.` : 'Older history has not been fully scanned.';
-  return `<div data-telegram-footnotes class="mt-4 border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-500">
-    <p>Source: ${escapeHtml(t.channel ? `@${t.channel}` : 'Telegram')} via ${t.route === 'mtproto' ? 'the official Telegram API' : 'public message pages and embeds'}. ${escapeHtml(progress)}
-    ${formatNumber(t.count - t.listed)} messages have no captured text and can be found using the Content filter; ${formatNumber(t.pending || 0)} message lookups are awaiting retry.
-    ${t.undated ? `${formatNumber(t.undated)} older records are awaiting publication dates. ` : ''}
-    Gaps between message numbers are not treated as posts. Publication dates come from Telegram; collection and first-seen times are separate.
-    Captures update automatically while this tab is open. Collection scheduling is best effort; this is a polled feed. Original files open in Telegram.</p>
-  </div>`;
+  const history = t.historyComplete ? 'History scan reached the start of the channel' :
+    t.historyNextId ? `Older history is incomplete; next scan below message ${formatNumber(t.historyNextId + 1)}` : 'Older history is incomplete';
+  return `<div data-telegram-footnotes>${sourceFacts([
+    ['History', history],
+    ['Links and media', `${formatNumber(t.count - t.listed)} messages have no captured text`],
+    ['Retries', `${formatNumber(t.pending || 0)} message lookups awaiting retry`],
+    ['Undated records', formatNumber(t.undated || 0)],
+  ])}<p class="chatter-source-note">Publication dates come from Telegram. Files open in Telegram. Collection can have gaps; message-number gaps do not establish missing posts.</p></div>`;
 }
 function exportTelegramRows(rows) {
   const t = telegram.meta();
-  const banner = { __banner: true, text: `Posts from @${t.channel}. Export includes the current search and Content filter. Publication times come from Telegram (UTC in this export); first seen is the collector's time. Files and missing text must be opened in Telegram. History ${t.historyComplete ? 'scanned to the beginning' : 'still being collected'}. Last successful check: ${t.lastCheckedAt || 'not recorded'}.` };
+  const banner = { __banner: true, text: `Posts from @${t.channel}. Export includes the current search, Content filter and Hide link-only posts setting. Publication times come from Telegram (UTC in this export); first seen is the collector's time. Files and missing text must be opened in Telegram. History ${t.historyComplete ? 'scanned to the beginning' : 'still being collected'}. Last successful check: ${t.lastCheckedAt || 'not recorded'}.` };
   const value = (r, fn) => r.__banner ? '' : fn(r);
   return exportRows({ filename: `glow-telegram-posts-${todayStamp()}`, sheetName: 'Telegram',
     columns: [
