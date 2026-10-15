@@ -44,7 +44,8 @@ const server = createServer(async (req, res) => {
       .replace(/export const sheetUploadHtml = \(\) => `[\s\S]*?`;/, "export const sheetUploadHtml = () => ''; ")
       .replace("const button = host.querySelector('[data-sheet-upload]');", "const button = host.querySelector('[data-sheet-upload]'); if (!button) return () => {};");
     if (previous && path === '/js/ui/sheet-editor.js') bytes = bytes.toString()
-      .replace('type="${isDate ? \'date\' : \'text\'}"', 'type="text"').replace(
+      .replace('${isDate ? \'\' : \'<button type="submit" class="sheet-editor-primary">Save</button>\'}', '<button type="submit" class="sheet-editor-primary">Save</button>')
+      .replace("if (isDate) input.addEventListener('change', onSubmit);", '').replace(
       '<p class="sheet-editor-error"', '<p class="sheet-editor-note">Nothing is shown when it is empty — this one is the desk’s to fill.</p><p class="sheet-editor-error"');
     res.writeHead(200, { 'content-type': { '.js': 'text/javascript', '.html': 'text/html', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml' }[extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' });
     res.end(bytes);
@@ -75,7 +76,9 @@ try {
   const before = await page.locator('[data-sheet-table="portfolio"] tbody tr[data-row-key]').evaluateAll(rows => rows.map(row => row.dataset.rowKey));
   const dateCell = page.locator('[data-sheet-table="portfolio"] [data-sheet-field="dateBought"]').first();
   await dateCell.click();
-  assert.equal(await page.locator('[data-sheet-input]').getAttribute('type'), 'text', 'reproduce the cached text date editor');
+  assert.equal(await page.locator('[data-sheet-input]').getAttribute('type'), 'date', 'warm the preceding calendar editor');
+  await page.locator('[data-sheet-input]').fill('2024-02-28');
+  assert.equal(await page.locator('.sheet-editor button[type="submit"]').count(), 1, 'reproduce the calendar that still requires Save');
   await page.locator('[data-sheet-cancel]').click();
   previous = false;
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
@@ -88,9 +91,10 @@ try {
   assert(!(await page.evaluate(() => caches.keys())).some(key => key.includes('previous-glow-hidden-scope')));
   await dateCell.click();
   assert.equal(await page.locator('[data-sheet-input]').getAttribute('type'), 'date', 'the returning session receives the calendar editor');
+  assert.equal(await page.locator('.sheet-editor button[type="submit"]').count(), 0, 'returning date editors no longer require Save');
   await page.screenshot({ path: resolve(output, 'glow-date-picker.png') });
   await page.locator('[data-sheet-input]').fill('2024-02-29');
-  await page.locator('.sheet-editor button[type="submit"]').click();
+  await page.locator('.sheet-editor').waitFor({ state: 'detached' });
   await dateCell.click();
   assert.equal(await page.locator('[data-sheet-input]').inputValue(), '2024-02-29', 'the selected date survives the table repaint');
   await page.locator('[data-sheet-cancel]').click();
@@ -98,7 +102,7 @@ try {
   await referenceCell.click();
   assert.equal(await page.locator('[data-sheet-input]').getAttribute('type'), 'date', 'the returning session also receives the reference calendar');
   await page.locator('[data-sheet-input]').fill('2030-03-31');
-  await page.locator('.sheet-editor button[type="submit"]').click();
+  await page.locator('.sheet-editor').waitFor({ state: 'detached' });
   await referenceCell.click();
   assert.equal(await page.locator('[data-sheet-input]').inputValue(), '2030-03-31', 'future reference years remain selectable');
   await page.locator('[data-sheet-cancel]').click();

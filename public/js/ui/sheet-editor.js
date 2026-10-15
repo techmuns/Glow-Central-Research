@@ -2,7 +2,8 @@
 //
 // A small panel that opens under the cell that was clicked: the value, what the cell shows when
 // nothing is typed (its default, and where that comes from), who last edited it, and Save / Reset /
-// Cancel. Enter saves, Escape cancels, and focus returns to the cell.
+// Cancel. Dates save on selection; other values save on Enter. Escape closes the panel, and focus
+// returns to the cell.
 //
 // IT LIVES ON <body>, NOT IN THE TABLE, and that is the design rather than a styling choice. The
 // tables repaint every fifteen seconds as prices move, and a repaint replaces the cell an inline
@@ -191,7 +192,7 @@ export function openCellEditor(options) {
         ${cell?.edited ? `<button type="button" data-sheet-clear class="sheet-editor-secondary">${hasFallback ? 'Reset to default' : 'Clear'}</button>` : '<span></span>'}
         <span class="sheet-editor-buttons">
           <button type="button" data-sheet-cancel class="sheet-editor-secondary">Cancel</button>
-          <button type="submit" class="sheet-editor-primary">Save</button>
+          ${isDate ? '' : '<button type="submit" class="sheet-editor-primary">Save</button>'}
         </span>
       </div>
     </form>`;
@@ -215,6 +216,7 @@ export function openCellEditor(options) {
     if (isDate && input.validity.badInput) return showError('Choose a complete, valid date.');
     const read = readInput(field, input.value);
     if (read.error) return showError(read.error);
+    if (isDate && !input.validity.valid) return showError('Choose a valid date between 1950 and 2100.');
     if (read.empty) {
       // Preserve an earlier reference note until a date replaces it or Clear is explicitly used.
       if (cell?.edited && !legacyReference) onClear?.(by());
@@ -247,6 +249,8 @@ export function openCellEditor(options) {
   const reposition = () => place(panel, anchorFor(key, field) || anchor);
 
   panel.addEventListener('submit', onSubmit);
+  // A native calendar commits its selection with change. Do not save incomplete input events.
+  if (isDate) input.addEventListener('change', onSubmit);
   panel.addEventListener('click', onClick);
   panel.addEventListener('keydown', onKey);
   document.addEventListener('pointerdown', onDown, true);
@@ -263,10 +267,12 @@ export function openCellEditor(options) {
       document.removeEventListener('scroll', reposition, true);
     },
   };
-  input.focus();
   if (isDate) {
-    // The cell click supplies the user gesture. Embedded browsers may restrict showPicker;
-    // their native date control remains available through its own calendar indicator.
-    try { input.showPicker?.(); } catch { /* Use the native input's calendar button. */ }
-  } else input.select();
+    // Keep attribution reachable before the native picker takes focus and commits the date.
+    // The reader opens the calendar through the date control after checking their name.
+    byInput.focus();
+  } else {
+    input.focus();
+    input.select();
+  }
 }
