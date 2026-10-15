@@ -236,7 +236,8 @@ try {
   ok('a second device sees the buy price the first one typed, as a typed value', await waitFor(async () => (await cell(b.page, 'portfolio', 'SBIN', 'buyPrice').innerText()).trim() === '700.00'
     && /is-edited/.test(await cell(b.page, 'portfolio', 'SBIN', 'buyPrice').getAttribute('class'))));
   ok('…and who typed it', /Ravi/.test(await cell(b.page, 'portfolio', 'SBIN', 'buyPrice').getAttribute('title')));
-  ok('the pill says the values are the desk\'s shared sheet', (await b.page.locator('[data-sheet-status]').getAttribute('data-sheet-status')) === 'live');
+  ok('confirmed shared values need no routine header badge', await b.page.evaluate(async () => (await import('/js/ui/sheet-chrome.js')).sheetStatus().tone === 'live')
+    && await b.page.locator('[data-sheet-status]').count() === 0);
 
   console.log('\n— a colleague\'s edit reaches a sheet that is already open —');
   const stored = (field, value) => waitFor(async () => sheetStore.snapshot().values.SBIN?.[field]?.value === value);

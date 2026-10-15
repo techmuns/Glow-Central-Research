@@ -148,27 +148,11 @@ function searchText(r) {
     r.statement?.where].filter(Boolean).join(' ').toLowerCase();
 }
 
-function headMeta(rows) {
-  const total = rows.total || 0;
-  const value = total > 0 ? ` · ₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr now` : '';
-  const asOf = book.meta()?.asOf;
-  const title = `Listed equity the family holds outside every PMS mandate — the Direct and Execution accounts on the statements${asOf ? ` (book as of ${asOf})` : ''}, plus holdings added by hand. ${rows.missingValue ? `${rows.missingValue} holding${rows.missingValue === 1 ? ' has' : 's have'} no current value and ${rows.missingValue === 1 ? 'is' : 'are'} left out of the total.` : ''}`.trim();
-  return `<div class="flex flex-wrap items-center justify-end gap-2">
-    <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200" title="${escapeHtml(title)}" data-portfolio-summary>Public direct · ${rows.length} holding${rows.length === 1 ? '' : 's'}${escapeHtml(value)}</span>
-    ${sheetStatusPill()}
-  </div>`;
-}
-
 function controlsHtml() {
   return `
     <button type="button" data-portfolio-add class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
       <span aria-hidden="true">＋</span> Add holding
-    </button>
-    <span class="sheet-legend text-xs text-slate-500">
-      <span class="sheet-legend-item"><span class="sheet-cell is-edited is-sample"><span class="sheet-cell-value">Typed</span><span class="sheet-cell-dot"></span></span> by the desk</span>
-      <span class="sheet-legend-item"><span class="sheet-cell is-default is-sample"><span class="sheet-cell-value">Default</span></span> from the statements or a formula</span>
-      <span class="sheet-legend-item">Click a dotted cell to edit · other figures update live</span>
-    </span>`;
+    </button>`;
 }
 
 function footerHtml() {
@@ -260,7 +244,7 @@ function paint(ctx) {
     // reader's search, sort and scroll position are untouched.
     table.updateData(rows);
     const head = ctx.root.querySelector('[data-portfolio-head-meta]');
-    if (head) head.innerHTML = headMeta(rows);
+    if (head) head.innerHTML = sheetStatusPill();
     return;
   }
   releaseTable?.();
@@ -268,7 +252,7 @@ function paint(ctx) {
   tableRoot = ctx.root;
   ctx.root.innerHTML = `
     <div class="fade-in" data-sheet-tab="portfolio">
-      ${sectionHead({ title: 'Portfolio', compact: true, meta: `<div data-portfolio-head-meta>${headMeta(rows)}</div>`, controls: controlsHtml() })}
+      ${sectionHead({ title: 'Portfolio', compact: true, meta: `<div data-portfolio-head-meta>${sheetStatusPill()}</div>`, controls: controlsHtml() })}
       <div data-sheet-table="portfolio">${table.html}</div>
       ${footerHtml()}
     </div>`;

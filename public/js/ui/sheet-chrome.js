@@ -40,6 +40,8 @@ export function sheetStatus() {
 
 export function sheetStatusPill() {
   const s = sheetStatus();
+  // Routine sharing needs no header badge; unsaved or unavailable edits still need a status.
+  if (s.tone === 'live') return '';
   return `<span data-sheet-status="${s.tone}" class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ${PILL[s.tone]}" title="${escapeHtml(s.title)}">${escapeHtml(s.text)}</span>`;
 }
 
