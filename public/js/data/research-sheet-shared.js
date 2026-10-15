@@ -78,7 +78,8 @@ export const FIELDS = {
   intrinsicValue: { kind: 'number', unit: 'rupee', min: 0, exclusiveMin: true, max: 1e9, decimals: 4, label: 'Intrinsic / fair value per share (₹)' },
   entryPrice: { kind: 'number', unit: 'rupee', min: 0, exclusiveMin: true, max: 1e9, decimals: 4, label: 'Buy price for the expected IRR (₹ per share)' },
   methodology: { kind: 'text', max: 60, label: 'Valuation methodology' },
-  reference: { kind: 'text', max: 60, label: 'Reference year and date' },
+  // Keep the text wire contract so earlier financial-year notes remain intact; new edits use dates.
+  reference: { kind: 'text', input: 'date', max: 60, label: 'Reference year and date' },
 };
 
 export const FIELD_IDS = Object.freeze(Object.keys(FIELDS));

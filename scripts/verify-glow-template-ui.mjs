@@ -81,6 +81,14 @@ try {
   await dateCell.click();
   assert.equal(await page.locator('[data-sheet-input]').inputValue(), '2024-02-29', 'the selected date survives the table repaint');
   await page.locator('[data-sheet-cancel]').click();
+  const referenceCell = page.locator('[data-sheet-table="portfolio"] [data-sheet-field="reference"]').first();
+  await referenceCell.click();
+  assert.equal(await page.locator('[data-sheet-input]').getAttribute('type'), 'date', 'the returning session also receives the reference calendar');
+  await page.locator('[data-sheet-input]').fill('2030-03-31');
+  await page.locator('.sheet-editor button[type="submit"]').click();
+  await referenceCell.click();
+  assert.equal(await page.locator('[data-sheet-input]').inputValue(), '2030-03-31', 'future reference years remain selectable');
+  await page.locator('[data-sheet-cancel]').click();
   const labels = await page.locator('#tabbar-mount [data-tab-id]').evaluateAll(tabs => tabs.map(tab => tab.textContent.trim()));
   assert.deepEqual(labels, ['Alerts', 'Portfolio', 'Watchlist', 'Announcements', 'Earnings', 'Screens', 'Mutual Funds', 'News', 'Super Investors']);
   const scope = page.locator('[data-scope-controls]');

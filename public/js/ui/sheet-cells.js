@@ -13,7 +13,7 @@
 // formula and its inputs, or which missing input stops it — so nothing on the page is a bare number.
 
 import { escapeHtml } from '../core/dom.js';
-import { FIELDS, editedLabel } from '../data/research-sheet-shared.js';
+import { FIELDS, editedLabel, isoDate } from '../data/research-sheet-shared.js';
 import { formatSheetDate } from '../data/sheet-math.js';
 
 const group = (v, decimals) => Number(v).toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -33,7 +33,7 @@ export const FORMAT = {
 export function formatField(field, value) {
   if (value == null || value === '') return '—';
   const spec = FIELDS[field];
-  if (spec?.kind === 'date') return FORMAT.date(value);
+  if (spec?.kind === 'date' || (spec?.input === 'date' && isoDate(value))) return FORMAT.date(value);
   if (spec?.kind === 'text') return FORMAT.text(value);
   if (spec?.unit === 'crore') return FORMAT.crore(value);
   if (spec?.unit === 'pct') return FORMAT.weight(value);
@@ -50,7 +50,8 @@ const toneOf = (v) => (v > 0 ? 'text-emerald-700' : v < 0 ? 'text-rose-700' : 't
 export function editableCell(row, cell, { label, company, align = 'left', display = null, sub = '', empty = '—' } = {}) {
   if (!cell) return '';
   const has = cell.value !== null && cell.value !== undefined && cell.value !== '';
-  const isDate = FIELDS[cell.field]?.kind === 'date';
+  const spec = FIELDS[cell.field];
+  const isDate = spec?.kind === 'date' || spec?.input === 'date';
   const text = has ? (display ? display(cell.value) : formatField(cell.field, cell.value)) : empty;
   const state = !has ? 'is-empty' : cell.edited ? (cell.pending ? 'is-pending' : 'is-edited') : 'is-default';
   const title = [

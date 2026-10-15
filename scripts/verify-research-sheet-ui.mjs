@@ -147,7 +147,7 @@ async function editCell(page, kind, key, field, text, { name = null } = {}) {
   await input.waitFor();
   await input.fill(text);
   if (name !== null) await page.locator('.sheet-editor [data-sheet-by]').fill(name);
-  if (field === 'dateBought') await page.locator('.sheet-editor button[type="submit"]').click();
+  if (await input.getAttribute('type') === 'date') await page.locator('.sheet-editor button[type="submit"]').click();
   else await input.press('Enter');
 }
 const waitFor = async (fn, timeout = 8000) => {
@@ -257,10 +257,24 @@ try {
   ok('an open sheet shows a colleague\'s edit by itself, within its twenty-second check',
     await waitFor(async () => (await cell(b.page, 'portfolio', 'SBIN', 'methodology').innerText()).includes('DCF — desk'), 25000));
   await new Promise((done) => setTimeout(done, 5200)); // past the re-check gap since B's last check
-  await editCell(a.page, 'portfolio', 'SBIN', 'reference', 'FY27E · Oct-26');
+  // A financial-year note stored before the reference column gained its calendar.
+  await a.page.evaluate(async () => (await import('/js/core/research-sheet.js')).set('SBIN', 'reference', 'FY27E · Oct-26', 'Ravi'));
   await stored('reference', 'FY27E · Oct-26');
   await b.page.evaluate(() => window.dispatchEvent(new Event('focus')));
   ok('a window coming back into focus re-checks at once', await waitFor(async () => (await cell(b.page, 'portfolio', 'SBIN', 'reference').innerText()).includes('FY27E'), 2500));
+  await cell(a.page, 'portfolio', 'SBIN', 'reference').click();
+  const referenceInput = a.page.locator('.sheet-editor [data-sheet-input]');
+  ok('Reference year and date offers a calendar with future years', await referenceInput.getAttribute('type') === 'date'
+    && await referenceInput.getAttribute('max') === '2100-12-31');
+  ok('an earlier financial-year note remains visible in the date editor', /FY27E · Oct-26/.test(await a.page.locator('[data-sheet-legacy]').innerText()));
+  await a.page.locator('.sheet-editor button[type="submit"]').click();
+  ok('saving without choosing a date preserves the earlier note', sheetStore.snapshot().values.SBIN?.reference?.value === 'FY27E · Oct-26');
+  await editCell(a.page, 'portfolio', 'SBIN', 'reference', '2030-03-31');
+  ok('a future reference date is saved and displayed as a date', await stored('reference', '2030-03-31')
+    && (await cell(a.page, 'portfolio', 'SBIN', 'reference').innerText()).trim() === '31-Mar-30');
+  await cell(a.page, 'portfolio', 'SBIN', 'reference').click();
+  ok('reopening the reference calendar selects the saved future date', await referenceInput.inputValue() === '2030-03-31');
+  await a.page.locator('[data-sheet-cancel]').click();
 
   // An editor open on B while A changes the same cell.
   const syncB = () => b.page.evaluate(async () => { await (await import('/js/core/research-sheet.js')).syncNow({ force: true }); });
@@ -305,6 +319,10 @@ try {
   ok('the watchlist has the desk\'s columns and no holding columns', !heads.some((h) => /quantity|date bought|xirr|tsr|current value/.test(h)) && heads.some((h) => /expected irr/.test(h)));
   ok('the company added through the shared list is a row', await waitFor(async () => watchStore.watchlistSnapshot().companies.some((c) => c.ticker === 'SBIN' && c.addedBy === 'Ravi')));
   ok('the fair value typed on the Portfolio is already here', (await cell(a.page, 'watchlist', 'SBIN', 'targetAmount').innerText()).trim() === '5.00');
+  await cell(a.page, 'watchlist', 'SBIN', 'reference').click();
+  ok('the Watchlist shares the reference date and its calendar', await a.page.locator('[data-sheet-input]').getAttribute('type') === 'date'
+    && await a.page.locator('[data-sheet-input]').inputValue() === '2030-03-31');
+  await a.page.locator('[data-sheet-cancel]').click();
   await editCell(a.page, 'watchlist', 'SBIN', 'source', 'Broker note — Kotak');
   await editCell(a.page, 'watchlist', 'SBIN', 'intrinsicValue', '1,150');
   ok('expected IRR waits for the buy price it is measured from', /set buy price/.test(await cell(a.page, 'watchlist', 'SBIN', 'entryPrice').innerText()));

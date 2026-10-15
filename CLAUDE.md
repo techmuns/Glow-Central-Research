@@ -1400,6 +1400,12 @@ prompt — there is no second list.
    weight through the public-direct total, pending = target − invested. A typed value always wins and
    says who typed it and when; Reset returns the cell to its default.
 
+**Date selectors.** Date bought and Reference year and date open native calendars. Purchase dates
+end at today in IST; reference dates allow future years through 2100. References retain their text
+wire contract so earlier financial-year notes survive unchanged. The editor shows an earlier note
+until a date is selected and saved or the reader explicitly clears it; saving an untouched empty
+calendar must not erase that note. New dates are stored as ISO dates and displayed as DD-MMM-YY.
+
 **One record per company, shared by both tabs.** An intrinsic value is a view about a company, and
 when a watched company is bought its fair value, target and methodology must move with it, so both
 tabs read one record keyed by `sheetKey` (the NSE symbol, else `ISIN:<code>`). `entryPrice` is the
