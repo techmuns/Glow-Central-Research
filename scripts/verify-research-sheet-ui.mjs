@@ -147,7 +147,8 @@ async function editCell(page, kind, key, field, text, { name = null } = {}) {
   await input.waitFor();
   await input.fill(text);
   if (name !== null) await page.locator('.sheet-editor [data-sheet-by]').fill(name);
-  await input.press('Enter');
+  if (field === 'dateBought') await page.locator('.sheet-editor button[type="submit"]').click();
+  else await input.press('Enter');
 }
 const waitFor = async (fn, timeout = 8000) => {
   const started = Date.now();
@@ -191,13 +192,22 @@ try {
   ok('a value that is not a number is refused in the panel, by name', /Not a number/.test(await a.page.locator('.sheet-editor [data-sheet-error]').innerText()));
   await a.page.locator('.sheet-editor [data-sheet-input]').fill('700');
   await a.page.locator('.sheet-editor [data-sheet-input]').press('Enter');
-  await editCell(a.page, 'portfolio', 'SBIN', 'dateBought', '01-Jan-2099');
+  ok('Date bought cells advertise a clickable calendar', await cell(a.page, 'portfolio', 'SBIN', 'dateBought').locator('.sheet-calendar-icon').count() === 1);
+  await editCell(a.page, 'portfolio', 'SBIN', 'dateBought', '2099-01-01');
+  const dateInput = a.page.locator('.sheet-editor [data-sheet-input]');
+  ok('Date bought uses the native calendar with the supported date bounds', await dateInput.getAttribute('type') === 'date'
+    && await dateInput.getAttribute('min') === '1950-01-01' && await dateInput.getAttribute('max') === istToday());
   ok('a purchase date in the future is refused', /future/.test(await a.page.locator('.sheet-editor [data-sheet-error]').innerText()));
-  await a.page.locator('.sheet-editor [data-sheet-input]').fill('16-May-25');
-  await a.page.locator('.sheet-editor [data-sheet-input]').press('Enter');
+  await dateInput.fill('2025-05-16');
+  await a.page.locator('.sheet-editor button[type="submit"]').click();
   ok('the typed value reaches the shared sheet', await waitFor(async () => !!sheetStore.snapshot().values.SBIN?.dateBought && /is-edited/.test(await cell(a.page, 'portfolio', 'SBIN', 'dateBought').getAttribute('class'))));
   ok('it is signed with the name typed in the panel', sheetStore.snapshot().values.SBIN?.buyPrice?.by === 'Ravi');
   ok('Date bought reads DD-MMM-YY', (await cell(a.page, 'portfolio', 'SBIN', 'dateBought').innerText()).trim() === '16-May-25');
+  await cell(a.page, 'portfolio', 'SBIN', 'dateBought').click();
+  ok('reopening selects the saved date in the calendar', await dateInput.inputValue() === '2025-05-16');
+  await dateInput.fill('2024-02-29');
+  await a.page.locator('.sheet-editor [data-sheet-cancel]').click();
+  ok('cancelling a calendar selection preserves the saved date', sheetStore.snapshot().values.SBIN?.dateBought?.value === '2025-05-16');
   ok('amount invested defaults to quantity × buy price', Math.abs(pctOf(await cell(a.page, 'portfolio', 'SBIN', 'amountInvested').innerText()) - (sbinQty * 700) / 1e7) < 0.006);
 
   // Expected figures, computed here from the history file and the page's own CMP.
@@ -302,7 +312,7 @@ try {
   ok('expected IRR = intrinsic value ÷ buy price − 1', await waitFor(async () => Math.abs(pctOf((await columnText(a.page, 'watchlist', 'SBIN', 'Expected IRR')).split(' ')[0]) - (1150 / 900 - 1) * 100) < 0.051));
   ok('upside = intrinsic value ÷ CMP − 1', Math.abs(pctOf(await columnText(a.page, 'watchlist', 'SBIN', 'Upside available')) - (1150 / price - 1) * 100) < 0.051);
   ok('Source is stored on the shared sheet', await waitFor(async () => sheetStore.snapshot().values.SBIN?.source?.value === 'Broker note — Kotak'));
-  ok('the watchlist\'s buy price does not touch the portfolio\'s', sheetStore.snapshot().values.SBIN?.buyPrice?.value === 700 && sheetStore.snapshot().values.SBIN?.entryPrice?.value === 900);
+  ok('the watchlist\'s buy price does not touch the portfolio\'s', await waitFor(async () => sheetStore.snapshot().values.SBIN?.buyPrice?.value === 700 && sheetStore.snapshot().values.SBIN?.entryPrice?.value === 900));
 
   await a.page.locator('#tabbar-mount [data-tab-id="portfolio"]').click();
   await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor({ timeout: 15000 });

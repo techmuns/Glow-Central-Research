@@ -20,13 +20,13 @@
 
 import { escapeHtml } from '../core/dom.js';
 import { FIELDS, editedLabel, fieldValue } from '../data/research-sheet-shared.js';
-import { parseDateInput, parseNumberInput, formatSheetDate, istToday } from '../data/sheet-math.js';
+import { parseDateInput, parseNumberInput, istToday } from '../data/sheet-math.js';
 import * as people from '../core/watchlist-people.js';
 
 let active = null;
 
 const HINT = {
-  date: 'Day first — 12-Mar-24, 12 Mar 2024 or 12/03/2024.',
+  date: 'Choose the purchase date from the calendar.',
   crore: 'In ₹ crore, e.g. 2.5.',
   pct: 'In percent, e.g. 4.5.',
   rupee: '₹ per share, e.g. 1,250.50.',
@@ -38,7 +38,7 @@ const HINT = {
 export function inputText(field, value) {
   if (value == null || value === '') return '';
   const spec = FIELDS[field];
-  if (spec?.kind === 'date') return formatSheetDate(value);
+  if (spec?.kind === 'date') return value;
   if (spec?.kind === 'number') return String(+Number(value).toFixed(spec.unit === 'crore' ? 4 : 4));
   return String(value);
 }
@@ -168,6 +168,7 @@ export function openCellEditor(options) {
   closeCellEditor({ restoreFocus: false });
   const spec = FIELDS[field];
   if (!spec) return;
+  const isDate = spec.kind === 'date';
   const roster = people.roster().map((p) => p.name);
   const me = people.me() || '';
   const fallback = cell?.fallback;
@@ -189,7 +190,7 @@ export function openCellEditor(options) {
       </div>
       <label class="sheet-editor-field">
         <span class="sr-only">${escapeHtml(label || spec.label)}</span>
-        <input data-sheet-input type="text" autocomplete="off" spellcheck="${spec.kind === 'text' ? 'true' : 'false'}"
+        <input data-sheet-input type="${isDate ? 'date' : 'text'}" ${isDate ? `min="1950-01-01" max="${istToday()}"` : ''} autocomplete="off" spellcheck="${spec.kind === 'text' ? 'true' : 'false'}"
           ${spec.kind === 'number' ? 'inputmode="decimal"' : ''} maxlength="${spec.kind === 'text' ? spec.max : 40}"
           value="${escapeHtml(cell?.edited ? inputText(field, cell.value) : '')}"
           placeholder="${escapeHtml(hasFallback ? inputText(field, fallback) : '')}" />
@@ -229,6 +230,7 @@ export function openCellEditor(options) {
 
   const onSubmit = (event) => {
     event.preventDefault();
+    if (isDate && input.validity.badInput) return showError('Choose a complete, valid purchase date.');
     const read = readInput(field, input.value);
     if (read.error) return showError(read.error);
     if (read.empty) {
@@ -280,5 +282,9 @@ export function openCellEditor(options) {
     },
   };
   input.focus();
-  input.select();
+  if (isDate) {
+    // The cell click supplies the user gesture. Embedded browsers may restrict showPicker;
+    // their native date control remains available through its own calendar indicator.
+    try { input.showPicker?.(); } catch { /* Use the native input's calendar button. */ }
+  } else input.select();
 }
