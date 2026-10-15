@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-15T17:47:29.574Z",
-  "oldestDataAt": "2026-10-15T17:47:29.574Z",
-  "from": "2025-10-15",
-  "to": "2026-10-15",
+  "capturedAt": "2026-10-15T20:35:55.954Z",
+  "oldestDataAt": "2026-10-15T20:35:55.954Z",
+  "from": "2025-10-16",
+  "to": "2026-10-16",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-15T17:47:29.574Z",
+      "capturedAt": "2026-10-15T20:35:55.954Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-15T17:47:29.574Z",
+      "capturedAt": "2026-10-15T20:35:55.954Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-15T17:47:29.574Z",
+      "capturedAt": "2026-10-15T20:35:55.954Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-15T17:47:29.574Z",
+      "capturedAt": "2026-10-15T20:35:55.954Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 2027,
   "emptyCount": 0,
-  "rowCount": 22150,
+  "rowCount": 22145,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -87650,28 +87650,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "SUPRAJIT",
-        "date": "2025-10-15",
-        "cells": {
-          "Company": "SUPRAJIT",
-          "Insider": "Supriyajith Family Trust & PACs",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Acquisition",
-          "Trade Shares": "15841",
-          "Trade %": "0.01",
-          "Trade Value": null,
-          "Post Holding Shares": "52839246",
-          "Post Holding %": "38.52",
-          "Mode": "Market",
-          "From Date": "2025-09-16",
-          "To Date": "2025-09-16",
-          "Broadcast Date": "2025-10-15",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "SURYAROSNI": [
@@ -90547,28 +90525,6 @@
           "Price": "466",
           "Broadcast Date": "2026-09-22",
           "Source": "Screener.in"
-        }
-      },
-      {
-        "ticker": "TRANSRAILL",
-        "date": "2025-10-15",
-        "cells": {
-          "Company": "TRANSRAILL",
-          "Insider": "Asiana Fund I",
-          "Category": "Other",
-          "Security Type": null,
-          "Transaction": "Disposal",
-          "Trade Shares": "2701555",
-          "Trade %": "2.01",
-          "Trade Value": null,
-          "Post Holding Shares": "4540062",
-          "Post Holding %": "3.38",
-          "Mode": "Market",
-          "From Date": "2025-09-16",
-          "To Date": "2025-09-16",
-          "Broadcast Date": "2025-10-15",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
         }
       }
     ],
@@ -112487,28 +112443,6 @@
           "From Date": "2025-10-15",
           "To Date": "2025-10-15",
           "Broadcast Date": "2025-10-17",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-10-15",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "HCL Technologies Stock Options Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "3947",
-          "Trade %": "0",
-          "Trade Value": "5881030",
-          "Post Holding Shares": "8144486",
-          "Post Holding %": "0.3",
-          "Mode": "ESOS",
-          "From Date": "2025-10-13",
-          "To Date": "2025-10-13",
-          "Broadcast Date": "2025-10-15",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -166449,50 +166383,6 @@
           "From Date": "2025-11-20",
           "To Date": "2025-11-20",
           "Broadcast Date": "2025-11-28",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "EMBDL",
-        "date": "2025-10-15",
-        "cells": {
-          "Company": "Embassy Developments Ltd",
-          "Insider": "Bellanza Developers Private Limited",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "8096067",
-          "Trade %": "0.53",
-          "Trade Value": "902792431",
-          "Post Holding Shares": "104026546",
-          "Post Holding %": "7.53",
-          "Mode": "Allotment",
-          "From Date": "2025-10-13",
-          "To Date": "2025-10-13",
-          "Broadcast Date": "2025-10-15",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "EMBDL",
-        "date": "2025-10-15",
-        "cells": {
-          "Company": "Embassy Developments Ltd",
-          "Insider": "Bellanza Developers Private Limited",
-          "Category": "Promoter Group",
-          "Security Type": "Warrants",
-          "Transaction": "Disposal",
-          "Trade Shares": "8096067",
-          "Trade %": "0.56",
-          "Trade Value": "225698108",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Conversion of security",
-          "From Date": "2025-10-13",
-          "To Date": "2025-10-13",
-          "Broadcast Date": "2025-10-15",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
