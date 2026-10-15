@@ -174,10 +174,10 @@ async function editCell(page, kind, key, field, text, { name = null } = {}) {
   await cell(page, kind, key, field).click();
   const input = page.locator('.sheet-editor [data-sheet-input]');
   await input.waitFor();
-  await input.fill(text);
+  const isDate = await input.getAttribute('type') === 'date';
   if (name !== null) await page.locator('.sheet-editor [data-sheet-by]').fill(name);
-  if (await input.getAttribute('type') === 'date') await page.locator('.sheet-editor button[type="submit"]').click();
-  else await input.press('Enter');
+  await input.fill(text);
+  if (!isDate) await input.press('Enter');
 }
 const waitFor = async (fn, timeout = 8000) => {
   const started = Date.now();
@@ -228,16 +228,19 @@ try {
   ok('Date bought uses the native calendar with the supported date bounds', await dateInput.getAttribute('type') === 'date'
     && await dateInput.getAttribute('min') === '1950-01-01' && await dateInput.getAttribute('max') === istToday());
   ok('a purchase date in the future is refused', /future/.test(await a.page.locator('.sheet-editor [data-sheet-error]').innerText()));
+  ok('the date editor has no separate Save button and an invalid date is not stored', await a.page.locator('.sheet-editor button[type="submit"]').count() === 0
+    && !sheetStore.snapshot().values.SBIN?.dateBought);
+  await a.page.locator('[data-sheet-by]').fill('Ravi');
   await dateInput.fill('2025-05-16');
-  await a.page.locator('.sheet-editor button[type="submit"]').click();
-  ok('the typed value reaches the shared sheet', await waitFor(async () => !!sheetStore.snapshot().values.SBIN?.dateBought && /is-edited/.test(await cell(a.page, 'portfolio', 'SBIN', 'dateBought').getAttribute('class'))));
+  ok('selecting a date saves it automatically and closes the editor', await waitFor(async () => sheetStore.snapshot().values.SBIN?.dateBought?.value === '2025-05-16'
+    && /is-edited/.test(await cell(a.page, 'portfolio', 'SBIN', 'dateBought').getAttribute('class')) && await a.page.locator('.sheet-editor').count() === 0));
   ok('it is signed with the name typed in the panel', sheetStore.snapshot().values.SBIN?.buyPrice?.by === 'Ravi');
+  ok('the automatically saved date keeps its editor attribution', sheetStore.snapshot().values.SBIN?.dateBought?.by === 'Ravi');
   ok('Date bought reads DD-MMM-YY', (await cell(a.page, 'portfolio', 'SBIN', 'dateBought').innerText()).trim() === '16-May-25');
   await cell(a.page, 'portfolio', 'SBIN', 'dateBought').click();
   ok('reopening selects the saved date in the calendar', await dateInput.inputValue() === '2025-05-16');
-  await dateInput.fill('2024-02-29');
   await a.page.locator('.sheet-editor [data-sheet-cancel]').click();
-  ok('cancelling a calendar selection preserves the saved date', sheetStore.snapshot().values.SBIN?.dateBought?.value === '2025-05-16');
+  ok('closing without selecting a date preserves the saved date', sheetStore.snapshot().values.SBIN?.dateBought?.value === '2025-05-16');
   ok('amount invested defaults to quantity × buy price', Math.abs(pctOf(await cell(a.page, 'portfolio', 'SBIN', 'amountInvested').innerText()) - (sbinQty * 700) / 1e7) < 0.006);
 
   // Expected figures, computed here from the history file and the page's own CMP.
@@ -297,14 +300,17 @@ try {
   ok('Reference year and date offers a calendar with future years', await referenceInput.getAttribute('type') === 'date'
     && await referenceInput.getAttribute('max') === '2100-12-31');
   ok('an earlier financial-year note remains visible in the date editor', /FY27E · Oct-26/.test(await a.page.locator('[data-sheet-legacy]').innerText()));
-  await a.page.locator('.sheet-editor button[type="submit"]').click();
-  ok('saving without choosing a date preserves the earlier note', sheetStore.snapshot().values.SBIN?.reference?.value === 'FY27E · Oct-26');
+  await a.page.locator('[data-sheet-cancel]').click();
+  ok('closing without choosing a date preserves the earlier note', sheetStore.snapshot().values.SBIN?.reference?.value === 'FY27E · Oct-26');
   await editCell(a.page, 'portfolio', 'SBIN', 'reference', '2030-03-31');
   ok('a future reference date is saved and displayed as a date', await stored('reference', '2030-03-31')
     && (await cell(a.page, 'portfolio', 'SBIN', 'reference').innerText()).trim() === '31-Mar-30');
   await cell(a.page, 'portfolio', 'SBIN', 'reference').click();
   ok('reopening the reference calendar selects the saved future date', await referenceInput.inputValue() === '2030-03-31');
-  await a.page.locator('[data-sheet-cancel]').click();
+  await referenceInput.fill('');
+  ok('clearing the native date input automatically clears the saved date', await stored('reference', undefined));
+  await editCell(a.page, 'portfolio', 'SBIN', 'reference', '2030-03-31');
+  await stored('reference', '2030-03-31');
 
   // An editor open on B while A changes the same cell.
   const syncB = () => b.page.evaluate(async () => { await (await import('/js/core/research-sheet.js')).syncNow({ force: true }); });
@@ -352,7 +358,10 @@ try {
   await cell(a.page, 'watchlist', 'SBIN', 'reference').click();
   ok('the Watchlist shares the reference date and its calendar', await a.page.locator('[data-sheet-input]').getAttribute('type') === 'date'
     && await a.page.locator('[data-sheet-input]').inputValue() === '2030-03-31');
-  await a.page.locator('[data-sheet-cancel]').click();
+  ok('the Watchlist date editor also omits Save', await a.page.locator('.sheet-editor button[type="submit"]').count() === 0);
+  await a.page.locator('[data-sheet-input]').fill('2031-03-31');
+  ok('selecting a Watchlist reference date saves it automatically', await stored('reference', '2031-03-31')
+    && (await cell(a.page, 'watchlist', 'SBIN', 'reference').innerText()).trim() === '31-Mar-31');
   await editCell(a.page, 'watchlist', 'SBIN', 'source', 'Broker note — Kotak');
   await editCell(a.page, 'watchlist', 'SBIN', 'intrinsicValue', '1,150');
   ok('expected IRR waits for the buy price it is measured from', /set buy price/.test(await cell(a.page, 'watchlist', 'SBIN', 'entryPrice').innerText()));
