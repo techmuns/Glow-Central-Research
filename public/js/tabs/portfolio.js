@@ -310,7 +310,7 @@ function localCompanies() {
 
 function openAddHolding() {
   closeCellEditor({ restoreFocus: false });
-  openModal(companySearchHtml({ id: 'portfolio-add', title: 'Add a holding', intro: 'For a purchase the family\'s statements do not show yet. Search by company name or ticker; then type its date bought, quantity and buy price into the table. A holding added here leaves the hand-added list by itself once a statement carries it.' }), { size: 'wide' });
+  openModal(companySearchHtml({ id: 'portfolio-add', title: 'Add a holding' }), { size: 'wide' });
   const root = document.querySelector('[data-company-search="portfolio-add"]');
   if (!root) return;
   const input = root.querySelector('[data-company-search-input]');

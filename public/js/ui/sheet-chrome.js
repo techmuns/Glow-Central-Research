@@ -116,14 +116,13 @@ export function sheetHowModal(kind) {
     </div>`;
 }
 
-export function companySearchHtml({ id, title, intro }) {
+export function companySearchHtml({ id, title }) {
   const me = people.me() || '';
   return `
     <div data-company-search="${escapeHtml(id)}">
       <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
         <div>
           <h2 class="font-display text-xl font-extrabold text-slate-900">${escapeHtml(title)}</h2>
-          <p class="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">${escapeHtml(intro)}</p>
         </div>
         <button type="button" data-modal-close aria-label="Close" class="text-2xl leading-none text-slate-400 hover:text-slate-700">×</button>
       </div>
