@@ -58,6 +58,7 @@ export function editableCell(row, cell, { label, company, align = 'left', displa
     has ? `${label}: ${text}` : `${label}: empty`,
     cell.edited ? editedLabel(cell.entry) : has ? `Default — ${cell.fallbackLabel || 'derived'}` : 'Not filled in yet',
     isDate ? 'Click to choose a date' : 'Click to edit',
+    'Paste Excel cells with Ctrl+V or ⌘V',
   ].filter(Boolean).join('\n');
   const fill = has && FIELDS[cell.field] && cell.field !== 'name'
     ? `<button type="button" data-norow data-sheet-fill-handle data-sheet-key="${escapeHtml(row.key)}" data-sheet-field="${escapeHtml(cell.field)}"

@@ -163,6 +163,19 @@ async function dragFill(page, kind, source, target, field, { cancel = false, dur
   if (cancel) await page.keyboard.press('Escape');
   await page.mouse.up();
 }
+async function pasteCells(page, kind, key, field, text, { editor = true, keyboard = false } = {}) {
+  const button = cell(page, kind, key, field);
+  if (editor) await button.click(); else await button.focus();
+  const target = editor ? page.locator('.sheet-editor [data-sheet-input]') : button;
+  if (keyboard) {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.evaluate(text => navigator.clipboard.writeText(text), text);
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+V' : 'Control+V');
+  } else await target.evaluate((el, text) => {
+    const clipboard = new DataTransfer(); clipboard.setData('text/plain', text);
+    el.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: clipboard }));
+  }, text);
+}
 const pctOf = (text) => Number(String(text).replace(/[^0-9.+-]/g, ''));
 async function columnText(page, kind, key, label) {
   const heads = (await table(page, kind).locator('thead th').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim().toLowerCase());
@@ -521,8 +534,103 @@ try {
   ok('auto-scroll includes newly mounted rows through the final matching row', await waitFor(async () => (await a.page.locator('.sheet-fill-preview').innerText()) === '179 cells', 20000));
   await a.page.mouse.up();
   ok('the last page saves too, with no row lost at the render boundary', await waitFor(async () => Array.from({ length: 180 }, (_, i) => sheetStore.snapshot().values[`FILLPAGE${i}`]?.methodology?.value).every(v => v === 'Paged fill')));
+  await paged.locator('[data-table-scroll]').evaluate(el => { el.scrollTop = 0; });
+  await cell(a.page, 'fill-fixture', 'FILLPAGE0', 'methodology').waitFor();
+  await pasteCells(a.page, 'fill-fixture', 'FILLPAGE0', 'methodology', Array.from({ length: 180 }, (_, i) => `Clipboard ${i}`).join('\r\n') + '\r\n', { editor: false });
+  ok('clipboard paste reaches unmounted rows and drains all shared-save batches', await waitFor(async () => Array.from({ length: 180 }, (_, i) => sheetStore.snapshot().values[`FILLPAGE${i}`]?.methodology?.value).every((v, i) => v === `Clipboard ${i}`)));
   await a.page.evaluate(() => window.__fillFixtureCleanup());
 
+  await a.page.locator('#tabbar-mount [data-tab-id="portfolio"]').click();
+  await rowOf(a.page, 'portfolio', 'SBIN').waitFor();
+  console.log('\n— direct Excel clipboard paste —');
+  const pasteKeys = await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.slice(0, 4).map(r => r.dataset.rowKey));
+  const pasteFields = ['intrinsicValue', 'methodology', 'reference'];
+  await pasteCells(a.page, 'portfolio', pasteKeys[0], 'methodology', 'Single Excel value\r\n');
+  ok('a single Excel value keeps normal text editing instead of saving before Enter', await a.page.locator('[data-sheet-input]').inputValue() === 'Single Excel value'
+    && sheetStore.snapshot().values[pasteKeys[0]]?.methodology?.value !== 'Single Excel value');
+  await a.page.locator('[data-sheet-input]').press('Enter');
+  await waitFor(async () => sheetStore.snapshot().values[pasteKeys[0]]?.methodology?.value === 'Single Excel value');
+  await pasteCells(a.page, 'portfolio', pasteKeys[0], 'methodology', 'x'.repeat(61) + '\r\n');
+  ok('a single pasted value cannot bypass the editor’s character limit', /at most 60/.test(await a.page.locator('.sheet-fill-feedback').innerText())
+    && await a.page.locator('[data-sheet-input]').inputValue() === 'Single Excel value');
+  await a.page.locator('[data-sheet-input]').press('Escape');
+  const beforePaste = await a.page.evaluate(async ({ keys, fields }) => {
+    const s = await import('/js/core/research-sheet.js'); return keys.map(k => fields.map(f => s.value(k, f)));
+  }, { keys: pasteKeys, fields: pasteFields });
+  await pasteCells(a.page, 'portfolio', pasteKeys[0], 'intrinsicValue', '₹ 1,250.50\tClipboard DCF\t12-Mar-2028\r\n1,300\tComparable\t15/04/2029\r\n1400\tSum of parts\tFY30E\r\n');
+  ok('a 3×3 Excel range fills the exact Portfolio rectangle and normalizes its dates and numbers', await waitFor(async () => {
+    const v = sheetStore.snapshot().values;
+    return v[pasteKeys[0]]?.intrinsicValue?.value === 1250.5 && v[pasteKeys[0]]?.reference?.value === '2028-03-12'
+      && v[pasteKeys[1]]?.methodology?.value === 'Comparable' && v[pasteKeys[1]]?.reference?.value === '2029-04-15'
+      && v[pasteKeys[2]]?.intrinsicValue?.value === 1400 && v[pasteKeys[2]]?.reference?.value === 'FY30E';
+  }));
+  ok('a paste ends at the copied rectangle and closes the single-cell editor', await a.page.locator('.sheet-editor').count() === 0
+    && JSON.stringify(await a.page.evaluate(async key => { const s = await import('/js/core/research-sheet.js'); return ['intrinsicValue', 'methodology', 'reference'].map(f => s.value(key, f)); }, pasteKeys[3])) === JSON.stringify(beforePaste[3]));
+  await b.page.evaluate(async () => (await import('/js/core/research-sheet.js')).syncNow({ force: true }));
+  ok('pasted cells are shared with another device', await waitFor(async () => (await cell(b.page, 'portfolio', pasteKeys[0], 'methodology').innerText()).trim() === 'Clipboard DCF'));
+  await a.page.locator('[data-sheet-cell-undo]').click();
+  ok('one Undo restores every pasted field to its previous typed value or default', await waitFor(async () => JSON.stringify(await a.page.evaluate(async ({ keys, fields }) => {
+    const s = await import('/js/core/research-sheet.js'); return keys.map(k => fields.map(f => s.value(k, f)));
+  }, { keys: pasteKeys, fields: pasteFields })) === JSON.stringify(beforePaste)));
+
+  await pasteCells(a.page, 'portfolio', pasteKeys[0], 'methodology', 'Keyboard DCF\t2028-03-31\r\nKeyboard multiple\t2029-03-31\r\n', { keyboard: true });
+  ok('the real Ctrl/Cmd+V clipboard shortcut pastes multiple rows and columns', await waitFor(async () => sheetStore.snapshot().values[pasteKeys[1]]?.methodology?.value === 'Keyboard multiple'));
+  await b.page.evaluate(async key => { const s = await import('/js/core/research-sheet.js'); s.set(key, 'methodology', 'Colleague after paste', 'Meera'); await s.syncNow({ force: true }); }, pasteKeys[1]);
+  await a.page.evaluate(async () => (await import('/js/core/research-sheet.js')).syncNow({ force: true }));
+  await a.page.locator('[data-sheet-cell-undo]').click();
+  ok('paste Undo preserves a colleague’s later edit', await waitFor(async () => sheetStore.snapshot().values[pasteKeys[1]]?.methodology?.value === 'Colleague after paste'));
+
+  await pasteCells(a.page, 'portfolio', pasteKeys[0], 'dateBought', '12-Mar-24\t1,25,000\t₹ 750.50\r\n16/05/2025\t250\t1,200\r\n', { editor: false });
+  ok('date, quantity and buy-price columns accept an Excel rectangle in their own units', await waitFor(async () => {
+    const v = sheetStore.snapshot().values; return v[pasteKeys[0]]?.dateBought?.value === '2024-03-12' && v[pasteKeys[0]]?.quantity?.value === 125000
+      && v[pasteKeys[1]]?.dateBought?.value === '2025-05-16' && v[pasteKeys[1]]?.buyPrice?.value === 1200;
+  }));
+  await pasteCells(a.page, 'portfolio', pasteKeys[0], 'dateBought', '13-Mar-24\r\n17-May-25\r\n');
+  ok('multiple Excel dates can also be pasted while the native date editor is open', await waitFor(async () => sheetStore.snapshot().values[pasteKeys[0]]?.dateBought?.value === '2024-03-13'
+    && sheetStore.snapshot().values[pasteKeys[1]]?.dateBought?.value === '2025-05-17'));
+  await pasteCells(a.page, 'portfolio', pasteKeys[0], 'targetWeight', '0%\r\n4.5%\r\n');
+  ok('zero and Excel percentages remain zero and percentage points', await waitFor(async () => sheetStore.snapshot().values[pasteKeys[0]]?.targetWeight?.value === 0 && sheetStore.snapshot().values[pasteKeys[1]]?.targetWeight?.value === 4.5));
+  await pasteCells(a.page, 'portfolio', pasteKeys[0], 'methodology', '"DCF\twith quotes ""inside"""\r\n"Second\nline"\r\n');
+  ok('quoted tabs, quotes and line breaks stay inside their Excel cells', await waitFor(async () => sheetStore.snapshot().values[pasteKeys[0]]?.methodology?.value === 'DCF with quotes "inside"' && sheetStore.snapshot().values[pasteKeys[1]]?.methodology?.value === 'Second line'));
+  await pasteCells(a.page, 'portfolio', pasteKeys[0], 'methodology', '\r\n\r\n');
+  ok('blank Excel cells clear only the selected manual values', await waitFor(async () => !sheetStore.snapshot().values[pasteKeys[0]]?.methodology && !sheetStore.snapshot().values[pasteKeys[1]]?.methodology));
+  await a.page.locator('[data-sheet-cell-undo]').click();
+  ok('Undo also restores values cleared by blank pasted cells', await waitFor(async () => sheetStore.snapshot().values[pasteKeys[1]]?.methodology?.value === 'Second line'));
+
+  await a.page.evaluate(async () => (await import('/js/core/research-sheet.js')).syncNow({ force: true }));
+  const beforeBadPaste = JSON.stringify(sheetStore.snapshot().values);
+  await pasteCells(a.page, 'portfolio', pasteKeys[0], 'quantity', '100\t750\r\n200\t-1\r\n');
+  ok('one invalid value refuses the whole paste and names its row and column', /Row 2, Buy price/.test(await a.page.locator('.sheet-fill-feedback').innerText())
+    && JSON.stringify(sheetStore.snapshot().values) === beforeBadPaste && await a.page.evaluate(async () => (await import('/js/core/research-sheet.js')).meta().pending === 0));
+  await pasteCells(a.page, 'portfolio', pasteKeys[0], 'sector', 'Should not save\t999\r\n');
+  ok('a rectangle crossing a market-derived column is refused without partial edits', /read-only/.test(await a.page.locator('.sheet-fill-feedback').innerText()) && JSON.stringify(sheetStore.snapshot().values) === beforeBadPaste);
+  const finalKey = await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').last().getAttribute('data-row-key');
+  await pasteCells(a.page, 'portfolio', finalKey, 'methodology', 'Past end\r\nExtra row\r\n');
+  ok('overflowing the matching rows is reported instead of truncating the paste', /last matching row/.test(await a.page.locator('.sheet-fill-feedback').innerText()) && JSON.stringify(sheetStore.snapshot().values) === beforeBadPaste);
+
+  const referenceHead = table(a.page, 'portfolio').locator('th[data-sort="Reference year and date"]');
+  await referenceHead.press('Alt+ArrowLeft');
+  await pasteCells(a.page, 'portfolio', pasteKeys[0], 'intrinsicValue', '1550\t2030-03-31\tReordered DCF\r\n', { editor: false });
+  ok('pasting follows the reader’s actual dragged column order', await waitFor(async () => sheetStore.snapshot().values[pasteKeys[0]]?.reference?.value === '2030-03-31' && sheetStore.snapshot().values[pasteKeys[0]]?.methodology?.value === 'Reordered DCF'));
+  await referenceHead.press('Alt+Home');
+  await editCell(a.page, 'portfolio', pasteKeys[0], 'sector', 'Clipboard selection');
+  await editCell(a.page, 'portfolio', pasteKeys[2], 'sector', 'Clipboard selection');
+  await table(a.page, 'portfolio').locator('[data-table-search]').fill('Clipboard selection');
+  const matchingPasteKeys = await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.map(r => r.dataset.rowKey));
+  const hiddenBefore = sheetStore.snapshot().values[pasteKeys[1]]?.intrinsicValue?.value;
+  await pasteCells(a.page, 'portfolio', matchingPasteKeys[0], 'intrinsicValue', '1660\r\n1770\r\n');
+  ok('pasting uses the current filtered/sorted rows and leaves hidden rows alone', matchingPasteKeys.length === 2 && await waitFor(async () => sheetStore.snapshot().values[matchingPasteKeys[1]]?.intrinsicValue?.value === 1770)
+    && sheetStore.snapshot().values[pasteKeys[1]]?.intrinsicValue?.value === hiddenBefore);
+  await table(a.page, 'portfolio').locator('[data-table-search]').fill('');
+
+  await a.page.locator('#tabbar-mount [data-tab-id="watchlist"]').click();
+  await rowOf(a.page, 'watchlist', 'SBIN').waitFor();
+  const watchPasteKeys = await table(a.page, 'watchlist').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.slice(0, 2).map(r => r.dataset.rowKey));
+  await pasteCells(a.page, 'watchlist', watchPasteKeys[0], 'methodology', 'Watch clipboard DCF\t2028-03-31\r\nWatch clipboard peers\t2029-03-31\r\n');
+  ok('Watchlist supports the same direct multi-column Excel paste', await waitFor(async () => sheetStore.snapshot().values[watchPasteKeys[1]]?.methodology?.value === 'Watch clipboard peers' && sheetStore.snapshot().values[watchPasteKeys[0]]?.reference?.value === '2028-03-31'));
+  await pasteCells(a.page, 'watchlist', watchPasteKeys[0], 'source', 'Analyst note\r\nPublic report\r\n');
+  await pasteCells(a.page, 'watchlist', watchPasteKeys[0], 'entryPrice', '810\r\n820\r\n');
+  ok('Watchlist Source and planned entry-price cells accept pasted columns independently of Portfolio cost', await waitFor(async () => sheetStore.snapshot().values[watchPasteKeys[1]]?.source?.value === 'Public report' && sheetStore.snapshot().values[watchPasteKeys[1]]?.entryPrice?.value === 820));
   await a.page.locator('#tabbar-mount [data-tab-id="portfolio"]').click();
   await rowOf(a.page, 'portfolio', 'SBIN').waitFor();
   console.log('\n— Excel export, fill and upload —');
@@ -662,6 +770,13 @@ try {
   ok('an offline filled range survives reload in the outbox', await c.page.evaluate(async keys => {
     const s = await import('/js/core/research-sheet.js'); return keys.every(key => s.entry(key, 'reference')?.value === '2027-03-31' && s.entry(key, 'reference').pending);
   }, offlineKeys) && offlineKeys.every(key => sheetStore.snapshot().values[key]?.reference?.value !== '2027-03-31'), JSON.stringify(offlineBeforeReload));
+
+  await pasteCells(c.page, 'portfolio', offlineKeys[0], 'methodology', 'Offline clipboard one\r\nOffline clipboard two\r\n');
+  await c.page.reload({ waitUntil: 'domcontentloaded' });
+  await table(c.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor();
+  ok('an offline pasted range survives reload without reaching the shared store', await c.page.evaluate(async keys => {
+    const s = await import('/js/core/research-sheet.js'); return s.value(keys[0], 'methodology') === 'Offline clipboard one' && s.value(keys[1], 'methodology') === 'Offline clipboard two';
+  }, offlineKeys) && offlineKeys.every(key => !String(sheetStore.snapshot().values[key]?.methodology?.value).startsWith('Offline clipboard')));
 
   await c.page.setViewportSize({ width: 390, height: 844 });
   await c.page.getByRole('button', { name: 'Dark mode', exact: true }).click();
