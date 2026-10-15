@@ -417,17 +417,22 @@ try {
     await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
     await page.setViewportSize({ width: 390, height: 844 });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${theme}: no sideways page scroll at 390px`);
-    // Resolve the mounted row inside the same browser task as its measurements: arriving
-    // rows can replace a locator's earlier element handle while the viewport is resized.
-    const controls = await page.evaluate(() => {
+    // Wait for the row to remount after resizing, and measure it in the same browser task:
+    // arriving rows can replace the table or leave it briefly empty during its repaint.
+    const mountedControls = await page.waitForFunction(() => {
       const row = document.querySelector('table[data-shared-column-layout="corp-announcements"] tbody tr[data-row-key]');
+      const bookmark = row?.querySelector('.record-identity-actions [data-bookmark-key]');
+      const name = row?.querySelector('[data-record-name]');
+      if (!row || !bookmark || !name) return false;
       return {
         subjectWatch: row.querySelector('.record-subject-column [data-watch]') !== null,
-        bookmark: row.querySelector('.record-identity-actions [data-bookmark-key]').getBoundingClientRect().width,
-        bookmarkStyle: getComputedStyle(row.querySelector('.record-identity-actions [data-bookmark-key]')).width,
-        wrap: getComputedStyle(row.querySelector('[data-record-name]')).whiteSpace,
+        bookmark: bookmark.getBoundingClientRect().width,
+        bookmarkStyle: getComputedStyle(bookmark).width,
+        wrap: getComputedStyle(name).whiteSpace,
       };
     });
+    const controls = await mountedControls.jsonValue();
+    await mountedControls.dispose();
     assert(!controls.subjectWatch && controls.bookmark >= 28 && controls.wrap === 'normal', `${theme}: mobile keeps separate reachable actions and complete title wrapping ${JSON.stringify(controls)}`);
     await page.locator('tbody tr[data-row-key]').first().locator('.ca-company-cell').click();
     await popup.waitFor();
