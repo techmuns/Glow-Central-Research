@@ -12,6 +12,7 @@ const MAX_ROWS = 800;
 const editable = (columns) => columns.filter((c) => Object.hasOwn(FIELDS, c.key));
 const empty = (v) => v === null || v === undefined || v === '';
 const equal = (a, b) => (empty(a) && empty(b)) || sameValue(a, b);
+const dateField = (field) => FIELDS[field].kind === 'date' || FIELDS[field].input === 'date';
 
 export function addSheetBaseline(wb, { kind, columns, rows }) {
   const ws = wb.addWorksheet(BASELINE, { state: 'veryHidden' });
@@ -36,11 +37,11 @@ function cellValue(cell, field, date1904 = false) {
     else throw new Error('Use a number, date or text value.');
   }
   if (empty(value)) return null;
-  if (typeof value === 'number' && FIELDS[field].kind === 'date' && /[dy]/i.test(cell.numFmt || '')) {
+  if (typeof value === 'number' && dateField(field) && /[dy]/i.test(cell.numFmt || '')) {
     value = new Date(Date.UTC(date1904 ? 1904 : 1899, date1904 ? 0 : 11, date1904 ? 1 : 30) + Math.floor(value) * 86400000);
   }
   if (value instanceof Date) {
-    if (FIELDS[field].kind !== 'date' || !Number.isFinite(value.getTime())) throw new Error('Use a valid value for this column.');
+    if (!dateField(field) || !Number.isFinite(value.getTime())) throw new Error('Use a valid value for this column.');
     value = value.toISOString().slice(0, 10);
   }
   if (typeof value === 'number' && FIELDS[field].unit === 'pct' && /%/.test(cell.numFmt || '')) value *= 100;

@@ -13,7 +13,7 @@
 // formula and its inputs, or which missing input stops it — so nothing on the page is a bare number.
 
 import { escapeHtml } from '../core/dom.js';
-import { FIELDS, editedLabel } from '../data/research-sheet-shared.js';
+import { FIELDS, editedLabel, isoDate } from '../data/research-sheet-shared.js';
 import { formatSheetDate } from '../data/sheet-math.js';
 
 const group = (v, decimals) => Number(v).toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -33,7 +33,7 @@ export const FORMAT = {
 export function formatField(field, value) {
   if (value == null || value === '') return '—';
   const spec = FIELDS[field];
-  if (spec?.kind === 'date') return FORMAT.date(value);
+  if (spec?.kind === 'date' || (spec?.input === 'date' && isoDate(value))) return FORMAT.date(value);
   if (spec?.kind === 'text') return FORMAT.text(value);
   if (spec?.unit === 'crore') return FORMAT.crore(value);
   if (spec?.unit === 'pct') return FORMAT.weight(value);
@@ -50,21 +50,23 @@ const toneOf = (v) => (v > 0 ? 'text-emerald-700' : v < 0 ? 'text-rose-700' : 't
 export function editableCell(row, cell, { label, company, align = 'left', display = null, sub = '', empty = '—' } = {}) {
   if (!cell) return '';
   const has = cell.value !== null && cell.value !== undefined && cell.value !== '';
+  const spec = FIELDS[cell.field];
+  const isDate = spec?.kind === 'date' || spec?.input === 'date';
   const text = has ? (display ? display(cell.value) : formatField(cell.field, cell.value)) : empty;
   const state = !has ? 'is-empty' : cell.edited ? (cell.pending ? 'is-pending' : 'is-edited') : 'is-default';
   const title = [
     has ? `${label}: ${text}` : `${label}: empty`,
     cell.edited ? editedLabel(cell.entry) : has ? `Default — ${cell.fallbackLabel || 'derived'}` : 'Not filled in yet',
-    'Click to edit',
+    isDate ? 'Click to choose a date' : 'Click to edit',
   ].filter(Boolean).join('\n');
   const fill = has && FIELDS[cell.field] && cell.field !== 'name'
     ? `<button type="button" data-norow data-sheet-fill-handle data-sheet-key="${escapeHtml(row.key)}" data-sheet-field="${escapeHtml(cell.field)}"
         class="sheet-fill-handle" title="Drag down to copy. Keyboard: Arrow Down, then Enter."
         aria-label="${escapeHtml(`Fill ${label} down from ${company}`)}"></button>` : '';
   return `<span class="sheet-cell-wrap"><button type="button" data-norow data-sheet-edit data-sheet-key="${escapeHtml(row.key)}" data-sheet-field="${escapeHtml(cell.field)}"
-    class="sheet-cell ${state} ${align === 'right' ? 'is-right' : 'is-text'}" title="${escapeHtml(title)}"
+    class="sheet-cell ${state} ${isDate ? 'is-date' : ''} ${align === 'right' ? 'is-right' : 'is-text'}" title="${escapeHtml(title)}"
     aria-label="${escapeHtml(`Edit ${label} for ${company}${has ? `, currently ${text}` : ', empty'}`)}">
-    <span class="sheet-cell-value">${escapeHtml(text)}</span>${cell.edited ? '<span class="sheet-cell-dot" aria-hidden="true"></span>' : ''}${sub ? `<span class="sheet-cell-sub">${escapeHtml(sub)}</span>` : ''}
+    ${isDate ? '<svg class="sheet-calendar-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>' : ''}<span class="sheet-cell-value">${escapeHtml(text)}</span>${cell.edited ? '<span class="sheet-cell-dot" aria-hidden="true"></span>' : ''}${sub ? `<span class="sheet-cell-sub">${escapeHtml(sub)}</span>` : ''}
   </button>${fill}</span>`;
 }
 

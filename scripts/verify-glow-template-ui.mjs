@@ -43,7 +43,8 @@ const server = createServer(async (req, res) => {
     if (previous && path === '/js/ui/sheet-workbook.js') bytes = bytes.toString()
       .replace(/export const sheetUploadHtml = \(\) => `[\s\S]*?`;/, "export const sheetUploadHtml = () => ''; ")
       .replace("const button = host.querySelector('[data-sheet-upload]');", "const button = host.querySelector('[data-sheet-upload]'); if (!button) return () => {};");
-    if (previous && path === '/js/ui/sheet-editor.js') bytes = bytes.toString().replace(
+    if (previous && path === '/js/ui/sheet-editor.js') bytes = bytes.toString()
+      .replace('type="${isDate ? \'date\' : \'text\'}"', 'type="text"').replace(
       '<p class="sheet-editor-error"', '<p class="sheet-editor-note">Nothing is shown when it is empty — this one is the desk’s to fill.</p><p class="sheet-editor-error"');
     res.writeHead(200, { 'content-type': { '.js': 'text/javascript', '.html': 'text/html', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml' }[extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' });
     res.end(bytes);
@@ -72,6 +73,10 @@ try {
   assert.equal(await page.locator('.sheet-editor-note').count(), 1, 'warm the preceding verbose editor');
   await page.locator('[data-sheet-input]').press('Escape');
   const before = await page.locator('[data-sheet-table="portfolio"] tbody tr[data-row-key]').evaluateAll(rows => rows.map(row => row.dataset.rowKey));
+  const dateCell = page.locator('[data-sheet-table="portfolio"] [data-sheet-field="dateBought"]').first();
+  await dateCell.click();
+  assert.equal(await page.locator('[data-sheet-input]').getAttribute('type'), 'text', 'reproduce the cached text date editor');
+  await page.locator('[data-sheet-cancel]').click();
   previous = false;
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
   await page.locator('[data-scope-controls]').waitFor({ timeout: 30000 });
@@ -81,6 +86,22 @@ try {
   assert.equal(await page.locator('.sheet-editor-note, .sheet-editor-hint').count(), 0, 'returning session receives the compact editor');
   await page.locator('[data-sheet-input]').press('Escape');
   assert(!(await page.evaluate(() => caches.keys())).some(key => key.includes('previous-glow-hidden-scope')));
+  await dateCell.click();
+  assert.equal(await page.locator('[data-sheet-input]').getAttribute('type'), 'date', 'the returning session receives the calendar editor');
+  await page.screenshot({ path: resolve(output, 'glow-date-picker.png') });
+  await page.locator('[data-sheet-input]').fill('2024-02-29');
+  await page.locator('.sheet-editor button[type="submit"]').click();
+  await dateCell.click();
+  assert.equal(await page.locator('[data-sheet-input]').inputValue(), '2024-02-29', 'the selected date survives the table repaint');
+  await page.locator('[data-sheet-cancel]').click();
+  const referenceCell = page.locator('[data-sheet-table="portfolio"] [data-sheet-field="reference"]').first();
+  await referenceCell.click();
+  assert.equal(await page.locator('[data-sheet-input]').getAttribute('type'), 'date', 'the returning session also receives the reference calendar');
+  await page.locator('[data-sheet-input]').fill('2030-03-31');
+  await page.locator('.sheet-editor button[type="submit"]').click();
+  await referenceCell.click();
+  assert.equal(await page.locator('[data-sheet-input]').inputValue(), '2030-03-31', 'future reference years remain selectable');
+  await page.locator('[data-sheet-cancel]').click();
   const labels = await page.locator('#tabbar-mount [data-tab-id]').evaluateAll(tabs => tabs.map(tab => tab.textContent.trim()));
   assert.deepEqual(labels, ['Alerts', 'Portfolio', 'Watchlist', 'Announcements', 'Earnings', 'Screens', 'Mutual Funds', 'News', 'Super Investors']);
   const scope = page.locator('[data-scope-controls]');

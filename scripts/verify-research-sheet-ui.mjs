@@ -176,7 +176,8 @@ async function editCell(page, kind, key, field, text, { name = null } = {}) {
   await input.waitFor();
   await input.fill(text);
   if (name !== null) await page.locator('.sheet-editor [data-sheet-by]').fill(name);
-  await input.press('Enter');
+  if (await input.getAttribute('type') === 'date') await page.locator('.sheet-editor button[type="submit"]').click();
+  else await input.press('Enter');
 }
 const waitFor = async (fn, timeout = 8000) => {
   const started = Date.now();
@@ -221,13 +222,22 @@ try {
   ok('cell editors omit the explanatory paragraphs', await a.page.locator('.sheet-editor-hint, .sheet-editor-note').count() === 0);
   await a.page.locator('.sheet-editor [data-sheet-input]').fill('700');
   await a.page.locator('.sheet-editor [data-sheet-input]').press('Enter');
-  await editCell(a.page, 'portfolio', 'SBIN', 'dateBought', '01-Jan-2099');
+  ok('Date bought cells advertise a clickable calendar', await cell(a.page, 'portfolio', 'SBIN', 'dateBought').locator('.sheet-calendar-icon').count() === 1);
+  await editCell(a.page, 'portfolio', 'SBIN', 'dateBought', '2099-01-01');
+  const dateInput = a.page.locator('.sheet-editor [data-sheet-input]');
+  ok('Date bought uses the native calendar with the supported date bounds', await dateInput.getAttribute('type') === 'date'
+    && await dateInput.getAttribute('min') === '1950-01-01' && await dateInput.getAttribute('max') === istToday());
   ok('a purchase date in the future is refused', /future/.test(await a.page.locator('.sheet-editor [data-sheet-error]').innerText()));
-  await a.page.locator('.sheet-editor [data-sheet-input]').fill('16-May-25');
-  await a.page.locator('.sheet-editor [data-sheet-input]').press('Enter');
+  await dateInput.fill('2025-05-16');
+  await a.page.locator('.sheet-editor button[type="submit"]').click();
   ok('the typed value reaches the shared sheet', await waitFor(async () => !!sheetStore.snapshot().values.SBIN?.dateBought && /is-edited/.test(await cell(a.page, 'portfolio', 'SBIN', 'dateBought').getAttribute('class'))));
   ok('it is signed with the name typed in the panel', sheetStore.snapshot().values.SBIN?.buyPrice?.by === 'Ravi');
   ok('Date bought reads DD-MMM-YY', (await cell(a.page, 'portfolio', 'SBIN', 'dateBought').innerText()).trim() === '16-May-25');
+  await cell(a.page, 'portfolio', 'SBIN', 'dateBought').click();
+  ok('reopening selects the saved date in the calendar', await dateInput.inputValue() === '2025-05-16');
+  await dateInput.fill('2024-02-29');
+  await a.page.locator('.sheet-editor [data-sheet-cancel]').click();
+  ok('cancelling a calendar selection preserves the saved date', sheetStore.snapshot().values.SBIN?.dateBought?.value === '2025-05-16');
   ok('amount invested defaults to quantity × buy price', Math.abs(pctOf(await cell(a.page, 'portfolio', 'SBIN', 'amountInvested').innerText()) - (sbinQty * 700) / 1e7) < 0.006);
 
   // Expected figures, computed here from the history file and the page's own CMP.
@@ -277,10 +287,24 @@ try {
   ok('an open sheet shows a colleague\'s edit by itself, within its twenty-second check',
     await waitFor(async () => (await cell(b.page, 'portfolio', 'SBIN', 'methodology').innerText()).includes('DCF — desk'), 25000));
   await new Promise((done) => setTimeout(done, 5200)); // past the re-check gap since B's last check
-  await editCell(a.page, 'portfolio', 'SBIN', 'reference', 'FY27E · Oct-26');
+  // A financial-year note stored before the reference column gained its calendar.
+  await a.page.evaluate(async () => (await import('/js/core/research-sheet.js')).set('SBIN', 'reference', 'FY27E · Oct-26', 'Ravi'));
   await stored('reference', 'FY27E · Oct-26');
   await b.page.evaluate(() => window.dispatchEvent(new Event('focus')));
   ok('a window coming back into focus re-checks at once', await waitFor(async () => (await cell(b.page, 'portfolio', 'SBIN', 'reference').innerText()).includes('FY27E'), 2500));
+  await cell(a.page, 'portfolio', 'SBIN', 'reference').click();
+  const referenceInput = a.page.locator('.sheet-editor [data-sheet-input]');
+  ok('Reference year and date offers a calendar with future years', await referenceInput.getAttribute('type') === 'date'
+    && await referenceInput.getAttribute('max') === '2100-12-31');
+  ok('an earlier financial-year note remains visible in the date editor', /FY27E · Oct-26/.test(await a.page.locator('[data-sheet-legacy]').innerText()));
+  await a.page.locator('.sheet-editor button[type="submit"]').click();
+  ok('saving without choosing a date preserves the earlier note', sheetStore.snapshot().values.SBIN?.reference?.value === 'FY27E · Oct-26');
+  await editCell(a.page, 'portfolio', 'SBIN', 'reference', '2030-03-31');
+  ok('a future reference date is saved and displayed as a date', await stored('reference', '2030-03-31')
+    && (await cell(a.page, 'portfolio', 'SBIN', 'reference').innerText()).trim() === '31-Mar-30');
+  await cell(a.page, 'portfolio', 'SBIN', 'reference').click();
+  ok('reopening the reference calendar selects the saved future date', await referenceInput.inputValue() === '2030-03-31');
+  await a.page.locator('[data-sheet-cancel]').click();
 
   // An editor open on B while A changes the same cell.
   const syncB = () => b.page.evaluate(async () => { await (await import('/js/core/research-sheet.js')).syncNow({ force: true }); });
@@ -325,6 +349,10 @@ try {
   ok('the watchlist has the desk\'s columns and no holding columns', !heads.some((h) => /quantity|date bought|xirr|tsr|current value/.test(h)) && heads.some((h) => /expected irr/.test(h)));
   ok('the company added through the shared list is a row', await waitFor(async () => watchStore.watchlistSnapshot().companies.some((c) => c.ticker === 'SBIN' && c.addedBy === 'Ravi')));
   ok('the fair value typed on the Portfolio is already here', (await cell(a.page, 'watchlist', 'SBIN', 'targetAmount').innerText()).trim() === '5.00');
+  await cell(a.page, 'watchlist', 'SBIN', 'reference').click();
+  ok('the Watchlist shares the reference date and its calendar', await a.page.locator('[data-sheet-input]').getAttribute('type') === 'date'
+    && await a.page.locator('[data-sheet-input]').inputValue() === '2030-03-31');
+  await a.page.locator('[data-sheet-cancel]').click();
   await editCell(a.page, 'watchlist', 'SBIN', 'source', 'Broker note — Kotak');
   await editCell(a.page, 'watchlist', 'SBIN', 'intrinsicValue', '1,150');
   ok('expected IRR waits for the buy price it is measured from', /set buy price/.test(await cell(a.page, 'watchlist', 'SBIN', 'entryPrice').innerText()));
@@ -332,7 +360,7 @@ try {
   ok('expected IRR = intrinsic value ÷ buy price − 1', await waitFor(async () => Math.abs(pctOf((await columnText(a.page, 'watchlist', 'SBIN', 'Expected IRR')).split(' ')[0]) - (1150 / 900 - 1) * 100) < 0.051));
   ok('upside = intrinsic value ÷ CMP − 1', Math.abs(pctOf(await columnText(a.page, 'watchlist', 'SBIN', 'Upside available')) - (1150 / price - 1) * 100) < 0.051);
   ok('Source is stored on the shared sheet', await waitFor(async () => sheetStore.snapshot().values.SBIN?.source?.value === 'Broker note — Kotak'));
-  ok('the watchlist\'s buy price does not touch the portfolio\'s', sheetStore.snapshot().values.SBIN?.buyPrice?.value === 700 && sheetStore.snapshot().values.SBIN?.entryPrice?.value === 900);
+  ok('the watchlist\'s buy price does not touch the portfolio\'s', await waitFor(async () => sheetStore.snapshot().values.SBIN?.buyPrice?.value === 700 && sheetStore.snapshot().values.SBIN?.entryPrice?.value === 900));
 
   await a.page.locator('#tabbar-mount [data-tab-id="portfolio"]').click();
   await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor({ timeout: 15000 });
@@ -545,6 +573,7 @@ try {
     { id: 'SBIN', head: 'Target weight in portfolio (% of public direct)', value: 0.045, numFmt: '0.0%' },
     { id: 'SBIN', head: 'CMP (in Rs)', value: 999999 },
     { id: 'SBIN', head: 'Date bought', value: { formula: 'DATE(2025,5,17)', result: 45794 }, numFmt: 'dd-mmm-yy' },
+    { id: 'SBIN', head: 'Reference year and date', value: { formula: 'DATE(2031,3,31)', result: (Date.UTC(2031, 2, 31) - Date.UTC(1899, 11, 30)) / 86400000 }, numFmt: 'dd-mmm-yy' },
     ...(unplaced ? [{ id: unplaced.isin || unplaced.key, head: 'Valuation methodology', value: 'ISIN upload' }] : []),
   ];
   const editedBook = await rewriteBook(exported, edits);
@@ -552,6 +581,7 @@ try {
   ok('changed manual fields are saved for everyone', /edits? saved for everyone/.test(savedText) && sheetStore.snapshot().values.SBIN.buyPrice.value === 725.5, savedText);
   ok('Excel percentage cells retain percent units', sheetStore.snapshot().values.SBIN.targetWeight.value === 4.5);
   ok('Excel date cells retain the purchase day', sheetStore.snapshot().values.SBIN.dateBought.value === '2025-05-17');
+  ok('Excel reference dates retain their future year and day', sheetStore.snapshot().values.SBIN.reference.value === '2031-03-31');
   ok('uploaded market figures never become manual inputs', !sheetStore.snapshot().values.SBIN.cmp && pctOf(await columnText(a.page, 'portfolio', 'SBIN', 'CMP (in Rs)')) === cmpShown);
   ok('tickerless companies upload by ISIN', !!unplaced && sheetStore.snapshot().values[unplaced.key]?.methodology?.value === 'ISIN upload');
   await b.page.evaluate(async () => (await import('/js/core/research-sheet.js')).syncNow({ force: true }));
@@ -622,7 +652,7 @@ try {
   ok('…marked as not on a shared sheet', /is-pending/.test(await cell(c.page, 'portfolio', 'FRACTAL', 'intrinsicValue').getAttribute('class')));
   ok('nothing it typed reached the shared store', JSON.stringify(sheetStore.snapshot().values.FRACTAL) === fractalBefore);
   const offlineKeys = await table(c.page, 'portfolio').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.slice(0, 3).map(r => r.dataset.rowKey));
-  await editCell(c.page, 'portfolio', offlineKeys[0], 'reference', 'Offline fill');
+  await editCell(c.page, 'portfolio', offlineKeys[0], 'reference', '2027-03-31');
   await dragFill(c.page, 'portfolio', offlineKeys[0], offlineKeys[2], 'reference');
   const offlineBeforeReload = await c.page.evaluate(async keys => {
     const s = await import('/js/core/research-sheet.js'); return keys.map(key => s.entry(key, 'reference')?.value);
@@ -630,13 +660,13 @@ try {
   await c.page.reload({ waitUntil: 'domcontentloaded' });
   await table(c.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor();
   ok('an offline filled range survives reload in the outbox', await c.page.evaluate(async keys => {
-    const s = await import('/js/core/research-sheet.js'); return keys.every(key => s.entry(key, 'reference')?.value === 'Offline fill' && s.entry(key, 'reference').pending);
-  }, offlineKeys) && offlineKeys.every(key => sheetStore.snapshot().values[key]?.reference?.value !== 'Offline fill'), JSON.stringify(offlineBeforeReload));
+    const s = await import('/js/core/research-sheet.js'); return keys.every(key => s.entry(key, 'reference')?.value === '2027-03-31' && s.entry(key, 'reference').pending);
+  }, offlineKeys) && offlineKeys.every(key => sheetStore.snapshot().values[key]?.reference?.value !== '2027-03-31'), JSON.stringify(offlineBeforeReload));
 
   await c.page.setViewportSize({ width: 390, height: 844 });
   await c.page.getByRole('button', { name: 'Dark mode', exact: true }).click();
-  await editCell(c.page, 'portfolio', offlineKeys[0], 'reference', 'Touch fill');
-  await waitFor(async () => (await cell(c.page, 'portfolio', offlineKeys[0], 'reference').innerText()).trim() === 'Touch fill');
+  await editCell(c.page, 'portfolio', offlineKeys[0], 'reference', '2028-03-31');
+  await waitFor(async () => (await cell(c.page, 'portfolio', offlineKeys[0], 'reference').innerText()).trim() === '31-Mar-28');
   const touch = await c.context.newCDPSession(c.page);
   await touch.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
   await table(c.page, 'portfolio').locator('[data-table-scroll]').evaluate(el => { el.scrollTop = 0; el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }); });
@@ -646,7 +676,7 @@ try {
   await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: th.x + 8, y: th.y + 8 }] });
   await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: th.x + 8, y: ty }] });
   await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  ok('a touch drag works on the dark mobile sheet', await waitFor(async () => (await c.page.evaluate(async key => (await import('/js/core/research-sheet.js')).value(key, 'reference'), offlineKeys[1])) === 'Touch fill'),
+  ok('a touch drag works on the dark mobile sheet', await waitFor(async () => (await c.page.evaluate(async key => (await import('/js/core/research-sheet.js')).value(key, 'reference'), offlineKeys[1])) === '2028-03-31'),
     JSON.stringify({ source: th, targetY: ty, feedback: await c.page.locator('.sheet-fill-feedback').innerText().catch(() => '') }));
   await touch.detach();
 

@@ -20,7 +20,7 @@
 
 import { escapeHtml } from '../core/dom.js';
 import { FIELDS, editedLabel, fieldValue } from '../data/research-sheet-shared.js';
-import { parseDateInput, parseNumberInput, formatSheetDate, istToday } from '../data/sheet-math.js';
+import { parseDateInput, parseNumberInput, istToday } from '../data/sheet-math.js';
 import * as people from '../core/watchlist-people.js';
 
 let active = null;
@@ -29,7 +29,7 @@ let active = null;
 export function inputText(field, value) {
   if (value == null || value === '') return '';
   const spec = FIELDS[field];
-  if (spec?.kind === 'date') return formatSheetDate(value);
+  if (spec?.kind === 'date' || spec?.input === 'date') return parseDateInput(value) || '';
   if (spec?.kind === 'number') return String(+Number(value).toFixed(spec.unit === 'crore' ? 4 : 4));
   return String(value);
 }
@@ -41,10 +41,13 @@ export function readInput(field, text, now = Date.now()) {
   const raw = String(text ?? '').trim();
   if (!raw) return { empty: true };
   try {
-    if (spec.kind === 'date') {
+    if (spec.kind === 'date' || spec.input === 'date') {
       const date = parseDateInput(raw, now);
-      if (!date) return { error: 'Not a date this sheet can read. Try 12-Mar-24.' };
-      if (date > istToday(now)) return { error: 'A purchase date cannot be in the future.' };
+      // Workbooks still carry financial-year reference notes under the existing text contract.
+      // The on-screen native date control only supplies complete dates (or an empty value).
+      if (!date) return spec.kind === 'text' ? { value: fieldValue(field, raw) }
+        : { error: 'Choose a valid date between 1950 and 2100.' };
+      if (field === 'dateBought' && date > istToday(now)) return { error: 'A purchase date cannot be in the future.' };
       return { value: fieldValue(field, date) };
     }
     if (spec.kind === 'number') {
@@ -149,6 +152,8 @@ export function openCellEditor(options) {
   closeCellEditor({ restoreFocus: false });
   const spec = FIELDS[field];
   if (!spec) return;
+  const isDate = spec.kind === 'date' || spec.input === 'date';
+  const legacyReference = field === 'reference' && cell?.edited && !parseDateInput(cell.value);
   const roster = people.roster().map((p) => p.name);
   const me = people.me() || '';
   const fallback = cell?.fallback;
@@ -167,11 +172,12 @@ export function openCellEditor(options) {
       </div>
       <label class="sheet-editor-field">
         <span class="sr-only">${escapeHtml(label || spec.label)}</span>
-        <input data-sheet-input type="text" autocomplete="off" spellcheck="${spec.kind === 'text' ? 'true' : 'false'}"
+        <input data-sheet-input type="${isDate ? 'date' : 'text'}" ${isDate ? `min="1950-01-01" max="${field === 'dateBought' ? istToday() : '2100-12-31'}"` : ''} autocomplete="off" spellcheck="${spec.kind === 'text' ? 'true' : 'false'}"
           ${spec.kind === 'number' ? 'inputmode="decimal"' : ''} maxlength="${spec.kind === 'text' ? spec.max : 40}"
           value="${escapeHtml(cell?.edited ? inputText(field, cell.value) : '')}"
           placeholder="${escapeHtml(hasFallback ? inputText(field, fallback) : '')}" />
       </label>
+      ${legacyReference ? `<p class="sheet-editor-note" data-sheet-legacy>Saved reference: ${escapeHtml(cell.value)}. Choose a date to replace it, or Clear to remove it.</p>` : ''}
       <p class="sheet-editor-error" data-sheet-error role="alert" hidden></p>
       <p class="sheet-editor-changed" data-sheet-changed role="status" hidden></p>
       <label class="sheet-editor-name">
@@ -204,11 +210,12 @@ export function openCellEditor(options) {
 
   const onSubmit = (event) => {
     event.preventDefault();
+    if (isDate && input.validity.badInput) return showError('Choose a complete, valid date.');
     const read = readInput(field, input.value);
     if (read.error) return showError(read.error);
     if (read.empty) {
-      // An empty box on Save means "nothing typed": clear an edit if there was one, else just close.
-      if (cell?.edited) onClear?.(by());
+      // Preserve an earlier reference note until a date replaces it or Clear is explicitly used.
+      if (cell?.edited && !legacyReference) onClear?.(by());
       closeCellEditor();
       return;
     }
@@ -255,5 +262,9 @@ export function openCellEditor(options) {
     },
   };
   input.focus();
-  input.select();
+  if (isDate) {
+    // The cell click supplies the user gesture. Embedded browsers may restrict showPicker;
+    // their native date control remains available through its own calendar indicator.
+    try { input.showPicker?.(); } catch { /* Use the native input's calendar button. */ }
+  } else input.select();
 }
