@@ -25,15 +25,6 @@ import * as people from '../core/watchlist-people.js';
 
 let active = null;
 
-const HINT = {
-  date: 'Day first — 12-Mar-24, 12 Mar 2024 or 12/03/2024.',
-  crore: 'In ₹ crore, e.g. 2.5.',
-  pct: 'In percent, e.g. 4.5.',
-  rupee: '₹ per share, e.g. 1,250.50.',
-  shares: 'Number of shares, on today\'s share basis (after any split or bonus).',
-  text: 'Free text.',
-};
-
 /** How a stored value reads in the input box — plain, so it can be edited without unpicking commas. */
 export function inputText(field, value) {
   if (value == null || value === '') return '';
@@ -69,16 +60,6 @@ export function readInput(field, text, now = Date.now()) {
     return { error: `That value is not accepted. ${range}`.trim() };
   }
 }
-
-const hintFor = (field) => {
-  const spec = FIELDS[field];
-  if (spec.kind === 'date') return HINT.date;
-  if (spec.kind === 'text') return `${HINT.text} Up to ${spec.max} characters.`;
-  if (spec.unit === 'crore') return HINT.crore;
-  if (spec.unit === 'pct') return HINT.pct;
-  if (spec.unit === 'rupee') return HINT.rupee;
-  return HINT.shares;
-};
 
 function anchorFor(key, field) {
   const esc = (v) => (window.CSS?.escape ? CSS.escape(v) : String(v).replace(/"/g, '\\"'));
@@ -164,7 +145,7 @@ export function refreshCellEditor(cellFor) {
  *   onSave     (value, by) -> void   onClear (by) -> void
  */
 export function openCellEditor(options) {
-  const { anchor, key, field, company, cell, format = (v) => String(v), onSave, onClear, label = null } = options;
+  const { anchor, key, field, company, cell, onSave, onClear, label = null } = options;
   closeCellEditor({ restoreFocus: false });
   const spec = FIELDS[field];
   if (!spec) return;
@@ -172,9 +153,6 @@ export function openCellEditor(options) {
   const me = people.me() || '';
   const fallback = cell?.fallback;
   const hasFallback = fallback !== null && fallback !== undefined && fallback !== '';
-  const defaultLine = hasFallback
-    ? `If cleared, shows ${escapeHtml(format(fallback))}${cell.fallbackLabel ? ` · ${escapeHtml(cell.fallbackLabel)}` : ''}.`
-    : 'Nothing is shown when it is empty — this one is the desk\'s to fill.';
   const listId = `sheet-people-${Math.random().toString(36).slice(2, 8)}`;
   const panel = document.createElement('div');
   panel.className = 'sheet-editor';
@@ -194,11 +172,8 @@ export function openCellEditor(options) {
           value="${escapeHtml(cell?.edited ? inputText(field, cell.value) : '')}"
           placeholder="${escapeHtml(hasFallback ? inputText(field, fallback) : '')}" />
       </label>
-      <p class="sheet-editor-hint">${escapeHtml(hintFor(field))}</p>
       <p class="sheet-editor-error" data-sheet-error role="alert" hidden></p>
       <p class="sheet-editor-changed" data-sheet-changed role="status" hidden></p>
-      <p class="sheet-editor-note">${defaultLine}</p>
-      ${cell?.edited ? `<p class="sheet-editor-note">${escapeHtml(editedLabel(cell.entry))}.</p>` : ''}
       <label class="sheet-editor-name">
         <span>Edited by</span>
         <input data-sheet-by type="text" list="${listId}" maxlength="60" value="${escapeHtml(me)}" placeholder="Your name (optional)" autocomplete="off" />

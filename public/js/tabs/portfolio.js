@@ -36,6 +36,7 @@ import { editableCell, derivedCell, FORMAT, sortOf, exportOf, provenanceOf, form
 import { openCellEditor, closeCellEditor, isEditorOpen, refreshCellEditor } from '../ui/sheet-editor.js';
 import { sheetStatusPill, sheetHowModal, companySearchHtml } from '../ui/sheet-chrome.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
+import { addSheetBaseline, sheetUploadHtml, wireSheetUpload } from '../ui/sheet-workbook.js';
 
 export const meta = {
   id: 'portfolio',
@@ -187,19 +188,20 @@ function tableConfig(rows) {
     exportName: `glow-portfolio-${todayStamp()}`,
     onExport: (visible) => exportPortfolio(visible),
     toolbarControls: {
-      html: addHoldingHtml(),
+      html: addHoldingHtml() + sheetUploadHtml(),
       wire: (host) => {
         host.querySelector('[data-export]').before(host.querySelector('[data-portfolio-add]'));
+        return wireSheetUpload(host, { kind: 'Portfolio', columns: portfolioExportColumns(), getRows: portfolioRows });
       },
     },
     bookmarkSection: 'portfolio',
   };
 }
 
-function exportPortfolio(visible) {
+export function portfolioExportColumns() {
   const value = (field) => ({ header: HEAD[field], key: field, width: 16, get: (r) => exportOf(r[field]) });
   const typed = (field) => [value(field), { header: `${HEAD[field]} — typed or default`, key: `${field}-p`, width: 14, get: (r) => provenanceOf(r[field]) }];
-  const columns = [
+  return [
     { header: 'Name of company', key: 'name', width: 34, get: (r) => company(r) },
     { header: 'Ticker / ISIN', key: 'id', width: 14, get: (r) => r.ticker || r.isin || r.key },
     ...typed('sector'), value('cmp'), value('mcap'), value('day'), value('month'),
@@ -211,10 +213,15 @@ function exportPortfolio(visible) {
     ...typed('intrinsicValue'), ...typed('methodology'), ...typed('reference'), value('upside'), value('expectedIrr'),
     { header: 'Statement', key: 'stmt', width: 50, get: (r) => (r.statement ? `${r.statement.where}, statement of ${r.statement.asOf}` : r.kind === 'manual' ? 'Added by hand' : '') },
   ];
+}
+
+function exportPortfolio(visible) {
+  const columns = portfolioExportColumns();
   const banner = `Glow Central Research · Portfolio (public direct, PMS excluded) · exported ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST. `
     + 'CMP, market cap, returns, current value, TSR, alpha, XIRR, weight and upside are derived at export time from the minute price capture and the Nifty 500; '
     + 'typed values are the desk\'s, and defaults come from the family\'s statements or the formula named in the column. Percentages are in percent; ₹ Cr columns are in crore.';
-  void exportSheets({ filename: `glow-portfolio-${todayStamp()}`, banner, sheets: [{ name: 'Portfolio', columns, rows: visible }] });
+  void exportSheets({ filename: `glow-portfolio-${todayStamp()}`, banner, sheets: [{ name: 'Portfolio', columns, rows: visible }],
+    prepareWorkbook: (wb) => addSheetBaseline(wb, { kind: 'Portfolio', columns, rows: visible }) });
 }
 
 // ---- painting ------------------------------------------------------------------------------
