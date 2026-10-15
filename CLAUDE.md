@@ -1405,6 +1405,8 @@ end at today in IST; reference dates allow future years through 2100. References
 wire contract so earlier financial-year notes survive unchanged. The editor shows an earlier note
 until a date is selected and saved or the reader explicitly clears it; saving an untouched empty
 calendar must not erase that note. New dates are stored as ISO dates and displayed as DD-MMM-YY.
+Excel imports retain reference notes under the existing text contract and normalize actual date
+cells to ISO dates, including future reference years.
 
 **One record per company, shared by both tabs.** An intrinsic value is a view about a company, and
 when a watched company is bought its fair value, target and methodology must move with it, so both

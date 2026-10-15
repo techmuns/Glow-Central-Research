@@ -43,7 +43,10 @@ export function readInput(field, text, now = Date.now()) {
   try {
     if (spec.kind === 'date' || spec.input === 'date') {
       const date = parseDateInput(raw, now);
-      if (!date) return { error: 'Choose a valid date between 1950 and 2100.' };
+      // Workbooks still carry financial-year reference notes under the existing text contract.
+      // The on-screen native date control only supplies complete dates (or an empty value).
+      if (!date) return spec.kind === 'text' ? { value: fieldValue(field, raw) }
+        : { error: 'Choose a valid date between 1950 and 2100.' };
       if (field === 'dateBought' && date > istToday(now)) return { error: 'A purchase date cannot be in the future.' };
       return { value: fieldValue(field, date) };
     }
