@@ -433,7 +433,8 @@ try {
     });
     const controls = await mountedControls.jsonValue();
     await mountedControls.dispose();
-    assert(!controls.subjectWatch && controls.bookmark >= 28 && controls.wrap === 'normal', `${theme}: mobile keeps separate reachable actions and complete title wrapping ${JSON.stringify(controls)}`);
+    const measured=await controls.jsonValue();await controls.dispose();
+    assert(!measured.subjectWatch && measured.bookmark >= 28 && measured.wrap === 'normal', `${theme}: mobile keeps separate reachable actions and complete title wrapping ${JSON.stringify(measured)}`);
     await page.locator('tbody tr[data-row-key]').first().locator('.ca-company-cell').click();
     await popup.waitFor();
     const box = await popup.boundingBox();
