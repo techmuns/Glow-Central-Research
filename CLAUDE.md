@@ -1360,6 +1360,12 @@ revalidates its sources on mount — moved, not deleted, and the age stays state
 
 ### Portfolio and Watchlist — the desk's two sheets (GLOW-OWNED)
 
+**Companion-table parity (15 October 2026):** shared additions and improvements must reach
+both Portfolio and Watchlist in the same change, including controls, presentation, research
+columns, editing, live refresh and export. Verify both tables. Keep their intentional field
+differences below: holding fields belong to Portfolio; Source and planned entry price belong
+to Watchlist. Both populated tables put their Add action immediately before Export Excel.
+
 The desk asked (12 October 2026) for its portfolio and its watchlist as two tables, in its own
 columns and its own wording, with every field typed by hand except the ones the market answers, and
 for those to move with the market. They are the second and third tabs, after AI Alerts.

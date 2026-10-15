@@ -131,7 +131,7 @@ function headMeta(rows) {
 
 function controlsHtml() {
   return `
-    <button type="button" data-watchlist-sheet-add class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
+    <button type="button" data-watchlist-sheet-add class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
       <span aria-hidden="true">＋</span> Add companies
     </button>`;
 }
@@ -172,6 +172,12 @@ function tableConfig(rows) {
     columnLayoutKey: 'glow-watchlist-sheet',
     exportName: `glow-watchlist-${todayStamp()}`,
     onExport: (visible) => exportWatchlist(visible),
+    toolbarControls: {
+      html: controlsHtml(),
+      wire: (host) => {
+        host.querySelector('[data-export]').before(host.querySelector('[data-watchlist-sheet-add]'));
+      },
+    },
     bookmarkSection: 'watchlist',
   };
 }
@@ -242,7 +248,7 @@ function paint(ctx) {
   tableRoot = ctx.root;
   ctx.root.innerHTML = `
     <div class="fade-in" data-sheet-tab="watchlist">
-      ${sectionHead({ title: 'Watchlist', compact: true, meta: `<div data-watchlist-head-meta>${headMeta(rows)}</div>`, controls: controlsHtml() })}
+      ${sectionHead({ title: 'Watchlist', compact: true, meta: `<div data-watchlist-head-meta>${headMeta(rows)}</div>` })}
       <div data-sheet-table="watchlist">${table.html}</div>
       <div class="mt-3 text-center"><button type="button" data-sheet-how class="text-xs font-semibold text-slate-400 underline decoration-slate-200 underline-offset-4 transition-colors hover:text-indigo-600">How each column is calculated, and where its figures come from</button></div>
     </div>`;
