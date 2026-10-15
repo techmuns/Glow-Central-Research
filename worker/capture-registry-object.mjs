@@ -1,3 +1,4 @@
+import {exportBreakouts} from './breakout-export.mjs';
 import {exportSummaries} from './summaries-export.mjs';
 import {PriceLevelStore} from './price-levels-store.mjs';
 import {PriceLevelSchedule,PRICE_LEVEL_TIMER} from './price-levels-schedule.mjs';
@@ -106,24 +107,21 @@ export class CaptureRegistry extends DurableObject {
   workspaceSnapshot() { return this.workspaceStore.snapshot(); }
   workspaceApply(intent) { return this.workspaceStore.apply(intent); }
   request(source) { return this.schedule.request(source); }
-  async breakoutArm() {
-    await this.breakoutSchedule.arm();
-    await this.env.CAPTURE_REGISTRY.getByName(PRIMARY_OBJECT).upstoxArm();
-    return this.breakoutSchedule.status();
-  }
-  upstoxArm() { return this.breakoutPrimary.arm(); }
-  upstoxInventory(targets,failed) { return this.breakoutPrimary.inventory(targets,failed); }
+  breakoutExport(input) { return exportBreakouts(this.ctx.storage,input); }
+  breakoutArm() { return {runtime:'github-actions',started:false}; }
+  upstoxArm() { return {runtime:'github-actions',started:false}; }
+  upstoxInventory() { throw Error('Quote collection moved to GitHub Actions'); }
   upstoxStatus() { return this.breakoutPrimary.status(); }
-  breakoutPrimaryPrune() { return this.breakouts.primaryPrune(); }
-  breakoutPrimarySave(input) { return this.breakouts.primarySave(input); }
+  breakoutPrimaryPrune() { throw Error('Quote collection moved to GitHub Actions'); }
+  breakoutPrimarySave() { throw Error('Quote collection moved to GitHub Actions'); }
   breakoutReadFallback() { return this.breakouts.readFallback(); }
-  async breakoutBegin(run, targets, failed) { const out = this.breakouts.begin(run, targets, failed); await this.breakoutSchedule.arm(); return out; }
-  breakoutRecovery(run, ticker, from, to, rows) { return this.breakouts.recovery(run,ticker,from,to,rows); }
-  breakoutCheckpoint(run, rows, failures) { return this.breakouts.checkpoint(run, rows, failures); }
-  breakoutFinish(run) { return this.breakouts.finish(run); }
+  breakoutBegin() { throw Error('Quote collection moved to GitHub Actions'); }
+  breakoutRecovery() { throw Error('Quote collection moved to GitHub Actions'); }
+  breakoutCheckpoint() { throw Error('Quote collection moved to GitHub Actions'); }
+  breakoutFinish() { throw Error('Quote collection moved to GitHub Actions'); }
   breakoutRead() { return this.breakouts.read(); }
   breakoutHistory(ticker, before) { return this.breakouts.history(ticker, before); }
-  breakoutScheduleStatus() { return this.breakoutSchedule.status(); }
+  breakoutScheduleStatus() { return {runtime:'github-actions',started:false}; }
   newsletterSnapshot() { return this.newsletter.snapshot(); }
   async newsletterStatus() { await this.newsletterSchedule.arm(); return this.newsletterSchedule.status(); }
   async newsletterApply({ intents = null, settings = null } = {}) {
@@ -158,9 +156,9 @@ export class CaptureRegistry extends DurableObject {
     if (await this.ctx.storage.get(MF_TIMER)) {
       await this.ctx.storage.deleteAlarm();return;
     }
-    if (await this.ctx.storage.get(PRIMARY_TIMER)) await this.breakoutPrimary.wake();
+    if (await this.ctx.storage.get(PRIMARY_TIMER)) await this.ctx.storage.deleteAlarm();
     else if (await this.ctx.storage.get(NEWSLETTER_TIMER_KEY)) await this.newsletterSchedule.wake();
-    else if (await this.ctx.storage.get('breakout-timer')) await this.breakoutSchedule.wake();
+    else if (await this.ctx.storage.get('breakout-timer')) await this.ctx.storage.deleteAlarm();
     else if (await this.ctx.storage.get('summary-timer')) await this.ctx.storage.deleteAlarm();
     else await this.ctx.storage.deleteAlarm(); // Retire the old Telegram dispatch alarm.
   }
