@@ -20,8 +20,8 @@ export async function loadCaptureRegistrations(dataDir, { live = process.env.FAM
       const incoming = body.companies.map(registeredCompany), ids = new Set(incoming.map(c => c.isin));
       if (ids.size !== incoming.length || companies.some(c => !ids.has(c.isin))) throw new Error('Company registration history was lost');
       companies = incoming; checkedAt = body.checkedAt; error = null;
-      writeJson(path, { version: 1, checkedAt, companies });
+      writeJson(path, { version: 1, deployment: 'glow-central-research', checkedAt, companies });
     } catch { error = 'Company registrations could not be checked; retaining previously enrolled companies.'; }
   }
-  return { companies, registration: { liveRequested: live, checkedAt, error, count: companies.length } };
+  return { companies, registration: { deployment: 'glow-central-research', liveRequested: live, checkedAt, error, count: companies.length } };
 }

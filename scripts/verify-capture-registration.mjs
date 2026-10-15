@@ -70,6 +70,8 @@ try {
   const fetcher = () => handleCaptureRegistration(new Request('https://test.example/api/capture-registration'), env);
   let enrolled = await loadCaptureRegistrations(dir, { live: true, fetcher });
   assert.equal(enrolled.companies.length, 2);
+  assert.equal(enrolled.registration.deployment, 'glow-central-research');
+  assert.equal(readJson(join(dir, 'filing-capture/registrations.json')).deployment, 'glow-central-research');
   let scope = captureCompanies(dir, { announcements: true, registrations: enrolled.companies });
   assert.equal(scope.companies.length, 2, 'a company absent from the portfolio/universe reaches scheduled capture');
   let capture = await captureCompanySources({ dir: join(dir, 'filing-capture'), ...scope, registration: enrolled.registration,
