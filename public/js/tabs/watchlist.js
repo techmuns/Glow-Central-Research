@@ -133,11 +133,7 @@ function controlsHtml() {
   return `
     <button type="button" data-watchlist-sheet-add class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
       <span aria-hidden="true">＋</span> Add companies
-    </button>
-    <span class="sheet-legend text-xs text-slate-500">
-      <span class="sheet-legend-item"><span class="sheet-cell is-edited is-sample"><span class="sheet-cell-value">Typed</span><span class="sheet-cell-dot"></span></span> by the desk</span>
-      <span class="sheet-legend-item">Click a dotted cell to edit · ☆ removes a company from the shared watchlist</span>
-    </span>`;
+    </button>`;
 }
 
 function emptyHtml() {

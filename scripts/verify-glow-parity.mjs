@@ -77,7 +77,9 @@ assert.equal(captureIndex.portfolio.count, companies.holdings.length);
 const heldIsins = new Set(companies.holdings.map(h => announcementIssuerIsin(h.isin)));
 const registrationPath = new URL('../public/data/filing-capture/registrations.json', import.meta.url);
 const ownRegistrations = existsSync(registrationPath) ? JSON.parse(readFileSync(registrationPath)) : null;
-if (ownRegistrations) assert.equal(ownRegistrations.deployment, 'glow-central-research');
+// Older collectors saved an empty catalog without a deployment marker. It carries no
+// registrations to mix across deployments; populated catalogs must identify Glow.
+if (ownRegistrations?.deployment || ownRegistrations?.companies?.length) assert.equal(ownRegistrations.deployment, 'glow-central-research');
 const eligibleIsins = new Set([...heldIsins, ...(ownRegistrations?.companies || []).map(c => c.isin)]);
 const priorities = captureIndex.companies.filter(c => c.priority);
 assert(priorities.every(c => eligibleIsins.has(announcementIssuerIsin(c.isin))), 'only Glow holdings and Glow enrollments receive capture priority');
