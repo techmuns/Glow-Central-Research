@@ -57,11 +57,15 @@ export function editableCell(row, cell, { label, company, align = 'left', displa
     cell.edited ? editedLabel(cell.entry) : has ? `Default — ${cell.fallbackLabel || 'derived'}` : 'Not filled in yet',
     'Click to edit',
   ].filter(Boolean).join('\n');
-  return `<button type="button" data-norow data-sheet-edit data-sheet-key="${escapeHtml(row.key)}" data-sheet-field="${escapeHtml(cell.field)}"
+  const fill = has && FIELDS[cell.field] && cell.field !== 'name'
+    ? `<button type="button" data-norow data-sheet-fill-handle data-sheet-key="${escapeHtml(row.key)}" data-sheet-field="${escapeHtml(cell.field)}"
+        class="sheet-fill-handle" title="Drag down to copy. Keyboard: Arrow Down, then Enter."
+        aria-label="${escapeHtml(`Fill ${label} down from ${company}`)}"></button>` : '';
+  return `<span class="sheet-cell-wrap"><button type="button" data-norow data-sheet-edit data-sheet-key="${escapeHtml(row.key)}" data-sheet-field="${escapeHtml(cell.field)}"
     class="sheet-cell ${state} ${align === 'right' ? 'is-right' : 'is-text'}" title="${escapeHtml(title)}"
     aria-label="${escapeHtml(`Edit ${label} for ${company}${has ? `, currently ${text}` : ', empty'}`)}">
     <span class="sheet-cell-value">${escapeHtml(text)}</span>${cell.edited ? '<span class="sheet-cell-dot" aria-hidden="true"></span>' : ''}${sub ? `<span class="sheet-cell-sub">${escapeHtml(sub)}</span>` : ''}
-  </button>`;
+  </button>${fill}</span>`;
 }
 
 /**
