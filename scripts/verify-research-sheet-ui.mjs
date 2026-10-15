@@ -230,7 +230,14 @@ try {
   ok('a purchase date in the future is refused', /future/.test(await a.page.locator('.sheet-editor [data-sheet-error]').innerText()));
   ok('the date editor has no separate Save button and an invalid date is not stored', await a.page.locator('.sheet-editor button[type="submit"]').count() === 0
     && !sheetStore.snapshot().values.SBIN?.dateBought);
-  await a.page.locator('[data-sheet-by]').fill('Ravi');
+  await a.page.locator('[data-sheet-cancel]').click();
+  await a.page.evaluate(async () => (await import('/js/core/watchlist-people.js')).remember('Someone else'));
+  await cell(a.page, 'portfolio', 'SBIN', 'dateBought').click();
+  const dateBy = a.page.locator('[data-sheet-by]');
+  ok('date attribution is reachable before the calendar opens', await dateBy.evaluate(el => document.activeElement === el)
+    && await dateBy.inputValue() === 'Someone else');
+  await dateBy.press('ControlOrMeta+A');
+  await dateBy.pressSequentially('Ravi');
   await dateInput.fill('2025-05-16');
   ok('selecting a date saves it automatically and closes the editor', await waitFor(async () => sheetStore.snapshot().values.SBIN?.dateBought?.value === '2025-05-16'
     && /is-edited/.test(await cell(a.page, 'portfolio', 'SBIN', 'dateBought').getAttribute('class')) && await a.page.locator('.sheet-editor').count() === 0));

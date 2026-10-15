@@ -265,10 +265,12 @@ export function openCellEditor(options) {
       document.removeEventListener('scroll', reposition, true);
     },
   };
-  input.focus();
   if (isDate) {
-    // The cell click supplies the user gesture. Embedded browsers may restrict showPicker;
-    // their native date control remains available through its own calendar indicator.
-    try { input.showPicker?.(); } catch { /* Use the native input's calendar button. */ }
-  } else input.select();
+    // Keep attribution reachable before the native picker takes focus and commits the date.
+    // The reader opens the calendar through the date control after checking their name.
+    byInput.focus();
+  } else {
+    input.focus();
+    input.select();
+  }
 }

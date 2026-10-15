@@ -1407,8 +1407,9 @@ prompt — there is no second list.
    says who typed it and when; Reset returns the cell to its default.
 
 **Date selectors.** Date bought and Reference year and date open native calendars and save as soon
-as a date is selected, with no separate Save button. Other cell editors retain Save. Purchase dates
-end at today in IST; reference dates allow future years through 2100. References retain their text
+as a date is selected, with no separate Save button. Other cell editors retain Save. The date panel
+focuses Edited by first so a reader can correct attribution before opening the calendar. Purchase
+dates end at today in IST; reference dates allow future years through 2100. References retain their text
 wire contract so earlier financial-year notes survive unchanged. The editor shows an earlier note
 until a date is selected or the reader explicitly clears it; opening and closing an untouched
 calendar must not erase that note. New dates are stored as ISO dates and displayed as DD-MMM-YY.
