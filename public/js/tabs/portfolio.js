@@ -148,9 +148,9 @@ function searchText(r) {
     r.statement?.where].filter(Boolean).join(' ').toLowerCase();
 }
 
-function controlsHtml() {
+function addHoldingHtml() {
   return `
-    <button type="button" data-portfolio-add class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
+    <button type="button" data-portfolio-add class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
       <span aria-hidden="true">＋</span> Add holding
     </button>`;
 }
@@ -186,6 +186,12 @@ function tableConfig(rows) {
     columnLayoutKey: 'glow-portfolio-sheet',
     exportName: `glow-portfolio-${todayStamp()}`,
     onExport: (visible) => exportPortfolio(visible),
+    toolbarControls: {
+      html: addHoldingHtml(),
+      wire: (host) => {
+        host.querySelector('[data-export]').before(host.querySelector('[data-portfolio-add]'));
+      },
+    },
     bookmarkSection: 'portfolio',
   };
 }
@@ -252,7 +258,7 @@ function paint(ctx) {
   tableRoot = ctx.root;
   ctx.root.innerHTML = `
     <div class="fade-in" data-sheet-tab="portfolio">
-      ${sectionHead({ title: 'Portfolio', compact: true, meta: `<div data-portfolio-head-meta>${sheetStatusPill()}</div>`, controls: controlsHtml() })}
+      ${sectionHead({ title: 'Portfolio', compact: true, meta: `<div data-portfolio-head-meta>${sheetStatusPill()}</div>` })}
       <div data-sheet-table="portfolio">${table.html}</div>
       ${footerHtml()}
     </div>`;
