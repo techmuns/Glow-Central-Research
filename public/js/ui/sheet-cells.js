@@ -59,11 +59,15 @@ export function editableCell(row, cell, { label, company, align = 'left', displa
     cell.edited ? editedLabel(cell.entry) : has ? `Default — ${cell.fallbackLabel || 'derived'}` : 'Not filled in yet',
     isDate ? 'Click to choose a date' : 'Click to edit',
   ].filter(Boolean).join('\n');
-  return `<button type="button" data-norow data-sheet-edit data-sheet-key="${escapeHtml(row.key)}" data-sheet-field="${escapeHtml(cell.field)}"
+  const fill = has && FIELDS[cell.field] && cell.field !== 'name'
+    ? `<button type="button" data-norow data-sheet-fill-handle data-sheet-key="${escapeHtml(row.key)}" data-sheet-field="${escapeHtml(cell.field)}"
+        class="sheet-fill-handle" title="Drag down to copy. Keyboard: Arrow Down, then Enter."
+        aria-label="${escapeHtml(`Fill ${label} down from ${company}`)}"></button>` : '';
+  return `<span class="sheet-cell-wrap"><button type="button" data-norow data-sheet-edit data-sheet-key="${escapeHtml(row.key)}" data-sheet-field="${escapeHtml(cell.field)}"
     class="sheet-cell ${state} ${isDate ? 'is-date' : ''} ${align === 'right' ? 'is-right' : 'is-text'}" title="${escapeHtml(title)}"
     aria-label="${escapeHtml(`Edit ${label} for ${company}${has ? `, currently ${text}` : ', empty'}`)}">
     ${isDate ? '<svg class="sheet-calendar-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>' : ''}<span class="sheet-cell-value">${escapeHtml(text)}</span>${cell.edited ? '<span class="sheet-cell-dot" aria-hidden="true"></span>' : ''}${sub ? `<span class="sheet-cell-sub">${escapeHtml(sub)}</span>` : ''}
-  </button>`;
+  </button>${fill}</span>`;
 }
 
 /**

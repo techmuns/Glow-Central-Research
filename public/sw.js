@@ -23,7 +23,7 @@
 // stylesheet it depends on does not, and the result is a half-applied design nobody can see a
 // fault in. Advancing a revision here is the whole mechanism; editing the CSS is not enough.
 const CACHE_PREFIX = 'sattva-dashboard-';
-const CACHE_NAME = `${CACHE_PREFIX}2026-10-15-glow-sheet-upload-v1`;
+const CACHE_NAME = `${CACHE_PREFIX}2026-10-15-glow-sheet-fill-down-v2`;
 const APP_ENTRY = '/js/app.js';
 const CORE = ['/', '/index.html', '/css/tailwind.css', '/css/theme.css', '/css/glow.css', '/glow-bridge.html', '/js/core/json-worker.js', '/data/portfolio-companies.json',
   '/assets/brand/glow-ventures-wordmark.svg', '/assets/brand/favicon.svg', '/assets/brand/favicon.svg'];
@@ -33,7 +33,7 @@ const WARM_CONCURRENCY = 8;
 // Keep content revisions separate from the shared marker: concurrent dashboard
 // releases can update that marker without conflicting with these fixes. Every
 // install, read and eviction uses the same combined key, retaining atomic upgrades.
-const CACHE_KEY = `${CACHE_NAME}-news-story-companions-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v2-dated-grades-all-alerts-restore-v2-ai-card-updates-v1-story-updates-v2-shared-reading-performance-ownership-v1-sattva-newsletter-v3-source-evidence-bounded-history-memory-v5-news-query-performance-v1-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v3-content-reuse-investor-evidence-v2-initial-state-source-reliability-v1-scrollbar-grab-v2-measured-anchor-filing-particulars-v1-table-drag-v2-mutual-funds-v13-upstox-minute-v2-muns-price-label-v2-kpi-impact-v2-alert-notes-luna-v1-announcement-company-search-v1-announcement-search-clarity-v1-source-picker-stability-v1-fund-navigation-v1-private-price-alerts-v2-ai-reading-v2-factual-summaries-v1-alert-timelines-v1-announcement-recovery-v1-sliced-announcement-history-v1-retained-failure-cache-v1-story-order-v1-company-feed-recovery-v9-momentum-calculations-v1-announcement-read-stream-v1-super-investor-ux-v2-glow-sheet-date-pickers-v3`;
+const CACHE_KEY = `${CACHE_NAME}-news-story-companions-v1-telegram-content-v1-watchlist-reliability-v4-sme-scope-v1-alert-arrivals-v3-notification-inbox-v1-breakout-layout-v2-dated-grades-all-alerts-restore-v2-ai-card-updates-v1-story-updates-v2-shared-reading-performance-ownership-v1-sattva-newsletter-v3-source-evidence-bounded-history-memory-v5-news-query-performance-v1-hot-path-caches-v1-sliced-rankings-v1-alert-pool-v3-content-reuse-investor-evidence-v2-initial-state-source-reliability-v1-scrollbar-grab-v2-measured-anchor-filing-particulars-v1-table-drag-v2-mutual-funds-v13-upstox-minute-v2-muns-price-label-v2-kpi-impact-v2-alert-notes-luna-v1-announcement-company-search-v1-announcement-search-clarity-v1-source-picker-stability-v1-fund-navigation-v1-private-price-alerts-v2-ai-reading-v2-factual-summaries-v1-alert-timelines-v1-announcement-recovery-v1-sliced-announcement-history-v1-retained-failure-cache-v1-story-order-v1-company-feed-recovery-v9-momentum-calculations-v1-announcement-read-stream-v1-super-investor-ux-v2-glow-sheet-date-pickers-v4`;
 
 function moduleSpecifiers(source) {
   const found = new Set();
@@ -45,7 +45,7 @@ function moduleSpecifiers(source) {
 
 // Compose with every other module revision without editing their shared version lines.
 function releaseCacheKey() {
-  return `${RELEASE_CACHE_KEY}-2026-10-09-full-exchange-universe-v1-directory-recovery-v1-responsive-directory-v1-super-investor-clean-heading-v1-news-coverage-detail-v1-all-alerts-history-only-v1-super-investor-managers-v1-json-worker-v1-scoped-alert-pool-v4`;
+  return `${RELEASE_CACHE_KEY}-2026-10-09-full-exchange-universe-v1-directory-recovery-v1-responsive-directory-v1-super-investor-clean-heading-v1-news-coverage-detail-v1-all-alerts-history-only-v1-super-investor-managers-v1-json-worker-v1-scoped-alert-pool-v4-glow-watchlist-parity-v1`;
 }
 
 // Compose this UI revision without editing another release's version marker.

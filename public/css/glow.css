@@ -56,6 +56,20 @@ html[data-theme="dark"] .sattva-wordmark { filter: none; }
 .sheet-cell.is-pending .sheet-cell-dot { background: transparent; box-shadow: inset 0 0 0 1.5px rgb(var(--text-indigo-700, 67 56 202)); }
 .sheet-cell.is-sample { margin: 0; padding: 0 2px; cursor: default; }
 .sheet-cell.is-sample:hover { background: transparent; }
+.sheet-cell-wrap { display: inline; }
+[data-sheet-table] td:has(.sheet-cell-wrap) { position: relative; }
+.sheet-fill-handle { position: absolute; right: 2px; bottom: 2px; z-index: 2; width: 16px; height: 16px; padding: 4px; border: 0; background: transparent; cursor: crosshair; touch-action: none; opacity: 0; }
+.sheet-fill-handle::after { content: ''; display: block; width: 8px; height: 8px; background: var(--accent-600); box-shadow: 0 0 0 1px rgb(var(--surface-white, 255 255 255)); }
+[data-sheet-table] td:hover .sheet-fill-handle, td:focus-within .sheet-fill-handle, .sheet-fill-handle:focus-visible { opacity: 1; }
+.sheet-fill-handle:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 1px; }
+@media (hover: none) { .sheet-fill-handle { opacity: 1; width: 24px; height: 24px; padding: 8px; right: 0; bottom: 0; } }
+.sheet-fill-source { box-shadow: inset 0 0 0 2px var(--accent-600); }
+.sheet-fill-target { background: rgb(var(--surface-indigo-50, 238 242 255)) !important; box-shadow: inset 1px 0 var(--accent-600), inset -1px 0 var(--accent-600); }
+body.sheet-filling, body.sheet-filling * { cursor: crosshair !important; user-select: none !important; }
+.sheet-fill-preview, .sheet-fill-feedback { position: fixed; z-index: 46; padding: 8px 12px; border: 1px solid rgb(var(--edge-slate-200, 226 232 240)); border-radius: 9px; background: rgb(var(--surface-white, 255 255 255)); color: rgb(var(--text-slate-900, 15 23 42)); box-shadow: 0 4px 18px rgb(15 23 42 / .15); font-size: 12px; }
+.sheet-fill-preview { pointer-events: none; }
+.sheet-fill-feedback { right: 16px; bottom: 20px; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px); }
+.sheet-fill-feedback button { border: 0; background: transparent; color: var(--accent-600); font: inherit; font-weight: 700; cursor: pointer; }
 .sheet-derived.is-missing { color: rgb(var(--text-slate-400, 148 163 184)); cursor: help; }
 .sheet-tag { display: inline-block; margin-left: 4px; padding: 0 4px; border-radius: 4px; font-size: 10px; font-weight: 600; line-height: 16px; vertical-align: 1px; color: rgb(var(--text-amber-700, 180 83 9)); background: rgb(var(--surface-amber-50, 255 251 235)); }
 .sheet-irr { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }

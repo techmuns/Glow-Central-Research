@@ -1360,6 +1360,12 @@ revalidates its sources on mount — moved, not deleted, and the age stays state
 
 ### Portfolio and Watchlist — the desk's two sheets (GLOW-OWNED)
 
+**Companion-table parity (15 October 2026):** shared additions and improvements must reach
+both Portfolio and Watchlist in the same change, including controls, presentation, research
+columns, editing, live refresh and export. Verify both tables. Keep their intentional field
+differences below: holding fields belong to Portfolio; Source and planned entry price belong
+to Watchlist. Both populated tables put their Add action immediately before Export Excel.
+
 The desk asked (12 October 2026) for its portfolio and its watchlist as two tables, in its own
 columns and its own wording, with every field typed by hand except the ones the market answers, and
 for those to move with the market. They are the second and third tabs, after AI Alerts.
@@ -1407,6 +1413,15 @@ until a date is selected and saved or the reader explicitly clears it; saving an
 calendar must not erase that note. New dates are stored as ISO dates and displayed as DD-MMM-YY.
 Excel imports retain reference notes under the existing text contract and normalize actual date
 cells to ISO dates, including future reference years.
+
+**Fill down (15 October 2026).** A populated editable cell has a corner handle: drag down to
+copy its raw value through the current filtered/sorted rows, or focus the handle and use Down
+then Enter. `ui/sheet-fill.js` previews the range, scrolls through mounted pages and commits
+through `research-sheet.editMany()` on release. Escape cancels; Undo restores previous typed
+values/defaults while preserving later differing edits. Both sheets share this behavior. Market
+figures and company identity have no handle. A changed view, missing selected row or changed
+selected typed value cancels the gesture; live table repaints wait until it ends. Bulk edits use the existing durable
+outbox and bounded shared-save batches. Verify with `scripts/verify-research-sheet-ui.mjs`.
 
 **One record per company, shared by both tabs.** An intrinsic value is a view about a company, and
 when a watched company is bought its fair value, target and methodology must move with it, so both

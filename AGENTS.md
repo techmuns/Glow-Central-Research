@@ -57,6 +57,11 @@ normal month. The owner's requirements:
 
 ## Repository workflow
 
+Portfolio and Watchlist are companion tables. Apply shared table additions and improvements
+to both in the same change: controls, presentation, research columns, editing, live refresh
+and export. Verify both tables. Keep holding-specific fields on Portfolio and Watchlist's
+Source and planned entry price on Watchlist; preserve their existing shared company edits.
+
 Changes under `public/js/` must advance the release version in `public/sw.js`: returning
 dashboards serve those modules from an immutable cache. Verify an existing session upgrades;
 a fresh asset response alone does not prove that returning readers received the change.

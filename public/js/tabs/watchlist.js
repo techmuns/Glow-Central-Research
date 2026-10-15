@@ -23,6 +23,7 @@ import * as market from '../data/sheet-market.js';
 import { watchlistRows } from '../data/research-sheets.js';
 import { editableCell, derivedCell, FORMAT, sortOf, exportOf, provenanceOf, formatField, cmpTag } from '../ui/sheet-cells.js';
 import { openCellEditor, closeCellEditor, isEditorOpen, refreshCellEditor } from '../ui/sheet-editor.js';
+import { wireSheetFill } from '../ui/sheet-fill.js';
 import { sheetStatusPill, sheetHowModal } from '../ui/sheet-chrome.js';
 import { openScopeEditor } from '../ui/scope-editor.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
@@ -61,6 +62,7 @@ let disposers = [];
 let paintQueued = false;
 let releaseTable = null;
 let releaseRoot = null;
+let fill = null;
 
 const company = (r) => r.name.value || r.ticker;
 
@@ -132,7 +134,7 @@ function headMeta(rows) {
 
 function controlsHtml() {
   return `
-    <button type="button" data-watchlist-sheet-add class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
+    <button type="button" data-watchlist-sheet-add class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
       <span aria-hidden="true">＋</span> Add companies
     </button>`;
 }
@@ -173,8 +175,13 @@ function tableConfig(rows) {
     columnLayoutKey: 'glow-watchlist-sheet',
     exportName: `glow-watchlist-${todayStamp()}`,
     onExport: (visible) => exportWatchlist(visible),
-    toolbarControls: { html: sheetUploadHtml(), wire: (host) => wireSheetUpload(host,
-      { kind: 'Watchlist', columns: watchlistExportColumns(), getRows: watchlistRows }) },
+    toolbarControls: {
+      html: controlsHtml() + sheetUploadHtml(),
+      wire: (host) => {
+        host.querySelector('[data-export]').before(host.querySelector('[data-watchlist-sheet-add]'));
+        return wireSheetUpload(host, { kind: 'Watchlist', columns: watchlistExportColumns(), getRows: watchlistRows });
+      },
+    },
     bookmarkSection: 'watchlist',
   };
 }
@@ -205,6 +212,7 @@ function exportWatchlist(visible) {
 // ---- painting ------------------------------------------------------------------------------
 
 function cleanup() {
+  fill?.dispose(); fill = null;
   for (const off of disposers.splice(0)) { try { off(); } catch { /* already gone */ } }
   releaseTable?.(); releaseTable = null;
   releaseRoot?.(); releaseRoot = null;
@@ -228,9 +236,11 @@ function schedule() {
 
 function paint(ctx) {
   if (ctxRef !== ctx || !ctx.root.isConnected) return;
+  if (fill?.active()) return;
   const rows = watchlistRows();
   rowsNow = rows;
   if (!rows.length) {
+    fill?.dispose(); fill = null;
     if (table) { releaseTable?.(); releaseTable = null; tableView = table.view; table = null; tableRoot = null; }
     ctx.root.innerHTML = `
       <div data-sheet-tab="watchlist">
@@ -246,15 +256,18 @@ function paint(ctx) {
     return;
   }
   releaseTable?.();
+  fill?.dispose();
   table = scoreTable(tableConfig(rows));
   tableRoot = ctx.root;
   ctx.root.innerHTML = `
     <div class="fade-in" data-sheet-tab="watchlist">
-      ${sectionHead({ title: 'Watchlist', compact: true, meta: `<div data-watchlist-head-meta>${headMeta(rows)}</div>`, controls: controlsHtml() })}
+      ${sectionHead({ title: 'Watchlist', compact: true, meta: `<div data-watchlist-head-meta>${headMeta(rows)}</div>` })}
       <div data-sheet-table="watchlist">${table.html}</div>
       <div class="mt-3 text-center"><button type="button" data-sheet-how class="text-xs font-semibold text-slate-400 underline decoration-slate-200 underline-offset-4 transition-colors hover:text-indigo-600">How each column is calculated, and where its figures come from</button></div>
     </div>`;
   releaseTable = table.wire(ctx.root);
+  fill = wireSheetFill(ctx.root, { viewRows: () => table.visibleRows(), liveRows: watchlistRows,
+    closeEditor: () => closeCellEditor({ restoreFocus: false }), onEnd: schedule });
 }
 
 function onRootClick(event) {

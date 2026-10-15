@@ -1555,7 +1555,8 @@ export function scoreTable(config) {
     if (typeof options.loading === 'boolean') loading = options.loading;
     activeLoading?.();
   }
-  return { html, wire, view, updateRows: (keys) => updateRows(keys), updateData, updateStatus, refreshPresentation: () => activePresentation?.() };
+  // Full filtered/sorted model, including rows outside the mounted window (sheet fill uses it).
+  return { html, wire, view, visibleRows, updateRows: (keys) => updateRows(keys), updateData, updateStatus, refreshPresentation: () => activePresentation?.() };
 }
 
 // ---------------------------------------------------------------------------------------
