@@ -35,7 +35,7 @@ export async function handleConcallSummaries(request, env, { fetcher = fetch, no
     const input=request.method==='POST'?await boundedJson(new Response(request.body),2048):null;
     if(request.method==='POST'&&!Array.isArray(input?.ids))throw Error('Private summary scope required');
     const prepared=await preparedSummaries(request,env,{ids:input?.ids??null,now:now()});
-    if(prepared)return reply({ok:true,...prepared,...(request.method==='GET'?{enabled:env.SCREENER_SUMMARIES_ENABLED==='true',rowidCursor:2}:{})});
+    if(prepared)return reply({ok:true,...prepared,...(request.method==='GET'?{enabled:env.SCREENER_SUMMARIES_ENABLED==='true'}:{})});
     if (!env.SCREENER_SUMMARIES) return reply({ ok: false, reason: 'storage-unavailable' }, 503);
     const store = env.SCREENER_SUMMARIES.getByName(SUMMARY_OBJECT);
     if (request.method === 'GET') return reply({ ok: true, ...await store.summaryStatus(), enabled: env.SCREENER_SUMMARIES_ENABLED === 'true' });
