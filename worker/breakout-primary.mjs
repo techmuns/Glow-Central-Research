@@ -5,6 +5,8 @@ import { mapUpstoxTargets, upstoxIdentity, upstoxRows } from './upstox-market.mj
 export const PRIMARY_OBJECT = 'breakout-upstox:v1';
 export const PRIMARY_TIMER = 'upstox-minute-timer';
 export const PRIMARY_INTERVAL = 60000;
+// Idle cadence outside the collection window — see the backoff note in wake().
+export const PRIMARY_IDLE_INTERVAL = 10 * 60000;
 export const PRIMARY_MAX_AGE = 120000;
 const INVENTORY = 'upstox-inventory';
 const UPSTOX_CLIENT = 'GlowCentralResearch/1.0';
@@ -153,7 +155,12 @@ export class BreakoutPrimary {
     const claimed=await this.storage.transaction(async tx=>{
       const old=await tx.get(PRIMARY_TIMER) || {};
       if (old.lastAttemptAt && old.nextAt>at) {await tx.setAlarm(old.nextAt);return false;}
-      const nextAt=at+PRIMARY_INTERVAL;
+      // Outside the collection window the minute capture does nothing useful, so back off to a
+      // 10-minute idle cadence instead of waking every 60s, 24/7/365. A session open is detected
+      // within 10 minutes (the 15-minute fallback collector covers the gap), and the first in-window
+      // tick restores the 60s cadence. This removes ~1,000 pointless wakeups/day (nights, weekends,
+      // holidays), each of which otherwise runs prune and state queries against the DO SQLite.
+      const nextAt=at+(marketWindow(at).collect ? PRIMARY_INTERVAL : PRIMARY_IDLE_INTERVAL);
       await tx.put(PRIMARY_TIMER,{...old,started:true,lastAttemptAt:at,nextAt,reason:'checking'});
       await tx.setAlarm(nextAt); return true;
     });

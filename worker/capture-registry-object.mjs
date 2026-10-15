@@ -159,6 +159,29 @@ export class CaptureRegistry extends DurableObject {
     else if (await this.ctx.storage.get('summary-timer')) await this.summarySchedule.wake();
     else await this.schedule.request('cron');
   }
+  // READ-ONLY storage diagnostic — per-table byte sizes (and total DB size) for this object, so a
+  // billing investigation can see which feature owns the SQLite rows read/written cost without
+  // guessing. Prefers the dbstat vtab (reads page metadata, cheap); falls back to COUNT(*) per
+  // table only if dbstat is unavailable. Exposed behind the DEBUG_STORAGE_KEY secret; remove both
+  // once the audit is done.
+  dbstat() {
+    const sql = this.ctx.storage.sql;
+    const out = { databaseSizeBytes: Number(sql.databaseSize) };
+    try {
+      out.method = 'dbstat';
+      out.tables = sql.exec('SELECT name, SUM(pgsize) AS bytes FROM dbstat GROUP BY name ORDER BY bytes DESC').toArray()
+        .map((r) => ({ name: r.name, mb: Math.round(Number(r.bytes) / 10485.76) / 100 }));
+    } catch (dbstatError) {
+      out.method = 'row-counts';
+      out.dbstatError = String(dbstatError?.message || dbstatError);
+      const names = sql.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").toArray().map((r) => r.name);
+      out.tables = names.map((name) => {
+        try { return { name, rows: Number(sql.exec(`SELECT COUNT(*) AS n FROM "${name}"`).one().n) }; }
+        catch (error) { return { name, error: String(error?.message || error) }; }
+      });
+    }
+    return out;
+  }
   list() {
     return this.ctx.storage.sql.exec('SELECT isin, ticker, name FROM companies ORDER BY isin').toArray();
   }

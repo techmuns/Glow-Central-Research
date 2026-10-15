@@ -164,6 +164,27 @@ export default {
       return preflight();
     }
 
+    // READ-ONLY STORAGE AUDIT — which Durable Object / table owns the SQLite rows-read/written bill.
+    // Gated by the DEBUG_STORAGE_KEY secret (unset => 404). Exposes only table names and byte sizes,
+    // never row data. Remove this route and the secret once the billing investigation is complete.
+    if (url.pathname === '/api/_debug/storage') {
+      if (!env.DEBUG_STORAGE_KEY || url.searchParams.get('key') !== env.DEBUG_STORAGE_KEY) {
+        return new Response('not found', { status: 404 });
+      }
+      const OBJECTS = [
+        'breakout-capture:v1', 'breakout-upstox:v1', 'mutual-funds:v1', 'screener-account-summaries-v1',
+        'price-levels:v1', 'research-sheet:v1', 'research-workspace:v1', 'team-brief:v1',
+        'shared-watchlist:v1', 'alert-notes:v1', 'ai-alert-story-reviews:v1', 'announcement-read:v1',
+        'relevance-feedback:v1', 'researchreportss-main-v1',
+      ];
+      const report = {};
+      for (const name of OBJECTS) {
+        try { report[name] = await env.CAPTURE_REGISTRY.getByName(name).dbstat(); }
+        catch (error) { report[name] = { error: String(error?.message || error) }; }
+      }
+      return Response.json(report, { headers: { 'cache-control': 'no-store' } });
+    }
+
     // isRead is caller-specific. This route must bypass deployment-token fallback and edge caches.
     if (url.pathname === '/api/combined-filings') return handleCombinedFilings(request);
     if (url.pathname === '/api/drhp-filings') return handleDrhpFilings(request);
