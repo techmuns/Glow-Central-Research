@@ -1400,6 +1400,15 @@ prompt — there is no second list.
    weight through the public-direct total, pending = target − invested. A typed value always wins and
    says who typed it and when; Reset returns the cell to its default.
 
+**Fill down (15 October 2026).** A populated editable cell has a corner handle: drag down to
+copy its raw value through the current filtered/sorted rows, or focus the handle and use Down
+then Enter. `ui/sheet-fill.js` previews the range, scrolls through mounted pages and commits
+through `research-sheet.editMany()` on release. Escape cancels; Undo restores previous typed
+values/defaults while preserving later differing edits. Both sheets share this behavior. Market
+figures and company identity have no handle. A changed view, missing selected row or changed
+selected typed value cancels the gesture; live table repaints wait until it ends. Bulk edits use the existing durable
+outbox and bounded shared-save batches. Verify with `scripts/verify-research-sheet-ui.mjs`.
+
 **One record per company, shared by both tabs.** An intrinsic value is a view about a company, and
 when a watched company is bought its fair value, target and methodology must move with it, so both
 tabs read one record keyed by `sheetKey` (the NSE symbol, else `ISIN:<code>`). `entryPrice` is the

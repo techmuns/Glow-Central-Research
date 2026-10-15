@@ -4,6 +4,7 @@
 //   sheet.value(key, field)      the value alone, or null
 //   sheet.set(key, field, v, by) type a value (validated by the shared contract first)
 //   sheet.clear(key, field, by)  remove it, so the cell shows its default again
+//   sheet.editMany(intents)      validate and queue a fill or Undo as one local action
 //   sheet.manualRows()           holdings added by hand on the Portfolio tab
 //   sheet.addRow / removeRow
 //   sheet.meta()                 where the copy came from and what has been confirmed about it
@@ -38,7 +39,7 @@
 // outbox is sent to it — nothing typed offline or on a static origin is thrown away.
 
 import { conditionalJson } from './store.js';
-import { isNewerSheet, sheetIntent, SHEET_INTENT_BATCH } from '../data/research-sheet-shared.js';
+import { isNewerSheet, sheetIntent, SHEET_INTENT_BATCH, SHEET_REQUEST_BYTES } from '../data/research-sheet-shared.js';
 
 const ROUTE = '/api/research-sheet';
 // The device-store entry that pairs the server's bytes with its ETag (core/store.js), so an
@@ -71,6 +72,10 @@ let lastAskedAt = 0;
 let writeTimer = null;
 let storageFailed = false;
 let memoryOutbox = null;
+let outboxRaw;
+let outboxList = [];
+let indexedOutbox = null;
+let pendingBySlot = new Map();
 
 function readJson(key, fallback) {
   try {
@@ -106,8 +111,18 @@ const slotOf = (intent) => `${intent.key}\u0000${intent.field || '#row'}`;
 
 function outbox() {
   if (memoryOutbox) return memoryOutbox;
-  const list = readJson(OUTBOX_KEY, []);
-  return Array.isArray(list) ? list.filter((i) => i && i.id && i.op && i.key) : [];
+  try {
+    // A fill can queue hundreds of cells. Parse once per stored revision, rather than
+    // reparsing the whole range for every cell painted. Reading the raw key still sees
+    // edits from another tab immediately, including before its storage event arrives.
+    const raw = localStorage.getItem(OUTBOX_KEY);
+    if (raw !== outboxRaw) {
+      const list = raw ? JSON.parse(raw) : [];
+      outboxList = Array.isArray(list) ? list.filter((i) => i && i.id && i.op && i.key) : [];
+      outboxRaw = raw;
+    }
+    return outboxList;
+  } catch { storageFailed = true; return outboxList; }
 }
 
 function writeOutbox(list) {
@@ -115,18 +130,27 @@ function writeOutbox(list) {
   else memoryOutbox = null;
 }
 
-function queue(intent) {
-  const slot = slotOf(intent);
-  const next = outbox().filter((i) => slotOf(i) !== slot);
-  next.push({ ...intent, id: crypto.randomUUID(), at: new Date().toISOString() });
-  writeOutbox(next);
+function queueMany(intents) {
+  const next = new Map(outbox().map((i) => [slotOf(i), i]));
+  const at = new Date().toISOString();
+  for (const intent of intents) {
+    const slot = slotOf(intent);
+    next.delete(slot);
+    next.set(slot, { ...intent, id: crypto.randomUUID(), at });
+  }
+  writeOutbox([...next.values()]);
 }
 
 // ---- reads, all synchronous: a table reads them while it renders ----------------------------
 
 /** What a cell shows: this browser's unsent edit first, then the shared sheet. Null means empty. */
 export function entry(key, field) {
-  const pending = outbox().filter((i) => i.key === key && i.field === field).at(-1);
+  const list = outbox();
+  if (list !== indexedOutbox) {
+    pendingBySlot = new Map(list.map(i => [slotOf(i), i]));
+    indexedOutbox = list;
+  }
+  const pending = pendingBySlot.get(`${key}\u0000${field}`);
   if (pending) return pending.op === 'clear' ? null : { value: pending.value, at: pending.at, by: pending.by || null, pending: true };
   const held = shared.values?.[key]?.[field];
   return held ? { value: held.value, at: held.at || null, by: held.by || null, pending: false } : null;
@@ -176,11 +200,18 @@ export function onChange(fn) {
 // ---- writes: local first, so the cell changes on Enter, then queued for the shared sheet -------
 
 function edit(input) {
-  const intent = sheetIntent(input); // throws on anything the server would refuse
-  queue(intent);
+  return editMany([input])[0];
+}
+
+/** Validate the entire local action before queuing any cell; the existing bounded sender drains it. */
+export function editMany(inputs) {
+  if (!Array.isArray(inputs)) throw new Error('Invalid research edits');
+  const intents = inputs.map(sheetIntent);
+  if (!intents.length) return intents;
+  queueMany(intents);
   emit();
   scheduleWrite();
-  return intent;
+  return intents;
 }
 
 export const set = (key, field, val, by = null) => edit({ op: 'set', key, field, value: val, by });
@@ -208,8 +239,18 @@ function adopt(snapshot) {
 async function flush() {
   const attempted = new Set();
   while (true) {
-    const batch = outbox().filter((i) => !attempted.has(i.id)).slice(0, SHEET_INTENT_BATCH);
-    if (!batch.length) return;
+    const available = outbox().filter((i) => !attempted.has(i.id)).slice(0, SHEET_INTENT_BATCH);
+    if (!available.length) return;
+    const encoder = new TextEncoder(), batch = [], intents = [];
+    let bytes = encoder.encode(JSON.stringify({ intents: [] })).byteLength;
+    for (const item of available) {
+      const { op, key, field, value, name, by } = item;
+      const intent = { op, key, field, value, name, by };
+      const size = encoder.encode(JSON.stringify(intent)).byteLength + (intents.length ? 1 : 0);
+      if (bytes + size > SHEET_REQUEST_BYTES) break;
+      batch.push(item); intents.push(intent); bytes += size;
+    }
+    if (!batch.length) throw new Error('A saved research edit exceeds the request size.');
     for (const i of batch) attempted.add(i.id);
     const response = await fetch(ROUTE, {
       method: 'POST',
@@ -217,7 +258,7 @@ async function flush() {
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       // `at` is this browser's note to itself for the optimistic paint; the server stamps the time
       // it accepted the edit, for the reason the watchlist gives.
-      body: JSON.stringify({ intents: batch.map(({ op, key, field, value: v, name, by }) => ({ op, key, field, value: v, name, by })) }),
+      body: JSON.stringify({ intents }),
       signal: AbortSignal.timeout(12000),
     });
     if (response.status === 400) {
@@ -358,5 +399,6 @@ export function resetForTests() {
   shared = { revision: null, updatedAt: null, values: {}, rows: [] };
   mode = 'unknown'; confirmed = false; checkedAt = null; lastError = null; refused = []; retryAt = 0; lastAskedAt = 0;
   memoryOutbox = null; storageFailed = false;
+  outboxRaw = undefined; outboxList = []; indexedOutbox = null; pendingBySlot = new Map();
   loadMirror();
 }

@@ -19,6 +19,7 @@ import { ResearchSheetStore } from '../worker/research-sheet-store.mjs';
 import { SharedWatchlistStore } from '../worker/watchlist-store.mjs';
 import { contentTag, stableJson } from '../worker/http.mjs';
 import { closeOnOrBefore, istToday, xirr } from '../public/js/data/sheet-math.js';
+import { SHEET_REQUEST_BYTES } from '../public/js/data/research-sheet-shared.js';
 
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
 const { chromium } = await import(`${PW_ROOT}/index.mjs`);
@@ -75,7 +76,13 @@ const conditional = (req, res, payload) => {
   if (req.headers['if-none-match'] === tag) { res.writeHead(304, { etag: tag, 'cache-control': 'private, max-age=0, must-revalidate' }); res.end(); return; }
   json(res, 200, payload, { etag: tag, 'cache-control': 'private, max-age=0, must-revalidate' });
 };
-const readBody = async (req) => { const chunks = []; for await (const c of req) chunks.push(c); return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); };
+const sheetPayloadBytes = [];
+const readBody = async (req) => {
+  const chunks = []; for await (const c of req) chunks.push(c);
+  const bytes = Buffer.concat(chunks);
+  if (req.url === '/api/research-sheet') sheetPayloadBytes.push(bytes.length);
+  return JSON.parse(bytes.toString('utf8') || '{}');
+};
 let sheetWrites = 0;
 
 const server = createServer(async (req, res) => {
@@ -134,6 +141,21 @@ async function openDevice({ staticOrigin = false } = {}) {
 const table = (page, kind) => page.locator(`[data-sheet-table="${kind}"]`);
 const cell = (page, kind, key, field) => table(page, kind).locator(`[data-sheet-edit][data-sheet-key="${key}"][data-sheet-field="${field}"]`);
 const rowOf = (page, kind, key) => table(page, kind).locator(`tbody tr[data-row-key="${key}"]`);
+const fillHandle = (page, kind, key, field) => table(page, kind).locator(`[data-sheet-fill-handle][data-sheet-key="${key}"][data-sheet-field="${field}"]`);
+async function dragFill(page, kind, source, target, field, { cancel = false, during = null } = {}) {
+  await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
+  const handle = fillHandle(page, kind, source, field);
+  await handle.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }));
+  await handle.hover();
+  const a = await handle.boundingBox();
+  const b = await cell(page, kind, target, field).evaluate(el => { const r = el.closest('td').getBoundingClientRect(); return { y: r.y + r.height / 2 }; });
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(a.x + a.width / 2, b.y, { steps: 8 });
+  if (during) await during();
+  if (cancel) await page.keyboard.press('Escape');
+  await page.mouse.up();
+}
 const pctOf = (text) => Number(String(text).replace(/[^0-9.+-]/g, ''));
 async function columnText(page, kind, key, label) {
   const heads = (await table(page, kind).locator('thead th').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim().toLowerCase());
@@ -321,6 +343,150 @@ try {
   await rowOf(a.page, 'portfolio', 'INFY').locator('[data-sheet-remove]').click();
   ok('a hand-added holding can be removed again', await waitFor(async () => (await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').count()) === before && !sheetStore.snapshot().rows.some((r) => r.key === 'INFY')));
 
+  console.log('\n— Excel-style fill down —');
+  const search = table(a.page, 'portfolio').locator('[data-table-search]');
+  await search.fill('');
+  await table(a.page, 'portfolio').locator('th[data-sort="name"]').click();
+  const ordered = await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.map(r => r.dataset.rowKey));
+  const [first, second, third, fourth, fifth] = ordered;
+  await editCell(a.page, 'portfolio', first, 'methodology', 'DCF', { name: 'Ravi' });
+  const originalSecond = await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).entry(key, 'methodology')?.value ?? null, second);
+  await fillHandle(a.page, 'portfolio', first, 'methodology').click();
+  ok('clicking the handle without dragging does not edit or open an editor', await a.page.locator('.sheet-editor').count() === 0
+    && await a.page.evaluate(async ({ key, old }) => (await import('/js/core/research-sheet.js')).value(key, 'methodology') === old, { key: second, old: originalSecond }));
+  await dragFill(a.page, 'portfolio', first, third, 'methodology', { during: async () => {
+    ok('drag highlights exactly the two destination cells', await a.page.locator('.sheet-fill-target').count() === 2);
+    ok('drag preview has not saved any destination', await a.page.evaluate(async ({ key, old }) => (await import('/js/core/research-sheet.js')).value(key, 'methodology') === old, { key: second, old: originalSecond }));
+    await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).set(key, 'reference', 'Unrelated edit', 'Ravi'), fourth);
+  } });
+  ok('release copies the entered text into just the selected rows', await waitFor(async () => [second, third].every(k => sheetStore.snapshot().values[k]?.methodology?.value === 'DCF'))
+    && sheetStore.snapshot().values[fourth]?.methodology?.value !== 'DCF');
+  await b.page.evaluate(async () => (await import('/js/core/research-sheet.js')).syncNow({ force: true }));
+  ok('filled values reach another device through the shared store', await waitFor(async () => (await cell(b.page, 'portfolio', second, 'methodology').innerText()).trim() === 'DCF'));
+  ok('unrelated edits survive a drag and drop', sheetStore.snapshot().values[fourth]?.reference?.value === 'Unrelated edit');
+  await a.page.locator('[data-sheet-fill-undo]').click();
+  ok('Undo restores the previous typed value or default', await waitFor(async () => (await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).value(key, 'methodology'), second)) === originalSecond));
+  await dragFill(a.page, 'portfolio', first, third, 'methodology', { cancel: true });
+  ok('Escape cancels a drag without changing destination cells', (await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).value(key, 'methodology'), second)) === originalSecond
+    && await a.page.locator('.sheet-fill-preview, .sheet-fill-target').count() === 0);
+  await dragFill(a.page, 'portfolio', first, third, 'methodology', { during: async () => {
+    await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).set(key, 'methodology', 'Colleague edit', 'Mira'), second);
+  } });
+  ok('a destination changed during the gesture cancels the fill', (await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).value(key, 'methodology'), second)) === 'Colleague edit'
+    && /Cells changed/.test(await a.page.locator('.sheet-fill-feedback').innerText()));
+  await waitFor(async () => (await cell(a.page, 'portfolio', second, 'methodology').innerText()).trim() === 'Colleague edit');
+  await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).set(key, 'methodology', 'Prior target', 'Ravi'), third);
+  await waitFor(async () => (await cell(a.page, 'portfolio', third, 'methodology').innerText()).trim() === 'Prior target');
+  await dragFill(a.page, 'portfolio', first, third, 'methodology');
+  await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).set(key, 'methodology', 'Later edit', 'Mira'), second);
+  await a.page.locator('[data-sheet-fill-undo]').click();
+  ok('Undo restores an overwritten value and preserves a later edit by another person', await a.page.evaluate(async ({ second, third }) => {
+    const s = await import('/js/core/research-sheet.js'); return s.value(second, 'methodology') === 'Later edit' && s.value(third, 'methodology') === 'Prior target';
+  }, { second, third }));
+
+  await dragFill(a.page, 'portfolio', first, third, 'methodology', { during: () => search.fill(first) });
+  ok('changing the filter while dragging never writes into hidden rows', await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).value(key, 'methodology') === 'Later edit', second));
+  await search.fill('');
+
+  await a.page.evaluate(async keys => {
+    const s = await import('/js/core/research-sheet.js');
+    s.editMany(keys.map(key => ({ op: 'set', key, field: 'sector', value: 'Fill subset', by: 'Ravi' })));
+    s.set(keys[0], 'reference', 'FY28', 'Ravi');
+  }, [first, third, fifth]);
+  await search.fill('Fill subset');
+  await a.page.waitForFunction(() => document.querySelectorAll('[data-sheet-table=portfolio] tbody tr[data-row-key]').length === 3);
+  await dragFill(a.page, 'portfolio', first, fifth, 'reference');
+  ok('filtered fill follows displayed order and skips hidden rows', await waitFor(async () => [third, fifth].every(k => sheetStore.snapshot().values[k]?.reference?.value === 'FY28'))
+    && sheetStore.snapshot().values[fourth]?.reference?.value === 'Unrelated edit');
+  await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).set(key, 'targetWeight', 0, 'Ravi'), first);
+  await waitFor(async () => (await cell(a.page, 'portfolio', first, 'targetWeight').innerText()).trim() === '0.0%');
+  await fillHandle(a.page, 'portfolio', first, 'targetWeight').focus();
+  await a.page.keyboard.press('ArrowDown'); await a.page.keyboard.press('ArrowDown'); await a.page.keyboard.press('Enter');
+  ok('keyboard fill copies numeric zero as a number', await waitFor(async () => [first, third, fifth].every(k => sheetStore.snapshot().values[k]?.targetWeight?.value === 0)));
+  await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).set(key, 'dateBought', '2024-03-12', 'Ravi'), first);
+  await waitFor(async () => (await cell(a.page, 'portfolio', first, 'dateBought').innerText()).trim() === '12-Mar-24');
+  await fillHandle(a.page, 'portfolio', first, 'dateBought').focus();
+  await a.page.keyboard.press('ArrowDown'); await a.page.keyboard.press('ArrowDown'); await a.page.keyboard.press('Enter');
+  ok('dates copy their ISO value without reparsing the formatted cell', await waitFor(async () => [third, fifth].every(k => sheetStore.snapshot().values[k]?.dateBought?.value === '2024-03-12')),
+    JSON.stringify([first, third, fifth].map(k => [k, sheetStore.snapshot().values[k]?.dateBought?.value])));
+  ok('market-derived cells and company identity offer no fill handle', await table(a.page, 'portfolio').locator('[data-sheet-fill-handle][data-sheet-field="cmp"], [data-sheet-fill-handle][data-sheet-field="name"]').count() === 0);
+
+  await search.fill('');
+  await a.page.waitForFunction(n => document.querySelectorAll('[data-sheet-table=portfolio] tbody tr[data-row-key]').length === n, ordered.length);
+  await editCell(a.page, 'portfolio', first, 'methodology', 'Scroll fill');
+  const handle = fillHandle(a.page, 'portfolio', first, 'methodology');
+  await handle.hover();
+  const h = await handle.boundingBox(), area = await table(a.page, 'portfolio').locator('[data-table-scroll]').boundingBox();
+  await a.page.mouse.move(h.x + 8, h.y + 8); await a.page.mouse.down();
+  await a.page.mouse.move(h.x + 8, area.y + area.height - 3, { steps: 8 });
+  ok('dragging at the lower edge scrolls and extends beyond the first viewport', await waitFor(async () => await a.page.locator('.sheet-fill-target').count() >= 15));
+  await a.page.keyboard.press('Escape'); await a.page.mouse.up();
+  ok('cancelling an auto-scrolled selection leaves no fill pending', await a.page.locator('.sheet-fill-target, .sheet-fill-preview').count() === 0);
+
+  await a.page.evaluate(async () => {
+    const w = await import('/js/core/watchlist.js');
+    await w.add('INFY', 'Infosys'); await w.add('TCS', 'Tata Consultancy Services');
+  });
+  await a.page.locator('#tabbar-mount [data-tab-id="watchlist"]').click();
+  await rowOf(a.page, 'watchlist', 'TCS').waitFor();
+  await table(a.page, 'watchlist').locator('th[data-sort="name"]').click();
+  const watched = await table(a.page, 'watchlist').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.map(r => r.dataset.rowKey));
+  await editCell(a.page, 'watchlist', watched[0], 'methodology', 'Watchlist DCF');
+  await dragFill(a.page, 'watchlist', watched[0], watched[2], 'methodology');
+  ok('Watchlist uses the same fill behavior and shared research values', await waitFor(async () => watched.every(k => sheetStore.snapshot().values[k]?.methodology?.value === 'Watchlist DCF')));
+
+  await waitFor(async () => await a.page.evaluate(async () => (await import('/js/core/research-sheet.js')).meta().pending === 0));
+  const writesBeforeBatch = sheetWrites;
+  const batch = await a.page.evaluate(async () => {
+    const s = await import('/js/core/research-sheet.js');
+    let signals = 0; const off = s.onChange(() => signals++);
+    let invalid = false;
+    try { s.editMany([{ op: 'set', key: 'FILLINVALID', field: 'methodology', value: 'Must not persist' }, { op: 'set', key: 'FILLINVALID', field: 'quantity', value: -1 }]); } catch { invalid = true; }
+    const clean = !s.entry('FILLINVALID', 'methodology') && signals === 0;
+    s.editMany(Array.from({ length: 75 }, (_, i) => ({ op: 'set', key: `FILLBATCH${i}`, field: 'methodology', value: 'Batch DCF', by: 'Ravi' })));
+    off(); return { invalid, clean, signals };
+  });
+  ok('bulk edits validate the entire action before mutating any cell and notify once', batch.invalid && batch.clean && batch.signals === 1);
+  ok('a fill exceeding one request drains in bounded shared-save batches', await waitFor(async () => Array.from({ length: 75 }, (_, i) => sheetStore.snapshot().values[`FILLBATCH${i}`]?.methodology?.value).every(v => v === 'Batch DCF')) && sheetWrites - writesBeforeBatch === 2);
+  const beforeUnicode = sheetWrites, beforeBytes = sheetPayloadBytes.length;
+  await a.page.evaluate(async () => (await import('/js/core/research-sheet.js')).editMany(Array.from({ length: 60 }, (_, i) => ({
+    op: 'set', key: `FILLUTF${i}`, field: 'source', value: '研'.repeat(120), by: '名'.repeat(60),
+  }))));
+  ok('multibyte copied text splits by the UTF-8 request budget without losing cells', await waitFor(async () => Array.from({ length: 60 }, (_, i) => sheetStore.snapshot().values[`FILLUTF${i}`]?.source?.value).every(v => v === '研'.repeat(120)))
+    && sheetWrites - beforeUnicode >= 2 && sheetPayloadBytes.slice(beforeBytes).every(n => n <= SHEET_REQUEST_BYTES));
+
+  await a.page.evaluate(async () => {
+    const { scoreTable } = await import('/js/ui/screener.js');
+    const { editableCell } = await import('/js/ui/sheet-cells.js');
+    const { wireSheetFill } = await import('/js/ui/sheet-fill.js');
+    const s = await import('/js/core/research-sheet.js');
+    s.set('FILLPAGE0', 'methodology', 'Paged fill', 'Ravi');
+    const rows = () => Array.from({ length: 180 }, (_, i) => {
+      const key = `FILLPAGE${i}`, entry = s.entry(key, 'methodology');
+      return { key, methodology: { field: 'methodology', value: entry?.value ?? null, edited: !!entry, entry } };
+    });
+    const host = document.createElement('div'); host.dataset.sheetTable = 'fill-fixture';
+    host.style.cssText = 'position:fixed;inset:80px 20px 20px;z-index:50;background:white';
+    document.body.append(host);
+    const t = scoreTable({ rows: rows(), key: r => r.key, name: r => r.key, showRank: false, showAvatar: false,
+      showWatchFilter: false, stickyHead: '340px', initialSort: null,
+      columns: [{ label: 'Methodology', html: true, get: r => editableCell(r, r.methodology, { label: 'Methodology', company: r.key }) }] });
+    host.innerHTML = t.html; const release = t.wire(host);
+    const fill = wireSheetFill(host, { viewRows: t.visibleRows, liveRows: rows });
+    window.__fillFixtureCleanup = () => { fill.dispose(); release(); host.remove(); };
+  });
+  const paged = table(a.page, 'fill-fixture');
+  ok('large-table fixture starts with only part of its rows mounted', await paged.locator('tbody tr[data-row-key]').count() < 180);
+  await fillHandle(a.page, 'fill-fixture', 'FILLPAGE0', 'methodology').hover();
+  const ph = await fillHandle(a.page, 'fill-fixture', 'FILLPAGE0', 'methodology').boundingBox();
+  const ps = await paged.locator('[data-table-scroll]').boundingBox();
+  await a.page.mouse.move(ph.x + 8, ph.y + 8); await a.page.mouse.down();
+  await a.page.mouse.move(ph.x + 8, ps.y + ps.height + 30, { steps: 5 });
+  ok('auto-scroll includes newly mounted rows through the final matching row', await waitFor(async () => (await a.page.locator('.sheet-fill-preview').innerText()) === '179 cells', 20000));
+  await a.page.mouse.up();
+  ok('the last page saves too, with no row lost at the render boundary', await waitFor(async () => Array.from({ length: 180 }, (_, i) => sheetStore.snapshot().values[`FILLPAGE${i}`]?.methodology?.value).every(v => v === 'Paged fill')));
+  await a.page.evaluate(() => window.__fillFixtureCleanup());
+
   console.log('\n— a deployment with no shared sheet —');
   const c = await openDevice({ staticOrigin: true });
   await c.page.goto(`${origin}/#/research/portfolio`, { waitUntil: 'domcontentloaded' });
@@ -331,7 +497,35 @@ try {
   await table(c.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor({ timeout: 30000 });
   ok('…and keeps them across a reload', (await cell(c.page, 'portfolio', 'FRACTAL', 'intrinsicValue').innerText()).trim() === '900.00');
   ok('…marked as not on a shared sheet', /is-pending/.test(await cell(c.page, 'portfolio', 'FRACTAL', 'intrinsicValue').getAttribute('class')));
-  ok('nothing it typed reached the shared store', !sheetStore.snapshot().values.FRACTAL);
+  ok('nothing it typed reached the shared store', !sheetStore.snapshot().values.FRACTAL?.intrinsicValue);
+  const offlineKeys = await table(c.page, 'portfolio').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.slice(0, 3).map(r => r.dataset.rowKey));
+  await editCell(c.page, 'portfolio', offlineKeys[0], 'reference', 'Offline fill');
+  await dragFill(c.page, 'portfolio', offlineKeys[0], offlineKeys[2], 'reference');
+  const offlineBeforeReload = await c.page.evaluate(async keys => {
+    const s = await import('/js/core/research-sheet.js'); return keys.map(key => s.entry(key, 'reference')?.value);
+  }, offlineKeys);
+  await c.page.reload({ waitUntil: 'domcontentloaded' });
+  await table(c.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor();
+  ok('an offline filled range survives reload in the outbox', await c.page.evaluate(async keys => {
+    const s = await import('/js/core/research-sheet.js'); return keys.every(key => s.entry(key, 'reference')?.value === 'Offline fill' && s.entry(key, 'reference').pending);
+  }, offlineKeys) && offlineKeys.every(key => sheetStore.snapshot().values[key]?.reference?.value !== 'Offline fill'), JSON.stringify(offlineBeforeReload));
+
+  await c.page.setViewportSize({ width: 390, height: 844 });
+  await c.page.getByRole('button', { name: 'Dark mode', exact: true }).click();
+  await editCell(c.page, 'portfolio', offlineKeys[0], 'reference', 'Touch fill');
+  await waitFor(async () => (await cell(c.page, 'portfolio', offlineKeys[0], 'reference').innerText()).trim() === 'Touch fill');
+  const touch = await c.context.newCDPSession(c.page);
+  await touch.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+  await table(c.page, 'portfolio').locator('[data-table-scroll]').evaluate(el => { el.scrollTop = 0; el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }); });
+  await fillHandle(c.page, 'portfolio', offlineKeys[0], 'reference').hover();
+  const th = await fillHandle(c.page, 'portfolio', offlineKeys[0], 'reference').boundingBox();
+  const ty = await cell(c.page, 'portfolio', offlineKeys[1], 'reference').evaluate(el => { const r = el.closest('td').getBoundingClientRect(); return r.y + r.height / 2; });
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: th.x + 8, y: th.y + 8 }] });
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: th.x + 8, y: ty }] });
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  ok('a touch drag works on the dark mobile sheet', await waitFor(async () => (await c.page.evaluate(async key => (await import('/js/core/research-sheet.js')).value(key, 'reference'), offlineKeys[1])) === 'Touch fill'),
+    JSON.stringify({ source: th, targetY: ty, feedback: await c.page.locator('.sheet-fill-feedback').innerText().catch(() => '') }));
+  await touch.detach();
 
   ok('zero page errors', pageErrors.length === 0, pageErrors.join(' | '));
   await Promise.all([a.context.close(), b.context.close(), c.context.close()]);

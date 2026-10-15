@@ -34,6 +34,7 @@ import { sheetKey } from '../data/research-sheet-shared.js';
 import { searchCompanies } from '../data/stock-search.js';
 import { editableCell, derivedCell, FORMAT, sortOf, exportOf, provenanceOf, formatField, cmpTag } from '../ui/sheet-cells.js';
 import { openCellEditor, closeCellEditor, isEditorOpen, refreshCellEditor } from '../ui/sheet-editor.js';
+import { wireSheetFill } from '../ui/sheet-fill.js';
 import { sheetStatusPill, sheetHowModal, companySearchHtml } from '../ui/sheet-chrome.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
 
@@ -81,6 +82,7 @@ let disposers = [];
 let paintQueued = false;
 let releaseTable = null;
 let releaseRoot = null;
+let fill = null;
 
 const company = (r) => r.name.value || r.ticker || r.key;
 
@@ -220,6 +222,7 @@ function exportPortfolio(visible) {
 // ---- painting ------------------------------------------------------------------------------
 
 function cleanup() {
+  fill?.dispose(); fill = null;
   for (const off of disposers.splice(0)) { try { off(); } catch { /* already gone */ } }
   releaseTable?.(); releaseTable = null;
   releaseRoot?.(); releaseRoot = null;
@@ -243,6 +246,7 @@ function schedule() {
 
 function paint(ctx) {
   if (ctxRef !== ctx || !ctx.root.isConnected) return;
+  if (fill?.active()) return; // Keep the selected row order and pointer target stable until release.
   const rows = portfolioRows();
   rowsNow = rows;
   if (table && tableRoot === ctx.root && ctx.root.querySelector('[data-score-table]')) {
@@ -254,6 +258,7 @@ function paint(ctx) {
     return;
   }
   releaseTable?.();
+  fill?.dispose();
   table = scoreTable(tableConfig(rows));
   tableRoot = ctx.root;
   ctx.root.innerHTML = `
@@ -263,6 +268,8 @@ function paint(ctx) {
       ${footerHtml()}
     </div>`;
   releaseTable = table.wire(ctx.root);
+  fill = wireSheetFill(ctx.root, { viewRows: () => table.visibleRows(), liveRows: portfolioRows,
+    closeEditor: () => closeCellEditor({ restoreFocus: false }), onEnd: schedule });
 }
 
 function onRootClick(event) {
