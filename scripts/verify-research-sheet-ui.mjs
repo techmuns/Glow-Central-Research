@@ -567,7 +567,7 @@ try {
   ok('a paste ends at the copied rectangle and closes the single-cell editor', await a.page.locator('.sheet-editor').count() === 0
     && JSON.stringify(await a.page.evaluate(async key => { const s = await import('/js/core/research-sheet.js'); return ['intrinsicValue', 'methodology', 'reference'].map(f => s.value(key, f)); }, pasteKeys[3])) === JSON.stringify(beforePaste[3]));
   await b.page.evaluate(async () => (await import('/js/core/research-sheet.js')).syncNow({ force: true }));
-  ok('pasted cells are shared with another device', (await cell(b.page, 'portfolio', pasteKeys[0], 'methodology').innerText()).trim() === 'Clipboard DCF');
+  ok('pasted cells are shared with another device', await waitFor(async () => (await cell(b.page, 'portfolio', pasteKeys[0], 'methodology').innerText()).trim() === 'Clipboard DCF'));
   await a.page.locator('[data-sheet-cell-undo]').click();
   ok('one Undo restores every pasted field to its previous typed value or default', await waitFor(async () => JSON.stringify(await a.page.evaluate(async ({ keys, fields }) => {
     const s = await import('/js/core/research-sheet.js'); return keys.map(k => fields.map(f => s.value(k, f)));
