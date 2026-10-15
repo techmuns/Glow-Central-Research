@@ -208,11 +208,15 @@ export function editMany(inputs) {
   if (!Array.isArray(inputs)) throw new Error('Invalid research edits');
   const intents = inputs.map(sheetIntent);
   if (!intents.length) return intents;
+  if (new Set(intents.map(slotOf)).size !== intents.length) throw new Error('Duplicate research edit');
   queueMany(intents);
   emit();
   scheduleWrite();
   return intents;
 }
+
+// Excel uploads and drag-fill share one atomic validation and durable queue path.
+export const applyEdits = editMany;
 
 export const set = (key, field, val, by = null) => edit({ op: 'set', key, field, value: val, by });
 export const clear = (key, field, by = null) => edit({ op: 'clear', key, field, by });
@@ -238,9 +242,10 @@ function adopt(snapshot) {
 
 async function flush() {
   const attempted = new Set();
+  let rejected = false;
   while (true) {
     const available = outbox().filter((i) => !attempted.has(i.id)).slice(0, SHEET_INTENT_BATCH);
-    if (!available.length) return;
+    if (!available.length) return rejected;
     const encoder = new TextEncoder(), batch = [], intents = [];
     let bytes = encoder.encode(JSON.stringify({ intents: [] })).byteLength;
     for (const item of available) {
@@ -266,7 +271,7 @@ async function flush() {
       // every later edit behind it. It is dropped and said, never silently.
       const ids = new Set(batch.map((i) => i.id));
       writeOutbox(outbox().filter((i) => !ids.has(i.id)));
-      lastError = 'The shared sheet refused an edit as invalid, so it was not saved. Reload the page and type it again.';
+      rejected = true;
       continue;
     }
     if (!response.ok) throw new Error(`research-sheet ${response.status}`);
@@ -319,10 +324,10 @@ export function syncNow({ force = false } = {}) {
       if (read.value.ok !== true) throw new Error(read.value.reason || 'sheet-unavailable');
       mode = 'shared';
       adopt(read.value);
-      if (outbox().length) await flush();
+      const rejected = outbox().length ? await flush() : false;
       checkedAt = read.checkedAt || Date.now();
       confirmed = true;
-      lastError = null;
+      lastError = rejected ? 'The shared sheet refused an edit as invalid, so it was not saved. Reload the page and type it again.' : null;
       retryAt = 0;
       return meta();
     } catch {

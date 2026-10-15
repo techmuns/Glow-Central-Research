@@ -27,6 +27,7 @@ import { wireSheetFill } from '../ui/sheet-fill.js';
 import { sheetStatusPill, sheetHowModal } from '../ui/sheet-chrome.js';
 import { openScopeEditor } from '../ui/scope-editor.js';
 import { exportSheets, todayStamp } from '../ui/export.js';
+import { addSheetBaseline, sheetUploadHtml, wireSheetUpload } from '../ui/sheet-workbook.js';
 
 export const meta = {
   id: 'watchlist',
@@ -174,26 +175,33 @@ function tableConfig(rows) {
     columnLayoutKey: 'glow-watchlist-sheet',
     exportName: `glow-watchlist-${todayStamp()}`,
     onExport: (visible) => exportWatchlist(visible),
+    toolbarControls: { html: sheetUploadHtml(), wire: (host) => wireSheetUpload(host,
+      { kind: 'Watchlist', columns: watchlistExportColumns(), getRows: watchlistRows }) },
     bookmarkSection: 'watchlist',
   };
 }
 
-function exportWatchlist(visible) {
+export function watchlistExportColumns() {
   const value = (field) => ({ header: HEAD[field], key: field, width: 16, get: (r) => exportOf(r[field]) });
   const typed = (field) => [value(field), { header: `${HEAD[field]} — typed or default`, key: `${field}-p`, width: 14, get: (r) => provenanceOf(r[field]) }];
-  const columns = [
+  return [
     { header: 'Name of company', key: 'name', width: 34, get: (r) => company(r) },
     { header: 'Ticker', key: 'ticker', width: 14, get: (r) => r.ticker },
     ...typed('sector'), ...typed('source'), value('cmp'), value('mcap'), value('day'), value('month'),
     ...typed('targetAmount'), ...typed('targetWeight'), ...typed('intrinsicValue'), ...typed('methodology'), ...typed('reference'),
     value('upside'),
-    { header: 'Buy price for the expected IRR (in Rs)', key: 'entry', width: 16, get: (r) => exportOf(r.entryPrice) },
+    { header: 'Buy price for the expected IRR (in Rs)', key: 'entryPrice', width: 16, get: (r) => exportOf(r.entryPrice) },
     value('expectedIrr'),
     { header: 'Added to the watchlist by', key: 'by', width: 18, get: (r) => r.addedBy || 'not recorded' },
   ];
+}
+
+function exportWatchlist(visible) {
+  const columns = watchlistExportColumns();
   const banner = `Glow Central Research · Watchlist · exported ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST. `
     + 'CMP, market cap, returns and upside are derived at export time from the minute price capture; typed values are the desk\'s. Target weights are measured against the public-direct portfolio value.';
-  void exportSheets({ filename: `glow-watchlist-${todayStamp()}`, banner, sheets: [{ name: 'Watchlist', columns, rows: visible }] });
+  void exportSheets({ filename: `glow-watchlist-${todayStamp()}`, banner, sheets: [{ name: 'Watchlist', columns, rows: visible }],
+    prepareWorkbook: (wb) => addSheetBaseline(wb, { kind: 'Watchlist', columns, rows: visible }) });
 }
 
 // ---- painting ------------------------------------------------------------------------------

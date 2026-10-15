@@ -101,3 +101,15 @@ tr:hover .sheet-row-action, .sheet-row-action:focus-visible { opacity: 1; }
 .sheet-editor-secondary { border: 1px solid rgb(var(--edge-slate-200, 226 232 240)); background: rgb(var(--surface-white, 255 255 255)); color: rgb(var(--text-slate-700, 51 65 85)); }
 .sheet-editor-secondary:hover { background: rgb(var(--surface-slate-50, 248 250 252)); }
 .sheet-editor :focus-visible { outline: 2px solid var(--accent-600); outline-offset: 2px; }
+/* Sheet uploads sit beside Excel export in both themes. */
+[data-sheet-table] [data-table-actions] { flex-wrap: wrap; min-width: 0; }
+.sheet-upload-button {
+  display: inline-flex; align-items: center; gap: .5rem; border: 1px solid rgb(var(--edge-slate-200, 226 232 240));
+  border-radius: .5rem; padding: .5rem 1rem; white-space: nowrap; background: rgb(var(--surface-white, 255 255 255));
+  color: rgb(var(--text-slate-700, 51 65 85)); font-size: .875rem; font-weight: 600; cursor: pointer;
+}
+.sheet-upload-button:hover { background: rgb(var(--surface-slate-50, 248 250 252)); }
+.sheet-upload-button:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 2px; }
+.sheet-upload-button:disabled { opacity: .6; cursor: wait; }
+.sheet-upload-status { flex-basis: 100%; color: rgb(var(--text-slate-500, 100 116 139)); font-size: .75rem; }
+.sheet-upload-status.is-error { color: rgb(var(--text-rose-600, 225 29 72)); }

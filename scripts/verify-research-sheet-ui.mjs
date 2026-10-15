@@ -11,7 +11,7 @@
 // module, then compared with what the page prints.
 
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -23,6 +23,9 @@ import { SHEET_REQUEST_BYTES } from '../public/js/data/research-sheet-shared.js'
 
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
 const { chromium } = await import(`${PW_ROOT}/index.mjs`);
+const excelBrowser = readFileSync(resolve(process.env.EXCELJS_ROOT || resolve(PW_ROOT, '../exceljs'), 'dist/exceljs.min.js'));
+const output = resolve('.cache/sheet-upload');
+mkdirSync(output, { recursive: true });
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const readData = (name) => JSON.parse(readFileSync(resolve(root, 'data', name), 'utf8'));
 
@@ -84,12 +87,14 @@ const readBody = async (req) => {
   return JSON.parse(bytes.toString('utf8') || '{}');
 };
 let sheetWrites = 0;
+let writeFailure = null;
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const staticOrigin = req.headers['x-fixture-static'] === '1';
   if (url.pathname === '/api/research-sheet' && !staticOrigin) {
     if (req.method === 'POST') {
+      if (writeFailure) return json(res, writeFailure, { ok: false, reason: 'fixture-refusal' });
       try {
         const result = sheetStore.apply((await readBody(req)).intents);
         sheetWrites++;
@@ -134,7 +139,9 @@ async function openDevice({ staticOrigin = false } = {}) {
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('dialog', (dialog) => dialog.accept());
   // Nothing leaves this fixture.
-  await page.route('**/*', (route) => (route.request().url().startsWith(`${origin}/`) ? route.continue() : route.abort()));
+  await page.route('**/*', (route) => route.request().url().includes('/exceljs@4.4.0/')
+    ? route.fulfill({ status: 200, contentType: 'text/javascript', body: excelBrowser })
+    : route.request().url().startsWith(`${origin}/`) ? route.continue() : route.abort());
   return { context, page };
 }
 
@@ -211,6 +218,7 @@ try {
   console.log('\n— editing —');
   await editCell(a.page, 'portfolio', 'SBIN', 'buyPrice', 'abc', { name: 'Ravi' });
   ok('a value that is not a number is refused in the panel, by name', /Not a number/.test(await a.page.locator('.sheet-editor [data-sheet-error]').innerText()));
+  ok('cell editors omit the explanatory paragraphs', await a.page.locator('.sheet-editor-hint, .sheet-editor-note').count() === 0);
   await a.page.locator('.sheet-editor [data-sheet-input]').fill('700');
   await a.page.locator('.sheet-editor [data-sheet-input]').press('Enter');
   await editCell(a.page, 'portfolio', 'SBIN', 'dateBought', '01-Jan-2099');
@@ -487,7 +495,122 @@ try {
   ok('the last page saves too, with no row lost at the render boundary', await waitFor(async () => Array.from({ length: 180 }, (_, i) => sheetStore.snapshot().values[`FILLPAGE${i}`]?.methodology?.value).every(v => v === 'Paged fill')));
   await a.page.evaluate(() => window.__fillFixtureCleanup());
 
+  await a.page.locator('#tabbar-mount [data-tab-id="portfolio"]').click();
+  await rowOf(a.page, 'portfolio', 'SBIN').waitFor();
+  console.log('\n— Excel export, fill and upload —');
+  const downloadBook = async (kind) => {
+    const downloading = a.page.waitForEvent('download');
+    await table(a.page, kind.toLowerCase()).locator('[data-export]').click();
+    const download = await downloading;
+    const path = resolve(output, download.suggestedFilename());
+    await download.saveAs(path);
+    return [...readFileSync(path)];
+  };
+  const rewriteBook = (bytes, edits) => a.page.evaluate(async ({ bytes, edits }) => {
+    const wb = new window.ExcelJS.Workbook();
+    await wb.xlsx.load(new Uint8Array(bytes));
+    const ws = wb.worksheets.find((s) => s.state === 'visible');
+    const col = (head) => ws.getRow(2).values.indexOf(head);
+    for (const edit of edits) {
+      const row = edit.row || (() => {
+        for (let n = 3; n <= ws.rowCount; n++) if (ws.getRow(n).getCell(2).value === edit.id) return n;
+      })();
+      const c = ws.getRow(row).getCell(edit.head ? col(edit.head) : edit.col);
+      c.value = edit.value;
+      if (edit.numFmt) c.numFmt = edit.numFmt;
+    }
+    return [...new Uint8Array(await wb.xlsx.writeBuffer())];
+  }, { bytes, edits });
+  const uploadBook = async (kind, bytes) => {
+    await table(a.page, kind.toLowerCase()).locator('[data-sheet-upload-file]').setInputFiles({ name: `glow-${kind}.xlsx`, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from(bytes) });
+    const status = table(a.page, kind.toLowerCase()).locator('[data-sheet-upload-status]');
+    await waitFor(async () => !(await table(a.page, kind.toLowerCase()).locator('[data-sheet-upload]').isDisabled()), 15000);
+    return status.innerText();
+  };
+  const upload = table(a.page, 'portfolio').locator('[data-sheet-upload]');
+  ok('Upload latest is immediately beside Export Excel', await upload.evaluate((e) => e.previousElementSibling?.matches('[data-export]')));
+  const exported = await downloadBook('Portfolio');
+  const structure = await a.page.evaluate(async (bytes) => {
+    const wb = new window.ExcelJS.Workbook(); await wb.xlsx.load(new Uint8Array(bytes));
+    return { visible: wb.worksheets.filter((s) => s.state === 'visible').map((s) => s.name),
+      meta: wb.getWorksheet('_Glow upload').state, headers: wb.getWorksheet('Portfolio').getRow(2).values.slice(1) };
+  }, exported);
+  ok('export keeps the visible Portfolio layout and stores its upload baseline invisibly', structure.visible.join() === 'Portfolio' && structure.meta === 'veryHidden'
+    && structure.headers[0] === 'Name of company' && structure.headers[1] === 'Ticker / ISIN');
+  const noChangeRevision = sheetStore.snapshot().revision;
+  ok('an unchanged upload preserves defaults and creates no edits', /No changed/.test(await uploadBook('Portfolio', exported)) && sheetStore.snapshot().revision === noChangeRevision);
+  const unplaced = (await a.page.evaluate(async () => (await import('/js/data/research-sheets.js')).portfolioRows())).find((r) => !r.ticker);
+  const edits = [
+    { id: 'SBIN', head: 'Buy price (in Rs)', value: '₹ 725.50' },
+    { id: 'SBIN', head: 'Target weight in portfolio (% of public direct)', value: 0.045, numFmt: '0.0%' },
+    { id: 'SBIN', head: 'CMP (in Rs)', value: 999999 },
+    { id: 'SBIN', head: 'Date bought', value: { formula: 'DATE(2025,5,17)', result: 45794 }, numFmt: 'dd-mmm-yy' },
+    ...(unplaced ? [{ id: unplaced.isin || unplaced.key, head: 'Valuation methodology', value: 'ISIN upload' }] : []),
+  ];
+  const editedBook = await rewriteBook(exported, edits);
+  const savedText = await uploadBook('Portfolio', editedBook);
+  ok('changed manual fields are saved for everyone', /edits? saved for everyone/.test(savedText) && sheetStore.snapshot().values.SBIN.buyPrice.value === 725.5, savedText);
+  ok('Excel percentage cells retain percent units', sheetStore.snapshot().values.SBIN.targetWeight.value === 4.5);
+  ok('Excel date cells retain the purchase day', sheetStore.snapshot().values.SBIN.dateBought.value === '2025-05-17');
+  ok('uploaded market figures never become manual inputs', !sheetStore.snapshot().values.SBIN.cmp && pctOf(await columnText(a.page, 'portfolio', 'SBIN', 'CMP (in Rs)')) === cmpShown);
+  ok('tickerless companies upload by ISIN', !!unplaced && sheetStore.snapshot().values[unplaced.key]?.methodology?.value === 'ISIN upload');
+  await b.page.evaluate(async () => (await import('/js/core/research-sheet.js')).syncNow({ force: true }));
+  ok('the other device receives the uploaded value', await waitFor(async () => /725.50/.test(await cell(b.page, 'portfolio', 'SBIN', 'buyPrice').innerText())));
+  const fresh = await downloadBook('Portfolio');
+  const unchangedRevision = sheetStore.snapshot().revision;
+  const bad = await rewriteBook(fresh, [{ id: 'SBIN', head: 'Buy price (in Rs)', value: 750 }, { id: 'FRACTAL', head: 'Buy price (in Rs)', value: -10 }]);
+  ok('one invalid cell rejects the entire workbook with its row and column', /Row \d+, Buy price/.test(await uploadBook('Portfolio', bad)) && sheetStore.snapshot().revision === unchangedRevision);
+  const duplicate = await rewriteBook(fresh, [{ row: 3, col: 2, value: 'SBIN' }, { row: 4, col: 2, value: 'SBIN' }]);
+  ok('duplicate identities are refused before saving', /duplicate company/.test(await uploadBook('Portfolio', duplicate)) && sheetStore.snapshot().revision === unchangedRevision);
+  const brokenHead = await rewriteBook(fresh, [{ row: 2, col: 3, value: 'Changed heading' }]);
+  ok('changed column formats are refused before saving', /headings have changed/.test(await uploadBook('Portfolio', brokenHead)) && sheetStore.snapshot().revision === unchangedRevision);
+  await editCell(b.page, 'portfolio', 'SBIN', 'buyPrice', '780');
+  await stored('buyPrice', 780);
+  const stale = await rewriteBook(fresh, [{ id: 'SBIN', head: 'Buy price (in Rs)', value: 790 }]);
+  ok('a stale workbook cannot overwrite a colleague’s changed cell', /changed on the dashboard/.test(await uploadBook('Portfolio', stale)) && sheetStore.snapshot().values.SBIN.buyPrice.value === 780);
+  const batchBook = await downloadBook('Portfolio');
+  const bulkEdits = [...expectedKeys].flatMap((id) => [
+    { id: id.startsWith('ISIN:') ? id.slice(5) : id, head: 'Valuation methodology', value: 'Excel bulk DCF' },
+    { id: id.startsWith('ISIN:') ? id.slice(5) : id, head: 'Reference year and date', value: 'FY28E Excel' },
+  ]);
+  ok('uploads exceeding one server batch save every changed cell', /edits? saved for everyone/.test(await uploadBook('Portfolio', await rewriteBook(batchBook, bulkEdits)))
+    && [...expectedKeys].every((key) => sheetStore.snapshot().values[key]?.methodology?.value === 'Excel bulk DCF' && sheetStore.snapshot().values[key]?.reference?.value === 'FY28E Excel'));
+  await a.page.locator('#tabbar-mount [data-tab-id="watchlist"]').click();
+  await rowOf(a.page, 'watchlist', 'SBIN').waitFor();
+  const watchBook = await downloadBook('Watchlist');
+  const watchEdits = await rewriteBook(watchBook, [{ id: 'SBIN', head: 'Source', value: 'Excel analyst note' }, { id: 'SBIN', head: 'Buy price for the expected IRR (in Rs)', value: 950 }]);
+  ok('Watchlist supports the same round trip with its own entry price', /edits? saved for everyone/.test(await uploadBook('Watchlist', watchEdits))
+    && sheetStore.snapshot().values.SBIN.source.value === 'Excel analyst note' && sheetStore.snapshot().values.SBIN.entryPrice.value === 950 && sheetStore.snapshot().values.SBIN.buyPrice.value === 780);
+  const clearBook = await downloadBook('Watchlist');
+  ok('blanking a typed Excel value clears that manual field', /edits? saved for everyone/.test(await uploadBook('Watchlist', await rewriteBook(clearBook, [{ id: 'SBIN', head: 'Source', value: null }])))
+    && !sheetStore.snapshot().values.SBIN.source);
+  const failureBook = await downloadBook('Watchlist');
+  writeFailure = 503;
+  const deferred = await rewriteBook(failureBook, [{ id: 'SBIN', head: 'Source', value: 'Retry this Excel note' }]);
+  ok('a failed shared write keeps the upload queued and never reports success', !/saved for everyone/.test(await uploadBook('Watchlist', deferred))
+    && !sheetStore.snapshot().values.SBIN.source && await a.page.evaluate(async () => (await import('/js/core/research-sheet.js')).meta().pending > 0));
+  writeFailure = null;
+  await a.page.evaluate(async () => (await import('/js/core/research-sheet.js')).syncNow({ force: true }));
+  ok('queued upload edits reach the shared store after reconnection', sheetStore.snapshot().values.SBIN.source.value === 'Retry this Excel note');
+  const refusalBook = await downloadBook('Watchlist');
+  writeFailure = 400;
+  ok('a server refusal cannot masquerade as a successful upload', /refused an edit/.test(await uploadBook('Watchlist', await rewriteBook(refusalBook,
+    [{ id: 'SBIN', head: 'Source', value: 'Refuse this Excel note' }]))) && sheetStore.snapshot().values.SBIN.source.value === 'Retry this Excel note');
+  writeFailure = null;
+  await a.page.setViewportSize({ width: 390, height: 844 });
+  await a.page.emulateMedia({ colorScheme: 'dark' });
+  ok('Upload latest stays visible with no mobile page overflow', await a.page.locator('[data-sheet-upload]').isVisible()
+    && await a.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await a.page.screenshot({ path: resolve(output, 'watchlist-mobile-dark.png') });
+  await a.page.setViewportSize({ width: 1440, height: 900 });
+  await a.page.emulateMedia({ colorScheme: 'light' });
+  await a.page.locator('#tabbar-mount [data-tab-id="portfolio"]').click();
+  await cell(a.page, 'portfolio', 'SBIN', 'buyPrice').click();
+  await a.page.screenshot({ path: resolve(output, 'portfolio-editor.png') });
+  await a.page.locator('.sheet-editor [data-sheet-input]').press('Escape');
+
   console.log('\n— a deployment with no shared sheet —');
+  const fractalBefore = JSON.stringify(sheetStore.snapshot().values.FRACTAL);
   const c = await openDevice({ staticOrigin: true });
   await c.page.goto(`${origin}/#/research/portfolio`, { waitUntil: 'domcontentloaded' });
   await table(c.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor({ timeout: 30000 });
@@ -497,7 +620,7 @@ try {
   await table(c.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor({ timeout: 30000 });
   ok('…and keeps them across a reload', (await cell(c.page, 'portfolio', 'FRACTAL', 'intrinsicValue').innerText()).trim() === '900.00');
   ok('…marked as not on a shared sheet', /is-pending/.test(await cell(c.page, 'portfolio', 'FRACTAL', 'intrinsicValue').getAttribute('class')));
-  ok('nothing it typed reached the shared store', !sheetStore.snapshot().values.FRACTAL?.intrinsicValue);
+  ok('nothing it typed reached the shared store', JSON.stringify(sheetStore.snapshot().values.FRACTAL) === fractalBefore);
   const offlineKeys = await table(c.page, 'portfolio').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.slice(0, 3).map(r => r.dataset.rowKey));
   await editCell(c.page, 'portfolio', offlineKeys[0], 'reference', 'Offline fill');
   await dragFill(c.page, 'portfolio', offlineKeys[0], offlineKeys[2], 'reference');
