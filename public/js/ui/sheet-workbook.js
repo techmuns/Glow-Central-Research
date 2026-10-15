@@ -175,12 +175,13 @@ export function wireSheetUpload(host, { kind, columns, getRows }) {
       const intents = planSheetUpload(wb, { kind, columns, rows: getRows(), by: people.me() || null });
       if (!intents.length) { tell('No changed manual fields.'); return; }
       sheet.applyEdits(intents);
-      tell(`Saving ${intents.length} edits…`);
+      const count = `${intents.length} edit${intents.length === 1 ? '' : 's'}`;
+      tell(`Saving ${count}…`);
       const saved = await sheet.syncNow({ force: true });
       if (disposed) return;
       if (saved.error || saved.pending || !saved.shared) {
         tell(saved.error || 'Not saved yet. Edits will retry when connected.', true);
-      } else tell(`${intents.length} edits saved for everyone.`);
+      } else tell(`${count} saved for everyone.`);
     } catch (error) {
       if (!disposed) tell(error.message || 'Could not read this workbook.', true);
     } finally {

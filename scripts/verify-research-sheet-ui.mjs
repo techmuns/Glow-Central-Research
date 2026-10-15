@@ -381,7 +381,7 @@ try {
   ];
   const editedBook = await rewriteBook(exported, edits);
   const savedText = await uploadBook('Portfolio', editedBook);
-  ok('changed manual fields are saved for everyone', /edits saved for everyone/.test(savedText) && sheetStore.snapshot().values.SBIN.buyPrice.value === 725.5, savedText);
+  ok('changed manual fields are saved for everyone', /edits? saved for everyone/.test(savedText) && sheetStore.snapshot().values.SBIN.buyPrice.value === 725.5, savedText);
   ok('Excel percentage cells retain percent units', sheetStore.snapshot().values.SBIN.targetWeight.value === 4.5);
   ok('Excel date cells retain the purchase day', sheetStore.snapshot().values.SBIN.dateBought.value === '2025-05-17');
   ok('uploaded market figures never become manual inputs', !sheetStore.snapshot().values.SBIN.cmp && pctOf(await columnText(a.page, 'portfolio', 'SBIN', 'CMP (in Rs)')) === cmpShown);
@@ -405,16 +405,16 @@ try {
     { id: id.startsWith('ISIN:') ? id.slice(5) : id, head: 'Valuation methodology', value: 'Excel bulk DCF' },
     { id: id.startsWith('ISIN:') ? id.slice(5) : id, head: 'Reference year and date', value: 'FY28E Excel' },
   ]);
-  ok('uploads exceeding one server batch save every changed cell', /edits saved for everyone/.test(await uploadBook('Portfolio', await rewriteBook(batchBook, bulkEdits)))
+  ok('uploads exceeding one server batch save every changed cell', /edits? saved for everyone/.test(await uploadBook('Portfolio', await rewriteBook(batchBook, bulkEdits)))
     && [...expectedKeys].every((key) => sheetStore.snapshot().values[key]?.methodology?.value === 'Excel bulk DCF' && sheetStore.snapshot().values[key]?.reference?.value === 'FY28E Excel'));
   await a.page.locator('#tabbar-mount [data-tab-id="watchlist"]').click();
   await rowOf(a.page, 'watchlist', 'SBIN').waitFor();
   const watchBook = await downloadBook('Watchlist');
   const watchEdits = await rewriteBook(watchBook, [{ id: 'SBIN', head: 'Source', value: 'Excel analyst note' }, { id: 'SBIN', head: 'Buy price for the expected IRR (in Rs)', value: 950 }]);
-  ok('Watchlist supports the same round trip with its own entry price', /edits saved for everyone/.test(await uploadBook('Watchlist', watchEdits))
+  ok('Watchlist supports the same round trip with its own entry price', /edits? saved for everyone/.test(await uploadBook('Watchlist', watchEdits))
     && sheetStore.snapshot().values.SBIN.source.value === 'Excel analyst note' && sheetStore.snapshot().values.SBIN.entryPrice.value === 950 && sheetStore.snapshot().values.SBIN.buyPrice.value === 780);
   const clearBook = await downloadBook('Watchlist');
-  ok('blanking a typed Excel value clears that manual field', /edits saved for everyone/.test(await uploadBook('Watchlist', await rewriteBook(clearBook, [{ id: 'SBIN', head: 'Source', value: null }])))
+  ok('blanking a typed Excel value clears that manual field', /edits? saved for everyone/.test(await uploadBook('Watchlist', await rewriteBook(clearBook, [{ id: 'SBIN', head: 'Source', value: null }])))
     && !sheetStore.snapshot().values.SBIN.source);
   const failureBook = await downloadBook('Watchlist');
   writeFailure = 503;

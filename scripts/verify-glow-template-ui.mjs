@@ -125,6 +125,8 @@ try {
   await page.emulateMedia({ colorScheme: 'dark' });
   assert(await scope.getByRole('button', { name: 'Universe', exact: true }).isVisible());
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  const uploadBox = await page.locator('[data-sheet-upload]').boundingBox();
+  assert(uploadBox.x >= 0 && uploadBox.x + uploadBox.width <= 390, 'the entire Portfolio upload button stays reachable on mobile');
   await page.screenshot({ path: resolve(output, 'glow-parity-mobile-dark.png'), fullPage: false });
   assert.deepEqual(foreign, []); assert.deepEqual(errors, []);
   console.log(`PASS warm-session scope restoration, Sattva navigation plus two unchanged sheets, three research scopes, Glow manager statements, responsive light/dark layout and no foreign family requests (${before.length} portfolio companies).`);
