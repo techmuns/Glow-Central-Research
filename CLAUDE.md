@@ -1423,6 +1423,15 @@ figures and company identity have no handle. A changed view, missing selected ro
 selected typed value cancels the gesture; live table repaints wait until it ends. Bulk edits use the existing durable
 outbox and bounded shared-save batches. Verify with `scripts/verify-research-sheet-ui.mjs`.
 
+**Excel clipboard (15 October 2026).** Both sheets accept Ctrl/Cmd+V at a focused editable cell
+or its value editor. A copied rectangle follows the current filtered/sorted rows and rendered
+column order, including unmounted rows. Parse Excel's quoted TSV as values, then validate every
+cell before queueing the range through the same durable outbox. Read-only columns, invalid
+values and ranges beyond the table refuse the whole paste with a specific message. Blank cells
+clear manual overrides; defaults remain defaults. Undo restores prior typed values/defaults
+while preserving later differing edits. Clipboard HTML is never executed; no row membership or
+market/source data is changed. Ordinary single-value text editing and the calendar stay available.
+
 **One record per company, shared by both tabs.** An intrinsic value is a view about a company, and
 when a watched company is bought its fair value, target and methodology must move with it, so both
 tabs read one record keyed by `sheetKey` (the NSE symbol, else `ISIN:<code>`). `entryPrice` is the

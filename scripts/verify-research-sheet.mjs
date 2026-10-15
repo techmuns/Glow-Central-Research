@@ -23,6 +23,7 @@ import {
   parseNumberInput, pctChange, splitFactorAfter, xirr,
 } from '../public/js/data/sheet-math.js';
 import { publicDirectTickers, yahooSymbol } from './scrape-sheet-history.mjs';
+import { readSheetClipboard, planSheetPaste } from '../public/js/ui/sheet-clipboard.js';
 
 let failures = 0;
 let count = 0;
@@ -443,6 +444,49 @@ await test('the committed capture is well formed: dated benchmark rows, per-comp
     assert.ok(entry.dividends.every(([d, a]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && a > 0), `${ticker} dividends`);
   }
   for (const f of history.failed) assert.ok(f.ticker && f.reason, 'every failure names its company and reason');
+});
+
+console.log('\n— Excel clipboard —');
+
+await test('clipboard TSV preserves the rectangle, blank cells, quoted newlines/tabs and escaped quotes', () => {
+  assert.deepEqual(readSheetClipboard('\uFEFF"DCF\tcase"\t"FY28\r\nbase"\r\n"A ""quoted"" note"\t\r\n'),
+    [['DCF\tcase', 'FY28\r\nbase'], ['A "quoted" note', '']]);
+  assert.deepEqual(readSheetClipboard('A\t\nB\t\n'), [['A', ''], ['B', '']]);
+  assert.deepEqual(readSheetClipboard('\r\n\r\n'), [[''], ['']]);
+  assert.deepEqual(readSheetClipboard(''), [['']]);
+});
+
+await test('malformed or oversized clipboard ranges fail instead of losing or inventing cells', () => {
+  for (const text of ['"unfinished', '"closed"extra', 'a\tb\nc', 'x'.repeat(2_000_001), '\n'.repeat(SHEET_COMPANY_LIMIT + 1), '\n'.repeat(SHEET_COMPANY_LIMIT) + 'last', '\t'.repeat(201)])
+    assert.throws(() => readSheetClipboard(text));
+});
+
+const clipboardRow = key => ({ key, dateBought: { value: null }, quantity: { value: null }, buyPrice: { value: null },
+  targetWeight: { value: null }, methodology: { value: 'old', edited: true }, reference: { value: null } });
+const clipboardColumns = fields => fields.map(field => ({ field, label: FIELDS[field]?.label || 'CMP' }));
+await test('clipboard numbers and Indian dates use the same units and validation as cell editing', () => {
+  const options = { rows: [clipboardRow('SBIN'), clipboardRow('INFY')], columns: clipboardColumns(['dateBought', 'quantity', 'buyPrice']), key: 'SBIN', field: 'dateBought', by: 'Ravi' };
+  const edits = planSheetPaste(readSheetClipboard('12-Mar-24\t1,25,000\t₹ 750.50\r\n2025-05-16\t250\t1,200\r\n'), options);
+  assert.deepEqual(edits.map(e => e.value), ['2024-03-12', 125000, 750.5, '2025-05-16', 250, 1200]);
+  assert.ok(edits.every(e => e.by === 'Ravi'));
+  assert.deepEqual(planSheetPaste([['0%'], ['4.5%']], { ...options, columns: clipboardColumns(['targetWeight']), field: 'targetWeight' }).map(e => e.value), [0, 4.5]);
+});
+
+await test('clipboard rejects a whole invalid, read-only or overflowing rectangle before producing edits', () => {
+  const options = { rows: [clipboardRow('SBIN'), clipboardRow('INFY')], columns: clipboardColumns(['quantity', 'buyPrice']), key: 'SBIN', field: 'quantity' };
+  assert.throws(() => planSheetPaste([['100', '750'], ['200', '-1']], options), /Row 2, Buy price/);
+  assert.throws(() => planSheetPaste([['100', '750', 'extra']], options), /last column/);
+  assert.throws(() => planSheetPaste([['100'], ['200'], ['300']], options), /last matching row/);
+  assert.throws(() => planSheetPaste([['100', '750']], { ...options, columns: clipboardColumns(['quantity', null]) }), /read-only/);
+  assert.throws(() => planSheetPaste([['DCF'], ['x'.repeat(61)]], { ...options, columns: clipboardColumns(['methodology']), field: 'methodology' }), /at most 60/);
+  assert.throws(() => planSheetPaste([['31-Apr-24']], { ...options, columns: clipboardColumns(['dateBought']), field: 'dateBought' }), /valid date/);
+});
+
+await test('clipboard blanks clear manual values, preserve defaults and leave the input model untouched', () => {
+  const rows = [clipboardRow('SBIN')], before = JSON.stringify(rows);
+  const edits = planSheetPaste([['', '']], { rows, columns: clipboardColumns(['methodology', 'reference']), key: 'SBIN', field: 'methodology' });
+  assert.deepEqual(edits, [{ op: 'clear', key: 'SBIN', field: 'methodology', by: null }]);
+  assert.equal(JSON.stringify(rows), before);
 });
 
 console.log(`\n${count - failures} of ${count} passed`);

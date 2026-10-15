@@ -1,7 +1,8 @@
-// Excel-style fill down for the two Glow sheets. Preview first; one shared edit on release.
+// Excel-style fill down and clipboard paste for the two Glow sheets.
 import * as sheet from '../core/research-sheet.js';
 import * as people from '../core/watchlist-people.js';
 import { FIELDS } from '../data/research-sheet-shared.js';
+import { readSheetClipboard, planSheetPaste } from './sheet-clipboard.js';
 
 const hasValue = (v) => v !== null && v !== undefined && v !== '';
 const typed = (cell) => JSON.stringify([!!cell?.edited, cell?.edited ? cell.value : null]);
@@ -20,6 +21,7 @@ export function wireSheetFill(root, { viewRows, liveRows, closeEditor, onEnd }) 
     if (undo) {
       const button = document.createElement('button');
       button.type = 'button'; button.textContent = 'Undo'; button.dataset.sheetFillUndo = '';
+      button.dataset.sheetCellUndo = '';
       button.addEventListener('click', undo, { once: true });
       feedback.append(button);
     }
@@ -29,6 +31,24 @@ export function wireSheetFill(root, { viewRows, liveRows, closeEditor, onEnd }) 
 
   const findHandle = (key, field) => root.querySelector(`[data-sheet-fill-handle][data-sheet-key="${esc(key)}"][data-sheet-field="${esc(field)}"]`);
   const findCell = (key, field) => root.querySelector(`[data-sheet-edit][data-sheet-key="${esc(key)}"][data-sheet-field="${esc(field)}"]`);
+
+  function applyCells(intents, action) {
+    const previous = intents.map(({ key, field, by }) => {
+      const entry = sheet.entry(key, field);
+      return entry ? { op: 'set', key, field, value: entry.value, by } : { op: 'clear', key, field, by };
+    });
+    const written = sheet.editMany(intents);
+    end();
+    notify(`${action === 'Paste' ? 'Pasted' : 'Filled'} ${written.length} cell${written.length === 1 ? '' : 's'}`, () => {
+      // Keep later edits by comparing each cell with the canonical value/editor we wrote.
+      const restore = previous.filter((item, i) => {
+        const entry = sheet.entry(item.key, item.field), expected = written[i];
+        return expected.op === 'clear' ? !entry : entry?.value === expected.value && entry.by === expected.by;
+      });
+      sheet.editMany(restore);
+      notify(restore.length === previous.length ? `${action} undone` : `Restored ${restore.length} cells; other cells changed since ${action === 'Paste' ? 'pasting' : 'filling'}.`);
+    });
+  }
 
   function marks() {
     if (!drag) return;
@@ -125,22 +145,57 @@ export function wireSheetFill(root, { viewRows, liveRows, closeEditor, onEnd }) 
       cancel('Cells changed. Try filling again.'); return;
     }
     const by = people.me() || null;
-    const previous = selected.map(row => {
-      const entry = sheet.entry(row.key, s.field);
-      return entry ? { op: 'set', key: row.key, field: s.field, value: entry.value, by }
-        : { op: 'clear', key: row.key, field: s.field, by };
-    });
     try {
-      const written = sheet.editMany(selected.map(row => ({ op: 'set', key: row.key, field: s.field, value: s.value, by })));
-      const filled = written[0]; // Match the contract's canonical precision/text/editor on Undo.
-      end();
-      notify(`Filled ${selected.length} cell${selected.length === 1 ? '' : 's'}`, () => {
-        // Restore only cells that still carry this fill's value and editor.
-        const restore = previous.filter(item => { const entry = sheet.entry(item.key, item.field); return entry?.value === filled.value && entry.by === filled.by; });
-        sheet.editMany(restore);
-        notify(restore.length === previous.length ? 'Fill undone' : `Restored ${restore.length} cells; other cells changed since filling.`);
-      });
+      applyCells(selected.map(row => ({ op: 'set', key: row.key, field: s.field, value: s.value, by })), 'Fill');
     } catch { cancel('This value could not be filled.'); }
+  }
+
+  function paste(event) {
+    const target = event.target;
+    const editor = target.closest?.('.sheet-editor');
+    // Pasting into search, the editor's name or unrelated inputs keeps normal browser behavior.
+    const editorInput = editor && target.matches('[data-sheet-input]');
+    const button = target.closest?.('[data-sheet-edit], [data-sheet-fill-handle]');
+    const key = editorInput ? editor.dataset.sheetEditorKey : button?.dataset.sheetKey;
+    const field = editorInput ? editor.dataset.sheetEditorField : button?.dataset.sheetField;
+    const anchor = key && field && findCell(key, field);
+    if (!anchor || (button && !root.contains(button)) || !event.clipboardData) return;
+    const text = event.clipboardData.getData('text/plain');
+    if (!text && !Array.from(event.clipboardData.types).includes('text/plain')) return;
+    // One-cell text paste still edits the input normally; ranges bypass its single-value limit.
+    if (editorInput && target.type !== 'date' && !/[\t\r\n]/.test(text)) return;
+    event.preventDefault(); event.stopPropagation();
+    try {
+      const matrix = readSheetClipboard(text);
+      if (editorInput && target.type !== 'date' && matrix.length === 1 && matrix[0].length === 1) {
+        const size = target.value.length - (target.selectionEnd - target.selectionStart) + matrix[0][0].length;
+        if (target.maxLength >= 0 && size > target.maxLength) throw new Error(`This cell takes at most ${target.maxLength} characters.`);
+        target.setRangeText(matrix[0][0], target.selectionStart, target.selectionEnd, 'end');
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+      end();
+      const tr = anchor.closest('tr'), heads = [...tr.closest('table').tHead.rows].at(-1).cells;
+      // Column order is the rendered order, including the reader's dragged columns.
+      const columns = [...tr.cells].filter(td => !td.hidden && getComputedStyle(td).display !== 'none').map(td => ({
+        field: td.querySelector('[data-sheet-edit]')?.dataset.sheetField,
+        label: heads[td.cellIndex]?.textContent.replace(/[▴▾]/g, '').replace(/\s+/g, ' ').trim() || 'Column',
+      }));
+      const current = new Map(liveRows().map(row => [row.key, row]));
+      const rows = viewRows().map(row => {
+        if (!current.has(row.key)) throw new Error('The matching rows changed. Select the starting cell again.');
+        return current.get(row.key);
+      });
+      const by = editorInput ? editor.querySelector('[data-sheet-by]').value.trim() || null : people.me() || null;
+      const intents = planSheetPaste(matrix, { rows, columns, key, field, by });
+      if (!intents.length) { notify('No changed cells.'); return; }
+      applyCells(intents, 'Paste');
+      if (by) people.remember(by);
+      closeEditor?.();
+      requestAnimationFrame(() => {
+        if (!disposed && document.activeElement === document.body) findCell(key, field)?.focus({ preventScroll: true });
+      });
+    } catch (error) { notify(`Paste not applied: ${error.message || 'Select the starting cell again.'}`); }
   }
 
   function pointerDown(event) {
@@ -187,6 +242,7 @@ export function wireSheetFill(root, { viewRows, liveRows, closeEditor, onEnd }) 
   document.addEventListener('pointerup', pointerUp, true);
   document.addEventListener('pointercancel', pointerCancel, true);
   document.addEventListener('keydown', keyDown, true);
+  document.addEventListener('paste', paste, true);
   root.addEventListener('lostpointercapture', pointerCancel);
   root.addEventListener('click', click, true);
   window.addEventListener('blur', blur);
@@ -200,6 +256,7 @@ export function wireSheetFill(root, { viewRows, liveRows, closeEditor, onEnd }) 
       document.removeEventListener('pointerup', pointerUp, true);
       document.removeEventListener('pointercancel', pointerCancel, true);
       document.removeEventListener('keydown', keyDown, true);
+      document.removeEventListener('paste', paste, true);
       root.removeEventListener('lostpointercapture', pointerCancel);
       root.removeEventListener('click', click, true);
       window.removeEventListener('blur', blur);

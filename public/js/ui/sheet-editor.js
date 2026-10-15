@@ -161,6 +161,8 @@ export function openCellEditor(options) {
   const listId = `sheet-people-${Math.random().toString(36).slice(2, 8)}`;
   const panel = document.createElement('div');
   panel.className = 'sheet-editor';
+  panel.dataset.sheetEditorKey = key;
+  panel.dataset.sheetEditorField = field;
   panel.setAttribute('role', 'dialog');
   panel.setAttribute('aria-modal', 'false');
   panel.setAttribute('aria-label', `Edit ${label || spec.label} for ${company}`);
