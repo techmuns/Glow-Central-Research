@@ -1446,6 +1446,18 @@ Seven refusals, and every one is a rule this file already runs on:
 7. **An export carries the provenance.** Each typed or defaulted column is followed by its
    *typed / default* marker, and row 1 says which figures are live and which are the desk's.
 
+**Excel round trip (15 October 2026).** Both sheets place **Upload latest** directly after
+Export Excel. Keep the visible workbook format unchanged. `ui/sheet-workbook.js` adds a very-hidden
+`_Glow upload` sheet with the exported company keys, headers and editable-cell baselines. The upload
+validates the whole file before queueing changed manual cells through the same shared research-sheet
+outbox. Unchanged defaults and colleagues' unrelated edits stay intact; live columns and provenance
+markers are never imported. Duplicate/unknown identities, changed headings, invalid inputs and
+conflicting newer manual values reject the file with a readable error. Blank typed cells clear that
+override; omitted rows leave desk state intact. Uploads use a fresh dashboard export, keep the ticker /
+ISIN column, and require the shared sheet to answer. Failed saves remain queued with a visible error.
+No membership or source-capture changes occur. Cell editors omit routine instructional paragraphs;
+validation and concurrent-edit warnings remain visible, and provenance stays in cell tooltips.
+
 **`public/data/sheet-history.json` is deliberately NOT named `portfolio-history.json`.** That name
 belonged to the deleted Portfolio Analytics equity curve; `verify-ui.mjs` asserts it 404s, the
 technicals job still stages it if it exists, and the backlog recovery treats it as a technicals

@@ -115,13 +115,6 @@ function writeOutbox(list) {
   else memoryOutbox = null;
 }
 
-function queue(intent) {
-  const slot = slotOf(intent);
-  const next = outbox().filter((i) => slotOf(i) !== slot);
-  next.push({ ...intent, id: crypto.randomUUID(), at: new Date().toISOString() });
-  writeOutbox(next);
-}
-
 // ---- reads, all synchronous: a table reads them while it renders ----------------------------
 
 /** What a cell shows: this browser's unsent edit first, then the shared sheet. Null means empty. */
@@ -176,11 +169,20 @@ export function onChange(fn) {
 // ---- writes: local first, so the cell changes on Enter, then queued for the shared sheet -------
 
 function edit(input) {
-  const intent = sheetIntent(input); // throws on anything the server would refuse
-  queue(intent);
+  return applyEdits([input])[0];
+}
+
+/** Validate the entire upload before adding any edits to the durable outbox. */
+export function applyEdits(inputs) {
+  const intents = inputs.map(sheetIntent);
+  const slots = new Set(intents.map(slotOf));
+  if (slots.size !== intents.length) throw new Error('Duplicate research edit');
+  const at = new Date().toISOString();
+  writeOutbox([...outbox().filter((i) => !slots.has(slotOf(i))),
+    ...intents.map((i) => ({ ...i, id: crypto.randomUUID(), at }))]);
   emit();
   scheduleWrite();
-  return intent;
+  return intents;
 }
 
 export const set = (key, field, val, by = null) => edit({ op: 'set', key, field, value: val, by });
@@ -207,9 +209,10 @@ function adopt(snapshot) {
 
 async function flush() {
   const attempted = new Set();
+  let rejected = false;
   while (true) {
     const batch = outbox().filter((i) => !attempted.has(i.id)).slice(0, SHEET_INTENT_BATCH);
-    if (!batch.length) return;
+    if (!batch.length) return rejected;
     for (const i of batch) attempted.add(i.id);
     const response = await fetch(ROUTE, {
       method: 'POST',
@@ -225,7 +228,7 @@ async function flush() {
       // every later edit behind it. It is dropped and said, never silently.
       const ids = new Set(batch.map((i) => i.id));
       writeOutbox(outbox().filter((i) => !ids.has(i.id)));
-      lastError = 'The shared sheet refused an edit as invalid, so it was not saved. Reload the page and type it again.';
+      rejected = true;
       continue;
     }
     if (!response.ok) throw new Error(`research-sheet ${response.status}`);
@@ -278,10 +281,10 @@ export function syncNow({ force = false } = {}) {
       if (read.value.ok !== true) throw new Error(read.value.reason || 'sheet-unavailable');
       mode = 'shared';
       adopt(read.value);
-      if (outbox().length) await flush();
+      const rejected = outbox().length ? await flush() : false;
       checkedAt = read.checkedAt || Date.now();
       confirmed = true;
-      lastError = null;
+      lastError = rejected ? 'The shared sheet refused an edit as invalid, so it was not saved. Reload the page and type it again.' : null;
       retryAt = 0;
       return meta();
     } catch {

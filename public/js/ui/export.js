@@ -14,7 +14,7 @@ const EXCELJS_CDN = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min
 
 let loaderPromise = null;
 
-function loadExcelJs() {
+export function loadExcelJs() {
   if (window.ExcelJS) return Promise.resolve(window.ExcelJS);
   if (loaderPromise) return loaderPromise;
   loaderPromise = new Promise((resolve, reject) => {
@@ -98,7 +98,7 @@ function triggerDownload(blob, filename) {
  *
  *   exportSheets({ filename, banner, sheets: [{ name, columns, rows }] })
  */
-export async function exportSheets({ filename = 'export', banner = '', sheets = [] }) {
+export async function exportSheets({ filename = 'export', banner = '', sheets = [], prepareWorkbook = null }) {
   let ExcelJS;
   try {
     ExcelJS = await loadExcelJs();
@@ -147,6 +147,7 @@ export async function exportSheets({ filename = 'export', banner = '', sheets = 
       }
     }
 
+    prepareWorkbook?.(wb);
     const buffer = await wb.xlsx.writeBuffer();
     triggerDownload(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${filename}.xlsx`);
     return true;

@@ -39,8 +39,13 @@ const server = createServer(async (req, res) => {
     if (previous && path === '/js/ui/shell.js') bytes = bytes.toString().replace(
       'scopeControls.hidden = tabModule.meta.scopeIndependent === true && !sheet;',
       'scopeControls.hidden = tabModule.meta.scopeIndependent === true;');
-    if (previous && path === '/js/ui/sheet-editor.js') bytes = bytes.toString().replace(
-      'type="${isDate ? \'date\' : \'text\'}"', 'type="text"');
+    // Warm the preceding sheet interface: no upload control and explanatory editor paragraphs.
+    if (previous && path === '/js/ui/sheet-workbook.js') bytes = bytes.toString()
+      .replace(/export const sheetUploadHtml = \(\) => `[\s\S]*?`;/, "export const sheetUploadHtml = () => ''; ")
+      .replace("const button = host.querySelector('[data-sheet-upload]');", "const button = host.querySelector('[data-sheet-upload]'); if (!button) return () => {};");
+    if (previous && path === '/js/ui/sheet-editor.js') bytes = bytes.toString()
+      .replace('type="${isDate ? \'date\' : \'text\'}"', 'type="text"').replace(
+      '<p class="sheet-editor-error"', '<p class="sheet-editor-note">Nothing is shown when it is empty — this one is the desk’s to fill.</p><p class="sheet-editor-error"');
     res.writeHead(200, { 'content-type': { '.js': 'text/javascript', '.html': 'text/html', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml' }[extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' });
     res.end(bytes);
   } catch { send(res, {}, 404); }
@@ -63,6 +68,10 @@ try {
   await page.reload();
   await page.locator('[data-sheet-table="portfolio"] tbody tr[data-row-key]').first().waitFor();
   assert.equal(await page.locator('[data-scope-controls]').isVisible(), false, 'reproduce the cached hidden scope selector');
+  assert.equal(await page.locator('[data-sheet-upload]').count(), 0, 'warm the interface without Upload latest');
+  await page.locator('[data-sheet-key="FRACTAL"][data-sheet-field="buyPrice"]').click();
+  assert.equal(await page.locator('.sheet-editor-note').count(), 1, 'warm the preceding verbose editor');
+  await page.locator('[data-sheet-input]').press('Escape');
   const before = await page.locator('[data-sheet-table="portfolio"] tbody tr[data-row-key]').evaluateAll(rows => rows.map(row => row.dataset.rowKey));
   const dateCell = page.locator('[data-sheet-table="portfolio"] [data-sheet-field="dateBought"]').first();
   await dateCell.click();
@@ -72,6 +81,10 @@ try {
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
   await page.locator('[data-scope-controls]').waitFor({ timeout: 30000 });
   await page.locator('[data-sheet-table="portfolio"] tbody tr[data-row-key]').first().waitFor();
+  assert(await page.locator('[data-sheet-upload]').isVisible(), 'returning session receives Upload latest');
+  await page.locator('[data-sheet-key="FRACTAL"][data-sheet-field="buyPrice"]').click();
+  assert.equal(await page.locator('.sheet-editor-note, .sheet-editor-hint').count(), 0, 'returning session receives the compact editor');
+  await page.locator('[data-sheet-input]').press('Escape');
   assert(!(await page.evaluate(() => caches.keys())).some(key => key.includes('previous-glow-hidden-scope')));
   await dateCell.click();
   assert.equal(await page.locator('[data-sheet-input]').getAttribute('type'), 'date', 'the returning session receives the calendar editor');
@@ -133,6 +146,8 @@ try {
   await page.emulateMedia({ colorScheme: 'dark' });
   assert(await scope.getByRole('button', { name: 'Universe', exact: true }).isVisible());
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  const uploadBox = await page.locator('[data-sheet-upload]').boundingBox();
+  assert(uploadBox.x >= 0 && uploadBox.x + uploadBox.width <= 390, 'the entire Portfolio upload button stays reachable on mobile');
   await page.screenshot({ path: resolve(output, 'glow-parity-mobile-dark.png'), fullPage: false });
   assert.deepEqual(foreign, []); assert.deepEqual(errors, []);
   console.log(`PASS warm-session scope restoration, Sattva navigation plus two unchanged sheets, three research scopes, Glow manager statements, responsive light/dark layout and no foreign family requests (${before.length} portfolio companies).`);
