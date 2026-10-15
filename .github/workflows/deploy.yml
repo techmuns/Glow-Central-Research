@@ -44,6 +44,7 @@ on:
       - "Screener concall collection"
       - "Screener Insights collection"
       - "Private Screener summaries"
+      - "Newsletter processing"
       - "Sector KPIs refresh"
       - "GlowVentures sync (series store + family book)"
       - "Portfolio sheet history refresh"
