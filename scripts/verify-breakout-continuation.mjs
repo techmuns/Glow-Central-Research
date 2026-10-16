@@ -15,7 +15,7 @@ for(const closed of ['2026-10-16T02:00:00Z','2026-10-16T11:00:00Z','2026-10-17T0
 assert.equal(calls,0,'No handoff before a verified archive, overnight or on a closed market day');
 assert.equal(await continueBreakoutCapture({acknowledged:true,env,now,fetcher}),true);assert.equal(calls,1);
 await assert.rejects(continueBreakoutCapture({acknowledged:true,env:{...env,GITHUB_REF:'refs/heads/preview'},now,fetcher}),/context/);
-await assert.rejects(continueBreakoutCapture({acknowledged:true,env:{...env,GITHUB_REPOSITORY:'techmuns/Sattva-Central-Research'},now,fetcher}),/context/);
+await assert.rejects(continueBreakoutCapture({acknowledged:true,env:{...env,GITHUB_REPOSITORY:'fixture/foreign-repository'},now,fetcher}),/context/);
 let failedCalls=0;
 await assert.rejects(continueBreakoutCapture({acknowledged:true,env,now,fetcher:async()=>{failedCalls++;return new Response(null,{status:503});}}),/not acknowledged/);
 assert.equal(failedCalls,1,'An ambiguous dispatch is not retried and no production run is cancelled');
