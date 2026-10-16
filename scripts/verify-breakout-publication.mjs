@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {localBreakouts} from './lib/breakout-local.mjs';
+import {prepareBreakoutPublication} from './lib/breakout-publication.mjs';
+import {openBackgroundState} from './lib/github-background-seal.mjs';
+import {installBackgroundViews} from './lib/github-background-package.mjs';
+import {readerKeys,encode64} from '../worker/mutual-funds-seal.mjs';
+import {preparedBreakouts} from '../worker/breakouts-github.mjs';
+const root=fs.mkdtempSync(path.resolve('.cache/quote-publication-'));
+const env={GITHUB_REPOSITORY:'techmuns/Glow-Central-Research',GITHUB_RUN_ID:'12345',GITHUB_RUN_ATTEMPT:'1',BACKGROUND_STATE_KEY:'fixture-master-secret-only-123456789',UPSTOX_ACCESS_TOKEN:'fixture-only'};
+let local,restored,ticks=0,timer;
+let at=Date.parse('2026-10-16T06:30:00Z');
+const tickers=Array.from({length:30},(_,i)=>`TEST${i}`),base={high:100,low:95,average:97,averageVolume:1000,count:30,to:'2026-10-15'};
+const row=(ticker,price)=>({ticker,name:ticker,price,volume:1000,prevClose:100,quoteAt:new Date(at).toISOString(),checkedAt:new Date(at).toISOString(),sessionDate:'2026-10-16',provider:'Upstox',exchange:'NSE',kind:'quote',base});
+try{
+ local=localBreakouts(path.join(root,'collector.sqlite'),{env,now:()=>at});
+ local.storage.transactionSync(()=>{for(let minute=0;minute<60;minute++){at+=60000;local.store.primarySave({at,completedAt:at,targets:tickers,rows:tickers.map(t=>row(t,110+minute)),failures:[],discoveryFailed:false});}});
+ const expected=local.store.history('TEST0'),backup=path.join(root,'checkpoint.sqlite');
+ await local.checkpoint(backup);
+ const keys=await readerKeys('fixture-reader-only-123456789'),recipient={kid:keys.kid,publicKey:encode64(keys.publicKey)},signature='a'.repeat(64);
+ timer=setInterval(()=>{ticks++;},1);
+ const publishing=prepareBreakoutPublication({backup,out:root,env,recipient,repo:env.GITHUB_REPOSITORY,signature,at});
+ at+=60000;local.store.primarySave({at,completedAt:at,targets:tickers,rows:tickers.map(t=>row(t,999)),failures:[],discoveryFailed:false});
+ await publishing;clearInterval(timer);
+ assert(ticks>1,'The minute event loop remains available while the real retained history is prepared');
+ assert.equal(local.store.history('TEST0').rows[0].price,999,'Collection proceeds while the immutable checkpoint is published');
+ const restoredFile=path.join(root,'restored.sqlite');await openBackgroundState(path.join(root,'state.bin'),restoredFile,'breakouts',{env});
+ restored=localBreakouts(restoredFile,{env,now:()=>at});assert.deepEqual(restored.store.history('TEST0'),expected,'Restart state is the exact acknowledged checkpoint, without concurrent writes leaking in');
+ const site=path.join(root,'public');await installBackgroundViews(path.join(root,'views.gz'),site,{repo:env.GITHUB_REPOSITORY,feature:'breakouts',sourceSignature:signature});
+ const worker={GH_REPO:env.GITHUB_REPOSITORY,GH_DISPATCH_TOKEN:'fixture-reader-only-123456789',ASSETS:{fetch:async request=>{const file=path.join(site,new URL(request.url).pathname);return fs.existsSync(file)?new Response(fs.readFileSync(file)):new Response(null,{status:404});}}};
+ assert.deepEqual(await preparedBreakouts(new Request('https://fixture.research/api/breakouts/history?ticker=TEST0'),worker),expected,'Encrypted reader history and encrypted restart state describe the same snapshot');
+ console.log('PASS concurrent quote publication: real encrypted history, independent collector writes, immutable matching restart and reader snapshots');
+}finally{clearInterval(timer);await restored?.close();await local?.close();}

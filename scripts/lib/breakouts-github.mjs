@@ -1,12 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {githubBackgroundRelease} from './github-background-release.mjs';
-import {sealBackgroundState,openBackgroundState} from './github-background-seal.mjs';
-import {packBackgroundViews} from './github-background-package.mjs';
-import {privateRecordViews} from './github-private-records.mjs';
+import {openBackgroundState} from './github-background-seal.mjs';
+import {prepareBreakoutPublication} from './breakout-publication.mjs';
 import {copyBackgroundStore} from './github-background-restore.mjs';
 import {localBreakouts} from './breakout-local.mjs';
-import {preparedBreakoutHistory,breakoutRecordKey} from './breakout-prepared-history.mjs';
 import {BREAKOUT_TABLES} from '../../worker/breakout-export.mjs';
 import {backgroundContract} from '../../worker/github-background-contract.mjs';
 
@@ -29,21 +27,9 @@ export async function githubBreakouts({env=process.env,fetcher=fetch,legacyClien
  }catch(error){await local.close();throw error;}
  async function publish(){
   const backup=path.join(out,'checkpoint.sqlite'),state=path.join(out,'state.bin'),views=path.join(out,'views.gz');fs.rmSync(backup,{force:true});
-  await local.checkpoint(backup);let copy,prepared;
-  try{
-   copy=localBreakouts(backup,{env,...localOptions});const at=localOptions.now?.()??Date.now();
-   prepared=preparedBreakoutHistory(copy,path.join(out,'history.sqlite'),{now:at});
-   const fallback=copy.store.readFallback(),primaryRow=copy.db.prepare('SELECT payload FROM breakout_primary_current WHERE id=1').get();
-   const current=primaryRow?{...JSON.parse(primaryRow.payload),rows:copy.db.prepare('SELECT payload FROM breakout_primary_latest').all().flatMap(row=>Object.values(JSON.parse(row.payload))),gaps:copy.store.archive.gaps()}:null;
-   function currentPages(kind,value){const {rows,...metadata}=value,pages=[];for(let offset=0;offset<rows.length;offset+=500){const id=breakoutRecordKey(kind,String(offset));prepared.put(id,{rows:rows.slice(offset,offset+500)});pages.push(id);}return {...metadata,pages};}
-   const primary=await copy.primary.status();
-   const fallbackState=await copy.storage.get('github-breakout-fallback')||{},fallbackAt=fallbackState.lastAttemptAt||Date.parse(fallback.startedAt)||null;
-   const schedule={...fallbackState,runtime:'github-actions',started:true,lastAttemptAt:fallbackAt,publishedAt:at,overdue:fallbackState.failed===true||!!fallbackAt&&at-fallbackAt>30*60000};
-   const head={version:1,repo:transport.repo,feature:'breakouts',createdAt:new Date(at).toISOString(),primary:current?currentPages('primary',current):null,fallback:currentPages('fallback',fallback),schedule,primarySchedule:{...primary,runtime:'github-actions',alarmAt:null}};
-   const entries=privateRecordViews(prepared.ids,prepared.read,head,{repo:transport.repo,feature:'breakouts',env});
-   await packBackgroundViews(entries,recipient,views,{repo:transport.repo,feature:'breakouts',sourceSignature:signature});
-  }finally{prepared?.close();await copy?.close();}
-  await sealBackgroundState(backup,state,'breakouts',{env});
+  await local.checkpoint(backup);
+  // Normalization/compression must never run on the minute collector's event loop.
+  await prepareBreakoutPublication({backup,out,env,recipient,repo:transport.repo,signature,at:localOptions.now?.()??Date.now()});
   return transport.publish({cycle:++cycle,state,views,sourceSignature:signature});
  }
  return {...local,publish};

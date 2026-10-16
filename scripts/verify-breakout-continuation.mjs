@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import {continueBreakoutCapture} from './lib/breakout-continuation.mjs';
+const env={GITHUB_ACTIONS:'true',GITHUB_REF:'refs/heads/main',GITHUB_REPOSITORY:'techmuns/Glow-Central-Research',GITHUB_RUN_ID:'1234',GITHUB_TOKEN:'fixture-only'},now=Date.parse('2026-10-16T06:30:00Z');
+let calls=0;
+const fetcher=async(url,options)=>{
+ calls++;
+ assert.equal(url,'https://api.github.com/repos/techmuns/Glow-Central-Research/actions/workflows/breakouts-refresh.yml/dispatches');
+ assert.equal(options.method,'POST');assert.equal(options.redirect,'error');
+ assert.equal(options.headers.authorization,'Bearer fixture-only');
+ assert.deepEqual(JSON.parse(options.body),{ref:'main',inputs:{source:'market-window-continuation'}});
+ return new Response(null,{status:204});
+};
+assert.equal(await continueBreakoutCapture({acknowledged:false,env,now,fetcher}),false);
+for(const closed of ['2026-10-16T02:00:00Z','2026-10-16T11:00:00Z','2026-10-17T06:30:00Z'])assert.equal(await continueBreakoutCapture({acknowledged:true,env,now:Date.parse(closed),fetcher}),false);
+assert.equal(calls,0,'No handoff before a verified archive, overnight or on a closed market day');
+assert.equal(await continueBreakoutCapture({acknowledged:true,env,now,fetcher}),true);assert.equal(calls,1);
+await assert.rejects(continueBreakoutCapture({acknowledged:true,env:{...env,GITHUB_REF:'refs/heads/preview'},now,fetcher}),/context/);
+await assert.rejects(continueBreakoutCapture({acknowledged:true,env:{...env,GITHUB_REPOSITORY:'techmuns/Sattva-Central-Research'},now,fetcher}),/context/);
+let failedCalls=0;
+await assert.rejects(continueBreakoutCapture({acknowledged:true,env,now,fetcher:async()=>{failedCalls++;return new Response(null,{status:503});}}),/not acknowledged/);
+assert.equal(failedCalls,1,'An ambiguous dispatch is not retried and no production run is cancelled');
+console.log('PASS market quote handoff: fixed owning main workflow, acknowledged archive required, no closed-market dispatch, no ambiguous retries');
