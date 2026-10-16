@@ -26,11 +26,11 @@ export async function runBreakoutRunner(local,{discover,now=Date.now,sleep=ms=>n
   }while(!stopped&&now()<deadline-10*60000);
  }
  await publish(); // Verify retained history on GitHub before opening source work.
- if(!active){const levelCheck=await checkLevels();partial||=levelCheck?.failed===true;await fallback();await local.primary.wake();await publish();if(partial)throw Error('Quote capture is partial; retained progress was published');return;}
+ if(!active){const levelCheck=await checkLevels();partial||=levelCheck?.failed===true;await fallback();await local.primary.wake();await local.publishLive?.();await publish();if(partial)throw Error('Quote capture is partial; retained progress was published');return;}
  await Promise.all([
   guard(fallback()),
   guard((async()=>{while(!stopped&&now()<deadline){const at=now();const levelCheck=await checkLevels();partial||=levelCheck?.failed===true;version++;await wait(Math.max(1,minuteInterval-(now()-at)));}})()),
-  guard((async()=>{while(!stopped&&now()<deadline){const at=now();await local.primary.wake();version++;await wait(Math.max(1,minuteInterval-(now()-at)));}})()),
+  guard((async()=>{while(!stopped&&now()<deadline){const at=now();await local.primary.wake();await local.publishLive?.();version++;await wait(Math.max(1,minuteInterval-(now()-at)));}})()),
   guard((async()=>{while(!stopped&&now()<deadline){await wait(publishInterval);if(!stopped&&now()<deadline){await publish();}}})()),
  ]);
  stopped=true;

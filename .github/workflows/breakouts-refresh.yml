@@ -40,6 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
+      BREAKOUT_LIVE_RUNTIME: github
       GITHUB_TOKEN: ${{ github.token }}
       BACKGROUND_STATE_KEY: ${{ secrets.MF_STATE_KEY || secrets.FAMILY_HOLDINGS_TOKEN || secrets.GLOWVENTURES_READ_TOKEN }}
       UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}

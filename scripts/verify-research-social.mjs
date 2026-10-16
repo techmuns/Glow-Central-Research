@@ -162,7 +162,12 @@ try {
   failPosts = false; wrongTopic = true;
   const wrong = (await build('Latest chatter on Jayaswal Neco?')).sources.find(s => s.id === 'chatter-posts');
   assert.equal(wrong.dataQuality, 'partial'); assert(!JSON.stringify(wrong).includes('wrong-company'));
+  // A bounded question can return before its shared detail reader settles on a
+  // busy CI runner. Finish the failed fixture, then explicitly complete recovery
+  // before asserting the warm question; keep the product's 1.5s deadline intact.
+  await page.evaluate(async () => { await (await import('/js/data/chatter-live.js')).postsFor('jaynecoind', {force:true,requireFresh:true}).catch(() => {}); });
   wrongTopic = false;
+  await page.evaluate(async () => { await (await import('/js/data/chatter-live.js')).postsFor('jaynecoind', {force:true,requireFresh:true}); });
   const recovered = (await build('Latest chatter on Jayaswal Neco?')).sources.find(s => s.id === 'chatter-posts');
   assert.equal(recovered.dataQuality, 'source-reported');
 

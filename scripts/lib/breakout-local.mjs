@@ -9,7 +9,11 @@ export function localBreakouts(file,{env=process.env,now=Date.now,...options}={}
   const stub={
     breakoutPrimaryPrune:()=>store.primaryPrune(),
     breakoutReadFallback:()=>store.readFallback(),
-    breakoutPrimarySave:input=>store.primarySave(input),
+    breakoutPrimarySave:input=>local.storage.transactionSync(()=>{
+      const saved=store.primarySave(input);
+      if(!saved.replayed)local.db.prepare('INSERT INTO github_job_kv VALUES(?,?) ON CONFLICT(key) DO UPDATE SET payload=excluded.payload').run('github-primary-frame',JSON.stringify(input));
+      return saved;
+    }),
   };
   // Never use the Cloudflare binding fallback in the original primary class.
   const primary=new BreakoutPrimary(local.storage,env,{...options,now,store:()=>stub});

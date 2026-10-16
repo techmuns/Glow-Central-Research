@@ -46,6 +46,7 @@
     // news API (see worker/free-news.mjs and the budget requirement in AGENTS.md).
     "NEWS_PROVIDER": "google",
     "GH_REPO": "techmuns/Glow-Central-Research",
+    "BREAKOUT_LIVE_RUNTIME": "github",
     "GH_REF": "main",
 
     // Ask Research uses Claude Sonnet 5 through AWS Bedrock when the CLAUDE_KEY Worker
