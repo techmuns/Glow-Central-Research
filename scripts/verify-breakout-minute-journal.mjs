@@ -41,6 +41,8 @@ try{
  const baseline=path.join(root,'baseline.sqlite'),older=path.join(root,'duplicate-baseline.sqlite');await source.checkpoint(baseline);await source.checkpoint(older);
  const keys=await readerKeys(secret),recipient={kid:keys.kid,publicKey:encode64(keys.publicKey)},journalOptions={env,fetcher,recipient,now:()=>at,transportOptions:{now:()=>at,sleep:async()=>{},head:()=>env.GITHUB_SHA}};
  const journal=breakoutMinuteJournal(source,{...journalOptions,out:path.join(root,'journal')});
+ const committedSchedule={runtime:'github-actions',started:true,lastAttemptAt:at,publishedAt:at,overdue:false};
+ await assert.rejects(journal.publish(),/acknowledged full checkpoint/);journal.acknowledgeFallback(source.store.readFallback(),committedSchedule);
  for(let minute=0;minute<3;minute++){at+=60000;price++;await source.primary.wake();await journal.publish();}
  const cache=new Map(),edgeCache={match:async key=>cache.get(key.url)?.clone(),put:async(key,value)=>{cache.set(key.url,value.clone());}};
  const worker={GH_REPO:repo,GH_DISPATCH_TOKEN:secret,BREAKOUT_LIVE_RUNTIME:'github',CAPTURE_REGISTRY:{getByName(){throw Error('Current quote delivery cannot query Cloudflare SQL');}},ASSETS:{fetch:async()=>{throw Error('Current quotes cannot wait for static deployment');}}};
@@ -50,6 +52,7 @@ try{
  at+=3*60000;response=await read();data=await response.json();assert.equal(data.primarySchedule.overdue,true,'A cached prepared envelope cannot invent source freshness');
  at-=3*60000;
  restored=localBreakouts(baseline,options);const recovered=breakoutMinuteJournal(restored,{...journalOptions,out:path.join(root,'restore')});assert.equal(await recovered.restore(),3);assert.deepEqual(restored.store.history('TEST'),source.store.history('TEST'),'Every acknowledged minute after the full checkpoint survives restart');assert.equal(await recovered.restore(),0,'Restoration is replay safe');
+ recovered.acknowledgeFallback(restored.store.readFallback(),committedSchedule);
  assert.deepEqual(restored.primary.config('upstox-inventory'),source.primary.config('upstox-inventory'));const priorRequests=requests;await restored.primary.wake();assert.equal(requests,priorRequests,'A recovered minute keeps its next-check claim rather than resampling early');
  assert.equal((await restored.storage.get('github-primary-frame')).at,at,'A restored sample remains available to the next publication');
  // Reproduce a prior reader's duplicate null-frame publication after a claimed wake.
@@ -65,5 +68,8 @@ try{
  at+=60000;await source.client({action:'inventory',targets:companies});await source.primary.wake();await journal.publish();cache.clear();response=await read();data=await response.json();
  assert.equal(response.status,200);assert.equal(data.rows.length,501);assert(data.rows.some(row=>row.ticker==='TEST500'),'Current quote pages retain companies beyond the first 500');
  assert.equal(await recovered.restore(),1);assert.deepEqual(restored.store.history('TEST500'),source.store.history('TEST500'));
+ source.beginCycle(2);await source.client({action:'begin',targets:['TEST']});await source.client({action:'checkpoint',rows:[{...row(),price:999}]});await source.client({action:'finish'});await journal.publish();cache.clear();
+ response=await handleBreakouts(new Request(BREAKOUT_ORIGIN+'/api/breakouts/fallback'),worker,{fetcher,edgeCache,now:()=>at});data=await response.json();assert.equal(data.rows[0].price,110,'A fallback wave cannot become visible before its full restart checkpoint is acknowledged');
+ journal.acknowledgeFallback(source.store.readFallback(),committedSchedule);await journal.publish();cache.clear();response=await handleBreakouts(new Request(BREAKOUT_ORIGIN+'/api/breakouts/fallback'),worker,{fetcher,edgeCache,now:()=>at});assert.equal((await response.json()).rows[0].price,999);
  console.log('PASS encrypted minute feed: fresh current prices without static deployment or SQL, ciphertext cache and honest expiry, exact journal restart/replay, integrity and fixed-source credential boundaries');
 }finally{await empty?.close();await duplicate?.close();await restored?.close();await source?.close();}

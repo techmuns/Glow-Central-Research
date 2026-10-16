@@ -14,7 +14,7 @@ const observed=asset=>Number(/^bq-\d+-\d+-\d+-(\d{13})-bundle\.bin$/.exec(asset.
 // independently of the full history rebuild. Its symmetric restart member stays
 // on GitHub; the website only opens the prepared reader envelope.
 export function breakoutMinuteJournal(local,{env=process.env,fetcher=fetch,recipient,out,transportOptions={},now=Date.now}={}) {
- let cycle=0;
+ let cycle=0,acknowledged=null;
  const transport=day=>githubBackgroundRelease(FEATURE,{env,fetcher,day,...transportOptions});
  async function restore(){
   local.primary.config('upstox-inventory');
@@ -58,14 +58,15 @@ export function breakoutMinuteJournal(local,{env=process.env,fetcher=fetch,recip
   return restored;
  }
  async function publish(){
+  if(!acknowledged)throw Error('Current fallback requires an acknowledged full checkpoint');
   const at=now(),source=transport(new Date(at).toISOString().slice(0,10)),signature=await backgroundContract(FEATURE);
   const frame=await local.storage.get('github-primary-frame')||null;
   const primaryRow=local.db.prepare('SELECT payload FROM breakout_primary_current WHERE id=1').get();
   if(!primaryRow)return null;
   const metadata=JSON.parse(primaryRow.payload),primary={...metadata,rows:local.db.prepare('SELECT payload FROM breakout_primary_latest').all().flatMap(row=>Object.values(JSON.parse(row.payload))),gaps:local.store.archive.gaps()};
-  const fallback=local.store.readFallback(),primarySchedule=await local.primary.status(),state=await local.storage.get('github-breakout-fallback')||{};
-  const fallbackAt=state.lastAttemptAt||Date.parse(fallback.startedAt)||null;
-  const schedule={...state,runtime:'github-actions',started:true,lastAttemptAt:fallbackAt,publishedAt:at,overdue:state.failed===true||!!fallbackAt&&at-fallbackAt>30*60000};
+  // The minute frame acknowledges primary samples. Fallback observations and
+  // recovery candles become visible only after their full restart store is saved.
+  const {fallback,schedule}=acknowledged,primarySchedule=await local.primary.status();
   const records=new Map();
   const pages=(kind,value)=>{const {rows,...metadata}=value,ids=[];for(let offset=0;offset<rows.length;offset+=500){const id=`${kind}-${offset}`;records.set(id,{rows:rows.slice(offset,offset+500)});ids.push(id);}return {...metadata,pages:ids};};
   const head={version:1,repo:source.repo,feature:FEATURE,createdAt:new Date(at).toISOString(),fallback:pages('fallback',fallback),primary:pages('primary',primary),schedule,primarySchedule:{...primarySchedule,runtime:'github-actions',alarmAt:null}};
@@ -78,5 +79,5 @@ export function breakoutMinuteJournal(local,{env=process.env,fetcher=fetch,recip
   await packBackgroundViews(privateRecordViews([...records.keys()],id=>records.get(id),head,{repo:source.repo,feature:FEATURE,env}),recipient,views,{repo:source.repo,feature:FEATURE,sourceSignature:signature});
   return source.publish({cycle:++cycle,state:sealed,views,sourceSignature:signature,observedAt:metadata.at});
  }
- return {restore,publish};
+ return {restore,publish,acknowledgeFallback:(fallback,schedule)=>{acknowledged=structuredClone({fallback,schedule});}};
 }

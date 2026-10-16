@@ -111,6 +111,9 @@ Glow's current quote feed must not wait behind a complete website deployment.
 minute sample. GitHub retains an immutable encrypted restart frame and encrypted
 reader envelope in a daily `breakout-live-YYYY-MM-DD` release. Daily journals are
 retained; they are not discarded while the full history publication is pending.
+The minute reader uses fallback observations only from an acknowledged full
+checkpoint, so it never exposes a recovery/fallback wave that its restart state
+cannot yet restore.
 Before collection resumes, the runner replays all acknowledged frames newer than
 its full checkpoint, preserving quote history, exact instrument inventory and
 the next-check claim. An excessive or invalid recovery interval fails visibly.

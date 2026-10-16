@@ -32,8 +32,10 @@ export async function githubBreakouts({env=process.env,fetcher=fetch,legacyClien
   const backup=path.join(out,'checkpoint.sqlite'),state=path.join(out,'state.bin'),views=path.join(out,'views.gz');fs.rmSync(backup,{force:true});
   await local.checkpoint(backup);
   // Normalization/compression must never run on the minute collector's event loop.
-  await prepareBreakoutPublication({backup,out,env,recipient,repo:transport.repo,signature,at:localOptions.now?.()??Date.now()});
-  return transport.publish({cycle:++cycle,state,views,sourceSignature:signature});
+  const prepared=await prepareBreakoutPublication({backup,out,env,recipient,repo:transport.repo,signature,at:localOptions.now?.()??Date.now()});
+  const saved=await transport.publish({cycle:++cycle,state,views,sourceSignature:signature});
+  minute.acknowledgeFallback(prepared.fallback,prepared.schedule);
+  return saved;
  }
  return {...local,publish,...(env.BREAKOUT_LIVE_RUNTIME==='github'?{publishLive:minute.publish}:{})};
 }
