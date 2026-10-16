@@ -9,11 +9,13 @@ import {backgroundFileHash} from './github-background-seal.mjs';
 import {createBackgroundBundle,readBackgroundBundle,MAX_BACKGROUND_BUNDLE} from './github-background-bundle.mjs';
 const FEATURES={'mutual-funds':{tag:'mutual-funds-runner-data',prefix:'mfbg'},breakouts:{tag:'breakout-data',prefix:'br'},summaries:{tag:'summary-data',prefix:'su'},'price-levels':{tag:'price-level-data',prefix:'pl'},newsletter:{tag:'newsletter-data',prefix:'nl'}};
 const INITIALIZED='Retained archive initialized';
-export function githubBackgroundRelease(feature,{env=process.env,fetcher=fetch,sleep=ms=>new Promise(done=>setTimeout(done,ms)),now=Date.now,head=()=>execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim()}={}) {
-  const spec=FEATURES[feature],repo=mfRepo({GH_REPO:env.GITHUB_REPOSITORY});
+export function githubBackgroundRelease(feature,{day,env=process.env,fetcher=fetch,sleep=ms=>new Promise(done=>setTimeout(done,ms)),now=Date.now,head=()=>execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim()}={}) {
+  const live=feature==='breakouts-live';
+  if(live){day||=new Date(now()).toISOString().slice(0,10);if(!/^20\d{2}-\d{2}-\d{2}$/.test(day)||new Date(day+'T00:00:00Z').toISOString().slice(0,10)!==day)throw Error('Invalid minute journal day');}
+  const spec=live?{tag:`breakout-live-${day}`,prefix:'bq'}:FEATURES[feature],repo=mfRepo({GH_REPO:env.GITHUB_REPOSITORY});
   if(!spec||!env.GITHUB_TOKEN)throw Error('Background repository configuration unavailable');
   const root=`https://api.github.com/repos/${repo}`,downloadRoot=`https://github.com/${repo}/releases/download/${spec.tag}/`;
-  const owned=new RegExp(`^${spec.prefix}-\\d+-\\d+-\\d+-bundle\\.bin$`);
+  const owned=new RegExp(`^${spec.prefix}-\\d+-\\d+-\\d+${live?'-\\d{13}':''}-bundle\\.bin$`);
   const headers={authorization:`Bearer ${env.GITHUB_TOKEN}`,accept:'application/vnd.github+json','user-agent':'ResearchBackgroundState'};
   let mutation=false;
   function publisher() {
@@ -63,13 +65,15 @@ export function githubBackgroundRelease(feature,{env=process.env,fetcher=fetch,s
     }finally{fs.rmSync(temporary,{force:true});}
   }
   async function prune(current) {
+    if(live)return; // Daily minute journals are retained; full checkpoints may lag delivery.
     const keep=new Set();let complete=0;
     for(const asset of candidates(current)){keep.add(asset.name);if(++complete>=2&&!(Date.parse(asset.created_at)>now()-10*60000))break;}
     for(const asset of current.assets)if(owned.test(asset.name)&&!keep.has(asset.name))await api(`${root}/releases/assets/${asset.id}`,{method:'DELETE'});
   }
-  async function publish({cycle,state,views,sourceSignature}) {
+  async function publish({cycle,state,views,sourceSignature,observedAt}) {
     publisher();if(!Number.isSafeInteger(cycle)||cycle<1||cycle>9999||!/^[a-f0-9]{64}$/.test(sourceSignature||''))throw Error('Invalid background publication');
-    const bundle=state+'.bundle',name=`${spec.prefix}-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT||1}-${cycle}-bundle.bin`;
+    if(live&&(!Number.isSafeInteger(observedAt)||!/^\d{13}$/.test(String(observedAt))))throw Error('Invalid minute journal time');
+    const bundle=state+'.bundle',name=`${spec.prefix}-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT||1}-${cycle}${live?'-'+observedAt:''}-bundle.bin`;
     const built=await createBackgroundBundle(state,views,bundle,{repo,feature,createdAt:new Date(now()).toISOString(),workflowRun:env.GITHUB_RUN_ID,sourceSha:env.GITHUB_SHA,sourceSignature},{env});
     try {
       let current=await release();
@@ -82,7 +86,8 @@ export function githubBackgroundRelease(feature,{env=process.env,fetcher=fetch,s
       if(asset.name!==name||asset.size!==built.size||asset.state!=='uploaded'||asset.digest&&asset.digest!==`sha256:${built.hash}`)throw Error('Background upload was not acknowledged');
       current=await release();const acknowledged=await latest(current);
       if(acknowledged?.asset.id!==asset.id)throw Error('Published background generation was not acknowledged');
-      if(!String(current.body||'').includes(INITIALIZED))await api(`${root}/releases/${current.id}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({body:`${current.body||''}\n\n${INITIALIZED}: ${asset.id}`})});
+      if(live)await api(`${root}/releases/${current.id}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({body:JSON.stringify({format:'breakout-minute-head-v1',initialized:INITIALIZED,asset:{id:asset.id,name:asset.name,size:asset.size,digest:asset.digest||null,browser_download_url:asset.browser_download_url,state:asset.state}})})});
+      else if(!String(current.body||'').includes(INITIALIZED))await api(`${root}/releases/${current.id}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({body:`${current.body||''}\n\n${INITIALIZED}: ${asset.id}`})});
       await prune(current);return {...acknowledged,manifest:built.manifest};
     }finally{fs.rmSync(bundle,{force:true});}
   }

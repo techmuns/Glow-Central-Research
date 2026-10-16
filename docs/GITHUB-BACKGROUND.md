@@ -86,8 +86,9 @@ recovered rows and archived gap totals preserve the original retention rules.
 Prepared history preserves exact `(at, run)` ordering and older pagination cursors,
 including after new captures. Current quote selection uses the original freshness
 rules at read time, so a delayed minute publication can use a fresher fallback.
-Reader requests perform no Cloudflare SQL or GitHub metadata requests after the
-first prepared publication. Failed or corrupt prepared data fails visibly.
+History readers use the encrypted static files without Cloudflare SQL. Current
+prices use the small encrypted minute reader described below; failed or corrupt
+prepared data never invents a successful source check.
 
 The runner requests the existing static deployment after each saved generation;
 the existing deployment schedule also catches up. A queued deployment may coalesce
@@ -102,6 +103,30 @@ No successor is requested overnight, on closed-market days or before a verified
 archive exists. GitHub runner startup and static deployment still take time.
 Source timestamps and the original two-minute freshness assessment expose delivery
 lags. Publication failures retain the last acknowledged archive and fail the job.
+
+## Current quote delivery
+
+Glow's current quote feed must not wait behind a complete website deployment.
+`BREAKOUT_LIVE_RUNTIME=github` enables a small prepared snapshot after each normal
+minute sample. GitHub retains an immutable encrypted restart frame and encrypted
+reader envelope in a daily `breakout-live-YYYY-MM-DD` release. Daily journals are
+retained; they are not discarded while the full history publication is pending.
+The minute reader uses fallback observations only from an acknowledged full
+checkpoint, so it never exposes a recovery/fallback wave that its restart state
+cannot yet restore.
+Before collection resumes, the runner replays all acknowledged frames newer than
+its full checkpoint, preserving quote history, exact instrument inventory and
+the next-check claim. An excessive or invalid recovery interval fails visibly.
+
+Website requests read only the fixed owning repository's publication pointer and
+immutable encrypted asset. The existing Worker secret opens the reader envelope;
+it never opens the restart state. The credential is never attached to the public
+asset/CDN request. On-demand caching holds ciphertext for twenty seconds, with no
+Cloudflare alarm, background calculation or SQL write. The original two-minute
+source freshness limit and source failures remain unchanged. A failed delivery
+falls back to the existing static snapshot and its actual source timestamps.
+Full historical pages continue through the existing static deployment and can
+lag current quotes; every sampled minute is already retained on GitHub.
 
 ## Private price-level checks
 
