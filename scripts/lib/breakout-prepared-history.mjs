@@ -34,6 +34,10 @@ export function preparedBreakoutHistory(local,file,{now=Date.now()}={}) {
   const put=(id,value)=>{save.run(id,JSON.stringify(value));identities.push(id);};
   const tickers=new Set(db.prepare('SELECT DISTINCT ticker FROM history').all().map(row=>row.ticker));
   for(const row of local.db.prepare('SELECT payload FROM breakout_primary_gap_archive').iterate())for(const value of Object.values(JSON.parse(row.payload)))if(value.ticker)tickers.add(value.ticker);
+  // This is a disposable derived index. Commit all prepared pages together,
+  // rather than synchronously flushing one SQLite transaction for every page.
+  db.exec('BEGIN');
+  try {
   for(const ticker of [...tickers].sort()) {
     const pages=[];let rows=[],bytes=2,hour=null,part=0;
     const flush=()=>{
@@ -50,5 +54,7 @@ export function preparedBreakoutHistory(local,file,{now=Date.now()}={}) {
     flush();put(breakoutRecordKey('history',ticker),{minuteRetentionDays:MINUTE_RETENTION_DAYS,olderGapTotals:local.store.archive.gapTotals(ticker),pages});
   }
   db.exec('DROP TABLE history');
+  db.exec('COMMIT');
+  }catch(error){db.exec('ROLLBACK');db.close();throw error;}
   return {ids:identities,put,read:id=>{const row=db.prepare('SELECT payload FROM views WHERE id=?').get(id);return row?JSON.parse(row.payload):null;},close:()=>db.close()};
 }

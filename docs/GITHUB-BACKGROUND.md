@@ -92,6 +92,14 @@ first prepared publication. Failed or corrupt prepared data fails visibly.
 The runner requests the existing static deployment after each saved generation;
 the existing deployment schedule also catches up. A queued deployment may coalesce
 several generations, while the full acknowledged quote history remains on GitHub.
+History normalization and compression run in a separate Node worker on GitHub;
+the minute collector continues saving quotes while a checkpoint is prepared.
+Derived history pages commit together instead of flushing one transaction per
+page. After an acknowledged run ends during an open collection window, it queues
+one successor on the current main branch. The existing concurrency group prevents
+overlapping collectors; cron remains the recovery path if that handoff fails.
+No successor is requested overnight, on closed-market days or before a verified
+archive exists. GitHub runner startup and static deployment still take time.
 Source timestamps and the original two-minute freshness assessment expose delivery
 lags. Publication failures retain the last acknowledged archive and fail the job.
 
