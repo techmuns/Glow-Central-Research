@@ -75,11 +75,18 @@ export async function handlePriceLevels(request, env) {
   let result, snapshot;
   try {
     result = await store.priceLevelsApply(input?.intents);
-    snapshot = await preparedPriceLevels(request, env, result.snapshot || result);
   } catch (error) {
     // A rejected BATCH is the caller's mistake and says so; a failed OBJECT is ours and retryable.
     if (/Invalid price level|Duplicate company/.test(String(error?.message || ''))) return fail('invalid-request', 400, cors);
     return fail('price-levels-unavailable', 503, cors);
+  }
+  const source = result.snapshot || result;
+  try { snapshot = await preparedPriceLevels(request, env, source); }
+  catch {
+    // The edit is committed. A missing reader must not turn its acknowledgement
+    // into a failed save or label the retained source checks as current.
+    snapshot = { ...source, runtime: 'github-actions', delivery: 'unavailable',
+      check: { ...source.check, current: false, failed: true, state: 'unavailable', reason: 'prepared-unavailable' } };
   }
   return Response.json(
     { ok: true, ...snapshot, outcomes: result.outcomes },
