@@ -1,6 +1,7 @@
 import { boundedJson } from '../public/js/data/family-book-contract.js';
 import { PRICE_LEVELS_OBJECT, PRICE_LEVELS_REQUEST_BYTES } from '../public/js/data/price-levels-shared.js';
 import { revalidate, tagged, withTag } from './http.mjs';
+import { preparedPriceLevels } from './price-levels-github.mjs';
 
 // GET  /api/price-levels -> the family's price levels, every one reached, and the minute check's state
 // POST /api/price-levels -> { intents: [{ op: 'set'|'seed'|'clear', ticker, isin, name, levels }] }
@@ -40,7 +41,7 @@ export async function handlePriceLevels(request, env) {
     try {
       const cursor = url.searchParams.get('cursor');
       if (cursor?.length > 700) return fail('invalid-cursor', 400);
-      snapshot = await store.priceLevelsSnapshot(cursor);
+      snapshot = await preparedPriceLevels(request, env, await store.priceLevelsSnapshot(cursor));
     } catch {
       return fail('price-levels-unavailable', 503);
     }
@@ -71,7 +72,7 @@ export async function handlePriceLevels(request, env) {
     return fail('invalid-request', 400, cors);
   }
 
-  let result;
+  let result, snapshot;
   try {
     result = await store.priceLevelsApply(input?.intents);
   } catch (error) {
@@ -79,8 +80,16 @@ export async function handlePriceLevels(request, env) {
     if (/Invalid price level|Duplicate company/.test(String(error?.message || ''))) return fail('invalid-request', 400, cors);
     return fail('price-levels-unavailable', 503, cors);
   }
+  const source = result.snapshot || result;
+  try { snapshot = await preparedPriceLevels(request, env, source); }
+  catch {
+    // The edit is committed. A missing reader must not turn its acknowledgement
+    // into a failed save or label the retained source checks as current.
+    snapshot = { ...source, runtime: 'github-actions', delivery: 'unavailable',
+      check: { ...source.check, current: false, failed: true, state: 'unavailable', reason: 'prepared-unavailable' } };
+  }
   return Response.json(
-    { ok: true, ...result.snapshot, outcomes: result.outcomes },
+    { ok: true, ...snapshot, outcomes: result.outcomes },
     { headers: { 'cache-control': 'no-store', ...cors } },
   );
 }

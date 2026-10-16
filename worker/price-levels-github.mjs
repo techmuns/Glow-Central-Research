@@ -4,7 +4,7 @@ import {mfRepo} from './mutual-funds-github.mjs';
 import {marketWindow,expectedSession} from '../public/js/data/breakout-live-shared.js';
 import {PRICE_LEVELS_HIT_WIRE} from '../public/js/data/price-levels-shared.js';
 const older=(hit,cursor)=>!cursor||hit.reachedAt<cursor[0]||hit.reachedAt===cursor[0]&&hit.id<cursor[1];
-// Called only after service authentication. Immediate edits own the current
+// Called after the deployment's existing reader access rules. Immediate edits own the current
 // levels; only an identical value AND set time may inherit a prepared hit.
 export async function preparedPriceLevels(request,env,source,{now=Date.now()}={}){
  const head=await readBackgroundView(env,request.url,'price-levels','head.json');if(!head)return source;

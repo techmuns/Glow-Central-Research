@@ -97,7 +97,7 @@ lags. Publication failures retain the last acknowledged archive and fail the job
 
 ## Private price-level checks
 
-Interactive edits and deletion tombstones retain their immediate service-only input
+Interactive edits and deletion tombstones retain their immediate input
 store. The GitHub quote runner reads a bounded authenticated input snapshot and
 owns quote checks, calculations and new hit history. It imports all existing hit
 rows once, encrypts the complete restart database on GitHub, and prepares lossless
@@ -112,10 +112,12 @@ revision shows Waiting until GitHub checks that revision. Minute sampling, sourc
 outages and GitHub scheduling/delivery gaps remain visible; saved hits are observed
 history and cannot reconstruct every trade between checks.
 
-Every private API response still requires the separate service token before either
-input or encrypted static access and remains private, no-store. No new long-lived
-service credential is copied into GitHub: the fixed quote workflow uses its
-short-lived OIDC identity for read-only input/history transfer.
+Glow retains its existing shared-dashboard access rules: reads use private ETag
+revalidation, and writes require its own or an explicitly allowed Glow Ventures
+origin plus the existing rate limit. Its route overlays prepared GitHub checks
+and hit pages after reading current interactive inputs. No new long-lived service
+credential is copied into GitHub: the fixed quote workflow uses its short-lived
+OIDC identity for read-only input/history transfer.
 
 ## Newsletter migration (prepared; cutover requires setup)
 
@@ -134,6 +136,7 @@ including after restart; a failed job cannot automatically resend that edition.
 PDF bytes are acknowledged on GitHub and their exact hash is verified at the live
 opaque download URL before an email containing that link may leave the runner.
 No model or email request is made by the website after cutover.
+The runner reads the committed JSON source captures from its fixed workflow checkout through a data-only local assets binding. Missing inputs remain unavailable. Prepared HTML previews use numeric parts starting at 1, matching their download URLs.
 
 Subscribers and schedule edits remain immediate interactive inputs. The runner
 refreshes them before metered work and before email, and refuses removed recipients.
