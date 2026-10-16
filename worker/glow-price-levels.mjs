@@ -1,6 +1,7 @@
 import { boundedJson } from '../public/js/data/family-book-contract.js';
 import { PRICE_LEVELS_OBJECT, PRICE_LEVELS_REQUEST_BYTES } from '../public/js/data/price-levels-shared.js';
 import { revalidate, tagged, withTag } from './http.mjs';
+import { preparedPriceLevels } from './price-levels-github.mjs';
 
 // GET  /api/price-levels -> the family's price levels, every one reached, and the minute check's state
 // POST /api/price-levels -> { intents: [{ op: 'set'|'seed'|'clear', ticker, isin, name, levels }] }
@@ -40,7 +41,7 @@ export async function handlePriceLevels(request, env) {
     try {
       const cursor = url.searchParams.get('cursor');
       if (cursor?.length > 700) return fail('invalid-cursor', 400);
-      snapshot = await store.priceLevelsSnapshot(cursor);
+      snapshot = await preparedPriceLevels(request, env, await store.priceLevelsSnapshot(cursor));
     } catch {
       return fail('price-levels-unavailable', 503);
     }
@@ -71,16 +72,17 @@ export async function handlePriceLevels(request, env) {
     return fail('invalid-request', 400, cors);
   }
 
-  let result;
+  let result, snapshot;
   try {
     result = await store.priceLevelsApply(input?.intents);
+    snapshot = await preparedPriceLevels(request, env, result.snapshot || result);
   } catch (error) {
     // A rejected BATCH is the caller's mistake and says so; a failed OBJECT is ours and retryable.
     if (/Invalid price level|Duplicate company/.test(String(error?.message || ''))) return fail('invalid-request', 400, cors);
     return fail('price-levels-unavailable', 503, cors);
   }
   return Response.json(
-    { ok: true, ...result.snapshot, outcomes: result.outcomes },
+    { ok: true, ...snapshot, outcomes: result.outcomes },
     { headers: { 'cache-control': 'no-store', ...cors } },
   );
 }

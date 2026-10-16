@@ -97,7 +97,7 @@ lags. Publication failures retain the last acknowledged archive and fail the job
 
 ## Private price-level checks
 
-Interactive edits and deletion tombstones retain their immediate service-only input
+Interactive edits and deletion tombstones retain their immediate input
 store. The GitHub quote runner reads a bounded authenticated input snapshot and
 owns quote checks, calculations and new hit history. It imports all existing hit
 rows once, encrypts the complete restart database on GitHub, and prepares lossless
@@ -112,10 +112,12 @@ revision shows Waiting until GitHub checks that revision. Minute sampling, sourc
 outages and GitHub scheduling/delivery gaps remain visible; saved hits are observed
 history and cannot reconstruct every trade between checks.
 
-Every private API response still requires the separate service token before either
-input or encrypted static access and remains private, no-store. No new long-lived
-service credential is copied into GitHub: the fixed quote workflow uses its
-short-lived OIDC identity for read-only input/history transfer.
+Glow retains its existing shared-dashboard access rules: reads use private ETag
+revalidation, and writes require its own or an explicitly allowed Glow Ventures
+origin plus the existing rate limit. Its route overlays prepared GitHub checks
+and hit pages after reading current interactive inputs. No new long-lived service
+credential is copied into GitHub: the fixed quote workflow uses its short-lived
+OIDC identity for read-only input/history transfer.
 
 ## Newsletter migration (prepared; cutover requires setup)
 
