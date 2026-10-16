@@ -3,8 +3,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-16T16:41:37.716Z",
-  "oldestDataAt": "2026-10-16T16:41:37.716Z",
+  "capturedAt": "2026-10-16T18:13:14.654Z",
+  "oldestDataAt": "2026-10-16T18:13:14.654Z",
   "from": "2025-10-16",
   "to": "2026-10-16",
   "windowDays": 365,
@@ -22,13 +22,13 @@
       "id": "bulk",
       "label": "Bulk deal",
       "url": "https://www.screener.in/trades/bulk/?o=-2",
-      "pagesRead": 8,
+      "pagesRead": 2,
       "latestDate": "2026-10-16",
-      "oldestDate": "2026-10-15",
+      "oldestDate": "2026-10-16",
       "bootstrapDays": null,
       "ok": true,
-      "rowCount": 200,
-      "capturedAt": "2026-10-16T16:41:37.716Z",
+      "rowCount": 50,
+      "capturedAt": "2026-10-16T18:13:14.654Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-16T16:41:37.716Z",
+      "capturedAt": "2026-10-16T18:13:14.654Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-16T16:41:37.716Z",
+      "capturedAt": "2026-10-16T18:13:14.654Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -62,12 +62,12 @@
       "label": "Insider trade",
       "url": "https://www.screener.in/trades/insiders/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-10-15",
+      "latestDate": "2026-10-16",
       "oldestDate": "2026-10-08",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-16T16:41:37.716Z",
+      "capturedAt": "2026-10-16T18:13:14.654Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 2038,
   "emptyCount": 0,
-  "rowCount": 22347,
+  "rowCount": 22355,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -108589,6 +108589,24 @@
     "HCLTECH": [
       {
         "ticker": "HCLTECH",
+        "date": "2026-10-16",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "HCL Technologies",
+          "Insider": "Hcl Technologies Stock Options Trust",
+          "Category": "Designated Person",
+          "Security Type": "Equity",
+          "Transaction": "ESOS",
+          "Trade Shares": "3057",
+          "Trade Value": "38.07 lacs",
+          "Broadcast Date": "2026-10-16",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "HCLTECH",
         "date": "2026-10-14",
         "url": "https://www.screener.in/trades/insiders/?o=-2",
         "sourceId": "insiders",
@@ -128329,6 +128347,23 @@
       }
     ],
     "NAUKRI": [
+      {
+        "ticker": "NAUKRI",
+        "date": "2026-10-16",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Info Edg.(India)",
+          "Insider": "Anurag Jaiswal",
+          "Category": "Designated Person",
+          "Security Type": "Options",
+          "Trade Shares": "1100",
+          "Trade Value": "6.64 lacs",
+          "Broadcast Date": "2026-10-16",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "NAUKRI",
         "date": "2026-10-12",
@@ -152533,6 +152568,78 @@
       }
     ],
     "NATCOPHARM": [
+      {
+        "ticker": "NATCOPHARM",
+        "date": "2026-10-16",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Natco Pharma",
+          "Insider": "Durga Devi Nannapaneni, Vistra Itcl India Limited ...",
+          "Category": "Promoter (2)",
+          "Security Type": "Any Other Instrument",
+          "Transaction": "Off Market",
+          "Trade Shares": "435959",
+          "Trade Value": "43.6 lacs",
+          "Broadcast Date": "2026-10-16",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "NATCOPHARM",
+        "date": "2026-10-16",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Natco Pharma",
+          "Insider": "Neelima Sita Nannapaneni",
+          "Category": "Promoter",
+          "Security Type": "Any Other Instrument",
+          "Transaction": "Bought",
+          "Trade Shares": "237963",
+          "Trade Value": "84.52 lacs",
+          "Broadcast Date": "2026-10-16",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "NATCOPHARM",
+        "date": "2026-10-16",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Natco Pharma",
+          "Insider": "Time Cap Pharma Labs Private Limited, V S Swathi K...",
+          "Category": "Promoter Group (3)",
+          "Security Type": "Any Other Instrument",
+          "Transaction": "Off Market",
+          "Trade Shares": "1184194",
+          "Trade Value": "1.18 crore",
+          "Broadcast Date": "2026-10-16",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "NATCOPHARM",
+        "date": "2026-10-16",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Natco Pharma",
+          "Insider": "V.C.Nannapaneni, Rajeev Nannapaneni",
+          "Category": "Promoter And Director (2)",
+          "Security Type": "Any Other Instrument",
+          "Transaction": "Off Market",
+          "Trade Shares": "32228",
+          "Trade Value": "3.22 lacs",
+          "Broadcast Date": "2026-10-16",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "NATCOPHARM",
         "date": "2026-10-15",
@@ -212169,6 +212276,23 @@
       }
     ],
     "SHK": [
+      {
+        "ticker": "SHK",
+        "date": "2026-10-16",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "S H Kelkar & Co.",
+          "Insider": "Keva Constructions Private Limited, Keva Construct...",
+          "Category": "Promoter Group (3)",
+          "Security Type": "Equity",
+          "Trade Shares": "14103000",
+          "Trade Value": "195 crore",
+          "Broadcast Date": "2026-10-16",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "SHK",
         "date": "2026-05-27",
@@ -368698,6 +368822,24 @@
       }
     ],
     "TEXMOPIPES": [
+      {
+        "ticker": "TEXMOPIPES",
+        "date": "2026-10-15",
+        "url": "https://www.screener.in/trades/insiders/?o=-2",
+        "sourceId": "insiders",
+        "cells": {
+          "Trade Category": "Insider trade",
+          "Company": "Texmo Pipes",
+          "Insider": "Rashmi Agrawal, Rashmi Agrawal, Sanjay Kumar Agraw...",
+          "Category": "Promoter And Director (6)",
+          "Security Type": "Equity",
+          "Transaction": "Preferential Offer",
+          "Trade Shares": "4590000",
+          "Trade Value": "20.95 crore",
+          "Broadcast Date": "2026-10-15",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "TEXMOPIPES",
         "date": "2026-09-07",
