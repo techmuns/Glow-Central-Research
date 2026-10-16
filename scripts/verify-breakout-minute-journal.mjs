@@ -33,7 +33,8 @@ const fetcher=async(raw,options={})=>{
 };
 const base={high:100,low:95,average:97,averageVolume:1000,count:30,to:'2026-10-15'};
 const row=()=>({ticker:'TEST',name:'Fixture',price,volume:2300,prevClose:100,quoteAt:new Date(at).toISOString(),checkedAt:new Date(at).toISOString(),sessionDate:'2026-10-16',provider:'Upstox',exchange:'NSE',kind:'quote',base});
-const options={env,now:()=>at,instruments:async()=>[{segment:'NSE_EQ',instrument_key:'NSE_EQ|INE000000001',trading_symbol:'TEST'}],quotes:async()=>{requests++;return {rows:[row()]};}};
+let companies=[{ticker:'TEST',isin:'INE000000001'}];
+const options={env,now:()=>at,instruments:async()=>companies.map(company=>({segment:'NSE_EQ',instrument_key:`NSE_EQ|${company.isin}`,trading_symbol:company.ticker})),quotes:async()=>{requests++;return {rows:companies.map(company=>({...row(),ticker:company.ticker}))};}};
 try{
  source=localBreakouts(path.join(root,'source.sqlite'),options);source.beginCycle(1);await source.client({action:'begin',targets:['TEST']});await source.client({action:'checkpoint',rows:[row()]});await source.client({action:'finish'});await source.client({action:'inventory',targets:[{ticker:'TEST',isin:'INE000000001'}]});await source.primary.wake();
  const baseline=path.join(root,'baseline.sqlite');await source.checkpoint(baseline);
@@ -53,5 +54,9 @@ try{
  const release=[...releases.values()].at(-1),pointer=JSON.parse(release.body),before=reads;cache.clear();release.body=JSON.stringify({...pointer,asset:{...pointer.asset,browser_download_url:'https://example.invalid/credential-sink'}});
  response=await read();assert.equal(response.status,503);assert.equal(reads,before,'A substituted asset URL is rejected before fetching');
  release.body=JSON.stringify(pointer);
+ companies=Array.from({length:501},(_,i)=>({ticker:i?`TEST${i}`:'TEST',isin:`INE${String(i+1).padStart(9,'0')}`}));
+ at+=60000;await source.client({action:'inventory',targets:companies});await source.primary.wake();await journal.publish();cache.clear();response=await read();data=await response.json();
+ assert.equal(response.status,200);assert.equal(data.rows.length,501);assert(data.rows.some(row=>row.ticker==='TEST500'),'Current quote pages retain companies beyond the first 500');
+ assert.equal(await recovered.restore(),1);assert.deepEqual(restored.store.history('TEST500'),source.store.history('TEST500'));
  console.log('PASS encrypted minute feed: fresh current prices without static deployment or SQL, ciphertext cache and honest expiry, exact journal restart/replay, integrity and fixed-source credential boundaries');
 }finally{await restored?.close();await source?.close();}

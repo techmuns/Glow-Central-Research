@@ -11,10 +11,6 @@ export async function readBackgroundView(env,origin,feature,name,{maxBytes=5*102
   if(response.status===404){await response.body?.cancel();return null;}
   const envelope=await boundedJson(response,8*1024*1024);
   if(expectedHash&&await hash(new TextEncoder().encode(JSON.stringify(envelope)))!==expectedHash)throw Error('Prepared file integrity failed');
-  return openBackgroundEnvelope(env,feature,name,envelope,{maxBytes});
-}
-export async function openBackgroundEnvelope(env,feature,name,envelope,{maxBytes=5*1024*1024}={}) {
-  if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>8*1024*1024)throw Error('Invalid prepared delivery budget');
   const plain=await openForReader(envelope,env.GH_DISPATCH_TOKEN,address(mfRepo(env),feature,name));
   if(plain.byteLength>5*1024*1024)throw Error('Prepared envelope exceeds delivery budget');
   const packed=JSON.parse(new TextDecoder().decode(plain));
