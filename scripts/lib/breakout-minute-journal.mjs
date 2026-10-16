@@ -6,6 +6,7 @@ import {packBackgroundViews} from './github-background-package.mjs';
 import {privateRecordViews} from './github-private-records.mjs';
 import {backgroundContract} from '../../worker/github-background-contract.mjs';
 import {PRIMARY_TIMER} from '../../worker/breakout-primary.mjs';
+import {boundedJson} from '../../public/js/data/family-book-contract.js';
 const FEATURE='breakouts-live',DAY=86400000;
 const observed=asset=>Number(/^bq-\d+-\d+-\d+-(\d{13})-bundle\.bin$/.exec(asset.name)?.[1]||0);
 
@@ -16,8 +17,17 @@ export function breakoutMinuteJournal(local,{env=process.env,fetcher=fetch,recip
  let cycle=0;
  const transport=day=>githubBackgroundRelease(FEATURE,{env,fetcher,day,...transportOptions});
  async function restore(){
+  local.primary.config('upstox-inventory');
   const baseline=local.db.prepare('SELECT at FROM breakout_primary_current WHERE id=1').get()?.at||0;
-  const today=Math.floor(now()/DAY),first=baseline?Math.floor(baseline/DAY):today;
+  const today=Math.floor(now()/DAY);let first=baseline?Math.floor(baseline/DAY):today;
+  if(!baseline){
+   // Release-created tags list the retained calendar without downloading every
+   // release's embedded asset inventory. Never assume the first samples are today.
+   const repo=transport().repo,response=await fetcher(`https://api.github.com/repos/${repo}/git/matching-refs/tags/breakout-live-`,{headers:{authorization:`Bearer ${env.GITHUB_TOKEN}`,accept:'application/vnd.github+json','user-agent':'ResearchMinuteRecovery'},redirect:'manual',signal:AbortSignal.timeout(20000)});
+   if(response.headers.get('link')?.includes('rel="next"')){await response.body?.cancel();throw Error('Minute journal calendar is incomplete');}
+   const refs=await boundedJson(response,4*1024*1024);if(!Array.isArray(refs))throw Error('Invalid minute journal calendar');
+   for(const entry of refs){const day=/^refs\/tags\/breakout-live-(20\d{2}-\d{2}-\d{2})$/.exec(entry.ref||'')?.[1];if(!day||new Date(day+'T00:00:00Z').toISOString().slice(0,10)!==day)throw Error('Invalid minute journal day');first=Math.min(first,Date.parse(day)/DAY);}
+  }
   if(today-first>31||first>today)throw Error('Minute journal recovery interval requires inspection');
   fs.mkdirSync(out,{recursive:true});let restored=0,last=baseline;
   for(let day=first;day<=today;day++){
@@ -29,8 +39,9 @@ export function breakoutMinuteJournal(local,{env=process.env,fetcher=fetch,recip
     await source.download({repo:source.repo,feature:FEATURE,asset},'state',sealed,{sourceSignature:await backgroundContract(FEATURE)});
     await openBackgroundState(sealed,plain,FEATURE,{env,maxPlainBytes:8*1024*1024});
     const value=JSON.parse(fs.readFileSync(plain,'utf8'));
-    if(value.version!==1||value.repo!==source.repo||value.feature!==FEATURE||value.at!==observed(asset)||!value.frame||value.frame.at!==value.at)throw Error('Invalid retained minute frame');
+    if(value.version!==1||value.repo!==source.repo||value.feature!==FEATURE||value.at!==observed(asset))throw Error('Invalid retained minute frame');
     if(value.at<=last)continue;
+    if(!value.frame||value.frame.at!==value.at)throw Error('Retained minute frame missing');
     if(!Array.isArray(value.config)||value.config.some(row=>!['upstox-inventory','upstox-mappings'].includes(row.key)||!Number.isSafeInteger(row.part)||row.part<0||row.part>100||typeof row.payload!=='string'||row.payload.length>32000)||!Number.isSafeInteger(value.timer?.nextAt)||!Number.isSafeInteger(value.timer?.lastAttemptAt)||value.timer.lastAttemptAt<value.at||value.timer.nextAt<=value.timer.lastAttemptAt)throw Error('Invalid retained minute configuration');
     local.storage.transactionSync(()=>{
      local.store.primarySave(value.frame);
@@ -38,6 +49,7 @@ export function breakoutMinuteJournal(local,{env=process.env,fetcher=fetch,recip
      for(const row of value.config)local.db.prepare('INSERT INTO upstox_config VALUES(?,?,?)').run(row.key,row.part,row.payload);
     });
     await local.storage.put(PRIMARY_TIMER,value.timer);
+    await local.storage.put('github-primary-frame',value.frame);
     if(Number.isFinite(value.alarmAt))await local.storage.setAlarm(value.alarmAt);
     last=value.at;restored++;
    }

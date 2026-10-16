@@ -9,7 +9,7 @@ import {backgroundContract} from '../worker/github-background-contract.mjs';
 import {BREAKOUT_ORIGIN} from '../public/js/data/breakout-live-shared.js';
 const root=fs.mkdtempSync(path.resolve('.cache/minute-journal-')),repo='techmuns/Glow-Central-Research',secret='fixture-reader-only-123456789';
 const env={GITHUB_REPOSITORY:repo,GITHUB_ACTIONS:'true',GITHUB_REF:'refs/heads/main',GITHUB_SHA:'a'.repeat(40),GITHUB_RUN_ID:'12345',GITHUB_RUN_ATTEMPT:'1',GITHUB_TOKEN:'fixture-actions',BACKGROUND_STATE_KEY:'fixture-state-secret-only-123456789',UPSTOX_ACCESS_TOKEN:'fixture-provider'};
-let at=Date.parse('2026-10-16T06:30:00Z'),price=110,sequence=1,releaseSequence=1,source,restored,reads=0,requests=0;
+let at=Date.parse('2026-10-16T06:30:00Z'),price=110,sequence=1,releaseSequence=1,source,restored,duplicate,empty,reads=0,requests=0;
 const releases=new Map(),assets=new Map(),apiReads=[];
 const metadata=asset=>Object.fromEntries(Object.entries(asset).filter(([key])=>key!=='bytes'));
 const fetcher=async(raw,options={})=>{
@@ -25,6 +25,7 @@ const fetcher=async(raw,options={})=>{
   if(method==='POST'){const body=JSON.parse(options.body),release={id:releaseSequence++,tag_name:body.tag_name,body:body.body,assets:[]};releases.set(body.tag_name,release);return Response.json({...release,assets:[]});}
   if(method==='PATCH'){const id=Number(url.pathname.split('/').at(-1)),release=[...releases.values()].find(r=>r.id===id);release.body=JSON.parse(options.body).body;return Response.json({...release,assets:release.assets.map(metadata)});}
   assert.notEqual(method,'DELETE','Acknowledged minute journals are never pruned before full-history delivery');apiReads.push(url.pathname);
+  if(url.pathname.includes('/git/matching-refs/tags/breakout-live-'))return Response.json([...releases.keys()].map(tag=>({ref:`refs/tags/${tag}`})));
   if(url.pathname.endsWith('/assets')){const id=Number(url.pathname.split('/').at(-2)),release=[...releases.values()].find(r=>r.id===id);return Response.json(release.assets.map(metadata));}
   const release=releases.get(url.pathname.split('/').at(-1));return release?Response.json({...release,assets:release.assets.map(metadata)}):new Response(null,{status:404});
  }
@@ -37,7 +38,7 @@ let companies=[{ticker:'TEST',isin:'INE000000001'}];
 const options={env,now:()=>at,instruments:async()=>companies.map(company=>({segment:'NSE_EQ',instrument_key:`NSE_EQ|${company.isin}`,trading_symbol:company.ticker})),quotes:async()=>{requests++;return {rows:companies.map(company=>({...row(),ticker:company.ticker}))};}};
 try{
  source=localBreakouts(path.join(root,'source.sqlite'),options);source.beginCycle(1);await source.client({action:'begin',targets:['TEST']});await source.client({action:'checkpoint',rows:[row()]});await source.client({action:'finish'});await source.client({action:'inventory',targets:[{ticker:'TEST',isin:'INE000000001'}]});await source.primary.wake();
- const baseline=path.join(root,'baseline.sqlite');await source.checkpoint(baseline);
+ const baseline=path.join(root,'baseline.sqlite'),older=path.join(root,'duplicate-baseline.sqlite');await source.checkpoint(baseline);await source.checkpoint(older);
  const keys=await readerKeys(secret),recipient={kid:keys.kid,publicKey:encode64(keys.publicKey)},journalOptions={env,fetcher,recipient,now:()=>at,transportOptions:{now:()=>at,sleep:async()=>{},head:()=>env.GITHUB_SHA}};
  const journal=breakoutMinuteJournal(source,{...journalOptions,out:path.join(root,'journal')});
  for(let minute=0;minute<3;minute++){at+=60000;price++;await source.primary.wake();await journal.publish();}
@@ -50,6 +51,12 @@ try{
  at-=3*60000;
  restored=localBreakouts(baseline,options);const recovered=breakoutMinuteJournal(restored,{...journalOptions,out:path.join(root,'restore')});assert.equal(await recovered.restore(),3);assert.deepEqual(restored.store.history('TEST'),source.store.history('TEST'),'Every acknowledged minute after the full checkpoint survives restart');assert.equal(await recovered.restore(),0,'Restoration is replay safe');
  assert.deepEqual(restored.primary.config('upstox-inventory'),source.primary.config('upstox-inventory'));const priorRequests=requests;await restored.primary.wake();assert.equal(requests,priorRequests,'A recovered minute keeps its next-check claim rather than resampling early');
+ assert.equal((await restored.storage.get('github-primary-frame')).at,at,'A restored sample remains available to the next publication');
+ // Reproduce a prior reader's duplicate null-frame publication after a claimed wake.
+ await restored.storage.delete('github-primary-frame');await recovered.publish();
+ duplicate=localBreakouts(older,options);assert.equal(await breakoutMinuteJournal(duplicate,{...journalOptions,out:path.join(root,'duplicate')}).restore(),3,'A duplicate missing replay frame cannot block valid acknowledged minutes');
+ empty=localBreakouts(path.join(root,'empty.sqlite'),options);at+=86400000;
+ assert.equal(await breakoutMinuteJournal(empty,{...journalOptions,out:path.join(root,'empty')}).restore(),3,'With no primary baseline, recovery discovers yesterday\'s retained release');assert.equal(empty.store.history('TEST').rows.length,3);at-=86400000;
  const asset=[...assets.values()].at(-1),damaged=Buffer.from(asset.bytes);damaged[damaged.length-10]^=1;await assert.rejects(minuteEnvelope(damaged,{repo,signature:await backgroundContract('breakouts-live')}),/integrity/);
  const release=[...releases.values()].at(-1),pointer=JSON.parse(release.body),before=reads;cache.clear();release.body=JSON.stringify({...pointer,asset:{...pointer.asset,browser_download_url:'https://example.invalid/credential-sink'}});
  response=await read();assert.equal(response.status,503);assert.equal(reads,before,'A substituted asset URL is rejected before fetching');
@@ -59,4 +66,4 @@ try{
  assert.equal(response.status,200);assert.equal(data.rows.length,501);assert(data.rows.some(row=>row.ticker==='TEST500'),'Current quote pages retain companies beyond the first 500');
  assert.equal(await recovered.restore(),1);assert.deepEqual(restored.store.history('TEST500'),source.store.history('TEST500'));
  console.log('PASS encrypted minute feed: fresh current prices without static deployment or SQL, ciphertext cache and honest expiry, exact journal restart/replay, integrity and fixed-source credential boundaries');
-}finally{await restored?.close();await source?.close();}
+}finally{await empty?.close();await duplicate?.close();await restored?.close();await source?.close();}
