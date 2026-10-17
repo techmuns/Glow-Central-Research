@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-17T17:51:27.967Z",
-  "oldestDataAt": "2026-10-17T17:51:27.967Z",
-  "from": "2025-10-17",
-  "to": "2026-10-17",
+  "capturedAt": "2026-10-17T18:37:12.041Z",
+  "oldestDataAt": "2026-10-17T18:37:12.041Z",
+  "from": "2025-10-18",
+  "to": "2026-10-18",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-17T17:51:27.967Z",
+      "capturedAt": "2026-10-17T18:37:12.041Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-17T17:51:27.967Z",
+      "capturedAt": "2026-10-17T18:37:12.041Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-17T17:51:27.967Z",
+      "capturedAt": "2026-10-17T18:37:12.041Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-17T17:51:27.967Z",
+      "capturedAt": "2026-10-17T18:37:12.041Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 2038,
   "emptyCount": 0,
-  "rowCount": 22355,
+  "rowCount": 22350,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -92402,72 +92402,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "VIPIND",
-        "date": "2025-10-17",
-        "cells": {
-          "Company": "VIPIND",
-          "Insider": "Kiddy Plast Ltd & PACs",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Disposal",
-          "Trade Shares": "1087334",
-          "Trade %": "0.77",
-          "Trade Value": null,
-          "Post Holding Shares": "2236362",
-          "Post Holding %": "1.57",
-          "Mode": "Market",
-          "From Date": "2025-09-26",
-          "To Date": "2025-09-26",
-          "Broadcast Date": "2025-10-17",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "VIPIND",
-        "date": "2025-10-17",
-        "cells": {
-          "Company": "VIPIND",
-          "Insider": "Multiples Private Equity Fund IV & Others",
-          "Category": "Other",
-          "Security Type": null,
-          "Transaction": "Acquisition",
-          "Trade Shares": "8390076",
-          "Trade %": "5.91",
-          "Trade Value": null,
-          "Post Holding Shares": "8390076",
-          "Post Holding %": "5.91",
-          "Mode": "Market",
-          "From Date": "2025-09-26",
-          "To Date": "2025-09-26",
-          "Broadcast Date": "2025-10-17",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "VIPIND",
-        "date": "2025-10-17",
-        "cells": {
-          "Company": "VIPIND",
-          "Insider": "Piramal Vibhuti Investments Ltd",
-          "Category": "Promoter",
-          "Security Type": null,
-          "Transaction": "Disposal",
-          "Trade Shares": "7752742",
-          "Trade %": "5.46",
-          "Trade Value": null,
-          "Post Holding Shares": "14569843",
-          "Post Holding %": "10.26",
-          "Mode": "Market",
-          "From Date": "2025-09-26",
-          "To Date": "2025-09-26",
-          "Broadcast Date": "2025-10-17",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "VEDL": [
@@ -113336,28 +113270,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-10-17",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "HCL Technologies Stock Options Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "10598",
-          "Trade %": "0",
-          "Trade Value": "15874744",
-          "Post Holding Shares": "8133888",
-          "Post Holding %": "0.3",
-          "Mode": "ESOS",
-          "From Date": "2025-10-15",
-          "To Date": "2025-10-15",
-          "Broadcast Date": "2025-10-17",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "NTPC": [
@@ -124307,28 +124219,6 @@
           "From Date": "2025-11-17",
           "To Date": "2025-11-17",
           "Broadcast Date": "2025-11-18",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "APOLLOHOSP",
-        "date": "2025-10-17",
-        "cells": {
-          "Company": "Apollo Hospitals Enterprise Ltd",
-          "Insider": "PCR INVESTMENTS LIMITED",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Revoke",
-          "Trade Shares": "2300000",
-          "Trade %": "0",
-          "Trade Value": "1807100000",
-          "Post Holding Shares": "27223124",
-          "Post Holding %": "18.93",
-          "Mode": "Pledge Released",
-          "From Date": "2025-10-16",
-          "To Date": "2025-10-16",
-          "Broadcast Date": "2025-10-17",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
