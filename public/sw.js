@@ -55,7 +55,7 @@ function appReleaseCacheKey() {
 
 // Keep the News presentation release independent of other UI version markers.
 function newsCardCacheKey() {
-  return `${appReleaseCacheKey()}-news-card-parity-v1-private-market-intelligence-v2-mf-net-volume-houses-v1`;
+  return `${appReleaseCacheKey()}-news-card-parity-v1-private-market-intelligence-v2-private-market-funding-columns-v1-mf-net-volume-houses-v1`;
 }
 
 async function cacheOne(cache, input, init = {}, timeoutMs = 8000) {
