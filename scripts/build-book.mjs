@@ -21,6 +21,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildIndex, resolveTicker } from './lib/company-index.mjs';
 import { statementEquityRelationship } from './lib/glow-book-identity.mjs';
+import { withHoldingCategories } from '../public/js/data/holding-categories.js';
 import { AUTHORITATIVE, authoritativeDocs, datedRows, loadArchive, realisedIndex, saleKey, settledAmount } from './lib/glow-archive.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -278,6 +279,7 @@ const out = {
     const a = accountById.get(p.accountId) || {};
     return {
       ...pick(p, ['securityKey', 'security', 'symbol', 'isin', 'accountId', 'memberId', 'sector', 'providerSector', 'assetClass', 'quantity', 'marketValue', 'costBasis', 'unrealizedPnL', 'returnPct', 'avgCost', 'currentPrice', 'costBasisSource', 'costUnavailable', 'stCostBasis', 'ltCostBasis', 'daysToLT', 'heldSince', 'accruedIncome', 'dividendReceived', 'positionIrrPct', 'dedupeGroup', 'alsoReportedUnder']),
+      ...(p.valuedAtCost === true ? { valuedAtCost: true } : {}),
       provider: a.provider ?? null,
       owner: a.owner ?? null,
       ownerId: a.ownerId ?? null,
@@ -497,7 +499,7 @@ const companies = {
   bseOnly: 0,
   unresolved: holdings.filter((h) => !h.ticker && h.listed !== false).length,
   excluded,
-  holdings,
+  holdings: withHoldingCategories(holdings, { positions, accounts }),
 };
 mkdirSync(dirname(COMPANIES_OUT), { recursive: true });
 writeFileSync(COMPANIES_OUT, `${JSON.stringify(companies, null, 2)}\n`);

@@ -2,11 +2,13 @@
 // Actual AI ranking and tab UI over deterministic local event fixtures. No production reads.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
+const outputDir = resolve(root, '../.cache/ai-alert-holding-categories');
+mkdirSync(outputDir, { recursive: true });
 const feeds = ['earnings', 'announcements', 'insider'];
 const eventsFor = (ticker, company, day = '2026-09-04') => feeds.map((feed, i) => ({
   id: `${ticker}-${feed}`, ticker, company, day, time: ['09:15', '11:10', '14:42'][i], feed, feedLabel: feed,
@@ -865,7 +867,7 @@ try {
   assert.match(summary, /Latest dated mention: source-tagged bullish/);
   assert.match(await page.locator('[data-chatter-mention-row]').first().innerText(), /Source: Bullish/);
   assert.equal(await page.locator('[data-chatter-mention-row]').filter({ hasText: 'Source: Bearish' }).count(), 3);
-  await page.screenshot({ path: '/tmp/sattva-chatter-dialog.png' });
+  await page.screenshot({ path: resolve(outputDir, 'chatter-dialog.png') });
   console.log('PASS: an actual AI chatter line opens Coforge’s dialog with the full mixed split, latest bullish mention and original source links.');
   const savedReader = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   savedReader.on('pageerror', error => errors.push(error.message));
@@ -883,7 +885,8 @@ try {
     tab.render({ root: document.querySelector('#root'), scope: 'universe', params: {}, savedView: { reading: { extras } } });
   }, savedFilters);
   await waitFor(savedReader, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');
-  assert.deepEqual(await savedReader.evaluate(async () => (await import('/js/tabs/ai-alerts.js')).getSavedView()), savedFilters);
+  assert.deepEqual(await savedReader.evaluate(async () => (await import('/js/tabs/ai-alerts.js')).getSavedView()), { ...savedFilters, aiHoldingCategory: 'all' }, 'legacy saved readings default to all holding categories');
+  assert.equal(await savedReader.locator('[data-ai-holding-category]').inputValue(), 'all');
   assert.equal(await savedReader.locator('[data-ai-search]').inputValue(), 'Zenith');
   assert.equal(await savedReader.locator('[data-ai-type="results"]').isChecked(), true);
   await savedReader.locator('[data-ai-sort]').selectOption('newest');

@@ -122,7 +122,7 @@ export function syncLabel() {
 }
 let family = null;
 
-const identitySignature = entries => JSON.stringify(entries.map(h => [h.isin, h.ticker, h.name, h.sector]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+const identitySignature = entries => JSON.stringify(entries.map(h => [h.isin, h.ticker, h.name, h.sector, h.holdingCategories]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
 
 /** One in-memory Family book for every view. Only membership/identity changes
  * require re-filtering feeds; a quote refresh must not tear down an answer. */
