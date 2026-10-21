@@ -133,7 +133,7 @@ try {
   await page.waitForFunction(() => window.__ca.query().period === 'all' && window.__ca.meta().state === 'ready');
   assert(await period.evaluate(el => el === document.activeElement), 'arriving query rows preserve the focused period control');
   const heads = await page.locator('thead th').allInnerTexts();
-  assert.deepEqual(heads.map(h => h.trim().toUpperCase()), ['COMPANY', 'SUBJECT', 'DATE', 'CATEGORIES', 'MARKET CAP', 'LINK'], 'company leads and exchange links replace the separate Source column');
+  assert.deepEqual(heads.map(h => h.trim().toUpperCase()), ['COMPANY', 'SUBJECT', 'DATE', 'CATEGORIES', 'CMP', 'MARKET CAP', 'LINK'], 'company leads, CMP is next to market cap and exchange links replace the separate Source column');
   const meta = await caMeta();
   assert.equal(meta.total, index.counts.rows, 'All time counts every filing');
   assert.equal(srv.stats.queries, 2, 'one page request per selected period, not the history');

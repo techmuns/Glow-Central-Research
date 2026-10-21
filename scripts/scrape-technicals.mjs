@@ -33,6 +33,7 @@ import { yahooSymbol } from '../worker/upstox-market.mjs';
 //         TECH_LIMIT=15 node scripts/scrape-technicals.mjs
 
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { projectCompanyQuotes } from '../public/js/data/company-market-shared.js';
 import { fetchBars, dayMove } from './lib/yahoo.mjs';
 import { completedPeriods, wilderRsiState } from './lib/momentum.mjs';
 import { istDay, volumeWindow10d } from '../public/js/scoring/momentum-history.js';
@@ -375,6 +376,7 @@ function flush(scraped, indexBars, failures) {
     companies: results,
   };
   writeFileSync(OUT_PATH, JSON.stringify(payload) + "\n");
+  if (!TECH_LIMIT) writeFileSync(resolve(__dirname, '../public/data/company-quotes.json'), JSON.stringify(projectCompanyQuotes(payload)) + '\n');
 }
 
 /**

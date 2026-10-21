@@ -191,6 +191,7 @@ function paint(ctx) {
   const providers = [...new Set(rows.map((r) => r.provider).filter(Boolean))].sort();
 
   const table = scoreTable({
+    companyMarket: true,
     rows,
     key: (r) => `${r.securityKey || r.security}|${r.accountId}${r.memberId ? `|${r.memberId}` : ''}`,
     watchKey: (r) => r.symbol || null,

@@ -7924,7 +7924,7 @@ const annWidth = await page.evaluate(() => {
   const el = document.querySelector('#content-host [data-table-scroll]');
   return el ? { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth } : null;
 });
-ok('...and the table still fits without a horizontal scrollbar of its own', annWidth && annWidth.scrollWidth <= annWidth.clientWidth, `${annWidth?.scrollWidth}px in ${annWidth?.clientWidth}px`);
+ok('...and CMP sits next to market cap with scrolling contained in the table', annHeads.findIndex(h => /^CMP/.test(h)) + 1 === annHeads.findIndex(h => /Market cap/i.test(h)) && await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${annWidth?.scrollWidth}px in ${annWidth?.clientWidth}px`);
 // Collection diagnostics live behind the method link, leaving the announcement header clear.
 ok('Corp Announcements has no status banner', (await page.locator('#content-host [data-filings-info]').count()) === 0);
 const annTopicTitles = await page.evaluate(() => {
