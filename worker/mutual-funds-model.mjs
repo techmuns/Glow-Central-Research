@@ -72,8 +72,8 @@ export function projectCompany(company, { month = null, now = Date.now() } = {})
     companyPct: companyPct <= 100 ? companyPct : null, denominatorFresh,
     ownershipUnavailable: totalShares===null?'missing-mf-shares':!denominator?'missing-share-count':!denominatorFresh?'stale-share-count':companyPct>100?'inconsistent-share-count':null,
     direction: netChange === null ? 'Pending' : netChange > 0 ? 'Added' : netChange < 0 ? 'Reduced' : 'No material change',
-    insight, topBuyer: topBuyer ? { name:topBuyer.name,change:topBuyer.change } : null,
-    topSeller: topSeller ? { name:topSeller.name,change:topSeller.change } : null,
+    insight, topBuyer: topBuyer ? { name:topBuyer.name,change:topBuyer.change,amc:topBuyer.amc||null } : null,
+    topSeller: topSeller ? { name:topSeller.name,change:topSeller.change,amc:topSeller.amc||null } : null,
     disclosureCheckedAt: current.map(f=>f.current.checkedAt).filter(Boolean).sort().at(-1) || null };
 }
 export function summaryOf(projected) {
