@@ -32,11 +32,13 @@
     "scripts/sync-family-book.mjs",
     "scripts/resolve-portfolio-companies.mjs",
     "scripts/sync-screener-watchlist.mjs",
+    "scripts/lib/private-markets-sources.mjs",
     "scripts/fixtures/family-book.json",
     "tailwind.config.cjs",
     "AGENTS.md",
     "CLAUDE.md",
     ".github/workflows/family-book-sync.yml",
+    ".github/workflows/private-market-news.yml",
     ".github/workflows/screener-access-check.yml"
   ]
 }
