@@ -1,3 +1,4 @@
+import { marketHeads, marketCells } from '../ui/company-market-columns.js';
 import { TAB_META } from './catalog.js';
 import * as live from '../data/breakout-live.js';
 import { filterByScope, scopeTickers } from '../data/scope.js';
@@ -159,6 +160,8 @@ const signalsOf = (s) => s.breakdown.map((b) => ({ label: `${b.label} (${fmtPoin
 
 // scoreTable accessors are shared across all three sub-views.
 const tableBase = (rows, ctx) => ({
+  // This screen already owns the quote lifecycle; adding cap must not re-check prices on repaint.
+  companyMarket: { cmpLabel: 'Price', watchPrices: false },
   rows,
   key: (s) => s.company.ticker,
   name: (s) => s.company.name || s.company.ticker,
@@ -906,10 +909,10 @@ function momentumExceptionReason(company, values) {
 
 function momentumExceptionList(exceptions, vf) {
   const ordered = [...exceptions].sort((a, b) => (a.company.name || a.company.ticker).localeCompare(b.company.name || b.company.ticker));
-  return `<div class="max-h-96 overflow-y-auto" data-momentum-exception-list>
+  return `<div class="max-h-96 overflow-auto" data-momentum-exception-list tabindex="0" role="region" aria-label="Excluded stocks and market data">
     <table class="w-full text-left text-sm">
-      <thead class="bg-slate-50"><tr><th class="p-3" scope="col">Stock</th><th class="p-3" scope="col">Reason</th></tr></thead>
-      <tbody>${ordered.map(s => `<tr class="border-b border-slate-100"><td class="p-3 font-semibold text-slate-900">${escapeHtml(s.company.name || s.company.ticker)}</td><td class="p-3">${escapeHtml(momentumExceptionReason(s.company, vf(s)))}</td></tr>`).join('')}</tbody>
+      <thead class="bg-slate-50"><tr><th class="p-3" scope="col">Stock</th>${marketHeads}<th class="p-3" scope="col">Reason</th></tr></thead>
+      <tbody>${ordered.map(s => `<tr class="border-b border-slate-100"><td class="p-3 font-semibold text-slate-900">${escapeHtml(s.company.name || s.company.ticker)}</td>${marketCells(s.company)}<td class="p-3">${escapeHtml(momentumExceptionReason(s.company, vf(s)))}</td></tr>`).join('')}</tbody>
     </table>
   </div>`;
 }
@@ -1046,7 +1049,7 @@ function runMomentumExport(visibleRows, filename, thresholds) {
     { header: 'Above 200 DMA', key: 'd200', width: 17, get: (s) => yn(vf(s).above200dma) },
     { header: 'Thresholds', key: 'thr', width: 44, get: () => `RSI D1>${thresholds.rsiD1}, W>${thresholds.rsiW}, M>${thresholds.rsiM}; F2 RSI D>${thresholds.rsiD2}, Vol≥${thresholds.volMult}×` },
   ];
-  exportRows({ filename, sheetName: 'Momentum Scanner', columns, rows }).then((ok) => {
+  exportRows({ companyMarket: { cmpLabel: 'Price' }, filename, sheetName: 'Momentum Scanner', columns, rows }).then((ok) => {
     if (!ok) console.warn('[breakouts] momentum export did not complete — exceljs unavailable.');
   });
 }
@@ -1095,7 +1098,7 @@ function runExport(visibleRows, filename) {
     { header: 'Above 200 DMA', key: 'dma', width: 15, get: (s) => (s.company.above_200dma == null ? '' : s.company.above_200dma ? 'Yes' : 'No') },
   ];
 
-  exportRows({ filename, sheetName: 'Technicals', columns, rows: scoredRows }).then((ok) => {
+  exportRows({ companyMarket: { cmpLabel: 'Price' }, filename, sheetName: 'Technicals', columns, rows: scoredRows }).then((ok) => {
     if (!ok) console.warn('[breakouts] export did not complete — exceljs unavailable.');
   });
 }

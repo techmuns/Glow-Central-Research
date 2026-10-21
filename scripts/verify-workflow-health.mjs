@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { assessWorkflow, checkWorkflows, cronMatches, workflowCatalog } from './check-workflow-health.mjs';
 const now = Date.parse('2026-09-05T20:00:00Z'); // Saturday
 const active = { state: 'active' }, workflow = { file: 'example.yml', name: 'Example', schedules: ['30 1 * * 1-5'] };
@@ -61,12 +60,13 @@ assert(stage.includes('git add public/data/price-move-checks.json'));
 assert(!/git add (?:-A|\.|--all)/.test(stage), 'never scoop up unrelated changes');
 assert(yaml.includes('group: data-refresh'));
 assert(readFileSync(new URL('../.github/workflows/price-move-verify.yml', import.meta.url), 'utf8').includes('group: data-refresh'), 'shared cache writers retain serialization');
-const scratch = mkdtempSync(join(tmpdir(), 'source-publish-test-'));
+mkdirSync('.cache/company-market', { recursive: true });
+const scratch = mkdtempSync(join('.cache/company-market', 'source-publish-test-'));
 const git = (...args) => execFileSync('git', args, { cwd: scratch, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 try {
   git('init', '-b', 'fixture-base'); git('config', 'user.name', 'Local fixture'); git('config', 'user.email', 'fixture@example.test');
   mkdirSync(join(scratch, 'public/data'), { recursive: true });
-  const files = ['technicals', 'price-move-checks', 'atr-history', 'earnings-live', 'mc-ticker-map', 'result-returns', 'earnings-calendar', 'concall-scans', 'super-investors'];
+  const files = ['technicals', 'company-quotes', 'price-move-checks', 'atr-history', 'earnings-live', 'mc-ticker-map', 'result-returns', 'earnings-calendar', 'concall-scans', 'super-investors'];
   for (const name of files) writeFileSync(join(scratch, `public/data/${name}.json`), '{}\n');
   git('add', 'public/data'); git('commit', '-m', 'Fixture baseline');
   git('switch', '-c', 'fixture-upstream'); writeFileSync(join(scratch, 'other-source.json'), '{}\n'); git('add', 'other-source.json'); git('commit', '-m', 'Unrelated upstream capture');

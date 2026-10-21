@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-21T17:19:22.679Z",
-  "oldestDataAt": "2026-10-21T17:19:22.679Z",
-  "from": "2025-10-21",
-  "to": "2026-10-21",
+  "capturedAt": "2026-10-21T18:56:22.843Z",
+  "oldestDataAt": "2026-10-21T18:56:22.843Z",
+  "from": "2025-10-22",
+  "to": "2026-10-22",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-21T17:19:22.679Z",
+      "capturedAt": "2026-10-21T18:56:22.843Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-21T17:19:22.679Z",
+      "capturedAt": "2026-10-21T18:56:22.843Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-21T17:19:22.679Z",
+      "capturedAt": "2026-10-21T18:56:22.843Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-21T17:19:22.679Z",
+      "capturedAt": "2026-10-21T18:56:22.843Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 2063,
   "emptyCount": 0,
-  "rowCount": 22740,
+  "rowCount": 22738,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -73524,50 +73524,6 @@
           "From Date": "2025-10-30",
           "To Date": "2025-10-30",
           "Broadcast Date": "2025-11-03",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ECLERX",
-        "date": "2025-10-21",
-        "cells": {
-          "Company": "ECLERX",
-          "Insider": "Eclerx Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1126",
-          "Trade %": "0",
-          "Trade Value": "919931",
-          "Post Holding Shares": "716585",
-          "Post Holding %": "1.5",
-          "Mode": "Off Market",
-          "From Date": "2025-10-15",
-          "To Date": "2025-10-15",
-          "Broadcast Date": "2025-10-21",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ECLERX",
-        "date": "2025-10-21",
-        "cells": {
-          "Company": "ECLERX",
-          "Insider": "Eclerx Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "500",
-          "Trade %": "0",
-          "Trade Value": "137675",
-          "Post Holding Shares": "717711",
-          "Post Holding %": "1.5",
-          "Mode": "Off Market",
-          "From Date": "2025-10-15",
-          "To Date": "2025-10-15",
-          "Broadcast Date": "2025-10-21",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }

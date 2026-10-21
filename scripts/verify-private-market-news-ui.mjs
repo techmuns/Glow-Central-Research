@@ -31,6 +31,12 @@ try{
   await page.waitForFunction(()=>document.querySelector('[data-table-count]')?.textContent.includes('499')||document.querySelector('main')?.textContent.includes('499 of 500'));
   assert.equal(await page.locator('[data-watch-toggle]').count(),0);
   assert(await page.locator('tbody tr[data-row-key]').count()<100,'Shared table bounds mounted rows');
+  const headers=(await page.locator('thead th').allTextContents()).map(text=>text.replace(/[▴▾]/g,'').trim());
+  const cmpIndex=headers.indexOf('CMP'),capIndex=headers.indexOf('Market cap');
+  assert(cmpIndex>=0 && capIndex===cmpIndex+1,'Company funding records carry the same paired market columns');
+  const firstCompany=page.locator(`[data-row-key="${capture.deals[0].id}"]`);
+  assert.equal((await firstCompany.locator('td').nth(cmpIndex).innerText()).trim(),'—','An unlisted source name cannot imply an exchange quote');
+  assert.equal((await firstCompany.locator('td').nth(capIndex).innerText()).trim(),'—','Round funding is not converted into a listed-company market cap');
   await page.getByText('Fixture Company 0',{exact:true}).click();assert((await page.locator('#drill-content').textContent()).includes('Mix of equity and debt'));
   await page.keyboard.press('Escape');
   const period=page.getByRole('combobox',{name:'Funding period',exact:true});await period.selectOption('all');
