@@ -1113,7 +1113,7 @@ const BUILDERS = [
       const meta=mutualFunds.meta(),rows=mutualFundEvidenceRows(all,meta),supplemented=rows.some(r=>r.mfScanner);
       return sourcePacket(this.id,{source:`AMC monthly portfolio disclosures via AmfiBeas${supplemented?'; private MF Scanner supplement':''}`,asOf:meta.checkedAt,
         rowCount:rows.length,coverage:{companies:all.length,state:mutualFunds.health(),...(supplemented?{supplementReadFailed:!!meta.supplementReadFailed,scannerCurrentCompanies:meta.supplement?.currentCompanies,scannerExpectedCompanies:meta.supplement?.expectedCompanies}:{})},dataQuality:'partial',
-        definition:'Complete requested company list; only comparable adjacent months contribute to net. Each row states its actual month; older months do not answer last month. Source check dates and any MF Scanner contribution are recorded per row; the packet asOf is the primary check only. Share changes can reflect corporate actions. Missing data is not zero.',
+        definition:'Complete requested company list; only comparable adjacent-month equity/hybrid schemes contribute to net; arbitrage, fixed income and unverified categories are excluded. Reported shares retain all captured schemes. Each row states its actual month; older months do not answer last month. Source check dates and any MF Scanner contribution are recorded per row; the packet asOf is the primary check only. Share changes can reflect corporate actions. Missing data is not zero.',
         rows,rowTiers:rows.map(()=>0),rowPriorities:rows.map(()=>-2000000)});
     },
   },

@@ -5839,7 +5839,14 @@ private access, source statuses, collection and retained history are unchanged.
 `GET /api/mutual-funds?isins=ISIN,...` returns `{meta, rows, nextCursor}`. Up to 250
 exact ISINs may be selected; unscoped reads use a 250-company keyset page. Each summary
 carries the actual month, total shares, comparable net/addition/reduction shares, fund counts,
-company percentage with denominator provenance, insight and largest buyer/seller. Missing
+company percentage with denominator provenance, insight and largest buyer/seller. `activityBasis`
+is `equity-hybrid-ex-arbitrage-v1`: net/additions/reductions/counts/leaders use eligible equity
+and hybrid schemes, excluding arbitrage, fixed income and unverified categories by default.
+`excludedFunds` counts these three exclusions; `eligibleFunds` and `pendingFunds` describe only
+the eligible universe. `fundHouses` aggregates eligible net shares by source AMC identity.
+Reported total shares and ownership still include all captured schemes. Legacy unfiltered
+summary activity is withheld, while normal publication re-projects retained raw observations.
+Missing
 comparisons and unverified quantities are null. `GET /api/mutual-funds/company?isin=...`
 returns all retained scheme/month observations for that company with server-computed changes;
 `month=YYYY-MM` selects an older anchor. Source statuses, attempted/check timestamps and

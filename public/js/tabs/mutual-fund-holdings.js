@@ -4,7 +4,8 @@ import {scoreTable,openModal,closeModal} from '../ui/screener.js';
 import * as feed from '../data/mutual-funds.js';
 import {coverageRows,coverageTime} from '../data/mutual-funds-coverage.js';
 import {comparisonStatus} from '../data/mutual-funds-status.js';
-import {fundHouseLead,netVolumeCr} from '../data/mutual-funds-insight.js';
+import {fundHouseLead,activityNotes,netVolumeCr} from '../data/mutual-funds-insight.js';
+import {ACTIVITY_LABEL,schemeActivity} from '../data/mutual-funds-activity.js';
 import * as market from '../data/company-market.js';
 import {exportRows,todayStamp} from '../ui/export.js';
 import {supplementStatus} from '../data/mutual-funds-supplement.js';
@@ -42,7 +43,7 @@ function exportHoldings(rows) {
     {header:'Net monthly shares',key:'netShares',get:r=>r.netChange??''},
     {header:'Net Volume (Crores)',key:'netVolumeCr',get:r=>netVolume(r)??''},
     {header:'Valuation basis',key:'valuation',width:60,get:()=> 'Net monthly shares × displayed CMP ÷ 1,00,00,000; estimate at CMP, not actual transaction proceeds'},
-    {header:'Insight summary',key:'insight',width:90,get:r=>[fundHouseLead(r,amcs),comparisonStatus(r).insight,r.comparableFunds&&r.pendingFunds?`${r.pendingFunds} funds lack comparable reports.`:''].filter(Boolean).join('\n')}
+    {header:'Insight summary',key:'insight',width:90,get:r=>[fundHouseLead(r,amcs)||comparisonStatus(r).insight,activityNotes(r),ACTIVITY_LABEL].filter(Boolean).join('\n')}
   ]});
 }
 const ownershipValue=r=>`${r.denominator?.kind==='estimate'&&Number.isFinite(r.companyPct)?'≈':''}${pct(r.companyPct)}`;
@@ -54,6 +55,7 @@ function ownershipNote(r) {
     'inconsistent-share-count':'Reported MF shares exceed the verified company share count. Percentage withheld.'
   }[r.ownershipUnavailable];
   return ['MF shares held ÷ company shares outstanding × 100.',
+    'Shares held and ownership include all captured schemes; buying/selling uses only eligible equity and hybrid schemes.',
     'Uses the displayed month’s captured MF holdings and the latest available company share count; coverage may be partial.',
     reason,
     d?`${d.kind==='estimate'?'Estimated':'Reported'} shares outstanding: ${num(d.shares)}. Source: ${d.sourceName||d.source}. Checked ${checked(d)}. ${d.quoteAt?`Source quote: ${checked({checkedAt:d.quoteAt})}. Share-count effective date not supplied.`:''} ${d.method||''}`:'Company shares outstanding are not verified.',
@@ -63,7 +65,7 @@ function ownershipNote(r) {
 const checked=m=>m.checkedAt?new Date(m.checkedAt).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'})+' IST':'Not checked';
 export function render(context) {
   cleanup();ctx=context;sequence++;
-  ctx.root.innerHTML='<section class="mf-module mf-holdings"><div data-mf-table></div></section>';
+  ctx.root.innerHTML=`<section class="mf-module mf-holdings"><p class="mf-activity-basis" title="Unverified scheme categories are also excluded. MF shares held and ownership retain all captured schemes. Monthly holdings changes can include corporate actions and hedged positions within hybrid funds; these are not executed cash flows or measured unhedged exposure.">${esc(ACTIVITY_LABEL)}</p><div data-mf-table></div></section>`;
   offReady=onPortfolioReady(()=>paint());offInvalid=onPortfolioInvalidation(()=>paint());
   offUpdate=feed.onUpdate(()=>paint());
   offSession=feed.onSessionChange(()=>{sequence++;dialog++;activeCompany=null;detailData=null;closeModal();paint();refresh();});
@@ -102,7 +104,7 @@ function paint(loading=busy) {
       {label:'Added / reduced',html:true,get:r=>`<span class="${tone(r.netChange)}">${esc(comparisonStatus(r).label)}</span><div class="text-xs text-slate-500">${esc(comparisonStatus(r).detail)}</div>`},
       {label:'Net monthly shares',align:'right',sortValue:r=>r.netChange??-Infinity,html:true,get:r=>span(r.netChange)},
       {label:'Net Volume (Crores)',columnAfter:'Net monthly shares',marketField:'mf-net-volume',align:'right',sortValue:netVolume,html:true,get:volumeCell},
-      {label:'Insight summary',html:true,get:r=>`<div class="mf-insight">${lead(r)?`<strong style="display:block">${esc(lead(r))}</strong>`:''}${esc(comparisonStatus(r).insight)}${r.comparableFunds&&r.pendingFunds?` <span class="text-slate-500">${r.pendingFunds} funds lack comparable reports.</span>`:''}</div>`}
+      {label:'Insight summary',html:true,get:r=>`<div class="mf-insight"><strong>${esc(lead(r)||comparisonStatus(r).insight)}</strong>${activityNotes(r)?`<span class="mf-insight-notes">${esc(activityNotes(r))}</span>`:''}</div>`}
     ]});
   const host=ctx.root.querySelector('[data-mf-table]');host.innerHTML=table.html;disposeTable=table.wire(host);
   unfit=fitTableViewport(ctx.root);
@@ -128,7 +130,7 @@ function paintDetail() {
   const company=detailData?.company;
   if(!company) {document.querySelector('#modal-content').innerHTML='<div class="p-6">No matched fund disclosure yet. <button data-modal-close>Close</button></div>';document.querySelector('#modal-content [data-modal-close]').onclick=closeModal;return;}
   const holder=document.querySelector('#modal-content'),oldSearch=holder.querySelector('[data-mf-fund-search]')?.value||'',oldScroll=holder.querySelector('.mf-detail-scroll')?.scrollLeft||0,oldAction=holder.querySelector('[data-mf-action]')?.value||'all';let page=Number(holder.querySelector('[data-mf-page]')?.dataset.mfPage)||0;
-  const months=company.months,latest=company.month,earlier=months.filter(m=>m!==latest);
+  const months=company.months,latest=company.month,earlier=months.filter(m=>m!==latest),eligibleFunds=company.funds.filter(f=>schemeActivity(f).eligible);
   const columns=[
     {key:'name',label:'MF',read:f=>f.name||''},
     {key:'valueCr',label:'AUM (Cr)',month:latest,title:'Stock position value in crores; not total fund AUM',read:f=>f.current?.valueCr},
@@ -143,12 +145,12 @@ function paintDetail() {
   ];
   if(!columns.some(c=>c.key===detailSort.key))detailSort={key:'change',dir:'desc'};
   const header=c=>`<th scope="col" ${c.key==='name'?'class="mf-identity" rowspan="2"':''} ${c.title?`title="${esc(c.title)}"`:''}><button type="button" class="mf-sort-header" data-column-drag-handle data-mf-fund-sort="${esc(c.key)}" data-sort-label="${esc(c.month?`${monthLabel(c.month)} ${c.label}`:c.label)}">${esc(c.label)} <span data-mf-sort-arrow aria-hidden="true"></span></button></th>`;
-  holder.innerHTML=`<div class="p-6 mf-detail"><button data-modal-close class="float-right text-2xl" aria-label="Close">×</button><h2 class="text-xl font-bold">${esc(company.name)} · Mutual Funds</h2><p class="mt-2 text-sm text-slate-500">${esc(monthLabel(latest))} · MF ownership ${ownershipValue(company)} · ${company.addedFunds} funds added, ${company.reducedFunds} reduced · Net ${signed(company.netChange)} shares</p><div class="mf-toolbar mt-4">${company.availableMonths?.length?`<select data-mf-month aria-label="Disclosure month">${company.availableMonths.map(m=>`<option value="${esc(m)}" ${m===latest?'selected':''}>${esc(monthLabel(m))}</option>`).join('')}</select>`:''}<input data-mf-fund-search aria-label="Search mutual funds" placeholder="Search mutual funds" value="${esc(oldSearch)}"><select data-mf-action aria-label="Fund action"><option value="all">All funds</option><option value="added">Added</option><option value="reduced">Reduced</option><option value="pending">Pending</option></select><span class="text-xs text-slate-500">${company.funds.length} funds · ${company.pendingFunds} awaiting comparable reports</span></div><div class="mf-detail-scroll"><table data-column-layout="mutual-funds:1" class="mf-detail-table"><thead><tr>${header(columns[0])}<th scope="colgroup" colspan="5">${esc(monthLabel(latest))}</th>${earlier.map(m=>`<th scope="colgroup" colspan="2">${esc(monthLabel(m))}</th>`).join('')}</tr><tr>${columns.slice(1).map(header).join('')}</tr></thead><tbody></tbody></table></div><div class="mf-toolbar"><button data-mf-prev>Previous</button><span data-mf-page class="text-xs text-slate-500"></span><button data-mf-next>Next</button></div><div class="mf-insights-grid mt-4">${company.topBuyer?`<p class="mf-buyer">${esc(company.topBuyer.name)} was the largest buyer: ${signed(company.topBuyer.change)} shares.</p>`:''}${company.topSeller?`<p class="mf-seller">${esc(company.topSeller.name)} was the largest seller: ${signed(company.topSeller.change)} shares.</p>`:''}</div><p class="mt-3 text-xs text-slate-500">Shares reported by tracked schemes; monthly share changes can include corporate actions. — means not reported or not comparable; a confirmed nil holding is 0. New positions have no percentage base. ${esc(feed.health(detailData.meta))}. ${esc(supplementStatus(detailData.meta))}. ${esc(ownershipNote(company))}</p></div>`;
+  holder.innerHTML=`<div class="p-6 mf-detail"><button data-modal-close class="float-right text-2xl" aria-label="Close">×</button><h2 class="text-xl font-bold">${esc(company.name)} · Mutual Funds</h2><p class="mt-2 text-sm text-slate-500">${esc(monthLabel(latest))} · MF ownership ${ownershipValue(company)} · ${esc(ACTIVITY_LABEL)}</p><div class="mf-insight"><strong>${esc(lead(company)||comparisonStatus(company).insight)}</strong><span class="mf-insight-notes">${esc(activityNotes(company))}</span></div><div class="mf-toolbar mt-4">${company.availableMonths?.length?`<select data-mf-month aria-label="Disclosure month">${company.availableMonths.map(m=>`<option value="${esc(m)}" ${m===latest?'selected':''}>${esc(monthLabel(m))}</option>`).join('')}</select>`:''}<input data-mf-fund-search aria-label="Search mutual funds" placeholder="Search mutual funds" value="${esc(oldSearch)}"><select data-mf-action aria-label="Fund action"><option value="all">All eligible funds</option><option value="added">Added</option><option value="reduced">Reduced</option><option value="pending">Pending</option></select><span class="text-xs text-slate-500">${eligibleFunds.length} eligible funds</span></div><div class="mf-detail-scroll"><table data-column-layout="mutual-funds:1" class="mf-detail-table"><thead><tr>${header(columns[0])}<th scope="colgroup" colspan="5">${esc(monthLabel(latest))}</th>${earlier.map(m=>`<th scope="colgroup" colspan="2">${esc(monthLabel(m))}</th>`).join('')}</tr><tr>${columns.slice(1).map(header).join('')}</tr></thead><tbody></tbody></table></div><div class="mf-toolbar"><button data-mf-prev>Previous</button><span data-mf-page class="text-xs text-slate-500"></span><button data-mf-next>Next</button></div><div class="mf-insights-grid mt-4">${company.topBuyer?`<p class="mf-buyer">${esc(company.topBuyer.name)} was the largest buyer: ${signed(company.topBuyer.change)} shares.</p>`:''}${company.topSeller?`<p class="mf-seller">${esc(company.topSeller.name)} was the largest seller: ${signed(company.topSeller.change)} shares.</p>`:''}</div><p class="mt-3 text-xs text-slate-500">Shares reported by tracked schemes; monthly share changes can include corporate actions. — means not reported or not comparable; a confirmed nil holding is 0. New positions have no percentage base. ${esc(feed.health(detailData.meta))}. ${esc(supplementStatus(detailData.meta))}. ${esc(ownershipNote(company))}</p></div>`;
   holder.querySelector('[data-modal-close]').onclick=closeModal;
   const period=holder.querySelector('[data-mf-month]');if(period)period.onchange=()=>{selectedMonth=period.value;dialog++;refreshOpenDetail();};
   const fill=()=>{
     const query=holder.querySelector('[data-mf-fund-search]').value.toLowerCase(),action=holder.querySelector('[data-mf-action]').value;
-    const funds=company.funds.filter(f=>`${f.name} ${f.amc}`.toLowerCase().includes(query)&&(action==='all'||action==='added'&&f.change>0||action==='reduced'&&f.change<0||action==='pending'&&f.change===null));
+    const funds=eligibleFunds.filter(f=>`${f.name} ${f.amc}`.toLowerCase().includes(query)&&(action==='all'||action==='added'&&f.change>0||action==='reduced'&&f.change<0||action==='pending'&&f.change===null));
     const column=columns.find(c=>c.key===detailSort.key),direction=detailSort.dir==='asc'?1:-1;
     const values=new Map(funds.map(f=>{const value=column.read(f);return [f,column.key==='name'?value:Number.isFinite(value)?value:null];}));
     funds.sort((a,b)=>{

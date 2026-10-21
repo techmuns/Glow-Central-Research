@@ -3,7 +3,7 @@ import {createServer} from 'node:http';
 import {readFileSync,mkdirSync} from 'node:fs';
 import {resolve,extname,sep} from 'node:path';
 const {chromium}=await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
-const root=resolve('public'),errors=[],output=resolve('.cache/mf-net-volume/ui');
+const root=resolve('public'),errors=[],output=resolve('.cache/mf-directional-equity/ui');
 mkdirSync(output,{recursive:true});
 const actual=readFileSync(root+'/index.html','utf8'),head=actual.slice(actual.indexOf('<head>')+6,actual.indexOf('</head>'));
 const html=`<!doctype html><html><head>${head}</head><body><main id="root" class="mx-auto max-w-7xl p-6"></main><div id="modal-overlay" class="hidden fixed inset-0 z-50 overflow-y-auto bg-black/40 p-6"><div id="modal-container" class="mx-auto"><div id="modal-content"></div></div></div><script type="module">
@@ -30,9 +30,10 @@ try{
    {slug:'partial',name:'Partial AMC',month:coverageMonth,status:'partial',lastAttemptAt:coverageCheck,lastCompleteCheckedAt:new Date(coverageNow-86400000).toISOString()},
    {slug:'missing',name:'Unavailable AMC',status:'unavailable',lastAttemptAt:coverageCheck}
  ]};
+ fixtureSeed.rows.forEach(r=>r.activityBasis='equity-hybrid-ex-arbitrage-v1');
  const fixtureBook=JSON.parse(readFileSync(root+'/data/portfolio-companies.json')).holdings;
  const ownershipFixtures=fixtureSeed.rows.filter(r=>r.totalShares>0&&fixtureBook.some(h=>h.isin===r.isin)).slice(0,3);
- ownershipFixtures.forEach((r,i)=>Object.assign(r,{netChange:[250_000,-75_000,0][i],comparableFunds:2,direction:i===0?'Added':i===1?'Reduced':'No material change',topBuyer:{name:'HDFC Index Fund',amc:'HDFC Mutual Fund',change:300_000},topSeller:{name:'SBI Small Cap Fund',amc:'SBI Mutual Fund',change:-50_000},companyPct:i===1?5:10,denominator:{shares:r.totalShares*(i===1?20:10),checkedAt:new Date(Date.now()-(i===2?8:0)*86400000).toISOString(),sourceName:'Moneycontrol',source:'https://example.com/shares',kind:i===1?'estimate':'reported'}}));
+ ownershipFixtures.forEach((r,i)=>Object.assign(r,{activityBasis:'equity-hybrid-ex-arbitrage-v1',eligibleFunds:2,excludedFunds:{arbitrage:1,'fixed-income':1,unclassified:1},fundHouses:[{id:'hdfc',name:'HDFC Mutual Fund',change:300000},{id:'sbi',name:'SBI Mutual Fund',change:[-50000,-375000,-300000][i]}],netChange:[250_000,-75_000,0][i],comparableFunds:2,direction:i===0?'Added':i===1?'Reduced':'No material change',topBuyer:{name:'HDFC Index Fund',amc:'HDFC Mutual Fund',change:300_000},topSeller:{name:'SBI Small Cap Fund',amc:'SBI Mutual Fund',change:-50_000},companyPct:i===1?5:10,denominator:{shares:r.totalShares*(i===1?20:10),checkedAt:new Date(Date.now()-(i===2?8:0)*86400000).toISOString(),sourceName:'Moneycontrol',source:'https://example.com/shares',kind:i===1?'estimate':'reported'}}));
  // Exercise an unavailable disclosure independently of the current public snapshot.
  const noDisclosure = fixtureSeed.rows.find(r=>!ownershipFixtures.includes(r)&&fixtureBook.some(h=>h.isin===r.isin));
  assert(noDisclosure);Object.assign(noDisclosure,{totalShares:null,companyPct:null,denominator:null,pendingFunds:0,comparableFunds:0,holders:0});
@@ -59,7 +60,11 @@ try{
    assert.match(await value.getAttribute('title'),i===2?/Percentage withheld/:/Moneycontrol/);
    await page.waitForFunction(({isin,expected})=>document.querySelector(`[data-row-key="${isin}"] span[title^="Estimated value at CMP"]`)?.textContent===expected,{isin:r.isin,expected:['+10.00','−6.00','0.00'][i]});
    const row=page.locator(`[data-row-key="${r.isin}"]`);
-   assert.equal(await row.locator('.mf-insight strong').textContent(),'Largest addition: HDFC · Largest reduction: SBI');
+   assert.equal(await row.locator('.mf-insight strong').textContent(),[
+     'Net buying: +2,50,000 shares · Buyers: HDFC · Sellers: SBI',
+     'Net selling: −75,000 shares · Buyers: HDFC · Sellers: SBI',
+     'No net change: 0 shares · Buyers: HDFC · Sellers: SBI'][i]);
+   assert.match(await row.locator('.mf-insight-notes').textContent(),/1 arbitrage, 1 fixed income, 1 unclassified excluded/);
    assert.equal(await row.locator('.mf-insight').evaluate(e=>e.firstElementChild.tagName),'STRONG','Fund houses are the bold first line');
    assert.match(await volume(row).getAttribute('title'),/not actual transaction proceeds/i);
  }
@@ -67,7 +72,7 @@ try{
  await page.evaluate(()=>{window.exported=[];window.ExcelJS={Workbook:class{constructor(){this.xlsx={writeBuffer:async()=>new Uint8Array([1])};}addWorksheet(){const sheet={columns:[],getRow:()=>({}),addRow:r=>window.exported.push(r)};window.exportSheet=sheet;return sheet;}}};});
  await page.locator('[data-export]').click();await page.waitForFunction(()=>window.exported.length===1);
  assert.equal(await page.evaluate(()=>window.exported[0].netVolumeCr),10,'Export keeps raw numeric crores');
- assert.match(await page.evaluate(()=>window.exported[0].insight),/^Largest addition: HDFC · Largest reduction: SBI\n/);
+ assert.match(await page.evaluate(()=>window.exported[0].insight),/^Net buying: \+2,50,000 shares · Buyers: HDFC · Sellers: SBI\n/);
  assert(await page.evaluate(()=>window.exportSheet.columns.some(c=>c.header==='Net Volume (Crores)')));
  firstPrice=500;await page.clock.fastForward(61000);
  await page.waitForFunction(isin=>document.querySelector(`[data-row-key="${isin}"] span[title^="Estimated value at CMP"]`)?.textContent==='+12.50',ownershipFixtures[0].isin);
@@ -125,8 +130,9 @@ try{
  const fixture=JSON.parse(readFileSync(root+`/data/mutual-funds/companies/${held.isin}.json`));
  const [current,prior,older]=fixture.company.months;
  assert(current&&prior&&older);
- fixture.company.funds=Array.from({length:52},(_,offset)=>{const i=offset+1;return {id:`sort:${i}`,name:`Fund ${String(i).padStart(2,'0')}`,amc:'Fixture',current:{shares:i*100,valueCr:53-i,pctOfAum:i/10},change:i-26,changePct:i*2,action:i>26?'Added':'Reduced',months:{[prior]:{shares:(53-i)*10,changePct:-i},[older]:{shares:5000-i*3,changePct:i}}};});
- fixture.company.funds.push({id:'missing',name:'Missing Fund',amc:'Fixture',current:{},change:null,changePct:null,action:'Pending',months:{}},{id:'new',name:'New Fund',amc:'Fixture',current:{shares:1,valueCr:0,pctOfAum:0},change:1,changePct:null,action:'New',months:{[prior]:{shares:0,changePct:null},[older]:{shares:0,changePct:null}}});
+ fixture.company.funds=Array.from({length:52},(_,offset)=>{const i=offset+1;return {id:`sort:${i}`,name:`Fund ${String(i).padStart(2,'0')}`,amc:'Fixture',classification:'Equity',current:{shares:i*100,valueCr:53-i,pctOfAum:i/10},change:i-26,changePct:i*2,action:i>26?'Added':'Reduced',months:{[prior]:{shares:(53-i)*10,changePct:-i},[older]:{shares:5000-i*3,changePct:i}}};});
+ fixture.company.funds.push({id:'missing',name:'Missing Fund',amc:'Fixture',classification:'Equity',current:{},change:null,changePct:null,action:'Pending',months:{}},{id:'new',name:'New Fund',amc:'Fixture',classification:'Equity',current:{shares:1,valueCr:0,pctOfAum:0},change:1,changePct:null,action:'New',months:{[prior]:{shares:0,changePct:null},[older]:{shares:0,changePct:null}}});
+ fixture.company.funds.push({id:'arb',name:'HDFC Arbitrage Fund',current:{shares:999999},change:999999,months:{}},{id:'bond',name:'SBI Corporate Bond Fund',current:{shares:999999},change:999999,months:{}});
  await page.route(`**/data/mutual-funds/companies/${held.isin}.json*`,route=>route.fulfill({contentType:'application/json',body:JSON.stringify(fixture)}));
  await page.setViewportSize({width:1500,height:1000});await page.evaluate(()=>window.mount('universe'));
  await page.locator('input[placeholder="Search company..."]').fill(held.name);await page.locator(`[data-row-key="${held.isin}"]`).click();
@@ -135,6 +141,8 @@ try{
  const header=key=>page.locator(`[data-mf-fund-sort="${key}"]`);
  assert.equal(await header('change').locator('..').getAttribute('aria-sort'),'descending');
  await header('name').click();assert.equal(await firstFund(),'Fund 01');
+ assert.match(await page.locator('[data-mf-action]').textContent(),/All eligible funds/);
+ assert.match(await page.locator('[data-mf-page]').textContent(),/of 54 funds/,'Excluded arbitrage/debt never enter default drill-down pagination');
  const from=await header('shares').boundingBox(),to=await header('valueCr').locator('..').boundingBox();
  await page.mouse.move(from.x+from.width/2,from.y+from.height/2);await page.mouse.down();await page.mouse.move(to.x+to.width-2,to.y+to.height/2,{steps:8});await page.mouse.up();
  assert.equal(await firstFund(),'Fund 01','Dragging the sort button does not activate its sort');
