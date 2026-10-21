@@ -76,11 +76,12 @@ async function resolveTicker(scId) {
         // Industry, so the column is populated for the ~69% of reporters that sit outside the
         // NSE-500 export. universe.json still wins where it has an entry — it is the curated one.
         industry: String(d.newSubsector || d.main_sector || '').replace(/\s+/g, ' ').trim() || null,
-        // Share count, NOT market cap. Storing the count lets the browser compute
-        // `shares × live price` on every poll, so the MCap column is live and never goes stale
-        // between map refreshes. Verified against their own MKTCAP: 887,786,160 × 5,131.70 =
+        // A share count keeps its actual observation time. The map's generated_at cannot
+        // date an incremental entry left untouched by this run. Verified against their MKTCAP:
+        // 887,786,160 × 5,131.70 =
         // 455,585 Cr, which is exactly what they publish.
         shares: Number.isFinite(shares) && shares > 0 ? shares : null,
+        sharesCheckedAt: Number.isFinite(shares) && shares > 0 ? new Date().toISOString() : null,
         mktCapAtBuild: Number(d.MKTCAP) || null, // sanity reference for the verification suite
       };
     } catch {

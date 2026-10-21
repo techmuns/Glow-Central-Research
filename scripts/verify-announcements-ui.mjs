@@ -8,8 +8,7 @@
 // stubbed — nothing leaves this machine. A second server with no index proves the browser still
 // answers from the captures when the index cannot be read.
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdtempSync, rmSync, readFileSync, mkdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,7 +24,9 @@ const { chromium } = await import(`${PW_ROOT}/index.mjs`);
 let checks = 0;
 const ok = (label) => { checks++; console.log(`  PASS  ${label}`); };
 
-const tmp = mkdtempSync(join(tmpdir(), 'announcement-ui-'));
+const outputDir = resolve(here, '../.cache/company-market');
+mkdirSync(outputDir, { recursive: true });
+const tmp = mkdtempSync(join(outputDir, 'announcement-ui-'));
 const { index } = buildFixtureIndex(tmp, { root: publicDir });
 const day = index.range.to;
 const clock = new Date(`${day}T18:00:00+05:30`);
@@ -133,7 +134,7 @@ try {
   await page.waitForFunction(() => window.__ca.query().period === 'all' && window.__ca.meta().state === 'ready');
   assert(await period.evaluate(el => el === document.activeElement), 'arriving query rows preserve the focused period control');
   const heads = await page.locator('thead th').allInnerTexts();
-  assert.deepEqual(heads.map(h => h.trim().toUpperCase()), ['COMPANY', 'SUBJECT', 'DATE', 'CATEGORIES', 'MARKET CAP', 'LINK'], 'company leads and exchange links replace the separate Source column');
+  assert.deepEqual(heads.map(h => h.trim().toUpperCase()), ['COMPANY', 'SUBJECT', 'DATE', 'CATEGORIES', 'CMP', 'MARKET CAP', 'LINK'], 'company leads, CMP is next to market cap and exchange links replace the separate Source column');
   const meta = await caMeta();
   assert.equal(meta.total, index.counts.rows, 'All time counts every filing');
   assert.equal(srv.stats.queries, 2, 'one page request per selected period, not the history');
@@ -505,13 +506,23 @@ try {
   };
   await local.evaluate(() => { window.capRefreshClock = Date.now() + 16 * 60_000; Date.now = () => window.capRefreshClock; });
   await local.evaluate(() => window.__ca.refresh());
+  // Settle companion market/relevance reads before publishing the next fixture version.
+  // Otherwise the synthetic sixteen-minute jump can join an older in-flight response.
+  await local.evaluate(async () => {
+    const [market, profiles] = await Promise.all([import('/js/data/company-market.js'), import('/js/data/company-profiles.js')]);
+    await Promise.all([market.load(), profiles.loadProfiles()]);
+  });
+  await local.waitForFunction(id => !window.__ca.meta().refreshing && window.__ca.rows().find(r => r.id === id)?.mcapCr === 3333.33, localTarget.id);
   assert.equal(await local.evaluate(id => window.__ca.rows().find(r => r.id === id)?.mcapCr, localTarget.id), 3333.33);
   capPhase = 2;
+  const beforeSecondCapRead = capReads;
   await local.evaluate(() => { window.capRefreshClock += 16 * 60_000; });
   await local.evaluate(() => window.__ca.refresh());
+  await local.waitForFunction(id => !window.__ca.meta().refreshing && window.__ca.rows().find(r => r.id === id)?.mcapCr === 4444.44, localTarget.id);
   assert.equal(await local.evaluate(id => window.__ca.rows().find(r => r.id === id)?.mcapCr, localTarget.id), 4444.44,
     'the normal fallback refresh re-reads profiles even after the source stream has loaded once');
   assert(capReads >= 2);
+  assert(capReads > beforeSecondCapRead, 'ordinary refresh revalidates the newly published capture');
   fallbackCaps = null;
   ok('a long-lived static fallback adopts updated market caps through its ordinary refresh path');
   await local.locator('tbody tr[data-row-key]').first().locator('.ca-company-cell').click();

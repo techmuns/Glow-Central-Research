@@ -148,7 +148,7 @@ try {
   assert.equal(await page.evaluate(() => window.stream.rows().filter(r => r.url === 'https://example.test/nse.pdf').length), 1);
   await fillSearch('cross-exchange');
   assert.equal(await page.locator('tbody tr[data-row-key]').count(), 1, 'byte-identical BSE/NSE rows render once');
-  assert.deepEqual((await page.locator('thead th').allTextContents()).map(s => s.trim().replace(/[▴▾]/g, '').trim()), ['Company', 'Subject', 'Date', 'Categories', 'Market cap', 'Link']);
+  assert.deepEqual((await page.locator('thead th').allTextContents()).map(s => s.trim().replace(/[▴▾]/g, '').trim()), ['Company', 'Subject', 'Date', 'Categories', 'CMP', 'Market cap', 'Link']);
   const mergedFiling = page.locator('tbody tr[data-row-key]');
   assert.match(await mergedFiling.locator('td').first().innerText(), /TCS Test Company/);
   assert.equal(await mergedFiling.locator('td').first().locator('strong').count(), 1, 'company is bold in its own first column');
@@ -504,6 +504,10 @@ try {
     const { watchWorkerChanges } = await import('/js/core/app-updates.js');
     watchWorkerChanges(navigator.serviceWorker, () => location.reload());
   });
+  // Navigation can start a soft update of the old worker. Finish that check before
+  // changing versions, so update() cannot join a check that already read old bytes.
+  await returning.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+  await returning.waitForLoadState('networkidle');
   legacy = false;
   await returning.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
   await returning.locator('[data-announcement-search]').waitFor();

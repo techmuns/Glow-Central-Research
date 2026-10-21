@@ -135,6 +135,7 @@ try {
   await category.selectOption('direct-equity');
   await page.evaluate(() => window.coverage.useFamilyBook(window.categoryHoldings.map(h => ({...h,holdingCategories:h.ticker==='WARRANT'?['direct-equity']:['pms']})), '2026-09-01'));
   await card('WARRANT').waitFor();
+  await page.waitForFunction(() => document.querySelectorAll('[data-ai-card]').length === 1);
   assert.equal(await page.locator('[data-ai-card]').count(), 1, 'category-only portfolio refresh updates the view after its subscribed redraw');
   assert.equal(await card('WARRANT').count(), 1);
   await page.evaluate(() => window.coverage.useFamilyBook(null));

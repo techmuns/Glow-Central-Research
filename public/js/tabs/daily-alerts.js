@@ -1131,6 +1131,7 @@ function eventsTable(ctx, events, day, mode, initialView, tablePosition = null, 
       ];
   const filters = buildTableFilters(events, day, mode, matchesDate);
   return scoreTable({
+    companyMarket: true,
     rows: events,
     loading: !report || report.pending > 0,
     key: (e) => e.id,
@@ -1335,7 +1336,7 @@ async function exportStream(visible, day, scope, mode = HORIZON.THROUGH) {
   };
 
   const cell = (get) => (r) => (r.__banner ? '' : get(r));
-  return exportRows({
+  return exportRows({ companyMarket: true,
     filename: `glow-all-alerts-${mode === HORIZON.UPCOMING ? 'upcoming-from' : 'through'}-${day}`,
     sheetName: 'All Alerts',
     columns: [
