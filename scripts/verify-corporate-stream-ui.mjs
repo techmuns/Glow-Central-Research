@@ -504,6 +504,10 @@ try {
     const { watchWorkerChanges } = await import('/js/core/app-updates.js');
     watchWorkerChanges(navigator.serviceWorker, () => location.reload());
   });
+  // Navigation can start a soft update of the old worker. Finish that check before
+  // changing versions, so update() cannot join a check that already read old bytes.
+  await returning.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+  await returning.waitForLoadState('networkidle');
   legacy = false;
   await returning.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
   await returning.locator('[data-announcement-search]').waitFor();
