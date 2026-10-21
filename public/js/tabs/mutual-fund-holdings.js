@@ -32,8 +32,9 @@ function volumeCell(r) {
   return `<span class="${tone(value)} tabular-nums" title="${esc(label)}">${esc(amount)}</span>`;
 }
 function exportHoldings(rows) {
-  const mine=sequence,amcs=feed.meta().amcs||[];
-  return exportRows({companyMarket:true,filename:`glow-mf-company-holdings-${todayStamp()}`,sheetName:'Company Holdings',rows,canExport:()=>!!ctx&&mine===sequence,columns:[
+  const mine=sequence,source=feed.meta(),amcs=source.amcs||[],privateReading=source.supplementAccess==='ready';
+  const canExport=()=>!!ctx&&mine===sequence&&(!privateReading||feed.meta().supplementAccess==='ready'&&!feed.meta().supplementReadFailed);
+  return exportRows({companyMarket:true,filename:`glow-mf-company-holdings-${todayStamp()}`,sheetName:'Company Holdings',rows,canExport,columns:[
     {header:'Company',key:'company',width:32,get:r=>r.name},{header:'Ticker',key:'ticker',get:r=>r.ticker||''},{header:'ISIN',key:'isin',get:r=>r.isin||''},
     {header:'Month',key:'month',get:r=>comparisonStatus(r).reported?r.month||'':''},
     {header:'MF shares held',key:'shares',get:r=>r.totalShares??''},{header:'MF ownership (%)',key:'ownership',get:r=>r.companyPct??''},

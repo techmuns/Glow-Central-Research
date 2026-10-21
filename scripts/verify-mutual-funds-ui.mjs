@@ -205,6 +205,22 @@ try{
  privateFail=false;await apiPage.evaluate(book=>window.feed.load('portfolio',{holdings:book}),apiBook);
  assert.equal(await apiPage.evaluate(()=>window.feed.all()[0].totalShares),999999,'Private data returns after recovery');
  assert(!await apiPage.evaluate(()=>window.feed.meta().supplementReadFailed));
+ // Revocation can arrive from a failed private read without a host-token change.
+ // Hold the real exporter at its final await, then verify the pending file is withheld.
+ let privateDownloads=0;apiPage.on('download',()=>privateDownloads++);
+ await apiPage.evaluate(async()=>{
+   const coverage=await import('/js/data/coverage.js');coverage.prime({holdings:[window.book[0]]});
+   const root=document.createElement('main');root.id='private-export-root';document.body.append(root);
+   window.exportTab=await import('/js/tabs/mutual-fund-holdings.js');window.exportTab.render({root,scope:'portfolio'});
+   window.privateExportRows=[];window.ExcelJS={Workbook:class{constructor(){this.xlsx={writeBuffer:()=>new Promise(resolve=>{window.finishPrivateExport=()=>resolve(new Uint8Array([1]));})};}addWorksheet(){return {columns:[],getRow:()=>({}),addRow:r=>window.privateExportRows.push(r)};}}};
+ });
+ await apiPage.locator('[data-export]').click();await apiPage.waitForFunction(()=>!!window.finishPrivateExport);
+ assert.equal(await apiPage.evaluate(()=>window.privateExportRows[0].shares),999999);
+ privateFailureReason='identity-unavailable';await apiPage.evaluate(()=>window.feed.load('portfolio',{holdings:[window.book[0]]}));
+ assert.equal(await apiPage.evaluate(()=>window.feed.meta().supplementAccess),'identity-unavailable');
+ await apiPage.evaluate(()=>window.finishPrivateExport());await apiPage.waitForTimeout(250);
+ assert.equal(privateDownloads,0,'Private access revoked during workbook preparation prevents the download');
+ await apiPage.evaluate(()=>window.exportTab.destroy());
  for(const reason of ['identity-unavailable','configuration-unavailable','no-session']){privateFailureReason=reason;await apiPage.evaluate(book=>window.feed.load('portfolio',{holdings:book}),apiBook);assert.equal(await apiPage.evaluate(()=>window.feed.meta().supplementAccess),reason,'Authentication failures retain their verified reason');assert.equal(await apiPage.evaluate(()=>window.feed.all()[0].totalShares),3);}
  privateFailureReason=null;
  await apiPage.evaluate(()=>window.testSession(null));assert.equal(await apiPage.evaluate(()=>window.feed.all()[0].totalShares),3);
