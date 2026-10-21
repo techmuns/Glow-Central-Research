@@ -12,6 +12,7 @@ import { meta as fundMeta } from '/js/tabs/mutual-funds.js';
 import { readableOwnership } from '/js/data/mutual-funds-ownership.js';
 import { coverageRows } from '/js/data/mutual-funds-coverage.js';
 import { comparisonStatus } from '/js/data/mutual-funds-status.js';
+import { netVolumeCr, fundHouseLead } from '/js/data/mutual-funds-insight.js';
 import { watchWorkerChanges } from '/js/core/app-updates.js';
 document.querySelector('#default').textContent=DEFAULT_ROUTE.tab;
 document.querySelector('#views').textContent=fundMeta.subviews.map(v=>v.id).join(',');
@@ -19,6 +20,9 @@ const row=readableOwnership({companyPct:10,denominator:{shares:1000,checkedAt:'2
 document.querySelector('#reading').textContent=row.companyPct===null?'—':row.companyPct+'%';
 document.querySelector('#comparison').textContent=comparisonStatus({totalShares:null,comparableFunds:0,pendingFunds:0}).label;
 document.querySelector('#coverage').textContent=coverageRows({state:'complete',amcs:[{name:'Fixture',status:'ok',month:'2026-08',checkedAt:'2026-09-24T00:00:00Z'}]},Date.parse('2026-09-24T00:01:00Z'))[0].status;
+const value=netVolumeCr({comparableFunds:1,netChange:250000},400), volume=document.createElement('output'), houses=document.createElement('strong');
+volume.id='net-volume';volume.textContent=value===null?'—':String(value);document.body.append(volume);
+houses.id='fund-houses';houses.textContent=fundHouseLead({comparableFunds:1,topBuyer:{name:'HDFC Index Fund',amc:'HDFC Mutual Fund',change:250000}});document.body.append(houses);
 watchWorkerChanges(navigator.serviceWorker,()=>location.reload());
 await navigator.serviceWorker.register('/sw.js');
 await navigator.serviceWorker.ready;
@@ -46,6 +50,8 @@ const server = createServer((req, res) => {
       body = body.toString().replace('if(!row?.denominator || freshShareCount(row.denominator,now))return row;', 'return row;');
     if (pathname === '/js/data/mutual-funds-status.js' && !upgraded)
       body = 'export const comparisonStatus=()=>({label:"Pending"});';
+    if (pathname === '/js/data/mutual-funds-insight.js' && !upgraded)
+      body = 'export const netVolumeCr=()=>null;export const fundHouseLead=()=>"";';
     if (pathname === '/js/data/mutual-funds-coverage.js' && !upgraded)
       body = 'export const coverageRows=()=>[{status:"ok"}];';
     const type = { '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' }[extname(file)];
@@ -66,6 +72,8 @@ try {
   assert.equal(await page.locator('#reading').innerText(), '10%');
   assert.equal(await page.locator('#comparison').innerText(), 'Pending');
   assert.equal(await page.locator('#coverage').innerText(), 'ok');
+  assert.equal(await page.locator('#net-volume').innerText(),'—');
+  assert.equal(await page.locator('#fund-houses').innerText(),'');
   const spacing = () => page.evaluate(() => {
     const box = selector => document.querySelector(selector).getBoundingClientRect();
     return { top: getComputedStyle(document.querySelector('[data-app-header]')).paddingTop,
@@ -75,10 +83,14 @@ try {
   assert.deepEqual(await spacing(), { top: '0px', navigationGap: 0, readerGap: 0 });
   const before = await page.evaluate(() => caches.keys());
   assert(before.some(key => key.includes('previous-mf-comparison-release')));
+  await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+  await page.waitForLoadState('networkidle');
   upgraded = true;
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
   await page.waitForFunction(() => document.querySelector('#comparison')?.textContent === 'No disclosure' && document.querySelector('#reading')?.textContent === '—', { timeout: 30000 });
   assert.equal(await page.locator('#coverage').innerText(), 'Current');
+  assert.equal(await page.locator('#net-volume').innerText(),'10','The returning session receives the new valuation');
+  assert.equal(await page.locator('#fund-houses').innerText(),'Largest addition: HDFC');
   assert.equal(await page.locator('#default').innerText(),'ai-alerts');
   assert.deepEqual(await spacing(), { top: '32px', navigationGap: 24, readerGap: 20 }, 'the same warm session receives the new immutable CSS');
   assert.equal(await page.evaluate(async () => (await import('/js/tabs/catalog.js')).TAB_META['mutual-funds'].subviewNavigation), 'tabs');

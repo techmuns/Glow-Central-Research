@@ -4,6 +4,9 @@ import {scoreTable,openModal,closeModal} from '../ui/screener.js';
 import * as feed from '../data/mutual-funds.js';
 import {coverageRows,coverageTime} from '../data/mutual-funds-coverage.js';
 import {comparisonStatus} from '../data/mutual-funds-status.js';
+import {fundHouseLead,netVolumeCr} from '../data/mutual-funds-insight.js';
+import * as market from '../data/company-market.js';
+import {exportRows,todayStamp} from '../ui/export.js';
 import {supplementStatus} from '../data/mutual-funds-supplement.js';
 import * as coverage from '../data/coverage.js';
 import {onPortfolioReady,onPortfolioInvalidation} from '../research/portfolio-bridge.js';
@@ -20,6 +23,27 @@ const signed=n=>Number.isFinite(n)?`${n>0?'+':n<0?'−':''}${num(Math.abs(n))}`:
 const monthLabel=m=>m?new Date(`${m}-01T00:00:00Z`).toLocaleDateString('en-IN',{month:'short',year:'numeric',timeZone:'UTC'}):'—';
 const tone=n=>n>0?'text-emerald-700':n<0?'text-rose-700':'text-slate-500';
 const span=n=>`<span class="${tone(n)} tabular-nums">${signed(n)}</span>`;
+const netVolume=r=>netVolumeCr(r,market.read(r).cmp);
+const lead=r=>fundHouseLead(r,feed.meta().amcs||[]);
+function volumeCell(r) {
+  const quote=market.read(r),value=netVolumeCr(r,quote.cmp);
+  const label=`Estimated value at CMP: net monthly shares × CMP ÷ 1,00,00,000. Not actual transaction proceeds; monthly changes can include corporate actions. ${quote.quoteLabel}`;
+  const amount=value===null?'—':`${value>0?'+':value<0?'−':''}${Math.abs(value)>0&&Math.abs(value)<0.01?'<0.01':Math.abs(value).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  return `<span class="${tone(value)} tabular-nums" title="${esc(label)}">${esc(amount)}</span>`;
+}
+function exportHoldings(rows) {
+  const mine=sequence,amcs=feed.meta().amcs||[];
+  return exportRows({companyMarket:true,filename:`glow-mf-company-holdings-${todayStamp()}`,sheetName:'Company Holdings',rows,canExport:()=>!!ctx&&mine===sequence,columns:[
+    {header:'Company',key:'company',width:32,get:r=>r.name},{header:'Ticker',key:'ticker',get:r=>r.ticker||''},{header:'ISIN',key:'isin',get:r=>r.isin||''},
+    {header:'Month',key:'month',get:r=>comparisonStatus(r).reported?r.month||'':''},
+    {header:'MF shares held',key:'shares',get:r=>r.totalShares??''},{header:'MF ownership (%)',key:'ownership',get:r=>r.companyPct??''},
+    {header:'Added / reduced',key:'direction',get:r=>comparisonStatus(r).label},
+    {header:'Net monthly shares',key:'netShares',get:r=>r.netChange??''},
+    {header:'Net Volume (Crores)',key:'netVolumeCr',get:r=>netVolume(r)??''},
+    {header:'Valuation basis',key:'valuation',width:60,get:()=> 'Net monthly shares × displayed CMP ÷ 1,00,00,000; estimate at CMP, not actual transaction proceeds'},
+    {header:'Insight summary',key:'insight',width:90,get:r=>[fundHouseLead(r,amcs),comparisonStatus(r).insight,r.comparableFunds&&r.pendingFunds?`${r.pendingFunds} funds lack comparable reports.`:''].filter(Boolean).join('\n')}
+  ]});
+}
 const ownershipValue=r=>`${r.denominator?.kind==='estimate'&&Number.isFinite(r.companyPct)?'≈':''}${pct(r.companyPct)}`;
 function ownershipNote(r) {
   const d=r.denominator,reason={
@@ -60,7 +84,7 @@ function paint(loading=busy) {
   if(!ctx)return;
   const rows=orderedRows(),view=table?.view;
   if(table){table.updateData(rows,undefined,{loading:loading&&!feed.all().length});paintStatus();return;}
-  table=scoreTable({companyMarket:true,rows,key:r=>r.isin||r.ticker||r.name,watchKey:r=>r.ticker,name:r=>r.name,sub:r=>r.ticker||r.isin||'',nameLabel:'Company',showAvatar:false,showRank:false,showWatchFilter:false,link:null,
+  table=scoreTable({companyMarket:true,columnLayoutKey:'glow-export:Company',rows,key:r=>r.isin||r.ticker||r.name,watchKey:r=>r.ticker,name:r=>r.name,sub:r=>r.ticker||r.isin||'',nameLabel:'Company',showAvatar:false,showRank:false,showWatchFilter:false,link:null,
     nameMaxPx:230,dense:true,wrapHeads:true,fillMode:'windowed',stickyHead:'120px',loading:loading&&!feed.all().length,
     toolbarControls:{html:`${mutualFundView(ctx).html}<select data-mf-sort class="mf-table-control" aria-label="Sort mutual funds"><option value="holdings"${sort==='holdings'?' selected':''}>Largest holdings</option><option value="newest"${sort==='newest'?' selected':''}>Newest</option></select><button data-mf-coverage class="mf-coverage-control">Coverage</button><span data-mf-sizes class="text-xs text-slate-500"></span>`,wire:host=>{
       const releaseView=mutualFundView(ctx).wire(host),sortControl=host.querySelector('[data-mf-sort]'),coverageControl=host.querySelector('[data-mf-coverage]');
@@ -69,14 +93,15 @@ function paint(loading=busy) {
       sortControl.addEventListener('change',changeSort);coverageControl.addEventListener('click',showCoverage);
       return ()=>{releaseView();sortControl.removeEventListener('change',changeSort);coverageControl.removeEventListener('click',showCoverage);};
     }},
-    initialView:view?{...view,sort:null}:null,countLabel:list=>`${list.length} companies`,searchable:r=>`${r.name} ${r.ticker||''} ${comparisonStatus(r).label} ${comparisonStatus(r).insight||''}`,onRowClick:r=>openCompany(r),
+    initialView:view?{...view,sort:null}:null,countLabel:list=>`${list.length} companies`,searchable:r=>`${r.name} ${r.ticker||''} ${lead(r)} ${comparisonStatus(r).label} ${comparisonStatus(r).insight||''}`,onRowClick:r=>openCompany(r),exportName:'glow-mf-company-holdings',onExport:exportHoldings,
     columns:[
       {label:'Month',sortValue:r=>r.month||'',html:true,get:r=>esc(monthLabel(comparisonStatus(r).reported?r.month:null))},
       {label:'MF shares held',align:'right',sortValue:r=>r.totalShares??-1,html:true,get:r=>num(r.totalShares)},
       {label:'MF ownership',align:'right',sortValue:r=>r.companyPct??-1,html:true,get:r=>`<span title="${esc(ownershipNote(r))}">${ownershipValue(r)}</span>`},
       {label:'Added / reduced',html:true,get:r=>`<span class="${tone(r.netChange)}">${esc(comparisonStatus(r).label)}</span><div class="text-xs text-slate-500">${esc(comparisonStatus(r).detail)}</div>`},
       {label:'Net monthly shares',align:'right',sortValue:r=>r.netChange??-Infinity,html:true,get:r=>span(r.netChange)},
-      {label:'Insight summary',html:true,get:r=>`<div class="mf-insight">${esc(comparisonStatus(r).insight)}${r.comparableFunds&&r.pendingFunds?` <span class="text-slate-500">${r.pendingFunds} funds lack comparable reports.</span>`:''}</div>`}
+      {label:'Net Volume (Crores)',columnAfter:'Net monthly shares',marketField:'mf-net-volume',align:'right',sortValue:netVolume,html:true,get:volumeCell},
+      {label:'Insight summary',html:true,get:r=>`<div class="mf-insight">${lead(r)?`<strong style="display:block">${esc(lead(r))}</strong>`:''}${esc(comparisonStatus(r).insight)}${r.comparableFunds&&r.pendingFunds?` <span class="text-slate-500">${r.pendingFunds} funds lack comparable reports.</span>`:''}</div>`}
     ]});
   const host=ctx.root.querySelector('[data-mf-table]');host.innerHTML=table.html;disposeTable=table.wire(host);
   unfit=fitTableViewport(ctx.root);
