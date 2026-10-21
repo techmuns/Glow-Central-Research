@@ -11,7 +11,7 @@ The October 2026 table audit covers every registered tab and its company tables:
 | Screens | Momentum, Strong Breakouts, Technical Scanner, FII Accumulation and scan exceptions |
 | Mutual Funds | Company ownership table (fund schemes and source cohorts retain their own NAV/return measurements) |
 | Public Chatter | Company coverage and retained company/topic catalogue |
-| Private Market | Startup funding records and exports; issuers without exchange identities retain unavailable market values |
+| Private Market | Funding records and exports retain their source fields; listed-equity CMP and market-cap columns are excluded |
 | Super Investors / Capital | Company holdings, quarterly comparisons, public deals, manager securities and exchange-disclosure tables |
 | NSE Filings | Retained company filing table, including old direct routes |
 
