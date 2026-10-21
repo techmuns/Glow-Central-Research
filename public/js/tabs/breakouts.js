@@ -160,7 +160,8 @@ const signalsOf = (s) => s.breakdown.map((b) => ({ label: `${b.label} (${fmtPoin
 
 // scoreTable accessors are shared across all three sub-views.
 const tableBase = (rows, ctx) => ({
-  companyMarket: { cmpLabel: 'Price' },
+  // This screen already owns the quote lifecycle; adding cap must not re-check prices on repaint.
+  companyMarket: { cmpLabel: 'Price', watchPrices: false },
   rows,
   key: (s) => s.company.ticker,
   name: (s) => s.company.name || s.company.ticker,
@@ -900,7 +901,7 @@ function momentumExceptionReason(company, values) {
 
 function momentumExceptionList(exceptions, vf) {
   const ordered = [...exceptions].sort((a, b) => (a.company.name || a.company.ticker).localeCompare(b.company.name || b.company.ticker));
-  return `<div class="max-h-96 overflow-y-auto" data-momentum-exception-list>
+  return `<div class="max-h-96 overflow-auto" data-momentum-exception-list tabindex="0" role="region" aria-label="Excluded stocks and market data">
     <table class="w-full text-left text-sm">
       <thead class="bg-slate-50"><tr><th class="p-3" scope="col">Stock</th>${marketHeads}<th class="p-3" scope="col">Reason</th></tr></thead>
       <tbody>${ordered.map(s => `<tr class="border-b border-slate-100"><td class="p-3 font-semibold text-slate-900">${escapeHtml(s.company.name || s.company.ticker)}</td>${marketCells(s.company)}<td class="p-3">${escapeHtml(momentumExceptionReason(s.company, vf(s)))}</td></tr>`).join('')}</tbody>

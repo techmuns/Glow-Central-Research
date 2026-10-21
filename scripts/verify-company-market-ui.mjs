@@ -8,7 +8,7 @@ const root = resolve('public'), output = resolve('.cache/company-market');
 mkdirSync(output, { recursive: true });
 let legacy = true, updated = false, failed = false, missingDaily = false, malformed = false, fullCaptures = 0;
 const stamp = '2026-10-21T10:00:00Z', isin = 'INE000000001';
-const html = `<!doctype html><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css">
+const html = `<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css">
 <body><main id="root" style="padding:20px;max-width:1200px;margin:auto"></main><script type="module">
 import { scoreTable } from '/js/ui/screener.js';
 import { exportRows } from '/js/ui/export.js';
@@ -119,6 +119,7 @@ try {
   await page.locator('[data-export]').click(); await downloading;
   const exported = await page.evaluate(() => ({ columns: window.exportedSheet.columns, rows: window.exportedRows }));
   const exportCap = exported.columns.findIndex(column => column.header === 'Market cap (₹ Cr)');
+  assert(exportCap > 0, JSON.stringify(exported.columns));
   assert.equal(exported.columns[exportCap - 1].header, 'CMP (₹)');
   assert.equal(exported.rows[0].company_market_cmp, 130); assert.equal(exported.rows[0].mcap, 900);
   assert.match(exported.rows[0].company_market_quote_source, /2026-10-19/);

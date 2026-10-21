@@ -1501,7 +1501,7 @@ export function scoreTable(config) {
       }
       updateRows(changed);
       if (changed.length && columns.find(column => column.label === view.sort?.key)?.marketField) activeRepaint?.({ resetScroll: false });
-    }) : null;
+    }, { watchPrices: config.companyMarket.watchPrices !== false }) : null;
 
     return () => {
       isDisposed = true;

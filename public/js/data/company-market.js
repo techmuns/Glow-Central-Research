@@ -50,10 +50,10 @@ export async function load() {
   })().finally(() => { pending = null; });
   return pending;
 }
-export function watch(fn) {
+export function watch(fn, { watchPrices = true } = {}) {
   listeners.add(fn);
   const check = () => { if (!document.hidden) void load(); };
-  const stop = live.watch(fn), timer = setInterval(check, 60_000);
+  const stop = watchPrices ? live.watch(fn) : live.onChange(fn), timer = setInterval(check, 60_000);
   document.addEventListener('visibilitychange', check); window.addEventListener('focus', check); window.addEventListener('online', check);
   check();
   return () => { listeners.delete(fn); stop(); clearInterval(timer); document.removeEventListener('visibilitychange', check);

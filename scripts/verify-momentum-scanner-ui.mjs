@@ -211,7 +211,8 @@ try {
     await exceptionButton.focus();
     await page.keyboard.press('Enter');
     await page.locator('[data-momentum-exception-list]').waitFor();
-    const exceptionRows = await page.locator('[data-momentum-exception-list] tbody tr').evaluateAll(rows => rows.map(row => [...row.cells].map(cell => cell.textContent).join(' ')));
+    ok('excluded-stock tables also include CMP beside market cap', JSON.stringify(await page.locator('[data-momentum-exception-list] th').allTextContents()) === JSON.stringify(['Stock', 'CMP', 'Market cap', 'Reason']));
+    const exceptionRows = await page.locator('[data-momentum-exception-list] tbody tr').evaluateAll(rows => rows.map(row => [row.cells[0], row.cells[row.cells.length - 1]].map(cell => cell.textContent).join(' ')));
     const expectedReasons = ['Epsilon History Price history incomplete', 'Missing Code Stock code not found', 'Missing Price Price unavailable',
       'Short History Not enough price history', 'Source Failure Price history unavailable', 'Young Stock Not enough price history'];
     ok('the coverage panel lists every excluded stock with its actual short reason', JSON.stringify(exceptionRows.map(text => text.replace(/\s+/g, ' ').trim())) === JSON.stringify(expectedReasons), exceptionRows.join(' | '));
@@ -403,8 +404,9 @@ try {
     await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
     await page.click('#content-host [data-momentum-coverage]');
     ok('the dark mobile exception list includes every excluded stock', await page.locator('[data-momentum-exception-list] tbody tr').count() === 6);
-    const popup = await page.locator('[data-momentum-exception-list]').evaluate(el => ({ width: el.clientWidth, scrollWidth: el.scrollWidth }));
-    ok('exception names and reasons fit the mobile popup', popup.scrollWidth <= popup.width + 1, JSON.stringify(popup));
+    const popup = await page.locator('[data-momentum-exception-list]').evaluate(el => ({ width: el.clientWidth, scrollWidth: el.scrollWidth,
+      overflow: getComputedStyle(el).overflowX, pageWidth: document.documentElement.scrollWidth, viewport: window.innerWidth }));
+    ok('exception market columns scroll inside the mobile popup', ['auto', 'scroll'].includes(popup.overflow) && popup.pageWidth <= popup.viewport + 1, JSON.stringify(popup));
     await page.locator('#modal-content [data-modal-close]').click();
 
     ok('mobile view tabs expose scroll controls', await page.locator('#subview-mount [data-tab-scroll-controls]').isVisible());
