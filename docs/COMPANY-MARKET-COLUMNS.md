@@ -11,11 +11,11 @@ The October 2026 table audit covers every registered tab and its company tables:
 | Screens | Momentum, Strong Breakouts, Technical Scanner, FII Accumulation and scan exceptions |
 | Mutual Funds | Company ownership table (fund schemes and source cohorts retain their own NAV/return measurements) |
 | Public Chatter | Company coverage and retained company/topic catalogue |
-| Private Market | Startup funding records and exports; issuers without exchange identities retain unavailable market values |
+| Private Market | Source funding records and exports retain round amounts; listed-equity CMP/market-cap columns are omitted |
 | Super Investors / Capital | Company holdings, quarterly comparisons, public deals, manager securities and exchange-disclosure tables |
 | NSE Filings | Retained company filing table, including old direct routes |
 
-AI Alerts, News, Bookmarks and Ask Research use cards or retained source documents rather than company tables. Investor/fund directories, source-health tables and financial metric/quarter series are not company lists. Source-document tables are preserved as published.
+AI Alerts, News, Bookmarks and Ask Research use cards or retained source documents rather than company tables. Investor/fund directories, source-health tables and financial metric/quarter series are not company lists. Source-document tables are preserved as published. Private funding records describe the reported round rather than a verified exchange listing, so the funding table retains its source fields and omits CMP/market-cap columns.
 
 `scoreTable({companyMarket: true})` adds missing CMP and market-cap fields as a pair. A source-specific CMP/cap renderer is retained. `cmpLabel` explicitly identifies an existing current-price column; an unrelated deal price is never adopted. New fields join their counterpart in older saved column orders; subsequent user ordering wins. Portfolio and Watchlist already supply both columns through `sheet-market.js`.
 
