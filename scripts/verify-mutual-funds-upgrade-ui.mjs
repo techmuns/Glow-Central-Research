@@ -6,7 +6,7 @@ import { resolve, extname, sep } from 'node:path';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = resolve('public');
 let upgraded = false;
-const html = `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"></head><body><div id="app" data-reading-layout="table"><header data-app-header class="pt-8 pb-4">Header</header><nav data-app-nav>Main tabs</nav><div data-app-content class="py-6"><div id="subview-mount" data-navigation="group" class="mb-5">Subtabs</div><main id="dashboard-main">Reader</main></div></div><output id="default"></output><output id="views"></output><output id="reading"></output><output id="comparison"></output><output id="coverage"></output><script type="module">
+const html = `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"></head><body><div id="app" data-reading-layout="table"><header data-app-header class="pt-8 pb-4">Header</header><nav data-app-nav>Main tabs</nav><div data-app-content class="py-6"><div id="subview-mount" data-navigation="group" class="mb-5">Subtabs</div><main id="dashboard-main">Reader</main></div></div><output id="default"></output><output id="views"></output><output id="reading"></output><output id="comparison"></output><output id="coverage"></output><output id="activity"></output><script type="module">
 import { DEFAULT_ROUTE } from '/js/core/router.js';
 import { meta as fundMeta } from '/js/tabs/mutual-funds.js';
 import { readableOwnership } from '/js/data/mutual-funds-ownership.js';
@@ -14,6 +14,7 @@ import { coverageRows } from '/js/data/mutual-funds-coverage.js';
 import { comparisonStatus } from '/js/data/mutual-funds-status.js';
 import { netVolumeCr, fundHouseLead } from '/js/data/mutual-funds-insight.js';
 import { watchWorkerChanges } from '/js/core/app-updates.js';
+document.querySelector('#activity').textContent=String(readableOwnership({comparableFunds:1,netChange:999999}).netChange);
 document.querySelector('#default').textContent=DEFAULT_ROUTE.tab;
 document.querySelector('#views').textContent=fundMeta.subviews.map(v=>v.id).join(',');
 const row=readableOwnership({companyPct:10,denominator:{shares:1000,checkedAt:'2000-01-01'}});
@@ -22,7 +23,7 @@ document.querySelector('#comparison').textContent=comparisonStatus({totalShares:
 document.querySelector('#coverage').textContent=coverageRows({state:'complete',amcs:[{name:'Fixture',status:'ok',month:'2026-08',checkedAt:'2026-09-24T00:00:00Z'}]},Date.parse('2026-09-24T00:01:00Z'))[0].status;
 const value=netVolumeCr({comparableFunds:1,netChange:250000},400), volume=document.createElement('output'), houses=document.createElement('strong');
 volume.id='net-volume';volume.textContent=value===null?'—':String(value);document.body.append(volume);
-houses.id='fund-houses';houses.textContent=fundHouseLead({comparableFunds:1,topBuyer:{name:'HDFC Index Fund',amc:'HDFC Mutual Fund',change:250000}});document.body.append(houses);
+houses.id='fund-houses';houses.textContent=fundHouseLead({comparableFunds:1,netChange:250000,fundHouses:[{id:'hdfc',name:'HDFC Mutual Fund',change:250000}]});document.body.append(houses);
 watchWorkerChanges(navigator.serviceWorker,()=>location.reload());
 await navigator.serviceWorker.register('/sw.js');
 await navigator.serviceWorker.ready;
@@ -47,7 +48,7 @@ const server = createServer((req, res) => {
     if (pathname === '/js/core/router.js' && !upgraded) body = body.toString().replace("tab: 'ai-alerts'", "tab: 'ask-research'");
     if (pathname === '/js/tabs/mutual-funds.js' && !upgraded) body = 'export const meta={subviews:[]};';
     if (pathname === '/js/data/mutual-funds-ownership.js' && !upgraded)
-      body = body.toString().replace('if(!row?.denominator || freshShareCount(row.denominator,now))return row;', 'return row;');
+      body = body.toString().replace('export function readableOwnership(row, now=Date.now()) {', 'export function readableOwnership(row, now=Date.now()) { return row;');
     if (pathname === '/js/data/mutual-funds-status.js' && !upgraded)
       body = 'export const comparisonStatus=()=>({label:"Pending"});';
     if (pathname === '/js/data/mutual-funds-insight.js' && !upgraded)
@@ -73,6 +74,7 @@ try {
   assert.equal(await page.locator('#comparison').innerText(), 'Pending');
   assert.equal(await page.locator('#coverage').innerText(), 'ok');
   assert.equal(await page.locator('#net-volume').innerText(),'—');
+  assert.equal(await page.locator('#activity').innerText(),'999999');
   assert.equal(await page.locator('#fund-houses').innerText(),'');
   const spacing = () => page.evaluate(() => {
     const box = selector => document.querySelector(selector).getBoundingClientRect();
@@ -90,7 +92,8 @@ try {
   await page.waitForFunction(() => document.querySelector('#comparison')?.textContent === 'No disclosure' && document.querySelector('#reading')?.textContent === '—', { timeout: 30000 });
   assert.equal(await page.locator('#coverage').innerText(), 'Current');
   assert.equal(await page.locator('#net-volume').innerText(),'10','The returning session receives the new valuation');
-  assert.equal(await page.locator('#fund-houses').innerText(),'Largest addition: HDFC');
+  assert.equal(await page.locator('#activity').innerText(),'null','Returning readers cannot retain unfiltered arbitrage activity');
+  assert.equal(await page.locator('#fund-houses').innerText(),'Net buying: +2,50,000 shares · Buyers: HDFC');
   assert.equal(await page.locator('#default').innerText(),'ai-alerts');
   assert.deepEqual(await spacing(), { top: '32px', navigationGap: 24, readerGap: 20 }, 'the same warm session receives the new immutable CSS');
   assert.equal(await page.evaluate(async () => (await import('/js/tabs/catalog.js')).TAB_META['mutual-funds'].subviewNavigation), 'tabs');

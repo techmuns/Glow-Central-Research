@@ -8,7 +8,7 @@ const {chromium}=await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
 const origin='https://mf-cache.test',root=resolve('public'),errors=[],requests=[];
 const isin='INE090A01021',other='INE040A01034';
-const row={isin,name:'Cached Company',ticker:'FIXTURE',month:'2026-08',priorMonth:'2026-07',totalShares:120,netChange:20,comparableFunds:1,addedFunds:1,reducedFunds:0,pendingFunds:0,direction:'Added',insight:'Saved comparison',revision:'one'};
+const row={activityBasis:'equity-hybrid-ex-arbitrage-v1',isin,name:'Cached Company',ticker:'FIXTURE',month:'2026-08',priorMonth:'2026-07',totalShares:120,netChange:20,comparableFunds:1,addedFunds:1,reducedFunds:0,pendingFunds:0,direction:'Added',insight:'Saved comparison',revision:'one'};
 const meta={checkedAt:'2026-09-20T00:00:00Z',state:'complete',amcs:[{status:'ok',month:'2026-08'}]};
 let publicValue={rows:[row],meta},privateValue=null,publicGate=null,privateGate=null,failPublic=false;
 const gate=()=>{let release;const promise=new Promise(r=>release=r);return {promise,release};};
