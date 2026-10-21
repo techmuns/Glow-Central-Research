@@ -7,6 +7,11 @@ export function adaptGlowText(old, path = '') {
   if (/^(<<<<<<<|=======|>>>>>>>)/m.test(old)) return old;
   // This retained public AMC fallback copies market disclosures only, never a family book.
   if (path.replaceAll('\\', '/').endsWith('public/js/data/mutual-fund-holdings.js')) return old;
+  // Funding facts have one public publisher. Glow may read that release; the
+  // publisher's exact-main-checkout guard must continue to refuse Glow writes.
+  if (path.replaceAll('\\', '/').endsWith('scripts/lib/private-market-release.mjs')) return old.replace(
+    "if (env.GITHUB_REPOSITORY !== REPO) throw Error('Funding release repository mismatch');",
+    "if (![REPO,'techmuns/Glow-Central-Research'].includes(env.GITHUB_REPOSITORY)) throw Error('Funding release repository mismatch');");
   // This constant identifies the shared public AMC service, not Glow's deployment.
   // Preserve only the source declaration; all other deployment substitutions still apply.
   const sharedMfSource = basename(path) === 'mutual-fund-holdings.js'

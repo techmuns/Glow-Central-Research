@@ -752,3 +752,17 @@ works is in `CLAUDE.md` → *Portfolio and Watchlist — the desk's two sheets*;
   captured Nifty 500 close, labelled. The history file's first scheduled run after the merge also
   reads the deployed shared watchlist and hand-added rows, which this branch's committed copy could
   not (`sharedListsRead: false`).
+
+
+## Private Market and weekly intelligence (21 October 2026)
+
+Ports Sattva PR478 public funding table and the separate weekly bulletin. Glow
+uses the shared public Sattva funding release to avoid duplicate source requests;
+its own statement-based fund roster, existing recipient list, encrypted retained
+newsletter state, credentials and static publication remain independent. See
+`PRIVATE-MARKETS-INTELLIGENCE.md`. This targeted port does not replace other
+Glow-owned features or copy private Sattva inputs.
+The template preserve list keeps Glow's statement-based fund callback and excludes
+Sattva's Inc42 collector workflow, including when that workflow is newly added
+upstream. The public release transport retains its fixed publisher and refuses
+Glow publication.
