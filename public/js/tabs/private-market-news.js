@@ -49,7 +49,7 @@ function paint() {
   const latestArticle = [...(m.articles || [])].filter(a => a.status === 'ok').sort((a,b) => (b.publishedAt || '').localeCompare(a.publishedAt || ''))[0];
   const latest = latestArticle?.url;
   const options = (key, label) => ({ label, options:[{ value:'all', label:`All ${label.toLowerCase()}` }, ...[...new Set(rows.map(r => r[key]).filter(v => v && !/^[-–—_]$/.test(v)))].sort().map(value => ({ value,label:value }))], match:(r,v) => v === 'all' || !v || r[key] === v });
-  table = scoreTable({ rows, key:r => r.id, name:r => r.company, watchKey:() => null, showWatchFilter:false,
+  table = scoreTable({ companyMarket: { watchPrices:false }, rows, key:r => r.id, name:r => r.company, watchKey:() => null, showWatchFilter:false,
     showRank:false, showAvatar:false, nameWrap:true, nameMaxPx:210, dense:true, wrapHeads:true, nameAfter:1,
     sub:r => r.sourceMissing ? 'Retained · removed from source' : '',
     searchPlaceholder:'Search company, investor, sector or round...', searchable:r => fields.map(([key]) => r[key]).join(' '),
@@ -60,7 +60,7 @@ function paint() {
     emptyMessage:rows.length ? 'No funding deals match these filters.' : 'Funding collection has not published readable rows yet. Coverage shows the latest attempt.',
     countNoun:'funding records', fillMode:'windowed', stickyHead:'max(320px, calc(100vh - 340px))', onRowClick:details,
     bookmarkDate:r => r.dateISO, bookmarkSource:() => 'Inc42 Funding Galore', link:r => safeUrl(r.sourceUrl), exportName:'glow-private-market-news',
-    onExport:visible => exportRows({ filename:'glow-private-market-news', sheetName:'Private market funding', rows:visible,
+    onExport:visible => exportRows({ companyMarket:true, filename:'glow-private-market-news', sheetName:'Private market funding', rows:visible,
       columns:[...fields.map(([key,header]) => ({ key,header,get:r => r[key],width:key === 'investors' ? 70 : 24 })), ...['sourceUrl','sourceTitle','publishedAt','firstSeenAt','updatedAt','sourceMissing'].map(key => ({ key,header:key,get:r => String(r[key] ?? '') })),
         { key:'notes',header:'Source footnotes',get:r => (m.articles || []).find(a => a.url === r.sourceUrl)?.notes?.join('\n') || '' }, { key:'sourceFields',header:'All original source fields',get:r => JSON.stringify(r.sourceFields) }, { key:'revisions',header:'Prior source versions',get:r => JSON.stringify(r.revisions || []) }] }),
   });
