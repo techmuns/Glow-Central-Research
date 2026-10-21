@@ -20,6 +20,7 @@ import { execSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildIndex, resolveTicker } from './lib/company-index.mjs';
+import { statementEquityRelationship } from './lib/glow-book-identity.mjs';
 import { AUTHORITATIVE, authoritativeDocs, datedRows, loadArchive, realisedIndex, saleKey, settledAmount } from './lib/glow-archive.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -467,7 +468,8 @@ for (const [key, e] of [...noSymbol.entries()].sort((a, b) => a[0].localeCompare
 }
 
 // Complete identities from the exchange's verified symbol directory, never fuzzy names.
-// A statement ISIN always wins; contradictory exchange identities stop publication.
+// A statement ISIN always wins. A reviewed subdivision can establish issuer
+// continuity without rewriting the dated holding; other conflicts stop publication.
 const directory = readJson('public/data/filing-capture/nse-identities.json');
 const official = new Map();
 for (const d of Object.values(directory?.directories || {})) for (const e of d.entries || []) {
@@ -476,7 +478,8 @@ for (const d of Object.values(directory?.directories || {})) for (const e of d.e
 }
 for (const holding of holdings) {
   const exact = official.get(holding.ticker);
-  if (exact && holding.isin && exact.isin !== holding.isin) throw Error(`Statement/exchange ISIN conflict for ${holding.ticker}`);
+  const relationship = statementEquityRelationship(holding, exact);
+  if (relationship) holding.exchangeIdentityRelationship = relationship;
   if (!holding.isin && exact) {
     holding.isin = exact.isin;
     holding.isinSource = { url: exact.url, checkedAt: exact.checkedAt, matchedBy: 'exact NSE symbol' };

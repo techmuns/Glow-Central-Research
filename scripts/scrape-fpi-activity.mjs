@@ -140,6 +140,25 @@ const mergeByPeriod = (retained, fresh) => {
   return [...by.values()].sort((a, b) => a.period.localeCompare(b.period));
 };
 
+// A count of fifteen held days cannot prove a later month was captured through
+// its close. In particular, September's 29th was retained forever after rollover.
+// Revisit partial or unreconciled closed months; cap source work at two per run.
+export function flowMonthsToRefresh(retained, dailyFlows, newest) {
+  const thisMonth = (dailyFlows[0]?.date || newest).slice(0, 7);
+  const end = new Date(`${thisMonth}-01T00:00:00Z`); end.setUTCDate(0);
+  const previous = end.toISOString().slice(0, 7);
+  const held = [...(retained?.dailyFlows || []), ...dailyFlows];
+  const closed = new Map();
+  for (const row of held) if (row.date.slice(0, 7) < thisMonth)
+    closed.set(row.date.slice(0, 7), (closed.get(row.date.slice(0, 7)) || 0) + 1);
+  const wanted = new Set();
+  if (new Set(held.map(row => row.date)).size < RECENT_DAYS + 1 || ![...closed.values()].some(n => n >= 15)) wanted.add(previous);
+  for (const row of retained?.months || []) if (row.period < thisMonth && row.partial && closed.has(row.period)) wanted.add(row.period);
+  for (const row of retained?.monthlyCoverage || []) if (row.period < thisMonth && row.reconciles === false && row.days) wanted.add(row.period);
+  return [...wanted].filter(period => /^\d{4}-(0[1-9]|1[0-2])$/.test(period))
+    .sort((a, b) => a === previous ? -1 : b === previous ? 1 : a.localeCompare(b)).slice(0, 2);
+}
+
 async function main() {
   const retained = readRetained();
   const failed = [];
@@ -203,16 +222,11 @@ async function main() {
   // On the second of a month it holds one reporting date, which is not three daily columns. And
   // guard 1 has nothing to check until a CLOSED month is held in full — a reconciliation that
   // only ever runs against a part-month is a guard that passes because it never fires.
-  const heldDates = new Set([...(retained?.dailyFlows || []).map((r) => r.date), ...dailyFlows.map((r) => r.date)]);
-  const thisMonth = (dailyFlows[0]?.date || newest).slice(0, 7);
-  const perMonth = new Map();
-  for (const d of heldDates) if (d.slice(0, 7) !== thisMonth) perMonth.set(d.slice(0, 7), (perMonth.get(d.slice(0, 7)) || 0) + 1);
-  const haveClosedMonth = [...perMonth.values()].some((n) => n >= 15);
-  if (heldDates.size < RECENT_DAYS + 1 || !haveClosedMonth) {
+  for (const period of flowMonthsToRefresh(retained, dailyFlows, newest)) {
     try {
       const page = await fetchReport(DAILY_TRENDS_ARCHIVE_URL);
-      const end = new Date(`${thisMonth}-01T00:00:00Z`);
-      end.setUTCDate(0); // day zero of this month is the last day of the previous one
+      const end = new Date(`${period}-01T00:00:00Z`);
+      end.setUTCMonth(end.getUTCMonth() + 1); end.setUTCDate(0);
       const stamp = end.toISOString().slice(0, 10);
       const body = formBody({
         ...hiddenFields(page),
@@ -224,11 +238,14 @@ async function main() {
         hdnDate: `${stamp.slice(8)}-${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(stamp.slice(5, 7)) - 1]}-${stamp.slice(0, 4)}`,
       });
       const older = parseDailyTrends(await fetchReport(DAILY_TRENDS_ARCHIVE_URL, { body }));
+      if (!older.length || older.some(row => !row.date.startsWith(`${period}-`)))
+        throw Object.assign(new Error(`Archive did not serve the requested month ${period}`), { reason: 'shape' });
       dailyFlows = mergeByDate(older, dailyFlows);
       console.log(`  + ${older.length} reporting date(s) from ${stamp.slice(0, 7)}`);
     } catch (err) {
-      note('daily trends (previous month)', err);
+      note(`daily trends (${period})`, err);
     }
+    await pause(700);
   }
 
   // ---- 3 & 4. the published month, calendar-year and financial-year totals ----------------------
