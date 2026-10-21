@@ -751,16 +751,17 @@ try {
     let previous = await wheelFrame.evaluate(readingPosition);
     assert(Number.isFinite(previous), 'a visible record establishes the initial reading position');
     const starts = new Set();
+    let lastSample = null;
     for (let step = 0; step < 24; step++) {
       // Locator hover waits for a stable, hittable target after iframe resize
       // and window replacement; a cached bounding-box point does not.
       await scroller.hover({ position: { x: 4, y: 100 } });
-      // Added market columns can make source-rich rows taller. Travel half a readable
-      // record per gesture so this still crosses windows at every natural row height.
+      // The measured list retains a 40-row buffer. Cross roughly two records per
+      // gesture so 24 native gestures reach its replacement edge even with tall rows.
       const distance = await scroller.evaluate(el => {
         const boundary = el.getBoundingClientRect().top + el.querySelector('thead').offsetHeight;
         const row = [...el.querySelectorAll('tr[data-row-key]')].find(node => node.getBoundingClientRect().bottom > boundary);
-        return Math.max(180, Math.ceil((row?.getBoundingClientRect().height || 360) / 2));
+        return Math.max(180, Math.ceil((row?.getBoundingClientRect().height || 90) * 2));
       });
       await wheelPage.mouse.wheel(0, distance);
       try {
@@ -791,8 +792,9 @@ try {
       assert(Math.max(0, ...sample.gaps) <= 2, `window replacement keeps rows contiguous: ${Math.max(0, ...sample.gaps)}px gap/overlap`);
       previous = position;
       starts.add(sample.start);
+      lastSample = sample;
     }
-    assert(starts.size >= 2, 'wheel crosses multiple virtual windows');
+    assert(starts.size >= 2, `wheel crosses multiple virtual windows: ${JSON.stringify({ size, starts: [...starts], position: previous, sample: lastSample })}`);
   }
   await wheelFrame.evaluate(() => window.dispose());
 
