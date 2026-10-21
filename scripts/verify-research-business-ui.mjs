@@ -23,7 +23,7 @@ try {
       const packet = await research.buildResearchEvidence({ question, prepared, scope: 'portfolio',
         history: [{ role: 'user', text: 'Latest Sterlite news?' }] });
       results.push({ question, ms: Math.round(performance.now() - started), chars: researchEvidenceChars(packet),
-        context: providerEvidence(packet).businessContext, companies: packet.selection.companies,
+        context: providerEvidence(packet).businessContext, companies: packet.selection.companies, sourceIds:research.DASHBOARD_RESEARCH_SOURCES.map(s=>s.id),
         sources: packet.sources.map(s => ({ id: s.id, status: s.status, rows: s.rows.length })), preview: researchPreview(packet) });
     }
     return results;
@@ -41,7 +41,7 @@ try {
     assert.equal(row.context.holdingsExamined, book.holdings.length);
     assert.match(row.context.holdingsBasis, /ownership and weights not established/);
     assert(row.context.candidates.every(c => c.weightPct === null));
-    assert.equal(row.sources.length, 21);
+    assert.deepEqual(row.sources.map(s=>s.id).sort(), row.sourceIds.sort());
     assert(row.sources.reduce((n, s) => n + s.rows, 0) >= 3, 'comparison cannot crowd out all original feed rows');
     assert(row.context.candidates.every(c => c.evidence.length && c.evidence.every(e => e.tab && e.text && e.sourceStatus)));
   }

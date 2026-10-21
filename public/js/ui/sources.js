@@ -30,6 +30,7 @@ import * as technicals from '../data/technicals.js';
 import * as breakoutLive from '../data/breakout-live.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
+import * as privateMarketNews from '../data/private-market-news.js';
 import * as nseFeed from '../data/nse-filings.js';
 import * as twitterNews from '../data/twitter-news.js';
 import * as twitterHandles from '../core/twitter-handles.js';
@@ -353,7 +354,7 @@ export function sourceGroups() {
         {
           name: 'Saved price and volume capture — Muns API',
           url: 'https://upstox.com/developer/api-documentation/analytics-token/',
-          feeds: 'Muns API is the dashboard price service. Upstox is the primary price and volume feed. A shared server collector runs independently of open dashboards. The existing Yahoo Finance capture supplies the 15-minute fallback and daily breakout bases. Breakout checks use current price and cumulative session volume; the 16-rule score retains its daily close date. Detailed minute history stays on Cloudflare for four days. Detected breakout changes and existing fallback history are retained; ordinary dashboard reads load current prices only.',
+          feeds: 'Muns API is the dashboard price service. Upstox is the primary price and volume feed. A shared server collector runs independently of open dashboards. The existing Yahoo Finance capture supplies the 15-minute fallback and daily breakout bases. Breakout checks use current price and cumulative session volume; the 16-rule score retains its daily close date. Momentum also shows near-month NSE stock-futures open-interest change versus the same contract’s previous session, with its own source and check times on hover. Missing or failed OI is unavailable; cash-price coverage does not certify OI coverage. OI capture begins with the 21 October 2026 release, with no earlier OI archive. Detailed minute history, including OI, stays on Cloudflare for four days. Detected breakout changes and existing fallback history are retained; ordinary dashboard reads load current observations only.',
           cadence: `${breakoutCapture?.primarySchedule?.configured ? 'Upstox every minute in market hours' : 'Upstox minute feed awaits the server token'}; 15-minute fallback. ${breakoutHealth.total ? `${breakoutHealth.checked} of ${breakoutHealth.total} companies have current usable observations.` : 'No shared capture has been read yet.'} Last completed source check: ${breakoutCapture?.completedAt ? breakoutLive.stamp(breakoutCapture.completedAt) : 'not available'}.${breakoutHealth.archiveIncomplete ? ` History has recorded gaps: ${breakoutHealth.archive.missedMinutes} missed minute checks, ${breakoutHealth.archive.missingMinuteQuotes} missing company-minute quotes and ${breakoutHealth.archive.fallbackGapIntervals} fallback intervals. Current-price freshness is separate.` : ''}`,
           status: 'live', readState: breakoutState,
           file: 'GET /api/breakouts · durable saved history',
@@ -760,6 +761,15 @@ export function sourceGroups() {
   flows.items = flows.items.filter(i => !['Google News search & Upstox News — company news', 'Market-wide news — five publishers'].includes(i.name));
   groups.splice(groups.indexOf(flows), 0, { id: 'portfolio-news', title: 'News & company discovery', icon: '📰',
     tabs: 'News · All Alerts · AI Alerts', items: [companyNews, ...newsSourceItems(m)] });
+  const funding = privateMarketNews.meta(), fundingHealth = privateMarketNews.health();
+  groups.splice(groups.indexOf(flows), 0, { id:'private-market-news', title:'Private market funding', icon:'📰', tabs:'News · Private Market', items:[{
+    id:'inc42-funding-galore', name:'Inc42 — Funding Galore', url:'https://inc42.com/tag/funding-galore/', status:'live', readState:fundingHealth.readState,
+    cadence:'Source checks at least six hours apart; weekly roundups. Browser publication checks every five minutes while visible.',
+    feeds:'Indian startup funding tables across the source universe, independent of listed-company scopes.',
+    details:[`Source listing checked: ${funding.sourceCheckedAt || 'not yet loaded'}. ${funding.deals ? `${funding.deals.length} retained deal rows; ${fundingHealth.pending} pending roundups; ${fundingHealth.unavailable} failed or unsupported tables.` : 'Open Private Market to load coverage.'}`,
+      'Public tables only; source field wording, footnotes and corrections are retained. This source does not establish exhaustive VC/PE transaction coverage.',
+      'GitHub retains capture history and archive progress. Sequential requests, a 32-request walk budget and at least 24-hour refusal cooldowns bound source traffic.'],
+    file:'data/private-market-news.json · private-market-news.yml' }] });
   groups.find(g => g.title === 'Earnings & filings').items.push(screenerInsightsSource());
   const x = twitterNews.meta();
   groups.find(g => g.id === 'twitter').items.unshift({ id: 'x-portfolio-search', name: 'X — portfolio-wide company searches',

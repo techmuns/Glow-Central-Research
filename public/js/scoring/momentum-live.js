@@ -27,7 +27,7 @@
 // Live recompute
 // ---------------------------------------------------------------------------------------
 
-import { quoteFresh, expectedSession, istDate } from '../data/breakout-live-shared.js';
+import { quoteFresh, expectedSession, istDate, openInterestForQuote } from '../data/breakout-live-shared.js';
 import { isoWeekKey, monthKey } from './momentum-history.js';
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 
@@ -173,6 +173,7 @@ export function scannerIndicators(company, quote, {now = Date.now(), unavailable
     averageVolume: volumeBase ? volumeBase.average : null,
   });
   value.isLiveQuote = usable;
+  value.openInterest = openInterestForQuote(quote,now,unavailable);
   value.evaluable = value.evaluable && usable;
   value.unavailableReason = !fresh ? 'Current market data unavailable or outdated.'
     : !sameExchange ? 'Price and historical indicators use different exchanges.'

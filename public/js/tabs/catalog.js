@@ -62,6 +62,11 @@ export const TAB_META = Object.freeze({
     // full width. The schedule is an overlay, not a second page.
     subviews: [],
   },
+  'private-market-news': {
+    id: 'private-market-news', title: 'Private Market', navigationGroup: 'news-section',
+    subtitle: 'Indian startup funding from Inc42 Funding Galore.', subviews: [],
+    allowEmptyScope: true, scopeIndependent: true, savedViewAvailable: false,
+  },
   'public-chatter': {
     id: 'public-chatter',
     title: 'Public Chatter',
@@ -98,7 +103,7 @@ export const TAB_META = Object.freeze({
   'news': {
     id: 'news',
     title: 'News',
-    navigationTitle: 'Market News',
+    navigationTitle: 'Public Market',
     navigationGroup: 'news-section',
     subtitle:
       'Company news, updated automatically. Opens on Today (IST); choose another period up to 30 days or This month. ' +
