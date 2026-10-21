@@ -32,7 +32,7 @@ function volumeCell(r) {
   return `<span class="${tone(value)} tabular-nums" title="${esc(label)}">${esc(amount)}</span>`;
 }
 function exportHoldings(rows) {
-  const mine=sequence,source=feed.meta(),amcs=source.amcs||[],privateReading=source.supplementAccess==='ready';
+  const mine=sequence,source=feed.meta(),amcs=source.amcs||[],privateReading=source.supplementAccess==='ready'&&!source.supplementReadFailed;
   const canExport=()=>!!ctx&&mine===sequence&&(!privateReading||feed.meta().supplementAccess==='ready'&&!feed.meta().supplementReadFailed);
   return exportRows({companyMarket:true,filename:`glow-mf-company-holdings-${todayStamp()}`,sheetName:'Company Holdings',rows,canExport,columns:[
     {header:'Company',key:'company',width:32,get:r=>r.name},{header:'Ticker',key:'ticker',get:r=>r.ticker||''},{header:'ISIN',key:'isin',get:r=>r.isin||''},
