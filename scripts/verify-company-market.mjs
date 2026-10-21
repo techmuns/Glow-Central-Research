@@ -28,6 +28,8 @@ assert.equal(lookup.read({ ticker: 'UNKNOWN' }, priceInfo).mcapCr, null);
 assert.equal(lookup.read({ isin: bseIsin, ticker: 'COLLISION' }, priceInfo).cmp, 23, 'BSE-only exact ISIN can read its own saved price');
 assert.match(lookup.read({ isin: bseIsin }, priceInfo).quoteLabel, /21 Oct - close price · checked/);
 assert.equal(lookup.read({ ticker: 'COLLISION' }, priceInfo).cmp, null, 'BSE-only display symbol is not an NSE identifier');
+const collidingDaily = companyMarketLookup({ quotes: { rows: [{ ticker: 'COLLISION', cmp: 999, price_date: '2026-10-19' }] }, marketCaps });
+assert.equal(collidingDaily.read({ ticker: 'COLLISION' }, priceInfo).cmp, null, 'a BSE-only display symbol cannot borrow an unrelated daily observation');
 assert.equal(lookup.read({ scripCode: '500002' }, priceInfo).mcapCr, 80);
 assert.equal(lookup.read({ ticker: 'ALPHA', isin }, () => ({ price: 140, label: 'Saved · source quote time', at: stamp })).mcapCr, 1400);
 

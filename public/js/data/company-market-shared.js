@@ -13,7 +13,7 @@ export function projectCompanyQuotes(payload) {
 
 export function companyMarketLookup({ quotes = null, marketCaps = null, tickerMap = null } = {}) {
   const daily = new Map((quotes?.rows || []).map(row => [upper(row.ticker), row]));
-  const owners = new Map(), byIsin = new Map(), shares = new Map();
+  const owners = new Map(), byIsin = new Map(), shares = new Map(), bseOnlySymbols = new Set();
   const put = (key, entry) => {
     if (!key) return;
     if (!owners.has(key)) owners.set(key, entry);
@@ -22,6 +22,7 @@ export function companyMarketLookup({ quotes = null, marketCaps = null, tickerMa
   for (const entry of marketCaps?.entries || []) {
     byIsin.set(upper(entry.isin), entry);
     if (entry.exchanges?.includes('NSE')) put(upper(entry.ticker), entry);
+    else if (entry.ticker) bseOnlySymbols.add(upper(entry.ticker));
     if (entry.bseCode) put(`BSE:${entry.bseCode}`, entry);
   }
   for (const entry of Object.values(tickerMap?.map || {})) {
@@ -39,6 +40,7 @@ export function companyMarketLookup({ quotes = null, marketCaps = null, tickerMa
       ticker: owner.exchanges?.includes('NSE') ? upper(owner.ticker) : null };
     if ((ticker && owners.has(ticker) && (!owners.get(ticker) || isin && owners.get(ticker).isin !== isin)) || bse || isin)
       return unresolved();
+    if (bseOnlySymbols.has(ticker)) return unresolved();
     return { ...company, ticker };
   }
   return { identity, daily: ticker => daily.get(upper(ticker)) || null,
