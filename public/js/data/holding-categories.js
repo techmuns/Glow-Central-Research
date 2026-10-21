@@ -11,7 +11,7 @@ export const normalizeHoldingCategory = value => HOLDING_CATEGORIES.some(([id]) 
 export const holdingCategoryLabel = value => HOLDING_CATEGORIES.find(([id]) => id === value)?.[1] || 'All';
 
 export function positionCategory(position, account = {}) {
-  const engagement = account.engagement ?? position.engagement;
+  const engagement = Object.hasOwn(account, 'engagement') ? account.engagement : position.engagement;
   if (engagement === 'PMS') return 'pms';
   if (position.valuedAtCost === true) return 'private-investment';
   if (position.assetClass === 'Equity') return ['Direct', 'Execution'].includes(engagement) ? 'direct-equity' : null;
