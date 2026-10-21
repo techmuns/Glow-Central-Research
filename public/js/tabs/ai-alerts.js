@@ -458,6 +458,10 @@ function paint(ctx) {
     const node = ctx.root.querySelector(selector);
     reconcileMarkup(node, markup);
   }
+  // A user-selected option can keep its selectedness after attribute patches.
+  // Saved readings and the empty-state reset must update the visible control too.
+  const categorySelect = ctx.root.querySelector('[data-ai-holding-category]');
+  if (categorySelect) categorySelect.value = holdingCategory;
   const results = ctx.root.querySelector('[data-ai-results]');
   if (report && cards.length) {
     if (!cardGrid || !results.contains(cardGrid.element)) {
