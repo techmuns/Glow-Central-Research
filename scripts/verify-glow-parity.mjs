@@ -173,7 +173,7 @@ assert(!sync.includes('HEAD:main'));
 assert(sync.includes('prepare-glow-template-patch.mjs'));
 const baseline = JSON.parse(readFileSync(new URL('../docs/GLOW-TEMPLATE-BASELINE.json', import.meta.url)));
 assert.equal(baseline.mode, 'source-diff');
-for (const path of ['public/data', 'public/js/tabs/portfolio.js', 'public/js/tabs/watchlist.js', 'public/js/core/research-sheet.js'])
+for (const path of ['public/data', 'public/js/tabs/portfolio.js', 'public/js/tabs/watchlist.js', 'public/js/core/research-sheet.js', 'scripts/lib/private-markets-sources.mjs', '.github/workflows/private-market-news.yml'])
   assert(baseline.preserve.includes(path), `${path} cannot be replaced by an automatic template patch`);
 assert(sync.includes('codex/sattva-sync-'));
 assert(sync.includes('--body-file'));

@@ -762,3 +762,7 @@ its own statement-based fund roster, existing recipient list, encrypted retained
 newsletter state, credentials and static publication remain independent. See
 `PRIVATE-MARKETS-INTELLIGENCE.md`. This targeted port does not replace other
 Glow-owned features or copy private Sattva inputs.
+The template preserve list keeps Glow's statement-based fund callback and excludes
+Sattva's Inc42 collector workflow, including when that workflow is newly added
+upstream. The public release transport retains its fixed publisher and refuses
+Glow publication.
