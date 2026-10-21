@@ -755,7 +755,14 @@ try {
       // Locator hover waits for a stable, hittable target after iframe resize
       // and window replacement; a cached bounding-box point does not.
       await scroller.hover({ position: { x: 4, y: 100 } });
-      await wheelPage.mouse.wheel(0, 180);
+      // Added market columns can make source-rich rows taller. Travel half a readable
+      // record per gesture so this still crosses windows at every natural row height.
+      const distance = await scroller.evaluate(el => {
+        const boundary = el.getBoundingClientRect().top + el.querySelector('thead').offsetHeight;
+        const row = [...el.querySelectorAll('tr[data-row-key]')].find(node => node.getBoundingClientRect().bottom > boundary);
+        return Math.max(180, Math.ceil((row?.getBoundingClientRect().height || 360) / 2));
+      });
+      await wheelPage.mouse.wheel(0, distance);
       try {
         await wheelFrame.waitForFunction(readingPosition, previous);
       } catch (error) {
