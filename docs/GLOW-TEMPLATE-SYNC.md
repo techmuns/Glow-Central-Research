@@ -65,6 +65,17 @@ history rather than replaying years of changes.
 
 ## What belongs to Glow
 
+AI Alerts' **Holding** dropdown uses names-only `holdingCategories` from this same statement
+book. `holding-categories.js` follows GlowVentures' account routing: PMS accounts are PMS;
+Direct and Execution equity accounts are Direct Equity; unstated engagements are not guessed.
+A company held through both routes matches both choices. The producer, `/api/family-portfolio`
+and the position-size reply preserve these memberships; category changes invalidate the reader.
+The dropdown intersects the selected research scope, priority, search and event types, and is
+retained in saved views and on repeat visits. All preserves the existing scope and thresholds.
+Fund units, bonds, unlisted and private-investment positions are not added to the equity-company
+research list by this filter. Their empty selections name this coverage limit instead of
+claiming there are no family holdings or no source events. Statement dates remain unchanged.
+
 - Worker: `glow-central-research`; repository: `techmuns/Glow-Central-Research`.
 - Research dispatch and authenticated Actions artifacts use Glow's repository and immutable
   repository ID `1339395437`. Durable Objects are local to this Worker. All shared edge-cache keys include a Glow deployment prefix. Rate-limit namespaces

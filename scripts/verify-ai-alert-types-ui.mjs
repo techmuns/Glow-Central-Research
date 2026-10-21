@@ -9,7 +9,13 @@ let legacy = true;
 const html = `<!doctype html><html><head><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"></head>
 <body><main id="root" style="padding:24px;max-width:1200px;margin:auto"></main><script type="module">
 import * as tab from '/js/tabs/ai-alerts.js';
+import * as coverage from '/js/data/coverage.js';
 import { watchWorkerChanges } from '/js/core/app-updates.js';
+window.categoryHoldings=[{isin:'INE000000001',ticker:'MIXED',name:'Mixed',holdingCategories:['direct-equity']},
+  {isin:'INE000000002',ticker:'WARRANT',name:'Warrant',holdingCategories:['pms']},
+  {isin:'INE000000003',ticker:'SCHEME',name:'Scheme',holdingCategories:['direct-equity','pms']}];
+coverage.prime({holdings:window.categoryHoldings});
+window.alertTab=tab; window.coverage=coverage;
 window.show = (scope='universe') => { tab.destroy(); tab.render({root:document.querySelector('#root'),scope,params:{}}); };
 window.show();
 watchWorkerChanges(navigator.serviceWorker,()=>location.reload());
@@ -52,6 +58,7 @@ const server = createServer((req, res) => {
       if (legacy) body = body.replace(/const CACHE_NAME = .*;/, 'const CACHE_NAME = `${CACHE_PREFIX}previous-event-filter-release`;');
     }
     if (legacy && path === '/js/tabs/ai-alerts.js') body = body.toString().replace('${eventTypesControl()}', '')
+      .replace(/<label class="flex items-center gap-2">Holding[\s\S]*?<\/label>/, '')
       .replace('Object.entries(SORTS).map', "Object.entries(SORTS).filter(([value]) => value !== 'holdings' || ctxRef?.scope === 'portfolio').map");
     res.setHeader('content-type', { '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' }[extname(file)] || 'application/octet-stream');
     res.end(body);
@@ -77,6 +84,7 @@ try {
   // This case upgrades an already warm visit; let its initial reads and cache writes settle.
   await page.waitForLoadState('networkidle');
   assert.equal(await page.locator('[data-ai-types-menu]').count(), 0);
+  assert.equal(await page.locator('[data-ai-holding-category]').count(), 0);
   assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').count(), 0, 'old cached Universe menu hides Largest holdings');
   legacy = false;
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
@@ -86,6 +94,48 @@ try {
   await page.waitForSelector('[data-ai-card]');
   assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').count(), 1, 'an existing session upgrades to the restored menu');
   assert(!(await page.evaluate(() => caches.keys())).some(key => key.includes('previous-event-filter-release')));
+  const category = page.getByRole('combobox', { name: 'Holding category', exact: true });
+  assert.deepEqual(await category.locator('option').allTextContents(), ['All', 'Direct Equity', 'PMS', 'Mutual Fund', 'AIF', 'Bond', 'Unlisted', 'Private Investment']);
+  await category.selectOption('direct-equity');
+  assert.deepEqual(await page.locator('[data-ai-card]').evaluateAll(nodes => nodes.map(node => node.dataset.ticker).sort()), ['MIXED', 'SCHEME']);
+  assert.match(await page.locator('[data-ai-priorities]').textContent(), /All priorities · 2/);
+  await category.selectOption('pms');
+  assert.deepEqual(await page.locator('[data-ai-card]').evaluateAll(nodes => nodes.map(node => node.dataset.ticker).sort()), ['SCHEME', 'WARRANT']);
+  await page.locator('[data-ai-search]').fill('WARRANT');
+  assert.equal(await page.locator('[data-ai-card]').count(), 1, 'category and search intersect');
+  await page.locator('[data-ai-search]').fill('');
+  await page.evaluate(() => window.show('portfolio'));
+  await page.waitForSelector('[data-ai-card]');
+  assert.equal(await category.inputValue(), 'pms', 'scope navigation retains the category');
+  await page.evaluate(() => window.show('universe'));
+  await page.waitForSelector('[data-ai-card]');
+  await page.reload(); await page.waitForSelector('[data-ai-card]');
+  assert.equal(await category.inputValue(), 'pms', 'reload retains the category');
+  const savedReading = await page.evaluate(() => window.alertTab.getSavedView());
+  assert.equal(savedReading.aiHoldingCategory, 'pms');
+  await page.evaluate(() => {
+    window.alertTab.destroy(); window.alertTab.applySavedView({aiHoldingCategory:'direct-equity'});
+    window.alertTab.render({root:document.querySelector('#root'),scope:'universe',params:{},savedView:true});
+  });
+  await page.waitForSelector('[data-ai-card]');
+  assert.equal(await category.inputValue(), 'direct-equity', 'saved readings restore their own category');
+  await page.evaluate(() => window.show('universe'));
+  await page.waitForSelector('[data-ai-card]');
+  assert.equal(await category.inputValue(), 'pms', 'leaving a saved reading restores the ordinary category');
+  for (const value of ['mutual-fund', 'aif', 'bond', 'unlisted', 'private-investment']) {
+    await category.selectOption(value);
+    assert.equal(await page.locator('[data-ai-card]').count(), 0);
+    assert.match(await page.locator('[data-ai-empty]').textContent(), /not covered by the current equity-company research list/);
+  }
+  await page.locator('[data-ai-reset-category]').click();
+  assert.equal(await category.inputValue(), 'all');
+  assert(await card('R0').count(), 'All restores non-holdings in Universe');
+  await category.selectOption('direct-equity');
+  await page.evaluate(() => window.coverage.useFamilyBook(window.categoryHoldings.map(h => ({...h,holdingCategories:h.ticker==='WARRANT'?['direct-equity']:['pms']})), '2026-09-01'));
+  assert.equal(await page.locator('[data-ai-card]').count(), 1, 'category-only portfolio refresh immediately updates the view');
+  assert.equal(await card('WARRANT').count(), 1);
+  await page.evaluate(() => window.coverage.useFamilyBook(null));
+  await category.selectOption('all');
   assert.equal(await card('ROUTINE').count(), 0);
   assert.match(await card('MIXED').locator('[data-ai-insight]').textContent(), /Resignation/);
   assert(!/Loss of share/.test(await card('MIXED').textContent()));

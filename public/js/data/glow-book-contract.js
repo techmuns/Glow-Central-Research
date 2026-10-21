@@ -1,6 +1,7 @@
 // Glow's statement book adapts to the shared research interfaces without borrowing
 // Sattva's workbook, membership, quantities or source dates.
 import { boundedJson, validateResolvedPortfolio } from './family-book-contract.js';
+import { withHoldingCategories } from './holding-categories.js';
 
 const digest = async value => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))].map(v => v.toString(16).padStart(2, '0')).join('');
 const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value));
@@ -10,10 +11,10 @@ export async function glowPortfolio(companies, book, { now = Date.now() } = {}) 
       !Array.isArray(companies.holdings) || !companies.holdings.length || !Array.isArray(book.positions) ||
       !date(book.asOf) || companies.asOf !== book.asOf || !book.builtFrom || companies.sourceCommit?.sha !== book.builtFrom)
     throw Error('The Glow statement book and company list do not describe the same source revision');
-  const revision = await digest(JSON.stringify([book.builtFrom, book.asOf, companies.holdings]));
+  const holdings = withHoldingCategories(companies.holdings, book);
+  const revision = await digest(JSON.stringify([book.builtFrom, book.asOf, holdings]));
   const published = book.sourcePublishedAt;
   if (!Number.isFinite(Date.parse(published))) throw Error('The Glow source revision has no publication timestamp');
-  const holdings = companies.holdings.map(h => ({ ...h }));
   const portfolio = validateResolvedPortfolio({ ok: true, syncStatus: 'live', storage: 'shared',
     source: 'GlowVentures consolidated platform statements', sourceKind: 'glow-statements',
     sourceRevision: revision, asOf: book.asOf, syncedAt: new Date(now).toISOString(),
@@ -44,7 +45,7 @@ export function glowPositionReply(portfolio, book) {
     const positions = rows.filter(p => h.ticker && p.symbol === h.ticker || h.isin && p.isin === h.isin || !p.symbol && p.security === h.bookName);
     if (!positions.length || positions.some(p => !Number.isFinite(p.marketValue) || p.marketValue < 0)) complete = false;
     positions.forEach(p => { if (matched.has(p)) complete = false; matched.add(p); });
-    return { isin: h.isin, ticker: h.ticker, name: h.name, sector: h.sector || 'Unclassified',
+    return { isin: h.isin, ticker: h.ticker, name: h.name, sector: h.sector || 'Unclassified', holdingCategories: h.holdingCategories,
       value: positions.reduce((sum, p) => sum + (Number.isFinite(p.marketValue) ? p.marketValue : 0), 0) };
   });
   if (matched.size !== rows.length) complete = false;

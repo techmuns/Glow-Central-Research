@@ -31,7 +31,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE674K01013",
@@ -40,7 +43,10 @@
       "ticker": "ABCAPITAL",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE03Q201024",
@@ -54,7 +60,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE098F01031",
@@ -68,7 +77,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE294Z01018",
@@ -82,7 +94,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE955V01021",
@@ -96,7 +111,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE0LEZ01016",
@@ -110,7 +128,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE406A01037",
@@ -119,7 +140,10 @@
       "ticker": "AUROPHARMA",
       "sector": "Health Care",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE238A01034",
@@ -128,7 +152,10 @@
       "ticker": "AXISBANK",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE917I01010",
@@ -137,7 +164,10 @@
       "ticker": "BAJAJ-AUTO",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE213C01025",
@@ -151,7 +181,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE495P01020",
@@ -160,7 +193,10 @@
       "ticker": "BECTORFOOD",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE894V01022",
@@ -169,7 +205,10 @@
       "ticker": "BELRISE",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE257A01026",
@@ -183,7 +222,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE376G01013",
@@ -197,7 +239,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE800A01015",
@@ -206,7 +251,10 @@
       "ticker": "BIRLACABLE",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE153T01027",
@@ -220,7 +268,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE0KBH01020",
@@ -234,7 +285,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE666D01022",
@@ -248,7 +302,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE365Y01019",
@@ -257,7 +314,10 @@
       "ticker": "BPLPHARMA",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE836A01035",
@@ -271,7 +331,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE24OJ01011",
@@ -285,7 +348,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE477A01020",
@@ -299,7 +365,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE475E01026",
@@ -313,7 +382,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE482A01020",
@@ -327,7 +399,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE180C01042",
@@ -336,7 +411,10 @@
       "ticker": "CGCL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE783X01023",
@@ -350,7 +428,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE647U01026",
@@ -359,7 +440,10 @@
       "ticker": "CLEANMAX",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE11XY01018",
@@ -373,7 +457,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE985W01018",
@@ -387,7 +474,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE299U01018",
@@ -396,7 +486,11 @@
       "ticker": "CROMPTON",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity",
+        "pms"
+      ]
     },
     {
       "isin": "INE491A01021",
@@ -405,7 +499,10 @@
       "ticker": "CUB",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE917M01012",
@@ -419,7 +516,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE500A01029",
@@ -433,7 +533,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE0FHS01024",
@@ -447,7 +550,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE738I01010",
@@ -461,7 +567,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE532F01054",
@@ -475,7 +584,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE230A01023",
@@ -489,7 +601,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE0ZOL01023",
@@ -498,7 +613,10 @@
       "ticker": "EMAPARTNER",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE02YR01019",
@@ -507,7 +625,10 @@
       "ticker": "EMIL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE510A01028",
@@ -521,7 +642,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE778B01029",
@@ -535,7 +659,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE0KCE01017",
@@ -549,7 +676,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE302A01020",
@@ -563,7 +693,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE171A01029",
@@ -572,7 +705,10 @@
       "ticker": "FEDERALBNK",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE212S01015",
@@ -581,7 +717,10 @@
       "ticker": "FRACTAL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE139R01012",
@@ -595,7 +734,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE036B01030",
@@ -604,7 +746,10 @@
       "ticker": "GAEL",
       "sector": "Consumer Staples",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE079J01017",
@@ -618,7 +763,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE12E301017",
@@ -627,7 +775,10 @@
       "ticker": "GCHOTELS",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE017A01032",
@@ -641,7 +792,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE539A01019",
@@ -655,7 +809,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE0PA801013",
@@ -669,7 +826,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE068V01023",
@@ -683,7 +843,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE935A01035",
@@ -697,7 +860,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE541A01023",
@@ -711,7 +877,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE371A01025",
@@ -725,7 +894,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE224A01026",
@@ -739,7 +911,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE066F01020",
@@ -753,7 +928,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE127D01025",
@@ -767,7 +945,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE545A01024",
@@ -781,7 +962,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE090A01021",
@@ -790,7 +974,11 @@
       "ticker": "ICICIBANK",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity",
+        "pms"
+      ]
     },
     {
       "isin": "INE483B01026",
@@ -804,7 +992,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE022Q01020",
@@ -818,7 +1009,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE559A01017",
@@ -832,7 +1026,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE919H01018",
@@ -846,7 +1043,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE0LGX01024",
@@ -855,7 +1055,10 @@
       "ticker": "INA",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE562A01011",
@@ -864,7 +1067,10 @@
       "ticker": "INDIANB",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE681B01017",
@@ -878,7 +1084,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE095A01012",
@@ -887,7 +1096,10 @@
       "ticker": "INDUSINDBK",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE0MRE01011",
@@ -896,7 +1108,10 @@
       "ticker": "INFINIUM",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE177A01018",
@@ -910,7 +1125,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE306R01017",
@@ -924,7 +1142,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE858B01029",
@@ -938,7 +1159,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE168A01041",
@@ -952,7 +1176,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE039C01032",
@@ -961,7 +1188,10 @@
       "ticker": "JAMNAAUTO",
       "sector": "Consumer Discretionary",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE00YJ01010",
@@ -970,7 +1200,10 @@
       "ticker": "JARO",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE854B01010",
@@ -984,7 +1217,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE351F01018",
@@ -998,7 +1234,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE220G01021",
@@ -1012,7 +1251,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE668F01031",
@@ -1021,7 +1263,10 @@
       "ticker": "JYOTHYLAB",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE303R01014",
@@ -1035,7 +1280,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE036D01028",
@@ -1044,7 +1292,11 @@
       "ticker": "KARURVYSYA",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity",
+        "pms"
+      ]
     },
     {
       "isin": "INE918Z01012",
@@ -1053,7 +1305,10 @@
       "ticker": "KAYNES",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE884B01025",
@@ -1067,7 +1322,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE177F01017",
@@ -1081,7 +1339,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE220B01022",
@@ -1095,7 +1356,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE999A01023",
@@ -1109,7 +1373,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE455I01029",
@@ -1118,7 +1385,10 @@
       "ticker": "KSCL",
       "sector": "Consumer Staples",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE0J1Y01017",
@@ -1132,7 +1402,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE326A01037",
@@ -1146,7 +1419,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE576O01020",
@@ -1160,7 +1436,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE101A01026",
@@ -1174,7 +1453,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE759A01021",
@@ -1188,7 +1470,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE099Z01011",
@@ -1202,7 +1487,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE338I01027",
@@ -1216,7 +1504,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE943D01017",
@@ -1230,7 +1521,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE060A01024",
@@ -1244,7 +1538,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE794A01010",
@@ -1258,7 +1555,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE229H01012",
@@ -1272,7 +1572,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE531F01023",
@@ -1286,7 +1589,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE093I01010",
@@ -1300,7 +1606,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE013P01021",
@@ -1309,7 +1618,10 @@
       "ticker": "ONESOURCE",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE922B01023",
@@ -1323,7 +1635,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE045601023",
@@ -1337,7 +1652,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE1H7V01011",
@@ -1346,7 +1664,10 @@
       "ticker": "PARTH",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE134E01011",
@@ -1360,7 +1681,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE457L01029",
@@ -1369,7 +1693,10 @@
       "ticker": "PGEL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE160A01022",
@@ -1383,7 +1710,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE637C01025",
@@ -1397,7 +1727,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE633B01018",
@@ -1411,7 +1744,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE074A01025",
@@ -1425,7 +1761,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE726V01018",
@@ -1434,7 +1773,10 @@
       "ticker": "PRICOLLTD",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE323I01011",
@@ -1448,7 +1790,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE191H01014",
@@ -1462,7 +1807,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE703B01027",
@@ -1476,7 +1824,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE976G01028",
@@ -1485,7 +1836,10 @@
       "ticker": "RBLBANK",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE020B01018",
@@ -1499,7 +1853,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE0W2G01015",
@@ -1513,7 +1870,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE953O01021",
@@ -1527,7 +1887,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE423Y01016",
@@ -1541,7 +1904,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE062A01020",
@@ -1550,7 +1916,11 @@
       "ticker": "SBIN",
       "sector": "Financials",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity",
+        "pms"
+      ]
     },
     {
       "isin": "INE385F01024",
@@ -1564,7 +1934,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE908D01010",
@@ -1578,7 +1951,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE274V01019",
@@ -1592,7 +1968,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE221J01015",
@@ -1606,7 +1985,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE597I01028",
@@ -1620,7 +2002,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE498B01024",
@@ -1634,7 +2019,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE232A01011",
@@ -1648,7 +2036,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE0NAZ01010",
@@ -1657,7 +2048,10 @@
       "ticker": "SMARTWORKS",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE269A01021",
@@ -1671,7 +2065,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE575P01011",
@@ -1685,7 +2082,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE00IN01015",
@@ -1699,7 +2099,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE399C01030",
@@ -1713,7 +2116,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE335A01020",
@@ -1727,7 +2133,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE0DYJ01015",
@@ -1741,7 +2150,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE142M01025",
@@ -1755,7 +2167,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE688A01022",
@@ -1769,7 +2184,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE669C01036",
@@ -1783,7 +2201,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE010J01012",
@@ -1797,7 +2218,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE19RI01016",
@@ -1811,7 +2235,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE152A01029",
@@ -1825,7 +2252,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE508G01029",
@@ -1839,7 +2269,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE454P01035",
@@ -1848,7 +2281,10 @@
       "ticker": "TRANSRAILL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE152M01016",
@@ -1862,7 +2298,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE945H01021",
@@ -1876,7 +2315,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE884A01027",
@@ -1890,7 +2332,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE1CDF01017",
@@ -1904,7 +2349,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE665L01035",
@@ -1918,7 +2366,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE200M01039",
@@ -1927,7 +2378,10 @@
       "ticker": "VBL",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE205A01025",
@@ -1941,7 +2395,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE054A01027",
@@ -1955,7 +2412,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE807F01027",
@@ -1969,7 +2429,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE377N01017",
@@ -1983,7 +2446,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE049B01025",
@@ -1997,7 +2463,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE765D01022",
@@ -2011,7 +2480,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE07K301024",
@@ -2020,7 +2492,10 @@
       "ticker": "ZAGGLE",
       "sector": "Unclassified",
       "listed": true,
-      "matchedBy": "glowventures:symbol"
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE520A01027",
@@ -2034,7 +2509,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE342J01019",
@@ -2048,7 +2526,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE010B01027",
@@ -2062,7 +2543,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE666D13019",
@@ -2071,7 +2555,10 @@
       "sector": "Unclassified",
       "ticker": null,
       "listed": false,
-      "reason": "warrant line — a right to subscribe, not a share any feed here is keyed by"
+      "reason": "warrant line — a right to subscribe, not a share any feed here is keyed by",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE757A01017",
@@ -2086,7 +2573,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE741K01010",
@@ -2101,7 +2591,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE0LTR03090",
@@ -2110,7 +2603,10 @@
       "sector": "Unclassified",
       "ticker": null,
       "listed": false,
-      "reason": "preference shares — not the listed equity the research feeds carry"
+      "reason": "preference shares — not the listed equity the research feeds carry",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE0LTR01029",
@@ -2119,7 +2615,10 @@
       "sector": "Unclassified",
       "ticker": null,
       "listed": true,
-      "reason": "unresolved — no NSE symbol for this name in the feeds this dashboard carries"
+      "reason": "unresolved — no NSE symbol for this name in the feeds this dashboard carries",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     },
     {
       "isin": "INE0NR701018",
@@ -2134,7 +2633,10 @@
         "url": "https://nsearchives.nseindia.com/emerge/corporates/content/SME_EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.108Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE201A01024",
@@ -2149,7 +2651,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE277B01014",
@@ -2164,7 +2669,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE231F01020",
@@ -2179,7 +2687,10 @@
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
         "checkedAt": "2026-09-21T08:20:57.084Z",
         "matchedBy": "exact NSE symbol"
-      }
+      },
+      "holdingCategories": [
+        "pms"
+      ]
     },
     {
       "isin": "INE00GK01023",
@@ -2188,7 +2699,10 @@
       "sector": "Unclassified",
       "ticker": null,
       "listed": true,
-      "reason": "unresolved — no NSE symbol for this name in the feeds this dashboard carries"
+      "reason": "unresolved — no NSE symbol for this name in the feeds this dashboard carries",
+      "holdingCategories": [
+        "direct-equity"
+      ]
     }
   ]
 }

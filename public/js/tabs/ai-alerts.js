@@ -34,6 +34,7 @@ import { driversFromEvent, QUESTIONS } from '../data/alert-drivers.js';
 import * as screenerInsights from '../data/screener-insights.js';
 import { onCaptureLanded } from '../data/capture-watchdog.js';
 import * as coverage from '../data/coverage.js';
+import { HOLDING_CATEGORIES, normalizeHoldingCategory, holdingCategoryLabel, holdingCategoryMatcher } from '../data/holding-categories.js';
 import * as mute from '../core/ai-mute.js';
 import { currentDay, relativeAge, formatDay as fmtDay, latestAlertSignal, latestAlertEvent, sortAlertCards, matchesSearch } from '../ui/ai-alert-utils.js';
 import { privatePortfolioContext, onPortfolioInvalidation, onPortfolioReady, onPortfolioConnection, portfolioConnectionState } from '../research/portfolio-bridge.js';
@@ -44,6 +45,9 @@ export const meta = TAB_META['ai-alerts'];
 const REFRESH_ID = 'ai-alerts';
 const RECHECK_MS = 90_000;
 const SORT_KEY = 'sattva:ai-alerts:sort:v1';
+const CATEGORY_KEY = 'glow:ai-alerts:holding-category:v1';
+let holdingCategory = 'all';
+try { holdingCategory = normalizeHoldingCategory(localStorage.getItem(CATEGORY_KEY)); } catch { /* Session preference still works. */ }
 const SORTS = { newest: 'Newest first', holdings: 'Largest holdings', priority: 'Highest priority' };
 let sortOrder = 'newest';
 try { const saved = localStorage.getItem(SORT_KEY); if (Object.hasOwn(SORTS, saved)) sortOrder = saved; } catch { /* Session preference still works. */ }
@@ -65,13 +69,14 @@ let resetCardScroll = false;
 let query = '';
 let normalSavedReading = null;
 export function getSavedView() {
-  return { aiPriority: filter, aiQuery: query, aiSort: sortOrder, aiEventTypes: [...eventFilters.selected], aiHideRoutine: eventFilters.hideRoutine };
+  return { aiPriority: filter, aiQuery: query, aiSort: sortOrder, aiHoldingCategory: holdingCategory, aiEventTypes: [...eventFilters.selected], aiHideRoutine: eventFilters.hideRoutine };
 }
 export function applySavedView(extras = {}) {
-  normalSavedReading ||= { filter, query, sortOrder, eventFilters: structuredClone(eventFilters) };
+  normalSavedReading ||= { filter, query, sortOrder, holdingCategory, eventFilters: structuredClone(eventFilters) };
   filter = ['all', 'must-see', 'important', 'archived'].includes(extras.aiPriority) ? extras.aiPriority : 'all';
   query = typeof extras.aiQuery === 'string' ? extras.aiQuery : '';
   sortOrder = Object.hasOwn(SORTS, extras.aiSort) ? extras.aiSort : 'newest';
+  holdingCategory = normalizeHoldingCategory(extras.aiHoldingCategory);
   eventFilters = { selected: (Array.isArray(extras.aiEventTypes) ? extras.aiEventTypes : []).filter(id => AI_EVENT_TYPES.some(type => type.id === id)), hideRoutine: extras.aiHideRoutine === true };
   eventViews = new WeakMap();
 }
@@ -212,7 +217,8 @@ export function render(ctx) {
       if (connected && ctxRef && !sizesLoading) void recollect(ctxRef);
       else if (!connected && portfolioConnectionState() === 'unavailable') portfolioUnavailable();
     }));
-    unsubs.push(coverage.onChange(() => {
+    unsubs.push(coverage.onChange(({ changed } = {}) => {
+      if (changed && ctxRef) paint(ctxRef);
       if (coverage.meta().syncStatus === 'family-unavailable') portfolioUnavailable();
       else if (!sizesLoading && report && cachedPositionSizes()?.sizes?.checkedAt !== report.meta?.positionSizes?.checkedAt) {
         // Shared background reads have no Family-frame notification. Adopt their
@@ -272,7 +278,7 @@ export function render(ctx) {
 
 export function destroy() {
   if (normalSavedReading) {
-    ({ filter, query, sortOrder, eventFilters } = normalSavedReading);
+    ({ filter, query, sortOrder, holdingCategory, eventFilters } = normalSavedReading);
     normalSavedReading = null; eventViews = new WeakMap();
   }
   cardGrid?.destroy(); cardGrid = null;
@@ -415,7 +421,8 @@ function paint(ctx) {
   });
   const anchorTop = anchor?.getBoundingClientRect().top;
   const candidates = query.trim() || eventFilters.selected.length ? report?.allCards || [] : report?.cards || [];
-  const matches = candidates.map(eventView).filter(card => card && matchesSearch(card, query));
+  const matchesCategory = holdingCategoryMatcher(coverage.holdings(), holdingCategory);
+  const matches = candidates.map(eventView).filter(card => card && matchesCategory(card) && matchesSearch(card, query));
   displayedCards = matches;
   const cards = sortAlertCards(filteredCards(matches), effectiveSort());
   // Keep the input node mounted while typing and while independent feeds deliver partials.
@@ -629,6 +636,11 @@ function controls(cards, visibleCount) {
     priorities: options.map((option) => `<button type="button" data-ai-filter="${option.id}" aria-pressed="${filter === option.id}"
       class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${filter === option.id ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200 hover:text-indigo-700 hover:ring-indigo-200'}">${escapeHtml(option.label)}</button>`).join(''),
     view: `
+        <label class="flex items-center gap-2">Holding
+          <select data-ai-holding-category aria-label="Holding category" class="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+            ${HOLDING_CATEGORIES.map(([id, label]) => `<option value="${id}" ${id === holdingCategory ? 'selected' : ''}>${label}</option>`).join('')}
+          </select>
+        </label>
         ${eventTypesControl()}
         <label class="flex items-center gap-2">Sort
           <select data-ai-sort aria-label="Sort AI Alerts" class="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
@@ -1044,6 +1056,14 @@ function wire(ctx) {
     } });
   }
   const sort = ctx.root.querySelector('[data-ai-sort]');
+  const category = ctx.root.querySelector('[data-ai-holding-category]');
+  if (category) category.onchange = () => {
+    holdingCategory = normalizeHoldingCategory(category.value);
+    if (!ctx.savedView) try { localStorage.setItem(CATEGORY_KEY, holdingCategory); } catch { /* Keep the session preference. */ }
+    resetCardScroll = true;
+    paint(ctxRef);
+    ctxRef?.root.querySelector('[data-ai-holding-category]')?.focus({ preventScroll: true });
+  };
   if (sort) sort.onchange = () => {
     if (!Object.hasOwn(SORTS, sort.value)) return;
     sortOrder = sort.value;
@@ -1086,6 +1106,12 @@ function wire(ctx) {
   });
   click('[data-ai-reset-events]', () => { eventFilters = { selected: [], hideRoutine: false }; changeEventFilters(ctxRef); });
   click('[data-ai-empty-clear]', clearSearch);
+  click('[data-ai-reset-category]', () => {
+    holdingCategory = 'all';
+    if (!ctx.savedView) try { localStorage.setItem(CATEGORY_KEY, holdingCategory); } catch { /* Session preference still works. */ }
+    resetCardScroll = true;
+    paint(ctxRef);
+  });
   click('[data-ai-controls]', (event) => {
     const button = event.target.closest('[data-ai-filter]');
     if (!button) return;
@@ -1131,6 +1157,16 @@ function wire(ctx) {
 }
 
 function emptyPanel(ctx) {
+  if (holdingCategory !== 'all') {
+    const covered = coverage.holdings().some(holding => holding.holdingCategories?.includes(holdingCategory));
+    return `<div data-ai-empty class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
+      <h3 class="font-display text-lg font-bold text-slate-900">No matching ${escapeHtml(holdingCategoryLabel(holdingCategory))} alerts</h3>
+      <p class="mt-2 text-sm text-slate-500">${covered
+        ? 'No companies match this category and your current scope, priority, search and event filters.'
+        : 'This category is not covered by the current equity-company research list. This does not mean the family has no holdings in this category.'}</p>
+      <button type="button" data-ai-reset-category class="mt-4 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">Show all holding categories</button>
+    </div>`;
+  }
   const m = report?.meta || {};
   if (eventFilters.selected.length || (eventFilters.hideRoutine && (report?.cards || []).some(card => !eventView(card)))) {
     return `<div data-ai-empty class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
@@ -1224,7 +1260,8 @@ function changeEventFilters(ctx) {
 
 function eventTypesControl() {
   const counts = new Map(AI_EVENT_TYPES.map(type => [type.id, 0]));
-  for (const card of filteredCards(report?.allCards || [])) {
+  const matchesCategory = holdingCategoryMatcher(coverage.holdings(), holdingCategory);
+  for (const card of filteredCards(report?.allCards || []).filter(card => matchesCategory(card) && matchesSearch(card, query))) {
     for (const id of new Set(card.events.flatMap(aiEventTypes))) counts.set(id, (counts.get(id) || 0) + 1);
   }
   return `<details data-ai-types-menu>
