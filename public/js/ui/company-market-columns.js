@@ -29,8 +29,16 @@ export function marketColumns(columns, option, exported = false) {
   const make = (field, label) => exported
     ? { header: label, key: `company_market_${field}`, width: 20, get: row => row.__banner ? '' : reading(row)[field] ?? '' }
     : { label, marketField: field, html: true, align: 'right', get: row => marketCell(marketCompany(row), field), sortValue: row => reading(row)[field] ?? -Infinity };
-  const priceColumn = cmp || make('cmp', exported ? 'CMP (₹)' : 'CMP');
-  const capColumn = cap || make('mcapCr', exported ? 'Market cap (₹ Cr)' : 'Market cap');
+  const preserve = column => {
+    const conflict = row => market.read(resolve(row)).identityConflict;
+    const next = { ...column, get: row => conflict(row)
+      ? exported ? '' : column.html ? '<span title="Company identifiers disagree; value withheld">—</span>' : '—'
+      : column.get(row) };
+    if (column.sortValue) next.sortValue = row => conflict(row) ? -Infinity : column.sortValue(row);
+    return next;
+  };
+  const priceColumn = cmp ? preserve(cmp) : make('cmp', exported ? 'CMP (₹)' : 'CMP');
+  const capColumn = cap ? preserve(cap) : make('mcapCr', exported ? 'Market cap (₹ Cr)' : 'Market cap');
   if (!exported && !cmp && cap) priceColumn.columnBefore = cap.label;
   if (!exported && !cap && cmp) capColumn.columnAfter = cmp.label;
   // Keep existing source-specific renderers and sort keys; add only what is missing.
@@ -63,7 +71,8 @@ export function wireMarketCells(host) {
   };
   const stop = market.watch(update);
   const observer = new MutationObserver(() => { if (!host.isConnected) dispose(); });
-  function dispose() { stop(); observer.disconnect(); wired.delete(host); }
+  let disposed = false;
+  function dispose() { if (disposed) return; disposed = true; stop(); observer.disconnect(); if (wired.get(host) === dispose) wired.delete(host); }
   observer.observe(document.body, { childList: true, subtree: true });
   wired.set(host, dispose);
   return dispose;

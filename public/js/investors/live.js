@@ -816,19 +816,26 @@ export async function openInvestor(slug) {
   const b = feed.book(slug);
   if (!inv && !b) return;
   open = { slug, inv, b };
+  let stopPanel = null;
+  const releasePanel = () => { stopPanel?.(); stopPanel = null; };
+  const panel = render => () => { releasePanel(); return render(); };
+  const wireMarketPanel = (host, compact) => {
+    const stopMarket = wireMarketCells(host), stopDisclosures = wirePublicDisclosures(host, slug, 'investor', compact);
+    stopPanel = () => { stopDisclosures?.(); stopMarket(); };
+  };
 
   openWorkspace({
     title: b?.name || inv?.name || slug,
     avatarName: b?.name || inv?.name || slug,
     tabs: [
-      { id: 'holdings', label: 'Holdings', badge: b?.holdings?.length ?? undefined, render: holdingsPanel, wire: (host) => { wireMarketCells(host); wirePublicDisclosures(host, slug, 'investor', true); } },
+      { id: 'holdings', label: 'Holdings', badge: b?.holdings?.length ?? undefined, render: panel(holdingsPanel), wire: host => wireMarketPanel(host, true) },
       { id: 'exchange', label: 'Exchange disclosures', badge: publicHoldings.forPerson(slug).length || undefined,
-        render: () => publicDisclosuresHtml(slug), wire: (host) => wirePublicDisclosures(host, slug) },
-      { id: 'moves', label: 'Quarterly comparison', render: movesPanel },
-      { id: 'profile', label: 'Profile', render: profilePanel },
+        render: panel(() => publicDisclosuresHtml(slug)), wire: host => wireMarketPanel(host, false) },
+      { id: 'moves', label: 'Quarterly comparison', render: panel(movesPanel) },
+      { id: 'profile', label: 'Profile', render: panel(profilePanel) },
     ],
     activeTab: 'holdings',
-    onClose: () => (open = null),
+    onClose: () => { releasePanel(); open = null; },
   });
 }
 

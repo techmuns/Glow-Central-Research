@@ -525,7 +525,7 @@ try {
       signals: document.querySelectorAll('[data-alert-signal]').length,
     };
   });
-  assert.deepEqual(tableContract.headers, ['DATE / TIME', 'COMPANY', 'WHAT HAPPENED', 'FEED', 'LINK']);
+  assert.deepEqual(tableContract.headers, ['DATE / TIME', 'COMPANY', 'WHAT HAPPENED', 'FEED', 'CMP', 'MARKET CAP', 'LINK']);
   assert(!tableContract.headers.includes('DIRECTION') && !tableContract.headers.includes('IMPORTANCE'));
   assert(tableContract.className.includes('table-scroll-surface'));
   assert.equal(tableContract.tabIndex, 0);

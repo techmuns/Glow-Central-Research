@@ -12,6 +12,7 @@
 
 const EXCELJS_CDN = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
 import { marketColumns } from './company-market-columns.js';
+import * as marketInputs from '../data/company-market.js';
 
 let loaderPromise = null;
 
@@ -48,6 +49,8 @@ export async function exportRows({ filename = 'export', sheetName = 'Sheet1', co
   }
 
   try {
+    if (!canExport()) return false;
+    if (companyMarket) await marketInputs.load();
     if (!canExport()) return false;
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Glow Central Research';
@@ -110,6 +113,7 @@ export async function exportSheets({ filename = 'export', banner = '', sheets = 
   }
 
   try {
+    if (sheets.some(sheet => sheet.companyMarket)) await marketInputs.load();
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Glow Central Research';
     wb.created = new Date();

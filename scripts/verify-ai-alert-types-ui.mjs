@@ -134,6 +134,7 @@ try {
   assert(await card('R0').count(), 'All restores non-holdings in Universe');
   await category.selectOption('direct-equity');
   await page.evaluate(() => window.coverage.useFamilyBook(window.categoryHoldings.map(h => ({...h,holdingCategories:h.ticker==='WARRANT'?['direct-equity']:['pms']})), '2026-09-01'));
+  await card('WARRANT').waitFor();
   assert.equal(await page.locator('[data-ai-card]').count(), 1, 'category-only portfolio refresh immediately updates the view');
   assert.equal(await card('WARRANT').count(), 1);
   await page.evaluate(() => window.coverage.useFamilyBook(null));

@@ -41,20 +41,23 @@ export function wirePublicDisclosures(host, id, kind = 'investor', compact = fal
   let section = host.querySelector('[data-public-disclosures]');
   if (!section) return;
   bindControls(section, id, kind);
-  wireMarketCells(host);
+  let stopMarket = wireMarketCells(host), disposed = false;
   const stop = primary.onChange(() => {
-    if (!section.isConnected) { stop(); observer.disconnect(); return; }
+    if (!section.isConnected) { dispose(); return; }
     const input = section.querySelector('[data-public-search]'), query = input?.value || '', focused = input === document.activeElement;
     const scroll = section.querySelector('.overflow-auto')?.scrollTop || 0;
     const wrapper = document.createElement('div'); wrapper.innerHTML = publicDisclosuresHtml(id, kind, compact);
     const next = wrapper.firstElementChild; section.replaceWith(next); section = next;
     bindControls(section, id, kind);
+    stopMarket = wireMarketCells(host);
     const replacement = section.querySelector('[data-public-search]');
     if (replacement) { replacement.value = query; replacement.dispatchEvent(new Event('input')); if (focused) replacement.focus(); }
     const table = section.querySelector('.overflow-auto'); if (table) table.scrollTop = scroll;
     const badge = host.closest('#workspace-content')?.querySelector('[data-ws-tab="exchange"] .tabular-nums');
     if (badge) badge.textContent = primary.forPerson(id, kind).length;
   });
-  const observer = new MutationObserver(() => { if (!section.isConnected) { stop(); observer.disconnect(); } });
+  const observer = new MutationObserver(() => { if (!section.isConnected) dispose(); });
+  function dispose() { if (disposed) return; disposed = true; stop(); stopMarket(); observer.disconnect(); }
   observer.observe(host.parentElement || host, { childList: true, subtree: true });
+  return dispose;
 }
