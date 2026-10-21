@@ -81,7 +81,7 @@ try{
  assert.equal(newsletterWakePlan(publicStatus,{now:at+1}).due,false,'The actual public response coalesces a recent check without a checkpoint revision field');
  publicStatus.schedule.reason='waiting-for-inputs';assert.equal(newsletterWakePlan(publicStatus,{now:at+1}).reason,'inputs-changed');
  let response=await handleGithubNewsletter(new Request('https://fixture.test/api/newsletter/pdf/'+pdfId),worker,common);assert.equal(response.status,200);assert.deepEqual(Buffer.from(await response.arrayBuffer()),pdf);
- const bigPdf=Buffer.alloc(5096797,97);bigPdf.set(Buffer.from('%PDF-1.7'));const bigId=runtime.store.saveDocument(bigPdf,'glow-2026-09-15-morning-brief.pdf','large-recovery');
+ const bigPdf=Buffer.alloc(5096797,97);bigPdf.set(Buffer.from('%PDF-1.7'));const bigId=runtime.store.saveDocument(bigPdf,'sattva-2026-09-15-morning-brief.pdf','large-recovery');
  const bigSaved=await runtime.publish();await installPreparedBackground([bigSaved],{env,fetcher,publicRoot:site,scratch:path.join(root,'install-large')});
  response=await handleGithubNewsletter(new Request('https://fixture.test/api/newsletter/pdf/'+bigId),worker,common);assert.equal(response.status,200);assert.equal(response.headers.get('content-length'),String(bigPdf.length));assert.deepEqual(Buffer.from(await response.arrayBuffer()),bigPdf,'A recovery PDF larger than 1.5 MB streams exact bytes from bounded encrypted private records');
  response=await handleGithubNewsletter(new Request('https://fixture.test/api/newsletter/preview?edition=morning'),worker,common);assert.equal(response.status,200);assert.equal(response.headers.get('x-newsletter-part'),'1');assert.equal(await response.text(),preview.body,'The default preview URL serves the actual prepared HTML through encrypted static delivery');
@@ -122,6 +122,12 @@ try{
  beforeWake=published;assert.equal((await restarted.wake({onlyIfDue:true})).processed,false);assert.equal(published,beforeWake);
  assert.equal(restarted.store.delivery('old-unknown').finishedAt,null);assert.deepEqual(Buffer.from(restarted.store.document(pdfId).body),pdf);
  assert(restarted.db.prepare('SELECT id FROM newsletter_news_ai_calls WHERE id=?').get(claim.id));
+ const recoverDaily=restarted.schedule.deliveryQueue.recover,wakeDaily=restarted.schedule.wake;
+ restarted.privateMarketsJob.setMeta({...restarted.privateMarketsJob.meta(),mailCooldownUntil:new Date(at+30*60000).toISOString()});
+ restarted.schedule.deliveryQueue.recover=async()=>{throw Error('Public retry must wait for the shared sender');};restarted.schedule.wake=async()=>{throw Error('Public timer must wait for the shared sender');};
+ assert.equal((await restarted.wake()).reason,'sender-cooldown');
+ await assert.rejects(restarted.schedule.fetcher('https://devde.muns.io/email/send/raw',{method:'POST',body:JSON.stringify({email:'fixture@example.com',html:'Synthetic'})}),/sender is held/);assert.equal(emailCalls,1,'A private provider hold also blocks public mail I/O');
+ restarted.schedule.deliveryQueue.recover=recoverDaily;restarted.schedule.wake=wakeDaily;restarted.privateMarketsJob.setMeta({...restarted.privateMarketsJob.meta(),mailCooldownUntil:null});
  failUpload=true;await assert.rejects(restarted.schedule.fetcher('https://api.openai.com/v1/responses',{method:'POST',body:'{}'}),/archive rejected/);assert.equal(providerCalls,1);await assert.rejects(restarted.schedule.fetcher('https://api.openai.com/v1/responses',{method:'POST',body:'{}'}),/stopped/);assert.equal(providerCalls,1);
  console.log('PASS newsletter GitHub migration: 1.5 MB legacy PDF and 5.1 MB chunked PDF exact bytes/hash, unknown deliveries and paid budgets retained, encrypted master restart, static PDF reader, cached ciphertext, private queued request and replay safety, acknowledged reservation before stubbed model I/O, publication failure stops further provider work');
 }finally{await restarted?.close();await runtime?.close();await source?.close();fs.rmSync(root,{recursive:true,force:true});}
