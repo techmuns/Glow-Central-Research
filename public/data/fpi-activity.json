@@ -8,7 +8,7 @@
     "financialYear": "https://www.fpi.nsdl.co.in/web/Reports/Yearwise.aspx?RptType=5"
   },
   "generator": "scripts/scrape-fpi-activity.mjs",
-  "capturedAt": "2026-10-21T18:52:47.312Z",
+  "capturedAt": "2026-10-21T20:48:06.854Z",
   "currency": "INR crore",
   "asOn": "2026-10-21",
   "flowsAsOn": "2026-10-21",
@@ -2176,7 +2176,7 @@
       "period": "2022-23",
       "partial": false,
       "equity": -37632,
-      "debtGeneral": -8937,
+      "debtGeneral": -8938,
       "debtVrr": 5814,
       "debtFar": 0,
       "hybrid": -181,
@@ -2186,7 +2186,7 @@
       "mfSolutionOriented": 0,
       "mfOther": 0,
       "aifs": 0,
-      "total": -40936
+      "total": -40937
     },
     {
       "period": "2023-24",
