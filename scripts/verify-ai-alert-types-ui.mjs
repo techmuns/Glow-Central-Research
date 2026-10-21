@@ -1,10 +1,12 @@
 // Local fixture, actual card renderer and service worker; no production writes or AI requests.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = resolve('public');
+const outputDir = resolve('.cache/ai-alert-holding-categories');
+mkdirSync(outputDir, { recursive: true });
 let legacy = true;
 const html = `<!doctype html><html><head><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"></head>
 <body><main id="root" style="padding:24px;max-width:1200px;margin:auto"></main><script type="module">
@@ -202,11 +204,11 @@ try {
     await close();
   }
   await page.setViewportSize({ width: 1280, height: 1000 });
-  await open(); await page.screenshot({ path: '/tmp/sattva-ai-alert-event-filters.png' });
+  await open(); await page.screenshot({ path: resolve(outputDir, 'event-filters.png') });
   await close(); await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
   await open();
   await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-ai-lead-link]')).color === 'rgb(241, 245, 249)');
-  await page.screenshot({ path: '/tmp/sattva-ai-alert-event-filters-dark.png' });
+  await page.screenshot({ path: resolve(outputDir, 'event-filters-dark.png') });
   assert.deepEqual(errors, []);
   console.log('PASS: warm-session upgrade, matching cards, OR filters, search, counts/infinite scrolling, saved choices, arrivals, routine recovery, archive, keyboard and 320–1280px layouts.');
 } finally { await browser.close(); await new Promise(done => server.close(done)); }
