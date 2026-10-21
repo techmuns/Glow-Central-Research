@@ -6,7 +6,7 @@ import { resolve, extname, sep } from 'node:path';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = resolve('public'), output = resolve('.cache/company-market');
 mkdirSync(output, { recursive: true });
-let legacy = true, updated = false, failed = false, missingDaily = false, fullCaptures = 0;
+let legacy = true, updated = false, failed = false, missingDaily = false, malformed = false, fullCaptures = 0;
 const stamp = '2026-10-21T10:00:00Z', isin = 'INE000000001';
 const html = `<!doctype html><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css">
 <body><main id="root" style="padding:20px;max-width:1200px;margin:auto"></main><script type="module">
@@ -39,7 +39,7 @@ const server = createServer((req, res) => {
   if (path === '/api/technicals/prices' || path === '/data/company-quotes.json') {
     if (failed) { res.writeHead(503).end('{}'); return; }
     json({ version: 1, generated_at: updated ? '2026-10-21T10:01:00Z' : stamp,
-      rows: [{ ticker: 'ALPHA', cmp: missingDaily ? null : updated ? 130 : 120, price_date: '2026-10-19' }] }); return;
+      rows: malformed ? 'invalid rows' : [{ ticker: 'ALPHA', cmp: missingDaily ? null : updated ? 130 : 120, price_date: '2026-10-19' }] }); return;
   }
   if (path === '/data/market-caps.json') {
     json({ version: 1, entries: [{ ticker: 'ALPHA', isin, exchanges: ['NSE'], cr: 900, checkedAt: stamp },
@@ -102,6 +102,9 @@ try {
   await page.evaluate(async () => { window.marketClock += 61_000; await window.market.load(); });
   assert.equal(await page.evaluate(() => window.market.read({ticker:'ALPHA'}).cmp), 130, 'outage does not erase a usable quote');
   assert.match(await row.textContent(), /latest daily price check unavailable/);
+  failed = false; malformed = true;
+  await page.evaluate(async () => { window.marketClock += 61_000; await window.market.load(); });
+  assert.equal(await page.evaluate(() => window.market.read({ticker:'ALPHA'}).cmp), 130, 'invalid successful JSON cannot erase the saved quote');
   assert.equal(fullCaptures, 0, 'company tables do not download full technicals to show CMP');
 
   // Exercise the real exporter boundary with an in-memory workbook sink, inspecting raw values.

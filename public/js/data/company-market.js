@@ -21,7 +21,7 @@ export async function load() {
         const response = await fetch('/api/technicals/prices', { cache: 'no-cache', signal: AbortSignal.timeout(15000) });
         if (!response.ok) throw Error('Price projection unavailable');
         const value = await response.json();
-        if (value.version !== 1 || !value.rows?.length || !Number.isFinite(Date.parse(value.generated_at))) throw Error('Invalid price projection');
+        if (value.version !== 1 || !Array.isArray(value.rows) || !value.rows.length || !Number.isFinite(Date.parse(value.generated_at))) throw Error('Invalid price projection');
         return value;
       } catch { return revalidatedJson('data/company-quotes.json', { fresh: true }); }
     };
@@ -35,12 +35,12 @@ export async function load() {
       if (values[i].status !== 'fulfilled') continue;
       const next = values[i].value;
       if (key === 'quotes') {
-        if (!next?.rows?.length || next.version !== 1 || !Number.isFinite(Date.parse(next.generated_at)) ||
+        if (!Array.isArray(next?.rows) || !next.rows.length || next.version !== 1 || !Number.isFinite(Date.parse(next.generated_at)) ||
           Date.parse(next.generated_at) < Date.parse(inputs.quotes?.generated_at)) { dailyFailed = true; continue; }
         const previous = new Map((inputs.quotes?.rows || []).map(row => [row.ticker, { ...row, retained: true }]));
         for (const row of next.rows) {
           const old = previous.get(row.ticker);
-          if (row.cmp > 0 && (!old?.price_date || row.price_date >= old.price_date)) previous.set(row.ticker, row);
+          if (Number.isFinite(row.cmp) && row.cmp > 0 && (!old?.price_date || row.price_date >= old.price_date)) previous.set(row.ticker, row);
           else if (!old) previous.set(row.ticker, row);
         }
         inputs.quotes = { ...next, rows: [...previous.values()] };

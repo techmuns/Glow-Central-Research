@@ -32,7 +32,7 @@ export function parseMarketCapScreen(html) {
     const link = /href="(\/company\/(id\/)?([A-Z0-9&._-]+)\/(?:consolidated\/)?)"/i.exec((cells[1] || '').replace(/&amp;/g, '&'));
     const cr = parseCrore(plain(cells[index]));
     if (!link || !cr) bad(`invalid company or market cap: ${plain(cells[1])} / ${plain(cells[index])}`);
-    const cmp = priceIndex >= 0 && /Rs\./i.test(headers[priceIndex][2]) ? parseCrore(plain(cells[priceIndex])) : null;
+    const cmp = priceIndex >= 0 && /\bRs\.\s*$/i.test(plain(headers[priceIndex][2])) ? parseCrore(plain(cells[priceIndex])) : null;
     rows.push({ key: `${link[2] ? 'ID:' : ''}${link[3].toUpperCase()}`, cr, cmp, sourceUrl: `https://www.screener.in${link[1]}` });
   }
   const { 1: total, 2: page, 3: pages } = info;

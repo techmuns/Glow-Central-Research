@@ -38,6 +38,7 @@ const screen = `<html><p>1 results found: Showing page 1 of 1</p><textarea name=
 <tr data-row-company-id="1"><td>1</td><td><a href="/company/ALPHA/">Alpha</a></td><td>1,234.50</td><td>9,000</td></tr></table></html>`;
 assert.equal(parseMarketCapScreen(screen).rows[0].cmp, 1234.5);
 assert.equal(parseMarketCapScreen(screen.replace('CMP Rs.', 'CMP USD')).rows[0].cmp, null, 'different currencies are not rupees');
+assert.equal(parseMarketCapScreen(screen.replace('CMP Rs.', 'CMP Rs.Cr.')).rows[0].cmp, null, 'price units must be rupees, not crore');
 const companyPage = `<html><div id="top"><a href="https://www.nseindia.com/get-quotes/equity?symbol=ALPHA">NSE</a>
 <li>Market Cap ₹ <span>9,000</span> Cr.</li><li>Current Price ₹ <span>1,234.50</span></li><div class="ink-600 font-size-11 font-weight-500">21 Oct - close price</div></div><div id="chart"></div></html>`;
 assert.equal(parseMarketCapCompany(companyPage, marketCaps.entries[0], stamp).cmp, 1234.5);
