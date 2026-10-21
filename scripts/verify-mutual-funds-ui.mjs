@@ -208,12 +208,13 @@ try{
  // Revocation can arrive from a failed private read without a host-token change.
  // Hold the real exporter at its final await, then verify the pending file is withheld.
  let privateDownloads=0;apiPage.on('download',()=>privateDownloads++);
- await apiPage.evaluate(async()=>{
+ await apiPage.evaluate(async book=>{
+   window.book=book;
    const coverage=await import('/js/data/coverage.js');coverage.prime({holdings:[window.book[0]]});
    const root=document.createElement('main');root.id='private-export-root';document.body.append(root);
    window.exportTab=await import('/js/tabs/mutual-fund-holdings.js');window.exportTab.render({root,scope:'portfolio'});
    window.privateExportRows=[];window.ExcelJS={Workbook:class{constructor(){this.xlsx={writeBuffer:()=>new Promise(resolve=>{window.finishPrivateExport=()=>resolve(new Uint8Array([1]));})};}addWorksheet(){return {columns:[],getRow:()=>({}),addRow:r=>window.privateExportRows.push(r)};}}};
- });
+ },apiBook);
  await apiPage.locator('[data-export]').click();await apiPage.waitForFunction(()=>!!window.finishPrivateExport);
  assert.equal(await apiPage.evaluate(()=>window.privateExportRows[0].shares),999999);
  privateFailureReason='identity-unavailable';await apiPage.evaluate(()=>window.feed.load('portfolio',{holdings:[window.book[0]]}));
