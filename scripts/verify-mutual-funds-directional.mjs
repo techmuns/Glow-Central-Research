@@ -12,6 +12,10 @@ for(const [name,category] of [
   ['HDFC Equity Savings Fund','hybrid'],['HDFC Hybrid Debt Fund','hybrid'],
   ['360 ONE Multi Asset Allocation Fund - investing in equity, debt and gold','hybrid'],
   ['Bank of India Conservative Hybrid Fund','hybrid'],['HDFC Balanced Advantage Fund','hybrid'],
+  ['Zerodha Nifty LargeMidcap250 Plus 8-13 yr G-Sec 70:30 Index Fund','hybrid'],
+  ['ZERODHA NIFTY LARGEMIDCAP250 PLUS G-SEC 70:30 INDEX FUND','hybrid'],
+  ['Franklin India Dividend Yield Fund (Formerly known as Templeton India Equity Income Fund) ^','equity'],
+  ['Retirement Income Generation Scheme','unclassified'],['Equity Market Neutral Fund','unclassified'],
   ['SBI Smallcap Fund','equity'],['HDFC Nifty 50 ETF','equity'],['Axis Nifty500 Quality 50 Index Fund','equity'],
   ['Growth Fund','unclassified'],['HDFC Gold ETF','unclassified'],['ALTIVA Hybrid Long-Short Fund','unclassified']
 ])assert.equal(schemeActivity({name}).category,category,name);
@@ -19,6 +23,7 @@ assert.equal(schemeActivity({name:'Equity Arbitrage Fund',classification:'Hybrid
 assert.equal(schemeActivity({name:'Nifty Equity Opportunity Fund',classification:'Debt : Credit Risk'}).eligible,false);
 assert.equal(schemeActivity({name:'Fixture Fund',category:'Equity : Sectoral'}).eligible,true);
 assert.equal(schemeActivity({name:'Fixture Fund',classification:'Hybrid : Conservative Hybrid'}).eligible,true);
+assert.equal(schemeActivity({name:'Fixture Equity Fund',classification:'SIF'}).eligible,false);
 const now=Date.parse('2026-10-21T12:00:00Z'),checkedAt='2026-10-20T08:00:00Z';
 const fund=(id,name,amc,before,after)=>({id,name,amc,months:{'2026-08':{shares:before,checkedAt},'2026-09':{shares:after,checkedAt}}});
 const raw={isin:'INE090A01021',name:'Fixture Bank',funds:[

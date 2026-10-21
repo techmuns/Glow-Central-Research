@@ -9,13 +9,19 @@ export function schemeActivity(fund) {
   const result=(category,basis)=>({eligible:category==='equity'||category==='hybrid',category,basis});
   // Exclusions take precedence over a broad Equity/Hybrid label and equity words.
   if(/\barbitrage\b/.test(all))return result('arbitrage','Scheme name/category');
-  if(/\blong short\b/.test(all))return result('unclassified','Outside verified equity/hybrid categories');
+  if(/\b(?:long short|market neutral)\b/.test(all))return result('unclassified','Outside verified equity/hybrid categories');
   if(labels.some(s=>/^(?:debt|fixed income|money market)(?:\b|\s*:)/.test(s)))return result('fixed-income','Source category');
   if(labels.some(s=>/^hybrid\b/.test(s)))return result('hybrid','Source category');
   if(labels.some(s=>/^equity\b/.test(s)))return result('equity','Source category');
-  if(labels.some(s=>/^(?:other|commodit|fund of funds|solution oriented|unclassified)/.test(s)))return result('unclassified','Source category needs verification');
+  if(labels.length)return result('unclassified','Source category needs verification');
   if(/\b(?:hybrid|balanced|equity savings|equity\s*(?:&|and)\s*debt|multi asset|dynamic asset allocation)\b/.test(name))return result('hybrid','Scheme name');
-  if(/\b(?:debt|fixed income|liquid|overnight|money market|duration|maturity|gilt|g\s*sec|gsec|sdl|bond|treasury|floater|credit risk|income|fmp|tmf)\b/.test(name))return result('fixed-income','Scheme name');
+  // This explicitly named equity/debt index is hybrid, not a pure G-Sec fund.
+  // NSE definition: https://niftyindices.com/Press_Release/ind_prs10022026.pdf
+  if(/\bnifty largemidcap250 plus (?:8\s*13 yr )?g\s*sec 70\s*:\s*30\b/.test(name))return result('hybrid','Named equity/debt hybrid index');
+  // "Income" alone proves no debt mandate: the former Templeton India Equity
+  // Income Fund is an equity dividend-yield scheme. Unclear income plans remain
+  // unclassified rather than being silently included as equity or hybrid.
+  if(/\b(?:debt|fixed income|liquid|overnight|money market|duration|maturity|gilt|g\s*sec|gsec|sdl|bond|treasury|floater|credit risk|fmp|tmf)\b/.test(name))return result('fixed-income','Scheme name');
   if(/\b(?:gold|silver|commodity|commodities|long short|fund of funds|fof)\b/.test(name))return result('unclassified','Outside verified equity/hybrid categories');
   // Only explicit equity/category/strategy words qualify a name-only disclosure.
   // Owning an equity ISIN, an AMC name or a generic "Growth Fund" proves no mandate.
