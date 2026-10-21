@@ -27,7 +27,7 @@ const netVolume=r=>netVolumeCr(r,market.read(r).cmp);
 const lead=r=>fundHouseLead(r,feed.meta().amcs||[]);
 function volumeCell(r) {
   const quote=market.read(r),value=netVolumeCr(r,quote.cmp);
-  const label=`Estimated value at CMP: net monthly shares × CMP ÷ 1,00,00,000. Not actual transaction proceeds; monthly changes can include corporate actions. ${quote.quoteLabel}`;
+  const label=`Estimated value at CMP (₹ crore): net monthly shares × CMP ÷ 1,00,00,000. Not actual transaction proceeds; monthly changes can include corporate actions. ${quote.quoteLabel}`;
   const amount=value===null?'—':`${value>0?'+':value<0?'−':''}${Math.abs(value)>0&&Math.abs(value)<0.01?'<0.01':Math.abs(value).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   return `<span class="${tone(value)} tabular-nums" title="${esc(label)}">${esc(amount)}</span>`;
 }
@@ -93,7 +93,7 @@ function paint(loading=busy) {
       sortControl.addEventListener('change',changeSort);coverageControl.addEventListener('click',showCoverage);
       return ()=>{releaseView();sortControl.removeEventListener('change',changeSort);coverageControl.removeEventListener('click',showCoverage);};
     }},
-    initialView:view?{...view,sort:null}:null,countLabel:list=>`${list.length} companies`,searchable:r=>`${r.name} ${r.ticker||''} ${lead(r)} ${comparisonStatus(r).label} ${comparisonStatus(r).insight||''}`,onRowClick:r=>openCompany(r),exportName:'glow-mf-company-holdings',onExport:exportHoldings,
+    initialView:view?{...view,sort:null}:null,countLabel:list=>`${list.length} companies`,searchable:r=>`${r.name} ${r.ticker||''} ${lead(r)} ${comparisonStatus(r).label} ${comparisonStatus(r).insight||''}`,onRowClick:r=>openCompany(r),onExport:exportHoldings,
     columns:[
       {label:'Month',sortValue:r=>r.month||'',html:true,get:r=>esc(monthLabel(comparisonStatus(r).reported?r.month:null))},
       {label:'MF shares held',align:'right',sortValue:r=>r.totalShares??-1,html:true,get:r=>num(r.totalShares)},
