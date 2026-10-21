@@ -1,5 +1,5 @@
 // Public market observations only. Never infer an exchange identity from a company name.
-import { buildCompanyProfiles } from './company-profile.js';
+import { buildCompanyProfiles, profileIsin } from './company-profile.js';
 import { marketTicker } from './market-identity.js';
 
 const upper = value => String(value || '').trim().toUpperCase();
@@ -30,7 +30,7 @@ export function companyMarketLookup({ quotes = null, marketCaps = null, tickerMa
   }
   const profiles = buildCompanyProfiles({ marketCaps, tickerMap });
   function identity(company = {}) {
-    const isin = upper(company.isin), bse = company.scripCode || company.bseCode || company.bseId;
+    const isin = profileIsin(company), bse = company.scripCode || company.bseCode || company.bseId;
     const ticker = upper(marketTicker(company) || company.symbol);
     const unresolved = () => ({ ...company, ticker: null, scripCode: null, bseCode: null, bseId: null });
     const owner = isin ? byIsin.get(isin) : bse ? owners.get(`BSE:${bse}`) : owners.get(ticker);
