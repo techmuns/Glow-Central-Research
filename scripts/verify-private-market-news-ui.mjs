@@ -31,13 +31,10 @@ try{
   await page.waitForFunction(()=>document.querySelector('[data-table-count]')?.textContent.includes('499')||document.querySelector('main')?.textContent.includes('499 of 500'));
   assert.equal(await page.locator('[data-watch-toggle]').count(),0);
   assert(await page.locator('tbody tr[data-row-key]').count()<100,'Shared table bounds mounted rows');
-  await page.getByRole('columnheader',{name:'Round size',exact:true}).first().waitFor();
   const headers=(await page.locator('thead th').allTextContents()).map(text=>text.replace(/[▴▾]/g,'').trim());
-  assert(!headers.includes('CMP'),'Private funding records do not imply a listed-equity price');
-  assert(!headers.includes('Market cap'),'A funding round does not imply a listed-company market cap');
-  const amountIndex=headers.indexOf('Round size');assert(amountIndex>=0,'The reported funding amount remains a separate source column');
-  const firstCompany=page.locator(`[data-row-key="${capture.deals[0].id}"]`);
-  assert.equal((await firstCompany.locator('td').nth(amountIndex).innerText()).trim(),capture.deals[0].amount,'Keep the original round amount and source footnote');
+  assert(!headers.includes('CMP')&&!headers.includes('Market cap'),'Private funding retains its funding fields without listed-equity market columns');
+  assert(headers.includes('Round size')&&headers.includes('Round type'),'Funding size and round remain visible');
+  assert.equal((await page.locator(`[data-row-key="${capture.deals[0].id}"] td`).nth(headers.indexOf('Round size')).innerText()).trim(),'$11.4 Mn *','Original funding amount and footnote marker remain intact');
   await page.getByText('Fixture Company 0',{exact:true}).click();assert((await page.locator('#drill-content').textContent()).includes('Mix of equity and debt'));
   await page.keyboard.press('Escape');
   const period=page.getByRole('combobox',{name:'Funding period',exact:true});await period.selectOption('all');

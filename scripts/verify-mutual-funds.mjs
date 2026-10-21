@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {buildOwnership} from './lib/mutual-funds-build.mjs';
 import {change,mergeCompany,projectCompany,coverageState,companyRevision} from '../worker/mutual-funds-model.mjs';
 import {handleMutualFunds} from '../worker/mutual-funds.mjs';
+import {netVolumeCr,fundHouseLead} from '../public/js/data/mutual-funds-insight.js';
 const now=Date.parse('2026-09-20T00:00:00Z'),isin='INE090A01021',other='INE040A01034';
 const h=(id,quantity,pct=100)=>({isin:id,name:id,quantity,pctToNav:pct,marketValueCr:25});
 const sc=(name,month,rows)=>({schemeName:name,asOf:`${month}-31`,holdings:rows});
@@ -9,6 +10,17 @@ const snapshot={amcSlug:'fixture',amc:'Fixture AMC',asOfMonth:'Aug-26',fetchedAt
 const built=buildOwnership([snapshot],{now});const company=built.companies.find(c=>c.isin===isin);
 let p=projectCompany({...company,denominator:{shares:1000,checkedAt:'2026-09-19T00:00:00Z',kind:'exchange'}},{now});
 assert.equal(p.totalShares,150);assert.equal(p.netChange,20);assert.equal(p.addedShares,50);assert.equal(p.reducedShares,30);assert.equal(p.pendingFunds,2);assert.equal(p.companyPct,15);assert.equal(p.funds.find(f=>f.name==='Exit Fund').action,'Exited');assert.equal(p.funds.find(f=>f.name==='Unreported Fund').change,null);assert.equal(p.funds.find(f=>f.name==='Missing Quantity').current.shares,null);
+assert.equal(p.topBuyer.amc,'Fixture AMC');assert.equal(p.topSeller.amc,'Fixture AMC');
+assert.equal(netVolumeCr({...p,netChange:250_000},400),10);
+assert.equal(netVolumeCr({...p,netChange:-75_000},800),-6);
+assert.equal(netVolumeCr({...p,netChange:0},400),0);
+for(const cmp of [null,undefined,NaN,Infinity,0,-1])assert.equal(netVolumeCr(p,cmp),null);
+for(const row of [{...p,netChange:null},{...p,comparableFunds:0},{...p,missing:true}])assert.equal(netVolumeCr(row,400),null);
+const movers={comparableFunds:2,topBuyer:{name:'HDFC Index Fund',amc:'HDFC Mutual Fund',change:50},topSeller:{name:'SBI Small Cap Fund',amc:'SBI Mutual Fund',change:-30}};
+assert.equal(fundHouseLead(movers),'Largest addition: HDFC · Largest reduction: SBI');
+assert.equal(fundHouseLead({...movers,topBuyer:{name:'HDFC Index Fund',change:50}},[{name:'HDFC Mutual Fund'}]),'Largest addition: HDFC · Largest reduction: SBI');
+assert.equal(fundHouseLead({...movers,topBuyer:{name:'Unknown House Growth Fund',change:50}}),'Largest addition: Unknown House Growth Fund · Largest reduction: SBI');
+assert.equal(fundHouseLead({...movers,comparableFunds:0}),'');
 assert.equal(change(100,0).action,'New');assert.equal(change(100,0).changePct,null);assert.equal(change(0,100).changePct,-100);assert.equal(change(1,1).action,'No material change');
 // Unknown or partial sheets cannot establish a zero. Non-adjacent periods cannot establish MoM.
 const partial=structuredClone(snapshot);partial.schemes[1].holdings[0].pctToNav=40;
