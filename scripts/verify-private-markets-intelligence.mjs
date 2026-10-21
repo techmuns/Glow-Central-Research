@@ -7,6 +7,11 @@ import {buildIntelligence,intelligenceEmails} from './lib/private-markets-intell
 import {PrivateMarketsJob} from './lib/private-markets-job.mjs';
 import {localNewsletter} from './lib/newsletter-local.mjs';
 import {newsletterWakePlan} from './lib/newsletter-wake-plan.mjs';
+import {glowFundRoster} from './lib/private-markets-sources.mjs';
+const managerSource=JSON.parse(fs.readFileSync('public/data/managers.json')),glowBook=JSON.parse(fs.readFileSync('public/data/book.json'));
+assert.equal(glowFundRoster(managerSource,glowBook).funds.length,managerSource.summary.byKind.aif.count);
+const partialManagers=structuredClone(managerSource);partialManagers.managers=partialManagers.managers.filter(m=>m.kind!=='aif');assert.throws(()=>glowFundRoster(partialManagers,glowBook),/Incomplete/);
+assert.throws(()=>glowFundRoster(managerSource,{...glowBook,builtFrom:'other'}),/mismatch/);
 assert.match(fs.readFileSync('.github/workflows/newsletter-refresh.yml','utf8'),/cron: '30 3 \* \* 1'/,'The primary weekly wake targets Monday 09:00 IST');
 fs.mkdirSync('.cache/private-markets-intelligence',{recursive:true});
 const root=fs.mkdtempSync(path.resolve('.cache/private-markets-intelligence/test-'));
