@@ -16,7 +16,7 @@ export async function collect(state, { request = fetch, now = () => new Date().t
   async function read(url, options = {}, redirects = 0) {
     if (!available()) { const error = Error('Source walk budget reached; progress retained'); error.code = 'source_budget'; throw error; }
     if (requests++) await sleep(gapMs);
-    const response = await request(url, { ...options, headers: { 'user-agent': 'SattvaResearchFunding/1.0 (+https://github.com/techmuns/Sattva-Central-Research)', ...options.headers }, signal: AbortSignal.timeout(20000), redirect: 'manual' });
+    const response = await request(url, { ...options, headers: { 'user-agent': 'GlowResearchFunding/1.0 (+https://github.com/techmuns/Glow-Central-Research)', ...options.headers }, signal: AbortSignal.timeout(20000), redirect: 'manual' });
     if ([301,302,303,307,308].includes(response.status)) {
       const location = response.headers.get('location'); await response.body?.cancel();
       const target = location && new URL(location, url);

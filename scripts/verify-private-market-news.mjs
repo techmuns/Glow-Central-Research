@@ -77,6 +77,9 @@ const fetcher=async(target,options={})=>{
   return Response.json({id:7,tag_name:'private-market-news-data',body:'Capture initialized'});
 };
 const transport=privateMarketRelease({env,fetcher,head:()=>env.GITHUB_SHA});const latest=await transport.latest();assert.deepEqual(await transport.download(latest),captured);
+const glowReader=privateMarketRelease({env:{...env,GITHUB_REPOSITORY:'techmuns/Glow-Central-Research'},fetcher,head:()=>env.GITHUB_SHA});
+assert.deepEqual(await glowReader.download(await glowReader.latest()),captured);
+await assert.rejects(glowReader.publish(captured),/main-branch/);assert.equal(mutations,0,'Glow reads the shared public capture without publication authority');
 corrupt=true;await assert.rejects(transport.download(latest),/integrity/);corrupt=false;
 missing=true;await assert.rejects(transport.latest(),/refusing reset/);missing=false;
 await assert.rejects(privateMarketRelease({env:{...env,GITHUB_REF:'refs/heads/codex/test'},fetcher,head:()=>env.GITHUB_SHA}).publish(captured),/main-branch/);assert.equal(mutations,0);

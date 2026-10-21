@@ -136,7 +136,7 @@ for (const id of ['portfolio', 'watchlist', 'mutual-funds']) {
 // the substitution table itself, this checker's own assertions, the documented Sattva bulk/block
 // fallback, and the deliberately foreign cache key in the review-gate fixture.
 const deliberatelyForeign = new Set(['adapt-glow-template.mjs', 'verify-glow-parity.mjs',
-  'sync-bulk-deals.mjs', 'verify-glow-isolation.mjs', 'verify-private-price-levels.mjs', 'verify-research-stream-ui.mjs']);
+  'sync-bulk-deals.mjs', 'verify-glow-isolation.mjs', 'verify-private-price-levels.mjs', 'verify-research-stream-ui.mjs', 'verify-private-market-news.mjs']);
 const scan = dir => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
@@ -146,7 +146,13 @@ const scan = dir => {
     assert(!/^(<<<<<<<|=======|>>>>>>>) /m.test(source), `merge marker in ${path}`);
     if (deliberatelyForeign.has(entry.name)) continue;
     assert(!source.includes('https://sattva-family.pages.dev'), `foreign portfolio URL in ${path}`);
-    assert(!source.includes('techmuns/Sattva-Central-Research'), `foreign collector repo in ${path}`);
+    const publicFundingReader = path === 'scripts/lib/private-market-release.mjs';
+    if (publicFundingReader) {
+      assert.equal(adaptGlowText(source, path), source, 'template sync preserves the shared public funding publisher');
+      assert(source.includes("REPO = 'techmuns/Sattva-Central-Research'"));
+      assert(source.includes("if (env.GITHUB_REPOSITORY !== REPO || env.GITHUB_ACTIONS !== 'true'"), 'Glow cannot publish into the shared funding release');
+      assert(!/FAMILY_HOLDINGS_TOKEN|private-records|family\.pages\.dev/.test(source), 'public release transport never reads private fund relationships');
+    } else assert(!source.includes('techmuns/Sattva-Central-Research'), `foreign collector repo in ${path}`);
     assert(!source.includes("'Sattva-Central-Research'"), `foreign deployment repository in ${path}`);
     // Explicit public market-data reader, like the bulk/block fallback above.
     // Keep every private host/repository/portfolio assertion active for these files.
