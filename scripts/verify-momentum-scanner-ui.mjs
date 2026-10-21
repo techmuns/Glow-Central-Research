@@ -236,10 +236,13 @@ try {
 
     const expectedCols = ['Stock', 'Price', 'Strong Momentum', 'Volume + Momentum', 'Volume vs 10D Avg', 'OI Δ%', 'RSI Daily', 'RSI Weekly', 'RSI Monthly', 'MACD', '20-DMA Status'];
     ok('ranked table carries every momentum column', expectedCols.every((c) => v.ths.some((th) => th === c || th.startsWith(c))), v.ths.join(' · '));
-    const oiCells = () => page.locator('#content-host [data-score-table]').evaluate(table => {
-      const index=[...table.tHead.rows[0].cells].findIndex(th=>th.textContent.includes('OI Δ%'));
-      return [...table.tBodies[0].rows].map(row=>({stock:row.textContent,text:row.cells[index]?.textContent.trim(),title:row.cells[index]?.querySelector('[title]')?.title}));
-    });
+    const oiCells = async () => {
+      await page.waitForFunction(()=>!document.querySelector('[data-rows-pending]'));
+      return page.locator('#content-host [data-score-table] table').evaluate(table => {
+        const index=[...table.tHead.rows[0].cells].findIndex(th=>th.textContent.includes('OI Δ%'));
+        return [...table.tBodies[0].rows].map(row=>({stock:row.textContent,text:row.cells[index]?.textContent.trim(),title:row.cells[index]?.querySelector('[title]')?.title}));
+      });
+    };
     const initialOi=await oiCells();
     ok('OI adds one compact column with signed positive and negative changes and an unavailable dash',
       initialOi.find(r=>r.stock.includes('MOMOA')).text==='+10.00%' && initialOi.find(r=>r.stock.includes('MOMOB')).text==='-10.00%' && initialOi.find(r=>r.stock.includes('MOMOC')).text==='—');
