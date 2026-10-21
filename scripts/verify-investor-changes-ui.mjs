@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
+const outputDir = resolve('.cache/company-market/investor-changes');
+mkdirSync(outputDir, { recursive: true });
 
 export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } = {}) {
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -98,9 +100,9 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   await page.setViewportSize({ width: 390, height: 844 });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'mobile page must not overflow');
   assert(await page.locator('[data-changes-period]').isVisible());
-  await page.screenshot({ path: '/tmp/glow-changes-mobile.png', fullPage: true });
+  await page.screenshot({ path: resolve(outputDir, 'glow-changes-mobile.png'), fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.screenshot({ path: '/tmp/glow-changes-desktop.png', fullPage: true });
+  await page.screenshot({ path: resolve(outputDir, 'glow-changes-desktop.png'), fullPage: true });
   await page.goto(`${base}/#/research/super-investors/institutions?scope=universe`);
   await page.waitForSelector('[data-filed-section-tabs]');
   await page.goto(`${base}/#/research/super-investors/superstar-investors?scope=universe`);
@@ -138,22 +140,26 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   await page.locator('[data-ws-tab=exchange]').click();
   await page.locator('[data-public-search]').fill('TIL LIMITED');
   const til = page.locator('[data-public-row]:visible');
+  const headers = (await page.locator('[data-public-disclosures] thead th').allTextContents()).map(text => text.trim());
+  const sharesIndex = headers.indexOf('Shares'), stakeIndex = headers.indexOf('Stake');
+  assert(sharesIndex >= 0 && stakeIndex >= 0);
+  assert(headers.includes('CMP') && headers.indexOf('Market cap') === headers.indexOf('CMP') + 1);
   assert.equal(await til.count(), tilEvidence.length, 'the complete view retains every dated TIL disclosure');
   for (const evidence of tilEvidence) {
     const row = til.filter({ hasText: evidence.asOf });
     assert.equal(await row.count(), 1);
     const number = value => typeof value === 'number' ? value.toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '—';
-    assert.equal(await row.locator('td').nth(2).innerText(), evidence.state === 'source-conflict' ? 'Conflicting reports' : number(evidence.shares));
-    assert.equal(await row.locator('td').nth(3).innerText(), evidence.state === 'source-conflict' ? 'Review evidence' : `${number(evidence.stakePct)}%`);
+    assert.equal(await row.locator('td').nth(sharesIndex).innerText(), evidence.state === 'source-conflict' ? 'Conflicting reports' : number(evidence.shares));
+    assert.equal(await row.locator('td').nth(stakeIndex).innerText(), evidence.state === 'source-conflict' ? 'Review evidence' : `${number(evidence.stakePct)}%`);
     const links = await row.locator('a').evaluateAll(nodes => nodes.map(node => node.href));
     for (const source of evidence.sources) assert(links.includes(source.url), 'each original source remains linked');
   }
   assert(await page.locator('[data-public-export]').isVisible());
   await page.setViewportSize({ width: 390, height: 844 });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'public holdings must stay within the mobile viewport');
-  await page.screenshot({ path: '/tmp/glow-public-holdings-mobile.png', fullPage: true });
+  await page.screenshot({ path: resolve(outputDir, 'glow-public-holdings-mobile.png'), fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.screenshot({ path: '/tmp/glow-public-holdings-desktop.png', fullPage: true });
+  await page.screenshot({ path: resolve(outputDir, 'glow-public-holdings-desktop.png'), fullPage: true });
   await page.locator('[data-ws-tab=moves]').click();
   const periods = await page.evaluate(async () => (await import('/js/data/super-investors.js')).movesFor('madhusudan-kela'));
   assert((await page.locator('#workspace-panel').innerText()).includes(`${periods.latest} minus ${periods.prior}`));
@@ -183,17 +189,17 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
   await page.locator('[data-public-export]').click();
   const evidenceFile = await download;
   assert.match(evidenceFile.suggestedFilename(), /exchange-holdings-3p-investment-managers.*\.xlsx$/);
-  await evidenceFile.saveAs('/tmp/glow-manager-exchange-evidence.xlsx');
-  await page.screenshot({ path: '/tmp/glow-manager-public-holdings.png', fullPage: true });
+  await evidenceFile.saveAs(resolve(outputDir, 'glow-manager-exchange-evidence.xlsx'));
+  await page.screenshot({ path: resolve(outputDir, 'glow-manager-public-holdings.png'), fullPage: true });
   await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 390, height: 844 });
   await openCoverage();
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'the open coverage audit must stay within the mobile page');
-  await page.screenshot({ path: '/tmp/glow-holdings-integrity-mobile.png', fullPage: true });
+  await page.screenshot({ path: resolve(outputDir, 'glow-holdings-integrity-mobile.png'), fullPage: true });
   await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await openCoverage();
-  await page.screenshot({ path: '/tmp/glow-holdings-integrity-desktop.png', fullPage: true });
+  await page.screenshot({ path: resolve(outputDir, 'glow-holdings-integrity-desktop.png'), fullPage: true });
   await page.keyboard.press('Escape');
   console.log('PASS Changes UI: default/order, independent audiences, eight periods, dated rows, coverage behind the provenance door, directory navigation, source details, preserved state, keyboard focus and mobile overflow');
 }
@@ -201,7 +207,7 @@ export async function verifyChangesUI(page, { base = 'http://127.0.0.1:8089' } =
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const root = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
   const { chromium } = await import(`${root}/index.mjs`);
-  const browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
+  const browser = await chromium.launch({ downloadsPath: outputDir, headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const errors = []; page.on('pageerror', (e) => errors.push(e.message));
