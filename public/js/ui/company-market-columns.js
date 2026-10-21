@@ -17,9 +17,18 @@ export function marketColumns(columns, option, exported = false) {
   const labelKey = exported ? 'header' : 'label';
   const cmp = columns.find(col => /^CMP\b/i.test(col[labelKey]) || option.cmpLabel && col[labelKey] === option.cmpLabel);
   const cap = columns.find(col => /^(?:Market\s*cap|MCap)(?:\b|\s*\()/i.test(col[labelKey]));
+  const marketCompany = row => {
+    const company = resolve(row);
+    if (!cap && cmp) {
+      const value = exported ? cmp.get(row) : cmp.sortValue?.(row);
+      return { ...company, marketQuote: { price: Number.isFinite(value) && value > 0 ? value : null, label: 'CMP displayed in this row' } };
+    }
+    return company;
+  };
+  const reading = row => market.read(marketCompany(row));
   const make = (field, label) => exported
-    ? { header: label, key: `company_market_${field}`, width: 20, get: row => row.__banner ? '' : market.read(resolve(row))[field] ?? '' }
-    : { label, marketField: field, html: true, align: 'right', get: row => marketCell(resolve(row), field), sortValue: row => market.read(resolve(row))[field] ?? -Infinity };
+    ? { header: label, key: `company_market_${field}`, width: 20, get: row => row.__banner ? '' : reading(row)[field] ?? '' }
+    : { label, marketField: field, html: true, align: 'right', get: row => marketCell(marketCompany(row), field), sortValue: row => reading(row)[field] ?? -Infinity };
   const priceColumn = cmp || make('cmp', exported ? 'CMP (₹)' : 'CMP');
   const capColumn = cap || make('mcapCr', exported ? 'Market cap (₹ Cr)' : 'Market cap');
   if (!exported && !cmp && cap) priceColumn.columnBefore = cap.label;
@@ -32,7 +41,7 @@ export function marketColumns(columns, option, exported = false) {
   if (!exported) return rest;
   return [...rest,
     ...(!cmp ? [{ header: 'CMP source / time', key: 'company_market_quote_source', width: 65, get: row => row.__banner ? '' : market.read(resolve(row)).quoteLabel }] : []),
-    ...(!cap ? [{ header: 'Market cap source / time', key: 'company_market_cap_source', width: 80, get: row => row.__banner ? '' : market.read(resolve(row)).mcapLabel }] : [])];
+    ...(!cap ? [{ header: 'Market cap source / time', key: 'company_market_cap_source', width: 80, get: row => row.__banner ? '' : reading(row).mcapLabel }] : [])];
 }
 
 export const marketHeads = '<th scope="col" class="p-3 text-right">CMP</th><th scope="col" class="p-3 text-right">Market cap</th>';

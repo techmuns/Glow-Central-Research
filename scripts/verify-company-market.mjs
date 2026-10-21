@@ -21,6 +21,8 @@ assert.equal(alpha.cmp, 120); assert.equal(alpha.mcapCr, 1200);
 assert.match(alpha.quoteLabel, /Daily close · 2026-10-19/);
 assert.match(alpha.mcapLabel, /shares outstanding × CMP/);
 assert.equal(lookup.read({ ticker: 'ALPHA', cmp: 110, price_date: '2026-10-16' }, priceInfo).mcapCr, 1100, 'existing screen CMP and its added cap share one price');
+assert.equal(lookup.read({ ticker: 'ALPHA', marketQuote: { price: 77, label: 'CMP shown' } }, priceInfo).mcapCr, 770, 'a source-specific CMP controls the added derived cap');
+assert.equal(lookup.read({ ticker: 'ALPHA', marketQuote: { price: null, label: 'CMP unavailable' } }, priceInfo).mcapCr, 900, 'a missing displayed price uses the dated source cap, not a hidden price');
 assert.equal(lookup.read({ ticker: 'ALPHA', isin, mcapCr: 900, mcapAsOf: '2026-10-16' }, priceInfo).mcapCr, 900, 'captured range filters and displayed cap agree');
 assert.equal(lookup.read({ ticker: 'ALPHA', isin: 'INE999999999' }, priceInfo).cmp, null, 'conflicting ISIN cannot borrow a ticker price');
 assert.equal(lookup.read({ name: 'Alpha' }, priceInfo).cmp, null, 'names never imply exchange identity');

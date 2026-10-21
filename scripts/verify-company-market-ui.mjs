@@ -19,8 +19,9 @@ window.market=market;window.live=live;window.marketClock=Date.parse('${stamp}');
 const rows=[{ticker:'ALPHA',isin:'${isin}',name:'Alpha',mcapCr:900},{scripCode:'500002',name:'BSE only'}, {name:'Unlisted issuer'}];
 window.mount=(mode='cap')=>{
  window.dispose?.();
- const columns=mode==='cmp'?[{label:'CMP',get:()=>77}]:mode==='both'?[{label:'CMP',get:()=>77},{label:'Market cap',get:()=>88}]:mode==='price'?[{label:'Trade price',get:()=>15}]:[{label:'Subject',get:()=> 'Result filed'},{label:'Market cap',get:r=>r.mcapCr||'—',sortable:false,align:'right'}];
- window.table=scoreTable({rows,companyMarket:true,name:r=>r.name,key:r=>r.ticker||r.scripCode||r.name,
+ const tableRows=mode==='cmp'?rows.map(row=>({...row,mcapCr:null})):rows;
+ const columns=mode==='cmp'?[{label:'CMP',get:()=>77,sortValue:()=>77}]:mode==='both'?[{label:'CMP',get:()=>77},{label:'Market cap',get:()=>88}]:mode==='price'?[{label:'Trade price',get:()=>15}]:[{label:'Subject',get:()=> 'Result filed'},{label:'Market cap',get:r=>r.mcapCr||'—',sortable:false,align:'right'}];
+ window.table=scoreTable({rows:tableRows,companyMarket:true,name:r=>r.name,key:r=>r.ticker||r.scripCode||r.name,
   watchKey:()=>null,showRank:false,showWatchFilter:false,showAvatar:false,columnLayoutKey:'company-market-fixture',
   columns,stickyHead:'400px',onExport:visible=>exportRows({companyMarket:true,rows:visible,columns:[{header:'Company',key:'name',get:r=>r.name},{header:'Market cap (₹ Cr)',key:'mcap',get:r=>r.mcapCr??''}]})});
  document.querySelector('#root').innerHTML=window.table.html;window.dispose=window.table.wire(document.querySelector('#root'));
@@ -131,6 +132,7 @@ try {
     assert.equal(await page.locator('thead th').filter({hasText:/^Market cap$/}).count(), 1);
     if (mode === 'price') assert.equal(await page.locator('thead th').filter({hasText:/Trade price/}).count(), 1);
     if (mode !== 'price') assert.match(await page.locator('[data-row-key="ALPHA"]').textContent(), /77/);
+    if (mode === 'cmp') assert.match(await page.locator('[data-row-key="ALPHA"]').textContent(), /770/, 'added cap uses the existing displayed CMP');
   }
   await page.evaluate(() => window.mount());
   await page.screenshot({ path: resolve(output, 'company-market-light.png'), fullPage: true });

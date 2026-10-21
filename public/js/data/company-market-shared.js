@@ -49,10 +49,12 @@ export function companyMarketLookup({ quotes = null, marketCaps = null, tickerMa
       // Screens already own a completed-session row. Their added cap must use the same CMP
       // their existing renderer shows, even while another daily revision is arriving.
       const ownDaily = Object.hasOwn(company, 'cmp') ? { ...company, ticker, price_date: company.price_date || company.bar_date || null } : null;
-      let quote = ticker ? priceInfo(ownDaily || daily.get(ticker) || { ticker, cmp: null, price_date: null }) : null;
-      if (quote && !quote.at && daily.get(ticker)?.retained) quote = { ...quote, label: `Retained · ${quote.label} · latest daily price unavailable` };
+      const override = company.marketQuote;
+      let quote = ticker ? override ? { price: positive(override.price), label: override.label, at: null }
+        : priceInfo(ownDaily || daily.get(ticker) || { ticker, cmp: null, price_date: null }) : null;
+      if (!override && quote && !quote.at && daily.get(ticker)?.retained) quote = { ...quote, label: `Retained · ${quote.label} · latest daily price unavailable` };
       const captured = byIsin.get(upper(resolved.isin));
-      if (!(quote?.price > 0) && positive(captured?.cmp)) quote = { price: captured.cmp,
+      if (!override && !(quote?.price > 0) && positive(captured?.cmp)) quote = { price: captured.cmp,
         label: `Screener saved price · ${captured.cmpPriceDateLabel || 'price date not supplied'} · checked ${captured.cmpCheckedAt || 'time not supplied'}${captured.error ? ' · latest source check failed' : ''}` };
       const cmp = positive(quote?.price);
       const profile = profiles.profileOf(resolved);
