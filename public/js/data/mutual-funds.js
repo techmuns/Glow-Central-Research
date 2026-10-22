@@ -75,7 +75,7 @@ async function restorePublic(key,ids) {
   if(!Array.isArray(value?.rows))return;
   const wanted=ids&&new Set(ids),payload=wanted?{...value,rows:value.rows.filter(row=>wanted.has(row.isin))}:value;
   adopt(payload,{fallback:true});snapshots.set(key,payload);
-  latestMeta={...(!latestMeta.checkedAt?{...payload.meta,origin:'store'}:latestMeta),viewIncomplete:false};
+  latestMeta={...(!latestMeta.checkedAt?{...payload.meta,origin:'store'}:latestMeta),viewIncomplete:!!latestMeta.readFailed};
   notify();
 }
 function loadPublic(scope='portfolio', {holdings=coverage.holdings(),refresh=true}={}) {

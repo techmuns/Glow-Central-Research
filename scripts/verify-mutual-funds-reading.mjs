@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {comparisonStatus} from '../public/js/data/mutual-funds-status.js';
 globalThis.location=new URL('https://mf-reading.test');
-// Reproduce a storage open which never answers until the existing fallback deadline.
-globalThis.indexedDB={open:()=>({})};
+// Hold a real store-open completion behind the first network read.
+let storageRequest;
+globalThis.indexedDB={open:()=>storageRequest={}};
 const feed=await import('../public/js/data/mutual-funds.js');
 const rows=Array.from({length:251},(_,i)=>({activityBasis:'equity-hybrid-ex-arbitrage-v1',isin:'INE'+String(i).padStart(9,'0'),name:`Fixture ${i}`,month:'2026-09',totalShares:i,netChange:1,comparableFunds:1,addedFunds:1,reducedFunds:0}));
 const stamp='2026-10-22T07:00:00Z';
@@ -29,6 +30,16 @@ assert.equal(feed.all().length,250);assert.equal(finished,false);assert.equal(fe
 assert.equal(feed.meta().checkedAt,stamp,'Reading source data cannot advance its source clock');
 releaseTail();await work;
 assert.equal(feed.all().length,250,'A later failed page keeps the verified first page');assert.equal(feed.meta().readFailed,true);assert.equal(feed.meta().viewIncomplete,true,'A first-page subset cannot become a complete export');
+const restored=new Promise(resolve=>{const off=feed.onUpdate(()=>{if(feed.all().length===251){off();resolve();}});});
+const older={value:{rows:rows.map(row=>({...row,totalShares:-5})),meta:{checkedAt:'2026-10-21T07:00:00Z',publicSnapshotId:'0'.repeat(64)}}};
+storageRequest.result={transaction(){
+  const transaction={objectStore:()=>({get(key){const request={result:key==='mf-snapshot:universe'?older:null};queueMicrotask(()=>request.onsuccess?.());return request;},put:(_value,key)=>({result:key})})};
+  setTimeout(()=>transaction.oncomplete?.(),0);return transaction;
+}};
+storageRequest.onsuccess();await restored;
+assert.equal(feed.all()[0].totalShares,0,'A late older cache cannot overwrite a newly verified page');
+assert.equal(feed.meta().checkedAt,stamp,'Restoration cannot replace the verified source clock');
+assert.equal(feed.meta().viewIncomplete,true,'A late full cache cannot certify mixed-generation pages after a failed read');
 failTail=false;let before=reads;
 await Promise.all([feed.load('universe',{holdings:[]}),feed.load('universe',{holdings:[]})]);
 assert.equal(reads-before,2,'Concurrent callers share one complete walk');assert.equal(feed.all().length,251);assert.equal(feed.meta().viewIncomplete,false);
