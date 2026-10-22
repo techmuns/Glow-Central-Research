@@ -2,7 +2,7 @@
  "_provenance": "NSE four-level industry classification as printed by Screener: the NSE-500 export for index members, each company's public page for the rest. Read by scripts/build-sector-kpis.mjs; see docs/DATA-CONTRACTS.md → Sector KPIs.",
  "source": "Screener (NSE industry classification)",
  "generator": "scripts/classify-companies.mjs",
- "capturedAt": "2026-10-15T06:22:09.917Z",
+ "capturedAt": "2026-10-22T06:48:13.331Z",
  "scope": "book",
  "counts": {
   "companies": 629,
