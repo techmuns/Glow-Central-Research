@@ -80,7 +80,8 @@ export async function githubMutualFunds(request,env,{privateRead=false,fetcher=f
   const ids=url.searchParams.has('isins')?url.searchParams.get('isins').split(',').filter(Boolean):null;
   if(ids&&(ids.length>250||ids.some(id=>!validIsin(id))))throw Error('Invalid company scope');
   const index=await mfSnapshotFile(snapshot,privateRead?snapshot.manifest.privateIndex:snapshot.manifest.publicIndex,env,{privateRead,fetcher});
-  const meta={...index.meta,health:coverageState(index.meta),runtime:'github-actions',...(prepared?{delivery:'static-assets'}:{})};
+  const meta={...index.meta,health:coverageState(index.meta),runtime:'github-actions',...(prepared?{delivery:'static-assets'}:{}),
+    ...(!privateRead?{publicSnapshotId:snapshot.manifest.files[snapshot.manifest.publicIndex]}:{})};
   if(company) {
     const isin=url.searchParams.get('isin'),month=url.searchParams.get('month');
     if(!validIsin(isin)||month&&!/^20\d\d-(0[1-9]|1[0-2])$/.test(month))throw Error('Invalid detail scope');

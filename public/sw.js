@@ -291,5 +291,10 @@ function tableLayoutCacheKey() {
 
 // Keep the IPO revision independent of other dashboard release markers.
 function ipoFilingCacheKey() {
-  return `${newsCardCacheKey()}-single-ipo-filing-link-v6-insider-ist-v1-ipo-filter-toolbar-v2`;
+  return `${mutualFundReadCacheKey()}-single-ipo-filing-link-v6-insider-ist-v1-ipo-filter-toolbar-v2`;
+}
+
+// Compose fast holdings reads with independently shipped News presentation changes.
+function mutualFundReadCacheKey() {
+  return `${newsCardCacheKey()}-mf-fast-cached-read-v1`;
 }

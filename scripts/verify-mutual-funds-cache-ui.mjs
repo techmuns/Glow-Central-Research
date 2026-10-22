@@ -1,6 +1,7 @@
 // Real browser persistence and controlled network gates: cached/precomputed
 // summaries must paint before revalidation or private supplementation finishes.
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {resolve,extname,sep} from 'node:path';
 import {comparisonStatus} from '../public/js/data/mutual-funds-status.js';
@@ -32,7 +33,7 @@ try {
    requests.push(u.href);const value=structuredClone(typeof publicValue==='function'?publicValue(u):publicValue),block=publicGate,fail=failPublic;
    if(block)await block.promise;
    if(fail)return route.abort('failed');
-   return route.fulfill({contentType:'application/json',headers:{etag:JSON.stringify(JSON.stringify(value).length+':'+value.rows[0]?.totalShares),'cache-control':'no-cache'},body:JSON.stringify(value)});
+   return route.fulfill({contentType:'application/json',headers:{etag:createHash('sha256').update(JSON.stringify(value)).digest('hex'),'cache-control':'no-cache'},body:JSON.stringify(value)});
   }
   if(u.pathname==='/api/mutual-funds/private') {
    const block=privateGate,value=structuredClone(privateValue);if(block)await block.promise;
@@ -87,6 +88,18 @@ try {
  assert.deepEqual(scoped.rows,many);assert.equal(requests.length-batchStart,2);
  const universe=await page.evaluate(()=>feed.load('universe'));
  assert.deepEqual(universe.rows,many);
+ // The identity covers the whole index: unchanged data needs only one probe,
+ // while a correction beyond page one still fetches and displays its last row.
+ const a='a'.repeat(64),b='b'.repeat(64);let version=a,tail=251;
+ publicValue=u=>{const source=many.map((row,i)=>i===250?{...row,totalShares:tail}:row),ids=u.searchParams.get('isins')?.split(',');return {rows:ids?source.filter(row=>ids.includes(row.isin)):u.searchParams.get('cursor')?source.slice(250):source.slice(0,250),meta:{...meta,publicSnapshotId:version},nextCursor:ids||u.searchParams.get('cursor')?null:many[249].isin};};
+ await page.evaluate(()=>feed.load('universe'));
+ let probeStart=requests.length;await page.evaluate(()=>feed.load('universe'));assert.equal(requests.length-probeStart,1);
+ version=b;tail=999;probeStart=requests.length;await page.evaluate(()=>feed.load('universe'));
+ assert.equal(requests.length-probeStart,2);assert.equal(await page.evaluate(id=>feed.all().find(row=>row.isin===id).totalShares,many.at(-1).isin),999);
+ publicGate=gate();await open();await page.evaluate(holding=>{window.work=feed.load('portfolio',{holdings:[holding]});},many.at(-1));
+ await page.waitForFunction(id=>feed.scopedRows('portfolio',[{isin:id}])[0]?.totalShares===999,many.at(-1).isin);
+ assert.equal(await page.evaluate(()=>feed.meta().publicRevalidating),true,'A saved full Universe paints in a newly selected scope while its response is withheld');
+ publicGate.release();publicGate=null;await page.evaluate(()=>work);
  assert.deepEqual(errors,[]);
  console.log('PASS MF cache-first reload, unchanged source dates, shared requests, new/corrected rows, failure retention, staged private reads, account isolation and full scope/pagination');
 } finally {publicGate?.release();privateGate?.release();await browser.close();}
