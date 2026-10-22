@@ -133,7 +133,9 @@ function loadPublic(scope='portfolio', {holdings=coverage.holdings(),refresh=tru
       latestMeta={...payload.meta,readFailed,viewIncomplete:fallback,origin:readFailed?'store':fallback||local()?'snapshot':'live'};
       return {...payload,meta:latestMeta};
     }catch(error) {
-      latestMeta={...latestMeta,readFailed:true,viewIncomplete:!snapshots.has(key)};
+      // A failed walk may have adopted a newer first page over an older complete
+      // cache. Keep those readings, but never export that unverified mixture.
+      latestMeta={...latestMeta,readFailed:true,viewIncomplete:true};
       if(snapshots.has(key))return {...snapshots.get(key),meta:latestMeta};
       // Successfully read pages stay visible after a later failure. Do not
       // describe an incomplete first visit as a complete saved universe.

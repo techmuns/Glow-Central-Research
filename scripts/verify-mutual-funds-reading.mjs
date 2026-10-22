@@ -43,8 +43,9 @@ assert.equal(feed.scopedRows('portfolio',[rows.at(-1)])[0].totalShares,777,'Univ
 assert.equal(feed.meta().publicRevalidating,true);releaseAll();allGate=null;await scoped;
 snapshotId=null;lastValue=888;before=reads;await feed.load('universe',{holdings:[]});
 assert.equal(reads-before,2,'Older API versions without a whole-index digest keep full pagination');assert.equal(feed.all().at(-1).totalShares,888);
-repeatCursor=true;before=reads;await feed.load('universe',{holdings:[]});
+snapshotId='c'.repeat(64);repeatCursor=true;before=reads;await feed.load('universe',{holdings:[]});
 assert.equal(reads-before,2,'A repeated cursor stops instead of spinning indefinitely');assert.equal(feed.meta().readFailed,true);assert.equal(feed.all().length,251);
+assert.equal(feed.meta().viewIncomplete,true,'A failed refresh cannot certify a mixture of old and new pages for export');
 badScope=true;await feed.load('portfolio',{holdings:[rows[0]]});
 assert.equal(feed.meta().readFailed,true,'A scoped response cannot include an unrequested issuer');
 assert.equal(feed.all().some(row=>row.isin==='INE999999999'),false,'Rejected pages never enter the retained view');
