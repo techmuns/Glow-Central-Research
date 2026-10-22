@@ -94,7 +94,8 @@ export function renderBriefEmails(brief, options = {}, { maxBytes = EMAIL_HTML_B
     if (!rows.length) throw tooLarge();
   }
   flush();
-  if (pages.length > MAX_PARTS || !pages.length) throw tooLarge();
+  if (pages.length > MAX_PARTS) throw Object.assign(tooLarge(), { requiredParts: pages.length, maxParts: MAX_PARTS });
+  if (!pages.length) throw tooLarge();
   // Part labels stay in the body; one edition subject and transport reply headers form a thread.
   // The complete PDF remains available if a mail client clips the conversation.
   return pages.map((page, i) => {

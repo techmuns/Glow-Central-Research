@@ -11,6 +11,7 @@ import { DEFAULT_ROUTE } from '/js/core/router.js';
 import { meta as fundMeta } from '/js/tabs/mutual-funds.js';
 import { readableOwnership } from '/js/data/mutual-funds-ownership.js';
 import { coverageRows } from '/js/data/mutual-funds-coverage.js';
+import { sourceFreshness } from '/js/data/mutual-funds-freshness.js';
 import { comparisonStatus } from '/js/data/mutual-funds-status.js';
 import { netVolumeCr, fundHouseLead } from '/js/data/mutual-funds-insight.js';
 import { watchWorkerChanges } from '/js/core/app-updates.js';
@@ -21,6 +22,7 @@ const row=readableOwnership({companyPct:10,denominator:{shares:1000,checkedAt:'2
 document.querySelector('#reading').textContent=row.companyPct===null?'—':row.companyPct+'%';
 document.querySelector('#comparison').textContent=comparisonStatus({totalShares:null,comparableFunds:0,pendingFunds:0}).label;
 document.querySelector('#coverage').textContent=coverageRows({state:'complete',amcs:[{name:'Fixture',status:'ok',month:'2026-08',checkedAt:'2026-09-24T00:00:00Z'}]},Date.parse('2026-09-24T00:01:00Z'))[0].status;
+const freshness=document.createElement('output');freshness.id='freshness';freshness.textContent=sourceFreshness({state:'complete',checkedAt:'2026-09-01',amcs:[{status:'unavailable',month:'2026-08',checkedAt:'2026-09-01',lastAttemptAt:'2026-09-24T00:00:00Z'}]},Date.parse('2026-09-24T00:01:00Z')).state;document.body.append(freshness);
 const value=netVolumeCr({comparableFunds:1,netChange:250000},400), volume=document.createElement('output'), houses=document.createElement('strong');
 volume.id='net-volume';volume.textContent=value===null?'—':String(value);document.body.append(volume);
 houses.id='fund-houses';houses.textContent=fundHouseLead({comparableFunds:1,netChange:250000,fundHouses:[{id:'hdfc',name:'HDFC Mutual Fund',change:250000}]});document.body.append(houses);
@@ -55,6 +57,8 @@ const server = createServer((req, res) => {
       body = 'export const netVolumeCr=()=>null;export const fundHouseLead=()=>"";';
     if (pathname === '/js/data/mutual-funds-coverage.js' && !upgraded)
       body = 'export const coverageRows=()=>[{status:"ok"}];';
+    if (pathname === '/js/data/mutual-funds-freshness.js' && !upgraded)
+      body = 'export const sourceFreshness=()=>({state:"stale"});';
     const type = { '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' }[extname(file)];
     res.setHeader('content-type', type || 'application/octet-stream'); res.end(body);
   } catch { res.writeHead(404); res.end(); }
@@ -73,6 +77,7 @@ try {
   assert.equal(await page.locator('#reading').innerText(), '10%');
   assert.equal(await page.locator('#comparison').innerText(), 'Pending');
   assert.equal(await page.locator('#coverage').innerText(), 'ok');
+  assert.equal(await page.locator('#freshness').innerText(), 'stale');
   assert.equal(await page.locator('#net-volume').innerText(),'—');
   assert.equal(await page.locator('#activity').innerText(),'999999');
   assert.equal(await page.locator('#fund-houses').innerText(),'');
@@ -91,6 +96,7 @@ try {
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
   await page.waitForFunction(() => document.querySelector('#comparison')?.textContent === 'No disclosure' && document.querySelector('#reading')?.textContent === '—', { timeout: 30000 });
   assert.equal(await page.locator('#coverage').innerText(), 'Current');
+  assert.equal(await page.locator('#freshness').innerText(), 'partial','Returning readers distinguish attempted-but-failed sources from missed checks');
   assert.equal(await page.locator('#net-volume').innerText(),'10','The returning session receives the new valuation');
   assert.equal(await page.locator('#activity').innerText(),'null','Returning readers cannot retain unfiltered arbitrage activity');
   assert.equal(await page.locator('#fund-houses').innerText(),'Net buying: +2,50,000 shares · Buyers: HDFC');

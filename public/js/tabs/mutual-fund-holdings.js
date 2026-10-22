@@ -3,6 +3,7 @@ import {escapeHtml as esc} from '../core/dom.js';
 import {scoreTable,openModal,closeModal} from '../ui/screener.js';
 import * as feed from '../data/mutual-funds.js';
 import {coverageRows,coverageTime} from '../data/mutual-funds-coverage.js';
+import {sourceFreshness} from '../data/mutual-funds-freshness.js';
 import {comparisonStatus} from '../data/mutual-funds-status.js';
 import {fundHouseLead,activityNotes,netVolumeCr} from '../data/mutual-funds-insight.js';
 import {ACTIVITY_LABEL,schemeActivity} from '../data/mutual-funds-activity.js';
@@ -113,7 +114,9 @@ function paint(loading=busy) {
 function paintStatus() {
   if(!ctx)return;
   const m=feed.meta();
-  ctx.root.querySelector('[data-mf-coverage]').title=[m.revalidating?'Showing saved disclosures · Checking for updates':'',`${feed.health()} · Checked ${checked(m)}`,supplementStatus(m)].filter(Boolean).join(' · ');
+  const freshness=sourceFreshness(m);
+  ctx.root.querySelector('[data-mf-coverage]').title=[m.revalidating?'Showing saved disclosures · Checking for updates':'',feed.health(),
+    `All-source attempts through ${coverageTime(freshness.lastAttemptAt)}`,supplementStatus(m)].filter(Boolean).join(' · ');
   const sizeNode=ctx.root.querySelector('[data-mf-sizes]'),sizes=cachedPositionSizes();
   sizeNode.innerHTML=sort==='holdings'&&ctx.scope==='portfolio'&&!sizes?.sizes?.complete
     ? 'Portfolio sizes unavailable · Newest shown.' : '';

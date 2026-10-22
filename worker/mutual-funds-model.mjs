@@ -94,13 +94,6 @@ export function summaryOf(projected) {
   const { funds, ...summary } = projected;
   return summary;
 }
-export function coverageState(meta, now = Date.now()) {
-  const amcs = meta?.amcs || [], target = targetMonth(now);
-  const current = amcs.filter(a => a.month === target && a.status === 'ok');
-  const age=now-Date.parse(meta?.checkedAt);
-  const stale = !Number.isFinite(age) || age < -60000 || age > 45*60000;
-  return { state: !amcs.length ? 'unavailable' : stale ? 'stale' : current.length !== amcs.length || meta?.state !== 'complete' ? 'partial' : 'current',
-    targetMonth: target, currentAmcs: current.length, totalAmcs: amcs.length, checkedAt: meta?.checkedAt || null };
-}
+export {sourceFreshness as coverageState} from '../public/js/data/mutual-funds-freshness.js';
 
 export const companyRevision = company => contentTag(JSON.stringify({...company,denominatorVerifiedAt:company.denominator?.checkedAt||null},(key,value)=>["checkedAt","fetchedAt","revision"].includes(key)?undefined:value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value));
