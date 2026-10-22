@@ -66,6 +66,8 @@ normal month. The owner's requirements:
   truncated plan or silently omit current eligible records to meet that limit.
 - Recheck retained delivery plans against these rules before recovery. Retire historical
   or oversized plans without sending more parts; preserve prior outcomes and evidence.
+  Scheduled recovery also expires three hours after the original edition time, so a
+  failed current edition cannot be replayed as old email on a later day.
 
 ## Repository workflow
 

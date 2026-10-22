@@ -30,7 +30,8 @@ every eligible source identity and supplemental row. A pre-send invariant refuse
 plan. Delivery refuses the entire edition before provider I/O if it requires more than six emails;
 no eligible current report is silently cut to meet that limit. Frozen recovery plans containing
 late reports or more than six parts are retired without further sends, preserving receipts,
-accepted identities, PDF links and frozen bodies. Delivery summaries retain included source-item counts, cap omissions (must be zero),
+accepted identities, PDF links and frozen bodies. Non-test delivery recovery expires three
+hours after its original edition time; the original clock is never renewed by retries. Delivery summaries retain included source-item counts, cap omissions (must be zero),
 company archive reads and source coverage. Only accepted parts advance the scheduled sent-item
 ledger. A test copy never advances that ledger or sends to other subscribers.
 

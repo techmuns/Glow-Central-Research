@@ -35,7 +35,7 @@ assert.equal(newsletterDeliveryPolicy({partCount:7}),'email-part-limit');
 assert.equal(newsletterDeliveryPolicy({partCount:86}),'email-part-limit');
 assert.equal(newsletterDeliveryPolicy({partCount:2,lateCount:1}),'historical-backlog-stopped');
 
-for(const [count,late,expected]of [[86,2584,'historical-backlog-stopped'],[7,0,'email-part-limit'],[2,1,'historical-backlog-stopped'],[2,0,null]]){
+for(const [count,late,expected,age=0,oldPublished=false]of [[86,2584,'historical-backlog-stopped'],[7,0,'email-part-limit'],[2,1,'historical-backlog-stopped'],[2,0,'historical-backlog-stopped',0,true],[2,0,'edition-expired',4*3600000],[2,0,null]]){
   let mail=0,published=0;
   const local=localNewsletter(':memory:',{env,now:()=>now,fetcher:async()=>{mail++;return Response.json({success:true,data:{messageId:'<fixture@fixture.test>'}});}});
   try{
@@ -43,10 +43,10 @@ for(const [count,late,expected]of [[86,2584,'historical-backlog-stopped'],[7,0,'
     local.store.apply([{op:'subscribe',email,by:'Fixture',editions:['morning']}]);
     local.store.beginDelivery({key,edition:'morning',day,scheduledAt:now,source:'timer',recipients:1});
     const documentId=local.store.saveDocument(new TextEncoder().encode('%PDF fixture evidence'),'fixture.pdf',key);
-    const queue=new NewsletterDeliveryQueue(local,{publish:async()=>{published++;},now:()=>now,context:async(_plan,work)=>work()});
+    const queue=new NewsletterDeliveryQueue(local,{publish:async()=>{published++;},now:()=>now+age,context:async(_plan,work)=>work()});
     const parts=Array.from({length:count},(_,i)=>({part:i+1,total:count,bytes:4,subject:'Fixture edition',requestedMessageId:`<fixture-${i}@fixture.test>`,ok:i===0,status:i===0?201:null,reason:i===0?null:'not-attempted',attempts:i===0?1:0}));
     const plan={key,edition:'morning',source:'timer',documentId,createdAt:now,nextAt:now,windowFrom:window.from,summary:{late},subject:'Fixture edition',
-      messages:parts.map((_,i)=>({keys:[`fixture:${i}`]})),reported:parts.map((_,i)=>({key:`fixture:${i}`,publishedAt:window.from+i})),
+      messages:parts.map((_,i)=>({keys:[`fixture:${i}`]})),reported:parts.map((_,i)=>({key:`fixture:${i}`,publishedAt:window.from+i-(oldPublished?86400000:0)})),
       recipients:[{email,ok:false,reason:'partial-send',threadMessageId:'<fixture-0@fixture.test>',parts}]};
     local.db.prepare('INSERT INTO newsletter_delivery_queue(key,edition,source,next_at,payload) VALUES(?,?,?,?,?)').run(key,'morning','timer',now,gzipSync(JSON.stringify(plan)));
     for(const part of parts)local.db.prepare('INSERT INTO newsletter_delivery_bodies VALUES(?,?,?,?)').run(key,email,part.part,'body');
@@ -57,6 +57,7 @@ for(const [count,late,expected]of [[86,2584,'historical-backlog-stopped'],[7,0,'
     assert(published>0,'Cancellation is retained before returning');
     assert.equal(local.store.delivery(key).outcomes[0].parts[0].ok,true,'Prior acceptance is preserved');
     assert(local.store.document(documentId),'Existing PDF links survive');
+    assert.notEqual(local.db.prepare('SELECT delivery_state FROM newsletter_documents WHERE id=?').get(documentId).delivery_state,'pending','A stopped PDF cannot block later sends as an unfinished publication');
     if(expected)assert.equal(local.db.prepare('SELECT COUNT(*) n FROM newsletter_delivery_bodies').get().n,count,'Stopped frozen bodies remain incident evidence');
     const restarted=new NewsletterDeliveryQueue(local,{publish:async()=>{},now:()=>now,context:async(_plan,work)=>work()});
     assert.deepEqual(await restarted.recover(),[],'A stopped edition cannot replay after recovery restarts');
