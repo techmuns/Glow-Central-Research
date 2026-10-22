@@ -2,7 +2,7 @@ import {gzipSync,gunzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
 import {sendEmail} from '../../worker/newsletter-schedule.mjs';
 import {renderBriefHtml,briefStats} from '../../worker/newsletter-brief.mjs';
-import {acceptedStoryKeys,emailBytes,EMAIL_HTML_BYTES} from '../../worker/newsletter-email.mjs';
+import {acceptedStoryKeys,emailBytes,EMAIL_HTML_BYTES,newsletterDeliveryPolicy} from '../../worker/newsletter-email.mjs';
 import {normaliseEmail} from '../../public/js/data/newsletter-shared.js';
 
 function requestedTest(plan){
@@ -96,6 +96,24 @@ export class NewsletterDeliveryQueue {
 
   async run(plan,credential=plan.credential||this.local.schedule.env.MUNS_TOKEN) {
     return this.context(plan,async()=>{
+      // Check frozen plans as well as new builds: upgrading must not resume the old
+      // 86-part backlog. Preserve accepted outcomes, PDF links and incident bodies.
+      const policyReason = newsletterDeliveryPolicy({
+        partCount: Math.max(plan.messages.length, ...plan.recipients.map(r => r.parts.length)),
+        lateCount: plan.summary?.late || 0,
+      });
+      if (policyReason) {
+        for (const recipient of plan.recipients) {
+          if (recipient.ok) continue;
+          recipient.cancelled = true;
+          recipient.reason = policyReason;
+          for (const part of recipient.parts) if (!part.ok && !part.attempts) part.reason = policyReason;
+        }
+        const result = this.progress(plan, { finished: true, terminalReason: policyReason });
+        this.local.db.prepare('UPDATE newsletter_delivery_queue SET payload=NULL,receipt=? WHERE key=?').run(JSON.stringify(result),plan.key);
+        await this.publish();
+        return result;
+      }
       const request=requestedTest(plan),expired=()=>!!request&&this.now()>=request.expiresAt;
       if(request){
         const claim=this.local.db.prepare('SELECT state,result FROM newsletter_requests WHERE id=?').get(request.id);

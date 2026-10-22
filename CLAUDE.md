@@ -1577,20 +1577,19 @@ rules, and every one of them is a rule this file already runs on:
 7. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
    origin is told it has no newsletter, never shown an error.
 
-**AND NOTHING FALLS BETWEEN TWO BRIEFS.** The window alone could not promise that: every portfolio
-source is a capture with a lag and NSE's live RSS is a few minutes deep, so a filing published at
-15:50 and captured at 17:15 was in neither the 16:00 brief nor the next morning's; BSE's
-three-calendar-day head had pruned Friday's post-close filings by Monday 08:00; a `missed` edition
-lost its whole window. Six things close it, and each is a rule this file already runs on:
+**Daily-email policy, corrected 22 October 2026:** only reports published inside the printed
+edition window may be emailed. Never include historical backlog, late-captured old reports or
+missed editions as catch-up. Preserve all source history on the dashboard. Refuse delivery before
+any send above six parts, without truncating eligible current records. Recheck frozen recovery
+plans: retire historical or oversized editions without further sends, preserving evidence.
+This supersedes the earlier email catch-up rules below; retained source readers still cover archives.
 
 1. **The store keeps a ledger of what the desk has been sent** (`newsletter_reported`), keyed by
    each item's own identity — the exchange's `newsId`, NSE's `filingKey`, the trade's
    `insiderTradeIdentity`, `move:<ticker>|<session>` — never by a count or a capture clock. Only a
    send that REACHED somebody writes it; a test copy or a preview never does.
-2. **Each brief reads back over the two windows before its own** (`lateArrivalsFrom`) and carries
-   what the ledger does not hold, marked *not in the previous brief* with its own publication time.
-   An empty ledger is *unknown*, not *nothing was sent*, and the lookback never reaches before
-   `reportedSince` — the same "a failed read is never an empty result" rule, applied to a ledger.
+2. **The printed edition window is the email boundary.** The reported ledger cannot widen it.
+   A newly captured old record stays in history, regardless of whether an earlier email carried it.
 3. **NSE's retained day files are read, not only the RSS** — `public/data/nse-filings/<day>.json`,
    the days the index lists and no other, resolved against the book by name.
 4. **Trades and price moves are stories too**: bulk, block, SAST and insider rows from the insider
