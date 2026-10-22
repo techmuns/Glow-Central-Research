@@ -1,0 +1,63 @@
+name: Mutual Fund capture recovery
+
+# GitHub drops/delays cron runs. Independent completions provide catch-up
+# opportunities; no browser, Cloudflare timer or paid scheduler is required.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/mutual-funds-recovery.yml'
+      - 'scripts/recover-mutual-funds.mjs'
+  schedule:
+    - cron: '1,16,31,46 * * * *'
+  workflow_run:
+    workflows:
+      - Deploy
+      - Corporate announcements refresh
+      - TradingView portfolio news
+      - Mutual Fund disclosure capture
+      - Private MF Scanner capture
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: mutual-funds-capture-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Never execute a triggering branch, SHA or artifact with credentials.
+          ref: main
+          persist-credentials: false
+          sparse-checkout: |
+            scripts
+            worker
+            public/js
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Recover missed source and holdings checks
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # Existing repository automation credential; never sent outside GitHub.
+          AMFI_ACTIONS_TOKEN: ${{ secrets.SYNC_PUSH_TOKEN }}
+          MF_RECOVERY_REPORT: ${{ runner.temp }}/mutual-funds-recovery.json
+        run: node scripts/recover-mutual-funds.mjs --apply
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: mutual-funds-recovery
+          path: ${{ runner.temp }}/mutual-funds-recovery.json
+          if-no-files-found: warn
+          retention-days: 30

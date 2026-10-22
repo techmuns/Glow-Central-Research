@@ -194,7 +194,8 @@ try{
  await apiPage.evaluate(()=>window.feed.detail(window.book[0].isin));
  fail=true;assert.equal(await apiPage.evaluate(async()=>(await window.feed.detail(window.book[0].isin)).company.totalShares),2,'A failed detail refresh retains the latest capture, not the seed');
  await apiPage.evaluate(()=>window.feed.load('portfolio',{holdings:window.book}));assert.equal(await apiPage.evaluate(()=>window.feed.all()[0].totalShares),2);assert(await apiPage.evaluate(()=>window.feed.meta().readFailed));
- assert.match(await apiPage.evaluate(()=>window.feed.health({state:'complete',checkedAt:'2026-10-01T00:00:00Z',targetMonth:'2026-08',amcs:[{month:'2026-08',status:'ok'}]},Date.parse('2026-10-01T00:01:00Z'))),/Partial/);
+ assert.match(await apiPage.evaluate(()=>window.feed.health({state:'complete',checkedAt:'2026-10-01T00:00:00Z',targetMonth:'2026-08',amcs:[{month:'2026-08',status:'ok',checkedAt:'2026-10-01T00:00:00Z'}]},Date.parse('2026-10-01T00:01:00Z'))),/Partial/);
+ assert.match(await apiPage.evaluate(()=>window.feed.health({state:'complete',checkedAt:'2026-09-20T00:00:00Z',amcs:[{month:'2026-09',status:'unavailable',checkedAt:'2026-09-20T00:00:00Z',lastAttemptAt:'2026-10-01T00:00:00Z'}]},Date.parse('2026-10-01T00:01:00Z'))),/Partial/,'A fresh failed attempt is incomplete coverage, not a missed check');
  await apiPage.waitForTimeout(200);await apiPage.reload();await apiPage.waitForFunction(()=>!!window.feed);
  await apiPage.evaluate(book=>window.feed.load('portfolio',{holdings:book}),apiBook);
  assert.equal(await apiPage.evaluate(()=>window.feed.all().length),502,'A new session restores every saved API page during an outage');
