@@ -34,7 +34,11 @@ refreshes continue on their normal cadence.
 
 All active statuses are checked again before dispatch; failed queue reads fail
 closed, ambiguous dispatches are not retried, and active jobs are never cancelled
-or restarted. Queued collectors check out current reviewed main code. The watchdog
+or restarted. Queued collectors check out current reviewed main code and record
+its `MF_SOURCE_SHA`. The publisher binds its bundle to that actual checkout,
+independently of the earlier trigger SHA, and still rejects a claimed commit
+that differs from Git HEAD. Transfer diagnostics expose only fixed failure codes
+and HTTP statuses, never private source facts. The watchdog
 reads no private holdings or untrusted artifacts, performs no source scraping or
 deployment, and retains its decisions as Actions summaries/artifacts. This provides
 extra catch-up opportunities, not a scheduling SLA during a GitHub-wide outage.

@@ -30,6 +30,8 @@ jobs:
         with:
           ref: main
           persist-credentials: false
+      - name: Record the reviewed collector commit
+        run: echo "MF_SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v5
         with:
           node-version: '22'

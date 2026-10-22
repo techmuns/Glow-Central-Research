@@ -78,5 +78,7 @@ const workflow=readFileSync('.github/workflows/mutual-funds-recovery.yml','utf8'
 assert.match(workflow,/ref: main/);assert.match(workflow,/head_repository.full_name == github.repository/);
 assert.match(workflow,/actions: write/);assert.match(workflow,/Deploy/);
 assert(!/SYNC_PUSH_TOKEN|AMFI_ACTIONS_TOKEN|secrets\.|cancel-in-progress: true|cloudflare|wrangler/.test(workflow));
-for(const file of ['mutual-funds-refresh.yml','mutual-funds-scanner.yml'])assert.match(readFileSync('.github/workflows/'+file,'utf8'),/ref: main/);
+for(const file of ['mutual-funds-refresh.yml','mutual-funds-scanner.yml']){
+  const content=readFileSync('.github/workflows/'+file,'utf8');assert.match(content,/ref: main/);assert.match(content,/MF_SOURCE_SHA=\$\(git rev-parse HEAD\)/);
+}
 console.log('PASS MF recovery: public source observation, no cross-repository credentials/dispatch, missed schedules, partial publication, all active statuses, failed/ambiguous requests and truthful source clocks');
