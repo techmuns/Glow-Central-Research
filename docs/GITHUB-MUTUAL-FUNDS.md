@@ -16,24 +16,33 @@ from overwriting the other's state. Capture duration and GitHub scheduling delay
 can make checks late; source timestamps and partial/failure states remain truthful.
 The upstream AmfiBeas source keeps its own independent 15-minute GitHub schedule.
 
-`mutual-funds-recovery.yml` also checks on independent main-branch workflow
+`mutual-funds-recovery.yml` checks on independent main-branch workflow
 completions (including Deploy), plus a fifteen-minute best-effort schedule.
-`recover-mutual-funds.mjs` recovers the fixed upstream monthly workflow and both
-Glow collectors once their latest run has finished at least fifteen minutes ago.
-It imports newly completed upstream progress even when that source run reports
-partial coverage. Benchmark-only runs do not reset the monthly source clock.
+`recover-mutual-funds.mjs` recovers Glow's importer and private supplement once
+their latest run has finished at least fifteen minutes ago. A newly published
+AmfiBeas manifest can request an earlier import after the same fifteen-minute
+minimum since import start. Partial source progress remains eligible; the importer
+still verifies the complete inventory and file checksums before adopting it.
+
+AMC source recovery belongs to `techmuns/AmfiBeas` (PR #242). Its watchdog uses
+that repository's own `GITHUB_TOKEN` to recover only its monthly collector,
+respecting active jobs and the fifteen-minute completion interval. Glow reads
+only the fixed public `coverage.json` publication clock without credentials. It
+never dispatches another repository's workflow or needs a broader automation token.
+A failed public source observation remains visible while independent Glow
+refreshes continue on their normal cadence.
+
 All active statuses are checked again before dispatch; failed queue reads fail
 closed, ambiguous dispatches are not retried, and active jobs are never cancelled
-or restarted. Queued collectors check out current reviewed main code.
-
-Glow dispatches use the workflow's repository-scoped `GITHUB_TOKEN`; the upstream
-Actions request uses the existing `SYNC_PUSH_TOKEN` automation secret, only for
-the fixed AmfiBeas main-branch workflow. Missing permissions remain visible as
-a failed recovery decision and do not suppress independent Glow refreshes.
-The watchdog reads no private holdings or untrusted artifacts, performs no source
-scraping or deployment, and retains its decisions as Actions summaries/artifacts.
-This provides extra catch-up opportunities, not a scheduling SLA during a
-GitHub-wide outage. Source refusals and source-local cooldowns remain in force.
+or restarted. Queued collectors check out current reviewed main code and record
+its `MF_SOURCE_SHA`. The publisher binds its bundle to that actual checkout,
+independently of the earlier trigger SHA, and still rejects a claimed commit
+that differs from Git HEAD. Transfer diagnostics expose only fixed failure codes
+and HTTP statuses, never private source facts. The watchdog
+reads no private holdings or untrusted artifacts, performs no source scraping or
+deployment, and retains its decisions as Actions summaries/artifacts. This provides
+extra catch-up opportunities, not a scheduling SLA during a GitHub-wide outage.
+Source refusals and source-local cooldowns remain in force.
 
 Freshness and completeness use separate clocks. The oldest latest attempt across
 the full AMC inventory determines whether source checks are overdue. A recent
