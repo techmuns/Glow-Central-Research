@@ -3,7 +3,8 @@ import {BREAKOUT_ORIGIN} from '../public/js/data/breakout-live-shared.js';
 import {mfRepo} from './mutual-funds-github.mjs';
 import {hash} from './mutual-funds-seal.mjs';
 import {backgroundContract} from './github-background-contract.mjs';
-import {readBackgroundView} from './github-background-views.mjs';
+import {readBackgroundView,readBackgroundViewBytes} from './github-background-views.mjs';
+import {packedBreakoutResponse} from './breakout-packed-response.mjs';
 import {readPrivateRecord} from './github-private-records.mjs';
 import {selectPreparedBreakouts} from './breakouts-github.mjs';
 const FEATURE='breakouts-live',MAX=8*1024*1024;
@@ -52,7 +53,7 @@ async function minuteRange(asset,start,end,fetcher,signal){
  }
  throw Error('Minute redirect limit');
 }
-export async function preparedMinuteBreakouts(request,env,{fetcher=fetch,edgeCache=globalThis.caches?.default,now=Date.now()}={}){
+export async function preparedMinuteBreakouts(request,env,{fetcher=fetch,edgeCache=globalThis.caches?.default,now=Date.now(),packed=false}={}){
  const url=new URL(request.url),signal=AbortSignal.timeout(12000);
  if(env.BREAKOUT_LIVE_RUNTIME!=='github'||url.origin!==BREAKOUT_ORIGIN)return null;
  const repo=mfRepo(env);if(repo!=='techmuns/Glow-Central-Research'||!env.GH_DISPATCH_TOKEN)return null;
@@ -76,6 +77,7 @@ export async function preparedMinuteBreakouts(request,env,{fetcher=fetch,edgeCac
   if(edgeCache)await edgeCache.put(key,Response.json(files,{headers:{'cache-control':'public, max-age=20'}})).catch(()=>{});
  }
  const preparedEnv={...env,ASSETS:{fetch:async request=>{const name=new URL(request.url).pathname.split('/').at(-1);return Object.hasOwn(files,name)?Response.json(files[name]):new Response(null,{status:404});}}};
+ if(packed){const bytes=await readBackgroundViewBytes(preparedEnv,request.url,FEATURE,'head.json');return bytes?packedBreakoutResponse(bytes,request):null;}
  const head=await readBackgroundView(preparedEnv,request.url,FEATURE,'head.json');
  if(head?.version!==1||head.repo!==repo||head.feature!==FEATURE)throw Error('Invalid prepared minute snapshot');
  // New generations use one compressed envelope. Older paged publications stay readable.

@@ -1,8 +1,9 @@
-import {mergePrimary} from './breakout-store.mjs';
+import {selectPreparedBreakouts} from '../public/js/data/breakout-selection.js';
+export {selectPreparedBreakouts} from '../public/js/data/breakout-selection.js';
 import {readBackgroundView} from './github-background-views.mjs';
 import {readPrivateRecord} from './github-private-records.mjs';
 import {hash} from './mutual-funds-seal.mjs';
-import {marketWindow,tickerValid} from '../public/js/data/breakout-live-shared.js';
+import {tickerValid} from '../public/js/data/breakout-live-shared.js';
 import {mfRepo} from './mutual-funds-github.mjs';
 const recordKey=(kind,value)=>hash(new TextEncoder().encode(`${kind}:${value}`));
 const earlier=(row,cursor)=>!cursor||row.at<cursor.at||row.at===cursor.at&&row.run<cursor.run;
@@ -39,10 +40,4 @@ export async function preparedBreakouts(request,env,{now=Date.now()}={}) {
   // Source choice is time-sensitive. Apply the original read-time selection to
   // prepared evidence, so an aged minute quote can still use a fresher fallback.
   return selectPreparedBreakouts(head,fallback,primary,url.pathname,{now});
-}
-export function selectPreparedBreakouts(head,fallback,primary,pathname,{now=Date.now(),delivery='static-assets'}={}) {
-  const selected=pathname==='/api/breakouts/fallback'?fallback:mergePrimary(fallback,primary,now),at=now,active=marketWindow(at).collect;
-  const schedule={...head.schedule,overdue:head.schedule?.overdue===true||active&&at-(head.schedule?.lastAttemptAt||0)>30*60000};
-  const primarySchedule={...head.primarySchedule,overdue:head.primarySchedule?.overdue===true||active&&at-(head.primarySchedule?.lastAttemptAt||0)>120000};
-  return {...selected,schedule,primarySchedule,runtime:'github-actions',delivery};
 }

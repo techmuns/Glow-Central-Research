@@ -40,8 +40,10 @@ export async function handleBreakouts(request, env, { fetcher = fetch, now = Dat
   }
   if (request.method !== 'GET') return reply({ ok: false, reason: 'method' }, 405);
   try {
+    const packed=url.pathname==='/api/breakouts/snapshot';
     let prepared=null;
-    if(url.pathname!=='/api/breakouts/history')try{prepared=await preparedMinuteBreakouts(request,env,{now:now(),fetcher,edgeCache});}catch{/* Keep the original prepared snapshot and its honest freshness on a delivery failure. */}
+    if(url.pathname!=='/api/breakouts/history')try{prepared=await preparedMinuteBreakouts(request,env,{now:now(),fetcher,edgeCache,packed});}catch{/* Keep the original prepared snapshot and its honest freshness on a delivery failure. */}
+    if(packed)return prepared instanceof Response?prepared:reply({ok:false,reason:'snapshot-unavailable'},503);
     prepared||=await preparedBreakouts(request,env,{now:now()});
     if(prepared){
       if(url.pathname==='/api/breakouts/history'||url.pathname==='/api/breakouts/fallback')return reply(prepared);
