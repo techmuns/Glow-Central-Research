@@ -157,3 +157,17 @@ remains uncached. An incomplete upload leaves the preceding publication intact.
 The scanner limits its source walk to twenty minutes. Separate restore, capture and publication step limits leave time to upload progress even when a source is slow. Either fixed main-branch MF workflow can authenticate the one-time read-only history transfer. Monthly views use independently addressed, size-bounded pages: new history can add pages instead of enlarging one permanent hash bucket. Each prepared part has a manifest hash and authenticated document context; decrypted private views remain uncached.
 
 Release uploads and pruning wait a full second between mutative requests, following GitHub REST API guidance; unchanged logical parts reuse encrypted files from the retained runner state. A failed upload leaves the prior complete publication available.
+
+## Fast holdings reads
+
+The browser restores a complete public snapshot before waiting for revalidation,
+and can reuse its full Universe cache for Portfolio or Watchlist reads. Cache
+restoration runs beside network requests; a blocked IndexedDB open does not delay
+those requests. A first visit displays each verified API page as it arrives.
+Incomplete delivery stays visible and cannot export a truncated company list.
+
+Public API metadata includes `publicSnapshotId`, the verified digest of the entire
+prepared public index. When it matches a complete saved snapshot, one API probe
+revalidates all its rows. A changed or missing digest requires full pagination,
+including changes outside the first page. This does not advance source check
+times, weaken private authorization or persist private supplemental rows.

@@ -243,6 +243,9 @@ try{
  let releaseSeed;seedGate=new Promise(done=>releaseSeed=done);
  await page.reload();await page.waitForSelector('[data-row-key]');
  const cachedSearch=page.locator('input[placeholder="Search company..."]');
+ await cachedSearch.fill('A company not yet received');
+ await page.waitForFunction(()=>document.querySelector('[data-row-count]')?.textContent==='Loading results…');
+ assert.equal(await page.locator('[data-export]').isEnabled(),false,'An unmatched pending search cannot export an empty list');
  const cachedCompany=ownershipFixtures[0];
  await cachedSearch.fill(fixtureBook.find(h=>h.isin===cachedCompany.isin).name);await page.waitForTimeout(350);
  const cachedRow=page.locator(`[data-row-key="${cachedCompany.isin}"]`);

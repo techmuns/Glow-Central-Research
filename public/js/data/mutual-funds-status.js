@@ -2,6 +2,8 @@
 // Derive the display from quantities so already-cached legacy "Pending" rows
 // become readable without rebuilding or rewriting any captured observations.
 export function comparisonStatus(row) {
+  if(row.missing&&row.checking)return {label:'Loading report',detail:'Reading saved disclosures',reported:false,
+    insight:'Saved disclosures are being checked for this company.'};
   if(row.missing)return {label:'Unavailable',detail:'No saved company report',reported:false,
     insight:'No saved disclosure is available for this company. Check Coverage for source status.'};
   if(row.activityUnavailable)return {label:'Comparison unavailable',detail:'Equity/hybrid projection pending',reported:!!row.month,

@@ -72,7 +72,7 @@ jobs:
         # 6 GB on 1 October 2026, past Node's default 4 GB heap on the 16 GB runner.
         run: node scripts/verify-json-preparation.mjs && node scripts/verify-alert-pool-projection.mjs && node scripts/verify-memory-primitives.mjs && node scripts/verify-news-query-boundaries.mjs && node --max-old-space-size=8192 scripts/verify-news-working-set.mjs
       - name: Verify Mutual Fund calculations and resumable capture
-        run: node scripts/verify-mutual-funds.mjs && node scripts/verify-mutual-funds-recovery.mjs && node scripts/verify-mutual-funds-denominators.mjs && node scripts/verify-mutual-funds-sources.mjs && node scripts/verify-mutual-funds-schedule.mjs && node scripts/verify-mutual-funds-scanner.mjs && node scripts/verify-mutual-funds-github.mjs && node scripts/verify-mutual-funds-export.mjs && node scripts/verify-github-deploy-state.mjs && node scripts/verify-mutual-funds-static.mjs && node scripts/verify-github-background-views.mjs && node scripts/verify-github-background-seal.mjs && node scripts/verify-github-background-package.mjs && node scripts/verify-github-background-bundle.mjs && node scripts/verify-github-background-release.mjs
+        run: node scripts/verify-mutual-funds-reading.mjs && node scripts/verify-mutual-funds.mjs && node scripts/verify-mutual-funds-recovery.mjs && node scripts/verify-mutual-funds-denominators.mjs && node scripts/verify-mutual-funds-sources.mjs && node scripts/verify-mutual-funds-schedule.mjs && node scripts/verify-mutual-funds-scanner.mjs && node scripts/verify-mutual-funds-github.mjs && node scripts/verify-mutual-funds-export.mjs && node scripts/verify-github-deploy-state.mjs && node scripts/verify-mutual-funds-static.mjs && node scripts/verify-github-background-views.mjs && node scripts/verify-github-background-seal.mjs && node scripts/verify-github-background-package.mjs && node scripts/verify-github-background-bundle.mjs && node scripts/verify-github-background-release.mjs
       - name: Verify hot-path caches are invisible (same answers, live edits, exact byte counts)
         run: node scripts/verify-hot-path-memo.mjs
       - name: Verify lossless news parts and deployable asset sizes
@@ -208,6 +208,13 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/family-browser" --no-save --package-lock=false playwright@1.62.1 exceljs@4.4.0
           node "$RUNNER_TEMP/family-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      # Check the native cache handoff before the rest of the independent shard,
+      # so a release-boundary failure supplies diagnostics without a long wait.
+      - name: Verify clean corporate stream, automatic history and live scope updates
+        if: ${{ matrix.part == 1 }}
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-corporate-stream-ui.mjs
       - name: Verify company market columns, saved layouts, dated prices and returning-session upgrades
         if: ${{ matrix.part == 2 }}
         env:
@@ -408,11 +415,6 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-news-publisher-ui.mjs && node scripts/verify-news-toolbar-ui.mjs && node scripts/verify-news-cards-upgrade-ui.mjs && node scripts/verify-onemi-news-delivery-ui.mjs && node scripts/verify-news-customer-delivery.mjs
-      - name: Verify clean corporate stream, automatic history and live scope updates
-        if: ${{ matrix.part == 1 }}
-        env:
-          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-corporate-stream-ui.mjs
       - name: Verify ranked announcement pages, categories, market cap, related filings, AI Read and shared feedback
         if: ${{ matrix.part == 2 }}
         env:

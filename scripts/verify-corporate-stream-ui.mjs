@@ -510,7 +510,18 @@ try {
   await returning.waitForLoadState('networkidle');
   legacy = false;
   await returning.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
-  await returning.locator('[data-announcement-search]').waitFor();
+  try { await returning.locator('[data-announcement-search]').waitFor(); }
+  catch (error) {
+    console.error('Announcement upgrade diagnostics', JSON.stringify(await returning.evaluate(async () => {
+      const registration = await navigator.serviceWorker.getRegistration();
+      return { controller: navigator.serviceWorker.controller?.state,
+        installing: registration?.installing?.state, waiting: registration?.waiting?.state, active: registration?.active?.state,
+        caches: (await caches.keys()).map(key => ({ length: key.length, companySearch: key.includes('announcement-company-search-v1') })),
+        query: window.caQuery?.meta(), text: document.body.innerText.slice(0, 700) };
+    })));
+    console.error('Announcement fixture requests', JSON.stringify([...hits]), 'page errors', JSON.stringify(errors));
+    throw error;
+  }
   assert.equal(await returning.locator('[data-section-head] [data-filings-info]').count(), 0, 'the returning session removes the cached warning');
   assert.equal(await returning.getByRole('combobox', { name: 'Announcement period (IST)' }).inputValue(), '3', 'the returning session adopts Last 3 days after upgrade');
   assert.equal(await returning.evaluate(() => window.caQuery.query().period), '3', 'the upgraded query adopts Last 3 days');

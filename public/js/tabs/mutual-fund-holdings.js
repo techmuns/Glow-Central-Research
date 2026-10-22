@@ -35,7 +35,7 @@ function volumeCell(r) {
 }
 function exportHoldings(rows) {
   const mine=sequence,source=feed.meta(),amcs=source.amcs||[],privateReading=source.supplementAccess==='ready'&&!source.supplementReadFailed;
-  const canExport=()=>!!ctx&&mine===sequence&&(!privateReading||feed.meta().supplementAccess==='ready'&&!feed.meta().supplementReadFailed);
+  const canExport=()=>!!ctx&&mine===sequence&&!feed.meta().viewIncomplete&&!feed.meta().publicRevalidating&&(!privateReading||feed.meta().supplementAccess==='ready'&&!feed.meta().supplementReadFailed);
   return exportRows({companyMarket:true,filename:`glow-mf-company-holdings-${todayStamp()}`,sheetName:'Company Holdings',rows,canExport,columns:[
     {header:'Company',key:'company',width:32,get:r=>r.name},{header:'Ticker',key:'ticker',get:r=>r.ticker||''},{header:'ISIN',key:'isin',get:r=>r.isin||''},
     {header:'Month',key:'month',get:r=>comparisonStatus(r).reported?r.month||'':''},
@@ -87,10 +87,10 @@ function orderedRows() {
 function paint(loading=busy) {
   if(!ctx)return;
   const rows=orderedRows(),view=table?.view;
-  if(table){table.updateData(rows,undefined,{loading:loading&&!feed.all().length});paintStatus();return;}
+  if(table){table.updateData(rows,undefined,{loading:loading||feed.meta().revalidating});paintStatus();return;}
   table=scoreTable({companyMarket:true,columnLayoutKey:'glow-export:Company',rows,key:r=>r.isin||r.ticker||r.name,watchKey:r=>r.ticker,name:r=>r.name,sub:r=>r.ticker||r.isin||'',nameLabel:'Company',showAvatar:false,showRank:false,showWatchFilter:false,link:null,
-    nameMaxPx:230,dense:true,wrapHeads:true,fillMode:'windowed',stickyHead:'120px',loading:loading&&!feed.all().length,
-    toolbarControls:{html:`${mutualFundView(ctx).html}<select data-mf-sort class="mf-table-control" aria-label="Sort mutual funds"><option value="holdings"${sort==='holdings'?' selected':''}>Largest holdings</option><option value="newest"${sort==='newest'?' selected':''}>Newest</option></select><button data-mf-coverage class="mf-coverage-control">Coverage</button><span data-mf-sizes class="text-xs text-slate-500"></span>`,wire:host=>{
+    nameMaxPx:230,dense:true,wrapHeads:true,fillMode:'windowed',stickyHead:'120px',loading:loading||feed.meta().revalidating,
+    toolbarControls:{html:`${mutualFundView(ctx).html}<select data-mf-sort class="mf-table-control" aria-label="Sort mutual funds"><option value="holdings"${sort==='holdings'?' selected':''}>Largest holdings</option><option value="newest"${sort==='newest'?' selected':''}>Newest</option></select><button data-mf-coverage class="mf-coverage-control">Coverage</button><span data-mf-load-status role="status" class="text-xs text-slate-500"></span><span data-mf-sizes class="text-xs text-slate-500"></span>`,wire:host=>{
       const releaseView=mutualFundView(ctx).wire(host),sortControl=host.querySelector('[data-mf-sort]'),coverageControl=host.querySelector('[data-mf-coverage]');
       host.querySelector('[data-table-actions]').prepend(coverageControl);
       const changeSort=()=>{sort=sortControl.value;table.view.sort=null;paint();};
@@ -115,6 +115,11 @@ function paintStatus() {
   if(!ctx)return;
   const m=feed.meta();
   const freshness=sourceFreshness(m);
+  const loadStatus=ctx.root.querySelector('[data-mf-load-status]');
+  loadStatus.textContent=m.viewIncomplete?(m.readFailed?'Partial view · Update unavailable':'Loading companies…'):m.revalidating?'Checking updates…':'';
+  const exportButton=ctx.root.querySelector('[data-export]');
+  exportButton.disabled=!!m.viewIncomplete||m.publicRevalidating;
+  exportButton.title=exportButton.disabled?'Export is available after all company checks finish.':'';
   ctx.root.querySelector('[data-mf-coverage]').title=[m.revalidating?'Showing saved disclosures · Checking for updates':'',feed.health(),
     `All-source attempts through ${coverageTime(freshness.lastAttemptAt)}`,supplementStatus(m)].filter(Boolean).join(' · ');
   const sizeNode=ctx.root.querySelector('[data-mf-sizes]'),sizes=cachedPositionSizes();
