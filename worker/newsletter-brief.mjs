@@ -884,8 +884,8 @@ export async function readActions({ env, day, holdings, uncapped = false }) {
 /**
  * Build one edition. Throws only when the BOOK cannot be read — an email about "direct holdings"
  * with no book behind it would be about nothing. Every other source reports its own failure on
- * the page instead. `reported` is the ledger of items a brief sent to the desk has carried; without
- * one, or with an empty one, no late arrivals are read.
+ * the page instead. `reported` preserves delivery evidence; its contents never widen
+ * the publication window used by daily mail.
  */
 export async function buildBrief({ edition, day, settings, env, fetcher = fetch, now = Date.now(), to = null, reported = null, screener = null, includeAi = true, contentService = null }) {
   if (!EDITIONS[edition]) throw Object.assign(new Error('Unknown edition'), { code: 'invalid-edition' });
@@ -1623,9 +1623,9 @@ export function sourcesNote(brief) {
     : 'NSE history unavailable');
   if (a.nseHistory?.missingDays?.length) bits.push(`NSE retained history missing day files: ${a.nseHistory.missingDays.join(', ')}; live feed is a bounded latest window`);
   if (a.bse.partial) bits.push('BSE category/page coverage is partial or not independently verified; retained filings are included');
-  bits.push(a.bse.ok ? `BSE capture dated ${capturedLabel(a.bse.capturedAt)}${a.bse.capturedAt && Date.parse(a.bse.capturedAt) < brief.window.to ? ', so later BSE filings reach the next brief' : ''}` : 'BSE capture unavailable');
+  bits.push(a.bse.ok ? `BSE capture dated ${capturedLabel(a.bse.capturedAt)}${a.bse.capturedAt && Date.parse(a.bse.capturedAt) < brief.window.to ? ', before the edition cutoff; later captures remain in dashboard history' : ''}` : 'BSE capture unavailable');
   bits.push(n.source.ok
-    ? `publisher feeds (${n.source.publishers.join(', ') || 'four publishers'}) captured ${capturedLabel(n.source.capturedAt)}${n.source.capturedAt && Date.parse(n.source.capturedAt) < brief.window.to ? ', so later stories reach the next brief' : ''}${n.source.oldest != null && n.source.oldest > brief.window.from ? `; that capture starts at ${istLabel(n.source.oldest)}, so earlier publisher stories are not included` : ''}`
+    ? `publisher feeds (${n.source.publishers.join(', ') || 'four publishers'}) captured ${capturedLabel(n.source.capturedAt)}${n.source.capturedAt && Date.parse(n.source.capturedAt) < brief.window.to ? ', before the edition cutoff; later captures remain in dashboard history' : ''}${n.source.oldest != null && n.source.oldest > brief.window.from ? `; that capture starts at ${istLabel(n.source.oldest)}, so earlier publisher stories are not included` : ''}`
     : 'publisher capture unavailable');
   const differingPublisherChecks = (n.source.checks || []).filter(s => s.checkedAt !== n.source.capturedAt || s.ok === false || s.feedsOk != null && s.feedsOk < s.feeds);
   if (differingPublisherChecks.length) bits.push(`Publisher-specific checks: ${differingPublisherChecks.map(s => `${s.name || 'Publisher'} ${s.ok === false ? 'failed' : s.checkedAt ? 'last successful read' : 'check time unknown'}${s.checkedAt ? ' ' + capturedLabel(s.checkedAt) : ''}`).join('; ')}; each provider can have a different coverage gap`);
@@ -1780,7 +1780,7 @@ export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recip
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${companies.map((c) => companyBlock(c, dashboardUrl, brief.ai)).join('')}</table>
     </td></tr>`);
     const more = brief.announcements.more + brief.news.more + (brief.trades?.more || 0) + (brief.moves?.more || 0);
-    if (more > 0 && (!part || part.index === part.total)) parts.push(`<tr><td style="padding:14px 24px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${more} more in this window on the <a href="${esc(`${dashboardUrl}/#/research/daily-alerts?scope=portfolio`)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">dashboard →</a>; whatever is not shown here reaches the next brief.</td></tr>`);
+    if (more > 0 && (!part || part.index === part.total)) parts.push(`<tr><td style="padding:14px 24px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${more} more in this window on the <a href="${esc(`${dashboardUrl}/#/research/daily-alerts?scope=portfolio`)}" ${NEW_TAB} style="color:${GOLD};font-weight:bold;text-decoration:none;">dashboard →</a>; older updates are not replayed in later emails.</td></tr>`);
   }
   if (brief.announcements.routineHidden) {
     parts.push(`<tr><td style="padding:${stats.stories ? 8 : 14}px 24px 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${META};">${esc(routineNote(brief.announcements.routineHidden))}</td></tr>`);

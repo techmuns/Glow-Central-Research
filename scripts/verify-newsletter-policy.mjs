@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {gzipSync} from 'node:zlib';
-import {buildBrief,briefStories} from '../worker/newsletter-brief.mjs';
+import {buildBrief,briefStories,sourcesNote} from '../worker/newsletter-brief.mjs';
 import {newsletterDeliveryPolicy,MAX_DELIVERY_EMAIL_PARTS} from '../worker/newsletter-email.mjs';
 import {NewsletterDeliveryQueue} from './lib/newsletter-delivery-queue.mjs';
 import {localNewsletter} from './lib/newsletter-local.mjs';
@@ -27,6 +27,7 @@ for(const reported of [null,{empty:true,has:()=>false},{empty:false,since:now-10
   assert.equal(stories.length,1,'2,584 freshly captured old reports cannot enter today’s email');
   assert.equal(stories[0].url,'https://fixture.test/current');
   assert.equal(brief.lateFrom,null);
+  assert(!sourcesNote(brief).includes('reach the next brief'),'Coverage notes must not promise historical email catch-up');
   assert(stories.every(s=>s.at>=window.from&&s.at<window.to&&!s.late));
 }
 assert.equal(JSON.stringify(captures),before,'All archived source records survive unchanged');
