@@ -3,7 +3,7 @@
 // Every figure in these two tabs that nobody types comes through here, and every one is read from a
 // feed this dashboard already runs — nothing is fetched per company:
 //
-//   CMP and 1-day return   the minute price capture (`/api/breakouts`, Upstox primary), read every
+//   CMP and 1-day return   the minute price capture (`/api/breakouts/snapshot`, Upstox primary), read every
 //                          15 seconds while visible by data/breakout-live.js — the same reader and
 //                          the same label as Breakouts; the daily close stands in, dated, when no
 //                          current quote exists.

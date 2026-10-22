@@ -1,3 +1,4 @@
+import {snapshotCapture} from '../public/js/data/breakout-snapshot.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';import path from 'node:path';import {createHash} from 'node:crypto';
 import {localBreakouts} from './lib/breakout-local.mjs';
@@ -58,6 +59,14 @@ try{
  const worker={GH_REPO:repo,GH_DISPATCH_TOKEN:secret,BREAKOUT_LIVE_RUNTIME:'github',CAPTURE_REGISTRY:{getByName(){throw Error('Current quote delivery cannot query Cloudflare SQL');}},ASSETS:{fetch:async()=>{throw Error('Current quotes cannot wait for static deployment');}}};
  const read=()=>handleBreakouts(new Request(BREAKOUT_ORIGIN+'/api/breakouts'),worker,{fetcher,edgeCache,now:()=>at});
  let response=await read(),data=await response.json();assert.equal(response.status,200);assert.equal(data.delivery,'github-prepared');assert.equal(data.rows[0].price,113);assert.equal(data.primary.primaryUsed,1);assert.equal(data.primarySchedule.overdue,false);
+ const NativeInflation=globalThis.DecompressionStream;let packet,packetTag;
+ try {globalThis.DecompressionStream=class {constructor(){throw Error('The server must not inflate the current quote snapshot');}};
+  const packed=await handleBreakouts(new Request(BREAKOUT_ORIGIN+'/api/breakouts/snapshot'),worker,{fetcher,edgeCache,now:()=>at});
+  assert.equal(packed.status,200);packetTag=packed.headers.get('etag');packet=await packed.json();assert.equal(packet.format,'gzip-json');
+  const unchanged=await handleBreakouts(new Request(BREAKOUT_ORIGIN+'/api/breakouts/snapshot',{headers:{'if-none-match':packetTag}}),worker,{fetcher,edgeCache,now:()=>at});assert.equal(unchanged.status,304);assert.equal(await unchanged.text(),'');
+ } finally {globalThis.DecompressionStream=NativeInflation;}
+ assert.deepEqual((await snapshotCapture(packet,at)).rows,data.rows,'The authenticated compressed view preserves every selected quote');
+ assert.equal((await snapshotCapture(packet,at+3*60000)).primarySchedule.overdue,true,'An unchanged transport still ages in the reader');
  const envelopes=await minuteEnvelope([...assets.values()].at(-1).bytes,{repo,signature:await backgroundContract('breakouts-live')});assert.deepEqual(Object.keys(envelopes),['head.json'],'Current delivery decrypts one compressed envelope, with no per-page fan-out');
  const calls=apiReads.length,downloads=reads;response=await read();assert.equal(response.status,200);assert.equal(apiReads.length,calls);assert.equal(reads,downloads,'On-demand cache retains ciphertext and avoids another network read');
  // A reader upgrade must still serve the preceding paged producer format.
