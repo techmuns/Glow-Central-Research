@@ -1577,20 +1577,19 @@ rules, and every one of them is a rule this file already runs on:
 7. **Nothing is fetched on page load.** The panel reads `/api/newsletter` when opened; a static
    origin is told it has no newsletter, never shown an error.
 
-**AND NOTHING FALLS BETWEEN TWO BRIEFS.** The window alone could not promise that: every portfolio
-source is a capture with a lag and NSE's live RSS is a few minutes deep, so a filing published at
-15:50 and captured at 17:15 was in neither the 16:00 brief nor the next morning's; BSE's
-three-calendar-day head had pruned Friday's post-close filings by Monday 08:00; a `missed` edition
-lost its whole window. Six things close it, and each is a rule this file already runs on:
+**Daily-email policy, corrected 22 October 2026:** only reports published inside the printed
+edition window may be emailed. Never include historical backlog, late-captured old reports or
+missed editions as catch-up. Preserve all source history on the dashboard. Refuse delivery before
+any send above six parts, without truncating eligible current records. Recheck frozen recovery
+plans: retire historical or oversized editions without further sends, preserving evidence.
+This supersedes the earlier email catch-up rules below; retained source readers still cover archives.
 
 1. **The store keeps a ledger of what the desk has been sent** (`newsletter_reported`), keyed by
    each item's own identity — the exchange's `newsId`, NSE's `filingKey`, the trade's
    `insiderTradeIdentity`, `move:<ticker>|<session>` — never by a count or a capture clock. Only a
    send that REACHED somebody writes it; a test copy or a preview never does.
-2. **Each brief reads back over the two windows before its own** (`lateArrivalsFrom`) and carries
-   what the ledger does not hold, marked *not in the previous brief* with its own publication time.
-   An empty ledger is *unknown*, not *nothing was sent*, and the lookback never reaches before
-   `reportedSince` — the same "a failed read is never an empty result" rule, applied to a ledger.
+2. **The printed edition window is the email boundary.** The reported ledger cannot widen it.
+   A newly captured old record stays in history, regardless of whether an earlier email carried it.
 3. **NSE's retained day files are read, not only the RSS** — `public/data/nse-filings/<day>.json`,
    the days the index lists and no other, resolved against the book by name.
 4. **Trades and price moves are stories too**: bulk, block, SAST and insider rows from the insider
@@ -5247,7 +5246,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
 | Change what the Watchlist scope tracks | `js/core/watchlist.js` (the device mirror + sync) + `watchKey` on the table that stars it — read *The star marks a COMPANY* and *The watchlist is a list of COMPANIES, and ONE list for the whole desk* first |
 | Change the SHARED watchlist itself — its shape, its conflict rules or its route | `public/js/data/watchlist-shared.js` (the one definition, imported by the Worker too) + `worker/watchlist-store.mjs` + `worker/watchlist.mjs`. Edits are INTENTS, never a whole list; an `add` must name its contributor; a `seed` may not apply over any row that already exists. `node scripts/verify-shared-watchlist.mjs` and `node scripts/verify-shared-watchlist-ui.mjs` are the tests |
-| Change the team brief — what is in it, how it reads, when it sends | `worker/newsletter-brief.mjs` (the scan, the stories, the fold, the late-arrival look-back and the broadsheet), `worker/newsletter-schedule.mjs` (the alarm and the send), `worker/newsletter-store.mjs` (subscribers, settings, deliveries and the sent-story ledger), `public/js/data/newsletter-shared.js` (editions, windows, addresses — imported by both sides) and `public/js/ui/newsletter.js` (the header control). Read *The team brief* first. `node scripts/verify-newsletter.mjs` and `node scripts/verify-newsletter-ui.mjs` are the tests |
+| Change the team brief — what is in it, how it reads, when it sends | `worker/newsletter-brief.mjs` (the scan, the stories, the fold, the strict publication window and the broadsheet), `worker/newsletter-schedule.mjs` (the alarm and the send), `worker/newsletter-store.mjs` (subscribers, settings, deliveries and the sent-story ledger), `public/js/data/newsletter-shared.js` (editions, windows, addresses — imported by both sides) and `public/js/ui/newsletter.js` (the header control). Read *The team brief* first. `node scripts/verify-newsletter.mjs` and `node scripts/verify-newsletter-ui.mjs` are the tests |
 | Set up the team brief on a deployment | `MUNS_TOKEN` on the Worker sends it; `DASHBOARD_ORIGIN` and `NEWSLETTER_PRODUCT_NAME` are vars in `wrangler.jsonc`; the `NEWSLETTER` binding and `NEWSLETTER_LIMITER` are there too. Subscribe from the header and the alarm arms itself |
 | Change who is asked, or how the contributor dropdown behaves | `js/ui/watchlist-attribution.js` (the prompt) + `js/core/watchlist-people.js` (the roster and this device's own name) — read *An addition carries the name of whoever made it* first. Never preselect a name on a device nobody has identified themselves on |
 | Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book, and test `rankReport()` directly |
