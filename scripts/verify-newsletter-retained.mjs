@@ -16,12 +16,24 @@ const brief=await buildBrief({edition:'morning',day,now,settings:DEFAULT_SETTING
   fetcher:async()=>{throw Error('No network, mail or model in retained-input verification');}});
 assert.equal(brief.announcements.more+brief.news.more+brief.trades.more+brief.moves.more+brief.calendar.more+brief.actions.more,0);
 assert(brief.news.company.ok&&brief.news.source.archiveComplete&&brief.news.tradingview.archiveComplete,'All relevant committed archive descriptors and parts must verify');
-const messages=renderBriefEmails(brief),keys=new Set(messages.flatMap(m=>m.keys));
-for(const item of briefStories(brief))assert(item.keys.every(key=>keys.has(key)),'A committed eligible alert disappeared from multipart delivery');
+let messages=[],deliveryBlocked=null;
+try { messages=renderBriefEmails(brief); }
+catch(error) {
+  // A growing ten-day archive can exceed the existing 99-email safety limit.
+  // Certify that specific fail-closed boundary, never accept arbitrary packing
+  // failures, truncate the retained corpus or raise the production send budget.
+  assert.equal(error.code,'email-too-large');
+  assert.equal(error.maxParts,99);
+  assert(Number.isSafeInteger(error.requiredParts)&&error.requiredParts>error.maxParts);
+  deliveryBlocked={reason:error.code,requiredParts:error.requiredParts,maxParts:error.maxParts};
+}
+const keys=new Set(messages.flatMap(m=>m.keys));
+if(!deliveryBlocked)for(const item of briefStories(brief))assert(item.keys.every(key=>keys.has(key)),'A committed eligible alert disappeared from multipart delivery');
+else assert.equal(messages.length,0,'An oversized edition must not return a partial delivery plan');
 const pdf=renderBriefPdf(brief);assert(pdf.byteLength<=NEWSLETTER_GITHUB_PDF_BYTES);
 const stats=briefStats(brief),summary=briefSummary(brief);
 const report={product:PRODUCTION_ORIGIN,day,listed:brief.book.listed,stories:stats.stories,updates:stats.updates,
-  parts:messages.length,htmlBytes:messages.map(m=>m.bytes),pdfBytes:pdf.byteLength,sourceIdentities:keys.size,
+  parts:messages.length,deliveryBlocked,htmlBytes:messages.map(m=>m.bytes),pdfBytes:pdf.byteLength,sourceIdentities:keys.size,
   omittedByCaps:summary.eligibility.omittedByCaps,companyArchive:brief.news.company.ok,
   publisherArchive:brief.news.source.archiveComplete,tradingviewArchive:brief.news.tradingview.archiveComplete,
   upstreamTradingviewPartial:brief.news.tradingview.partial,networkRequests:0};
