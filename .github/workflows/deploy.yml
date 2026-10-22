@@ -95,9 +95,6 @@ jobs:
         if: steps.credential.outputs.available == 'true'
         with:
           node-version: "22"
-      - name: Recover an absent market-hours quote runner
-        if: steps.credential.outputs.available == 'true'
-        run: node scripts/check-breakout-runner.mjs
       - name: Compare published inputs with the last successful upload
         id: plan
         if: steps.credential.outputs.available == 'true'
@@ -124,6 +121,9 @@ jobs:
           DEPLOYMENT_ID: ${{ steps.plan.outputs.deployment_id }}
           DEPLOY_OUTCOME: ${{ steps.upload.outcome }}
         run: node scripts/github-deploy-state.mjs finish
+      - name: Recover an absent market-hours quote runner
+        if: always() && steps.credential.outputs.available == 'true' && steps.plan.outcome != 'skipped'
+        run: node scripts/check-breakout-runner.mjs
       - name: Sync Worker secrets from the GitHub secret store
         if: steps.upload.outcome == 'success'
         env:
