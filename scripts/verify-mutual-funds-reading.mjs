@@ -8,7 +8,7 @@ globalThis.indexedDB={open:()=>({})};
 const feed=await import('../public/js/data/mutual-funds.js');
 const rows=Array.from({length:251},(_,i)=>({activityBasis:'equity-hybrid-ex-arbitrage-v1',isin:'INE'+String(i).padStart(9,'0'),name:`Fixture ${i}`,month:'2026-09',totalShares:i,netChange:1,comparableFunds:1,addedFunds:1,reducedFunds:0}));
 const stamp='2026-10-22T07:00:00Z';
-let snapshotId='a'.repeat(64),lastValue=250,failTail=true,repeatCursor=false,reads=0,finished=false;
+let snapshotId='a'.repeat(64),lastValue=250,failTail=true,repeatCursor=false,badScope=false,reads=0,finished=false;
 let releaseTail,releaseAll;const tailGate=new Promise(resolve=>releaseTail=resolve);let allGate=null;
 globalThis.fetch=async raw=>{
   reads++;const url=new URL(raw,location);assert.equal(url.pathname,'/api/mutual-funds');
@@ -16,7 +16,7 @@ globalThis.fetch=async raw=>{
   const ids=url.searchParams.get('isins')?.split(','),cursor=url.searchParams.get('cursor');
   if(cursor){await tailGate;if(failTail)throw Error('Fixture delivery failure');}
   const source=rows.map((row,i)=>i===250?{...row,totalShares:lastValue}:row);
-  const value={rows:ids?source.filter(row=>ids.includes(row.isin)):cursor?source.slice(250):source.slice(0,250),
+  const value={rows:ids?(badScope?[{...source[0],isin:'INE999999999',totalShares:999999}]:source.filter(row=>ids.includes(row.isin))):cursor?source.slice(250):source.slice(0,250),
     meta:{checkedAt:stamp,run:'123:1',...(snapshotId?{publicSnapshotId:snapshotId}:{})},
     nextCursor:ids?null:cursor?(repeatCursor?cursor:null):source[249].isin};
   const body=JSON.stringify(value);return new Response(body,{headers:{'content-type':'application/json',etag:createHash('sha256').update(body).digest('hex')}});
@@ -45,5 +45,8 @@ snapshotId=null;lastValue=888;before=reads;await feed.load('universe',{holdings:
 assert.equal(reads-before,2,'Older API versions without a whole-index digest keep full pagination');assert.equal(feed.all().at(-1).totalShares,888);
 repeatCursor=true;before=reads;await feed.load('universe',{holdings:[]});
 assert.equal(reads-before,2,'A repeated cursor stops instead of spinning indefinitely');assert.equal(feed.meta().readFailed,true);assert.equal(feed.all().length,251);
+badScope=true;await feed.load('portfolio',{holdings:[rows[0]]});
+assert.equal(feed.meta().readFailed,true,'A scoped response cannot include an unrequested issuer');
+assert.equal(feed.all().some(row=>row.isin==='INE999999999'),false,'Rejected pages never enter the retained view');
 assert.equal(comparisonStatus({missing:true,checking:true}).label,'Loading report');assert.equal(comparisonStatus({missing:true}).label,'Unavailable');
 console.log(`PASS MF reading: first page ${Math.round(firstMs)}ms with stalled storage; progressive failures, full-cache scope reuse, unchanged probe, later-page corrections, legacy pagination and repeated-cursor protection.`);

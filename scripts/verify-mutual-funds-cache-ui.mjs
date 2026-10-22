@@ -43,8 +43,8 @@ try {
   return route.fulfill({contentType:{'.js':'text/javascript','.json':'application/json'}[extname(file)]||'text/plain',body:readFileSync(file)});
  });
  const open=async()=>{await page.goto(origin);await page.waitForFunction(()=>window.ready);};
- const start=()=>page.evaluate(()=>{window.finished=false;window.work=feed.load().then(()=>window.finished=true);});
- await open();await page.evaluate(()=>feed.load());
+ const start=()=>page.evaluate(()=>{window.finished=false;window.work=feed.load('universe').then(()=>window.finished=true);});
+ await open();await page.evaluate(()=>feed.load('universe'));
  assert.equal(await page.evaluate(()=>feed.all()[0].netChange),20);
  // Reload clears module memory. Withhold the whole network response; IndexedDB
  // alone must produce the original exact rows and source check, with no new stamp.
@@ -54,14 +54,14 @@ try {
  assert.equal(await page.evaluate(()=>feed.meta().checkedAt),meta.checkedAt);
  assert.equal(await page.evaluate(()=>feed.meta().origin),'store');
  assert.equal(await page.evaluate(()=>finished),false);
- const before=requests.length;await page.evaluate(()=>{window.second=feed.load();});
+ const before=requests.length;await page.evaluate(()=>{window.second=feed.load('universe');});
  publicGate.release();publicGate=null;await page.evaluate(()=>Promise.all([work,second]));
  assert.equal(requests.length,before,'concurrent callers share one revalidation');
  assert.equal(await page.evaluate(()=>feed.all().length),2);
  assert.equal(await page.evaluate(()=>feed.all().find(r=>r.isin==='INE090A01021').totalShares),250);
  assert.equal(await page.evaluate(()=>feed.meta().state),'collecting','partial capture remains partial');
  // A failing refresh preserves the complete saved response and marks failure.
- failPublic=true;await page.evaluate(()=>feed.load());failPublic=false;
+ failPublic=true;await page.evaluate(()=>feed.load('universe'));failPublic=false;
  assert.equal(await page.evaluate(()=>feed.all().length),2);
  assert.equal(await page.evaluate(()=>feed.meta().readFailed),true);
  assert.match(await page.evaluate(()=>feed.health()),/Read failed/);
@@ -73,7 +73,7 @@ try {
  assert.equal(await page.evaluate(()=>feed.all().find(r=>r.isin==='INE090A01021').totalShares),250);
  privateGate.release();privateGate=null;await page.evaluate(()=>work);
  assert.equal(await page.evaluate(()=>feed.all().find(r=>r.isin==='INE090A01021').totalShares),275);
- assert.equal(await page.evaluate(async()=> (await store.readEntry('mf-snapshot:INE090A01021')).value.rows[0].totalShares),250,'private rows are never persisted');
+ assert.equal(await page.evaluate(async()=> (await store.readEntry('mf-snapshot:universe')).value.rows[0].totalShares),250,'private rows are never persisted');
  // On a primary correction, invalidate only its obsolete private overlay while
  // waiting for the refreshed supplement; an account change rejects late results.
  publicValue={...publicValue,rows:[{...row,totalShares:300,netChange:200,revision:'three'}]};
