@@ -6,11 +6,14 @@ import {readerKeys,encode64} from '../worker/mutual-funds-seal.mjs';
 import {handleBreakouts} from '../worker/breakouts.mjs';
 import {minuteEnvelope} from '../worker/breakout-minute-reader.mjs';
 import {backgroundContract} from '../worker/github-background-contract.mjs';
+import {packBackgroundViews} from './lib/github-background-package.mjs';
+import {privateRecordViews} from './lib/github-private-records.mjs';
+import {createBackgroundBundle} from './lib/github-background-bundle.mjs';
 import {BREAKOUT_ORIGIN} from '../public/js/data/breakout-live-shared.js';
 const root=fs.mkdtempSync(path.resolve('.cache/minute-journal-')),repo='techmuns/Glow-Central-Research',secret='fixture-reader-only-123456789';
 const env={GITHUB_REPOSITORY:repo,GITHUB_ACTIONS:'true',GITHUB_REF:'refs/heads/main',GITHUB_SHA:'a'.repeat(40),GITHUB_RUN_ID:'12345',GITHUB_RUN_ATTEMPT:'1',GITHUB_TOKEN:'fixture-actions',BACKGROUND_STATE_KEY:'fixture-state-secret-only-123456789',UPSTOX_ACCESS_TOKEN:'fixture-provider'};
 let at=Date.parse('2026-10-16T06:30:00Z'),price=110,sequence=1,releaseSequence=1,source,restored,duplicate,empty,reads=0,requests=0;
-const releases=new Map(),assets=new Map(),apiReads=[];
+const releases=new Map(),assets=new Map(),apiReads=[];let rangeMode='ok';
 const metadata=asset=>Object.fromEntries(Object.entries(asset).filter(([key])=>key!=='bytes'));
 const fetcher=async(raw,options={})=>{
  const url=new URL(raw),method=options.method||'GET';
@@ -30,7 +33,14 @@ const fetcher=async(raw,options={})=>{
   const release=releases.get(url.pathname.split('/').at(-1));return release?Response.json({...release,assets:release.assets.map(metadata)}):new Response(null,{status:404});
  }
  assert.equal(options.headers?.authorization,undefined,'No GitHub credential follows a public asset request');reads++;
- const asset=assets.get(url.pathname.split('/').at(-1));assert(asset);return new Response(asset.bytes);
+ const asset=assets.get(url.pathname.split('/').at(-1));assert(asset);
+ if(options.headers?.range){const match=/^bytes=(\d+)-(\d+)$/.exec(options.headers.range);assert(match);const start=Number(match[1]),end=Number(match[2]);assert(end<asset.size);
+  if(rangeMode==='ignored')return new Response(asset.bytes);
+  if(rangeMode==='redirect')return new Response(null,{status:302,headers:{location:'https://example.invalid/sink'}});
+  const bytes=Buffer.from(asset.bytes.subarray(start,end+1));if(rangeMode==='corrupt'&&start>0)bytes[bytes.length-1]^=1;
+  return new Response(rangeMode==='truncated'?bytes.subarray(0,-1):bytes,{status:206,headers:{'content-range':rangeMode==='mismatch'?`bytes 0-0/${asset.size}`:`bytes ${start}-${end}/${asset.size}`}});
+ }
+ return new Response(asset.bytes);
 };
 const base={high:100,low:95,average:97,averageVolume:1000,count:30,to:'2026-10-15'};
 const row=()=>({ticker:'TEST',name:'Fixture',price,volume:2300,prevClose:100,quoteAt:new Date(at).toISOString(),checkedAt:new Date(at).toISOString(),sessionDate:'2026-10-16',provider:'Upstox',exchange:'NSE',kind:'quote',base});
@@ -48,7 +58,20 @@ try{
  const worker={GH_REPO:repo,GH_DISPATCH_TOKEN:secret,BREAKOUT_LIVE_RUNTIME:'github',CAPTURE_REGISTRY:{getByName(){throw Error('Current quote delivery cannot query Cloudflare SQL');}},ASSETS:{fetch:async()=>{throw Error('Current quotes cannot wait for static deployment');}}};
  const read=()=>handleBreakouts(new Request(BREAKOUT_ORIGIN+'/api/breakouts'),worker,{fetcher,edgeCache,now:()=>at});
  let response=await read(),data=await response.json();assert.equal(response.status,200);assert.equal(data.delivery,'github-prepared');assert.equal(data.rows[0].price,113);assert.equal(data.primary.primaryUsed,1);assert.equal(data.primarySchedule.overdue,false);
+ const envelopes=await minuteEnvelope([...assets.values()].at(-1).bytes,{repo,signature:await backgroundContract('breakouts-live')});assert.deepEqual(Object.keys(envelopes),['head.json'],'Current delivery decrypts one compressed envelope, with no per-page fan-out');
  const calls=apiReads.length,downloads=reads;response=await read();assert.equal(response.status,200);assert.equal(apiReads.length,calls);assert.equal(reads,downloads,'On-demand cache retains ciphertext and avoids another network read');
+ // A reader upgrade must still serve the preceding paged producer format.
+ const priorAsset=[...assets.values()].at(-1),prior={...priorAsset},releaseBefore=[...releases.values()].at(-1),priorBody=releaseBefore.body;
+ const primaryMeta=JSON.parse(source.db.prepare('SELECT payload FROM breakout_primary_current WHERE id=1').get().payload);
+ const currentRows=source.db.prepare('SELECT payload FROM breakout_primary_latest').all().flatMap(row=>Object.values(JSON.parse(row.payload)));
+ const legacyHead={version:1,repo,feature:'breakouts-live',createdAt:new Date(at).toISOString(),fallback:{...source.store.readFallback(),rows:undefined,pages:['fallback']},primary:{...primaryMeta,pages:['primary'],gaps:[]},schedule:committedSchedule,primarySchedule:{...await source.primary.status(),runtime:'github-actions',alarmAt:null}};
+ const legacyViews=path.join(root,'legacy-views.gz'),legacyBundle=path.join(root,'legacy-bundle.bin'),signature=await backgroundContract('breakouts-live');
+ await packBackgroundViews(privateRecordViews(['fallback','primary'],id=>({rows:id==='fallback'?source.store.readFallback().rows:currentRows}),legacyHead,{repo,feature:'breakouts-live',env}),recipient,legacyViews,{repo,feature:'breakouts-live',sourceSignature:signature});
+ await createBackgroundBundle(path.join(root,'journal/state.bin'),legacyViews,legacyBundle,{repo,feature:'breakouts-live',createdAt:new Date(at).toISOString(),workflowRun:env.GITHUB_RUN_ID,sourceSha:env.GITHUB_SHA,sourceSignature:signature},{env});
+ priorAsset.bytes=fs.readFileSync(legacyBundle);priorAsset.size=priorAsset.bytes.length;priorAsset.digest=`sha256:${createHash('sha256').update(priorAsset.bytes).digest('hex')}`;
+ releaseBefore.body=JSON.stringify({...JSON.parse(priorBody),asset:metadata(priorAsset)});cache.clear();response=await read();assert.equal(response.status,200);assert.equal((await response.json()).rows[0].price,113,'Legacy encrypted quote pages remain readable during rollout');
+ Object.assign(priorAsset,prior);releaseBefore.body=priorBody;
+ for(const mode of ['ignored','redirect','corrupt','truncated','mismatch']){cache.clear();rangeMode=mode;response=await read();assert.equal(response.status,503,`An invalid ${mode} range cannot become a current observation`);}rangeMode='ok';cache.clear();
  at+=3*60000;response=await read();data=await response.json();assert.equal(data.primarySchedule.overdue,true,'A cached prepared envelope cannot invent source freshness');
  at-=3*60000;
  restored=localBreakouts(baseline,options);const recovered=breakoutMinuteJournal(restored,{...journalOptions,out:path.join(root,'restore')});assert.equal(await recovered.restore(),3);assert.deepEqual(restored.store.history('TEST'),source.store.history('TEST'),'Every acknowledged minute after the full checkpoint survives restart');assert.equal(await recovered.restore(),0,'Restoration is replay safe');

@@ -3,7 +3,6 @@ import path from 'node:path';
 import {githubBackgroundRelease} from './github-background-release.mjs';
 import {sealBackgroundState,openBackgroundState} from './github-background-seal.mjs';
 import {packBackgroundViews} from './github-background-package.mjs';
-import {privateRecordViews} from './github-private-records.mjs';
 import {backgroundContract} from '../../worker/github-background-contract.mjs';
 import {PRIMARY_TIMER} from '../../worker/breakout-primary.mjs';
 import {boundedJson} from '../../public/js/data/family-book-contract.js';
@@ -67,16 +66,14 @@ export function breakoutMinuteJournal(local,{env=process.env,fetcher=fetch,recip
   // The minute frame acknowledges primary samples. Fallback observations and
   // recovery candles become visible only after their full restart store is saved.
   const {fallback,schedule}=acknowledged,primarySchedule=await local.primary.status();
-  const records=new Map();
-  const pages=(kind,value)=>{const {rows,...metadata}=value,ids=[];for(let offset=0;offset<rows.length;offset+=500){const id=`${kind}-${offset}`;records.set(id,{rows:rows.slice(offset,offset+500)});ids.push(id);}return {...metadata,pages:ids};};
-  const head={version:1,repo:source.repo,feature:FEATURE,createdAt:new Date(at).toISOString(),fallback:pages('fallback',fallback),primary:pages('primary',primary),schedule,primarySchedule:{...primarySchedule,runtime:'github-actions',alarmAt:null}};
+  const head={version:1,repo:source.repo,feature:FEATURE,createdAt:new Date(at).toISOString(),fallback,primary,schedule,primarySchedule:{...primarySchedule,runtime:'github-actions',alarmAt:null}};
   // A legacy full checkpoint may predate the journal. It already retains that
   // minute; only newly sampled frames require replay after a restart.
   const value={version:1,repo:source.repo,feature:FEATURE,at:metadata.at,frame:frame?.at===metadata.at?frame:null,timer:await local.storage.get(PRIMARY_TIMER),alarmAt:await local.storage.getAlarm(),config:local.db.prepare('SELECT key,part,payload FROM upstox_config ORDER BY key,part').all()};
   const plain=path.join(out,'minute.json'),sealed=path.join(out,'state.bin'),views=path.join(out,'views.gz');
   fs.mkdirSync(out,{recursive:true});const bytes=JSON.stringify(value);if(Buffer.byteLength(bytes)>8*1024*1024)throw Error('Minute frame exceeds restart budget');fs.writeFileSync(plain,bytes);
   await sealBackgroundState(plain,sealed,FEATURE,{env,maxPlainBytes:8*1024*1024});
-  await packBackgroundViews(privateRecordViews([...records.keys()],id=>records.get(id),head,{repo:source.repo,feature:FEATURE,env}),recipient,views,{repo:source.repo,feature:FEATURE,sourceSignature:signature});
+  await packBackgroundViews([{name:'head.json',value:head}],recipient,views,{repo:source.repo,feature:FEATURE,sourceSignature:signature});
   return source.publish({cycle:++cycle,state:sealed,views,sourceSignature:signature,observedAt:metadata.at});
  }
  return {restore,publish,acknowledgeFallback:(fallback,schedule)=>{acknowledged=structuredClone({fallback,schedule});}};
