@@ -61,3 +61,11 @@ then reads its alternative-fund names. Statement dates remain explicit. Glow
 reads the single public Sattva funding release in its existing automatic static
 publication pipeline; it never scrapes Inc42 a second time or copies Sattva
 private portfolios, subscribers, credentials or newsletter state.
+
+Private Market’s Round types filter groups spelling, hyphenation and footnote
+variants, series sub-rounds/extensions, Credit/Debt and mixed equity/debt labels.
+Pre-Series stages remain distinct from their Series stages. Missing, misplaced
+amounts and unrecognised values appear under Unspecified; All retains every
+source observation. Original round wording, monetary amounts, footnotes and
+source fields remain unchanged in the table, drilldown and filtered export.
+Saved raw round selections migrate to their display group during an upgrade.
