@@ -1,4 +1,5 @@
 import {readableOwnership} from './mutual-funds-ownership.js';
+import {sourceFreshness} from './mutual-funds-freshness.js';
 import { conditionalJson,revalidatedJson,readEntry,writeEntry } from '../core/store.js';
 import * as coverage from './coverage.js';
 import * as watchlist from '../core/watchlist.js';
@@ -154,6 +155,11 @@ async function detailPublic(isin,month=null) {
 }
 export function health(m=meta(),now=Date.now()) {
   if(m.readFailed)return 'Read failed · showing saved disclosures';
+  if(m.amcs?.length) {
+    const h=sourceFreshness(m,now);
+    if(h.state==='stale')return 'Source checks overdue';
+    return h.state==='partial'?`Partial coverage · ${h.currentAmcs}/${h.totalAmcs} AMCs reported`:'Latest reported disclosures';
+  }
   if(!m.checkedAt)return 'Source checks pending';
   const age=now-Date.parse(m.checkedAt);
   if(!Number.isFinite(age)||age < -60000||age>45*60000)return 'Source checks overdue';

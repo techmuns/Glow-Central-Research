@@ -29,7 +29,7 @@ const merged=mergeCompany(company,newer);assert.equal(merged.funds[0].months['20
 const unavailable=structuredClone(newer);unavailable.funds[0].months['2026-08'].shares=null;assert.equal(mergeCompany(merged,unavailable).funds[0].months['2026-08'].shares,175);
 const older=structuredClone(newer);older.funds[0].months['2026-08'].checkedAt='2026-09-01T00:00:00Z';assert.equal(mergeCompany(merged,older).funds[0].months['2026-08'].shares,175);
 const rechecked=structuredClone(company);rechecked.funds[0].months['2026-08'].checkedAt='2026-09-20T00:00:00Z';assert.equal(companyRevision(company),companyRevision(rechecked));
-assert.equal(coverageState({state:'complete',checkedAt:new Date(now).toISOString(),amcs:[{month:'2026-07',status:'ok'}]},now).state,'partial');
+assert.equal(coverageState({state:'complete',checkedAt:new Date(now).toISOString(),amcs:[{month:'2026-07',status:'ok',checkedAt:new Date(now).toISOString()}]},now).state,'partial');
 assert.equal(coverageState({state:'complete',checkedAt:'2026-09-01',amcs:[{month:'2026-08',status:'ok'}]},now).state,'stale');
 assert.equal(coverageState({state:'complete',checkedAt:new Date(now).toISOString(),amcs:[{month:'2026-08',status:'ok'}]},now+12*86400000).state,'stale');
 assert.equal(projectCompany({...company,denominator:{shares:1000,checkedAt:'2026-08-01'}},{now}).companyPct,null);
