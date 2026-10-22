@@ -8,7 +8,10 @@ import { filterByScope } from '../public/js/data/scope.js';
 import { writeEntry } from '../public/js/core/store.js';
 
 const read = path => JSON.parse(readFileSync(new URL(`../public/data/${path}`, import.meta.url)));
-const bse = read('announcement-identities.json'), nse = read('filing-capture/nse-identities.json');
+const bse = read('announcement-identities.json'), nseCapture = read('filing-capture/nse-identities.json');
+// Real directory identities are retained, but the successful-read fixture must not inherit
+// a transient collector error. Failure/revalidation states are injected explicitly below.
+const nse = { ...nseCapture, directories: Object.fromEntries(Object.entries(nseCapture.directories).map(([kind, directory]) => [kind, { ...directory, error: null }])) };
 const built = buildExchangeUniverse(bse, nse);
 let yields = 0;
 assert.deepEqual(await buildExchangeUniverseAsync(bse, nse, {
