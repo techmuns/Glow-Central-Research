@@ -9,6 +9,9 @@ import { writeEntry } from '../public/js/core/store.js';
 
 const read = path => JSON.parse(readFileSync(new URL(`../public/data/${path}`, import.meta.url)));
 const bse = read('announcement-identities.json'), nse = read('filing-capture/nse-identities.json');
+// Mock successful source replies explicitly; the retained production snapshot
+// may carry a real overnight refusal, which must not redefine this fixture.
+for (const directory of Object.values(nse.directories)) directory.error = null;
 const built = buildExchangeUniverse(bse, nse);
 let yields = 0;
 assert.deepEqual(await buildExchangeUniverseAsync(bse, nse, {
@@ -161,4 +164,13 @@ assert.equal(overlapReads, 6, 'each overlapping return burst adds one subsequent
 assert.deepEqual(overlapping.all(), buildExchangeUniverse(deliveredBse, nse).companies,
   'the return check includes a listing published after the previous source request began');
 assert.equal(overlapping.meta().sources.find(s => s.label === 'BSE').checkedAt, deliveredBse.capturedAt);
+// Retained identities from a failed check are still readable, but not complete.
+const partialNse = { ...nse, directories: { ...nse.directories, equity: {
+  ...nse.directories.equity, error: 'Fixture: source check unavailable',
+} } };
+await overlapping.load({ read: async path => ({ value: path.includes('nse-identities') ? partialNse : deliveredBse, stale: false }) });
+assert.deepEqual(overlapping.all(), buildExchangeUniverse(deliveredBse, nse).companies);
+assert(overlapping.meta().errors.some(e => e.includes('main board directory has not been fully checked')));
+await overlapping.load({ read: async path => ({ value: path.includes('nse-identities') ? nse : deliveredBse, stale: false }) });
+assert.deepEqual(overlapping.meta().errors, [], 'an explicit successful source check clears the prior failure');
 console.log(`PASS ${expected.size} exchange equity identities: complete union, BSE/NSE collisions, automatic enrollment, persisted exclusions and failure retention.`);
