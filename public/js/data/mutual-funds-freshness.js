@@ -15,5 +15,5 @@ export function sourceFreshness(meta={},now=Date.now()) {
     checkedAt:meta.checkedAt||null,
     // The oldest latest attempt establishes that the whole inventory was checked.
     // Missing/invalid clocks must never be dropped from this minimum.
-    lastAttemptAt:attempts.length&&attempts.every(t=>Number.isFinite(Date.parse(t)))?[...attempts].sort()[0]:null};
+    lastAttemptAt:attempts.length&&attempts.every(t=>Number.isFinite(Date.parse(t)))?[...attempts].sort((a,b)=>Date.parse(a)-Date.parse(b))[0]:null};
 }

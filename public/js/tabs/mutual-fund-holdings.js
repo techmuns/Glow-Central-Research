@@ -116,7 +116,7 @@ function paintStatus() {
   const m=feed.meta();
   const freshness=sourceFreshness(m);
   ctx.root.querySelector('[data-mf-coverage]').title=[m.revalidating?'Showing saved disclosures · Checking for updates':'',feed.health(),
-    `All-source attempts through ${coverageTime(freshness.lastAttemptAt)}`,`Oldest retained successful check ${checked(m)}`,supplementStatus(m)].filter(Boolean).join(' · ');
+    `All-source attempts through ${coverageTime(freshness.lastAttemptAt)}`,supplementStatus(m)].filter(Boolean).join(' · ');
   const sizeNode=ctx.root.querySelector('[data-mf-sizes]'),sizes=cachedPositionSizes();
   sizeNode.innerHTML=sort==='holdings'&&ctx.scope==='portfolio'&&!sizes?.sizes?.complete
     ? 'Portfolio sizes unavailable · Newest shown.' : '';
