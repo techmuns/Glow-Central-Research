@@ -50,8 +50,6 @@ jobs:
       - name: Recover missed source and holdings checks
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # Existing repository automation credential; never sent outside GitHub.
-          AMFI_ACTIONS_TOKEN: ${{ secrets.SYNC_PUSH_TOKEN }}
           MF_RECOVERY_REPORT: ${{ runner.temp }}/mutual-funds-recovery.json
         run: node scripts/recover-mutual-funds.mjs --apply
       - uses: actions/upload-artifact@v5
