@@ -10,6 +10,8 @@ on:
       - "wrangler.jsonc"
       - ".github/workflows/deploy.yml"
       - "scripts/github-deploy-state.mjs"
+      - "scripts/check-breakout-runner.mjs"
+      - "scripts/lib/breakout-handover.mjs"
       - "scripts/lib/github-background-*.mjs"
   workflow_dispatch:
   workflow_run:
@@ -61,6 +63,7 @@ on:
 permissions:
   contents: read
   deployments: write
+  actions: write
 
 env:
   CLOUDFLARE_ACCOUNT_ID: a441977d2344922f96303859b74754d8
@@ -92,6 +95,9 @@ jobs:
         if: steps.credential.outputs.available == 'true'
         with:
           node-version: "22"
+      - name: Recover an absent market-hours quote runner
+        if: steps.credential.outputs.available == 'true'
+        run: node scripts/check-breakout-runner.mjs
       - name: Compare published inputs with the last successful upload
         id: plan
         if: steps.credential.outputs.available == 'true'
