@@ -188,19 +188,16 @@ async function main() {
   const local=await githubBreakouts({legacyClient,recipient});
   const {githubPriceLevels}=await import('./lib/price-levels-github.mjs');
   let levelsReady=false;const levelExport=async input=>{const read=()=>exportClient({...input,action:'price-levels-export'});if(levelsReady||input.table)return read();const value=await bootstrapBreakouts({client:read});levelsReady=true;return value;};
-  const levels=await githubPriceLevels({legacyClient:levelExport,inputs:()=>exportClient({action:'price-levels-inputs'}),recipient});
-  let acknowledged=false;
-  const publish=local.publish;local.publish=async()=>{await levels.publish();const saved=await publish();acknowledged=true;return saved;};
+  let levels=null;const levelsTask=githubPriceLevels({legacyClient:levelExport,inputs:()=>exportClient({action:'price-levels-inputs'}),recipient}).then(value=>{levels=value;}).catch(()=>console.warn('Private price-level initialization is unavailable; independent stock-price sampling continues.'));
+  const publish=local.publish;local.publish=async()=>{const saved=await publish();if(levels)try{await levels.publish();}catch{console.warn('Private price-level publication is delayed; live stock quotes remain saved.');}return saved;};
   const {refreshBreakoutInputs}=await import('./lib/breakout-inputs.mjs');let inputRoot=resolve('public/data');
   const discover=async previous=>{let inputFailed=false;try{const next=await refreshBreakoutInputs();inputRoot=next.root;await local.storage.put('github-breakout-inputs',{revision:next.revision,checkedAt:Date.now()});}catch{inputFailed=true;}return discoverBreakoutTargets(previous,{inputRoot,inputFailed});};
   try {
-    await runBreakoutRunner(local,{discover,checkLevels:()=>levels.tick(),token:process.env.UPSTOX_BACKUP_ENABLED==='true'?process.env.UPSTOX_ACCESS_TOKEN||'':'',notify:()=>dispatchWorkflow(fetch,{token:process.env.GITHUB_TOKEN,owner:'techmuns',repo:'Glow-Central-Research',ref:'main'},'deploy.yml','main')});
+    const {ensureBreakoutRunner}=await import('./lib/breakout-handover.mjs');
+    await runBreakoutRunner(local,{discover,handover:()=>ensureBreakoutRunner({ignoreCurrent:true}),checkLevels:()=>levels?.tick(),token:process.env.UPSTOX_BACKUP_ENABLED==='true'?process.env.UPSTOX_ACCESS_TOKEN||'':'',notify:()=>dispatchWorkflow(fetch,{token:process.env.GITHUB_TOKEN,owner:'techmuns',repo:'Glow-Central-Research',ref:'main'},'deploy.yml','main')});
     console.log('Retained minute and fallback quotes saved on GitHub; static publication requested.');
   }finally{
-    await levels.close();await local.close();
-    const {continueBreakoutCapture}=await import('./lib/breakout-continuation.mjs');
-    try{await continueBreakoutCapture({acknowledged});}
-    catch{console.warn('Market runner handoff was unavailable; the ordinary GitHub schedule remains the recovery path.');}
+    await levelsTask;await levels?.close();await local.close();
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main().catch(() => { console.error('Breakout capture did not complete. Saved checkpoints are retained; inspect the capture health endpoint.'); process.exitCode = 1; });
