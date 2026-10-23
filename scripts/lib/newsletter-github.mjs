@@ -11,7 +11,7 @@ import {backgroundContract} from '../../worker/github-background-contract.mjs';
 import {NEWSLETTER_TABLES,NEWSLETTER_KEYS} from '../../worker/newsletter-export.mjs';
 import {readerKeys,encode64,openForReader} from '../../worker/mutual-funds-seal.mjs';
 import {buildBrief,briefSubject,briefSummary,renderBriefHtml,renderBriefText} from '../../worker/newsletter-brief.mjs';
-import {renderBriefEmails} from '../../worker/newsletter-email.mjs';
+import {renderBriefEmails,renderBriefDeliveryEmails} from '../../worker/newsletter-email.mjs';
 import {renderBriefPdf,pdfFilename} from '../../worker/newsletter-pdf.mjs';
 import {istDay} from '../../public/js/data/newsletter-shared.js';
 import {localNewsletter} from './newsletter-local.mjs';
@@ -147,7 +147,8 @@ export async function githubNewsletter({env=process.env,fetcher=fetch,legacyClie
    local.db.prepare('DELETE FROM newsletter_views WHERE id LIKE ?').run(`preview-${edition}-html-%`);
    try{
     const brief=await buildBrief({edition,day:istDay(at),settings:local.store.settings(),env,fetcher:guardedFetch,now:at,to:at,reported:local.store.reportedLookup(),includeAi:false,contentService:local.schedule.content}),options=local.schedule.renderOptions();
-    const messages=renderBriefEmails(brief,options),base={ok:true,edition,subject:briefSubject(brief,options),builtAt:new Date(at).toISOString(),summary:briefSummary(brief)};
+    const delivery=renderBriefDeliveryEmails(brief,{...options,pdfUrl:local.schedule.dashboardUrl()+'/api/newsletter/pdf/00000000-0000-0000-0000-000000000000'});
+    const messages=renderBriefEmails(brief,options),base={ok:true,edition,subject:briefSubject(brief,options),builtAt:new Date(at).toISOString(),summary:briefSummary(brief),deliveryParts:delivery.length,deliveryFormat:delivery[0]?.part?.reportLink?'complete-report':'inline'};
     for(const message of messages){const part=message.part?.index||1;save(`preview-${edition}-html-${part}`,{...base,subject:message.subject,part,parts:messages.length,body:renderBriefHtml(brief,{...options,part:message.part,preview:true})});}
     save(`preview-${edition}-text-1`,{...base,body:renderBriefText(brief,options)});
     save(`preview-${edition}-pdf-1`,{...base,body:Buffer.from(renderBriefPdf(brief,options)).toString('base64'),binary:true,filename:pdfFilename(brief)});

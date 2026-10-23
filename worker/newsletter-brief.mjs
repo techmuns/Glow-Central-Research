@@ -1741,8 +1741,32 @@ const routineNote = (n) => `${n} routine filing${n === 1 ? '' : 's'} (newspaper 
 /**
  * The email. `recipient` personalises the footer only, so one build serves every subscriber.
  */
+// Busy editions use a bounded email index; the immutable report remains the complete
+// edition. This renderer never selects, shortens or rewrites the report's source rows.
+function renderBriefReportHtml(brief, { dashboardUrl, recipient, productName, brand, settings, pdfUrl, part, stats }) {
+  const subject = briefSubject(brief, { brand, stats });
+  const sendTime = settings?.[brief.edition]?.time || EDITIONS[brief.edition].defaultTime;
+  const subscribed = recipient?.test ? 'This is a test copy you asked for.'
+    : `You're subscribed to the ${esc(brand)} brief every weekday at ${esc(clockLabel(sendTime))}.${recipient?.addedBy ? ` Added by ${esc(recipient.addedBy)}.` : ''}`;
+  const index = part.compact ? '' : `<h2>Companies in this report</h2><ul>${stats.companies.map(c => `<li>${esc(c.company)}: ${c.clusters.length} update${c.clusters.length === 1 ? '' : 's'}</li>`).join('')}</ul>`;
+  const coverage = part.compact
+    ? 'Source check times, pending reads and partial or unavailable feeds are disclosed in the complete report. This email does not certify source completeness.'
+    : sourcesNote(brief);
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
+<body style="margin:0;background:${CREAM};color:${BODY};font-family:${SANS};line-height:1.6;">
+<table role="presentation" width="100%"><tr><td align="center" style="padding:24px 12px;"><table role="presentation" width="640" style="width:100%;max-width:640px;background:${PAPER};border:1px solid ${RULE};"><tr><td style="padding:24px;">
+<h1 style="color:${INK};font-family:${SERIF};">${esc(brand)}</h1><p>${esc(productName)} · ${esc(TAGLINES[brief.edition])}<br>${esc(istDateLong(brief.at))} · ${esc(windowLine(brief))}</p>
+<p><strong>${stats.updates} updates across ${stats.companies.length} of ${brief.book.listed} portfolio companies</strong><br>${stats.good} good · ${stats.watch} watch-out${stats.watch === 1 ? '' : 's'}</p>
+<p><strong>Your complete edition is in the saved PDF.</strong> This email is an overview because the full report exceeds the inbox size budget. The PDF contains every eligible update, original source link, source-read status, AI note, calendar event, corporate action, company-price row and market table. No additional email parts follow.</p>
+<p><a href="${esc(pdfUrl)}" ${NEW_TAB} style="display:inline-block;padding:12px 18px;background:${GOLD};color:white;text-decoration:none;font-weight:bold;">Open complete report / Download PDF ↓</a></p>
+${index}<p style="font-size:11px;color:${META};">${esc(coverage)}</p>
+<hr><p style="font-size:12px;">${subscribed}<br><a href="${esc(dashboardUrl + '/#/research/ask-research?newsletter=manage')}" ${NEW_TAB}>Unsubscribe</a> · ${esc(brand)} ${esc(productName)} · Automated by Munshot<br>Potential impact is an AI interpretation, not an established outcome. This brief is informational, not investment advice. Sent ${esc(istLabel(brief.builtAt, { year: true }))}.</p>
+</td></tr></table></td></tr></table></body></html>`;
+}
+
 export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recipient = null, productName = PRODUCT_NAME, brand = BRAND, settings = null, pdfUrl = null, part = null, preview = false, stats: suppliedStats = null } = {}) {
   const stats = suppliedStats || briefStats(brief);
+  if (part?.reportLink === true) return renderBriefReportHtml(brief, { dashboardUrl, recipient, productName, brand, settings, pdfUrl, part, stats });
   const subject = briefSubject(brief, { brand, part, stats });
   const companies = part?.companies ?? stats.companies;
   const includeSection = name => !part || Object.hasOwn(part.sections, name);

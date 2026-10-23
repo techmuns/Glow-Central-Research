@@ -38,7 +38,7 @@ export function acceptedStoryKeys(messages, acceptedParts) {
  * remain unchanged, so AI notes and the sent-story ledger still refer to the original evidence.
  * Whole companies stay together unless one company cannot fit by itself. Calendar, corporate actions, holdings and market rows follow the news. Extra parts are safer than silently dropping a busy day's news.
  */
-export function renderBriefEmails(brief, options = {}, { maxBytes = EMAIL_HTML_BYTES } = {}) {
+export function renderBriefEmails(brief, options = {}, { maxBytes = EMAIL_HTML_BYTES, maxParts = MAX_PARTS } = {}) {
   // Group the immutable edition once, rather than once per packing candidate/part.
   options = { ...options, stats: briefStats(brief) };
   const companies = options.stats.companies;
@@ -52,7 +52,11 @@ export function renderBriefEmails(brief, options = {}, { maxBytes = EMAIL_HTML_B
   const fits = page => emailBytes(renderBriefHtml(brief, {
     ...options, part: { ...page, index: MAX_PARTS, total: MAX_PARTS },
   })) <= maxBytes - PACKING_RESERVE;
-  const flush = () => { if (hasContent(current)) pages.push(current); current = empty(); };
+  const flush = () => {
+    if (hasContent(current)) pages.push(current);
+    if (pages.length > maxParts) throw tooLarge();
+    current = empty();
+  };
   const append = (merge) => {
     const next = merge(current);
     if (fits(next)) { current = next; return true; }
@@ -105,4 +109,34 @@ export function renderBriefEmails(brief, options = {}, { maxBytes = EMAIL_HTML_B
     if (bytes > maxBytes) throw tooLarge();
     return { html, bytes, subject: briefSubject(brief, options), keys: keysFor(page.companies), part };
   });
+}
+
+/** Delivery has a fixed inbox budget. A busy current edition travels as one clearly
+ * labelled overview linking its complete immutable PDF, never a truncated inline plan.
+ * The caller must publish and verify that exact PDF before any provider submission.
+ * Full HTML/text/PDF readers retain every eligible source and supplemental row.
+ */
+export function renderBriefDeliveryEmails(brief, options = {}, { maxBytes = EMAIL_HTML_BYTES } = {}) {
+  const stats = briefStats(brief);
+  const policy = newsletterDeliveryPolicy({ partCount: 1, lateCount: stats.late });
+  if (policy) throw Object.assign(new Error('Newsletter delivery policy refused this edition'), { code: policy });
+  try {
+    return renderBriefEmails(brief, options, { maxBytes, maxParts: MAX_DELIVERY_EMAIL_PARTS });
+  } catch (error) {
+    if (error?.code !== 'email-too-large') throw error;
+  }
+  // A live send must have a saved edition URL. A moving preview/dashboard link is
+  // not delivery evidence for the source keys carried by this message.
+  const origin = (options.dashboardUrl || '').replace(/\/+$/, '');
+  if (!origin || !options.pdfUrl?.startsWith(origin + '/api/newsletter/pdf/') ||
+      !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(options.pdfUrl.slice((origin + '/api/newsletter/pdf/').length))) {
+    throw Error('Complete-report delivery requires an immutable edition PDF');
+  }
+  for (const compact of [false, true]) {
+    const part = { reportLink: true, compact, index: 1, total: 1 };
+    const html = renderBriefHtml(brief, { ...options, stats, part });
+    const bytes = emailBytes(html);
+    if (bytes <= maxBytes) return [{ html, bytes, subject: briefSubject(brief, options), keys: keysFor(stats.companies), part }];
+  }
+  throw tooLarge();
 }

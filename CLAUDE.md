@@ -1584,6 +1584,14 @@ any send above six parts, without truncating eligible current records. Recheck f
 plans: retire historical or oversized editions without further sends, preserving evidence.
 This supersedes the earlier email catch-up rules below; retained source readers still cover archives.
 
+**Bounded delivery, corrected 23 October 2026:** a legitimate current edition can exceed
+six inline emails (the morning report had eight), so blocking alone is not successful
+delivery. Keep full HTML/text/PDF readers intact. New busy editions send one clearly labelled
+overview with the complete immutable PDF, including every eligible source and table. The
+GitHub sender verifies the exact published PDF before provider I/O. Short inline editions
+remain within six emails; historical/oversized frozen plans stay retired and claims survive
+upgrades. The linked report's keys are acknowledged only after its email is accepted.
+
 1. **The store keeps a ledger of what the desk has been sent** (`newsletter_reported`), keyed by
    each item's own identity — the exchange's `newsId`, NSE's `filingKey`, the trade's
    `insiderTradeIdentity`, `move:<ticker>|<session>` — never by a count or a capture clock. Only a

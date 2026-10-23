@@ -4880,6 +4880,21 @@ counts remain explicit. Parts are submitted sequentially for each recipient, wit
 parallel; the sender cannot guarantee the receiving provider's inbox arrival order. Durable edition
 claims prevent replaying uncertain sends; no automatic resend is added.
 
+**Busy-edition delivery (23 October 2026):** `renderBriefDeliveryEmails` bounds new sends
+to six inline messages. If the complete inline plan cannot fit, it produces **one** explicitly
+labelled overview linking the saved immutable PDF. This transport choice does not select or
+truncate the report: every eligible source, original link, AI note and supplemental row remains
+in the PDF and complete readers. The company index may be replaced by explicit totals if the
+index itself exceeds the byte budget. A moving preview URL cannot be used for delivery.
+The existing GitHub publication guard verifies the exact saved PDF before any provider call;
+only an accepted email acknowledges the full report's source identities. Delivery summaries
+name `deliveryFormat: 'complete-report' | 'inline'` alongside `emailParts`. Full previews keep
+their original pagination and expose `x-newsletter-delivery-format` and
+`x-newsletter-delivery-parts` separately so preview page count cannot be mistaken for inbox
+message count. Historical eligibility, the six-message frozen-plan ceiling, three-hour
+expiry, prior claims and no-replay rules remain in force. Failed earlier editions are never
+automatically rebuilt as report emails by this change.
+
 - **Threaded editions (7 October 2026):** all parts share one dated morning/evening subject;
   part numbers remain in the body. The verified Muns success response returns `data.messageId`.
   Each recipient's first part starts a new root; later parts send `inReplyTo: rootMessageId`
