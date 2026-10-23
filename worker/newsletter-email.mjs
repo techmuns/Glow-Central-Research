@@ -54,7 +54,7 @@ export function renderBriefEmails(brief, options = {}, { maxBytes = EMAIL_HTML_B
   })) <= maxBytes - PACKING_RESERVE;
   const flush = () => {
     if (hasContent(current)) pages.push(current);
-    if (pages.length > maxParts) throw tooLarge();
+    if (pages.length > maxParts) throw Object.assign(tooLarge(), { requiredParts: pages.length, maxParts });
     current = empty();
   };
   const append = (merge) => {
