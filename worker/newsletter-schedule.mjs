@@ -289,6 +289,11 @@ export class NewsletterSchedule {
       const reason = ['email-too-large', 'email-part-limit', 'historical-backlog-stopped'].includes(error?.code) ? error.code : 'build-failed';
       return finish({ sent: 0, failed: list.length, reason, outcomes: list.map(r => ({ email: r.email, ok: false, reason })) });
     }
+    // Only the GitHub queue has the exact-publication guard before provider I/O.
+    // The retired direct sender must never acknowledge a report it cannot verify.
+    if (messages.some(message => message.part?.reportLink) && !this.deliveryQueue) {
+      return finish({ sent: 0, failed: list.length, reason: 'pdf-unverified', outcomes: list.map(r => ({ email: r.email, ok: false, reason: 'pdf-unverified' })) });
+    }
     const renderStats = briefStats(brief);
     let pdfUrl, documentId;
     try {

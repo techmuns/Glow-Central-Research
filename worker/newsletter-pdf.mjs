@@ -55,6 +55,8 @@ const paragraphHeight = (text, size, font = "F1", gap = 6) =>
   wrap(text, CONTENT, font, size).length * size * 1.42 + gap;
 const noteHeight = (text) =>
   40 + wrap(text, CONTENT - 30, "F1", 10).length * 14.2;
+const sourceLinks = (story, dashboardUrl) => [...new Set([story.url, ...(story.sourceUrls || [])]
+  .filter(Boolean).map(url => readableUrl(url, dashboardUrl)).filter(Boolean))];
 const updateHeight = (k, note) => {
   const s = k.main;
   const metadata = `${s.topic.label} / ${s.mood.label} / ${s.source} / ${storyWhen(s)}${s.related ? " / related entity" : ""}${s.late ? " / not in the previous brief" : ""}`;
@@ -72,7 +74,7 @@ const updateHeight = (k, note) => {
         (s.why?.source ? 40 : 0)
       : 0) +
     paragraphHeight(metadata, 8) +
-    (s.url ? 22 : 0) +
+    (new Set([s.url, ...(s.sourceUrls || [])].filter(Boolean)).size * 22) +
     20 +
     k.others.reduce(
       (n, r) =>
@@ -82,7 +84,7 @@ const updateHeight = (k, note) => {
           `${r.source} / ${storyWhen(r)}${r.related ? " / related entity" : ""}${r.late ? " / not in the previous brief" : ""}`,
           8,
         ) +
-        (r.dek ? paragraphHeight(r.dek, 10) : 0),
+        (r.dek ? paragraphHeight(r.dek, 10) : 0) + (r.sourceUrls?.length || 0) * 22,
       0,
     )
   );
@@ -424,12 +426,12 @@ export function renderBriefPdf(
         `${s.topic.label} / ${s.mood.label} / ${s.source} / ${storyWhen(s)}${s.related ? " / related entity" : ""}${s.late ? " / not in the previous brief" : ""}`,
         { size: 8, color: MUTED },
       );
-      if (s.url)
-        pdf.paragraph("Read original source ->", {
+      for (const [i, url] of sourceLinks(s, dashboardUrl).entries())
+        pdf.paragraph(i === 0 ? "Read original source ->" : `Read additional original source ${i + 1} ->`, {
           font: "F2",
           size: 9,
           color: ACCENT,
-          url: readableUrl(s.url, dashboardUrl),
+          url,
         });
       for (const r of k.others) {
         pdf.paragraph(`Related: ${r.headline}`, {
@@ -441,6 +443,8 @@ export function renderBriefPdf(
           { size: 8, color: MUTED },
         );
         if (r.dek) pdf.paragraph(r.dek, { size: 10, color: MUTED });
+        for (const url of sourceLinks(r, dashboardUrl).filter(url => url !== readableUrl(r.url, dashboardUrl)))
+          pdf.paragraph("Read additional related source ->", { font: "F2", size: 9, color: ACCENT, url });
       }
       pdf.y += 4;
       pdf.rule();

@@ -39,6 +39,7 @@ export function pdfFixture() {
               direction: "positive",
               keywords: ["order"],
               url: "https://example.test/filing/terms.pdf",
+              sourceUrls: ["https://example.test/filing/terms.pdf", "https://example.test/filing/bse-copy.pdf", "https://example.test/filing/bse-copy.pdf"],
               content: {
                 state: "ready",
                 facts: [
@@ -254,10 +255,12 @@ export function verifyNewsletterPdf() {
   );
   for (const url of [
     "https://example.test/filing/terms.pdf",
+    "https://example.test/filing/bse-copy.pdf",
     "https://example.test/calendar/call",
     "https://example.test/actions/dividend",
   ])
     assert.ok(raw.includes(url), "original evidence URL remains clickable");
+  assert.equal((raw.match(/\/URI \(https:\/\/example.test\/filing\/bse-copy.pdf\)/g) || []).length,1,'A folded exchange copy is clickable once, without duplicate links');
   // A note larger than a page must continue safely and retain its last words, not paint over footers.
   const long = structuredClone(brief);
   long.performance.rows[0].company =

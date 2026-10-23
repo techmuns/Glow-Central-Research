@@ -7,6 +7,7 @@ import {buildBrief,briefStories,briefStoryKeys,sourcesNote,PRODUCTION_ORIGIN} fr
 import {newsletterDeliveryPolicy,MAX_DELIVERY_EMAIL_PARTS,renderBriefEmails,renderBriefDeliveryEmails,EMAIL_HTML_BYTES} from '../worker/newsletter-email.mjs';
 import {NewsletterDeliveryQueue} from './lib/newsletter-delivery-queue.mjs';
 import {localNewsletter} from './lib/newsletter-local.mjs';
+import {renderBriefPdf} from '../worker/newsletter-pdf.mjs';
 import {DEFAULT_SETTINGS,editionWindow,istInstant} from '../public/js/data/newsletter-shared.js';
 
 const day='2026-10-22',now=istInstant(day,'08:00'),window=editionWindow('morning',day,DEFAULT_SETTINGS);
@@ -92,15 +93,13 @@ try{
   assert.equal(renderBriefDeliveryEmails(pathological,options).length,1,'One unfit source cannot block the complete report');
   const crowded=structuredClone(brief);crowded.news.groups[0].company='Very long company name & '.repeat(5000);
   assert.equal(renderBriefDeliveryEmails(crowded,options)[0].part.compact,true,'An oversized company index switches to explicit report totals, not another email');
-  const result=await large.schedule.deliver({edition:'morning',day,at:now,key:'large-edition',source:'timer',now,includeAi:false,recipients:[{email:'fixture@example.test'}]});
-  assert.equal(result.reason,null);assert.equal(result.summary.deliveryFormat,'complete-report');
-  assert.equal(sent.length,1);assert.equal(result.summary.emailParts,1);
-  assert.equal(large.db.prepare('SELECT COUNT(*) n FROM newsletter_documents').get().n,1);
-  assert(large.store.reportedCount()>0,'Confirmed report delivery acknowledges its complete source identities');
-  const document=large.db.prepare('SELECT body FROM newsletter_documents').get();
-  const pdf=Buffer.from(document.body).toString('latin1');
+  const pdf=Buffer.from(renderBriefPdf(brief)).toString('latin1');
   assert(pdf.includes('https://fixture.test/current/0'));assert(pdf.includes('https://fixture.test/current/219'),'The final source link survives in the complete immutable report');
+  const result=await large.schedule.deliver({edition:'morning',day,at:now,key:'large-edition',source:'timer',now,includeAi:false,recipients:[{email:'fixture@example.test'}]});
+  assert.equal(result.reason,'pdf-unverified','The direct sender cannot use a report fallback without the verified GitHub queue');
+  assert.equal(sent.length,0);assert.equal(large.store.reportedCount(),0,'An unverified report acknowledges no source identities');
+  assert.equal(large.db.prepare('SELECT COUNT(*) n FROM newsletter_documents').get().n,0);
   await large.schedule.deliver({edition:'morning',day,at:now,key:'large-edition',source:'timer',now,includeAi:false,recipients:[{email:'fixture@example.test'}]});
-  assert.equal(sent.length,1,'Replayed edition claims cannot send another email');
+  assert.equal(sent.length,0,'Replaying a refused direct delivery cannot send an unverified link');
 }finally{await large.close();}
 console.log('PASS newsletter policy: strict publication window, 2,584 old reports excluded, bounded current-report delivery, complete PDF evidence, frozen backlog stopped, receipts/history preserved, restart cannot replay');
