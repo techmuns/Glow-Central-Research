@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-23T17:43:09.697Z",
-  "oldestDataAt": "2026-10-23T17:43:09.697Z",
-  "from": "2025-10-23",
-  "to": "2026-10-23",
+  "capturedAt": "2026-10-23T18:31:40.696Z",
+  "oldestDataAt": "2026-10-23T18:31:40.696Z",
+  "from": "2025-10-24",
+  "to": "2026-10-24",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -22,13 +22,13 @@
       "id": "bulk",
       "label": "Bulk deal",
       "url": "https://www.screener.in/trades/bulk/?o=-2",
-      "pagesRead": 8,
+      "pagesRead": 2,
       "latestDate": "2026-10-23",
-      "oldestDate": "2026-10-22",
+      "oldestDate": "2026-10-23",
       "bootstrapDays": null,
       "ok": true,
-      "rowCount": 200,
-      "capturedAt": "2026-10-23T17:43:09.697Z",
+      "rowCount": 50,
+      "capturedAt": "2026-10-23T18:31:40.696Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-23T17:43:09.697Z",
+      "capturedAt": "2026-10-23T18:31:40.696Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-23T17:43:09.697Z",
+      "capturedAt": "2026-10-23T18:31:40.696Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-23T17:43:09.697Z",
+      "capturedAt": "2026-10-23T18:31:40.696Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 2091,
   "emptyCount": 0,
-  "rowCount": 23111,
+  "rowCount": 23109,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -190353,50 +190353,6 @@
           "From Date": "2026-04-27",
           "To Date": "2026-04-27",
           "Broadcast Date": "2026-04-29",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SGFIN",
-        "date": "2025-10-23",
-        "cells": {
-          "Company": "SG Finserve Ltd",
-          "Insider": "Sahil Sikka",
-          "Category": "KMP",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "12035",
-          "Trade %": "0.02",
-          "Trade Value": "4687663",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-10-20",
-          "To Date": "2025-10-21",
-          "Broadcast Date": "2025-10-23",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SGFIN",
-        "date": "2025-10-23",
-        "cells": {
-          "Company": "SG Finserve Ltd",
-          "Insider": "Sahil Sikka",
-          "Category": "KMP",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "4213",
-          "Trade %": "0.01",
-          "Trade Value": "1629839",
-          "Post Holding Shares": "12035",
-          "Post Holding %": "0.02",
-          "Mode": "Market Sale",
-          "From Date": "2025-09-18",
-          "To Date": "2025-09-19",
-          "Broadcast Date": "2025-10-23",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
