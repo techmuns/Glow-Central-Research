@@ -38,7 +38,10 @@ All Alerts streams newly received rows directly inside Till Today, with no separ
 The first screen enters one row every 110ms (at most 12 staged rows); the complete filtered model
 is immediately available to counts, search and export. Reduced motion, changed filters and hidden
 pages bypass the entrance queue. Existing visible-page 90-second checks and source cadence remain
-unchanged. Initial history and scope changes establish baselines; only later new identities get
+unchanged. All Alerts retains its original reading anchor across overlapping feed paints
+and the bounded post-paint measurement window; fresh reader input cancels correction.
+`verify-reading-anchor-ui.mjs` covers late row geometry and cancellation independently of
+source data. Keep the full-data scroll-position assertion strict. Initial history and scope changes establish baselines; only later new identities get
 NEW badges. Receipt time stays separate from publication time. Preserve chronological ordering,
 reading anchors and source coverage details in Sources.
 IPO Filings opens on Last 7 days (IST), retaining All captured and longer/undated choices;
