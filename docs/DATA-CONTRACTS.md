@@ -4888,7 +4888,7 @@ in the PDF and complete readers. The company index may be replaced by explicit t
 index itself exceeds the byte budget. A moving preview URL cannot be used for delivery.
 The existing GitHub publication guard verifies the exact saved PDF before any provider call;
 the retired direct sender refuses this fallback as `pdf-unverified` before saving a document
-or acknowledging a source. The complete PDF preserves every distinct folded exchange-copy URL.
+or acknowledging a source. The complete PDF preserves every distinct folded exchange, publisher/TradingView, trade, calendar and corporate-action source URL through the reader mappings and PDF links.
 only an accepted email acknowledges the full report's source identities. Delivery summaries
 name `deliveryFormat: 'complete-report' | 'inline'` alongside `emailParts`. Full previews keep
 their original pagination and expose `x-newsletter-delivery-format` and

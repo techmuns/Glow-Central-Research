@@ -129,6 +129,8 @@ function calendar(pdf, brief, dashboardUrl) {
               color: ACCENT,
               url: readableUrl(r.url, dashboardUrl),
             }),
+            ...sourceLinks(r, dashboardUrl).filter(url => url !== readableUrl(r.url, dashboardUrl))
+              .map(url => cell("Additional calendar source ->", { size: 8, color: ACCENT, url })),
           ],
         ],
       })),
@@ -181,6 +183,8 @@ function actions(pdf, brief, dashboardUrl) {
               color: ACCENT,
               url: readableUrl(r.url, dashboardUrl),
             }),
+            ...sourceLinks(r, dashboardUrl).filter(url => url !== readableUrl(r.url, dashboardUrl))
+              .map(url => cell("Additional action source ->", { size: 8, color: ACCENT, url })),
           ],
         ],
       })),

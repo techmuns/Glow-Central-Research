@@ -8,6 +8,7 @@ import {newsletterDeliveryPolicy,MAX_DELIVERY_EMAIL_PARTS,renderBriefEmails,rend
 import {NewsletterDeliveryQueue} from './lib/newsletter-delivery-queue.mjs';
 import {localNewsletter} from './lib/newsletter-local.mjs';
 import {renderBriefPdf} from '../worker/newsletter-pdf.mjs';
+import {verifyNewsletterSourceLinks} from './verify-newsletter-source-links.mjs';
 import {DEFAULT_SETTINGS,editionWindow,istInstant} from '../public/js/data/newsletter-shared.js';
 
 const day='2026-10-22',now=istInstant(day,'08:00'),window=editionWindow('morning',day,DEFAULT_SETTINGS);
@@ -102,4 +103,5 @@ try{
   await large.schedule.deliver({edition:'morning',day,at:now,key:'large-edition',source:'timer',now,includeAi:false,recipients:[{email:'fixture@example.test'}]});
   assert.equal(sent.length,0,'Replaying a refused direct delivery cannot send an unverified link');
 }finally{await large.close();}
+await verifyNewsletterSourceLinks();
 console.log('PASS newsletter policy: strict publication window, 2,584 old reports excluded, bounded current-report delivery, complete PDF evidence, frozen backlog stopped, receipts/history preserved, restart cannot replay');
