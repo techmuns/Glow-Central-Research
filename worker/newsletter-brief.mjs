@@ -247,6 +247,7 @@ export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {
 
 
 const upper = (v) => String(v || '').trim().toUpperCase();
+const evidenceUrls = (...values) => [...new Set(values.flat().filter(url => typeof url === 'string' && /^https?:\/\//.test(url)))];
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 /** The dashboard's own story rank: a tracked keyword, then a directional mood, then importance. */
 export const scoreOf = ({ keywords = [], direction = 'neutral', importance = 'low' } = {}) =>
@@ -319,7 +320,7 @@ export async function readAnnouncements({ env, fetcher = fetch, now = Date.now()
       const at = Date.parse(r.publishedAt || '');
       if (!ticker || !byTicker.has(ticker) || !inSpan(at)) continue;
       nse.matched += 1;
-      rows.push({ exchange: 'NSE', ticker, company: byTicker.get(ticker).name, subject: r.subject || null, category: null, description: r.description || null, headline: headlineOfNse(r), url: r.url || null, at, key: nseKey(r), dayOnly: false });
+      rows.push({ exchange: 'NSE', ticker, company: byTicker.get(ticker).name, subject: r.subject || null, category: null, description: r.description || null, headline: headlineOfNse(r), url: r.url || null, sourceUrls: evidenceUrls(r.url, r.sourceUrls), at, key: nseKey(r), dayOnly: false });
     }
   } catch (error) {
     nse = { ok: false, readAt: now, reason: reasonOf(error), count: 0, resolved: 0, matched: 0 };
@@ -346,7 +347,7 @@ export async function readAnnouncements({ env, fetcher = fetch, now = Date.now()
         const at = Date.parse(r.publishedAt || '');
         if (!ticker || !byTicker.has(ticker) || !inSpan(at)) continue;
         nseHistory.matched += 1;
-        rows.push({ exchange: 'NSE', ticker, company: byTicker.get(ticker).name, subject: r.subject || null, category: null, description: r.description || null, headline: headlineOfNse(r), url: r.url || null, at, key: nseKey(r), dayOnly: false });
+        rows.push({ exchange: 'NSE', ticker, company: byTicker.get(ticker).name, subject: r.subject || null, category: null, description: r.description || null, headline: headlineOfNse(r), url: r.url || null, sourceUrls: evidenceUrls(r.url, r.sourceUrls), at, key: nseKey(r), dayOnly: false });
       }
     }
   }
@@ -390,6 +391,7 @@ export async function readAnnouncements({ env, fetcher = fetch, now = Date.now()
     rows.push({ exchange, ticker, company: holding.name,
       subject: a.subCategory || a.category || a.subject || null, category: a.category || null, description: a.description || null,
       headline: a.headline || a.title || a.subCategory || a.category || ticker, url: a.url || a.referenceUrl || null,
+      sourceUrls: evidenceUrls(a.url, a.referenceUrl, a.sourceUrls),
       at, key, aliasKeys: a.newsId || a.scripCode ? [legacyKey] : [],
       dayOnly: !a.time && !Number.isFinite(publishedFilingInstant(a)), critical: a.critical === true });
     return exchange;
@@ -448,7 +450,7 @@ export async function readAnnouncements({ env, fetcher = fetch, now = Date.now()
     const { copies, firstAt, ...rest } = f;
     admitted.push({
       ...rest, at: firstAt, late: where.late, type: type.id,
-      sourceUrls: [...new Set(copies.map(c => c.url).filter(Boolean))],
+      sourceUrls: evidenceUrls(copies.flatMap(c => [c.url, ...(c.sourceUrls || [])])),
       keywords: reading.map((k) => k.label), keywordIds: reading.map((k) => k.id), keywordGroups: [...new Set(reading.map((k) => k.group))],
       direction: signal.direction, importance: signal.importance, filingRule: signal.filingRule,
     });
@@ -478,10 +480,11 @@ export async function readNews({ env, window, lateFrom = window.from, reported =
     const alias = `${ticker}|url:${articleUrlKey({ url })}`, keys = [key, alias];
     const where = place(at, keys); if (!where) return false;
     const identity = url ? alias : key;
-    if (seen.has(identity)) { const old = seen.get(identity); old.keys = [...new Set([...old.keys, ...keys])]; return false; }
+    const sourceUrls = evidenceUrls(url, article.sourceUrls, article.sourceUrl, article.tradingViewUrl);
+    if (seen.has(identity)) { const old = seen.get(identity); old.keys = [...new Set([...old.keys, ...keys])]; old.sourceUrls = evidenceUrls(old.sourceUrls, sourceUrls); return false; }
     const reading = matchKeywords(article.title);
     const row = { ticker, company: byTicker.get(ticker).name, headline: String(article.title || ''), summary: article.summary || '',
-      url: typeof url === 'string' && /^https?:\/\//.test(url) ? url : null,
+      url: typeof url === 'string' && /^https?:\/\//.test(url) ? url : null, sourceUrls,
       publisher: article.publisher || article.source || null, via, at, late: where.late, keys, dayOnly: false, attribution,
       keywords: reading.map(k => k.label), keywordIds: reading.map(k => k.id), keywordGroups: [...new Set(reading.map(k => k.group))] };
     rows.push(row); seen.set(identity, row); return true;
@@ -600,7 +603,7 @@ export async function readTrades({ env, window, lateFrom = window.from, reported
     const m = monthOf(day);
     if (!months.includes(m) && index.months[m] != null) months.push(m);
   }
-  const seen = new Set();
+  const seen = new Map();
   const rows = [], failedMonths = [];
   for (const month of months) {
     const file = await readAsset(env, insiderArchiveMonthPath(month));
@@ -610,10 +613,9 @@ export async function readTrades({ env, window, lateFrom = window.from, reported
       if (!ticker || !/^\d{4}-\d{2}-\d{2}$/.test(String(row?.date || ''))) continue;
       const at = dayOnlyInstant(row.date);
       const key = `trade:${insiderTradeIdentity(row)}`;
-      if (seen.has(key)) continue;
+      if (seen.has(key)) { const old = seen.get(key); old.sourceUrls = evidenceUrls(old.sourceUrls, insiderTradeSourceUrl(row), row.sourceUrls, row.sourceUrl, row.url); continue; }
       const where = place(at, [key]);
       if (!where) continue;
-      seen.add(key);
       const cells = row.cells || {};
       const signal = insiderSignal(cells);
       const category = cell(cells, 'Trade Category', 'Disclosure Type') || 'Insider trade';
@@ -631,10 +633,11 @@ export async function readTrades({ env, window, lateFrom = window.from, reported
           cell(cells, 'Mode') && action !== cell(cells, 'Mode') ? cell(cells, 'Mode') : null,
         ].filter(Boolean).join(' · '),
         source: cell(cells, 'Source') || cell(cells, 'Exchange') || 'Screener.in',
-        url: insiderTradeSourceUrl(row),
+        url: insiderTradeSourceUrl(row), sourceUrls: evidenceUrls(insiderTradeSourceUrl(row), row.sourceUrls, row.sourceUrl, row.url),
         keywords: [], keywordIds: [], keywordGroups: [],
         direction: signal.direction, importance: signal.importance, signalReason: signal.signalReason,
       });
+      seen.set(key, rows.at(-1));
     }
   }
   return { source: { ok: failedMonths.length === 0, capturedAt: index.updatedAt || null, months, failedMonths, identities: !!identities }, ...group(rows.sort((a, b) => b.at - a.at), uncapped ? Infinity : TRADE_LIMIT, uncapped ? Infinity : PER_COMPANY_LIMIT) };
@@ -790,10 +793,11 @@ export async function readCalendar({ env, day, holdings, fetcher = fetch, now = 
   const admit = (row) => {
     const key = `cal:${row.ticker}|${row.date}|${row.kind}`;
     const held = merged.get(key);
-    if (!held) { merged.set(key, { ...row, key, sources: [row.source] }); return; }
+    if (!held) { merged.set(key, { ...row, key, sources: [row.source], sourceUrls: evidenceUrls(row.url, row.sourceUrls) }); return; }
     if (!held.sources.includes(row.source)) held.sources.push(row.source);
     if (!held.time && row.time) held.time = row.time;
     if (!held.url && row.url) held.url = row.url;
+    held.sourceUrls = evidenceUrls(held.sourceUrls, row.url, row.sourceUrls);
   };
 
   // Screener's portfolio calendar, the authenticated capture read back through the Actions artifact.
@@ -816,7 +820,7 @@ export async function readCalendar({ env, day, holdings, fetcher = fetch, now = 
           if (!ticker || !inRange(r?.date)) continue;
           const { kind, label } = calendarKind(r.eventType);
           screenerSource.matched += 1;
-          admit({ ticker, company: byTicker.get(ticker).name, date: r.date, time: clockOf(r.time), kind, label, source: 'Screener', url: (typeof r.sourceUrl === 'string' && /^https:\/\//.test(r.sourceUrl) ? r.sourceUrl : null) || (typeof r.companyUrl === 'string' && /^https:\/\//.test(r.companyUrl) ? r.companyUrl : null) });
+          admit({ ticker, company: byTicker.get(ticker).name, date: r.date, time: clockOf(r.time), kind, label, source: 'Screener', url: (typeof r.sourceUrl === 'string' && /^https:\/\//.test(r.sourceUrl) ? r.sourceUrl : null) || (typeof r.companyUrl === 'string' && /^https:\/\//.test(r.companyUrl) ? r.companyUrl : null), sourceUrls: evidenceUrls(r.sourceUrl, r.companyUrl, r.sourceUrls) });
         }
       }
     } catch (error) {
@@ -834,7 +838,7 @@ export async function readCalendar({ env, day, holdings, fetcher = fetch, now = 
         const ticker = tickerOf(r);
         if (!ticker) continue;
         moneycontrol.matched += 1;
-        admit({ ticker, company: byTicker.get(ticker).name, date: d, time: clockOf(r.time), kind: 'result', label: 'Result', source: 'Moneycontrol', url: typeof r.mcUrl === 'string' && /^https:\/\//.test(r.mcUrl) ? r.mcUrl : null });
+        admit({ ticker, company: byTicker.get(ticker).name, date: d, time: clockOf(r.time), kind: 'result', label: 'Result', source: 'Moneycontrol', url: typeof r.mcUrl === 'string' && /^https:\/\//.test(r.mcUrl) ? r.mcUrl : null, sourceUrls: evidenceUrls(r.mcUrl, r.sourceUrls) });
       }
     }
   } else {
@@ -860,7 +864,7 @@ export async function readActions({ env, day, holdings, uncapped = false }) {
   if (!Array.isArray(capture?.rows)) return { source: { ok: false, reason: 'capture-unavailable', capturedAt: null, debtSkipped: 0 }, ...empty };
   const byTicker = bookIndex(holdings);
   const byIsin = new Map(holdings.map((h) => [upper(h.isin), h]).filter(([k]) => k));
-  const seen = new Set();
+  const seen = new Map();
   const rows = [];
   let debtSkipped = 0;
   for (const r of capture.rows) {
@@ -872,14 +876,15 @@ export async function readActions({ env, day, holdings, uncapped = false }) {
     if (!dates.length) continue;
     if (DEBT_ACTION_TYPES.has(String(r.actionType || ''))) { debtSkipped += 1; continue; }
     const key = `action:${r.id || [line.ticker, r.actionType, dates[0].date, norm(r.purpose)].join('|')}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (seen.has(key)) { const old = seen.get(key); old.sourceUrls = evidenceUrls(old.sourceUrls, r.screenerCompanyUrl, r.sourceUrl, r.url, r.sourceUrls); continue; }
     rows.push({
       key, ticker: upper(line.ticker), company: line.name, type: String(r.actionType || 'action'),
       purpose: String(r.purpose || r.actionType || 'Corporate action'), dates, on: dates.map((d) => d.date).sort()[0],
       source: (Array.isArray(r.sources) && r.sources.length ? r.sources : [r.source]).filter(Boolean).join(' · ') || 'capture',
       url: [r.screenerCompanyUrl, r.sourceUrl].find((u) => typeof u === 'string' && /^https:\/\//.test(u)) || null,
+      sourceUrls: evidenceUrls(r.screenerCompanyUrl, r.sourceUrl, r.url, r.sourceUrls),
     });
+    seen.set(key, rows.at(-1));
   }
   rows.sort((a, b) => a.on.localeCompare(b.on) || a.company.localeCompare(b.company));
   return { source: { ok: true, capturedAt: capture.capturedAt || null, rows: capture.rowCount ?? capture.rows.length, debtSkipped }, from, to, rows: uncapped ? rows : rows.slice(0, ACTIONS_LIMIT), count: rows.length, more: uncapped ? 0 : Math.max(0, rows.length - ACTIONS_LIMIT) };
@@ -1047,7 +1052,7 @@ export function briefStories(brief) {
     for (const item of g.items) rows.push({
       ...base('news', g, item), headline: item.headline,
       eventId: item.eventId,
-      dek: item.summary || null, url: item.url,
+      dek: item.summary || null, url: item.url, sourceUrls: item.sourceUrls,
       content: item.content,
       source: [item.publisher || 'Publisher not recorded', item.via ? `via ${item.via}` : null].filter(Boolean).join(' · '),
       direction: 'neutral', importance: item.keywords.length ? 'high' : 'low', related: item.attribution === 'related',
@@ -1055,7 +1060,7 @@ export function briefStories(brief) {
   }
   for (const g of brief.trades?.groups || []) {
     for (const item of g.items) rows.push({
-      ...base('trade', g, item), headline: item.headline, dek: item.detail || null, url: item.url, source: item.source,
+      ...base('trade', g, item), headline: item.headline, dek: item.detail || null, url: item.url, sourceUrls: item.sourceUrls, source: item.source,
       direction: item.direction || 'neutral', importance: item.importance || 'low',
     });
   }
@@ -1741,8 +1746,32 @@ const routineNote = (n) => `${n} routine filing${n === 1 ? '' : 's'} (newspaper 
 /**
  * The email. `recipient` personalises the footer only, so one build serves every subscriber.
  */
+// Busy editions use a bounded email index; the immutable report remains the complete
+// edition. This renderer never selects, shortens or rewrites the report's source rows.
+function renderBriefReportHtml(brief, { dashboardUrl, recipient, productName, brand, settings, pdfUrl, part, stats }) {
+  const subject = briefSubject(brief, { brand, stats });
+  const sendTime = settings?.[brief.edition]?.time || EDITIONS[brief.edition].defaultTime;
+  const subscribed = recipient?.test ? 'This is a test copy you asked for.'
+    : `You're subscribed to the ${esc(brand)} brief every weekday at ${esc(clockLabel(sendTime))}.${recipient?.addedBy ? ` Added by ${esc(recipient.addedBy)}.` : ''}`;
+  const index = part.compact ? '' : `<h2>Companies in this report</h2><ul>${stats.companies.map(c => `<li>${esc(c.company)}: ${c.clusters.length} update${c.clusters.length === 1 ? '' : 's'}</li>`).join('')}</ul>`;
+  const coverage = part.compact
+    ? 'Source check times, pending reads and partial or unavailable feeds are disclosed in the complete report. This email does not certify source completeness.'
+    : sourcesNote(brief);
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
+<body style="margin:0;background:${CREAM};color:${BODY};font-family:${SANS};line-height:1.6;">
+<table role="presentation" width="100%"><tr><td align="center" style="padding:24px 12px;"><table role="presentation" width="640" style="width:100%;max-width:640px;background:${PAPER};border:1px solid ${RULE};"><tr><td style="padding:24px;">
+<h1 style="color:${INK};font-family:${SERIF};">${esc(brand)}</h1><p>${esc(productName)} · ${esc(TAGLINES[brief.edition])}<br>${esc(istDateLong(brief.at))} · ${esc(windowLine(brief))}</p>
+<p><strong>${stats.updates} updates across ${stats.companies.length} of ${brief.book.listed} portfolio companies</strong><br>${stats.good} good · ${stats.watch} watch-out${stats.watch === 1 ? '' : 's'}</p>
+<p><strong>Your complete edition is in the saved PDF.</strong> This email is an overview because the full report exceeds the inbox size budget. The PDF contains every eligible update, original source link, source-read status, AI note, calendar event, corporate action, company-price row and market table. No additional email parts follow.</p>
+<p><a href="${esc(pdfUrl)}" ${NEW_TAB} style="display:inline-block;padding:12px 18px;background:${GOLD};color:white;text-decoration:none;font-weight:bold;">Open complete report / Download PDF ↓</a></p>
+${index}<p style="font-size:11px;color:${META};">${esc(coverage)}</p>
+<hr><p style="font-size:12px;">${subscribed}<br><a href="${esc(dashboardUrl + '/#/research/ask-research?newsletter=manage')}" ${NEW_TAB}>Unsubscribe</a> · ${esc(brand)} ${esc(productName)} · Automated by Munshot<br>Potential impact is an AI interpretation, not an established outcome. This brief is informational, not investment advice. Sent ${esc(istLabel(brief.builtAt, { year: true }))}.</p>
+</td></tr></table></td></tr></table></body></html>`;
+}
+
 export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recipient = null, productName = PRODUCT_NAME, brand = BRAND, settings = null, pdfUrl = null, part = null, preview = false, stats: suppliedStats = null } = {}) {
   const stats = suppliedStats || briefStats(brief);
+  if (part?.reportLink === true) return renderBriefReportHtml(brief, { dashboardUrl, recipient, productName, brand, settings, pdfUrl, part, stats });
   const subject = briefSubject(brief, { brand, part, stats });
   const companies = part?.companies ?? stats.companies;
   const includeSection = name => !part || Object.hasOwn(part.sections, name);

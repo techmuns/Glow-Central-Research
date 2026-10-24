@@ -38,7 +38,10 @@ All Alerts streams newly received rows directly inside Till Today, with no separ
 The first screen enters one row every 110ms (at most 12 staged rows); the complete filtered model
 is immediately available to counts, search and export. Reduced motion, changed filters and hidden
 pages bypass the entrance queue. Existing visible-page 90-second checks and source cadence remain
-unchanged. Initial history and scope changes establish baselines; only later new identities get
+unchanged. All Alerts retains its original reading anchor across overlapping feed paints
+and the bounded post-paint measurement window; fresh reader input cancels correction.
+`verify-reading-anchor-ui.mjs` covers late row geometry and cancellation independently of
+source data. Keep the full-data scroll-position assertion strict. Initial history and scope changes establish baselines; only later new identities get
 NEW badges. Receipt time stays separate from publication time. Preserve chronological ordering,
 reading anchors and source coverage details in Sources.
 IPO Filings opens on Last 7 days (IST), retaining All captured and longer/undated choices;
@@ -1583,6 +1586,14 @@ missed editions as catch-up. Preserve all source history on the dashboard. Refus
 any send above six parts, without truncating eligible current records. Recheck frozen recovery
 plans: retire historical or oversized editions without further sends, preserving evidence.
 This supersedes the earlier email catch-up rules below; retained source readers still cover archives.
+
+**Bounded delivery, corrected 23 October 2026:** a legitimate current edition can exceed
+six inline emails (the morning report had eight), so blocking alone is not successful
+delivery. Keep full HTML/text/PDF readers intact. New busy editions send one clearly labelled
+overview with the complete immutable PDF, including every eligible source and table. The
+GitHub sender verifies the exact published PDF before provider I/O. Short inline editions
+remain within six emails; historical/oversized frozen plans stay retired and claims survive
+upgrades. The linked report's keys are acknowledged only after its email is accepted.
 
 1. **The store keeps a ledger of what the desk has been sent** (`newsletter_reported`), keyed by
    each item's own identity — the exchange's `newsId`, NSE's `filingKey`, the trade's
