@@ -64,6 +64,11 @@ normal month. The owner's requirements:
   completeness is not permission to resend history by email.
 - Refuse an edition before any email if it requires more than six parts. Never send a
   truncated plan or silently omit current eligible records to meet that limit.
+- Busy current editions use one explicitly labelled overview email linking the complete
+  immutable PDF when the full inline edition would exceed six emails or a single body.
+  Preserve every eligible report, source link, note and supplemental row in that PDF;
+  verify its publication before sending. Keep the six-email circuit breaker on frozen
+  recovery plans and never convert/replay an already claimed failed historical edition.
 - Recheck retained delivery plans against these rules before recovery. Retire historical
   or oversized plans without sending more parts; preserve prior outcomes and evidence.
   Scheduled recovery also expires three hours after the original edition time, so a
