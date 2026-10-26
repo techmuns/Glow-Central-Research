@@ -84,10 +84,17 @@ try{
   assert.deepEqual(batchValue.links,batch);assert.equal(batchValue.lookupFormat,SOURCE_INDEX_FORMAT);
   const sourceReads=assetPaths.slice(beforeSourceReads);
   assert(sourceReads.length<=11,'Five-source requests stay comfortably below the subrequest budget');
-  assert(sourceReads.every(p=>p.endsWith('/head.json')||/\/sources-(?:index|page)-/.test(p)),'Bulk source verification never opens the private PDF pages');
+  assert(sourceReads.every(p=>p.endsWith('/sources-head.json')||/\/sources-(?:index|page)-/.test(p)),'Bulk source verification never opens the full head or private PDF pages');
  }
  const oversizedBatch=await handleGithubNewsletter(new Request('https://fixture.test/api/newsletter/sources?ids='+sourceBatch.slice(0,6).map(r=>r.id).join(',')),worker,common);
  assert.equal(oversizedBatch.status,400);assert.equal((await oversizedBatch.json()).reason,'source-batch-limit');
+ const sourceHeadFile=path.join(site,'generated-views/newsletter/sources-head.json');
+ fs.renameSync(sourceHeadFile,sourceHeadFile+'.fixture-held');
+ try{
+  const legacy=await handleGithubNewsletter(new Request('https://fixture.test/api/newsletter/sources?ids='+aliasId),worker,common),value=await legacy.json();
+  assert.equal(legacy.status,200);assert.deepEqual(value.links,[{id:aliasId,url:originalSource}]);
+  assert.equal(value.lookupFormat,'legacy-private-records','Exact legacy destinations alone cannot certify the bounded lookup deployment');
+ }finally{fs.renameSync(sourceHeadFile+'.fixture-held',sourceHeadFile);}
  for(const path of ['/s/not-a-source','/s/'+crypto.randomUUID(),'/sources?ids='+aliasId+','+aliasId]){
   assert.equal((await handleGithubNewsletter(new Request('https://fixture.test/api/newsletter'+path),worker,common)).status,404);
  }

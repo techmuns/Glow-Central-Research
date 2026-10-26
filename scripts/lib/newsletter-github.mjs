@@ -18,7 +18,7 @@ import {localNewsletter} from './newsletter-local.mjs';
 import {NewsletterDeliveryQueue,newsletterPendingDeliveries} from './newsletter-delivery-queue.mjs';
 import {newsletterWakePlan,newsletterRetryState} from './newsletter-wake-plan.mjs';
 import {newsletterSourceShortcuts,newsletterSourceViews} from './newsletter-source-shortcuts.mjs';
-import {emailSourceIds} from '../../worker/newsletter-source-shortcuts.mjs';
+import {emailSourceIds,SOURCE_HEAD_BYTES} from '../../worker/newsletter-source-shortcuts.mjs';
 
 export function decodeNewsletterColumn(value,table,column){
  if(table!=='newsletter_documents'||column!=='body')return value;
@@ -95,7 +95,11 @@ export async function githubNewsletter({env=process.env,fetcher=fetch,legacyClie
    const head={sourceLinks:sourceIndex.directory,privateMarkets:privateMarketsJob?privateMarketsJob.status():null,version:1,repo:transport.repo,feature:'newsletter',createdAt:new Date(localOptions.now?.()??Date.now()).toISOString(),snapshot:copy.store.snapshot(),schedule:{...schedule,runtime:'github-actions',armed:false,alarmAt:null},requestKey:{kid:keys.kid,publicKey:encode64(keys.publicKey)},processingEnabled:env.NEWSLETTER_PROCESSING_ENABLED==='true',inputRevision:await copy.storage.get('newsletter-source-revision')??null};
    // Small pages bound edge decoding for streamed PDFs; an older large single
    // record retains its existing delivery limit and occupies a page on its own.
-   async function* prepared(){yield* sourceIndex.views;yield* privateRecordViews([...records.keys()],id=>records.get(id),head,{repo:transport.repo,feature:'newsletter',env,partBytes:512*1024,recordBytes:4*1024*1024});}
+   async function* prepared(){
+    yield {name:'sources-head.json',value:{version:1,repo:head.repo,feature:'newsletter',createdAt:head.createdAt,sourceLinks:sourceIndex.directory},maxBytes:SOURCE_HEAD_BYTES};
+    yield* sourceIndex.views;
+    yield* privateRecordViews([...records.keys()],id=>records.get(id),head,{repo:transport.repo,feature:'newsletter',env,partBytes:512*1024,recordBytes:4*1024*1024});
+   }
    await packBackgroundViews(prepared(),recipient,views,{repo:transport.repo,feature:'newsletter',sourceSignature:signature,cache});
   }finally{await copy?.close();}
   await sealBackgroundState(backup,state,'newsletter',{env});const result=await transport.publish({cycle:++cycle,state,views,sourceSignature:signature});try{await notify(result);}catch{/* Existing scheduled deployment also catches up. */}return result;
