@@ -12,6 +12,37 @@ export function investorSourceFacts(item) {
     /^(?:true|false)$/i.test(clean(fact.value)) ? { ...fact, value: `${fact.name || fact.field}: ${/^true$/i.test(clean(fact.value)) ? 'Yes' : 'No'}` } : fact);
 }
 
+/** A reading, not a dump of 32 extraction fields. Whole supported statements only;
+ * exact/contained statements collapse, while amounts and qualifications keep labels.
+ * Original facts/passages are retained unchanged in the complete source register. */
+export function investorSourceSummary(item) {
+  if(!['ready','partial'].includes(item.content?.state))return null;
+  const facts=investorSourceFacts(item),selected=[];
+  const key=value=>clean(value).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const add=(fact,label='')=>{
+    const value=clean(fact?.value);if(!value)return;
+    if(selected.some(s=>(' '+key(s)+' ').includes(' '+key(value)+' ')))return;
+    selected.push(label?`${label}: ${value}`:value);
+  };
+  // Each distinct event is retained, rather than assuming the longest paraphrase
+  // has more reliable facts. Redundant status/date/admin fields do not lead.
+  for(const fact of facts.filter(f=>f.field==='event'))add(fact);
+  if(!selected.length)return null;
+  for(const field of ['amount','conditions','status','ownership','counterparty']) {
+    const candidates=facts.filter(f=>f.field===field);
+    for(const fact of candidates) {
+      const value=clean(fact.value);
+      if(field==='status'&&!/\b(?:subject to|conditional|pending|proposed|not |no |reject|cancel|revok|unchanged)\b/i.test(value))continue;
+      // Dates and counts of voting participation are audit details, not a new
+      // event. Actual capital amounts and conditions remain in the reading.
+      if(field==='ownership'&&/votes?|voting|polled|attendance|shareholders? on record/i.test(value))continue;
+      if(selected.join(' ').length+value.length>600)continue;
+      add(fact,field==='conditions'?'Conditions':field==='amount'?'Amount':field==='ownership'?'Ownership':'');
+    }
+  }
+  return selected.join('; ');
+}
+
 /** NSE's saved PRIOR_INTIMATION fields already provide a factual short notice.
  * Names/ISINs/SME flags and trading-window boilerplate remain in the saved extraction.
  * The purpose stays prospective: a meeting is not an approval or a declaration. */

@@ -369,7 +369,7 @@ export function renderBriefPdf(
   for(const event of reading.events) {
     pdf.ensure(100);
     pdf.paragraph(`${event.company} / ${event.lead.kind==='filing'?'Corporate announcement':'Development'}`,{font:'F2',size:11,gap:4});
-    const summary=event.summary || event.sourceSummary || (event.facts.length?event.facts.map(f=>f.value).join(' '):event.description || event.lead.headline);
+    const summary=event.summary || event.sourceSummary || event.description || event.lead.headline;
     pdf.paragraph(summary,{size:10});
     if(event.summary&&event.note?.impact)pdf.paragraph(`Potential impact / AI: ${event.note.impact}`,{size:9,color:MUTED});
     if(event.summary&&event.note?.unknowns)pdf.paragraph(`Watch next: ${event.note.unknowns}`,{size:9,color:MUTED});
@@ -454,6 +454,15 @@ export function renderBriefPdf(
           color: ACCENT,
           url,
         });
+      // Full saved passages belong in the register, never the investment reading.
+      // Include each verified document version once; copies and all original links
+      // still follow below. This also retains conflicting earlier figures.
+      for(const document of k.documents || [{main:s},...k.others.map(main=>({main}))]) {
+        const item=document.main;
+        if(!item.content?.facts?.length)continue;
+        pdf.paragraph(`Saved source facts / ${storyWhen(item)} / ${item.content.state}`,{font:'F2',size:9,color:MUTED});
+        for(const fact of item.content.facts)pdf.paragraph(`${fact.name || fact.field}: ${fact.value}`,{size:8,color:MUTED});
+      }
       for (const r of k.others) {
         pdf.paragraph(`Related: ${r.headline}`, {
           size: 10,

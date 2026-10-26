@@ -1,7 +1,6 @@
 import {randomUUID,createHmac} from 'node:crypto';
 import {briefStats} from '../../worker/newsletter-brief.mjs';
 import {editorialEvents} from '../../worker/newsletter-editorial.mjs';
-import {newsletterSourceUrl} from '../../worker/newsletter-source-links.mjs';
 import {sourceId,sourceTarget,SOURCE_LINK_FORMAT,SOURCE_LOOKUP_BATCH_SIZE,SOURCE_INDEX_FORMAT,SOURCE_PAGE_BYTES,SOURCE_RECORD_BYTES,SOURCE_DIRECTORY_BYTES} from '../../worker/newsletter-source-shortcuts.mjs';
 import {privateRecordBucket} from '../../worker/github-private-records.mjs';
 
@@ -55,7 +54,7 @@ export function newsletterSourceShortcuts(db,origin,{now=Date.now}={}) {
     records.set(id,record);links.set(original,alias);return alias;
   };
   return {links,register,record:id=>records.get(id),prepare(brief){
-    for(const event of editorialEvents(brief,briefStats(brief).companies).events)register(newsletterSourceUrl(event.lead));
+    for(const event of editorialEvents(brief,briefStats(brief).companies).events)for(const url of event.sources)register(url);
   }};
 }
 
