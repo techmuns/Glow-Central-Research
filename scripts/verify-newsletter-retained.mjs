@@ -38,10 +38,10 @@ assert(delivery.length<=3&&delivery.every(m=>m.part?.investor),'The actual retai
 assert(delivery.length<=MAX_DELIVERY_EMAIL_PARTS,'Actual retained current reports fit the inbox budget without discarding evidence');
 const deliveredKeys=new Set(delivery.flatMap(m=>m.keys));
 for(const item of briefStories(brief))assert(item.keys.every(key=>deliveredKeys.has(key)),'The complete-report delivery must carry every eligible source identity');
-if(deliveryBlocked||messages.length>MAX_DELIVERY_EMAIL_PARTS){assert.equal(delivery.length,1);assert.equal(delivery[0].part.reportLink,true);}
+if(deliveryBlocked||messages.length>MAX_DELIVERY_EMAIL_PARTS)assert(delivery.every(m=>m.part.reportLink===true));
 const stats=briefStats(brief),summary=briefSummary(brief);
 const report={product:PRODUCTION_ORIGIN,day,listed:brief.book.listed,stories:stats.stories,updates:stats.updates,
-  parts:messages.length,deliveryBlocked,deliveryParts:delivery.length,deliveryFormat:delivery[0]?.part?.reportLink?'complete-report':'inline',htmlBytes:messages.map(m=>m.bytes),pdfBytes:pdf.byteLength,sourceIdentities:keys.size,
+  parts:messages.length,deliveryBlocked,deliveryParts:delivery.length,deliveryFormat:delivery[0]?.part?.investor?'investor-brief':'inline',htmlBytes:messages.map(m=>m.bytes),pdfBytes:pdf.byteLength,sourceIdentities:keys.size,
   omittedByCaps:summary.eligibility.omittedByCaps,companyArchive:brief.news.company.ok,
   publisherArchive:brief.news.source.archiveComplete,tradingviewArchive:brief.news.tradingview.archiveComplete,
   upstreamTradingviewPartial:brief.news.tradingview.partial,networkRequests:0};

@@ -143,6 +143,12 @@ const digest=renderInvestorEmails(busy,options);
 assert(digest.length<=EDITORIAL_EMAIL_PARTS);assert(digest.every(m=>m.bytes<=90000));
 assert.deepEqual(digest.flatMap(m=>m.part.eventIds).sort(),editorialEvents(busy,briefStats(busy).companies).events.map(e=>e.id).sort());
 for(const message of digest)assert(message.html.includes('Document unread; facts unverified'));
+const crowded=structuredClone(busy);
+crowded.announcements.groups=Array.from({length:320},(_,i)=>({ticker:`CROWDED${i}`,company:`Material Issuer ${i}`,items:[{...structuredClone(busy.announcements.groups[0].items[0]),headline:`Distinct contract ${i} with Customer ${i}`,keys:[`crowded:${i}`],url:`https://fixture.test/material/${i}?discovery=${'x'.repeat(1000)}`}]}));
+const compactDigest=renderInvestorEmails(crowded,options);
+assert(compactDigest.length<=3&&compactDigest.every(m=>m.part.compact&&m.bytes<=90000),'A busy multi-company edition must use the genuinely compact branded rows');
+assert.equal(compactDigest.flatMap(m=>m.part.eventIds).length,320);
+assert.deepEqual(compactDigest.flatMap(m=>m.keys).sort(),briefStoryKeys(crowded).sort());
 assert.throws(()=>renderInvestorEmails(brief,{...options,pdfUrl:'https://example.test/api/newsletter/preview'}),/immutable/);
 if(process.env.NEWSLETTER_INVESTOR_OUTPUT){
  const dir=process.env.NEWSLETTER_INVESTOR_OUTPUT;mkdirSync(dir,{recursive:true});

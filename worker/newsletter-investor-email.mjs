@@ -34,6 +34,7 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
     const description=esc(short(summary,compact?270:340));
     const evidence=event.summary?'AI summary':event.facts.length?'Source facts':event.evidence;
     const incomplete=event.read>0&&event.read<event.total?' · Some sources unread':'';
+    if(compact)return `<tr><td style="padding:8px 0;border-bottom:1px solid ${RULE}"><strong style="font-family:${SERIF};color:${INK}">${esc(event.company)}</strong> · ${description}<br><span style="font-size:10px;color:${META}">${esc(evidence)}${incomplete}${s.related?' · Related entity; exposure unconfirmed':''} · ${esc(istLabel(s.at))} · ${source?link(direct?source:reportUrl,direct?'Read →':'Evidence →'):'Source link unavailable'}</span></td></tr>`;
     return `<tr><td style="padding:${sameCompany?'10px':'22px'} 0 12px;border-bottom:1px solid ${RULE}">
 ${sameCompany?'':`<div style="padding-bottom:7px;margin-bottom:8px;border-bottom:2px solid ${INK};font-family:${SERIF};font-size:${compact?18:22}px;line-height:1.2;font-weight:bold;color:${INK}">${esc(event.company)} <span style="font-family:${SANS};font-size:10px;font-weight:normal;color:${META}">${esc(event.ticker)}</span></div>`}
 <div style="font-family:${SERIF};font-size:${compact?14:15}px;line-height:1.45;color:${INK};font-weight:bold">${description}</div>
