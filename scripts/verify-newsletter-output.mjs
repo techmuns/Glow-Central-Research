@@ -98,6 +98,9 @@ for(const summaryChars of [100,140,220]) {
  assert(dense.includes('votes and resolution outcomes unchanged.'),'The substantive correction qualification cannot be truncated by dense packing');
  assert(dense.includes('preferential equity issue')&&dense.includes('Section 186(2)'),'Original capital approvals remain alongside the correction');
 }
+const modelCopy=structuredClone(brief);modelCopy.ai={ok:true,items:{[events[0].id]:{summary:'All resolution outcomes changed.',impact:'An unsupported implication.'}}};
+const checkedModelCopy=renderInvestorEmails(modelCopy,{dashboardUrl:'https://fixture.test',pdfUrl:'https://fixture.test/api/newsletter/pdf/00000000-0000-0000-0000-000000000001'})[0].html;
+assert(checkedModelCopy.includes('votes and resolution outcomes unchanged.')&&!checkedModelCopy.includes('All resolution outcomes changed.'),'The verified bounded source note takes priority over generic model wording');
 assert.equal(JSON.stringify(brief),before,'Consolidation and render cannot rewrite source history');
 const metadataOnly=structuredClone(brief);
 metadataOnly.announcements.groups[0].items=[{...metadataOnly.announcements.groups[0].items[0],headline:'Captured corporate notice',content:{state:'ready',facts:[{field:'conditions',name:'Administrative approval field',value:'true'}]}}];

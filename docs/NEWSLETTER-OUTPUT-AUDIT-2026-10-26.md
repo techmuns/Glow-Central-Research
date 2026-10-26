@@ -78,4 +78,6 @@ voting-results note uses the explicit saved classification-only condition, prese
 stated capital approvals, and remains whole even in the 100-character packing tier.
 A conflicting/unordered document version cannot supply this note. Structured meeting
 identity also works without a date or event type in the captured headline: read source
-fields are evaluated first. Both cases have mandatory regression assertions.
+fields are evaluated first. These bounded source notes take priority over generic model
+wording, so an AI paragraph cannot override or truncate their substantive qualifications.
+All cases have mandatory regression assertions.

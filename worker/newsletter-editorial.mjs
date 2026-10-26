@@ -65,7 +65,7 @@ export function editorialEvents(brief, companies) {
       lead, note, rank: Math.max(...eligible.map(editorialPriority)), at: Math.max(...eligible.map(s => s.at)),
       sourceCount: members.length, read: ready.length, total: members.length,
       // A summary of a different lead cannot be relabelled as this filing's summary.
-      summary: note && lead === cluster.main && !cluster.versionConflict ? note.summary : null,
+      summary: note && lead === cluster.main && !cluster.versionConflict && !completeSourceSummary ? note.summary : null,
       sourceSummary,
       completeSourceSummary:!!completeSourceSummary&&!cluster.versionConflict,
       description: scheduledBoardMeetingSummary(lead),
