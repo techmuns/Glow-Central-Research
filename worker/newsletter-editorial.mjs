@@ -14,7 +14,7 @@ export function referenceReason(item) {
   if (['issuer-mismatch','company-evidence-unconfirmed'].includes(item.content?.reason)) return 'Issuer connection not established by the source reading';
   if (item.kind === 'news' || !item.kind) {
     if(/^(?:Q[1-4]\s+)?results (?:this|next) week\s*:/i.test(title)&&!/\b(?:profit|revenue|margin|EBITDA|EPS|growth|loss)\b|%/i.test(title))return 'Results-calendar roundup; no company results disclosed';
-    if(/\bstock price, news, quote and history[.!]?$|\bshare price\s*[-:]\s*live\b|\bstock price live NSE\/BSE updates[.!]?$/i.test(title)) return 'Quote/reference page; no business development stated';
+    if(/\bstock price, news, quote and history(?:\s*[-–—]\s*Yahoo Finance)?[.!]?$|\bshare price\s*[-:]\s*live\b|\bstock price live NSE\/BSE updates[.!]?$/i.test(title)) return 'Quote/reference page; no business development stated';
     if((/\bis rated (?:sell|buy|hold)[.!]?$/i.test(title)||/\b(?:(?:upgraded|downgraded) to (?:sell|buy|hold) amid (?:technical|valuation|mixed|bearish)|forms death cross|faces mildly bearish technical shift)\b/i.test(title)) &&
       !/\b(?:CRISIL|ICRA|CARE Ratings|Moody|Fitch|S&P|credit rating|guidance|profit warning|default|fraud|FDA|earnings|results|contract|merger|acquisition|dividend)\b|\bby (?!MarketsMojo\b)[A-Z]/i.test(title))return 'Automated technical/opinion template; no attributed fundamental change';
     if (/\b(?:slides|slips|climbs|rises|falls|gains|drops|jumps) (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),? (?:outperforms|underperforms) competitors[.!]?$/i.test(title)) return 'Automated daily price comparison; no business development stated';

@@ -170,4 +170,6 @@ const unrelated=cleanNotice('TEST','Test issuer',[
 ]);
 const economic=editorialEvents(unrelated,briefStats(unrelated).companies).events[0].sourceSummary;
 for(const material of ['INR 100 crore','Subject to regulatory approval','Customer Alpha','45%'])assert(economic.includes(material));
+assert(referenceReason({kind:'news',ticker:'ICICIBANK',headline:'ICICI Bank Ltd (ICBA.HA) stock price, news, quote and history - Yahoo Finance'}),'The actual live Yahoo quote-page suffix is still a reference page');
+assert.equal(referenceReason({kind:'news',headline:'Company launches stock price, news, quote and history API'}),null,'An actual business announcement cannot be hidden by quote-page vocabulary');
 console.log('PASS read notice prose: complete buyback agenda/date, complete earnings-call time, administrative appendix, substantive conditions/ownership, cancelled/unknown guards; model/search/mail calls=0');
