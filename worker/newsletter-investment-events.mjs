@@ -40,7 +40,7 @@ const termsAgree=(x,y)=>{
  // A publisher paraphrase of the same condition is not a new event. An extra or
  // conflicting condition remains a development instead of disappearing behind
  // the concise original-filing reading.
- for(const [report,source]of [[x,y],[y,x]])if(report.item.kind==='news'&&source.firm&&report.conditions.some(k=>!source.conditions.includes(k)))return false;
+ for(const [report,source]of [[x,y],[y,x]])if(report.item.kind==='news'&&source.firm&&!source.native&&report.conditions.some(k=>!source.conditions.includes(k)))return false;
  if(x.item.kind==='filing'&&y.item.kind==='filing'&&!x.native&&!y.native&&x.item.content?.state==='ready'&&y.item.content?.state==='ready')for(const field of ['conditions','status','ownership']){
   const values=p=>facts(p.item).filter(f=>f.field===field).map(f=>normal(f.value)).sort().join('|');
   if(values(x)&&values(y)&&values(x)!==values(y))return false;

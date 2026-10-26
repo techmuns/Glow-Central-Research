@@ -73,7 +73,7 @@ const readPublisher={...varroc.find(r=>r.kind==='news'),url:'https://fixture.tes
 assert.equal(clusterStories([anchor,readPublisher]).length,1,'Reading a publisher cannot re-split one source-established event merely because its fact wording differs');
 assert(investmentReading([anchor,readPublisher]),'The concise reading remains attributable to the original announcement');
 const readCondition=structuredClone(readPublisher);readCondition.content.facts.push({field:'conditions',value:'Completion subject to conditions precedent'});
-assert.equal(clusterStories([anchor,readCondition]).length,1,'The explicit known condition can normalize across source phrasing');
+assert.equal(clusterStories([anchor,native,readCondition]).length,1,'The explicit known condition can normalize across source phrasing without requiring an omitted update-form field');
 readCondition.content.facts.at(-1).value='Completion subject to RBI approval';
 assert.equal(clusterStories([anchor,readCondition]).length,2,'A newly read publisher qualification cannot be hidden by the older announcement');
 const readChanged=structuredClone(readPublisher);readChanged.url='https://fixture.test/read-new-price';readChanged.content.facts.find(f=>f.field==='amount').value='Consideration of EUR 5.5 million';
