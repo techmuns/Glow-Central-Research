@@ -108,7 +108,9 @@ assert.equal(clusterStories([copiedNews,{...copiedNews,url:'https://news.google.
 assert.equal(clusterStories([copiedNews,{...copiedNews,url:'https://news.google.com/rss/articles/opaque-two',headline:copiedNews.headline.replace('360','460')}]).length,2,'Conflicting figures cannot be hidden by an alias');
 assert.equal(newsletterSourceUrl(copiedNews),'https://www.livemint.com/companies/the-exact-article.html','Use the captured publisher article rather than its discovery wrapper');
 assert.equal(clusterStories([{...copiedNews,content:{state:'ready',hash:'old-news-body',facts:[]}},
- {...copiedNews,url:'https://news.google.com/rss/articles/opaque-two',content:{state:'ready',hash:'corrected-news-body',facts:[]}}]).length,2,'Changed article bytes stay visible across discovery aliases');
+ {...copiedNews,url:'https://news.google.com/rss/articles/opaque-two',content:{state:'ready',hash:'different-html-chrome',facts:[]}}]).length,1,'Different page HTML bytes alone cannot split the same corroborated article');
+assert.equal(clusterStories([{...copiedNews,content:{state:'ready',hash:'old-news-body',facts:[{field:'amount',value:'INR 360 crore'}]}},
+ {...copiedNews,url:'https://news.google.com/rss/articles/opaque-two',content:{state:'ready',hash:'corrected-news-body',facts:[{field:'amount',value:'INR 460 crore'}]}}]).length,2,'Material article corrections remain separate across discovery aliases');
 assert.equal(newsletterSourceUrl({...story,url:'javascript:alert(1)',sourceUrls:[]}),null);
 assert.equal(newsletterSourceUrl({...story,url:'https://www.livemint.com/'}),null,'A publisher homepage is not exact article evidence');
 assert.equal(newsletterSourceUrl({...story,url:'https://www.livemint.com/?utm_source=discovery'}),null,'Tracking parameters cannot make a homepage into article evidence');

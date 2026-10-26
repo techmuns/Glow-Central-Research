@@ -51,10 +51,12 @@ export function newsletterSourceIdentity(value) {
 }
 
 export function changedDocumentVersion(a, b) {
+  // Raw article HTML can change because of ads or page chrome. Existing news
+  // fact/stage checks handle material changes; byte versions apply to filings.
+  if (a.kind !== 'filing' || b.kind !== 'filing') return false;
   const x = a.content, y = b.content;
   if (x?.state !== 'ready' || y?.state !== 'ready' || !x.hash || !y.hash || x.hash === y.hash) return false;
-  const left = new Set((a.kind === 'filing' ? [a.url] : newsletterSourceUrls(a)).map(newsletterSourceIdentity).filter(Boolean));
-  return (b.kind === 'filing' ? [b.url] : newsletterSourceUrls(b)).some(url => left.has(newsletterSourceIdentity(url)));
+  return !!newsletterSourceIdentity(a.url) && newsletterSourceIdentity(a.url) === newsletterSourceIdentity(b.url);
 }
 
 /** Compare captured source identity before generated wording. A changed read version

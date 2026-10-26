@@ -68,8 +68,10 @@ the printed publication window remain in history, not newly emailed as catch-up.
 Exact document identity takes precedence over paraphrases produced by separate extractions.
 The Bharat Parenteral voting-results, EGM-approval and earnings-call copies exposed this
 ordering defect on 26 October. Matching ready document hashes cannot be vetoed by differently
-worded extracted facts. Different ready hashes at a reused document/article URL remain
-separate versions. Shared supporting attachments alone do not identify a filing copy.
+worded extracted facts. Different ready hashes at a reused filing-document URL remain
+separate versions. News retains its existing figure, stage and fact-conflict checks;
+raw HTML changes alone can reflect page chrome and do not create an investor development.
+Shared supporting attachments alone do not identify a filing copy.
 An unread filing's own exact document URL can establish its copy within the existing one-hour
 window; generic wording and a nearby timestamp alone cannot.
 
