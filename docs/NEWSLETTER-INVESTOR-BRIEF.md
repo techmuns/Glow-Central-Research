@@ -64,6 +64,15 @@ The original full URL remains in source history and the full report. Before any 
 submission, verify every shortcut in that specific email against the deployed lookup endpoint
 and its exact saved destination; a missing route, missing mapping or different target blocks
 the send even if the PDF is available. This uses existing storage and no paid URL service.
+Source reads use dedicated encrypted pages, independent of the report/PDF record pages.
+The head names at most 64 source directories; each directory selects a normally 12 KiB
+source-only page. A single exceptional source record is capped at 32 KiB, never truncated.
+Directory pages are bounded too. Identifiers and exact destinations remain in the retained
+master and legacy record views, so existing emailed links and earlier prepared snapshots
+keep working. Publication checks and the lookup API cap each request at five sources, with
+a per-run cache of already verified immutable destinations. The sender also requires the
+bounded-index format marker, so the older resource-heavy lookup cannot certify a send.
+New source clicks and bulk checks never inflate a PDF page after the indexed view publishes.
 If 220-character excerpts cannot fit, 140- and 100-character readings preserve every event,
 company, exact source destination and original record within the same three-part limit.
 Structured meeting notes retain every agenda, including later dividend proposals, without

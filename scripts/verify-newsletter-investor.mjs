@@ -14,8 +14,9 @@ import { reviewNewsEvents } from '../worker/newsletter-events.mjs';
 import { newsletterSourceUrl } from '../worker/newsletter-source-links.mjs';
 import { scheduledBoardMeetingSummary } from '../worker/newsletter-filing-events.mjs';
 import { investorSourceFacts, xbrlBoardMeetingNote } from '../worker/newsletter-source-notes.mjs';
-import {newsletterSourceShortcuts,sourcePublicationVerifier} from './lib/newsletter-source-shortcuts.mjs';
-import {emailSourceUrl,emailSourceIds,SOURCE_LINK_FORMAT,sourceTarget} from '../worker/newsletter-source-shortcuts.mjs';
+import {newsletterSourceShortcuts,newsletterSourceViews,sourcePublicationVerifier} from './lib/newsletter-source-shortcuts.mjs';
+import {emailSourceUrl,emailSourceIds,SOURCE_LINK_FORMAT,sourceTarget,SOURCE_LOOKUP_BATCH_SIZE,SOURCE_PAGE_BYTES,SOURCE_RECORD_BYTES,SOURCE_INDEX_FORMAT} from '../worker/newsletter-source-shortcuts.mjs';
+import {newsletterSourceReader} from '../worker/newsletter-source-index.mjs';
 
 const excluded=[
  ['INDIANB','South Indian Bank Leveraging Digital Technology For Biz Growth'],
@@ -299,11 +300,29 @@ assert.equal(sourceTarget({format:SOURCE_LINK_FORMAT,url:options.pdfUrl}),null);
 const ids=emailSourceIds(shortcutDigest.map(m=>m.html).join(''),options.dashboardUrl);assert.equal(ids.length,320);
 let verifyCalls=0;
 const expected=ids.map(id=>({id,url:shortcuts.record(id).url}));
-const verifySources=sourcePublicationVerifier(options.dashboardUrl,{timeout:0,fetcher:async url=>{verifyCalls++;const wanted=new URL(url).searchParams.get('ids').split(',');assert(wanted.length<=20);return Response.json({ok:true,format:SOURCE_LINK_FORMAT,links:expected.filter(r=>wanted.includes(r.id))});}});
-await verifySources(expected);assert.equal(verifyCalls,16);await verifySources(expected);assert.equal(verifyCalls,16,'Verified immutable targets are reused within a run');
+const verifySources=sourcePublicationVerifier(options.dashboardUrl,{timeout:0,fetcher:async url=>{verifyCalls++;const wanted=new URL(url).searchParams.get('ids').split(',');assert(wanted.length<=SOURCE_LOOKUP_BATCH_SIZE);return Response.json({ok:true,format:SOURCE_LINK_FORMAT,lookupFormat:SOURCE_INDEX_FORMAT,links:expected.filter(r=>wanted.includes(r.id))});}});
+await verifySources(expected);assert.equal(verifyCalls,64);await verifySources(expected);assert.equal(verifyCalls,64,'Verified immutable targets are reused within a run');
 await assert.rejects(sourcePublicationVerifier(options.dashboardUrl,{timeout:0,fetcher:async()=>new Response(null,{status:404})})(expected),/not published/);
-await assert.rejects(sourcePublicationVerifier(options.dashboardUrl,{timeout:0,fetcher:async()=>Response.json({ok:true,format:SOURCE_LINK_FORMAT,links:expected.map(r=>({...r,url:options.pdfUrl}))})})(expected),/not published/);
+await assert.rejects(sourcePublicationVerifier(options.dashboardUrl,{timeout:0,fetcher:async url=>{const wanted=new URL(url).searchParams.get('ids').split(',');return Response.json({ok:true,format:SOURCE_LINK_FORMAT,lookupFormat:SOURCE_INDEX_FORMAT,links:expected.filter(r=>wanted.includes(r.id)).map(r=>({...r,url:options.pdfUrl}))});}})(expected),/not published/);
+await assert.rejects(sourcePublicationVerifier(options.dashboardUrl,{timeout:0,fetcher:async url=>{const wanted=new URL(url).searchParams.get('ids').split(',');return Response.json({ok:true,format:SOURCE_LINK_FORMAT,links:expected.filter(r=>wanted.includes(r.id))});}})(expected),/not published/,'The old resource-heavy lookup cannot pass publication verification');
 shortcutDb.close();
+// Link reads have an independent byte budget. A large neighbouring PDF and a
+// growing immutable source history must not inflate the source lookup payload.
+const indexedRecords=new Map(Array.from({length:2048},(_,i)=>[`source-00000000-0000-4000-8000-${String(i).padStart(12,'0')}`,{format:SOURCE_LINK_FORMAT,url:`https://publisher.test/story/${i}?captured=${'x'.repeat(500)}`} ]));
+indexedRecords.set('pdf-unrelated',{body:'PDF_SENTINEL_NOT_IN_SOURCE_INDEX'});
+const index=newsletterSourceViews(indexedRecords,{repo:'techmuns/Glow-Central-Research',env:{BACKGROUND_STATE_KEY:'fixture-source-index-secret-only'}});
+assert.equal(index.directory.format,SOURCE_INDEX_FORMAT);assert(Object.keys(index.directory.buckets).length<=64);
+const indexedPages=index.views.filter(v=>v.name.startsWith('sources-page-'));
+assert(indexedPages.length>64,'The fixture must exercise multiple bounded pages per bucket');
+assert(indexedPages.every(v=>Buffer.byteLength(JSON.stringify(v.value))<=SOURCE_PAGE_BYTES+128),'Ordinary source-only pages stay around 12 KiB, regardless of PDF history');
+const indexedEntries=indexedPages.flatMap(v=>Object.entries(v.value.records));
+assert.equal(indexedEntries.length,2048);assert.equal(new Set(indexedEntries.map(([id])=>id)).size,2048);
+for(const [id,value]of indexedEntries)assert.deepEqual(value,indexedRecords.get(id));
+assert(!JSON.stringify(index.views).includes('PDF_SENTINEL'));
+const fallback=await newsletterSourceReader({},options.dashboardUrl,{},async key=>{assert.equal(key,'source-'+ids[0]);return {format:SOURCE_LINK_FORMAT,url:firstOriginal};})(ids[0]);
+assert.equal(fallback,firstOriginal,'A deployed reader still supports earlier prepared snapshots');
+const oversized=new Map([['source-00000000-0000-4000-8000-000000000000',{format:SOURCE_LINK_FORMAT,url:'https://publisher.test/story/'+('x'.repeat(SOURCE_RECORD_BYTES))}]]);
+assert.throws(()=>newsletterSourceViews(oversized,{repo:'fixture/repo',env:{BACKGROUND_STATE_KEY:'fixture-source-index-secret-only'}}),/exceeds/,'Oversized source records fail publication rather than truncating their destination');
 for(const group of crowded.announcements.groups)group.items[0].url=group.items[0].url.split('?')[0];
 const compactDigest=renderInvestorEmails(crowded,options);
 assert(compactDigest.length<=3&&compactDigest.every(m=>m.part.compact&&m.bytes<=90000),'A busy multi-company edition must use the genuinely compact branded rows');

@@ -7,7 +7,8 @@ import {mfRepo} from './mutual-funds-github.mjs';
 import {boundedJson} from '../public/js/data/family-book-contract.js';
 import {normaliseEmail,EDITION_IDS,NEWSLETTER_REQUEST_BYTES,nextScheduled} from '../public/js/data/newsletter-shared.js';
 import {callerToken} from './muns.mjs';
-import {sourceTarget,SOURCE_LINK_FORMAT} from './newsletter-source-shortcuts.mjs';
+import {SOURCE_LINK_FORMAT,SOURCE_LOOKUP_BATCH_SIZE} from './newsletter-source-shortcuts.mjs';
+import {newsletterSourceReader} from './newsletter-source-index.mjs';
 const uuid=value=>/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value||'');
 const json=(body,status=200)=>Response.json(body,{status,headers:{'cache-control':'private, no-store','x-content-type-options':'nosniff'}});
 export async function handleGithubNewsletter(request,env,{object,guardWrite,pdfHeaders,fetcher=fetch,now=Date.now}={}){
@@ -25,10 +26,11 @@ export async function handleGithubNewsletter(request,env,{object,guardWrite,pdfH
  if(url.pathname.startsWith('/api/newsletter/s/')||url.pathname==='/api/newsletter/sources'){
   if(request.method!=='GET')return json({ok:false,reason:'method'},405);
   const multiple=url.pathname==='/api/newsletter/sources',ids=multiple?(url.searchParams.get('ids')||'').split(','):[url.pathname.slice('/api/newsletter/s/'.length)];
-  if(!ids.length||ids.length>20||new Set(ids).size!==ids.length||ids.some(id=>!uuid(id)))return json({ok:false,reason:'not-found'},404);
-  const links=[];
-  for(const id of ids){const target=head?sourceTarget(await read('source-'+id)):null;if(!target)return json({ok:false,reason:'not-found'},404);links.push({id,url:target});}
-  if(multiple)return json({ok:true,format:SOURCE_LINK_FORMAT,links});
+  if(ids.length>SOURCE_LOOKUP_BATCH_SIZE)return json({ok:false,reason:'source-batch-limit'},400);
+  if(!ids.length||new Set(ids).size!==ids.length||ids.some(id=>!uuid(id)))return json({ok:false,reason:'not-found'},404);
+  const links=[],readSource=newsletterSourceReader(env,request.url,head,read);
+  for(const id of ids){const target=await readSource(id);if(!target)return json({ok:false,reason:'not-found'},404);links.push({id,url:target});}
+  if(multiple)return json({ok:true,format:SOURCE_LINK_FORMAT,lookupFormat:head?.sourceLinks?.format||'legacy-private-records',preparedAt:head?.createdAt||null,links});
   return new Response(null,{status:302,headers:{location:links[0].url,'cache-control':'private, no-store','referrer-policy':'no-referrer','x-content-type-options':'nosniff'}});
  }
  if(url.pathname.startsWith('/api/newsletter/private-markets')){

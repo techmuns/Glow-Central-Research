@@ -17,7 +17,7 @@ import {istDay} from '../../public/js/data/newsletter-shared.js';
 import {localNewsletter} from './newsletter-local.mjs';
 import {NewsletterDeliveryQueue,newsletterPendingDeliveries} from './newsletter-delivery-queue.mjs';
 import {newsletterWakePlan,newsletterRetryState} from './newsletter-wake-plan.mjs';
-import {newsletterSourceShortcuts} from './newsletter-source-shortcuts.mjs';
+import {newsletterSourceShortcuts,newsletterSourceViews} from './newsletter-source-shortcuts.mjs';
 import {emailSourceIds} from '../../worker/newsletter-source-shortcuts.mjs';
 
 export function decodeNewsletterColumn(value,table,column){
@@ -90,12 +90,13 @@ export async function githubNewsletter({env=process.env,fetcher=fetch,legacyClie
    for(const row of copy.db.prepare('SELECT id,filename,body FROM newsletter_documents').iterate())savePdf('pdf-'+row.id,{filename:row.filename},Buffer.from(row.body));
    for(const row of copy.db.prepare('SELECT id,state,result,at FROM newsletter_requests').iterate())records.set('request-'+row.id,{state:row.state,result:row.result?JSON.parse(row.result):null,at:row.at});
    for(const row of copy.db.prepare('SELECT id,payload FROM newsletter_views').iterate()){const value=JSON.parse(row.payload);if(value.binary&&value.body)savePdf(row.id,value,Buffer.from(value.body,'base64'));else records.set(row.id,value);}
-   const keys=await readerKeys(env.BACKGROUND_STATE_KEY),schedule=await copy.schedule.status();
+   const keys=await readerKeys(env.BACKGROUND_STATE_KEY),schedule=await copy.schedule.status(),sourceIndex=newsletterSourceViews(records,{repo:transport.repo,env});
    schedule.deliveryRecovery=newsletterRetryState(newsletterPendingDeliveries(copy.db));
-   const head={privateMarkets:privateMarketsJob?privateMarketsJob.status():null,version:1,repo:transport.repo,feature:'newsletter',createdAt:new Date(localOptions.now?.()??Date.now()).toISOString(),snapshot:copy.store.snapshot(),schedule:{...schedule,runtime:'github-actions',armed:false,alarmAt:null},requestKey:{kid:keys.kid,publicKey:encode64(keys.publicKey)},processingEnabled:env.NEWSLETTER_PROCESSING_ENABLED==='true',inputRevision:await copy.storage.get('newsletter-source-revision')??null};
+   const head={sourceLinks:sourceIndex.directory,privateMarkets:privateMarketsJob?privateMarketsJob.status():null,version:1,repo:transport.repo,feature:'newsletter',createdAt:new Date(localOptions.now?.()??Date.now()).toISOString(),snapshot:copy.store.snapshot(),schedule:{...schedule,runtime:'github-actions',armed:false,alarmAt:null},requestKey:{kid:keys.kid,publicKey:encode64(keys.publicKey)},processingEnabled:env.NEWSLETTER_PROCESSING_ENABLED==='true',inputRevision:await copy.storage.get('newsletter-source-revision')??null};
    // Small pages bound edge decoding for streamed PDFs; an older large single
    // record retains its existing delivery limit and occupies a page on its own.
-   await packBackgroundViews(privateRecordViews([...records.keys()],id=>records.get(id),head,{repo:transport.repo,feature:'newsletter',env,partBytes:512*1024,recordBytes:4*1024*1024}),recipient,views,{repo:transport.repo,feature:'newsletter',sourceSignature:signature,cache});
+   async function* prepared(){yield* sourceIndex.views;yield* privateRecordViews([...records.keys()],id=>records.get(id),head,{repo:transport.repo,feature:'newsletter',env,partBytes:512*1024,recordBytes:4*1024*1024});}
+   await packBackgroundViews(prepared(),recipient,views,{repo:transport.repo,feature:'newsletter',sourceSignature:signature,cache});
   }finally{await copy?.close();}
   await sealBackgroundState(backup,state,'newsletter',{env});const result=await transport.publish({cycle:++cycle,state,views,sourceSignature:signature});try{await notify(result);}catch{/* Existing scheduled deployment also catches up. */}return result;
  }

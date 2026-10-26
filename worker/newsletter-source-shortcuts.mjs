@@ -2,6 +2,11 @@ import {exactNewsletterSourceUrl} from './newsletter-source-links.mjs';
 
 export const sourceId = value => /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value || '');
 export const SOURCE_LINK_FORMAT = 'newsletter-source-v1';
+export const SOURCE_LOOKUP_BATCH_SIZE = 5;
+export const SOURCE_INDEX_FORMAT = 'newsletter-source-index-v1';
+export const SOURCE_PAGE_BYTES = 12 * 1024;
+export const SOURCE_RECORD_BYTES = 32 * 1024;
+export const SOURCE_DIRECTORY_BYTES = 128 * 1024;
 export function sourceTarget(record) {
   return record?.format === SOURCE_LINK_FORMAT && typeof record.url === 'string' &&
     exactNewsletterSourceUrl(record.url) === record.url ? record.url : null;
