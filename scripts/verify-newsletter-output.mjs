@@ -31,6 +31,16 @@ for(const name of ['Aurobindo Pharma Ltd','Varroc Engineering Limited']) {
 }
 assert.equal(eventDate('31 November 2026'),null);assert.equal(eventDate('November 4, 2026'),'2026-11-04');
 assert.equal(financialPeriod('30th September 2026'),'2026-09');
+const auroNotices=company('Aurobindo Pharma Ltd');
+const genericRead={...auroNotices[0],headline:'Intimation',content:{state:'ready',format:'xbrl',hash:'verified-source-fields',facts:[
+ ['TypeOfMeeting','Board Meeting'],['TypeOfIntimation','New'],['DateOfProposedMeeting','2026-11-04'],
+ ['MonthOfPeriodEnded','September'],['YearOfPeriodEnded','2026'],['Agenda1','Financial results'],['Agenda2','Dividend']
+].map(([tag,value])=>({field:'source',value,location:`Main/${tag}`}))}};
+assert.equal(clusterStories([genericRead,auroNotices[1]]).length,1,'Read event fields identify a filing even when the headline supplies no date or type');
+const changedRead=structuredClone(genericRead);changedRead.content.facts.find(f=>f.location.endsWith('DateOfProposedMeeting')).value='2026-11-05';
+assert.equal(clusterStories([changedRead,auroNotices[1]]).length,2,'The source meeting date overrides a stale captured date');
+const otherPeriod=structuredClone(genericRead);otherPeriod.url='https://fixture.test/other-read-period';otherPeriod.content.hash='different-quarter';otherPeriod.content.facts.find(f=>f.location.endsWith('MonthOfPeriodEnded')).value='June';
+assert.equal(clusterStories([genericRead,otherPeriod]).length,2,'Read periods remain authoritative with generic headlines');
 const b=company('Bharat Parenteral'),voting=b.filter(r=>/EGM held|Extraordinary General Meeting/i.test(r.headline));
 const votingGroups=clusterStories(voting);
 assert.equal(votingGroups.length,1,'The dated original, revised and scrutinizer reports share one EGM event');
