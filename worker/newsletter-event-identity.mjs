@@ -13,6 +13,7 @@ export function eventDate(value) {
   const at=new Date(Date.UTC(+year,month-1,+day));
   return month>0&&month<=12&&at.getUTCMonth()===month-1&&at.getUTCDate()===+day?at.toISOString().slice(0,10):null;
 }
+export const eventDates = value => [...String(value || '').matchAll(new RegExp(dateText,'g'))].map(match=>eventDate(match[0]));
 export function financialPeriod(value) {
   const text=clean(value),full=eventDate(text);
   if(full)return full.slice(0,7);

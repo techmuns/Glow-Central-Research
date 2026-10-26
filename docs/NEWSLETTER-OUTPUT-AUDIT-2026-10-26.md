@@ -81,3 +81,21 @@ identity also works without a date or event type in the captured headline: read 
 fields are evaluated first. These bounded source notes take priority over generic model
 wording, so an AI paragraph cannot override or truncate their substantive qualifications.
 All cases have mandatory regression assertions.
+
+## Live-reading follow-up
+
+The post-release read-only check confirmed one Bharat EGM row with all three constituent
+reports, one Aurobindo meeting row with both exchanges, one same-window Lupin inspection
+row and one Brian Savage appointment row. Varroc's meeting was already covered and stayed
+out of the inbox; both original exchange links remained in the full source register.
+
+The check also exposed administrative prose in newly read notices. The source-reading
+adapter now omits explicitly administrative recipient, identifier, filing-rule and
+trading-window fields from the reading while retaining them in the register. Material
+amounts, counterparties, ownership and business conditions remain. DCW's actual two-agenda
+notice becomes one prospective meeting sentence with its read date, financial-results
+agenda and proposed buyback intact. Bharat's original call invitation retains the read
+30 October / 4:00 P.M. IST schedule and Q2FY27 period even at the densest tier. Missing or
+invalid dates/times, cancellations, changed status and unknown business counterparties
+cannot receive these complete source notes. This uses saved fields only; no search,
+model, mail, collection cadence or provider budget is added.

@@ -1,7 +1,7 @@
 // The inbox is a reading layer over the complete immutable edition. Classification never
 // deletes a captured row, changes an edition window or certifies an unread document.
 import { scheduledBoardMeetingSummary } from './newsletter-filing-events.mjs';
-import { investorSourceFacts, investorSourceSummary, xbrlBoardMeetingNote, votingResultNote } from './newsletter-source-notes.mjs';
+import { investorSourceFacts, investorSourceSummary, xbrlBoardMeetingNote, votingResultNote, readNoticeNote } from './newsletter-source-notes.mjs';
 import { newsletterSourceUrl } from './newsletter-source-links.mjs';
 export const EDITORIAL_VERSION = 1;
 export const EDITORIAL_EMAIL_PARTS = 3;
@@ -59,7 +59,7 @@ export function editorialEvents(brief, companies) {
     if (members.some(item => item.editorialReported)) { repeated.push(cluster); continue; }
     const note = brief.ai?.items?.[cluster.id] || (cluster.main.content?.state==='ready' ? cluster.main.content.note : null);
     const ready = eligible.filter(s => s.content?.state === 'ready');
-    const completeSourceSummary=xbrlBoardMeetingNote(lead)||votingResultNote(lead);
+    const completeSourceSummary=xbrlBoardMeetingNote(lead)||votingResultNote(lead)||readNoticeNote(lead);
     const sourceSummary=cluster.versionConflict?'Different versions of this document were captured; their chronology is unconfirmed. Read the retained versions before relying on the figures.':completeSourceSummary || investorSourceSummary(lead);
     events.push({ id: cluster.id, company: company.company, ticker: company.ticker, cluster,
       lead, note, rank: Math.max(...eligible.map(editorialPriority)), at: Math.max(...eligible.map(s => s.at)),

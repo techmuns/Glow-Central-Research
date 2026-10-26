@@ -111,3 +111,63 @@ mkdirSync('.cache/newsletter-audit/full-pdf-review',{recursive:true});
 writeFileSync('.cache/newsletter-audit/full-pdf-review/corrected-example.html',email.html);
 writeFileSync('.cache/newsletter-audit/full-pdf-review/corrected-example.pdf',renderBriefPdf(brief));
 console.log(`PASS full-output PDF: ${input.events.length} exact readings, issuer/date/period/event grouping, document-first evidence, corrections, concise prose, all report links; network/model/mail calls=0`);
+
+// Read-only live-release findings, 26 October: DCW's buyback notice and the
+// customer's original Bharat call invitation. All dates/terms are saved facts.
+const cleanNotice=(ticker,company,sourceFacts)=>{
+ const sample=pdfFixture();sample.news.groups=[];sample.ai={ok:false,items:{}};
+ sample.announcements.groups=[{ticker,company,items:[{...sample.announcements.groups[0].items[0],headline:'Captured corporate notice',content:{state:'ready',format:'pdf',facts:sourceFacts.map(([field,value])=>({field,value,quote:value,location:'page 1'}))}}]}];
+ return sample;
+};
+const dcw=cleanNotice('DCW','Dcw Limited',[
+ ['event','Board meeting scheduled to consider and approve unaudited financial results'],
+ ['event','Board meeting scheduled to consider a proposal for buyback of fully paid-up equity shares'],
+ ['status','Proposed/scheduled for board consideration, not yet approved'],
+ ['date','Board meeting date: October 29, 2026'],['date','Letter date: October 26, 2026'],
+ ['conditions','Trading window closed ahead of board meeting and reopening timeline'],
+ ['counterparty','Recipients of the intimation: National Stock Exchange of India Ltd. and BSE Limited'],
+]);
+const dcwStats=briefStats(dcw),dcwEvents=editorialEvents(dcw,dcwStats.companies).events;
+const dcwDense=renderBriefHtml(dcw,{dashboardUrl:'https://fixture.test',stats:dcwStats,part:{investor:true,eventIds:dcwEvents.map(e=>e.id),compact:true,summaryChars:100,index:1,total:1,supplements:false}});
+assert(dcwDense.includes('Board meeting 29 Oct 2026: to consider unaudited financial results and a proposal for buyback of fully paid-up equity shares.'));
+assert(!dcwDense.includes('Trading window')&&!dcwDense.includes('Recipients of the intimation'));
+const dcwPdf=Buffer.from(renderBriefPdf(dcw)).toString('latin1');
+assert.equal((dcwPdf.match(/Trading window closed/g)||[]).length,1,'The administrative source field remains in the complete register, not the investment reading');
+const conditional=structuredClone(dcw);conditional.announcements.groups[0].items[0].content.facts.push({field:'conditions',value:'Buyback is subject to shareholder approval'});
+const conditionalEvents=editorialEvents(conditional,briefStats(conditional).companies).events;
+assert(conditionalEvents[0].sourceSummary.includes('subject to shareholder approval'),'A business condition cannot be mistaken for filing boilerplate');
+const cancelledBoard=structuredClone(dcw);cancelledBoard.announcements.groups[0].items[0].content.facts.find(f=>f.field==='status').value='Not scheduled';
+assert(!editorialEvents(cancelledBoard,briefStats(cancelledBoard).companies).events[0].completeSourceSummary,'An opposing status cannot become a planned meeting');
+const call=cleanNotice('BPLPHARMA','Bharat Parenteral',[
+ ['event','Intimation of Q2FY27 Earnings Conference Call'],['date','Letter dated October 24, 2026'],
+ ['date','Conference call scheduled for Friday, October 30, 2026 at 4:00 P.M. IST'],
+ ['conditions','Disclosure made pursuant to Regulation 30 of SEBI LODR Regulations, 2015'],
+ ['counterparty','BSE Limited (recipient of intimation)'],
+ ['counterparty','PhillipCapital (India) Private Limited is organizing/hosting the earnings call'],
+ ['status','Conference call scheduled (proposed/upcoming event, not yet completed)'],
+ ['ownership','Scrip Code and ISIN identifiers for Bharat Parenterals Limited'],
+]);
+const callStats=briefStats(call),callEvents=editorialEvents(call,callStats.companies).events;
+const callDense=renderBriefHtml(call,{dashboardUrl:'https://fixture.test',stats:callStats,part:{investor:true,eventIds:callEvents.map(e=>e.id),compact:true,summaryChars:100,index:1,total:1,supplements:false}});
+assert(callDense.includes('Q2FY27: Conference call scheduled for Friday, October 30, 2026 at 4:00 P.M. IST'));
+for(const noise of ['Regulation 30','Scrip Code','recipient of intimation'])assert(!callDense.includes(noise));
+const cancelledCall=structuredClone(call);cancelledCall.announcements.groups[0].items[0].content.facts.find(f=>f.field==='status').value='Call cancelled';
+assert(!editorialEvents(cancelledCall,briefStats(cancelledCall).companies).events[0].completeSourceSummary,'A cancellation cannot use the old invitation as a current schedule');
+const noTime=structuredClone(call);noTime.announcements.groups[0].items[0].content.facts=noTime.announcements.groups[0].items[0].content.facts.filter(f=>!f.value.includes('4:00'));
+assert(!editorialEvents(noTime,briefStats(noTime).companies).events[0].completeSourceSummary,'Never invent a missing call time');
+const businessParty=structuredClone(call);businessParty.announcements.groups[0].items[0].content.facts.push({field:'counterparty',value:'A new venture partner'});
+assert(!editorialEvents(businessParty,briefStats(businessParty).companies).events[0].completeSourceSummary,'A business counterparty cannot be silently treated as an IR attendee');
+const appointmentCall=structuredClone(call);appointmentCall.announcements.groups[0].items[0].content.facts.push({field:'event',value:'Company appointed a new CFO to present the call'});
+assert(!editorialEvents(appointmentCall,briefStats(appointmentCall).companies).events[0].completeSourceSummary,'A named business development cannot disappear inside a routine call note');
+for(const [from,to]of [['October 30','November 31'],['4:00 P.M.','25:99']]){
+ const invalid=structuredClone(call);invalid.announcements.groups[0].items[0].content.facts.find(f=>f.value.includes('4:00')).value=invalid.announcements.groups[0].items[0].content.facts.find(f=>f.value.includes('4:00')).value.replace(from,to);
+ assert(!editorialEvents(invalid,briefStats(invalid).companies).events[0].completeSourceSummary,'Invalid source dates/times cannot certify a call schedule');
+}
+const unrelated=cleanNotice('TEST','Test issuer',[
+ ['event','Company signed a customer contract'],['amount','INR 100 crore'],
+ ['conditions','Subject to regulatory approval'],['counterparty','Customer Alpha'],
+ ['ownership','Promoter ownership increased to 45%'],
+]);
+const economic=editorialEvents(unrelated,briefStats(unrelated).companies).events[0].sourceSummary;
+for(const material of ['INR 100 crore','Subject to regulatory approval','Customer Alpha','45%'])assert(economic.includes(material));
+console.log('PASS read notice prose: complete buyback agenda/date, complete earnings-call time, administrative appendix, substantive conditions/ownership, cancelled/unknown guards; model/search/mail calls=0');

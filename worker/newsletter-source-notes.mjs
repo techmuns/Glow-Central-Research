@@ -1,9 +1,19 @@
 // Presentation over saved source facts. Never rewrite the retained extraction or
 // turn identifiers, enum values and bare XBRL booleans into an investor summary.
-import { explicitEvent } from './newsletter-event-identity.mjs';
+import { explicitEvent, eventDate, eventDates } from './newsletter-event-identity.mjs';
 const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const material = new Set(['event','counterparty','amount','status','date','conditions','ownership']);
+const administrative = fact => {
+  const value=clean(fact.value);
+  if(fact.field==='amount'||/\b(?:acquisition|buyback|merger|fundraising|stake|contract|profit|revenue|default|penalty|resignation|INR|USD|EUR|crore|million|billion|subject to)\b|₹/i.test(value))return false;
+  if(fact.field==='ownership'&&/\b(?:shares?|stake|ownership|holding|held|acquired|sold)\b/i.test(value))return false;
+  if(/^Trading window (?:closure|closed|will be closed|remains closed|to remain closed)\b/i.test(value)&&
+    !/\b(?:acquisition|merger|buyback|dividend|fundraising|stake|order|contract|profit|revenue|default|penalty|resignation)\b/i.test(value))return true;
+  return /^(?:Recipients? of (?:the )?intimation\b|(?:Filed with|Addressed to) (?:National Stock Exchange|BSE|NSE)\b|BSE Limited \(recipient of intimation\)|Scrip Code and ISIN identifiers\b|Call timing also noted in other time zones\b|Call proceedings (?:will be )?recorded\b|Disclosures on stock exchanges including invite)/i.test(value)||
+    /^Disclosure made pursuant to Regulation \d+ of SEBI LODR Regulations,? \d{4}[.!]?$/i.test(value);
+};
+const dateLabel=date=>{const d=new Date(date+'T00:00:00Z');return `${d.getUTCDate()} ${months[d.getUTCMonth()].slice(0,3)} ${d.getUTCFullYear()}`;};
 
 export function investorSourceFacts(item) {
   const facts = (item.content?.facts || []).filter(fact => material.has(fact.field) && clean(fact.value));
@@ -18,7 +28,7 @@ export function investorSourceFacts(item) {
  * Original facts/passages are retained unchanged in the complete source register. */
 export function investorSourceSummary(item) {
   if(!['ready','partial'].includes(item.content?.state))return null;
-  const facts=investorSourceFacts(item),selected=[];
+  const facts=investorSourceFacts(item).filter(f=>!administrative(f)),selected=[];
   const key=value=>clean(value).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const add=(fact,label='')=>{
     const value=clean(fact?.value);if(!value)return;
@@ -42,6 +52,42 @@ export function investorSourceSummary(item) {
     }
   }
   return selected.join('; ');
+}
+
+/** Short readings of explicit read notice fields. No inferred meeting date,
+ * missing agenda or timezone. Administrative passages stay in the register. */
+export function readNoticeNote(item) {
+  if(item.kind!=='filing'||item.content?.state!=='ready')return null;
+  const facts=investorSourceFacts(item).filter(f=>!administrative(f));
+  const events=facts.filter(f=>f.field==='event').map(f=>clean(f.value));
+  if(!events.length)return null;
+  const callRoles=facts.filter(f=>f.field==='counterparty').every(f=>/\b(?:organizing|hosting)\b.*\bcall\b|^(?:Speaker for the call|Call leaders):/i.test(f.value));
+  if(events.every(value=>/\bcall\b/i.test(value))&&callRoles&&!facts.some(f=>['amount','ownership','conditions'].includes(f.field))) {
+    const states=facts.filter(f=>['event','status'].includes(f.field)).map(f=>f.value).join(' ').replace(/not yet completed/gi,'');
+    if(/\b(?:cancel\w*|postpon\w*|reschedul\w*|withdraw\w*|terminat\w*|reject\w*|concluded|completed|not scheduled)\b/i.test(states))return null;
+    if(/\b(?:appoint\w*|resign\w*|acquir\w*|merg\w*|buyback|dividend|guidance|profit|revenue|margin|fundrais\w*|preferential|allotment|contract)\b/i.test(states))return null;
+    const calls=facts.filter(f=>['event','date'].includes(f.field)&&/\bcall\b/i.test(f.value)&&/20\d{2}/.test(f.value)&&
+      /\b\d{1,2}:\d{2}|\b\d{1,2}\s*[ap]\.?m\.?/i.test(f.value));
+    if(calls.length===1) {
+      const dates=eventDates(calls[0].value),clock=/\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?|\b(\d{1,2}):(\d{2})/i.exec(calls[0].value);
+      if(!dates.length||dates.some(date=>!date||date!==dates[0])||!clock)return null;
+      const hour=Number(clock[1]||clock[4]),minute=Number(clock[2]||clock[5]||0);
+      if(minute>59||hour>(clock[3]?12:23)||clock[3]&&hour<1)return null;
+      const period=/\bQ[1-4]\s*FY\s*\d{2,4}\b/i.exec(events.join(' '))?.[0].replace(/\s/g,'');
+      const note=[period?period+':':null,clean(calls[0].value)].filter(Boolean).join(' ');
+      return note.length<=400?note:null;
+    }
+  }
+  const agendas=events.map(value=>/^Board meeting scheduled to consider(?: and approve)?\s+(.+?)[.!]?$/i.exec(value)?.[1]);
+  if(agendas.some(value=>!value))return null;
+  const dates=facts.filter(f=>f.field==='date'&&/^Board meeting date:/i.test(f.value)).map(f=>eventDate(clean(f.value).replace(/^Board meeting date:\s*/i,'')));
+  if(!dates.length||dates.some(date=>!date||date!==dates[0]))return null;
+  const extras=facts.filter(f=>['amount','conditions','ownership','counterparty'].includes(f.field));
+  // A new substantive status cannot be removed as a repeated prospective label.
+  if(facts.some(f=>f.field==='status'&&!/^(?:Proposed(?:\/scheduled)?|Scheduled)(?: for board consideration)?(?:, not yet approved)?[.!]?$/i.test(clean(f.value))))return null;
+  const note=`Board meeting ${dateLabel(dates[0])}: to consider ${[...new Set(agendas)].join(' and ')}.`+
+    extras.map(f=>` ${f.field[0].toUpperCase()+f.field.slice(1)}: ${clean(f.value)}`).join('');
+  return note.length<=500?note:null;
 }
 
 /** A bounded correction reading from explicit saved facts, never the headline
