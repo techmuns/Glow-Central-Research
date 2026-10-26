@@ -140,3 +140,12 @@ All accepted proposed, subject-to-change and not-yet-completed statuses survive 
 consolidated reading; absent conditions are never added. Matching also retains a known
 headline period when read fields omit it and rejects source reschedules/cancellations
 before a generic exchange wrapper can override those facts.
+
+Material-extra checks apply before every board-notice merge, including ordinary results
+and generic wrappers. A separate amount, business condition, ownership change or
+counterparty cannot disappear behind a results-only form. Structured readings retain
+separately typed material fields too. Consecutive fiscal-year ranges (FY2026-27,
+FY2026-2027 and FY2026/27) normalize to the ending year; malformed/multi-year ranges
+remain unresolved. Prospective board wording stays “to consider” / “a proposal”, which
+already distinguishes it from approval without a redundant status sentence. Explicit
+rejection, revocation, completion or rescheduling vetoes old prospective grouping.

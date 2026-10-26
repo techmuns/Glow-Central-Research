@@ -7,7 +7,7 @@ import {explicitEvent,eventDate,financialPeriod} from '../worker/newsletter-even
 import {scheduledBoardMeetingSummary} from '../worker/newsletter-filing-events.mjs';
 import {editorialEvents,referenceReason} from '../worker/newsletter-editorial.mjs';
 import {scheduledEarningsCall} from '../worker/newsletter-notice-events.mjs';
-import {investorSourceSummary} from '../worker/newsletter-source-notes.mjs';
+import {investorSourceSummary,xbrlBoardMeetingNote} from '../worker/newsletter-source-notes.mjs';
 import {pdfFixture} from './verify-newsletter-pdf.mjs';
 import {renderInvestorEmails} from '../worker/newsletter-email.mjs';
 import {renderBriefPdf} from '../worker/newsletter-pdf.mjs';
@@ -305,3 +305,21 @@ for(const status of ['Proposed','Proposed/upcoming event, not yet completed','Co
  assert(!reading.includes('subject to change'),'Do not add a condition absent from the source');
 }
 console.log('PASS final review regressions: agenda permutations, fiscal quarters/half-years, compatible period union and every accepted proposed status');
+
+const materialResults=structuredClone(periodRead);materialResults.headline='Captured corporate notice';materialResults.content.facts=materialResults.content.facts.filter(f=>f.field!=='event');materialResults.content.facts.push({field:'event',value:'Board meeting scheduled to consider and approve unaudited financial results for the period ended September 2026'},{field:'amount',value:'INR 100 crore fundraising proposal'});
+assert.equal(clusterStories([materialResults,resultsForm]).length,2,'A results-only form cannot hide a separately read material fundraising term');
+const genericResults={...resultsForm,content:{state:'pending'},headline:'Board Meeting to be held on 29-Oct-2026 to consider Intimation of Board Meeting'};
+assert.equal(clusterStories([materialResults,genericResults]).length,2,'The material-extra guard also applies before generic-wrapper matching');
+const xbrlMaterial=structuredClone(resultsForm);xbrlMaterial.content.facts.push({field:'amount',value:'INR 100 crore fundraising proposal',location:'Main/SizeOfOrder'});
+assert(xbrlBoardMeetingNote(xbrlMaterial).includes('INR 100 crore fundraising proposal'),'A standalone structured reading also retains separately typed material fields');
+const rangeBoard=fiscalBoard('Q2 FY2026-27','https://fixture.test/range-year');
+assert.equal(clusterStories([rangeBoard,fiscalBoard('Q2 FY26','https://fixture.test/prior-fy')]).length,2,'A ranged FY label uses its ending year, not its starting year');
+for(const label of ['Q2 FY27','Q2 FY2027','Q2 FY2026-2027','Q2 FY2026/27'])assert.equal(clusterStories([rangeBoard,fiscalBoard(label,'https://fixture.test/range-'+encodeURIComponent(label))]).length,1,'Equivalent fiscal year endings normalize together');
+assert.equal(clusterStories([rangeBoard,fiscalBoard('Q2 FY2026-29','https://fixture.test/invalid-range')]).length,2,'An unsupported multi-year range cannot become a wildcard');
+const rangedCall=structuredClone(dcwCallXml);rangedCall.url='https://fixture.test/ranged-call';rangedCall.content.facts.find(f=>f.location.endsWith('/NameOfMeetingOrCallOrConferenceOrEventForIntimation')).value='Q2/H1-FY2026-27 Earnings Call';
+assert.equal(clusterStories([dcwCallXml,rangedCall]).length,1,'Call year ranges preserve the half-year and normalize to the ending year');
+for(const status of ['Proposal rejected','Approval revoked','Board meeting completed']){
+ const opposing=structuredClone(genericCancelled);opposing.content.facts.find(f=>f.field==='status').value=status;
+ assert.equal(clusterStories([opposing,resultsForm]).length,2,'A completed or rejected source status cannot become a prospective meeting');
+}
+console.log('PASS material/range regressions: every merge branch preserves material extras, structured terms remain visible, fiscal range endings and opposing statuses');

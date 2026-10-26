@@ -59,20 +59,20 @@ export function scheduledEarningsCall(item) {
     if(tags.get('TypeOfAnnouncement')!=='New'||tags.get('StageOfMeetingOrCallOrConferenceOrEvent')!=='Intimation'||tags.get('TypeOfMeetingForWhichIntimationIsGiven')!=='Earning/Quarterly Calls')return null;
     if(facts.some(f=>['amount','ownership','conditions','counterparty','event','status'].includes(f.field)))return null;
     const agenda=tags.get('AgendaOrReasonForMeetingOrCallOrConferenceOrEventForIntimation');
-    if(agenda&&!/^Discuss the Unaudited Financial Results for Q[1-4]-FY(?:\d{4}|\d{2})(?!\d)$/i.test(agenda))return null;
+    if(agenda&&!/^Discuss the Unaudited Financial Results for Q[1-4]-FY(?:\d{4}|\d{2})(?:[-–/](?:\d{4}|\d{2}))?(?![\d/–-])$/i.test(agenda))return null;
     date=eventDate(tags.get('DateOfMeetingOrCallOrConferenceOrEventForIntimation'));
     const parsedClock=callClock(tags.get('TimeOfCommencementOfMeetingOrCallOrConferenceOrEventForIntimation'));
     clock=parsedClock?.clock;zone=parsedClock?.zone;
     const name=tags.get('NameOfMeetingOrCallOrConferenceOrEventForIntimation')||'';
-    if(!/^(?:Q[1-4](?:\/H[12])?[ -]*FY(?:\d{4}|\d{2})(?!\d) )?Earnings Call$/i.test(name))return null;
+    if(!/^(?:Q[1-4](?:\/H[12])?[ -]*FY(?:\d{4}|\d{2})(?:[-–/](?:\d{4}|\d{2}))?(?![\d/–-]) )?Earnings Call$/i.test(name))return null;
     const periods=[...fiscalPeriods(name),...fiscalPeriods(agenda)];period=combineFiscalPeriods(periods);
     if(periods.length&&!period)return null;
     baseReading=`${period?period.label+': ':''}Earnings Call: ${date} at ${clock}${zone?' '+zone:' (timezone not stated in the captured fields)'}`;
   } else {
     const events=facts.filter(f=>f.field==='event').map(f=>clean(f.value));
-    if(!events.length||events.some(value=>!(/^(?:Intimation|Invitation|Notice)(?: of| to)? (?:Q[1-4]\s*FY\s*(?:\d{4}|\d{2})(?!\d)\s+)?(?:Earnings? (?:Conference )?Call|Conference Call|Analysts? Call)[.!]?$/i.test(value)||
+    if(!events.length||events.some(value=>!(/^(?:Intimation|Invitation|Notice)(?: of| to)? (?:Q[1-4]\s*FY\s*(?:\d{4}|\d{2})(?:[-–/](?:\d{4}|\d{2}))?(?![\d/–-])\s+)?(?:Earnings? (?:Conference )?Call|Conference Call|Analysts? Call)[.!]?$/i.test(value)||
       /^Intimation of proposed schedule of Earnings Conference Call for Investor\(s\)\/Analyst\(s\) under Regulation 30 of SEBI LODR Regulations, 2015$/i.test(value)||
-      /^Conference call scheduled to discuss Unaudited Financial Results for Q[1-4]-FY(?:\d{4}|\d{2})(?!\d)$/i.test(value)||/^Management representatives named for the call[.!]?$/i.test(value))))return null;
+      /^Conference call scheduled to discuss Unaudited Financial Results for Q[1-4]-FY(?:\d{4}|\d{2})(?:[-–/](?:\d{4}|\d{2}))?(?![\d/–-])$/i.test(value)||/^Management representatives named for the call[.!]?$/i.test(value))))return null;
     if(facts.some(f=>['amount','ownership','conditions'].includes(f.field)))return null;
     if(facts.filter(f=>f.field==='counterparty').some(f=>!(/\b(?:organizing|hosting|inviting)\b.*\bcall\b|^(?:Speaker for the call|Call leaders):/i.test(f.value))))return null;
     if(facts.filter(f=>f.field==='status').some(f=>!/^Conference call scheduled(?: \(proposed\/upcoming event, not yet completed\))?[.!]?$|^(?:Proposed|Scheduled)(?:\/upcoming)?(?: event)?(?:, not yet completed)?[.!]?$|^Schedule is proposed and subject to change$/i.test(clean(f.value))))return null;

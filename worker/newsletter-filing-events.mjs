@@ -19,7 +19,7 @@ export function scheduledBoardMeeting(item) {
   if(tags.has('TypeOfMeeting')&&!/^board meeting$/i.test(tags.get('TypeOfMeeting')))return null;
   const readNotice=readBoardNotice(item);
   if(item.content?.state==='ready'&&item.content.format!=='xbrl'&&(item.content.facts||[]).filter(f=>f.field==='status').some(f=>
-    /\b(?:cancel\w*|reschedul\w*|postpon\w*|withdraw\w*|approved|concluded|completed|not scheduled)\b/i.test(normal(f.value).replace(/not yet (?:approved|completed)/ig,''))))return null;
+    /\b(?:cancel\w*|reschedul\w*|postpon\w*|withdraw\w*|reject\w*|declin\w*|revok\w*|terminat\w*|approved|concluded|completed|held|not scheduled)\b/i.test(normal(f.value).replace(/not yet (?:approved|completed|held)/ig,''))))return null;
   const sourceDates=item.content?.state==='ready'&&item.content.format!=='xbrl'?(item.content.facts||[]).filter(f=>f.field==='date'&&/\bboard meeting\b/i.test(f.value)):[];
   if(sourceDates.some(f=>!/^Board meeting date:/i.test(normal(f.value))))return null;
   const meetingDates=sourceDates.map(f=>eventDate(normal(f.value).replace(/^Board meeting date:\s*/i,'')));
@@ -67,12 +67,14 @@ export function scheduledBoardMeeting(item) {
   const simpleBuyback=structured?readAgendas.length>=2&&readAgendas.every(v=>/^(?:Financial results|Buyback|Other business)$/i.test(v))&&
     !(item.content.facts||[]).some(f=>['amount','ownership','conditions','counterparty'].includes(f.field)&&!administrativeNoticeFact(f)):
     !!readNotice&&!readNotice.extras.length&&simpleReadAgendas.size===2&&simpleReadAgendas.has(plainResults)&&simpleReadAgendas.has(plainBuyback);
-  return { simpleBuyback, date: at.toISOString().slice(0,10), label: `${day} ${months[month - 1][0].toUpperCase() + months[month - 1].slice(1)} ${year}`, period, fiscal, agendas, generic, purpose };
+  const materialExtras=item.content?.state==='ready'&&(item.content.facts||[]).some(f=>['amount','ownership','conditions','counterparty'].includes(f.field)&&!administrativeNoticeFact(f));
+  return { simpleBuyback, materialExtras, date: at.toISOString().slice(0,10), label: `${day} ${months[month - 1][0].toUpperCase() + months[month - 1].slice(1)} ${year}`, period, fiscal, agendas, generic, purpose };
 }
 
 export function sameScheduledBoardMeeting(a, b) {
   const x = scheduledBoardMeeting(a), y = scheduledBoardMeeting(b);
   if (!x || !y || a.ticker !== b.ticker || x.date !== y.date || Math.abs(a.at - b.at) > 3600000) return false;
+  if(x.materialExtras||y.materialExtras)return false;
   if (x.period && y.period && financialPeriod(x.period) !== financialPeriod(y.period)) return false;
   if(x.fiscal&&y.fiscal&&!compatibleFiscalPeriods(x.fiscal,y.fiscal))return false;
   // Quarter labels cannot be converted to calendar months without this issuer's

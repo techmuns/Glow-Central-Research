@@ -15,12 +15,20 @@ export function eventDate(value) {
 }
 export const eventDates = value => [...String(value || '').matchAll(new RegExp(dateText,'g'))].map(match=>eventDate(match[0]));
 export function fiscalPeriods(value) {
-  return [...clean(value).matchAll(/\b(Q[1-4](?:\s*\/\s*H[12])?|H[12])\s*[- ]*FY\s*(\d{4}|\d{2})(?!\d)/ig)].map(m=>{
-    const year=m[2].length===2?'20'+m[2]:m[2],quarter=/Q[1-4]/i.exec(m[1])?.[0].toUpperCase()||null,half=/H[12]/i.exec(m[1])?.[0].toUpperCase()||null;
+  return [...clean(value).matchAll(/\b(Q[1-4](?:\s*\/\s*H[12])?|H[12])\s*[- ]*FY\s*(\d+)(?:\s*[-–/]\s*(\d+))?(?!\d|\s*[-–/])/ig)].map(m=>{
+    if(![2,4].includes(m[2].length)||m[3]&&![2,4].includes(m[3].length))return {invalid:true};
+    const start=Number(m[2].length===2?'20'+m[2]:m[2]);let ending=start;
+    if(m[3]){
+      ending=m[3].length===2?Math.floor(start/100)*100+Number(m[3]):Number(m[3]);
+      if(m[3].length===2&&ending<=start)ending+=100;
+      if(ending!==start+1)return {invalid:true};
+    }
+    const year=String(ending),quarter=/Q[1-4]/i.exec(m[1])?.[0].toUpperCase()||null,half=/H[12]/i.exec(m[1])?.[0].toUpperCase()||null;
     return {year,quarter,half,label:[quarter,half].filter(Boolean).join('/')+'FY'+(year.startsWith('20')?year.slice(-2):year)};
   });
 }
 export function compatibleFiscalPeriods(a,b) {
+  if(!a||!b||a.invalid||b.invalid)return false;
   return a.year===b.year&&(!a.quarter||!b.quarter||a.quarter===b.quarter)&&(!a.half||!b.half||a.half===b.half)&&
     !!(a.quarter&&b.quarter||a.half&&b.half);
 }

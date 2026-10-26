@@ -109,5 +109,7 @@ export function xbrlBoardMeetingNote(item) {
       : /^dividend$/i.test(value) ? [dividend,'dividend'].filter(Boolean).join(' ') : value);
   if (!agendas.length) return null;
   const prefix = /^revised$/i.test(get('TypeOfIntimation')) ? 'Revised board-meeting notice for' : 'Board meeting';
-  return `${prefix} ${label}: to consider ${agendas.join(' and ')}.`;
+  const extras=investorSourceFacts(item).filter(f=>['amount','ownership','conditions','counterparty','status'].includes(f.field)&&!administrative(f));
+  const note=`${prefix} ${label}: to consider ${agendas.join(' and ')}.`+extras.map(f=>` ${f.field[0].toUpperCase()+f.field.slice(1)}: ${clean(f.value)}`).join('');
+  return extras.length&&note.length>600?null:note;
 }
