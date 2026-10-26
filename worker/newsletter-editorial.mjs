@@ -1,6 +1,7 @@
 // The inbox is a reading layer over the complete immutable edition. Classification never
 // deletes a captured row, changes an edition window or certifies an unread document.
 import { scheduledBoardMeetingSummary } from './newsletter-filing-events.mjs';
+import { investorSourceFacts, xbrlBoardMeetingNote } from './newsletter-source-notes.mjs';
 export const EDITORIAL_VERSION = 1;
 export const EDITORIAL_EMAIL_PARTS = 3;
 const text = value => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
@@ -58,8 +59,9 @@ export function editorialEvents(brief, companies) {
       sourceCount: members.length, read: ready.length, total: members.length,
       // A summary of a different lead cannot be relabelled as this filing's summary.
       summary: note && lead === cluster.main ? note.summary : null,
+      sourceSummary: xbrlBoardMeetingNote(lead),
       description: scheduledBoardMeetingSummary(lead),
-      facts: (lead.content?.facts || []).filter(f => f.field !== 'reason'),
+      facts: investorSourceFacts(lead),
       evidence: lead.content?.state === 'ready' ? 'Source read' : 'Headline only',
     });
   }

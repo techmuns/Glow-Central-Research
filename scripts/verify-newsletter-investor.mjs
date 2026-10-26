@@ -13,6 +13,7 @@ import { fetchContent,readDocumentFacts } from '../worker/newsletter-content.mjs
 import { reviewNewsEvents } from '../worker/newsletter-events.mjs';
 import { newsletterSourceUrl } from '../worker/newsletter-source-links.mjs';
 import { scheduledBoardMeetingSummary } from '../worker/newsletter-filing-events.mjs';
+import { investorSourceFacts, xbrlBoardMeetingNote } from '../worker/newsletter-source-notes.mjs';
 
 const excluded=[
  ['INDIANB','South Indian Bank Leveraging Digital Technology For Biz Growth'],
@@ -108,6 +109,37 @@ const proposedIssue={...auro,headline:'Board Meeting to be held on 04-Nov-2026 t
 assert(scheduledBoardMeetingSummary(proposedIssue).includes('Investor Alpha for INR 15 crore'),'A concise meeting description must retain stated counterparties and amounts');
 assert.equal(clusterStories([proposedIssue,{...proposedIssue,url:'https://fixture.test/different-proposal',headline:proposedIssue.headline.replace('Investor Alpha','Investor Beta').replace('15','20')}]).length,2,'Two detailed capital proposals do not become one update merely because they share a meeting date');
 assert.equal(clusterStories([proposedIssue,{...auroBse,headline:auroBse.headline.replace('Intimation of Board Meeting ....','Other business including a proposed loan to Investor Beta.')}]).length,2,'An unrecognized purpose is not a generic exchange wrapper');
+
+// The live read notice must not dump NSE symbols, ISINs, SME/trading-window flags
+// or dimensionless units into the investor sentence. Reuse saved XBRL fields;
+// source history and the full extraction are unchanged and no model is called.
+const sourceFields=[['NSESymbol','AUROPHARMA'],['NameOfTheCompany','AUROBINDO PHARMA LIMITED'],['WhetherCompanyIsSME','false'],
+ ['ISIN','INE406A01037'],['TypeOfMeeting','Board Meeting'],['TypeOfIntimation','New'],['DateOfProposedMeeting','2026-11-04'],
+ ['WhetherTradingWindowIsClosed','true'],['DateOfStartOfTradingWindowClosure','2026-10-01'],
+ ['DetailsOfDateOfEndOfTradingWindowClosure','Routine trading-window metadata remains in the source register.'],
+ ['Agenda1','Financial results'],['Agenda2','Dividend'],['WhetherResultsAreAuditedOrUnaudited','Unaudited'],
+ ['NatureOfReportStandaloneConsolidated','Standalone And Consolidated'],['ReportingPeriodType','Half Yearly'],
+ ['MonthOfPeriodEnded','September'],['YearOfPeriodEnded','2026 [source unit: pure]'],['TypeOfDividend','Interim']];
+const readAuro={...auro,content:{state:'ready',format:'xbrl',hash:'read-prior-intimation',facts:sourceFields.map(([tag,value])=>({field:'source',name:tag,value,quote:value,location:'Main/'+tag}))}};
+const notice='Board meeting 4 Nov 2026: to consider unaudited standalone and consolidated half-year financial results for the period ended September 2026 and interim dividend.';
+assert.equal(xbrlBoardMeetingNote(readAuro),notice);
+assert.deepEqual(investorSourceFacts(readAuro),[],'XBRL administrative metadata is not an investor fact strip');
+const metadataBrief=structuredClone(brief);metadataBrief.news.groups=[];metadataBrief.ai={ok:false,items:{}};
+metadataBrief.announcements.groups=[{ticker:'AUROPHARMA',company:'Aurobindo Pharma Ltd',items:[{...official,headline:auro.headline,url:auro.url,keys:['read-auro'],content:readAuro.content}]}];
+const metadataBefore=JSON.stringify(metadataBrief),metadataHtml=renderInvestorEmails(metadataBrief,options)[0].html;
+assert(metadataHtml.includes(notice)&&metadataHtml.includes('Source facts')&&!metadataHtml.includes('AI summary'));
+for(const noise of ['INE406A01037','source unit: pure','Routine trading-window metadata'])assert(!metadataHtml.includes(noise),'Metadata stays out of the investor sentence');
+assert(!/\b(?:true|false)\b/.test(metadataHtml));
+const metadataPdf=Buffer.from(renderBriefPdf(metadataBrief)).toString('latin1');
+assert(metadataPdf.includes('Board meeting 4 Nov 2026')&&metadataPdf.includes('interim dividend.'),'The PDF investment briefing uses the same readable source note');
+assert.equal(JSON.stringify(metadataBrief),metadataBefore,'Readable notes never alter retained source values');
+const changedDate=structuredClone(readAuro);changedDate.content.facts.find(f=>f.location.endsWith('/DateOfProposedMeeting')).value='2026-11-05';
+assert(xbrlBoardMeetingNote(changedDate).startsWith('Board meeting 5 Nov 2026'),'A read date overrides an older captured headline');
+const cancelled=structuredClone(readAuro);cancelled.content.facts.find(f=>f.location.endsWith('/TypeOfIntimation')).value='Cancelled';
+assert.equal(xbrlBoardMeetingNote(cancelled),null,'A cancelled notice cannot become a future plan');
+const conflicted=structuredClone(readAuro);conflicted.content.facts.push({...conflicted.content.facts.find(f=>f.location.endsWith('/DateOfProposedMeeting')),value:'2026-11-06'});
+assert.equal(xbrlBoardMeetingNote(conflicted),null,'Conflicting read contexts cannot be silently collapsed into one date');
+assert.deepEqual(investorSourceFacts({content:{facts:[{field:'conditions',name:'Approval required',value:'false'}]}}).map(f=>f.value),['Approval required: No']);
 
 const copiedNews={...story,sourceUrls:['https://www.livemint.com/companies/the-exact-article.html'],url:'https://news.google.com/rss/articles/opaque-one'};
 assert.equal(clusterStories([copiedNews,{...copiedNews,url:'https://news.google.com/rss/articles/opaque-two'}]).length,1,'Captured article aliases corroborate different ingestion routes');
