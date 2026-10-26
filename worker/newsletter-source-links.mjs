@@ -12,6 +12,9 @@ function sourceUrl(value) {
   } catch { return null; }
 }
 
+// Validate a retained redirect without rediscovering or changing its destination.
+export const exactNewsletterSourceUrl = value => sourceUrl(value)?.href || null;
+
 // Older discovery links contain the literal publisher URL. Opaque modern links remain
 // exact captured report links; never invent a publisher destination or fetch on render.
 function publisherUrl(url) {

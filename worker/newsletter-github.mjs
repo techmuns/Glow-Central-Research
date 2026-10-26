@@ -7,6 +7,7 @@ import {mfRepo} from './mutual-funds-github.mjs';
 import {boundedJson} from '../public/js/data/family-book-contract.js';
 import {normaliseEmail,EDITION_IDS,NEWSLETTER_REQUEST_BYTES,nextScheduled} from '../public/js/data/newsletter-shared.js';
 import {callerToken} from './muns.mjs';
+import {sourceTarget,SOURCE_LINK_FORMAT} from './newsletter-source-shortcuts.mjs';
 const uuid=value=>/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value||'');
 const json=(body,status=200)=>Response.json(body,{status,headers:{'cache-control':'private, no-store','x-content-type-options':'nosniff'}});
 export async function handleGithubNewsletter(request,env,{object,guardWrite,pdfHeaders,fetcher=fetch,now=Date.now}={}){
@@ -21,6 +22,15 @@ export async function handleGithubNewsletter(request,env,{object,guardWrite,pdfH
  let head;try{head=await readBackgroundView(env,request.url,'newsletter','head.json');}catch(error){if(posted)return json({ok:true,...posted.snapshot,outcomes:posted.outcomes,settingsChanged:posted.settingsChanged,schedule:{runtime:'github-actions',armed:false,reason:'prepared-unavailable'},delivery:'unavailable'});throw error;}
  if(head&&(head.version!==1||head.repo!==mfRepo(env)||head.feature!=='newsletter'||!head.snapshot||!head.schedule))throw Error('Invalid newsletter prepared inventory');
  const memo=new Map(),read=id=>readPrivateRecord(env,request.url,'newsletter',head,id,{memo});
+ if(url.pathname.startsWith('/api/newsletter/s/')||url.pathname==='/api/newsletter/sources'){
+  if(request.method!=='GET')return json({ok:false,reason:'method'},405);
+  const multiple=url.pathname==='/api/newsletter/sources',ids=multiple?(url.searchParams.get('ids')||'').split(','):[url.pathname.slice('/api/newsletter/s/'.length)];
+  if(!ids.length||ids.length>20||new Set(ids).size!==ids.length||ids.some(id=>!uuid(id)))return json({ok:false,reason:'not-found'},404);
+  const links=[];
+  for(const id of ids){const target=head?sourceTarget(await read('source-'+id)):null;if(!target)return json({ok:false,reason:'not-found'},404);links.push({id,url:target});}
+  if(multiple)return json({ok:true,format:SOURCE_LINK_FORMAT,links});
+  return new Response(null,{status:302,headers:{location:links[0].url,'cache-control':'private, no-store','referrer-policy':'no-referrer','x-content-type-options':'nosniff'}});
+ }
  if(url.pathname.startsWith('/api/newsletter/private-markets')){
   if(request.method!=='GET')return json({ok:false,reason:'method'},405);
   if(url.pathname==='/api/newsletter/private-markets')return json({ok:true,...head?.privateMarkets,preparedAt:head?.createdAt||null});
