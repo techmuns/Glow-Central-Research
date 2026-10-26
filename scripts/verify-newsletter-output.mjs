@@ -256,3 +256,20 @@ assert.equal(scheduledEarningsCall(fullZone).zone,'IST');assert.equal(clusterSto
 const unknownZone=structuredClone(fullZone);unknownZone.content.facts.find(f=>f.field==='date'&&/P.M/.test(f.value)).value=unknownZone.content.facts.find(f=>f.field==='date'&&/P.M/.test(f.value)).value.replace('Indian Standard Time','Unknown Local Time');
 assert.equal(scheduledEarningsCall(unknownZone),null,'Unknown timezone text cannot be silently interpreted as absent');
 console.log('PASS call review regressions: mixed administrative/business facts, sparse invitations, agenda/combined periods, full and unknown timezones');
+
+const periodRead=structuredClone(readDcw);periodRead.content.facts=periodRead.content.facts.filter(f=>f.field!=='event');
+periodRead.content.facts.push({field:'event',value:'Board meeting scheduled to consider and approve unaudited financial results for the period ended June 2026'});
+periodRead.headline='Intimation';
+const resultsForm=structuredClone(readDcwXml);resultsForm.content.facts=resultsForm.content.facts.filter(f=>!f.location.endsWith('/Agenda2')&&!f.location.endsWith('/Agenda3'));
+assert.equal(clusterStories([periodRead,resultsForm]).length,2,'A read PDF June period cannot wildcard-match a September exchange form');
+periodRead.headline=readDcwXml.headline;
+assert.equal(clusterStories([periodRead,resultsForm]).length,2,'Read source periods override stale detailed headlines as well');
+for(const period of ['September 2026','30/09/2026','2026-09-30']){
+ const same=structuredClone(periodRead);same.content.facts.find(f=>f.field==='event').value=same.content.facts.find(f=>f.field==='event').value.replace('June 2026',period);
+ assert.equal(clusterStories([same,resultsForm]).length,1,'Equivalent PDF/form financial periods normalize before matching');
+}
+const inconsistentPeriod=structuredClone(periodRead);inconsistentPeriod.content.facts.push({field:'event',value:'Board meeting scheduled to consider financial results for the period ended September 2026'});
+assert.equal(clusterStories([inconsistentPeriod,resultsForm]).length,2,'Conflicting source periods cannot be silently selected');
+const hiddenDate=structuredClone(call);hiddenDate.announcements.groups[0].items[0].content.facts.find(f=>f.field==='date'&&/^Letter/.test(f.value)).value+='; call rescheduled to October 31, 2026';
+assert(!editorialEvents(hiddenDate,briefStats(hiddenDate).companies).events[0].completeSourceSummary,'A mixed correction cannot hide behind a letter-date prefix');
+console.log('PASS source period regressions: read PDF/form conflicts, stale headlines, normalized equivalents and mixed letter-date corrections');

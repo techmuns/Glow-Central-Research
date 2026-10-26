@@ -27,9 +27,13 @@ export function scheduledBoardMeeting(item) {
   const date=eventDate(readDate||match?.[1]);if(!date)return null;
   const day=Number(date.slice(8,10)),month=Number(date.slice(5,7)),year=Number(date.slice(0,4)),at=new Date(Date.UTC(year,month-1,day));
   if (month < 1 || month > 12 || at.getUTCFullYear() !== year || at.getUTCMonth() !== month - 1 || at.getUTCDate() !== day) return null;
-  const period = tags.get('MonthOfPeriodEnded')&&tags.get('YearOfPeriodEnded')
-    ? `${tags.get('MonthOfPeriodEnded')} ${String(tags.get('YearOfPeriodEnded')).slice(0,4)}`
-    : /\bperiod ended\s+(20\d{2}-\d{2}-\d{2}|(?:\d{1,2}(?:st|nd|rd|th)?[ /-]+)?(?:[A-Za-z]+|\d{1,2})[ /,-]+20\d{2})/i.exec(title)?.[1] || null;
+  const periodsIn=value=>[...normal(value).matchAll(/\bperiod ended\s+(20\d{2}-\d{2}-\d{2}|(?:\d{1,2}(?:st|nd|rd|th)?[ /-]+)?(?:[A-Za-z]+|\d{1,2})[ /,-]+20\d{2})/ig)].map(m=>m[1]);
+  const readPeriods=item.content?.state==='ready'?(item.content.facts||[]).filter(f=>['event','date'].includes(f.field)).flatMap(f=>periodsIn(f.value)):[];
+  const periods=tags.get('MonthOfPeriodEnded')&&tags.get('YearOfPeriodEnded')
+    ? [`${tags.get('MonthOfPeriodEnded')} ${String(tags.get('YearOfPeriodEnded')).slice(0,4)}`,...readPeriods]
+    : readPeriods.length?readPeriods:periodsIn(readNotice?.purpose||title);
+  if(periods.some(p=>!financialPeriod(p)||financialPeriod(p)!==financialPeriod(periods[0])))return null;
+  const period=periods[0]||null;
   if(period&&!financialPeriod(period))return null;
   const readAgendas=[...tags].filter(([tag,value])=>/^Agenda\d+$/.test(tag)&&value&&!/^(?:true|false|none|not applicable|n\/?a)$/i.test(value)).map(([,value])=>normal(value));
   const agendaText=structured?readAgendas.join(' and '):readNotice?.purpose||title;

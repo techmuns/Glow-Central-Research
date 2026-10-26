@@ -24,12 +24,13 @@ export function noticeTags(item) {
   return tags;
 }
 const substantive=facts=>facts.filter(f=>['event','date','status','conditions','amount','ownership','counterparty'].includes(f.field)&&!administrativeNoticeFact(f));
+const letterDate=fact=>fact.field==='date'&&/^Letter(?: dated| date:)\s+/i.test(clean(fact.value))&&!!eventDate(clean(fact.value).replace(/^Letter(?: dated| date:)\s*/i,''));
 export function readBoardNotice(item) {
   if(item.kind!=='filing'||item.content?.state!=='ready'||item.content.format==='xbrl')return null;
   const facts=substantive(item.content.facts||[]),events=facts.filter(f=>f.field==='event').map(f=>clean(f.value));
   const agendas=events.map(value=>/^Board meeting scheduled to consider(?: and approve)?\s+(.+?)[.!]?$/i.exec(value)?.[1]);
   if(!agendas.length||agendas.some(value=>!value))return null;
-  const meetingDates=facts.filter(f=>f.field==='date'&&!/^Letter date:/i.test(clean(f.value)));
+  const meetingDates=facts.filter(f=>f.field==='date'&&!letterDate(f));
   if(meetingDates.some(f=>!/^Board meeting date:/i.test(clean(f.value))))return null;
   const dates=meetingDates.map(f=>eventDate(clean(f.value).replace(/^Board meeting date:\s*/i,'')));
   if(!dates.length||dates.some(date=>!date||date!==dates[0]))return null;
@@ -76,7 +77,7 @@ export function scheduledEarningsCall(item) {
     if(facts.filter(f=>f.field==='counterparty').some(f=>!(/\b(?:organizing|hosting|inviting)\b.*\bcall\b|^(?:Speaker for the call|Call leaders):/i.test(f.value))))return null;
     if(facts.filter(f=>f.field==='status').some(f=>!/^Conference call scheduled(?: \(proposed\/upcoming event, not yet completed\))?[.!]?$|^(?:Proposed|Scheduled)(?:\/upcoming)?(?: event)?(?:, not yet completed)?[.!]?$|^Schedule is proposed and subject to change$/i.test(clean(f.value))))return null;
     const calls=facts.filter(f=>f.field==='date'&&/\b(?:conference|earnings?|analyst) call (?:is )?scheduled (?:for|on)\b/i.test(f.value));
-    if(calls.length!==1||facts.some(f=>f.field==='date'&&f!==calls[0]&&!/^Letter(?: dated| date:)/i.test(clean(f.value))))return null;
+    if(calls.length!==1||facts.some(f=>f.field==='date'&&f!==calls[0]&&!letterDate(f)))return null;
     const dates=eventDates(calls[0].value);if(!dates.length||dates.some(d=>!d||d!==dates[0]))return null;
     const parsedClock=callClock(calls[0].value);if(!parsedClock)return null;
     date=dates[0];clock=parsedClock.clock;zone=parsedClock.zone;

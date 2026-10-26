@@ -123,3 +123,10 @@ compatible periods across name/agenda and PDF/form sources. The final adapter ch
 these cases and full timezone names explicitly. Unknown timezone-bearing text and
 conflicting source periods cannot act as wildcards; a guidance suffix remains a
 material condition rather than boilerplate. All findings have fixture regressions.
+
+A final review case confirms that explicit PDF financial periods take precedence over
+stale or missing headlines and are compared with the form's period. June/September
+conflicts remain separate; month names, numeric quarter ends and ISO dates normalize
+together. Multiple contradictory read periods cannot be silently selected. Letter-date
+exclusions also require a complete valid letter date, so a mixed reschedule clause
+cannot hide behind an administrative prefix.
