@@ -122,7 +122,7 @@ try{
   for(const row of articles)assert(pdf.includes(row.url),'The verified report retains every source link');
   for(const message of mail){
    assert(message.html.includes('/api/newsletter/pdf/'+guards[0]));
-   assert(message.html.includes('Morning investment brief'));
+   assert(message.html.includes('Morning Portfolio Brief'));
    assert(!message.html.includes('Full fixture source details.'),'The inbox does not repeat raw feed snippets');
    assert(Buffer.byteLength(message.html)<=90000);assert.equal(message.inReplyTo,undefined);
   }
