@@ -3,7 +3,7 @@ import {eventDate} from './newsletter-event-identity.mjs';
 import {noticeTags} from './newsletter-notice-events.mjs';
 const clean=v=>String(v||'').replace(/\s+/g,' ').trim();
 const normal=v=>clean(v).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
-const nameKey=v=>normal(v).replace(/\b(?:private|pvt|limited|ltd)\b/g,'').replace(/\s+/g,' ').trim();
+const nameKey=v=>normal(v).replace(/\bpvt\b/g,'private').replace(/\b(?:limited|ltd)\b/g,'').replace(/\s+/g,' ').trim();
 const day=item=>new Date(item.at+330*60000).toISOString().slice(0,10);
 const facts=item=>item.content?.state==='ready'?item.content.facts||[]:[];
 const namedCompanies=text=>[...clean(text).matchAll(/\b(?:[A-Z][A-Za-z0-9&’'-]*\s+){1,7}(?:Private Limited|Limited|Ltd\.?)/g)].map(m=>m[0]);
@@ -103,7 +103,7 @@ export function investmentProfiles(items){
  for(const p of profiles.values())if(p&&!p.target){
   const candidates=anchors.filter(a=>a.item.ticker===p.item.ticker&&a.date===p.date&&
    termsAgree(p,a)&&
-   ([a.target,...a.aliases].some(n=>explicitAlias(p.body,n))||p.amount&&(!a.amount||a.amount.key===p.amount.key)&&/\bin beauty (?:unit|subsidiary)\b/i.test(p.body)&&/\bbeauty\b/.test(a.target)));
+   ([a.target,a.target.replace(/ private$/,''),...a.aliases].some(n=>explicitAlias(p.body,n))||p.amount&&(!a.amount||a.amount.key===p.amount.key)&&/\bin beauty (?:unit|subsidiary)\b/i.test(p.body)&&/\bbeauty\b/.test(a.target)));
   const names=unique(candidates.map(a=>a.target));if(names.length===1)p.target=names[0];
  }
  for(const p of profiles.values())if(p?.target){

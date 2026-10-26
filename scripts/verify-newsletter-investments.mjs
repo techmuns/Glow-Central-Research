@@ -53,6 +53,8 @@ const completed=structuredClone(anchor);completed.url='https://fixture.test/clos
 assert.equal(clusterStories([anchor,completed]).length,2,'Signing and closing remain separate developments');
 const differentStake=structuredClone(anchor);differentStake.url='https://fixture.test/46';differentStake.content.hash='46';differentStake.content.facts.find(f=>f.field==='ownership').value=differentStake.content.facts.find(f=>f.field==='ownership').value.replace('45%','46%');
 assert.equal(clusterStories([anchor,differentStake]).length,2,'Changed ownership remains distinct');
+const otherLegalEntity=structuredClone(anchor);otherLegalEntity.url='https://fixture.test/public-target';otherLegalEntity.content.hash='public-target';for(const f of otherLegalEntity.content.facts)f.value=f.value.replaceAll('Forsee Power India Private Limited','Forsee Power India Limited');
+assert.equal(clusterStories([anchor,otherLegalEntity]).length,2,'A private/public legal-name difference cannot be erased from target identity');
 const shoppers=all.get('SHOPERSTOP'),beautyNews=shoppers.find(r=>r.kind==='news'&&/Beauty Unit/.test(r.headline)),shopAnchor=shoppers.find(r=>r.content.format==='pdf');
 const ambiguous=structuredClone(shopAnchor);ambiguous.url='https://fixture.test/other-beauty';ambiguous.content.hash='other-beauty';for(const f of ambiguous.content.facts)f.value=f.value.replaceAll('Global SS Beauty Brands Limited','Other Beauty Brands Limited').replaceAll('GSSBBL','OBBL');
 const ambiguity=investmentProfiles([shopAnchor,ambiguous,beautyNews]);assert(!sameInvestmentEvent(shopAnchor,beautyNews,ambiguity),'A generic beauty subsidiary cannot select between two same-price targets');
