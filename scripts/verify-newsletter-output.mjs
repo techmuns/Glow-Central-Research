@@ -352,3 +352,35 @@ for(const fact of [{field:'reason',value:'Management will provide FY27 guidance'
 const reasonBoard=structuredClone(readDcw);reasonBoard.content.facts.push({field:'reason',value:'The buyback will use proceeds from an asset sale'});
 assert.equal(clusterStories([reasonBoard,readDcwXml]).length,2,'A separately read business rationale cannot disappear into an exchange wrapper');
 console.log('PASS source-change/schema regressions: sparse cancellations and reschedules, actual IR roles, business reasons and mixed role suffixes');
+
+const bareReschedule=structuredClone(readDcw);bareReschedule.headline='Board Meeting to be held on 29-Oct-2026 to consider financial results';bareReschedule.content.facts=[{field:'date',value:'Rescheduled to October 30, 2026'}];
+assert.equal(clusterStories([bareReschedule,resultsForm]).length,2,'An explicit date correction needs no repeated board-meeting prefix to veto stale identity');
+const resultsPdf=structuredClone(periodRead);resultsPdf.content.facts=resultsPdf.content.facts.filter(f=>f.field!=='event');resultsPdf.content.facts.push({field:'event',value:'Board meeting scheduled to consider financial results'});resultsPdf.headline='Long captured exchange wrapper '.repeat(30);resultsPdf.score=1;
+const dividendForm=structuredClone(resultsForm);dividendForm.score=1;dividendForm.content.facts.push({field:'source',value:'Dividend',location:'Main/Agenda2'});
+const boardRows=[resultsPdf,dividendForm],boardClusters=clusterStories(boardRows).map((c,i)=>({...c,id:`DCW#${i+1}`}));assert.equal(boardClusters.length,1);
+const unionReading=editorialEvents(dcw,[{ticker:'DCW',company:'Dcw Limited',stories:boardRows,clusters:boardClusters}]).events[0];
+assert(unionReading.completeSourceSummary&&unionReading.sourceSummary.includes('dividend')&&unionReading.sourceSummary.includes('September 2026'),'The complete board reading covers the secondary source agenda and period');
+assert.equal(unionReading.lead.url,dividendForm.url,'Its primary source is the document supplying the complete reading');
+const complementaryPdf=structuredClone(resultsPdf);complementaryPdf.content.facts.find(f=>f.field==='event').value='Board meeting scheduled to consider unaudited financial results';
+const complementaryRows=[complementaryPdf,dividendForm],complementaryClusters=clusterStories(complementaryRows).map((c,i)=>({...c,id:`DCW#${i+1}`}));
+const supportedAi={...dcw,ai:{ok:true,items:{'DCW#1':{summary:'Unaudited results and dividend will be considered for the September 2026 period.'}}}};
+const complementaryEvent=editorialEvents(supportedAi,[{ticker:'DCW',company:'Dcw Limited',stories:complementaryRows,clusters:complementaryClusters}]).events[0];
+assert(!complementaryEvent.completeSourceSummary&&complementaryEvent.summary.includes('dividend'),'Complementary facts cannot be overridden by an incomplete lead-only source note');
+const utcCall=structuredClone(readDcwCall);utcCall.url='https://fixture.test/utc-equivalent';utcCall.content.facts.find(f=>f.field==='date'&&/P.M/.test(f.value)).value='Earnings conference call scheduled for Friday, October 30, 2026 at 08:30 UTC';
+assert.equal(clusterStories([readDcwCall,utcCall]).length,1,'14:00 IST and 08:30 UTC are the same call instant');
+const indiaMidnight=structuredClone(readDcwCall),utcPrevious=structuredClone(utcCall);indiaMidnight.url='https://fixture.test/india-midnight';utcPrevious.url='https://fixture.test/utc-previous';
+indiaMidnight.content.facts.find(f=>f.field==='date'&&/P.M/.test(f.value)).value='Earnings conference call scheduled for Saturday, October 31, 2026 at 12:30 A.M. IST';
+utcPrevious.content.facts.find(f=>f.field==='date'&&/UTC/.test(f.value)).value='Earnings conference call scheduled for Friday, October 30, 2026 at 19:00 UTC';
+assert.equal(clusterStories([indiaMidnight,utcPrevious]).length,1,'Equivalent instants also match across a calendar-day boundary');
+assert.equal(financialPeriod('15 September 2026'),'2026-09-15');
+const midPeriod=structuredClone(periodRead);midPeriod.content.facts.find(f=>f.field==='event').value='Board meeting scheduled to consider financial results for the period ended 15 September 2026';
+assert.equal(clusterStories([midPeriod,resultsForm]).length,2,'A distinct intra-month financial period cannot become a month-end wildcard');
+const hashBase={...readDcw,headline:'Specific contract disclosure',content:{state:'ready',format:'pdf',hash:'document-A',facts:[['event','Customer contract secured'],['counterparty','Customer Alpha'],['amount','INR 100 crore'],['status','Awarded'],['date','October 26, 2026']].map(([field,value])=>({field,value,quote:value,location:'page 1'}))}};
+const distinctDoc={...hashBase,url:'https://fixture.test/document-B',keys:['document-B'],content:{...hashBase.content,hash:'document-B'}};
+const factsOnlyGroup=clusterStories([hashBase,distinctDoc]);assert.equal(factsOnlyGroup[0].documents.length,2,'Matching generated facts cannot establish a verified document copy');
+const mirroredPdf={...hashBase,kind:'news',url:'https://fixture.test/mirrored-pdf',keys:['mirror']};
+assert.equal(clusterStories([hashBase,mirroredPdf])[0].documents.length,1,'A verified byte copy remains one document across source kinds');
+console.log('PASS final evidence regressions: generic corrections, whole-board source coverage, preserved consolidated AI, timezone instants, exact periods and hash-only document copies');
+
+assert.equal(eventDate('29 Octoberish 2026'),null,'An unknown month word cannot be guessed from its first three letters');
+assert.equal(financialPeriod('Septemberish 2026'),null);assert.equal(eventDate('30 Sept 2026'),'2026-09-30');

@@ -1,7 +1,7 @@
 // The inbox is a reading layer over the complete immutable edition. Classification never
 // deletes a captured row, changes an edition window or certifies an unread document.
 import { scheduledBoardMeetingSummary } from './newsletter-filing-events.mjs';
-import { investorSourceFacts, investorSourceSummary, xbrlBoardMeetingNote, votingResultNote, readNoticeNote, hasSourceChange } from './newsletter-source-notes.mjs';
+import { investorSourceFacts, investorSourceSummary, xbrlBoardMeetingNote, votingResultNote, readNoticeNote, consolidatedBoardReading, hasSourceChange } from './newsletter-source-notes.mjs';
 import { newsletterSourceUrl } from './newsletter-source-links.mjs';
 import { scheduledEarningsCall, consolidatedEarningsCallNote } from './newsletter-notice-events.mjs';
 export const EDITORIAL_VERSION = 1;
@@ -57,13 +57,15 @@ export function editorialEvents(brief, companies) {
     const members = [cluster.main, ...cluster.others];
     const eligible = members.filter(item => !referenceReason(item));
     if (!eligible.length) { reference.push(cluster); continue; }
-    const lead = eligible.includes(cluster.main)?cluster.main:[...eligible].sort((a,b) => Number(b.kind === 'filing') - Number(a.kind === 'filing') ||
+    let lead = eligible.includes(cluster.main)?cluster.main:[...eligible].sort((a,b) => Number(b.kind === 'filing') - Number(a.kind === 'filing') ||
       Number(b.content?.state === 'ready') - Number(a.content?.state === 'ready') || editorialPriority(b) - editorialPriority(a))[0];
     if (members.some(item => item.editorialReported)) { repeated.push(cluster); continue; }
     const note = brief.ai?.items?.[cluster.id] || (cluster.main.content?.state==='ready' ? cluster.main.content.note : null);
     const ready = eligible.filter(s => s.content?.state === 'ready');
     const callCluster=members.some(s=>scheduledEarningsCall(s));
-    const completeSourceSummary=callCluster?consolidatedEarningsCallNote(members):xbrlBoardMeetingNote(lead)||votingResultNote(lead)||readNoticeNote(lead);
+    const board=callCluster?null:consolidatedBoardReading(members);
+    if(board?.lead)lead=board.lead;
+    const completeSourceSummary=callCluster?consolidatedEarningsCallNote(members):board?board.note||null:xbrlBoardMeetingNote(lead)||votingResultNote(lead)||readNoticeNote(lead);
     const sourceSummary=cluster.versionConflict?'Different versions of this document were captured; their chronology is unconfirmed. Read the retained versions before relying on the figures.':completeSourceSummary || investorSourceSummary(lead);
     events.push({ id: cluster.id, company: company.company, ticker: company.ticker, cluster,
       lead, note, rank: Math.max(...eligible.map(editorialPriority)), at: Math.max(...eligible.map(s => s.at)),

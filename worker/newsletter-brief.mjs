@@ -1167,8 +1167,8 @@ export function clusterStories(stories, { company = '' } = {}) {
     b.score-a.score || b.headline.length-a.headline.length || a.at-b.at)[0];
   for(const s of [...stories].sort((a,b)=>a.at-b.at)) {
     const home=documents.find(d=>['filing','news'].includes(s.kind)&&d.items.every(i=>
-      s.ticker===i.ticker&&s.kind===i.kind&&!!s.related===!!i.related&&!changedDocumentVersion(i,s)&&
-      (sameContentEvent(i,s)||sameNewsletterSource(i,s)&&
+      s.ticker===i.ticker&&!!s.related===!!i.related&&!changedDocumentVersion(i,s)&&
+      (i.content?.state==='ready'&&s.content?.state==='ready'&&!!i.content.hash&&i.content.hash===s.content.hash||s.kind===i.kind&&sameNewsletterSource(i,s)&&
         (s.kind==='news'?compatibleReports({...i,summary:i.dek},{...s,summary:s.dek})&&!contentConflicts(i,s):Math.abs(i.at-s.at)<=FILING_COPY_WINDOW_MS))));
     if(home)home.items.push(s);else documents.push({items:[s]});
   }

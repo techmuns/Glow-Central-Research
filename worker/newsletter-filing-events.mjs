@@ -1,4 +1,4 @@
-import { financialPeriod, eventDate, fiscalPeriods, combineFiscalPeriods, compatibleFiscalPeriods } from './newsletter-event-identity.mjs';
+import { financialPeriod, financialPeriodsIn, eventDate, fiscalPeriods, combineFiscalPeriods, compatibleFiscalPeriods, hasSourceChange } from './newsletter-event-identity.mjs';
 import { readBoardNotice, administrativeNoticeFact, noticeDate } from './newsletter-notice-events.mjs';
 const normal = value => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
 const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
@@ -18,6 +18,7 @@ export function scheduledBoardMeeting(item) {
   if(tags.has('TypeOfIntimation')&&!/^new$/i.test(tags.get('TypeOfIntimation')))return null;
   if(tags.has('TypeOfMeeting')&&!/^board meeting$/i.test(tags.get('TypeOfMeeting')))return null;
   const readNotice=readBoardNotice(item);
+  if(item.content?.state==='ready'&&(item.content.facts||[]).some(f=>f.field==='date'&&hasSourceChange(f.value)))return null;
   if(item.content?.state==='ready'&&item.content.format!=='xbrl'&&(item.content.facts||[]).filter(f=>f.field==='status').some(f=>
     /\b(?:cancel\w*|reschedul\w*|postpon\w*|withdraw\w*|reject\w*|declin\w*|revok\w*|terminat\w*|approved|concluded|completed|held|not scheduled)\b/i.test(normal(f.value).replace(/not yet (?:approved|completed|held)/ig,''))))return null;
   const sourceDates=item.content?.state==='ready'&&item.content.format!=='xbrl'?(item.content.facts||[]).filter(f=>f.field==='date'&&/\bboard meeting\b/i.test(f.value)):[];
@@ -33,9 +34,10 @@ export function scheduledBoardMeeting(item) {
   const date=eventDate(readDate||match?.[1]);if(!date)return null;
   const day=Number(date.slice(8,10)),month=Number(date.slice(5,7)),year=Number(date.slice(0,4)),at=new Date(Date.UTC(year,month-1,day));
   if (month < 1 || month > 12 || at.getUTCFullYear() !== year || at.getUTCMonth() !== month - 1 || at.getUTCDate() !== day) return null;
-  const periodsIn=value=>[...normal(value).matchAll(/\b(?:period|quarter|half[- ]year|year) ended\s+(20\d{2}-\d{2}-\d{2}|(?:\d{1,2}(?:st|nd|rd|th)?[ /-]+)?(?:[A-Za-z]+|\d{1,2})[ /,-]+20\d{2})/ig)].map(m=>m[1]);
+  const periodsIn=financialPeriodsIn;
   const readPeriodText=item.content?.state==='ready'?(item.content.facts||[]).filter(f=>['event','date'].includes(f.field)).map(f=>f.value).join(' '):'';
   const readPeriods=periodsIn(readPeriodText),readFiscal=fiscalPeriods(readPeriodText);
+  if(tags.has('YearOfPeriodEnded')&&!/^20\d{2}(?: \[source unit: pure\])?$/.test(tags.get('YearOfPeriodEnded')))return null;
   const fiscalMarker=/\b(?:Q\d(?:\s*\/\s*H\d)?|H\d)\s*[- ]*FY/i;
   if(fiscalMarker.test(readPeriodText)&&!readFiscal.length)return null;
   const structuredPeriod=tags.get('MonthOfPeriodEnded')&&tags.get('YearOfPeriodEnded');

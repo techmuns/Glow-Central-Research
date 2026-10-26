@@ -165,3 +165,19 @@ The required full-data browser sweep failed after IST midnight against the fixed
 snapshot for a deterministic full-data sweep. Performance timers, limits and the
 separate strict midnight/empty-new-day scenario remain unchanged. This test-only
 clock change does not modify application UI or production data.
+
+Final evidence checks reject any explicit reschedule/correction date before using a
+stale headline, even without a repeated Board meeting prefix. A complete board reading
+now needs to cover every merged source's known agenda, period and financial qualifier.
+The supporting complete source becomes the primary link; if no single saved reading
+covers the evidence, it cannot suppress the consolidated AI summary. Missing/unknown
+terms are not invented to force a complete note. Recognized IST/UTC/GMT or explicit
+full-zone offsets compare as instants, including cross-date equivalents; ambiguous
+abbreviations receive no guessed offset. Non-month-end financial dates remain distinct
+and unknown month words are not inferred from three-letter prefixes.
+
+Document-copy grouping now uses verified byte hashes (including cross-kind mirrors)
+or the existing guarded source identity, never matching generated fact strings as proof
+of a physical copy. Fact-equivalent different documents remain separate evidence items
+for the one event writer. The focused notebook browser fixture passed locally after an
+intermittent CI timeout; its assertions and application UI remain unchanged.

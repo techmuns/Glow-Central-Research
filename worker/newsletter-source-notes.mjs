@@ -1,11 +1,12 @@
 // Presentation over saved source facts. Never rewrite the retained extraction or
 // turn identifiers, enum values and bare XBRL booleans into an investor summary.
-import { explicitEvent } from './newsletter-event-identity.mjs';
+import { explicitEvent, financialPeriod, financialPeriodsIn, fiscalPeriods, hasSourceChange } from './newsletter-event-identity.mjs';
+import { scheduledBoardMeeting } from './newsletter-filing-events.mjs';
 import { administrativeNoticeFact as administrative, readBoardNotice, scheduledEarningsCall } from './newsletter-notice-events.mjs';
 const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const material = new Set(['event','counterparty','amount','status','date','conditions','ownership','reason']);
-export const hasSourceChange=value=>/\b(?:reschedul\w*|postpon\w*|cancel\w*|revis\w*|correct\w*|withdraw\w*)\b/i.test(value);
+export {hasSourceChange};
 const dateLabel=date=>{const d=new Date(date+'T00:00:00Z');return `${d.getUTCDate()} ${months[d.getUTCMonth()].slice(0,3)} ${d.getUTCFullYear()}`;};
 
 export function investorSourceFacts(item) {
@@ -58,6 +59,35 @@ export function readNoticeNote(item) {
   const note=`Board meeting ${dateLabel(board.date)}: to consider ${board.purpose}.`+
     board.extras.map(f=>` ${f.field[0].toUpperCase()+f.field.slice(1)}: ${clean(f.value)}`).join('');
   return note.length<=500?note:null;
+}
+
+/** A single saved reading may represent the event only if it covers the known
+ * agendas, periods and financial qualifiers of its other sources. Otherwise the
+ * consolidated writer remains authoritative; never force a lead-only excerpt. */
+export function consolidatedBoardReading(items) {
+  const rows=items.map(item=>({item,meeting:scheduledBoardMeeting(item)}));
+  if(!rows.some(r=>r.meeting))return null;
+  if(rows.some(r=>r.item.content?.state==='ready'&&!r.meeting))return {incomplete:true};
+  const keys=text=>{
+    const out=new Set();
+    for(const p of financialPeriodsIn(text)){const key=financialPeriod(p);if(key)out.add('period:'+key);}
+    for(const p of fiscalPeriods(text))if(!p.invalid){
+      out.add('fy:'+p.year);if(p.quarter)out.add('quarter:'+p.year+':'+p.quarter);if(p.half)out.add('half:'+p.year+':'+p.half);
+    }
+    for(const m of text.matchAll(/\b(unaudited|un-audited|audited|standalone|consolidated|quarterly|half[- ]year(?:ly)?|annual)\b/ig))out.add('term:'+m[1].toLowerCase().replace('un-audited','unaudited').replace(/half[- ]year(?:ly)?/,'half-year'));
+    for(const m of text.matchAll(/\b(interim|final|special) dividend\b/ig))out.add('dividend:'+m[1].toLowerCase());
+    return out;
+  };
+  const candidates=rows.filter(r=>r.item.content?.state==='ready'&&r.meeting).map(r=>({...r,note:xbrlBoardMeetingNote(r.item)||readNoticeNote(r.item)})).filter(r=>r.note);
+  const required=new Set();
+  for(const {meeting:m}of rows)if(m){
+    m.agendas.forEach(a=>required.add('agenda:'+a));
+    if(m.period)required.add('period:'+financialPeriod(m.period));
+    if(m.fiscal){required.add('fy:'+m.fiscal.year);if(m.fiscal.quarter)required.add('quarter:'+m.fiscal.year+':'+m.fiscal.quarter);if(m.fiscal.half)required.add('half:'+m.fiscal.year+':'+m.fiscal.half);}
+  }
+  for(const r of candidates){r.keys=keys(r.note);r.meeting.agendas.forEach(a=>r.keys.add('agenda:'+a));for(const k of r.keys)required.add(k);}
+  const covered=candidates.filter(r=>[...required].every(k=>r.keys.has(k))).sort((a,b)=>b.keys.size-a.keys.size||b.note.length-a.note.length);
+  return covered.length?{note:covered[0].note,lead:covered[0].item}:{incomplete:true};
 }
 
 /** A bounded correction reading from explicit saved facts, never the headline

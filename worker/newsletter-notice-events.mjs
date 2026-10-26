@@ -49,7 +49,9 @@ const callClock=value=>{
   const tail=clean(String(value).slice(clock.index+clock[0].length)).replace(/[().]/g,'').toLowerCase();
   const zones={ist:'IST','indian standard time':'IST','india standard time':'IST',utc:'UTC','coordinated universal time':'UTC',gmt:'GMT','greenwich mean time':'GMT',est:'EST','eastern standard time':'EST',edt:'EDT','eastern daylight time':'EDT',cst:'CST','central standard time':'CST',cdt:'CDT','central daylight time':'CDT',pst:'PST','pacific standard time':'PST',pdt:'PDT','pacific daylight time':'PDT'};
   if(tail&&!zones[tail])return null;
-  return {clock:`${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`,zone:zones[tail]};
+  const offsets={ist:330,'indian standard time':330,'india standard time':330,utc:0,'coordinated universal time':0,gmt:0,'greenwich mean time':0,
+    'eastern standard time':-300,'eastern daylight time':-240,'central standard time':-360,'central daylight time':-300,'pacific standard time':-480,'pacific daylight time':-420};
+  return {clock:`${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`,zone:zones[tail],offset:offsets[tail]};
 };
 const qualification=call=>[call.proposed?'proposed':null,call.subjectToChange?'subject to change':null,call.notCompleted?'not yet completed':null].filter(Boolean).join('; ');
 const qualifiedReading=(base,call)=>base+(qualification(call)?` (${qualification(call)})`:'');
@@ -63,7 +65,7 @@ const routineCallParty=value=>{
 export function scheduledEarningsCall(item) {
   if(item.kind!=='filing'||item.content?.state!=='ready')return null;
   const tags=noticeTags(item),facts=substantive(item.content.facts||[]);
-  let date,clock,period,baseReading,proposed=false,subjectToChange=false,notCompleted=false,zone;
+  let date,clock,period,baseReading,proposed=false,subjectToChange=false,notCompleted=false,zone,offset;
   if(item.content.format==='xbrl') {
     if(tags.get('TypeOfAnnouncement')!=='New'||tags.get('StageOfMeetingOrCallOrConferenceOrEvent')!=='Intimation'||tags.get('TypeOfMeetingForWhichIntimationIsGiven')!=='Earning/Quarterly Calls')return null;
     if(facts.some(f=>['amount','ownership','conditions','counterparty','event','status','reason'].includes(f.field)))return null;
@@ -71,7 +73,7 @@ export function scheduledEarningsCall(item) {
     if(agenda&&!/^Discuss the Unaudited Financial Results for Q[1-4]-FY(?:\d{4}|\d{2})(?:[-–/](?:\d{4}|\d{2}))?(?![\d/–-])$/i.test(agenda))return null;
     date=eventDate(tags.get('DateOfMeetingOrCallOrConferenceOrEventForIntimation'));
     const parsedClock=callClock(tags.get('TimeOfCommencementOfMeetingOrCallOrConferenceOrEventForIntimation'));
-    clock=parsedClock?.clock;zone=parsedClock?.zone;
+    clock=parsedClock?.clock;zone=parsedClock?.zone;offset=parsedClock?.offset;
     const name=tags.get('NameOfMeetingOrCallOrConferenceOrEventForIntimation')||'';
     if(!/^(?:Q[1-4](?:\/H[12])?[ -]*FY(?:\d{4}|\d{2})(?:[-–/](?:\d{4}|\d{2}))?(?![\d/–-]) )?Earnings Call$/i.test(name))return null;
     const periods=[...fiscalPeriods(name),...fiscalPeriods(agenda)];period=combineFiscalPeriods(periods);
@@ -89,7 +91,7 @@ export function scheduledEarningsCall(item) {
     if(calls.length!==1||facts.some(f=>f.field==='date'&&f!==calls[0]&&!letterDate(f)))return null;
     const dates=eventDates(calls[0].value);if(!dates.length||dates.some(d=>!d||d!==dates[0]))return null;
     const parsedClock=callClock(calls[0].value);if(!parsedClock)return null;
-    date=dates[0];clock=parsedClock.clock;zone=parsedClock.zone;
+    date=dates[0];clock=parsedClock.clock;zone=parsedClock.zone;offset=parsedClock.offset;
     const periods=events.flatMap(fiscalPeriods);period=combineFiscalPeriods(periods);if(periods.length&&!period)return null;
     proposed=facts.some(f=>f.field==='status'&&/\bproposed\b|subject to change/i.test(f.value));
     subjectToChange=facts.some(f=>f.field==='status'&&/subject to change/i.test(f.value));
@@ -98,12 +100,15 @@ export function scheduledEarningsCall(item) {
   }
   const reading=qualifiedReading(baseReading,{proposed,subjectToChange,notCompleted});
   if(!date||!clock||reading.length>400)return null;
-  return {date,clock,zone,period:period?.label||null,fiscal:period,baseReading,reading,proposed,subjectToChange,notCompleted};
+  const instant=Number.isFinite(offset)?Date.parse(`${date}T${clock}:00Z`)-offset*60000:null;
+  return {date,clock,zone,instant,period:period?.label||null,fiscal:period,baseReading,reading,proposed,subjectToChange,notCompleted};
 }
 export function sameScheduledEarningsCall(a,b) {
   if(a.ticker!==b.ticker||!!a.related!==!!b.related||!Number.isFinite(a.at)||!Number.isFinite(b.at)||Math.abs(a.at-b.at)>3600000)return false;
   const x=scheduledEarningsCall(a),y=scheduledEarningsCall(b);
-  return !!(x&&y&&x.date===y.date&&x.clock===y.clock&&(!x.zone||!y.zone||x.zone===y.zone)&&(!x.fiscal||!y.fiscal||compatibleFiscalPeriods(x.fiscal,y.fiscal)));
+  if(!x||!y)return false;
+  const sameTime=x.instant!==null&&y.instant!==null?x.instant===y.instant:x.date===y.date&&x.clock===y.clock&&(!x.zone||!y.zone||x.zone===y.zone);
+  return sameTime&&(!x.fiscal||!y.fiscal||compatibleFiscalPeriods(x.fiscal,y.fiscal));
 }
 export function consolidatedEarningsCallNote(items) {
   const ready=items.filter(s=>s.content?.state==='ready');
