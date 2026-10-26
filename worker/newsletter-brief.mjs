@@ -91,6 +91,7 @@ import { annotateEditorialHistory, editorialPriority } from './newsletter-editor
 import { sameNewsletterSource, changedDocumentVersion } from './newsletter-source-links.mjs';
 import { sameScheduledBoardMeeting } from './newsletter-filing-events.mjs';
 import { sameScheduledEarningsCall } from './newsletter-notice-events.mjs';
+import { investmentProfiles, sameInvestmentEvent } from './newsletter-investment-events.mjs';
 import { sameExplicitEvent, explicitEvent } from './newsletter-event-identity.mjs';
 import { renderInvestorEmail } from './newsletter-investor-email.mjs';
 import { attachPriceReasons, priceEvidenceItems, priceReasonWindow, priceReasonText, priceReasonSourcesNote } from './newsletter-price-reasons.mjs';
@@ -1175,6 +1176,7 @@ export function clusterStories(stories, { company = '' } = {}) {
   for(const document of documents)document.main=leadOf(document.items);
   // Phase 2: issuer + explicit event/date/period, then the existing conservative
   // fallback. A summary is not an event identifier.
+  const investments=investmentProfiles(documents.flatMap(d=>d.items));
   const clusters = [];
   for (const document of documents) {
     const s=document.main;
@@ -1183,7 +1185,7 @@ export function clusterStories(stories, { company = '' } = {}) {
     if (s.kind === 'filing' || s.kind === 'news') {
       for (const c of clusters) {
         if (c.kind !== 'story') continue;
-        if(c.documents.every(d=>sameExplicitEvent(d.main,s) ||
+        if(c.documents.every(d=>sameInvestmentEvent(d.main,s,investments)||sameExplicitEvent(d.main,s) ||
           s.kind==='filing'&&d.main.kind==='filing'&&!changedDocumentVersion(d.main,s)&&(sameScheduledBoardMeeting(d.main,s)||sameScheduledEarningsCall(d.main,s)))) {home=c;break;}
         const news = c.items.filter(i => i.kind === 'news');
         if (s.kind === 'news' && news.length) {

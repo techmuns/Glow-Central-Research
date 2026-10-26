@@ -74,7 +74,7 @@ export function consolidatedBoardReading(items) {
     for(const p of fiscalPeriods(text))if(!p.invalid){
       out.add('fy:'+p.year);if(p.quarter)out.add('quarter:'+p.year+':'+p.quarter);if(p.half)out.add('half:'+p.year+':'+p.half);
     }
-    for(const m of text.matchAll(/\b(unaudited|un-audited|audited|standalone|consolidated|quarterly|half[- ]year(?:ly)?|annual)\b/ig))out.add('term:'+m[1].toLowerCase().replace('un-audited','unaudited').replace(/half[- ]year(?:ly)?/,'half-year'));
+    for(const m of text.matchAll(/\b(unaudited|un-audited|audited|standalone|consolidated|quarter(?:ly)?|half[- ]year(?:ly)?|annual)\b/ig))out.add('term:'+m[1].toLowerCase().replace('un-audited','unaudited').replace(/^quarter$/,'quarterly').replace(/half[- ]year(?:ly)?/,'half-year'));
     for(const m of text.matchAll(/\b(interim|final|special) dividend\b/ig))out.add('dividend:'+m[1].toLowerCase());
     return out;
   };
