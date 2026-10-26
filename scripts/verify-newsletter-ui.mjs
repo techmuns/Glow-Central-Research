@@ -8,9 +8,8 @@
 // no wrangler, no egress and no second copy of the rules that could drift from the deployed one.
 
 import assert from 'node:assert/strict';
-import { tmpdir } from 'node:os';
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -21,6 +20,8 @@ import { handleNewsletter } from '../worker/newsletter.mjs';
 const PW_ROOT = process.env.PLAYWRIGHT_ROOT || '/opt/node22/lib/node_modules/playwright';
 const { chromium } = await import(`${PW_ROOT}/index.mjs`);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
+const shotsRoot=process.env.NEWSLETTER_UI_OUTPUT || resolve('.cache/newsletter-ui');
+mkdirSync(shotsRoot,{recursive:true});
 // A screenshot taken the instant the form appears catches the 180ms `brief-enter` animation
 // mid-flight, so an opaque panel photographs as a translucent one. Wait for it to settle.
 const settled = async (locator) => { await locator.evaluate((n) => Promise.all(n.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {})))); };
@@ -221,7 +222,7 @@ try {
   console.log('\n— preview —');
   const [preview] = await Promise.all([context.waitForEvent('page'), page.locator('[data-brief-action="preview"][data-edition="evening"]').click()]);
   await preview.waitForLoadState();
-  ok('Preview Evening opens the edition as it would send now, in a new tab', /^Glow Ventures · \d+ updates?/.test(await preview.title()) && (await preview.locator('body').innerText()).includes('GLOW VENTURES') && new URL(preview.url()).searchParams.get('edition') === 'evening');
+  ok('Preview Evening opens the investor reading layer in a new tab', /^Glow Ventures · \d+ developments?/.test(await preview.title()) && (await preview.locator('body').innerText()).includes('Evening investment brief') && new URL(preview.url()).searchParams.get('edition') === 'evening');
   await preview.close();
   ok('...and nothing was emailed from the panel', emails.length === 0);
 
@@ -265,7 +266,7 @@ try {
   const dark = await panel().evaluate((n) => getComputedStyle(n).backgroundColor);
   ok('the dark panel paints an opaque dark surface', /^rgb\(/.test(dark) && dark !== 'rgb(255, 255, 255)', dark);
   await settled(panel());
-  await page.screenshot({ path: `${tmpdir()}/glow-newsletter-dark.png` });
+  await page.screenshot({ path: `${shotsRoot}/glow-newsletter-dark.png` });
   await page.keyboard.press('Escape');
   await page.evaluate(() => window.sattvaTheme.toggle());
   await page.setViewportSize({ width: 390, height: 844 });
@@ -277,7 +278,7 @@ try {
   ok('...and the button is a 44px touch target', (await button().boundingBox()).height >= 44);
 
   await settled(panel());
-  await page.screenshot({ path: `${tmpdir()}/glow-newsletter-mobile.png` });
+  await page.screenshot({ path: `${shotsRoot}/glow-newsletter-mobile.png` });
   await page.keyboard.press('Escape');
   // Ask Research is the landing tab and reserves its viewport for the answer, so at 560px and under
   // the control cluster is flattened into the header row and this button is ordered up beside the
@@ -300,7 +301,7 @@ try {
   await button().click();
   await page.locator('[data-brief-form="me"]').waitFor();
   await settled(panel());
-  await page.screenshot({ path: `${tmpdir()}/glow-newsletter-desktop.png` });
+  await page.screenshot({ path: `${shotsRoot}/glow-newsletter-desktop.png` });
 
   ok('zero page errors throughout', errors.length === 0, errors.join(' | '));
 } finally {
