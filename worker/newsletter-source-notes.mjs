@@ -143,6 +143,11 @@ export function xbrlBoardMeetingNote(item) {
   if (!agendas.length) return null;
   const prefix = /^revised$/i.test(get('TypeOfIntimation')) ? 'Revised board-meeting notice for' : 'Board meeting';
   const extras=investorSourceFacts(item).filter(f=>['amount','ownership','conditions','counterparty','status','reason'].includes(f.field)&&!administrative(f));
-  const note=`${prefix} ${label}: to consider ${agendas.join(' and ')}.`+extras.map(f=>` ${f.field[0].toUpperCase()+f.field.slice(1)}: ${clean(f.value)}`).join('');
+  let note=`${prefix} ${label}: to consider ${agendas.join(' and ')}.`+extras.map(f=>` ${f.field[0].toUpperCase()+f.field.slice(1)}: ${clean(f.value)}`).join('');
+  if(month&&year&&agendas.some(value=>/\bfinancial results\b/i.test(value))){
+    const period=financialPeriod(`${month} ${year}`),stated=financialPeriodsIn(note).map(financialPeriod);
+    if(stated.some(value=>value!==period))return null;
+    if(!stated.length)note+=` Financial period ended ${month} ${year}.`;
+  }
   return extras.length&&note.length>600?null:note;
 }
