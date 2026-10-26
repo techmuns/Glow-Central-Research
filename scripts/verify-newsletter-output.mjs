@@ -159,6 +159,10 @@ const businessParty=structuredClone(call);businessParty.announcements.groups[0].
 assert(!editorialEvents(businessParty,briefStats(businessParty).companies).events[0].completeSourceSummary,'A business counterparty cannot be silently treated as an IR attendee');
 const appointmentCall=structuredClone(call);appointmentCall.announcements.groups[0].items[0].content.facts.push({field:'event',value:'Company appointed a new CFO to present the call'});
 assert(!editorialEvents(appointmentCall,briefStats(appointmentCall).companies).events[0].completeSourceSummary,'A named business development cannot disappear inside a routine call note');
+for(const value of ['Company announces a new CFO who will present the call','The call announced a cost-cutting strategy']){
+ const materialCall=structuredClone(call);materialCall.announcements.groups[0].items[0].content.facts.push({field:'event',value});
+ assert(!editorialEvents(materialCall,briefStats(materialCall).companies).events[0].completeSourceSummary,'Qualitative business updates cannot be mistaken for invitation metadata');
+}
 for(const [from,to]of [['October 30','November 31'],['4:00 P.M.','25:99']]){
  const invalid=structuredClone(call);invalid.announcements.groups[0].items[0].content.facts.find(f=>f.value.includes('4:00')).value=invalid.announcements.groups[0].items[0].content.facts.find(f=>f.value.includes('4:00')).value.replace(from,to);
  assert(!editorialEvents(invalid,briefStats(invalid).companies).events[0].completeSourceSummary,'Invalid source dates/times cannot certify a call schedule');

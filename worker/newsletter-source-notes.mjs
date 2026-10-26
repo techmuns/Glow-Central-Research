@@ -62,11 +62,13 @@ export function readNoticeNote(item) {
   const events=facts.filter(f=>f.field==='event').map(f=>clean(f.value));
   if(!events.length)return null;
   const callRoles=facts.filter(f=>f.field==='counterparty').every(f=>/\b(?:organizing|hosting)\b.*\bcall\b|^(?:Speaker for the call|Call leaders):/i.test(f.value));
-  if(events.every(value=>/\bcall\b/i.test(value))&&callRoles&&!facts.some(f=>['amount','ownership','conditions'].includes(f.field))) {
+  const routineCall=events.every(value=>/^(?:Intimation|Invitation|Notice)(?: of| to)? (?:Q[1-4]\s*FY\s*\d{2,4}\s+)?(?:Earnings? (?:Conference )?Call|Conference Call|Analysts? Call)[.!]?$/i.test(value)||/^Management representatives named for the call[.!]?$/i.test(value));
+  const callStates=facts.filter(f=>f.field==='status').every(f=>/^Conference call scheduled(?: \(proposed\/upcoming event, not yet completed\))?[.!]?$|^(?:Proposed|Scheduled)(?:\/upcoming)?(?: event)?(?:, not yet completed)?[.!]?$/i.test(clean(f.value)));
+  if(routineCall&&callRoles&&callStates&&!facts.some(f=>['amount','ownership','conditions'].includes(f.field))) {
     const states=facts.filter(f=>['event','status'].includes(f.field)).map(f=>f.value).join(' ').replace(/not yet completed/gi,'');
     if(/\b(?:cancel\w*|postpon\w*|reschedul\w*|withdraw\w*|terminat\w*|reject\w*|concluded|completed|not scheduled)\b/i.test(states))return null;
     if(/\b(?:appoint\w*|resign\w*|acquir\w*|merg\w*|buyback|dividend|guidance|profit|revenue|margin|fundrais\w*|preferential|allotment|contract)\b/i.test(states))return null;
-    const calls=facts.filter(f=>['event','date'].includes(f.field)&&/\bcall\b/i.test(f.value)&&/20\d{2}/.test(f.value)&&
+    const calls=facts.filter(f=>f.field==='date'&&/\b(?:conference|earnings?|analyst) call (?:is )?scheduled (?:for|on)\b/i.test(f.value)&&/20\d{2}/.test(f.value)&&
       /\b\d{1,2}:\d{2}|\b\d{1,2}\s*[ap]\.?m\.?/i.test(f.value));
     if(calls.length===1) {
       const dates=eventDates(calls[0].value),clock=/\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?|\b(\d{1,2}):(\d{2})/i.exec(calls[0].value);
