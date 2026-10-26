@@ -20,7 +20,9 @@ export function investmentMoney(text){
   const scaled=BigInt(whole+fraction)*factor,divisor=10n**BigInt(fraction.length);
   if(scaled%divisor)continue;
   const currency=/€|EUR/i.test(m[1])?'EUR':'INR';
-  out.push({key:currency+':'+scaled/divisor,currency,value:String(scaled/divisor),raw:m[0],upper:/\b(?:up to|upto|not exceed)\s*$/i.test(String(text).slice(0,m.index))});
+  const prefix=String(text).slice(0,m.index),upper=/\b(?:up to|upto|not exceed|maximum(?: of)?|capped at)\s*$/i.test(prefix);
+  const qualifier=upper?'up to':/\b(?:at least|not less than|minimum(?: of)?)\s*$/i.test(prefix)?'at least':/\b(?:approximately|approx\.?|about|around)\s*$/i.test(prefix)?'approximately':null;
+  out.push({key:currency+':'+scaled/divisor,currency,value:String(scaled/divisor),raw:m[0],upper,qualifier});
  }
  return out;
 }
@@ -122,10 +124,10 @@ export function investmentReading(items){
   const total=fs.find(f=>f.field==='amount'&&/^Overall investment /i.test(f.value)),tranche=/\b(first|second|third|fourth) tranche\b/i.exec(fs.map(f=>f.value).join(' '))?.[0];
   const value=total&&investmentMoney(total.value)[0];
   const instrument=/\bNOCPS\b/i.test(lead.body)?'NOCPS':'preference-share';
-  note=`${labelMoney(lead.amount)} ${tranche?tranche+' ':''}${instrument} rights-issue investment in ${acronym||target} completed.`+(value?` Total preference investment: ${labelMoney(value)}.`:'');
+  note=`${lead.amount.qualifier?lead.amount.qualifier+' ':''}${labelMoney(lead.amount)} ${tranche?tranche+' ':''}${instrument} rights-issue investment in ${acronym||target} completed.`+(value?` Total preference investment: ${labelMoney(value)}.`:'');
  }else if(lead.stage==='agreement'){
   const securities=fs.filter(f=>f.field==='ownership').map(f=>/\band (\d[\d,]* OCPRS)\b/i.exec(f.value)?.[1]).filter(Boolean);
-  note=`Definitive agreements signed for ${target}: ${lead.amount.upper?'up to ':''}${labelMoney(lead.amount)}`+(lead.stake?` for a ${lead.stake}% equity stake`:'')+(securities.length?` plus ${securities.join(' and ')}`:'')+'.'+(lead.pending?' Completion pending.':'');
+  note=`${/\bdefinitive agreements\b/i.test(lead.body)?'Definitive agreements':'Agreements'} signed for ${target}: ${lead.amount.qualifier?lead.amount.qualifier+' ':''}${labelMoney(lead.amount)}`+(lead.stake?` for a ${lead.stake}% equity stake`:'')+(securities.length?` plus ${securities.join(' and ')}`:'')+'.'+(lead.pending?' Completion pending.':'');
  }else return null;
  const clauses=[];
  for(const f of fs.filter(f=>f.field==='conditions')){
