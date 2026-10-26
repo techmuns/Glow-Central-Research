@@ -66,11 +66,12 @@ than admitting only the first 80 reports of an edition. Each request retains its
 configured news provider, cache and dollar admission control; no new service or fallback is
 introduced. Partial/failed grouping retains all reports and its actual coverage count.
 
-Document hashes, structured facts or sufficiently specific exact headlines supply version
+Document hashes or structured facts supply version
 aliases in the existing acknowledged-item ledger. All participating versions must be known
 before an event is treated as previously covered; unknown new evidence cannot be hidden by
-an older member. Changed source bytes/facts create a new version. Headline-only reuse is
-limited to four publication days; generic filing labels never identify an event. The existing
+an older member. Changed source bytes/facts create a new version. Headlines alone never
+establish a previously delivered version: separate approvals or orders can share an identical
+long title. The existing
 ledger retains ordinary transport identities for ten days and event-version hashes durably,
 independently of permanent source history and delivery-log pruning.
 This is conservative copy suppression, not a claim that all paraphrases are understood.

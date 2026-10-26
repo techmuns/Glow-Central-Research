@@ -81,6 +81,11 @@ brief.news.groups.push({ticker:brief.announcements.groups[0].ticker,company:brie
 await annotateEditorialHistory(brief,briefStats(brief).companies,restarted.reportedLookup());
 assert.equal(editorialEvents(brief,briefStats(brief).companies).events.length,1,'A known member cannot suppress unknown new evidence without an event identity');
 brief.news.groups.pop();
+const sameTitle=structuredClone(brief);sameTitle.news.groups=[];
+sameTitle.announcements.groups[0].items=[{...structuredClone(official),headline:'Lupin receives approval from the United States Food and Drug Administration',keys:['new-drug-approval'],content:{state:'pending'}}];
+await annotateEditorialHistory(sameTitle,briefStats(sameTitle).companies,{has:()=>true,at:()=>at});
+assert.equal(editorialEvents(sameTitle,briefStats(sameTitle).companies).events.length,1,'A later unread approval cannot be hidden just because an earlier event had the same specific-looking headline');
+assert.deepEqual(sameTitle.announcements.groups[0].items[0].keys,['new-drug-approval'],'Headlines alone never supply durable delivered-version aliases');
 for(const row of brief.announcements.groups[0].items){row.content.hash='corrected-document';row.content.facts[1].value='INR 110 crore';}
 await annotateEditorialHistory(brief,briefStats(brief).companies,restarted.reportedLookup());
 assert.equal(editorialEvents(brief,briefStats(brief).companies).events.length,1,'A changed document is a new material version');

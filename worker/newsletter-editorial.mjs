@@ -64,7 +64,8 @@ export function editorialEvents(brief, companies) {
 }
 
 // Fingerprints supplement (never replace) source identities in the existing acknowledged
-// ledger. A changed document/fact set is a new version. Generic labels cannot identify events.
+// ledger. A changed document/fact set is a new version. Headlines cannot identify versions:
+// two different approvals/orders may use the very same long, specific-looking title.
 export async function annotateEditorialHistory(brief, companies, reported) {
   const groups = [...(brief.announcements?.groups || []), ...(brief.news?.groups || [])];
   const byKey = new Map(groups.flatMap(g=>g.items.flatMap(row=>(row.keys || []).map(key=>[`${g.ticker}|${key}`,row]))));
@@ -74,15 +75,13 @@ export async function annotateEditorialHistory(brief, companies, reported) {
       if(!['filing','news'].includes(member.kind))continue;
       const content=member.content, facts=content?.state==='ready'?content.facts||[]:[];
       const substantive=facts.length?JSON.stringify(facts.map(f=>[f.field,normal(f.value)]).sort()):null;
-      const title=normal(member.headline);
-      const specific=title.split(/\W+/).length>=8&&!/^(?:press release|general|regulation|intimation|outcome of|please find|.*has informed (?:the exchange|bse))/i.test(title);
-      const identity=content?.state==='ready'&&content.hash?`document:${content.hash}`:substantive?`facts:${substantive}`:specific?`headline:${title}`:null;
+      const identity=content?.state==='ready'&&content.hash?`document:${content.hash}`:substantive?`facts:${substantive}`:null;
       if(!identity)continue;
       identifiedMembers++;
       const input=JSON.stringify([EDITORIAL_VERSION,company.ticker,!!member.related,identity]);
       const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(input)))].map(b=>b.toString(16).padStart(2,'0')).join('');
-      const key=`newsletter-event:${digest}`,knownAt=reported?.at?.(key);
-      aliases.push({key,known:!!reported?.has(key)&&(identity.startsWith('document:')||identity.startsWith('facts:')||Number.isFinite(knownAt)&&member.at>=knownAt&&member.at-knownAt<=4*86400000)});
+      const key=`newsletter-event:${digest}`;
+      aliases.push({key,known:!!reported?.has(key)});
     }
     // A newly supplied version cannot be hidden by an older, already-covered member of
     // the group. Unknown new evidence keeps the event visible until it can be checked.
