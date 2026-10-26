@@ -97,8 +97,13 @@ assert.equal(partial.reviewed, 5);
 assert.equal(partial.eligible, 10);
 const longReports = news();
 for (const r of longReports.groups[0].items) r.summary = '&'.repeat(3500);
-assert.ok(JSON.stringify(longReports).length < EVENT_REQUEST_BYTES, 'raw model input alone would fit');
-assert.equal((await reviewNewsEvents({ news: longReports, env, fetcher: forbidden })).reason, 'limit', 'HTML escaping and cumulative source size prevent oversized semantic groups');
+assert.ok(JSON.stringify(longReports).length < EVENT_REQUEST_BYTES);
+const longCheck=await reviewNewsEvents({news:longReports,env,fetcher:async(_url,init)=>{
+ const reports=JSON.parse(JSON.parse(init.body).messages[0].content).REPORTS;
+ assert(reports.every(r=>r.summary==='&'.repeat(3500)),'Actual model input keeps complete qualifications without an obsolete HTML-escape budget');
+ return answer(reports.map(r=>[r.id]));
+}});
+assert.equal(longCheck.reviewed,5);
 
 // Exercise each deployment's actual company grouping, rendering and delivery identities.
 const ASSETS = { fetch: async request => new URL(request.url).pathname === '/data/portfolio-companies.json'

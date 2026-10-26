@@ -136,7 +136,7 @@ const cached=await readDocumentFacts({item:{kind:'filing',ticker:'TEST',url:'htt
 assert.equal(cached.state,'ready');assert.equal(cached.sourceUrl,'https://www.bseindia.com/copy.pdf');
 
 let groupingCalls=0;
-const manyCompanies={groups:Array.from({length:4},(_,i)=>({ticker:`ISSUER${i}`,company:`Issuer ${i}`,items:Array.from({length:60},(_,j)=>({headline:`Distinct business disclosure ${j}`,at,publisher:'Fixture'}))}))};
+const manyCompanies={groups:Array.from({length:4},(_,i)=>({ticker:`ISSUER${i}`,company:`Issuer ${i}`,items:Array.from({length:60},(_,j)=>({headline:`Distinct business disclosure ${j}`,at,publisher:'Fixture',url:`https://fixture.test/source/${'x'.repeat(2000)}`,content:{facts:[{field:'event',value:'Source reading retained outside the grouping prompt'}]}}))}))};
 const grouped=await reviewNewsEvents({news:manyCompanies,env:{CLAUDE_KEY:'ABSKfixture-only'},fetcher:async(_url,init)=>{
  groupingCalls++;const reports=JSON.parse(JSON.parse(init.body).messages[0].content).REPORTS;
  return Response.json({content:[{type:'text',text:JSON.stringify(reports.map(r=>[r.id]))}]});

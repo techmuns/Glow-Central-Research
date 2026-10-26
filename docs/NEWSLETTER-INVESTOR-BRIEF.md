@@ -62,7 +62,10 @@ Distinct CEAT loan-conversion/investment fixtures remain separate.
 
 Semantic news checking runs after source attachment, in independent company batches rather
 than admitting only the first 80 reports of an edition. Each request retains its existing
-80-report/byte limits. At most four batches are attempted per build, with the existing
+80-report/96KB input limits. The old 24KB escaped source-register guard no longer applies:
+long archived URLs and read facts do not consume the grouping prompt or compact inbox.
+Complete headline/summary inputs still fit as a whole company or remain explicitly unchecked.
+At most four batches are attempted per build, with the existing
 configured news provider, cache and dollar admission control; no new service or fallback is
 introduced. Partial/failed grouping retains all reports and its actual coverage count.
 
