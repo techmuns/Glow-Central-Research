@@ -33,9 +33,14 @@ const explicitAlias=(text,alias)=>{
  const escaped=alias.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
  return new RegExp('(?:^|\\b(?:in|of|for|subsidiary|unit|million|crore|cr) +)'+escaped+'(?: +(?:for|at|acquisition|stake|deal|transaction)\\b|[?.!,]|$)','i').test(text);
 };
+const conditionKey=value=>/^(?:Transaction completion conditional on fulfilment\/waiver of conditions precedent in transaction documents|(?:Completion )?(?:is )?subject to (?:fulfilment of )?conditions precedent)[.!]?$/i.test(clean(value))?'conditions-precedent':normal(value);
 const termsAgree=(x,y)=>{
  for(const key of ['amount','total'])if(x[key]&&y[key]&&x[key].key!==y[key].key)return false;
  for(const key of ['stake','stage','instrument','tranche'])if(x[key]&&y[key]&&x[key]!==y[key])return false;
+ // A publisher paraphrase of the same condition is not a new event. An extra or
+ // conflicting condition remains a development instead of disappearing behind
+ // the concise original-filing reading.
+ for(const [report,source]of [[x,y],[y,x]])if(report.item.kind==='news'&&source.firm&&report.conditions.some(k=>!source.conditions.includes(k)))return false;
  if(x.item.kind==='filing'&&y.item.kind==='filing'&&!x.native&&!y.native&&x.item.content?.state==='ready'&&y.item.content?.state==='ready')for(const field of ['conditions','status','ownership']){
   const values=p=>facts(p.item).filter(f=>f.field===field).map(f=>normal(f.value)).sort().join('|');
   if(values(x)&&values(y)&&values(x)!==values(y))return false;
@@ -90,7 +95,7 @@ function rawProfile(item){
  const total=native?investmentMoney(/overall investment[\s\S]*?enhanced to ([\s\S]+)/i.exec(body)?.[1]||'')[0]:totalFact?investmentMoney(totalFact.value)[0]:null;
  const aliases=[];
  for(const m of targetText.matchAll(/\b((?:[A-Z][A-Za-z0-9&’'-]*\s+){1,7}(?:Private Limited|Limited|Ltd\.?))\s*\(?[“"(]([A-Za-z][A-Za-z0-9]{2,20})[”")]/g))if(nameKey(m[1])===names[0])aliases.push(normal(m[2]));
- return {item,body,date:date||day(item),target:names[0]||null,aliases,amount:amounts[0]||null,total,stake:stakes[0]||null,stage,pending,instrument,tranche:tranches[0]||null,firm:item.kind==='filing'&&!!names[0],native};
+ return {item,body,date:date||day(item),target:names[0]||null,aliases,amount:amounts[0]||null,total,stake:stakes[0]||null,stage,pending,instrument,tranche:tranches[0]||null,conditions:fs.filter(f=>f.field==='conditions').map(f=>conditionKey(f.value)),firm:item.kind==='filing'&&!!names[0],native};
 }
 export function investmentProfiles(items){
  const profiles=new Map(items.map(item=>[item,rawProfile(item)]));

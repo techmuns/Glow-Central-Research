@@ -72,6 +72,10 @@ assert.equal(investmentMoney('INR 10 thousand').length,0,'Unsupported amount uni
 const readPublisher={...varroc.find(r=>r.kind==='news'),url:'https://fixture.test/read-publisher',content:{state:'ready',format:'article',facts:[{field:'event',value:'Agreements executed for investment in Forsee Power India Private Limited'},{field:'amount',value:'Consideration of EUR 4.5 million'},{field:'status',value:'Agreements executed; completion still pending'},{field:'ownership',value:'A 45% equity stake'}]}};
 assert.equal(clusterStories([anchor,readPublisher]).length,1,'Reading a publisher cannot re-split one source-established event merely because its fact wording differs');
 assert(investmentReading([anchor,readPublisher]),'The concise reading remains attributable to the original announcement');
+const readCondition=structuredClone(readPublisher);readCondition.content.facts.push({field:'conditions',value:'Completion subject to conditions precedent'});
+assert.equal(clusterStories([anchor,readCondition]).length,1,'The explicit known condition can normalize across source phrasing');
+readCondition.content.facts.at(-1).value='Completion subject to RBI approval';
+assert.equal(clusterStories([anchor,readCondition]).length,2,'A newly read publisher qualification cannot be hidden by the older announcement');
 const readChanged=structuredClone(readPublisher);readChanged.url='https://fixture.test/read-new-price';readChanged.content.facts.find(f=>f.field==='amount').value='Consideration of EUR 5.5 million';
 assert.equal(clusterStories([anchor,readChanged]).length,2,'An explicitly read amount overrides an older headline figure');
 const purva=all.get('PURVA'),badDay=structuredClone(purva.find(r=>r.content.format==='pdf'));badDay.url='https://fixture.test/wrong-weekday';badDay.content.hash='wrong-weekday';badDay.content.facts.find(f=>/^Board meeting date:/.test(f.value)).value='Board meeting date: Friday, November 02, 2026';
