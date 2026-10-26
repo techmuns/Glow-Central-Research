@@ -369,7 +369,7 @@ export function renderBriefPdf(
   for(const event of reading.events) {
     pdf.ensure(100);
     pdf.paragraph(`${event.company} / ${event.lead.kind==='filing'?'Corporate announcement':'Development'}`,{font:'F2',size:11,gap:4});
-    const summary=event.summary || (event.facts.length?event.facts.map(f=>f.value).join(' '):event.lead.headline);
+    const summary=event.summary || event.sourceSummary || (event.facts.length?event.facts.map(f=>f.value).join(' '):event.description || event.lead.headline);
     pdf.paragraph(summary,{size:10});
     if(event.summary&&event.note?.impact)pdf.paragraph(`Potential impact / AI: ${event.note.impact}`,{size:9,color:MUTED});
     if(event.summary&&event.note?.unknowns)pdf.paragraph(`Watch next: ${event.note.unknowns}`,{size:9,color:MUTED});

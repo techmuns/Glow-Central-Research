@@ -29,14 +29,14 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
   const reportUrl=pdfUrl || `${dashboardUrl}/api/newsletter/preview?edition=${brief.edition}&format=pdf`;
   const cards=events.map((event,index)=>{
     const s=event.lead;
-    const summary=event.summary || (event.facts.length ? event.facts.map(f=>f.value).join(' ') : event.description || (s.kind==='move'?`${s.headline}. Why it moved: ${priceReasonText(s.why)}`:s.headline));
+    const summary=event.summary || event.sourceSummary || (event.facts.length ? event.facts.map(f=>f.value).join(' ') : event.description || (s.kind==='move'?`${s.headline}. Why it moved: ${priceReasonText(s.why)}`:s.headline));
     const source=newsletterSourceUrl(s);
     const sourceLabel=s.kind==='filing'?'Announcement →':s.kind==='news'?'News report →':'Source →';
     const sameCompany=index>0&&events[index-1].ticker===event.ticker;
     const type=s.kind==='filing'?'Corporate announcement':s.kind==='trade'?'Ownership disclosure':s.kind==='move'?'Price context':'Reported development';
     // One description per event. Never repeat its headline above an equivalent AI summary.
     const description=esc(short(summary,compact?220:340));
-    const evidence=event.summary?'AI summary':event.facts.length?'Source facts':event.evidence;
+    const evidence=event.summary?'AI summary':event.sourceSummary||event.facts.length?'Source facts':event.evidence;
     const incomplete=event.read>0&&event.read<event.total?' · Some sources unread':'';
     if(compact)return `<tr><td class="gve"><strong class="gvc">${esc(event.company)}</strong> · ${description}<br><span class="gvm">${esc(evidence)}${incomplete}${s.related?' · Related entity; exposure unconfirmed':''} · ${esc(istLabel(s.at))} · ${source?link(source,sourceLabel,GOLD,'gvl'):'Source link unavailable'}</span></td></tr>`;
     return `<tr><td style="padding:${sameCompany?'10px':'22px'} 0 12px;border-bottom:1px solid ${RULE}">

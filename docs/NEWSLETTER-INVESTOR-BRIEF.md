@@ -34,6 +34,16 @@ supported reason or explicit unknown state. All markets, upcoming calendar entri
 corporate-action dates fit with the first email where possible; an explicit count and link
 to the complete tables replaces those supplements when necessary.
 
+Saved NSE board-meeting XBRL fields supply a short factual notice when no grounded AI note
+exists: meeting date, stated agenda, results period and dividend type where present. The
+date comes from the read document, and consideration remains prospective. Revised notices
+keep that status; cancelled notices, conflicting contexts or invalid dates cannot supply
+this note. Administrative identifiers, enum dumps and trading-window flags are not investor
+prose. Other source facts retain their semantic field labels where necessary, including
+Yes/No conditions. This presentation change preserves the full saved extraction, version
+identity and reading queue; it neither re-reads sources nor requests another model summary.
+The email and PDF investment briefing use the same source note.
+
 `newsletter-investor-email.mjs` preserves the original 640px paper, serif masthead and company
 headings, double rules, indigo accents, lavender background and dark footer. Shared style
 tokens prevent the compact view from drifting from the established newsletter. Each event
@@ -156,6 +166,8 @@ copies, corrected versions, acknowledged restarts, the forty-pending-before-read
 queue migration/priority/fairness, free wrapper resolution and private-target rejection.
 It replays the actual Aurobindo/Bharat defects, long source links in both email modes, article
 aliases, reused-URL corrections, unsafe/missing links and automated market templates.
+The saved Aurobindo XBRL fixture also verifies readable date/agenda/period/dividend notes,
+changed dates, cancelled/conflicting notices and preservation of the original extraction.
 It checks that 180 distinct material disclosures fit a few bounded emails with every event
 and every report source identity retained. The existing content, event, market, price-reason,
 PDF, source-link, delivery, encrypted GitHub and runtime checks remain required.
