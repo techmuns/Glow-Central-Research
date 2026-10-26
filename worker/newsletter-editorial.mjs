@@ -63,12 +63,15 @@ export function editorialEvents(brief, companies) {
     if (members.some(item => item.editorialReported)) { repeated.push(cluster); continue; }
     const note = brief.ai?.items?.[cluster.id] || (cluster.main.content?.state==='ready' ? cluster.main.content.note : null);
     const ready = eligible.filter(s => s.content?.state === 'ready');
-    const callCluster=members.some(s=>scheduledEarningsCall(s));
-    const board=callCluster?null:consolidatedBoardReading(members);
+    // Verified physical copies were already consolidated. Alternate extraction
+    // wording on a mirror cannot veto its canonical document's source reading.
+    const readingItems=cluster.documents?.length?cluster.documents.map(d=>d.main):members;
+    const callCluster=readingItems.some(s=>scheduledEarningsCall(s));
+    const board=callCluster?null:consolidatedBoardReading(readingItems);
     if(board?.lead)lead=board.lead;
-    const investment=investmentReading(members);
+    const investment=investmentReading(readingItems);
     if(investment?.lead)lead=investment.lead;
-    const completeSourceSummary=investment?.note||(callCluster?consolidatedEarningsCallNote(members):board?board.note||null:xbrlBoardMeetingNote(lead)||votingResultNote(lead)||readNoticeNote(lead));
+    const completeSourceSummary=investment?.note||(callCluster?consolidatedEarningsCallNote(readingItems):board?board.note||null:xbrlBoardMeetingNote(lead)||votingResultNote(lead)||readNoticeNote(lead));
     const sourceSummary=cluster.versionConflict?'Different versions of this document were captured; their chronology is unconfirmed. Read the retained versions before relying on the figures.':completeSourceSummary || investorSourceSummary(lead);
     events.push({ id: cluster.id, company: company.company, ticker: company.ticker, cluster,
       lead, note, rank: Math.max(...eligible.map(editorialPriority)), at: Math.max(...eligible.map(s => s.at)),

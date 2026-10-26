@@ -1,5 +1,5 @@
 import { financialPeriod, financialPeriodsIn, eventDate, fiscalPeriods, combineFiscalPeriods, compatibleFiscalPeriods, hasSourceChange } from './newsletter-event-identity.mjs';
-import { readBoardNotice, administrativeNoticeFact, noticeDate } from './newsletter-notice-events.mjs';
+import { readBoardNotice, administrativeNoticeFact, boardNoticeDate } from './newsletter-notice-events.mjs';
 const normal = value => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
 const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
 const datePattern = '(20\\d{2}-\\d{2}-\\d{2}|\\d{1,2}(?:st|nd|rd|th)?[ /-]+(?:\\d{1,2}|[A-Za-z]{3,9})[ /,-]+20\\d{2})';
@@ -22,8 +22,7 @@ export function scheduledBoardMeeting(item) {
   if(item.content?.state==='ready'&&item.content.format!=='xbrl'&&(item.content.facts||[]).filter(f=>f.field==='status').some(f=>
     /\b(?:cancel\w*|reschedul\w*|postpon\w*|withdraw\w*|reject\w*|declin\w*|revok\w*|terminat\w*|approved|concluded|completed|held|not scheduled)\b/i.test(normal(f.value).replace(/not yet (?:approved|completed|held)/ig,''))))return null;
   const sourceDates=item.content?.state==='ready'&&item.content.format!=='xbrl'?(item.content.facts||[]).filter(f=>f.field==='date'&&/\bboard meeting\b/i.test(f.value)):[];
-  if(sourceDates.some(f=>!/^Board meeting date:/i.test(normal(f.value))))return null;
-  const meetingDates=sourceDates.map(f=>noticeDate(normal(f.value).replace(/^Board meeting date:\s*/i,'')));
+  const meetingDates=sourceDates.map(f=>boardNoticeDate(f.value));
   if(meetingDates.some(d=>!d||d!==meetingDates[0]))return null;
   const readDate=tags.get('DateOfProposedMeeting')||meetingDates[0]||readNotice?.date;
   if(readDate&&!eventDate(readDate))return null;

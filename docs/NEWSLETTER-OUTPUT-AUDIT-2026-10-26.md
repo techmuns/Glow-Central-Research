@@ -219,3 +219,22 @@ currency, ownership, status, date, cumulative amount and substantive conditions.
 The existing PDF base fonts also printed euro amounts as a Unicode code-point
 placeholder. They now use the explicit EUR label, as rupees already use INR;
 email currency symbols, fonts and colours stay unchanged.
+
+The next live check consolidated those event rows and retained their URLs, but
+exposed a source-reading ordering defect: raw copies were still compared again
+after verified document consolidation. An alternate extraction of the same bytes
+could veto the complete reading and lose a known period. Board, call and investment
+readings now use the canonical document representatives already selected in phase
+one. Coverage counts, original facts, source rows and URLs remain retained. A verified
+cross-kind mirror with alternate extraction wording is a mandatory regression.
+
+KSB's actual scheduled-board PDF uses “Intimation of Board Meeting for approval”,
+“Board meeting scheduled for Tuesday, 3rd November 2026” and a pure dated trading-window
+sentence. Its saved-field adapter now recognizes these prospective forms, validates
+the weekday/date and normalizes the quarter period against the form. The complete
+quarterly scope and all links survive. An actual XML/source-fact fixture covers this
+additional pair; the four demonstrated groups now consolidate fourteen rows into four.
+
+A separate negative check found that a stale EUR headline could mask USD in an
+already read article's amount field. Currency validation now takes explicit read
+consideration fields first, and regressions exercise both source/headline directions.
