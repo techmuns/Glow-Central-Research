@@ -81,3 +81,103 @@ identity also works without a date or event type in the captured headline: read 
 fields are evaluated first. These bounded source notes take priority over generic model
 wording, so an AI paragraph cannot override or truncate their substantive qualifications.
 All cases have mandatory regression assertions.
+
+## Live-reading follow-up
+
+The post-release read-only check confirmed one Bharat EGM row with all three constituent
+reports, one Aurobindo meeting row with both exchanges, one same-window Lupin inspection
+row and one Brian Savage appointment row. Varroc's meeting was already covered and stayed
+out of the inbox; both original exchange links remained in the full source register.
+
+The check also exposed administrative prose in newly read notices. The source-reading
+adapter now omits explicitly administrative recipient, identifier, filing-rule and
+trading-window fields from the reading while retaining them in the register. Material
+amounts, counterparties, ownership and business conditions remain. DCW's actual two-agenda
+notice becomes one prospective meeting sentence with its read date, financial-results
+agenda and proposed buyback intact. Bharat's original call invitation retains the read
+30 October / 4:00 P.M. IST schedule and Q2FY27 period even at the densest tier. Missing or
+invalid dates/times, cancellations, changed status and unknown business counterparties
+cannot receive these complete source notes. This uses saved fields only; no search,
+model, mail, collection cadence or provider budget is added.
+
+The complete live source register additionally exposed DCW's read PDF/form copies as
+separate board and earnings-call events. Their saved date, clock and financial-period
+fields now establish identity before summary selection. A narrowly verified plain
+results/buyback agenda can match its exchange form; unmatched amounts, conditions,
+counterparties and other proposals remain separate. Routine call identity normalizes
+02:00 P.M. and 14:00, preserves the PDF's explicit timezone and proposed/subject-to-change
+qualification, and rejects changed dates, times, periods, stages and explicit timezones.
+The identity and reading adapters share the same guards. Structured fields without a
+timezone disclose that absence; none is inferred. Added replay cases retain both
+constituent original links and require these distinctions before release.
+
+Automated review identified three additional edge cases, now replayed explicitly: a
+second invalid clock in the same sentence, a separately extracted rescheduled date,
+and substantive event text beginning with a filing-address prefix. Multi-clock and
+unreconciled-date readings cannot be certified as complete; address exclusions are
+scoped to metadata fields and never discard an event fact.
+
+Follow-up automated review also required whole-fact administrative matching, admission
+of validated sparse invitations before the calendar exclusion, and preservation of
+compatible periods across name/agenda and PDF/form sources. The final adapter checks
+these cases and full timezone names explicitly. Unknown timezone-bearing text and
+conflicting source periods cannot act as wildcards; a guidance suffix remains a
+material condition rather than boilerplate. All findings have fixture regressions.
+
+A final review case confirms that explicit PDF financial periods take precedence over
+stale or missing headlines and are compared with the form's period. June/September
+conflicts remain separate; month names, numeric quarter ends and ISO dates normalize
+together. Multiple contradictory read periods cannot be silently selected. Letter-date
+exclusions also require a complete valid letter date, so a mixed reschedule clause
+cannot hide behind an administrative prefix.
+
+The final period adapter compares fiscal labels without inferring an issuer's fiscal
+calendar. Q1/Q2 and H1/H2 conflicts remain distinct; compatible quarter/half-year
+components and two-/four-digit FY labels retain all known terms in one call reading.
+Calendar-month and fiscal-label periods are not declared equivalent without evidence.
+Plain results/buyback agendas match as normalized sets regardless of extraction order.
+All accepted proposed, subject-to-change and not-yet-completed statuses survive the
+consolidated reading; absent conditions are never added. Matching also retains a known
+headline period when read fields omit it and rejects source reschedules/cancellations
+before a generic exchange wrapper can override those facts.
+
+Material-extra checks apply before every board-notice merge, including ordinary results
+and generic wrappers. A separate amount, business condition, ownership change or
+counterparty cannot disappear behind a results-only form. Structured readings retain
+separately typed material fields too. Consecutive fiscal-year ranges (FY2026-27,
+FY2026-2027 and FY2026/27) normalize to the ending year; malformed/multi-year ranges
+remain unresolved. Prospective board wording stays “to consider” / “a proposal”, which
+already distinguishes it from approval without a redundant status sentence. Explicit
+rejection, revocation, completion or rescheduling vetoes old prospective grouping.
+
+Residual agenda text is no longer reduced to a fixed keyword set: an unclassified
+proposal blocks consolidation with a results-only or generic wrapper. Known plain
+financial/calendar phrasing and the demonstrated Other business caption normalize
+without erasing additional words. Normal terminal punctuation is accepted on pure
+letter/meeting dates; mixed correction clauses remain unresolved. Sparse cancellations,
+revisions and reschedules bypass the supporting-calendar exclusion and lead their
+source reading, including an explicit date-only change. A business reason or mixed IR
+participant clause blocks a simplified call note; the actual saved speaker/host forms
+retain their concise reading.
+
+The required full-data browser sweep failed after IST midnight against the fixed
+26 October capture (All Alerts readiness timeout). Its Date is now pinned to that
+snapshot for a deterministic full-data sweep. Performance timers, limits and the
+separate strict midnight/empty-new-day scenario remain unchanged. This test-only
+clock change does not modify application UI or production data.
+
+Final evidence checks reject any explicit reschedule/correction date before using a
+stale headline, even without a repeated Board meeting prefix. A complete board reading
+now needs to cover every merged source's known agenda, period and financial qualifier.
+The supporting complete source becomes the primary link; if no single saved reading
+covers the evidence, it cannot suppress the consolidated AI summary. Missing/unknown
+terms are not invented to force a complete note. Recognized IST/UTC/GMT or explicit
+full-zone offsets compare as instants, including cross-date equivalents; ambiguous
+abbreviations receive no guessed offset. Non-month-end financial dates remain distinct
+and unknown month words are not inferred from three-letter prefixes.
+
+Document-copy grouping now uses verified byte hashes (including cross-kind mirrors)
+or the existing guarded source identity, never matching generated fact strings as proof
+of a physical copy. Fact-equivalent different documents remain separate evidence items
+for the one event writer. The focused notebook browser fixture passed locally after an
+intermittent CI timeout; its assertions and application UI remain unchanged.

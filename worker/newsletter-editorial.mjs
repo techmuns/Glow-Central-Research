@@ -1,8 +1,9 @@
 // The inbox is a reading layer over the complete immutable edition. Classification never
 // deletes a captured row, changes an edition window or certifies an unread document.
 import { scheduledBoardMeetingSummary } from './newsletter-filing-events.mjs';
-import { investorSourceFacts, investorSourceSummary, xbrlBoardMeetingNote, votingResultNote } from './newsletter-source-notes.mjs';
+import { investorSourceFacts, investorSourceSummary, xbrlBoardMeetingNote, votingResultNote, readNoticeNote, consolidatedBoardReading, hasSourceChange } from './newsletter-source-notes.mjs';
 import { newsletterSourceUrl } from './newsletter-source-links.mjs';
+import { scheduledEarningsCall, consolidatedEarningsCallNote } from './newsletter-notice-events.mjs';
 export const EDITORIAL_VERSION = 1;
 export const EDITORIAL_EMAIL_PARTS = 3;
 const text = value => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
@@ -14,7 +15,7 @@ export function referenceReason(item) {
   if (['issuer-mismatch','company-evidence-unconfirmed'].includes(item.content?.reason)) return 'Issuer connection not established by the source reading';
   if (item.kind === 'news' || !item.kind) {
     if(/^(?:Q[1-4]\s+)?results (?:this|next) week\s*:/i.test(title)&&!/\b(?:profit|revenue|margin|EBITDA|EPS|growth|loss)\b|%/i.test(title))return 'Results-calendar roundup; no company results disclosed';
-    if(/\bstock price, news, quote and history[.!]?$|\bshare price\s*[-:]\s*live\b|\bstock price live NSE\/BSE updates[.!]?$/i.test(title)) return 'Quote/reference page; no business development stated';
+    if(/\bstock price, news, quote and history(?:\s*[-–—]\s*Yahoo Finance)?[.!]?$|\bshare price\s*[-:]\s*live\b|\bstock price live NSE\/BSE updates[.!]?$/i.test(title)) return 'Quote/reference page; no business development stated';
     if((/\bis rated (?:sell|buy|hold)[.!]?$/i.test(title)||/\b(?:(?:upgraded|downgraded) to (?:sell|buy|hold) amid (?:technical|valuation|mixed|bearish)|forms death cross|faces mildly bearish technical shift)\b/i.test(title)) &&
       !/\b(?:CRISIL|ICRA|CARE Ratings|Moody|Fitch|S&P|credit rating|guidance|profit warning|default|fraud|FDA|earnings|results|contract|merger|acquisition|dividend)\b|\bby (?!MarketsMojo\b)[A-Z]/i.test(title))return 'Automated technical/opinion template; no attributed fundamental change';
     if (/\b(?:slides|slips|climbs|rises|falls|gains|drops|jumps) (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),? (?:outperforms|underperforms) competitors[.!]?$/i.test(title)) return 'Automated daily price comparison; no business development stated';
@@ -32,7 +33,9 @@ export function referenceReason(item) {
       if (subject !== title && !/\bmotilal oswal\b/i.test(subject)) return 'Research author; report concerns another issuer';
     }
   }
+  if(scheduledEarningsCall(item))return null;
   const calendarText = `${title} ${(item.content?.facts || []).filter(f => f.field === 'event').map(f => f.value).join(' ')}`;
+  if(item.kind==='filing'&&hasSourceChange(`${calendarText} ${(item.content?.facts||[]).filter(f=>['date','status'].includes(f.field)).map(f=>f.value).join(' ')}`))return null;
   if (item.kind === 'filing' && /\b(?:schedule of meet|schedule.*(?:call|investor|analyst)|(?:intimation|will hold).*(?:conference call|earnings call|earnings conference)|audio recording|transcript.*(?:call|meeting))\b/i.test(calendarText) && !item.content?.facts?.some(f=>['amount','ownership','conditions'].includes(f.field))) return 'Calendar or supporting earnings document';
   return null;
 }
@@ -54,12 +57,15 @@ export function editorialEvents(brief, companies) {
     const members = [cluster.main, ...cluster.others];
     const eligible = members.filter(item => !referenceReason(item));
     if (!eligible.length) { reference.push(cluster); continue; }
-    const lead = eligible.includes(cluster.main)?cluster.main:[...eligible].sort((a,b) => Number(b.kind === 'filing') - Number(a.kind === 'filing') ||
+    let lead = eligible.includes(cluster.main)?cluster.main:[...eligible].sort((a,b) => Number(b.kind === 'filing') - Number(a.kind === 'filing') ||
       Number(b.content?.state === 'ready') - Number(a.content?.state === 'ready') || editorialPriority(b) - editorialPriority(a))[0];
     if (members.some(item => item.editorialReported)) { repeated.push(cluster); continue; }
     const note = brief.ai?.items?.[cluster.id] || (cluster.main.content?.state==='ready' ? cluster.main.content.note : null);
     const ready = eligible.filter(s => s.content?.state === 'ready');
-    const completeSourceSummary=xbrlBoardMeetingNote(lead)||votingResultNote(lead);
+    const callCluster=members.some(s=>scheduledEarningsCall(s));
+    const board=callCluster?null:consolidatedBoardReading(members);
+    if(board?.lead)lead=board.lead;
+    const completeSourceSummary=callCluster?consolidatedEarningsCallNote(members):board?board.note||null:xbrlBoardMeetingNote(lead)||votingResultNote(lead)||readNoticeNote(lead);
     const sourceSummary=cluster.versionConflict?'Different versions of this document were captured; their chronology is unconfirmed. Read the retained versions before relying on the figures.':completeSourceSummary || investorSourceSummary(lead);
     events.push({ id: cluster.id, company: company.company, ticker: company.ticker, cluster,
       lead, note, rank: Math.max(...eligible.map(editorialPriority)), at: Math.max(...eligible.map(s => s.at)),

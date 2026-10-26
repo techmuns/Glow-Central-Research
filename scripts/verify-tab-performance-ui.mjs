@@ -64,6 +64,12 @@ async function fixtureContext(options = {}) {
 try {
   const context = await fixtureContext();
   const page = await context.newPage();
+  // This sweep measures the full captured dataset, independently of when CI runs.
+  // Fix Date only; performance timers/limits stay native. The separate empty-day
+  // scenario below still exercises the complete collection after IST midnight.
+  const snapshotAt=Date.parse(JSON.parse(readFileSync(resolve(root,'data/market-news.json'),'utf8')).capturedAt);
+  assert(Number.isFinite(snapshotAt),'The full-data sweep needs its captured snapshot time');
+  await page.clock.setFixedTime(new Date(snapshotAt));
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${origin}/embed`);
@@ -279,8 +285,8 @@ try {
 
   // ALL ALERTS OPENED ON AN EMPTY NEW DAY. Just after IST midnight nothing captured is dated Today,
   // so the table holds its placeholders until every source has been read: the reader waits for the
-  // whole live collection, and every long task in it lands while they wait. The sweep above runs on
-  // the real clock and measures until the first paint, so it met this case only when CI ran between
+  // whole live collection, and every long task in it lands while they wait. The sweep above used to
+  // run on the real clock and measure until the first paint, meeting this case only when CI ran between
   // 18:30 UTC and the first capture of the new day: browser jobs in that window failed at 4.8–5.9
   // seconds while the same code had passed earlier the same day. Pin the page clock ten
   // minutes past the next IST midnight (after every committed capture, in UTC as the runners are)

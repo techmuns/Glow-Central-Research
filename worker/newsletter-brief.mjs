@@ -90,6 +90,7 @@ import { attachContent, sameContentEvent } from './newsletter-content.mjs';
 import { annotateEditorialHistory, editorialPriority } from './newsletter-editorial.mjs';
 import { sameNewsletterSource, changedDocumentVersion } from './newsletter-source-links.mjs';
 import { sameScheduledBoardMeeting } from './newsletter-filing-events.mjs';
+import { sameScheduledEarningsCall } from './newsletter-notice-events.mjs';
 import { sameExplicitEvent, explicitEvent } from './newsletter-event-identity.mjs';
 import { renderInvestorEmail } from './newsletter-investor-email.mjs';
 import { attachPriceReasons, priceEvidenceItems, priceReasonWindow, priceReasonText, priceReasonSourcesNote } from './newsletter-price-reasons.mjs';
@@ -1132,7 +1133,7 @@ function sameFilingEvent(a, b, company) {
   if (changedDocumentVersion(a, b)) return false;
   if (sameContentEvent(a, b)) return true;
   if (Math.abs(a.at - b.at) > FILING_COPY_WINDOW_MS) return false;
-  if (sameScheduledBoardMeeting(a, b)) return true;
+  if (sameScheduledBoardMeeting(a, b)||sameScheduledEarningsCall(a,b)) return true;
   if (a.content?.state === 'ready' && b.content?.state === 'ready') return false;
   if (sameNewsletterSource(a, b)) return true;
   // Only identical specific content can identify an unread exchange copy. Loose word overlap
@@ -1166,8 +1167,8 @@ export function clusterStories(stories, { company = '' } = {}) {
     b.score-a.score || b.headline.length-a.headline.length || a.at-b.at)[0];
   for(const s of [...stories].sort((a,b)=>a.at-b.at)) {
     const home=documents.find(d=>['filing','news'].includes(s.kind)&&d.items.every(i=>
-      s.ticker===i.ticker&&s.kind===i.kind&&!!s.related===!!i.related&&!changedDocumentVersion(i,s)&&
-      (sameContentEvent(i,s)||sameNewsletterSource(i,s)&&
+      s.ticker===i.ticker&&!!s.related===!!i.related&&!changedDocumentVersion(i,s)&&
+      (i.content?.state==='ready'&&s.content?.state==='ready'&&!!i.content.hash&&i.content.hash===s.content.hash||s.kind===i.kind&&sameNewsletterSource(i,s)&&
         (s.kind==='news'?compatibleReports({...i,summary:i.dek},{...s,summary:s.dek})&&!contentConflicts(i,s):Math.abs(i.at-s.at)<=FILING_COPY_WINDOW_MS))));
     if(home)home.items.push(s);else documents.push({items:[s]});
   }
@@ -1183,7 +1184,7 @@ export function clusterStories(stories, { company = '' } = {}) {
       for (const c of clusters) {
         if (c.kind !== 'story') continue;
         if(c.documents.every(d=>sameExplicitEvent(d.main,s) ||
-          s.kind==='filing'&&d.main.kind==='filing'&&!changedDocumentVersion(d.main,s)&&sameScheduledBoardMeeting(d.main,s))) {home=c;break;}
+          s.kind==='filing'&&d.main.kind==='filing'&&!changedDocumentVersion(d.main,s)&&(sameScheduledBoardMeeting(d.main,s)||sameScheduledEarningsCall(d.main,s)))) {home=c;break;}
         const news = c.items.filter(i => i.kind === 'news');
         if (s.kind === 'news' && news.length) {
           if (news.every(i => relatedNewsReports(i, s)) && c.items.every(i => sameContentEvent(i, s) || !contentConflicts(i, s))) { home = c; break; }

@@ -1,6 +1,8 @@
 // Deterministic event evidence. No lookup, model, source mutation or company-name guessing.
 const clean = value => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
 const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+const fullMonths=['january','february','march','april','may','june','july','august','september','october','november','december'];
+const monthNumber=value=>/^\d+$/.test(value)?Number(value):months.findIndex((m,i)=>value.toLowerCase()===m||value.toLowerCase()===fullMonths[i]||i===8&&value.toLowerCase()==='sept')+1;
 const dateText = '(?:20\\d{2}-\\d{2}-\\d{2}|\\d{1,2}(?:st|nd|rd|th)?[ /-]+(?:[A-Za-z]+|\\d{1,2})[ ,/-]+20\\d{2}|[A-Za-z]+ +\\d{1,2}(?:st|nd|rd|th)?,? +20\\d{2})';
 export function eventDate(value) {
   const text = clean(value).replace(/(\d)(?:st|nd|rd|th)\b/gi,'$1');
@@ -9,15 +11,44 @@ export function eventDate(value) {
   else if ((m=/^(\d{1,2})[ /-]+(\d{1,2}|[A-Za-z]+)[ ,/-]+(20\d{2})$/.exec(text))) [,day,month,year]=m;
   else if ((m=/^([A-Za-z]+) +(\d{1,2}),? +(20\d{2})$/.exec(text))) [,month,day,year]=m;
   else return null;
-  month=/^\d+$/.test(month)?Number(month):months.indexOf(month.slice(0,3).toLowerCase())+1;
+  month=monthNumber(month);
   const at=new Date(Date.UTC(+year,month-1,+day));
   return month>0&&month<=12&&at.getUTCMonth()===month-1&&at.getUTCDate()===+day?at.toISOString().slice(0,10):null;
 }
+export const eventDates = value => [...String(value || '').matchAll(new RegExp(dateText,'g'))].map(match=>eventDate(match[0]));
+export const hasSourceChange=value=>/\b(?:reschedul\w*|postpon\w*|cancel\w*|revis\w*|correct\w*|withdraw\w*)\b/i.test(value);
+export const financialPeriodsIn=value=>[...clean(value).matchAll(new RegExp('\\b(?:period|quarter|half[- ]year|year) ended\\s+('+dateText+'|[A-Za-z]+ +20\\d{2})','ig'))].map(m=>m[1]);
+export function fiscalPeriods(value) {
+  return [...clean(value).matchAll(/\b(Q[1-4](?:\s*\/\s*H[12])?|H[12])\s*[- ]*FY\s*(\d+)(?:\s*[-–/]\s*(\d+))?(?!\d|\s*[-–/])/ig)].map(m=>{
+    if(![2,4].includes(m[2].length)||m[3]&&![2,4].includes(m[3].length))return {invalid:true};
+    const start=Number(m[2].length===2?'20'+m[2]:m[2]);let ending=start;
+    if(m[3]){
+      ending=m[3].length===2?Math.floor(start/100)*100+Number(m[3]):Number(m[3]);
+      if(m[3].length===2&&ending<=start)ending+=100;
+      if(ending!==start+1)return {invalid:true};
+    }
+    const year=String(ending),quarter=/Q[1-4]/i.exec(m[1])?.[0].toUpperCase()||null,half=/H[12]/i.exec(m[1])?.[0].toUpperCase()||null;
+    return {year,quarter,half,raw:m[0],label:[quarter,half].filter(Boolean).join('/')+'FY'+(year.startsWith('20')?year.slice(-2):year)};
+  });
+}
+export function compatibleFiscalPeriods(a,b) {
+  if(!a||!b||a.invalid||b.invalid)return false;
+  return a.year===b.year&&(!a.quarter||!b.quarter||a.quarter===b.quarter)&&(!a.half||!b.half||a.half===b.half)&&
+    !!(a.quarter&&b.quarter||a.half&&b.half);
+}
+export function combineFiscalPeriods(periods) {
+  if(!periods.length||!periods.every(a=>periods.every(b=>compatibleFiscalPeriods(a,b))))return null;
+  const year=periods[0].year,quarter=periods.find(p=>p.quarter)?.quarter,half=periods.find(p=>p.half)?.half;
+  return {year,quarter,half,label:[quarter,half].filter(Boolean).join('/')+'FY'+(year.startsWith('20')?year.slice(-2):year)};
+}
 export function financialPeriod(value) {
   const text=clean(value),full=eventDate(text);
-  if(full)return full.slice(0,7);
+  if(full){
+    const date=new Date(full+'T00:00:00Z'),last=new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth()+1,0)).getUTCDate();
+    return date.getUTCDate()===last?full.slice(0,7):full;
+  }
   const m=/^([A-Za-z]+)[ ,/-]+(20\d{2})$/.exec(text);
-  const month=m?months.indexOf(m[1].slice(0,3).toLowerCase())+1:0;
+  const month=m?monthNumber(m[1]):0;
   return month?`${m[2]}-${String(month).padStart(2,'0')}`:null;
 }
 const factsFor=item=>['ready','partial'].includes(item.content?.state)?item.content.facts||[]:[];
