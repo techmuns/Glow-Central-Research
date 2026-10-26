@@ -56,6 +56,10 @@ A grounded summary replaces the repeated headline. A short coverage note links t
 the full diagnostics; reference and reading counters do not clutter every event.
 `renderInvestorEmails` first packs detailed event descriptions, then, if necessary,
 abbreviated descriptions. Full original source URLs remain clickable in compact mode.
+If 220-character excerpts cannot fit, 140- and 100-character readings preserve every event,
+company, exact source link and original record within the same three-part limit. Bounded
+structured meeting notes keep their later agenda, such as a dividend, intact. Nothing is
+removed from the complete report to achieve this packing.
 Compact rows share standard email CSS classes rather than repeating identical inline
 styles; the colours, serif company names, rules and spacing remain unchanged. This leaves
 room for actual source URLs within the existing byte limits. See Gmail's
@@ -168,6 +172,10 @@ It replays the actual Aurobindo/Bharat defects, long source links in both email 
 aliases, reused-URL corrections, unsafe/missing links and automated market templates.
 The saved Aurobindo XBRL fixture also verifies readable date/agenda/period/dividend notes,
 changed dates, cancelled/conflicting notices and preservation of the original extraction.
+Retained-data verification checks both scheduled morning eligibility and the denser current
+morning/evening preview windows. A 500-disclosure fixture exercises the shortest excerpts
+with all source identities and full URLs retained. Backend preview failures log a bounded
+error code so an inbox-budget failure can be distinguished from a source build failure.
 It checks that 180 distinct material disclosures fit a few bounded emails with every event
 and every report source identity retained. The existing content, event, market, price-reason,
 PDF, source-link, delivery, encrypted GitHub and runtime checks remain required.

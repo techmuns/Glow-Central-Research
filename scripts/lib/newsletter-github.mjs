@@ -152,7 +152,11 @@ export async function githubNewsletter({env=process.env,fetcher=fetch,legacyClie
     for(const message of messages){const part=message.part?.index||1;save(`preview-${edition}-html-${part}`,{...base,subject:message.subject,part,parts:messages.length,body:renderBriefHtml(brief,{...options,part:message.part,preview:true})});}
     save(`preview-${edition}-text-1`,{...base,body:renderBriefText(brief,options)});
     save(`preview-${edition}-pdf-1`,{...base,body:Buffer.from(renderBriefPdf(brief,options)).toString('base64'),binary:true,filename:pdfFilename(brief)});
-   }catch{for(const format of ['html','text','pdf'])save(`preview-${edition}-${format}-1`,{ok:false,reason:'preview-build-failed',builtAt:new Date(at).toISOString()});}
+   }catch(error){
+    const code=/^[a-z][a-z0-9-]{0,64}$/.test(error?.code||'')?error.code:'unavailable';
+    console.warn(`Newsletter ${edition} preview build failed: ${code}`);
+    for(const format of ['html','text','pdf'])save(`preview-${edition}-${format}-1`,{ok:false,reason:'preview-build-failed',builtAt:new Date(at).toISOString()});
+   }
   }
  }
  return {...local,publish,wake,processRequest,preparePreviews,privateMarketsJob};

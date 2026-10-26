@@ -48,11 +48,27 @@ const sourceUrls=events.map(event=>newsletterSourceUrl(event.lead)).filter(Boole
 const escape=value=>value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 for(const source of sourceUrls)assert(inbox.includes(`href="${escape(source)}"`),'A retained exact source link cannot be replaced to meet the email budget');
 assert(!inbox.includes('Evidence →'),'The complete report must not masquerade as an item source');
+// Prepared on-demand previews extend to the actual capture time, which can be
+// much denser than the scheduled morning cutoff. Exercise both real windows.
+const currentPreview=[],previewAt=Math.max(now,Date.parse(head.capturedAt));
+for(const edition of ['morning','evening']){
+ const current=await buildBrief({edition,day,now:previewAt,to:previewAt,settings:DEFAULT_SETTINGS,includeAi:false,
+  env:{ASSETS:newsletterAssets(),NEWSLETTER_GITHUB_ARCHIVES:true},fetcher:async()=>{throw Error('No network, mail or model in current preview verification');}});
+ const currentEvents=editorialEvents(current,briefStats(current).companies).events;
+ const parts=renderBriefDeliveryEmails(current,{dashboardUrl:PRODUCTION_ORIGIN,editorial:true,preview:true});
+ assert(parts.length<=3&&parts.every(p=>p.bytes<=90000),'Actual capture-time previews fit the same inbox budget');
+ assert.deepEqual(parts.flatMap(p=>p.part.eventIds).sort(),currentEvents.map(e=>e.id).sort(),'Every preview update appears exactly once');
+ const allKeys=new Set(parts.flatMap(p=>p.keys));
+ for(const item of briefStories(current))assert(item.keys.every(key=>allKeys.has(key)),'No current source identity disappears to meet the email budget');
+ const body=parts.map(p=>p.html).join('');
+ for(const event of currentEvents){const url=newsletterSourceUrl(event.lead);if(url)assert(body.includes(`href="${escape(url)}"`),'Current previews retain exact source URLs');}
+ currentPreview.push({edition,at:previewAt,events:currentEvents.length,parts:parts.length,bytes:parts.map(p=>p.bytes)});
+}
 const report={product:PRODUCTION_ORIGIN,day,listed:brief.book.listed,stories:stats.stories,updates:stats.updates,
   parts:messages.length,deliveryBlocked,deliveryParts:delivery.length,deliveryFormat:delivery[0]?.part?.investor?'investor-brief':'inline',deliveryBytes:delivery.map(m=>m.bytes),investorUpdates:events.length,directSourceLinks:sourceUrls.length,htmlBytes:messages.map(m=>m.bytes),pdfBytes:pdf.byteLength,sourceIdentities:keys.size,
   omittedByCaps:summary.eligibility.omittedByCaps,companyArchive:brief.news.company.ok,
   publisherArchive:brief.news.source.archiveComplete,tradingviewArchive:brief.news.tradingview.archiveComplete,
-  upstreamTradingviewPartial:brief.news.tradingview.partial,networkRequests:0};
+  upstreamTradingviewPartial:brief.news.tradingview.partial,currentPreview,networkRequests:0};
 fs.mkdirSync('.cache/newsletter-coverage',{recursive:true});
 fs.writeFileSync('.cache/newsletter-coverage/retained-inputs.json',JSON.stringify(report,null,2));
 console.log('PASS retained newsletter recovery '+JSON.stringify(report));

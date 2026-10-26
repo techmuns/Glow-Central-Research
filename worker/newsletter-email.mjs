@@ -151,9 +151,11 @@ export function renderInvestorEmails(brief, options = {}, {maxBytes=EMAIL_HTML_B
   const origin=(options.dashboardUrl || '').replace(/\/$/,'');
   if (!options.preview && (!origin || !options.pdfUrl?.startsWith(origin+'/api/newsletter/pdf/') ||
       !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(options.pdfUrl.slice((origin+'/api/newsletter/pdf/').length)))) throw Error('Investor delivery requires an immutable edition PDF');
-  for (const compact of [false,true]) for (const supplements of [true,false]) {
+  // Preserve every item and exact URL on dense days. Shorten inbox excerpts
+  // before reaching the same hard part limit; the complete report is unchanged.
+  for (const [compact,summaryChars] of [[false,340],[true,220],[true,140],[true,100]]) for (const supplements of [true,false]) {
     const pages=[], selected=[];
-    const measure=(ids,index)=>emailBytes(renderBriefHtml(brief,{...options,stats,part:{investor:true,reportLink:true,eventIds:ids,compact,supplements,index,total:maxParts,packing:true}}));
+    const measure=(ids,index)=>emailBytes(renderBriefHtml(brief,{...options,stats,part:{investor:true,reportLink:true,eventIds:ids,compact,summaryChars,supplements,index,total:maxParts,packing:true}}));
     const firstOverhead=measure([],1),continuationOverhead=measure([],2);let used=firstOverhead;
     // Card markup is additive. Measure each card once instead of rendering the whole
     // growing edition for every candidate (quadratic date formatting/string allocation).
@@ -171,7 +173,7 @@ export function renderInvestorEmails(brief, options = {}, {maxBytes=EMAIL_HTML_B
     if(selected.length||!pages.length)pages.push(selected);
     if(pages.length>maxParts)continue;
     const messages=pages.map((eventIds,i)=>{
-      const part={investor:true,reportLink:true,eventIds,compact,supplements,index:i+1,total:pages.length};
+      const part={investor:true,reportLink:true,eventIds,compact,summaryChars,supplements,index:i+1,total:pages.length};
       const html=renderBriefHtml(brief,{...options,stats,part});
       return {html,bytes:emailBytes(html),part,subject:investorSubject(brief,options.brand||'Glow Ventures',stats),
         // The first accepted email delivers the verified full report. Later emails continue

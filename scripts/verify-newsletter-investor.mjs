@@ -281,6 +281,25 @@ const compactDigest=renderInvestorEmails(crowded,options);
 assert(compactDigest.length<=3&&compactDigest.every(m=>m.part.compact&&m.bytes<=90000),'A busy multi-company edition must use the genuinely compact branded rows');
 assert.equal(compactDigest.flatMap(m=>m.part.eventIds).length,320);
 assert.deepEqual(compactDigest.flatMap(m=>m.keys).sort(),briefStoryKeys(crowded).sort());
+const dense=structuredClone(busy);
+dense.announcements.groups=Array.from({length:500},(_,i)=>({ticker:`DENSE${i}`,company:`Material Issuer ${i}`,items:[{...structuredClone(official),
+ headline:`Issuer ${i} signed an INR 100 crore customer contract, subject to final approvals, with work scheduled to start in November 2026. The filing describes implementation steps and supporting administrative details available in the original announcement and its supporting source documents.`,
+ keys:[`dense:${i}`],content:{state:'pending'},
+ url:`https://www.bseindia.com/xml-data/corpfiling/AttachLive/00000000-0000-4000-8000-${String(i).padStart(12,'0')}.pdf`}]}));
+const denseBefore=JSON.stringify(dense),denseDigest=renderInvestorEmails(dense,options),denseHtml=denseDigest.map(m=>m.html).join('');
+assert(denseDigest.length<=3&&denseDigest.every(m=>m.part.compact&&m.part.summaryChars===140&&m.bytes<=90000),'A dense edition shortens excerpts before exceeding the existing three-email limit');
+assert.equal(denseDigest.flatMap(m=>m.part.eventIds).length,500);
+assert.equal(new Set(denseDigest.flatMap(m=>m.part.eventIds)).size,500,'Every investor update appears once');
+assert.deepEqual(denseDigest.flatMap(m=>m.keys).sort(),briefStoryKeys(dense).sort());
+for(const group of dense.announcements.groups)assert(denseHtml.includes(`href="${group.items[0].url}"`),'Dense packing retains the full exact announcement URL');
+assert.equal(JSON.stringify(dense),denseBefore,'Shorter inbox excerpts cannot rewrite the captured record');
+const shortestDigest=renderInvestorEmails(dense,options,{maxBytes:80000});
+assert(shortestDigest.length<=3&&shortestDigest.every(m=>m.part.summaryChars===100&&m.bytes<=80000),'The shortest tier stays bounded under additional byte pressure');
+assert.equal(new Set(shortestDigest.flatMap(m=>m.part.eventIds)).size,500);
+assert.deepEqual(shortestDigest.flatMap(m=>m.keys).sort(),briefStoryKeys(dense).sort());
+const noticeStats=briefStats(metadataBrief),noticeEvents=editorialEvents(metadataBrief,noticeStats.companies).events;
+const denseNotice=renderBriefHtml(metadataBrief,{...options,stats:noticeStats,part:{investor:true,reportLink:true,eventIds:noticeEvents.map(e=>e.id),compact:true,summaryChars:100,supplements:false,index:1,total:1}});
+assert(denseNotice.includes(notice),'A structured meeting notice retains its later dividend agenda in the shortest mode');
 assert.throws(()=>renderInvestorEmails(brief,{...options,pdfUrl:'https://example.test/api/newsletter/preview'}),/immutable/);
 if(process.env.NEWSLETTER_INVESTOR_OUTPUT){
  const dir=process.env.NEWSLETTER_INVESTOR_OUTPUT;mkdirSync(dir,{recursive:true});

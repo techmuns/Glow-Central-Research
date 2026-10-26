@@ -23,6 +23,7 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
   const reading=editorialEvents(brief,stats.companies);
   const chosen=new Set(part.eventIds), events=reading.events.filter(e=>chosen.has(e.id));
   const compact=!!part.compact;
+  const summaryChars=compact&&[100,140].includes(part.summaryChars)?part.summaryChars:compact?220:340;
   // Standard email CSS classes avoid repeating identical styles hundreds of times.
   // Preserve the original appearance while reserving body bytes for exact source URLs.
   const compactStyles=compact?`<style type="text/css">td.gve{padding:8px 0;border-bottom:1px solid ${RULE}}strong.gvc{font-family:${SERIF};color:${INK}}span.gvm{font-size:10px;color:${META}}a.gvl{color:${GOLD};text-decoration:none}</style>`:'';
@@ -35,7 +36,9 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
     const sameCompany=index>0&&events[index-1].ticker===event.ticker;
     const type=s.kind==='filing'?'Corporate announcement':s.kind==='trade'?'Ownership disclosure':s.kind==='move'?'Price context':'Reported development';
     // One description per event. Never repeat its headline above an equivalent AI summary.
-    const description=esc(short(summary,compact?220:340));
+    // Keep the bounded structured meeting note intact, including a later agenda
+    // such as dividend. Other excerpts can shorten on unusually dense editions.
+    const description=esc(short(summary,Math.max(summaryChars,event.sourceSummary===summary?Math.min(summary.length,220):0)));
     const evidence=event.summary?'AI summary':event.sourceSummary||event.facts.length?'Source facts':event.evidence;
     const incomplete=event.read>0&&event.read<event.total?' · Some sources unread':'';
     if(compact)return `<tr><td class="gve"><strong class="gvc">${esc(event.company)}</strong> · ${description}<br><span class="gvm">${esc(evidence)}${incomplete}${s.related?' · Related entity; exposure unconfirmed':''} · ${esc(istLabel(s.at))} · ${source?link(source,sourceLabel,GOLD,'gvl'):'Source link unavailable'}</span></td></tr>`;
