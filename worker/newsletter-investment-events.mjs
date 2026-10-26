@@ -76,7 +76,8 @@ function rawProfile(item){
  const names=unique(namedCompanies(targetText).filter(n=>nameKey(n)!==nameKey(item.company)).map(nameKey));
  if(names.length>1)return null;
  const amountFacts=fs.filter(f=>f.field==='amount'&&!/\b(?:turnover|overall|total board|FY\s?\d|financial year)\b/i.test(f.value));
- if(/\b(?:USD|GBP|JPY|RMB|CNY|AUD|CAD)\b|[$£¥]/i.test((native||item.kind==='news')?body:amountFacts.map(f=>f.value).join(' ')))return null;
+ const monetaryText=amountFacts.length?amountFacts.map(f=>f.value).join(' '):body;
+ if(/\b(?:USD|GBP|JPY|RMB|CNY|AUD|CAD)\b|[$£¥]/i.test(monetaryText))return null;
  const amounts=item.kind==='news'&&!amountFacts.length?investmentMoney(body):native?investmentMoney(tags.get('AnyOtherBriefSignificantInformationForAnnouncementUpdate')||'').filter((m,i)=>i===0):amountFacts.flatMap(f=>investmentMoney(f.value).slice(0,1));
  const pricedTexts=item.kind==='news'&&!amountFacts.length?[body]:native?[tags.get('AnyOtherBriefSignificantInformationForAnnouncementUpdate')||'']:amountFacts.map(f=>f.value);
  if(pricedTexts.some(text=>/₹|€|\b(?:INR|EUR|Rs\.?)\s*\d/i.test(text)&&!investmentMoney(text).length))return null;

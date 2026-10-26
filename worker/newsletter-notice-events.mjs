@@ -8,6 +8,10 @@ export const administrativeNoticeFact = fact => {
   if(fact.field==='ownership'&&/\b(?:shares?|stake|ownership|holding|held|acquired|sold)\b/i.test(value))return false;
   if(fact.field==='conditions'&&/^Trading window closed ahead of board meeting and reopening timeline[.!]?$/i.test(value))return true;
   if(fact.field==='conditions'&&/^Trading window closure period for Designated Persons and immediate relatives[.!]?$/i.test(value))return true;
+  if(fact.field==='conditions'){
+    const trading=/^Trading window closed for Directors\/Officers\/Designated Persons\/Connected Persons from (.+?) till 48 hours after results announcement[.!]?$/i.exec(value);
+    if(trading&&eventDate(trading[1]))return true;
+  }
   if(fact.field==='counterparty')return /^(?:Recipients? of (?:the )?intimation: National Stock Exchange of India Ltd\.? and BSE Limited|(?:Filed with|Addressed to) (?:BSE Limited and National Stock Exchange of India Limited|National Stock Exchange of India (?:Ltd\.?|Limited)|BSE(?: Limited)?|NSE)|BSE Limited \(recipient of intimation\))[.!]?$/i.test(value);
   if(fact.field==='ownership')return /^Scrip Code and ISIN identifiers(?: for [A-Za-z &'’-]+(?:Limited|Ltd\.?))?[.!]?$/i.test(value);
   if(fact.field==='date')return /^Call timing also noted in other time zones[.!]?$/i.test(value);
@@ -33,11 +37,15 @@ export const noticeDate=value=>{
   const date=eventDate(text);
   return date&&(!day||new Date(date+'T00:00:00Z').getUTCDay()===['sunday','monday','tuesday','wednesday','thursday','friday','saturday'].indexOf(day[1].toLowerCase()))?date:null;
 };
+export const boardNoticeDate=value=>{
+  const match=/^Board meeting (?:date:|scheduled for)\s+(.+)$/i.exec(clean(value));
+  return match?noticeDate(match[1]):null;
+};
 const letterDate=fact=>fact.field==='date'&&/^Letter(?: dated| date:)\s+/i.test(clean(fact.value))&&!!noticeDate(clean(fact.value).replace(/^Letter(?: dated| date:)\s*/i,''));
 export function readBoardNotice(item) {
   if(item.kind!=='filing'||item.content?.state!=='ready'||item.content.format==='xbrl')return null;
   const facts=substantive(item.content.facts||[]),events=facts.filter(f=>f.field==='event').map(f=>clean(f.value));
-  const agendas=events.map(value=>/^Board meeting scheduled to consider(?: and approve)?\s+(.+?)[.!]?$/i.exec(value)?.[1]);
+  const agendas=events.map(value=>/^(?:Board meeting scheduled to consider(?: and approve)?|Intimation of Board Meeting for approval of)\s+(.+?)[.!]?$/i.exec(value)?.[1]);
   if(!agendas.length||agendas.some(value=>!value))return null;
   const periodFacts=facts.filter(f=>f.field==='date'&&/^Financial results period:/i.test(clean(f.value)));
   const periods=periodFacts.map(f=>/^Financial results period: ((?:(?:quarter|half[- ]year|year)(?: and (?:quarter|half[- ]year|year))?) ended .+)$/i.exec(clean(f.value))?.[1]);
@@ -45,10 +53,9 @@ export function readBoardNotice(item) {
   const normalizedPeriods=periods.map(value=>financialPeriod(value.replace(/^.+? ended /i,'')));
   if(normalizedPeriods.some(value=>!value||value!==normalizedPeriods[0]))return null;
   const meetingDates=facts.filter(f=>f.field==='date'&&!letterDate(f)&&!periodFacts.includes(f));
-  if(meetingDates.some(f=>!/^Board meeting date:/i.test(clean(f.value))))return null;
-  const dates=meetingDates.map(f=>noticeDate(clean(f.value).replace(/^Board meeting date:\s*/i,'')));
+  const dates=meetingDates.map(f=>boardNoticeDate(f.value));
   if(!dates.length||dates.some(date=>!date||date!==dates[0]))return null;
-  if(facts.some(f=>f.field==='status'&&!/^(?:(?:Proposed(?:\/scheduled)?|Scheduled)(?: for board consideration)?(?:, not yet approved)?|Proposed\/intimation stage, not yet held)[.!]?$/i.test(clean(f.value))))return null;
+  if(facts.some(f=>f.field==='status'&&!/^(?:(?:Proposed(?:\/scheduled)?|Scheduled)(?: for board consideration)?(?:, not yet approved)?|Proposed\/intimation stage, not yet held|Board meeting is scheduled \(not yet held\))[.!]?$/i.test(clean(f.value))))return null;
   return {date:dates[0],agendas:[...new Set(agendas)],purpose:[...new Set(agendas)].join(' and ')+(periods.length?` for the ${[...new Set(periods)].join(' and ')}`:''),extras:facts.filter(f=>['amount','conditions','ownership','counterparty','reason'].includes(f.field))};
 }
 const callClock=value=>{

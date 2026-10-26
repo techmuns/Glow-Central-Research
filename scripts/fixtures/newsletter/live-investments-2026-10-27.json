@@ -1,5 +1,5 @@
 {
-  "source": "Prepared morning preview and source register, built 2026-10-26T20:41:15Z. Saved facts only; no paid requests.",
+  "source": "Prepared morning previews built 2026-10-26T20:41:15Z and 2026-10-26T21:52:54Z; saved source fields, no paid requests.",
   "cases": [
     {
       "ticker": "VARROC",
@@ -286,6 +286,48 @@
             "https://nsearchives.nseindia.com/corporate/xbrl/PRIOR_INTIMATION_2651_WebXMLFile_20261026_180815727.xml"
           ],
           "description": "Board meeting 2 Nov 2026: to consider unaudited standalone and consolidated quarterly financial results for the period ended September 2026."
+        }
+      ]
+    },
+    {
+      "ticker": "KSB",
+      "company": "KSB Ltd",
+      "sourceFacts": [
+        {
+          "field": "event",
+          "value": "Intimation of Board Meeting for approval of Unaudited Financial Results for the quarter ended 30th September, 2026"
+        },
+        {
+          "field": "date",
+          "value": "Board meeting scheduled for Tuesday, 3rd November 2026"
+        },
+        {
+          "field": "status",
+          "value": "Board meeting is scheduled (not yet held)"
+        },
+        {
+          "field": "conditions",
+          "value": "Trading window closed for Directors/Officers/Designated Persons/Connected Persons from 1st October 2026 till 48 hours after results announcement"
+        },
+        {
+          "field": "date",
+          "value": "Letter dated 26th October, 2026"
+        }
+      ],
+      "rows": [
+        {
+          "text": "KSB Ltd KSB KSB Ltd KSB Board meeting 3 Nov 2026: to consider unaudited standalone and consolidated quarterly financial results for the period ended September 2026. Corporate announcement · Source facts · Mon 26 Oct, 17:48 IST · Announcement →",
+          "urls": [
+            "https://nsearchives.nseindia.com/corporate/xbrl/PRIOR_INTIMATION_1195_WebXMLFile_20261026_174801629.xml"
+          ],
+          "description": "Board meeting 3 Nov 2026: to consider unaudited standalone and consolidated quarterly financial results for the period ended September 2026."
+        },
+        {
+          "text": "KSB Ltd KSB Intimation of Board Meeting for approval of Unaudited Financial Results for the quarter ended 30th September, 2026; Conditions: Trading window closed for Directors/Officers/Designated Persons/Connected Persons from 1st October 2026 till 48 hours after results announcement; Board meeting is scheduled (not yet held) Corporate announcement · Source facts · Mon 26 Oct, 17:44 IST · Announcement →",
+          "urls": [
+            "https://www.bseindia.com/xml-data/corpfiling/AttachLive/93b154aa-996b-4e0c-9e3e-6df2fc3cafb8.pdf"
+          ],
+          "description": "Intimation of Board Meeting for approval of Unaudited Financial Results for the quarter ended 30th September, 2026; Conditions: Trading window closed for Directors/Officers/Designated Persons/Connected Persons from 1st October 2026 till 48 hours after results announcement; Board meeting is scheduled (not yet held)"
         }
       ]
     }

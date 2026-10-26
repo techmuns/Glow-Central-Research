@@ -8,8 +8,8 @@ import {investmentProfiles,sameInvestmentEvent,investmentReading,investmentMoney
 import {pdfFixture} from './verify-newsletter-pdf.mjs';
 import {printable} from '../worker/newsletter-pdf-layout.mjs';
 const fixture=JSON.parse(readFileSync(new URL('./fixtures/newsletter/live-investments-2026-10-27.json',import.meta.url)));
-const names={VARROC:'Varroc Engineering Limited',SHOPERSTOP:'Shoppers Stop Ltd',PURVA:'Puravankara Limited'};
-const files={VARROC:'varroc-investment-update.xml',SHOPERSTOP:'shoppers-stop-investment-update.xml',PURVA:'puravankara-board-notice.xml'};
+const names={VARROC:'Varroc Engineering Limited',SHOPERSTOP:'Shoppers Stop Ltd',PURVA:'Puravankara Limited',KSB:'KSB Ltd'};
+const files={VARROC:'varroc-investment-update.xml',SHOPERSTOP:'shoppers-stop-investment-update.xml',PURVA:'puravankara-board-notice.xml',KSB:'ksb-board-notice.xml'};
 const all=new Map();
 for(const c of fixture.cases){
  const rows=c.rows.flatMap((r,index)=>{
@@ -32,10 +32,19 @@ for(const c of fixture.cases){
  if(c.ticker==='VARROC')for(const term of ['€4.5 million','45%','80,380 OCPRS','Completion pending','Conditions precedent','December 31, 2026'])assert(event.sourceSummary.includes(term),term);
  if(c.ticker==='SHOPERSTOP')for(const term of ['₹10 crore','second tranche','GSSBBL','completed','₹135 crore','15 working days','Related-party'])assert(event.sourceSummary.includes(term),term);
  if(c.ticker==='PURVA'){assert(event.sourceSummary.includes('2 Nov 2026'));assert(/quarter and half year ended September 30, 2026/i.test(event.sourceSummary));assert(!/Trading window|Filed with|regulatory basis/i.test(event.sourceSummary));}
+ if(c.ticker==='KSB'){assert(event.sourceSummary.includes('3 Nov 2026'));assert(/unaudited standalone and consolidated quarterly financial results for the period ended September 2026/i.test(event.sourceSummary));assert(!/Trading window|Directors\/Officers/i.test(event.sourceSummary));}
  const stats={...briefStats(brief),companies};
  const html=renderBriefHtml(brief,{stats,dashboardUrl:'https://fixture.test',part:{investor:true,eventIds:clusters.map(c=>c.id),compact:true,summaryChars:100,index:1,total:1,supplements:false}});
  assert(html.replaceAll('&#39;',"'").replaceAll('&amp;','&').includes(event.sourceSummary),'The key terms are never cut by the 100-character packing tier');
- if(c.ticker!=='PURVA'){
+ if(c.ticker==='PURVA'){
+  const original=rows.find(r=>r.content.format==='pdf');
+  const mirror={...original,kind:'news',url:'https://fixture.test/verified-document-mirror',headline:'Mirror of the same announcement',content:{...original.content,facts:[{field:'event',value:'An alternate extraction of the same verified bytes'}]}};
+  const mirrorRows=[...rows,mirror],mirrorClusters=clusterStories(mirrorRows).map((g,i)=>({...g,id:`${c.ticker}#${i+1}`}));
+  assert.equal(mirrorClusters.length,1);
+  const mirrorEvent=editorialEvents(brief,[{...companies[0],stories:mirrorRows,clusters:mirrorClusters}]).events[0];
+  assert(mirrorEvent.completeSourceSummary&&mirrorEvent.sourceSummary.includes('half year ended September 30, 2026'),'A verified document mirror cannot veto the complete original reading or erase the financial period');
+ }
+ if(['VARROC','SHOPERSTOP'].includes(c.ticker)){
   const anchor=rows.find(r=>r.kind==='filing'&&r.content.format==='pdf'),native=rows.find(r=>r.content.format==='xbrl'),news=rows.find(r=>r.kind==='news');
   const changed=structuredClone(anchor);changed.url='https://fixture.test/changed-price';changed.content.hash='changed-price';changed.content.facts.find(f=>f.field==='amount').value=changed.content.facts.find(f=>f.field==='amount').value.replace(/10|4\.5/,c.ticker==='VARROC'?'5.5':'20');
   const p=investmentProfiles([anchor,changed]);assert(!sameInvestmentEvent(anchor,changed,p),'Changed consideration is a distinct development');
@@ -82,6 +91,10 @@ readCondition.content.facts.at(-1).value='Completion subject to RBI approval';
 assert.equal(clusterStories([anchor,readCondition]).length,2,'A newly read publisher qualification cannot be hidden by the older announcement');
 const readChanged=structuredClone(readPublisher);readChanged.url='https://fixture.test/read-new-price';readChanged.content.facts.find(f=>f.field==='amount').value='Consideration of EUR 5.5 million';
 assert.equal(clusterStories([anchor,readChanged]).length,2,'An explicitly read amount overrides an older headline figure');
+const readForeign=structuredClone(readPublisher);readForeign.url='https://fixture.test/read-foreign-currency';readForeign.content.facts.find(f=>f.field==='amount').value='Consideration of USD 5.5 million';
+assert.equal(clusterStories([anchor,readForeign]).length,2,'An unsupported read currency cannot become a wildcard behind an older EUR headline');
+const staleCurrency=structuredClone(readPublisher);staleCurrency.url='https://fixture.test/stale-headline-currency';staleCurrency.headline='Varroc Engineering acquires Forsee Power India for USD 5.5 million';
+assert.equal(clusterStories([anchor,staleCurrency]).length,1,'Explicit supported source consideration takes precedence over a stale headline currency');
 const purva=all.get('PURVA'),badDay=structuredClone(purva.find(r=>r.content.format==='pdf'));badDay.url='https://fixture.test/wrong-weekday';badDay.content.hash='wrong-weekday';badDay.content.facts.find(f=>/^Board meeting date:/.test(f.value)).value='Board meeting date: Friday, November 02, 2026';
 assert.equal(clusterStories([purva.find(r=>r.content.format==='xbrl'),badDay]).length,2,'An inconsistent weekday/date is not silently normalized');
 console.log('PASS live investment/notice regressions: native update fields, named targets, exact prices/currencies/dates/stages, ambiguous subsidiaries, all source links and complete concise terms; network/model/mail calls=0');
