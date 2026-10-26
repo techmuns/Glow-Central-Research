@@ -153,19 +153,19 @@ export function renderInvestorEmails(brief, options = {}, {maxBytes=EMAIL_HTML_B
       !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(options.pdfUrl.slice((origin+'/api/newsletter/pdf/').length)))) throw Error('Investor delivery requires an immutable edition PDF');
   for (const compact of [false,true]) for (const supplements of [true,false]) {
     const pages=[], selected=[];
-    const measure=ids=>emailBytes(renderBriefHtml(brief,{...options,stats,part:{investor:true,reportLink:true,eventIds:ids,compact,supplements,index:1,total:maxParts,packing:true}}));
-    const overhead=measure([]);let used=overhead;
+    const measure=(ids,index)=>emailBytes(renderBriefHtml(brief,{...options,stats,part:{investor:true,reportLink:true,eventIds:ids,compact,supplements,index,total:maxParts,packing:true}}));
+    const firstOverhead=measure([],1),continuationOverhead=measure([],2);let used=firstOverhead;
     // Card markup is additive. Measure each card once instead of rendering the whole
     // growing edition for every candidate (quadratic date formatting/string allocation).
-    if(overhead>maxBytes-PACKING_RESERVE)continue;
+    if(firstOverhead>maxBytes-PACKING_RESERVE)continue;
     let failed=false;
     for (const event of reading.events) {
-      const cost=measure([event.id])-overhead;
+      const cost=measure([event.id],2)-continuationOverhead;
       if (used+cost<=maxBytes-PACKING_RESERVE) {selected.push(event.id);used+=cost;continue;}
       if (!selected.length) {failed=true;break;}
       pages.push(selected.splice(0));
-      if (pages.length>=maxParts || overhead+cost>maxBytes-PACKING_RESERVE) {failed=true;break;}
-      selected.push(event.id);used=overhead+cost;
+      if (pages.length>=maxParts || continuationOverhead+cost>maxBytes-PACKING_RESERVE) {failed=true;break;}
+      selected.push(event.id);used=continuationOverhead+cost;
     }
     if(failed)continue;
     if(selected.length||!pages.length)pages.push(selected);

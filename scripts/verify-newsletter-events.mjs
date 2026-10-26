@@ -61,7 +61,8 @@ for (const [a, b] of [
 const chain = [0, 12, 25].map((hours, i) => ({ ...base, id: String(i), at: base.at + hours * 3600000 }));
 assert.equal(parseEventGroups('[["0","1","2"]]', chain), null);
 const asStory = (r, extra = {}) => ({ ...r, kind: 'news', source: r.source, dek: r.summary, ...extra });
-assert.equal(relatedNewsReports(asStory(base), asStory(base, { source: 'Another publisher' })), true);
+assert.equal(relatedNewsReports(asStory(base), asStory(base, { source: 'Another publisher' })), false,'An identical headline without corroboration cannot merge distinct unread events');
+assert.equal(relatedNewsReports(asStory(base,{url:'https://fixture.test/article'}), asStory(base, { source: 'Another publisher',url:'https://fixture.test/article?utm_campaign=copy' })), true);
 assert.equal(relatedNewsReports(asStory(base, { eventId: 'a' }), asStory(base, { eventId: 'b', source: 'Another publisher' })), false, 'reviewed singletons override identical headlines');
 assert.equal(relatedNewsReports(asStory(base), asStory(base, { kind: 'filing' })), false);
 assert.equal(relatedNewsReports(asStory(base), asStory(base, { source: 'Another publisher', headline: 'EIL signs an oil infrastructure deal in Saudi Arabia and UAE' })), false, 'no fuzzy grouping on failure');

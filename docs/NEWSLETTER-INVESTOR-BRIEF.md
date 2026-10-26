@@ -54,8 +54,10 @@ the printed publication window remain in history, not newly emailed as catch-up.
 
 ## Grouping, versions and acknowledgements
 
-Exact same-publisher headlines are now treated as copies subject to the existing time,
-figure, issuer, relationship and stage guards. Matching read document bytes can establish
+Exact same-publisher headlines are treated as copies only with matching article URLs,
+subject to the existing time, figure, issuer, relationship and stage guards. Tracking-only
+URL differences do not create new articles. A matching headline on a different unread source
+cannot establish a copy. Semantic review or matching read document bytes can establish
 copies across exchange timestamps. Generic subjects and time proximity alone cannot.
 Changed amount, counterparty, date, status, conditions or ownership prevent unsafe merging.
 Distinct CEAT loan-conversion/investment fixtures remain separate.
@@ -103,7 +105,8 @@ so pending leaders cannot exclude a readable item later in the edition.
 
 Known direct source links are preferred to publisher homepages. Legacy Google RSS addresses
 can resolve locally from their encoded publisher address; opaque addresses may use at most
-two explicit redirects. Every destination must pass the existing HTTPS publisher allow-list;
+two explicit redirects. Google 429/503 refusals retain the normal transient retry backoff,
+rather than the day-long unresolved-link delay. Every destination must pass the existing HTTPS publisher allow-list;
 private addresses, credentials, unsupported destinations and Google interstitial bodies
 cannot become article content. Unresolved or restricted links remain explicit pending states
 with backoff. No paid crawler/search provider, new credential, paywall bypass, expanded news

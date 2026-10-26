@@ -154,6 +154,16 @@ export async function reviewNewsEvents(options) {
   return {...total,ok:total.reviewed>0,partial:total.reviewed<total.eligible,...(total.reviewed?{}:{reason})};
 }
 
+const reportUrl = story => {
+  try {
+    const url=new URL(story.url);
+    if(!['https:','http:'].includes(url.protocol)||url.username||url.password)return null;
+    url.hash='';
+    for(const key of [...url.searchParams.keys()])if(/^utm_|^(?:gclid|fbclid|mc_cid|mc_eid)$/i.test(key))url.searchParams.delete(key);
+    url.searchParams.sort();
+    return url.pathname==='/'&&!url.search?null:url.href;
+  }catch{return null;}
+};
 export function relatedNewsReports(a, b) {
   if (a.kind !== 'news' || b.kind !== 'news') return false;
   if (a.ticker === b.ticker && !!a.related === !!b.related && a.content?.state === 'ready' && b.content?.state === 'ready'
@@ -161,7 +171,10 @@ export function relatedNewsReports(a, b) {
   if (!compatibleReports({ ...a, summary: a.dek }, { ...b, summary: b.dek })) return false;
   // Explicit singletons from the review override even an identical headline with changed facts.
   if (a.eventId || b.eventId) return !!a.eventId && a.eventId === b.eventId;
-  return normal(a.headline) === normal(b.headline);
+  // Identical titles can describe distinct approvals/orders. Until review or source
+  // reading corroborates the event, only a matching article URL establishes a copy.
+  const url=reportUrl(a);
+  return normal(a.headline) === normal(b.headline) && !!url && url===reportUrl(b);
 }
 
 export function newsEventsNote(review) {
@@ -169,5 +182,5 @@ export function newsEventsNote(review) {
   if (review.reason === 'preview') return 'Repeated-news checking is added to sent editions; this preview retains source reports';
   return review.ok
     ? `AI checked repeated-news coverage for ${review.reviewed} of ${review.eligible} reports; ${review.combined} repeat reports combined, all sources retained`
-    : 'Repeated-news checking unavailable; source reports retained separately where their headlines differ';
+    : 'Repeated-news checking unavailable; reports without corroborating copy identity remain separate';
 }

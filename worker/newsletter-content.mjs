@@ -89,7 +89,7 @@ export async function fetchContent(item, fetcher = fetch) {
           url=contentUrl(next,'news');
           if(!url&&!google(next))throw failure('unsupported-redirect');
           current=next;
-        }else throw failure(response.status===429?'rate-limited':[401,403].includes(response.status)?'access-limited':'source-link-unresolved');
+        }else throw failure([429,503].includes(response.status)?'rate-limited':[401,403].includes(response.status)?'access-limited':'source-link-unresolved');
       }
     }
   }

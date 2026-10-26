@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { pdfFixture } from './verify-newsletter-pdf.mjs';
 import { briefStats,briefStoryKeys,renderBriefHtml,aiItemsFor,clusterStories,NEWSLETTER_STYLE } from '../worker/newsletter-brief.mjs';
 import { editorialEvents,referenceReason,annotateEditorialHistory,EDITORIAL_EMAIL_PARTS } from '../worker/newsletter-editorial.mjs';
-import { renderInvestorEmails } from '../worker/newsletter-email.mjs';
+import { renderInvestorEmails,emailBytes } from '../worker/newsletter-email.mjs';
 import { renderBriefPdf } from '../worker/newsletter-pdf.mjs';
 import { NewsletterContentStore } from '../worker/newsletter-content-store.mjs';
 import { NewsletterStore } from '../worker/newsletter-store.mjs';
@@ -61,8 +61,11 @@ for(let i=0;i<excluded.length;i++)assert(pdf.includes(`https://fixture.test/refe
 assert(pdf.includes('https://fixture.test/cross-exchange-copy.pdf'));
 
 // Same publisher / different ingestion routes is one copy; a real revised amount stays separate.
-const story={kind:'news',ticker:'TEST',source:'NDTV Profit',headline:'Company secures INR 360 crore from anchor investors ahead of IPO',at,score:1};
-assert.equal(clusterStories([story,{...story,url:'https://fixture.test/another-route'}]).length,1);
+const story={kind:'news',ticker:'TEST',source:'NDTV Profit',headline:'Company secures INR 360 crore from anchor investors ahead of IPO',at,score:1,url:'https://fixture.test/article'};
+assert.equal(clusterStories([story,{...story,url:'https://fixture.test/article?utm_source=another-route'}]).length,1);
+assert.equal(clusterStories([story,{...story,url:'https://fixture.test/different-event'}]).length,2,'The same unread headline is not proof of a repeated development');
+const readStory={...story,content:{state:'ready',hash:'same-confirmed-source',facts:official.content.facts}};
+assert.equal(clusterStories([readStory,{...readStory,url:'https://fixture.test/exchange-copy'}]).length,1);
 assert.equal(clusterStories([story,{...story,headline:story.headline.replace('360','460')}]).length,2);
 const pending=Array.from({length:40},(_,i)=>({id:`pending${i}`,kind:'story',main:{kind:'filing',content:{state:'pending'}},others:[]}));
 const ready={id:'readable41',kind:'story',main:{kind:'filing',content:official.content},others:[]};
@@ -116,10 +119,14 @@ assert.equal(db.prepare('SELECT next_at FROM newsletter_content WHERE id=?').get
 db.prepare('UPDATE newsletter_content SET next_at=? WHERE id=?').run(at+86400000,legacyLink.id);
 queue.enqueue([legacyLink],at);
 assert.equal(db.prepare('SELECT next_at FROM newsletter_content WHERE id=?').get(legacyLink.id).next_at,at+86400000,'The link-policy upgrade cannot reset backoff on every discovery');
+const refused={...old,id:'e'.repeat(64)};queue.enqueue([refused],at);
+const refusalJob=queue.claim(at,[refused.id]);queue.complete(refusalJob,{state:'pending',reason:'rate-limited'},at);
+assert(db.prepare('SELECT next_at FROM newsletter_content WHERE id=?').get(refused.id).next_at<at+86400000,'A transient refusal keeps the normal retry backoff instead of a day-long unresolved-link delay');
 db.close();
 
 // Free discovery wrappers may resolve only to explicitly supported public publishers.
 const publisher='https://www.livemint.com/companies/fixture-report.html';
+await assert.rejects(fetchContent({kind:'news',url:'https://news.google.com/rss/articles/opaque'},async()=>new Response('',{status:503})),error=>error.reason==='rate-limited','Google 503 is a transient refusal, just like 429');
 const wrapper='https://news.google.com/rss/articles/'+btoa('\x08\x13'+publisher+'\x00').replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
 let requests=0;
 const resolved=await fetchContent({kind:'news',url:wrapper},async(url,options)=>{
@@ -159,6 +166,16 @@ const digest=renderInvestorEmails(busy,options);
 assert(digest.length<=EDITORIAL_EMAIL_PARTS);assert(digest.every(m=>m.bytes<=90000));
 assert.deepEqual(digest.flatMap(m=>m.part.eventIds).sort(),editorialEvents(busy,briefStats(busy).companies).events.map(e=>e.id).sort());
 for(const message of digest)assert(message.html.includes('Document unread; facts unverified'));
+const supplemented=structuredClone(busy);supplemented.announcements.groups[0].items=supplemented.announcements.groups[0].items.slice(0,30);
+supplemented.calendar.rows=Array.from({length:80},(_,i)=>({...structuredClone(brief.calendar.rows[0]),label:`Results/call ${i} ${'x'.repeat(250)}`}));
+const supplementStats=briefStats(supplemented),supplementEvents=editorialEvents(supplemented,supplementStats.companies).events;
+const measured=(ids,index)=>emailBytes(renderBriefHtml(supplemented,{...options,stats:supplementStats,part:{investor:true,reportLink:true,eventIds:ids,index,total:3,packing:true,supplements:true,compact:false}}));
+const firstBase=measured([],1),laterBase=measured([],2),oneCard=measured([supplementEvents[0].id],2)-laterBase;
+const supplementalBudget=firstBase+3*oneCard+1024;
+assert(supplementalBudget<90000&&firstBase-laterBase>27*oneCard,'The fixture needs first-page tables, then event-only continuations');
+const supplementDigest=renderInvestorEmails(supplemented,options,{maxBytes:supplementalBudget});
+assert.equal(supplementDigest.length,2);assert(supplementDigest.every(m=>m.part.supplements&&!m.part.compact&&m.bytes<=supplementalBudget),'Continuation pages must not be charged for first-email tables');
+assert.equal(supplementDigest.flatMap(m=>m.part.eventIds).length,30);
 const crowded=structuredClone(busy);
 crowded.announcements.groups=Array.from({length:320},(_,i)=>({ticker:`CROWDED${i}`,company:`Material Issuer ${i}`,items:[{...structuredClone(busy.announcements.groups[0].items[0]),headline:`Distinct contract ${i} with Customer ${i}`,keys:[`crowded:${i}`],url:`https://fixture.test/material/${i}?discovery=${'x'.repeat(1000)}`}]}));
 const compactDigest=renderInvestorEmails(crowded,options);
