@@ -61,7 +61,11 @@ export class NewsletterContentStore {
         row = this.rows("SELECT * FROM newsletter_content WHERE id=? AND state!='ready' AND next_at<=?", id, now)[0];
         if (row) break;
       }
-      row ||= this.rows(`SELECT * FROM newsletter_content WHERE state!='ready' AND next_at<=? ORDER BY ${oldest?'first_seen,id':'priority DESC,first_seen DESC,id'} LIMIT 1`, now)[0];
+      // Use publication time: discovering an old risk disclosure today cannot let it
+      // crowd out current filings. Keep a separate oldest-job slot for retained history.
+      row ||= oldest
+        ? this.rows("SELECT * FROM newsletter_content WHERE state!='ready' AND next_at<=? ORDER BY first_seen,id LIMIT 1",now)[0]
+        : this.rows("SELECT * FROM newsletter_content WHERE state!='ready' AND next_at<=? ORDER BY CASE WHEN json_extract(input,'$.at')>=? THEN 1 ELSE 0 END DESC,priority DESC,json_extract(input,'$.at') DESC,first_seen DESC,id LIMIT 1",now,now-3*86400000)[0];
       if (!row) return null;
       const lease = crypto.randomUUID();
       this.rows("UPDATE newsletter_content SET state='reading',next_at=?,attempts=attempts+1,lease=? WHERE id=?", now + CONTENT_LEASE_MS, lease, row.id);

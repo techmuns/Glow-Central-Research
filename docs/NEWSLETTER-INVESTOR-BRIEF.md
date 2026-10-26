@@ -86,7 +86,10 @@ historical-backlog refusal remain in force; no old incident is enrolled for repl
 ## Source reading and cost
 
 The existing encrypted GitHub SQLite queue gains a priority column in place, preserving
-completed results and pending jobs. Current consequential filings lead background reads,
+completed results and pending jobs. Publications in the last 72 hours lead background reads,
+then importance and actual publication time set their order; late discovery does not make
+an old risk disclosure current. The three-day reading priority accommodates ordinary weekends
+without changing any newsletter eligibility window. Current consequential filings lead,
 with one slot per bounded six-job batch reserved for the oldest due job. Foreground reads
 prioritise the current edition. The batch size and provider allowances do not increase.
 Read filing-document hashes reuse completed same-issuer/same-kind results with matching

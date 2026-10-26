@@ -105,6 +105,10 @@ queue.enqueue(fresh,at);
 assert.equal(queue.claim(at).item.kind,'filing');
 assert.equal(queue.claim(at,[],{oldest:true}).item.ticker,'OLD');
 assert.equal(queue.status().pending,8,'Claims preserve the complete pending queue');
+db.prepare('UPDATE newsletter_content SET next_at=?').run(at+86400000);
+queue.enqueue([{...old,id:'c'.repeat(64),ticker:'STALE_RISK',kind:'filing',headline:'FDA warning letter',at:at-10*86400000},
+ {...old,id:'d'.repeat(64),ticker:'CURRENT',kind:'filing',headline:'Corporate announcement',at}],at);
+assert.equal(queue.claim(at).item.ticker,'CURRENT','A newly discovered old risk disclosure cannot crowd out a current filing');
 const legacyLink={...old,id:'b'.repeat(64),url:'https://news.google.com/rss/articles/opaque'};
 db.prepare("INSERT INTO newsletter_content(id,input,state,first_seen,next_at,result) VALUES (?,?,'pending',?,?,?)").run(legacyLink.id,JSON.stringify(legacyLink),at-86400000,at+86400000,JSON.stringify({state:'pending',reason:'unsupported-source'}));
 queue.enqueue([legacyLink],at);
