@@ -36,7 +36,7 @@ const explicitAlias=(text,alias)=>{
 const termsAgree=(x,y)=>{
  for(const key of ['amount','total'])if(x[key]&&y[key]&&x[key].key!==y[key].key)return false;
  for(const key of ['stake','stage','instrument','tranche'])if(x[key]&&y[key]&&x[key]!==y[key])return false;
- if(!x.native&&!y.native&&x.item.content?.state==='ready'&&y.item.content?.state==='ready')for(const field of ['conditions','status','ownership']){
+ if(x.item.kind==='filing'&&y.item.kind==='filing'&&!x.native&&!y.native&&x.item.content?.state==='ready'&&y.item.content?.state==='ready')for(const field of ['conditions','status','ownership']){
   const values=p=>facts(p.item).filter(f=>f.field===field).map(f=>normal(f.value)).sort().join('|');
   if(values(x)&&values(y)&&values(x)!==values(y))return false;
  }
@@ -59,7 +59,12 @@ function rawProfile(item){
   const dates=fs.filter(f=>f.field==='date'&&/^(?:Investment completed|Agreements executed) on /i.test(f.value)).map(f=>eventDate(clean(f.value).replace(/^.+? on /i,'')));
   if(!dates.length||dates.some(d=>!d||d!==dates[0]))return null;
   date=dates[0];
- }else body=targetText=clean(item.headline);
+ }else{
+  body=[item.headline,...fs.filter(f=>['event','status'].includes(f.field)).map(f=>f.value)].map(clean).join(' ');
+  targetText=body+' '+fs.filter(f=>f.field==='counterparty').map(f=>f.value).join(' ');
+  const dates=fs.filter(f=>f.field==='date'&&/^(?:Investment completed|Agreements executed) on /i.test(f.value)).map(f=>eventDate(clean(f.value).replace(/^.+? on /i,'')));
+  if(dates.some(d=>!d||d!==dates[0]))return null;date=dates[0]||null;
+ }
  if(!action.test(body)||changed.test(body))return null;
  if(native&&/\b(?:subject to|conditional|conditions precedent|approval|financing|guarantee|loan|litigation|delay|amend\w*)\b/i.test(body))return null;
  if(item.kind==='news'&&/\b(?:subject to|pending approval|regulatory approval|financing|funding|dispute|delay|default|extend\w*|amend\w*)\b/i.test(body))return null;
@@ -67,11 +72,12 @@ function rawProfile(item){
  if(names.length>1)return null;
  const amountFacts=fs.filter(f=>f.field==='amount'&&!/\b(?:turnover|overall|total board|FY\s?\d|financial year)\b/i.test(f.value));
  if(/\b(?:USD|GBP|JPY|RMB|CNY|AUD|CAD)\b|[$£¥]/i.test((native||item.kind==='news')?body:amountFacts.map(f=>f.value).join(' ')))return null;
- const amounts=item.kind==='news'?investmentMoney(body):native?investmentMoney(tags.get('AnyOtherBriefSignificantInformationForAnnouncementUpdate')||'').filter((m,i)=>i===0):amountFacts.flatMap(f=>investmentMoney(f.value).slice(0,1));
- const pricedTexts=item.kind==='news'?[body]:native?[tags.get('AnyOtherBriefSignificantInformationForAnnouncementUpdate')||'']:amountFacts.map(f=>f.value);
+ const amounts=item.kind==='news'&&!amountFacts.length?investmentMoney(body):native?investmentMoney(tags.get('AnyOtherBriefSignificantInformationForAnnouncementUpdate')||'').filter((m,i)=>i===0):amountFacts.flatMap(f=>investmentMoney(f.value).slice(0,1));
+ const pricedTexts=item.kind==='news'&&!amountFacts.length?[body]:native?[tags.get('AnyOtherBriefSignificantInformationForAnnouncementUpdate')||'']:amountFacts.map(f=>f.value);
  if(pricedTexts.some(text=>/₹|€|\b(?:INR|EUR|Rs\.?)\s*\d/i.test(text)&&!investmentMoney(text).length))return null;
  const amountKeys=unique(amounts.map(m=>m.key));if(amountKeys.length>1)return null;
- const ownershipText=item.kind==='news'?body:fs.filter(f=>f.field==='ownership'&&!/promoter|pre-acquisition/i.test(f.value)).map(f=>f.value).join(' ');
+ const ownershipFacts=fs.filter(f=>f.field==='ownership'&&!/promoter|pre-acquisition/i.test(f.value));
+ const ownershipText=item.kind==='news'&&!ownershipFacts.length?body:ownershipFacts.map(f=>f.value).join(' ');
  const stakes=unique([...ownershipText.matchAll(/\b(\d+(?:\.\d+)?)\s*%/g)].map(m=>String(Number(m[1]))));if(stakes.length>1||stakes.some(s=>Number(s)>100))return null;
  const pending=/\b(?:completion still pending|not yet completed)\b/i.test(body),completed=/\b(?:investment completed|completed the investment|completed acquisition|completed the acquisition|acquisition completed)\b/i.test(body);
  if(pending&&completed)return null;
@@ -138,7 +144,7 @@ export function investmentReading(items){
   clauses.push(clean(f.value).replace(/[.!]$/,'')+'.');
  }
  for(const f of fs.filter(f=>f.field==='date'&&/^Indicative completion timeline /i.test(f.value)))clauses.push(clean(f.value).replace(/[.!]$/,'')+'.');
- for(const item of ready.filter(i=>i!==lead.item&&!profiles.get(i)?.native)){
+ for(const item of ready.filter(i=>i!==lead.item&&i.kind==='filing'&&!profiles.get(i)?.native)){
   const own=new Set(fs.filter(f=>['conditions','amount','status','ownership'].includes(f.field)).map(f=>normal(f.value)));
   if(facts(item).some(f=>['conditions','amount','status','ownership'].includes(f.field)&&!own.has(normal(f.value))))return null;
  }

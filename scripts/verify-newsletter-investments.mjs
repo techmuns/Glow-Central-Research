@@ -69,6 +69,11 @@ assert.equal(clusterStories([anchor,changedCondition]).length,2,'Different saved
 const cashSuffix=structuredClone(shopAnchor);cashSuffix.content.facts.find(f=>f.field==='conditions'&&/^Nature/.test(f.value)).value='Nature of consideration is cash and completion is subject to RBI approval';
 assert(investmentReading([cashSuffix]).note.includes('subject to RBI approval'),'A cash prefix cannot suppress a material condition');
 assert.equal(investmentMoney('INR 10 thousand').length,0,'Unsupported amount units are unresolved');
+const readPublisher={...varroc.find(r=>r.kind==='news'),url:'https://fixture.test/read-publisher',content:{state:'ready',format:'article',facts:[{field:'event',value:'Agreements executed for investment in Forsee Power India Private Limited'},{field:'amount',value:'Consideration of EUR 4.5 million'},{field:'status',value:'Agreements executed; completion still pending'},{field:'ownership',value:'A 45% equity stake'}]}};
+assert.equal(clusterStories([anchor,readPublisher]).length,1,'Reading a publisher cannot re-split one source-established event merely because its fact wording differs');
+assert(investmentReading([anchor,readPublisher]),'The concise reading remains attributable to the original announcement');
+const readChanged=structuredClone(readPublisher);readChanged.url='https://fixture.test/read-new-price';readChanged.content.facts.find(f=>f.field==='amount').value='Consideration of EUR 5.5 million';
+assert.equal(clusterStories([anchor,readChanged]).length,2,'An explicitly read amount overrides an older headline figure');
 const purva=all.get('PURVA'),badDay=structuredClone(purva.find(r=>r.content.format==='pdf'));badDay.url='https://fixture.test/wrong-weekday';badDay.content.hash='wrong-weekday';badDay.content.facts.find(f=>/^Board meeting date:/.test(f.value)).value='Board meeting date: Friday, November 02, 2026';
 assert.equal(clusterStories([purva.find(r=>r.content.format==='xbrl'),badDay]).length,2,'An inconsistent weekday/date is not silently normalized');
 console.log('PASS live investment/notice regressions: native update fields, named targets, exact prices/currencies/dates/stages, ambiguous subsidiaries, all source links and complete concise terms; network/model/mail calls=0');
