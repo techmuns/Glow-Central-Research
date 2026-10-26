@@ -144,6 +144,14 @@ const scan = dir => {
     if (!/\.(js|mjs)$/.test(path)) continue;
     const source = readFileSync(path, 'utf8');
     assert(!/^(<<<<<<<|=======|>>>>>>>) /m.test(source), `merge marker in ${path}`);
+    // This offline check names both deployments only to normalize source text. It cannot
+    // dispatch a foreign collector or read credentials; keep that exception narrow.
+    if (path === 'scripts/verify-newsletter-parity.mjs') {
+      assert(!/\b(?:fetch|exec|execFile|spawn|XMLHttpRequest)\s*\(/.test(source), 'shared newsletter check stays offline');
+      assert([...source.matchAll(/^import .* from '([^']+)'/gm)].every(match => match[1].startsWith('node:')));
+      assert(source.includes('NEWSLETTER_PEER_ROOT'));
+      continue;
+    }
     if (deliberatelyForeign.has(entry.name)) continue;
     assert(!source.includes('https://sattva-family.pages.dev'), `foreign portfolio URL in ${path}`);
     const publicFundingReader = path === 'scripts/lib/private-market-release.mjs';
