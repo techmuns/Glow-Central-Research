@@ -71,3 +71,11 @@ Full retained-capture checks also require every eligible event and source delive
 survive email packing. All tests use fixtures/local captures and no live search, model or
 mail calls. These tests cannot certify the truth of unread sources or unknown future
 paraphrases; uncertain identity remains visible rather than silently discarded.
+
+A read-only pre-release check of the live morning preview confirmed that the existing
+Bharat correction excerpt omitted the unchanged-votes qualification. The new bounded
+voting-results note uses the explicit saved classification-only condition, preserves
+stated capital approvals, and remains whole even in the 100-character packing tier.
+A conflicting/unordered document version cannot supply this note. Structured meeting
+identity also works without a date or event type in the captured headline: read source
+fields are evaluated first. Both cases have mandatory regression assertions.

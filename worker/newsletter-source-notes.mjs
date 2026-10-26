@@ -1,5 +1,6 @@
 // Presentation over saved source facts. Never rewrite the retained extraction or
 // turn identifiers, enum values and bare XBRL booleans into an investor summary.
+import { explicitEvent } from './newsletter-event-identity.mjs';
 const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const material = new Set(['event','counterparty','amount','status','date','conditions','ownership']);
@@ -41,6 +42,26 @@ export function investorSourceSummary(item) {
     }
   }
   return selected.join('; ');
+}
+
+/** A bounded correction reading from explicit saved facts, never the headline
+ * alone. Keep the changed classification and unchanged vote outcome together. */
+export function votingResultNote(item) {
+  if(item.content?.state!=='ready')return null;
+  const event=explicitEvent(item),facts=item.content.facts||[];
+  if(event?.type!=='egm-voting'||!event.revised)return null;
+  const qualification=facts.some(f=>{
+    const value=clean(f.value).toLowerCase().replace(/[^a-z0-9]+/g,' ');
+    return f.field==='conditions'&&/\bshareholder classification\b/.test(value)&&/\b(?:limited to|only relates to)\b/.test(value)&&
+      /\b(?:does not change votes cast or resolution outcomes|not votes cast or outcome)\b/.test(value);
+  });
+  if(!qualification)return null;
+  const approved=facts.filter(f=>f.field==='event'&&/\b(?:approved|passed)\b/i.test(f.value)).map(f=>f.value);
+  const decisions=[];
+  if(approved.some(v=>/\b(?:preferential (?:equity )?issue|equity shares on preferential basis)\b/i.test(v)))decisions.push('preferential equity issue');
+  if(approved.some(v=>/\bsection\s*186\s*\(2\)/i.test(v)&&/investments?|loans?|guarantees?/i.test(v)))decisions.push('Section 186(2) investment/loan/guarantee limits');
+  const date=new Date(event.date+'T00:00:00Z'),label=`${date.getUTCDate()} ${months[date.getUTCMonth()].slice(0,3)} ${date.getUTCFullYear()}`;
+  return `EGM ${label}: ${decisions.length?decisions.join(' and ')+' approved. ':''}Shareholder classification revised only; votes and resolution outcomes unchanged.`;
 }
 
 /** NSE's saved PRIOR_INTIMATION fields already provide a factual short notice.

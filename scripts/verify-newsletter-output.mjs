@@ -2,7 +2,7 @@
 // model requests, email or provider credentials, including Munshot stock search.
 import assert from 'node:assert/strict';
 import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
-import {clusterStories,briefStats,aiItemsFor} from '../worker/newsletter-brief.mjs';
+import {clusterStories,briefStats,aiItemsFor,renderBriefHtml} from '../worker/newsletter-brief.mjs';
 import {explicitEvent,eventDate,financialPeriod} from '../worker/newsletter-event-identity.mjs';
 import {scheduledBoardMeetingSummary} from '../worker/newsletter-filing-events.mjs';
 import {editorialEvents,referenceReason} from '../worker/newsletter-editorial.mjs';
@@ -74,10 +74,12 @@ assert.equal(referenceReason({kind:'news',headline:'Company cuts revenue guidanc
 assert(referenceReason({kind:'news',headline:'Q2 results this week: Ather Energy, IndiGo, L&T, Paytm, Maruti, Mazagon Dock, Adani Enterprises, Vedanta, among others in focus'}),'The repeated weekly calendar roundup stays in the full source register');
 assert.equal(scheduledBoardMeetingSummary(b.find(r=>/standalone and/.test(r.headline))),'Board meeting 29 Oct 2026; captured agenda is incomplete.');
 const facts=[{field:'event',value:'Submission of revised voting results of EGM held on 23 October 2026, correcting shareholder categorisation error'},
+ {field:'event',value:'Resolution 1: Issuance of equity shares on preferential basis passed as Special Resolution'},
+ {field:'event',value:'Resolution 2: Approval for making investments, giving loans, guarantees and providing security in excess of Section 186(2) limits, passed as Special Resolution'},
  {field:'conditions',value:'Revision is limited to shareholder classification and does not change votes cast or resolution outcomes'},
  ...Array.from({length:25},(_,i)=>({field:'date',value:`Administrative date ${i}`}))];
 const read={...voting[0],content:{state:'ready',hash:'verified-revision',facts}};
-const concise=investorSourceSummary(read);assert(concise.length<330&&concise.includes('does not change votes cast'));
+const concise=investorSourceSummary(read);assert(concise.includes('Submission of revised voting results'));
 assert(!concise.includes('Administrative date'));
 const brief=pdfFixture();brief.edition='morning';brief.day='2026-10-26';brief.at=Date.parse('2026-10-26T08:00:00+05:30');
 brief.builtAt=Date.parse('2026-10-26T12:24:00+05:30');brief.window={from:Date.parse('2026-10-23T16:00:00+05:30'),to:brief.builtAt};brief.onDemand=true;
@@ -90,6 +92,11 @@ assert.equal(ai[0].SOURCE_EVIDENCE.length,3,'Repeated document is supplied once 
 const email=renderInvestorEmails(brief,{dashboardUrl:'https://fixture.test',pdfUrl:'https://fixture.test/api/newsletter/pdf/00000000-0000-0000-0000-000000000001'})[0];
 for(const url of events[0].sources)assert(email.html.includes(url),'Every constituent report has an exact source link in the email');
 assert(!email.html.includes('Administrative date'));
+for(const summaryChars of [100,140,220]) {
+ const dense=renderBriefHtml(brief,{dashboardUrl:'https://fixture.test',stats,part:{investor:true,eventIds:events.map(e=>e.id),compact:true,summaryChars,index:1,total:1,supplements:false}});
+ assert(dense.includes('votes and resolution outcomes unchanged.'),'The substantive correction qualification cannot be truncated by dense packing');
+ assert(dense.includes('preferential equity issue')&&dense.includes('Section 186(2)'),'Original capital approvals remain alongside the correction');
+}
 assert.equal(JSON.stringify(brief),before,'Consolidation and render cannot rewrite source history');
 const metadataOnly=structuredClone(brief);
 metadataOnly.announcements.groups[0].items=[{...metadataOnly.announcements.groups[0].items[0],headline:'Captured corporate notice',content:{state:'ready',facts:[{field:'conditions',name:'Administrative approval field',value:'true'}]}}];

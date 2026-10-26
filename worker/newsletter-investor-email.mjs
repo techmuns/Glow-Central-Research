@@ -39,7 +39,7 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
     // One description per event. Never repeat its headline above an equivalent AI summary.
     // Keep the bounded structured meeting note intact, including a later agenda
     // such as dividend. Other excerpts can shorten on unusually dense editions.
-    const description=esc(event.sourceSummary===summary&&s.content?.format==='xbrl'?summary:short(summary,summaryChars));
+    const description=esc(event.sourceSummary===summary&&event.completeSourceSummary?summary:short(summary,summaryChars));
     const evidence=event.summary?'AI summary':event.sourceSummary?s.content?.state==='partial'?'Partial source facts':'Source facts':event.evidence;
     const incomplete=event.read>0&&event.read<event.total?' · Some sources unread':'';
     const extraSources=event.sources.filter(url=>url!==newsletterSourceUrl(s)).map((url,i)=>
