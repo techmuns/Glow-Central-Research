@@ -83,7 +83,10 @@ represented; they must not fall back to a counts-only PDF notification. Preserve
 record/link, correction, reference item, table and source limitation in the verified immutable
 report and retained history. The concise descriptions are an explicitly abbreviated reading
 layer, not source deletion or evidence of exhaustive collection. Repeated versions share an
-event; changed terms and unknown new evidence must remain visible. Public previews use saved
+event; changed terms and unknown new evidence must remain visible. Each announcement/news item must link to its exact captured
+source; URL length must never substitute the newsletter PDF, a homepage or a fabricated URL.
+Keep the report download separate from item links. Exact document copies take precedence over
+summary paraphrases; genuine corrected versions remain visible. Public previews use saved
 readings without paid model calls. Existing frozen delivery plans keep their original bodies,
 identities, six-part safety gate and historical/expiry safeguards; never replay a retired plan.
 See docs/NEWSLETTER-INVESTOR-BRIEF.md. This supersedes the earlier inline-packing rule for new

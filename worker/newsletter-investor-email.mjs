@@ -2,6 +2,7 @@ import { editorialEvents, editorialText } from './newsletter-editorial.mjs';
 import { istLabel, istDateLong } from '../public/js/data/newsletter-shared.js';
 import { formatLast, formatPct, asOfLabel, NEWSLETTER_STYLE, TAGLINES } from './newsletter-brief.mjs';
 import { priceReasonText } from './newsletter-price-reasons.mjs';
+import { newsletterSourceUrl } from './newsletter-source-links.mjs';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // Only the inbox description is abbreviated. Original records and links remain in the report.
@@ -25,23 +26,23 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
   const reportUrl=pdfUrl || `${dashboardUrl}/api/newsletter/preview?edition=${brief.edition}&format=pdf`;
   const cards=events.map((event,index)=>{
     const s=event.lead;
-    const summary=event.summary || (event.facts.length ? event.facts.map(f=>f.value).join(' ') : s.kind==='move'?`${s.headline}. Why it moved: ${priceReasonText(s.why)}`:s.headline);
-    const source=s.content?.sourceUrl || s.url;
-    const direct=source&&(!compact||source.length<=220);
+    const summary=event.summary || (event.facts.length ? event.facts.map(f=>f.value).join(' ') : event.description || (s.kind==='move'?`${s.headline}. Why it moved: ${priceReasonText(s.why)}`:s.headline));
+    const source=newsletterSourceUrl(s);
+    const sourceLabel=s.kind==='filing'?'Announcement →':s.kind==='news'?'News report →':'Source →';
     const sameCompany=index>0&&events[index-1].ticker===event.ticker;
     const type=s.kind==='filing'?'Corporate announcement':s.kind==='trade'?'Ownership disclosure':s.kind==='move'?'Price context':'Reported development';
     // One description per event. Never repeat its headline above an equivalent AI summary.
-    const description=esc(short(summary,compact?270:340));
+    const description=esc(short(summary,compact?220:340));
     const evidence=event.summary?'AI summary':event.facts.length?'Source facts':event.evidence;
     const incomplete=event.read>0&&event.read<event.total?' · Some sources unread':'';
-    if(compact)return `<tr><td style="padding:8px 0;border-bottom:1px solid ${RULE}"><strong style="font-family:${SERIF};color:${INK}">${esc(event.company)}</strong> · ${description}<br><span style="font-size:10px;color:${META}">${esc(evidence)}${incomplete}${s.related?' · Related entity; exposure unconfirmed':''} · ${esc(istLabel(s.at))} · ${source?link(direct?source:reportUrl,direct?'Read →':'Evidence →'):'Source link unavailable'}</span></td></tr>`;
+    if(compact)return `<tr><td style="padding:8px 0;border-bottom:1px solid ${RULE}"><strong style="font-family:${SERIF};color:${INK}">${esc(event.company)}</strong> · ${description}<br><span style="font-size:10px;color:${META}">${esc(evidence)}${incomplete}${s.related?' · Related entity; exposure unconfirmed':''} · ${esc(istLabel(s.at))} · ${source?link(source,sourceLabel):'Source link unavailable'}</span></td></tr>`;
     return `<tr><td style="padding:${sameCompany?'10px':'22px'} 0 12px;border-bottom:1px solid ${RULE}">
 ${sameCompany?'':`<div style="padding-bottom:7px;margin-bottom:8px;border-bottom:2px solid ${INK};font-family:${SERIF};font-size:${compact?18:22}px;line-height:1.2;font-weight:bold;color:${INK}">${esc(event.company)} <span style="font-family:${SANS};font-size:10px;font-weight:normal;color:${META}">${esc(event.ticker)}</span></div>`}
 <div style="font-family:${SERIF};font-size:${compact?14:15}px;line-height:1.45;color:${INK};font-weight:bold">${description}</div>
 ${!compact&&event.summary&&event.note?.impact?`<div style="margin-top:5px"><strong>Why it matters:</strong> ${esc(short(event.note.impact,180))}</div>`:''}
 ${!compact&&event.summary&&event.note?.unknowns?`<div style="margin-top:4px"><strong>Watch next:</strong> ${esc(short(event.note.unknowns,140))}</div>`:''}
 ${s.related?`<div style="margin-top:4px;color:${META};font-size:11px">Related entity; exposure unconfirmed.</div>`:''}
-<div style="margin-top:6px;font-size:11px;color:${META}">${type} · ${esc(evidence)}${incomplete} · ${esc(istLabel(s.at))} · ${source?link(direct?source:reportUrl,direct?'Read →':'Evidence →'):'Source link unavailable'}</div>
+<div style="margin-top:6px;font-size:11px;color:${META}">${type} · ${esc(evidence)}${incomplete} · ${esc(istLabel(s.at))} · ${source?link(source,sourceLabel):'Source link unavailable'}</div>
 </td></tr>`;
   }).join('');
   const a=brief.announcements,n=brief.news;
@@ -69,9 +70,9 @@ ${s.related?`<div style="margin-top:4px;color:${META};font-size:11px">Related en
 <body style="margin:0;padding:0;background:${CREAM};-webkit-text-size-adjust:100%;font-family:${SANS};font-size:13px;line-height:1.5;color:${BODY2}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM}"><tr><td align="center" style="padding:24px 12px"><table role="presentation" width="640" cellpadding="0" cellspacing="0" style="width:100%;max-width:640px;background:${PAPER};border:1px solid ${RULE}">
 <tr><td align="right" style="padding:18px 24px 0"><a href="${esc(reportUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:10px 16px;background:${GOLD};border-radius:4px;color:#ffffff;font-size:12px;font-weight:bold;text-decoration:none">Download PDF ↓</a></td></tr>
 <tr><td align="center" style="padding:30px 24px 0"><div style="font-family:${SERIF};font-size:30px;line-height:1.2;font-weight:bold;letter-spacing:3px;color:${INK}">${esc(brand.toUpperCase())}</div><div style="border-top:3px double ${INK};margin:12px 0 7px;font-size:0;line-height:0">&nbsp;</div><div style="font-size:11px;letter-spacing:4px;text-transform:uppercase;color:${META}">${esc(productName)} — ${esc(TAGLINES[brief.edition])}</div><div style="margin-top:10px;padding:7px 0;border-top:1px solid ${RULE};border-bottom:1px solid ${RULE};font-size:11px;letter-spacing:1px;color:${META}">${esc(istDateLong(brief.at))} · ${esc(istLabel(brief.window.from))} → ${esc(istLabel(brief.window.to))}</div></td></tr>
-<tr><td style="padding:14px 24px 22px"><div style="color:${BODY};font-size:12px"><strong>${reading.events.length} distinct development${reading.events.length===1?'':'s'}</strong> · ${companies} compan${companies===1?'y':'ies'}${part.total>1?` · Part ${part.index} of ${part.total}`:''}</div>
+<tr><td style="padding:14px 24px 22px"><div style="color:${BODY};font-size:12px"><strong>${reading.events.length} portfolio update${reading.events.length===1?'':'s'}</strong> · ${companies} compan${companies===1?'y':'ies'}${part.total>1?` · Part ${part.index} of ${part.total}`:''}</div>
 ${preview?`<div style="font-size:11px;color:${META};margin-top:5px">Preview · saved readings</div>`:''}
-${warning}<div style="margin-top:8px;font-size:12px">${link(reportUrl,'Complete evidence report')} · ${link(dashboardUrl+'/#/research/daily-alerts?scope=portfolio','Open dashboard →')}</div>
+${warning}<div style="margin-top:8px;font-size:12px">${link(dashboardUrl+'/#/research/daily-alerts?scope=portfolio','Open dashboard →')}</div>
 ${heading('YOUR PORTFOLIO COMPANIES')}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;overflow-wrap:anywhere">${cards||(part.packing?'':`<tr><td style="padding:18px 0;color:${META}">No new developments identified in the available readings.</td></tr>`)}</table>
 ${first&&part.supplements?`${calendar?heading('UPCOMING RESULTS & CALLS')+table(calendar):''}${actionRows?heading('CORPORATE ACTION DATES')+table(actionRows):''}${markets?heading('MARKET CONTEXT')+table(markets):''}`:''}
 ${first&&!part.supplements?`<p style="font-size:12px">${brief.calendar?.rows?.length||0} results/calls · ${brief.actions?.rows?.length||0} corporate actions · ${link(reportUrl,'Dates and markets →')}</p>`:''}

@@ -190,7 +190,7 @@ const previewHarness = harness();
 const apiEnv = { NEWSLETTER_LIMITER: { limit: async () => ({ success: true }) }, NEWSLETTER: { getByName: () => ({ newsletterPreview: input => previewHarness.schedule.preview(input) }) } };
 const response = await handleNewsletter(new Request(`${PRODUCTION_ORIGIN}/api/newsletter/preview?part=1`), apiEnv);
 assert.equal(response.status,200);assert.equal(response.headers.get('x-newsletter-parts'),'1');
-const investorPreview=await response.text();assert(investorPreview.includes('Morning Portfolio Brief')&&investorPreview.includes('Complete evidence report'));
+const investorPreview=await response.text();assert(investorPreview.includes('Morning Portfolio Brief')&&investorPreview.includes('Download PDF ↓'));
 assert.equal((await handleNewsletter(new Request(`${PRODUCTION_ORIGIN}/api/newsletter/preview?part=2`),apiEnv)).status,400,'The compact preview has no phantom second part');
 for (const part of ['0', '3', '-1', '1.5', 'foo']) assert.equal((await handleNewsletter(new Request(`${PRODUCTION_ORIGIN}/api/newsletter/preview?part=${part}`), apiEnv)).status, 400);
 assert.equal(previewHarness.emails.length, 0);

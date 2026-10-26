@@ -1,5 +1,6 @@
 // The inbox is a reading layer over the complete immutable edition. Classification never
 // deletes a captured row, changes an edition window or certifies an unread document.
+import { scheduledBoardMeetingSummary } from './newsletter-filing-events.mjs';
 export const EDITORIAL_VERSION = 1;
 export const EDITORIAL_EMAIL_PARTS = 3;
 const text = value => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
@@ -10,6 +11,7 @@ export function referenceReason(item) {
   const title = text(item.headline || item.title), ticker = String(item.ticker || '').toUpperCase();
   if (['issuer-mismatch','company-evidence-unconfirmed'].includes(item.content?.reason)) return 'Issuer connection not established by the source reading';
   if (item.kind === 'news' || !item.kind) {
+    if (/\b(?:slides|slips|climbs|rises|falls|gains|drops|jumps) (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),? (?:outperforms|underperforms) competitors[.!]?$/i.test(title)) return 'Automated daily price comparison; no business development stated';
     if (/\bestimates\s*[-–:]\s*(?:NSE|BSE)\s*:|\boption chain\b/i.test(title) &&
         !/\b(?:raised|lowered|revised|revision|upgrade|downgrade|changed|cut|increased|decreased)\b/i.test(title)) return 'Reference page; no estimate revision stated';
     if (/\bstocks to watch|\bupcoming IPOs?\b|\bIPOs? (?:this|next) week\b|\bIPO (?:GMP|review)\b|\brated (?:buy|sell|hold) by marketsmojo\b/i.test(title)) return 'Roundup, offer guide or unchanged opinion';
@@ -24,7 +26,8 @@ export function referenceReason(item) {
       if (subject !== title && !/\bmotilal oswal\b/i.test(subject)) return 'Research author; report concerns another issuer';
     }
   }
-  if (item.kind === 'filing' && /\b(?:schedule of meet|schedule.*(?:call|investor|analyst)|(?:intimation|will hold).*(?:conference call|earnings call|earnings conference)|audio recording|transcript.*(?:call|meeting))\b/i.test(title) && !item.content?.facts?.some(f=>['amount','ownership','conditions'].includes(f.field))) return 'Calendar or supporting earnings document';
+  const calendarText = `${title} ${(item.content?.facts || []).filter(f => f.field === 'event').map(f => f.value).join(' ')}`;
+  if (item.kind === 'filing' && /\b(?:schedule of meet|schedule.*(?:call|investor|analyst)|(?:intimation|will hold).*(?:conference call|earnings call|earnings conference)|audio recording|transcript.*(?:call|meeting))\b/i.test(calendarText) && !item.content?.facts?.some(f=>['amount','ownership','conditions'].includes(f.field))) return 'Calendar or supporting earnings document';
   return null;
 }
 
@@ -55,8 +58,9 @@ export function editorialEvents(brief, companies) {
       sourceCount: members.length, read: ready.length, total: members.length,
       // A summary of a different lead cannot be relabelled as this filing's summary.
       summary: note && lead === cluster.main ? note.summary : null,
+      description: scheduledBoardMeetingSummary(lead),
       facts: (lead.content?.facts || []).filter(f => f.field !== 'reason'),
-      evidence: lead.content?.state === 'ready' ? 'Source read' : 'Document unread; facts unverified',
+      evidence: lead.content?.state === 'ready' ? 'Source read' : 'Headline only',
     });
   }
   events.sort((a,b) => b.rank-a.rank || Number(b.lead.kind === 'filing')-Number(a.lead.kind === 'filing') || b.at-a.at || a.ticker.localeCompare(b.ticker));
