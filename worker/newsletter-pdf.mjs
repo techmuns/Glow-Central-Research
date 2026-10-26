@@ -454,15 +454,15 @@ export function renderBriefPdf(
           color: ACCENT,
           url,
         });
-      // Full saved passages belong in the register, never the investment reading.
-      // Include each verified document version once; copies and all original links
-      // still follow below. This also retains conflicting earlier figures.
-      for(const document of k.documents || [{main:s},...k.others.map(main=>({main}))]) {
-        const item=document.main;
-        if(!item.content?.facts?.length)continue;
-        pdf.paragraph(`Saved source facts / ${storyWhen(item)} / ${item.content.state}`,{font:'F2',size:9,color:MUTED});
+      // Pair saved facts with that version's own linked heading. Copies remain
+      // linked below without printing an identical document's extraction again.
+      const factSources=new Set((k.documents || [{main:s},...k.others.map(main=>({main}))]).map(d=>d.main));
+      const savedFacts=item=>{
+        if(!factSources.has(item)||!item.content?.facts?.length)return;
+        pdf.paragraph(`Saved source facts / ${item.content.state}`,{font:'F2',size:9,color:MUTED});
         for(const fact of item.content.facts)pdf.paragraph(`${fact.name || fact.field}: ${fact.value}`,{size:8,color:MUTED});
-      }
+      };
+      savedFacts(s);
       for (const r of k.others) {
         pdf.paragraph(`Related: ${r.headline}`, {
           size: 10,
@@ -473,6 +473,7 @@ export function renderBriefPdf(
           { size: 8, color: MUTED },
         );
         if (r.dek) pdf.paragraph(r.dek, { size: 10, color: MUTED });
+        savedFacts(r);
         for (const url of sourceLinks(r, dashboardUrl).filter(url => url !== readableUrl(r.url, dashboardUrl)))
           pdf.paragraph("Read additional related source ->", { font: "F2", size: 9, color: ACCENT, url });
       }

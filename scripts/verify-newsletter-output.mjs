@@ -50,6 +50,7 @@ const lupin=company('Lupin Ltd'),inspection=lupin.filter(r=>/FDA|Form-483/.test(
 assert.equal(inspection.length,3);assert.equal(clusterStories(inspection).length,1,'Filing and publisher accounts of the Goa inspection share one event');
 assert.equal(clusterStories([...inspection,{...inspection[1],url:'https://fixture.test/changed-observations',headline:inspection[1].headline.replace('one observation','two observations')}]).length,2,'A changed FDA observation count stays visible');
 assert.equal(clusterStories([inspection[1],{...inspection[1],url:'https://fixture.test/other-site',headline:inspection[1].headline.replace('Goa','Nagpur')}]).length,2);
+assert.equal(clusterStories([inspection[1],{...inspection[1],url:'https://fixture.test/cleared',headline:'US FDA clears Goa facility following inspection'}]).length,2,'A later regulatory clearance remains a genuine new development');
 const appointments=lupin.filter(r=>/Brian Savage/.test(r.headline));assert.equal(clusterStories(appointments).length,1,'The identical person/role is one appointment');
 assert.equal(clusterStories([appointments[0],{...appointments[1],headline:appointments[1].headline.replace('Brian Savage','Brian Jones')}]).length,2);
 assert.equal(clusterStories([{...appointments[0],eventId:'checked-event-1'},{...appointments[1],eventId:'checked-event-2'}]).length,2,'A checked distinct news development overrides an unverified headline profile');
@@ -66,7 +67,9 @@ const facts=[{field:'event',value:'Submission of revised voting results of EGM h
 const read={...voting[0],content:{state:'ready',hash:'verified-revision',facts}};
 const concise=investorSourceSummary(read);assert(concise.length<330&&concise.includes('does not change votes cast'));
 assert(!concise.includes('Administrative date'));
-const brief=pdfFixture();brief.news.groups=[];brief.announcements.groups=[{ticker:read.ticker,company:read.company,items:[read,...voting.slice(1)].map(r=>({...r,exchanges:['BSE'],keywords:[],subject:'Voting results',direction:'neutral'}))}];
+const brief=pdfFixture();brief.edition='morning';brief.day='2026-10-26';brief.at=Date.parse('2026-10-26T08:00:00+05:30');
+brief.builtAt=Date.parse('2026-10-26T12:24:00+05:30');brief.window={from:Date.parse('2026-10-23T16:00:00+05:30'),to:brief.builtAt};brief.onDemand=true;
+brief.news.groups=[];brief.announcements.groups=[{ticker:read.ticker,company:read.company,items:[read,...voting.slice(1)].map(r=>({...r,exchanges:['BSE'],keywords:[],subject:'Voting results',direction:'neutral'}))}];
 brief.ai={ok:false,items:{}};
 const before=JSON.stringify(brief),stats=briefStats(brief),events=editorialEvents(brief,stats.companies).events;
 assert.equal(events.length,1);assert.equal(events[0].sources.length,3);

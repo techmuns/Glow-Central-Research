@@ -39,7 +39,7 @@ export function explicitEvent(item) {
   if(/\b(?:FDA|USFDA)\b/i.test(text)&&/\binspection|form[ -]?483\b/i.test(text)) {
     const site=/\b(Goa|Pithampur|Mandideep|Indore|Tarapur|Nagpur|Aurangabad|Somerset|Visakhapatnam)\b/i.exec(text)?.[1]?.toLowerCase();
     const count=/\b(\d+|no|zero|one|two|three|four|five|six|seven|eight|nine|ten) observations?\b/i.exec(text)?.[1]?.toLowerCase();
-    const stage=/\b(?:warning letter|OAI|VAI|NAI|cancelled|closed down|shutdown|reinspect\w*)\b/i.exec(text)?.[0]?.toLowerCase()||'inspection';
+    const stage=/\b(?:warning letter|OAI|VAI|NAI|EIR|clears?|cleared|resolved|compliant|cancelled|closed down|shutdown|reinspect\w*)\b/i.exec(text)?.[0]?.toLowerCase()||'inspection';
     if(site)return {type:'fda-inspection',key:`fda:${site}:${stage}`,count:count?String(({no:0,zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10})[count]??count):null};
   }
   // Named person and role, not an arbitrary management-change category.
