@@ -60,6 +60,7 @@ const partnership=tech.filter(r=>/SpaceXSI/.test(r.headline));assert.equal(clust
 for(const r of tech.filter(r=>/stock price, news|slides Friday/.test(r.headline)))assert(referenceReason(r));
 for(const headline of ['Smartworks Coworking Spaces Ltd Downgraded to Sell Amid Technical and Valuation Concerns','Fusion Finance Ltd Downgraded to Sell Amid Mixed Financials and Bearish Technicals','Time Technoplast Ltd. Forms Death Cross, Signalling Potential Bearish Trend','Ather Energy Share Price Today, Ather Energy Stock Price Live NSE/BSE Updates'])assert(referenceReason({kind:'news',headline}));
 assert.equal(referenceReason({kind:'news',headline:'CRISIL downgraded Company credit rating following a debt default'}),null);
+assert(referenceReason({kind:'news',headline:'Q2 results this week: Ather Energy, IndiGo, L&T, Paytm, Maruti, Mazagon Dock, Adani Enterprises, Vedanta, among others in focus'}),'The repeated weekly calendar roundup stays in the full source register');
 assert.equal(scheduledBoardMeetingSummary(b.find(r=>/standalone and/.test(r.headline))),'Board meeting 29 Oct 2026; captured agenda is incomplete.');
 const facts=[{field:'event',value:'Submission of revised voting results of EGM held on 23 October 2026, correcting shareholder categorisation error'},
  {field:'conditions',value:'Revision is limited to shareholder classification and does not change votes cast or resolution outcomes'},
@@ -79,6 +80,11 @@ const email=renderInvestorEmails(brief,{dashboardUrl:'https://fixture.test',pdfU
 for(const url of events[0].sources)assert(email.html.includes(url),'Every constituent report has an exact source link in the email');
 assert(!email.html.includes('Administrative date'));
 assert.equal(JSON.stringify(brief),before,'Consolidation and render cannot rewrite source history');
+const metadataOnly=structuredClone(brief);
+metadataOnly.announcements.groups[0].items=[{...metadataOnly.announcements.groups[0].items[0],headline:'Captured corporate notice',content:{state:'ready',facts:[{field:'conditions',name:'Administrative approval field',value:'true'}]}}];
+const metadataEmail=renderInvestorEmails(metadataOnly,{dashboardUrl:'https://fixture.test',pdfUrl:'https://fixture.test/api/newsletter/pdf/00000000-0000-0000-0000-000000000001'})[0].html;
+assert(!metadataEmail.includes('Administrative approval field'),'No raw metadata array can become the final email fallback');
+assert(metadataEmail.includes('factual summary unavailable'),'A read without a substantive event does not masquerade as source prose');
 mkdirSync('.cache/newsletter-audit/full-pdf-review',{recursive:true});
 writeFileSync('.cache/newsletter-audit/full-pdf-review/corrected-example.html',email.html);
 writeFileSync('.cache/newsletter-audit/full-pdf-review/corrected-example.pdf',renderBriefPdf(brief));

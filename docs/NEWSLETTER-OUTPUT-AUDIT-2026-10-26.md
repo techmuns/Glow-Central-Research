@@ -34,10 +34,13 @@ output audit, not certification of the underlying reports or exhaustive collecti
   administrative dates and registration details. It now uses a concise source reading;
   complete saved fields remain in the source register, once per document version.
   Qualified source facts remain distinct from AI summaries and unread headline leads.
-- Quote pages, daily competitor comparisons, and the demonstrated automated technical
+- Quote pages, daily competitor comparisons, weekly results-calendar roundups and the demonstrated automated technical
   rating templates crowded out business developments. These remain in the full register.
   Named credit downgrades, fundamental changes and substantive price explanations remain
   eligible. Rating language alone does not establish an institutional credit action.
+- A read containing only administrative fields cannot fall back to a raw field dump in
+  email. The captured headline retains an explicit factual-summary-unavailable status;
+  the saved fields remain in the source register.
 - A preview note implied grouping existed only in sent editions. Both now share the
   deterministic document/event pipeline. Optional existing model news review is identified
   separately, with no model calls from preview rendering.

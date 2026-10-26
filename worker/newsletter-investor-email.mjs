@@ -31,7 +31,7 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
   const reportUrl=pdfUrl || `${dashboardUrl}/api/newsletter/preview?edition=${brief.edition}&format=pdf`;
   const cards=events.map((event,index)=>{
     const s=event.lead;
-    const summary=event.summary || event.sourceSummary || (event.facts.length ? event.facts.map(f=>f.value).join(' ') : event.description || (s.kind==='move'?`${s.headline}. Why it moved: ${priceReasonText(s.why)}`:s.headline));
+    const summary=event.summary || event.sourceSummary || event.description || (s.kind==='move'?`${s.headline}. Why it moved: ${priceReasonText(s.why)}`:s.headline);
     const source=emailSourceUrl(newsletterSourceUrl(s),sourceLinks,dashboardUrl);
     const sourceLabel=s.kind==='filing'?'Announcement →':s.kind==='news'?'News report →':'Source →';
     const sameCompany=index>0&&events[index-1].ticker===event.ticker;
@@ -40,7 +40,7 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
     // Keep the bounded structured meeting note intact, including a later agenda
     // such as dividend. Other excerpts can shorten on unusually dense editions.
     const description=esc(event.sourceSummary===summary&&s.content?.format==='xbrl'?summary:short(summary,summaryChars));
-    const evidence=event.summary?'AI summary':s.content?.state==='partial'?'Partial source facts':event.sourceSummary||event.facts.length?'Source facts':event.evidence;
+    const evidence=event.summary?'AI summary':event.sourceSummary?s.content?.state==='partial'?'Partial source facts':'Source facts':event.evidence;
     const incomplete=event.read>0&&event.read<event.total?' · Some sources unread':'';
     const extraSources=event.sources.filter(url=>url!==newsletterSourceUrl(s)).map((url,i)=>
       ' · '+link(emailSourceUrl(url,sourceLinks,dashboardUrl),`[${i+2}]`,GOLD,compact?'gvl':null)).join('');

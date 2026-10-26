@@ -13,6 +13,7 @@ export function referenceReason(item) {
   const title = text(item.headline || item.title), ticker = String(item.ticker || '').toUpperCase();
   if (['issuer-mismatch','company-evidence-unconfirmed'].includes(item.content?.reason)) return 'Issuer connection not established by the source reading';
   if (item.kind === 'news' || !item.kind) {
+    if(/\bresults (?:this|next) week\b/i.test(title))return 'Results-calendar roundup; no company results disclosed';
     if(/\bstock price, news, quote and history\b|\bshare price\s*[-:]\s*live\b|\bstock price live NSE\/BSE updates\b/i.test(title)) return 'Quote/reference page; no business development stated';
     if(/\b(?:is rated (?:sell|buy|hold)|(?:upgraded|downgraded) to (?:sell|buy|hold) amid (?:technical|valuation|mixed|bearish)|forms death cross|faces mildly bearish technical shift)\b/i.test(title) &&
       !/\b(?:CRISIL|ICRA|CARE Ratings|Moody|Fitch|S&P|credit rating|revenue guidance)\b/i.test(title))return 'Automated technical/opinion template; no attributed fundamental change';
@@ -58,16 +59,17 @@ export function editorialEvents(brief, companies) {
     if (members.some(item => item.editorialReported)) { repeated.push(cluster); continue; }
     const note = brief.ai?.items?.[cluster.id] || (cluster.main.content?.state==='ready' ? cluster.main.content.note : null);
     const ready = eligible.filter(s => s.content?.state === 'ready');
+    const sourceSummary=cluster.versionConflict?'Different versions of this document were captured; their chronology is unconfirmed. Read the retained versions before relying on the figures.':xbrlBoardMeetingNote(lead) || investorSourceSummary(lead);
     events.push({ id: cluster.id, company: company.company, ticker: company.ticker, cluster,
       lead, note, rank: Math.max(...eligible.map(editorialPriority)), at: Math.max(...eligible.map(s => s.at)),
       sourceCount: members.length, read: ready.length, total: members.length,
       // A summary of a different lead cannot be relabelled as this filing's summary.
       summary: note && lead === cluster.main && !cluster.versionConflict ? note.summary : null,
-      sourceSummary: cluster.versionConflict?'Different versions of this document were captured; their chronology is unconfirmed. Read the retained versions before relying on the figures.':xbrlBoardMeetingNote(lead) || investorSourceSummary(lead),
+      sourceSummary,
       description: scheduledBoardMeetingSummary(lead),
       facts: investorSourceFacts(lead),
       sources: [...new Set([lead,...members.filter(s=>s!==lead)].map(newsletterSourceUrl).filter(Boolean))],
-      evidence: lead.content?.state === 'ready' ? 'Source read' : lead.content?.state==='partial'?'Partial source read':'Headline only',
+      evidence: lead.content?.state === 'ready' ? sourceSummary?'Source read':'Source read; factual summary unavailable' : lead.content?.state==='partial'?'Partial source read':'Headline only',
     });
   }
   events.sort((a,b) => b.rank-a.rank || Number(b.lead.kind === 'filing')-Number(a.lead.kind === 'filing') || b.at-a.at || a.ticker.localeCompare(b.ticker));
