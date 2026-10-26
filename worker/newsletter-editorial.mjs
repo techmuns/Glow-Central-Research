@@ -13,7 +13,7 @@ export function referenceReason(item) {
   const title = text(item.headline || item.title), ticker = String(item.ticker || '').toUpperCase();
   if (['issuer-mismatch','company-evidence-unconfirmed'].includes(item.content?.reason)) return 'Issuer connection not established by the source reading';
   if (item.kind === 'news' || !item.kind) {
-    if(/\bresults (?:this|next) week\b/i.test(title))return 'Results-calendar roundup; no company results disclosed';
+    if(/^(?:Q[1-4]\s+)?results (?:this|next) week\s*:/i.test(title))return 'Results-calendar roundup; no company results disclosed';
     if(/\bstock price, news, quote and history\b|\bshare price\s*[-:]\s*live\b|\bstock price live NSE\/BSE updates\b/i.test(title)) return 'Quote/reference page; no business development stated';
     if(/\b(?:is rated (?:sell|buy|hold)|(?:upgraded|downgraded) to (?:sell|buy|hold) amid (?:technical|valuation|mixed|bearish)|forms death cross|faces mildly bearish technical shift)\b/i.test(title) &&
       !/\b(?:CRISIL|ICRA|CARE Ratings|Moody|Fitch|S&P|credit rating|revenue guidance)\b/i.test(title))return 'Automated technical/opinion template; no attributed fundamental change';

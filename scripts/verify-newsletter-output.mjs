@@ -60,6 +60,7 @@ const partnership=tech.filter(r=>/SpaceXSI/.test(r.headline));assert.equal(clust
 for(const r of tech.filter(r=>/stock price, news|slides Friday/.test(r.headline)))assert(referenceReason(r));
 for(const headline of ['Smartworks Coworking Spaces Ltd Downgraded to Sell Amid Technical and Valuation Concerns','Fusion Finance Ltd Downgraded to Sell Amid Mixed Financials and Bearish Technicals','Time Technoplast Ltd. Forms Death Cross, Signalling Potential Bearish Trend','Ather Energy Share Price Today, Ather Energy Stock Price Live NSE/BSE Updates'])assert(referenceReason({kind:'news',headline}));
 assert.equal(referenceReason({kind:'news',headline:'CRISIL downgraded Company credit rating following a debt default'}),null);
+assert.equal(referenceReason({kind:'news',headline:'Company cuts revenue guidance ahead of results next week'}),null,'A material change cannot be hidden by calendar wording');
 assert(referenceReason({kind:'news',headline:'Q2 results this week: Ather Energy, IndiGo, L&T, Paytm, Maruti, Mazagon Dock, Adani Enterprises, Vedanta, among others in focus'}),'The repeated weekly calendar roundup stays in the full source register');
 assert.equal(scheduledBoardMeetingSummary(b.find(r=>/standalone and/.test(r.headline))),'Board meeting 29 Oct 2026; captured agenda is incomplete.');
 const facts=[{field:'event',value:'Submission of revised voting results of EGM held on 23 October 2026, correcting shareholder categorisation error'},
