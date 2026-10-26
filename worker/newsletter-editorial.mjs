@@ -1,7 +1,8 @@
 // The inbox is a reading layer over the complete immutable edition. Classification never
 // deletes a captured row, changes an edition window or certifies an unread document.
 import { scheduledBoardMeetingSummary } from './newsletter-filing-events.mjs';
-import { investorSourceFacts, xbrlBoardMeetingNote } from './newsletter-source-notes.mjs';
+import { investorSourceFacts, investorSourceSummary, xbrlBoardMeetingNote, votingResultNote } from './newsletter-source-notes.mjs';
+import { newsletterSourceUrl } from './newsletter-source-links.mjs';
 export const EDITORIAL_VERSION = 1;
 export const EDITORIAL_EMAIL_PARTS = 3;
 const text = value => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
@@ -12,6 +13,10 @@ export function referenceReason(item) {
   const title = text(item.headline || item.title), ticker = String(item.ticker || '').toUpperCase();
   if (['issuer-mismatch','company-evidence-unconfirmed'].includes(item.content?.reason)) return 'Issuer connection not established by the source reading';
   if (item.kind === 'news' || !item.kind) {
+    if(/^(?:Q[1-4]\s+)?results (?:this|next) week\s*:/i.test(title)&&!/\b(?:profit|revenue|margin|EBITDA|EPS|growth|loss)\b|%/i.test(title))return 'Results-calendar roundup; no company results disclosed';
+    if(/\bstock price, news, quote and history[.!]?$|\bshare price\s*[-:]\s*live\b|\bstock price live NSE\/BSE updates[.!]?$/i.test(title)) return 'Quote/reference page; no business development stated';
+    if((/\bis rated (?:sell|buy|hold)[.!]?$/i.test(title)||/\b(?:(?:upgraded|downgraded) to (?:sell|buy|hold) amid (?:technical|valuation|mixed|bearish)|forms death cross|faces mildly bearish technical shift)\b/i.test(title)) &&
+      !/\b(?:CRISIL|ICRA|CARE Ratings|Moody|Fitch|S&P|credit rating|guidance|profit warning|default|fraud|FDA|earnings|results|contract|merger|acquisition|dividend)\b|\bby (?!MarketsMojo\b)[A-Z]/i.test(title))return 'Automated technical/opinion template; no attributed fundamental change';
     if (/\b(?:slides|slips|climbs|rises|falls|gains|drops|jumps) (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),? (?:outperforms|underperforms) competitors[.!]?$/i.test(title)) return 'Automated daily price comparison; no business development stated';
     if (/\bestimates\s*[-–:]\s*(?:NSE|BSE)\s*:|\boption chain\b/i.test(title) &&
         !/\b(?:raised|lowered|revised|revision|upgrade|downgrade|changed|cut|increased|decreased)\b/i.test(title)) return 'Reference page; no estimate revision stated';
@@ -49,20 +54,24 @@ export function editorialEvents(brief, companies) {
     const members = [cluster.main, ...cluster.others];
     const eligible = members.filter(item => !referenceReason(item));
     if (!eligible.length) { reference.push(cluster); continue; }
-    const lead = [...eligible].sort((a,b) => Number(b.kind === 'filing') - Number(a.kind === 'filing') ||
+    const lead = eligible.includes(cluster.main)?cluster.main:[...eligible].sort((a,b) => Number(b.kind === 'filing') - Number(a.kind === 'filing') ||
       Number(b.content?.state === 'ready') - Number(a.content?.state === 'ready') || editorialPriority(b) - editorialPriority(a))[0];
     if (members.some(item => item.editorialReported)) { repeated.push(cluster); continue; }
     const note = brief.ai?.items?.[cluster.id] || (cluster.main.content?.state==='ready' ? cluster.main.content.note : null);
     const ready = eligible.filter(s => s.content?.state === 'ready');
+    const completeSourceSummary=xbrlBoardMeetingNote(lead)||votingResultNote(lead);
+    const sourceSummary=cluster.versionConflict?'Different versions of this document were captured; their chronology is unconfirmed. Read the retained versions before relying on the figures.':completeSourceSummary || investorSourceSummary(lead);
     events.push({ id: cluster.id, company: company.company, ticker: company.ticker, cluster,
       lead, note, rank: Math.max(...eligible.map(editorialPriority)), at: Math.max(...eligible.map(s => s.at)),
       sourceCount: members.length, read: ready.length, total: members.length,
       // A summary of a different lead cannot be relabelled as this filing's summary.
-      summary: note && lead === cluster.main ? note.summary : null,
-      sourceSummary: xbrlBoardMeetingNote(lead),
+      summary: note && lead === cluster.main && !cluster.versionConflict && !completeSourceSummary ? note.summary : null,
+      sourceSummary,
+      completeSourceSummary:!!completeSourceSummary&&!cluster.versionConflict,
       description: scheduledBoardMeetingSummary(lead),
       facts: investorSourceFacts(lead),
-      evidence: lead.content?.state === 'ready' ? 'Source read' : 'Headline only',
+      sources: [...new Set([lead,...members.filter(s=>s!==lead)].map(newsletterSourceUrl).filter(Boolean))],
+      evidence: lead.content?.state === 'ready' ? sourceSummary?'Source read':'Source read; factual summary unavailable' : lead.content?.state==='partial'?'Partial source read':'Headline only',
     });
   }
   events.sort((a,b) => b.rank-a.rank || Number(b.lead.kind === 'filing')-Number(a.lead.kind === 'filing') || b.at-a.at || a.ticker.localeCompare(b.ticker));

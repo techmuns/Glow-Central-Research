@@ -31,7 +31,7 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
   const reportUrl=pdfUrl || `${dashboardUrl}/api/newsletter/preview?edition=${brief.edition}&format=pdf`;
   const cards=events.map((event,index)=>{
     const s=event.lead;
-    const summary=event.summary || event.sourceSummary || (event.facts.length ? event.facts.map(f=>f.value).join(' ') : event.description || (s.kind==='move'?`${s.headline}. Why it moved: ${priceReasonText(s.why)}`:s.headline));
+    const summary=event.summary || event.sourceSummary || event.description || (s.kind==='move'?`${s.headline}. Why it moved: ${priceReasonText(s.why)}`:s.headline);
     const source=emailSourceUrl(newsletterSourceUrl(s),sourceLinks,dashboardUrl);
     const sourceLabel=s.kind==='filing'?'Announcement →':s.kind==='news'?'News report →':'Source →';
     const sameCompany=index>0&&events[index-1].ticker===event.ticker;
@@ -39,17 +39,19 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
     // One description per event. Never repeat its headline above an equivalent AI summary.
     // Keep the bounded structured meeting note intact, including a later agenda
     // such as dividend. Other excerpts can shorten on unusually dense editions.
-    const description=esc(event.sourceSummary===summary?summary:short(summary,summaryChars));
-    const evidence=event.summary?'AI summary':event.sourceSummary||event.facts.length?'Source facts':event.evidence;
+    const description=esc(event.sourceSummary===summary&&event.completeSourceSummary?summary:short(summary,summaryChars));
+    const evidence=event.summary?'AI summary':event.sourceSummary?s.content?.state==='partial'?'Partial source facts':'Source facts':event.evidence;
     const incomplete=event.read>0&&event.read<event.total?' · Some sources unread':'';
-    if(compact)return `<tr><td class="gve"><strong class="gvc">${esc(event.company)}</strong> · ${description}<br><span class="gvm">${esc(evidence)}${incomplete}${s.related?' · Related entity; exposure unconfirmed':''} · ${esc(istLabel(s.at))} · ${source?link(source,sourceLabel,GOLD,'gvl'):'Source link unavailable'}</span></td></tr>`;
+    const extraSources=event.sources.filter(url=>url!==newsletterSourceUrl(s)).map((url,i)=>
+      ' · '+link(emailSourceUrl(url,sourceLinks,dashboardUrl),`[${i+2}]`,GOLD,compact?'gvl':null)).join('');
+    if(compact)return `<tr><td class="gve"><strong class="gvc">${esc(event.company)}</strong> · ${description}<br><span class="gvm">${esc(evidence)}${incomplete}${s.related?' · Related entity; exposure unconfirmed':''} · ${esc(istLabel(s.at))} · ${source?link(source,sourceLabel,GOLD,'gvl'):'Source link unavailable'}${extraSources}</span></td></tr>`;
     return `<tr><td style="padding:${sameCompany?'10px':'22px'} 0 12px;border-bottom:1px solid ${RULE}">
 ${sameCompany?'':`<div style="padding-bottom:7px;margin-bottom:8px;border-bottom:2px solid ${INK};font-family:${SERIF};font-size:${compact?18:22}px;line-height:1.2;font-weight:bold;color:${INK}">${esc(event.company)} <span style="font-family:${SANS};font-size:10px;font-weight:normal;color:${META}">${esc(event.ticker)}</span></div>`}
 <div style="font-family:${SERIF};font-size:${compact?14:15}px;line-height:1.45;color:${INK};font-weight:bold">${description}</div>
 ${!compact&&event.summary&&event.note?.impact?`<div style="margin-top:5px"><strong>Why it matters:</strong> ${esc(short(event.note.impact,180))}</div>`:''}
 ${!compact&&event.summary&&event.note?.unknowns?`<div style="margin-top:4px"><strong>Watch next:</strong> ${esc(short(event.note.unknowns,140))}</div>`:''}
 ${s.related?`<div style="margin-top:4px;color:${META};font-size:11px">Related entity; exposure unconfirmed.</div>`:''}
-<div style="margin-top:6px;font-size:11px;color:${META}">${type} · ${esc(evidence)}${incomplete} · ${esc(istLabel(s.at))} · ${source?link(source,sourceLabel):'Source link unavailable'}</div>
+<div style="margin-top:6px;font-size:11px;color:${META}">${type} · ${esc(evidence)}${incomplete} · ${esc(istLabel(s.at))} · ${source?link(source,sourceLabel):'Source link unavailable'}${extraSources}</div>
 </td></tr>`;
   }).join('');
   const a=brief.announcements,n=brief.news;

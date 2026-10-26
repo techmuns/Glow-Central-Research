@@ -369,7 +369,7 @@ export function renderBriefPdf(
   for(const event of reading.events) {
     pdf.ensure(100);
     pdf.paragraph(`${event.company} / ${event.lead.kind==='filing'?'Corporate announcement':'Development'}`,{font:'F2',size:11,gap:4});
-    const summary=event.summary || event.sourceSummary || (event.facts.length?event.facts.map(f=>f.value).join(' '):event.description || event.lead.headline);
+    const summary=event.summary || event.sourceSummary || event.description || event.lead.headline;
     pdf.paragraph(summary,{size:10});
     if(event.summary&&event.note?.impact)pdf.paragraph(`Potential impact / AI: ${event.note.impact}`,{size:9,color:MUTED});
     if(event.summary&&event.note?.unknowns)pdf.paragraph(`Watch next: ${event.note.unknowns}`,{size:9,color:MUTED});
@@ -454,6 +454,15 @@ export function renderBriefPdf(
           color: ACCENT,
           url,
         });
+      // Pair saved facts with that version's own linked heading. Copies remain
+      // linked below without printing an identical document's extraction again.
+      const factSources=new Set((k.documents || [{main:s},...k.others.map(main=>({main}))]).map(d=>d.main));
+      const savedFacts=item=>{
+        if(!factSources.has(item)||!item.content?.facts?.length)return;
+        pdf.paragraph(`Saved source facts / ${item.content.state}`,{font:'F2',size:9,color:MUTED});
+        for(const fact of item.content.facts)pdf.paragraph(`${fact.name || fact.field}: ${fact.value}`,{size:8,color:MUTED});
+      };
+      savedFacts(s);
       for (const r of k.others) {
         pdf.paragraph(`Related: ${r.headline}`, {
           size: 10,
@@ -464,6 +473,7 @@ export function renderBriefPdf(
           { size: 8, color: MUTED },
         );
         if (r.dek) pdf.paragraph(r.dek, { size: 10, color: MUTED });
+        savedFacts(r);
         for (const url of sourceLinks(r, dashboardUrl).filter(url => url !== readableUrl(r.url, dashboardUrl)))
           pdf.paragraph("Read additional related source ->", { font: "F2", size: 9, color: ACCENT, url });
       }

@@ -169,7 +169,7 @@ export function relatedNewsReports(a, b) {
 
 export function newsEventsNote(review) {
   if (!review?.eligible) return '';
-  if (review.reason === 'preview') return 'Repeated-news checking is added to sent editions; this preview retains source reports';
+  if (review.reason === 'preview') return 'Deterministic document/event consolidation applied; optional model news review was not requested for this preview';
   return review.ok
     ? `AI checked repeated-news coverage for ${review.reviewed} of ${review.eligible} reports; ${review.combined} repeat reports combined, all sources retained`
     : 'Repeated-news checking unavailable; reports without corroborating copy identity remain separate';

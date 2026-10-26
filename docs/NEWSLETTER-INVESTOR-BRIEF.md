@@ -206,3 +206,14 @@ or paid model calls. Local rendered HTML and PDF examples are retained under `.c
 desktop/mobile and pagination inspection. Fixture replies prove contracts, not live model
 accuracy. Normal merge-triggered deployment and scheduled preparation deliver the update;
 manual production sends or recovery runs require separate explicit authorization.
+
+## Document-first event consolidation — 26 October follow-up
+
+See [the full-output audit](NEWSLETTER-OUTPUT-AUDIT-2026-10-26.md). Verified copies form
+source documents before event grouping or summary generation. Normalized issuer/event/date/
+period identity joins supported disclosures. Each writer item includes a document once,
+with original versions and report links retained. Dated EGM corrections lead the original;
+unordered changed versions remain explicitly unresolved. Source readings replace raw field
+concatenation in the briefing; the full source register preserves the saved fields. The
+original design and provider budgets are unchanged. Required CI replays 36 exact readings
+from the customer's 202-page PDF through `verify-newsletter-output.mjs`.
