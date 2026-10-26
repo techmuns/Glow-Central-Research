@@ -26,7 +26,8 @@ export function scheduledBoardMeeting(item) {
   if (month < 1 || month > 12 || at.getUTCFullYear() !== year || at.getUTCMonth() !== month - 1 || at.getUTCDate() !== day) return null;
   const period = tags.get('MonthOfPeriodEnded')&&tags.get('YearOfPeriodEnded')
     ? `${tags.get('MonthOfPeriodEnded')} ${String(tags.get('YearOfPeriodEnded')).slice(0,4)}`
-    : /\bperiod ended\s+((?:\d{1,2}[ /-]+)?(?:[A-Za-z]+|\d{1,2})[ /,-]+20\d{2})/i.exec(title)?.[1] || null;
+    : /\bperiod ended\s+(20\d{2}-\d{2}-\d{2}|(?:\d{1,2}(?:st|nd|rd|th)?[ /-]+)?(?:[A-Za-z]+|\d{1,2})[ /,-]+20\d{2})/i.exec(title)?.[1] || null;
+  if(period&&!financialPeriod(period))return null;
   const agendas = [
     ['results', /\b(?:financial results|quarterly results|half yearly.*results)\b/i],
     ['dividend', /\bdividend\b/i], ['fundraising', /\bfund.?rais\w*\b/i], ['QIP', /\bQIP\b/i],

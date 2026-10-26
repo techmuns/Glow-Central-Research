@@ -25,6 +25,8 @@ for(const name of ['Aurobindo Pharma Ltd','Varroc Engineering Limited']) {
  assert.equal(clusterStories(notices).length,1,`${name}: NSE/BSE date/period normalization`);
  const textNotice=notices[0],numeric={...textNotice,url:'https://fixture.test/numeric-period',headline:textNotice.headline.replace('September 2026','30/09/2026')};
  assert.equal(clusterStories([textNotice,numeric]).length,1,'Month name and quarter-end numeric date identify the same period');
+ assert.equal(clusterStories([textNotice,{...numeric,headline:textNotice.headline.replace('September 2026','2026-09-30')}]).length,1,'ISO financial periods identify the same quarter');
+ assert.equal(clusterStories([textNotice,{...numeric,headline:textNotice.headline.replace('September 2026','2026-06-30')}]).length,2,'Different ISO financial periods cannot merge');
  assert.equal(clusterStories([textNotice,{...numeric,headline:numeric.headline.replace('30/09/2026','30/06/2026')}]).length,2,'Different financial periods stay separate');
 }
 assert.equal(eventDate('31 November 2026'),null);assert.equal(eventDate('November 4, 2026'),'2026-11-04');
@@ -50,6 +52,7 @@ assert.equal(clusterStories([...inspection,{...inspection[1],url:'https://fixtur
 assert.equal(clusterStories([inspection[1],{...inspection[1],url:'https://fixture.test/other-site',headline:inspection[1].headline.replace('Goa','Nagpur')}]).length,2);
 const appointments=lupin.filter(r=>/Brian Savage/.test(r.headline));assert.equal(clusterStories(appointments).length,1,'The identical person/role is one appointment');
 assert.equal(clusterStories([appointments[0],{...appointments[1],headline:appointments[1].headline.replace('Brian Savage','Brian Jones')}]).length,2);
+assert.equal(clusterStories([{...appointments[0],eventId:'checked-event-1'},{...appointments[1],eventId:'checked-event-2'}]).length,2,'A checked distinct news development overrides an unverified headline profile');
 const tech=company('Tech Mahindra Ltd'),acquisition=tech.filter(r=>/buys Finastra suite/.test(r.headline));
 assert.equal(clusterStories(acquisition).length,1,'The identical named acquisition object is not repeated by discovery route');
 const partnership=tech.filter(r=>/SpaceXSI/.test(r.headline));assert.equal(clusterStories(partnership).length,1);

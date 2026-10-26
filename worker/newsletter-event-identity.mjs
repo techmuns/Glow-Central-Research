@@ -18,7 +18,7 @@ export function financialPeriod(value) {
   if(full)return full.slice(0,7);
   const m=/^([A-Za-z]+)[ ,/-]+(20\d{2})$/.exec(text);
   const month=m?months.indexOf(m[1].slice(0,3).toLowerCase())+1:0;
-  return month?`${m[2]}-${String(month).padStart(2,'0')}`:text.toLowerCase();
+  return month?`${m[2]}-${String(month).padStart(2,'0')}`:null;
 }
 const factsFor=item=>['ready','partial'].includes(item.content?.state)?item.content.facts||[]:[];
 const eventText=item=>[item.headline,...factsFor(item).filter(f=>f.field==='event').map(f=>f.value)].join(' ');
@@ -67,11 +67,17 @@ export function explicitEvent(item) {
 }
 export function sameExplicitEvent(a,b) {
   if(a.ticker!==b.ticker||!!a.related!==!!b.related||!Number.isFinite(a.at)||!Number.isFinite(b.at))return false;
+  if(a.kind==='news'&&b.kind==='news'&&(a.eventId||b.eventId)&&a.eventId!==b.eventId)return false;
   const x=explicitEvent(a),y=explicitEvent(b);
   if(!x||!y||x.key!==y.key)return false;
   const window=x.type==='egm-voting'?7*86400000:86400000;
   if(Math.abs(a.at-b.at)>window)return false;
   if(x.type!=='egm-voting') {
+    const captured=s=>`${s.headline||''} ${s.dek||''}`;
+    const numbers=s=>(captured(s).replace(/(\d),(?=\d)/g,'$1').match(/\d+(?:\.\d+)?/g)||[]).sort().join('|');
+    const nx=numbers(a),ny=numbers(b);if(nx&&ny&&nx!==ny)return false;
+    const denied=/\b(?:denies|denied|rejects|rejected|revoked|cancelled|canceled|terminated)\b/i;
+    if(denied.test(captured(a))!==denied.test(captured(b)))return false;
     // Normalized identity cannot erase contradictory read terms or a new stage.
     for(const field of ['amount','counterparty','ownership','status','conditions']) {
       const values=s=>factsFor(s).filter(f=>f.field===field).map(f=>clean(f.value).toLowerCase()).sort().join('|');
