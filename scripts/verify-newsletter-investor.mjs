@@ -70,9 +70,17 @@ store.markReported(records,'acknowledged-edition',{windowFrom:brief.window.from}
 const restarted=new NewsletterStore(storage,{now:()=>at+3600000});
 await annotateEditorialHistory(brief,briefStats(brief).companies,restarted.reportedLookup());
 assert.equal(editorialEvents(brief,briefStats(brief).companies).repeated.length,1,'An acknowledged event stays covered after restart');
+brief.news.groups.push({ticker:brief.announcements.groups[0].ticker,company:brief.announcements.groups[0].company,items:[{headline:'Customer contract',at,keys:['new-unknown-source'],url:'https://fixture.test/new-unknown',publisher:'New publisher',keywords:[]}]});
+await annotateEditorialHistory(brief,briefStats(brief).companies,restarted.reportedLookup());
+assert.equal(editorialEvents(brief,briefStats(brief).companies).events.length,1,'A known member cannot suppress unknown new evidence without an event identity');
+brief.news.groups.pop();
 for(const row of brief.announcements.groups[0].items){row.content.hash='corrected-document';row.content.facts[1].value='INR 110 crore';}
 await annotateEditorialHistory(brief,briefStats(brief).companies,restarted.reportedLookup());
 assert.equal(editorialEvents(brief,briefStats(brief).companies).events.length,1,'A changed document is a new material version');
+const aged=new NewsletterStore(storage,{now:()=>at+20*86400000});
+aged.markReported([{key:'recent-transport',publishedAt:at+20*86400000}],'later-edition');
+assert.equal(aged.reportedLookup().has('official:NSE'),false,'Ordinary transport pruning remains bounded');
+assert(aged.reportedLookup().has(records.find(r=>r.key.startsWith('newsletter-event:')).key),'Event versions survive transport/log retention');
 
 // Migrate the actual old queue schema. Fresh risk disclosures lead; the oldest pending source
 // still receives a reserved slot. No historical job or completed extraction is discarded.

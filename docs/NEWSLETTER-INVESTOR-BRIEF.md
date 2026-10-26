@@ -66,7 +66,8 @@ aliases in the existing acknowledged-item ledger. All participating versions mus
 before an event is treated as previously covered; unknown new evidence cannot be hidden by
 an older member. Changed source bytes/facts create a new version. Headline-only reuse is
 limited to four publication days; generic filing labels never identify an event. The existing
-ledger retains ten days of acknowledgements, independently of permanent source history.
+ledger retains ordinary transport identities for ten days and event-version hashes durably,
+independently of permanent source history and delivery-log pruning.
 This is conservative copy suppression, not a claim that all paraphrases are understood.
 
 The first accepted report-linked email acknowledges the complete verified report's source

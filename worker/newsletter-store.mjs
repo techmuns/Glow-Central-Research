@@ -343,7 +343,9 @@ export class NewsletterStore {
       this.rows('INSERT OR IGNORE INTO newsletter_reported (item, published_at, delivery, reported_at) VALUES (?, ?, ?, ?)', key, publishedAt, String(delivery || ''), at);
       added += this.rows('SELECT changes() AS n')[0].n;
     }
-    this.rows('DELETE FROM newsletter_reported WHERE reported_at < ?', iso(this.now() - REPORTED_RETENTION_MS));
+    // Ordinary transport identities retain their existing ten-day window. Compact event
+    // version hashes are durable: log pruning must not make an old disclosure new again.
+    this.rows("DELETE FROM newsletter_reported WHERE reported_at < ? AND item NOT LIKE 'newsletter-event:%'", iso(this.now() - REPORTED_RETENTION_MS));
     return { added };
   }
 

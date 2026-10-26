@@ -69,7 +69,7 @@ export async function annotateEditorialHistory(brief, companies, reported) {
   const groups = [...(brief.announcements?.groups || []), ...(brief.news?.groups || [])];
   const byKey = new Map(groups.flatMap(g=>g.items.flatMap(row=>(row.keys || []).map(key=>[`${g.ticker}|${key}`,row]))));
   for (const company of companies) for (const cluster of company.clusters) {
-    const members=[cluster.main,...cluster.others],aliases=[];
+    const members=[cluster.main,...cluster.others],aliases=[];let identifiedMembers=0;
     for(const member of members) {
       if(!['filing','news'].includes(member.kind))continue;
       const content=member.content, facts=content?.state==='ready'?content.facts||[]:[];
@@ -78,6 +78,7 @@ export async function annotateEditorialHistory(brief, companies, reported) {
       const specific=title.split(/\W+/).length>=8&&!/^(?:press release|general|regulation|intimation|outcome of|please find|.*has informed (?:the exchange|bse))/i.test(title);
       const identity=content?.state==='ready'&&content.hash?`document:${content.hash}`:substantive?`facts:${substantive}`:specific?`headline:${title}`:null;
       if(!identity)continue;
+      identifiedMembers++;
       const input=JSON.stringify([EDITORIAL_VERSION,company.ticker,!!member.related,identity]);
       const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(input)))].map(b=>b.toString(16).padStart(2,'0')).join('');
       const key=`newsletter-event:${digest}`,knownAt=reported?.at?.(key);
@@ -85,7 +86,7 @@ export async function annotateEditorialHistory(brief, companies, reported) {
     }
     // A newly supplied version cannot be hidden by an older, already-covered member of
     // the group. Unknown new evidence keeps the event visible until it can be checked.
-    const already=aliases.length>0&&aliases.every(a=>a.known);
+    const already=identifiedMembers===members.length&&aliases.length>0&&aliases.every(a=>a.known);
     for (const member of [cluster.main,...cluster.others]) for (const key of member.keys || []) {
       const row=byKey.get(`${company.ticker}|${key}`); if (!row) continue;
       row.editorialReported = already;
