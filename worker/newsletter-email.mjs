@@ -1,4 +1,6 @@
 import { briefStats, briefSubject, renderBriefHtml } from './newsletter-brief.mjs';
+import { editorialEvents, EDITORIAL_EMAIL_PARTS } from './newsletter-editorial.mjs';
+import { investorSubject } from './newsletter-investor-email.mjs';
 
 // Gmail clips around 102 KB of HTML, including markup and URLs. Count encoded bytes, not
 // characters, and leave space for the sending service/client's additions. Every final outgoing
@@ -117,6 +119,7 @@ export function renderBriefEmails(brief, options = {}, { maxBytes = EMAIL_HTML_B
  * Full HTML/text/PDF readers retain every eligible source and supplemental row.
  */
 export function renderBriefDeliveryEmails(brief, options = {}, { maxBytes = EMAIL_HTML_BYTES } = {}) {
+  if (options.editorial) return renderInvestorEmails(brief,options,{maxBytes});
   const stats = briefStats(brief);
   const policy = newsletterDeliveryPolicy({ partCount: 1, lateCount: stats.late });
   if (policy) throw Object.assign(new Error('Newsletter delivery policy refused this edition'), { code: policy });
@@ -139,4 +142,43 @@ export function renderBriefDeliveryEmails(brief, options = {}, { maxBytes = EMAI
     if (bytes <= maxBytes) return [{ html, bytes, subject: briefSubject(brief, options), keys: keysFor(stats.companies), part }];
   }
   throw tooLarge();
+}
+
+/** Current GitHub deliveries use the investor reading layer; legacy frozen bodies are never
+ * rewritten. Every accepted part links the same publication-verified complete evidence report. */
+export function renderInvestorEmails(brief, options = {}, {maxBytes=EMAIL_HTML_BYTES,maxParts=EDITORIAL_EMAIL_PARTS}={}) {
+  const stats=briefStats(brief), reading=editorialEvents(brief,stats.companies);
+  const origin=(options.dashboardUrl || '').replace(/\/$/,'');
+  if (!options.preview && (!origin || !options.pdfUrl?.startsWith(origin+'/api/newsletter/pdf/') ||
+      !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(options.pdfUrl.slice((origin+'/api/newsletter/pdf/').length)))) throw Error('Investor delivery requires an immutable edition PDF');
+  for (const compact of [false,true]) for (const supplements of [true,false]) {
+    const pages=[], selected=[];
+    const measure=ids=>emailBytes(renderBriefHtml(brief,{...options,stats,part:{investor:true,reportLink:true,eventIds:ids,compact,supplements,index:1,total:maxParts,packing:true}}));
+    const overhead=measure([]);let used=overhead;
+    // Card markup is additive. Measure each card once instead of rendering the whole
+    // growing edition for every candidate (quadratic date formatting/string allocation).
+    if(overhead>maxBytes-PACKING_RESERVE)continue;
+    let failed=false;
+    for (const event of reading.events) {
+      const cost=measure([event.id])-overhead;
+      if (used+cost<=maxBytes-PACKING_RESERVE) {selected.push(event.id);used+=cost;continue;}
+      if (!selected.length) {failed=true;break;}
+      pages.push(selected.splice(0));
+      if (pages.length>=maxParts || overhead+cost>maxBytes-PACKING_RESERVE) {failed=true;break;}
+      selected.push(event.id);used=overhead+cost;
+    }
+    if(failed)continue;
+    if(selected.length||!pages.length)pages.push(selected);
+    if(pages.length>maxParts)continue;
+    const messages=pages.map((eventIds,i)=>{
+      const part={investor:true,reportLink:true,eventIds,compact,supplements,index:i+1,total:pages.length};
+      const html=renderBriefHtml(brief,{...options,stats,part});
+      return {html,bytes:emailBytes(html),part,subject:investorSubject(brief,options.brand||'Glow Ventures',stats),
+        // The first accepted email delivers the verified full report. Later emails continue
+        // its reading layer; they cannot acknowledge a source the report did not contain.
+        keys:i===0?keysFor(stats.companies):[]};
+    });
+    if(messages.every(m=>m.bytes<=maxBytes))return messages;
+  }
+  throw Object.assign(tooLarge(),{maxParts});
 }

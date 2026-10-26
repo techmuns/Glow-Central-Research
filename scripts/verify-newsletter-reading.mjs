@@ -18,7 +18,6 @@ const first = row('Alankit wins airport software contract worth 2600 crore');
 const second = row(first.headline, { source: 'Business Line' });
 assert.equal(clusterStories([first, second], { company: 'Alankit' }).length, 1);
 for (const other of [
-  row(first.headline, { source: 'Reuters' }),
   row(first.headline, { ticker: 'OTHER' }),
   row(first.headline, { source: 'Mint', related: true }),
   row(first.headline.replace('2600', '3600'), { source: 'Mint' }),
@@ -26,6 +25,7 @@ for (const other of [
   row(first.headline, { source: 'Mint', at: at + 86400001 }),
   row(first.headline, { kind: 'filing' }),
 ]) assert.equal(relatedReports(first, other, 'Alankit'), false);
+assert.equal(relatedReports(first,row(first.headline,{source:'Reuters'})),true,'An identical same-publisher ingestion copy is one update');
 for (const [positive, negative] of [['approves', 'rejects'], ['wins', 'loses'], ['grants', 'revokes'], ['allows', 'bans'], ['authorises', 'prohibits'], ['clears', 'blocks'], ['starts', 'stops']]) {
   assert.equal(relatedReports(row(`Acme ${positive} airport software contract worth 2600 crore`), row(`Acme ${negative} airport software contract worth 2600 crore`, { source: 'Mint' }), 'Acme'), false);
 }

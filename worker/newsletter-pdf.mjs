@@ -18,6 +18,7 @@ import {
   calendarDayLabel,
 } from "./newsletter-brief.mjs";
 import { priceReasonText } from "./newsletter-price-reasons.mjs";
+import { editorialEvents, referenceReason } from "./newsletter-editorial.mjs";
 import {
   istDateLong,
   istLabel,
@@ -309,6 +310,7 @@ export function renderBriefPdf(
   const stats = briefStats(brief),
     edition = TAGLINES[brief.edition],
     date = istLabel(brief.at, { time: false });
+  const reading=editorialEvents(brief,stats.companies);
   const pdf = new BriefPdf({
     brand: BRAND,
     edition,
@@ -329,20 +331,21 @@ export function renderBriefPdf(
   pdf.rule();
   pdf.y += 18;
   pdf.metrics([
-    { value: String(stats.updates), label: "COMPANY UPDATES" },
+    { value: String(reading.events.length), label: "DISTINCT DEVELOPMENTS" },
     {
-      value: `${stats.companies.length} / ${brief.book.listed}`,
-      label: "COMPANIES WITH UPDATES",
+      value: `${new Set(reading.events.map(e=>e.ticker)).size} / ${brief.book.listed}`,
+      label: "COMPANIES WITH DEVELOPMENTS",
       size: 18,
     },
-    { value: String(stats.good), label: "GOOD", color: tone(1) },
-    { value: String(stats.watch), label: "WATCH-OUTS", color: tone(-1) },
+    { value: String(stats.stories), label: "SOURCE ITEMS RETAINED" },
+    { value: String(brief.content?.pending ?? 'Unknown'), label: "PENDING SOURCE READS" },
   ]);
   pdf.paragraph(
     `Window: ${istLabel(brief.window.from)} to ${istLabel(brief.window.to)}${brief.onDemand ? " / built on request" : ""}`,
     { size: 9, color: MUTED, gap: 16 },
   );
   pdf.contents([
+    "Investment briefing",
     "Your portfolio companies",
     ...(brief.calendar ? ["On the calendar"] : []),
     ...(brief.actions ? ["Corporate actions"] : []),
@@ -360,10 +363,23 @@ export function renderBriefPdf(
     "READING THIS BRIEF",
     "Every company update retains its original evidence and links. Market and portfolio figures keep their source dates, verification limits and unavailable states. Use the contents above or the PDF bookmarks to move between sections.",
   );
+  pdf.section("Investment briefing", {fresh:true,subtitle:"Distinct developments first / full source register follows"});
+  pdf.paragraph(`${reading.events.length} development${reading.events.length===1?'':'s'} / ${reading.reference.length} reference or calendar groups / ${reading.repeated.length} previously covered groups. Source history and all links are retained in the following register.`,{size:9,color:MUTED});
+  if(brief.content?.pending)pdf.note("READING COVERAGE",`${brief.content.pending} source items remain unread. Unread headlines are reported leads, not verified document summaries. Full source checks and failures are disclosed in Sources & reading notes.`);
+  for(const event of reading.events) {
+    pdf.ensure(100);
+    pdf.paragraph(`${event.company} / ${event.lead.kind==='filing'?'Corporate announcement':'Development'}`,{font:'F2',size:11,gap:4});
+    const summary=event.summary || (event.facts.length?event.facts.map(f=>f.value).join(' '):event.lead.headline);
+    pdf.paragraph(summary,{size:10});
+    if(event.summary&&event.note?.impact)pdf.paragraph(`Potential impact / AI: ${event.note.impact}`,{size:9,color:MUTED});
+    if(event.summary&&event.note?.unknowns)pdf.paragraph(`Watch next: ${event.note.unknowns}`,{size:9,color:MUTED});
+    pdf.paragraph(`${event.evidence} / ${event.read} of ${event.total} source items read / ${storyWhen(event.lead)}`,{size:8,color:MUTED});
+    pdf.paragraph('Primary / lead source ->',{size:8,color:ACCENT,url:readableUrl(event.lead.content?.sourceUrl||event.lead.url,dashboardUrl),gap:12});
+  }
   pdf.section("Your portfolio companies", {
     fresh: true,
     subtitle:
-      "Company developments / source facts, AI interpretation and original links",
+      "Complete source register / includes reference records and unverified matches",
   });
   if (!stats.stories)
     pdf.note(
@@ -406,6 +422,7 @@ export function renderBriefPdf(
         url: readableUrl(s.url, dashboardUrl),
         gap: 7,
       });
+      if(referenceReason(s))pdf.paragraph(`Reference only: ${referenceReason(s)}`,{font:'F2',size:9,color:MUTED});
       if (s.dek) pdf.paragraph(s.dek, { size: 10, color: MUTED });
       if (note) {
         pdf.note("AI SUMMARY", note.summary);

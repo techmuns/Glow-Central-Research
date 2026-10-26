@@ -306,7 +306,9 @@ export class NewsletterStore {
    * than three days of everything the desk had seen without it.
    */
   reportedLookup() {
-    const keys = new Set(this.rows('SELECT item FROM newsletter_reported').map((row) => row.item));
+    const rows = this.rows('SELECT item,published_at FROM newsletter_reported');
+    const keys = new Set(rows.map(row => row.item));
+    const dates = new Map(rows.map(row=>[row.item, Date.parse(row.published_at || '')]));
     const since = this.meta().reportedSince;
     return {
       empty: keys.size === 0,
@@ -315,6 +317,7 @@ export class NewsletterStore {
       // be judged "not sent": briefs before the ledger existed carried it, and the ledger cannot know.
       since: Number.isFinite(Date.parse(since || '')) ? Date.parse(since) : null,
       has: (key) => keys.has(String(key)),
+      at: (key) => dates.get(String(key)),
     };
   }
 

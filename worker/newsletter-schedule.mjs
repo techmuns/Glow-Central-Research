@@ -271,7 +271,7 @@ export class NewsletterSchedule {
     const placeholder = `${this.dashboardUrl()}/api/newsletter/pdf/00000000-0000-0000-0000-000000000000`;
     let messages;
     try {
-      messages = renderBriefDeliveryEmails(brief, { ...this.renderOptions(footerRecipient), pdfUrl: placeholder });
+      messages = renderBriefDeliveryEmails(brief, { ...this.renderOptions(footerRecipient), pdfUrl: placeholder, editorial: !!this.deliveryQueue });
       const policyReason = newsletterDeliveryPolicy({ partCount: messages.length, lateCount: briefStats(brief).late });
       if (policyReason) throw Object.assign(new Error('Newsletter delivery policy refused this edition'), { code: policyReason });
       const plannedKeys = new Set(messages.flatMap(message => message.keys));
@@ -302,8 +302,8 @@ export class NewsletterSchedule {
     } catch {
       return finish({ sent: 0, failed: list.length, reason: 'pdf-failed', outcomes: list.map(r => ({ email: r.email, ok: false, reason: 'pdf-failed' })) });
     }
-    const subject = briefSubject(brief, this.renderOptions());
-    const summary = { ...briefSummary(brief), emailParts: messages.length, htmlBytes: messages.map(m => m.bytes), deliveryFormat: messages[0]?.part?.reportLink ? 'complete-report' : 'inline' };
+    const subject = messages[0]?.subject || briefSubject(brief, this.renderOptions());
+    const summary = { ...briefSummary(brief), emailParts: messages.length, htmlBytes: messages.map(m => m.bytes), deliveryFormat: messages[0]?.part?.investor ? 'investor-brief' : messages[0]?.part?.reportLink ? 'complete-report' : 'inline' };
     // GitHub owns resumable delivery. The retired object path keeps its original
     // claims; no historical/uncertain edition is implicitly enrolled for replay.
     if (this.deliveryQueue) return this.deliveryQueue.deliver({ key, edition, source, brief, list, messages, pdfUrl, documentId, credential, subject, summary, testRequest: source === 'test' && !includeAi ? testRequest : null });
@@ -389,7 +389,7 @@ export class NewsletterSchedule {
     }
     if (format === 'html') {
       let messages;
-      try { messages = renderBriefEmails(brief, this.renderOptions()); }
+      try { messages = renderBriefDeliveryEmails(brief, { ...this.renderOptions(), editorial: true, preview: true }); }
       catch (error) { return { ok: false, reason: error?.code || 'build-failed' }; }
       const message = messages[part - 1];
       if (!message) return { ok: false, reason: 'invalid-part' };

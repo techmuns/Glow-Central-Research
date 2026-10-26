@@ -86,6 +86,8 @@ import { isXbrlFilingUrl, readableFilingUrl } from '../public/js/data/nse-xbrl-s
 import { announcementDocumentIdentity } from '../public/js/data/announcements-shared.js';
 import { newsAiEnabled } from './newsletter-openai.mjs';
 import { attachContent, sameContentEvent } from './newsletter-content.mjs';
+import { annotateEditorialHistory, editorialPriority } from './newsletter-editorial.mjs';
+import { renderInvestorEmail } from './newsletter-investor-email.mjs';
 import { attachPriceReasons, priceEvidenceItems, priceReasonWindow, priceReasonText, priceReasonSourcesNote } from './newsletter-price-reasons.mjs';
 import { boundedJson } from '../public/js/data/family-book-contract.js';
 import { assessTradingViewCoverage } from '../public/js/data/tradingview-news-health.js';
@@ -933,7 +935,6 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
   // What a send of this brief would put in the ledger: every item it carries, by every identity it
   // was seen under.
   brief.reported = briefStories(brief).flatMap((s) => (s.keys || []).map((key) => ({ key, publishedAt: s.at })));
-  news.dedup = await reviewNewsEvents({ news, env, fetcher, enabled: includeAi, budget: contentService?.newsBudget, now });
   // A price-only card still needs the session's evidence, including rows sent in an earlier
   // edition or hidden by email caps. These readings do not become additional newsletter stories.
   const moverTickers = new Set(moves.groups.map(g => g.ticker));
@@ -951,11 +952,14 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
   // Read before grouping: generic exchange labels cannot identify the actual transaction.
   brief.content = await attachContent(brief, { service: contentService, env, fetcher, now, process: includeAi && (bedrockConfigured(env) || newsAiEnabled(env)),
     extraItems: priceEvidenceItems(priceContext, moves) });
+  news.dedup = await reviewNewsEvents({ news, env, fetcher, enabled: includeAi, budget: contentService?.newsBudget, now });
   brief.priceReasons = await attachPriceReasons({ brief, context: priceContext, env, fetcher, now, enabled: includeAi });
   // Notes see the final groups, including every publisher's qualifications and source text.
   brief.ai = includeAi ? await readAiNotes({ env, fetcher, now, companies: briefStats(brief).companies, sectors: new Map(holdings.map((h) => [upper(h.ticker), h.sector && !/^unclassified$/i.test(h.sector) ? h.sector : null])) })
     : { ok: false, reason: 'preview', requested: 0, answered: 0, items: {} };
   if (contentService && newsAiEnabled(env)) brief.newsAiBudget = contentService.newsBudget.status(now);
+  await annotateEditorialHistory(brief, briefStats(brief).companies, reported);
+  brief.reported = briefStories(brief).flatMap(s => (s.keys || []).map(key => ({ key, publishedAt: s.at })));
   return brief;
 }
 
@@ -1045,6 +1049,7 @@ export function briefStories(brief) {
       dek: [item.exchanges.join(' and '), item.subject].filter(Boolean).join(' filing · ') || null,
       url: item.url, source: item.exchanges.join(' · '),
       content: item.content, sourceUrls: item.sourceUrls,
+      editorialReported: item.editorialReported,
       direction: item.direction || 'neutral', importance: item.importance || 'low',
     });
   }
@@ -1054,6 +1059,7 @@ export function briefStories(brief) {
       eventId: item.eventId,
       dek: item.summary || null, url: item.url, sourceUrls: item.sourceUrls,
       content: item.content,
+      editorialReported: item.editorialReported,
       source: [item.publisher || 'Publisher not recorded', item.via ? `via ${item.via}` : null].filter(Boolean).join(' · '),
       direction: 'neutral', importance: item.keywords.length ? 'high' : 'low', related: item.attribution === 'related',
     });
@@ -1119,8 +1125,8 @@ export function sameStory(a, b) {
 }
 
 function sameFilingEvent(a, b, company) {
-  if (Math.abs(a.at - b.at) > FILING_COPY_WINDOW_MS) return false;
   if (a.content?.state === 'ready' && b.content?.state === 'ready') return sameContentEvent(a, b);
+  if (Math.abs(a.at - b.at) > FILING_COPY_WINDOW_MS) return false;
   const doc = announcementDocumentIdentity(a.url);
   if (doc && doc === announcementDocumentIdentity(b.url) && norm(a.headline) === norm(b.headline)) return true;
   // Only identical specific content can identify an unread exchange copy. Loose word overlap
@@ -1134,7 +1140,7 @@ function sameFilingEvent(a, b, company) {
 
 function contentConflicts(a, b) {
   if (!a.content?.facts?.length || !b.content?.facts?.length) return false;
-  for (const field of ['counterparty', 'amount', 'status', 'date']) {
+  for (const field of ['counterparty', 'amount', 'status', 'date', 'conditions', 'ownership']) {
     const values = s => s.content.facts.filter(f => f.field === field).map(f => norm(f.value)).sort();
     const x = values(a), y = values(b);
     if (x.length && y.length && JSON.stringify(x) !== JSON.stringify(y)) return true;
@@ -1229,11 +1235,12 @@ UNKNOWNS: up to 240 characters identifying material missing terms or conditions,
 Return ONLY a JSON array [{"id":"exact item id","summary":"...","impact":"...","unknowns":"..."}]. Skip items without substantive source facts. No markdown or commentary.`;
 
 /** Keep every related source's evidence and read status, with the immutable source link. */
-export function aiItemsFor(companies, sectors = new Map()) {
+export function aiItemsFor(companies, sectors = new Map(), { readableOnly = false } = {}) {
   const items = [];
   for (const c of companies) {
     for (const k of c.clusters) {
       if (k.kind !== 'story' || items.length >= AI_ITEM_LIMIT) continue;
+      if (readableOnly && ![k.main,...k.others].some(s => ['ready','partial'].includes(s.content?.state) && s.content?.facts?.length)) continue;
       const s = k.main;
       items.push({
         id: k.id, company: c.company, ticker: c.ticker, sector: sectors.get(c.ticker) || null,
@@ -1290,7 +1297,8 @@ export async function readAiNotes({ env, fetcher = fetch, now = Date.now(), comp
       newsModels.add(content.model);
     }
   }
-  const candidates = aiItemsFor(companies, sectors);
+  const ordered = companies.map(c => ({...c, clusters:[...c.clusters].sort((a,b)=>editorialPriority(b.main)-editorialPriority(a.main))}));
+  const candidates = aiItemsFor(ordered, sectors, { readableOnly: true });
   const requested = companies.reduce((n,c) => n + c.clusters.filter(k => k.kind === 'story').length, 0);
   const mergeNews = result => ({ ...result, ok: result.ok || Object.keys(newsNotes).length > 0,
     requested, partial: result.answered + Object.keys(newsNotes).length < requested,
@@ -1305,7 +1313,7 @@ export async function readAiNotes({ env, fetcher = fetch, now = Date.now(), comp
     items.push(item);
   }
   const base = { readAt: now, requested: candidates.length, supplied: items.length, answered: 0, items: {}, model: null };
-  if (!candidates.length) return mergeNews({ ...base, ok: true, reason: 'nothing-to-note' });
+  if (!candidates.length) return mergeNews({ ...base, ok: requested === 0, reason: requested ? 'content-pending' : 'nothing-to-note' });
   if (!bedrockConfigured(env)) return mergeNews({ ...base, ok: false, reason: 'no-key' });
   if (!items.length) return mergeNews({ ...base, ok: false, reason: 'content-pending' });
   const config = bedrockConfig(env);
@@ -1771,6 +1779,7 @@ ${index}<p style="font-size:11px;color:${META};">${esc(coverage)}</p>
 
 export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recipient = null, productName = PRODUCT_NAME, brand = BRAND, settings = null, pdfUrl = null, part = null, preview = false, stats: suppliedStats = null } = {}) {
   const stats = suppliedStats || briefStats(brief);
+  if (part?.investor) return renderInvestorEmail(brief, { dashboardUrl, recipient, productName, brand, settings, pdfUrl, part, preview, stats });
   if (part?.reportLink === true) return renderBriefReportHtml(brief, { dashboardUrl, recipient, productName, brand, settings, pdfUrl, part, stats });
   const subject = briefSubject(brief, { brand, part, stats });
   const companies = part?.companies ?? stats.companies;

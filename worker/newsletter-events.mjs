@@ -3,6 +3,7 @@ import {newsletterRequest} from './newsletter-request.mjs';
 import { newsAiEnabled, newsModelCall, objectSchema } from './newsletter-openai.mjs';
 import { boundedJson } from '../public/js/data/family-book-contract.js';
 import { bedrockConfig, bedrockConfigured, claudeCredential } from './research-claude.mjs';
+import { editorialPriority } from './newsletter-editorial.mjs';
 
 export const EVENT_REPORT_LIMIT = 80;
 export const EVENT_REQUEST_BYTES = 96000;
@@ -13,6 +14,7 @@ export const EVENT_COMPANY_BYTES = 24000;
 export const EVENT_RESPONSE_BYTES = 16000;
 export const EVENT_TIMEOUT_MS = 30000;
 export const EVENT_WINDOW_MS = 86400000;
+export const EVENT_BATCH_LIMIT = 4;
 const bytes = value => new TextEncoder().encode(JSON.stringify(value)).length;
 const sourceBytes = value => new TextEncoder().encode(JSON.stringify(value).replace(/[&<>"']/g,
   c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))).length;
@@ -79,7 +81,7 @@ export function parseEventGroups(text, reports) {
 }
 
 /** One bounded request per built send, before summary generation. Public previews never call it. */
-export async function reviewNewsEvents({ news, env, fetcher = fetch, enabled = true, budget = null, now = Date.now() }) {
+async function reviewNewsEventBatch({ news, env, fetcher = fetch, enabled = true, budget = null, now = Date.now() }) {
   // Never reuse stale annotations if the same input object is rebuilt or a check fails.
   for (const group of news.groups || []) for (const item of group.items) delete item.eventId;
   const { reports, rows, eligible } = eventCandidates(news);
@@ -129,11 +131,35 @@ export async function reviewNewsEvents({ news, env, fetcher = fetch, enabled = t
   }
 }
 
+/** Independent company batches avoid one large edition making every later company ineligible.
+ * Cached memberships and the existing provider budget are reused; failed checks never drop rows. */
+export async function reviewNewsEvents(options) {
+  const {news,enabled=true}=options;
+  for(const group of news.groups || [])for(const item of group.items)delete item.eventId;
+  const groups=(news.groups || []).filter(g=>g.items.length>1).sort((a,b)=>Math.max(...b.items.map(i=>editorialPriority({...i,kind:'news'})))-Math.max(...a.items.map(i=>editorialPriority({...i,kind:'news'}))));
+  if(!groups.length||!enabled)return reviewNewsEventBatch(options);
+  const total={eligible:groups.reduce((n,g)=>n+g.items.length,0),requested:0,reviewed:0,combined:0};
+  let reason='limit',batches=0;
+  for(const group of groups) {
+    if(batches>=EVENT_BATCH_LIMIT)break;
+    const result=await reviewNewsEventBatch({...options,news:{groups:[group]}});
+    total.requested+=result.requested;total.reviewed+=result.reviewed;total.combined+=result.combined;
+    if(result.requested)batches++;
+    if(result.ok)continue;
+    reason=result.reason;
+    if(reason!=='limit')break;
+  }
+  return {...total,ok:total.reviewed>0,partial:total.reviewed<total.eligible,...(total.reviewed?{}:{reason})};
+}
+
 export function relatedNewsReports(a, b) {
-  if (a.kind !== 'news' || b.kind !== 'news' || !compatibleReports({ ...a, summary: a.dek }, { ...b, summary: b.dek })) return false;
+  if (a.kind !== 'news' || b.kind !== 'news') return false;
+  if (a.ticker === b.ticker && !!a.related === !!b.related && a.content?.state === 'ready' && b.content?.state === 'ready'
+      && a.content.hash && a.content.hash === b.content.hash) return true;
+  if (!compatibleReports({ ...a, summary: a.dek }, { ...b, summary: b.dek })) return false;
   // Explicit singletons from the review override even an identical headline with changed facts.
   if (a.eventId || b.eventId) return !!a.eventId && a.eventId === b.eventId;
-  return a.source !== b.source && normal(a.headline) === normal(b.headline);
+  return normal(a.headline) === normal(b.headline);
 }
 
 export function newsEventsNote(review) {
