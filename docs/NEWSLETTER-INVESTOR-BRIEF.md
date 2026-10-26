@@ -34,8 +34,13 @@ supported reason or explicit unknown state. All markets, upcoming calendar entri
 corporate-action dates fit with the first email where possible; an explicit count and link
 to the complete tables replaces those supplements when necessary.
 
-`newsletter-investor-email.mjs` renders this layer with compact tables and original-source
-links. `renderInvestorEmails` first packs detailed event descriptions, then, if necessary,
+`newsletter-investor-email.mjs` preserves the original 640px paper, serif masthead and company
+headings, double rules, indigo accents, lavender background and dark footer. Shared style
+tokens prevent the compact view from drifting from the established newsletter. Each event
+has one short description, supported impact and next unknown when available, and a source
+link. A grounded summary replaces the repeated headline. A short coverage note links to
+the full diagnostics; reference and reading counters do not clutter every event.
+`renderInvestorEmails` first packs detailed event descriptions, then, if necessary,
 abbreviated descriptions. Long discovery URLs can point to the evidence report in compact
 mode. Every distinct eligible event remains represented. The maximum is three bodies of
 90,000 UTF-8 bytes; an unrepresentable edition fails before provider I/O rather than

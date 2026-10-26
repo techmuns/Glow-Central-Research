@@ -222,7 +222,7 @@ try {
   console.log('\n— preview —');
   const [preview] = await Promise.all([context.waitForEvent('page'), page.locator('[data-brief-action="preview"][data-edition="evening"]').click()]);
   await preview.waitForLoadState();
-  ok('Preview Evening opens the investor reading layer in a new tab', /^Glow Ventures · \d+ developments?/.test(await preview.title()) && (await preview.locator('body').innerText()).includes('Evening investment brief') && new URL(preview.url()).searchParams.get('edition') === 'evening');
+  ok('Preview Evening opens the investor reading layer in a new tab', /^Glow Ventures · \d+ developments?/.test(await preview.title()) && (await preview.locator('body').innerText()).includes('Evening Portfolio Brief') && new URL(preview.url()).searchParams.get('edition') === 'evening');
   await preview.close();
   ok('...and nothing was emailed from the panel', emails.length === 0);
 

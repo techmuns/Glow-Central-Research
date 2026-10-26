@@ -56,7 +56,7 @@ export function editorialEvents(brief, companies) {
       // A summary of a different lead cannot be relabelled as this filing's summary.
       summary: note && lead === cluster.main ? note.summary : null,
       facts: (lead.content?.facts || []).filter(f => f.field !== 'reason'),
-      evidence: ready.length ? 'Source read' : 'Document unread; facts unverified',
+      evidence: lead.content?.state === 'ready' ? 'Source read' : 'Document unread; facts unverified',
     });
   }
   events.sort((a,b) => b.rank-a.rank || Number(b.lead.kind === 'filing')-Number(a.lead.kind === 'filing') || b.at-a.at || a.ticker.localeCompare(b.ticker));

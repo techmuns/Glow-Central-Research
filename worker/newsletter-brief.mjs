@@ -1379,6 +1379,8 @@ const INK = '#0f172a', PAPER = '#ffffff', CREAM = '#eef2ff', RULE = '#e2e8f0', M
 const GOLD = '#4f46e5', GOLD_LIGHT = '#a5b4fc';
 const SERIF = "Georgia,'Times New Roman',Times,serif";
 const SANS = 'Arial,Helvetica,sans-serif';
+// Shared by the compact inbox view so the established newsletter design stays identical.
+export const NEWSLETTER_STYLE = { INK, PAPER, CREAM, RULE, META, BODY, BODY2, GOLD, GOLD_LIGHT, SERIF, SANS };
 const NUM = 'font-variant-numeric:tabular-nums;white-space:nowrap;';
 const toneOf = (v) => (v > 0 ? MOODS.good.color : v < 0 ? MOODS.watch.color : MOODS.neutral.color);
 
