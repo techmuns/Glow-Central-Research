@@ -37,12 +37,23 @@ to the complete tables replaces those supplements when necessary.
 `newsletter-investor-email.mjs` preserves the original 640px paper, serif masthead and company
 headings, double rules, indigo accents, lavender background and dark footer. Shared style
 tokens prevent the compact view from drifting from the established newsletter. Each event
-has one short description, supported impact and next unknown when available, and a source
-link. A grounded summary replaces the repeated headline. A short coverage note links to
+has one short description, supported impact and next unknown when available, and a direct
+source link labelled Announcement or News report. Source URL length never changes that
+destination to the newsletter PDF. Prefer an exact captured publisher alias over its Google
+discovery wrapper; unresolved wrappers retain their specific captured report link, and missing
+source links are explicit. Never substitute a publisher homepage or construct an article URL.
+A grounded summary replaces the repeated headline. A short coverage note links to
 the full diagnostics; reference and reading counters do not clutter every event.
 `renderInvestorEmails` first packs detailed event descriptions, then, if necessary,
-abbreviated descriptions. Long discovery URLs can point to the evidence report in compact
-mode. Every distinct eligible event remains represented. The maximum is three bodies of
+abbreviated descriptions. Full original source URLs remain clickable in compact mode.
+Compact rows share standard email CSS classes rather than repeating identical inline
+styles; the colours, serif company names, rules and spacing remain unchanged. This leaves
+room for actual source URLs within the existing byte limits. See Gmail's
+[CSS support](https://developers.google.com/workspace/gmail/design/css).
+Automated daily "slides/climbs ... outperforms/underperforms competitors" templates remain
+in the full report rather than becoming business developments. Explicit reasons, guidance
+changes and other substantive price-related reports remain eligible.
+Every distinct eligible event remains represented. The maximum is three bodies of
 90,000 UTF-8 bytes; an unrepresentable edition fails before provider I/O rather than
 returning a partial plan. The ordinary target is one email per morning/evening edition.
 
@@ -54,7 +65,26 @@ the printed publication window remain in history, not newly emailed as catch-up.
 
 ## Grouping, versions and acknowledgements
 
-Exact same-publisher headlines are treated as copies only with matching article URLs,
+Exact document identity takes precedence over paraphrases produced by separate extractions.
+The Bharat Parenteral voting-results, EGM-approval and earnings-call copies exposed this
+ordering defect on 26 October. Matching ready document hashes cannot be vetoed by differently
+worded extracted facts. Different ready hashes at a reused filing-document URL remain
+separate versions. News retains its existing figure, stage and fact-conflict checks;
+raw HTML changes alone can reflect page chrome and do not create an investor development.
+Shared supporting attachments alone do not identify a filing copy.
+An unread filing's own exact document URL can establish its copy within the existing one-hour
+window; generic wording and a nearby timestamp alone cannot.
+
+Explicit future board-meeting notices normalize the meeting date separately from publication
+time. The Aurobindo 4 November NSE/BSE notices share one update despite 04-Nov and 04/11
+formatting and one generic exchange wrapper. Different dates, financial periods, explicit
+agendas, revised/cancelled notices and board outcomes remain separate without stronger evidence.
+The detailed/read notice leads; a factual short meeting description preserves consideration
+of results/dividend rather than implying approval or declaration. These are bounded event
+rules, not a guarantee that every unread paraphrase is understood.
+
+Exact same-publisher headlines are treated as copies only with matching article URLs or
+matching captured article aliases,
 subject to the existing time, figure, issuer, relationship and stage guards. Tracking-only
 URL differences do not create new articles. A matching headline on a different unread source
 cannot establish a copy. Semantic review or matching read document bytes can establish
@@ -124,6 +154,8 @@ certify exhaustive upstream collection, live OCR quality or statistical model ac
 `verify-newsletter-investor.mjs` replays the customer's attribution/noise examples, exact
 copies, corrected versions, acknowledged restarts, the forty-pending-before-readable case,
 queue migration/priority/fairness, free wrapper resolution and private-target rejection.
+It replays the actual Aurobindo/Bharat defects, long source links in both email modes, article
+aliases, reused-URL corrections, unsafe/missing links and automated market templates.
 It checks that 180 distinct material disclosures fit a few bounded emails with every event
 and every report source identity retained. The existing content, event, market, price-reason,
 PDF, source-link, delivery, encrypted GitHub and runtime checks remain required.

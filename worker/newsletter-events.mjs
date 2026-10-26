@@ -4,6 +4,7 @@ import { newsAiEnabled, newsModelCall, objectSchema } from './newsletter-openai.
 import { boundedJson } from '../public/js/data/family-book-contract.js';
 import { bedrockConfig, bedrockConfigured, claudeCredential } from './research-claude.mjs';
 import { editorialPriority } from './newsletter-editorial.mjs';
+import { sameNewsletterSource } from './newsletter-source-links.mjs';
 
 export const EVENT_REPORT_LIMIT = 80;
 export const EVENT_REQUEST_BYTES = 96000;
@@ -154,16 +155,6 @@ export async function reviewNewsEvents(options) {
   return {...total,ok:total.reviewed>0,partial:total.reviewed<total.eligible,...(total.reviewed?{}:{reason})};
 }
 
-const reportUrl = story => {
-  try {
-    const url=new URL(story.url);
-    if(!['https:','http:'].includes(url.protocol)||url.username||url.password)return null;
-    url.hash='';
-    for(const key of [...url.searchParams.keys()])if(/^utm_|^(?:gclid|fbclid|mc_cid|mc_eid)$/i.test(key))url.searchParams.delete(key);
-    url.searchParams.sort();
-    return url.pathname==='/'&&!url.search?null:url.href;
-  }catch{return null;}
-};
 export function relatedNewsReports(a, b) {
   if (a.kind !== 'news' || b.kind !== 'news') return false;
   if (a.ticker === b.ticker && !!a.related === !!b.related && a.content?.state === 'ready' && b.content?.state === 'ready'
@@ -173,8 +164,7 @@ export function relatedNewsReports(a, b) {
   if (a.eventId || b.eventId) return !!a.eventId && a.eventId === b.eventId;
   // Identical titles can describe distinct approvals/orders. Until review or source
   // reading corroborates the event, only a matching article URL establishes a copy.
-  const url=reportUrl(a);
-  return normal(a.headline) === normal(b.headline) && !!url && url===reportUrl(b);
+  return normal(a.headline) === normal(b.headline) && sameNewsletterSource(a, b);
 }
 
 export function newsEventsNote(review) {

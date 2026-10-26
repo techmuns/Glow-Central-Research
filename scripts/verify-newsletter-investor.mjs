@@ -11,6 +11,8 @@ import { NewsletterContentStore } from '../worker/newsletter-content-store.mjs';
 import { NewsletterStore } from '../worker/newsletter-store.mjs';
 import { fetchContent,readDocumentFacts } from '../worker/newsletter-content.mjs';
 import { reviewNewsEvents } from '../worker/newsletter-events.mjs';
+import { newsletterSourceUrl } from '../worker/newsletter-source-links.mjs';
+import { scheduledBoardMeetingSummary } from '../worker/newsletter-filing-events.mjs';
 
 const excluded=[
  ['INDIANB','South Indian Bank Leveraging Digital Technology For Biz Growth'],
@@ -20,6 +22,9 @@ const excluded=[
  ['MOTILALOFS','Upgrade to Buy BSE Ltd For Target Rs.4,000 by Motilal Oswal Financial Services Ltd'],
  ['LXCHEM','Laxmi Organic Industries Ltd. Estimates - NSE:LXCHEM'],
  ['SAGILITY','SAGILITY LIMITED Option Chain'],
+ ['TECHM','Tech Mahindra slides Friday, underperforms competitors'],
+ ['ICICIBANK','ICICI Bank climbs Friday, outperforms competitors'],
+ ['SBIN','State Bank of India slips Friday, outperforms competitors'],
 ];
 for(const [ticker,headline] of excluded)assert(referenceReason({ticker,headline,kind:'news'}),headline);
 for(const [ticker,headline] of [
@@ -27,6 +32,7 @@ for(const [ticker,headline] of [
  ['LUPIN',"Lupin's Goa facility receives Form-483 with one observation from U.S. FDA"],
  ['MOTILALOFS','Motilal Oswal Financial Services reports its quarterly results'],
  ['LXCHEM','Laxmi Organic analyst profit estimates revised upward - NSE:LXCHEM'],
+ ['TECHM','Tech Mahindra slides Friday after cutting revenue guidance'],
 ])assert.equal(referenceReason({ticker,headline,kind:'news'}),null,headline);
 
 const brief=pdfFixture(),at=brief.at;
@@ -67,6 +73,65 @@ assert.equal(clusterStories([story,{...story,url:'https://fixture.test/different
 const readStory={...story,content:{state:'ready',hash:'same-confirmed-source',facts:official.content.facts}};
 assert.equal(clusterStories([readStory,{...readStory,url:'https://fixture.test/exchange-copy'}]).length,1);
 assert.equal(clusterStories([story,{...story,headline:story.headline.replace('360','460')}]).length,2);
+
+// Customer's real Bharat Parenteral PDF: paraphrased extraction values cannot veto
+// matching document bytes. A changed version of that URL remains a separate update.
+const bharat={kind:'filing',ticker:'BPLPHARMA',score:1,at,headline:'Revised voting results of EGM held on 23 October 2026',
+ url:'https://www.bseindia.com/xml-data/corpfiling/AttachLive/c3f78439-f2b8-4e93-805c-2eb08122c184.pdf',
+ content:{state:'ready',hash:'bharat-voting-results',facts:[{field:'conditions',value:'Revision is limited to shareholder classification and does not change votes cast or resolution outcomes'}]}};
+const bharatCopy={...bharat,headline:'Approval of Preferential Issue by Shareholders of the Company through EGM Held on October 23, 2026.',
+ content:{...bharat.content,facts:[{field:'conditions',value:'Revision only relates to shareholder classification/category, not votes cast or outcome'}]}};
+assert.equal(clusterStories([bharat,bharatCopy]).length,1,'The same read PDF is one update despite extraction paraphrases');
+assert.equal(clusterStories([bharat,{...bharatCopy,content:{...bharatCopy.content,hash:'corrected-bharat-document'}}]).length,2,'Changed bytes at a reused URL remain visible');
+assert.equal(clusterStories([{...bharat,content:{state:'pending'}},{...bharatCopy,content:{state:'pending'}}]).length,1,'Duplicate capture metadata cannot split one unread PDF');
+assert.equal(clusterStories([{...bharat,headline:'Order for Customer A for INR 15 crore',content:{state:'pending'},sourceUrls:[bharat.url]},
+ {...bharat,headline:'Order for Customer B for INR 20 crore',url:'https://www.bseindia.com/another-order.pdf',content:{state:'pending'},sourceUrls:[bharat.url]}]).length,2,'Shared supporting attachments cannot merge distinct unread orders');
+
+// Customer's Aurobindo NSE/BSE meeting notices, eight minutes apart, with different
+// date formats and one generic exchange wrapper. The specific agenda must lead.
+const auro={kind:'filing',ticker:'AUROPHARMA',score:1,at,content:{state:'pending'},
+ headline:'AUROBINDO PHARMA LIMITED has informed the Exchange about Board Meeting to be held on 04-Nov-2026 to consider and approve the Half Yearly Unaudited Financial results of the Company for the period ended September 2026 and Dividend.',
+ url:'https://nsearchives.nseindia.com/corporate/xbrl/PRIOR_INTIMATION_934_WebXMLFile_20261026_075640876.xml'};
+const auroBse={...auro,at:at-8*60000,
+ headline:'Aurobindo Pharma Ltdhas informed BSE that the meeting of the Board of Directors of the Company is scheduled on 04/11/2026 ,inter alia, to consider and approve Intimation of Board Meeting ....',
+ url:'https://www.bseindia.com/xml-data/corpfiling/AttachLive/ed83a911-4c69-490e-bbb3-b4c68c62a1a1.pdf'};
+const auroGroups=clusterStories([auro,auroBse],{company:'Aurobindo Pharma Ltd'});
+assert.equal(auroGroups.length,1);assert.equal(auroGroups[0].main.url,auro.url,'The detailed notice leads its generic exchange copy');
+assert.equal(scheduledBoardMeetingSummary(auro),'Board meeting 4 Nov 2026: to consider half-year unaudited financial results for the period ended September 2026 and dividend.');
+assert.equal(clusterStories([auro,{...auroBse,headline:auroBse.headline.replace('04/11/2026','05/11/2026')}]).length,2);
+assert.equal(clusterStories([auro,{...auroBse,headline:auroBse.headline.replace('04/11/2026','31/11/2026')}]).length,2,'Invalid dates cannot establish meeting identity');
+assert.equal(clusterStories([auro,{...auroBse,at:at-2*86400000}]).length,2,'Distant notices need stronger evidence');
+assert.equal(clusterStories([auro,{...auro,url:'https://fixture.test/other-quarter',headline:auro.headline.replace('September','June')}]).length,2,'Different financial periods remain separate');
+assert.equal(clusterStories([{...auro,headline:auro.headline.replace('September 2026','30/09/2026')},
+ {...auro,url:'https://fixture.test/other-numeric-quarter',headline:auro.headline.replace('September 2026','30/06/2026')}]).length,2,'Numeric financial periods are also part of the event identity');
+const proposedIssue={...auro,headline:'Board Meeting to be held on 04-Nov-2026 to consider a preferential issue to Investor Alpha for INR 15 crore'};
+assert(scheduledBoardMeetingSummary(proposedIssue).includes('Investor Alpha for INR 15 crore'),'A concise meeting description must retain stated counterparties and amounts');
+assert.equal(clusterStories([proposedIssue,{...proposedIssue,url:'https://fixture.test/different-proposal',headline:proposedIssue.headline.replace('Investor Alpha','Investor Beta').replace('15','20')}]).length,2,'Two detailed capital proposals do not become one update merely because they share a meeting date');
+assert.equal(clusterStories([proposedIssue,{...auroBse,headline:auroBse.headline.replace('Intimation of Board Meeting ....','Other business including a proposed loan to Investor Beta.')}]).length,2,'An unrecognized purpose is not a generic exchange wrapper');
+
+const copiedNews={...story,sourceUrls:['https://www.livemint.com/companies/the-exact-article.html'],url:'https://news.google.com/rss/articles/opaque-one'};
+assert.equal(clusterStories([copiedNews,{...copiedNews,url:'https://news.google.com/rss/articles/opaque-two'}]).length,1,'Captured article aliases corroborate different ingestion routes');
+assert.equal(clusterStories([copiedNews,{...copiedNews,url:'https://news.google.com/rss/articles/opaque-two',headline:copiedNews.headline.replace('360','460')}]).length,2,'Conflicting figures cannot be hidden by an alias');
+assert.equal(newsletterSourceUrl(copiedNews),'https://www.livemint.com/companies/the-exact-article.html','Use the captured publisher article rather than its discovery wrapper');
+assert.equal(clusterStories([{...copiedNews,content:{state:'ready',hash:'old-news-body',facts:[]}},
+ {...copiedNews,url:'https://news.google.com/rss/articles/opaque-two',content:{state:'ready',hash:'different-html-chrome',facts:[]}}]).length,1,'Different page HTML bytes alone cannot split the same corroborated article');
+assert.equal(clusterStories([{...copiedNews,content:{state:'ready',hash:'old-news-body',facts:[{field:'amount',value:'INR 360 crore'}]}},
+ {...copiedNews,url:'https://news.google.com/rss/articles/opaque-two',content:{state:'ready',hash:'corrected-news-body',facts:[{field:'amount',value:'INR 460 crore'}]}}]).length,2,'Material article corrections remain separate across discovery aliases');
+assert.equal(newsletterSourceUrl({...story,url:'javascript:alert(1)',sourceUrls:[]}),null);
+assert.equal(newsletterSourceUrl({...story,url:'https://www.livemint.com/'}),null,'A publisher homepage is not exact article evidence');
+assert.equal(newsletterSourceUrl({...story,url:'https://www.livemint.com/?utm_source=discovery'}),null,'Tracking parameters cannot make a homepage into article evidence');
+assert.equal(newsletterSourceUrl({...story,url:'https://fixture.test/?p=123'}),'https://fixture.test/?p=123','An exact query-based article identity remains usable');
+
+// A long source URL is never substituted with the newsletter PDF, in either mode.
+const traceable=structuredClone(brief),longSource='https://www.livemint.com/companies/exact-report.html?article='+('a'.repeat(1500))+'&edition=morning';
+traceable.news.groups=[{ticker:'TRACED',company:'Traced company',items:[{...story,headline:'Traced company receives a signed customer contract',url:longSource,keys:['long-article'],keywords:[]}]}];
+for(const compact of [false,true]){
+ const tracedStats=briefStats(traceable),events=editorialEvents(traceable,tracedStats.companies).events;
+ const html=renderBriefHtml(traceable,{...options,stats:tracedStats,part:{investor:true,reportLink:true,eventIds:events.map(e=>e.id),compact,supplements:false,index:1,total:1}});
+ assert(html.includes('href="'+longSource.replaceAll('&','&amp;')+'"'),'The full article URL survives compact rendering');
+ assert(!html.includes('Evidence →'),'An event link cannot be disguised as the complete-edition PDF');
+ assert(html.includes('News report →')&&html.includes('Announcement →'));
+}
 const pending=Array.from({length:40},(_,i)=>({id:`pending${i}`,kind:'story',main:{kind:'filing',content:{state:'pending'}},others:[]}));
 const ready={id:'readable41',kind:'story',main:{kind:'filing',content:official.content},others:[]};
 assert.deepEqual(aiItemsFor([{company:'Test',ticker:'TEST',clusters:[...pending,ready]}],new Map(),{readableOnly:true}).map(i=>i.id),['readable41'],'Pending leaders cannot consume the summary allowance');
@@ -165,7 +230,7 @@ busy.ai={ok:false,items:{}};
 const digest=renderInvestorEmails(busy,options);
 assert(digest.length<=EDITORIAL_EMAIL_PARTS);assert(digest.every(m=>m.bytes<=90000));
 assert.deepEqual(digest.flatMap(m=>m.part.eventIds).sort(),editorialEvents(busy,briefStats(busy).companies).events.map(e=>e.id).sort());
-for(const message of digest)assert(message.html.includes('Document unread; facts unverified'));
+for(const message of digest)assert(message.html.includes('Headline only'));
 const supplemented=structuredClone(busy);supplemented.announcements.groups[0].items=supplemented.announcements.groups[0].items.slice(0,30);
 supplemented.calendar.rows=Array.from({length:80},(_,i)=>({...structuredClone(brief.calendar.rows[0]),label:`Results/call ${i} ${'x'.repeat(250)}`}));
 const supplementStats=briefStats(supplemented),supplementEvents=editorialEvents(supplemented,supplementStats.companies).events;
@@ -178,6 +243,8 @@ assert.equal(supplementDigest.length,2);assert(supplementDigest.every(m=>m.part.
 assert.equal(supplementDigest.flatMap(m=>m.part.eventIds).length,30);
 const crowded=structuredClone(busy);
 crowded.announcements.groups=Array.from({length:320},(_,i)=>({ticker:`CROWDED${i}`,company:`Material Issuer ${i}`,items:[{...structuredClone(busy.announcements.groups[0].items[0]),headline:`Distinct contract ${i} with Customer ${i}`,keys:[`crowded:${i}`],url:`https://fixture.test/material/${i}?discovery=${'x'.repeat(1000)}`}]}));
+assert.throws(()=>renderInvestorEmails(crowded,options),error=>error.code==='email-too-large','An edition with exceptionally large source URLs must fail closed, never replace article links or send a partial plan');
+for(const group of crowded.announcements.groups)group.items[0].url=group.items[0].url.split('?')[0];
 const compactDigest=renderInvestorEmails(crowded,options);
 assert(compactDigest.length<=3&&compactDigest.every(m=>m.part.compact&&m.bytes<=90000),'A busy multi-company edition must use the genuinely compact branded rows');
 assert.equal(compactDigest.flatMap(m=>m.part.eventIds).length,320);
@@ -189,4 +256,4 @@ if(process.env.NEWSLETTER_INVESTOR_OUTPUT){
  writeFileSync(`${dir}/investor-brief.pdf`,renderBriefPdf(brief));
  writeFileSync(`${dir}/busy-email.html`,digest[0].html);
 }
-console.log(`PASS investor replay: 7 actual attribution/noise cases, lossless source register, document copies, corrections, acknowledged restart, readable summary admission, queue priority/fairness, ${digest.length} email(s) for 180 distinct material disclosures`);
+console.log(`PASS investor replay: ${excluded.length} actual attribution/noise cases, direct source links, Aurobindo/Bharat copy regressions, lossless source register, corrections, acknowledged restart, readable summary admission, queue priority/fairness, ${digest.length} email(s) for 180 distinct material disclosures`);

@@ -1323,7 +1323,7 @@ await test('PDF download routes, preview limits and manual budgets are explicit 
   for (let part = 1; part <= count; part++) {
     const p = await handleNewsletter(new Request(`${base}/preview?part=${part}`), apiEnv);
     assert.equal(p.status, 200); const html=await p.text();
-    assert.ok(html.includes('Morning Portfolio Brief')&&html.includes('Complete evidence report'));
+    assert.ok(html.includes('Morning Portfolio Brief')&&html.includes('Download PDF ↓'));
     if(count>1)assert.ok(html.includes(`Part ${part} of ${count}`));
   }
   assert.equal((await handleNewsletter(new Request(`${base}/preview?part=${count + 1}`), apiEnv)).status, 400);

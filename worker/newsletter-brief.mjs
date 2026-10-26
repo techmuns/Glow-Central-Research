@@ -88,6 +88,8 @@ import { announcementDocumentIdentity } from '../public/js/data/announcements-sh
 import { newsAiEnabled } from './newsletter-openai.mjs';
 import { attachContent, sameContentEvent } from './newsletter-content.mjs';
 import { annotateEditorialHistory, editorialPriority } from './newsletter-editorial.mjs';
+import { sameNewsletterSource, changedDocumentVersion } from './newsletter-source-links.mjs';
+import { sameScheduledBoardMeeting } from './newsletter-filing-events.mjs';
 import { renderInvestorEmail } from './newsletter-investor-email.mjs';
 import { attachPriceReasons, priceEvidenceItems, priceReasonWindow, priceReasonText, priceReasonSourcesNote } from './newsletter-price-reasons.mjs';
 import { boundedJson } from '../public/js/data/family-book-contract.js';
@@ -250,7 +252,7 @@ export async function readMarkets({ env, fetcher = fetch, now = Date.now() } = {
 
 
 const upper = (v) => String(v || '').trim().toUpperCase();
-const evidenceUrls = (...values) => [...new Set(values.flat().filter(url => typeof url === 'string' && /^https?:\/\//.test(url)))];
+const evidenceUrls = (...values) => [...new Set(values.flat().map(value => typeof value === 'object' ? value?.url : value).filter(url => typeof url === 'string' && /^https?:\/\//.test(url)))];
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 /** The dashboard's own story rank: a tracked keyword, then a directional mood, then importance. */
 export const scoreOf = ({ keywords = [], direction = 'neutral', importance = 'low' } = {}) =>
@@ -1126,10 +1128,12 @@ export function sameStory(a, b) {
 }
 
 function sameFilingEvent(a, b, company) {
-  if (a.content?.state === 'ready' && b.content?.state === 'ready') return sameContentEvent(a, b);
+  if (changedDocumentVersion(a, b)) return false;
+  if (sameContentEvent(a, b)) return true;
   if (Math.abs(a.at - b.at) > FILING_COPY_WINDOW_MS) return false;
-  const doc = announcementDocumentIdentity(a.url);
-  if (doc && doc === announcementDocumentIdentity(b.url) && norm(a.headline) === norm(b.headline)) return true;
+  if (sameScheduledBoardMeeting(a, b)) return true;
+  if (a.content?.state === 'ready' && b.content?.state === 'ready') return false;
+  if (sameNewsletterSource(a, b)) return true;
   // Only identical specific content can identify an unread exchange copy. Loose word overlap
   // would combine two orders with different small amounts or different customers.
   const generic = /\b(acquisition|agreement|acquire|including|analyst|analysts|investor|investors|institutional|conference|meet|meeting|schedule|intimation)\b/gi;
@@ -1160,13 +1164,14 @@ export function clusterStories(stories, { company = '' } = {}) {
         if (c.kind !== 'story') continue;
         const news = c.items.filter(i => i.kind === 'news');
         if (s.kind === 'news' && news.length) {
-          if (news.every(i => relatedNewsReports(i, s)) && c.items.every(i => !contentConflicts(i, s))) { home = c; break; }
+          if (news.every(i => relatedNewsReports(i, s)) && c.items.every(i => sameContentEvent(i, s) || !contentConflicts(i, s))) { home = c; break; }
           // A checked partition is authoritative. Unchecked news-only groups use exact
           // syndication, not token overlap. Preserve the existing exchange-copy path.
           if (s.eventId || news.some(i => i.eventId) || c.items.every(i => i.kind === 'news')) continue;
         }
-        const matches = c.items.every(i => !contentConflicts(i, s) && (s.kind === 'filing' && i.kind === 'filing'
-          ? sameFilingEvent(i, s, company) : sameStory(tokens, storyTokens(i.headline, company))));
+        const matches = c.items.every(i => s.kind === 'filing' && i.kind === 'filing'
+          ? !changedDocumentVersion(i, s) && (sameContentEvent(i, s) || !contentConflicts(i, s) && sameFilingEvent(i, s, company))
+          : !contentConflicts(i, s) && sameStory(tokens, storyTokens(i.headline, company)));
         if (matches) { home = c; break; }
       }
     }
@@ -1174,7 +1179,8 @@ export function clusterStories(stories, { company = '' } = {}) {
     clusters.push({ kind: s.kind === 'filing' || s.kind === 'news' ? 'story' : s.kind, items: [s], tokens: new Set(tokens) });
   }
   return clusters.map((c) => {
-    const main = [...c.items].sort((a, b) => b.score - a.score || Number(b.kind === 'filing') - Number(a.kind === 'filing') || a.at - b.at)[0];
+    const main = [...c.items].sort((a, b) => b.score - a.score || Number(b.kind === 'filing') - Number(a.kind === 'filing') ||
+      Number(b.content?.state === 'ready') - Number(a.content?.state === 'ready') || b.headline.length - a.headline.length || a.at - b.at)[0];
     const others = c.items.filter((i) => i !== main).sort((a, b) => a.at - b.at);
     return { kind: c.kind, main, others, items: c.items.length, score: main.score, latest: Math.max(...c.items.map((i) => i.at)) };
   }).sort((a, b) => b.score - a.score || b.latest - a.latest);
