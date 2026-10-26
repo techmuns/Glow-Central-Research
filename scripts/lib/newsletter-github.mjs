@@ -147,8 +147,8 @@ export async function githubNewsletter({env=process.env,fetcher=fetch,legacyClie
    local.db.prepare('DELETE FROM newsletter_views WHERE id LIKE ?').run(`preview-${edition}-html-%`);
    try{
     const brief=await buildBrief({edition,day:istDay(at),settings:local.store.settings(),env,fetcher:guardedFetch,now:at,to:at,reported:local.store.reportedLookup(),includeAi:false,contentService:local.schedule.content}),options=local.schedule.renderOptions();
-    const delivery=renderBriefDeliveryEmails(brief,{...options,pdfUrl:local.schedule.dashboardUrl()+'/api/newsletter/pdf/00000000-0000-0000-0000-000000000000'});
-    const messages=renderBriefEmails(brief,options),base={ok:true,edition,subject:briefSubject(brief,options),builtAt:new Date(at).toISOString(),summary:briefSummary(brief),deliveryParts:delivery.length,deliveryFormat:delivery[0]?.part?.reportLink?'complete-report':'inline'};
+    const delivery=renderBriefDeliveryEmails(brief,{...options,editorial:true,preview:true});
+    const messages=delivery,base={ok:true,edition,subject:messages[0]?.subject||briefSubject(brief,options),builtAt:new Date(at).toISOString(),summary:briefSummary(brief),deliveryParts:delivery.length,deliveryFormat:'investor-brief'};
     for(const message of messages){const part=message.part?.index||1;save(`preview-${edition}-html-${part}`,{...base,subject:message.subject,part,parts:messages.length,body:renderBriefHtml(brief,{...options,part:message.part,preview:true})});}
     save(`preview-${edition}-text-1`,{...base,body:renderBriefText(brief,options)});
     save(`preview-${edition}-pdf-1`,{...base,body:Buffer.from(renderBriefPdf(brief,options)).toString('base64'),binary:true,filename:pdfFilename(brief)});

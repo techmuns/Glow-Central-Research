@@ -74,6 +74,21 @@ normal month. The owner's requirements:
   Scheduled recovery also expires three hours after the original edition time, so a
   failed current edition cannot be replayed as old email on a later day.
 
+## Investor newsletter reading requirement (26 October 2026)
+
+The email must be useful in the inbox: distinct material developments, source-grounded
+summaries, supported implications and upcoming decisions. New GitHub-prepared editions use
+the investor reading layer with at most three size-bounded emails, with all developments
+represented; they must not fall back to a counts-only PDF notification. Preserve every source
+record/link, correction, reference item, table and source limitation in the verified immutable
+report and retained history. The concise descriptions are an explicitly abbreviated reading
+layer, not source deletion or evidence of exhaustive collection. Repeated versions share an
+event; changed terms and unknown new evidence must remain visible. Public previews use saved
+readings without paid model calls. Existing frozen delivery plans keep their original bodies,
+identities, six-part safety gate and historical/expiry safeguards; never replay a retired plan.
+See docs/NEWSLETTER-INVESTOR-BRIEF.md. This supersedes the earlier inline-packing rule for new
+editions and does not authorize manual production sends, restarts or recovery runs.
+
 ## Repository workflow
 
 Portfolio and Watchlist are companion tables. Apply shared table additions and improvements

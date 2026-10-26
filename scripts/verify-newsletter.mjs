@@ -1319,10 +1319,12 @@ await test('PDF download routes, preview limits and manual budgets are explicit 
   assert.equal((await handleNewsletter(new Request(`${base}/pdf/00000000-0000-0000-0000-000000000000`), apiEnv)).status, 404);
   assert.equal((await handleNewsletter(new Request(`${base}/pdf/${id}`, { method: 'POST' }), apiEnv)).status, 405);
   const preview = await handleNewsletter(new Request(`${base}/preview`), apiEnv);
-  const count = Number(preview.headers.get('x-newsletter-parts')); assert.ok(count > 1);
+  const count = Number(preview.headers.get('x-newsletter-parts')); assert.ok(count >= 1 && count <= 3);
   for (let part = 1; part <= count; part++) {
     const p = await handleNewsletter(new Request(`${base}/preview?part=${part}`), apiEnv);
-    assert.equal(p.status, 200); assert.ok((await p.text()).includes(`Part ${part} of ${count}`));
+    assert.equal(p.status, 200); const html=await p.text();
+    assert.ok(html.includes('Morning Portfolio Brief')&&html.includes('Complete evidence report'));
+    if(count>1)assert.ok(html.includes(`Part ${part} of ${count}`));
   }
   assert.equal((await handleNewsletter(new Request(`${base}/preview?part=${count + 1}`), apiEnv)).status, 400);
   const previewPdf = await handleNewsletter(new Request(`${base}/preview?format=pdf`), apiEnv);

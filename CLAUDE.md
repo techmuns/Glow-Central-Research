@@ -1505,6 +1505,17 @@ the editor, the defaults and every refusal) are the tests.
 
 ### The team brief — two emails a weekday, built at the edge (GLOW-OWNED)
 
+**Investor reading updated 26 October 2026:** new GitHub-prepared portfolio editions and
+HTML previews use `newsletter-editorial.mjs` and `newsletter-investor-email.mjs`. Material
+events lead in at most three byte-bounded emails, with grounded summaries, supported impact,
+unknowns and explicit unread/partial states. Reference records, wrong-entity matches and
+copies stay in the verified complete PDF/source history. Changed versions and unknown new
+evidence must remain visible. Source reading is prioritised with an oldest-job fairness slot;
+readable evidence is selected before the summary allowance. Existing provider allowances,
+edition windows, encrypted GitHub state and frozen legacy recovery plans remain intact.
+See [NEWSLETTER-INVESTOR-BRIEF.md](docs/NEWSLETTER-INVESTOR-BRIEF.md); this supersedes the
+older inline-packing/counts-only fallback rules below for new editions.
+
 **Delivery updated 23 September 2026:** size-bound the entire edition, including Glow’s extra
 calendar and holdings tables, using `newsletter-email.mjs`. Each part must stay within 90,000
 UTF-8 bytes and link to its saved complete PDF. **Threading updated 7 October 2026:** each

@@ -16,6 +16,7 @@ const {installPreparedBackground}=await load('scripts/lib/github-background-depl
 const {handleGithubNewsletter}=await load('worker/newsletter-github.mjs');
 const {SEND_TIMEOUT_MS,EMAIL_SEND_URL}=await load('worker/newsletter-schedule.mjs');
 const {NEWSLETTER_DEADLINE}=await load('worker/newsletter-request.mjs');
+const {renderBriefEmails}=await load('worker/newsletter-email.mjs');
 let at=Date.parse('2026-09-17T02:30:00Z'); const now=()=>at,repo='techmuns/Glow-Central-Research';
 fs.mkdirSync('.cache',{recursive:true});
 const book=JSON.parse(fs.readFileSync(path.join(sourceRoot,'scripts/fixtures/newsletter/book.json')));
@@ -26,6 +27,20 @@ const articles=book.holdings.filter(h=>h.ticker).flatMap(h=>Array.from({length:8
 })));
 const payloads={'/data/portfolio-companies.json':book,'/data/market-news.json':{articles}};
 async function scenario(mode){
+// Retain the old multipart bodies explicitly for recovery/SMTP regression cases. The
+// complete-report/current cases below exercise the new production investor planner.
+async function buildRuntime(options){
+ const result=await githubNewsletter(options);
+ if(!mode.startsWith('complete-report')&&mode!=='investor-current'){
+  const deliver=result.schedule.deliveryQueue.deliver.bind(result.schedule.deliveryQueue);
+  result.schedule.deliveryQueue.deliver=async input=>{
+   const recipient=input.list.reduce((a,b)=>(b.addedBy||'').length>(a.addedBy||'').length?b:a,input.list[0]);
+   const messages=renderBriefEmails(input.brief,{...result.schedule.renderOptions(recipient),pdfUrl:input.pdfUrl});
+   return deliver({...input,messages,summary:{...input.summary,emailParts:messages.length,deliveryFormat:'inline'}});
+  };
+ }
+ return result;
+}
 const dir=fs.mkdtempSync(path.resolve('.cache/newsletter-multipart-'));
 const requested=mode.startsWith('requested-test-'),legacyTest=mode==='legacy-test-reply',testCase=requested||legacyTest;
 at=Date.parse('2026-09-17T02:30:00Z');
@@ -85,7 +100,7 @@ try{
  if(testCase)source.store.setSettings({...source.store.settings(),morning:{...source.store.settings().morning,enabled:false},evening:{...source.store.settings().evening,enabled:false}});
  const keys=await readerKeys('fixture-reader-secret-only-123456789');
  const options={env,fetcher,recipient:{kid:keys.kid,publicKey:encode64(keys.publicKey)},localOptions:{now},inputs:()=>exportNewsletter(source.storage,{inputs:true}),notify:async()=>{notifications++;if(mode==='requested-test-outbox-crash'&&notifications===1)failUpload=true;},transportOptions:{sleep:async()=>{},head:()=>env.GITHUB_SHA},verifyPdf:async document=>{guards.push(document.id);if(mode==='complete-report-unpublished')throw Error('Fixture PDF publication unavailable');await delay(80);if(mode==='requested-test-expiry-during-pdf'||mode==='requested-test-expiry-during-retry-pdf'&&mail.length)at=Date.parse('2026-09-18T02:30:00.001Z');}};
- runtime=await githubNewsletter({...options,file:path.join(dir,'runner.sqlite'),out:path.join(dir,'publication'),legacyClient:input=>exportNewsletter(source.storage,input)});
+ runtime=await buildRuntime({...options,file:path.join(dir,'runner.sqlite'),out:path.join(dir,'publication'),legacyClient:input=>exportNewsletter(source.storage,input)});
  if(mode==='complete-report-unpublished'){
   await runtime.wake();
   assert(guards.length>0);assert.equal(mail.length,0,'An unavailable report cannot send an email with a broken link');
@@ -93,11 +108,11 @@ try{
   assert.equal(runtime.schedule.deliveryQueue.pending().length,1,'The same frozen one-message plan is retained for normal recovery');
   console.log('PASS '+JSON.stringify({scenario:mode,providerRequests:0,retainedPlan:1,productionRequests:0}));return;
  }
- if(mode==='complete-report'){
+ if(mode==='complete-report'||mode==='investor-current'){
   await runtime.wake();
   const result=runtime.store.delivery('2026-09-17:morning');
   assert.equal(result.reason,null);assert.equal(result.sent,3);
-  assert.equal(result.summary.deliveryFormat,'complete-report');assert.equal(result.summary.emailParts,1);
+  assert.equal(result.summary.deliveryFormat,'investor-brief');assert.equal(result.summary.emailParts,1);
   assert.equal(mail.length,3,'A busy current issue sends exactly one message per subscriber');
   assert.equal(guards.length,3,'Every report email waits for its published PDF guard');
   assert.equal(new Set(guards).size,1,'Every recipient receives the same complete immutable edition');
@@ -107,14 +122,15 @@ try{
   for(const row of articles)assert(pdf.includes(row.url),'The verified report retains every source link');
   for(const message of mail){
    assert(message.html.includes('/api/newsletter/pdf/'+guards[0]));
-   assert(message.html.includes('No additional email parts follow'));
+   assert(message.html.includes('Morning Portfolio Brief'));
+   assert(!message.html.includes('Full fixture source details.'),'The inbox does not repeat raw feed snippets');
    assert(Buffer.byteLength(message.html)<=90000);assert.equal(message.inReplyTo,undefined);
   }
   assert.equal(runtime.schedule.deliveryQueue.pending().length,0);
   const retained=runtime.store.sentStoryKeys().size;assert(retained>=articles.length);
   await runtime.close();runtime=null;at+=300001;
   payloads['/data/market-news.json']={articles:[]};
-  restarted=await githubNewsletter({...options,file:path.join(dir,'restarted.sqlite'),out:path.join(dir,'restarted-publication'),legacyClient:()=>{throw Error('Restore the frozen acknowledgement');}});
+  restarted=await buildRuntime({...options,file:path.join(dir,'restarted.sqlite'),out:path.join(dir,'restarted-publication'),legacyClient:()=>{throw Error('Restore the frozen acknowledgement');}});
   await restarted.wake();
   assert.equal(mail.length,3,'Restart cannot replay an acknowledged report edition');
   assert.equal(restarted.store.sentStoryKeys().size,retained);assert.equal(modelCalls,0);
@@ -141,7 +157,7 @@ try{
   assert.equal(manualAttempts,1);await runtime.close();runtime=null;
   at=issuedAt+(mode==='requested-test-expired'||mode==='requested-test-expired-root'||mode==='requested-test-expiry-during-pdf'?24*3600000+1:300001);
   if(mode!=='requested-test-outbox-crash')payloads['/data/market-news.json']={articles:[]};
-  failUpload=false;restarted=await githubNewsletter({...options,file:path.join(dir,'restarted.sqlite'),out:path.join(dir,'restarted-publication'),legacyClient:()=>{throw Error('Requested tests must restore their encrypted frozen parts');}});
+  failUpload=false;restarted=await buildRuntime({...options,file:path.join(dir,'restarted.sqlite'),out:path.join(dir,'restarted-publication'),legacyClient:()=>{throw Error('Requested tests must restore their encrypted frozen parts');}});
   if(crashed)assert.equal((await preparedRequest(restarted,'pending-reader')).state,mode==='requested-test-outbox-crash'?'queued':'pending','A failed acknowledgement cannot complete the retained request');
   if(mode==='requested-test-retarget-rejected'){
    const row=restarted.db.prepare('SELECT payload FROM newsletter_delivery_queue WHERE key=?').get(initial.key),plan=JSON.parse(gunzipSync(row.payload));
@@ -246,6 +262,6 @@ try{
 }finally{AbortSignal.timeout=originalTimeout;await restarted?.close();await runtime?.close();await source?.close();fs.rmSync(dir,{recursive:true,force:true});}
 
 }
-const modes=['complete-report','complete-report-unpublished','healthy','root-timeout','reply-rate-limit','checkpoint-crash','unsubscribe','disabled','requested-test-root-timeout','requested-test-reply','requested-test-checkpoint-crash','requested-test-retarget-rejected','requested-test-expired','requested-test-expiry-during-pdf','requested-test-slow-provider','legacy-test-reply','requested-test-caller-token','requested-test-clock-skew','requested-test-outbox-crash','requested-test-expired-root','requested-test-expiry-during-retry-pdf'];
+const modes=['investor-current','complete-report','complete-report-unpublished','healthy','root-timeout','reply-rate-limit','checkpoint-crash','unsubscribe','disabled','requested-test-root-timeout','requested-test-reply','requested-test-checkpoint-crash','requested-test-retarget-rejected','requested-test-expired','requested-test-expiry-during-pdf','requested-test-slow-provider','legacy-test-reply','requested-test-caller-token','requested-test-clock-skew','requested-test-outbox-crash','requested-test-expired-root','requested-test-expiry-during-retry-pdf'];
 const selected=process.argv.slice(2);assert(selected.every(mode=>modes.includes(mode)),'Unknown local fixture scenario');
 for(const mode of selected.length?selected:modes)await scenario(mode);
