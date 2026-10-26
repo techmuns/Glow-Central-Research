@@ -149,3 +149,19 @@ FY2026-2027 and FY2026/27) normalize to the ending year; malformed/multi-year ra
 remain unresolved. Prospective board wording stays “to consider” / “a proposal”, which
 already distinguishes it from approval without a redundant status sentence. Explicit
 rejection, revocation, completion or rescheduling vetoes old prospective grouping.
+
+Residual agenda text is no longer reduced to a fixed keyword set: an unclassified
+proposal blocks consolidation with a results-only or generic wrapper. Known plain
+financial/calendar phrasing and the demonstrated Other business caption normalize
+without erasing additional words. Normal terminal punctuation is accepted on pure
+letter/meeting dates; mixed correction clauses remain unresolved. Sparse cancellations,
+revisions and reschedules bypass the supporting-calendar exclusion and lead their
+source reading, including an explicit date-only change. A business reason or mixed IR
+participant clause blocks a simplified call note; the actual saved speaker/host forms
+retain their concise reading.
+
+The required full-data browser sweep failed after IST midnight against the fixed
+26 October capture (All Alerts readiness timeout). Its Date is now pinned to that
+snapshot for a deterministic full-data sweep. Performance timers, limits and the
+separate strict midnight/empty-new-day scenario remain unchanged. This test-only
+clock change does not modify application UI or production data.

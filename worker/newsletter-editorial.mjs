@@ -1,7 +1,7 @@
 // The inbox is a reading layer over the complete immutable edition. Classification never
 // deletes a captured row, changes an edition window or certifies an unread document.
 import { scheduledBoardMeetingSummary } from './newsletter-filing-events.mjs';
-import { investorSourceFacts, investorSourceSummary, xbrlBoardMeetingNote, votingResultNote, readNoticeNote } from './newsletter-source-notes.mjs';
+import { investorSourceFacts, investorSourceSummary, xbrlBoardMeetingNote, votingResultNote, readNoticeNote, hasSourceChange } from './newsletter-source-notes.mjs';
 import { newsletterSourceUrl } from './newsletter-source-links.mjs';
 import { scheduledEarningsCall, consolidatedEarningsCallNote } from './newsletter-notice-events.mjs';
 export const EDITORIAL_VERSION = 1;
@@ -35,6 +35,7 @@ export function referenceReason(item) {
   }
   if(scheduledEarningsCall(item))return null;
   const calendarText = `${title} ${(item.content?.facts || []).filter(f => f.field === 'event').map(f => f.value).join(' ')}`;
+  if(item.kind==='filing'&&hasSourceChange(`${calendarText} ${(item.content?.facts||[]).filter(f=>['date','status'].includes(f.field)).map(f=>f.value).join(' ')}`))return null;
   if (item.kind === 'filing' && /\b(?:schedule of meet|schedule.*(?:call|investor|analyst)|(?:intimation|will hold).*(?:conference call|earnings call|earnings conference)|audio recording|transcript.*(?:call|meeting))\b/i.test(calendarText) && !item.content?.facts?.some(f=>['amount','ownership','conditions'].includes(f.field))) return 'Calendar or supporting earnings document';
   return null;
 }

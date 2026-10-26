@@ -24,7 +24,7 @@ export function fiscalPeriods(value) {
       if(ending!==start+1)return {invalid:true};
     }
     const year=String(ending),quarter=/Q[1-4]/i.exec(m[1])?.[0].toUpperCase()||null,half=/H[12]/i.exec(m[1])?.[0].toUpperCase()||null;
-    return {year,quarter,half,label:[quarter,half].filter(Boolean).join('/')+'FY'+(year.startsWith('20')?year.slice(-2):year)};
+    return {year,quarter,half,raw:m[0],label:[quarter,half].filter(Boolean).join('/')+'FY'+(year.startsWith('20')?year.slice(-2):year)};
   });
 }
 export function compatibleFiscalPeriods(a,b) {

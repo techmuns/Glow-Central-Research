@@ -4,13 +4,14 @@ import { explicitEvent } from './newsletter-event-identity.mjs';
 import { administrativeNoticeFact as administrative, readBoardNotice, scheduledEarningsCall } from './newsletter-notice-events.mjs';
 const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const material = new Set(['event','counterparty','amount','status','date','conditions','ownership']);
+const material = new Set(['event','counterparty','amount','status','date','conditions','ownership','reason']);
+export const hasSourceChange=value=>/\b(?:reschedul\w*|postpon\w*|cancel\w*|revis\w*|correct\w*|withdraw\w*)\b/i.test(value);
 const dateLabel=date=>{const d=new Date(date+'T00:00:00Z');return `${d.getUTCDate()} ${months[d.getUTCMonth()].slice(0,3)} ${d.getUTCFullYear()}`;};
 
 export function investorSourceFacts(item) {
   const facts = (item.content?.facts || []).filter(fact => material.has(fact.field) && clean(fact.value));
-  if (!facts.some(fact => fact.field !== 'date')) return [];
-  const order = ['event','amount','status','conditions','ownership','counterparty','date'];
+  if (!facts.some(fact => fact.field !== 'date'||hasSourceChange(fact.value))) return [];
+  const order = ['event','amount','status','conditions','ownership','counterparty','reason','date'];
   return [...facts].sort((a,b) => order.indexOf(a.field)-order.indexOf(b.field)).map(fact =>
     /^(?:true|false)$/i.test(clean(fact.value)) ? { ...fact, value: `${fact.name || fact.field}: ${/^true$/i.test(clean(fact.value)) ? 'Yes' : 'No'}` } : fact);
 }
@@ -29,9 +30,11 @@ export function investorSourceSummary(item) {
   };
   // Each distinct event is retained, rather than assuming the longest paraphrase
   // has more reliable facts. Redundant status/date/admin fields do not lead.
+  const changed=facts.filter(f=>['event','status','date'].includes(f.field)&&hasSourceChange(f.value));
+  for(const fact of changed)add(fact);
   for(const fact of facts.filter(f=>f.field==='event'))add(fact);
   if(!selected.length)return null;
-  for(const field of ['amount','conditions','status','ownership','counterparty']) {
+  for(const field of ['amount','conditions','status','ownership','counterparty','reason']) {
     const candidates=facts.filter(f=>f.field===field);
     for(const fact of candidates) {
       const value=clean(fact.value);
@@ -109,7 +112,7 @@ export function xbrlBoardMeetingNote(item) {
       : /^dividend$/i.test(value) ? [dividend,'dividend'].filter(Boolean).join(' ') : value);
   if (!agendas.length) return null;
   const prefix = /^revised$/i.test(get('TypeOfIntimation')) ? 'Revised board-meeting notice for' : 'Board meeting';
-  const extras=investorSourceFacts(item).filter(f=>['amount','ownership','conditions','counterparty','status'].includes(f.field)&&!administrative(f));
+  const extras=investorSourceFacts(item).filter(f=>['amount','ownership','conditions','counterparty','status','reason'].includes(f.field)&&!administrative(f));
   const note=`${prefix} ${label}: to consider ${agendas.join(' and ')}.`+extras.map(f=>` ${f.field[0].toUpperCase()+f.field.slice(1)}: ${clean(f.value)}`).join('');
   return extras.length&&note.length>600?null:note;
 }

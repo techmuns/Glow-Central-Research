@@ -323,3 +323,32 @@ for(const status of ['Proposal rejected','Approval revoked','Board meeting compl
  assert.equal(clusterStories([opposing,resultsForm]).length,2,'A completed or rejected source status cannot become a prospective meeting');
 }
 console.log('PASS material/range regressions: every merge branch preserves material extras, structured terms remain visible, fiscal range endings and opposing statuses');
+
+const unclassifiedAgenda=structuredClone(periodRead);unclassifiedAgenda.headline='Captured corporate notice';unclassifiedAgenda.content.facts=unclassifiedAgenda.content.facts.filter(f=>f.field!=='event');unclassifiedAgenda.content.facts.push({field:'event',value:'Board meeting scheduled to consider and approve unaudited financial results and employee stock option plan'});
+for(const wrapper of [resultsForm,genericResults])assert.equal(clusterStories([unclassifiedAgenda,wrapper]).length,2,'Unclassified agenda text cannot disappear behind a results-only or generic form');
+const nativeUnknown=structuredClone(resultsForm);nativeUnknown.url='https://fixture.test/native-unknown-agenda';nativeUnknown.content.facts.find(f=>f.location.endsWith('/Agenda1')).value='Financial results and employee stock option plan';
+assert.equal(clusterStories([nativeUnknown,resultsForm]).length,2,'Structured free-form agendas require the same residual-text guard');
+assert(xbrlBoardMeetingNote(nativeUnknown).includes('employee stock option plan'),'The separate reading retains the entire free-form agenda');
+const dottedInvitation=structuredClone(sparseCall);dottedInvitation.announcements.groups[0].items[0].content.facts.find(f=>f.field==='date'&&/^Letter/.test(f.value)).value+='.';
+const dottedEvents=editorialEvents(dottedInvitation,briefStats(dottedInvitation).companies).events;
+assert.equal(dottedEvents.length,1);assert(dottedEvents[0].completeSourceSummary&&dottedEvents[0].sourceSummary.includes('4:00 P.M. IST'),'Normal terminal punctuation cannot exclude a valid sparse call');
+const dottedBoard=structuredClone(readDcw);for(const fact of dottedBoard.content.facts.filter(f=>f.field==='date'))fact.value+='.';
+assert.equal(clusterStories([dottedBoard,readDcwXml]).length,1,'Ordinary punctuation is normalized on read board/letter dates as well');
+const punctuatedCorrection=structuredClone(dottedInvitation);punctuatedCorrection.announcements.groups[0].items[0].content.facts.find(f=>f.field==='date'&&/^Letter/.test(f.value)).value+=' Call rescheduled to October 31, 2026.';
+assert(!editorialEvents(punctuatedCorrection,briefStats(punctuatedCorrection).companies).events[0].completeSourceSummary,'Punctuation removal cannot erase a mixed correction suffix');
+console.log('PASS residual/punctuation regressions: unmatched proposals preserved across every wrapper, whole native agendas, sparse invitations and mixed-correction guards');
+
+assert(editorialEvents(punctuatedCorrection,briefStats(punctuatedCorrection).companies).events[0].sourceSummary.includes('Call rescheduled to October 31'),'A source reschedule remains visible even when the whole notice cannot be certified');
+const cancelledSparse=structuredClone(sparseCall);cancelledSparse.announcements.groups[0].items[0].content.facts.find(f=>f.field==='status').value='Call cancelled';
+const cancelReading=editorialEvents(cancelledSparse,briefStats(cancelledSparse).companies).events;
+assert.equal(cancelReading.length,1);assert(cancelReading[0].sourceSummary.startsWith('Call cancelled'),'A sparse cancellation cannot disappear into the calendar filter or behind its old invitation');
+assert(investorSourceSummary({content:{state:'ready',facts:[{field:'date',value:'Call rescheduled to October 31, 2026 at 5:00 P.M. IST'}]}}).startsWith('Call rescheduled'),'An explicit date-only schedule change is a substantive source update');
+const speakerCall=structuredClone(call);speakerCall.announcements.groups[0].items[0].content.facts.push({field:'counterparty',value:'Speaker for the call: Mr. Bhahim Desai, Director (Strategy & Investor Relations)'},{field:'counterparty',value:'Call leaders: Mr. Srisurya Kalagarla and Ms. Samruddhi Shinde'});
+assert(editorialEvents(speakerCall,briefStats(speakerCall).companies).events[0].completeSourceSummary,'The actual named IR speaker and call leaders remain routine metadata');
+for(const fact of [{field:'reason',value:'Management will provide FY27 guidance'},{field:'counterparty',value:'PhillipCapital is hosting the call and management will provide FY27 guidance'}]){
+ const mixed=structuredClone(call);mixed.announcements.groups[0].items[0].content.facts.push(fact);
+ const event=editorialEvents(mixed,briefStats(mixed).companies).events[0];assert(!event.completeSourceSummary&&event.sourceSummary.includes('FY27 guidance'),'A business rationale or participant suffix cannot hide inside a routine call');
+}
+const reasonBoard=structuredClone(readDcw);reasonBoard.content.facts.push({field:'reason',value:'The buyback will use proceeds from an asset sale'});
+assert.equal(clusterStories([reasonBoard,readDcwXml]).length,2,'A separately read business rationale cannot disappear into an exchange wrapper');
+console.log('PASS source-change/schema regressions: sparse cancellations and reschedules, actual IR roles, business reasons and mixed role suffixes');
