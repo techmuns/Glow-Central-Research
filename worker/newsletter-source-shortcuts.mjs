@@ -1,10 +1,10 @@
-import {newsletterSourceUrl} from './newsletter-source-links.mjs';
+import {exactNewsletterSourceUrl} from './newsletter-source-links.mjs';
 
 export const sourceId = value => /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value || '');
 export const SOURCE_LINK_FORMAT = 'newsletter-source-v1';
 export function sourceTarget(record) {
   return record?.format === SOURCE_LINK_FORMAT && typeof record.url === 'string' &&
-    newsletterSourceUrl({url:record.url}) === record.url ? record.url : null;
+    exactNewsletterSourceUrl(record.url) === record.url ? record.url : null;
 }
 export function emailSourceUrl(original, links, origin) {
   const alias = links?.get(original);
