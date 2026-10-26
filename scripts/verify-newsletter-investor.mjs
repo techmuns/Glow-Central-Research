@@ -352,7 +352,7 @@ shortcutDb.close();
 // growing immutable source history must not inflate the source lookup payload.
 const indexedRecords=new Map(Array.from({length:2048},(_,i)=>[`source-00000000-0000-4000-8000-${String(i).padStart(12,'0')}`,{format:SOURCE_LINK_FORMAT,url:`https://publisher.test/story/${i}?captured=${'x'.repeat(500)}`} ]));
 indexedRecords.set('pdf-unrelated',{body:'PDF_SENTINEL_NOT_IN_SOURCE_INDEX'});
-const index=newsletterSourceViews(indexedRecords,{repo:'techmuns/Sattva-Central-Research',env:{BACKGROUND_STATE_KEY:'fixture-source-index-secret-only'}});
+const index=newsletterSourceViews(indexedRecords,{repo:'techmuns/Glow-Central-Research',env:{BACKGROUND_STATE_KEY:'fixture-source-index-secret-only'}});
 assert.equal(index.directory.format,SOURCE_INDEX_FORMAT);assert(Object.keys(index.directory.buckets).length<=64);
 const indexedPages=index.views.filter(v=>v.name.startsWith('sources-page-'));
 assert(indexedPages.length>64,'The fixture must exercise multiple bounded pages per bucket');
