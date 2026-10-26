@@ -14,6 +14,21 @@ export function eventDate(value) {
   return month>0&&month<=12&&at.getUTCMonth()===month-1&&at.getUTCDate()===+day?at.toISOString().slice(0,10):null;
 }
 export const eventDates = value => [...String(value || '').matchAll(new RegExp(dateText,'g'))].map(match=>eventDate(match[0]));
+export function fiscalPeriods(value) {
+  return [...clean(value).matchAll(/\b(Q[1-4](?:\s*\/\s*H[12])?|H[12])\s*[- ]*FY\s*(\d{4}|\d{2})(?!\d)/ig)].map(m=>{
+    const year=m[2].length===2?'20'+m[2]:m[2],quarter=/Q[1-4]/i.exec(m[1])?.[0].toUpperCase()||null,half=/H[12]/i.exec(m[1])?.[0].toUpperCase()||null;
+    return {year,quarter,half,label:[quarter,half].filter(Boolean).join('/')+'FY'+(year.startsWith('20')?year.slice(-2):year)};
+  });
+}
+export function compatibleFiscalPeriods(a,b) {
+  return a.year===b.year&&(!a.quarter||!b.quarter||a.quarter===b.quarter)&&(!a.half||!b.half||a.half===b.half)&&
+    !!(a.quarter&&b.quarter||a.half&&b.half);
+}
+export function combineFiscalPeriods(periods) {
+  if(!periods.length||!periods.every(a=>periods.every(b=>compatibleFiscalPeriods(a,b))))return null;
+  const year=periods[0].year,quarter=periods.find(p=>p.quarter)?.quarter,half=periods.find(p=>p.half)?.half;
+  return {year,quarter,half,label:[quarter,half].filter(Boolean).join('/')+'FY'+(year.startsWith('20')?year.slice(-2):year)};
+}
 export function financialPeriod(value) {
   const text=clean(value),full=eventDate(text);
   if(full)return full.slice(0,7);

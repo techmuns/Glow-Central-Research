@@ -1,5 +1,5 @@
 // Explicit saved notice fields, shared by event identity and the concise reading.
-import { eventDate, eventDates } from './newsletter-event-identity.mjs';
+import { eventDate, eventDates, fiscalPeriods, combineFiscalPeriods, compatibleFiscalPeriods } from './newsletter-event-identity.mjs';
 const clean=value=>String(value||'').replace(/\s+/g,' ').trim();
 export const administrativeNoticeFact = fact => {
   const value=clean(fact.value);
@@ -35,7 +35,7 @@ export function readBoardNotice(item) {
   const dates=meetingDates.map(f=>eventDate(clean(f.value).replace(/^Board meeting date:\s*/i,'')));
   if(!dates.length||dates.some(date=>!date||date!==dates[0]))return null;
   if(facts.some(f=>f.field==='status'&&!/^(?:Proposed(?:\/scheduled)?|Scheduled)(?: for board consideration)?(?:, not yet approved)?[.!]?$/i.test(clean(f.value))))return null;
-  return {date:dates[0],purpose:[...new Set(agendas)].join(' and '),extras:facts.filter(f=>['amount','conditions','ownership','counterparty'].includes(f.field))};
+  return {date:dates[0],agendas:[...new Set(agendas)],purpose:[...new Set(agendas)].join(' and '),extras:facts.filter(f=>['amount','conditions','ownership','counterparty'].includes(f.field))};
 }
 const callClock=value=>{
   const clocks=[...String(value||'').matchAll(/\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?|\b(\d{1,2}):(\d{2})(?::(\d{2}))?/ig)];
@@ -49,30 +49,30 @@ const callClock=value=>{
   if(tail&&!zones[tail])return null;
   return {clock:`${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`,zone:zones[tail]};
 };
-const callPeriod=value=>{const p=/(Q[1-4])(?:\/H[12])?[ -]*FY\s*(\d{2,4})/i.exec(value||'');return p?`${p[1].toUpperCase()}FY${p[2].slice(-2)}`:null;};
+const qualification=call=>[call.proposed?'proposed':null,call.subjectToChange?'subject to change':null,call.notCompleted?'not yet completed':null].filter(Boolean).join('; ');
+const qualifiedReading=(base,call)=>base+(qualification(call)?` (${qualification(call)})`:'');
 export function scheduledEarningsCall(item) {
   if(item.kind!=='filing'||item.content?.state!=='ready')return null;
   const tags=noticeTags(item),facts=substantive(item.content.facts||[]);
-  let date,clock,period,reading,proposed=false,zone;
+  let date,clock,period,baseReading,proposed=false,subjectToChange=false,notCompleted=false,zone;
   if(item.content.format==='xbrl') {
     if(tags.get('TypeOfAnnouncement')!=='New'||tags.get('StageOfMeetingOrCallOrConferenceOrEvent')!=='Intimation'||tags.get('TypeOfMeetingForWhichIntimationIsGiven')!=='Earning/Quarterly Calls')return null;
     if(facts.some(f=>['amount','ownership','conditions','counterparty','event','status'].includes(f.field)))return null;
     const agenda=tags.get('AgendaOrReasonForMeetingOrCallOrConferenceOrEventForIntimation');
-    if(agenda&&!/^Discuss the Unaudited Financial Results for Q[1-4]-FY\d{2,4}$/i.test(agenda))return null;
+    if(agenda&&!/^Discuss the Unaudited Financial Results for Q[1-4]-FY(?:\d{4}|\d{2})(?!\d)$/i.test(agenda))return null;
     date=eventDate(tags.get('DateOfMeetingOrCallOrConferenceOrEventForIntimation'));
     const parsedClock=callClock(tags.get('TimeOfCommencementOfMeetingOrCallOrConferenceOrEventForIntimation'));
     clock=parsedClock?.clock;zone=parsedClock?.zone;
     const name=tags.get('NameOfMeetingOrCallOrConferenceOrEventForIntimation')||'';
-    if(!/^(?:Q[1-4](?:\/H[12])?[ -]*FY\d{2,4} )?Earnings Call$/i.test(name))return null;
-    const namePeriod=callPeriod(name),agendaPeriod=callPeriod(agenda);
-    if(namePeriod&&agendaPeriod&&namePeriod!==agendaPeriod)return null;
-    period=namePeriod||agendaPeriod;
-    reading=`${period&&!namePeriod?period+' ':''}${name}: ${date} at ${clock}${zone?' '+zone:' (timezone not stated in the captured fields)'}`;
+    if(!/^(?:Q[1-4](?:\/H[12])?[ -]*FY(?:\d{4}|\d{2})(?!\d) )?Earnings Call$/i.test(name))return null;
+    const periods=[...fiscalPeriods(name),...fiscalPeriods(agenda)];period=combineFiscalPeriods(periods);
+    if(periods.length&&!period)return null;
+    baseReading=`${period?period.label+': ':''}Earnings Call: ${date} at ${clock}${zone?' '+zone:' (timezone not stated in the captured fields)'}`;
   } else {
     const events=facts.filter(f=>f.field==='event').map(f=>clean(f.value));
-    if(!events.length||events.some(value=>!(/^(?:Intimation|Invitation|Notice)(?: of| to)? (?:Q[1-4]\s*FY\s*\d{2,4}\s+)?(?:Earnings? (?:Conference )?Call|Conference Call|Analysts? Call)[.!]?$/i.test(value)||
+    if(!events.length||events.some(value=>!(/^(?:Intimation|Invitation|Notice)(?: of| to)? (?:Q[1-4]\s*FY\s*(?:\d{4}|\d{2})(?!\d)\s+)?(?:Earnings? (?:Conference )?Call|Conference Call|Analysts? Call)[.!]?$/i.test(value)||
       /^Intimation of proposed schedule of Earnings Conference Call for Investor\(s\)\/Analyst\(s\) under Regulation 30 of SEBI LODR Regulations, 2015$/i.test(value)||
-      /^Conference call scheduled to discuss Unaudited Financial Results for Q[1-4]-FY\d{2,4}$/i.test(value)||/^Management representatives named for the call[.!]?$/i.test(value))))return null;
+      /^Conference call scheduled to discuss Unaudited Financial Results for Q[1-4]-FY(?:\d{4}|\d{2})(?!\d)$/i.test(value)||/^Management representatives named for the call[.!]?$/i.test(value))))return null;
     if(facts.some(f=>['amount','ownership','conditions'].includes(f.field)))return null;
     if(facts.filter(f=>f.field==='counterparty').some(f=>!(/\b(?:organizing|hosting|inviting)\b.*\bcall\b|^(?:Speaker for the call|Call leaders):/i.test(f.value))))return null;
     if(facts.filter(f=>f.field==='status').some(f=>!/^Conference call scheduled(?: \(proposed\/upcoming event, not yet completed\))?[.!]?$|^(?:Proposed|Scheduled)(?:\/upcoming)?(?: event)?(?:, not yet completed)?[.!]?$|^Schedule is proposed and subject to change$/i.test(clean(f.value))))return null;
@@ -81,26 +81,31 @@ export function scheduledEarningsCall(item) {
     const dates=eventDates(calls[0].value);if(!dates.length||dates.some(d=>!d||d!==dates[0]))return null;
     const parsedClock=callClock(calls[0].value);if(!parsedClock)return null;
     date=dates[0];clock=parsedClock.clock;zone=parsedClock.zone;
-    const periods=[...new Set(events.map(callPeriod).filter(Boolean))];if(periods.length>1)return null;
-    period=periods[0];
-    proposed=facts.some(f=>f.field==='status'&&/subject to change/i.test(f.value));
-    reading=[period?period.replace(/[ -]/g,'')+':':null,clean(calls[0].value),proposed?'(proposed; subject to change)':null].filter(Boolean).join(' ');
+    const periods=events.flatMap(fiscalPeriods);period=combineFiscalPeriods(periods);if(periods.length&&!period)return null;
+    proposed=facts.some(f=>f.field==='status'&&/\bproposed\b|subject to change/i.test(f.value));
+    subjectToChange=facts.some(f=>f.field==='status'&&/subject to change/i.test(f.value));
+    notCompleted=facts.some(f=>f.field==='status'&&/not yet completed/i.test(f.value));
+    baseReading=[period?period.label+':':null,clean(calls[0].value)].filter(Boolean).join(' ');
   }
+  const reading=qualifiedReading(baseReading,{proposed,subjectToChange,notCompleted});
   if(!date||!clock||reading.length>400)return null;
-  return {date,clock,zone,period:callPeriod(period),reading,proposed};
+  return {date,clock,zone,period:period?.label||null,fiscal:period,baseReading,reading,proposed,subjectToChange,notCompleted};
 }
 export function sameScheduledEarningsCall(a,b) {
   if(a.ticker!==b.ticker||!!a.related!==!!b.related||!Number.isFinite(a.at)||!Number.isFinite(b.at)||Math.abs(a.at-b.at)>3600000)return false;
   const x=scheduledEarningsCall(a),y=scheduledEarningsCall(b);
-  return !!(x&&y&&x.date===y.date&&x.clock===y.clock&&(!x.zone||!y.zone||x.zone===y.zone)&&(!x.period||!y.period||x.period===y.period));
+  return !!(x&&y&&x.date===y.date&&x.clock===y.clock&&(!x.zone||!y.zone||x.zone===y.zone)&&(!x.fiscal||!y.fiscal||compatibleFiscalPeriods(x.fiscal,y.fiscal)));
 }
 export function consolidatedEarningsCallNote(items) {
   const ready=items.filter(s=>s.content?.state==='ready');
   if(!ready.length||!ready.every(s=>scheduledEarningsCall(s))||!ready.every(a=>ready.every(b=>sameScheduledEarningsCall(a,b))))return null;
   const calls=ready.map(scheduledEarningsCall).sort((a,b)=>Number(!!b.zone)-Number(!!a.zone)||Number(b.proposed)-Number(a.proposed));
-  let note=calls[0].reading;
-  const period=calls.find(c=>c.period)?.period;
-  if(period&&!calls[0].period)note=period+': '+note;
-  if(calls.some(c=>c.proposed)&&!calls[0].proposed)note+=' (proposed; subject to change)';
+  let base=calls[0].baseReading;
+  const period=combineFiscalPeriods(calls.map(c=>c.fiscal).filter(Boolean));
+  if(period&&calls[0].period!==period.label){
+    if(calls[0].period&&base.startsWith(calls[0].period+': '))base=base.slice(calls[0].period.length+2);
+    base=period.label+': '+base;
+  }
+  const note=qualifiedReading(base,{proposed:calls.some(c=>c.proposed),subjectToChange:calls.some(c=>c.subjectToChange),notCompleted:calls.some(c=>c.notCompleted)});
   return note.length<=500?note:null;
 }

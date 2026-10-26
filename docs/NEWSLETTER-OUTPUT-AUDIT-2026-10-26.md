@@ -130,3 +130,13 @@ conflicts remain separate; month names, numeric quarter ends and ISO dates norma
 together. Multiple contradictory read periods cannot be silently selected. Letter-date
 exclusions also require a complete valid letter date, so a mixed reschedule clause
 cannot hide behind an administrative prefix.
+
+The final period adapter compares fiscal labels without inferring an issuer's fiscal
+calendar. Q1/Q2 and H1/H2 conflicts remain distinct; compatible quarter/half-year
+components and two-/four-digit FY labels retain all known terms in one call reading.
+Calendar-month and fiscal-label periods are not declared equivalent without evidence.
+Plain results/buyback agendas match as normalized sets regardless of extraction order.
+All accepted proposed, subject-to-change and not-yet-completed statuses survive the
+consolidated reading; absent conditions are never added. Matching also retains a known
+headline period when read fields omit it and rejects source reschedules/cancellations
+before a generic exchange wrapper can override those facts.

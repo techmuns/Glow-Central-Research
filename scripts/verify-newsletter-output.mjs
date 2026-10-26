@@ -273,3 +273,35 @@ assert.equal(clusterStories([inconsistentPeriod,resultsForm]).length,2,'Conflict
 const hiddenDate=structuredClone(call);hiddenDate.announcements.groups[0].items[0].content.facts.find(f=>f.field==='date'&&/^Letter/.test(f.value)).value+='; call rescheduled to October 31, 2026';
 assert(!editorialEvents(hiddenDate,briefStats(hiddenDate).companies).events[0].completeSourceSummary,'A mixed correction cannot hide behind a letter-date prefix');
 console.log('PASS source period regressions: read PDF/form conflicts, stale headlines, normalized equivalents and mixed letter-date corrections');
+
+const missingReadPeriod=structuredClone(readDcw);missingReadPeriod.content.facts=missingReadPeriod.content.facts.filter(f=>f.field!=='event');missingReadPeriod.content.facts.push({field:'event',value:'Board meeting scheduled to consider and approve unaudited financial results'});
+missingReadPeriod.headline='Board Meeting to be held on 29-Oct-2026 to consider financial results for the period ended June 2026';
+assert.equal(clusterStories([missingReadPeriod,resultsForm]).length,2,'An omitted read period cannot discard an explicit captured-headline period');
+const genericReschedule=structuredClone(readDcw);genericReschedule.headline='Board Meeting to be held on 29-Oct-2026 to consider Intimation of Board Meeting';genericReschedule.content.facts.push({field:'date',value:'Board meeting rescheduled to October 30, 2026'});
+assert.equal(clusterStories([genericReschedule,resultsForm]).length,2,'A generic headline cannot override a separately read meeting reschedule');
+console.log('PASS identity fallback regressions: preserve known headline periods and veto source reschedules before generic-wrapper matching');
+
+const genericCancelled=structuredClone(genericReschedule);genericCancelled.content.facts=genericCancelled.content.facts.filter(f=>!/rescheduled to/.test(f.value));genericCancelled.content.facts.find(f=>f.field==='status').value='Board meeting cancelled';
+assert.equal(clusterStories([genericCancelled,resultsForm]).length,2,'An old generic headline cannot override the read cancellation status');
+const genericChangedDate=structuredClone(genericCancelled);genericChangedDate.content.facts.find(f=>f.field==='status').value='Scheduled';genericChangedDate.content.facts.find(f=>/^Board meeting date:/.test(f.value)).value='Board meeting date: October 30, 2026';
+assert.equal(clusterStories([genericChangedDate,resultsForm]).length,2,'A read PDF meeting date overrides a stale generic headline');
+
+const reversedAgendas=structuredClone(readDcw);const agendaFacts=reversedAgendas.content.facts.filter(f=>f.field==='event').reverse();reversedAgendas.content.facts=[...agendaFacts,...reversedAgendas.content.facts.filter(f=>f.field!=='event')];
+assert.equal(clusterStories([reversedAgendas,readDcwXml]).length,1,'The PDF agenda order cannot split one results/buyback meeting');
+const changedHalf=structuredClone(dcwCallXml);changedHalf.url='https://fixture.test/changed-half';changedHalf.content.facts.find(f=>f.location.endsWith('/NameOfMeetingOrCallOrConferenceOrEventForIntimation')).value='Q2/H2-FY27 Earnings Call';
+assert.equal(scheduledEarningsCall(dcwCallXml).period,'Q2/H1FY27');
+assert.equal(clusterStories([dcwCallXml,changedHalf]).length,2,'A changed explicit half-year is not discarded from call identity');
+assert(mergedCall[0].sourceSummary.includes('Q2/H1FY27'),'A compatible half-year known from the form remains in the PDF-led reading');
+const fiscalBoard=(period,url)=>{const row=structuredClone(periodRead);row.url=url;row.headline='Captured corporate notice';row.content.facts=row.content.facts.filter(f=>f.field!=='event');row.content.facts.push({field:'event',value:'Board meeting scheduled to consider and approve unaudited financial results for '+period});return row;};
+const q1Board=fiscalBoard('Q1 FY27','https://fixture.test/q1'),q2Board=fiscalBoard('Q2 FY27','https://fixture.test/q2');
+assert.equal(clusterStories([q1Board,q2Board]).length,2,'Explicit fiscal quarters cannot become missing-period wildcards');
+assert.equal(clusterStories([q1Board,fiscalBoard('Q1 FY2027','https://fixture.test/q1-four-digit')]).length,1,'Two- and four-digit labels identify the same stated fiscal year');
+assert.equal(clusterStories([q1Board,fiscalBoard('Q5 FY27','https://fixture.test/invalid-quarter')]).length,2,'Unsupported explicit fiscal labels cannot act as missing periods');
+for(const status of ['Proposed','Proposed/upcoming event, not yet completed','Conference call scheduled (proposed/upcoming event, not yet completed)','Scheduled, not yet completed']){
+ const proposedCall=structuredClone(call);proposedCall.announcements.groups[0].items[0].content.facts.find(f=>f.field==='status').value=status;
+ const reading=editorialEvents(proposedCall,briefStats(proposedCall).companies).events[0].sourceSummary;
+ if(/proposed/i.test(status))assert(reading.includes('(proposed'),'Every accepted tentative source status remains in the complete reading');
+ if(/not yet completed/i.test(status))assert(reading.includes('not yet completed'));
+ assert(!reading.includes('subject to change'),'Do not add a condition absent from the source');
+}
+console.log('PASS final review regressions: agenda permutations, fiscal quarters/half-years, compatible period union and every accepted proposed status');

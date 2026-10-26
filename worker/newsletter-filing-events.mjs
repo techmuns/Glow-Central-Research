@@ -1,4 +1,4 @@
-import { financialPeriod, eventDate } from './newsletter-event-identity.mjs';
+import { financialPeriod, eventDate, fiscalPeriods, combineFiscalPeriods, compatibleFiscalPeriods } from './newsletter-event-identity.mjs';
 import { readBoardNotice, administrativeNoticeFact } from './newsletter-notice-events.mjs';
 const normal = value => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
 const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
@@ -18,7 +18,13 @@ export function scheduledBoardMeeting(item) {
   if(tags.has('TypeOfIntimation')&&!/^new$/i.test(tags.get('TypeOfIntimation')))return null;
   if(tags.has('TypeOfMeeting')&&!/^board meeting$/i.test(tags.get('TypeOfMeeting')))return null;
   const readNotice=readBoardNotice(item);
-  const readDate=tags.get('DateOfProposedMeeting')||readNotice?.date;
+  if(item.content?.state==='ready'&&item.content.format!=='xbrl'&&(item.content.facts||[]).filter(f=>f.field==='status').some(f=>
+    /\b(?:cancel\w*|reschedul\w*|postpon\w*|withdraw\w*|approved|concluded|completed|not scheduled)\b/i.test(normal(f.value).replace(/not yet (?:approved|completed)/ig,''))))return null;
+  const sourceDates=item.content?.state==='ready'&&item.content.format!=='xbrl'?(item.content.facts||[]).filter(f=>f.field==='date'&&/\bboard meeting\b/i.test(f.value)):[];
+  if(sourceDates.some(f=>!/^Board meeting date:/i.test(normal(f.value))))return null;
+  const meetingDates=sourceDates.map(f=>eventDate(normal(f.value).replace(/^Board meeting date:\s*/i,'')));
+  if(meetingDates.some(d=>!d||d!==meetingDates[0]))return null;
+  const readDate=tags.get('DateOfProposedMeeting')||meetingDates[0]||readNotice?.date;
   if(readDate&&!eventDate(readDate))return null;
   const structured=/^board meeting$/i.test(tags.get('TypeOfMeeting')||'')&&/^new$/i.test(tags.get('TypeOfIntimation')||'')&&!!readDate;
   const match = new RegExp('(?:scheduled(?: to be held)? on|to be held on)\\s*' + datePattern, 'i').exec(title);
@@ -28,10 +34,17 @@ export function scheduledBoardMeeting(item) {
   const day=Number(date.slice(8,10)),month=Number(date.slice(5,7)),year=Number(date.slice(0,4)),at=new Date(Date.UTC(year,month-1,day));
   if (month < 1 || month > 12 || at.getUTCFullYear() !== year || at.getUTCMonth() !== month - 1 || at.getUTCDate() !== day) return null;
   const periodsIn=value=>[...normal(value).matchAll(/\bperiod ended\s+(20\d{2}-\d{2}-\d{2}|(?:\d{1,2}(?:st|nd|rd|th)?[ /-]+)?(?:[A-Za-z]+|\d{1,2})[ /,-]+20\d{2})/ig)].map(m=>m[1]);
-  const readPeriods=item.content?.state==='ready'?(item.content.facts||[]).filter(f=>['event','date'].includes(f.field)).flatMap(f=>periodsIn(f.value)):[];
+  const readPeriodText=item.content?.state==='ready'?(item.content.facts||[]).filter(f=>['event','date'].includes(f.field)).map(f=>f.value).join(' '):'';
+  const readPeriods=periodsIn(readPeriodText),readFiscal=fiscalPeriods(readPeriodText);
+  const fiscalMarker=/\b(?:Q\d(?:\s*\/\s*H\d)?|H\d)\s*[- ]*FY/i;
+  if(fiscalMarker.test(readPeriodText)&&!readFiscal.length)return null;
+  const structuredPeriod=tags.get('MonthOfPeriodEnded')&&tags.get('YearOfPeriodEnded');
+  const fiscalSources=readFiscal.length?readFiscal:readPeriods.length||structuredPeriod?[]:fiscalPeriods(title);
+  const fiscal=combineFiscalPeriods(fiscalSources);if(fiscalSources.length&&!fiscal)return null;
+  if(!readPeriods.length&&!readFiscal.length&&!structuredPeriod&&fiscalMarker.test(title)&&!fiscalSources.length)return null;
   const periods=tags.get('MonthOfPeriodEnded')&&tags.get('YearOfPeriodEnded')
     ? [`${tags.get('MonthOfPeriodEnded')} ${String(tags.get('YearOfPeriodEnded')).slice(0,4)}`,...readPeriods]
-    : readPeriods.length?readPeriods:periodsIn(readNotice?.purpose||title);
+    : readPeriods.length?readPeriods:readFiscal.length?[]:periodsIn(title);
   if(periods.some(p=>!financialPeriod(p)||financialPeriod(p)!==financialPeriod(periods[0])))return null;
   const period=periods[0]||null;
   if(period&&!financialPeriod(period))return null;
@@ -47,16 +60,24 @@ export function scheduledBoardMeeting(item) {
   const purpose = structured?readAgendas.join(' and ')||null:readNotice?.purpose||/\bto consider(?: and approve)?\s+(.+)$/i.exec(title)?.[1];
   const generic = !structured&&!readNotice&&!agendas.length && (purpose ? /^(?:intimation of )?(?:the )?board meeting[ .…]*$/i.test(purpose)
     : /^[ .…]*$/.test(title.slice(match.index + match[0].length)));
+  const plainResults='unaudited financial results',plainBuyback='a proposal for buyback of fully paid-up equity shares';
+  const simpleReadAgendas=new Set((readNotice?.agendas||[]).flatMap(value=>{
+    const v=normal(value).toLowerCase();return v===`${plainResults} and ${plainBuyback}`||v===`${plainBuyback} and ${plainResults}`?[plainResults,plainBuyback]:[v];
+  }));
   const simpleBuyback=structured?readAgendas.length>=2&&readAgendas.every(v=>/^(?:Financial results|Buyback|Other business)$/i.test(v))&&
     !(item.content.facts||[]).some(f=>['amount','ownership','conditions','counterparty'].includes(f.field)&&!administrativeNoticeFact(f)):
-    !!readNotice&&!readNotice.extras.length&&/^unaudited financial results and a proposal for buyback of fully paid-up equity shares$/i.test(readNotice.purpose);
-  return { simpleBuyback, date: at.toISOString().slice(0,10), label: `${day} ${months[month - 1][0].toUpperCase() + months[month - 1].slice(1)} ${year}`, period, agendas, generic, purpose };
+    !!readNotice&&!readNotice.extras.length&&simpleReadAgendas.size===2&&simpleReadAgendas.has(plainResults)&&simpleReadAgendas.has(plainBuyback);
+  return { simpleBuyback, date: at.toISOString().slice(0,10), label: `${day} ${months[month - 1][0].toUpperCase() + months[month - 1].slice(1)} ${year}`, period, fiscal, agendas, generic, purpose };
 }
 
 export function sameScheduledBoardMeeting(a, b) {
   const x = scheduledBoardMeeting(a), y = scheduledBoardMeeting(b);
   if (!x || !y || a.ticker !== b.ticker || x.date !== y.date || Math.abs(a.at - b.at) > 3600000) return false;
   if (x.period && y.period && financialPeriod(x.period) !== financialPeriod(y.period)) return false;
+  if(x.fiscal&&y.fiscal&&!compatibleFiscalPeriods(x.fiscal,y.fiscal))return false;
+  // Quarter labels cannot be converted to calendar months without this issuer's
+  // explicit fiscal calendar. Preserve both known but incomparable periods.
+  if(x.fiscal&&!x.period&&y.period&&!y.fiscal||y.fiscal&&!y.period&&x.period&&!x.fiscal)return false;
   // The exact generic exchange wrapper may accompany a detailed notice. Unknown
   // prose is not generic, and two capital-action proposals can share a meeting date.
   if (x.generic || y.generic) return true;
