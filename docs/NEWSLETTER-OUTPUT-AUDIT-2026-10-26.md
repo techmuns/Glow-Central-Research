@@ -99,3 +99,20 @@ agenda and proposed buyback intact. Bharat's original call invitation retains th
 invalid dates/times, cancellations, changed status and unknown business counterparties
 cannot receive these complete source notes. This uses saved fields only; no search,
 model, mail, collection cadence or provider budget is added.
+
+The complete live source register additionally exposed DCW's read PDF/form copies as
+separate board and earnings-call events. Their saved date, clock and financial-period
+fields now establish identity before summary selection. A narrowly verified plain
+results/buyback agenda can match its exchange form; unmatched amounts, conditions,
+counterparties and other proposals remain separate. Routine call identity normalizes
+02:00 P.M. and 14:00, preserves the PDF's explicit timezone and proposed/subject-to-change
+qualification, and rejects changed dates, times, periods, stages and explicit timezones.
+The identity and reading adapters share the same guards. Structured fields without a
+timezone disclose that absence; none is inferred. Added replay cases retain both
+constituent original links and require these distinctions before release.
+
+Automated review identified three additional edge cases, now replayed explicitly: a
+second invalid clock in the same sentence, a separately extracted rescheduled date,
+and substantive event text beginning with a filing-address prefix. Multi-clock and
+unreconciled-date readings cannot be certified as complete; address exclusions are
+scoped to metadata fields and never discard an event fact.

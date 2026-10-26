@@ -6,6 +6,7 @@ import {clusterStories,briefStats,aiItemsFor,renderBriefHtml} from '../worker/ne
 import {explicitEvent,eventDate,financialPeriod} from '../worker/newsletter-event-identity.mjs';
 import {scheduledBoardMeetingSummary} from '../worker/newsletter-filing-events.mjs';
 import {editorialEvents,referenceReason} from '../worker/newsletter-editorial.mjs';
+import {scheduledEarningsCall} from '../worker/newsletter-notice-events.mjs';
 import {investorSourceSummary} from '../worker/newsletter-source-notes.mjs';
 import {pdfFixture} from './verify-newsletter-pdf.mjs';
 import {renderInvestorEmails} from '../worker/newsletter-email.mjs';
@@ -177,3 +178,60 @@ for(const material of ['INR 100 crore','Subject to regulatory approval','Custome
 assert(referenceReason({kind:'news',ticker:'ICICIBANK',headline:'ICICI Bank Ltd (ICBA.HA) stock price, news, quote and history - Yahoo Finance'}),'The actual live Yahoo quote-page suffix is still a reference page');
 assert.equal(referenceReason({kind:'news',headline:'Company launches stock price, news, quote and history API'}),null,'An actual business announcement cannot be hidden by quote-page vocabulary');
 console.log('PASS read notice prose: complete buyback agenda/date, complete earnings-call time, administrative appendix, substantive conditions/ownership, cancelled/unknown guards; model/search/mail calls=0');
+
+// The post-release register exposed a read PDF and exchange form for each DCW
+// event. Reuse those captured values, not live source/model/API calls.
+const readDcw={...briefStats(dcw).companies[0].stories[0],at:Date.parse('2026-10-26T20:12:00+05:30'),keys:['dcw-pdf'],url:'https://www.bseindia.com/xml-data/corpfiling/AttachLive/6741673a-dfc9-4bdb-8c07-8a8e909edbe7.pdf'};
+const xbrlNotice=(base,values,url)=>({...base,url,keys:[url],content:{state:'ready',format:'xbrl',facts:values.map(([tag,value])=>({field:'source',value,quote:value,location:'Main/'+tag}))}});
+const readDcwXml=xbrlNotice({...readDcw,headline:'DCW LIMITED has informed the Exchange about Board Meeting to be held on 29-Oct-2026 to consider and approve the Half Yearly Unaudited Financial results of the Company for the period ended September 2026 and Buyback/Other business.',at:readDcw.at+37*60000},[
+ ['TypeOfMeeting','Board Meeting'],['TypeOfIntimation','New'],['DateOfProposedMeeting','2026-10-29'],
+ ['MonthOfPeriodEnded','September'],['YearOfPeriodEnded','2026 [source unit: pure]'],['Agenda1','Financial results'],['Agenda2','Buyback'],['Agenda3','Other business'],
+], 'https://nsearchives.nseindia.com/corporate/xbrl/PRIOR_INTIMATION_1239_WebXMLFile_20261026_204954772.xml');
+assert.equal(clusterStories([readDcw,readDcwXml]).length,1,'The read DCW PDF and exchange form identify one dated results/buyback meeting');
+for(const fact of [{field:'amount',value:'INR 20 crore'},{field:'conditions',value:'Buyback is subject to shareholder approval'},{field:'counterparty',value:'Investor Alpha'}]){
+ const changed=structuredClone(readDcw);changed.content.facts.push(fact);
+ assert.equal(clusterStories([changed,readDcwXml]).length,2,'Unmatched capital terms cannot disappear inside an exchange wrapper');
+}
+for(const [tag,value]of [['DateOfProposedMeeting','2026-10-30'],['Agenda2','Acquisition']]){
+ const changed=structuredClone(readDcwXml);changed.content.facts.find(f=>f.location.endsWith('/'+tag)).value=value;
+ assert.equal(clusterStories([readDcw,changed]).length,2,'A different meeting or proposal remains separate');
+}
+const dcwCallFacts=[['event','Intimation of proposed schedule of Earnings Conference Call for Investor(s)/Analyst(s) under Regulation 30 of SEBI LODR Regulations, 2015'],
+ ['event','Conference call scheduled to discuss Unaudited Financial Results for Q2-FY27'],['date','Letter dated October 26, 2026'],
+ ['date','Earnings conference call scheduled for Friday, October 30, 2026 at 02:00 P.M (IST)'],['status','Schedule is proposed and subject to change'],
+ ['counterparty','Filed with National Stock Exchange of India Ltd.'],['counterparty','Filed with BSE Limited'],
+ ['counterparty','Valorem Advisors is organizing/inviting to the conference call'],['conditions','Call accessible via universal dial-in and international toll-free numbers'],
+ ['event','Management representatives named for the call']];
+const dcwCall=cleanNotice('DCW','Dcw Limited',dcwCallFacts),readDcwCall={...briefStats(dcwCall).companies[0].stories[0],at:readDcw.at+43*60000,url:'https://fixture.test/dcw-call-pdf',keys:['dcw-call-pdf']};
+const callValues=[['TypeOfAnnouncement','New'],['StageOfMeetingOrCallOrConferenceOrEvent','Intimation'],['TypeOfMeetingForWhichIntimationIsGiven','Earning/Quarterly Calls'],
+ ['DateOfMeetingOrCallOrConferenceOrEventForIntimation','2026-10-30'],['TimeOfCommencementOfMeetingOrCallOrConferenceOrEventForIntimation','14:00:00'],
+ ['NameOfMeetingOrCallOrConferenceOrEventForIntimation','Q2/H1-FY27 Earnings Call']];
+const dcwCallXml=xbrlNotice({...readDcwCall,at:readDcwCall.at+6*60000,headline:'DCW LIMITED has informed the Exchange about Schedule of Analysts or Institutional Investors Meet'},callValues,'https://fixture.test/dcw-call-xbrl');
+assert.equal(clusterStories([readDcwCall,dcwCallXml]).length,1,'PDF 02:00 P.M and XBRL 14:00 identify the same dated Q2 call');
+assert(scheduledEarningsCall(dcwCallXml).reading.includes('timezone not stated'),'Never infer a timezone absent from the structured fields');
+for(const [tag,value]of [['DateOfMeetingOrCallOrConferenceOrEventForIntimation','2026-11-02'],['TimeOfCommencementOfMeetingOrCallOrConferenceOrEventForIntimation','15:00:00'],['NameOfMeetingOrCallOrConferenceOrEventForIntimation','Q3-FY27 Earnings Call'],['StageOfMeetingOrCallOrConferenceOrEvent','Outcome'],['TypeOfAnnouncement','Revised']]){
+ const changed=structuredClone(dcwCallXml);changed.content.facts.find(f=>f.location.endsWith('/'+tag)).value=value;
+ assert.equal(clusterStories([readDcwCall,changed]).length,2,'New call date/time/period/stage remains a separate development');
+}
+const otherZone=structuredClone(readDcwCall);otherZone.url='https://fixture.test/other-zone';otherZone.content.facts.find(f=>f.field==='date'&&/P.M/.test(f.value)).value=otherZone.content.facts.find(f=>f.field==='date'&&/P.M/.test(f.value)).value.replace('(IST)','(UTC)');
+assert.equal(clusterStories([readDcwCall,otherZone]).length,2,'Conflicting explicit timezones remain separate');
+const dcwAll=structuredClone(dcwCall);dcwAll.announcements.groups[0].items=[readDcwCall,dcwCallXml];
+const mergedCall=editorialEvents(dcwAll,[{ticker:'DCW',company:'Dcw Limited',stories:[readDcwCall,dcwCallXml],clusters:clusterStories([readDcwCall,dcwCallXml]).map((c,i)=>({...c,id:`DCW#${i+1}`}))}]).events;
+assert.equal(mergedCall.length,1);assert.equal(mergedCall[0].sources.length,2);
+assert(mergedCall[0].sourceSummary.includes('02:00 P.M (IST)')&&mergedCall[0].sourceSummary.includes('subject to change'),'The consolidated reading uses the explicit timezone and preserves the proposed status');
+assert(mergedCall[0].completeSourceSummary);
+console.log('PASS read notice identity: DCW PDF/XBRL board and call consolidation; distinct terms/date/time/period/status/timezone guards; both original links retained');
+
+for(const suffix of [' and 25:99 GMT',' and 11:30 GMT']){
+ const multiClock=structuredClone(call);multiClock.announcements.groups[0].items[0].content.facts.find(f=>f.field==='date'&&/4:00/.test(f.value)).value+=suffix;
+ assert(!editorialEvents(multiClock,briefStats(multiClock).companies).events[0].completeSourceSummary,'A multi-clock sentence requires full validation and cannot be certified from its first clock');
+}
+const rescheduledBoard=structuredClone(dcw);rescheduledBoard.announcements.groups[0].items[0].content.facts.push({field:'date',value:'Board meeting rescheduled to October 30, 2026'});
+assert(!editorialEvents(rescheduledBoard,briefStats(rescheduledBoard).companies).events[0].completeSourceSummary,'A separately captured reschedule cannot be discarded as an unrelated date');
+assert.equal(clusterStories([{...readDcw,content:rescheduledBoard.announcements.groups[0].items[0].content},readDcwXml]).length,2,'An unresolved source reschedule cannot identify the old board date');
+for(const value of ['Filed with BSE that the company appointed Jane Doe as CFO','Addressed to NSE announcing the closure of the Chennai plant']){
+ assert(investorSourceSummary({content:{state:'ready',facts:[{field:'event',value}]}}).includes(value),'Filing-address vocabulary cannot erase a substantive event');
+}
+const extraCallDate=structuredClone(call);extraCallDate.announcements.groups[0].items[0].content.facts.push({field:'date',value:'Call rescheduled to October 31, 2026'});
+assert(!editorialEvents(extraCallDate,briefStats(extraCallDate).companies).events[0].completeSourceSummary,'An additional call date cannot be ignored');
+console.log('PASS automated review regressions: all clock values, separate rescheduled dates and substantive events with filing-address prefixes');
