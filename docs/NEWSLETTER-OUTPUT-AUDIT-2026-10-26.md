@@ -216,3 +216,6 @@ fixtures. The mandatory output check requires twelve demonstrated event rows to 
 three, with every source URL retained and one writer item per consolidated event.
 Negative cases exercise ambiguous subsidiaries/tranches and changed consideration,
 currency, ownership, status, date, cumulative amount and substantive conditions.
+The existing PDF base fonts also printed euro amounts as a Unicode code-point
+placeholder. They now use the explicit EUR label, as rupees already use INR;
+email currency symbols, fonts and colours stay unchanged.

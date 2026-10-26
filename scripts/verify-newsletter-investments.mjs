@@ -6,6 +6,7 @@ import {clusterStories,briefStats,renderBriefHtml,aiItemsFor} from '../worker/ne
 import {editorialEvents} from '../worker/newsletter-editorial.mjs';
 import {investmentProfiles,sameInvestmentEvent,investmentReading,investmentMoney} from '../worker/newsletter-investment-events.mjs';
 import {pdfFixture} from './verify-newsletter-pdf.mjs';
+import {printable} from '../worker/newsletter-pdf-layout.mjs';
 const fixture=JSON.parse(readFileSync(new URL('./fixtures/newsletter/live-investments-2026-10-27.json',import.meta.url)));
 const names={VARROC:'Varroc Engineering Limited',SHOPERSTOP:'Shoppers Stop Ltd',PURVA:'Puravankara Limited'};
 const files={VARROC:'varroc-investment-update.xml',SHOPERSTOP:'shoppers-stop-investment-update.xml',PURVA:'puravankara-board-notice.xml'};
@@ -69,6 +70,7 @@ assert.equal(clusterStories([anchor,changedCondition]).length,2,'Different saved
 const cashSuffix=structuredClone(shopAnchor);cashSuffix.content.facts.find(f=>f.field==='conditions'&&/^Nature/.test(f.value)).value='Nature of consideration is cash and completion is subject to RBI approval';
 assert(investmentReading([cashSuffix]).note.includes('subject to RBI approval'),'A cash prefix cannot suppress a material condition');
 assert.equal(investmentMoney('INR 10 thousand').length,0,'Unsupported amount units are unresolved');
+assert.equal(printable('€4.5 million / ₹10 crore'),'EUR 4.5 million / INR 10 crore','PDF currency remains readable in the existing base fonts');
 const readPublisher={...varroc.find(r=>r.kind==='news'),url:'https://fixture.test/read-publisher',content:{state:'ready',format:'article',facts:[{field:'event',value:'Agreements executed for investment in Forsee Power India Private Limited'},{field:'amount',value:'Consideration of EUR 4.5 million'},{field:'status',value:'Agreements executed; completion still pending'},{field:'ownership',value:'A 45% equity stake'}]}};
 assert.equal(clusterStories([anchor,readPublisher]).length,1,'Reading a publisher cannot re-split one source-established event merely because its fact wording differs');
 assert(investmentReading([anchor,readPublisher]),'The concise reading remains attributable to the original announcement');
