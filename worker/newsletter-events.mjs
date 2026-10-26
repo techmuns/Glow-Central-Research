@@ -127,20 +127,26 @@ async function reviewNewsEventBatch({ news, env, fetcher = fetch, enabled = true
   }
 }
 
-/** Independent company batches avoid one large edition making every later company ineligible.
- * Cached memberships and the existing provider budget are reused; failed checks never drop rows. */
+/** Pack complete companies into bounded batches. Small companies share a request instead
+ * of wasting its capacity; a large edition cannot stop after the first 80 reports.
+ * Cached memberships and provider budgets are reused; failed checks never drop rows. */
 export async function reviewNewsEvents(options) {
   const {news,enabled=true}=options;
   for(const group of news.groups || [])for(const item of group.items)delete item.eventId;
-  const groups=(news.groups || []).filter(g=>g.items.length>1).sort((a,b)=>Math.max(...b.items.map(i=>editorialPriority({...i,kind:'news'})))-Math.max(...a.items.map(i=>editorialPriority({...i,kind:'news'}))));
+  let groups=(news.groups || []).filter(g=>g.items.length>1).sort((a,b)=>Math.max(...b.items.map(i=>editorialPriority({...i,kind:'news'})))-Math.max(...a.items.map(i=>editorialPriority({...i,kind:'news'}))));
   if(!groups.length||!enabled)return reviewNewsEventBatch(options);
   const total={eligible:groups.reduce((n,g)=>n+g.items.length,0),requested:0,reviewed:0,combined:0};
   let reason='limit',batches=0;
-  for(const group of groups) {
-    if(batches>=EVENT_BATCH_LIMIT)break;
-    const result=await reviewNewsEventBatch({...options,news:{groups:[group]}});
+  while(groups.length&&batches<EVENT_BATCH_LIMIT) {
+    const candidates=eventCandidates({groups});
+    if(!candidates.reports.length)break;
+    const rows=new Set(candidates.rows.values());
+    const selected=groups.filter(g=>rows.has(g.items[0]));
+    const result=await reviewNewsEventBatch({...options,news:{groups:selected}});
     total.requested+=result.requested;total.reviewed+=result.reviewed;total.combined+=result.combined;
-    if(result.requested)batches++;
+    if(!result.requested)break;
+    batches++;
+    groups=groups.filter(g=>!selected.includes(g));
     if(result.ok)continue;
     reason=result.reason;
     if(reason!=='limit')break;

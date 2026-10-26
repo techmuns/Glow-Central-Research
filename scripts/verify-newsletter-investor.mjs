@@ -142,6 +142,13 @@ const grouped=await reviewNewsEvents({news:manyCompanies,env:{CLAUDE_KEY:'ABSKfi
  return Response.json({content:[{type:'text',text:JSON.stringify(reports.map(r=>[r.id]))}]});
 }});
 assert.equal(grouped.reviewed,240);assert.equal(groupingCalls,4);assert.equal(grouped.partial,false,'A shared 80-report ceiling cannot exclude every later company');
+let packedCalls=0;
+const smallCompanies={groups:Array.from({length:16},(_,i)=>({ticker:`SMALL${i}`,company:`Small issuer ${i}`,items:Array.from({length:5},(_,j)=>({headline:`Distinct company disclosure ${j}`,at,publisher:'Fixture'}))}))};
+const packed=await reviewNewsEvents({news:smallCompanies,env:{CLAUDE_KEY:'ABSKfixture-only'},fetcher:async(_url,init)=>{
+ packedCalls++;const reports=JSON.parse(JSON.parse(init.body).messages[0].content).REPORTS;
+ return Response.json({content:[{type:'text',text:JSON.stringify(reports.map(r=>[r.id]))}]});
+}});
+assert.equal(packed.reviewed,80);assert.equal(packedCalls,1,'Small companies share the existing request capacity rather than consuming one call each');
 
 // A busy edition has a fixed inbox budget, all distinct developments, no repeated raw snippets,
 // and stable rendering for every personalised footer. HTML is inert and byte bounded.

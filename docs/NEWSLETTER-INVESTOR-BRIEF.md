@@ -60,8 +60,9 @@ copies across exchange timestamps. Generic subjects and time proximity alone can
 Changed amount, counterparty, date, status, conditions or ownership prevent unsafe merging.
 Distinct CEAT loan-conversion/investment fixtures remain separate.
 
-Semantic news checking runs after source attachment, in independent company batches rather
-than admitting only the first 80 reports of an edition. Each request retains its existing
+Semantic news checking runs after source attachment, packing whole companies into bounded
+batches rather than admitting only the first 80 reports of an edition or wasting a request
+on each small company. Each request retains its existing
 80-report/96KB input limits. The old 24KB escaped source-register guard no longer applies:
 long archived URLs and read facts do not consume the grouping prompt or compact inbox.
 Complete headline/summary inputs still fit as a whole company or remain explicitly unchecked.
