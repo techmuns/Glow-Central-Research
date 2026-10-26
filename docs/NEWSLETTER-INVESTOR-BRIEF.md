@@ -46,6 +46,10 @@ A grounded summary replaces the repeated headline. A short coverage note links t
 the full diagnostics; reference and reading counters do not clutter every event.
 `renderInvestorEmails` first packs detailed event descriptions, then, if necessary,
 abbreviated descriptions. Full original source URLs remain clickable in compact mode.
+Compact rows share standard email CSS classes rather than repeating identical inline
+styles; the colours, serif company names, rules and spacing remain unchanged. This leaves
+room for actual source URLs within the existing byte limits. See Gmail's
+[CSS support](https://developers.google.com/workspace/gmail/design/css).
 Automated daily "slides/climbs ... outperforms/underperforms competitors" templates remain
 in the full report rather than becoming business developments. Explicit reasons, guidance
 changes and other substantive price-related reports remain eligible.

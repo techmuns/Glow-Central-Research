@@ -7,6 +7,8 @@ import {buildBrief,briefStats,briefStories,briefSummary,PRODUCTION_ORIGIN} from 
 import {renderBriefEmails,renderBriefDeliveryEmails,MAX_DELIVERY_EMAIL_PARTS} from '../worker/newsletter-email.mjs';
 import {renderBriefPdf} from '../worker/newsletter-pdf.mjs';
 import {NEWSLETTER_GITHUB_PDF_BYTES} from '../worker/newsletter-document.mjs';
+import {editorialEvents} from '../worker/newsletter-editorial.mjs';
+import {newsletterSourceUrl} from '../worker/newsletter-source-links.mjs';
 import {istDay,istInstant,DEFAULT_SETTINGS} from '../public/js/data/newsletter-shared.js';
 const head=JSON.parse(fs.readFileSync('public/data/market-news.json','utf8'));
 const day=istDay(Date.parse(head.capturedAt)),now=istInstant(day,'10:00');
@@ -40,8 +42,14 @@ const deliveredKeys=new Set(delivery.flatMap(m=>m.keys));
 for(const item of briefStories(brief))assert(item.keys.every(key=>deliveredKeys.has(key)),'The complete-report delivery must carry every eligible source identity');
 if(deliveryBlocked||messages.length>MAX_DELIVERY_EMAIL_PARTS)assert(delivery.every(m=>m.part.reportLink===true));
 const stats=briefStats(brief),summary=briefSummary(brief);
+const events=editorialEvents(brief,stats.companies).events;
+assert.deepEqual(delivery.flatMap(message=>message.part.eventIds).sort(),events.map(event=>event.id).sort(),'The retained edition carries every investor update once');
+const sourceUrls=events.map(event=>newsletterSourceUrl(event.lead)).filter(Boolean),inbox=delivery.map(message=>message.html).join('');
+const escape=value=>value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+for(const source of sourceUrls)assert(inbox.includes(`href="${escape(source)}"`),'A retained exact source link cannot be replaced to meet the email budget');
+assert(!inbox.includes('Evidence →'),'The complete report must not masquerade as an item source');
 const report={product:PRODUCTION_ORIGIN,day,listed:brief.book.listed,stories:stats.stories,updates:stats.updates,
-  parts:messages.length,deliveryBlocked,deliveryParts:delivery.length,deliveryFormat:delivery[0]?.part?.investor?'investor-brief':'inline',htmlBytes:messages.map(m=>m.bytes),pdfBytes:pdf.byteLength,sourceIdentities:keys.size,
+  parts:messages.length,deliveryBlocked,deliveryParts:delivery.length,deliveryFormat:delivery[0]?.part?.investor?'investor-brief':'inline',deliveryBytes:delivery.map(m=>m.bytes),investorUpdates:events.length,directSourceLinks:sourceUrls.length,htmlBytes:messages.map(m=>m.bytes),pdfBytes:pdf.byteLength,sourceIdentities:keys.size,
   omittedByCaps:summary.eligibility.omittedByCaps,companyArchive:brief.news.company.ok,
   publisherArchive:brief.news.source.archiveComplete,tradingviewArchive:brief.news.tradingview.archiveComplete,
   upstreamTradingviewPartial:brief.news.tradingview.partial,networkRequests:0};

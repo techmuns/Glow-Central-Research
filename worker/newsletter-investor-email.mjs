@@ -7,10 +7,10 @@ import { newsletterSourceUrl } from './newsletter-source-links.mjs';
 const esc = value => String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // Only the inbox description is abbreviated. Original records and links remain in the report.
 const short = (value, max) => { const s=editorialText(value); return s.length>max ? s.slice(0,max-1).replace(/\s+\S*$/,'')+'…' : s; };
-const link = (url,label,color=NEWSLETTER_STYLE.GOLD) => {
+const link = (url,label,color=NEWSLETTER_STYLE.GOLD,className=null) => {
   try { if (!['https:','http:'].includes(new URL(url).protocol)) return esc(label); }
   catch { return esc(label); }
-  return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" style="color:${color};text-decoration:none">${esc(label)}</a>`;
+  return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" ${className?`class="${className}"`:`style="color:${color};text-decoration:none"`}>${esc(label)}</a>`;
 };
 const cell = (value, extra='') => `<td style="padding:7px 5px;border-bottom:1px solid ${NEWSLETTER_STYLE.RULE};vertical-align:top;${extra}">${value}</td>`;
 export const investorSubject = (brief, brand, stats) => {
@@ -23,6 +23,9 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
   const reading=editorialEvents(brief,stats.companies);
   const chosen=new Set(part.eventIds), events=reading.events.filter(e=>chosen.has(e.id));
   const compact=!!part.compact;
+  // Standard email CSS classes avoid repeating identical styles hundreds of times.
+  // Preserve the original appearance while reserving body bytes for exact source URLs.
+  const compactStyles=compact?`<style type="text/css">td.gve{padding:8px 0;border-bottom:1px solid ${RULE}}strong.gvc{font-family:${SERIF};color:${INK}}span.gvm{font-size:10px;color:${META}}a.gvl{color:${GOLD};text-decoration:none}</style>`:'';
   const reportUrl=pdfUrl || `${dashboardUrl}/api/newsletter/preview?edition=${brief.edition}&format=pdf`;
   const cards=events.map((event,index)=>{
     const s=event.lead;
@@ -35,7 +38,7 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
     const description=esc(short(summary,compact?220:340));
     const evidence=event.summary?'AI summary':event.facts.length?'Source facts':event.evidence;
     const incomplete=event.read>0&&event.read<event.total?' · Some sources unread':'';
-    if(compact)return `<tr><td style="padding:8px 0;border-bottom:1px solid ${RULE}"><strong style="font-family:${SERIF};color:${INK}">${esc(event.company)}</strong> · ${description}<br><span style="font-size:10px;color:${META}">${esc(evidence)}${incomplete}${s.related?' · Related entity; exposure unconfirmed':''} · ${esc(istLabel(s.at))} · ${source?link(source,sourceLabel):'Source link unavailable'}</span></td></tr>`;
+    if(compact)return `<tr><td class="gve"><strong class="gvc">${esc(event.company)}</strong> · ${description}<br><span class="gvm">${esc(evidence)}${incomplete}${s.related?' · Related entity; exposure unconfirmed':''} · ${esc(istLabel(s.at))} · ${source?link(source,sourceLabel,GOLD,'gvl'):'Source link unavailable'}</span></td></tr>`;
     return `<tr><td style="padding:${sameCompany?'10px':'22px'} 0 12px;border-bottom:1px solid ${RULE}">
 ${sameCompany?'':`<div style="padding-bottom:7px;margin-bottom:8px;border-bottom:2px solid ${INK};font-family:${SERIF};font-size:${compact?18:22}px;line-height:1.2;font-weight:bold;color:${INK}">${esc(event.company)} <span style="font-family:${SANS};font-size:10px;font-weight:normal;color:${META}">${esc(event.ticker)}</span></div>`}
 <div style="font-family:${SERIF};font-size:${compact?14:15}px;line-height:1.45;color:${INK};font-weight:bold">${description}</div>
@@ -56,7 +59,7 @@ ${s.related?`<div style="margin-top:4px;color:${META};font-size:11px">Related en
   if (brief.calendar?.screener?.ok===false || brief.calendar?.moneycontrol?.ok===false || brief.actions?.source?.ok===false) gaps.push('calendar');
   const pending=brief.content?.pending||0,partial=brief.content?.partial||0;
   const coverage=[gaps.length?`Partial coverage: ${gaps.join(', ')}`:null,pending?`${pending} pending reads`:null,partial?`${partial} partial reads`:null,!brief.ai?.ok?'AI notes limited':null].filter(Boolean);
-  const warning=coverage.length?`<div style="padding:9px 10px;background:${CREAM};color:${BODY};font-size:11px;margin:12px 0">${esc(coverage.join(' · '))}. ${link(reportUrl,'Coverage details →')}</div>`:'';
+  const warning=coverage.length?`<div style="padding:9px 10px;background:${CREAM};color:${BODY};font-size:11px;margin:12px 0">${esc(coverage.join(' · '))}. ${link(reportUrl,'Coverage details (PDF) →')}</div>`:'';
   const first=part.index===1;
   const calendar=first?(brief.calendar?.rows || []).map(r=>
     `<tr>${cell(`<span style="white-space:nowrap">${esc(r.date)}</span>`+(r.time?`<br>${esc(r.time)} IST`:''))}${cell(esc(r.company),'font-family:'+SERIF+';font-weight:bold')}${cell(link(r.url,r.label))}</tr>`).join(''):'';
@@ -66,7 +69,7 @@ ${s.related?`<div style="margin-top:4px;color:${META};font-size:11px">Related en
   const heading=title=>`<div style="margin:22px 0 7px;padding-bottom:5px;border-bottom:3px solid ${GOLD_LIGHT};font-size:11px;font-weight:bold;letter-spacing:2px;color:${INK}">${title}</div>`;
   const table=rows=>`<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12px;overflow-wrap:anywhere">${rows}</table>`;
   const companies=new Set(reading.events.map(e=>e.ticker)).size;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(investorSubject(brief,brand,stats))}</title></head>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(investorSubject(brief,brand,stats))}</title>${compactStyles}</head>
 <body style="margin:0;padding:0;background:${CREAM};-webkit-text-size-adjust:100%;font-family:${SANS};font-size:13px;line-height:1.5;color:${BODY2}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM}"><tr><td align="center" style="padding:24px 12px"><table role="presentation" width="640" cellpadding="0" cellspacing="0" style="width:100%;max-width:640px;background:${PAPER};border:1px solid ${RULE}">
 <tr><td align="right" style="padding:18px 24px 0"><a href="${esc(reportUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:10px 16px;background:${GOLD};border-radius:4px;color:#ffffff;font-size:12px;font-weight:bold;text-decoration:none">Download PDF ↓</a></td></tr>
 <tr><td align="center" style="padding:30px 24px 0"><div style="font-family:${SERIF};font-size:30px;line-height:1.2;font-weight:bold;letter-spacing:3px;color:${INK}">${esc(brand.toUpperCase())}</div><div style="border-top:3px double ${INK};margin:12px 0 7px;font-size:0;line-height:0">&nbsp;</div><div style="font-size:11px;letter-spacing:4px;text-transform:uppercase;color:${META}">${esc(productName)} — ${esc(TAGLINES[brief.edition])}</div><div style="margin-top:10px;padding:7px 0;border-top:1px solid ${RULE};border-bottom:1px solid ${RULE};font-size:11px;letter-spacing:1px;color:${META}">${esc(istDateLong(brief.at))} · ${esc(istLabel(brief.window.from))} → ${esc(istLabel(brief.window.to))}</div></td></tr>
@@ -75,7 +78,7 @@ ${preview?`<div style="font-size:11px;color:${META};margin-top:5px">Preview · s
 ${warning}<div style="margin-top:8px;font-size:12px">${link(dashboardUrl+'/#/research/daily-alerts?scope=portfolio','Open dashboard →')}</div>
 ${heading('YOUR PORTFOLIO COMPANIES')}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;overflow-wrap:anywhere">${cards||(part.packing?'':`<tr><td style="padding:18px 0;color:${META}">No new developments identified in the available readings.</td></tr>`)}</table>
 ${first&&part.supplements?`${calendar?heading('UPCOMING RESULTS & CALLS')+table(calendar):''}${actionRows?heading('CORPORATE ACTION DATES')+table(actionRows):''}${markets?heading('MARKET CONTEXT')+table(markets):''}`:''}
-${first&&!part.supplements?`<p style="font-size:12px">${brief.calendar?.rows?.length||0} results/calls · ${brief.actions?.rows?.length||0} corporate actions · ${link(reportUrl,'Dates and markets →')}</p>`:''}
+${first&&!part.supplements?`<p style="font-size:12px">${brief.calendar?.rows?.length||0} results/calls · ${brief.actions?.rows?.length||0} corporate actions · ${link(reportUrl,'Dates and markets (PDF) →')}</p>`:''}
 </td></tr><tr><td style="padding:18px 24px;background:${INK};color:#d8d0be;font-size:11px;line-height:1.65">${recipient?.test?'Requested test copy.':'Your scheduled portfolio brief.'} ${link(dashboardUrl+'/#/research/ask-research?newsletter=manage','Unsubscribe',GOLD_LIGHT)}<br><strong style="color:${GOLD_LIGHT};letter-spacing:1px">${esc(brand)}</strong> · ${esc(productName)} · Automated by Munshot<br><span style="color:${GOLD_LIGHT};font-size:10px">AI impacts are interpretations. Informational, not investment advice. Built ${esc(istLabel(brief.builtAt,{year:true}))}.</span></td></tr>
 </table></td></tr></table></body></html>`;
 }
