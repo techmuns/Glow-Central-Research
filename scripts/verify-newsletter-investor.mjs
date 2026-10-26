@@ -97,11 +97,17 @@ const auroBse={...auro,at:at-8*60000,
  url:'https://www.bseindia.com/xml-data/corpfiling/AttachLive/ed83a911-4c69-490e-bbb3-b4c68c62a1a1.pdf'};
 const auroGroups=clusterStories([auro,auroBse],{company:'Aurobindo Pharma Ltd'});
 assert.equal(auroGroups.length,1);assert.equal(auroGroups[0].main.url,auro.url,'The detailed notice leads its generic exchange copy');
-assert.equal(scheduledBoardMeetingSummary(auro),'Board meeting 4 Nov 2026: to consider unaudited half-year financial results for the period ended September 2026 and dividend.');
+assert.equal(scheduledBoardMeetingSummary(auro),'Board meeting 4 Nov 2026: to consider half-year unaudited financial results for the period ended September 2026 and dividend.');
 assert.equal(clusterStories([auro,{...auroBse,headline:auroBse.headline.replace('04/11/2026','05/11/2026')}]).length,2);
 assert.equal(clusterStories([auro,{...auroBse,headline:auroBse.headline.replace('04/11/2026','31/11/2026')}]).length,2,'Invalid dates cannot establish meeting identity');
 assert.equal(clusterStories([auro,{...auroBse,at:at-2*86400000}]).length,2,'Distant notices need stronger evidence');
 assert.equal(clusterStories([auro,{...auro,url:'https://fixture.test/other-quarter',headline:auro.headline.replace('September','June')}]).length,2,'Different financial periods remain separate');
+assert.equal(clusterStories([{...auro,headline:auro.headline.replace('September 2026','30/09/2026')},
+ {...auro,url:'https://fixture.test/other-numeric-quarter',headline:auro.headline.replace('September 2026','30/06/2026')}]).length,2,'Numeric financial periods are also part of the event identity');
+const proposedIssue={...auro,headline:'Board Meeting to be held on 04-Nov-2026 to consider a preferential issue to Investor Alpha for INR 15 crore'};
+assert(scheduledBoardMeetingSummary(proposedIssue).includes('Investor Alpha for INR 15 crore'),'A concise meeting description must retain stated counterparties and amounts');
+assert.equal(clusterStories([proposedIssue,{...proposedIssue,url:'https://fixture.test/different-proposal',headline:proposedIssue.headline.replace('Investor Alpha','Investor Beta').replace('15','20')}]).length,2,'Two detailed capital proposals do not become one update merely because they share a meeting date');
+assert.equal(clusterStories([proposedIssue,{...auroBse,headline:auroBse.headline.replace('Intimation of Board Meeting ....','Other business including a proposed loan to Investor Beta.')}]).length,2,'An unrecognized purpose is not a generic exchange wrapper');
 
 const copiedNews={...story,sourceUrls:['https://www.livemint.com/companies/the-exact-article.html'],url:'https://news.google.com/rss/articles/opaque-one'};
 assert.equal(clusterStories([copiedNews,{...copiedNews,url:'https://news.google.com/rss/articles/opaque-two'}]).length,1,'Captured article aliases corroborate different ingestion routes');

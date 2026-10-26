@@ -14,7 +14,7 @@ export function scheduledBoardMeeting(item) {
   const day = Number(match[1]), month = /^\d+$/.test(match[2]) ? Number(match[2]) : months.indexOf(match[2].slice(0,3).toLowerCase()) + 1;
   const year = Number(match[3]), at = new Date(Date.UTC(year, month - 1, day));
   if (month < 1 || month > 12 || at.getUTCFullYear() !== year || at.getUTCMonth() !== month - 1 || at.getUTCDate() !== day) return null;
-  const period = /\bperiod ended\s+((?:\d{1,2}[ /-]+)?[A-Za-z]+[ /,-]+20\d{2})/i.exec(title)?.[1] || null;
+  const period = /\bperiod ended\s+((?:\d{1,2}[ /-]+)?(?:[A-Za-z]+|\d{1,2})[ /,-]+20\d{2})/i.exec(title)?.[1] || null;
   const agendas = [
     ['results', /\b(?:financial results|quarterly results|half yearly.*results)\b/i],
     ['dividend', /\bdividend\b/i], ['fundraising', /\bfund.?rais\w*\b/i], ['QIP', /\bQIP\b/i],
@@ -22,22 +22,33 @@ export function scheduledBoardMeeting(item) {
     ['buyback', /\bbuyback\b/i], ['acquisition', /\bacquisition\b/i], ['merger', /\bmerger\b/i], ['divestment', /\bdivest\w*\b/i],
     ['appointment', /\bappointment\b/i], ['resignation', /\bresignation\b/i],
   ].filter(([, pattern]) => pattern.test(title)).map(([name]) => name);
-  return { date: at.toISOString().slice(0,10), label: `${day} ${months[month - 1][0].toUpperCase() + months[month - 1].slice(1)} ${year}`, period, agendas };
+  const purpose = /\bto consider(?: and approve)?\s+(.+)$/i.exec(title)?.[1];
+  const generic = !agendas.length && (purpose ? /^(?:intimation of )?(?:the )?board meeting[ .…]*$/i.test(purpose)
+    : /^[ .…]*$/.test(title.slice(match.index + match[0].length)));
+  return { date: at.toISOString().slice(0,10), label: `${day} ${months[month - 1][0].toUpperCase() + months[month - 1].slice(1)} ${year}`, period, agendas, generic, purpose };
 }
 
 export function sameScheduledBoardMeeting(a, b) {
   const x = scheduledBoardMeeting(a), y = scheduledBoardMeeting(b);
   if (!x || !y || a.ticker !== b.ticker || x.date !== y.date || Math.abs(a.at - b.at) > 3600000) return false;
   if (x.period && y.period && x.period.toLowerCase() !== y.period.toLowerCase()) return false;
-  // A generic exchange wrapper may accompany a detailed notice. Two independently
-  // stated, different agendas still need document evidence before consolidation.
-  return !x.agendas.length || !y.agendas.length || JSON.stringify(x.agendas) === JSON.stringify(y.agendas);
+  // The exact generic exchange wrapper may accompany a detailed notice. Unknown
+  // prose is not generic, and two capital-action proposals can share a meeting date.
+  if (x.generic || y.generic) return true;
+  return !!x.period && !!y.period && x.agendas.length > 0 &&
+    x.agendas.every(value => value === 'results' || value === 'dividend') &&
+    JSON.stringify(x.agendas) === JSON.stringify(y.agendas);
 }
 
 export function scheduledBoardMeetingSummary(item) {
   const meeting = scheduledBoardMeeting(item);
   if (!meeting) return null;
-  const results = `${/\bunaudited\b/i.test(item.headline) ? 'unaudited ' : ''}${/\bhalf[- ]year(?:ly)?\b/i.test(item.headline) ? 'half-year ' : /\bquarterly\b/i.test(item.headline) ? 'quarterly ' : ''}financial results`;
-  const agenda = meeting.agendas.map(value => value === 'results' ? `${results}${meeting.period ? ' for the period ended ' + meeting.period : ''}` : value);
-  return `Board meeting ${meeting.label}${agenda.length ? ': to consider ' + agenda.join(' and ') : '; agenda not specified in the captured notice'}.`;
+  if (meeting.generic) return `Board meeting ${meeting.label}; agenda not specified in the captured notice.`;
+  if (!meeting.purpose) return null;
+  // Retain the stated purpose, including counterparties, amounts and qualifications.
+  // Removing exchange boilerplate must not replace it with an inferred agenda label.
+  const purpose = meeting.purpose.replace(/^the\s+/i, '').replace(/\bof the Company\b/gi, '')
+    .replace(/\bHalf Yearly\b/gi, 'half-year').replace(/\bUnaudited Financial results\b/gi, 'unaudited financial results')
+    .replace(/\bDividend\b/gi, 'dividend').replace(/\s+/g, ' ').replace(/[ .…]+$/, '');
+  return `Board meeting ${meeting.label}: to consider ${purpose}.`;
 }
