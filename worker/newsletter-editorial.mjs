@@ -4,6 +4,7 @@ import { scheduledBoardMeetingSummary } from './newsletter-filing-events.mjs';
 import { investorSourceFacts, investorSourceSummary, xbrlBoardMeetingNote, votingResultNote, readNoticeNote, consolidatedBoardReading, hasSourceChange } from './newsletter-source-notes.mjs';
 import { newsletterSourceUrl } from './newsletter-source-links.mjs';
 import { scheduledEarningsCall, consolidatedEarningsCallNote } from './newsletter-notice-events.mjs';
+import { investmentReading } from './newsletter-investment-events.mjs';
 export const EDITORIAL_VERSION = 1;
 export const EDITORIAL_EMAIL_PARTS = 3;
 const text = value => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
@@ -65,7 +66,9 @@ export function editorialEvents(brief, companies) {
     const callCluster=members.some(s=>scheduledEarningsCall(s));
     const board=callCluster?null:consolidatedBoardReading(members);
     if(board?.lead)lead=board.lead;
-    const completeSourceSummary=callCluster?consolidatedEarningsCallNote(members):board?board.note||null:xbrlBoardMeetingNote(lead)||votingResultNote(lead)||readNoticeNote(lead);
+    const investment=investmentReading(members);
+    if(investment?.lead)lead=investment.lead;
+    const completeSourceSummary=investment?.note||(callCluster?consolidatedEarningsCallNote(members):board?board.note||null:xbrlBoardMeetingNote(lead)||votingResultNote(lead)||readNoticeNote(lead));
     const sourceSummary=cluster.versionConflict?'Different versions of this document were captured; their chronology is unconfirmed. Read the retained versions before relying on the figures.':completeSourceSummary || investorSourceSummary(lead);
     events.push({ id: cluster.id, company: company.company, ticker: company.ticker, cluster,
       lead, note, rank: Math.max(...eligible.map(editorialPriority)), at: Math.max(...eligible.map(s => s.at)),

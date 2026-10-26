@@ -181,3 +181,41 @@ or the existing guarded source identity, never matching generated fact strings a
 of a physical copy. Fact-equivalent different documents remain separate evidence items
 for the one event writer. The focused notebook browser fixture passed locally after an
 intermittent CI timeout; its assertions and application UI remain unchanged.
+
+## Native update fields found in the next prepared edition
+
+The 27 October prepared morning reader exposed three further concrete cases:
+Varroc's definitive Forsee agreements occupied five events, Shoppers Stop's second
+GSSBBL investment tranche occupied five, and Puravankara's PDF/form board notice
+occupied two. The native acquisition update forms store their current development
+in OtherUpdates and AnyOtherBriefSignificantInformationForAnnouncementUpdate.
+Their historical initial/latest-announcement dates cannot identify today's update.
+
+A saved-field investment adapter now uses the canonical issuer, explicit occurrence
+date, named target or source-declared alias, normalized exact INR/EUR consideration,
+ownership, tranche and transaction stage. A generic subsidiary description needs a
+matching amount and one unambiguous known transaction. Conflicting targets, prices,
+currencies, stages, tranches, dates, business conditions and checked news partitions
+remain separate. Unsupported currencies/units and denials cannot become wildcards.
+No lookup, new extraction, cache invalidation, provider call or budget increase is added.
+
+Varroc's reading preserves the up-to €4.5 million consideration, 45% equity stake,
+OCPRS, pending completion, conditions precedent and indicative deadline. Shoppers
+Stop's reading preserves the ₹10 crore second tranche, ₹135 crore cumulative
+preference investment, related-party qualification and pending allotment. Earlier
+approval caps and historical target turnover stay in the source register. Whole-fact
+matching cannot discard a material suffix following cash or administrative wording.
+
+Puravankara's weekday date is checked against its actual calendar date, and its
+separate quarter/half-year period joins the meeting agenda before comparison. The
+complete reading preserves both period qualifiers, the date and unaudited standalone
+and consolidated scope. Pure trading-window and recipient fields remain in the register.
+
+The three original XML captures and exact saved source facts/headlines are regression
+fixtures. The mandatory output check requires twelve demonstrated event rows to become
+three, with every source URL retained and one writer item per consolidated event.
+Negative cases exercise ambiguous subsidiaries/tranches and changed consideration,
+currency, ownership, status, date, cumulative amount and substantive conditions.
+The existing PDF base fonts also printed euro amounts as a Unicode code-point
+placeholder. They now use the explicit EUR label, as rupees already use INR;
+email currency symbols, fonts and colours stay unchanged.

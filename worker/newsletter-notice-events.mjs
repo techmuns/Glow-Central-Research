@@ -1,5 +1,5 @@
 // Explicit saved notice fields, shared by event identity and the concise reading.
-import { eventDate, eventDates, fiscalPeriods, combineFiscalPeriods, compatibleFiscalPeriods } from './newsletter-event-identity.mjs';
+import { eventDate, eventDates, financialPeriod, fiscalPeriods, combineFiscalPeriods, compatibleFiscalPeriods } from './newsletter-event-identity.mjs';
 const clean=value=>String(value||'').replace(/\s+/g,' ').trim();
 export const administrativeNoticeFact = fact => {
   const value=clean(fact.value);
@@ -7,10 +7,11 @@ export const administrativeNoticeFact = fact => {
   if(fact.field==='amount'||/\b(?:acquisition|buyback|merger|fundraising|stake|contract|profit|revenue|default|penalty|resignation|INR|USD|EUR|crore|million|billion|subject to)\b|₹/i.test(value))return false;
   if(fact.field==='ownership'&&/\b(?:shares?|stake|ownership|holding|held|acquired|sold)\b/i.test(value))return false;
   if(fact.field==='conditions'&&/^Trading window closed ahead of board meeting and reopening timeline[.!]?$/i.test(value))return true;
-  if(fact.field==='counterparty')return /^(?:Recipients? of (?:the )?intimation: National Stock Exchange of India Ltd\.? and BSE Limited|(?:Filed with|Addressed to) (?:National Stock Exchange of India (?:Ltd\.?|Limited)|BSE(?: Limited)?|NSE)|BSE Limited \(recipient of intimation\))[.!]?$/i.test(value);
+  if(fact.field==='conditions'&&/^Trading window closure period for Designated Persons and immediate relatives[.!]?$/i.test(value))return true;
+  if(fact.field==='counterparty')return /^(?:Recipients? of (?:the )?intimation: National Stock Exchange of India Ltd\.? and BSE Limited|(?:Filed with|Addressed to) (?:BSE Limited and National Stock Exchange of India Limited|National Stock Exchange of India (?:Ltd\.?|Limited)|BSE(?: Limited)?|NSE)|BSE Limited \(recipient of intimation\))[.!]?$/i.test(value);
   if(fact.field==='ownership')return /^Scrip Code and ISIN identifiers(?: for [A-Za-z &'’-]+(?:Limited|Ltd\.?))?[.!]?$/i.test(value);
   if(fact.field==='date')return /^Call timing also noted in other time zones[.!]?$/i.test(value);
-  if(fact.field==='reason')return /^Intimation filed pursuant to regulatory requirement for prior disclosure of board meeting[.!]?$/i.test(value);
+  if(fact.field==='reason')return /^(?:Intimation filed pursuant to regulatory requirement for prior disclosure of board meeting|Trading window closure cited regulatory basis)[.!]?$/i.test(value);
   return fact.field==='conditions'&&(/^(?:Call proceedings (?:will be )?recorded(?: and participant details shared with the corporate)?|Disclosures on stock exchanges including invite, recording and transcript expected to be complied by the corporate|Call accessible via universal dial-in and international toll-free numbers)[.!]?$/i.test(value)||
     /^Disclosure made pursuant to Regulation \d+ of SEBI LODR Regulations,? \d{4}[.!]?$/i.test(value));
 };
@@ -25,19 +26,30 @@ export function noticeTags(item) {
   return tags;
 }
 const substantive=facts=>facts.filter(f=>['event','date','status','conditions','amount','ownership','counterparty','reason'].includes(f.field)&&!administrativeNoticeFact(f));
-export const noticeDate=value=>eventDate(clean(value).replace(/[.!?]$/,''));
+export const noticeDate=value=>{
+  let text=clean(value).replace(/[.!?]$/,'');
+  const day=/^(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday),?\s+/i.exec(text);
+  if(day)text=text.slice(day[0].length);
+  const date=eventDate(text);
+  return date&&(!day||new Date(date+'T00:00:00Z').getUTCDay()===['sunday','monday','tuesday','wednesday','thursday','friday','saturday'].indexOf(day[1].toLowerCase()))?date:null;
+};
 const letterDate=fact=>fact.field==='date'&&/^Letter(?: dated| date:)\s+/i.test(clean(fact.value))&&!!noticeDate(clean(fact.value).replace(/^Letter(?: dated| date:)\s*/i,''));
 export function readBoardNotice(item) {
   if(item.kind!=='filing'||item.content?.state!=='ready'||item.content.format==='xbrl')return null;
   const facts=substantive(item.content.facts||[]),events=facts.filter(f=>f.field==='event').map(f=>clean(f.value));
   const agendas=events.map(value=>/^Board meeting scheduled to consider(?: and approve)?\s+(.+?)[.!]?$/i.exec(value)?.[1]);
   if(!agendas.length||agendas.some(value=>!value))return null;
-  const meetingDates=facts.filter(f=>f.field==='date'&&!letterDate(f));
+  const periodFacts=facts.filter(f=>f.field==='date'&&/^Financial results period:/i.test(clean(f.value)));
+  const periods=periodFacts.map(f=>/^Financial results period: ((?:(?:quarter|half[- ]year|year)(?: and (?:quarter|half[- ]year|year))?) ended .+)$/i.exec(clean(f.value))?.[1]);
+  if(periods.some(value=>!value))return null;
+  const normalizedPeriods=periods.map(value=>financialPeriod(value.replace(/^.+? ended /i,'')));
+  if(normalizedPeriods.some(value=>!value||value!==normalizedPeriods[0]))return null;
+  const meetingDates=facts.filter(f=>f.field==='date'&&!letterDate(f)&&!periodFacts.includes(f));
   if(meetingDates.some(f=>!/^Board meeting date:/i.test(clean(f.value))))return null;
   const dates=meetingDates.map(f=>noticeDate(clean(f.value).replace(/^Board meeting date:\s*/i,'')));
   if(!dates.length||dates.some(date=>!date||date!==dates[0]))return null;
-  if(facts.some(f=>f.field==='status'&&!/^(?:Proposed(?:\/scheduled)?|Scheduled)(?: for board consideration)?(?:, not yet approved)?[.!]?$/i.test(clean(f.value))))return null;
-  return {date:dates[0],agendas:[...new Set(agendas)],purpose:[...new Set(agendas)].join(' and '),extras:facts.filter(f=>['amount','conditions','ownership','counterparty','reason'].includes(f.field))};
+  if(facts.some(f=>f.field==='status'&&!/^(?:(?:Proposed(?:\/scheduled)?|Scheduled)(?: for board consideration)?(?:, not yet approved)?|Proposed\/intimation stage, not yet held)[.!]?$/i.test(clean(f.value))))return null;
+  return {date:dates[0],agendas:[...new Set(agendas)],purpose:[...new Set(agendas)].join(' and ')+(periods.length?` for the ${[...new Set(periods)].join(' and ')}`:''),extras:facts.filter(f=>['amount','conditions','ownership','counterparty','reason'].includes(f.field))};
 }
 const callClock=value=>{
   const clocks=[...String(value||'').matchAll(/\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?|\b(\d{1,2}):(\d{2})(?::(\d{2}))?/ig)];

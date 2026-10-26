@@ -384,3 +384,4 @@ console.log('PASS final evidence regressions: generic corrections, whole-board s
 
 assert.equal(eventDate('29 Octoberish 2026'),null,'An unknown month word cannot be guessed from its first three letters');
 assert.equal(financialPeriod('Septemberish 2026'),null);assert.equal(eventDate('30 Sept 2026'),'2026-09-30');
+await import('./verify-newsletter-investments.mjs');
