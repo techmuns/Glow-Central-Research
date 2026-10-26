@@ -33,6 +33,7 @@ export function referenceReason(item) {
       if (subject !== title && !/\bmotilal oswal\b/i.test(subject)) return 'Research author; report concerns another issuer';
     }
   }
+  if(scheduledEarningsCall(item))return null;
   const calendarText = `${title} ${(item.content?.facts || []).filter(f => f.field === 'event').map(f => f.value).join(' ')}`;
   if (item.kind === 'filing' && /\b(?:schedule of meet|schedule.*(?:call|investor|analyst)|(?:intimation|will hold).*(?:conference call|earnings call|earnings conference)|audio recording|transcript.*(?:call|meeting))\b/i.test(calendarText) && !item.content?.facts?.some(f=>['amount','ownership','conditions'].includes(f.field))) return 'Calendar or supporting earnings document';
   return null;

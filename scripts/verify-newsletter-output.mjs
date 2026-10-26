@@ -235,3 +235,24 @@ for(const value of ['Filed with BSE that the company appointed Jane Doe as CFO',
 const extraCallDate=structuredClone(call);extraCallDate.announcements.groups[0].items[0].content.facts.push({field:'date',value:'Call rescheduled to October 31, 2026'});
 assert(!editorialEvents(extraCallDate,briefStats(extraCallDate).companies).events[0].completeSourceSummary,'An additional call date cannot be ignored');
 console.log('PASS automated review regressions: all clock values, separate rescheduled dates and substantive events with filing-address prefixes');
+
+const mixedAdmin=structuredClone(call);mixedAdmin.announcements.groups[0].items[0].content.facts.push({field:'conditions',value:'Call proceedings will be recorded and management will provide FY27 guidance'});
+const mixedEvent=editorialEvents(mixedAdmin,briefStats(mixedAdmin).companies).events[0];
+assert(!mixedEvent.completeSourceSummary&&mixedEvent.sourceSummary.includes('FY27 guidance'),'A material suffix cannot be discarded with administrative boilerplate');
+const sparseCall=structuredClone(call);sparseCall.announcements.groups[0].items[0].content.facts=sparseCall.announcements.groups[0].items[0].content.facts.filter(f=>!['conditions','ownership'].includes(f.field));
+const sparseEvents=editorialEvents(sparseCall,briefStats(sparseCall).companies).events;
+assert.equal(sparseEvents.length,1);assert(sparseEvents[0].sourceSummary.includes('4:00 P.M. IST'),'A validated sparse invitation cannot disappear into the calendar exclusion');
+const agendaCall=structuredClone(dcwCallXml);agendaCall.content.facts.find(f=>f.location.endsWith('/NameOfMeetingOrCallOrConferenceOrEventForIntimation')).value='Earnings Call';
+agendaCall.content.facts.push({field:'source',value:'Discuss the Unaudited Financial Results for Q2-FY27',location:'Main/AgendaOrReasonForMeetingOrCallOrConferenceOrEventForIntimation'});
+assert.equal(scheduledEarningsCall(agendaCall).period,'Q2FY27');assert(scheduledEarningsCall(agendaCall).reading.includes('Q2FY27'),'The structured agenda supplies a missing name period');
+const contradictoryPeriod=structuredClone(agendaCall);contradictoryPeriod.content.facts.find(f=>f.location.endsWith('/NameOfMeetingOrCallOrConferenceOrEventForIntimation')).value='Q3-FY27 Earnings Call';
+assert.equal(scheduledEarningsCall(contradictoryPeriod),null,'Conflicting name/agenda periods cannot be certified');
+const periodlessPdf=structuredClone(readDcwCall);periodlessPdf.content.facts=periodlessPdf.content.facts.filter(f=>f.field!=='event');periodlessPdf.content.facts.push({field:'event',value:'Intimation of Earnings Conference Call'});
+const across=editorialEvents(dcwCall,[{ticker:'DCW',company:'Dcw Limited',stories:[periodlessPdf,agendaCall],clusters:clusterStories([periodlessPdf,agendaCall]).map((c,i)=>({...c,id:`DCW#${i+1}`}))}]).events;
+assert.equal(across.length,1);assert(across[0].sourceSummary.includes('Q2FY27')&&across[0].sourceSummary.includes('02:00 P.M (IST)'),'The final reading combines the compatible known period and explicit timezone across reports');
+const fullZone=structuredClone(periodlessPdf);fullZone.content.facts.find(f=>f.field==='date'&&/P.M/.test(f.value)).value=fullZone.content.facts.find(f=>f.field==='date'&&/P.M/.test(f.value)).value.replace('02:00 P.M (IST)','04:00 P.M Indian Standard Time');
+const utcZone=structuredClone(fullZone);utcZone.url='https://fixture.test/utc-zone';utcZone.content.facts.find(f=>f.field==='date'&&/P.M/.test(f.value)).value=utcZone.content.facts.find(f=>f.field==='date'&&/P.M/.test(f.value)).value.replace('Indian Standard Time','UTC');
+assert.equal(scheduledEarningsCall(fullZone).zone,'IST');assert.equal(clusterStories([fullZone,utcZone]).length,2,'An explicitly stated full timezone name cannot act as an unknown-zone wildcard');
+const unknownZone=structuredClone(fullZone);unknownZone.content.facts.find(f=>f.field==='date'&&/P.M/.test(f.value)).value=unknownZone.content.facts.find(f=>f.field==='date'&&/P.M/.test(f.value)).value.replace('Indian Standard Time','Unknown Local Time');
+assert.equal(scheduledEarningsCall(unknownZone),null,'Unknown timezone text cannot be silently interpreted as absent');
+console.log('PASS call review regressions: mixed administrative/business facts, sparse invitations, agenda/combined periods, full and unknown timezones');

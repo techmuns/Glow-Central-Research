@@ -116,3 +116,10 @@ second invalid clock in the same sentence, a separately extracted rescheduled da
 and substantive event text beginning with a filing-address prefix. Multi-clock and
 unreconciled-date readings cannot be certified as complete; address exclusions are
 scoped to metadata fields and never discard an event fact.
+
+Follow-up automated review also required whole-fact administrative matching, admission
+of validated sparse invitations before the calendar exclusion, and preservation of
+compatible periods across name/agenda and PDF/form sources. The final adapter checks
+these cases and full timezone names explicitly. Unknown timezone-bearing text and
+conflicting source periods cannot act as wildcards; a guidance suffix remains a
+material condition rather than boilerplate. All findings have fixture regressions.
