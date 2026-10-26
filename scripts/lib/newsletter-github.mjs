@@ -17,6 +17,8 @@ import {istDay} from '../../public/js/data/newsletter-shared.js';
 import {localNewsletter} from './newsletter-local.mjs';
 import {NewsletterDeliveryQueue,newsletterPendingDeliveries} from './newsletter-delivery-queue.mjs';
 import {newsletterWakePlan,newsletterRetryState} from './newsletter-wake-plan.mjs';
+import {newsletterSourceShortcuts} from './newsletter-source-shortcuts.mjs';
+import {emailSourceIds} from '../../worker/newsletter-source-shortcuts.mjs';
 
 export function decodeNewsletterColumn(value,table,column){
  if(table!=='newsletter_documents'||column!=='body')return value;
@@ -32,7 +34,7 @@ export function newsletterRequestIsFresh(input,now=Date.now()){
  return Number.isFinite(input?.at)&&Number.isFinite(now)&&age>=-3600000&&age<=maxAge;
 }
 const metered=url=>url==='https://devde.muns.io/email/send/raw'||new URL(url).origin==='https://api.openai.com'||/^bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com$/.test(new URL(url).hostname);
-export async function githubNewsletter({env=process.env,fetcher=fetch,legacyClient,inputs,recipient,notify=async()=>{},verifyPdf=async()=>{throw Error('Live PDF delivery must be verified before email');},file=path.resolve('.cache/newsletter/state.sqlite'),out=path.resolve('.cache/newsletter/publication'),transportOptions={},localOptions={},privateMarketsSources=null}={}){
+export async function githubNewsletter({env=process.env,fetcher=fetch,legacyClient,inputs,recipient,notify=async()=>{},verifyPdf=async()=>{throw Error('Live PDF delivery must be verified before email');},verifySourceLinks=null,file=path.resolve('.cache/newsletter/state.sqlite'),out=path.resolve('.cache/newsletter/publication'),transportOptions={},localOptions={},privateMarketsSources=null}={}){
  const transport=githubBackgroundRelease('newsletter',{env,fetcher,...transportOptions}),signature=await backgroundContract('newsletter');let local,cycle=0,blocked=false,tail=Promise.resolve(),activeRequest=null;
  fs.mkdirSync(path.dirname(file),{recursive:true});fs.mkdirSync(out,{recursive:true});const saved=await transport.latest();
  if(saved){const sealed=file+'.sealed';try{await transport.download(saved,'state',sealed,{sourceSignature:signature});await openBackgroundState(sealed,file,'newsletter',{env});}finally{fs.rmSync(sealed,{force:true});}}
@@ -51,6 +53,12 @@ export async function githubNewsletter({env=process.env,fetcher=fetch,legacyClie
     if(!test&&!(privateMarkets?local.store.subscriberRows():local.store.recipients(activeRequest?.edition)).some(row=>row.email===body.email))throw Error('Recipient removed before delivery');
     const documents=privateMarkets?[]:local.db.prepare("SELECT id,filename,body FROM newsletter_documents WHERE delivery_state='pending' ORDER BY created_at DESC").all();
     if(!privateMarkets)for(const document of documents)await verifyPdf(document,env);
+    const ids=emailSourceIds(body.html,local.schedule.dashboardUrl());
+    if(ids.length){
+     const links=ids.map(id=>{const record=sourceShortcuts.record(id);if(!record)throw Error('Email source shortcut missing from retained history');return {id,url:record.url};});
+     if(typeof verifySourceLinks!=='function')throw Error('Exact source link publication must be verified before email');
+     await verifySourceLinks(links);
+    }
     await refresh();
     if(activeRequest?.testExpiresAt&&(localOptions.now?.()??Date.now())>=activeRequest.testExpiresAt)throw Object.assign(Error('Requested test expired before provider I/O'),{code:'newsletter-request-expired'});
     if(!privateMarkets&&activeRequest?.automatic&&!local.store.settings()[activeRequest.edition]?.enabled)throw Error('Edition disabled before delivery');
@@ -67,6 +75,9 @@ export async function githubNewsletter({env=process.env,fetcher=fetch,legacyClie
   local.store.initialised=false;local.store.init();
   if(local.db.prepare('PRAGMA quick_check').get().quick_check!=='ok')throw Error('Newsletter retained database invalid');
  }catch(error){await local.close();throw error;}
+ const sourceShortcuts=newsletterSourceShortcuts(local.db,local.schedule.dashboardUrl(),{now:localOptions.now});
+ local.schedule.sourceLinks=sourceShortcuts.links;
+ local.schedule.prepareSources=brief=>sourceShortcuts.prepare(brief);
  async function checkpoint(){
   const backup=path.join(out,'checkpoint.sqlite'),state=path.join(out,'state.bin'),views=path.join(out,'views.gz');fs.rmSync(backup,{force:true});await local.checkpoint(backup);let copy;
   try{
@@ -146,7 +157,8 @@ export async function githubNewsletter({env=process.env,fetcher=fetch,legacyClie
    const at=localOptions.now?.()??Date.now();
    local.db.prepare('DELETE FROM newsletter_views WHERE id LIKE ?').run(`preview-${edition}-html-%`);
    try{
-    const brief=await buildBrief({edition,day:istDay(at),settings:local.store.settings(),env,fetcher:guardedFetch,now:at,to:at,reported:local.store.reportedLookup(),includeAi:false,contentService:local.schedule.content}),options=local.schedule.renderOptions();
+    const brief=await buildBrief({edition,day:istDay(at),settings:local.store.settings(),env,fetcher:guardedFetch,now:at,to:at,reported:local.store.reportedLookup(),includeAi:false,contentService:local.schedule.content});
+    sourceShortcuts.prepare(brief);const options=local.schedule.renderOptions();
     const delivery=renderBriefDeliveryEmails(brief,{...options,editorial:true,preview:true});
     const messages=delivery,base={ok:true,edition,subject:messages[0]?.subject||briefSubject(brief,options),builtAt:new Date(at).toISOString(),summary:briefSummary(brief),deliveryParts:delivery.length,deliveryFormat:'investor-brief'};
     for(const message of messages){const part=message.part?.index||1;save(`preview-${edition}-html-${part}`,{...base,subject:message.subject,part,parts:messages.length,body:renderBriefHtml(brief,{...options,part:message.part,preview:true})});}
@@ -159,5 +171,5 @@ export async function githubNewsletter({env=process.env,fetcher=fetch,legacyClie
    }
   }
  }
- return {...local,publish,wake,processRequest,preparePreviews,privateMarketsJob};
+ return {...local,publish,wake,processRequest,preparePreviews,privateMarketsJob,sourceShortcuts};
 }

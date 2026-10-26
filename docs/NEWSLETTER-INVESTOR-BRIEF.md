@@ -55,14 +55,23 @@ source links are explicit. Never substitute a publisher homepage or construct an
 A grounded summary replaces the repeated headline. A short coverage note links to
 the full diagnostics; reference and reading counters do not clutter every event.
 `renderInvestorEmails` first packs detailed event descriptions, then, if necessary,
-abbreviated descriptions. Full original source URLs remain clickable in compact mode.
+abbreviated descriptions. Long source URLs use stable short links on the newsletter origin,
+as requested by the user on 26 October. Each opens the exact original article or filing with
+one redirect; it never opens the newsletter PDF. Short original URLs remain direct. The
+immutable mapping is inserted once in retained `newsletter_views` records (`source-<uuid>`),
+survives preview replacement and encrypted master restarts, and is published with the edition.
+The original full URL remains in source history and the full report. Before any provider
+submission, verify every shortcut in that specific email against the deployed lookup endpoint
+and its exact saved destination; a missing route, missing mapping or different target blocks
+the send even if the PDF is available. This uses existing storage and no paid URL service.
 If 220-character excerpts cannot fit, 140- and 100-character readings preserve every event,
-company, exact source link and original record within the same three-part limit. Bounded
-structured meeting notes keep their later agenda, such as a dividend, intact. Nothing is
+company, exact source destination and original record within the same three-part limit.
+Structured meeting notes retain every agenda, including later dividend proposals, without
+character truncation. Nothing is
 removed from the complete report to achieve this packing.
 Compact rows share standard email CSS classes rather than repeating identical inline
 styles; the colours, serif company names, rules and spacing remain unchanged. This leaves
-room for actual source URLs within the existing byte limits. See Gmail's
+room for source links and investor readings within the existing byte limits. See Gmail's
 [CSS support](https://developers.google.com/workspace/gmail/design/css).
 Automated daily "slides/climbs ... outperforms/underperforms competitors" templates remain
 in the full report rather than becoming business developments. Explicit reasons, guidance

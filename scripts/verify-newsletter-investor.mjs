@@ -14,6 +14,8 @@ import { reviewNewsEvents } from '../worker/newsletter-events.mjs';
 import { newsletterSourceUrl } from '../worker/newsletter-source-links.mjs';
 import { scheduledBoardMeetingSummary } from '../worker/newsletter-filing-events.mjs';
 import { investorSourceFacts, xbrlBoardMeetingNote } from '../worker/newsletter-source-notes.mjs';
+import {newsletterSourceShortcuts,sourcePublicationVerifier} from './lib/newsletter-source-shortcuts.mjs';
+import {emailSourceUrl,emailSourceIds,SOURCE_LINK_FORMAT,sourceTarget} from '../worker/newsletter-source-shortcuts.mjs';
 
 const excluded=[
  ['INDIANB','South Indian Bank Leveraging Digital Technology For Biz Growth'],
@@ -276,6 +278,32 @@ assert.equal(supplementDigest.flatMap(m=>m.part.eventIds).length,30);
 const crowded=structuredClone(busy);
 crowded.announcements.groups=Array.from({length:320},(_,i)=>({ticker:`CROWDED${i}`,company:`Material Issuer ${i}`,items:[{...structuredClone(busy.announcements.groups[0].items[0]),headline:`Distinct contract ${i} with Customer ${i}`,keys:[`crowded:${i}`],url:`https://fixture.test/material/${i}?discovery=${'x'.repeat(1000)}`}]}));
 assert.throws(()=>renderInvestorEmails(crowded,options),error=>error.code==='email-too-large','An edition with exceptionally large source URLs must fail closed, never replace article links or send a partial plan');
+const shortcutDb=new DatabaseSync(':memory:');shortcutDb.exec('CREATE TABLE newsletter_views(id TEXT PRIMARY KEY,payload TEXT NOT NULL)');
+const shortcuts=newsletterSourceShortcuts(shortcutDb,options.dashboardUrl);shortcuts.prepare(crowded);
+const shortcutDigest=renderInvestorEmails(crowded,{...options,sourceLinks:shortcuts.links});
+assert(shortcutDigest.length<=3&&shortcutDigest.every(m=>m.bytes<=90000));
+assert.deepEqual(shortcutDigest.flatMap(m=>m.keys).sort(),briefStoryKeys(crowded).sort());
+assert.equal(new Set(shortcutDigest.flatMap(m=>m.part.eventIds)).size,320);
+for(const group of crowded.announcements.groups){
+ const original=group.items[0].url,alias=shortcuts.links.get(original);
+ assert(alias);assert.equal(shortcuts.record(alias.split('/').at(-1)).url,original);
+ assert(shortcutDigest.some(m=>m.html.includes(`href="${alias}"`)));
+}
+const restoredShortcuts=newsletterSourceShortcuts(shortcutDb,options.dashboardUrl);
+assert.deepEqual(restoredShortcuts.links,shortcuts.links,'Restart never changes emailed source destinations');
+const firstOriginal=crowded.announcements.groups[0].items[0].url,firstAlias=shortcuts.links.get(firstOriginal);
+assert.equal(shortcuts.register(firstOriginal),firstAlias);
+assert.equal(emailSourceUrl(firstOriginal,new Map([[firstOriginal,options.pdfUrl]]),options.dashboardUrl),firstOriginal);
+assert.equal(emailSourceUrl(firstOriginal,new Map([[firstOriginal,firstAlias.replace(new URL(firstAlias).origin,'https://evil.test')]]),options.dashboardUrl),firstOriginal);
+assert.equal(sourceTarget({format:SOURCE_LINK_FORMAT,url:options.pdfUrl}),null);
+const ids=emailSourceIds(shortcutDigest.map(m=>m.html).join(''),options.dashboardUrl);assert.equal(ids.length,320);
+let verifyCalls=0;
+const expected=ids.map(id=>({id,url:shortcuts.record(id).url}));
+const verifySources=sourcePublicationVerifier(options.dashboardUrl,{timeout:0,fetcher:async url=>{verifyCalls++;const wanted=new URL(url).searchParams.get('ids').split(',');assert(wanted.length<=20);return Response.json({ok:true,format:SOURCE_LINK_FORMAT,links:expected.filter(r=>wanted.includes(r.id))});}});
+await verifySources(expected);assert.equal(verifyCalls,16);await verifySources(expected);assert.equal(verifyCalls,16,'Verified immutable targets are reused within a run');
+await assert.rejects(sourcePublicationVerifier(options.dashboardUrl,{timeout:0,fetcher:async()=>new Response(null,{status:404})})(expected),/not published/);
+await assert.rejects(sourcePublicationVerifier(options.dashboardUrl,{timeout:0,fetcher:async()=>Response.json({ok:true,format:SOURCE_LINK_FORMAT,links:expected.map(r=>({...r,url:options.pdfUrl}))})})(expected),/not published/);
+shortcutDb.close();
 for(const group of crowded.announcements.groups)group.items[0].url=group.items[0].url.split('?')[0];
 const compactDigest=renderInvestorEmails(crowded,options);
 assert(compactDigest.length<=3&&compactDigest.every(m=>m.part.compact&&m.bytes<=90000),'A busy multi-company edition must use the genuinely compact branded rows');
@@ -300,6 +328,13 @@ assert.deepEqual(shortestDigest.flatMap(m=>m.keys).sort(),briefStoryKeys(dense).
 const noticeStats=briefStats(metadataBrief),noticeEvents=editorialEvents(metadataBrief,noticeStats.companies).events;
 const denseNotice=renderBriefHtml(metadataBrief,{...options,stats:noticeStats,part:{investor:true,reportLink:true,eventIds:noticeEvents.map(e=>e.id),compact:true,summaryChars:100,supplements:false,index:1,total:1}});
 assert(denseNotice.includes(notice),'A structured meeting notice retains its later dividend agenda in the shortest mode');
+const longNoticeBrief=structuredClone(metadataBrief);
+const longNoticeItem=longNoticeBrief.announcements.groups.flatMap(g=>g.items).find(s=>s.content?.format==='xbrl');
+longNoticeItem.content.facts.find(f=>f.location.endsWith('/Agenda1')).value='Financial results and consideration of the detailed implementation schedule, regulatory conditions, reporting requirements and financial arrangements relating to the proposed business expansion';
+const longNotice=xbrlBoardMeetingNote({...longNoticeItem,kind:'filing'});assert(longNotice.length>220&&longNotice.includes('dividend'));
+const longNoticeStats=briefStats(longNoticeBrief),longNoticeEvents=editorialEvents(longNoticeBrief,longNoticeStats.companies).events;
+const longNoticeHtml=renderBriefHtml(longNoticeBrief,{...options,stats:longNoticeStats,part:{investor:true,reportLink:true,eventIds:longNoticeEvents.map(e=>e.id),compact:true,summaryChars:100,supplements:false,index:1,total:1}});
+assert(longNoticeHtml.includes(longNotice),'A free-form agenda cannot truncate the later dividend or any other structured agenda');
 assert.throws(()=>renderInvestorEmails(brief,{...options,pdfUrl:'https://example.test/api/newsletter/preview'}),/immutable/);
 if(process.env.NEWSLETTER_INVESTOR_OUTPUT){
  const dir=process.env.NEWSLETTER_INVESTOR_OUTPUT;mkdirSync(dir,{recursive:true});

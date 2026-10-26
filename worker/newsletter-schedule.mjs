@@ -154,6 +154,7 @@ export class NewsletterSchedule {
     return {
       dashboardUrl: this.dashboardUrl(),
       settings: this.store.settings(),
+      ...(this.sourceLinks ? {sourceLinks:this.sourceLinks} : {}),
       ...(productName ? { productName } : {}),
       ...(recipient ? { recipient } : {}),
     };
@@ -271,6 +272,7 @@ export class NewsletterSchedule {
     const placeholder = `${this.dashboardUrl()}/api/newsletter/pdf/00000000-0000-0000-0000-000000000000`;
     let messages;
     try {
+      await this.prepareSources?.(brief);
       messages = renderBriefDeliveryEmails(brief, { ...this.renderOptions(footerRecipient), pdfUrl: placeholder, editorial: !!this.deliveryQueue });
       const policyReason = newsletterDeliveryPolicy({ partCount: messages.length, lateCount: briefStats(brief).late });
       if (policyReason) throw Object.assign(new Error('Newsletter delivery policy refused this edition'), { code: policyReason });
@@ -389,7 +391,7 @@ export class NewsletterSchedule {
     }
     if (format === 'html') {
       let messages;
-      try { messages = renderBriefDeliveryEmails(brief, { ...this.renderOptions(), editorial: true, preview: true }); }
+      try { await this.prepareSources?.(brief); messages = renderBriefDeliveryEmails(brief, { ...this.renderOptions(), editorial: true, preview: true }); }
       catch (error) { return { ok: false, reason: error?.code || 'build-failed' }; }
       const message = messages[part - 1];
       if (!message) return { ok: false, reason: 'invalid-part' };

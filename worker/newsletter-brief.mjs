@@ -1781,9 +1781,9 @@ ${index}<p style="font-size:11px;color:${META};">${esc(coverage)}</p>
 </td></tr></table></td></tr></table></body></html>`;
 }
 
-export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recipient = null, productName = PRODUCT_NAME, brand = BRAND, settings = null, pdfUrl = null, part = null, preview = false, stats: suppliedStats = null } = {}) {
+export function renderBriefHtml(brief, { dashboardUrl = PRODUCTION_ORIGIN, recipient = null, productName = PRODUCT_NAME, brand = BRAND, settings = null, pdfUrl = null, part = null, preview = false, stats: suppliedStats = null, sourceLinks = null } = {}) {
   const stats = suppliedStats || briefStats(brief);
-  if (part?.investor) return renderInvestorEmail(brief, { dashboardUrl, recipient, productName, brand, settings, pdfUrl, part, preview, stats });
+  if (part?.investor) return renderInvestorEmail(brief, { dashboardUrl, recipient, productName, brand, settings, pdfUrl, part, preview, stats, sourceLinks });
   if (part?.reportLink === true) return renderBriefReportHtml(brief, { dashboardUrl, recipient, productName, brand, settings, pdfUrl, part, stats });
   const subject = briefSubject(brief, { brand, part, stats });
   const companies = part?.companies ?? stats.companies;
