@@ -103,7 +103,7 @@ import { EDITIONS, addDays, dayOnlyInstant, editionWindow, istDay, istDateLong, 
 
 export const PRODUCTION_ORIGIN = 'https://glow-central-research.tech-441.workers.dev';
 export const YAHOO_CHART_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart/';
-export const YAHOO_USER_AGENT = 'Mozilla/5.0 (compatible; GlowResearch/1.0)';
+export const YAHOO_USER_AGENT = 'Mozilla/5.0 (compatible; SattvaCentralBot/1.0)';
 export const QUOTE_POOL = 6;
 export const QUOTE_TIMEOUT_MS = 8000;
 export const NSE_TIMEOUT_MS = 15000;
