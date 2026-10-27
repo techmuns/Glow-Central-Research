@@ -217,7 +217,7 @@ const otherZone=structuredClone(readDcwCall);otherZone.url='https://fixture.test
 assert.equal(clusterStories([readDcwCall,otherZone]).length,2,'Conflicting explicit timezones remain separate');
 const dcwAll=structuredClone(dcwCall);dcwAll.announcements.groups[0].items=[readDcwCall,dcwCallXml];
 const mergedCall=editorialEvents(dcwAll,[{ticker:'DCW',company:'Dcw Limited',stories:[readDcwCall,dcwCallXml],clusters:clusterStories([readDcwCall,dcwCallXml]).map((c,i)=>({...c,id:`DCW#${i+1}`}))}]).events;
-assert.equal(mergedCall.length,1);assert.equal(mergedCall[0].sources.length,2);
+assert.equal(mergedCall.length,1);assert.deepEqual(new Set(mergedCall[0].sources),new Set([readDcwCall.url,dcwCallXml.url,...readDcwCall.sourceUrls,...dcwCallXml.sourceUrls]),'Every attached original survives call consolidation');
 assert(mergedCall[0].sourceSummary.includes('02:00 P.M (IST)')&&mergedCall[0].sourceSummary.includes('subject to change'),'The consolidated reading uses the explicit timezone and preserves the proposed status');
 assert(mergedCall[0].completeSourceSummary);
 console.log('PASS read notice identity: DCW PDF/XBRL board and call consolidation; distinct terms/date/time/period/status/timezone guards; both original links retained');
@@ -385,3 +385,13 @@ console.log('PASS final evidence regressions: generic corrections, whole-board s
 assert.equal(eventDate('29 Octoberish 2026'),null,'An unknown month word cannot be guessed from its first three letters');
 assert.equal(financialPeriod('Septemberish 2026'),null);assert.equal(eventDate('30 Sept 2026'),'2026-09-30');
 await import('./verify-newsletter-investments.mjs');
+
+// An abbreviation is retained literally; it cannot assert an unstated geographic offset.
+const zonedCall=(label,id)=>{const item=structuredClone(readDcwCall);item.url='https://fixture.test/'+id;item.keys=[id];item.content.facts.find(f=>f.field==='date'&&/P.M/.test(f.value)).value='Earnings conference call scheduled for Friday, October 30, 2026 at '+label;return item;};
+for(const [abbr,full,india] of [['EST','Eastern Standard Time','19:00'],['EDT','Eastern Daylight Time','18:00'],['CST','Central Standard Time','20:00'],['CDT','Central Daylight Time','19:00'],['PST','Pacific Standard Time','22:00'],['PDT','Pacific Daylight Time','21:00']]){
+ const ambiguous=zonedCall('08:30 '+abbr,'ambiguous-'+abbr),known=zonedCall('08:30 '+full,'explicit-'+abbr),indian=zonedCall(india+' IST','india-'+abbr);
+ assert.equal(scheduledEarningsCall(ambiguous).instant,null,'A bare nonlocal abbreviation cannot invent a geographic offset');
+ assert.equal(clusterStories([ambiguous,indian]).length,2,'An unresolved timezone must not hide a potentially different call');
+ assert.equal(clusterStories([known,indian]).length,1,'The explicitly expanded supported zone matches the same instant in India');
+}
+console.log('PASS timezone ambiguity regressions: literal abbreviations preserve evidence; explicitly expanded zones match equivalent instants');
