@@ -250,6 +250,19 @@ export function readAcrossOf(theme, segments, exposure) {
   return pair ? pair[2] : `Exposure: ${exposure.role}.`;
 }
 
+/**
+ * Which development an indirect copy reports, for folding several publishers' accounts of it into
+ * one card row: the theme, the day, who it names and WHAT KIND of development it is. The kind is
+ * the first stage the headline names, in the theme's own stage order, so Lilly's trial readout and
+ * Lilly's approval on one day stay two rows, while "launches" and "rolls out" of one generic launch
+ * fold. A headline naming no stage folds only with others naming none.
+ */
+export function themeDevelopmentKey(event) {
+  const exposure = event.themeExposure;
+  return ['theme', exposure.theme, event.day, [...exposure.actors, ...exposure.peers].sort().join('|'),
+    exposure.stages[0] || 'none'].join(':');
+}
+
 /** How specific an indirect reading is: a related segment, then a stated development. */
 export function themeSpecificity(event) {
   const exposure = event?.themeExposure;

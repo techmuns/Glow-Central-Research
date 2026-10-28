@@ -4256,7 +4256,8 @@ Read `docs/THEME-EXPOSURES.md` before changing it. The rules:
   `storyRecord`. A copy cannot corroborate, set direction, keep a card or name a KPI or driver, and
   it is never sent for story grouping.
 
-Only decisive copies join AI cards, folded to one row per theme, day and named company. One today
+Only decisive copies join AI cards, folded to one row per theme, day, named company and kind of
+development (`themeDevelopmentKey`). One today
 on a book company scores exactly `MIN_SCORE`, so it opens a card for that day only. The card leads
 with `Indirect (GLP-1): …` under the *Indirect exposure* badge. Compact tags the row *Indirect ·
 GLP-1* and lets the company's own evidence lead. All Alerts keeps every labelled copy. The pool's

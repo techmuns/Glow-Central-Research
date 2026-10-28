@@ -21,7 +21,7 @@ import { storyGrouping } from './alert-stories.js';
 import { STORY_FEEDS, storyRecord, storyKey, isMaterialStoryUpdate, compareStoryRecency } from './alert-stories-shared.js';
 import * as generalAlerts from './daily-alerts.js';
 import { newsCanSupportAI, isRelatedNewsContext } from './company-news-attribution.js';
-import { isThemeExposureContext, themeSpecificity, THEME_EXPOSURE_WEIGHT } from './theme-exposures.js';
+import { isThemeExposureContext, themeSpecificity, themeDevelopmentKey, THEME_EXPOSURE_WEIGHT } from './theme-exposures.js';
 export { isThemeExposureContext } from './theme-exposures.js';
 import * as kpiImpact from './kpi-impact.js';
 import { defaultCompanyNewsEntityId, portfolioNewsEntities } from './company-news-identity.js';
@@ -152,10 +152,11 @@ function* dedupeSteps(events) {
     // (storyRecord refuses it), so a syndicated headline would otherwise sit on a card twice.
     if (STORY_FEEDS.has(event.feed) && !isThemeExposureContext(event)) return true;
     const family = feedFamily(event);
-    // One indirect development per day and named company: three publishers' accounts of Dr Reddy's
-    // generic launch are one read-across for this card, whatever each headline's wording.
+    // One row per indirect DEVELOPMENT: three publishers' accounts of Dr Reddy's generic launch are
+    // one read-across for this card, while the same actor's trial readout and approval on one day
+    // are two (themeDevelopmentKey).
     const key = isThemeExposureContext(event)
-      ? `theme:${event.themeExposure.theme}:${event.day}:${[...event.themeExposure.actors, ...event.themeExposure.peers].sort().join('|')}`
+      ? themeDevelopmentKey(event)
       : `${family}:${event.day}:${normalizedHeadline(event.headline) || event.id}`;
     const link = event.url && ['announcements', 'news'].includes(family) ? `${family}:url:${canonicalArticleUrl(event.url)}` : null;
     if (seen.has(key) || (link && seen.has(link))) return false;
