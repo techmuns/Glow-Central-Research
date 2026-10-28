@@ -13,7 +13,7 @@ const html = `<!doctype html><html><head><script src="/js/theme-init.js"></scrip
 <body><main id="root" style="padding:24px;max-width:1400px;margin:auto"></main><script type="module">
 import * as tab from '/js/tabs/ai-alerts.js';
 import * as coverage from '/js/data/coverage.js';
-coverage.prime({ holdings: ['TAPE','RESULTCO','BROKERCO','AAA','BBB','MEETCO'].map(ticker => ({ ticker, name: ticker + ' Limited' })) });
+coverage.prime({ holdings: ['TAPE','RESULTCO','BROKERCO','AAA','BBB','CCC','MEETCO'].map(ticker => ({ ticker, name: ticker + ' Limited' })) });
 window.show = (scope = 'portfolio') => { tab.destroy(); tab.render({ root: document.querySelector('#root'), scope, params: {} }); };
 window.show(); window.ready = true;
 </script></body></html>`;
@@ -45,6 +45,7 @@ export async function collect({ scope }) {
     broker('BROKERCO', { broker: 'PL Capital', upsidePct: -8, points: 'Strong Q2' }),
     ev('AAA', 'announcements', 'Award of order worth ₹500 crore', { filingSubject: 'Award of order worth ₹500 crore', url: 'https://example.test/shared-story' }),
     ev('BBB', 'announcements', 'Award of order worth ₹500 crore', { filingSubject: 'Award of order worth ₹500 crore', url: 'https://example.test/shared-story' }),
+    ev('CCC', 'announcements', 'Award of order worth ₹500 crore', { filingSubject: 'Award of order worth ₹500 crore', url: 'https://example.test/shared-story' }),
     ev('BBB', 'insider', 'Promoter — Buy', { tradeCategory: 'Block deal', direction: 'positive' }),
     broker('BBB', { broker: 'Nuvama', upsidePct: 12, points: 'Order book visibility' }),
     ev('MEETCO', 'announcements', 'Board Meeting Intimation for Consideration And Approval Of Unaudited Financial Results', { filingSubject: 'Board Meeting Intimation for Consideration And Approval Of Unaudited Financial Results' }),
@@ -97,8 +98,12 @@ try {
   assert(!tickers.includes('MEETCO'), 'a board-meeting intimation is a date');
   const pillTitle = await page.locator('[data-ai-feed-status] [title]').first().getAttribute('title');
   assert.match(pillTitle, /Compact shows the Detailed alerts filtered/);
-  assert.match(pillTitle, /2 companies have nothing else and appear only in Detailed/);
-  assert.match(await page.locator('.ai-alert-count').textContent(), /4\s+companies/);
+  assert.match(pillTitle, /3 companies appear only in Detailed/);
+  // A company whose only item is a story already on another row is left to Detailed, and every
+  // count counts rows: the companies line and the All chip agree with what is drawn.
+  assert.equal(['AAA', 'CCC'].filter((t) => tickers.includes(t)).length, 1, 'of two companies whose only item is one story, one row carries it');
+  assert.match(await page.locator('.ai-alert-count').textContent(), new RegExp(`${tickers.length}\\s+companies`));
+  assert.match(await page.locator('[data-ai-filter="all"]').textContent(), new RegExp(`· ${tickers.length}$`));
 
   // A result is one row and opens the company's own filing, in a new tab.
   const result = row(page, 'RESULTCO');
@@ -139,6 +144,17 @@ try {
     assert(!/RSI|check both directions below/i.test(text), text);
     assert(text.trim().split(/\s+/).length <= 63, `sixty words: ${text}`);
   }
+
+  // Search reads what Compact keeps: a query found only in an excluded RSI-style reading draws nothing.
+  await page.locator('[data-ai-search]').fill('Rose 6.2%');
+  await page.waitForSelector('[data-ai-compact-empty]');
+  assert.equal(await rows(page).count(), 0, 'no unrelated row is drawn as a match');
+  await page.locator('[data-ai-search]').fill('Award of order');
+  // The story's row, and BBB — whose own retained filing matches — leading with its next item.
+  await page.waitForFunction(() => document.querySelectorAll('[data-ai-compact-row]').length === 2);
+  assert.match(await page.locator('.ai-alert-count').textContent(), /2\s+companies matching/);
+  await page.locator('[data-ai-search]').fill('');
+  await page.waitForFunction((n) => document.querySelectorAll('[data-ai-compact-row]').length === n, tickers.length);
 
   // The switch: Detailed draws today's cards, and the choice survives a reload.
   await page.locator('[data-ai-view="detailed"]').click();

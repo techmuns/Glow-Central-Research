@@ -193,7 +193,8 @@ export function mergeReports(reports, key = (r) => r.ticker || `name:${broker(r.
 export function brokerImportance(r, brokersInWindow = 1) {
   if (r.kind === 'initiation') return { high: true, reason: `${r.broker} initiated coverage.` };
   if (r.stance === 'bearish' || (r.upsidePct != null && r.upsidePct < 0)) return { high: true, reason: `${r.broker}'s own call points down.` };
-  if (r.previous?.rating && r.rating && STANCE_OF[r.previous.rating] !== r.stance) return { high: true, reason: `${r.broker} moved from ${r.previous.rating} to ${r.rating}.` };
+  // Any change of the broker's own word counts — BUY → ADD is a revision even inside one stance.
+  if (r.previous?.rating && r.rating && r.previous.rating !== r.rating) return { high: true, reason: `${r.broker} moved from ${r.previous.rating} to ${r.rating}.` };
   if (r.targetRevision || r.ratingChangeWords) return { high: true, reason: `${r.broker}'s report title states a rating or target revision.` };
   if (brokersInWindow >= 2) return { high: true, reason: `${brokersInWindow} brokers published on this company within the alert window.` };
   return { high: false, reason: 'A single broker view; retained as context.' };

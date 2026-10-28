@@ -88,6 +88,8 @@ assert.deepEqual(parseBrokerPost({ id: 14, text: null, url: 'https://t.me/x/14' 
   const r = { broker: 'Systematix', rating: 'BUY', stance: 'bullish', previous: { rating: 'HOLD' }, kind: 'view' };
   assert.equal(brokerImportance(r).high, true, 'a rating change against the broker\'s previous rated report is material');
   assert.equal(brokerHeadline(r), 'Systematix: HOLD → BUY');
+  assert.equal(brokerImportance({ broker: 'Yes Securities', rating: 'ADD', stance: 'bullish', previous: { rating: 'BUY' }, kind: 'view' }).high, true,
+    'BUY → ADD is a rating change even inside one stance');
   assert.equal(brokerImportance({ broker: 'Nuvama', upsidePct: 16, kind: 'view' }).high, false, 'one routine view is context');
   assert.equal(brokerImportance({ broker: 'Nuvama', upsidePct: 16, kind: 'view' }, 2).high, true, 'two brokers in the window is material');
 }
@@ -197,7 +199,46 @@ for (const r of rows) {
 }
 assert.equal(compact.clipWords('one two three', 2), 'one two…');
 assert.equal(compact.isScheduleNotice({ feed: 'news', headline: 'Mastek Q2 FY27 Earnings Call Recording Now Available' }), true);
+for (const headline of ['Mastek Q2FY27 Earnings Call Set for October 26, 2026', 'Ather Energy Q2 2027 Earnings Call Is Live', 'Intimation of Investors Conference Call on Thursday, October 29, 2026'])
+  assert.equal(compact.isScheduleNotice({ feed: 'news', headline }), true, headline);
+for (const headline of ['Activist investor calls for CEO removal', 'Investor calls for board meeting after fraud allegations'])
+  assert.equal(compact.isScheduleNotice({ feed: 'news', headline }), false, `${headline} is news, not a date`);
 assert.equal(compact.isScheduleNotice({ feed: 'news', headline: 'Earnings call transcript: Mastek misses Q2 EPS' }), false, 'a transcript is content');
 assert.equal(compact.isScheduleNotice({ feed: 'announcements', filingSubject: 'Outcome of Board Meeting held on October 26, 2026.' }), false, 'an outcome is content');
 assert.equal(compact.compactExclusion({ feed: 'price-levels' }), null, 'the family\'s own price levels are not trading indicators');
 console.log(`PASS compact: ${rows.length} rows from ${all.length} cards — indicators and dates left to Detailed, results folded, brokers summarised, stories used once, sixty words`);
+
+// Two results filed within a week are two results: the row's figures and its link are one period's.
+{
+  const d1 = '2026-10-21', d2 = '2026-10-26';
+  const at = (d, extra) => ({ day: d, time: null, ...extra });
+  const events2 = [
+    ev('TWOPER', 'earnings', 'YOY quarterly result filed', at(d1, { resultBasis: 'YOY', metrics: { netProfit: { label: 'Net Profit', kind: 'normal', pct: 5 }, revenue: { label: 'Revenue', kind: 'normal', pct: 3 } }, url: 'https://mc.test/old' })),
+    ev('TWOPER', 'announcements', 'Financial Results for the quarter ended June 30, 2026', at(d1, { filingSubject: 'Financial Results for the quarter ended June 30, 2026', filingSubCategory: 'Financial Results', url: 'https://bse.test/june.pdf' })),
+    ev('TWOPER', 'earnings', 'YOY quarterly result filed', at(d2, { resultBasis: 'YOY', metrics: { netProfit: { label: 'Net Profit', kind: 'normal', pct: 40 }, revenue: { label: 'Revenue', kind: 'normal', pct: 22 } }, url: 'https://mc.test/new' })),
+    ev('TWOPER', 'announcements', 'Financial Results for the quarter ended September 30, 2026', at(d2, { filingSubject: 'Financial Results for the quarter ended September 30, 2026', filingSubCategory: 'Financial Results', url: 'https://bse.test/september.pdf' })),
+  ];
+  const rep2 = rankReport({ day, events: events2, feeds: [{ id: 'earnings', status: 'ok', reachesToday: true }, { id: 'announcements', status: 'ok', reachesToday: true }], pending: 0 }, { holdings: [{ ticker: 'TWOPER', name: 'x' }] });
+  const [r2] = compact.compactRows(compact.compactCards(rep2.allCards).cards, { destination }).rows;
+  const figures = /\+40\.0%/.test(r2.text) ? 'new' : /\+5\.0%/.test(r2.text) ? 'old' : 'none';
+  assert.notEqual(figures, 'none', r2.text);
+  assert.equal(r2.href, figures === 'new' ? 'https://bse.test/september.pdf' : 'https://bse.test/june.pdf', 'the figures and the filing behind a row are one period\'s');
+  assert.equal(r2.folded, 1, 'only that period\'s filing is folded in');
+}
+
+// A failed Telegram collection is the broker feed's failure, with the last good reports kept.
+{
+  const reportsModule = await import('../public/js/data/broker-reports.js');
+  const file = { schemaVersion: 1, generatedAt: '2026-10-28T08:40:00.000Z', captureCheckedAt: `${day}T08:30:00.000Z`, windowDays: 30,
+    counts: { reports: 1, unresolved: 0 }, captureHealth: { state: 'partial', failed: true, partial: false, lastRunStatus: 'failed', lastRunAt: `${day}T08:33:00.000Z` },
+    reports: [{ id: '1:ICICIBANK', broker: 'Antique', ticker: 'ICICIBANK', company: 'ICICI Bank', named: 'ICICI Bank', kind: 'view', rating: 'BUY', stance: 'bullish', target: 1755, publishedAt: `${day}T05:00:00.000Z`, url: 'https://t.me/researchreportss/1' }] };
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify(file), { status: 200, headers: { 'content-type': 'application/json' } });
+  try { await reportsModule.load(); } finally { globalThis.fetch = realFetch; }
+  const feed = reportsModule.readFeed({ day });
+  assert.equal(feed.status, 'failed', 'an upstream failure is not complete coverage');
+  assert.equal(feed.reachesToday, false);
+  assert.equal(feed.events.length, 1, 'the last good reports stay');
+  assert.match(feed.note, /latest Telegram collection failed/);
+}
+console.log('PASS compact review fixes: rating words compared, call news needs schedule wording, one result period per row, upstream collection failure carried');

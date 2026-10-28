@@ -34,6 +34,9 @@ const NEWS = new Set(['news', 'market-news']);
 // A call or meeting, and the words that make a notice about one something more than its date.
 const CALL_OR_MEET = /\b(?:con(?:ference)?[\s.-]*calls?|earnings?\s+(?:conference\s+)?calls?|analysts?(?:\s*\/\s*(?:institutional\s+)?investors?)?\s+(?:meet|meeting|call)s?|(?:institutional\s+)?investors?\s+(?:meet|meeting|call|conference)s?|investor\s+day)\b/i;
 const CONTENT = /\b(?:transcript|presentation|press\s+release|highlights?|guidance|says|said|commentary|takeaways?)\b/i;
+// A headline is a schedule notice only when it says so: a date, "scheduled", "live", "recording".
+// "Activist investor calls for CEO removal" names an investor and a call and is news.
+const SCHEDULED = /\b(?:scheduled?|set\s+for|to\s+be\s+held|will\s+(?:host|hold|conduct)|to\s+host|hosts?|is\s+live|goes\s+live|recording|replay|webcast|invit(?:e|ation)|intimation|dial[- ]?in|(?:on|for)\s+(?:\d{1,2}(?:st|nd|rd|th)?\b|(?:mon|tues|wednes|thurs|fri|satur|sun)day|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b)/i;
 // A board meeting announced ahead of itself. The exchange files these under results as often as
 // under board meetings ("Board Meeting Intimation for Consideration And Approval Of Unaudited …
 // Financial Results"), so the words decide, not the type; an OUTCOME is the meeting's content.
@@ -48,7 +51,7 @@ export function isScheduleNotice(event = {}) {
     if ((types.includes('board-meeting') || MEETING_AHEAD.test(text)) && !/\boutcome\b/i.test(text)) return true;
     return types.includes('investor-meet') && CALL_OR_MEET.test(text) && !CONTENT.test(subject);
   }
-  if (NEWS.has(event.feed)) return CALL_OR_MEET.test(event.headline || '') && !CONTENT.test(event.headline || '');
+  if (NEWS.has(event.feed)) { const h = event.headline || ''; return CALL_OR_MEET.test(h) && SCHEDULED.test(h) && !CONTENT.test(h); }
   return event.kind === 'scheduled';
 }
 
@@ -200,10 +203,19 @@ function rowFor(card, lead, views, destination) {
     when = views[0] || lead;
   } else if (resultCoverage(lead) && (card.events || []).some(isResult)) {
     // ONE QUARTERLY RESULT, ONE ROW: the results feed's figures, the company's own filing as the
-    // link, and every write-up of the same result inside a week counted as folded into it.
-    const family = (card.events || []).filter((e) => resultCoverage(e) && dayGap(e.day, lead.day) <= 7);
-    const figures = family.find((e) => e.feed === 'earnings') || lead;
-    const filing = family.filter((e) => FILINGS.has(e.feed) && isResult(e) && e.url).sort(byNewest)[0];
+    // link, and the write-ups of the same result counted as folded into it. ANCHORED ON ONE RESULT
+    // DATE: a delayed quarter and the current one filed within a week are two results, so each
+    // event joins the result date nearest to it, and only the lead's own result is folded here.
+    const resultDays = [...new Set((card.events || []).filter((e) => e.feed === 'earnings' && e.day).map((e) => e.day))];
+    const nearest = (day) => resultDays.reduce((best, d) => (best == null || dayGap(d, day) < dayGap(best, day) ? d : best), null);
+    const closest = nearest(lead.day);
+    const anchor = closest != null && dayGap(closest, lead.day) <= 3 ? closest : lead.day;
+    // An event belongs to this result unless another result date is nearer to it.
+    const belongs = (e) => dayGap(e.day, anchor) <= 3 && !resultDays.some((d) => d !== anchor && dayGap(d, e.day) < dayGap(anchor, e.day));
+    const family = (card.events || []).filter((e) => resultCoverage(e) && belongs(e));
+    const figures = family.find((e) => e.feed === 'earnings' && e.day === anchor) || lead;
+    const filing = family.filter((e) => FILINGS.has(e.feed) && isResult(e) && e.url)
+      .sort((a, b) => dayGap(a.day, anchor) - dayGap(b.day, anchor) || byNewest(a, b))[0];
     const link = filing || figures;
     text = alerts.plainHeadline(figures);
     const dest = destination(link);

@@ -81,10 +81,13 @@ export function readFeed({ day } = {}) {
     brokers.get(r.ticker).add(r.broker.toLowerCase());
   }
   const checked = file.captureCheckedAt || file.generatedAt;
+  // A failed or partial Telegram collection is this feed's failure too, whatever this file's read.
+  const upstream = file.captureHealth || {};
+  const degraded = !!error || upstream.failed === true || upstream.partial === true;
   return {
     events: file.reports.map((r) => brokerRecord(r, brokers.get(r.ticker)?.size || 1)),
-    status: error ? 'failed' : 'ok', asOf: checked, reachesToday: !error && !!istDay(checked) && istDay(checked) >= today,
-    note: `Broker report titles from the Telegram research channel over the last ${file.windowDays} days: ${file.counts.reports} reports, ${file.counts.unresolved} not matched to an NSE symbol and left unassigned. Ratings and targets appear only where a post printed them; report PDFs are not read.${error ? ' The latest check failed; the last file read is shown.' : ''}`,
+    status: degraded ? 'failed' : 'ok', asOf: checked, reachesToday: !degraded && !!istDay(checked) && istDay(checked) >= today,
+    note: `Broker report titles from the Telegram research channel over the last ${file.windowDays} days: ${file.counts.reports} reports, ${file.counts.unresolved} not matched to an NSE symbol and left unassigned. Ratings and targets appear only where a post printed them; report PDFs are not read.${error ? ' The latest check failed; the last file read is shown.' : ''}${!error && (upstream.failed || upstream.partial) ? ` The latest Telegram collection ${upstream.failed ? 'failed' : 'was partial'}${upstream.lastRunAt ? ` (${upstream.lastRunAt})` : ''}; the reports shown are the last good read.` : ''}`,
     revision: file.generatedAt,
   };
 }

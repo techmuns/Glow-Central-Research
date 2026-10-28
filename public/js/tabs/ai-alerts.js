@@ -448,7 +448,7 @@ function paint(ctx) {
   displayedCards = matches;
   // Compact reads the same cards, filtered (data/ai-alerts-compact.js). Counts, sorting and the
   // archive then describe the rows on screen, not the companies Compact leaves to Detailed.
-  compactState = layout === 'compact' && report ? compactFor(matches) : null;
+  compactState = layout === 'compact' && report ? compactFor(matches, ctx.scope) : null;
   const pool = compactState ? compactState.cards : matches;
   const cards = sortAlertCards(filteredCards(pool), effectiveSort());
   // Keep the input node mounted while typing and while independent feeds deliver partials.
@@ -490,7 +490,7 @@ function paint(ctx) {
   if (categorySelect) categorySelect.value = activeHoldingCategory();
   const results = ctx.root.querySelector('[data-ai-results]');
   const rows = compactState && cards.length
-    ? compactRows(cards, { destination: (event) => evidenceDestination(event, ctx.scope) }).rows : null;
+    ? cards.map((card) => compactState.rows.get(String(card.key || card.ticker || card.entityId))).filter(Boolean) : null;
   if (rows?.length) {
     cardGrid?.destroy(); cardGrid = null; clearTimelines();
     void loadShareCounts();
@@ -623,7 +623,7 @@ function head(ctx) {
     stories.total ? `${grouping === 'checking' ? 'Checking repeated coverage.' : grouping === 'partial' ? 'Some reports remain ungrouped.' : 'Repeated coverage grouped.'} Grouping uses captured headlines and descriptions. Uncertain reports remain separate. Earlier story context is retained for up to 180 days; All Alerts holds the source history.` : '',
     // The note the desk asked to have off the page lives here instead: what Compact leaves out, and
     // how many companies that left with nothing to show. Moved behind the pill, not deleted.
-    layout === 'compact' && compactState ? `Compact shows the Detailed alerts filtered: one row per company, repeated reports of one event shown once, and price-and-volume signals and call or meeting dates left out.${compactState.hidden.length ? ` ${formatNumber(compactState.hidden.length)} ${compactState.hidden.length === 1 ? 'company has' : 'companies have'} nothing else and ${compactState.hidden.length === 1 ? 'appears' : 'appear'} only in Detailed.` : ''}` : '',
+    layout === 'compact' && compactState ? `Compact shows the Detailed alerts filtered: one row per company, repeated reports of one event shown once, and price-and-volume signals and call or meeting dates left out.${compactState.hidden.length ? ` ${formatNumber(compactState.hidden.length)} ${compactState.hidden.length === 1 ? 'company appears' : 'companies appear'} only in Detailed: ${compactState.hidden.length === 1 ? 'its' : 'their'} items are price-and-volume signals, call or meeting dates, or a story already on another row.` : ''}` : '',
   ].filter(Boolean).join(' ');
   return sectionHead({
     title: 'AI Alerts',
@@ -1228,7 +1228,7 @@ function emptyPanel(ctx) {
   if (compactState && !compactState.cards.length && compactState.hidden.length) {
     return `<div data-ai-empty data-ai-compact-empty class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
       <h3 class="font-display text-lg font-bold text-slate-900">Nothing here needs a line in Compact</h3>
-      <p class="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">${escapeHtml(formatNumber(compactState.hidden.length))} ${compactState.hidden.length === 1 ? 'company has' : 'companies have'} only price-and-volume signals or call and meeting dates in this view. Detailed shows them.</p>
+      <p class="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">${escapeHtml(formatNumber(compactState.hidden.length))} ${compactState.hidden.length === 1 ? 'company has' : 'companies have'} only price-and-volume signals, call or meeting dates, or a story already shown on another row in this view. Detailed shows them.</p>
       <button type="button" data-ai-view="detailed" class="mt-4 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">Show Detailed</button>
     </div>`;
   }
@@ -1320,8 +1320,19 @@ function setLayout(ctx, next) {
   ctxRef?.root.querySelector(`[data-ai-view="${layout}"]`)?.focus({ preventScroll: true });
 }
 
-/** Compact views per card, kept while the card object is (eventView already memoises per filter). */
-function compactFor(cards) {
+/**
+ * The Compact cards, their rows and the companies left to Detailed. Compact views are kept per card
+ * object (eventView already memoises per filter). Three things are decided here, over the whole
+ * list rather than the page on screen, so the counts and the rows always agree:
+ *
+ * 1. SEARCH READS WHAT COMPACT KEEPS. A company the query found only through an item Compact leaves
+ *    out (an RSI reading, a call date) is not drawn as a match on an unrelated row.
+ * 2. A SHARED STORY IS ASSIGNED ONCE, in priority order: the higher-ranked company keeps it, and a
+ *    company whose only lead is a story already on another row is left to Detailed.
+ * 3. Every count — priority chips, the companies line, the archive — counts the companies that have
+ *    a row.
+ */
+function compactFor(cards, scope) {
   const kept = [], hidden = [];
   for (const card of cards) {
     if (!compactViews.has(card)) {
@@ -1331,7 +1342,15 @@ function compactFor(cards) {
     const entry = compactViews.get(card);
     if (entry.view) kept.push(entry.view); else hidden.push(entry.miss);
   }
-  return { cards: kept, hidden };
+  const searched = query.trim() ? kept.filter((view) => {
+    const found = matchesSearch({ ...view, sourceEvents: view.events }, query);
+    if (!found) hidden.push({ key: view.key || view.ticker || view.entityId, company: view.company, reasons: ['search'] });
+    return found;
+  }) : kept;
+  const { rows, repeated } = compactRows(sortAlertCards(searched, 'priority'), { destination: (event) => evidenceDestination(event, scope) });
+  hidden.push(...repeated);
+  const byKey = new Map(rows.map((row) => [row.key, row]));
+  return { cards: searched.filter((view) => byKey.has(String(view.key || view.ticker || view.entityId))), hidden, rows: byKey };
 }
 
 function layoutToggle() {

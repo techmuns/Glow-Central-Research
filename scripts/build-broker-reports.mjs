@@ -21,6 +21,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildIndex, resolveTicker, tokenise, matchStrength } from './lib/company-index.mjs';
 import { parseBrokerPost, mergeReports, BROKER_WINDOW_DAYS } from '../public/js/data/broker-reports-shared.js';
+import { telegramReadHealth } from '../public/js/data/telegram-health.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const data = (file) => resolve(root, 'public/data', file);
@@ -135,6 +136,12 @@ const out = {
   generatedAt: new Date(now).toISOString(),
   // The capture's own check time, kept apart from when this file was built.
   captureCheckedAt: capture.lastCheckedAt || capture.capturedAt || null,
+  // THE COLLECTOR'S OWN HEALTH, CARRIED THROUGH. A retained checkpoint can say the latest run
+  // failed; reading this file successfully must not turn that into complete broker coverage. The
+  // reports stay — they are the last good read — and the feed reports the failure beside them.
+  captureHealth: (({ state, failed, partial, paused }) => ({ state, failed, partial, paused,
+    lastRunStatus: capture.lastRun?.status || null, lastRunAt: capture.lastRun?.at || null,
+    error: capture.lastRun?.error || capture.reason || null }))(telegramReadHealth(capture, now)),
   windowDays: BROKER_WINDOW_DAYS,
   from,
   counts: { archivedPosts: capture.posts.length, brokerPosts: parsedPosts, reports: recent.length,
