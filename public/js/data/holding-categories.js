@@ -53,5 +53,7 @@ export function holdingCategoryMatcher(holdings, category) {
     if (holding.ticker) tickers.add(holding.ticker);
   }
   const entities = new Set(portfolioNewsEntities(holdings).filter(entity => entity.portfolioIsins.some(isin => isins.has(isin))).map(entity => entity.entityId));
-  return card => card.isin ? isins.has(card.isin) : tickers.has(card.ticker) || entities.has(card.entityId || card.key);
+  // A family private company carries its own categories; it has no ISIN or ticker in the research list.
+  return card => card.familyPrivate ? !!card.holdingCategories?.includes(category)
+    : card.isin ? isins.has(card.isin) : tickers.has(card.ticker) || entities.has(card.entityId || card.key);
 }

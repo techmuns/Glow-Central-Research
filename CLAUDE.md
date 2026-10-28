@@ -5747,3 +5747,16 @@ claims/history and publication/source-time distinction. Read
 Private Market follows the scope switch (GLOW-OWNED): Portfolio = rounds of the family's private
 companies from the GlowVentures book, Watchlist = watched companies, Universe = everything; exact
 company names only. See *Private Market scope* in `docs/GLOW-TEMPLATE-SYNC.md`.
+
+**The family's private companies in AI Alerts (GLOW-OWNED, 28 October 2026).** The
+`private-companies` alert source (`js/data/private-company-alerts.js`, in `ADDITIONAL_SOURCES`)
+turns headlines and Inc42 rounds that name a family private company into ordinary alert events:
+`entityId: private:<name>`, no ticker, `familyPrivate: true`, neutral, high importance, and the
+company's Unlisted / Private Investment categories. Headlines are matched once per news capture by
+`scripts/build-private-company-news.mjs` into `public/data/private-company-news.json`
+(`private-company-news.yml`, after each news capture and the book sync), so the browser never reads
+the news archive; rounds are matched in the browser against the Private Market capture. A name
+must appear as a proper noun in the HEADLINE, by reviewed name only. These cards show in Portfolio
+and Universe (not Watchlist), keep their place when listed position sizes arrive, and the Holding
+dropdown offers Unlisted / Private Investment only while such a card exists. The card reads
+*Private company* and carries no price box. `verify-private-companies.mjs` covers it.

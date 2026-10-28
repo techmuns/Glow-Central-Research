@@ -777,3 +777,10 @@ person/vehicle in the statement line never does. Portfolio opens on All captured
 heading states how many private companies have a captured round. A template sync must keep the
 scope and this module; `verify-private-companies.mjs` and `verify-private-market-news-ui.mjs`
 check it.
+
+**Private companies in AI Alerts (GLOW-OWNED, 28 October 2026).** A Glow-only alert source,
+`private-companies`, sits beside `price-levels` in `ADDITIONAL_SOURCES`. A template sync must keep
+it, its hooks in `ai-alerts.js` (`FEED_WEIGHT`, `FEED_TAG`, the `familyPrivate` card fields and the
+position-size retention), `matchesAlertScope`'s `familyPrivate` line, the `familyPrivate` branch of
+`holdingCategoryMatcher`, `scripts/build-private-company-news.mjs` and
+`.github/workflows/private-company-news.yml`.

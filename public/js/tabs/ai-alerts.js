@@ -48,8 +48,12 @@ const SORT_KEY = 'sattva:ai-alerts:sort:v1';
 const CATEGORY_KEY = 'glow:ai-alerts:holding-category:v1';
 let holdingCategory = 'all';
 try { holdingCategory = normalizeHoldingCategory(localStorage.getItem(CATEGORY_KEY)); } catch { /* Session preference still works. */ }
-// A remembered category no researched company carries reads as All, so the control and the cards agree.
-const activeHoldingCategory = () => offeredHoldingCategories(coverage.holdings()).some(([id]) => id === holdingCategory) ? holdingCategory : 'all';
+// The categories offered are those a researched company carries, plus a family private company's
+// (Unlisted / Private Investment) once it has a card. A remembered category no company carries reads
+// as All, so the control and the cards agree.
+const categoryHoldings = () => [...coverage.holdings(),
+  ...(report?.allCards || []).filter(card => card.familyPrivate).map(card => ({ holdingCategories: card.holdingCategories }))];
+const activeHoldingCategory = () => offeredHoldingCategories(categoryHoldings()).some(([id]) => id === holdingCategory) ? holdingCategory : 'all';
 const SORTS = { newest: 'Newest first', holdings: 'Largest holdings', priority: 'Highest priority' };
 let sortOrder = 'newest';
 try { const saved = localStorage.getItem(SORT_KEY); if (Object.hasOwn(SORTS, saved)) sortOrder = saved; } catch { /* Session preference still works. */ }
@@ -644,7 +648,7 @@ function controls(cards, visibleCount) {
     view: `
         <label class="flex items-center gap-2">Holding
           <select data-ai-holding-category aria-label="Holding category" class="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
-            ${offeredHoldingCategories(coverage.holdings()).map(([id, label]) => `<option value="${id}" ${id === activeHoldingCategory() ? 'selected' : ''}>${label}</option>`).join('')}
+            ${offeredHoldingCategories(categoryHoldings()).map(([id, label]) => `<option value="${id}" ${id === activeHoldingCategory() ? 'selected' : ''}>${label}</option>`).join('')}
           </select>
         </label>
         ${eventTypesControl()}
@@ -842,12 +846,12 @@ function cardMarkup(card, scope, day, archived = false) {
           <div class="min-w-0">
             <h3 class="font-display truncate text-lg font-extrabold leading-tight text-slate-900">${escapeHtml(card.company)}</h3>
             <div class="mt-0.5 truncate text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              ${escapeHtml(card.ticker || 'No exchange ticker')}${card.sector ? ` · ${escapeHtml(card.sector)}` : ''}${card.holding ? ' · In portfolio' : ''}
+              ${escapeHtml(card.ticker || (card.familyPrivate ? 'Private company' : 'No exchange ticker'))}${card.sector ? ` · ${escapeHtml(card.sector)}` : ''}${card.holding ? ' · In portfolio' : ''}
             </div>
           </div>
           <div class="ai-card-market">
             <span class="shrink-0 rounded-md px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider ring-1 ${tone.badge}">${escapeHtml(badge.label)}</span>
-            ${alertPriceHtml(card.ticker)}
+            ${card.familyPrivate ? '' : alertPriceHtml(card.ticker)}
           </div>
         </div>
 

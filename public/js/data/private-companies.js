@@ -106,3 +106,28 @@ export function readPrivateCompanies(list) {
   return rows.filter((c) => /^private:[a-z0-9]+$/.test(c?.id || '') && typeof c.name === 'string' && c.name.trim() &&
     Array.isArray(c.aliases) && Array.isArray(c.categories));
 }
+
+const escapeRe = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/**
+ * `(headline) => [company…]`: the private companies a headline NAMES. A name matches as a whole
+ * phrase, written as a proper noun (its first letter a capital), so "perplexity" the word is not
+ * Perplexity the company; names under four letters are never matched. A headline that names two
+ * family companies is about both. This is a name in a headline, not a verified event.
+ */
+export function privateHeadlineMatcher(companies = []) {
+  const patterns = [];
+  for (const company of companies) for (const name of matchNames(company)) {
+    const words = clean(name.replace(LEGAL, ' ')).split(' ').filter(Boolean);
+    if (nameKey(words.join(' ')).length < 4) continue;
+    patterns.push({ company, re: new RegExp(`(?<![A-Za-z0-9])${words.map(escapeRe).join('\\s+')}(?![A-Za-z0-9])`, 'gi') });
+  }
+  return (headline) => {
+    const text = clean(headline), hits = [];
+    for (const { company, re } of patterns) {
+      if (hits.includes(company)) continue;
+      re.lastIndex = 0;
+      for (let m = re.exec(text); m; m = re.exec(text)) if (/^[A-Z]/.test(m[0])) { hits.push(company); break; }
+    }
+    return hits;
+  };
+}

@@ -1,4 +1,5 @@
 import * as priceLevels from './price-levels.js';
+import * as privateCompanyAlerts from './private-company-alerts.js';
 // Additional source-tab adapters. No ranking, company walks or upstream job dispatches.
 import * as nse from './nse-filings.js';
 import * as twitter from './twitter-news.js';
@@ -139,6 +140,10 @@ export const ADDITIONAL_SOURCES = [
   {id:'price-levels',label:'Private price alerts',tab:'daily-alerts',private:true,
     what:'Levels entered in GlowVentures, checked in the background during market hours. Retained reached history is read through this deployment’s own same-origin portfolio connection.',
     load:()=>priceLevels.load(),read:()=>priceLevels.readFeed()},
+  // GLOW-OWNED: the family's private companies (GlowVentures book) in headlines and Inc42 rounds.
+  {id:'private-companies',label:'Private companies',tab:'private-market-news',
+    what:'Headlines and Inc42 funding rounds naming one of the family’s private companies, matched by exact reviewed name.',
+    load:()=>privateCompanyAlerts.load(),read:(context)=>privateCompanyAlerts.readFeed(context)},
   { id: 'nse-filings', label: 'NSE filings', tab: 'nse-filings', what: 'Every filing in the available retained NSE window, including unresolved and undated filings.',
     load: async (refresh) => { await nse.load(); if (refresh) await nse.refresh(); await nse.loadHistory(90, { updateWindow: false }); },
     warm: warmNse,
@@ -247,7 +252,7 @@ export const ADDITIONAL_SOURCES = [
 ];
 
 export const additionalSourceDependencies = [
-  [priceLevels,['price-levels']],
+  [priceLevels,['price-levels']], [privateCompanyAlerts,['private-companies']],
   [nse, ['nse-filings']], [twitter, ['twitter']], [institutions, ['institutions']],
   [calendar, ['earnings-calendar']], [ipoFilings, ['ipos']],
 ];

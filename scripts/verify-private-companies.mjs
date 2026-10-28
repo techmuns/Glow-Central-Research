@@ -43,4 +43,48 @@ const shipped = JSON.parse(readFileSync(new URL('../public/data/portfolio-compan
 const published = readPrivateCompanies(shipped);
 assert.equal(published.length, (shipped.privateCompanies || []).length, 'every published private company is well formed');
 assert.equal(new Set(published.map((c) => c.id)).size, published.length, 'one entry per company');
-console.log(`PASS private companies: company lines, reviewed names, categories and exact-name funding joins · ${published.length} published`);
+// HEADLINES: a whole reviewed name, written as a proper noun, in the headline.
+const { privateHeadlineMatcher } = await import('../public/js/data/private-companies.js');
+const named = privateHeadlineMatcher([...companies, { id: 'private:perplexity', name: 'Perplexity', aliases: [], categories: ['private-investment'] },
+  { id: 'private:incredholdings', name: 'InCred Holdings', aliases: [], categories: ['private-investment'] }]);
+for (const [headline, expected] of [
+  ['FSSAI issues notice to Zepto over expired besan', ['Zepto']], ['Stay Vista raises funds', []],
+  ['Drink Prime and Zepto in talks', ['DrinkPrime', 'Zepto']], ['Waterwala Labs files results', ['DrinkPrime']],
+  ['Aravind Srinivas’ startup before Perplexity', ['Perplexity']], ['to the perplexity of investors', []],
+  ['InCred sees 29% upside in UltraTech', []], ['InCred Holdings files DRHP', ['InCred Holdings']],
+  ['Zeptonow and zepto deliveries', []], ['Ajay Jain joins board', []], ['Everest base camp fleet', []],
+]) assert.deepEqual(named(headline).map((c) => c.name).sort(), expected.sort(), headline);
+
+// AS ALERT EVIDENCE: neutral, high, the family's own holding, visible under Portfolio and Universe only.
+globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+const { newsRecord, fundingRecord } = await import('../public/js/data/private-company-alerts.js');
+const { matchesAlertScope } = await import('../public/js/data/daily-alerts.js');
+const { rankReport, withPositionSnapshot } = await import('../public/js/data/ai-alerts.js');
+const { holdingCategoryMatcher, offeredHoldingCategories } = await import('../public/js/data/holding-categories.js');
+const zepto = byName.Zepto, hoopr = byName.Hoopr;
+const story = newsRecord({ id: 'pcn:1:private:zepto', entityId: zepto.id, at: '2026-10-19T10:12:00Z', title: 'FSSAI issues notice to Zepto', url: 'https://example.test/zepto', publisher: 'Mint' }, zepto);
+const round = fundingRecord({ id: 'a'.repeat(24), company: 'Hoopr', amount: '$451K', round: 'Pre-Series A', investors: 'Inflection Point Ventures', leadInvestor: '–', dateISO: '2026-10-20', sourceUrl: 'https://inc42.com/buzz/x/' }, hoopr);
+for (const event of [story, round]) {
+  assert.equal(event.direction, 'neutral', 'no direction of ours on a headline or a reported round');
+  assert.equal(event.importance, 'high'); assert.equal(event.aiEligible, true); assert.equal(event.ticker, null);
+  assert.equal(event.familyPrivate, true);
+  assert.equal(matchesAlertScope(event, { scope: 'portfolio', wanted: new Set(), entityIds: new Set() }), true);
+  assert.equal(matchesAlertScope(event, { scope: 'universe', wanted: null, entityIds: new Set() }), true);
+  assert.equal(matchesAlertScope(event, { scope: 'watchlist', wanted: new Set(), entityIds: new Set() }), false);
+}
+assert.equal(round.headline, 'Hoopr raised $451K · Pre-Series A (reported by Inc42)');
+assert(!/Lead:/.test(round.detail), 'a dash is not a lead investor');
+const feeds = [{ id: 'private-companies', status: 'ok', reachesToday: true }];
+const ranked = rankReport({ day: '2026-10-28', scope: 'portfolio', feeds, events: [{ ...story, feed: 'private-companies' }, { ...round, feed: 'private-companies' }] }, { holdings: [] });
+const zeptoCard = ranked.allCards.find((c) => c.key === zepto.id);
+assert(zeptoCard && ranked.cards.includes(zeptoCard), 'a nine-day-old headline on a family private company stays on the list');
+assert.equal(zeptoCard.holding, true); assert.equal(zeptoCard.familyPrivate, true);
+assert.deepEqual(zeptoCard.holdingCategories, ['unlisted']);
+assert.deepEqual(ranked.allCards.find((c) => c.key === hoopr.id).holdingCategories, ['private-investment']);
+const sized = withPositionSnapshot(ranked, { sizes: { complete: true, basis: 'listed-market-value' }, holdings: [{ ticker: 'LISTED', weightPct: 100 }] });
+assert(sized.cards.some((c) => c.key === zepto.id), 'listed position sizes do not remove a private company from Portfolio');
+assert.equal(holdingCategoryMatcher([], 'unlisted')(zeptoCard), true);
+assert.equal(holdingCategoryMatcher([], 'private-investment')(zeptoCard), false);
+assert.deepEqual(offeredHoldingCategories([{ holdingCategories: ['pms'] }, { holdingCategories: zeptoCard.holdingCategories }]).map(([id]) => id), ['all', 'pms', 'unlisted']);
+
+console.log(`PASS private companies: company lines, reviewed names, categories, exact-name funding and headline joins, alert scope and ranking · ${published.length} published`);
