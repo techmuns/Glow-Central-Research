@@ -7,7 +7,7 @@ import { restoreTabOrder, wireTabOrder } from './tab-order.js';
 
 import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatRelativeTime, toneForValue } from '../core/format.js';
-import { scopeLabel } from '../data/scope.js';
+import { scopeBook, scopeDisplayLabel, holdingMembership } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 import { resultLabel } from '../core/refresh.js';
 import { loadingGrid } from './loading.js';
@@ -65,8 +65,12 @@ export function sectionHeader({ title, description = '', meta = '' }) {
  * way to tell whether it is absent from the feed or absent from the book.
  */
 export function scopeSummary({ scope, count, noun = 'companies', book = null }) {
-  const label = scopeLabel(scope);
+  const label = scopeDisplayLabel(scope);
   const tone = scope === 'universe' ? 'brand' : 'accent';
+  // A holding category narrows the denominator too: "Portfolio · PMS · 30 of 133", never the
+  // whole book's 170 under a pill that names one category.
+  const held = holdingMembership();
+  if (held && scope !== 'universe') book = scopeBook(scope);
 
   // WATCHLIST PRINTS ITS OWN DENOMINATOR, and it is a different fact from the book's. The book's
   // gap is partly permanent — nineteen lines carry no NSE symbol and no feed here can ever show
@@ -74,8 +78,8 @@ export function scopeSummary({ scope, count, noun = 'companies', book = null }) 
   // not carry it", which is a smaller and more temporary claim and must not be worded like the
   // other one.
   if (scope === 'watchlist') {
-    const tracked = watchlist.size();
-    if (!tracked) return pill({ label: `${label} · nothing tracked yet`, tone, title: 'Star a company under Universe to track it here.' });
+    const tracked = held ? book.count : watchlist.size();
+    if (!tracked) return pill({ label: `${label} · nothing tracked yet`, tone, title: held ? `None of your watchlist companies is held as ${held.label}.` : 'Star a company under Universe to track it here.' });
     const why =
       tracked === count
         ? `Every one of the ${formatNumber(tracked)} companies you track appears on this feed.`
@@ -87,7 +91,8 @@ export function scopeSummary({ scope, count, noun = 'companies', book = null }) 
 
   const gap = book.count - count;
   const why = [
-    `The book holds ${formatNumber(book.count)} companies; ${formatNumber(count)} of them appear on this feed.`,
+    held ? `The book holds ${formatNumber(book.count)} ${held.label} companies; ${formatNumber(count)} of them appear on this feed.`
+      : `The book holds ${formatNumber(book.count)} companies; ${formatNumber(count)} of them appear on this feed.`,
     book.uncovered ? `${formatNumber(book.uncovered)} carry no NSE symbol — unlisted holdings, warrant lines and BSE-only companies — so no feed here can ever show them.` : '',
     gap > (book.uncovered || 0) ? 'The rest are listed but not on this particular feed yet.' : '',
   ]

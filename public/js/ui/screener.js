@@ -2011,6 +2011,25 @@ export function watchlistEmptyPanel({ tabTitle = 'This tab' } = {}) {
     </div>`;
 }
 
+// The header's Holding choice left no company in this scope (GLOW-OWNED). Said once by the shell,
+// with the one action that undoes it, rather than as an empty table under filters that look clear.
+export function holdingEmptyPanel({ tabTitle = 'This tab', label, scope, covered }) {
+  const title = covered
+    ? scope === 'watchlist' ? `None of your watchlist companies is held as ${label}` : `No ${label} companies in this scope`
+    : `No ${label} companies in the research list`;
+  const body = covered
+    ? `${tabTitle} follows the Scope and Holding filters together, and no company is in both. Choose another holding type or scope to widen it.`
+    : `The research feeds follow the family's listed equity companies, and none of them is held as ${label}. This does not mean the family has no ${label} holdings — they are not companies these feeds report on.`;
+  return `
+    <div class="fade-in rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100" data-holding-empty>
+      <h3 class="font-display text-lg font-bold text-slate-900">${escapeHtml(title)}</h3>
+      <p class="mx-auto mt-2 max-w-xl text-sm text-slate-500">${escapeHtml(body)}</p>
+      <button type="button" data-holding-reset class="holding-reset mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
+        Show all holdings
+      </button>
+    </div>`;
+}
+
 export function pendingPanel({ title, body, arriving = 'not yet wired' }) {
   return `
     <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">

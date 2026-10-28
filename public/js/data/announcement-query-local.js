@@ -23,6 +23,7 @@ import { runStepsInSlices } from '../core/slices.js';
 import { revalidatedJson } from '../core/store.js';
 import * as coverage from './coverage.js';
 import * as watchlist from '../core/watchlist.js';
+import { scopeHoldings, holdingMembership } from './scope.js';
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 let profiles = null, profilesPending = null;
@@ -100,14 +101,16 @@ async function buildFor(q, now, keepGoing) {
   // rather than merging a retained history in one task.
   await feed.prepareRows?.();
   const range = periodRange(q.period, now);
-  const scopeCompanies = q.scope === 'portfolio' ? coverage.holdings() : q.scope === 'watchlist' ? watchlist.all() : null;
+  const held = holdingMembership();
+  const scopeCompanies = q.scope === 'watchlist' ? watchlist.all().filter((w) => !held || held.has(w.ticker))
+    : q.scope === 'portfolio' || held ? scopeHoldings(coverage.holdings()) : null;
   const all = feed.rows();
   // The stream's status is read right after its rows, while that read is free — read later, a
   // capture that arrived in between would make the status merge the whole stream in one task.
   const meta = feed.meta();
   // The period's own bounds are in the key, so a midnight rollover prepares the new day's rows.
   const scopeKey = scopeCompanies ? scopeCompanies.map((c) => c.ticker || c.isin || c.bseCode || c.name || '').join(',') : '';
-  const key = `${q.period}|${range.from}|${range.to}|${q.scope}|${scopeKey}|${all.length}|${meta.identity?.revision || 0}|${profiles.meta.profileInputsRevision || ''}`;
+  const key = `${q.period}|${range.from}|${range.to}|${q.scope}|${held?.category || 'all'}|${scopeKey}|${all.length}|${meta.identity?.revision || 0}|${profiles.meta.profileInputsRevision || ''}`;
   if (built?.key === key && built.rows === all) { built.meta = { ...meta, profiles: profiles.meta }; return built; }
   if (building?.key === key) return building.promise;
   // A newer preparation supersedes an older one still in its slices: two would only compete.

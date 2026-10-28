@@ -8,6 +8,11 @@ Glow's own holdings, watchlist and stored edits. The global research scope selec
 visible on the sheets without changing their membership. The current parity contract in
 `docs/GLOW-TEMPLATE-SYNC.md` supersedes older tab-retention and scope-hiding notes below.
 
+**Holding filter (28 October 2026, GLOW-OWNED):** the header's Holding select beside Scope
+applies to every scoped tab and every Add-tab view. `core/holding-filter.js` holds the choice;
+`data/scope.js` applies it, so new scope code inherits it. Never add a per-tab Holding control.
+All changes nothing; sheets keep their own membership. See `docs/GLOW-TEMPLATE-SYNC.md`.
+
 Glow’s All Schemes view opens by default. Its search bar offers the feed’s category labels;
 multiple categories combine by OR, while typed words narrow the selected schemes. Keep chips
 removable and preserve selections across repaints. `js/ui/fund-search.js` owns the control;

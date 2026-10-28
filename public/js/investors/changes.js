@@ -9,7 +9,7 @@ import { openManager, managerUnavailable, wireManagerUnlock } from './my-manager
 import * as investors from '../data/super-investors.js';
 import { insider } from '../data/filings.js';
 import { insiderTradeSourceUrl } from '../data/filings-shared.js';
-import { scopeMatcher, scopeLabel } from '../data/scope.js';
+import { scopeMatcher, scopeLabel, holdingMembership } from '../data/scope.js';
 import { buildHash } from '../core/router.js';
 import { exportRows } from '../ui/export.js';
 import { withVerifiedEntities } from '../data/holdings-integrity.js';
@@ -49,8 +49,9 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
     const trackedIds = new Set(list.map(i => i.slug));
     const unverifiedRelations = mine ? [] : evidence().relations.filter(r => r.investorSlugs?.some(id => trackedIds.has(id)) && !currentRelation(r, new Date().toISOString()));
     const people = withVerifiedEntities(mine ? managers.all().map(m => ({ id: m.id, name: m.name })) : list.map((i) => ({ id: i.slug, name: i.name })), evidence(), mine ? 'manager' : 'investor');
-    const companyScope = scopeMatcher(ctx.scope), universe = scopeMatcher('universe');
-    const allows = (r) => mine ? ctx.scope !== 'watchlist' || r.ticker && watchlist.has(r.ticker) : r.ticker ? companyScope.has(r.ticker, r.raw || r) : !includeHolding || includeHolding(r.company, r);
+    const companyScope = scopeMatcher(ctx.scope), universe = scopeMatcher('universe'), held = holdingMembership();
+    // The family's own ledger follows the header's Holding choice as every company feed does.
+    const allows = (r) => mine ? (ctx.scope !== 'watchlist' || r.ticker && watchlist.has(r.ticker)) && (!held || held.has(r.ticker, r)) : r.ticker ? companyScope.has(r.ticker, r.raw || r) : !includeHolding || includeHolding(r.company, r);
     const allActivity = [...(mine ? managerTrades(managers.all()) : []), ...matchedDeals(insider.rows(), people)];
     const activity = allActivity.filter(allows);
     const range = periodRange(state.period);

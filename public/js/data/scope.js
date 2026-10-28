@@ -23,6 +23,9 @@ import * as coverage from './coverage.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { filingTicker } from './announcement-identity.js';
+import { holdingCategory } from '../core/holding-filter.js';
+import { holdingCategoryLabel } from './holding-categories.js';
+import { portfolioNewsEntities } from './company-news-identity.js';
 
 export const PORTFOLIO = 'portfolio';
 export const WATCHLIST = 'watchlist';
@@ -36,6 +39,64 @@ const LABELS = { [PORTFOLIO]: 'Portfolio', [WATCHLIST]: 'Watchlist', [UNIVERSE]:
 export const scopeLabel = (scope) => LABELS[scope] || LABELS[UNIVERSE];
 
 /**
+ * THE HOLDING FILTER NARROWS EVERY SCOPE, HERE, ONCE (GLOW-OWNED).
+ *
+ * The header's Holding choice (core/holding-filter.js) keeps only the companies the family holds
+ * under that category, read from the CURRENT book on every call — the book can arrive or change
+ * while a tab is open, exactly as AI Alerts' own matcher always read it. `null` while the choice is
+ * All, so every function below is unchanged on the default path.
+ *
+ * Under Portfolio and Universe the answer is the category's companies (less any Universe
+ * exclusion); under Watchlist it is the watched companies the family also holds that way. A
+ * category the equity research list does not cover yet — Mutual Fund, AIF, Bond today — is an
+ * empty Set, never null: narrowing to nothing is a real answer and must not widen to everything.
+ */
+let membershipMemo = null;
+export function holdingMembership() {
+  const category = holdingCategory();
+  if (category === 'all') return null;
+  const book = coverage.holdings();
+  if (membershipMemo?.book === book && membershipMemo.category === category) return membershipMemo.value;
+  const holdings = book.filter((h) => h.holdingCategories?.includes(category));
+  const isins = new Set(holdings.map((h) => upperIsin(h.isin)).filter(Boolean));
+  const tickers = new Set(holdings.map((h) => h.ticker).filter(Boolean).map(filingTicker));
+  // Name-searched news carries a stable entity id instead of a symbol for BSE-only and private
+  // companies; an entity belongs to the category when any of its book lines does.
+  const entityIds = new Set(portfolioNewsEntities(book)
+    .filter((entity) => (entity.portfolioIsins || []).some((isin) => isins.has(upperIsin(isin))))
+    .map((entity) => entity.entityId));
+  const value = {
+    category,
+    label: holdingCategoryLabel(category),
+    holdings,
+    tickers,
+    isins,
+    entityIds,
+    has(ticker, company = null) {
+      const t = ticker ? filingTicker(ticker) : '';
+      return (!!t && tickers.has(t)) || (!!company?.isin && isins.has(upperIsin(company.isin))) ||
+        (!!company?.entityId && entityIds.has(company.entityId));
+    },
+  };
+  membershipMemo = { book, category, value };
+  return value;
+}
+const upperIsin = (value) => String(value || '').trim().toUpperCase();
+
+/** The given book lines narrowed to the active holding category; the list itself while it is All. */
+export function scopeHoldings(holdings = coverage.holdings()) {
+  const held = holdingMembership();
+  if (!held) return holdings;
+  return (holdings || []).filter((h) => held.has(h.ticker, h));
+}
+
+/** "Portfolio" or, with a holding category chosen, "Portfolio · PMS". */
+export function scopeDisplayLabel(scope) {
+  const held = holdingMembership();
+  return held ? `${scopeLabel(scope)} · ${held.label}` : scopeLabel(scope);
+}
+
+/**
  * The tickers a scope narrows to, or `null` for the whole feed.
  *
  * `holdings` is passed by the callers that already hold the book (they take it as an argument so
@@ -43,6 +104,17 @@ export const scopeLabel = (scope) => LABELS[scope] || LABELS[UNIVERSE];
  * `coverage.holdings()`, which is the same list.
  */
 export function scopeTickers(scope, holdings = null) {
+  const base = baseScopeTickers(scope, holdings);
+  const held = holdingMembership();
+  if (!held) return base;
+  if (base) return new Set([...base].filter((t) => held.tickers.has(filingTicker(t))));
+  // Universe narrowed by a holding category: the category's listed companies, less any company
+  // the reader has excluded from Universe.
+  const universe = baseScopeMatcher(UNIVERSE, holdings);
+  return new Set(held.holdings.filter((h) => h.ticker && universe.has(h.ticker, h)).map((h) => String(h.ticker).toUpperCase()));
+}
+
+function baseScopeTickers(scope, holdings = null) {
   if (scope === PORTFOLIO) {
     const book = holdings || coverage.holdings();
     return new Set(book.filter((h) => h.ticker).map((h) => String(h.ticker).toUpperCase()));
@@ -61,11 +133,18 @@ export function scopeAllowsTicker(scope, ticker, holdings = null) {
 }
 
 export function scopeMatcher(scope, holdings = null) {
+  const base = baseScopeMatcher(scope, holdings);
+  const held = holdingMembership();
+  if (!held) return base;
+  return { has: (ticker, company = null) => held.has(ticker, company) && base.has(ticker, company) };
+}
+
+function baseScopeMatcher(scope, holdings = null) {
   // A matcher belongs to one filtering pass. Build membership once, not once per row: the
   // retained alert pool has tens of thousands of rows and a 100+ company portfolio. Re-reading
   // storage or allocating that entire Set for every row stalls the browser during feed updates.
   // A new pass takes a fresh snapshot, so portfolio/watchlist edits still apply immediately.
-  const members = scopeTickers(scope, holdings);
+  const members = baseScopeTickers(scope, holdings);
   // Reviewed SME quote aliases and exchange symbols identify the same company. Match both
   // sides without rewriting holdings or source records, or guessing unknown suffixes.
   const wanted = members && new Set([...members].map(filingTicker));
@@ -99,12 +178,14 @@ export function scopeMatcher(scope, holdings = null) {
  */
 export function filterByScope(rows, scope, holdings = null, tickerOf = (r) => r.ticker) {
   const wanted = scopeMatcher(scope, holdings);
+  const held = holdingMembership();
   return rows.filter((r) => {
     const t = tickerOf(r);
     // A tickerless row cannot match a narrowed list, but it remains part of Universe: there is no
     // symbol by which the editor could exclude it, and dropping it would turn an edit feature into
-    // a silent data-loss rule for unresolved fund holdings and chatter rows.
-    return t ? wanted.has(t, r) : scope === UNIVERSE;
+    // a silent data-loss rule for unresolved fund holdings and chatter rows. A holding category
+    // keeps one only when its own ISIN or entity id says it is a company held that way.
+    return t ? wanted.has(t, r) : scope === UNIVERSE && (!held || wanted.has(null, r));
   });
 }
 
@@ -117,6 +198,8 @@ export function filterByScope(rows, scope, holdings = null, tickerOf = (r) => r.
  * looking at their watchlist — a sentence that is quietly about a different list.
  */
 export function scopePossessive(scope) {
+  const held = holdingMembership();
+  if (held) return scope === WATCHLIST ? `your watchlist companies held as ${held.label}` : `your ${held.label} holdings`;
   if (scope === PORTFOLIO) return 'your holdings';
   if (scope === WATCHLIST) return 'your watchlist companies';
   return null;
@@ -129,6 +212,14 @@ export function scopePossessive(scope) {
  * Returns null for Universe, which has no denominator to print — it IS the denominator.
  */
 export function scopeBook(scope) {
+  const held = holdingMembership();
+  if (held && scope === PORTFOLIO) {
+    return { count: held.holdings.length, uncovered: held.holdings.filter((h) => !h.ticker).length,
+      noun: `${held.label} companies`, label: scopeDisplayLabel(scope) };
+  }
+  if (held && scope === WATCHLIST) {
+    return { count: scopeTickers(WATCHLIST).size, uncovered: 0, noun: 'watched companies', label: scopeDisplayLabel(scope) };
+  }
   if (scope === PORTFOLIO) {
     const m = coverage.meta();
     return { count: m.count, uncovered: m.uncovered, noun: 'book companies', label: 'Portfolio' };

@@ -26,7 +26,7 @@ import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { deliveryNote } from '../ui/sources.js';
 import { setCollectionDetails, notifyCollectionDetails, clearCollectionDetails } from '../ui/source-details.js';
 import * as coverage from '../data/coverage.js';
-import { filterByScope, scopePossessive } from '../data/scope.js';
+import { filterByScope, scopePossessive, scopeHoldings, holdingMembership, scopeTickers } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import * as refreshRegistry from '../core/refresh.js';
@@ -102,18 +102,20 @@ export function makeFilingsTab(cfg) {
    * company. The other two feeds are per-ticker upstreams and ignore it.
    */
   function tickersFor(ctx) {
+    const holdings = scopeHoldings(coverage.holdings());
     const book = cfg.id === 'news'
-      ? portfolioNewsEntities(coverage.holdings()).map((entity) => ({
+      ? portfolioNewsEntities(holdings).map((entity) => ({
           key: entity.key,
           ticker: entity.ticker,
           entityId: entity.entityId,
           name: entity.name,
         }))
-      : coverage.holdings().filter((h) => h.ticker).map((h) => ({ ticker: h.ticker, name: h.name }));
-    if (ctx.scope === 'portfolio') return book;
+      : holdings.filter((h) => h.ticker).map((h) => ({ ticker: h.ticker, name: h.name }));
+    if (ctx.scope === 'portfolio' || (ctx.scope === 'universe' && holdingMembership())) return book;
     // The watchlist carries the name the row was starred under, which is exactly what the news
     // search needs — and it is the only name we have for a watched company outside the book.
-    if (ctx.scope === 'watchlist') return watchlist.all().map((w) => ({ ticker: w.ticker, name: w.name || w.ticker }));
+    if (ctx.scope === 'watchlist') return watchlist.all().filter((w) => !holdingMembership() || holdingMembership().has(w.ticker))
+      .map((w) => ({ ticker: w.ticker, name: w.name || w.ticker }));
     // Universe is the book plus every company the committed snapshot already covers. Deliberately
     // not the 1,300-company Moneycontrol map: a live walk is bounded anyway, and asking about
     // companies nothing else on this dashboard tracks would spend the rate limit on rows nobody can
@@ -605,6 +607,11 @@ function pill(m, scope, rows) {
 function scopeTitle(scope, rows, m) {
   const n = new Set((rows || []).map((r) => m.kind === 'news' ? newsRowEntityKey(r) : String(r.ticker || '').toUpperCase()).filter(Boolean)).size;
   const book = coverage.meta();
+  const held = holdingMembership();
+  if (held && scope !== 'universe') {
+    const inScope = scope === 'watchlist' ? scopeTickers('watchlist').size : held.holdings.length;
+    return `${formatNumber(n)} of the ${formatNumber(inScope)} ${scope === 'watchlist' ? 'watched companies held as' : 'companies held as'} ${held.label} appear on this feed.`;
+  }
   if (scope === 'portfolio' && book?.count) {
     if (m.kind === 'news' && m.portfolioEntities) {
       return `${formatNumber(n)} of ${formatNumber(m.portfolioEntities)} portfolio companies appear on this feed. ` +

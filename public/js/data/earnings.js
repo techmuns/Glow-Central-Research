@@ -13,7 +13,7 @@
 // loaded: document PDFs alone cannot populate eight financial quarters or analyst estimates.
 
 import { scoreCompany } from '../scoring/earnings-scoring.js';
-import { scopeTickers, filterByScope } from './scope.js';
+import { scopeTickers, filterByScope, scopeHoldings } from './scope.js';
 
 const UNAVAILABLE = { source: 'Structured financial history and analyst estimates are not connected', companies: [] };
 
@@ -207,7 +207,7 @@ export function forScope(scope, holdings = []) {
   if (scope !== 'portfolio') return filterByScope(rows, scope, holdings, (r) => r.company?.ticker);
 
   const out = [];
-  for (const h of holdings) {
+  for (const h of scopeHoldings(holdings)) {
     const hit = byTicker(h.ticker);
     if (hit) {
       out.push(hit);

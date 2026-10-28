@@ -36,7 +36,7 @@ import { recentNews as feed } from '../data/filings.js';
 import { newsPeriodFilter, newsPublicationDay, newsPublicationKey, newsPeriodBounds } from '../data/news-window.js';
 import * as marketNews from './market-news-view.js';
 import { KEYWORDS, GROUPS, classifyStory, topicFilterOptions, matchesTopic, groupLabel } from '../data/news-keywords.js';
-import { filterByScope as filterTickerRows } from '../data/scope.js';
+import { filterByScope as filterTickerRows, scopeHoldings } from '../data/scope.js';
 import { attributionFor, attributionLabel, newsSearchText } from '../data/company-news-attribution.js';
 import { filterCompanyNewsByScope } from '../data/company-news-identity.js';
 import { surfaceReading, feedbackItemFor, relevanceRevision, onRelevanceChange, primeRelevance, warmReadings } from '../data/surface-relevance.js';
@@ -166,7 +166,7 @@ const tab = makeFilingsTab({
   // News is name-searched and can therefore scope private/BSE-only companies by stable entity id.
   // Watchlist remains symbol-based because a saved watch item is a ticker by construction.
   filterByScope: (rows, scope, holdings) =>
-    filterCompanyNewsByScope(rows, scope, holdings) ?? filterTickerRows(rows, scope, holdings),
+    filterCompanyNewsByScope(rows, scope, scopeHoldings(holdings)) ?? filterTickerRows(rows, scope, holdings),
   columns: () => [
     {
       label: 'Date',

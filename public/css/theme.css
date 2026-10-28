@@ -289,6 +289,33 @@ html[data-theme="dark"] body {
 .header-bookmarks[aria-current="page"] { border-color: var(--accent-600); }
 .header-bookmarks[aria-current="page"] svg { fill: currentColor; }
 .theme-toggle:focus-visible, .header-bookmarks:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 3px; }
+/* The header's Holding filter (GLOW-OWNED): the header's pill furniture, and visibly marked while it
+   narrows the view. Only transform animates; colour changes are instant. */
+.holding-filter-control { position: relative; display: inline-flex; align-items: center; gap: 0.375rem; margin-left: 0.375rem; }
+.holding-filter-control::after {
+  content: ''; position: absolute; right: 0.8rem; top: 50%; width: 0.35rem; height: 0.35rem;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  color: rgb(var(--text-slate-400, 148 163 184)); transform: translateY(-70%) rotate(45deg); pointer-events: none;
+}
+.holding-filter {
+  appearance: none; -webkit-appearance: none;
+  min-height: 2.25rem; padding: 0.4rem 1.85rem 0.4rem 0.8rem;
+  border: 1px solid rgb(var(--edge-slate-200, 226 232 240)); border-radius: 999px;
+  background: rgb(var(--surface-white, 255 255 255) / 0.8); color: var(--ink-600);
+  font-size: 0.75rem; font-weight: 600; line-height: 1.2; cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.holding-filter:active { transform: scale(0.97); }
+.holding-filter[data-active] { border-color: var(--accent-600); background: rgb(var(--surface-indigo-50, 238 242 255)); color: var(--accent-600); }
+.holding-filter-control:has(.holding-filter[data-active])::after { color: var(--accent-600); }
+.holding-filter:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+  .holding-filter:hover { background: rgb(var(--surface-indigo-50, 238 242 255)); color: var(--accent-600); }
+}
+.holding-reset { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+.holding-reset:active { transform: scale(0.97); }
+@media (pointer: coarse) { .holding-filter { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .holding-filter, .holding-reset { transition: none; } .holding-filter:active, .holding-reset:active { transform: none; } }
 html[data-alerts-focus-mode="true"] [data-reading-layout="table"] #subview-mount { display: none; }
 @media (pointer: coarse) {
   .theme-toggle, .header-bookmarks { min-height: 44px; }

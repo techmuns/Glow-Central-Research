@@ -28,7 +28,7 @@ import { announcementCoverage } from '../data/announcement-coverage.js';
 import { announcementSearch } from '../ui/announcement-search.js';
 import * as coverage from '../data/coverage.js';
 import * as watchlist from '../core/watchlist.js';
-import { scopeLabel } from '../data/scope.js';
+import { scopeLabel, scopeHoldings, holdingMembership } from '../data/scope.js';
 import { newsDay } from '../data/news-window.js';
 import { createAnnouncementQuery, EXPORT_MAX } from '../data/announcement-query.js';
 import { ANNOUNCEMENT_PERIODS } from '../data/announcement-index-shared.js';
@@ -112,9 +112,15 @@ let searchTimer = null;
 // no view yet, and a search typed between paints must not wait for one.
 const asked = { q: '', period: DEFAULT_PERIOD, state: null };
 
-const scopeCompanies = (scope) => (scope === 'portfolio'
-  ? coverage.holdings().map((h) => ({ ticker: h.ticker || null, isin: h.isin || null, bseCode: h.bseCode || h.scripCode || null, name: h.name || null }))
-  : scope === 'watchlist' ? watchlist.all().map((w) => ({ ticker: w.ticker, name: w.name || w.ticker })) : []);
+// The header's Holding choice narrows the companies the index is asked about; under Universe it
+// turns the question into "these companies" (sent as Portfolio, the index's company-list scope).
+const queryScope = (scope) => (scope === 'universe' && holdingMembership() ? 'portfolio' : scope);
+const scopeCompanies = (scope) => {
+  const held = holdingMembership();
+  if (scope === 'watchlist') return watchlist.all().filter((w) => !held || held.has(w.ticker)).map((w) => ({ ticker: w.ticker, name: w.name || w.ticker }));
+  if (scope !== 'portfolio' && !held) return [];
+  return scopeHoldings(coverage.holdings()).map((h) => ({ ticker: h.ticker || null, isin: h.isin || null, bseCode: h.bseCode || h.scripCode || null, name: h.name || null }));
+};
 
 function adopt(view) {
   if (!view) return;
@@ -127,7 +133,7 @@ function questionFor(ctx) {
   const selected = asked.state?.selected;
   return {
     period: asked.period,
-    scope: ctx.scope,
+    scope: queryScope(ctx.scope),
     companies: scopeCompanies(ctx.scope),
     categories: filters.categories,
     mcap: filters.mcap,
@@ -384,7 +390,7 @@ function searchControl({ ctx, rows, view }) {
     companies: [...coverage.holdings(), ...watchlist.all(), ...rows],
     companyKey: identityFeed.companyKey,
     resolveCompany: identityFeed.companyIdentity,
-    allowsCompany: (company) => ctx.scope === 'universe' || identityFeed.filterByScope([company], ctx.scope, coverage.holdings()).length > 0,
+    allowsCompany: (company) => (ctx.scope === 'universe' && !holdingMembership()) || identityFeed.filterByScope([company], ctx.scope, coverage.holdings()).length > 0,
     scopeLabel: scopeLabel(ctx.scope),
     searchable: () => '',
     q: asked.q,
