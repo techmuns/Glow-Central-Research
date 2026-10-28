@@ -61,7 +61,7 @@ import { runSteps, runStepsInSlices, sortSteps, yieldToInput as yieldForInputSli
 import { classifyStory } from './news-keywords.js';
 import { announcementSignal } from './filing-signals.js';
 export { announcementSignal, BSE_CRITICAL_IS_MATERIAL } from './filing-signals.js';
-import { scopeMatcher, holdingMembership } from './scope.js';
+import { scopeMatcher, holdingMembership, holdingEntityIds } from './scope.js';
 import * as coverage from './coverage.js';
 import { ADDITIONAL_SOURCES, additionalSourceDependencies } from './alert-sources.js';
 import * as records from './alert-records.js';
@@ -152,7 +152,7 @@ export async function readCachedAlertWindow({ scope = 'portfolio', holdings = nu
   const wanted = scopeMatcher(scope, holdings || coverage.holdings());
   const firstDay = shiftDay(day, -(ALERT_WINDOW_CACHE_DAYS - 1));
   const entityIds = new Set(portfolioNewsEntities(holdings || coverage.holdings()).map(e => e.entityId));
-  const scopeContext = { scope, wanted, entityIds, held: holdingMembership() };
+  const scopeContext = { scope, wanted, entityIds, heldEntities: holdingEntityIds(scope, holdings || coverage.holdings()) };
   const events = entry.value.events.filter((event) => event.day >= firstDay && event.day <= day &&
     matchesAlertScope(event, scopeContext)).map(restoreChatterAlert);
   const sameDay = entry.value.day === day;
@@ -1248,7 +1248,7 @@ function* assembleSteps({ day, scope, holdings, includeHistory, settledFeeds, re
   const wanted = { has: ticker => scoped.has(ticker) || requested.has(ticker) };
   const portfolioEntities = discoveryEntities(holdings, requestedCompanies);
   const portfolioNewsIds = new Set(portfolioEntities.map((entity) => entity.entityId));
-  const scopeContext = { scope, wanted, entityIds: portfolioNewsIds, requestedEntities, held: holdingMembership() };
+  const scopeContext = { scope, wanted, entityIds: portfolioNewsIds, requestedEntities, heldEntities: holdingEntityIds(scope, holdings) };
   const sourceFeeds = querySourceFeeds(FEEDS.map(
     (feed) => settledFeeds.get(feed.id) || { ...feed, status: 'pending', count: 0, events: [], reachesToday: null, asOf: null, note: null }
   ), queryWindow);
@@ -1375,8 +1375,8 @@ function* assembleSteps({ day, scope, holdings, includeHistory, settledFeeds, re
  * symbol or an older ticker must not veto the same held ISIN in another dashboard view. This
  * affects visibility, not the article's attribution/AI materiality or the source's saved identity.
  */
-export function matchesAlertScope(event, { scope, wanted, entityIds, requestedEntities, held = null } = {}) {
-  if (held) return matchesHeldScope(event, { scope, wanted, requestedEntities, held });
+export function matchesAlertScope(event, { scope, wanted, entityIds, requestedEntities, heldEntities = null } = {}) {
+  if (heldEntities) return matchesHeldScope(event, { scope, wanted, requestedEntities, heldEntities });
   if (event.portfolioOnly) return scope === 'portfolio';
   if (event.entityId && requestedEntities?.has(event.entityId)) return true;
   if (scope === 'portfolio' && event.entityId && entityIds?.has(event.entityId)) return true;
@@ -1386,14 +1386,15 @@ export function matchesAlertScope(event, { scope, wanted, entityIds, requestedEn
 
 // With a holding category chosen in the header (data/scope.js), an event is in view only when its
 // company is held that way AND sits in the scope. A symbol answers through the category-aware
-// matcher; a name-searched company with no symbol answers through its entity id, which Portfolio
-// and Universe can hold and the watchlist — a list of symbols — cannot. Portfolio-only feeds stay
-// Portfolio's, and an issuer the research question names keeps its explicit expansion.
-function matchesHeldScope(event, { scope, wanted, requestedEntities, held }) {
+// matcher; a name-searched company with no symbol answers through its entity id — the category's
+// entities in this scope (holdingEntityIds), so a Universe exclusion holds here too and the
+// watchlist, a list of symbols, admits none. Portfolio-only feeds stay Portfolio's, and an issuer
+// the research question names keeps its explicit expansion.
+function matchesHeldScope(event, { scope, wanted, requestedEntities, heldEntities }) {
   if (event.portfolioOnly && scope !== 'portfolio') return false;
   if (!event.portfolioOnly && event.entityId && requestedEntities?.has(event.entityId)) return true;
   if (event.ticker && wanted?.has(event.ticker)) return true;
-  return scope !== 'watchlist' && !!event.entityId && held.entityIds.has(event.entityId);
+  return !!event.entityId && heldEntities.has(event.entityId);
 }
 
 /**

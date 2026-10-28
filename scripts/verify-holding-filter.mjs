@@ -6,6 +6,7 @@ const storage = new Map();
 globalThis.localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) };
 
 const coverage = await import('../public/js/data/coverage.js');
+const scopeLists = await import('../public/js/core/scope-lists.js');
 const watchlist = await import('../public/js/core/watchlist.js');
 const filter = await import('../public/js/core/holding-filter.js');
 const scope = await import('../public/js/data/scope.js');
@@ -32,6 +33,9 @@ assert.deepEqual(sorted(scope.scopeTickers('portfolio')), ['BOTH', 'DIRECT', 'MA
 assert.deepEqual(tickers(scope.filterByScope(rows, 'universe')), ['DIRECT', 'MANAGED', 'BOTH', 'OUTSIDE', 'INE000000004', 'INE999999999']);
 assert.equal(scope.scopeHoldings(book), book, 'All returns the book itself, not a copy');
 assert.equal(scope.scopeDisplayLabel('portfolio'), 'Portfolio');
+assert.equal(scope.holdingSignature(), 'all');
+assert.equal(scope.holdingScopeEmpty('portfolio'), false);
+assert.equal(scope.holdingEntityIds('universe'), null, 'no entity narrowing on All');
 const allKey = alertContextKey('portfolio', book, '2026-10-28');
 
 // A CATEGORY NARROWS EVERY SCOPE TO THE COMPANIES HELD THAT WAY.
@@ -64,31 +68,52 @@ assert.equal(scope.scopeBook('watchlist').count, 1);
 
 // The alert collector keeps private portfolio-only feeds Portfolio's, and entity-only news follows
 // the category through its stable entity id.
-const held = scope.holdingMembership();
-const wanted = scope.scopeMatcher('portfolio');
-assert.equal(matchesAlertScope({ ticker: 'MANAGED' }, { scope: 'portfolio', wanted, held }), true);
-assert.equal(matchesAlertScope({ ticker: 'DIRECT' }, { scope: 'portfolio', wanted, held }), false);
-assert.equal(matchesAlertScope({ ticker: 'MANAGED', portfolioOnly: true }, { scope: 'universe', wanted: scope.scopeMatcher('universe'), held }), false);
+const ctx = name => ({ scope: name, wanted: scope.scopeMatcher(name), heldEntities: scope.holdingEntityIds(name) });
+assert.equal(matchesAlertScope({ ticker: 'MANAGED' }, ctx('portfolio')), true);
+assert.equal(matchesAlertScope({ ticker: 'DIRECT' }, ctx('portfolio')), false);
+assert.equal(matchesAlertScope({ ticker: 'MANAGED', portfolioOnly: true }, ctx('universe')), false);
 filter.setHoldingCategory('direct-equity');
 const de = scope.holdingMembership();
 const privateEntity = [...de.entityIds].find(id => id.includes('INE000000004'));
-assert(privateEntity, 'a tickerless holding has a stable entity id');
-assert.equal(matchesAlertScope({ entityId: privateEntity }, { scope: 'universe', wanted: scope.scopeMatcher('universe'), held: de }), true);
-assert.equal(matchesAlertScope({ entityId: privateEntity }, { scope: 'watchlist', wanted: scope.scopeMatcher('watchlist'), held: de }), false);
+const directEntity = [...de.entityIds].find(id => id.includes('INE000000001'));
+assert(privateEntity && directEntity, 'category holdings have stable entity ids');
+assert.equal(matchesAlertScope({ entityId: privateEntity }, ctx('universe')), true);
+assert.equal(matchesAlertScope({ entityId: privateEntity }, ctx('watchlist')), false);
+// A company the reader removed from Universe stays out of Universe for entity-only alerts too.
+scopeLists.remove('universe', { ticker: 'DIRECT', isin: 'INE000000001', name: 'Direct Industries' }, book);
+assert.equal(matchesAlertScope({ entityId: directEntity }, ctx('universe')), false, 'Universe exclusion holds for entity alerts');
+assert.equal(matchesAlertScope({ ticker: 'DIRECT', entityId: directEntity }, ctx('universe')), false);
+assert.equal(matchesAlertScope({ entityId: directEntity }, ctx('portfolio')), true, 'the exclusion is Universe\'s, not the book\'s');
+scopeLists.reset('universe');
+assert.equal(matchesAlertScope({ entityId: directEntity }, ctx('universe')), true);
 
 // A category the research list does not cover narrows to nothing — never back to everything.
 filter.setHoldingCategory('mutual-fund');
 assert.deepEqual(sorted(scope.scopeTickers('universe')), []);
 assert.deepEqual(scope.filterByScope(rows, 'universe'), []);
+assert.equal(scope.holdingScopeEmpty('portfolio'), true);
+assert.equal(scope.holdingScopeEmpty('universe'), true);
+
+// A category whose only holding has no NSE ticker is NOT empty: identity-aware feeds can show it.
+coverage.useFamilyBook([...book, { isin: 'INE000000005', ticker: null, name: 'Private Unlisted', holdingCategories: ['unlisted'] }], '2026-10-28');
+filter.setHoldingCategory('unlisted');
+assert.deepEqual(sorted(scope.scopeTickers('portfolio')), [], 'no symbol to filter by');
+assert.equal(scope.holdingScopeEmpty('portfolio'), false, 'a tickerless holding keeps the scope mountable');
+assert.equal(scope.holdingScopeEmpty('universe'), false);
+assert.equal(scope.holdingScopeEmpty('watchlist'), true, 'the watchlist holds symbols only');
+coverage.useFamilyBook(null);
 
 // The book is read afresh: a holding re-filed under another category moves with it.
 filter.setHoldingCategory('pms');
+const before = scope.holdingSignature();
 coverage.useFamilyBook(book.map(h => h.ticker === 'DIRECT' ? { ...h, holdingCategories: ['pms'] } : h), '2026-10-28');
 assert.deepEqual(sorted(scope.scopeTickers('portfolio')), ['BOTH', 'DIRECT', 'MANAGED']);
+assert.notEqual(scope.holdingSignature(), before, 'a reclassified book changes the membership signature with the category unchanged');
 coverage.useFamilyBook(null);
+assert.equal(scope.holdingSignature(), before);
 
 assert.equal(filter.setHoldingCategory('obsolete-value'), true, 'an unknown value normalises to All');
 assert.equal(filter.holdingCategory(), 'all');
 assert.equal(scope.holdingMembership(), null);
 off();
-console.log('PASS holding filter: All unchanged, every scope narrowed by category, tickerless ISIN/entity rows, watchlist intersection, portfolio-only feeds, empty categories and a changing book.');
+console.log('PASS holding filter: All unchanged, every scope narrowed by category, tickerless ISIN/entity rows, Universe exclusions on entity alerts, watchlist intersection, portfolio-only feeds, empty and tickerless-only categories, and a changing book.');

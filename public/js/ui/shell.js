@@ -13,9 +13,9 @@ import * as refreshRegistry from '../core/refresh.js';
 import { tabBar, segmentedToggle, statusControl, emptyState } from './components.js';
 import { coverTableResults } from './loading.js';
 import { closeDrill, closeModal, closeWorkspace, openModal, watchlistEmptyPanel, holdingEmptyPanel } from './screener.js';
-import { SCOPES, scopeLabel, scopeTickers, holdingMembership } from '../data/scope.js';
+import { SCOPES, scopeLabel, holdingMembership, holdingScopeEmpty } from '../data/scope.js';
 import { HOLDING_CATEGORIES } from '../data/holding-categories.js';
-import { holdingCategory, setHoldingCategory, onHoldingChange } from '../core/holding-filter.js';
+import { holdingCategory, setHoldingCategory, onHoldingChange, activeHoldingLabel } from '../core/holding-filter.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import * as coverage from '../data/coverage.js';
@@ -668,7 +668,7 @@ function mountTab(root, tabModule, resolved) {
   // A holding category that leaves no company in this scope is answered here too, once — not by
   // fifteen tables each saying "no results match your filters" about a filter in the header.
   const held = mountable && tabModule.meta.allowEmptyScope !== true && !tabModule.meta.scopeIndependent ? holdingMembership() : null;
-  const holdingEmpty = !!held && scopeTickers(resolved.scope).size === 0;
+  const holdingEmpty = !!held && holdingScopeEmpty(resolved.scope);
   const nextModule = mountable && !holdingEmpty ? tabModule : null;
 
   // THE TEARDOWN IS DECIDED AGAINST WHAT WILL ACTUALLY BE MOUNTED, not against the tab the route
@@ -815,8 +815,10 @@ function syncHoldingControl(root) {
   const select = root.querySelector('[data-holding-filter]');
   if (!select) return;
   select.value = holdingCategory();
-  // Narrowed is a state the reader must be able to see at a glance, on every tab.
+  // Narrowed is a state the reader must be able to see at a glance, on every tab — and the value is
+  // in the title too, for the icon-sized form Ask Research's one-row header uses.
   select.toggleAttribute('data-active', holdingCategory() !== 'all');
+  select.title = `Holding: ${activeHoldingLabel()}`;
 }
 
 // ---- Small local dropdown, used by the sub-view picker -------------------------------------

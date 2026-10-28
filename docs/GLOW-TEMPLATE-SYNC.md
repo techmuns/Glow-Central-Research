@@ -74,8 +74,9 @@ Paths that resolve membership without those helpers (the announcement index quer
 Actions, Mutual Funds, investor name matching, the alert collector's entity/portfolio-only rules)
 apply it explicitly. Like the scope, it follows the header rather than any saved tab definition;
 legacy saved AI views' `aiHoldingCategory` is ignored. The Portfolio and Watchlist sheets keep
-their own membership. A category leaving no company in scope gets one shell panel with Show all
-holdings. `verify-holding-filter.mjs` is the offline test.
+their own membership. A category leaving no company in scope (by company membership, so tickerless
+holdings count) gets one shell panel with Show all holdings. Ask Research's one-row header shows the
+select as an icon. `verify-holding-filter.mjs` is the offline test.
 Categories use names-only `holdingCategories` from this same statement
 book. `holding-categories.js` follows GlowVentures' account routing: PMS accounts are PMS;
 Direct and Execution equity accounts are Direct Equity; unstated engagements are not guessed.

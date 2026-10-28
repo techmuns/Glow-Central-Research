@@ -17,7 +17,7 @@ import { alertPriceHtml, watchAlertPrices } from '../ui/alert-price.js';
 
 import { sectionHead } from '../ui/screener.js';
 import { pill } from '../ui/components.js';
-import { scopeBook, scopeLabel } from '../data/scope.js';
+import { scopeBook, scopeLabel, holdingSignature } from '../data/scope.js';
 import { canonicalPublisherName } from '../core/news-publishers.js';
 import { escapeHtml } from '../core/dom.js';
 import { normalizeBookmark, snapshotForRow } from '../core/bookmark-record.js';
@@ -69,7 +69,7 @@ let cardGrid = null;
 let resetCardScroll = false;
 let query = '';
 let normalSavedReading = null;
-let reportHolding = holdingCategory();
+let reportHolding = holdingSignature();
 export function getSavedView() {
   return { aiPriority: filter, aiQuery: query, aiSort: sortOrder, aiEventTypes: [...eventFilters.selected], aiHideRoutine: eventFilters.hideRoutine };
 }
@@ -220,6 +220,12 @@ export function render(ctx) {
     }));
     unsubs.push(coverage.onChange(({ changed } = {}) => {
       if (changed && ctxRef) paint(ctxRef);
+      // The chosen Holding category now covers different companies: the collection was narrowed
+      // to the old membership, so collect again (the painted report stays until the new one lands).
+      if (changed && ctxRef && reportHolding !== holdingSignature()) {
+        reportHolding = holdingSignature();
+        void recollect(ctxRef);
+      }
       if (coverage.meta().syncStatus === 'family-unavailable') portfolioUnavailable();
       else if (!sizesLoading && report && cachedPositionSizes()?.sizes?.checkedAt !== report.meta?.positionSizes?.checkedAt) {
         // Shared background reads have no Family-frame notification. Adopt their
@@ -249,13 +255,14 @@ export function render(ctx) {
     );
   }
 
-  // A report collected under another Holding choice may lack companies the new one includes
-  // (data/scope.js narrows the collection itself), so it is not repainted as the answer.
-  if (report && (report.scope !== ctx.scope || reportHolding !== holdingCategory())) {
+  // A report collected under another Holding choice — or the same choice over a book that has
+  // since moved companies in or out of it — may lack companies now included (data/scope.js narrows
+  // the collection itself), so it is not repainted as the answer.
+  if (report && (report.scope !== ctx.scope || reportHolding !== holdingSignature())) {
     report = null;
     resetCardScroll = true;
   }
-  reportHolding = holdingCategory();
+  reportHolding = holdingSignature();
 
   paint(ctx);
   if (!report) {

@@ -312,6 +312,29 @@ html[data-theme="dark"] body {
 @media (hover: hover) and (pointer: fine) {
   .holding-filter:hover { background: rgb(var(--surface-indigo-50, 238 242 255)); color: var(--accent-600); }
 }
+/* Ask Research's header is one row by design (index.html measures it at 1024px and 390px), so the
+   Holding select collapses to an icon there, exactly as Bookmarks and Newsletter do. The select stays
+   the control and its accessible name; its value is in the title, and a narrowing stays highlighted. */
+#app:has(.research-workspace) .holding-filter-control { margin-left: 0; }
+#app:has(.research-workspace) .holding-filter { width: 2rem; min-width: 2rem; height: 2rem; min-height: 2rem; padding: 0; color: transparent; }
+/* At phone widths the scope group is flattened into the header row (as the personal controls
+   already are there), so the icon can sit beside the scope toggle or wrap beside the status pill
+   instead of opening a row of its own inside the scope group. */
+@media (max-width: 560px) {
+  #app:has(.research-workspace) [data-scope-controls]:not([hidden]) { display: contents; }
+  #app:has(.research-workspace) #scope-toggle-mount,
+  #app:has(.research-workspace) #scope-edit-mount,
+  #app:has(.research-workspace) [data-holding-controls] { order: -2; }
+}
+#app:has(.research-workspace) .holding-filter option { color: CanvasText; }
+#app:has(.research-workspace) .holding-filter-control::after {
+  right: 50%; width: 0.95rem; height: 0.95rem; border: 0; color: inherit;
+  background: var(--ink-600);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5h14l-5.5 6.5v4.5l-3 1.5v-6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5h14l-5.5 6.5v4.5l-3 1.5v-6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  transform: translate(50%, -50%);
+}
+#app:has(.research-workspace) .holding-filter-control:has(.holding-filter[data-active])::after { background: var(--accent-600); }
 .holding-reset { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
 .holding-reset:active { transform: scale(0.97); }
 @media (pointer: coarse) { .holding-filter { min-height: 44px; } }
