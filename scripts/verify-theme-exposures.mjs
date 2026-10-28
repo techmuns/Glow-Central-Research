@@ -248,6 +248,12 @@ const rank = (events, scope = 'portfolio') => { clearRankingCache(); return rank
   const kept = rank([vague, ...accounts]).cards.find(c => c.ticker === 'ONESOURCE').events;
   assert.equal(kept.length, 1);
   assert.notEqual(kept[0].id, vague.id, 'the fold keeps the account that says most about how it bears');
+  const lillyDay = ["Eli Lilly's oral GLP-1 orforglipron shows 12% weight loss in phase 3 trial",
+    "EU regulator recommends approval of Eli Lilly's oral GLP-1 pill orforglipron"]
+    .flatMap((headline, i) => mapThemeExposureEvents('market-news', [market(`mcnews:lly${i}`, headline)], entities).filter(e => e.ticker === 'ONESOURCE'));
+  assert(lillyDay.every(e => e.importance === 'high'));
+  assert.equal(rank(lillyDay).cards.find(c => c.ticker === 'ONESOURCE').events.length, 2,
+    'one actor\'s trial readout and its approval on the same day are two developments, not one');
   assert(!rank([filing, ...low]).cards.find(c => c.ticker === 'ONESOURCE').events.some(isThemeExposureContext),
     'a low-importance indirect story does not join a card at all; All Alerts keeps it');
   assert(!rank(universe.events, 'universe').cards.some(c => c.ticker === 'DRREDDY'), 'outside the book an indirect story alone does not surface');
