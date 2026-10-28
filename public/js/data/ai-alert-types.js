@@ -15,12 +15,13 @@ export const AI_EVENT_TYPES = [
   { id: 'concalls', label: 'Con-calls', hint: 'Earnings call readings.' },
   { id: 'insider', label: 'Insider trades & deals', hint: 'Insider, SAST, bulk and block disclosures.' },
   { id: 'investors', label: 'Investor holdings', hint: 'Changes in tracked investors’ holdings.' },
+  { id: 'broker', label: 'Broker reports', hint: 'Broker research titles, ratings and targets posted on the monitored Telegram channel.' },
   { id: 'technicals', label: 'Price & volume', hint: 'Price, volume and portfolio price-level signals.' },
   { id: 'chatter', label: 'Public chatter', hint: 'Public chatter snapshots.' },
   { id: 'insights', label: 'Operating insights', hint: 'Captured operating insights.' },
 ];
 const ids = new Set(AI_EVENT_TYPES.map(type => type.id));
-const feedTypes = { earnings: 'results', news: 'news', 'market-news': 'news', concalls: 'concalls', insider: 'insider', investors: 'investors', technicals: 'technicals', 'price-levels': 'technicals', 'private-companies': 'news', chatter: 'chatter', 'screener-insights': 'insights', actions: 'corporate-action' };
+const feedTypes = { earnings: 'results', news: 'news', 'market-news': 'news', concalls: 'concalls', insider: 'insider', investors: 'investors', 'broker-reports': 'broker', technicals: 'technicals', 'price-levels': 'technicals', 'private-companies': 'news', chatter: 'chatter', 'screener-insights': 'insights', actions: 'corporate-action' };
 const memo = new WeakMap();
 
 export function aiEventTypes(event) {
