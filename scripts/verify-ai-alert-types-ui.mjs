@@ -141,8 +141,12 @@ try {
   await page.locator('[data-ai-reset-category]').click();
   assert.equal(await category.inputValue(), 'all');
   await page.locator('[data-ai-search]').fill('');
+  await card('R0').waitFor();
   assert(await card('R0').count(), 'All restores non-holdings in Universe');
   await category.selectOption('direct-equity');
+  // Let the category repaint settle before the book changes, or the change can land on the old list.
+  await page.waitForFunction(() => document.querySelector('[data-ai-holding-category]')?.value === 'direct-equity' &&
+    [...document.querySelectorAll('[data-ai-card]')].map(c => c.dataset.ticker).sort().join() === 'MIXED,SCHEME');
   await page.evaluate(() => window.coverage.useFamilyBook(window.categoryHoldings.map(h => ({...h,holdingCategories:h.ticker==='WARRANT'?['direct-equity']:['pms']})), '2026-09-01'));
   await card('WARRANT').waitFor();
   // A count of one can still belong to the preceding category while its redraw is queued.
