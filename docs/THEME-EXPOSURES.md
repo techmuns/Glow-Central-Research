@@ -35,6 +35,11 @@ the labelled copies. `scripts/verify-theme-exposures.mjs` is the offline test.
    `Indirect (GLP-1): <headline>. <read-across>`, with the kicker *Indirect* and the badge
    *Indirect exposure*. Where no reviewed segment pair applies, the read-across states the
    company's own exposure instead. The AI event-type filter offers *Indirect exposure*.
+   **Compact**, the default view, tags the row *Indirect · GLP-1* and writes the headline followed
+   by the read-across. The company's own material evidence always leads its Compact row ahead of an
+   indirect story. Another company's results story is never folded into this company's result row.
+   The view's one-story-one-row rule still applies, so a story leading OneSource's row does not
+   lead Glenmark's too.
 5. **All Alerts** shows each copy under Market news on the exposed company, labelled
    *Indirect · GLP-1 exposure*. Its detail line states that the story does not name the company,
    gives the exposure and its source, and gives the read-across.

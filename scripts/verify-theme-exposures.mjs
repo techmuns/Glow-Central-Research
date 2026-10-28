@@ -252,6 +252,28 @@ const rank = (events, scope = 'portfolio') => { clearRankingCache(); return rank
     'a low-importance indirect story does not join a card at all; All Alerts keeps it');
   assert(!rank(universe.events, 'universe').cards.some(c => c.ticker === 'DRREDDY'), 'outside the book an indirect story alone does not surface');
 }
+{
+  // Compact, the default view: the row names the story as indirect and says how it bears.
+  const { compactCards, compactRows } = await import('../public/js/data/ai-alerts-compact.js');
+  const destination = (event) => ({ href: event.url, external: true, label: 'source', ariaLabel: 'source' });
+  const only = compactCards(rank(portfolio.events).cards.filter(c => c.ticker === 'ONESOURCE')).cards;
+  const [row] = compactRows(only, { destination }).rows;
+  assert.equal(row.kind, 'indirect');
+  assert.equal(row.kindLabel, 'Indirect · GLP-1');
+  assert.equal(row.text, "EU regulator recommends approval of Eli Lilly's oral GLP-1 pill orforglipron. Oral GLP-1 pills are a potential substitute for injectable pens and cartridges.");
+  assert.equal(row.href, lilly.url);
+  const filing = { id: 'bse:onesource:2', feed: 'announcements', feedLabel: 'Announcements', ticker: 'ONESOURCE', company: 'OneSource Specialty Pharma',
+    day, headline: 'OneSource Specialty Pharma: Outcome of board meeting approving capacity expansion', url: 'https://example.test/filing-2',
+    importance: 'high', direction: 'positive', aiEligible: true, kind: 'filing', filingSubject: 'Outcome of board meeting approving capacity expansion' };
+  const ownFirst = compactRows(compactCards(rank([copy, filing]).cards).cards, { destination }).rows.find(r => r.ticker === 'ONESOURCE');
+  assert.equal(ownFirst.kind, 'filing', 'the company\'s own evidence leads its Compact row');
+  const novo = mapThemeExposureEvents('market-news', [market('mcnews:novo-q3', 'Novo Nordisk Q3 results: Wegovy sales beat, oral pill launch on track')], entities)
+    .find(e => e.ticker === 'ONESOURCE');
+  const result = { id: 'mc:onesource:q2', feed: 'earnings', feedLabel: 'Earnings', ticker: 'ONESOURCE', company: 'OneSource Specialty Pharma', day,
+    headline: 'Result filed', importance: 'high', direction: 'positive', aiEligible: true, url: 'https://example.test/result', resultBasis: 'YOY' };
+  const resultRow = compactRows(compactCards(rank([novo, result]).cards).cards, { destination }).rows.find(r => r.ticker === 'ONESOURCE');
+  assert.equal(resultRow.folded, 0, 'another company\'s results story is not folded into this company\'s result');
+}
 console.log('PASS: an indirect story surfaces a book company on its day only, is labelled as indirect, and never outranks or colours the company\'s own evidence.');
 
 // ── 6. The shipped captures: the funnel stays narrow ────────────────────────────────────────

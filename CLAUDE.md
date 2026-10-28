@@ -4233,8 +4233,8 @@ Read `docs/THEME-EXPOSURES.md` before changing it. The rules:
 
 Only decisive copies join AI cards, folded to one row per theme, day and named company. One today
 on a book company scores exactly `MIN_SCORE`, so it opens a card for that day only. The card leads
-with `Indirect (GLP-1): …` under the *Indirect exposure* badge. All Alerts keeps every labelled
-copy. The pool's
+with `Indirect (GLP-1): …` under the *Indirect exposure* badge. Compact tags the row *Indirect ·
+GLP-1* and lets the company's own evidence lead. All Alerts keeps every labelled copy. The pool's
 portfolio slice keeps theme stories for book exposures (`bearsOnBook`). Its signature is
 `portfolio-pool-v2` plus `themeSignature()`, so a stale slice is refused. Phase one reads only
 market-wide publisher captures. Theme-axis collection and a model cause-and-effect reading are

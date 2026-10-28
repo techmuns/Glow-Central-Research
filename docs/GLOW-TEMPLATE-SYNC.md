@@ -804,6 +804,8 @@ in `docs/THEME-EXPOSURES.md`.
   - `js/data/alert-stories.js`: the `status()` exclusion.
   - `js/ui/ai-alert-utils.js`: `alertSignals`.
   - `js/data/ai-alert-types.js`: the `indirect` type.
+  - `js/data/ai-alerts-compact.js`: `resultCoverage`, the `kindOf` branch, the `leadCandidates`
+    order and the indirect branch of `rowFor`.
   - `js/tabs/ai-alerts.js`: `indirectMarkup`, the tag and `kindLabel`.
   - `js/tabs/daily-alerts.js`: the *Indirect* label.
   - The CI step and the service-worker marker `theme-exposures-v1`.
