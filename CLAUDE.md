@@ -69,7 +69,10 @@ the cards opt into Detailed through `scripts/lib/ai-alerts-layout.mjs`.
 Every Compact row carries an always-visible ✕ in its top-right corner (29 October 2026): the same
 device archive as Detailed's Archive button; the row leaves on transform/opacity and the rows below
 close the gap with a transform-only FLIP; a keyboard press archives with no motion and moves focus
-to the next row's ✕; the Archived view shows a restore control in the same place.
+to the next row's ✕; the Archived view shows a restore control in the same place. Broker reports
+open from a pill button — report icon, count, the calls in short and an explicit Show ⌄ / Hide ⌃
+segment (filled when open) — on broker-led rows too, into one attached panel; pointing at the pill,
+the ✕ or the panel does not light the row's "open source" cues.
 
 **Scope switches paint at once (29 October 2026, shared).** The tab keeps each scope's last view in
 memory (same IST day, membership and session; cleared on any private-book invalidation) and, the first

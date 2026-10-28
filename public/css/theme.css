@@ -929,10 +929,12 @@ html[data-theme] [data-chatter-panel] [data-score-table] tbody tr { border-color
 .ai-compact-kind { display: inline-block; margin-right: 7px; padding: 2px 6px; border-radius: 4px; background: rgb(var(--surface-slate-50, 250 248 241)); box-shadow: 0 0 0 1px rgb(var(--edge-slate-200, 228 221 205)); color: rgb(var(--text-slate-500, 107 104 128)); font-size: 9.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; vertical-align: 1px; white-space: nowrap; }
 .ai-compact-kind:is([data-kind="result"], [data-kind="filing"], [data-kind="level"]) { background: rgb(var(--surface-indigo-50, 251 247 236)); box-shadow: 0 0 0 1px rgb(var(--edge-indigo-200, 236 220 174)); color: rgb(var(--text-indigo-700, 125 95 22)); }
 .ai-compact-kind:is([data-kind="broker"], [data-kind="coverage"]) { background: rgb(var(--surface-sky-50, 238 246 249)); box-shadow: 0 0 0 1px rgb(var(--edge-sky-200, 178 215 230)); color: rgb(var(--text-sky-700, 13 106 134)); }
-.ai-compact-go { align-self: end; color: rgb(var(--text-slate-400, 115 111 136)); opacity: 0; transform: translateX(-3px); transition: opacity 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 150ms cubic-bezier(0.23, 1, 0.32, 1); }
+.ai-compact-go { align-self: start; margin-top: 32px; color: rgb(var(--text-slate-400, 115 111 136)); opacity: 0; transform: translateX(-3px); transition: opacity 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 150ms cubic-bezier(0.23, 1, 0.32, 1); }
 .ai-compact-go svg { display: block; width: 16px; height: 16px; transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1); }
-.ai-compact-row:focus-within .ai-compact-go { opacity: 1; transform: none; color: rgb(var(--text-indigo-700, 125 95 22)); }
-.ai-compact-row[data-open="true"] .ai-compact-go svg, .ai-compact-row[data-open="true"] .ai-compact-brokers svg { transform: rotate(180deg); }
+/* The open arrow is the ROW's cue, so it shows for the row's own link — never while focus is on the
+   reports toggle or the ✕, which do something else. */
+.ai-compact-row:has(.ai-compact-hit:focus-visible) .ai-compact-go { opacity: 1; transform: none; color: rgb(var(--text-indigo-700, 125 95 22)); }
+.ai-compact-row[data-open="true"] .ai-compact-go svg, .ai-compact-row[data-open="true"] .ai-compact-brokers-action svg { transform: rotate(180deg); }
 /* ARCHIVE ON EVERY ROW. Always shown, not revealed on hover — a control a touch reader cannot find is
    not offered — in the row's top-right corner, above the row's own link layer. The open arrow sits
    at the row's foot so the two never meet. A leaving row takes no further clicks. */
@@ -942,14 +944,25 @@ html[data-theme] [data-chatter-panel] [data-score-table] tbody tr { border-color
 .ai-compact-dismiss:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 2px; }
 .ai-compact-row[data-leaving] { pointer-events: none; }
 .ai-compact-brokers, .ai-compact-reports { position: relative; z-index: 2; }
-.ai-compact-brokers { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 2px 0; border: 0; border-radius: 4px; background: none; color: rgb(var(--text-sky-700, 13 106 134)); font-size: 12px; font-weight: 600; cursor: pointer; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+.ai-compact-brokers { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; margin-top: 8px; padding: 3px 3px 3px 10px; border: 0; border-radius: 999px; background: rgb(var(--surface-white, 255 255 255)); box-shadow: 0 0 0 1px rgb(var(--edge-slate-200, 228 221 205)), 0 1px 2px rgb(15 23 42 / 0.05); color: rgb(var(--text-slate-700, 61 58 82)); font-size: 12px; font-weight: 600; line-height: 18px; text-align: left; cursor: pointer; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 150ms ease, background-color 150ms ease; }
 .ai-compact-brokers:active { transform: scale(0.97); }
 .ai-compact-brokers:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 2px; }
-.ai-compact-brokers svg { width: 13px; height: 13px; transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1); }
-.ai-compact-reports { margin: 10px 0 2px; padding: 0; list-style: none; border-top: 1px dashed rgb(var(--edge-slate-200, 228 221 205)); cursor: default; }
+.ai-compact-brokers-icon { display: inline-grid; flex: none; color: rgb(var(--text-sky-700, 13 106 134)); }
+.ai-compact-brokers-icon svg { display: block; width: 14px; height: 14px; }
+.ai-compact-brokers-count { flex: none; color: rgb(var(--text-slate-900, 26 24 48)); font-weight: 700; white-space: nowrap; }
+.ai-compact-brokers-summary { min-width: 0; overflow: hidden; color: rgb(var(--text-slate-500, 107 104 128)); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.ai-compact-brokers-summary::before { content: "·"; margin-right: 8px; color: rgb(var(--text-slate-400, 115 111 136)); }
+.ai-compact-brokers-action { display: inline-flex; flex: none; align-items: center; gap: 4px; padding: 2px 7px 2px 10px; border-radius: 999px; background: rgb(var(--surface-indigo-50, 251 247 236)); color: rgb(var(--text-indigo-700, 125 95 22)); font-size: 11.5px; font-weight: 700; transition: background-color 150ms ease, color 150ms ease; }
+.ai-compact-brokers-action svg { display: block; width: 13px; height: 13px; transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1); }
+.ai-compact-brokers-hide, .ai-compact-row[data-open="true"] .ai-compact-brokers-show { display: none; }
+.ai-compact-row[data-open="true"] .ai-compact-brokers-hide { display: inline; }
+.ai-compact-row[data-open="true"] .ai-compact-brokers { box-shadow: 0 0 0 1px rgb(var(--edge-indigo-200, 236 220 174)), 0 1px 2px rgb(15 23 42 / 0.05); }
+.ai-compact-row[data-open="true"] .ai-compact-brokers-action { background: rgb(var(--surface-indigo-600, 138 106 28)); color: rgb(255 255 255); }
+/* The open reports read as one attached panel, not lines floating in the row. */
+.ai-compact-reports { margin: 8px 0 2px; padding: 4px; list-style: none; border-radius: 12px; background: rgb(var(--surface-slate-50, 250 248 241)); box-shadow: 0 0 0 1px rgb(var(--edge-slate-100, 239 234 221)); cursor: default; transform-origin: top left; }
 .ai-compact-reports:not([hidden]) { animation: ai-compact-reveal 200ms cubic-bezier(0.23, 1, 0.32, 1); }
 @keyframes ai-compact-reveal { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-.ai-compact-report { display: grid; grid-template-columns: minmax(120px, 160px) auto minmax(0, 1fr) auto; column-gap: 12px; align-items: baseline; padding: 8px 6px; border-bottom: 1px dashed rgb(var(--edge-slate-100, 239 234 221)); border-radius: 6px; color: inherit; text-decoration: none; transition: background-color 150ms cubic-bezier(0.23, 1, 0.32, 1); }
+.ai-compact-report { display: grid; grid-template-columns: minmax(120px, 160px) auto minmax(0, 1fr) auto; column-gap: 12px; align-items: baseline; padding: 8px 10px; border-bottom: 1px solid rgb(var(--edge-slate-100, 239 234 221)); border-radius: 8px; color: inherit; text-decoration: none; transition: background-color 150ms cubic-bezier(0.23, 1, 0.32, 1); }
 .ai-compact-reports li:last-child .ai-compact-report { border-bottom: 0; }
 .ai-compact-report:focus-visible { outline: 2px solid var(--accent-600); outline-offset: -2px; }
 .ai-compact-report-broker { overflow: hidden; color: rgb(var(--text-slate-900, 26 24 48)); font-size: 12.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
@@ -968,9 +981,14 @@ html[data-theme] [data-chatter-panel] [data-score-table] tbody tr { border-color
   .ai-compact-row:hover { background: rgb(var(--surface-slate-50, 250 248 241)); }
   .ai-compact-row:hover .ai-compact-go { opacity: 1; transform: none; color: rgb(var(--text-indigo-700, 125 95 22)); }
   .ai-compact-row:hover .ai-compact-name { color: rgb(var(--text-indigo-700, 125 95 22)); }
+  /* Pointing at the reports toggle, the ✕ or the open reports is not pointing at the row's link. */
+  .ai-compact-row:has(.ai-compact-brokers:hover, .ai-compact-dismiss:hover, .ai-compact-reports:hover) .ai-compact-go { opacity: 0; transform: translateX(-3px); }
+  .ai-compact-row:has(.ai-compact-brokers:hover, .ai-compact-dismiss:hover, .ai-compact-reports:hover) .ai-compact-name { color: rgb(var(--text-slate-900, 26 24 48)); }
   .ai-compact-report:hover { background: rgb(var(--surface-white, 255 255 255)); }
   .ai-compact-report:hover .ai-compact-report-when { color: rgb(var(--text-indigo-700, 125 95 22)); }
-  .ai-compact-brokers:hover { color: rgb(var(--text-indigo-700, 125 95 22)); }
+  .ai-compact-brokers:hover { box-shadow: 0 0 0 1px rgb(var(--edge-indigo-200, 236 220 174)), 0 1px 3px rgb(15 23 42 / 0.08); }
+  .ai-compact-brokers:hover .ai-compact-brokers-action { background: rgb(var(--surface-indigo-100, 246 237 210)); }
+  .ai-compact-row[data-open="true"] .ai-compact-brokers:hover .ai-compact-brokers-action { background: rgb(var(--surface-indigo-700, 112 86 22)); }
   .ai-compact-dismiss:hover { background: rgb(var(--surface-white, 255 255 255)); color: rgb(var(--text-slate-900, 26 24 48)); box-shadow: 0 0 0 1px rgb(var(--edge-slate-300, 214 205 184)), 0 1px 2px rgb(15 23 42 / 0.08); }
   .ai-layout-toggle button[aria-pressed="false"]:hover { color: rgb(var(--text-slate-800, 38 35 61)); }
 }
@@ -984,7 +1002,7 @@ html[data-theme] [data-chatter-panel] [data-score-table] tbody tr { border-color
   .ai-compact-report-points { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ai-layout-thumb, .ai-layout-toggle button, .ai-compact-row, .ai-compact-go, .ai-compact-go svg, .ai-compact-name, .ai-compact-brokers, .ai-compact-brokers svg, .ai-compact-report, .ai-compact-dismiss { transition: none; }
+  .ai-layout-thumb, .ai-layout-toggle button, .ai-compact-row, .ai-compact-go, .ai-compact-go svg, .ai-compact-name, .ai-compact-brokers, .ai-compact-brokers-action, .ai-compact-brokers-action svg, .ai-compact-report, .ai-compact-dismiss { transition: none; }
   .ai-compact-reports:not([hidden]) { animation: none; }
 }
 .ai-compact-foot { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 14px 20px; border-top: 1px solid rgb(var(--edge-slate-100, 239 234 221)); color: rgb(var(--text-slate-500, 107 104 128)); font-size: 12px; }

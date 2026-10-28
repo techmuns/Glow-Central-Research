@@ -127,17 +127,31 @@ try {
   assert.equal(await brokerRow.getAttribute('data-kind'), 'broker', 'four broker reports lead over a chatter snapshot');
   assert.match(await brokerRow.locator('.ai-compact-text').textContent(), /4 broker reports in 14 days\. Antique rates it BUY with a ₹1,755 target; (?:Axis Securities and Centrum|Centrum and Axis Securities) see 29–34% upside; PL Capital sees 8% downside\./);
   assert.equal(await brokerRow.locator('.ai-compact-reports').isVisible(), false, 'reports are closed until asked for');
+  // The reports sit behind a button that says what it does: a count and an explicit Show / Hide.
+  const pill = brokerRow.locator('button.ai-compact-brokers');
+  assert.equal(await pill.count(), 1, 'a broker-led row has its own reports button too');
+  assert.match(await pill.innerText(), /4 reports\s*Show/);
   await brokerRow.locator('button.ai-compact-hit').click();
   await brokerRow.locator('.ai-compact-reports').waitFor({ state: 'visible' });
   assert.equal(await brokerRow.locator('button.ai-compact-hit').getAttribute('aria-expanded'), 'true');
+  assert.equal(await pill.getAttribute('aria-expanded'), 'true', 'every control for the list agrees it is open');
+  assert.match(await pill.innerText(), /Hide/);
+  assert.doesNotMatch(await pill.innerText(), /Show/);
+  await pill.click();
+  assert.equal(await brokerRow.locator('.ai-compact-reports').isVisible(), false, 'the same button closes it');
+  assert.match(await pill.innerText(), /Show/);
+  await pill.click();
+  await brokerRow.locator('.ai-compact-reports').waitFor({ state: 'visible' });
   const reports = await brokerRow.locator('.ai-compact-report').evaluateAll((nodes) => nodes.map((n) => [n.querySelector('.ai-compact-report-broker').textContent, n.getAttribute('href'), n.getAttribute('target')]));
   assert.equal(reports.length, 4);
   assert(reports.every(([, href, target]) => href.startsWith('https://t.me/researchreportss/') && target === '_blank'), 'each report links to its own post');
   assert.equal(await brokerRow.locator('.ai-compact-stance').first().textContent(), 'BUY', 'a stance only where the broker printed a rating');
   // A secondary broker line on a row led by something else.
   const bbb = row(page, 'BBB');
+  assert.match(await bbb.locator('button.ai-compact-brokers').innerText(), /1 broker report\s*·?\s*.*Show/s, 'a secondary line names the count, the call and the action');
   await bbb.locator('button.ai-compact-brokers').click();
   assert.equal(await bbb.locator('.ai-compact-report').count(), 1);
+  assert.equal(await bbb.locator('.ai-compact-reports').isVisible(), true);
 
   // Nothing Compact leaves out leaks into the text, and every line is within sixty words.
   for (const text of await page.locator('.ai-compact-text').allTextContents()) {
