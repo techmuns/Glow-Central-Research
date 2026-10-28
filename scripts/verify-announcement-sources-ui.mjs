@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Real AI ranking and card rendering; every feed and API stays local.
 import assert from 'node:assert/strict';
+import { useAiAlertsLayout } from './lib/ai-alerts-layout.mjs';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
@@ -85,6 +86,8 @@ const server = createServer(async (req, res) => {
 await new Promise(done => server.listen(0, '127.0.0.1', done));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({executablePath:process.env.CHROME_PATH});
+// These checks read the Detailed cards; Compact (the default) has its own suite.
+useAiAlertsLayout(browser, 'detailed');
 const page = await browser.newPage({viewport:{width:1280,height:1000}});
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));

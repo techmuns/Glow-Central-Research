@@ -1,5 +1,6 @@
 import * as priceLevels from './price-levels.js';
 import * as privateCompanyAlerts from './private-company-alerts.js';
+import * as brokerReports from './broker-reports.js';
 // Additional source-tab adapters. No ranking, company walks or upstream job dispatches.
 import * as nse from './nse-filings.js';
 import * as twitter from './twitter-news.js';
@@ -144,6 +145,9 @@ export const ADDITIONAL_SOURCES = [
   {id:'private-companies',label:'Private companies',tab:'private-market-news',
     what:'Headlines and Inc42 funding rounds naming one of the family’s private companies, matched by exact reviewed name.',
     load:()=>privateCompanyAlerts.load(),read:(context)=>privateCompanyAlerts.readFeed(context)},
+  { id: 'broker-reports', label: 'Broker reports', tab: 'public-chatter',
+    what: 'Broker research titles from the monitored Telegram channel, one per broker and company: the broker, its rating and target where the post printed them, its stated upside or downside, and the words it cites. Report PDFs are not read.',
+    load: () => brokerReports.load(), read: ({ day }) => brokerReports.readFeed({ day }) },
   { id: 'nse-filings', label: 'NSE filings', tab: 'nse-filings', what: 'Every filing in the available retained NSE window, including unresolved and undated filings.',
     load: async (refresh) => { await nse.load(); if (refresh) await nse.refresh(); await nse.loadHistory(90, { updateWindow: false }); },
     warm: warmNse,
@@ -253,6 +257,7 @@ export const ADDITIONAL_SOURCES = [
 
 export const additionalSourceDependencies = [
   [priceLevels,['price-levels']], [privateCompanyAlerts,['private-companies']],
+  [brokerReports, ['broker-reports']],
   [nse, ['nse-filings']], [twitter, ['twitter']], [institutions, ['institutions']],
   [calendar, ['earnings-calendar']], [ipoFilings, ['ipos']],
 ];

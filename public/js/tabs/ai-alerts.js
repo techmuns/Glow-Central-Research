@@ -8,6 +8,9 @@ import { AI_EVENT_TYPES, aiEventTypes, matchesAIEvent, loadAIEventFilters, saveA
 import { developmentOfRow, developmentSource, publisherOf, venuesOf, storyKindOf, KIND_LABEL } from '../data/alert-developments.js';
 import { alertReadingHtml, watchAlertReadings } from '../ui/alert-reading.js';
 import { alertPriceHtml, watchAlertPrices } from '../ui/alert-price.js';
+import { compactCards, compactRows } from '../data/ai-alerts-compact.js';
+import { compactListMarkup } from '../ui/ai-alerts-compact.js';
+import { loadShareCounts } from '../data/sheet-market.js';
 // tabs/ai-alerts.js — THE SMALL, EXPLAINABLE READING LIST ABOVE ALL ALERTS.
 //
 // All Alerts is the complete chronological record. This tab deliberately is not: it groups
@@ -52,6 +55,18 @@ const SORT_KEY = 'sattva:ai-alerts:sort:v1';
 // agree. Saved AI views from before it moved there carry `aiHoldingCategory`; like the scope, the
 // header choice now governs, so that field is read by nothing and no longer written.
 const SORTS = { newest: 'Newest first', holdings: 'Largest holdings', priority: 'Highest priority' };
+// COMPACT IS THE DEFAULT LAYOUT (28 October 2026): the Detailed alerts, filtered to one line per
+// company — see data/ai-alerts-compact.js for the rules. The reader's choice is remembered here.
+const LAYOUT_KEY = 'glow:ai-alerts:layout:v1';
+const LAYOUTS = { compact: 'Compact', detailed: 'Detailed' };
+let layout = 'compact';
+try { const saved = localStorage.getItem(LAYOUT_KEY); if (Object.hasOwn(LAYOUTS, saved)) layout = saved; } catch { /* Session preference still works. */ }
+let compactState = null;
+const compactViews = new WeakMap();
+const openBrokerRows = new Set();
+// A screenful and more, then more on request: a Universe list runs to hundreds of companies.
+const COMPACT_PAGE = 100;
+let compactLimit = COMPACT_PAGE;
 let sortOrder = 'newest';
 try { const saved = localStorage.getItem(SORT_KEY); if (Object.hasOwn(SORTS, saved)) sortOrder = saved; } catch { /* Session preference still works. */ }
 
@@ -73,10 +88,11 @@ let query = '';
 let normalSavedReading = null;
 let reportHolding = holdingSignature();
 export function getSavedView() {
-  return { aiPriority: filter, aiQuery: query, aiSort: sortOrder, aiEventTypes: [...eventFilters.selected], aiHideRoutine: eventFilters.hideRoutine };
+  return { aiPriority: filter, aiQuery: query, aiSort: sortOrder, aiEventTypes: [...eventFilters.selected], aiHideRoutine: eventFilters.hideRoutine, aiLayout: layout };
 }
 export function applySavedView(extras = {}) {
-  normalSavedReading ||= { filter, query, sortOrder, eventFilters: structuredClone(eventFilters) };
+  normalSavedReading ||= { filter, query, sortOrder, layout, eventFilters: structuredClone(eventFilters) };
+  if (Object.hasOwn(LAYOUTS, extras.aiLayout)) layout = extras.aiLayout;
   filter = ['all', 'must-see', 'important', 'archived'].includes(extras.aiPriority) ? extras.aiPriority : 'all';
   query = typeof extras.aiQuery === 'string' ? extras.aiQuery : '';
   sortOrder = Object.hasOwn(SORTS, extras.aiSort) ? extras.aiSort : 'newest';
@@ -291,7 +307,7 @@ export function render(ctx) {
 
 export function destroy() {
   if (normalSavedReading) {
-    ({ filter, query, sortOrder, eventFilters } = normalSavedReading);
+    ({ filter, query, sortOrder, layout, eventFilters } = normalSavedReading);
     normalSavedReading = null; eventViews = new WeakMap();
   }
   cardGrid?.destroy(); cardGrid = null;
@@ -429,7 +445,7 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
 
 function paint(ctx) {
   if (!ctx || ctx !== ctxRef) return;
-  const anchor = resetCardScroll ? null : [...ctx.root.querySelectorAll('[data-ai-card]')].find(node => {
+  const anchor = resetCardScroll ? null : [...ctx.root.querySelectorAll('[data-ai-card], [data-ai-compact-row]')].find(node => {
     const rect = node.getBoundingClientRect(); return rect.bottom > 0 && rect.top < innerHeight;
   });
   const anchorTop = anchor?.getBoundingClientRect().top;
@@ -437,7 +453,11 @@ function paint(ctx) {
   const matchesCategory = holdingCategoryMatcher(coverage.holdings(), effectiveHoldingCategory());
   const matches = candidates.map(eventView).filter(card => card && matchesCategory(card) && matchesSearch(card, query));
   displayedCards = matches;
-  const cards = sortAlertCards(filteredCards(matches), effectiveSort());
+  // Compact reads the same cards, filtered (data/ai-alerts-compact.js). Counts, sorting and the
+  // archive then describe the rows on screen, not the companies Compact leaves to Detailed.
+  compactState = layout === 'compact' && report ? compactFor(matches, ctx.scope) : null;
+  const pool = compactState ? compactState.cards : matches;
+  const cards = sortAlertCards(filteredCards(pool), effectiveSort());
   // Keep the input node mounted while typing and while independent feeds deliver partials.
   // Replacing the whole root loses the caret, keyboard focus and IME composition.
   if (!ctx.root.querySelector('[data-ai-layout]')) {
@@ -461,7 +481,7 @@ function paint(ctx) {
   reconcileMarkup(ctx.root.querySelector('[data-ai-heading]'), head(ctx));
   reconcileMarkup(ctx.root.querySelector('[data-ai-position-status]'), positionStatus() + kpiStatusMarkup());
   ctx.root.querySelector('[data-ai-clear]').hidden = !query.length;
-  const toolbar = report ? controls(matches, cards.length) : { priorities: '', view: '' };
+  const toolbar = report ? controls(pool, cards.length) : { priorities: '', view: '' };
   // Identical results keep their DOM, expanded evidence and keyboard focus.
   for (const [selector, markup] of [
     ['[data-ai-priorities]', toolbar.priorities],
@@ -472,7 +492,16 @@ function paint(ctx) {
     reconcileMarkup(node, markup);
   }
   const results = ctx.root.querySelector('[data-ai-results]');
-  if (report && cards.length) {
+  const rows = compactState && cards.length
+    ? cards.map((card) => compactState.rows.get(String(card.key || card.ticker || card.entityId))).filter(Boolean) : null;
+  if (rows?.length) {
+    cardGrid?.destroy(); cardGrid = null; clearTimelines();
+    void loadShareCounts();
+    if (resetCardScroll) compactLimit = COMPACT_PAGE;
+    reconcileMarkup(results, compactListMarkup(rows.slice(0, compactLimit), { today: currentDay(), open: openBrokerRows,
+      archived: filter === 'archived', remaining: Math.max(0, rows.length - compactLimit), total: rows.length, page: COMPACT_PAGE }));
+    results.querySelector('[data-ai-compact]').setAttribute('aria-busy', String(collecting || awaitingBook !== null));
+  } else if (report && cards.length && !compactState) {
     if (!cardGrid || !results.contains(cardGrid.element)) {
       cardGrid?.destroy();
       reconcileMarkup(results, '<section data-ai-cards role="feed" aria-label="AI Alerts companies"></section>');
@@ -595,11 +624,14 @@ function head(ctx) {
     `${scopeLabel(ctx.scope)}${report ? ` · ${formatNumber(m.activeCompanies || 0)}${book?.count ? ` of ${formatNumber(book.count)}` : ''} companies with recent events` : ''}.`,
     `${alerts.WINDOW_DAYS}-day window: ${fmtDay(m.firstDay)} through ${fmtDay(report?.day)}.`,
     stories.total ? `${grouping === 'checking' ? 'Checking repeated coverage.' : grouping === 'partial' ? 'Some reports remain ungrouped.' : 'Repeated coverage grouped.'} Grouping uses captured headlines and descriptions. Uncertain reports remain separate. Earlier story context is retained for up to 180 days; All Alerts holds the source history.` : '',
+    // The note the desk asked to have off the page lives here instead: what Compact leaves out, and
+    // how many companies that left with nothing to show. Moved behind the pill, not deleted.
+    layout === 'compact' && compactState ? `Compact shows the Detailed alerts filtered: one row per company, repeated reports of one event shown once, and price-and-volume signals and call or meeting dates left out.${compactState.hidden.length ? ` ${formatNumber(compactState.hidden.length)} ${compactState.hidden.length === 1 ? 'company appears' : 'companies appear'} only in Detailed: ${compactState.hidden.length === 1 ? 'its' : 'their'} items are price-and-volume signals, call or meeting dates, or a story already on another row.` : ''}` : '',
   ].filter(Boolean).join(' ');
   return sectionHead({
     title: 'AI Alerts',
     description: `Important company signals from the last ${alerts.WINDOW_DAYS} days.`,
-    meta: `<span data-ai-feed-status data-state="${status.state}" data-ai-story-status="${grouping}">${pill({ label, tone: grouping === 'partial' || grouping === 'checking' ? 'neutral' : status.tone, title: details })}</span>`,
+    meta: `<span class="ai-head-meta">${layoutToggle()}<span data-ai-feed-status data-state="${status.state}" data-ai-story-status="${grouping}">${pill({ label, tone: grouping === 'partial' || grouping === 'checking' ? 'neutral' : status.tone, title: details })}</span></span>`,
   });
 }
 
@@ -1142,6 +1174,30 @@ function wire(ctx) {
     paint(ctxRef);
   });
 
+  click('[data-ai-layout-toggle]', (event) => {
+    const button = event.target.closest('[data-ai-view]');
+    if (button) setLayout(ctx, button.dataset.aiView);
+  });
+  click('[data-ai-compact-empty]', (event) => {
+    const button = event.target.closest('[data-ai-view]');
+    if (button) setLayout(ctx, button.dataset.aiView);
+  });
+  click('[data-ai-compact]', (event) => {
+    if (event.target.closest('[data-ai-compact-more]')) { compactLimit += COMPACT_PAGE; paint(ctxRef); return; }
+    const toggle = event.target.closest('[data-ai-brokers-toggle]');
+    if (!toggle) return;
+    const row = toggle.closest('[data-ai-compact-row]');
+    const key = row?.dataset.aiKey;
+    if (!key) return;
+    const open = !openBrokerRows.has(key);
+    if (open) openBrokerRows.add(key); else openBrokerRows.delete(key);
+    // Patch the one row in place: a repaint would rebuild nothing else, and the focus stays put.
+    row.dataset.open = String(open);
+    row.querySelectorAll('[data-ai-brokers-toggle]').forEach((node) => node.setAttribute('aria-expanded', String(open)));
+    const list = row.querySelector('.ai-compact-reports');
+    if (list) list.hidden = !open;
+  });
+
   click('[data-ai-empty] [data-ai-unmute-all]', () => {
     mute.clear();
     paint(ctxRef);
@@ -1153,6 +1209,15 @@ function wire(ctx) {
 }
 
 function emptyPanel(ctx) {
+  // Compact leaves out price-and-volume signals and call or meeting dates. When that is all this
+  // view holds, say so and offer Detailed — "no company crossed the threshold" would be untrue.
+  if (compactState && !compactState.cards.length && compactState.hidden.length) {
+    return `<div data-ai-empty data-ai-compact-empty class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
+      <h3 class="font-display text-lg font-bold text-slate-900">Nothing here needs a line in Compact</h3>
+      <p class="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">${escapeHtml(formatNumber(compactState.hidden.length))} ${compactState.hidden.length === 1 ? 'company has' : 'companies have'} only price-and-volume signals, call or meeting dates, or a story already shown on another row in this view. Detailed shows them.</p>
+      <button type="button" data-ai-view="detailed" class="mt-4 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">Show Detailed</button>
+    </div>`;
+  }
   const category = effectiveHoldingCategory();
   if (category !== 'all') {
     return `<div data-ai-empty class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
@@ -1232,6 +1297,59 @@ function quietFallbackPanel() {
     </div>`;
 }
 
+function setLayout(ctx, next) {
+  if (!Object.hasOwn(LAYOUTS, next) || next === layout) return;
+  layout = next;
+  if (!ctx.savedView) try { localStorage.setItem(LAYOUT_KEY, layout); } catch { /* Keep the session preference. */ }
+  resetCardScroll = true;
+  paint(ctxRef);
+  ctxRef?.root.querySelector(`[data-ai-view="${layout}"]`)?.focus({ preventScroll: true });
+}
+
+/**
+ * The Compact cards, their rows and the companies left to Detailed. Compact views are kept per card
+ * object (eventView already memoises per filter). Three things are decided here, over the whole
+ * list rather than the page on screen, so the counts and the rows always agree:
+ *
+ * 1. SEARCH READS WHAT COMPACT KEEPS. A company the query found only through an item Compact leaves
+ *    out (an RSI reading, a call date) is not drawn as a match on an unrelated row.
+ * 2. A SHARED STORY IS ASSIGNED ONCE, in priority order: the higher-ranked company keeps it, and a
+ *    company whose only lead is a story already on another row is left to Detailed.
+ * 3. Every count — priority chips, the companies line, the archive — counts the companies that have
+ *    a row.
+ */
+function compactFor(cards, scope) {
+  const kept = [], hidden = [];
+  for (const card of cards) {
+    if (!compactViews.has(card)) {
+      const { cards: [view], hidden: [miss] } = compactCards([card]);
+      compactViews.set(card, view ? { view } : { miss });
+    }
+    const entry = compactViews.get(card);
+    if (entry.view) kept.push(entry.view); else hidden.push(entry.miss);
+  }
+  const searched = query.trim() ? kept.filter((view) => {
+    const found = matchesSearch({ ...view, sourceEvents: view.events }, query);
+    if (!found) hidden.push({ key: view.key || view.ticker || view.entityId, company: view.company, reasons: ['search'] });
+    return found;
+  }) : kept;
+  const { rows, repeated } = compactRows(sortAlertCards(searched, 'priority'), { destination: (event) => evidenceDestination(event, scope) });
+  hidden.push(...repeated);
+  const byKey = new Map(rows.map((row) => [row.key, row]));
+  return { cards: searched.filter((view) => byKey.has(String(view.key || view.ticker || view.entityId))), hidden, rows: byKey };
+}
+
+function layoutToggle() {
+  const icons = {
+    compact: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
+    detailed: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>',
+  };
+  return `<span class="ai-layout-toggle" role="group" aria-label="AI Alerts layout" data-ai-layout-toggle data-layout="${layout}">
+    <span class="ai-layout-thumb" aria-hidden="true"></span>
+    ${Object.entries(LAYOUTS).map(([id, label]) => `<button type="button" data-ai-view="${id}" aria-pressed="${layout === id}">${icons[id]}${label}</button>`).join('')}
+  </span>`;
+}
+
 function effectiveSort() {
   return sortOrder === 'holdings' && (!report?.meta?.positionSizes?.complete || sizeError)
     ? 'newest' : sortOrder;
@@ -1306,7 +1424,7 @@ function whatHappenedMarkup(card, scope) {
   return `${meta}<p data-ai-insight class="font-display mt-1 text-[17px] font-bold leading-snug text-slate-900"${title}>${body} ${developmentSourcesMarkup(dev, scope, lead)}</p>`;
 }
 
-const MEASUREMENT_LABEL = { earnings: 'Result', concalls: 'Con-call', insider: 'Insider / deal', investors: 'Investor holding', technicals: 'Price & volume', chatter: 'Public chatter', 'screener-insights': 'Insight' };
+const MEASUREMENT_LABEL = { 'broker-reports': 'Broker view', earnings: 'Result', concalls: 'Con-call', insider: 'Insider / deal', investors: 'Investor holding', technicals: 'Price & volume', chatter: 'Public chatter', 'screener-insights': 'Insight' };
 
 function developmentSourcesMarkup(dev, scope, fallback = null) {
   const ordered = dev ? [dev.lead, ...dev.others.filter(event => storyKindOf(event) === 'filing'),

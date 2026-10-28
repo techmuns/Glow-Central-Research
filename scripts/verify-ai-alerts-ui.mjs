@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Actual AI ranking and tab UI over deterministic local event fixtures. No production reads.
 import assert from 'node:assert/strict';
+import { useAiAlertsLayout } from './lib/ai-alerts-layout.mjs';
 import { createServer } from 'node:http';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
@@ -117,6 +118,8 @@ await new Promise((done) => server.listen(0, '127.0.0.1', done));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const familyOrigin = origin;
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
+// These checks read the Detailed cards; Compact (the default) has its own suite.
+useAiAlertsLayout(browser, 'detailed');
 // A browser in California must still roll the Indian market date at 18:30 UTC.
 const page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, timezoneId: 'America/Los_Angeles' });
 const errors = [];
@@ -885,8 +888,9 @@ try {
     tab.render({ root: document.querySelector('#root'), scope: 'universe', params: {}, savedView: { reading: { extras } } });
   }, savedFilters);
   await waitFor(savedReader, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');
-  // The holding category is the header's Holding filter now, so a saved reading carries none.
-  assert.deepEqual(await savedReader.evaluate(async () => (await import('/js/tabs/ai-alerts.js')).getSavedView()), savedFilters, 'saved readings follow the header Holding filter');
+  // The holding category is the header's Holding filter now, so a saved reading carries none; the
+  // reader's own layout is kept.
+  assert.deepEqual(await savedReader.evaluate(async () => (await import('/js/tabs/ai-alerts.js')).getSavedView()), { ...savedFilters, aiLayout: 'detailed' }, 'saved readings follow the header Holding filter and keep the reader\'s own layout');
   assert.equal(await savedReader.locator('[data-ai-holding-category]').count(), 0, 'AI Alerts draws no Holding control of its own');
   assert.equal(await savedReader.locator('[data-ai-search]').inputValue(), 'Zenith');
   assert.equal(await savedReader.locator('[data-ai-type="results"]').isChecked(), true);

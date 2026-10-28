@@ -59,6 +59,33 @@ Only overlapping archive months load, and a verified archive-derived head can av
 monthly downloads. Keep capture/retention unchanged, preserve failed-refresh data and reader
 filters, and test both recent delivery and older-history access. See the reliability contract.
 
+**AI Alerts layout (28 October 2026, GLOW-OWNED):** Compact is the default; the heading's
+Compact | Detailed switch is remembered on the device (`glow:ai-alerts:layout:v1`) and Detailed is
+the existing cards, unchanged. Compact is the Detailed cards FILTERED (`js/data/ai-alerts-compact.js`,
+pure): one row per company — company, CMP, market cap (shares × CMP, `sheet-market.marketCap`), the
+lead item in at most 60 words, and the whole row opens its source. It leaves out the `technicals`
+feed (RSI, volume, breakouts, day moves) and call/meeting date notices (con-call and earnings-call
+intimations, live/recording notices, analyst meets, board-meeting intimations; transcripts,
+presentations and board outcomes stay); a company left with nothing material appears only in
+Detailed and is counted in the status pill's title, not in a note on the page. Repetition is folded:
+a quarterly result's data, filing and write-ups are one row opening the company's own filing; a
+story leads one row only; chatter snapshots lead last. The text is the card's own claim, never "Sources disagree —
+check both directions below". The family's price levels stay. Counts and archive follow the rows.
+`verify-ai-alerts-compact.mjs` and `verify-ai-alerts-compact-ui.mjs` are the tests; suites written for
+the cards opt into Detailed through `scripts/lib/ai-alerts-layout.mjs`.
+
+**Broker reports (28 October 2026, GLOW-OWNED):** the `broker-reports` alert source reads
+`public/data/broker-reports.json`, built on the runner by `scripts/build-broker-reports.mjs` from the
+Telegram research channel's artifact after every collection (`broker-reports-refresh.yml`, hourly
+fallback) — never the 10 MB archive in the browser. `js/data/broker-reports-shared.js` parses each
+post into one report per broker and company: broker, rating and target only where printed, stated
+upside/downside, the cited words verbatim, the post link. A stance exists only with a printed rating
+word; no target is derived from an upside. Names resolve through `scripts/lib/company-index.mjs` with
+a group-company refusal (M&M Financial is not M&M); unresolved names are counted. Material: an
+initiation, a downside or bearish call, a rating change against the broker's previous rated report,
+a stated target/rating revision, or two or more brokers in the 14-day window. Compact shows a
+company's broker views as one summary row (or a line under its lead) that lists each report on demand.
+
 AI Alerts' Newest first section is a bounded scrolling timeline. It shows all current card
 records, loads older retained evidence on demand through one shared history read, and keeps a
 reader's row anchored when new events arrive. Preserve the recent ranking window, source/type

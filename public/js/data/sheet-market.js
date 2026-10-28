@@ -54,6 +54,25 @@ function validHistory(value) {
   return value;
 }
 
+// The share counts alone — what a market cap needs — for a reader that must not pull the 3.5 MB
+// technicals capture to get them (AI Alerts' Compact rows). Shared with `load()` below.
+let sharesLoading = null;
+let sharesLoadedAt = 0;
+export function loadShareCounts({ force = false } = {}) {
+  if (sharesLoading && !force && Date.now() - sharesLoadedAt < RELOAD_AFTER_MS) return sharesLoading;
+  sharesLoadedAt = Date.now();
+  sharesLoading = revalidatedJson(TICKER_MAP_PATH, { optional: true }).then((map) => {
+    const next = new Map();
+    for (const entry of Object.values(map?.map || {})) {
+      if (entry?.ticker && Number.isFinite(entry.shares) && entry.shares > 0) next.set(String(entry.ticker).toUpperCase(), entry.shares);
+    }
+    const changed = next.size && next.size !== shares.size;
+    if (next.size) shares = next;
+    if (changed) emit();
+  });
+  return sharesLoading;
+}
+
 /**
  * Load (or revalidate) every committed file the tabs read. Resolves when each has settled, whatever
  * its outcome: a failed file leaves its figures null with a reason, and never blanks the table.
@@ -65,13 +84,7 @@ export function load({ force = false } = {}) {
     technicals.load().then(() => { technicalsError = null; }, (error) => { technicalsError = error?.message || 'unavailable'; }),
     revalidatedJson(HISTORY_PATH).then((value) => { history = validHistory(value); historyError = null; },
       (error) => { historyError = error?.message || 'unavailable'; }),
-    revalidatedJson(TICKER_MAP_PATH, { optional: true }).then((map) => {
-      const next = new Map();
-      for (const entry of Object.values(map?.map || {})) {
-        if (entry?.ticker && Number.isFinite(entry.shares) && entry.shares > 0) next.set(String(entry.ticker).toUpperCase(), entry.shares);
-      }
-      if (next.size) shares = next;
-    }),
+    loadShareCounts({ force: true }),
     revalidatedJson(CLASSIFICATION_PATH, { optional: true }).then((value) => { if (value?.companies) classification = value.companies; }),
   ]).then(() => { emit(); });
   return loading;

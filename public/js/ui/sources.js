@@ -24,6 +24,7 @@ import * as concalls from '../data/concall-scans.js';
 import * as earningsLive from '../data/earnings-live.js';
 import * as chatter from '../data/chatter-live.js';
 import * as telegramPosts from '../data/telegram-posts.js';
+import * as brokerReports from '../data/broker-reports.js';
 import { telegramReadHealth } from '../data/telegram-health.js';
 import * as institutions from '../data/institution-holdings.js';
 import * as technicals from '../data/technicals.js';
@@ -240,6 +241,9 @@ export function sourceGroups() {
   // capture that has not loaded drops its clause instead of reporting the channel as silent.
   const tgMeta = (() => { try { return telegramPosts.meta(); } catch { return null; } })();
   const tg = num(() => (tgMeta?.ok ? tgMeta.count : null));
+  const brokerMeta = brokerReports.meta();
+  const brokerCount = num(() => brokerMeta.counts?.reports ?? null);
+  const brokerUnresolved = num(() => brokerMeta.counts?.unresolved ?? null);
   const funds = (() => {
     try {
       return institutions.isLoaded() ? institutions.all() : [];
@@ -525,6 +529,16 @@ export function sourceGroups() {
           cadence: 'Scheduled GitHub Action · ten-minute checks requested, delivery best-effort · direct artifacts · resumable history',
           status: 'live',
           file: 'api/telegram/posts · scripts/collect-telegram.py · public-page fallback',
+        },
+        {
+          name: 'Broker reports (derived from the Telegram channel)',
+          url: tgMeta?.channelUrl || null,
+          feeds: '<strong>Derived here, from the channel above.</strong> Each broker research title is read into one report per broker and company: the broker, its rating and target where the post printed them, its stated upside or downside, and the words it cites. ' +
+            'A stance exists only where a rating word was printed and no target is derived from an upside; report PDFs are not read. Company names resolve through the collision-guarded name index, and a name that fits two companies or none stays unassigned' +
+            `${clause(brokerUnresolved, ' (<n> in the current file)')}.${clause(brokerCount, ' <n> reports in the last 30 days.')} Feeds AI Alerts and All Alerts.`,
+          cadence: 'Rebuilt after each Telegram collection by a scheduled Action · hourly fallback',
+          status: brokerMeta.error && !brokerReports.isLoaded() ? 'pending' : 'live',
+          file: 'public/data/broker-reports.json · scripts/build-broker-reports.mjs · public/js/data/broker-reports-shared.js',
         },
         {
           name: 'Slug → NSE symbol (computed)',
