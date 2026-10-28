@@ -22,6 +22,9 @@ export async function glowPortfolio(companies, book, { now = Date.now() } = {}) 
     count: holdings.length, resolved: holdings.filter(h => h.ticker).length, holdings,
     unlisted: companies.unlisted, bseOnly: companies.bseOnly, unresolved: companies.unresolved,
     excluded: companies.excluded, sourceCommit: companies.sourceCommit });
+  // Held equity lines no exchange has given an ISIN yet: named, outside the research identities.
+  portfolio.awaitingIdentity = (companies.awaitingIdentity || []).filter(h => typeof h?.bookName === 'string' && h.bookName.trim())
+    .map(h => ({ name: String(h.name || h.bookName), bookName: h.bookName, reason: String(h.reason || '') }));
   return portfolio;
 }
 
@@ -48,6 +51,11 @@ export function glowPositionReply(portfolio, book) {
     return { isin: h.isin, ticker: h.ticker, name: h.name, sector: h.sector || 'Unclassified', holdingCategories: h.holdingCategories,
       value: positions.reduce((sum, p) => sum + (Number.isFinite(p.marketValue) ? p.marketValue : 0), 0) };
   });
+  // A line awaiting an ISIN is accounted for by name rather than left unreconciled. It has no
+  // research row, so the weights (which sum to 100) are shares of the research identities.
+  for (const line of portfolio.awaitingIdentity || []) for (const p of rows) {
+    if (!p.symbol && p.security === line.bookName) matched.add(p);
+  }
   if (matched.size !== rows.length) complete = false;
   const total = holdings.reduce((sum, h) => sum + h.value, 0);
   if (total <= 0) complete = false;

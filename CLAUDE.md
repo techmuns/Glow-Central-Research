@@ -1226,8 +1226,18 @@ Four rules, and each is a rule the rest of this file already runs on:
    P&L and return are each platform's own marks on its report date, which is printed on every row.
    The tab derives exactly one figure — **EOD mark (derived)**, quantity × the technicals feed's
    close, listed symbols only — and the heading, the cell title, the drill and the packet all say
-   so. The listed/private split mirrors `PRIVATE_CLASSES` upstream and is summed from the rows,
-   never `total − listed`, so an unnamed class cannot silently become private.
+   so. The listed/private split is GlowVentures' own per-row `marketSide` (`sideOf()` in
+   `js/data/book.js`; null is neither half), summed from the rows, never `total − listed`.
+
+**The daily sync must not stop on one new line (28 October 2026).** `series-refresh.yml` failed on
+every run for weeks — two new PMS lines had no ISIN, upstream moved the listed/private split to
+`marketSide`, and the managers build refused a nil mixed-engagement account and closed or
+statement-less mandates — so no book, manager or macro series update reached the dashboard. A
+line with no ISIN now goes under `awaitingIdentity` in `portfolio-companies.json` (named, outside
+the research identities, accounted for in the weight reconciliation); an `unknown` account is placed
+when all its members name one kind; a PMS mandate with no holdings statement passes only with the
+upstream's own `noPositionsReason` on every account or a residue under the ₹1,000 floor. Anything
+else still stops the build. Check the workflow's latest run, not its schedule.
 
 **Scope on this tab.** The book is the book under Portfolio and Universe alike — there is no wider
 universe of the family's positions to widen to — and the pill says so. Watchlist narrows to the
