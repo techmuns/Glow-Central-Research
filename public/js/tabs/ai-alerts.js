@@ -113,6 +113,36 @@ let sourceTimer = null;
 let lastSourceCheck = 0;
 const timelines = new Map();
 let historyReader = null, historyGeneration = 0;
+
+// THE LAST VIEW OF EACH SCOPE, FOR THE PAGE'S LIFETIME. Switching Universe → Portfolio used to drop
+// the view on screen and wait for the narrowed collection to read, assemble and rank again before
+// anything painted. A scope's last completed view now paints at once and its collection revalidates
+// it behind the "Checking sources" status, exactly as returning to this tab does. A held view is used
+// only for the same IST day, the same scope membership and the same signed-in session; anything
+// that invalidates the private book clears them all. Memory only — never written to storage.
+const scopeViews = new Map();
+// Null where the membership cannot be read (a reader mid-upgrade holding an older collector):
+// nothing is then held, and a scope switch reads afresh exactly as it always did.
+const viewContext = (scope, day) => {
+  if (typeof generalAlerts.alertContextKey !== 'function') return null;
+  const { token, email, orgId } = getHostContext().session;
+  return JSON.stringify([generalAlerts.alertContextKey(scope, coverage.holdings(), day), token, email, orgId]);
+};
+function holdView(view) {
+  if (!view || view.provisional || !view.scope || !view.day) return;
+  const context = viewContext(view.scope, view.day);
+  if (context !== null) scopeViews.set(view.scope, { view, context });
+}
+function heldView(scope) {
+  const held = scopeViews.get(scope);
+  if (!held) return null;
+  if (held.view.day !== currentDay() || held.context !== viewContext(scope, held.view.day)) { scopeViews.delete(scope); return null; }
+  return held.view;
+}
+// A provisional view (narrowed off Universe) is replaced by the narrowed collection's own ranking,
+// never merged with it: it was read from the same records, and merging would let its Universe-
+// assembled identities outlive the ranking that supersedes them.
+const mergeBase = view => view?.provisional ? null : view;
 function clearTimelines({ history = false } = {}) {
   for (const state of timelines.values()) state.controller.destroy();
   timelines.clear();
@@ -178,6 +208,7 @@ function sourceChanged(change) {
 // Keep a completed view in memory across tab visits. This lifetime listener also
 // revokes that cached private view if access expires while another tab is open.
 onPortfolioInvalidation((version) => {
+  scopeViews.clear();
   clearTimelines({ history: true });
   actionGeneration++;
   alerts.clearRankingCache();
@@ -271,7 +302,13 @@ export function render(ctx) {
   }
 
   if (report && report.scope !== ctx.scope) {
-    report = null;
+    // Keep the outgoing view for its scope; paint this scope's last view, or — the first time this
+    // page opens a narrower scope — its cards narrowed off the Universe view already ranked here.
+    holdView(report);
+    const universe = report.scope === 'universe' && !report.provisional ? report : heldView('universe');
+    const held = heldView(ctx.scope);
+    const narrowed = held ? null : alerts.narrowReport(universe, ctx.scope, { holdings: coverage.holdings() });
+    report = held || (narrowed && alerts.withPositionSnapshot(narrowed, cachedPositionSizes())) || null;
     resetCardScroll = true;
   }
 
@@ -289,7 +326,7 @@ export function render(ctx) {
       // An empty partial is still an unfinished source read. Merge the retained window beneath
       // any newer live evidence instead of letting that partial suppress a slow cache restore.
       // The merge ranks in slices; a live report that completed meanwhile is never overwritten.
-      const merged = report ? await alerts.mergePartialReportAsync(cached, report, { isCurrent: restoring }) : cached;
+      const merged = mergeBase(report) ? await alerts.mergePartialReportAsync(cached, report, { isCurrent: restoring }) : cached;
       if (!restoring() || !merged || report?.pending === 0) return;
       report = alerts.withPositionSnapshot(merged, cachedPositionSizes());
       paint(ctxRef);
@@ -388,7 +425,7 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
     while (queuedPartial && current()) {
       const partial = queuedPartial;
       queuedPartial = null;
-      const merged = await alerts.mergePartialReportAsync(report, partial, { isCurrent: current });
+      const merged = await alerts.mergePartialReportAsync(mergeBase(report), partial, { isCurrent: current });
       if (!merged || !current()) return;
       report = alerts.withPositionSnapshot(merged, checkedSnapshot);
       paint(ctxRef);
@@ -421,7 +458,7 @@ async function recollect(ctx, { refresh: forceRefresh = false, load = true, reus
       : alerts.withPositionSnapshot(next, positionSizes);
     if (!current() || !completed) return;
     const settled = completed.pending || completed.feeds.some(feed => feed.status === 'failed')
-      ? await alerts.mergePartialReportAsync(report, completed, { isCurrent: current }) : completed;
+      ? await alerts.mergePartialReportAsync(mergeBase(report), completed, { isCurrent: current }) : completed;
     if (!current() || !settled) return;
     report = settled;
     refreshTimelineHistory();
@@ -1216,6 +1253,8 @@ function wire(ctx) {
     if (button) setLayout(ctx, button.dataset.aiView);
   });
   click('[data-ai-compact]', (event) => {
+    const dismiss = event.target.closest('[data-ai-compact-archive], [data-ai-compact-restore]');
+    if (dismiss) { event.preventDefault(); leaveCompactRow(dismiss, event.detail === 0); return; }
     if (event.target.closest('[data-ai-compact-more]')) { compactLimit += COMPACT_PAGE; paint(ctxRef); return; }
     const toggle = event.target.closest('[data-ai-brokers-toggle]');
     if (!toggle) return;
@@ -1239,6 +1278,63 @@ function wire(ctx) {
   click('[data-ai-empty-general]', () => {
     location.hash = `#/research/daily-alerts?scope=${encodeURIComponent(ctx.scope)}`;
   });
+}
+
+// ARCHIVE (OR RESTORE) ONE COMPACT ROW. The row slides a little and fades (transform and opacity
+// only, ~180ms, a strong ease-out), and the rows beneath it close the gap with a FLIP: measured
+// before the repaint, offset back to where they were, then released to their new place — again
+// only a transform, so nothing is laid out per frame. The archive itself is the same device-local
+// record the Detailed cards' Archive button writes, and the repaint is the ordinary paint, so the
+// counts, the Archived filter and the export follow at once. A keyboard press (event.detail 0)
+// skips the motion entirely, as does a browser without animations; reduced motion keeps only a
+// short fade. Focus moves to the same control on the next row, so the list can be worked through.
+const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';
+function leaveCompactRow(button, fromKeyboard) {
+  const row = button.closest('[data-ai-compact-row]');
+  const item = row?.closest('[data-ai-row]');
+  const list = item?.parentElement;
+  if (!row || !item || !list || row.hasAttribute('data-leaving') || !ctxRef) return;
+  const key = row.dataset.aiKey;
+  const card = (report?.allCards || []).find(candidate => String(candidate.key || candidate.ticker || candidate.entityId) === key);
+  if (!card) return;
+  const restoring = button.hasAttribute('data-ai-compact-restore');
+  const control = restoring ? '[data-ai-compact-restore]' : '[data-ai-compact-archive]';
+  const neighbour = [item.nextElementSibling, item.previousElementSibling].map(node => node?.dataset.aiRow).find(Boolean) || null;
+  const settle = () => {
+    if (!ctxRef) return;
+    if (restoring) mute.show(card.key || card.ticker);
+    else mute.hide(card.key || card.ticker, card.evidenceKey || card.topEvent?.id || null);
+    paint(ctxRef);
+    // A row the repaint kept (its card changed meanwhile) must not stay faded out.
+    if (row.isConnected) { row.getAnimations?.().forEach(animation => animation.cancel()); row.removeAttribute('data-leaving'); }
+    if (!fromKeyboard) return;
+    const next = neighbour && [...ctxRef.root.querySelectorAll('[data-ai-row]')].find(node => node.dataset.aiRow === neighbour);
+    (next?.querySelector(control) || ctxRef.root.querySelector('[data-ai-compact] [role="list"]'))?.focus?.({ preventScroll: true });
+  };
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (fromKeyboard || typeof row.animate !== 'function') { settle(); return; }
+  row.setAttribute('data-leaving', '');
+  const exit = row.animate(reduce
+    ? [{ opacity: 1 }, { opacity: 0 }]
+    : [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(14px) scale(0.985)' }],
+  { duration: reduce ? 120 : 180, easing: EASE_OUT, fill: 'forwards' });
+  exit.finished.then(() => {
+    // Only the rows on screen below it move; the ones further down are simply in their new place.
+    const below = [];
+    for (let node = item.nextElementSibling; node && below.length < 40; node = node.nextElementSibling) {
+      const top = node.getBoundingClientRect().top;
+      if (top > innerHeight) break;
+      below.push([node.dataset.aiRow, top]);
+    }
+    settle();
+    if (reduce || !ctxRef) return;
+    const byKey = new Map([...ctxRef.root.querySelectorAll('[data-ai-row]')].map(node => [node.dataset.aiRow, node]));
+    for (const [rowKey, before] of below) {
+      const node = byKey.get(rowKey);
+      const delta = node ? before - node.getBoundingClientRect().top : 0;
+      if (Math.abs(delta) > 0.5) node.animate([{ transform: `translateY(${delta}px)` }, { transform: 'none' }], { duration: 220, easing: EASE_OUT });
+    }
+  }, () => settle());
 }
 
 function emptyPanel(ctx) {
