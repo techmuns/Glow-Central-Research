@@ -107,8 +107,9 @@ try{
   await page.evaluate(()=>{window.fixture.tab.destroy();window.fixture.tab.render({root:document.querySelector('#root'),scope:'portfolio'});});
   await page.getByRole('heading',{name:'Private Market',exact:true}).waitFor();assert.equal(await search.inputValue(),'Fixture Investor');
   // Portfolio is the family's own private companies, matched by exact name, labelled on the row.
-  await page.getByText('Family holding · Fixture Company 3').waitFor();
+  await page.getByText('Family holding',{exact:true}).waitFor();
   await page.getByText('Family holding · Fixture Brand').waitFor();
+  assert.equal(await page.getByText('Family holding · Fixture Company 3').count(),0,'A row named as the holding is not named twice');
   assert.deepEqual((await page.locator('tbody tr[data-row-key]').evaluateAll(rows=>rows.map(r=>r.dataset.rowKey))).sort(),[capture.deals[3].id,capture.deals[7].id],'Portfolio keeps only the family companies, a legal-name match joining its brand');
   assert.equal(await page.getByRole('combobox',{name:'Funding period',exact:true}).inputValue(),'all','Portfolio opens on all captured history');
   assert.match(await page.locator('main').innerText(),/2 of 3 have a captured round/,'The denominator names every private company');

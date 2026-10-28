@@ -7,7 +7,7 @@ import { exportRows } from '../ui/export.js';
 import * as refreshRegistry from '../core/refresh.js';
 import { revalidatedJson } from '../core/store.js';
 import * as watchlist from '../core/watchlist.js';
-import { privateCompanyMatcher, readPrivateCompanies } from '../data/private-companies.js';
+import { nameKey, privateCompanyMatcher, readPrivateCompanies } from '../data/private-companies.js';
 
 export const meta = TAB_META['private-market-news'];
 let ctxRef = null, table = null, view = null, offTable = null, disposers = [], viewScope = null;
@@ -107,7 +107,7 @@ function paint() {
   const options = (key, label) => ({ label, options:[{ value:'all', label:`All ${label.toLowerCase()}` }, ...[...new Set(rows.map(r => r[key]).filter(v => v && !/^[-–—_]$/.test(v)))].sort().map(value => ({ value,label:value }))], match:(r,v) => v === 'all' || !v || r[key] === v });
   table = scoreTable({ rows, key:r => r.id, name:r => r.company, watchKey:() => null, showWatchFilter:false,
     showRank:false, showAvatar:false, nameWrap:true, nameMaxPx:210, dense:true, wrapHeads:true, nameAfter:1,
-    sub:r => [holdingOf(r) ? `Family holding · ${holdingOf(r).name}` : '', r.sourceMissing ? 'Retained · removed from source' : ''].filter(Boolean).join(' · '),
+    sub:r => [holdingOf(r) ? (nameKey(holdingOf(r).name) === nameKey(r.company) ? 'Family holding' : `Family holding · ${holdingOf(r).name}`) : '', r.sourceMissing ? 'Retained · removed from source' : ''].filter(Boolean).join(' · '),
     searchPlaceholder:'Search company, investor, sector or round...', searchable:r => [...fields.map(([key]) => r[key]), holdingOf(r)?.name || ''].join(' '),
     columns: fields.filter(([key]) => key !== 'company').map(([key,label]) => ({ label, get:r => cell(r[key]), html:true, sortable:key !== 'amount', sortValue:r => key === 'date' ? r.dateISO || '' : r[key] })),
     initialSort:{ key:'Funding date', dir:'desc' }, initialView:view,
