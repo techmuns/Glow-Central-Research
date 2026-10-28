@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { positionCategory, withHoldingCategories, holdingCategoryMatcher, normalizeHoldingCategory } from '../public/js/data/holding-categories.js';
+import { positionCategory, withHoldingCategories, holdingCategoryMatcher, normalizeHoldingCategory, offeredHoldingCategories } from '../public/js/data/holding-categories.js';
 import { glowPortfolio, glowPositionReply } from '../public/js/data/glow-book-contract.js';
 const read = name => JSON.parse(readFileSync(new URL(`../public/data/${name}.json`, import.meta.url)));
 const book = read('book'), companies = read('portfolio-companies');
@@ -30,5 +30,7 @@ assert(holdingCategoryMatcher(classified, 'unlisted')({ entityId: 'isin:INE00000
 assert(!holdingCategoryMatcher(classified, 'pms')({ ticker: 'OUTSIDE' }));
 assert(holdingCategoryMatcher(classified, 'all')({ ticker: 'OUTSIDE' }), 'All preserves out-of-book scope members');
 assert.equal(normalizeHoldingCategory('obsolete'), 'all');
+assert.deepEqual(offeredHoldingCategories(classified).map(([id]) => id), ['all', 'direct-equity', 'pms', 'unlisted'], 'only categories a company carries are offered, in the standard order');
+assert.deepEqual(offeredHoldingCategories(portfolio.holdings).map(([, label]) => label), ['All', 'Direct Equity', 'PMS'], 'the shipped research list offers no fund, AIF or bond category');
 assert(!Object.hasOwn(holdings[0], 'holdingCategories'), 'classification does not mutate source identities');
 console.log('PASS holding categories: real Glow book, account rules, overlapping memberships, tickerless identity, metadata-only changes and size transport.');

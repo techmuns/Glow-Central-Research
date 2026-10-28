@@ -34,7 +34,7 @@ import { driversFromEvent, QUESTIONS } from '../data/alert-drivers.js';
 import * as screenerInsights from '../data/screener-insights.js';
 import { onCaptureLanded } from '../data/capture-watchdog.js';
 import * as coverage from '../data/coverage.js';
-import { HOLDING_CATEGORIES, normalizeHoldingCategory, holdingCategoryLabel, holdingCategoryMatcher } from '../data/holding-categories.js';
+import { offeredHoldingCategories, normalizeHoldingCategory, holdingCategoryLabel, holdingCategoryMatcher } from '../data/holding-categories.js';
 import * as mute from '../core/ai-mute.js';
 import { currentDay, relativeAge, formatDay as fmtDay, latestAlertSignal, latestAlertEvent, sortAlertCards, matchesSearch } from '../ui/ai-alert-utils.js';
 import { privatePortfolioContext, onPortfolioInvalidation, onPortfolioReady, onPortfolioConnection, portfolioConnectionState } from '../research/portfolio-bridge.js';
@@ -48,6 +48,8 @@ const SORT_KEY = 'sattva:ai-alerts:sort:v1';
 const CATEGORY_KEY = 'glow:ai-alerts:holding-category:v1';
 let holdingCategory = 'all';
 try { holdingCategory = normalizeHoldingCategory(localStorage.getItem(CATEGORY_KEY)); } catch { /* Session preference still works. */ }
+// A remembered category no researched company carries reads as All, so the control and the cards agree.
+const activeHoldingCategory = () => offeredHoldingCategories(coverage.holdings()).some(([id]) => id === holdingCategory) ? holdingCategory : 'all';
 const SORTS = { newest: 'Newest first', holdings: 'Largest holdings', priority: 'Highest priority' };
 let sortOrder = 'newest';
 try { const saved = localStorage.getItem(SORT_KEY); if (Object.hasOwn(SORTS, saved)) sortOrder = saved; } catch { /* Session preference still works. */ }
@@ -69,7 +71,7 @@ let resetCardScroll = false;
 let query = '';
 let normalSavedReading = null;
 export function getSavedView() {
-  return { aiPriority: filter, aiQuery: query, aiSort: sortOrder, aiHoldingCategory: holdingCategory, aiEventTypes: [...eventFilters.selected], aiHideRoutine: eventFilters.hideRoutine };
+  return { aiPriority: filter, aiQuery: query, aiSort: sortOrder, aiHoldingCategory: activeHoldingCategory(), aiEventTypes: [...eventFilters.selected], aiHideRoutine: eventFilters.hideRoutine };
 }
 export function applySavedView(extras = {}) {
   normalSavedReading ||= { filter, query, sortOrder, holdingCategory, eventFilters: structuredClone(eventFilters) };
@@ -421,7 +423,7 @@ function paint(ctx) {
   });
   const anchorTop = anchor?.getBoundingClientRect().top;
   const candidates = query.trim() || eventFilters.selected.length ? report?.allCards || [] : report?.cards || [];
-  const matchesCategory = holdingCategoryMatcher(coverage.holdings(), holdingCategory);
+  const matchesCategory = holdingCategoryMatcher(coverage.holdings(), activeHoldingCategory());
   const matches = candidates.map(eventView).filter(card => card && matchesCategory(card) && matchesSearch(card, query));
   displayedCards = matches;
   const cards = sortAlertCards(filteredCards(matches), effectiveSort());
@@ -461,7 +463,7 @@ function paint(ctx) {
   // A user-selected option can keep its selectedness after attribute patches.
   // Saved readings and the empty-state reset must update the visible control too.
   const categorySelect = ctx.root.querySelector('[data-ai-holding-category]');
-  if (categorySelect) categorySelect.value = holdingCategory;
+  if (categorySelect) categorySelect.value = activeHoldingCategory();
   const results = ctx.root.querySelector('[data-ai-results]');
   if (report && cards.length) {
     if (!cardGrid || !results.contains(cardGrid.element)) {
@@ -642,7 +644,7 @@ function controls(cards, visibleCount) {
     view: `
         <label class="flex items-center gap-2">Holding
           <select data-ai-holding-category aria-label="Holding category" class="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
-            ${HOLDING_CATEGORIES.map(([id, label]) => `<option value="${id}" ${id === holdingCategory ? 'selected' : ''}>${label}</option>`).join('')}
+            ${offeredHoldingCategories(coverage.holdings()).map(([id, label]) => `<option value="${id}" ${id === activeHoldingCategory() ? 'selected' : ''}>${label}</option>`).join('')}
           </select>
         </label>
         ${eventTypesControl()}
@@ -1161,13 +1163,11 @@ function wire(ctx) {
 }
 
 function emptyPanel(ctx) {
-  if (holdingCategory !== 'all') {
-    const covered = coverage.holdings().some(holding => holding.holdingCategories?.includes(holdingCategory));
+  const category = activeHoldingCategory();
+  if (category !== 'all') {
     return `<div data-ai-empty class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
-      <h3 class="font-display text-lg font-bold text-slate-900">No matching ${escapeHtml(holdingCategoryLabel(holdingCategory))} alerts</h3>
-      <p class="mt-2 text-sm text-slate-500">${covered
-        ? 'No companies match this category and your current scope, priority, search and event filters.'
-        : 'This category is not covered by the current equity-company research list. This does not mean the family has no holdings in this category.'}</p>
+      <h3 class="font-display text-lg font-bold text-slate-900">No matching ${escapeHtml(holdingCategoryLabel(category))} alerts</h3>
+      <p class="mt-2 text-sm text-slate-500">No companies match this category and your current scope, priority, search and event filters.</p>
       <button type="button" data-ai-reset-category class="mt-4 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">Show all holding categories</button>
     </div>`;
   }
@@ -1264,7 +1264,7 @@ function changeEventFilters(ctx) {
 
 function eventTypesControl() {
   const counts = new Map(AI_EVENT_TYPES.map(type => [type.id, 0]));
-  const matchesCategory = holdingCategoryMatcher(coverage.holdings(), holdingCategory);
+  const matchesCategory = holdingCategoryMatcher(coverage.holdings(), activeHoldingCategory());
   for (const card of filteredCards(report?.allCards || []).filter(card => matchesCategory(card) && matchesSearch(card, query))) {
     for (const id of new Set(card.events.flatMap(aiEventTypes))) counts.set(id, (counts.get(id) || 0) + 1);
   }

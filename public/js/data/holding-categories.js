@@ -10,6 +10,13 @@ export const HOLDING_CATEGORIES = [
 export const normalizeHoldingCategory = value => HOLDING_CATEGORIES.some(([id]) => id === value) ? value : 'all';
 export const holdingCategoryLabel = value => HOLDING_CATEGORIES.find(([id]) => id === value)?.[1] || 'All';
 
+// Offer only the categories a researched company is filed under. The research list holds
+// equity companies, so Mutual Fund, AIF or Bond could only ever narrow the alerts to nothing.
+export function offeredHoldingCategories(holdings) {
+  const carried = new Set(holdings.flatMap(holding => holding.holdingCategories || []));
+  return HOLDING_CATEGORIES.filter(([id]) => id === 'all' || carried.has(id));
+}
+
 export function positionCategory(position, account = {}) {
   const engagement = Object.hasOwn(account, 'engagement') ? account.engagement : position.engagement;
   if (engagement === 'PMS') return 'pms';
