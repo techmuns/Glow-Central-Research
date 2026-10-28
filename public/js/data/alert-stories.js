@@ -215,6 +215,6 @@ export function createStoryGrouping({ read = readEntry, write = writeEntry, fetc
     const keepGoing=options.isCurrent || options.keepGoing || (()=>true);
     return keepGoing() ? runStepsInSlices(projectSteps(events),{...options,keepGoing}) : Promise.resolve(undefined);
   };
-  return { load, review, project, projectAsync, status, revision: () => revision, onChange: fn => { listeners.add(fn); return () => listeners.delete(fn); } };
+  return { load, review, project, projectAsync, projectSteps, status, revision: () => revision, onChange: fn => { listeners.add(fn); return () => listeners.delete(fn); } };
 }
 export const storyGrouping = createStoryGrouping();

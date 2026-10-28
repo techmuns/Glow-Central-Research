@@ -929,10 +929,18 @@ html[data-theme] [data-chatter-panel] [data-score-table] tbody tr { border-color
 .ai-compact-kind { display: inline-block; margin-right: 7px; padding: 2px 6px; border-radius: 4px; background: rgb(var(--surface-slate-50, 250 248 241)); box-shadow: 0 0 0 1px rgb(var(--edge-slate-200, 228 221 205)); color: rgb(var(--text-slate-500, 107 104 128)); font-size: 9.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; vertical-align: 1px; white-space: nowrap; }
 .ai-compact-kind:is([data-kind="result"], [data-kind="filing"], [data-kind="level"]) { background: rgb(var(--surface-indigo-50, 251 247 236)); box-shadow: 0 0 0 1px rgb(var(--edge-indigo-200, 236 220 174)); color: rgb(var(--text-indigo-700, 125 95 22)); }
 .ai-compact-kind:is([data-kind="broker"], [data-kind="coverage"]) { background: rgb(var(--surface-sky-50, 238 246 249)); box-shadow: 0 0 0 1px rgb(var(--edge-sky-200, 178 215 230)); color: rgb(var(--text-sky-700, 13 106 134)); }
-.ai-compact-go { align-self: center; color: rgb(var(--text-slate-400, 115 111 136)); opacity: 0; transform: translateX(-3px); transition: opacity 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 150ms cubic-bezier(0.23, 1, 0.32, 1); }
+.ai-compact-go { align-self: end; color: rgb(var(--text-slate-400, 115 111 136)); opacity: 0; transform: translateX(-3px); transition: opacity 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 150ms cubic-bezier(0.23, 1, 0.32, 1); }
 .ai-compact-go svg { display: block; width: 16px; height: 16px; transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1); }
 .ai-compact-row:focus-within .ai-compact-go { opacity: 1; transform: none; color: rgb(var(--text-indigo-700, 125 95 22)); }
 .ai-compact-row[data-open="true"] .ai-compact-go svg, .ai-compact-row[data-open="true"] .ai-compact-brokers svg { transform: rotate(180deg); }
+/* ARCHIVE ON EVERY ROW. Always shown, not revealed on hover — a control a touch reader cannot find is
+   not offered — in the row's top-right corner, above the row's own link layer. The open arrow sits
+   at the row's foot so the two never meet. A leaving row takes no further clicks. */
+.ai-compact-dismiss { position: absolute; top: 10px; right: 10px; z-index: 2; display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 999px; background: rgb(var(--surface-slate-50, 250 248 241)); box-shadow: 0 0 0 1px rgb(var(--edge-slate-200, 228 221 205)); color: rgb(var(--text-slate-500, 107 104 128)); cursor: pointer; transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), color 150ms ease, background-color 150ms ease, box-shadow 150ms ease; }
+.ai-compact-dismiss svg { display: block; width: 13px; height: 13px; }
+.ai-compact-dismiss:active { transform: scale(0.95); }
+.ai-compact-dismiss:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 2px; }
+.ai-compact-row[data-leaving] { pointer-events: none; }
 .ai-compact-brokers, .ai-compact-reports { position: relative; z-index: 2; }
 .ai-compact-brokers { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 2px 0; border: 0; border-radius: 4px; background: none; color: rgb(var(--text-sky-700, 13 106 134)); font-size: 12px; font-weight: 600; cursor: pointer; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); }
 .ai-compact-brokers:active { transform: scale(0.97); }
@@ -963,6 +971,7 @@ html[data-theme] [data-chatter-panel] [data-score-table] tbody tr { border-color
   .ai-compact-report:hover { background: rgb(var(--surface-white, 255 255 255)); }
   .ai-compact-report:hover .ai-compact-report-when { color: rgb(var(--text-indigo-700, 125 95 22)); }
   .ai-compact-brokers:hover { color: rgb(var(--text-indigo-700, 125 95 22)); }
+  .ai-compact-dismiss:hover { background: rgb(var(--surface-white, 255 255 255)); color: rgb(var(--text-slate-900, 26 24 48)); box-shadow: 0 0 0 1px rgb(var(--edge-slate-300, 214 205 184)), 0 1px 2px rgb(15 23 42 / 0.08); }
   .ai-layout-toggle button[aria-pressed="false"]:hover { color: rgb(var(--text-slate-800, 38 35 61)); }
 }
 @media (max-width: 900px) {
@@ -970,11 +979,12 @@ html[data-theme] [data-chatter-panel] [data-score-table] tbody tr { border-color
   .ai-compact-row { grid-template-columns: minmax(0, 1fr) auto auto; row-gap: 8px; column-gap: 14px; padding: 14px 16px; }
   .ai-compact-what { grid-column: 1 / -1; }
   .ai-compact-go { display: none; }
+  .ai-compact-row { padding-right: 46px; }
   .ai-compact-report { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
   .ai-compact-report-points { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ai-layout-thumb, .ai-layout-toggle button, .ai-compact-row, .ai-compact-go, .ai-compact-go svg, .ai-compact-name, .ai-compact-brokers, .ai-compact-brokers svg, .ai-compact-report { transition: none; }
+  .ai-layout-thumb, .ai-layout-toggle button, .ai-compact-row, .ai-compact-go, .ai-compact-go svg, .ai-compact-name, .ai-compact-brokers, .ai-compact-brokers svg, .ai-compact-report, .ai-compact-dismiss { transition: none; }
   .ai-compact-reports:not([hidden]) { animation: none; }
 }
 .ai-compact-foot { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 14px 20px; border-top: 1px solid rgb(var(--edge-slate-100, 239 234 221)); color: rgb(var(--text-slate-500, 107 104 128)); font-size: 12px; }

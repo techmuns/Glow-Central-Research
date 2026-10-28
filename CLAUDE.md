@@ -66,6 +66,17 @@ story leads one row only; chatter snapshots lead last. The text is the card's ow
 check both directions below". The family's price levels stay. Counts and archive follow the rows.
 `verify-ai-alerts-compact.mjs` and `verify-ai-alerts-compact-ui.mjs` are the tests; suites written for
 the cards opt into Detailed through `scripts/lib/ai-alerts-layout.mjs`.
+Every Compact row carries an always-visible ✕ in its top-right corner (29 October 2026): the same
+device archive as Detailed's Archive button; the row leaves on transform/opacity and the rows below
+close the gap with a transform-only FLIP; a keyboard press archives with no motion and moves focus
+to the next row's ✕; the Archived view shows a restore control in the same place.
+
+**Scope switches paint at once (29 October 2026, shared).** The tab keeps each scope's last view in
+memory (same IST day, membership and session; cleared on any private-book invalidation) and, the first
+time, narrows the ranked Universe view (`narrowReport`, provisional: replaced, never merged). Feed rows
+are DATA — a function on a `FEEDS` row made every offline save throw `DataCloneError` for a week — and
+every whole-history loop in the assembly and ranking is a yielding step. See
+`docs/AI-ALERTS-SCOPE-SWITCH-2026-10-29.md`.
 
 **Broker reports (28 October 2026, GLOW-OWNED):** the `broker-reports` alert source reads
 `public/data/broker-reports.json`, built on the runner by `scripts/build-broker-reports.mjs` from the

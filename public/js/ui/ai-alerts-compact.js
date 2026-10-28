@@ -24,6 +24,8 @@ const istTime = (iso) => { const ms = Date.parse(iso || ''); return Number.isFin
 const ICON_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
 const ICON_ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 const ICON_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+const ICON_ARCHIVE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+const ICON_RESTORE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
 const STANCE_LABEL = { bullish: 'Bullish', neutral: 'Neutral', bearish: 'Bearish' };
 
 function reportMarkup(event, today) {
@@ -74,6 +76,9 @@ function rowMarkup(row, { today, open, archived }) {
       ${brokers}${reports}
     </div>
     <span class="ai-compact-go" aria-hidden="true">${row.brokerLed ? ICON_CHEVRON : row.external ? ICON_OPEN : ICON_ARROW}</span>
+    ${archived
+      ? `<button type="button" class="ai-compact-dismiss" data-ai-compact-restore aria-label="${escapeHtml(`Restore ${row.company} to AI Alerts`)}" title="Restore to AI Alerts">${ICON_RESTORE}</button>`
+      : `<button type="button" class="ai-compact-dismiss" data-ai-compact-archive aria-label="${escapeHtml(`Archive ${row.company}`)}" title="Archive · it returns if new material evidence arrives">${ICON_ARCHIVE}</button>`}
   </article>`;
 }
 
@@ -83,7 +88,7 @@ export function compactListMarkup(rows, { today, open = new Set(), archived = fa
     ? `<div class="ai-compact-foot"><button type="button" class="ai-compact-more" data-ai-compact-more>Show ${Math.min(page, remaining)} more</button><span>${rows.length.toLocaleString('en-IN')} of ${total.toLocaleString('en-IN')} companies shown</span></div>` : '';
   return `<section class="ai-compact" data-ai-compact aria-label="AI Alerts, compact list">
     <div class="ai-compact-head" aria-hidden="true"><span>Company</span><span class="ai-compact-right">CMP</span><span class="ai-compact-right">Market cap</span><span>What happened</span><span></span></div>
-    <div class="ai-compact-rows" role="list">${rows.map((row) => `<div role="listitem">${rowMarkup(row, { today, open, archived })}</div>`).join('')}</div>
+    <div class="ai-compact-rows" role="list">${rows.map((row) => `<div role="listitem" data-ai-row="${escapeHtml(row.key)}">${rowMarkup(row, { today, open, archived })}</div>`).join('')}</div>
     ${more}
   </section>`;
 }

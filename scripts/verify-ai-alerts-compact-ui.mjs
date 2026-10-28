@@ -171,6 +171,37 @@ try {
   // Keyboard: the row's control takes focus and shows it.
   await page.locator('[data-ai-compact-row] .ai-compact-hit').first().focus();
   assert(await page.evaluate(() => document.activeElement?.matches('.ai-compact-hit:focus-visible') || document.activeElement?.classList.contains('ai-compact-hit')));
+
+  // ARCHIVE ON EVERY ROW: an always-visible ✕ in the row's top-right corner, above the row's link.
+  const shown = await rows(page).count();
+  assert.equal(await page.locator('[data-ai-compact-row] [data-ai-compact-archive]').count(), shown, 'every row carries an archive control');
+  const first = rows(page).first();
+  const firstKey = await first.getAttribute('data-ai-key');
+  const [rowBox, xBox] = [await first.boundingBox(), await first.locator('[data-ai-compact-archive]').boundingBox()];
+  assert(xBox.x + xBox.width > rowBox.x + rowBox.width - 40 && xBox.y < rowBox.y + 24, 'the control sits in the top-right corner');
+  assert(await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('[data-ai-compact-archive]'), { x: xBox.x + xBox.width / 2, y: xBox.y + xBox.height / 2 }), 'it is above the row\'s link layer');
+  assert.match(await first.locator('[data-ai-compact-archive]').getAttribute('aria-label'), /^Archive /);
+  await first.locator('[data-ai-compact-archive]').click();
+  // It leaves with motion — transform and opacity only — and is then gone, into the archive.
+  assert(await page.evaluate((key) => { const node = document.querySelector(`[data-ai-compact-row][data-ai-key="${key}"]`);
+    return !node || node.getAnimations().some(a => a.effect.getKeyframes().every(k => Object.keys(k).every(p => ['offset', 'easing', 'composite', 'computedOffset', 'opacity', 'transform'].includes(p)))); }, firstKey), 'the row animates out on transform and opacity');
+  await page.waitForFunction((key) => !document.querySelector(`[data-ai-compact-row][data-ai-key="${key}"]`), firstKey, { timeout: 2000 });
+  assert.equal(await rows(page).count(), shown - 1);
+  assert.match(await page.locator('[data-ai-filter="archived"]').textContent(), /· 1$/, 'the archive counts it');
+  await page.locator('[data-ai-filter="archived"]').click();
+  await page.waitForSelector(`[data-ai-compact-row][data-ai-key="${firstKey}"] [data-ai-compact-restore]`);
+  await page.locator(`[data-ai-compact-row][data-ai-key="${firstKey}"] [data-ai-compact-restore]`).click();
+  await page.waitForFunction(() => /· 0$/.test(document.querySelector('[data-ai-filter="archived"]').textContent));
+  await page.locator('[data-ai-filter="all"]').click();
+  await page.waitForSelector(`[data-ai-compact-row][data-ai-key="${firstKey}"]`);
+  assert.equal(await rows(page).count(), shown, 'restored from the archive with the same control');
+  // From the keyboard it archives at once, with no motion, and focus moves on to the next row's ✕.
+  const [kbKey, nextKey] = await rows(page).evaluateAll(nodes => nodes.slice(0, 2).map(n => n.dataset.aiKey));
+  await page.locator(`[data-ai-compact-row][data-ai-key="${kbKey}"] [data-ai-compact-archive]`).focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator(`[data-ai-compact-row][data-ai-key="${kbKey}"]`).count(), 0, 'a keyboard archive is immediate');
+  assert.equal(await page.evaluate(() => document.activeElement?.closest('[data-ai-compact-row]')?.dataset.aiKey), nextKey, 'focus moves to the next row');
+  await page.evaluate(() => localStorage.removeItem('sattva:ai-muted:v1'));
   await context.close();
 
   // Phone width and the dark theme.
@@ -190,7 +221,7 @@ try {
   await phone.context.close();
 
   assert.deepEqual(errors, [], 'no page errors');
-  console.log(`PASS AI Alerts Compact UI: default layout and remembered switch, ${tickers.length} rows, results opened at the filing, broker reports listed on demand, nothing left out leaks, phone width and dark theme`);
+  console.log(`PASS AI Alerts Compact UI: default layout and remembered switch, ${tickers.length} rows, results opened at the filing, broker reports listed on demand, archive and restore on every row, nothing left out leaks, phone width and dark theme`);
 } finally {
   await browser.close();
   server.close();

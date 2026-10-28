@@ -135,9 +135,12 @@ const normalizedHeadline = dayCache((value) => String(value || '')
 const feedFamily = (event) => event.feed === 'nse-filings' ? 'announcements' : event.feed === 'market-news' ? 'news' : event.feed;
 
 /** Syndicated links and duplicate exchange disclosures are not independent corroboration. */
-function dedupe(events) {
+// As steps, so the ranking can yield inside one company's history: a company with years of
+// coverage projected its stories as one synchronous block of ~80ms inside a single ranking step.
+function* dedupeSteps(events) {
   const seen = new Set();
-  events = storyGrouping.project(events);
+  // A reader still holding an older grouping module (mid-upgrade) offers only the synchronous form.
+  events = storyGrouping.projectSteps ? yield* storyGrouping.projectSteps(events) : storyGrouping.project(events);
   // Prefer the useful copy when one exchange supplied a generic label and the other a full
   // subject. Stable ordering also stops equivalent source arrival order changing read state.
   // Of several accounts of one indirect development, the one that says most about how it bears
@@ -842,7 +845,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
   for (const [key, rawEvents] of grouped) {
     const ticker = rawEvents.find(e => e.ticker)?.ticker || null;
     const entityId = rawEvents.find(e => e.entityId)?.entityId || null;
-    const events = dedupe(rawEvents).filter(event => event.day >= firstDay && event.day <= day);
+    const events = (yield* dedupeSteps(rawEvents)).filter(event => event.day >= firstDay && event.day <= day);
     if (!events.length) { yield; continue; }
     const scoredEvents = events
       .map((event) => ({ event, score: eventScore(event, day, feedById.get(event.feed)) }))
@@ -1098,6 +1101,8 @@ function finishMerge(previous, next, merged) {
  */
 export function narrowReport(source, scope, { holdings = coverage.holdings() } = {}) {
   if (!source || source.scope !== 'universe' || !['portfolio', 'watchlist'].includes(scope) || !Array.isArray(source.allCards)) return null;
+  // A collector without the scope predicate (an older cached module) cannot say what is in scope.
+  if (typeof generalAlerts.alertScopeContext !== 'function' || typeof generalAlerts.matchesAlertScope !== 'function') return null;
   const context = generalAlerts.alertScopeContext(scope, holdings);
   const inScope = card => (card.sourceEvents || card.events || []).some(event => generalAlerts.matchesAlertScope(event, context));
   const allCards = source.allCards.filter(inScope);
