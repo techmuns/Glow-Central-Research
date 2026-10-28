@@ -45,7 +45,39 @@ const listedByIsin = new Map(companies.holdings.map((h) => [h.isin, h]));
 const direct = book.positions.filter((p) => p.assetClass === 'Equity' && p.engagement !== 'PMS' && listedByIsin.get(p.isin)?.listed !== false);
 const expectedKeys = new Set(direct.map((p) => p.symbol || listedByIsin.get(p.isin)?.ticker || `ISIN:${p.isin}`));
 const pmsOnly = [...new Set(book.positions.filter((p) => p.engagement === 'PMS' && p.symbol).map((p) => p.symbol))].filter((t) => !expectedKeys.has(t));
-const sbinQty = direct.filter((p) => p.symbol === 'SBIN').reduce((s, p) => s + p.quantity, 0);
+// The book is re-synced every day, so the rows this suite edits are chosen from it by what the
+// checks need, never by a name a later sync can drop. PRIMARY is a public-direct ticker with a
+// statement quantity, no purchase date on its statements (so its dividends wait for a typed Date
+// bought) and a dividend history: it is "bought" on an ex-date that has a later one and no split
+// after it, so TSR must count the later dividend and leave out the purchase day's own.
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const quantityOf = (ticker) => direct.filter((p) => p.symbol === ticker).reduce((s, p) => s + p.quantity, 0);
+const datedOnStatement = (ticker) => direct.some((p) => p.symbol === ticker && p.heldSince);
+// The buy-price default: the statements' average cost over the shares a cost covers.
+const statementCostOf = (ticker) => {
+  const costed = direct.filter((p) => p.symbol === ticker && p.avgCost != null && p.quantity > 0);
+  const shares = costed.reduce((s, p) => s + p.quantity, 0);
+  return shares ? costed.reduce((s, p) => s + p.avgCost * p.quantity, 0) / shares : null;
+};
+const historyToday = istToday(Date.now());
+const tickerKeys = [...expectedKeys].filter((k) => !k.startsWith('ISIN:')).sort();
+const primaryCandidates = tickerKeys.flatMap((ticker) => {
+  const ev = history.companies[ticker];
+  const exDates = (ev?.dividends || []).map(([d]) => d).filter((d) => d < historyToday);
+  const bought = exDates.filter((d) => exDates.some((x) => x > d) && !(ev.splits || []).some(([at]) => at > d)).at(-1);
+  return bought && quantityOf(ticker) > 0 && !datedOnStatement(ticker) ? [{ ticker, bought }] : [];
+});
+// A row whose statements print no cost also shows TSR waiting for a buy price; prefer one.
+const primaryPick = primaryCandidates.find((c) => statementCostOf(c.ticker) == null) || primaryCandidates[0];
+if (!primaryPick) throw new Error('no public-direct ticker in the book has the dividend history these checks need');
+const PRIMARY = primaryPick.ticker;
+const PRIMARY_NAME = companies.holdings.find((h) => h.ticker === PRIMARY)?.name || PRIMARY;
+const BOUGHT = primaryPick.bought;
+const boughtLabel = `${BOUGHT.slice(8)}-${MONTH_NAMES[Number(BOUGHT.slice(5, 7)) - 1]}-${BOUGHT.slice(2, 4)}`;
+const SECOND = tickerKeys.find((k) => k !== PRIMARY);
+const primaryQty = quantityOf(PRIMARY);
+for (const handAdded of ['INFY', 'TCS']) if (expectedKeys.has(handAdded)) throw new Error(`${handAdded} is now a public-direct holding; pick another hand-added company`);
+console.log(`Rows under test: ${PRIMARY} (bought ${BOUGHT}) and ${SECOND}, from ${expectedKeys.size} public-direct rows`);
 
 // ---- the stand-in Worker -------------------------------------------------------------------
 const sqlStorage = () => {
@@ -61,7 +93,7 @@ const watchStore = new SharedWatchlistStore(sqlStorage());
 const now = Date.now();
 const iso = (at) => new Date(at).toISOString();
 const istDate = (at) => new Date(at + 19800000).toISOString().slice(0, 10);
-const QUOTES = { SBIN: [1012.5, 1000], FRACTAL: [720.4, 707.6], INFY: [1500, 1490], TCS: [2200, 2156] };
+const QUOTES = { [PRIMARY]: [1012.5, 1000], [SECOND]: [720.4, 707.6], INFY: [1500, 1490], TCS: [2200, 2156] };
 const quoteRow = (ticker, [price, prevClose]) => ({
   ticker, name: ticker, price, prevClose, volume: 125000, quoteAt: iso(now - 60000), checkedAt: iso(now - 30000),
   sessionDate: istDate(now - 60000), provider: 'Upstox', exchange: 'NSE', kind: 'quote', base: null,
@@ -115,7 +147,7 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/api/breakouts' && !staticOrigin) return json(res, 200, capture);
   if (url.pathname === '/api/benchmark-quote' && !staticOrigin) return json(res, 200, benchmark);
   if (url.pathname === '/api/stock-search' && !staticOrigin) {
-    return json(res, 200, { ok: true, results: [{ ticker: 'SBIN', name: 'State Bank of India', country: 'India', industry: 'Banks' }] });
+    return json(res, 200, { ok: true, results: [{ ticker: PRIMARY, name: PRIMARY_NAME, country: 'India', industry: 'Unclassified' }] });
   }
   if (url.pathname.startsWith('/api/')) { res.writeHead(404, { 'cache-control': 'no-store' }); res.end('{}'); return; }
   const file = resolve(root, `.${url.pathname === '/' ? '/index.html' : url.pathname}`);
@@ -212,139 +244,148 @@ try {
   const keys = await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').evaluateAll((els) => els.map((e) => e.dataset.rowKey));
   ok('one row per public-direct holding on the statements', keys.length === expectedKeys.size && keys.every((k) => expectedKeys.has(k)), `${keys.length} rows, ${expectedKeys.size} expected`);
   ok('no PMS-only holding appears', pmsOnly.length > 0 && !pmsOnly.some((t) => keys.includes(t)), `${pmsOnly.length} PMS-only tickers checked`);
-  const cmpShown = pctOf(await columnText(a.page, 'portfolio', 'SBIN', 'CMP (in Rs)'));
-  const reader = await a.page.evaluate(async () => {
+  const cmpShown = pctOf(await columnText(a.page, 'portfolio', PRIMARY, 'CMP (in Rs)'));
+  const reader = await a.page.evaluate(async (ticker) => {
     const m = await import('/js/data/sheet-market.js');
-    const q = m.quote('SBIN');
+    const q = m.quote(ticker);
     return { price: q?.price, source: q?.source };
-  });
+  }, PRIMARY);
   ok('CMP is the shared minute-capture reader\'s price', Math.abs(cmpShown - reader.price) < 0.006, `${cmpShown} vs ${reader.price}`);
   if (reader.source === 'Upstox') {
-    ok('…which is the captured Upstox quote', Math.abs(reader.price - QUOTES.SBIN[0]) < 1e-9);
-    const day = pctOf(await columnText(a.page, 'portfolio', 'SBIN', '1 day return'));
-    ok('1-day return is the quote against its previous close', Math.abs(day - (QUOTES.SBIN[0] / QUOTES.SBIN[1] - 1) * 100) < 0.051, String(day));
+    ok('…which is the captured Upstox quote', Math.abs(reader.price - QUOTES[PRIMARY][0]) < 1e-9);
+    const day = pctOf(await columnText(a.page, 'portfolio', PRIMARY, '1 day return'));
+    ok('1-day return is the quote against its previous close', Math.abs(day - (QUOTES[PRIMARY][0] / QUOTES[PRIMARY][1] - 1) * 100) < 0.051, String(day));
   } else console.log('  SKIP  the daily close is newer than the captured quote today; the quote checks do not apply');
-  const qtyCell = cell(a.page, 'portfolio', 'SBIN', 'quantity');
-  ok('quantity defaults to the shares on the statements, shown as a default', (await qtyCell.innerText()).replace(/,/g, '').trim() === String(sbinQty) && /is-default/.test(await qtyCell.getAttribute('class')), await qtyCell.innerText());
+  const qtyCell = cell(a.page, 'portfolio', PRIMARY, 'quantity');
+  ok('quantity defaults to the shares on the statements, shown as a default', (await qtyCell.innerText()).replace(/,/g, '').trim() === String(primaryQty) && /is-default/.test(await qtyCell.getAttribute('class')), await qtyCell.innerText());
   ok('a statement default says which statement it came from', /statement of/.test(await qtyCell.getAttribute('title')));
-  ok('TSR waits for a buy price rather than printing a number', (await columnText(a.page, 'portfolio', 'SBIN', 'TSR % including')) === '—');
+  const tsrBefore = await columnText(a.page, 'portfolio', PRIMARY, 'TSR % including');
+  const statementCost = statementCostOf(PRIMARY);
+  if (statementCost == null) ok('TSR waits for a buy price rather than printing a number', tsrBefore === '—', tsrBefore);
+  else {
+    // Every public-direct line on the current statements prints a cost, so the default buy price
+    // exists before anyone types one; with no Date bought the dividends are named as left out.
+    const expected = (reader.price / statementCost - 1) * 100;
+    const shown = Number(/[+-]?\d[\d,]*(?:\.\d+)?/.exec(tsrBefore || '')?.[0].replace(/,/g, ''));
+    ok('with no Date bought, TSR is struck on the statement cost and says it leaves dividends out', Math.abs(shown - expected) < 0.051 && /excl/.test(tsrBefore), `${tsrBefore} vs ${expected.toFixed(2)}`);
+  }
 
   console.log('\n— editing —');
-  await editCell(a.page, 'portfolio', 'SBIN', 'buyPrice', 'abc', { name: 'Ravi' });
+  await editCell(a.page, 'portfolio', PRIMARY, 'buyPrice', 'abc', { name: 'Ravi' });
   ok('a value that is not a number is refused in the panel, by name', /Not a number/.test(await a.page.locator('.sheet-editor [data-sheet-error]').innerText()));
   ok('cell editors omit the explanatory paragraphs', await a.page.locator('.sheet-editor-hint, .sheet-editor-note').count() === 0);
   await a.page.locator('.sheet-editor [data-sheet-input]').fill('700');
   await a.page.locator('.sheet-editor [data-sheet-input]').press('Enter');
-  ok('Date bought cells advertise a clickable calendar', await cell(a.page, 'portfolio', 'SBIN', 'dateBought').locator('.sheet-calendar-icon').count() === 1);
-  await editCell(a.page, 'portfolio', 'SBIN', 'dateBought', '2099-01-01');
+  ok('Date bought cells advertise a clickable calendar', await cell(a.page, 'portfolio', PRIMARY, 'dateBought').locator('.sheet-calendar-icon').count() === 1);
+  await editCell(a.page, 'portfolio', PRIMARY, 'dateBought', '2099-01-01');
   const dateInput = a.page.locator('.sheet-editor [data-sheet-input]');
   ok('Date bought uses the native calendar with the supported date bounds', await dateInput.getAttribute('type') === 'date'
     && await dateInput.getAttribute('min') === '1950-01-01' && await dateInput.getAttribute('max') === istToday());
   ok('a purchase date in the future is refused', /future/.test(await a.page.locator('.sheet-editor [data-sheet-error]').innerText()));
   ok('the date editor has no separate Save button and an invalid date is not stored', await a.page.locator('.sheet-editor button[type="submit"]').count() === 0
-    && !sheetStore.snapshot().values.SBIN?.dateBought);
+    && !sheetStore.snapshot().values[PRIMARY]?.dateBought);
   await a.page.locator('[data-sheet-cancel]').click();
   await a.page.evaluate(async () => (await import('/js/core/watchlist-people.js')).remember('Someone else'));
-  await cell(a.page, 'portfolio', 'SBIN', 'dateBought').click();
+  await cell(a.page, 'portfolio', PRIMARY, 'dateBought').click();
   const dateBy = a.page.locator('[data-sheet-by]');
   ok('date attribution is reachable before the calendar opens', await dateBy.evaluate(el => document.activeElement === el)
     && await dateBy.inputValue() === 'Someone else');
   await dateBy.press('ControlOrMeta+A');
   await dateBy.pressSequentially('Ravi');
-  await dateInput.fill('2025-05-16');
-  ok('selecting a date saves it automatically and closes the editor', await waitFor(async () => sheetStore.snapshot().values.SBIN?.dateBought?.value === '2025-05-16'
-    && /is-edited/.test(await cell(a.page, 'portfolio', 'SBIN', 'dateBought').getAttribute('class')) && await a.page.locator('.sheet-editor').count() === 0));
-  ok('it is signed with the name typed in the panel', sheetStore.snapshot().values.SBIN?.buyPrice?.by === 'Ravi');
-  ok('the automatically saved date keeps its editor attribution', sheetStore.snapshot().values.SBIN?.dateBought?.by === 'Ravi');
-  ok('Date bought reads DD-MMM-YY', (await cell(a.page, 'portfolio', 'SBIN', 'dateBought').innerText()).trim() === '16-May-25');
-  await cell(a.page, 'portfolio', 'SBIN', 'dateBought').click();
-  ok('reopening selects the saved date in the calendar', await dateInput.inputValue() === '2025-05-16');
+  await dateInput.fill(BOUGHT);
+  ok('selecting a date saves it automatically and closes the editor', await waitFor(async () => sheetStore.snapshot().values[PRIMARY]?.dateBought?.value === BOUGHT
+    && /is-edited/.test(await cell(a.page, 'portfolio', PRIMARY, 'dateBought').getAttribute('class')) && await a.page.locator('.sheet-editor').count() === 0));
+  ok('it is signed with the name typed in the panel', sheetStore.snapshot().values[PRIMARY]?.buyPrice?.by === 'Ravi');
+  ok('the automatically saved date keeps its editor attribution', sheetStore.snapshot().values[PRIMARY]?.dateBought?.by === 'Ravi');
+  ok('Date bought reads DD-MMM-YY', (await cell(a.page, 'portfolio', PRIMARY, 'dateBought').innerText()).trim() === boughtLabel);
+  await cell(a.page, 'portfolio', PRIMARY, 'dateBought').click();
+  ok('reopening selects the saved date in the calendar', await dateInput.inputValue() === BOUGHT);
   await a.page.locator('.sheet-editor [data-sheet-cancel]').click();
-  ok('closing without selecting a date preserves the saved date', sheetStore.snapshot().values.SBIN?.dateBought?.value === '2025-05-16');
-  ok('amount invested defaults to quantity × buy price', Math.abs(pctOf(await cell(a.page, 'portfolio', 'SBIN', 'amountInvested').innerText()) - (sbinQty * 700) / 1e7) < 0.006);
+  ok('closing without selecting a date preserves the saved date', sheetStore.snapshot().values[PRIMARY]?.dateBought?.value === BOUGHT);
+  ok('amount invested defaults to quantity × buy price', Math.abs(pctOf(await cell(a.page, 'portfolio', PRIMARY, 'amountInvested').innerText()) - (primaryQty * 700) / 1e7) < 0.006);
 
   // Expected figures, computed here from the history file and the page's own CMP.
   const price = reader.price;
   const today = istToday(Date.now());
-  const ev = history.companies.SBIN;
-  const divs = ev.dividends.filter(([d]) => d > '2025-05-16' && d <= today).map(([d, amt]) => ({ date: d, amount: Math.round(amt * sbinQty * 100) / 100 }));
+  const ev = history.companies[PRIMARY];
+  const divs = ev.dividends.filter(([d]) => d > BOUGHT && d <= today).map(([d, amt]) => ({ date: d, amount: Math.round(amt * primaryQty * 100) / 100 }));
   const divTotal = divs.reduce((s, f) => s + f.amount, 0);
-  const invested = sbinQty * 700;
-  const tsr = ((price * sbinQty + divTotal - invested) / invested) * 100;
-  const tsrText = await columnText(a.page, 'portfolio', 'SBIN', 'TSR % including');
+  const invested = primaryQty * 700;
+  const tsr = ((price * primaryQty + divTotal - invested) / invested) * 100;
+  const tsrText = await columnText(a.page, 'portfolio', PRIMARY, 'TSR % including');
   ok('TSR = (current value + dividends after the ex-date − invested) ÷ invested', Math.abs(pctOf(tsrText) - tsr) < 0.051 && !/excl/.test(tsrText), `${tsrText} vs ${tsr.toFixed(2)} (${divs.length} dividend${divs.length === 1 ? '' : 's'})`);
-  ok('the dividend on the purchase date itself is not counted', !divs.some((d) => d.date === '2025-05-16') && ev.dividends.some(([d]) => d === '2025-05-16'));
-  await waitFor(async () => /live print/.test(await table(a.page, 'portfolio').locator('tbody tr[data-row-key="SBIN"] [title*="Nifty 500"]').first().getAttribute('title') || ''));
-  const base = closeOnOrBefore(history.benchmark.rows, '2025-05-16');
+  ok('the dividend on the purchase date itself is not counted', !divs.some((d) => d.date === BOUGHT) && ev.dividends.some(([d]) => d === BOUGHT));
+  await waitFor(async () => /live print/.test(await rowOf(a.page, 'portfolio', PRIMARY).locator('[title*="Nifty 500"]').first().getAttribute('title') || ''));
+  const base = closeOnOrBefore(history.benchmark.rows, BOUGHT);
   const alpha = tsr - (BENCH / base[1] - 1) * 100;
-  ok('alpha = TSR − the Nifty 500 from the close on the date bought to its live print', Math.abs(pctOf(await columnText(a.page, 'portfolio', 'SBIN', 'Alpha over NSE 500')) - alpha) < 0.051, `${alpha.toFixed(2)}`);
-  const rate = xirr([{ date: '2025-05-16', amount: -invested }, ...divs, { date: today, amount: price * sbinQty }]) * 100;
-  ok('XIRR is the money-weighted return of the purchase, the dividends and today\'s value', Math.abs(pctOf(await columnText(a.page, 'portfolio', 'SBIN', 'XIRR (TSR)')) - rate) < 0.051, rate.toFixed(2));
+  ok('alpha = TSR − the Nifty 500 from the close on the date bought to its live print', Math.abs(pctOf(await columnText(a.page, 'portfolio', PRIMARY, 'Alpha over NSE 500')) - alpha) < 0.051, `${alpha.toFixed(2)}`);
+  const rate = xirr([{ date: BOUGHT, amount: -invested }, ...divs, { date: today, amount: price * primaryQty }]) * 100;
+  ok('XIRR is the money-weighted return of the purchase, the dividends and today\'s value', Math.abs(pctOf(await columnText(a.page, 'portfolio', PRIMARY, 'XIRR (TSR)')) - rate) < 0.051, rate.toFixed(2));
 
-  await editCell(a.page, 'portfolio', 'SBIN', 'targetAmount', '5');
+  await editCell(a.page, 'portfolio', PRIMARY, 'targetAmount', '5');
   const totals = await a.page.evaluate(async () => (await import('/js/tabs/portfolio.js'))._rows().total);
-  ok('target weight is derived from the target amount against the public-direct value', await waitFor(async () => Math.abs(pctOf(await cell(a.page, 'portfolio', 'SBIN', 'targetWeight').innerText()) - (5 / totals) * 100) < 0.051));
-  ok('pending amount = target − amount invested', await waitFor(async () => Math.abs(pctOf(await cell(a.page, 'portfolio', 'SBIN', 'pendingAmount').innerText()) - (5 - invested / 1e7)) < 0.006));
+  ok('target weight is derived from the target amount against the public-direct value', await waitFor(async () => Math.abs(pctOf(await cell(a.page, 'portfolio', PRIMARY, 'targetWeight').innerText()) - (5 / totals) * 100) < 0.051));
+  ok('pending amount = target − amount invested', await waitFor(async () => Math.abs(pctOf(await cell(a.page, 'portfolio', PRIMARY, 'pendingAmount').innerText()) - (5 - invested / 1e7)) < 0.006));
 
-  await editCell(a.page, 'portfolio', 'SBIN', 'quantity', '30000');
-  await cell(a.page, 'portfolio', 'SBIN', 'quantity').click();
+  await editCell(a.page, 'portfolio', PRIMARY, 'quantity', '30000');
+  await cell(a.page, 'portfolio', PRIMARY, 'quantity').click();
   await a.page.locator('.sheet-editor [data-sheet-clear]').click();
-  ok('Reset to default restores the statement figure', await waitFor(async () => /is-default/.test(await cell(a.page, 'portfolio', 'SBIN', 'quantity').getAttribute('class'))
-    && (await cell(a.page, 'portfolio', 'SBIN', 'quantity').innerText()).replace(/,/g, '').trim() === String(sbinQty)));
+  ok('Reset to default restores the statement figure', await waitFor(async () => /is-default/.test(await cell(a.page, 'portfolio', PRIMARY, 'quantity').getAttribute('class'))
+    && (await cell(a.page, 'portfolio', PRIMARY, 'quantity').innerText()).replace(/,/g, '').trim() === String(primaryQty)));
 
   console.log('\n— one sheet for the desk —');
   const b = await openDevice();
   await b.page.goto(`${origin}/#/research/portfolio`, { waitUntil: 'domcontentloaded' });
   await table(b.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor({ timeout: 30000 });
-  ok('a second device sees the buy price the first one typed, as a typed value', await waitFor(async () => (await cell(b.page, 'portfolio', 'SBIN', 'buyPrice').innerText()).trim() === '700.00'
-    && /is-edited/.test(await cell(b.page, 'portfolio', 'SBIN', 'buyPrice').getAttribute('class'))));
-  ok('…and who typed it', /Ravi/.test(await cell(b.page, 'portfolio', 'SBIN', 'buyPrice').getAttribute('title')));
+  ok('a second device sees the buy price the first one typed, as a typed value', await waitFor(async () => (await cell(b.page, 'portfolio', PRIMARY, 'buyPrice').innerText()).trim() === '700.00'
+    && /is-edited/.test(await cell(b.page, 'portfolio', PRIMARY, 'buyPrice').getAttribute('class'))));
+  ok('…and who typed it', /Ravi/.test(await cell(b.page, 'portfolio', PRIMARY, 'buyPrice').getAttribute('title')));
   ok('confirmed shared values need no routine header badge', await b.page.evaluate(async () => (await import('/js/ui/sheet-chrome.js')).sheetStatus().tone === 'live')
     && await b.page.locator('[data-sheet-status]').count() === 0);
 
   console.log('\n— a colleague\'s edit reaches a sheet that is already open —');
-  const stored = (field, value) => waitFor(async () => sheetStore.snapshot().values.SBIN?.[field]?.value === value);
+  const stored = (field, value) => waitFor(async () => sheetStore.snapshot().values[PRIMARY]?.[field]?.value === value);
   // Nothing on B is touched here: no reload, no focus, no click. Only its own check can bring it.
-  await editCell(a.page, 'portfolio', 'SBIN', 'methodology', 'DCF — desk');
+  await editCell(a.page, 'portfolio', PRIMARY, 'methodology', 'DCF — desk');
   await stored('methodology', 'DCF — desk');
   ok('an open sheet shows a colleague\'s edit by itself, within its twenty-second check',
-    await waitFor(async () => (await cell(b.page, 'portfolio', 'SBIN', 'methodology').innerText()).includes('DCF — desk'), 25000));
+    await waitFor(async () => (await cell(b.page, 'portfolio', PRIMARY, 'methodology').innerText()).includes('DCF — desk'), 25000));
   await new Promise((done) => setTimeout(done, 5200)); // past the re-check gap since B's last check
   // A financial-year note stored before the reference column gained its calendar.
-  await a.page.evaluate(async () => (await import('/js/core/research-sheet.js')).set('SBIN', 'reference', 'FY27E · Oct-26', 'Ravi'));
+  await a.page.evaluate(async (key) => (await import('/js/core/research-sheet.js')).set(key, 'reference', 'FY27E · Oct-26', 'Ravi'), PRIMARY);
   await stored('reference', 'FY27E · Oct-26');
   await b.page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  ok('a window coming back into focus re-checks at once', await waitFor(async () => (await cell(b.page, 'portfolio', 'SBIN', 'reference').innerText()).includes('FY27E'), 2500));
-  await cell(a.page, 'portfolio', 'SBIN', 'reference').click();
+  ok('a window coming back into focus re-checks at once', await waitFor(async () => (await cell(b.page, 'portfolio', PRIMARY, 'reference').innerText()).includes('FY27E'), 2500));
+  await cell(a.page, 'portfolio', PRIMARY, 'reference').click();
   const referenceInput = a.page.locator('.sheet-editor [data-sheet-input]');
   ok('Reference year and date offers a calendar with future years', await referenceInput.getAttribute('type') === 'date'
     && await referenceInput.getAttribute('max') === '2100-12-31');
   ok('an earlier financial-year note remains visible in the date editor', /FY27E · Oct-26/.test(await a.page.locator('[data-sheet-legacy]').innerText()));
   await a.page.locator('[data-sheet-cancel]').click();
-  ok('closing without choosing a date preserves the earlier note', sheetStore.snapshot().values.SBIN?.reference?.value === 'FY27E · Oct-26');
-  await editCell(a.page, 'portfolio', 'SBIN', 'reference', '2030-03-31');
+  ok('closing without choosing a date preserves the earlier note', sheetStore.snapshot().values[PRIMARY]?.reference?.value === 'FY27E · Oct-26');
+  await editCell(a.page, 'portfolio', PRIMARY, 'reference', '2030-03-31');
   ok('a future reference date is saved and displayed as a date', await stored('reference', '2030-03-31')
-    && (await cell(a.page, 'portfolio', 'SBIN', 'reference').innerText()).trim() === '31-Mar-30');
-  await cell(a.page, 'portfolio', 'SBIN', 'reference').click();
+    && (await cell(a.page, 'portfolio', PRIMARY, 'reference').innerText()).trim() === '31-Mar-30');
+  await cell(a.page, 'portfolio', PRIMARY, 'reference').click();
   ok('reopening the reference calendar selects the saved future date', await referenceInput.inputValue() === '2030-03-31');
   await referenceInput.fill('');
   ok('clearing the native date input automatically clears the saved date', await stored('reference', undefined));
-  await editCell(a.page, 'portfolio', 'SBIN', 'reference', '2030-03-31');
+  await editCell(a.page, 'portfolio', PRIMARY, 'reference', '2030-03-31');
   await stored('reference', '2030-03-31');
 
   // An editor open on B while A changes the same cell.
   const syncB = () => b.page.evaluate(async () => { await (await import('/js/core/research-sheet.js')).syncNow({ force: true }); });
   const bInput = b.page.locator('.sheet-editor [data-sheet-input]');
-  await cell(b.page, 'portfolio', 'SBIN', 'intrinsicValue').click();
+  await cell(b.page, 'portfolio', PRIMARY, 'intrinsicValue').click();
   await bInput.waitFor();
-  await editCell(a.page, 'portfolio', 'SBIN', 'intrinsicValue', '1250');
+  await editCell(a.page, 'portfolio', PRIMARY, 'intrinsicValue', '1250');
   await stored('intrinsicValue', 1250);
   await syncB();
   ok('an editor nobody has typed in follows the colleague\'s newer value', await waitFor(async () => (await bInput.inputValue()) === '1250'));
   ok('…and stays open on the same cell', (await b.page.locator('.sheet-editor').count()) === 1
     && /Intrinsic/i.test(await b.page.locator('.sheet-editor .sheet-editor-title').innerText()));
   await bInput.fill('1300');
-  await editCell(a.page, 'portfolio', 'SBIN', 'intrinsicValue', '1275');
+  await editCell(a.page, 'portfolio', PRIMARY, 'intrinsicValue', '1275');
   await stored('intrinsicValue', 1275);
   await syncB();
   const changedNote = b.page.locator('.sheet-editor [data-sheet-changed]');
@@ -352,8 +393,8 @@ try {
     && /1,275/.test(await changedNote.innerText()) && /Ravi/.test(await changedNote.innerText())), await changedNote.innerText().catch(() => ''));
   ok('…and keeps every character typed', (await bInput.inputValue()) === '1300');
   await bInput.press('Escape');
-  ok('cancelling leaves the colleague\'s value on both devices', await waitFor(async () => (await cell(b.page, 'portfolio', 'SBIN', 'intrinsicValue').innerText()).trim() === '1,275.00')
-    && (await cell(a.page, 'portfolio', 'SBIN', 'intrinsicValue').innerText()).trim() === '1,275.00');
+  ok('cancelling leaves the colleague\'s value on both devices', await waitFor(async () => (await cell(b.page, 'portfolio', PRIMARY, 'intrinsicValue').innerText()).trim() === '1,275.00')
+    && (await cell(a.page, 'portfolio', PRIMARY, 'intrinsicValue').innerText()).trim() === '1,275.00');
 
   console.log('\n— the watchlist —');
   await a.page.locator('#tabbar-mount [data-tab-id="watchlist"]').click();
@@ -361,7 +402,7 @@ try {
   ok('an empty watchlist says so and offers the way to add', await a.page.locator('[data-watchlist-sheet-empty] [data-watchlist-sheet-add]').isVisible());
   ok('the research scope selector stays visible beside the unchanged watchlist sheet', await a.page.locator('[data-scope-controls]').isVisible());
   await a.page.locator('[data-watchlist-sheet-empty] [data-watchlist-sheet-add]').click();
-  await a.page.locator('[data-scope-search]').fill('SBIN');
+  await a.page.locator('[data-scope-search]').fill(PRIMARY);
   await a.page.locator('[data-scope-result]').first().click();
   await a.page.locator('[data-watch-attribution]').waitFor();
   if (await a.page.locator('[data-attribution-input]').isVisible()) await a.page.locator('[data-attribution-input]').fill('Ravi');
@@ -369,32 +410,32 @@ try {
   // The contributor prompt is a modal of its own; close the editor if it is still showing.
   await a.page.waitForTimeout(300);
   if (await a.page.locator('[data-scope-editor]').count()) await a.page.locator('[data-scope-editor] [data-modal-close]').last().click();
-  await rowOf(a.page, 'watchlist', 'SBIN').waitFor({ timeout: 15000 });
+  await rowOf(a.page, 'watchlist', PRIMARY).waitFor({ timeout: 15000 });
   const heads = (await table(a.page, 'watchlist').locator('thead th').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim().toLowerCase());
   ok('Source sits between Sector and CMP', heads[1] === 'sector' && heads[2] === 'source' && heads[3].startsWith('cmp'), JSON.stringify(heads.slice(0, 4)));
   ok('the watchlist has the desk\'s columns and no holding columns', !heads.some((h) => /quantity|date bought|xirr|tsr|current value/.test(h)) && heads.some((h) => /expected irr/.test(h)));
-  ok('the company added through the shared list is a row', await waitFor(async () => watchStore.watchlistSnapshot().companies.some((c) => c.ticker === 'SBIN' && c.addedBy === 'Ravi')));
-  ok('the fair value typed on the Portfolio is already here', (await cell(a.page, 'watchlist', 'SBIN', 'targetAmount').innerText()).trim() === '5.00');
-  await cell(a.page, 'watchlist', 'SBIN', 'reference').click();
+  ok('the company added through the shared list is a row', await waitFor(async () => watchStore.watchlistSnapshot().companies.some((c) => c.ticker === PRIMARY && c.addedBy === 'Ravi')));
+  ok('the fair value typed on the Portfolio is already here', (await cell(a.page, 'watchlist', PRIMARY, 'targetAmount').innerText()).trim() === '5.00');
+  await cell(a.page, 'watchlist', PRIMARY, 'reference').click();
   ok('the Watchlist shares the reference date and its calendar', await a.page.locator('[data-sheet-input]').getAttribute('type') === 'date'
     && await a.page.locator('[data-sheet-input]').inputValue() === '2030-03-31');
   ok('the Watchlist date editor also omits Save', await a.page.locator('.sheet-editor button[type="submit"]').count() === 0);
   await a.page.locator('[data-sheet-input]').fill('2031-03-31');
   ok('selecting a Watchlist reference date saves it automatically', await stored('reference', '2031-03-31')
-    && (await cell(a.page, 'watchlist', 'SBIN', 'reference').innerText()).trim() === '31-Mar-31');
-  await editCell(a.page, 'watchlist', 'SBIN', 'source', 'Broker note — Kotak');
-  await editCell(a.page, 'watchlist', 'SBIN', 'intrinsicValue', '1,150');
-  ok('expected IRR waits for the buy price it is measured from', /set buy price/.test(await cell(a.page, 'watchlist', 'SBIN', 'entryPrice').innerText()));
-  await editCell(a.page, 'watchlist', 'SBIN', 'entryPrice', '900');
-  ok('expected IRR = intrinsic value ÷ buy price − 1', await waitFor(async () => Math.abs(pctOf((await columnText(a.page, 'watchlist', 'SBIN', 'Expected IRR')).split(' ')[0]) - (1150 / 900 - 1) * 100) < 0.051));
-  ok('upside = intrinsic value ÷ CMP − 1', Math.abs(pctOf(await columnText(a.page, 'watchlist', 'SBIN', 'Upside available')) - (1150 / price - 1) * 100) < 0.051);
-  ok('Source is stored on the shared sheet', await waitFor(async () => sheetStore.snapshot().values.SBIN?.source?.value === 'Broker note — Kotak'));
-  ok('the watchlist\'s buy price does not touch the portfolio\'s', await waitFor(async () => sheetStore.snapshot().values.SBIN?.buyPrice?.value === 700 && sheetStore.snapshot().values.SBIN?.entryPrice?.value === 900));
+    && (await cell(a.page, 'watchlist', PRIMARY, 'reference').innerText()).trim() === '31-Mar-31');
+  await editCell(a.page, 'watchlist', PRIMARY, 'source', 'Broker note — Kotak');
+  await editCell(a.page, 'watchlist', PRIMARY, 'intrinsicValue', '1,150');
+  ok('expected IRR waits for the buy price it is measured from', /set buy price/.test(await cell(a.page, 'watchlist', PRIMARY, 'entryPrice').innerText()));
+  await editCell(a.page, 'watchlist', PRIMARY, 'entryPrice', '900');
+  ok('expected IRR = intrinsic value ÷ buy price − 1', await waitFor(async () => Math.abs(pctOf((await columnText(a.page, 'watchlist', PRIMARY, 'Expected IRR')).split(' ')[0]) - (1150 / 900 - 1) * 100) < 0.051));
+  ok('upside = intrinsic value ÷ CMP − 1', Math.abs(pctOf(await columnText(a.page, 'watchlist', PRIMARY, 'Upside available')) - (1150 / price - 1) * 100) < 0.051);
+  ok('Source is stored on the shared sheet', await waitFor(async () => sheetStore.snapshot().values[PRIMARY]?.source?.value === 'Broker note — Kotak'));
+  ok('the watchlist\'s buy price does not touch the portfolio\'s', await waitFor(async () => sheetStore.snapshot().values[PRIMARY]?.buyPrice?.value === 700 && sheetStore.snapshot().values[PRIMARY]?.entryPrice?.value === 900));
 
   await a.page.locator('#tabbar-mount [data-tab-id="portfolio"]').click();
   await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor({ timeout: 15000 });
-  ok('the fair value typed on the Watchlist is the Portfolio\'s too', (await cell(a.page, 'portfolio', 'SBIN', 'intrinsicValue').innerText()).trim() === '1,150.00');
-  ok('expected IRR on the Portfolio uses the price paid', Math.abs(pctOf(await columnText(a.page, 'portfolio', 'SBIN', 'Expected IRR')) - (1150 / 700 - 1) * 100) < 0.051);
+  ok('the fair value typed on the Watchlist is the Portfolio\'s too', (await cell(a.page, 'portfolio', PRIMARY, 'intrinsicValue').innerText()).trim() === '1,150.00');
+  ok('expected IRR on the Portfolio uses the price paid', Math.abs(pctOf(await columnText(a.page, 'portfolio', PRIMARY, 'Expected IRR')) - (1150 / 700 - 1) * 100) < 0.051);
 
   console.log('\n— a holding the statements do not carry yet —');
   const before = await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').count();
@@ -557,7 +598,7 @@ try {
   await a.page.evaluate(() => window.__fillFixtureCleanup());
 
   await a.page.locator('#tabbar-mount [data-tab-id="portfolio"]').click();
-  await rowOf(a.page, 'portfolio', 'SBIN').waitFor();
+  await rowOf(a.page, 'portfolio', PRIMARY).waitFor();
   console.log('\n— direct Excel clipboard paste —');
   const pasteKeys = await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.slice(0, 4).map(r => r.dataset.rowKey));
   const pasteFields = ['intrinsicValue', 'methodology', 'reference'];
@@ -640,7 +681,7 @@ try {
   await table(a.page, 'portfolio').locator('[data-table-search]').fill('');
 
   await a.page.locator('#tabbar-mount [data-tab-id="watchlist"]').click();
-  await rowOf(a.page, 'watchlist', 'SBIN').waitFor();
+  await rowOf(a.page, 'watchlist', PRIMARY).waitFor();
   const watchPasteKeys = await table(a.page, 'watchlist').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.slice(0, 2).map(r => r.dataset.rowKey));
   await pasteCells(a.page, 'watchlist', watchPasteKeys[0], 'methodology', 'Watch clipboard DCF\t2028-03-31\r\nWatch clipboard peers\t2029-03-31\r\n');
   ok('Watchlist supports the same direct multi-column Excel paste', await waitFor(async () => sheetStore.snapshot().values[watchPasteKeys[1]]?.methodology?.value === 'Watch clipboard peers' && sheetStore.snapshot().values[watchPasteKeys[0]]?.reference?.value === '2028-03-31'));
@@ -648,7 +689,7 @@ try {
   await pasteCells(a.page, 'watchlist', watchPasteKeys[0], 'entryPrice', '810\r\n820\r\n');
   ok('Watchlist Source and planned entry-price cells accept pasted columns independently of Portfolio cost', await waitFor(async () => sheetStore.snapshot().values[watchPasteKeys[1]]?.source?.value === 'Public report' && sheetStore.snapshot().values[watchPasteKeys[1]]?.entryPrice?.value === 820));
   await a.page.locator('#tabbar-mount [data-tab-id="portfolio"]').click();
-  await rowOf(a.page, 'portfolio', 'SBIN').waitFor();
+  await rowOf(a.page, 'portfolio', PRIMARY).waitFor();
   console.log('\n— Excel export, fill and upload —');
   const downloadBook = async (kind) => {
     const downloading = a.page.waitForEvent('download');
@@ -693,35 +734,35 @@ try {
   ok('an unchanged upload preserves defaults and creates no edits', /No changed/.test(await uploadBook('Portfolio', exported)) && sheetStore.snapshot().revision === noChangeRevision);
   const unplaced = (await a.page.evaluate(async () => (await import('/js/data/research-sheets.js')).portfolioRows())).find((r) => !r.ticker);
   const edits = [
-    { id: 'SBIN', head: 'Buy price (in Rs)', value: '₹ 725.50' },
-    { id: 'SBIN', head: 'Target weight in portfolio (% of public direct)', value: 0.045, numFmt: '0.0%' },
-    { id: 'SBIN', head: 'CMP (in Rs)', value: 999999 },
-    { id: 'SBIN', head: 'Date bought', value: { formula: 'DATE(2025,5,17)', result: 45794 }, numFmt: 'dd-mmm-yy' },
-    { id: 'SBIN', head: 'Reference year and date', value: { formula: 'DATE(2031,3,31)', result: (Date.UTC(2031, 2, 31) - Date.UTC(1899, 11, 30)) / 86400000 }, numFmt: 'dd-mmm-yy' },
+    { id: PRIMARY, head: 'Buy price (in Rs)', value: '₹ 725.50' },
+    { id: PRIMARY, head: 'Target weight in portfolio (% of public direct)', value: 0.045, numFmt: '0.0%' },
+    { id: PRIMARY, head: 'CMP (in Rs)', value: 999999 },
+    { id: PRIMARY, head: 'Date bought', value: { formula: 'DATE(2025,5,17)', result: 45794 }, numFmt: 'dd-mmm-yy' },
+    { id: PRIMARY, head: 'Reference year and date', value: { formula: 'DATE(2031,3,31)', result: (Date.UTC(2031, 2, 31) - Date.UTC(1899, 11, 30)) / 86400000 }, numFmt: 'dd-mmm-yy' },
     ...(unplaced ? [{ id: unplaced.isin || unplaced.key, head: 'Valuation methodology', value: 'ISIN upload' }] : []),
   ];
   const editedBook = await rewriteBook(exported, edits);
   const savedText = await uploadBook('Portfolio', editedBook);
-  ok('changed manual fields are saved for everyone', /edits? saved for everyone/.test(savedText) && sheetStore.snapshot().values.SBIN.buyPrice.value === 725.5, savedText);
-  ok('Excel percentage cells retain percent units', sheetStore.snapshot().values.SBIN.targetWeight.value === 4.5);
-  ok('Excel date cells retain the purchase day', sheetStore.snapshot().values.SBIN.dateBought.value === '2025-05-17');
-  ok('Excel reference dates retain their future year and day', sheetStore.snapshot().values.SBIN.reference.value === '2031-03-31');
-  ok('uploaded market figures never become manual inputs', !sheetStore.snapshot().values.SBIN.cmp && pctOf(await columnText(a.page, 'portfolio', 'SBIN', 'CMP (in Rs)')) === cmpShown);
+  ok('changed manual fields are saved for everyone', /edits? saved for everyone/.test(savedText) && sheetStore.snapshot().values[PRIMARY].buyPrice.value === 725.5, savedText);
+  ok('Excel percentage cells retain percent units', sheetStore.snapshot().values[PRIMARY].targetWeight.value === 4.5);
+  ok('Excel date cells retain the purchase day', sheetStore.snapshot().values[PRIMARY].dateBought.value === '2025-05-17');
+  ok('Excel reference dates retain their future year and day', sheetStore.snapshot().values[PRIMARY].reference.value === '2031-03-31');
+  ok('uploaded market figures never become manual inputs', !sheetStore.snapshot().values[PRIMARY].cmp && pctOf(await columnText(a.page, 'portfolio', PRIMARY, 'CMP (in Rs)')) === cmpShown);
   ok('tickerless companies upload by ISIN', !!unplaced && sheetStore.snapshot().values[unplaced.key]?.methodology?.value === 'ISIN upload');
   await b.page.evaluate(async () => (await import('/js/core/research-sheet.js')).syncNow({ force: true }));
-  ok('the other device receives the uploaded value', await waitFor(async () => /725.50/.test(await cell(b.page, 'portfolio', 'SBIN', 'buyPrice').innerText())));
+  ok('the other device receives the uploaded value', await waitFor(async () => /725.50/.test(await cell(b.page, 'portfolio', PRIMARY, 'buyPrice').innerText())));
   const fresh = await downloadBook('Portfolio');
   const unchangedRevision = sheetStore.snapshot().revision;
-  const bad = await rewriteBook(fresh, [{ id: 'SBIN', head: 'Buy price (in Rs)', value: 750 }, { id: 'FRACTAL', head: 'Buy price (in Rs)', value: -10 }]);
+  const bad = await rewriteBook(fresh, [{ id: PRIMARY, head: 'Buy price (in Rs)', value: 750 }, { id: SECOND, head: 'Buy price (in Rs)', value: -10 }]);
   ok('one invalid cell rejects the entire workbook with its row and column', /Row \d+, Buy price/.test(await uploadBook('Portfolio', bad)) && sheetStore.snapshot().revision === unchangedRevision);
-  const duplicate = await rewriteBook(fresh, [{ row: 3, col: 2, value: 'SBIN' }, { row: 4, col: 2, value: 'SBIN' }]);
+  const duplicate = await rewriteBook(fresh, [{ row: 3, col: 2, value: PRIMARY }, { row: 4, col: 2, value: PRIMARY }]);
   ok('duplicate identities are refused before saving', /duplicate company/.test(await uploadBook('Portfolio', duplicate)) && sheetStore.snapshot().revision === unchangedRevision);
   const brokenHead = await rewriteBook(fresh, [{ row: 2, col: 3, value: 'Changed heading' }]);
   ok('changed column formats are refused before saving', /headings have changed/.test(await uploadBook('Portfolio', brokenHead)) && sheetStore.snapshot().revision === unchangedRevision);
-  await editCell(b.page, 'portfolio', 'SBIN', 'buyPrice', '780');
+  await editCell(b.page, 'portfolio', PRIMARY, 'buyPrice', '780');
   await stored('buyPrice', 780);
-  const stale = await rewriteBook(fresh, [{ id: 'SBIN', head: 'Buy price (in Rs)', value: 790 }]);
-  ok('a stale workbook cannot overwrite a colleague’s changed cell', /changed on the dashboard/.test(await uploadBook('Portfolio', stale)) && sheetStore.snapshot().values.SBIN.buyPrice.value === 780);
+  const stale = await rewriteBook(fresh, [{ id: PRIMARY, head: 'Buy price (in Rs)', value: 790 }]);
+  ok('a stale workbook cannot overwrite a colleague’s changed cell', /changed on the dashboard/.test(await uploadBook('Portfolio', stale)) && sheetStore.snapshot().values[PRIMARY].buyPrice.value === 780);
   const batchBook = await downloadBook('Portfolio');
   const bulkEdits = [...expectedKeys].flatMap((id) => [
     { id: id.startsWith('ISIN:') ? id.slice(5) : id, head: 'Valuation methodology', value: 'Excel bulk DCF' },
@@ -730,26 +771,26 @@ try {
   ok('uploads exceeding one server batch save every changed cell', /edits? saved for everyone/.test(await uploadBook('Portfolio', await rewriteBook(batchBook, bulkEdits)))
     && [...expectedKeys].every((key) => sheetStore.snapshot().values[key]?.methodology?.value === 'Excel bulk DCF' && sheetStore.snapshot().values[key]?.reference?.value === 'FY28E Excel'));
   await a.page.locator('#tabbar-mount [data-tab-id="watchlist"]').click();
-  await rowOf(a.page, 'watchlist', 'SBIN').waitFor();
+  await rowOf(a.page, 'watchlist', PRIMARY).waitFor();
   const watchBook = await downloadBook('Watchlist');
-  const watchEdits = await rewriteBook(watchBook, [{ id: 'SBIN', head: 'Source', value: 'Excel analyst note' }, { id: 'SBIN', head: 'Buy price for the expected IRR (in Rs)', value: 950 }]);
+  const watchEdits = await rewriteBook(watchBook, [{ id: PRIMARY, head: 'Source', value: 'Excel analyst note' }, { id: PRIMARY, head: 'Buy price for the expected IRR (in Rs)', value: 950 }]);
   ok('Watchlist supports the same round trip with its own entry price', /edits? saved for everyone/.test(await uploadBook('Watchlist', watchEdits))
-    && sheetStore.snapshot().values.SBIN.source.value === 'Excel analyst note' && sheetStore.snapshot().values.SBIN.entryPrice.value === 950 && sheetStore.snapshot().values.SBIN.buyPrice.value === 780);
+    && sheetStore.snapshot().values[PRIMARY].source.value === 'Excel analyst note' && sheetStore.snapshot().values[PRIMARY].entryPrice.value === 950 && sheetStore.snapshot().values[PRIMARY].buyPrice.value === 780);
   const clearBook = await downloadBook('Watchlist');
-  ok('blanking a typed Excel value clears that manual field', /edits? saved for everyone/.test(await uploadBook('Watchlist', await rewriteBook(clearBook, [{ id: 'SBIN', head: 'Source', value: null }])))
-    && !sheetStore.snapshot().values.SBIN.source);
+  ok('blanking a typed Excel value clears that manual field', /edits? saved for everyone/.test(await uploadBook('Watchlist', await rewriteBook(clearBook, [{ id: PRIMARY, head: 'Source', value: null }])))
+    && !sheetStore.snapshot().values[PRIMARY].source);
   const failureBook = await downloadBook('Watchlist');
   writeFailure = 503;
-  const deferred = await rewriteBook(failureBook, [{ id: 'SBIN', head: 'Source', value: 'Retry this Excel note' }]);
+  const deferred = await rewriteBook(failureBook, [{ id: PRIMARY, head: 'Source', value: 'Retry this Excel note' }]);
   ok('a failed shared write keeps the upload queued and never reports success', !/saved for everyone/.test(await uploadBook('Watchlist', deferred))
-    && !sheetStore.snapshot().values.SBIN.source && await a.page.evaluate(async () => (await import('/js/core/research-sheet.js')).meta().pending > 0));
+    && !sheetStore.snapshot().values[PRIMARY].source && await a.page.evaluate(async () => (await import('/js/core/research-sheet.js')).meta().pending > 0));
   writeFailure = null;
   await a.page.evaluate(async () => (await import('/js/core/research-sheet.js')).syncNow({ force: true }));
-  ok('queued upload edits reach the shared store after reconnection', sheetStore.snapshot().values.SBIN.source.value === 'Retry this Excel note');
+  ok('queued upload edits reach the shared store after reconnection', sheetStore.snapshot().values[PRIMARY].source.value === 'Retry this Excel note');
   const refusalBook = await downloadBook('Watchlist');
   writeFailure = 400;
   ok('a server refusal cannot masquerade as a successful upload', /refused an edit/.test(await uploadBook('Watchlist', await rewriteBook(refusalBook,
-    [{ id: 'SBIN', head: 'Source', value: 'Refuse this Excel note' }]))) && sheetStore.snapshot().values.SBIN.source.value === 'Retry this Excel note');
+    [{ id: PRIMARY, head: 'Source', value: 'Refuse this Excel note' }]))) && sheetStore.snapshot().values[PRIMARY].source.value === 'Retry this Excel note');
   writeFailure = null;
   await a.page.setViewportSize({ width: 390, height: 844 });
   await a.page.emulateMedia({ colorScheme: 'dark' });
@@ -759,22 +800,22 @@ try {
   await a.page.setViewportSize({ width: 1440, height: 900 });
   await a.page.emulateMedia({ colorScheme: 'light' });
   await a.page.locator('#tabbar-mount [data-tab-id="portfolio"]').click();
-  await cell(a.page, 'portfolio', 'SBIN', 'buyPrice').click();
+  await cell(a.page, 'portfolio', PRIMARY, 'buyPrice').click();
   await a.page.screenshot({ path: resolve(output, 'portfolio-editor.png') });
   await a.page.locator('.sheet-editor [data-sheet-input]').press('Escape');
 
   console.log('\n— a deployment with no shared sheet —');
-  const fractalBefore = JSON.stringify(sheetStore.snapshot().values.FRACTAL);
+  const fractalBefore = JSON.stringify(sheetStore.snapshot().values[SECOND]);
   const c = await openDevice({ staticOrigin: true });
   await c.page.goto(`${origin}/#/research/portfolio`, { waitUntil: 'domcontentloaded' });
   await table(c.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor({ timeout: 30000 });
   ok('it says edits are kept in this browser only', await waitFor(async () => (await c.page.locator('[data-sheet-status]').getAttribute('data-sheet-status')) === 'local'));
-  await editCell(c.page, 'portfolio', 'FRACTAL', 'intrinsicValue', '900');
+  await editCell(c.page, 'portfolio', SECOND, 'intrinsicValue', '900');
   await c.page.reload({ waitUntil: 'domcontentloaded' });
   await table(c.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor({ timeout: 30000 });
-  ok('…and keeps them across a reload', (await cell(c.page, 'portfolio', 'FRACTAL', 'intrinsicValue').innerText()).trim() === '900.00');
-  ok('…marked as not on a shared sheet', /is-pending/.test(await cell(c.page, 'portfolio', 'FRACTAL', 'intrinsicValue').getAttribute('class')));
-  ok('nothing it typed reached the shared store', JSON.stringify(sheetStore.snapshot().values.FRACTAL) === fractalBefore);
+  ok('…and keeps them across a reload', (await cell(c.page, 'portfolio', SECOND, 'intrinsicValue').innerText()).trim() === '900.00');
+  ok('…marked as not on a shared sheet', /is-pending/.test(await cell(c.page, 'portfolio', SECOND, 'intrinsicValue').getAttribute('class')));
+  ok('nothing it typed reached the shared store', JSON.stringify(sheetStore.snapshot().values[SECOND]) === fractalBefore);
   const offlineKeys = await table(c.page, 'portfolio').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.slice(0, 3).map(r => r.dataset.rowKey));
   await editCell(c.page, 'portfolio', offlineKeys[0], 'reference', '2027-03-31');
   await dragFill(c.page, 'portfolio', offlineKeys[0], offlineKeys[2], 'reference');
