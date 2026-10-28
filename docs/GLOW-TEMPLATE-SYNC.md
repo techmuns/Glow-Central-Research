@@ -766,3 +766,29 @@ The template preserve list keeps Glow's statement-based fund callback and exclud
 Sattva's Inc42 collector workflow, including when that workflow is newly added
 upstream. The public release transport retains its fixed publisher and refuses
 Glow publication.
+
+## Indirect theme exposure on AI Alerts (28 October 2026)
+
+Glow's own feature, with no Sattva counterpart: **preserve it on a template merge.** The contract is
+in `docs/THEME-EXPOSURES.md`.
+
+- New files: `public/js/data/theme-exposures.js`, `scripts/verify-theme-exposures.mjs`,
+  `docs/THEME-EXPOSURES.md`.
+- Hunks in shared files:
+  - `js/data/daily-alerts.js`: the `mapThemeExposureEvents` call after the discovery mapping, the
+    `sourceCount` taken from `discovered`, and the theme exclusion in `dedupePublisherAlertFeeds`.
+  - `js/data/ai-alerts.js`: the `recent` filter, the `eventScore` weight, the ranking `dedupe`,
+    `evidenceTag`, `plainInsight` and `cardBadge`. The ranking `dedupe` gains the theme key and
+    the `themeSpecificity` tie-break.
+  - `js/data/alert-pool-projection.js`: `bearsOnBook`, `themes` in the model, and the
+    `portfolio-pool-v2` signature.
+  - `js/data/alert-stories-shared.js`: the `storyRecord` refusal.
+  - `js/data/alert-stories.js`: the `status()` exclusion.
+  - `js/ui/ai-alert-utils.js`: `alertSignals`.
+  - `js/data/ai-alert-types.js`: the `indirect` type.
+  - `js/tabs/ai-alerts.js`: `indirectMarkup`, the tag and `kindLabel`.
+  - `js/tabs/daily-alerts.js`: the *Indirect* label.
+  - The CI step and the service-worker marker `theme-exposures-v1`.
+- No credential, route, schedule or model call. Deployment is the existing merge pipeline. The
+  first pool build after the merge writes `portfolio-pool-v2` slices. Until then, readers use the
+  complete AI pool.
