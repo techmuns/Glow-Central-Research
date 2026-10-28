@@ -1733,6 +1733,20 @@ across editions. The existing confirmed-delivery ledger still owns that history.
 `verify-newsletter-events.mjs`; its public Engineers India fixture and model stubs check contracts
 and retention, not live model accuracy.
 
+**One development, one update (29 October 2026, supersedes the news-only grouping above):** the
+28 October evening brief printed City Union Bank's results as nine items — its filing and eight
+reports — because one group quoting "9%" beside "10%" voided the entire grouping reply and the
+loop then stopped. The same cheap pass (`gpt-6-luna` through the news allowance, Bedrock where
+OpenAI is not configured) now partitions each company's filings AND news together, ids only;
+`clusterStories` folds a checked group across kinds, so a results filing, its press release,
+presentation, board outcome and every report of it are one update led by the read filing, with
+every link kept. A proposed group is checked by `compatibleEventMembers` (company, relation,
+24 hours, money amounts within 5% after unit normalisation, opposite stages in headlines) and
+only that group is split when it fails; an omitted or repeated id stays separate; a failed batch
+no longer stops the next. Deterministic copy paths keep the strict `compatibleReports`. Nothing
+is written by the model and no row, key or link is dropped. `city-union-results-2026-10-28.json`
+in `verify-newsletter-events.mjs` is the regression; fixtures prove contracts, not live accuracy.
+
 **AND THE DESK'S NUMBERS COME BEFORE THE WORLD'S.** The customer's second ask: full tables and a
 summary of the portfolio's performance on the session and of the major Indian indices, above the
 global market scan. **Portfolio today** (the morning brief: *previous session*) is every listed
