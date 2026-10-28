@@ -19,7 +19,8 @@ const book = [
   { isin: 'INE000000003', ticker: 'BOTH', name: 'Both Ltd', holdingCategories: ['direct-equity', 'pms'] },
   { isin: 'INE000000004', ticker: null, name: 'Private Direct', holdingCategories: ['direct-equity'] },
 ];
-coverage.prime({ holdings: book });
+const privateCompanies = [{ id: 'private:acmelabs', name: 'Acme Labs', aliases: [], categories: ['private-investment'] }];
+coverage.prime({ holdings: book, privateCompanies });
 const rows = [{ ticker: 'DIRECT' }, { ticker: 'MANAGED' }, { ticker: 'BOTH' }, { ticker: 'OUTSIDE' },
   { ticker: null, isin: 'INE000000004' }, { ticker: null, isin: 'INE999999999' }];
 const tickers = list => list.map(r => r.ticker || r.isin);
@@ -36,6 +37,9 @@ assert.equal(scope.scopeDisplayLabel('portfolio'), 'Portfolio');
 assert.equal(scope.holdingSignature(), 'all');
 assert.equal(scope.holdingScopeEmpty('portfolio'), false);
 assert.equal(scope.holdingEntityIds('universe'), null, 'no entity narrowing on All');
+assert.equal(scope.effectiveHoldingCategory(), 'all');
+// Only categories some company carries are offered: the book's lines and the family's private companies.
+assert.deepEqual(scope.offeredHoldingOptions().map(([id]) => id), ['all', 'direct-equity', 'pms', 'private-investment']);
 const allKey = alertContextKey('portfolio', book, '2026-10-28');
 
 // A CATEGORY NARROWS EVERY SCOPE TO THE COMPANIES HELD THAT WAY.
@@ -87,12 +91,27 @@ assert.equal(matchesAlertScope({ entityId: directEntity }, ctx('portfolio')), tr
 scopeLists.reset('universe');
 assert.equal(matchesAlertScope({ entityId: directEntity }, ctx('universe')), true);
 
-// A category the research list does not cover narrows to nothing — never back to everything.
+// A remembered category no company carries reads as All — it is not offered, so it cannot narrow
+// the view behind a control that does not list it.
 filter.setHoldingCategory('mutual-fund');
-assert.deepEqual(sorted(scope.scopeTickers('universe')), []);
-assert.deepEqual(scope.filterByScope(rows, 'universe'), []);
-assert.equal(scope.holdingScopeEmpty('portfolio'), true);
-assert.equal(scope.holdingScopeEmpty('universe'), true);
+assert.equal(scope.holdingMembership(), null);
+assert.equal(scope.effectiveHoldingCategory(), 'all');
+assert.equal(scope.scopeTickers('universe'), null);
+assert.equal(scope.filterByScope(rows, 'universe').length, rows.length);
+assert.equal(scope.holdingScopeEmpty('portfolio'), false);
+
+// A category only a family private company carries: no listed company, but its alerts stay in view
+// under Portfolio and Universe (never Watchlist), by the company's own id.
+filter.setHoldingCategory('private-investment');
+assert.equal(scope.effectiveHoldingCategory(), 'private-investment');
+assert.deepEqual(sorted(scope.scopeTickers('portfolio')), [], 'no listed company is held this way');
+assert.equal(scope.holdingScopeEmpty('portfolio'), false, 'the private company keeps the scope mountable');
+const privateEvent = { entityId: 'private:acmelabs', familyPrivate: true, holdingCategories: ['private-investment'] };
+assert.equal(matchesAlertScope(privateEvent, ctx('portfolio')), true);
+assert.equal(matchesAlertScope(privateEvent, ctx('universe')), true);
+assert.equal(matchesAlertScope(privateEvent, ctx('watchlist')), false);
+filter.setHoldingCategory('pms');
+assert.equal(matchesAlertScope(privateEvent, ctx('portfolio')), false, 'a private company is not a PMS holding');
 
 // A category whose only holding has no NSE ticker is NOT empty: identity-aware feeds can show it.
 coverage.useFamilyBook([...book, { isin: 'INE000000005', ticker: null, name: 'Private Unlisted', holdingCategories: ['unlisted'] }], '2026-10-28');
