@@ -314,7 +314,7 @@ try {
   await page.locator('[data-feed-toggle="__all"]').press('Escape');
   assert.equal(await picker.getAttribute('open'), null);
   assert(await sourceSummary.evaluate(node => node === document.activeElement), 'Escape returns focus to the source control');
-  assert.equal(await page.locator('[data-feed]').count(), 21, 'Universe includes private price status and broker reports, and hides the portfolio-only calendar');
+  assert.equal(await page.locator('[data-feed]').count(), 22, 'Universe includes private price status, the family private companies and broker reports, and hides the portfolio-only calendar');
   assert.equal(await page.locator('[data-horizon-toggle]').count(), 0, 'All Alerts has no horizon switch');
   assert.equal(await page.locator('[data-alerts-history-summary]').count(), 0, 'the redundant Till Today label is removed');
   assert.equal(await page.locator('[data-alerts-reading-count]').count(), 0, 'the item/source-report summary is removed');

@@ -21,7 +21,7 @@ export const AI_EVENT_TYPES = [
   { id: 'insights', label: 'Operating insights', hint: 'Captured operating insights.' },
 ];
 const ids = new Set(AI_EVENT_TYPES.map(type => type.id));
-const feedTypes = { earnings: 'results', news: 'news', 'market-news': 'news', concalls: 'concalls', insider: 'insider', investors: 'investors', 'broker-reports': 'broker', technicals: 'technicals', 'price-levels': 'technicals', chatter: 'chatter', 'screener-insights': 'insights', actions: 'corporate-action' };
+const feedTypes = { earnings: 'results', news: 'news', 'market-news': 'news', concalls: 'concalls', insider: 'insider', investors: 'investors', 'broker-reports': 'broker', technicals: 'technicals', 'price-levels': 'technicals', 'private-companies': 'news', chatter: 'chatter', 'screener-insights': 'insights', actions: 'corporate-action' };
 const memo = new WeakMap();
 
 export function aiEventTypes(event) {

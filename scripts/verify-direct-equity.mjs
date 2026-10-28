@@ -76,9 +76,13 @@ ok('the costed value is smaller than the whole equity value while some lines car
 // A company held in one account must reproduce that statement's own figures exactly — that is what
 // makes the derivation checkable at all.
 const singles = companies.filter((c) => c.rowCount === 1);
-const returnDrift = singles.filter((c) => typeof c.rows[0].returnPct === 'number' && !close(c.returnPct, c.rows[0].returnPct, 0.05));
-ok('a single-account company reproduces the statement\'s own return',
-  returnDrift.length === 0, returnDrift.slice(0, 3).map((c) => `${c.name} ${c.returnPct} vs ${c.rows[0].returnPct}`).join('; '));
+// The view's return is the statement's own unrealised P&L over its own cost. GlowVentures' printed
+// `returnPct` now also counts realised gains and income (its FIFO return), so it is not the figure
+// re-derived here and the two legitimately differ wherever a line has sold units or dividends.
+const unrealisedReturn = (r) => typeof r.unrealizedPnL === 'number' && typeof r.costBasis === 'number' && r.costBasis > 0 ? (r.unrealizedPnL / r.costBasis) * 100 : null;
+const returnDrift = singles.filter((c) => unrealisedReturn(c.rows[0]) !== null && !close(c.returnPct, unrealisedReturn(c.rows[0]), 0.05));
+ok('a single-account company re-derives its return from the statement\'s own P&L and cost',
+  returnDrift.length === 0, returnDrift.slice(0, 3).map((c) => `${c.name} ${c.returnPct} vs ${unrealisedReturn(c.rows[0])}`).join('; '));
 const avgDrift = singles.filter((c) => typeof c.rows[0].avgCost === 'number' && c.avgCost != null && !close(c.avgCost, c.rows[0].avgCost, 0.05));
 ok('a single-account company reproduces the statement\'s own average cost',
   avgDrift.length === 0, avgDrift.slice(0, 3).map((c) => `${c.name} ${c.avgCost} vs ${c.rows[0].avgCost}`).join('; '));
@@ -86,7 +90,7 @@ ok('a single-account company reproduces the statement\'s own average cost',
 // A NULL IS NOT ZERO, all the way through.
 const noCost = companies.filter((c) => c.costBasis === null);
 ok('a company with no cost on any statement carries null cost, P&L and return — never zero',
-  noCost.length > 0 && noCost.every((c) => c.costBasis === null && c.unrealizedPnL === null && c.returnPct === null && c.avgCost === null),
+  noCost.every((c) => c.costBasis === null && c.unrealizedPnL === null && c.returnPct === null && c.avgCost === null),
   `${noCost.length} such companies`);
 // A weight of 0.00 is a rounding of a real holding (₹580 of a ₹710 Cr book), which is why this
 // asks for a FIGURE rather than a positive one — `null` is the answer that would be wrong.
@@ -179,6 +183,12 @@ ok('...and the partial coverage is reported rather than implied',
   partial.costComplete === false && partial.costRows === 1 && partial.rowCount === 2 && partial.costedValue === 200);
 ok('...and the return is struck on the costed value alone',
   partial.returnPct === 100, String(partial.returnPct));
+
+// A NULL IS NOT ZERO even when the shipped book happens to cost every line.
+book.prime(base([pos({ costBasis: null, unrealizedPnL: null, returnPct: null, avgCost: null })]));
+const uncosted = book.directEquity()[0];
+ok('a company no statement costs carries null cost, P&L, return and average cost',
+  uncosted.costBasis === null && uncosted.unrealizedPnL === null && uncosted.returnPct === null && uncosted.avgCost === null && uncosted.marketValue === 200);
 
 // A dedupeGroup on an equity row must be counted once, exactly as everywhere else in the book.
 book.prime(base([

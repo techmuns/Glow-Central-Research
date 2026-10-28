@@ -1253,8 +1253,18 @@ Four rules, and each is a rule the rest of this file already runs on:
    P&L and return are each platform's own marks on its report date, which is printed on every row.
    The tab derives exactly one figure — **EOD mark (derived)**, quantity × the technicals feed's
    close, listed symbols only — and the heading, the cell title, the drill and the packet all say
-   so. The listed/private split mirrors `PRIVATE_CLASSES` upstream and is summed from the rows,
-   never `total − listed`, so an unnamed class cannot silently become private.
+   so. The listed/private split is GlowVentures' own per-row `marketSide` (`sideOf()` in
+   `js/data/book.js`; null is neither half), summed from the rows, never `total − listed`.
+
+**The daily sync must not stop on one new line (28 October 2026).** `series-refresh.yml` failed on
+every run for weeks — two new PMS lines had no ISIN, upstream moved the listed/private split to
+`marketSide`, and the managers build refused a nil mixed-engagement account and closed or
+statement-less mandates — so no book, manager or macro series update reached the dashboard. A
+line with no ISIN now goes under `awaitingIdentity` in `portfolio-companies.json` (named, outside
+the research identities, accounted for in the weight reconciliation); an `unknown` account is placed
+when all its members name one kind; a PMS mandate with no holdings statement passes only with the
+upstream's own `noPositionsReason` on every account or a residue under the ₹1,000 floor. Anything
+else still stops the build. Check the workflow's latest run, not its schedule.
 
 **Scope on this tab.** The book is the book under Portfolio and Universe alike — there is no wider
 universe of the family's positions to widen to — and the pill says so. Watchlist narrows to the
@@ -5761,3 +5771,19 @@ existing GitHub newsletter account mutex and active recipient list. Preserve the
 regular daily briefs, private encryption/authentication, source gates, retained
 claims/history and publication/source-time distinction. Read
 `docs/PRIVATE-MARKETS-INTELLIGENCE.md` before changing its clock, matching or delivery.
+Private Market follows the scope switch (GLOW-OWNED): Portfolio = rounds of the family's private
+companies from the GlowVentures book, Watchlist = watched companies, Universe = everything; exact
+company names only. See *Private Market scope* in `docs/GLOW-TEMPLATE-SYNC.md`.
+
+**The family's private companies in AI Alerts (GLOW-OWNED, 28 October 2026).** The
+`private-companies` alert source (`js/data/private-company-alerts.js`, in `ADDITIONAL_SOURCES`)
+turns headlines and Inc42 rounds that name a family private company into ordinary alert events:
+`entityId: private:<name>`, no ticker, `familyPrivate: true`, neutral, high importance, and the
+company's Unlisted / Private Investment categories. Headlines are matched once per news capture by
+`scripts/build-private-company-news.mjs` into `public/data/private-company-news.json`
+(`private-company-news.yml`, after each news capture and the book sync), so the browser never reads
+the news archive; rounds are matched in the browser against the Private Market capture. A name
+must appear as a proper noun in the HEADLINE, by reviewed name only. These cards show in Portfolio
+and Universe (not Watchlist), keep their place when listed position sizes arrive, and the Holding
+dropdown offers Unlisted / Private Investment only while such a card exists. The card reads
+*Private company* and carries no price box. `verify-private-companies.mjs` covers it.

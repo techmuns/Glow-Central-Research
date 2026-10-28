@@ -51,7 +51,9 @@ for (const p of positions) {
   }
   const mv = isNum(p.marketValue) ? p.marketValue : 0;
   total += mv;
-  if (PRIVATE.has(p.assetClass)) priv += mv; else listed += mv;
+  // The upstream's own per-row side; null is neither half. Older books fall back to the class rule.
+  const side = p.marketSide !== undefined ? p.marketSide : PRIVATE.has(p.assetClass) ? 'private' : 'listed';
+  if (side === 'private') priv += mv; else if (side === 'listed') listed += mv;
 }
 for (const [g, n] of groupSize) if (n < 2) problems.push(`dedupeGroup ${g} has ${n} member — a broken dedupe, not an absent duplicate`);
 

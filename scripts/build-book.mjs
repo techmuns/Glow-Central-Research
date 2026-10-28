@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { buildIndex, resolveTicker } from './lib/company-index.mjs';
 import { statementEquityRelationship } from './lib/glow-book-identity.mjs';
 import { withHoldingCategories } from '../public/js/data/holding-categories.js';
+import { privateCompaniesFrom } from '../public/js/data/private-companies.js';
 import { AUTHORITATIVE, authoritativeDocs, datedRows, loadArchive, realisedIndex, saleKey, settledAmount } from './lib/glow-archive.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -278,7 +279,7 @@ const out = {
   positions: positions.map((p) => {
     const a = accountById.get(p.accountId) || {};
     return {
-      ...pick(p, ['securityKey', 'security', 'symbol', 'isin', 'accountId', 'memberId', 'sector', 'providerSector', 'assetClass', 'quantity', 'marketValue', 'costBasis', 'unrealizedPnL', 'returnPct', 'avgCost', 'currentPrice', 'costBasisSource', 'costUnavailable', 'stCostBasis', 'ltCostBasis', 'daysToLT', 'heldSince', 'accruedIncome', 'dividendReceived', 'positionIrrPct', 'dedupeGroup', 'alsoReportedUnder']),
+      ...pick(p, ['securityKey', 'security', 'symbol', 'isin', 'accountId', 'memberId', 'sector', 'providerSector', 'assetClass', 'quantity', 'marketValue', 'costBasis', 'unrealizedPnL', 'returnPct', 'avgCost', 'currentPrice', 'costBasisSource', 'costUnavailable', 'stCostBasis', 'ltCostBasis', 'daysToLT', 'heldSince', 'accruedIncome', 'dividendReceived', 'positionIrrPct', 'dedupeGroup', 'alsoReportedUnder', 'marketSide']),
       ...(p.valuedAtCost === true ? { valuedAtCost: true } : {}),
       provider: a.provider ?? null,
       owner: a.owner ?? null,
@@ -487,6 +488,12 @@ for (const holding of holdings) {
     holding.isinSource = { url: exact.url, checkedAt: exact.checkedAt, matchedBy: 'exact NSE symbol' };
   }
 }
+// Every research identity is keyed by ISIN. A line no statement or exchange directory has given
+// one yet — a fresh spin-off or listing — is named here instead of stopping the whole book. In
+// October 2026 two such PMS lines (HEG Graphite, Poojaa Precision Engineering) failed the identity
+// check on every run, so no book, manager or series update reached the dashboard.
+const awaitingIdentity = holdings.filter((h) => !/^INE[A-Z0-9]{9}$/.test(h.isin || ''));
+for (const h of awaitingIdentity) holdings.splice(holdings.indexOf(h), 1);
 const companies = {
   _provenance:
     'THE PORTFOLIO BOOK — what the Portfolio toggle means on every research tab: the companies the family holds DIRECTLY as listed equity, one line per NSE symbol, read from the same GlowVentures book as book.json by scripts/build-book.mjs. Names and sectors only, no quantity, cost or value. A line with no symbol is kept with the reason; fund units, ETFs, AIFs, cash and the ring-fenced promoter holding are counted under excluded, never listed as companies.',
@@ -500,6 +507,15 @@ const companies = {
   unresolved: holdings.filter((h) => !h.ticker && h.listed !== false).length,
   excluded,
   holdings: withHoldingCategories(holdings, { positions, accounts }),
+  // Held, and outside the research list until an exchange publishes an ISIN for them.
+  awaitingIdentity: withHoldingCategories(awaitingIdentity, { positions, accounts }).map((h) => ({
+    name: h.name, bookName: h.bookName, sector: h.sector, holdingCategories: h.holdingCategories,
+    reason: 'no ISIN on the statement or in the NSE directory yet — joins the research list once one is published',
+  })),
+  // The family's private companies (unlisted shares and single-company private investments), named
+  // as the company, for the Private Market tab's Portfolio scope. Not research identities: no feed
+  // here is keyed by them, and they are in no count above.
+  privateCompanies: privateCompaniesFrom(out.positions),
 };
 mkdirSync(dirname(COMPANIES_OUT), { recursive: true });
 writeFileSync(COMPANIES_OUT, `${JSON.stringify(companies, null, 2)}\n`);
@@ -507,6 +523,8 @@ console.log(
   `portfolio-companies.json: ${companies.count} direct-equity lines (${companies.resolved} with an NSE symbol, ${companies.unresolved} unresolved, ${companies.unlisted} not listed equity) ` +
     `from ${equityRows.length} equity rows; excluded ${Object.entries(excluded).map(([k, v]) => `${k} ${v}`).join(', ')} → ${COMPANIES_OUT}`
 );
+console.log(`portfolio-companies.json: ${companies.privateCompanies.length} private companies from ${companies.privateCompanies.reduce((n, c) => n + c.securityKeys.length, 0)} private lines`);
+if (awaitingIdentity.length) console.log(`::warning title=Holdings awaiting an ISIN::${awaitingIdentity.map((h) => h.name).join(', ')} — held, kept out of the research list until an ISIN is published`);
 
 // Portfolio metadata must follow a new Glow book even if external collectors are unavailable.
 if (OUT === join(ROOT, 'public/data/book.json') && COMPANIES_OUT === join(ROOT, 'public/data/portfolio-companies.json')) {

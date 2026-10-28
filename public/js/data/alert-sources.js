@@ -1,4 +1,5 @@
 import * as priceLevels from './price-levels.js';
+import * as privateCompanyAlerts from './private-company-alerts.js';
 import * as brokerReports from './broker-reports.js';
 // Additional source-tab adapters. No ranking, company walks or upstream job dispatches.
 import * as nse from './nse-filings.js';
@@ -140,6 +141,10 @@ export const ADDITIONAL_SOURCES = [
   {id:'price-levels',label:'Private price alerts',tab:'daily-alerts',private:true,
     what:'Levels entered in GlowVentures, checked in the background during market hours. Retained reached history is read through this deployment’s own same-origin portfolio connection.',
     load:()=>priceLevels.load(),read:()=>priceLevels.readFeed()},
+  // GLOW-OWNED: the family's private companies (GlowVentures book) in headlines and Inc42 rounds.
+  {id:'private-companies',label:'Private companies',tab:'private-market-news',
+    what:'Headlines and Inc42 funding rounds naming one of the family’s private companies, matched by exact reviewed name.',
+    load:()=>privateCompanyAlerts.load(),read:(context)=>privateCompanyAlerts.readFeed(context)},
   { id: 'broker-reports', label: 'Broker reports', tab: 'public-chatter',
     what: 'Broker research titles from the monitored Telegram channel, one per broker and company: the broker, its rating and target where the post printed them, its stated upside or downside, and the words it cites. Report PDFs are not read.',
     load: () => brokerReports.load(), read: ({ day }) => brokerReports.readFeed({ day }) },
@@ -251,7 +256,7 @@ export const ADDITIONAL_SOURCES = [
 ];
 
 export const additionalSourceDependencies = [
-  [priceLevels,['price-levels']],
+  [priceLevels,['price-levels']], [privateCompanyAlerts,['private-companies']],
   [brokerReports, ['broker-reports']],
   [nse, ['nse-filings']], [twitter, ['twitter']], [institutions, ['institutions']],
   [calendar, ['earnings-calendar']], [ipoFilings, ['ipos']],

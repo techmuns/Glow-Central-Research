@@ -156,6 +156,7 @@ export function kindOf(event, { brokerLed = false, views = [] } = {}) {
   if (event.feed === 'announcements') return { id: 'filing', label: 'Filing · BSE' };
   if (event.feed === 'nse-filings') return { id: 'filing', label: 'Filing · NSE' };
   if (NEWS.has(event.feed)) return { id: 'news', label: 'News' };
+  if (event.feed === 'private-companies') return { id: 'news', label: 'Private company' };
   if (event.feed === 'insider') {
     const category = String(event.tradeCategory || '').trim();
     return { id: 'deal', label: /deal\b/i.test(category) ? category.replace(/\b\w/g, (c) => c.toUpperCase()).replace(/Deal$/, 'deal') : 'Insider / deal' };

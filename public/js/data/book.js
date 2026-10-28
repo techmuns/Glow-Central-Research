@@ -20,9 +20,9 @@
 //   • THE RING-FENCED HOLDING IS OUTSIDE THE BOOK. The promoter stake GlowVentures keeps on its own
 //     page (`BOOK_POLYCAB`) is carried under `ringFenced()` and is in no total, no weight and no
 //     row set — the two dashboards must agree about what the consolidated value is.
-//   • THE SPLIT IS THE UPSTREAM'S. `isPrivate()` mirrors `PRIVATE_CLASSES` in GlowVentures'
-//     `scripts/build-book.mjs` exactly; `privateValue` is summed from the positions, never
-//     `total − listed`, so an unnamed class cannot silently become private.
+//   • THE SPLIT IS THE UPSTREAM'S. `sideOf()` reads GlowVentures' own per-row `marketSide`;
+//     `privateValue` is summed from the positions, never `total − listed`, so a holding the
+//     upstream places on neither side cannot silently become private.
 
 import { revalidatedJson } from '../core/store.js';
 
@@ -34,7 +34,7 @@ const PATH = 'data/book.json';
 // be said without this ever being fetched.
 const LEDGER_PATH = 'data/book-ledger.json';
 
-/** Mirrors `PRIVATE_CLASSES` in GlowVentures — a property of the HOLDING, never of the mandate. */
+/** GlowVentures' former `PRIVATE_CLASSES` — the side of a book built before `marketSide` existed. */
 const PRIVATE = new Set(['AIF', 'Unlisted', 'Structured Product']);
 
 /** The asset class the Direct Equity view means — the upstream's own word, never a guess. */
@@ -51,7 +51,12 @@ let ledgerIndex = null;
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const r2 = (v) => Math.round(v * 100) / 100;
 
-export const isPrivate = (assetClass) => PRIVATE.has(String(assetClass || ''));
+/**
+ * The book's own side of a holding: GlowVentures' generated `marketSide` — 'listed', 'private', or
+ * null for a holding it places on neither side, which is counted in neither half. A property of the
+ * HOLDING, never of the mandate. A book built before the field existed falls back to the class rule.
+ */
+export const sideOf = (p) => (p && p.marketSide !== undefined ? p.marketSide : PRIVATE.has(String(p?.assetClass || '')) ? 'private' : 'listed');
 
 /** Seed from a payload already in hand (app.js loads it deferred). Safe to call more than once. */
 export function prime(payload) {
@@ -199,8 +204,8 @@ function build() {
     sumCounted += mv;
   }
   const total = r2(sumCounted);
-  const listed = r2(counted.filter((p) => !isPrivate(p.assetClass)).reduce((s, p) => s + (num(p.marketValue) ?? 0), 0));
-  const priv = r2(counted.filter((p) => isPrivate(p.assetClass)).reduce((s, p) => s + (num(p.marketValue) ?? 0), 0));
+  const listed = r2(counted.filter((p) => sideOf(p) === 'listed').reduce((s, p) => s + (num(p.marketValue) ?? 0), 0));
+  const priv = r2(counted.filter((p) => sideOf(p) === 'private').reduce((s, p) => s + (num(p.marketValue) ?? 0), 0));
   const bySymbol = new Map();
   for (const p of counted) {
     if (!p.symbol) continue;

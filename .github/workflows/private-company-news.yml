@@ -1,0 +1,56 @@
+name: Private company headlines
+
+# GLOW-OWNED. Rebuilds public/data/private-company-news.json — the headlines in the committed
+# market-news capture that name one of the family's private companies — whenever a news capture or
+# the GlowVentures book lands, so AI Alerts reads one small file instead of the 31 MB news archive.
+# Nothing is fetched: the builder reads committed files only. The hourly schedule is a fallback;
+# GitHub's scheduler is best effort, and the workflow_run triggers carry the cadence.
+
+on:
+  workflow_run:
+    workflows: ["Market news refresh", "RSS news refresh", "GlowVentures sync (series store + family book)"]
+    types: [completed]
+  schedule:
+    - cron: "47 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: private-company-news
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Match headlines to the family's private companies
+        run: node scripts/build-private-company-news.mjs
+
+      - name: Commit the headline file to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/private-company-news.json
+          if git diff --cached --quiet; then
+            echo "No change in the private-company headlines."
+            exit 0
+          fi
+          git commit -m "Private company headlines ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          exit 1

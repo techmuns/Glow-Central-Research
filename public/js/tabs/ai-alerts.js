@@ -37,7 +37,7 @@ import { driversFromEvent, QUESTIONS } from '../data/alert-drivers.js';
 import * as screenerInsights from '../data/screener-insights.js';
 import { onCaptureLanded } from '../data/capture-watchdog.js';
 import * as coverage from '../data/coverage.js';
-import { HOLDING_CATEGORIES, normalizeHoldingCategory, holdingCategoryLabel, holdingCategoryMatcher } from '../data/holding-categories.js';
+import { offeredHoldingCategories, normalizeHoldingCategory, holdingCategoryLabel, holdingCategoryMatcher } from '../data/holding-categories.js';
 import * as mute from '../core/ai-mute.js';
 import { currentDay, relativeAge, formatDay as fmtDay, latestAlertSignal, latestAlertEvent, sortAlertCards, matchesSearch } from '../ui/ai-alert-utils.js';
 import { privatePortfolioContext, onPortfolioInvalidation, onPortfolioReady, onPortfolioConnection, portfolioConnectionState } from '../research/portfolio-bridge.js';
@@ -51,6 +51,12 @@ const SORT_KEY = 'sattva:ai-alerts:sort:v1';
 const CATEGORY_KEY = 'glow:ai-alerts:holding-category:v1';
 let holdingCategory = 'all';
 try { holdingCategory = normalizeHoldingCategory(localStorage.getItem(CATEGORY_KEY)); } catch { /* Session preference still works. */ }
+// The categories offered are those a researched company carries, plus a family private company's
+// (Unlisted / Private Investment) once it has a card. A remembered category no company carries reads
+// as All, so the control and the cards agree.
+const categoryHoldings = () => [...coverage.holdings(),
+  ...(report?.allCards || []).filter(card => card.familyPrivate).map(card => ({ holdingCategories: card.holdingCategories }))];
+const activeHoldingCategory = () => offeredHoldingCategories(categoryHoldings()).some(([id]) => id === holdingCategory) ? holdingCategory : 'all';
 const SORTS = { newest: 'Newest first', holdings: 'Largest holdings', priority: 'Highest priority' };
 // COMPACT IS THE DEFAULT LAYOUT (28 October 2026): the Detailed alerts, filtered to one line per
 // company — see data/ai-alerts-compact.js for the rules. The reader's choice is remembered here.
@@ -84,7 +90,7 @@ let resetCardScroll = false;
 let query = '';
 let normalSavedReading = null;
 export function getSavedView() {
-  return { aiPriority: filter, aiQuery: query, aiSort: sortOrder, aiHoldingCategory: holdingCategory, aiEventTypes: [...eventFilters.selected], aiHideRoutine: eventFilters.hideRoutine, aiLayout: layout };
+  return { aiPriority: filter, aiQuery: query, aiSort: sortOrder, aiHoldingCategory: activeHoldingCategory(), aiEventTypes: [...eventFilters.selected], aiHideRoutine: eventFilters.hideRoutine, aiLayout: layout };
 }
 export function applySavedView(extras = {}) {
   normalSavedReading ||= { filter, query, sortOrder, holdingCategory, layout, eventFilters: structuredClone(eventFilters) };
@@ -437,7 +443,7 @@ function paint(ctx) {
   });
   const anchorTop = anchor?.getBoundingClientRect().top;
   const candidates = query.trim() || eventFilters.selected.length ? report?.allCards || [] : report?.cards || [];
-  const matchesCategory = holdingCategoryMatcher(coverage.holdings(), holdingCategory);
+  const matchesCategory = holdingCategoryMatcher(coverage.holdings(), activeHoldingCategory());
   const matches = candidates.map(eventView).filter(card => card && matchesCategory(card) && matchesSearch(card, query));
   displayedCards = matches;
   // Compact reads the same cards, filtered (data/ai-alerts-compact.js). Counts, sorting and the
@@ -481,7 +487,7 @@ function paint(ctx) {
   // A user-selected option can keep its selectedness after attribute patches.
   // Saved readings and the empty-state reset must update the visible control too.
   const categorySelect = ctx.root.querySelector('[data-ai-holding-category]');
-  if (categorySelect) categorySelect.value = holdingCategory;
+  if (categorySelect) categorySelect.value = activeHoldingCategory();
   const results = ctx.root.querySelector('[data-ai-results]');
   const rows = compactState && cards.length
     ? compactRows(cards, { destination: (event) => evidenceDestination(event, ctx.scope) }).rows : null;
@@ -674,7 +680,7 @@ function controls(cards, visibleCount) {
     view: `
         <label class="flex items-center gap-2">Holding
           <select data-ai-holding-category aria-label="Holding category" class="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
-            ${HOLDING_CATEGORIES.map(([id, label]) => `<option value="${id}" ${id === holdingCategory ? 'selected' : ''}>${label}</option>`).join('')}
+            ${offeredHoldingCategories(categoryHoldings()).map(([id, label]) => `<option value="${id}" ${id === activeHoldingCategory() ? 'selected' : ''}>${label}</option>`).join('')}
           </select>
         </label>
         ${eventTypesControl()}
@@ -872,12 +878,12 @@ function cardMarkup(card, scope, day, archived = false) {
           <div class="min-w-0">
             <h3 class="font-display truncate text-lg font-extrabold leading-tight text-slate-900">${escapeHtml(card.company)}</h3>
             <div class="mt-0.5 truncate text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              ${escapeHtml(card.ticker || 'No exchange ticker')}${card.sector ? ` · ${escapeHtml(card.sector)}` : ''}${card.holding ? ' · In portfolio' : ''}
+              ${escapeHtml(card.ticker || (card.familyPrivate ? 'Private company' : 'No exchange ticker'))}${card.sector ? ` · ${escapeHtml(card.sector)}` : ''}${card.holding ? ' · In portfolio' : ''}
             </div>
           </div>
           <div class="ai-card-market">
             <span class="shrink-0 rounded-md px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider ring-1 ${tone.badge}">${escapeHtml(badge.label)}</span>
-            ${alertPriceHtml(card.ticker)}
+            ${card.familyPrivate ? '' : alertPriceHtml(card.ticker)}
           </div>
         </div>
 
@@ -1226,13 +1232,11 @@ function emptyPanel(ctx) {
       <button type="button" data-ai-view="detailed" class="mt-4 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">Show Detailed</button>
     </div>`;
   }
-  if (holdingCategory !== 'all') {
-    const covered = coverage.holdings().some(holding => holding.holdingCategories?.includes(holdingCategory));
+  const category = activeHoldingCategory();
+  if (category !== 'all') {
     return `<div data-ai-empty class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100">
-      <h3 class="font-display text-lg font-bold text-slate-900">No matching ${escapeHtml(holdingCategoryLabel(holdingCategory))} alerts</h3>
-      <p class="mt-2 text-sm text-slate-500">${covered
-        ? 'No companies match this category and your current scope, priority, search and event filters.'
-        : 'This category is not covered by the current equity-company research list. This does not mean the family has no holdings in this category.'}</p>
+      <h3 class="font-display text-lg font-bold text-slate-900">No matching ${escapeHtml(holdingCategoryLabel(category))} alerts</h3>
+      <p class="mt-2 text-sm text-slate-500">No companies match this category and your current scope, priority, search and event filters.</p>
       <button type="button" data-ai-reset-category class="mt-4 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">Show all holding categories</button>
     </div>`;
   }
@@ -1363,7 +1367,7 @@ function changeEventFilters(ctx) {
 
 function eventTypesControl() {
   const counts = new Map(AI_EVENT_TYPES.map(type => [type.id, 0]));
-  const matchesCategory = holdingCategoryMatcher(coverage.holdings(), holdingCategory);
+  const matchesCategory = holdingCategoryMatcher(coverage.holdings(), activeHoldingCategory());
   for (const card of filteredCards(report?.allCards || []).filter(card => matchesCategory(card) && matchesSearch(card, query))) {
     for (const id of new Set(card.events.flatMap(aiEventTypes))) counts.set(id, (counts.get(id) || 0) + 1);
   }
