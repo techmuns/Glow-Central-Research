@@ -945,7 +945,7 @@ const DOT_TONE = {
  */
 function eventMarkup(event, scope, day, dev = developmentOfRow(event)) {
   const destination = evidenceDestination(event, scope);
-  const tag = alerts.FEED_TAG[event.feed] || String(event.feedLabel || event.feed || '').toUpperCase();
+  const tag = alerts.evidenceTag(event);
   const age = relativeAge(event.day, day);
   const when = `${fmtDay(event.day)}${event.time ? ` · ${event.time} IST` : ' · day only'}`;
   // Plain where this dashboard wrote the sentence, verbatim where somebody else did — see
@@ -973,6 +973,7 @@ function eventMarkup(event, scope, day, dev = developmentOfRow(event)) {
               class="rounded focus-visible:ring-2 focus-visible:ring-indigo-500">${escapeHtml(claim)}</a> ${developmentSourcesMarkup(dev, scope, event)}
           </span>
           ${driverChipsMarkup(readings)}
+          ${indirectMarkup(event)}
         </span>
         <span data-ai-event-source class="mt-0.5 shrink-0 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider ${recent ? 'text-slate-600' : 'text-slate-400'}" title="${escapeHtml(`${event.feedLabel || event.feed} · ${when}`)}">${escapeHtml(tag)} · <time data-ai-age data-day="${escapeHtml(event.day)}" datetime="${escapeHtml(event.time ? `${event.day}T${event.time}+05:30` : event.day)}">${escapeHtml(age)}</time></span>
       </div>
@@ -980,6 +981,24 @@ function eventMarkup(event, scope, day, dev = developmentOfRow(event)) {
       </div>
       ${storyHistoryMarkup(event)}
     </li>`;
+}
+
+/**
+ * WHY AN INDIRECT ROW IS ON THIS CARD, ON THE ROW ITSELF. The story names somebody else, so the row
+ * says how it bears — the reviewed read-across — and links the source that states the company's
+ * exposure: the mapping is this dashboard's reading, and the record behind it has to be one click
+ * away. The exposure itself is the line's title.
+ */
+function indirectMarkup(event) {
+  if (!alerts.isThemeExposureContext(event)) return '';
+  const exposure = event.themeExposure;
+  const evidence = exposure.evidence?.find((item) => safeSourceUrl(item.url));
+  const link = evidence
+    ? ` <a data-ai-indirect-source href="${escapeHtml(safeSourceUrl(evidence.url))}" target="_blank" rel="noopener noreferrer"
+        class="whitespace-nowrap text-indigo-700 hover:underline" title="${escapeHtml(`${canonicalPublisherName(evidence.publisher)}, ${evidence.day}: ${evidence.headline}`)}">Why mapped</a>`
+    : '';
+  return `<span data-ai-indirect="${escapeHtml(exposure.theme)}" class="mt-1 block text-xs leading-snug text-slate-500"
+    title="${escapeHtml(event.attribution?.reason || '')}">Indirect · ${escapeHtml(exposure.short)} — ${escapeHtml(exposure.readAcross)}${link}</span>`;
 }
 
 function storySourcesMarkup(reports) {
@@ -1415,6 +1434,8 @@ function eventFilterSummary() {
 
 function kindLabel(dev) {
   if (!dev?.lead) return '';
+  // Somebody else's story leading this company's card is named for what it is here.
+  if (alerts.isThemeExposureContext(dev.lead)) return 'Indirect';
   return dev.kind ? KIND_LABEL[dev.kind] : MEASUREMENT_LABEL[dev.lead.feed] || dev.lead.feedLabel || dev.lead.feed || '';
 }
 
