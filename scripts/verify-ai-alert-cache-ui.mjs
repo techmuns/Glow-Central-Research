@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Returning reader, real service worker and real Glow statement bridge. Local only.
 import assert from 'node:assert/strict';
+import { useAiAlertsLayout } from './lib/ai-alerts-layout.mjs';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
@@ -92,6 +93,8 @@ const server = createServer(async (req, res) => {
 await new Promise(done => server.listen(0, '127.0.0.1', done));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH });
+// These checks read the Detailed cards; Compact (the default) has its own suite.
+useAiAlertsLayout(browser, 'detailed');
 try {
   const context = await browser.newContext();
   await context.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.fulfill({status:503,body:'{}'}));

@@ -46,6 +46,10 @@ const rankingEvidence = new WeakMap();
 const FEED_WEIGHT = {
   'price-levels': 18,
   earnings: 12,
+  // A broker's published view of the company: weighed with the fund books, below a filing. A
+  // material one (an initiation, a downside call, a rating change, two brokers in the window) on a
+  // book company today scores 30 + 8 + 16 + 12 = 66 and surfaces; a lone routine view does not.
+  'broker-reports': 8,
   announcements: 10,
   'nse-filings': 10,
   insider: 9,
@@ -433,6 +437,7 @@ export function confluenceOf(events, { feedById = new Map() } = {}) {
  */
 export const FEED_TAG = {
   'price-levels': 'LEVEL',
+  'broker-reports': 'BROKER',
   earnings: 'RESULT',
   concalls: 'CALL',
   'screener-insights': 'INSIGHT',
