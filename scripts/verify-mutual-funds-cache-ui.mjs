@@ -28,7 +28,8 @@ try {
   if(u.pathname==='/js/core/host-context.js')return js(`let token=null;const listeners=[];export const authHeaders=()=>token?{Authorization:'Bearer '+token}:{};export const hostToken=()=>token;export const onHostContext=fn=>listeners.push(fn);window.session=value=>{token=value;for(const fn of listeners)fn({}, {session:true});};`);
   if(u.pathname==='/js/data/coverage.js')return js(`export const holdings=()=>[{isin:'${isin}',name:'Cached Company'}];`);
   if(u.pathname==='/js/core/watchlist.js')return js('export const all=()=>[];');
-  if(u.pathname==='/js/data/scope.js')return js('export const filterByScope=rows=>rows;');
+  // The Holding filter is All in this fixture: its helpers leave the rows untouched.
+  if(u.pathname==='/js/data/scope.js')return js('export const filterByScope=rows=>rows;export const scopeHoldings=rows=>rows;export const holdingMembership=()=>null;');
   if(u.pathname==='/api/mutual-funds') {
    requests.push(u.href);const value=structuredClone(typeof publicValue==='function'?publicValue(u):publicValue),block=publicGate,fail=failPublic;
    if(block)await block.promise;
