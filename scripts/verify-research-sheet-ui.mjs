@@ -78,6 +78,14 @@ const SECOND = tickerKeys.find((k) => k !== PRIMARY);
 const primaryQty = quantityOf(PRIMARY);
 for (const handAdded of ['INFY', 'TCS']) if (expectedKeys.has(handAdded)) throw new Error(`${handAdded} is now a public-direct holding; pick another hand-added company`);
 console.log(`Rows under test: ${PRIMARY} (bought ${BOUGHT}) and ${SECOND}, from ${expectedKeys.size} public-direct rows`);
+// The fill and paste sections work on runs of adjacent rows in the displayed order. They keep clear
+// of PRIMARY and SECOND, which the sections before them edit from two devices, so a colleague's
+// change still in flight on one of those rows can never land inside a range under test.
+const isolatedRun = (keys, size) => {
+  const at = keys.findIndex((_, i) => i + size <= keys.length && !keys.slice(i, i + size).some((k) => k === PRIMARY || k === SECOND));
+  if (at < 0) throw new Error(`no ${size} adjacent sheet rows clear of ${PRIMARY} and ${SECOND}`);
+  return keys.slice(at, at + size);
+};
 
 // ---- the stand-in Worker -------------------------------------------------------------------
 const sqlStorage = () => {
@@ -454,7 +462,7 @@ try {
   await search.fill('');
   await table(a.page, 'portfolio').locator('th[data-sort="name"]').click();
   const ordered = await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.map(r => r.dataset.rowKey));
-  const [first, second, third, fourth, fifth] = ordered;
+  const [first, second, third, fourth, fifth] = isolatedRun(ordered, 5);
   await editCell(a.page, 'portfolio', first, 'methodology', 'DCF', { name: 'Ravi' });
   const originalSecond = await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).entry(key, 'methodology')?.value ?? null, second);
   await fillHandle(a.page, 'portfolio', first, 'methodology').click();
@@ -600,7 +608,7 @@ try {
   await a.page.locator('#tabbar-mount [data-tab-id="portfolio"]').click();
   await rowOf(a.page, 'portfolio', PRIMARY).waitFor();
   console.log('\n— direct Excel clipboard paste —');
-  const pasteKeys = await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.slice(0, 4).map(r => r.dataset.rowKey));
+  const pasteKeys = isolatedRun(await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').evaluateAll(rows => rows.map(r => r.dataset.rowKey)), 4);
   const pasteFields = ['intrinsicValue', 'methodology', 'reference'];
   await pasteCells(a.page, 'portfolio', pasteKeys[0], 'methodology', 'Single Excel value\r\n');
   ok('a single Excel value keeps normal text editing instead of saving before Enter', await a.page.locator('[data-sheet-input]').inputValue() === 'Single Excel value'
@@ -641,7 +649,7 @@ try {
   ok('date, quantity and buy-price columns accept an Excel rectangle in their own units', await waitFor(async () => {
     const v = sheetStore.snapshot().values; return v[pasteKeys[0]]?.dateBought?.value === '2024-03-12' && v[pasteKeys[0]]?.quantity?.value === 125000
       && v[pasteKeys[1]]?.dateBought?.value === '2025-05-16' && v[pasteKeys[1]]?.buyPrice?.value === 1200;
-  }));
+  }), JSON.stringify(pasteKeys.slice(0, 2).map((k) => [k, ...['dateBought', 'quantity', 'buyPrice'].map((f) => sheetStore.snapshot().values[k]?.[f]?.value ?? null)])));
   await pasteCells(a.page, 'portfolio', pasteKeys[0], 'dateBought', '13-Mar-24\r\n17-May-25\r\n');
   ok('multiple Excel dates can also be pasted while the native date editor is open', await waitFor(async () => sheetStore.snapshot().values[pasteKeys[0]]?.dateBought?.value === '2024-03-13'
     && sheetStore.snapshot().values[pasteKeys[1]]?.dateBought?.value === '2025-05-17'));
