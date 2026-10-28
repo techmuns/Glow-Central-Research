@@ -8,6 +8,11 @@ const root = resolve('public');
 const output=resolve('.cache/private-market');mkdirSync(output,{recursive:true});
 const sourceUrl='https://inc42.com/buzz/fixture-funding-this-week/';
 let capture=emptyCapture(), unavailable=false, reads=0, legacy=true;
+// The family's private companies, as build-book.mjs publishes them: one named as the deal is, one
+// matched through its legal name, one with no captured round.
+const privateCompanies=[{id:'private:fixturecompany3',name:'Fixture Company 3',legalName:null,aliases:[],categories:['private-investment'],isins:[],securityKeys:['fixture-company-3-a-person'],bookNames:['Fixture Company 3 - A Person']},
+  {id:'private:fixturebrand',name:'Fixture Brand',legalName:'Fixture Company 7 Private Limited',aliases:[],categories:['unlisted'],isins:[],securityKeys:['fixture-brand'],bookNames:['Fixture Brand']},
+  {id:'private:unfunded',name:'Unfunded Holding',legalName:null,aliases:[],categories:['private-investment'],isins:[],securityKeys:['unfunded'],bookNames:['Unfunded Holding']}];
 capture.generatedAt=new Date().toISOString();capture.sourceCheckedAt=capture.generatedAt;capture.archive.complete=true;
 capture.articles=[{url:sourceUrl,title:'Fixture funding this week',status:'ok',publishedAt:'2026-10-17T09:00:00+05:30',notes:['* Mix of equity and debt']}];
 const variants=['Series A1','series A','Series A**','Seed funding','Seed Round','$1 Mn','bp Ventures','Pre-Series A','pre–Series A','Credit','Debt'];
@@ -20,14 +25,14 @@ import * as tab from '/js/tabs/private-market-news.js';import * as feed from '/j
 import {watchWorkerChanges} from '/js/core/app-updates.js';import {enterView,captureTableReading} from '/js/core/view-reading.js';
 const root=document.querySelector('#root'),saved=JSON.parse(sessionStorage.getItem('funding-reading')||'null');
 enterView({root,key:'funding-fixture',preset:saved?{reading:saved}:null});
-window.fixture={tab,feed};tab.render({root,scope:'watchlist'});
+window.fixture={tab,feed};tab.render({root,scope:'universe'});
 if(location.search.includes('worker-upgrade')){watchWorkerChanges(navigator.serviceWorker,()=>{sessionStorage.setItem('funding-reading',JSON.stringify(captureTableReading(root)));location.reload();});await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready;}
 window.fixtureReady=true;</script>`;
 const server=createServer((req,res)=>{
   const pathname=new URL(req.url,'http://localhost').pathname;
   res.setHeader('cache-control','no-cache');
   if(pathname==='/'||pathname==='/index.html'){res.setHeader('content-type','text/html');res.end(html);return;}
-  if(pathname==='/data/portfolio-companies.json'){res.setHeader('content-type','application/json');res.end('[]');return;}
+  if(pathname==='/data/portfolio-companies.json'){res.setHeader('content-type','application/json');res.end(JSON.stringify({holdings:[],privateCompanies}));return;}
   if(pathname==='/sdk-fixture.js'){res.setHeader('content-type','text/javascript');res.end('/* fixture */');return;}
   if(pathname==='/data/private-market-news.json'){reads++;res.setHeader('content-type','application/json');if(unavailable){res.writeHead(503);res.end('{}');}else res.end(JSON.stringify(capture));return;}
   const path=resolve(root,`.${pathname}`);if(!path.startsWith(root+sep)){res.writeHead(404);res.end();return;}
@@ -101,6 +106,19 @@ try{
   await page.getByPlaceholder('Search company, investor, sector or round...').fill('Fixture Investor');
   await page.evaluate(()=>{window.fixture.tab.destroy();window.fixture.tab.render({root:document.querySelector('#root'),scope:'portfolio'});});
   await page.getByRole('heading',{name:'Private Market',exact:true}).waitFor();assert.equal(await search.inputValue(),'Fixture Investor');
+  // Portfolio is the family's own private companies, matched by exact name, labelled on the row.
+  await page.getByText('Family holding · Fixture Company 3').waitFor();
+  await page.getByText('Family holding · Fixture Brand').waitFor();
+  assert.deepEqual((await page.locator('tbody tr[data-row-key]').evaluateAll(rows=>rows.map(r=>r.dataset.rowKey))).sort(),[capture.deals[3].id,capture.deals[7].id],'Portfolio keeps only the family companies, a legal-name match joining its brand');
+  assert.equal(await page.getByRole('combobox',{name:'Funding period',exact:true}).inputValue(),'all','Portfolio opens on all captured history');
+  assert.match(await page.locator('main').innerText(),/2 of 3 have a captured round/,'The denominator names every private company');
+  await page.getByRole('combobox',{name:'Sectors',exact:true}).selectOption('all');await rounds.selectOption('all');await search.fill('');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(),2,'Clearing every filter still shows only the family companies');
+  assert(!(await page.locator('main').innerText()).includes('Fixture Company 30'),'Exact names only: no prefix match');
+  await page.evaluate(()=>{window.fixture.tab.destroy();window.fixture.tab.render({root:document.querySelector('#root'),scope:'watchlist'});});
+  await page.getByText('None of your watchlist companies appears in the captured funding records.').waitFor();
+  await page.evaluate(()=>{window.fixture.tab.destroy();window.fixture.tab.render({root:document.querySelector('#root'),scope:'universe'});});
+  await page.waitForFunction(()=>document.querySelectorAll('tbody tr[data-row-key]').length>2);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'Wide funding columns stay inside their scroller');
   mkdirSync('.cache/private-market',{recursive:true});await page.screenshot({path:'.cache/private-market/reader-light.png',fullPage:true});
   await page.emulateMedia({colorScheme:'dark'});await page.evaluate(()=>document.documentElement.dataset.theme='dark');await page.screenshot({path:'.cache/private-market/reader-dark.png',fullPage:true});

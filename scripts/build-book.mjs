@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { buildIndex, resolveTicker } from './lib/company-index.mjs';
 import { statementEquityRelationship } from './lib/glow-book-identity.mjs';
 import { withHoldingCategories } from '../public/js/data/holding-categories.js';
+import { privateCompaniesFrom } from '../public/js/data/private-companies.js';
 import { AUTHORITATIVE, authoritativeDocs, datedRows, loadArchive, realisedIndex, saleKey, settledAmount } from './lib/glow-archive.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -511,6 +512,10 @@ const companies = {
     name: h.name, bookName: h.bookName, sector: h.sector, holdingCategories: h.holdingCategories,
     reason: 'no ISIN on the statement or in the NSE directory yet — joins the research list once one is published',
   })),
+  // The family's private companies (unlisted shares and single-company private investments), named
+  // as the company, for the Private Market tab's Portfolio scope. Not research identities: no feed
+  // here is keyed by them, and they are in no count above.
+  privateCompanies: privateCompaniesFrom(out.positions),
 };
 mkdirSync(dirname(COMPANIES_OUT), { recursive: true });
 writeFileSync(COMPANIES_OUT, `${JSON.stringify(companies, null, 2)}\n`);
@@ -518,6 +523,7 @@ console.log(
   `portfolio-companies.json: ${companies.count} direct-equity lines (${companies.resolved} with an NSE symbol, ${companies.unresolved} unresolved, ${companies.unlisted} not listed equity) ` +
     `from ${equityRows.length} equity rows; excluded ${Object.entries(excluded).map(([k, v]) => `${k} ${v}`).join(', ')} → ${COMPANIES_OUT}`
 );
+console.log(`portfolio-companies.json: ${companies.privateCompanies.length} private companies from ${companies.privateCompanies.reduce((n, c) => n + c.securityKeys.length, 0)} private lines`);
 if (awaitingIdentity.length) console.log(`::warning title=Holdings awaiting an ISIN::${awaitingIdentity.map((h) => h.name).join(', ')} — held, kept out of the research list until an ISIN is published`);
 
 // Portfolio metadata must follow a new Glow book even if external collectors are unavailable.

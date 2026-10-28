@@ -5744,3 +5744,6 @@ existing GitHub newsletter account mutex and active recipient list. Preserve the
 regular daily briefs, private encryption/authentication, source gates, retained
 claims/history and publication/source-time distinction. Read
 `docs/PRIVATE-MARKETS-INTELLIGENCE.md` before changing its clock, matching or delivery.
+Private Market follows the scope switch (GLOW-OWNED): Portfolio = rounds of the family's private
+companies from the GlowVentures book, Watchlist = watched companies, Universe = everything; exact
+company names only. See *Private Market scope* in `docs/GLOW-TEMPLATE-SYNC.md`.
