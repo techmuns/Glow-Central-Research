@@ -26,6 +26,7 @@ import * as alerts from './ai-alerts.js';
 import { aiEventTypes } from './ai-alert-types.js';
 import { developmentOfRow } from './alert-developments.js';
 import { brokerCall } from './broker-reports-shared.js';
+import { isThemeExposureContext } from './theme-exposures.js';
 
 export const COMPACT_WORD_LIMIT = 60;
 
@@ -91,7 +92,8 @@ const asSentence = (text) => { const t = String(text || '').trim(); return !t ||
 const byNewest = (a, b) => String(b.day || '').localeCompare(String(a.day || '')) || String(b.time || '').localeCompare(String(a.time || ''));
 const dayGap = (a, b) => Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 864e5;
 const isResult = (event) => event.feed === 'earnings' || (FILINGS.has(event.feed) && aiEventTypes(event).includes('results'));
-const resultCoverage = (event) => isResult(event) || (NEWS.has(event.feed) && /\b(?:results?|net\s+profit|revenue|pat|ebitda|q[1-4]\s*fy\s*\d{2}|q[1-4]fy\d{2})\b/i.test(event.headline || ''));
+// Another company's results story reaching this card through a theme is not this company's result.
+const resultCoverage = (event) => !isThemeExposureContext(event) && (isResult(event) || (NEWS.has(event.feed) && /\b(?:results?|net\s+profit|revenue|pat|ebitda|q[1-4]\s*fy\s*\d{2}|q[1-4]fy\d{2})\b/i.test(event.headline || '')));
 const canonical = (url) => { try { const u = new URL(url); u.hash = ''; return u.href.replace(/\/$/, ''); } catch { return String(url || ''); } };
 
 /** A list in prose: "A", "A and B", "A, B and C". */
@@ -155,6 +157,8 @@ export function brokerSummary(views, windowDays = alerts.WINDOW_DAYS) {
 export function kindOf(event, { brokerLed = false, views = [] } = {}) {
   if (brokerLed) return views.some((e) => e.brokerReport.kind === 'initiation') && views.length === 1
     ? { id: 'coverage', label: 'New coverage' } : { id: 'broker', label: 'Broker views' };
+  // Somebody else's story on this company's row says so before anything else (theme-exposures.js).
+  if (isThemeExposureContext(event)) return { id: 'indirect', label: `Indirect · ${event.themeExposure.short}` };
   if (isResult(event)) return { id: 'result', label: 'Result' };
   if (event.feed === 'announcements') return { id: 'filing', label: 'Filing · BSE' };
   if (event.feed === 'nse-filings') return { id: 'filing', label: 'Filing · NSE' };
@@ -186,7 +190,10 @@ function leadCandidates(card) {
   const candidates = (card.events || []).filter(material);
   const readable = candidates.filter(readableClaim);
   const ordered = readable.length ? [...readable, ...candidates.filter((e) => !readable.includes(e))] : candidates;
-  return [...ordered.filter((e) => !LAST_RESORT.has(e.feed)), ...ordered.filter((e) => LAST_RESORT.has(e.feed))];
+  // THE COMPANY'S OWN EVIDENCE LEADS ITS ROW. An indirect theme story leads only a company with
+  // nothing material of its own, and then ahead of a chatter snapshot.
+  const own = (e) => !LAST_RESORT.has(e.feed) && !isThemeExposureContext(e);
+  return [...ordered.filter(own), ...ordered.filter(isThemeExposureContext), ...ordered.filter((e) => LAST_RESORT.has(e.feed))];
 }
 
 function sourceWording(lead, text) {
@@ -222,6 +229,12 @@ function rowFor(card, lead, views, destination) {
     href = dest.href; external = dest.external; opens = filing ? `${filing.feed === 'nse-filings' ? 'NSE' : 'BSE'} result filing` : dest.label;
     folded = Math.max(0, family.length - 1);
     when = filing || figures;
+  } else if (isThemeExposureContext(lead)) {
+    // The story, then how it bears on this company — the reviewed read-across. The kind tag says
+    // Indirect, so the headline is never read as this company's own news.
+    text = `${asSentence(alerts.plainHeadline(lead))} ${lead.themeExposure.readAcross}`;
+    const dest = destination(lead);
+    href = dest.href; external = dest.external; opens = dest.ariaLabel || dest.label;
   } else {
     const dev = developmentOfRow(lead);
     text = dev ? alerts.developmentClaim(dev) : alerts.plainHeadline(lead);

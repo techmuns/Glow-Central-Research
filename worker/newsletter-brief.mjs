@@ -959,7 +959,9 @@ export async function buildBrief({ edition, day, settings, env, fetcher = fetch,
   // Read before grouping: generic exchange labels cannot identify the actual transaction.
   brief.content = await attachContent(brief, { service: contentService, env, fetcher, now, process: includeAi && (bedrockConfigured(env) || newsAiEnabled(env)),
     extraItems: priceEvidenceItems(priceContext, moves) });
-  news.dedup = await reviewNewsEvents({ news, env, fetcher, enabled: includeAi, budget: contentService?.newsBudget, now });
+  // One grouping pass per company over its filings and news together, so a results filing, its
+  // press release and the publishers' reports of it become one update with every source linked.
+  news.dedup = await reviewNewsEvents({ news, announcements, env, fetcher, enabled: includeAi, budget: contentService?.newsBudget, now });
   brief.priceReasons = await attachPriceReasons({ brief, context: priceContext, env, fetcher, now, enabled: includeAi });
   // Apply durable event history before admitting summary work; transport copies cannot
   // consume paid slots or the coverage denominator of genuinely new developments.
@@ -1056,7 +1058,7 @@ export function briefStories(brief) {
     for (const item of g.items) rows.push({
       ...base('filing', g, item), headline: item.headline, type: item.type || null,
       dek: [item.exchanges.join(' and '), item.subject].filter(Boolean).join(' filing · ') || null,
-      url: item.url, source: item.exchanges.join(' · '),
+      url: item.url, source: item.exchanges.join(' · '), eventId: item.eventId,
       content: item.content, sourceUrls: item.sourceUrls,
       editorialReported: item.editorialReported,
       direction: item.direction || 'neutral', importance: item.importance || 'low',
@@ -1189,6 +1191,9 @@ export function clusterStories(stories, { company = '' } = {}) {
     if (s.kind === 'filing' || s.kind === 'news') {
       for (const c of clusters) {
         if (c.kind !== 'story') continue;
+        // A checked partition groups filings and news across kinds; every member already passed
+        // the safety net in newsletter-events.mjs. Only a group the whole cluster shares can join.
+        if (s.eventId && c.items.every(i => i.eventId === s.eventId)) { home = c; break; }
         if(c.documents.every(d=>sameInvestmentEvent(d.main,s,investments)||sameExplicitEvent(d.main,s) ||
           s.kind==='filing'&&d.main.kind==='filing'&&!changedDocumentVersion(d.main,s)&&(sameScheduledBoardMeeting(d.main,s)||sameBoardDisclosure(d.main,s)||sameScheduledEarningsCall(d.main,s)))) {home=c;break;}
         const news = c.items.filter(i => i.kind === 'news');

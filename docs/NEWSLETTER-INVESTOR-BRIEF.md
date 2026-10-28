@@ -134,6 +134,14 @@ copies across exchange timestamps. Generic subjects and time proximity alone can
 Changed amount, counterparty, date, status, conditions or ownership prevent unsafe merging.
 Distinct CEAT loan-conversion/investment fixtures remain separate.
 
+Since 29 October the semantic check covers each company's filings and news in one partition
+(ids only, no generated text), so one results disclosure and its press release, presentation,
+board outcome and news reports print as one update with every link retained. An unsafe proposed
+group is split on its own (money amounts beyond 5% after unit normalisation, opposite headline
+stages, other company/relation, over 24 hours) instead of voiding the reply; a failed batch no
+longer stops later batches. City Union Bank's 28 October evening results (nine items) are the
+regression fixture.
+
 Semantic news checking runs after source attachment, packing whole companies into bounded
 batches rather than admitting only the first 80 reports of an edition or wasting a request
 on each small company. Each request retains its existing
