@@ -45,8 +45,9 @@ the labelled copies. `scripts/verify-theme-exposures.mjs` is the offline test.
    gives the exposure and its source, and gives the read-across.
 
 Measured on the shipped captures (28 October 2026): **12 of 33,343** market-wide stories bear on
-the GLP-1 theme and **4** are decisive. For the book's two mapped holdings (OneSource and
-Glenmark), that is two days in two months with an indirect card.
+the GLP-1 theme and **4** are decisive. They fall on two days in two months. Glenmark is the book's
+mapped holding. OneSource left the book in the 28 October statement refresh; it stays mapped and
+reaches Watchlist and Universe like every other exposure.
 
 ## The rules
 
