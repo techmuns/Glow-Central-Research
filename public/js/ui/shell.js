@@ -13,9 +13,9 @@ import * as refreshRegistry from '../core/refresh.js';
 import { tabBar, segmentedToggle, statusControl, emptyState } from './components.js';
 import { coverTableResults } from './loading.js';
 import { closeDrill, closeModal, closeWorkspace, openModal, watchlistEmptyPanel, holdingEmptyPanel } from './screener.js';
-import { SCOPES, scopeLabel, holdingMembership, holdingScopeEmpty } from '../data/scope.js';
-import { HOLDING_CATEGORIES } from '../data/holding-categories.js';
-import { holdingCategory, setHoldingCategory, onHoldingChange, activeHoldingLabel } from '../core/holding-filter.js';
+import { SCOPES, scopeLabel, holdingMembership, holdingScopeEmpty, offeredHoldingOptions, effectiveHoldingCategory } from '../data/scope.js';
+import { holdingCategoryLabel } from '../data/holding-categories.js';
+import { setHoldingCategory, onHoldingChange } from '../core/holding-filter.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import * as coverage from '../data/coverage.js';
@@ -219,7 +219,8 @@ export function mount(root) {
   scopeLists.migratePortfolioToWatchlist();
   wireStaticHeader(root);
   coverage.onChange(({ changed }) => {
-    if (changed && (state.scope === 'portfolio' || holdingCategory() !== 'all') && !currentTabModule?.meta.scopeIndependent && !['ask-research', 'ai-alerts'].includes(state.tab) && !document.querySelector('[data-scope-editor]')) {
+    syncHoldingControl(root);
+    if (changed && (state.scope === 'portfolio' || effectiveHoldingCategory() !== 'all') && !currentTabModule?.meta.scopeIndependent && !['ask-research', 'ai-alerts'].includes(state.tab) && !document.querySelector('[data-scope-editor]')) {
       setTimeout(() => { if (!currentTabModule?.meta.scopeIndependent) handleRoute(root, router.parseHash()); }, 0);
     }
   });
@@ -332,9 +333,7 @@ function shellTemplate() {
             <div id="scope-edit-mount"></div>
             <label data-holding-controls class="holding-filter-control">
               <span data-scope-label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Holding</span>
-              <select data-holding-filter class="holding-filter" aria-label="Holding type">
-                ${HOLDING_CATEGORIES.map(([id, label]) => `<option value="${id}">${escapeHtml(label)}</option>`).join('')}
-              </select>
+              <select data-holding-filter class="holding-filter" aria-label="Holding type"></select>
             </label>
           </div>
           <!-- The company the Munshot host has selected, when it has selected one. Hidden and
@@ -414,7 +413,7 @@ function wireStaticHeader(root) {
     getTimestamp: () => live.getLastDataTick(),
     subscribeTick: live.onGlobalTick,
     onRefresh: () => watch.refreshNow({ tab: currentTabModule?.meta.savedView?.source || state.tab, scope: state.scope, subview: state.subview, params: router.parseHash().params }),
-    getRefreshKey: () => JSON.stringify([state.tab, state.scope, holdingCategory(), state.subview, router.parseHash().params, refreshRegistry.registered().map((r) => r.id)]),
+    getRefreshKey: () => JSON.stringify([state.tab, state.scope, effectiveHoldingCategory(), state.subview, router.parseHash().params, refreshRegistry.registered().map((r) => r.id)]),
     subscribeContext: (fn) => { const off = subscribe(fn); const offRegistry = refreshRegistry.onChange(fn); return () => { off(); offRegistry(); }; },
   });
   $('#status-mount', root).innerHTML = status.html;
@@ -814,11 +813,19 @@ function keepDraftReading() {
 function syncHoldingControl(root) {
   const select = root.querySelector('[data-holding-filter]');
   if (!select) return;
-  select.value = holdingCategory();
+  // Only the categories some company carries are offered (the book's lines and the family's private
+  // companies), so the list follows the book as it syncs; a category no company carries reads as All.
+  const options = offeredHoldingOptions(), key = options.map(([id]) => id).join(',');
+  if (select.dataset.options !== key) {
+    select.innerHTML = options.map(([id, label]) => `<option value="${id}">${escapeHtml(label)}</option>`).join('');
+    select.dataset.options = key;
+  }
+  const category = effectiveHoldingCategory();
+  select.value = category;
   // Narrowed is a state the reader must be able to see at a glance, on every tab — and the value is
   // in the title too, for the icon-sized form Ask Research's one-row header uses.
-  select.toggleAttribute('data-active', holdingCategory() !== 'all');
-  select.title = `Holding: ${activeHoldingLabel()}`;
+  select.toggleAttribute('data-active', category !== 'all');
+  select.title = `Holding: ${holdingCategoryLabel(category)}`;
 }
 
 // ---- Small local dropdown, used by the sub-view picker -------------------------------------

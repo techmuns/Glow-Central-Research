@@ -74,17 +74,20 @@ Paths that resolve membership without those helpers (the announcement index quer
 Actions, Mutual Funds, investor name matching, the alert collector's entity/portfolio-only rules)
 apply it explicitly. Like the scope, it follows the header rather than any saved tab definition;
 legacy saved AI views' `aiHoldingCategory` is ignored. The Portfolio and Watchlist sheets keep
-their own membership. A category leaving no company in scope (by company membership, so tickerless
-holdings count) gets one shell panel with Show all holdings. Ask Research's one-row header shows the
-select as an icon. `verify-holding-filter.mjs` is the offline test.
+their own membership. It offers only categories some company carries — the book's lines and the
+family's private companies (`coverage.privateCompanies()`, whose alerts and Private Market rounds it
+also narrows) — and a remembered category no company carries reads as All (`effectiveHoldingCategory`).
+A category leaving no company in scope (by company membership, so tickerless holdings count) gets one
+shell panel with Show all holdings. Ask Research's one-row header shows the select as an icon.
+`verify-holding-filter.mjs` is the offline test.
 Categories use names-only `holdingCategories` from this same statement
 book. `holding-categories.js` follows GlowVentures' account routing: PMS accounts are PMS;
 Direct and Execution equity accounts are Direct Equity; unstated engagements are not guessed.
 A company held through both routes matches both choices. The producer, `/api/family-portfolio`
 and the position-size reply preserve these memberships; category changes invalidate the reader.
-Fund units, bonds, unlisted and private-investment positions are not added to the equity-company
-research list by this filter. Their empty selections name this coverage limit instead of
-claiming there are no family holdings or no source events. Statement dates remain unchanged.
+Fund units, bonds and pooled AIF positions are not added to the equity-company research list by
+this filter, and a category only they carry is not offered rather than offered empty. Statement
+dates remain unchanged.
 
 - Worker: `glow-central-research`; repository: `techmuns/Glow-Central-Research`.
 - Research dispatch and authenticated Actions artifacts use Glow's repository and immutable
@@ -776,3 +779,21 @@ The template preserve list keeps Glow's statement-based fund callback and exclud
 Sattva's Inc42 collector workflow, including when that workflow is newly added
 upstream. The public release transport retains its fixed publisher and refuses
 Glow publication.
+
+**Private Market scope (GLOW-OWNED, 28 October 2026).** The tab shows the global scope switch
+(no `scopeIndependent` in its catalog entry). Universe lists every funding record; Portfolio
+lists only rounds of the family's private companies (`privateCompanies` in
+`portfolio-companies.json`, written by `build-book.mjs` from the GlowVentures book through
+`public/js/data/private-companies.js`); Watchlist lists rounds of watched companies. Every join
+is an exact normalised company name — a reviewed legal-name/brand pair counts, a substring or a
+person/vehicle in the statement line never does. Portfolio opens on All captured history and its
+heading states how many private companies have a captured round. A template sync must keep the
+scope and this module; `verify-private-companies.mjs` and `verify-private-market-news-ui.mjs`
+check it.
+
+**Private companies in AI Alerts (GLOW-OWNED, 28 October 2026).** A Glow-only alert source,
+`private-companies`, sits beside `price-levels` in `ADDITIONAL_SOURCES`. A template sync must keep
+it, its hooks in `ai-alerts.js` (`FEED_WEIGHT`, `FEED_TAG`, the `familyPrivate` card fields and the
+position-size retention), `matchesAlertScope`'s `familyPrivate` line, the `familyPrivate` branch of
+`holdingCategoryMatcher`, `scripts/build-private-company-news.mjs` and
+`.github/workflows/private-company-news.yml`.

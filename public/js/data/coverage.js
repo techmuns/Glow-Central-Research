@@ -164,6 +164,9 @@ export const isLoaded = () => !!raw;
  */
 export const baseHoldings = () => (raw ? raw.holdings : []);
 
+/** The family's private companies the published list carries (GLOW-OWNED; Unlisted / Private Investment). */
+export const privateCompanies = () => (raw && Array.isArray(raw.privateCompanies) ? raw.privateCompanies : []);
+
 /** Family Office alone controls ownership. Watchlist holds personal selections. */
 export const holdings = () => family ? family.holdings : baseHoldings();
 

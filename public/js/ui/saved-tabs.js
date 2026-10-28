@@ -5,8 +5,8 @@ import { VIEW_SOURCES, cleanSavedTab } from '../data/workspace-shared.js';
 import { TAB_META, TAB_GROUPS } from '../tabs/catalog.js';
 import { researchTabs } from '../tabs/registry.js';
 import { state } from '../core/state.js';
-import { scopeLabel } from '../data/scope.js';
-import { activeHoldingLabel } from '../core/holding-filter.js';
+import { scopeLabel, effectiveHoldingCategory } from '../data/scope.js';
+import { holdingCategoryLabel } from '../data/holding-categories.js';
 import { openModal, closeModal } from './screener.js';
 
 // The builder follows the live navigation metadata. A new subtab or renamed view
@@ -28,7 +28,7 @@ export function openTabEditor({ tab = null, seed = null, onSaved, captureCurrent
     ${field('Tab', `<select data-saved-group required>${groups.map(source => `<option value="${source.group}">${escapeHtml(source.groupTitle)}</option>`).join('')}</select>`)}
     ${field('Subtab', '<select data-saved-source></select>')}
     ${field('View', '<select data-saved-subview></select>')}
-    <p data-saved-scope-note>Company scope follows the Scope and Holding filters above (currently ${escapeHtml(scopeLabel(state.scope))} · ${escapeHtml(activeHoldingLabel())}).</p>
+    <p data-saved-scope-note>Company scope follows the Scope and Holding filters above (currently ${escapeHtml(scopeLabel(state.scope))} · ${escapeHtml(holdingCategoryLabel(effectiveHoldingCategory()))}).</p>
     <p class="saved-tab-error" data-saved-error role="status"></p>
     <div class="saved-tab-actions"><button type="button" data-saved-cancel>Cancel</button>${onPreview ? '<button type="button" data-saved-preview>Choose filters</button>' : ''}<button type="submit" data-saved-submit></button></div>
     <button type="button" class="saved-tab-close" data-modal-close aria-label="Close tab dialog" title="Close tab dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke-linecap="round" /></svg></button>
