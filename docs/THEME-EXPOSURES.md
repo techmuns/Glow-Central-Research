@@ -25,8 +25,10 @@ the labelled copies. `scripts/verify-theme-exposures.mjs` is the offline test.
 4. **AI Alerts takes decisive copies only.** One decisive copy, published today, on a book
    company scores exactly `MIN_SCORE` (30 + 6 + 16 + 12 = 64). That surfaces the company that day;
    the next day the score falls below the line. A copy can never make a card Must see on its own.
-   Several publishers' accounts of one development fold to one row: one per theme, day and named
-   company, keeping the account whose read-across is most specific. Low-importance copies stay out
+   Several publishers' accounts of one development fold to one row. The fold key is the theme, the
+   day, the named company and the kind of development (the first stage the headline names), so
+   Lilly's trial readout and Lilly's approval on the same day stay two rows. Of the folded
+   accounts, the one whose read-across is most specific is kept. Low-importance copies stay out
    of cards entirely. A card's timeline shows every record it holds, and before this rule theme
    commentary took 6 of the 14 rows on OneSource's card.
 
