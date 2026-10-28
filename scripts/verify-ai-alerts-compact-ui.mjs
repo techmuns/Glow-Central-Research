@@ -9,7 +9,7 @@ import { extname, resolve, sep } from 'node:path';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root = resolve('public');
 
-const html = `<!doctype html><html><head><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"><link rel="stylesheet" href="/css/glow.css"></head>
+const html = `<!doctype html><html><head><script src="/js/theme-init.js"></script><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"><link rel="stylesheet" href="/css/glow.css"></head>
 <body><main id="root" style="padding:24px;max-width:1400px;margin:auto"></main><script type="module">
 import * as tab from '/js/tabs/ai-alerts.js';
 import * as coverage from '/js/data/coverage.js';
@@ -164,6 +164,13 @@ try {
   const overflow = await phone.page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
   assert(overflow <= 1, `no sideways page scroll at 390px (${overflow}px)`);
   assert.equal(await phone.page.locator('.ai-compact-head').isVisible(), false, 'the column header gives way on a phone');
+  // Dark theme: the row's own text is light on the dark surface, not the light theme's ink.
+  const luminance = await phone.page.evaluate(() => {
+    const lum = (c) => { const [r, g, b] = c.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
+    return { name: lum(getComputedStyle(document.querySelector('.ai-compact-name')).color), cmp: lum(getComputedStyle(document.querySelector('.ai-compact-cmp-value')).color),
+      surface: lum(getComputedStyle(document.querySelector('.ai-compact')).backgroundColor) };
+  });
+  assert(luminance.name - luminance.surface > 0.4 && luminance.cmp - luminance.surface > 0.4, `readable in the dark theme (${JSON.stringify(luminance)})`);
   await phone.context.close();
 
   assert.deepEqual(errors, [], 'no page errors');
