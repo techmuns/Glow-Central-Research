@@ -23,7 +23,7 @@
 // stylesheet it depends on does not, and the result is a half-applied design nobody can see a
 // fault in. Advancing a revision here is the whole mechanism; editing the CSS is not enough.
 const CACHE_PREFIX = 'sattva-dashboard-';
-const CACHE_NAME = `${CACHE_PREFIX}2026-10-23-glow-report-anchor-v1`;
+const CACHE_NAME = `${CACHE_PREFIX}2026-10-28-glow-private-companies-v1`;
 const APP_ENTRY = '/js/app.js';
 const CORE = ['/', '/index.html', '/css/tailwind.css', '/css/theme.css', '/css/glow.css', '/glow-bridge.html', '/js/core/json-worker.js', '/data/portfolio-companies.json',
   '/assets/brand/glow-ventures-wordmark.svg', '/assets/brand/favicon.svg', '/assets/brand/favicon.svg'];
@@ -142,7 +142,7 @@ async function cacheModuleGraph(cache, entry) {
 }
 
 // This UI revision composes with the shared release without competing for its version line.
-const RELEASE_CACHE_KEY = `${CACHE_KEY}-ai-alerts-clean-search-v1-direct-earnings-reports-v2-paid-news-market-hours-v1-free-company-news-v1-news-every-2-hours-v1-empty-day-alerts-v1-finology-period-labels-v1-insider-source-gaps-v1-research-settle-v1-news-identity-retention-v1-lazy-tab-interfaces-v2-momentum-scanner-v1-momentum-scanner-polish-v1-relevance-ranking-v1-momentum-scanner-names-v1-glow-alert-delivery-v1-recovery-revisions-v1-context-restart-v1-active-deal-poller-v1-startup-reads-v1-cancelled-alert-warmups-v1-empty-news-query-v1-sliced-feed-normalization-v1-source-churn-warmups-v1-shared-company-archives-v1-remove-ask-research-tab-v1-research-navigation-order-v1-alerts-subtabs-v1-alerts-table-spacing-v2-announcements-subtabs-v1-earnings-subtabs-v1-publisher-merge-evidence-v1-results-period-labels-v1-news-subtabs-v1-news-newest-first-v1-remove-chatter-uncovered-tab-v1-telegram-hide-link-only-v1-chatter-table-first-v1`;
+const RELEASE_CACHE_KEY = `${CACHE_KEY}-ai-alerts-clean-search-v1-direct-earnings-reports-v2-paid-news-market-hours-v1-free-company-news-v1-news-every-2-hours-v1-empty-day-alerts-v1-finology-period-labels-v1-insider-source-gaps-v1-research-settle-v1-news-identity-retention-v1-lazy-tab-interfaces-v2-momentum-scanner-v1-momentum-scanner-polish-v1-relevance-ranking-v1-momentum-scanner-names-v1-glow-alert-delivery-v1-recovery-revisions-v1-context-restart-v1-active-deal-poller-v1-startup-reads-v1-cancelled-alert-warmups-v1-empty-news-query-v1-sliced-feed-normalization-v1-source-churn-warmups-v1-shared-company-archives-v1-remove-ask-research-tab-v1-research-navigation-order-v1-alerts-subtabs-v1-alerts-table-spacing-v2-announcements-subtabs-v1-earnings-subtabs-v1-publisher-merge-evidence-v1-results-period-labels-v1-news-subtabs-v1-news-newest-first-v1-remove-chatter-uncovered-tab-v1-telegram-hide-link-only-v1-chatter-table-first-v1-ai-alerts-compact-v1`;
 
 self.addEventListener('install', (event) => {
   // Set the activation intent before asynchronous warm-up. Installation still has to

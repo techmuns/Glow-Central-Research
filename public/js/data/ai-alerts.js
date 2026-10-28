@@ -48,6 +48,12 @@ const rankingEvidence = new WeakMap();
 const FEED_WEIGHT = {
   'price-levels': 18,
   earnings: 12,
+  // GLOW-OWNED: a headline or a reported round naming a family private company weighs as news does.
+  'private-companies': 6,
+  // A broker's published view of the company: weighed with the fund books, below a filing. A
+  // material one (an initiation, a downside call, a rating change, two brokers in the window) on a
+  // book company today scores 30 + 8 + 16 + 12 = 66 and surfaces; a lone routine view does not.
+  'broker-reports': 8,
   announcements: 10,
   'nse-filings': 10,
   insider: 9,
@@ -446,6 +452,8 @@ export function confluenceOf(events, { feedById = new Map() } = {}) {
  */
 export const FEED_TAG = {
   'price-levels': 'LEVEL',
+  'private-companies': 'PRIVATE',
+  'broker-reports': 'BROKER',
   earnings: 'RESULT',
   concalls: 'CALL',
   'screener-insights': 'INSIGHT',
@@ -824,9 +832,10 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     const feedLabels = [...new Set(events.map((event) => event.feedLabel || event.feed))];
     const highCount = events.filter((event) => event.importance === 'high').length;
     const hasMaterialNegative = events.some((event) => event.importance === 'high' && event.direction === 'negative');
-    const holding = holdingByTicker.get(ticker) || holdingByEntity.get(entityId) || null;
+    const holding = holdingByTicker.get(ticker) || holdingByEntity.get(entityId) || rawEvents.find(e => e.familyPrivate)?.privateHolding || null;
+    const familyPrivate = !ticker && rawEvents.some(e => e.familyPrivate === true);
     const materialPortfolioEvent = !!holding && events.some((event) => event.importance === 'high' &&
-      !!event.url && (event.feed === 'price-levels' || materialFiling(event) || (feedFamily(event) === 'news' && event.namesCompany === true) || isRelatedNewsContext(event)));
+      !!event.url && (event.feed === 'price-levels' || event.feed === 'private-companies' || materialFiling(event) || (feedFamily(event) === 'news' && event.namesCompany === true) || isRelatedNewsContext(event)));
     const mixed = directions.positive > 0 && directions.negative > 0;
     const scoreBreakdown = [...(top?.score.parts || [])];
 
@@ -860,6 +869,8 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
       company: top?.event.company || holding?.name || key,
       sector: holding?.sector || null,
       holding: !!holding,
+      // GLOW-OWNED: a family private company carries its own holding categories (Unlisted / Private Investment).
+      ...(familyPrivate ? { familyPrivate: true, holdingCategories: holding?.holdingCategories || [] } : {}),
       holdingWeightPct: weights.get(key) ?? weights.get(entityId) ?? null,
       // Cards show the strongest evidence first. General Alerts remains the chronological record.
       events: scoredEvents.map((entry) => entry.event),
@@ -1062,12 +1073,12 @@ export function withPositionSnapshot(report, snapshot) {
   const identity = card => [card.key, card.ticker, card.entityId].find(key => byKey.has(key));
   const decorate = card => {
     const holdingWeightPct = byKey.get(identity(card)) ?? null;
-    const holding = identity(card) !== undefined;
+    const holding = identity(card) !== undefined || card.familyPrivate === true;
     return card.holding === holding && card.holdingWeightPct === holdingWeightPct ? card : { ...card, holding, holdingWeightPct };
   };
   // Scope chooses the companies; holding sizes only order the existing view.
   // A checked exit disappears from Portfolio, but stays in Universe/Watchlist.
-  const retained = card => report.scope !== 'portfolio' || identity(card) !== undefined;
+  const retained = card => report.scope !== 'portfolio' || identity(card) !== undefined || card.familyPrivate === true;
   const projected = report.allCards.filter(retained).map(decorate);
   const allCards = sameRows(projected, report.allCards) ? report.allCards : projected;
   const byIdentity = new Map(allCards.map(card => [card.key || card.ticker || card.entityId, card]));
@@ -1082,7 +1093,7 @@ export function withPositionSnapshot(report, snapshot) {
   } };
   rankingOptions.set(result, { ...rankingOptions.get(report), holdings: snapshot.holdings, positionSizes: snapshot });
   rankingEvidence.set(result, (rankingEvidence.get(report) || []).filter(event =>
-    report.scope !== 'portfolio' || [event.ticker, event.entityId].some(key => byKey.has(key))));
+    report.scope !== 'portfolio' || event.familyPrivate === true || [event.ticker, event.entityId].some(key => byKey.has(key))));
   return result;
 }
 

@@ -767,6 +767,24 @@ Sattva's Inc42 collector workflow, including when that workflow is newly added
 upstream. The public release transport retains its fixed publisher and refuses
 Glow publication.
 
+**Private Market scope (GLOW-OWNED, 28 October 2026).** The tab shows the global scope switch
+(no `scopeIndependent` in its catalog entry). Universe lists every funding record; Portfolio
+lists only rounds of the family's private companies (`privateCompanies` in
+`portfolio-companies.json`, written by `build-book.mjs` from the GlowVentures book through
+`public/js/data/private-companies.js`); Watchlist lists rounds of watched companies. Every join
+is an exact normalised company name — a reviewed legal-name/brand pair counts, a substring or a
+person/vehicle in the statement line never does. Portfolio opens on All captured history and its
+heading states how many private companies have a captured round. A template sync must keep the
+scope and this module; `verify-private-companies.mjs` and `verify-private-market-news-ui.mjs`
+check it.
+
+**Private companies in AI Alerts (GLOW-OWNED, 28 October 2026).** A Glow-only alert source,
+`private-companies`, sits beside `price-levels` in `ADDITIONAL_SOURCES`. A template sync must keep
+it, its hooks in `ai-alerts.js` (`FEED_WEIGHT`, `FEED_TAG`, the `familyPrivate` card fields and the
+position-size retention), `matchesAlertScope`'s `familyPrivate` line, the `familyPrivate` branch of
+`holdingCategoryMatcher`, `scripts/build-private-company-news.mjs` and
+`.github/workflows/private-company-news.yml`.
+
 ## Indirect theme exposure on AI Alerts (28 October 2026)
 
 Glow's own feature, with no Sattva counterpart: **preserve it on a template merge.** The contract is

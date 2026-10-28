@@ -1,0 +1,179 @@
+{
+ "_provenance": "Headlines from the committed market-news capture that name one of the family’s private companies (portfolio-companies.json → privateCompanies, from the GlowVentures book), matched by reviewed name as a proper noun in the headline. A name in a headline, not a verified event. Built by scripts/build-private-company-news.mjs; read by AI Alerts.",
+ "version": 1,
+ "newsCapturedAt": "2026-10-28T16:11:53.186Z",
+ "bookAsOf": "2026-10-26",
+ "companies": 51,
+ "windowDays": 120,
+ "events": [
+  {
+   "id": "pcn:economic-times:economictimes.indiatimes.com/world/people/before-perplexity-aravind-srinivas-built-a-twitter-search-tool-that-changed-his-startups-direction/articleshow/135212233.cms:private:perplexity",
+   "entityId": "private:perplexity",
+   "company": "Perplexity",
+   "categories": [
+    "private-investment"
+   ],
+   "at": "2026-10-26T12:51:54.000Z",
+   "firstSeenAt": "2026-10-26T14:34:30.592Z",
+   "title": "Aravind Srinivas’ failed startup before Perplexity",
+   "summary": "",
+   "url": "https://economictimes.indiatimes.com/world/people/before-perplexity-aravind-srinivas-built-a-twitter-search-tool-that-changed-his-startups-direction/articleshow/135212233.cms",
+   "publisher": "Economic Times"
+  },
+  {
+   "id": "pcn:business-standard:www.business-standard.com/industry/news/fssai-issues-notice-to-zepto-over-complaint-of-delivering-expired-besan-126101900604_1.html:private:zepto",
+   "entityId": "private:zepto",
+   "company": "Zepto",
+   "categories": [
+    "unlisted"
+   ],
+   "at": "2026-10-19T10:12:00.000Z",
+   "firstSeenAt": "2026-10-19T10:56:02.292Z",
+   "title": "FSSAI issues notice to Zepto over complaint of delivering expired besan",
+   "summary": "Food regulator FSSAI has issued a notice to e-commerce firm Zepto for the alleged delivery of expired besan (gram flour) to a customer.\r\nIn a social media post on Monday, the Food Safety and Standards Authority of India (FSSAI) said it has issued a notice to Zepto Marketplace Pvt Ltd regarding a complaint about the delivery of expired besan.\r\n\"A complaint on social media platform X alleged deliver",
+   "url": "https://www.business-standard.com/industry/news/fssai-issues-notice-to-zepto-over-complaint-of-delivering-expired-besan-126101900604_1.html",
+   "publisher": "Business Standard"
+  },
+  {
+   "id": "pcn:economic-times:economictimes.indiatimes.com/industry/cons-products/food/fssai-issues-notice-to-zepto-over-alleged-delivery-of-expired-besan/articleshow/135045667.cms:private:zepto",
+   "entityId": "private:zepto",
+   "company": "Zepto",
+   "categories": [
+    "unlisted"
+   ],
+   "at": "2026-10-19T10:07:16.000Z",
+   "firstSeenAt": "2026-10-19T10:56:02.292Z",
+   "title": "FSSAI issues notice to Zepto over alleged delivery of expired besan",
+   "summary": "The Food Safety and Standards Authority of India issued a notice to Zepto regarding a consumer complaint. The complaint involved the delivery of two packs of expired besan. The packages were marked with a use-by date of September 12, 2026. The regulator has requested details about the delivery and affected stock. Zepto must confirm corrective actions and customer notifications to prevent similar i",
+   "url": "https://economictimes.indiatimes.com/industry/cons-products/food/fssai-issues-notice-to-zepto-over-alleged-delivery-of-expired-besan/articleshow/135045667.cms",
+   "publisher": "Economic Times"
+  },
+  {
+   "id": "pcn:mint:www.livemint.com/companies/news/stayvista-acquisitions-expansion-resorts-events-weddings-11792327318349.html:private:stayvista",
+   "entityId": "private:stayvista",
+   "company": "StayVista",
+   "categories": [
+    "private-investment"
+   ],
+   "at": "2026-10-19T05:35:05.000Z",
+   "firstSeenAt": "2026-10-19T06:18:33.140Z",
+   "title": "StayVista looks to acquire other businesses, expand into resorts and events",
+   "summary": "Holiday-home operator StayVista is seeking to boost property use and revenue by managing resorts, offering rooms individually and hosting events.&nbsp;",
+   "url": "https://www.livemint.com/companies/news/stayvista-acquisitions-expansion-resorts-events-weddings-11792327318349.html",
+   "publisher": "Mint"
+  },
+  {
+   "id": "pcn:economic-times:economictimes.indiatimes.com/industry/cons-products/food/telangana-food-safety-teams-inspect-16-quick-commerce-dark-stores-suspend-four-fssai-licences/articleshow/134607669.cms:private:zepto",
+   "entityId": "private:zepto",
+   "company": "Zepto",
+   "categories": [
+    "unlisted"
+   ],
+   "at": "2026-10-01T04:04:21.000Z",
+   "firstSeenAt": "2026-10-01T05:16:39.121Z",
+   "title": "Telangana suspends licences of Swiggy Instamart, Flipkart, Zepto dark stores over food safety violations",
+   "summary": "Telangana's food safety authorities inspected 16 dark stores across the city and found serious hygiene violations. Four establishments had their licenses suspended for acute health hazards identified during the inspections. Violations included expired food products, pest infestations, and improper storage practices. The authorities emphasized the importance of maintaining food safety standards ami",
+   "url": "https://economictimes.indiatimes.com/industry/cons-products/food/telangana-food-safety-teams-inspect-16-quick-commerce-dark-stores-suspend-four-fssai-licences/articleshow/134607669.cms",
+   "publisher": "Economic Times"
+  },
+  {
+   "id": "pcn:economic-times:economictimes.indiatimes.com/markets/ipos/fpos/beyond-listed-stocks-msei-rallies-125-zepto-retreats-48-heres-how-other-pre-ipo-names-fared/articleshow/134518428.cms:private:zepto",
+   "entityId": "private:zepto",
+   "company": "Zepto",
+   "categories": [
+    "unlisted"
+   ],
+   "at": "2026-09-27T10:28:36.000Z",
+   "firstSeenAt": "2026-09-27T12:05:19.381Z",
+   "title": "Beyond listed stocks: MSEI rallies 125%, Zepto retreats 48%; here’s how other pre-IPO names fared",
+   "summary": "The unlisted-share market has seen wide price swings in 2026, with MSEI more than doubling its indicative value, while Zepto has nearly halved. According to Unlisted Arena data, Goodluck Defence & Aerospace, PPFAS, API Holdings and Prisma Global AI were among the other notable gainers, while NCDEX, OYO, GFCL EV Products and Garuda Aerospace also declined.",
+   "url": "https://economictimes.indiatimes.com/markets/ipos/fpos/beyond-listed-stocks-msei-rallies-125-zepto-retreats-48-heres-how-other-pre-ipo-names-fared/articleshow/134518428.cms",
+   "publisher": "Economic Times"
+  },
+  {
+   "id": "pcn:mint:www.livemint.com/companies/news/amazon-plans-to-invest-25-000-crore-in-indias-quick-commerce-sector-but-can-it-catch-up-to-blinkit-zepto-and-swiggy-11790254959528.html:private:zepto",
+   "entityId": "private:zepto",
+   "company": "Zepto",
+   "categories": [
+    "unlisted"
+   ],
+   "at": "2026-09-24T13:36:42.000Z",
+   "firstSeenAt": "2026-09-24T14:39:47.584Z",
+   "title": "Amazon plans to invest  ₹25,000 crore in India's quick-commerce sector, but can it catch up to Blinkit, Zepto and Swiggy?",
+   "summary": "Amazon plans to invest $3 billion in its India quick-commerce business by 2030, aiming to increase its market presence. Currently, Amazon holds a 6.2% market share, competing against rivals like Swiggy and Blinkit, which dominate with 77% of the sector.",
+   "url": "https://www.livemint.com/companies/news/amazon-plans-to-invest-25-000-crore-in-indias-quick-commerce-sector-but-can-it-catch-up-to-blinkit-zepto-and-swiggy-11790254959528.html",
+   "publisher": "Mint"
+  },
+  {
+   "id": "pcn:economic-times:economictimes.indiatimes.com/markets/ipos/fpos/assetgro-fintech-plans-rs-2000-2500-crore-ipo-filing-with-sebi/articleshow/134448939.cms:private:assetgrofintech",
+   "entityId": "private:assetgrofintech",
+   "company": "Assetgro Fintech",
+   "categories": [
+    "private-investment"
+   ],
+   "at": "2026-09-24T00:58:27.000Z",
+   "firstSeenAt": "2026-09-24T03:54:43.625Z",
+   "title": "AssetGro Fintech to file DRHP with Sebi for Rs 2,000-2,500 cr IPO",
+   "summary": "AssetGro Fintech is gearing up to file its draft IPO documents with Sebi by the end of September. With expectations to raise between ₹2,000 and ₹2,500 crore, the IPO will feature a fresh issue of around ₹800 crore. The remainder will consist of an offer for sale by current shareholders. Emirates NBD Capital has been designated as the lead manager for this endeavor.",
+   "url": "https://economictimes.indiatimes.com/markets/ipos/fpos/assetgro-fintech-plans-rs-2000-2500-crore-ipo-filing-with-sebi/articleshow/134448939.cms",
+   "publisher": "Economic Times"
+  },
+  {
+   "id": "pcn:business-standard:www.business-standard.com/industry/news/fssai-takes-penal-action-against-amazon-flipkart-zepto-and-two-others-126092301408_1.html:private:zepto",
+   "entityId": "private:zepto",
+   "company": "Zepto",
+   "categories": [
+    "unlisted"
+   ],
+   "at": "2026-09-23T15:23:06.000Z",
+   "firstSeenAt": "2026-09-23T16:03:05.961Z",
+   "title": "FSSAI takes penal action against Amazon, Flipkart, Zepto and two others",
+   "summary": "FSSAI has initiated penal action against five e-commerce platforms over product claims, information and the listing of prohibited food articles under food safety regulations",
+   "url": "https://www.business-standard.com/industry/news/fssai-takes-penal-action-against-amazon-flipkart-zepto-and-two-others-126092301408_1.html",
+   "publisher": "Business Standard"
+  },
+  {
+   "id": "pcn:business-standard:www.business-standard.com/companies/news/zepto-cafe-cuts-footprint-across-cities-scales-back-menu-after-expansion-126092101192_1.html:private:zepto",
+   "entityId": "private:zepto",
+   "company": "Zepto",
+   "categories": [
+    "unlisted"
+   ],
+   "at": "2026-09-21T14:37:22.000Z",
+   "firstSeenAt": "2026-09-21T16:14:15.837Z",
+   "title": "Zepto Cafe cuts footprint across cities, scales back menu after expansion",
+   "summary": "Zepto Cafe's footprint has fallen to an estimated 250-350 locations from a peak of 850-900 as the quick-commerce firm focuses on select high-performing markets",
+   "url": "https://www.business-standard.com/companies/news/zepto-cafe-cuts-footprint-across-cities-scales-back-menu-after-expansion-126092101192_1.html",
+   "publisher": "Business Standard"
+  },
+  {
+   "id": "pcn:business-standard:www.business-standard.com/finance/personal-finance/new-credit-card-offers-7-5-cashback-on-dmart-blinkit-zepto-bigbasket-126091001302_1.html:private:zepto",
+   "entityId": "private:zepto",
+   "company": "Zepto",
+   "categories": [
+    "unlisted"
+   ],
+   "at": "2026-09-10T13:42:22.000Z",
+   "firstSeenAt": "2026-09-11T04:35:51.053Z",
+   "title": "New credit card offers 7.5% cashback on DMart, Blinkit, Zepto, BigBasket",
+   "summary": "The new RuPay credit card offers 7.5% cashback on eligible grocery purchases, including spends at DMart, Reliance Fresh, Blinkit, Zepto and BigBasket, but the total cashback is capped at ₹1,000/month",
+   "url": "https://www.business-standard.com/finance/personal-finance/new-credit-card-offers-7-5-cashback-on-dmart-blinkit-zepto-bigbasket-126091001302_1.html",
+   "publisher": "Business Standard"
+  },
+  {
+   "id": "pcn:business-standard:www.business-standard.com/technology/tech-news/perplexity-run-llms-consumer-hardware-how-it-works-126090300889_1.html:private:perplexity",
+   "entityId": "private:perplexity",
+   "company": "Perplexity",
+   "categories": [
+    "private-investment"
+   ],
+   "at": "2026-09-03T10:45:14.000Z",
+   "firstSeenAt": "2026-09-03T11:57:02.814Z",
+   "title": "Perplexity may have a way to run LLMs on consumer hardware: How it works",
+   "summary": "Perplexity's experiment with a 35-billion-parameter model shows how inference engines, quantisation and memory optimisation can unlock more performance from existing hardware",
+   "url": "https://www.business-standard.com/technology/tech-news/perplexity-run-llms-consumer-hardware-how-it-works-126090300889_1.html",
+   "publisher": "Business Standard"
+  }
+ ],
+ "generatedAt": "2026-10-28T16:12:59.670Z"
+}

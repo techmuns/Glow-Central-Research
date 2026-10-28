@@ -38,7 +38,7 @@ jobs:
         with:
           node-version: "22"
       - name: Verify Glow statement isolation and unchanged research sheet contracts
-        run: node scripts/verify-glow-parity.mjs && node scripts/verify-glow-template.mjs && node scripts/verify-glow-book-identity.mjs && node scripts/verify-holding-categories.mjs && node scripts/verify-fpi-recovery.mjs && node scripts/verify-research-sheet.mjs && node scripts/check-book.mjs
+        run: node scripts/verify-glow-parity.mjs && node scripts/verify-glow-template.mjs && node scripts/verify-glow-book-identity.mjs && node scripts/verify-holding-categories.mjs && node scripts/verify-private-companies.mjs && node scripts/verify-fpi-recovery.mjs && node scripts/verify-research-sheet.mjs && node scripts/check-book.mjs
       - name: Verify Telegram parsing, retention and resumable collection
         run: node scripts/verify-telegram.mjs && node scripts/verify-telegram-publishing.mjs && node scripts/verify-telegram-artifact.mjs && node scripts/verify-telegram-scheduler.mjs && node scripts/verify-telegram-health.mjs && python3 scripts/verify-telegram-api.py
       - name: Verify investor quarterly evidence and aggregation
@@ -178,7 +178,7 @@ jobs:
       - name: Verify the precomputed alert pool is exact and stands aside honestly
         run: node scripts/verify-announcement-delivery.mjs && node scripts/verify-alert-pool-cache.mjs && node scripts/verify-alert-pool-delivery.mjs && node --max-old-space-size=4096 scripts/verify-alert-pool.mjs
       - name: Verify AI alert search, calendar dates and the KPIs in play
-        run: node scripts/verify-ai-alerts.mjs && node scripts/verify-ai-alert-types.mjs && node scripts/verify-alert-timeline.mjs && node scripts/verify-alert-capacity.mjs && node scripts/verify-kpi-impact.mjs
+        run: node scripts/verify-ai-alerts.mjs && node scripts/verify-ai-alerts-compact.mjs && node scripts/verify-ai-alert-types.mjs && node scripts/verify-alert-timeline.mjs && node scripts/verify-alert-capacity.mjs && node scripts/verify-kpi-impact.mjs
       - name: Verify indirect theme exposure on AI Alerts
         run: node scripts/verify-theme-exposures.mjs
       - name: Verify material alert lifecycle and optional social coverage
@@ -354,7 +354,7 @@ jobs:
         if: ${{ matrix.part == 3 }}
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-alert-card-grid-ui.mjs && node scripts/verify-ai-alerts-ui.mjs && node scripts/verify-ai-alert-types-ui.mjs && node scripts/verify-ai-alert-timeline-ui.mjs && node scripts/verify-alert-capacity-ui.mjs && node scripts/verify-kpi-impact-ui.mjs && node scripts/verify-alert-prices-ui.mjs
+        run: node scripts/verify-alert-card-grid-ui.mjs && node scripts/verify-ai-alerts-ui.mjs && node scripts/verify-ai-alerts-compact-ui.mjs && node scripts/verify-ai-alert-types-ui.mjs && node scripts/verify-ai-alert-timeline-ui.mjs && node scripts/verify-alert-capacity-ui.mjs && node scripts/verify-kpi-impact-ui.mjs && node scripts/verify-alert-prices-ui.mjs
       - name: Verify explicit refresh through the service worker
         if: ${{ matrix.part == 1 }}
         env:
