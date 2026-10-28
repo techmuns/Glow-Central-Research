@@ -50,7 +50,7 @@ function releaseCacheKey() {
 
 // Compose this UI revision without editing another release's version marker.
 function appReleaseCacheKey() {
-  return `${releaseCacheKey()}-compact-ai-status-v2-compact-ai-toolbar-v2-insider-capture-recovery-v2-hide-screener-source-buttons-v1-universe-saved-first-v1-source-cache-recovery-v2-reorder-research-tabs-v2-lift-manager-images-v2-all-investors-clean-layout-v1-investors-audience-first-v1-my-managers-clean-heading-v1-all-investors-clean-heading-v1-screens-label-v1-glow-ai-holding-category-v1-company-market-columns-v8`;
+  return `${releaseCacheKey()}-compact-ai-status-v2-compact-ai-toolbar-v2-insider-capture-recovery-v2-hide-screener-source-buttons-v1-universe-saved-first-v1-source-cache-recovery-v2-reorder-research-tabs-v2-lift-manager-images-v2-all-investors-clean-layout-v1-investors-audience-first-v1-my-managers-clean-heading-v1-all-investors-clean-heading-v1-screens-label-v1-glow-ai-holding-category-v1-company-market-columns-v8-ai-alerts-instant-scope-v1-compact-archive-v1-compact-reports-toggle-v1`;
 }
 
 // Keep the News presentation release independent of other UI version markers.
@@ -263,7 +263,7 @@ self.addEventListener('fetch', (event) => {
 
 // Keep this UI revision separate from the shared dashboard release markers.
 function currentCacheKey() {
-  return `${ipoFilingCacheKey()}-all-alerts-clean-header-v13-announcement-deals-subtab-v2-ai-timeline-scroll-cue-v3-deals-reading-layout-v2-alerts-shared-frame-v1-announcements-title-only-v1-source-panel-details-v1-directory-market-caps-v4`;
+  return `${ipoFilingCacheKey()}-all-alerts-clean-header-v13-announcement-deals-subtab-v2-ai-timeline-scroll-cue-v3-deals-reading-layout-v2-alerts-shared-frame-v1-announcements-title-only-v1-source-panel-details-v1-directory-market-caps-v4-theme-exposures-v2`;
 }
 
 // Preserve every shared release and upgrade returning readers to the compact Mutual Funds layout.

@@ -73,6 +73,20 @@ story leads one row only; chatter snapshots lead last. The text is the card's ow
 check both directions below". The family's price levels stay. Counts and archive follow the rows.
 `verify-ai-alerts-compact.mjs` and `verify-ai-alerts-compact-ui.mjs` are the tests; suites written for
 the cards opt into Detailed through `scripts/lib/ai-alerts-layout.mjs`.
+Every Compact row carries an always-visible ✕ in its top-right corner (29 October 2026): the same
+device archive as Detailed's Archive button; the row leaves on transform/opacity and the rows below
+close the gap with a transform-only FLIP; a keyboard press archives with no motion and moves focus
+to the next row's ✕; the Archived view shows a restore control in the same place. Broker reports
+open from a pill button — report icon, count, the calls in short and an explicit Show ⌄ / Hide ⌃
+segment (filled when open) — on broker-led rows too, into one attached panel; pointing at the pill,
+the ✕ or the panel does not light the row's "open source" cues.
+
+**Scope switches paint at once (29 October 2026, shared).** The tab keeps each scope's last view in
+memory (same IST day, membership and session; cleared on any private-book invalidation) and, the first
+time, narrows the ranked Universe view (`narrowReport`, provisional: replaced, never merged). Feed rows
+are DATA — a function on a `FEEDS` row made every offline save throw `DataCloneError` for a week — and
+every whole-history loop in the assembly and ranking is a yielding step. See
+`docs/AI-ALERTS-SCOPE-SWITCH-2026-10-29.md`.
 
 **Broker reports (28 October 2026, GLOW-OWNED):** the `broker-reports` alert source reads
 `public/data/broker-reports.json`, built on the runner by `scripts/build-broker-reports.mjs` from the
@@ -1739,6 +1753,20 @@ pass. This groups within an edition; it does not suppress later reworded reports
 across editions. The existing confirmed-delivery ledger still owns that history. Run
 `verify-newsletter-events.mjs`; its public Engineers India fixture and model stubs check contracts
 and retention, not live model accuracy.
+
+**One development, one update (29 October 2026, supersedes the news-only grouping above):** the
+28 October evening brief printed City Union Bank's results as nine items — its filing and eight
+reports — because one group quoting "9%" beside "10%" voided the entire grouping reply and the
+loop then stopped. The same cheap pass (`gpt-6-luna` through the news allowance, Bedrock where
+OpenAI is not configured) now partitions each company's filings AND news together, ids only;
+`clusterStories` folds a checked group across kinds, so a results filing, its press release,
+presentation, board outcome and every report of it are one update led by the read filing, with
+every link kept. A proposed group is checked by `compatibleEventMembers` (company, relation,
+24 hours, money amounts within 5% after unit normalisation, opposite stages in headlines) and
+only that group is split when it fails; an omitted or repeated id stays separate; a failed batch
+no longer stops the next. Deterministic copy paths keep the strict `compatibleReports`. Nothing
+is written by the model and no row, key or link is dropped. `city-union-results-2026-10-28.json`
+in `verify-newsletter-events.mjs` is the regression; fixtures prove contracts, not live accuracy.
 
 **AND THE DESK'S NUMBERS COME BEFORE THE WORLD'S.** The customer's second ask: full tables and a
 summary of the portfolio's performance on the session and of the major Indian indices, above the
@@ -4220,6 +4248,34 @@ without its `-SM` suffix and a company Screener files under another code is foun
 match on Screener's own search. A company outside the book and the NSE-500 carries no row until it
 is classified (`CLASSIFY_SCOPE=tracked` adds the ~1,900-name tracked universe).
 
+### INDIRECT THEME EXPOSURE — a story about another company in a market a company sells into (GLOW-OWNED, 28 October 2026)
+
+The desk's ask: Eli Lilly's EU recommendation for an oral GLP-1 pill bears on OneSource, which
+makes injectable GLP-1 pens, though the story never names it. `js/data/theme-exposures.js` holds a
+reviewed map (theme → actors, stages, segments → each exposed company's segment, role and **the
+captured source that states it**). It makes a labelled copy of each qualifying market-wide story
+for each exposed company, in the alert assembly beside the discovery mapping and before scope.
+Read `docs/THEME-EXPOSURES.md` before changing it. The rules:
+
+- **An exposure needs a cited source.** Gland and Biocon are not mapped for want of one.
+- **Only the headline promotes.**
+- **A story that names the company is its own news.** It gets no copy.
+- **Copies are neutral.** The read-across is a reviewed mechanism ("a potential substitute"),
+  never a predicted effect.
+- **Indirect is never direct.** `attribution.status: 'theme'` is refused by `newsCanSupportAI` and
+  `storyRecord`. A copy cannot corroborate, set direction, keep a card or name a KPI or driver, and
+  it is never sent for story grouping.
+
+Only decisive copies join AI cards, folded to one row per theme, day, named company and kind of
+development (`themeDevelopmentKey`). One today
+on a book company scores exactly `MIN_SCORE`, so it opens a card for that day only. The card leads
+with `Indirect (GLP-1): …` under the *Indirect exposure* badge. Compact tags the row *Indirect ·
+GLP-1* and lets the company's own evidence lead. All Alerts keeps every labelled copy. The pool's
+portfolio slice keeps theme stories for book exposures (`bearsOnBook`). Its signature is
+`portfolio-pool-v2` plus `themeSignature()`, so a stale slice is refused. Phase one reads only
+market-wide publisher captures. Theme-axis collection and a model cause-and-effect reading are
+later phases. `node scripts/verify-theme-exposures.mjs` is the test.
+
 ## Ask Research — dashboard evidence, streamed immediately
 
 **Answer layout (6 September 2026):** use one compact toolbar, an on-demand native dialog for
@@ -5317,6 +5373,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change who is asked, or how the contributor dropdown behaves | `js/ui/watchlist-attribution.js` (the prompt) + `js/core/watchlist-people.js` (the roster and this device's own name) — read *An addition carries the name of whoever made it* first. Never preselect a name on a device nobody has identified themselves on |
 | Change AI Alerts ranking or thresholds | `js/data/ai-alerts.js` — keep it deterministic, retain every contribution for verification without rendering the arithmetic, use the real `coverage.js` book, and test `rankReport()` directly |
 | Change what an AI Alerts card SAYS, or how many rows it shows | `plainInsight()` / `leadEvent()` / `plainHeadline()` / `filingClaim()` / `sourceStatement()` / `CLAIM_MAX` / `topEvidence()` / `MAX_PER_SOURCE` in `js/data/ai-alerts.js` (pure and exported) + `EVIDENCE_ROWS` / `byNewestFirst` / `listHeadMarkup` in `js/tabs/ai-alerts.js` — read *Time to insight is the product's only job* first: the sentence is ONE claim, the strongest event's own, so no pattern name, feed tally or filler belongs in it; no new number, and every figure comes from a collector's field; only sentences we wrote may be reworded, and a filing's claim is CHOSEN between its subject, the exchange's description and the exchange's sub-category rather than paraphrased; a clip keeps the untouched wording on the sentence's `title`; a volume reading takes no tone; and the rows are read newest first because the header says so. There is no figure strip and no per-question paragraph: `cardMetrics` is deleted and every figure it held has a place named in that section |
+| Add a theme, map a company to one, or change how an indirect story reads | `THEMES` in `js/data/theme-exposures.js` — read *Indirect theme exposure* and `docs/THEME-EXPOSURES.md` first. Every exposure cites the captured source that states it, and a read-across is a mechanism, never a verdict. `node scripts/verify-theme-exposures.mjs` is the test |
 | Change which KPIs an alert names, or add a trigger | `TRIGGERS` in `js/data/kpi-impact.js` — read *KPIs in play* first; a rule may name only its group's own KPIs, and every new trap it closes gets a case in `node scripts/verify-kpi-impact.mjs` |
 | Refresh company sector classification, or change the KPI ontology | `.github/workflows/sector-kpis-refresh.yml` does it daily and fails naming any listed holding left without a KPI group; by hand, `node scripts/classify-companies.mjs` (Screener; `CLASSIFY_SCOPE=tracked` for the wider universe) then `node scripts/build-sector-kpis.mjs` (`--check-book` to list holdings with no group; `SECTOR_KPIS_CSV=<sector_kpis export>` to reconcile a new ontology); the ontology itself is `scripts/fixtures/sector-kpi-ontology.yaml`, reproduced unchanged |
 | Change which investor question a topic bears on, or how a card states it | `js/data/alert-drivers.js` (the one mapping) + `driverReadings()` / `driverChipsMarkup()` in `js/tabs/ai-alerts.js` — read *Earnings assumption, valuation or thesis* first. A reading is a chip on the row whose own record backs it, never a block of its own; it is a TOPIC reading, so the wording stays "could change" and the chip never borrows a direction colour; a second reading on one row prints `+1`; and the layer adds no score |

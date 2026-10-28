@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-28T16:44:35.100Z",
-  "oldestDataAt": "2026-10-28T16:44:35.100Z",
-  "from": "2025-10-28",
-  "to": "2026-10-28",
+  "capturedAt": "2026-10-28T20:15:08.776Z",
+  "oldestDataAt": "2026-10-28T20:15:08.776Z",
+  "from": "2025-10-29",
+  "to": "2026-10-29",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -22,13 +22,13 @@
       "id": "bulk",
       "label": "Bulk deal",
       "url": "https://www.screener.in/trades/bulk/?o=-2",
-      "pagesRead": 5,
+      "pagesRead": 2,
       "latestDate": "2026-10-28",
-      "oldestDate": "2026-10-27",
+      "oldestDate": "2026-10-28",
       "bootstrapDays": null,
       "ok": true,
-      "rowCount": 125,
-      "capturedAt": "2026-10-28T16:44:35.100Z",
+      "rowCount": 50,
+      "capturedAt": "2026-10-28T20:15:08.776Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-28T16:44:35.100Z",
+      "capturedAt": "2026-10-28T20:15:08.776Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-28T16:44:35.100Z",
+      "capturedAt": "2026-10-28T20:15:08.776Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-28T16:44:35.100Z",
+      "capturedAt": "2026-10-28T20:15:08.776Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 2114,
   "emptyCount": 0,
-  "rowCount": 23548,
+  "rowCount": 23543,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -119742,50 +119742,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-10-28",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "Ajit Krishnankutty Kumar",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "5000",
-          "Trade %": "0",
-          "Trade Value": "7666800",
-          "Post Holding Shares": "15135",
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-10-27",
-          "To Date": "2025-10-27",
-          "Broadcast Date": "2025-10-28",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-10-28",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "Pawan Kumar Danwar",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1000",
-          "Trade %": "0",
-          "Trade Value": "1535000",
-          "Post Holding Shares": "4000",
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-10-23",
-          "To Date": "2025-10-23",
-          "Broadcast Date": "2025-10-28",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "NTPC": [
@@ -138570,28 +138526,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "HDBFS",
-        "date": "2025-10-28",
-        "cells": {
-          "Company": "HDB Financial Services Ltd",
-          "Insider": "Dhinakar Balakrishnan",
-          "Category": "Employee",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1500",
-          "Trade %": "0",
-          "Trade Value": "1107450",
-          "Post Holding Shares": "11582",
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-10-20",
-          "To Date": "2025-10-23",
-          "Broadcast Date": "2025-10-28",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "HINDCOPPER": [
@@ -139091,28 +139025,6 @@
           "From Date": "2025-10-30",
           "To Date": "2025-10-30",
           "Broadcast Date": "2025-11-03",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "KEI",
-        "date": "2025-10-28",
-        "cells": {
-          "Company": "KEI Industries Ltd",
-          "Insider": "Adarsh Kumar Jain",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "5000",
-          "Trade %": "0",
-          "Trade Value": "20511776",
-          "Post Holding Shares": "35000",
-          "Post Holding %": "0.04",
-          "Mode": "Market Sale",
-          "From Date": "2025-10-27",
-          "To Date": "2025-10-27",
-          "Broadcast Date": "2025-10-28",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -164790,28 +164702,6 @@
           "From Date": "2025-11-26",
           "To Date": "2025-11-26",
           "Broadcast Date": "2025-11-26",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "UJJIVANSFB",
-        "date": "2025-10-28",
-        "cells": {
-          "Company": "Ujjivan Small Finance Bank Ltd",
-          "Insider": "ABDUL HAMEED CHAMAN",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "50001",
-          "Trade %": "0",
-          "Trade Value": "2694553",
-          "Post Holding Shares": "175137",
-          "Post Holding %": "0.01",
-          "Mode": "Market Sale",
-          "From Date": "2025-10-28",
-          "To Date": "2025-10-28",
-          "Broadcast Date": "2025-10-28",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
