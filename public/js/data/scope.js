@@ -140,11 +140,16 @@ export function holdingEntityIds(scope, holdings = null) {
     .map((entity) => entity.entityId), ...held.privateIds]);
 }
 
-/** The given book lines narrowed to the active holding category; the list itself while it is All. */
-export function scopeHoldings(holdings = coverage.holdings()) {
+/**
+ * The given book lines narrowed to the active holding category; the list itself while it is All.
+ * Under Universe a line the reader excluded from Universe stays out, as it does in every other
+ * Universe feed.
+ */
+export function scopeHoldings(holdings = coverage.holdings(), scope = PORTFOLIO) {
   const held = holdingMembership();
   if (!held) return holdings;
-  return (holdings || []).filter((h) => held.has(h.ticker, h));
+  const universe = scope === UNIVERSE ? baseScopeMatcher(UNIVERSE, holdings) : null;
+  return (holdings || []).filter((h) => held.has(h.ticker, h) && (!universe || universe.has(h.ticker, h)));
 }
 
 /** "Portfolio" or, with a holding category chosen, "Portfolio · PMS". */

@@ -102,8 +102,11 @@ async function buildFor(q, now, keepGoing) {
   await feed.prepareRows?.();
   const range = periodRange(q.period, now);
   const held = holdingMembership();
-  const scopeCompanies = q.scope === 'watchlist' ? watchlist.all().filter((w) => !held || held.has(w.ticker))
-    : q.scope === 'portfolio' || held ? scopeHoldings(coverage.holdings()) : null;
+  // With a Holding category the tab names the exact companies (Universe exclusions applied, and a
+  // Universe question sent in the index's company-list form), so they are the set, as on the server.
+  const asked = held && q.scope !== 'universe' && Array.isArray(q.companies) ? q.companies : null;
+  const scopeCompanies = asked || (q.scope === 'watchlist' ? watchlist.all()
+    : q.scope === 'portfolio' ? scopeHoldings(coverage.holdings()) : null);
   const all = feed.rows();
   // The stream's status is read right after its rows, while that read is free — read later, a
   // capture that arrived in between would make the status merge the whole stream in one task.
@@ -120,7 +123,8 @@ async function buildFor(q, now, keepGoing) {
     const day = rowDay(row);
     return day === UNDATED ? range.undated : range.dated && day >= range.from && day <= range.to;
   });
-  const scoped = scopeCompanies ? feed.filterByScope(inPeriod, q.scope, coverage.holdings()) : inPeriod;
+  const scoped = asked ? feed.filterByCompanies(inPeriod, asked)
+    : scopeCompanies ? feed.filterByScope(inPeriod, q.scope, coverage.holdings()) : inPeriod;
   progress = { share: 0, total: scoped.length };
   emit();
   const promise = (async () => {

@@ -158,6 +158,11 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
     })().finally(() => { pending = null; emit(); });
     return pending;
   }
+  // Rows of exactly these companies, matched by exchange identity (the index query's company list).
+  const filterByCompanies = (list, companies) => {
+    const wanted = new Set(companies.map(identity.key).filter(Boolean));
+    return list.filter(row => wanted.has(identity.key(row)));
+  };
   return {
     ...base, rows, prepareRows,
     companyKey: company => identity.key(company),
@@ -171,10 +176,10 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
       // the same exchange identity as Portfolio rather than by a symbol a filing may not carry.
       const held = holdingMembership();
       if (scope === 'universe' && !held) return filterByScope(list, scope, holdings);
-      const companies = scope === 'watchlist' ? watchlist.all().filter((w) => !held || held.has(w.ticker)) : scopeHoldings(holdings);
-      const wanted = new Set(companies.map(identity.key).filter(Boolean));
-      return list.filter(row => wanted.has(identity.key(row)));
+      const companies = scope === 'watchlist' ? watchlist.all().filter((w) => !held || held.has(w.ticker)) : scopeHoldings(holdings, scope);
+      return filterByCompanies(list, companies);
     },
+    filterByCompanies,
     meta() {
       const m = base.meta(), list = rows();
       return { ...m, rowCount: list.length, covered: new Set(list.map((row) => row.ticker).filter(Boolean)).size,

@@ -13,7 +13,7 @@ import * as refreshRegistry from '../core/refresh.js';
 import { tabBar, segmentedToggle, statusControl, emptyState } from './components.js';
 import { coverTableResults } from './loading.js';
 import { closeDrill, closeModal, closeWorkspace, openModal, watchlistEmptyPanel, holdingEmptyPanel } from './screener.js';
-import { SCOPES, scopeLabel, holdingMembership, holdingScopeEmpty, offeredHoldingOptions, effectiveHoldingCategory } from '../data/scope.js';
+import { SCOPES, scopeLabel, holdingMembership, holdingScopeEmpty, offeredHoldingOptions, effectiveHoldingCategory, holdingSignature } from '../data/scope.js';
 import { holdingCategoryLabel } from '../data/holding-categories.js';
 import { setHoldingCategory, onHoldingChange } from '../core/holding-filter.js';
 import * as watchlist from '../core/watchlist.js';
@@ -71,6 +71,9 @@ const customModules = new Map();
 let workspaceDisposer = null;
 let workspaceFrame = 0;
 let viewDraft = null;
+// The Holding membership the mounted view was painted under, so a book sync that moves companies in
+// or out of the chosen category — or removes its last company, so it reads as All — repaints it.
+let paintedHoldingSignature = 'all';
 const savedTabsUI = () => import('./saved-tabs.js');
 
 function workspaceTabs(ws) {
@@ -220,7 +223,7 @@ export function mount(root) {
   wireStaticHeader(root);
   coverage.onChange(({ changed }) => {
     syncHoldingControl(root);
-    if (changed && (state.scope === 'portfolio' || effectiveHoldingCategory() !== 'all') && !currentTabModule?.meta.scopeIndependent && !['ask-research', 'ai-alerts'].includes(state.tab) && !document.querySelector('[data-scope-editor]')) {
+    if (changed && (state.scope === 'portfolio' || holdingSignature() !== paintedHoldingSignature) && !currentTabModule?.meta.scopeIndependent && !['ask-research', 'ai-alerts'].includes(state.tab) && !document.querySelector('[data-scope-editor]')) {
       setTimeout(() => { if (!currentTabModule?.meta.scopeIndependent) handleRoute(root, router.parseHash()); }, 0);
     }
   });
@@ -644,6 +647,7 @@ function disposeChrome() {
 
 function mountTab(root, tabModule, resolved) {
   shellRenderRequest++;
+  paintedHoldingSignature = holdingSignature();
   const reqId = shellRenderRequest;
   releaseRouteLoading?.(); releaseRouteLoading = null;
   // A drill panel, modal or workspace opened on the previous view must never survive a route

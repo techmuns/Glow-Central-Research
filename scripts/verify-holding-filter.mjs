@@ -88,6 +88,8 @@ scopeLists.remove('universe', { ticker: 'DIRECT', isin: 'INE000000001', name: 'D
 assert.equal(matchesAlertScope({ entityId: directEntity }, ctx('universe')), false, 'Universe exclusion holds for entity alerts');
 assert.equal(matchesAlertScope({ ticker: 'DIRECT', entityId: directEntity }, ctx('universe')), false);
 assert.equal(matchesAlertScope({ entityId: directEntity }, ctx('portfolio')), true, 'the exclusion is Universe\'s, not the book\'s');
+assert.deepEqual(scope.scopeHoldings(book, 'universe').map(h => h.isin), ['INE000000003', 'INE000000004'], 'identity-built Universe lists drop the excluded company');
+assert.deepEqual(scope.scopeHoldings(book, 'portfolio').map(h => h.isin), ['INE000000001', 'INE000000003', 'INE000000004']);
 scopeLists.reset('universe');
 assert.equal(matchesAlertScope({ entityId: directEntity }, ctx('universe')), true);
 

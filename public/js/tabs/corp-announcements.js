@@ -119,7 +119,7 @@ const scopeCompanies = (scope) => {
   const held = holdingMembership();
   if (scope === 'watchlist') return watchlist.all().filter((w) => !held || held.has(w.ticker)).map((w) => ({ ticker: w.ticker, name: w.name || w.ticker }));
   if (scope !== 'portfolio' && !held) return [];
-  return scopeHoldings(coverage.holdings()).map((h) => ({ ticker: h.ticker || null, isin: h.isin || null, bseCode: h.bseCode || h.scripCode || null, name: h.name || null }));
+  return scopeHoldings(coverage.holdings(), scope).map((h) => ({ ticker: h.ticker || null, isin: h.isin || null, bseCode: h.bseCode || h.scripCode || null, name: h.name || null }));
 };
 
 function adopt(view) {
