@@ -145,7 +145,13 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # technicals.json is staged because the step above may have filled prices for holdings
           # this very run added. It is a no-op on the ordinary day when the book did not grow.
+          # That gap-fill also updates the company quotes, the ATR history and the price-move
+          # verification checkpoint; left unstaged, they made the fetch/rebase retry fail after a good
+          # book had been built (28 October 2026) — the same fix technicals-refresh.yml carries.
           git add -A public/data/series public/data/book.json public/data/book-ledger.json public/data/portfolio-companies.json public/data/managers.json public/data/technicals.json public/data/filing-capture/index.json
+          [ -f public/data/company-quotes.json ] && git add public/data/company-quotes.json || true
+          [ -f public/data/atr-history.json ] && git add public/data/atr-history.json || true
+          [ -f public/data/price-move-checks.json ] && git add public/data/price-move-checks.json || true
           if git diff --cached --quiet; then
             echo "The series store and the book are already current."
             echo "### Already current — nothing to commit" >> "$GITHUB_STEP_SUMMARY"
