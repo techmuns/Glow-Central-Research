@@ -440,8 +440,19 @@ const products = new Map();
 const excludedAccounts = [];
 const placed = new Set(); // accountIds placed under a PMS or AIF product
 
+// An account the upstream marks `unknown` because its members are engaged differently (360 ONE's
+// CRN60066: one Advisory member, one Distribution member) is placed when every member names the
+// same kind; members that disagree, or name a kind this file does not know, still stop the build.
+function engagementOf(account) {
+  if (KIND_OF_ENGAGEMENT[account.engagement]) return account.engagement;
+  const members = account.members || [];
+  const kinds = uniq(members.map((m) => KIND_OF_ENGAGEMENT[m.engagement] ?? null));
+  return members.length && kinds.length === 1 && kinds[0] ? members[0].engagement : null;
+}
+
 function productFor(account) {
-  const kind = KIND_OF_ENGAGEMENT[account.engagement];
+  const engagement = engagementOf(account);
+  const kind = KIND_OF_ENGAGEMENT[engagement];
   if (!kind) return null;
   const provider = SAME_MANAGER[account.provider] || account.provider;
   const id = kind === 'pms' ? `${slug(provider)}--${slug(account.strategy || 'mandate')}` : slug(provider);
@@ -451,7 +462,7 @@ function productFor(account) {
       kind,
       name: null, // resolved once every account is in
       house: provider,
-      engagement: account.engagement,
+      engagement,
       providerEngagement: account.providerEngagement ?? null,
       accounts: [],
     });
@@ -649,8 +660,16 @@ if (existsSync(SUPERSTAR_SNAPSHOT)) {
 } else {
   console.warn(`warning: ${SUPERSTAR_SNAPSHOT} is absent, so the Finology cross-links were not verified`);
 }
+// A PMS mandate with no holdings statement is a broken read — unless the upstream says why: every
+// account names its own gap (`noPositionsReason`), or the mandate is closed and holds only a residue
+// under GlowVentures' ₹1,000 speck floor. Those carry the reason; anything else stops the build.
+const SPECK_FLOOR = 1000;
 for (const m of out) {
-  if (m.kind === 'pms' && !m.statements.length) problems.push(`${m.name} is a PMS mandate with no holdings statement in the archive`);
+  if (m.kind !== 'pms' || m.statements.length) continue;
+  const reasons = m.accounts.map((a) => a.noPositionsReason).filter(Boolean);
+  if (reasons.length === m.accounts.length) m.statementGap = uniq(reasons).join(' · ');
+  else if ((m.value?.marketValue ?? Infinity) < SPECK_FLOOR) m.statementGap = `closed mandate — the book holds only a ₹${m.value.marketValue} residue, under the ₹${SPECK_FLOOR} floor, and the archive has no holdings statement`;
+  else problems.push(`${m.name} is a PMS mandate with no holdings statement in the archive`);
 }
 if (problems.length) {
   console.error(`managers.json does NOT reconcile — ${problems.length} problem(s):`);

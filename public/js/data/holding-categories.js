@@ -10,6 +10,13 @@ export const HOLDING_CATEGORIES = [
 export const normalizeHoldingCategory = value => HOLDING_CATEGORIES.some(([id]) => id === value) ? value : 'all';
 export const holdingCategoryLabel = value => HOLDING_CATEGORIES.find(([id]) => id === value)?.[1] || 'All';
 
+// Offer only the categories a researched company is filed under. The research list holds
+// equity companies, so Mutual Fund, AIF or Bond could only ever narrow the alerts to nothing.
+export function offeredHoldingCategories(holdings) {
+  const carried = new Set(holdings.flatMap(holding => holding.holdingCategories || []));
+  return HOLDING_CATEGORIES.filter(([id]) => id === 'all' || carried.has(id));
+}
+
 export function positionCategory(position, account = {}) {
   const engagement = Object.hasOwn(account, 'engagement') ? account.engagement : position.engagement;
   if (engagement === 'PMS') return 'pms';
@@ -46,5 +53,7 @@ export function holdingCategoryMatcher(holdings, category) {
     if (holding.ticker) tickers.add(holding.ticker);
   }
   const entities = new Set(portfolioNewsEntities(holdings).filter(entity => entity.portfolioIsins.some(isin => isins.has(isin))).map(entity => entity.entityId));
-  return card => card.isin ? isins.has(card.isin) : tickers.has(card.ticker) || entities.has(card.entityId || card.key);
+  // A family private company carries its own categories; it has no ISIN or ticker in the research list.
+  return card => card.familyPrivate ? !!card.holdingCategories?.includes(category)
+    : card.isin ? isins.has(card.isin) : tickers.has(card.ticker) || entities.has(card.entityId || card.key);
 }

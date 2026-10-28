@@ -97,7 +97,7 @@ try {
   assert.equal(await page.locator('[data-ai-sort] option[value="holdings"]').count(), 1, 'an existing session upgrades to the restored menu');
   assert(!(await page.evaluate(() => caches.keys())).some(key => key.includes('previous-event-filter-release')));
   const category = page.getByRole('combobox', { name: 'Holding category', exact: true });
-  assert.deepEqual(await category.locator('option').allTextContents(), ['All', 'Direct Equity', 'PMS', 'Mutual Fund', 'AIF', 'Bond', 'Unlisted', 'Private Investment']);
+  assert.deepEqual(await category.locator('option').allTextContents(), ['All', 'Direct Equity', 'PMS'], 'only categories a researched company carries are offered');
   await category.selectOption('direct-equity');
   assert.deepEqual(await page.locator('[data-ai-card]').evaluateAll(nodes => nodes.map(node => node.dataset.ticker).sort()), ['MIXED', 'SCHEME']);
   assert.match(await page.locator('[data-ai-priorities]').textContent(), /All priorities · 2/);
@@ -124,15 +124,29 @@ try {
   await page.evaluate(() => window.show('universe'));
   await page.waitForSelector('[data-ai-card]');
   assert.equal(await category.inputValue(), 'pms', 'leaving a saved reading restores the ordinary category');
-  for (const value of ['mutual-fund', 'aif', 'bond', 'unlisted', 'private-investment']) {
-    await category.selectOption(value);
-    assert.equal(await page.locator('[data-ai-card]').count(), 0);
-    assert.match(await page.locator('[data-ai-empty]').textContent(), /not covered by the current equity-company research list/);
-  }
+  await page.evaluate(() => {
+    window.alertTab.destroy(); window.alertTab.applySavedView({aiHoldingCategory:'mutual-fund'});
+    window.alertTab.render({root:document.querySelector('#root'),scope:'universe',params:{},savedView:true});
+  });
+  await page.waitForSelector('[data-ai-card]');
+  assert.equal(await category.inputValue(), 'all', 'a remembered category no company carries reads as All');
+  assert(await card('R0').count(), 'an uncarried category does not empty the alerts');
+  assert.equal((await page.evaluate(() => window.alertTab.getSavedView())).aiHoldingCategory, 'all');
+  await page.evaluate(() => window.show('universe'));
+  await page.waitForSelector('[data-ai-card]');
+  await category.selectOption('direct-equity');
+  await page.locator('[data-ai-search]').fill('WARRANT');
+  assert.equal(await page.locator('[data-ai-card]').count(), 0);
+  assert.match(await page.locator('[data-ai-empty]').textContent(), /No companies match this category/);
   await page.locator('[data-ai-reset-category]').click();
   assert.equal(await category.inputValue(), 'all');
+  await page.locator('[data-ai-search]').fill('');
+  await card('R0').waitFor();
   assert(await card('R0').count(), 'All restores non-holdings in Universe');
   await category.selectOption('direct-equity');
+  // Let the category repaint settle before the book changes, or the change can land on the old list.
+  await page.waitForFunction(() => document.querySelector('[data-ai-holding-category]')?.value === 'direct-equity' &&
+    [...document.querySelectorAll('[data-ai-card]')].map(c => c.dataset.ticker).sort().join() === 'MIXED,SCHEME');
   await page.evaluate(() => window.coverage.useFamilyBook(window.categoryHoldings.map(h => ({...h,holdingCategories:h.ticker==='WARRANT'?['direct-equity']:['pms']})), '2026-09-01'));
   await card('WARRANT').waitFor();
   // A count of one can still belong to the preceding category while its redraw is queued.

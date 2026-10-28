@@ -1376,6 +1376,8 @@ export function matchesAlertScope(event, { scope, wanted, entityIds, requestedEn
   if (event.portfolioOnly) return scope === 'portfolio';
   if (event.entityId && requestedEntities?.has(event.entityId)) return true;
   if (scope === 'portfolio' && event.entityId && entityIds?.has(event.entityId)) return true;
+  // The family's private companies are holdings with no exchange identity (GLOW-OWNED).
+  if (scope === 'portfolio' && event.familyPrivate === true) return true;
   if (event.ticker) return !!wanted?.has(event.ticker);
   return scope === 'universe';
 }

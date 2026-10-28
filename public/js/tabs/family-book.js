@@ -148,7 +148,7 @@ function paint(ctx) {
     },
     {
       label: 'Listed · private',
-      value: isWatchlist ? fmtCr(book.valueOf(rows.filter((r) => !book.isPrivate(r.assetClass)))) : `${fmtCr(m.listedValue, 1)} · ${fmtCr(m.privateValue, 1)}`,
+      value: isWatchlist ? fmtCr(book.valueOf(rows.filter((r) => book.sideOf(r) === 'listed'))) : `${fmtCr(m.listedValue, 1)} · ${fmtCr(m.privateValue, 1)}`,
       note: isWatchlist ? 'listed only — starred symbols are listed by definition' : 'split by what each holding IS: an exchange mark, or a manager’s',
       help: {
         title: 'Listed versus private',
