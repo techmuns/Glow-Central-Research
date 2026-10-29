@@ -13,7 +13,7 @@ const html = `<!doctype html><html><head><script src="/js/theme-init.js"></scrip
 <body><main id="root" style="padding:24px;max-width:1400px;margin:auto"></main><script type="module">
 import * as tab from '/js/tabs/ai-alerts.js';
 import * as coverage from '/js/data/coverage.js';
-coverage.prime({ holdings: ['TAPE','RESULTCO','BROKERCO','AAA','BBB','CCC','MEETCO'].map(ticker => ({ ticker, name: ticker + ' Limited' })) });
+coverage.prime({ holdings: ['TAPE','RESULTCO','BROKERCO','AAA','BBB','CCC','MEETCO','NEWCO'].map(ticker => ({ ticker, name: ticker + ' Limited' })) });
 window.show = (scope = 'portfolio') => { tab.destroy(); tab.render({ root: document.querySelector('#root'), scope, params: {} }); };
 window.show(); window.ready = true;
 </script></body></html>`;
@@ -24,6 +24,8 @@ import { currentDay } from '../ui/ai-alert-utils.js';
 import { ATTRIBUTION_VERSION } from './company-news-attribution.js';
 export { currentDay as today } from '../ui/ai-alert-utils.js';
 const listeners = new Set(); export const onChange = fn => { listeners.add(fn); return () => listeners.delete(fn); };
+// A source landing, as the real collector announces one: the tab reassembles behind the list.
+window.fixtureChanged = () => listeners.forEach(fn => fn());
 export async function readCachedAlertWindow() { return null; }
 export async function collect({ scope }) {
   const day = currentDay(); let n = 0;
@@ -49,6 +51,7 @@ export async function collect({ scope }) {
     ev('BBB', 'insider', 'Promoter — Buy', { tradeCategory: 'Block deal', direction: 'positive' }),
     broker('BBB', { broker: 'Nuvama', upsidePct: 12, points: 'Order book visibility' }),
     ev('MEETCO', 'announcements', 'Board Meeting Intimation for Consideration And Approval Of Unaudited Financial Results', { filingSubject: 'Board Meeting Intimation for Consideration And Approval Of Unaudited Financial Results' }),
+    ...(window.fixtureExtra || []).map(([ticker, feed, headline, extra]) => ev(ticker, feed, headline, extra)),
   ];
   const feeds = [...new Set(events.map(e => e.feed))].map(id => ({ id, label: id, status: 'ok', reachesToday: true }));
   return { scope, day, events, feeds, pending: 0 };
@@ -186,6 +189,45 @@ try {
   await page.locator('[data-ai-compact-row] .ai-compact-hit').first().focus();
   assert(await page.evaluate(() => document.activeElement?.matches('.ai-compact-hit:focus-visible') || document.activeElement?.classList.contains('ai-compact-hit')));
 
+  // THE LIST HOLDS STILL WHILE IT UPDATES. A background update may add a company on top, marked
+  // NEW; it never moves the rows already there — not even one whose ranking rose without a newer
+  // alert — and the reader's own re-sort puts everything back in order and clears the marks.
+  await page.locator('[data-ai-sort]').selectOption('priority');
+  await page.waitForTimeout(150);
+  const keysNow = () => rows(page).evaluateAll(nodes => nodes.map(n => n.dataset.aiKey));
+  const settledOrder = await keysNow();
+  const lowest = settledOrder.at(-1);
+  const yesterday = new Date(Date.now() + 19800000 - 86400000).toISOString().slice(0, 10);
+  await page.evaluate(({ lowest, yesterday }) => {
+    window.fixtureExtra = [
+      ['NEWCO', 'announcements', 'Award of order worth ₹900 crore', { filingSubject: 'Award of order worth ₹900 crore' }],
+      // Raises the bottom row's priority with OLDER evidence: a fresh sort would lift it, the list must not.
+      [lowest, 'insider', 'Promoter — Sell', { tradeCategory: 'Block deal', direction: 'negative', day: yesterday, time: '09:00' }],
+    ];
+    window.fixtureChanged();
+  }, { lowest, yesterday });
+  await page.waitForSelector('[data-ai-compact-row][data-ai-key="NEWCO"]');
+  await page.waitForFunction(() => document.querySelector('[data-ai-layout]')?.getAttribute('data-ai-collecting') === 'false');
+  const afterArrival = await keysNow();
+  const arrivals = afterArrival.filter(key => !settledOrder.includes(key));
+  assert(arrivals.includes('NEWCO'), 'the new company is listed');
+  assert.deepEqual(afterArrival.slice(0, arrivals.length).sort(), [...arrivals].sort(), 'every arrival stacks on top');
+  assert.deepEqual(afterArrival.slice(arrivals.length), settledOrder, 'every row already listed keeps its place, the risen one included');
+  assert.equal(await row(page, 'NEWCO').getAttribute('data-ai-new'), '', 'the arrival is marked');
+  assert.equal((await row(page, 'NEWCO').locator('.ai-new-chip').textContent()).trim(), 'New');
+  assert.match(await page.locator('[data-ai-arrivals]').textContent(), new RegExp(`${arrivals.length} new alerts? added at the top`), 'announced politely for screen readers');
+  assert.equal(await page.locator('[data-ai-compact-row][data-ai-new]').count(), arrivals.length, 'only arrivals are marked');
+  for (const key of settledOrder) assert.equal(await page.locator(`[data-ai-compact-row][data-ai-key="${key}"][data-ai-new]`).count(), 0, `${key} is not marked new`);
+  // The reader's own re-sort puts it in order and clears the mark.
+  await page.locator('[data-ai-sort]').selectOption('newest');
+  await page.waitForTimeout(150);
+  await page.locator('[data-ai-sort]').selectOption('priority');
+  await page.waitForTimeout(150);
+  assert.equal(await page.locator('[data-ai-compact-row][data-ai-new]').count(), 0, 'a re-sort clears the marks');
+  assert.notDeepEqual(await keysNow(), afterArrival, 'and re-sorts the list');
+  await page.evaluate(() => { window.fixtureExtra = []; window.fixtureChanged(); });
+  await page.waitForFunction(() => !document.querySelector('[data-ai-compact-row][data-ai-key="NEWCO"]'));
+
   // ARCHIVE ON EVERY ROW: an always-visible ✕ in the row's top-right corner, above the row's link.
   const shown = await rows(page).count();
   assert.equal(await page.locator('[data-ai-compact-row] [data-ai-compact-archive]').count(), shown, 'every row carries an archive control');
@@ -235,7 +277,7 @@ try {
   await phone.context.close();
 
   assert.deepEqual(errors, [], 'no page errors');
-  console.log(`PASS AI Alerts Compact UI: default layout and remembered switch, ${tickers.length} rows, results opened at the filing, broker reports listed on demand, archive and restore on every row, nothing left out leaks, phone width and dark theme`);
+  console.log(`PASS AI Alerts Compact UI: default layout and remembered switch, ${tickers.length} rows, results opened at the filing, broker reports listed on demand, updates that never move a listed row and stack arrivals on top, archive and restore on every row, nothing left out leaks, phone width and dark theme`);
 } finally {
   await browser.close();
   server.close();
