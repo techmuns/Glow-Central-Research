@@ -9,6 +9,7 @@ import { escapeHtml } from '../core/dom.js';
 import { alertPriceHtml } from './alert-price.js';
 import { alertReadingHtml } from './alert-reading.js';
 import { brokerCall } from '../data/broker-reports-shared.js';
+import { highlightHtml } from './ai-alert-search.js';
 
 const MONTH = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const shortDay = (day, today) => {
@@ -46,7 +47,8 @@ function reportMarkup(event, today) {
   </a></li>`;
 }
 
-function rowMarkup(row, { today, open, archived, fresh }) {
+function rowMarkup(row, { today, open, archived, fresh, highlight = '' }) {
+  const name = highlight ? highlightHtml(row.company, highlight) : escapeHtml(row.company);
   const tone = archived ? 'neutral' : row.badge?.tone || 'neutral';
   const isNew = !archived && fresh.has(row.key);
   const isOpen = open.has(row.key);
@@ -54,11 +56,11 @@ function rowMarkup(row, { today, open, archived, fresh }) {
   const label = `${row.company}: ${row.fullText}`;
   const hit = row.brokerLed
     ? `<button type="button" class="ai-compact-hit" data-ai-brokers-toggle aria-expanded="${isOpen}" aria-controls="${listId}"
-        aria-label="${escapeHtml(`${label} Show each broker report`)}" title="${escapeHtml(`${row.brokers.length} broker ${row.brokers.length === 1 ? 'report' : 'reports'} — show each one`)}"><span class="ai-compact-name">${escapeHtml(row.company)}</span></button>`
+        aria-label="${escapeHtml(`${label} Show each broker report`)}" title="${escapeHtml(`${row.brokers.length} broker ${row.brokers.length === 1 ? 'report' : 'reports'} — show each one`)}"><span class="ai-compact-name">${name}</span></button>`
     : row.href
       ? `<a class="ai-compact-hit" href="${escapeHtml(row.href)}" ${row.external ? 'target="_blank" rel="noopener noreferrer"' : ''}
-          aria-label="${escapeHtml(`${label} Opens the ${row.opens}`)}" title="${escapeHtml(`Opens the ${row.opens}${row.folded ? ` · ${row.folded} other ${row.folded === 1 ? 'report' : 'reports'} of this event shown once here` : ''}`)}"><span class="ai-compact-name">${escapeHtml(row.company)}</span></a>`
-      : `<span class="ai-compact-hit"><span class="ai-compact-name">${escapeHtml(row.company)}</span></span>`;
+          aria-label="${escapeHtml(`${label} Opens the ${row.opens}`)}" title="${escapeHtml(`Opens the ${row.opens}${row.folded ? ` · ${row.folded} other ${row.folded === 1 ? 'report' : 'reports'} of this event shown once here` : ''}`)}"><span class="ai-compact-name">${name}</span></a>`
+      : `<span class="ai-compact-hit"><span class="ai-compact-name">${name}</span></span>`;
   const badge = tone !== 'neutral' && row.badge ? `<span class="ai-compact-badge" data-tone="${escapeHtml(tone)}">${escapeHtml(row.badge.label)}</span>` : '';
   // THE REPORTS ARE BEHIND A BUTTON THAT LOOKS LIKE ONE: a pill with the count, the calls in short,
   // and an explicit Show / Hide segment whose chevron turns. A broker-led row's sentence already names
@@ -95,12 +97,12 @@ function rowMarkup(row, { today, open, archived, fresh }) {
 }
 
 /** The list, header included. `open` is the set of row keys whose broker reports are expanded. */
-export function compactListMarkup(rows, { today, open = new Set(), archived = false, remaining = 0, total = rows.length, page = 100, fresh = new Set() } = {}) {
+export function compactListMarkup(rows, { today, open = new Set(), archived = false, remaining = 0, total = rows.length, page = 100, fresh = new Set(), highlight = '' } = {}) {
   const more = remaining > 0
     ? `<div class="ai-compact-foot"><button type="button" class="ai-compact-more" data-ai-compact-more>Show ${Math.min(page, remaining)} more</button><span>${rows.length.toLocaleString('en-IN')} of ${total.toLocaleString('en-IN')} companies shown</span></div>` : '';
   return `<section class="ai-compact" data-ai-compact aria-label="AI Alerts, compact list">
     <div class="ai-compact-head" aria-hidden="true"><span>Company</span><span class="ai-compact-right">CMP</span><span class="ai-compact-right">Market cap</span><span>What happened</span><span></span></div>
-    <div class="ai-compact-rows" role="list">${rows.map((row) => `<div role="listitem" data-ai-row="${escapeHtml(row.key)}">${rowMarkup(row, { today, open, archived, fresh })}</div>`).join('')}</div>
+    <div class="ai-compact-rows" role="list">${rows.map((row) => `<div role="listitem" data-ai-row="${escapeHtml(row.key)}">${rowMarkup(row, { today, open, archived, fresh, highlight })}</div>`).join('')}</div>
     ${more}
   </section>`;
 }

@@ -228,6 +228,52 @@ try {
   await page.evaluate(() => { window.fixtureExtra = []; window.fixtureChanged(); });
   await page.waitForFunction(() => !document.querySelector('[data-ai-compact-row][data-ai-key="NEWCO"]'));
 
+  // A READER SCROLLED INTO THE LIST IS NOT INTERRUPTED: an arrival waits behind the "new alerts"
+  // pill, and the pill — or scrolling back to the top — lets it in on top.
+  await page.setViewportSize({ width: 1440, height: 360 });
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.mouse.wheel(0, 50);
+  const beforeWait = await keysNow();
+  await page.evaluate(() => { window.fixtureExtra = [['NEWCO', 'announcements', 'Award of order worth ₹900 crore', { filingSubject: 'Award of order worth ₹900 crore' }]]; window.fixtureChanged(); });
+  await page.locator('[data-ai-reveal]').waitFor();
+  assert.match(await page.locator('[data-ai-reveal]').innerText(), /1 new alert/);
+  assert.equal(await page.locator('[data-ai-compact-row][data-ai-key="NEWCO"]').count(), 0, 'nothing is inserted above a reader who has scrolled');
+  assert.deepEqual(await keysNow(), beforeWait, 'and nothing moves');
+  await page.locator('[data-ai-reveal]').click();
+  await page.waitForSelector('[data-ai-compact-row][data-ai-key="NEWCO"]');
+  assert.equal((await keysNow())[0], 'NEWCO', 'the pill lets the arrival in on top');
+  assert.equal(await page.locator('[data-ai-reveal]').count(), 0, 'and goes');
+  await page.evaluate(() => { window.fixtureExtra = []; window.fixtureChanged(); });
+  await page.waitForFunction(() => !document.querySelector('[data-ai-compact-row][data-ai-key="NEWCO"]'));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+
+  // SEARCH: the company first, one clear control, a keyboard typeahead, mentions one click away.
+  const search = page.locator('[data-ai-search]');
+  assert(await page.evaluate(() => [...document.styleSheets].some((sheet) => { try { return [...sheet.cssRules].some((rule) => /ai-alert-search-box input\[type="search"\]::-webkit-search-cancel-button/.test(rule.selectorText || '') && /display: none/.test(rule.cssText)); } catch { return false; } })),
+    'the browser\'s own clear button is hidden; the box has one ×');
+  await search.click();
+  await search.fill('');
+  await search.type('broker', { delay: 10 });
+  await page.locator('[data-ai-suggest]').waitFor();
+  assert.equal(await search.getAttribute('aria-expanded'), 'true');
+  assert.match(await page.locator('[data-ai-suggest] .ai-suggest-name').first().innerHTML(), /<mark class="ai-search-mark">BROKER<\/mark>/i, 'the typed part is marked');
+  await page.keyboard.press('ArrowDown');
+  assert.equal(await search.getAttribute('aria-activedescendant'), 'ai-suggest-0', 'arrows move through the list');
+  await page.keyboard.press('Enter');
+  assert.equal(await search.inputValue(), 'BROKERCO Limited', 'Enter picks the company');
+  assert.equal(await search.getAttribute('aria-expanded'), 'false');
+  assert.deepEqual(await keysNow(), ['BROKERCO'], 'and the list is that company');
+  assert.match(await row(page, 'BROKERCO').locator('.ai-compact-name').innerHTML(), /<mark class="ai-search-mark">BROKERCO<\/mark>/, 'its name is marked in the list');
+  // A topic that names no company reads every alert, words together in one line.
+  await search.fill('award of order');
+  await page.waitForTimeout(150);
+  assert((await keysNow()).length >= 1);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  assert.equal(await search.inputValue(), '', 'Escape closes the list, then clears the search');
+  await page.locator('[data-ai-search]').blur();
+
   // ARCHIVE ON EVERY ROW: an always-visible ✕ in the row's top-right corner, above the row's link.
   const shown = await rows(page).count();
   assert.equal(await page.locator('[data-ai-compact-row] [data-ai-compact-archive]').count(), shown, 'every row carries an archive control');
@@ -277,7 +323,7 @@ try {
   await phone.context.close();
 
   assert.deepEqual(errors, [], 'no page errors');
-  console.log(`PASS AI Alerts Compact UI: default layout and remembered switch, ${tickers.length} rows, results opened at the filing, broker reports listed on demand, updates that never move a listed row and stack arrivals on top, archive and restore on every row, nothing left out leaks, phone width and dark theme`);
+  console.log(`PASS AI Alerts Compact UI: default layout and remembered switch, ${tickers.length} rows, results opened at the filing, broker reports listed on demand, updates that never move a listed row and stack arrivals on top (or wait behind a pill for a scrolled reader), a company-first keyboard search, archive and restore on every row, nothing left out leaks, phone width and dark theme`);
 } finally {
   await browser.close();
   server.close();

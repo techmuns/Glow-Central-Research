@@ -794,6 +794,28 @@ html[data-theme="dark"] .ann-read-original, html[data-theme="dark"] .ca-popover-
 .ai-alert-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; max-width: 100%; margin-left: auto; }
 .ai-alert-search { flex: 0 1 230px; width: 230px; min-width: 180px; max-width: 100%; }
 .ai-alert-search-box { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 10px; }
+/* One clear control: the box has its own ×, so the browser's built-in one is hidden. */
+.ai-alert-search-box input[type="search"]::-webkit-search-cancel-button, .ai-alert-search-box input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
+.ai-alert-search { position: relative; }
+/* The typeahead drops from the box it belongs to (origin top), quick and once: it does not
+   re-animate while the reader types into an open list. */
+.ai-suggest { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: max(100%, 320px); max-width: min(420px, calc(100vw - 32px)); max-height: 320px; overflow-y: auto; padding: 4px; border-radius: 12px; background: rgb(var(--surface-white, 255 255 255)); box-shadow: 0 0 0 1px rgb(var(--edge-slate-200, 228 221 205)), 0 12px 28px -8px rgb(15 23 42 / 0.18); transform-origin: top left; }
+.ai-suggest:not([hidden]) { animation: ai-suggest-in 150ms cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes ai-suggest-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: none; } }
+.ai-suggest-option { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.ai-suggest-option[aria-selected="true"] { background: rgb(var(--surface-indigo-50, 251 247 236)); }
+.ai-suggest-name { overflow: hidden; color: rgb(var(--text-slate-900, 26 24 48)); font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.ai-suggest-meta { color: rgb(var(--text-slate-500, 107 104 128)); font-size: 11px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
+.ai-search-mark { border-radius: 3px; background: rgb(var(--surface-indigo-100, 244 236 216)); color: inherit; box-shadow: 0 0 0 1px rgb(var(--surface-indigo-100, 244 236 216)); }
+.ai-search-note { margin: -2px 0 10px; color: rgb(var(--text-slate-500, 107 104 128)); font-size: 12px; }
+.ai-search-note button { margin-left: 4px; border-radius: 6px; padding: 1px 2px; color: rgb(var(--text-indigo-700, 125 95 22)); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+.ai-search-note button:active { transform: scale(0.97); }
+.ai-search-note button:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .ai-suggest-option:hover { background: rgb(var(--surface-slate-50, 250 248 241)); }
+  .ai-suggest-option[aria-selected="true"]:hover { background: rgb(var(--surface-indigo-50, 251 247 236)); }
+}
+@media (prefers-reduced-motion: reduce) { .ai-suggest:not([hidden]) { animation: none; } }
 .ai-alert-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; max-width: 100%; }
 .ai-alert-view-controls select { min-width: 0; max-width: 100%; min-height: 36px; }
 .ai-alert-view-controls summary { min-height: 36px; line-height: 24px; white-space: nowrap; }
@@ -1001,6 +1023,14 @@ html[data-theme] [data-chatter-panel] [data-score-table] tbody tr { border-color
 .ai-compact-meta .ai-new-chip { margin-right: 0; }
 .ai-compact-row[data-ai-new] { animation: ai-arrive 240ms cubic-bezier(0.23, 1, 0.32, 1); }
 @keyframes ai-arrive { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+/* "↑ N new alerts": arrivals waiting while the reader is scrolled into the list. The slot takes no
+   height and sticks to the top of the view, so the pill floats over the list without moving it. */
+.ai-new-pill-slot { position: sticky; top: 12px; z-index: 30; display: flex; justify-content: center; height: 0; }
+.ai-new-pill { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px 0 12px; border: 0; border-radius: 999px; background: rgb(var(--surface-indigo-600, 138 106 28)); color: rgb(255 255 255); font-size: 12.5px; font-weight: 700; box-shadow: 0 8px 20px -6px rgb(15 23 42 / 0.35); cursor: pointer; animation: ai-pill-in 200ms cubic-bezier(0.23, 1, 0.32, 1); transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+.ai-new-pill svg { width: 14px; height: 14px; }
+.ai-new-pill:active { transform: scale(0.97); }
+.ai-new-pill:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 3px; }
+@keyframes ai-pill-in { from { opacity: 0; transform: translateY(-8px) scale(0.96); } to { opacity: 1; transform: none; } }
 .ai-compact-brokers, .ai-compact-reports { position: relative; z-index: 2; }
 .ai-compact-brokers { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; margin-top: 8px; padding: 3px 3px 3px 10px; border: 0; border-radius: 999px; background: rgb(var(--surface-white, 255 255 255)); box-shadow: 0 0 0 1px rgb(var(--edge-slate-200, 228 221 205)), 0 1px 2px rgb(15 23 42 / 0.05); color: rgb(var(--text-slate-700, 61 58 82)); font-size: 12px; font-weight: 600; line-height: 18px; text-align: left; cursor: pointer; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 150ms ease, background-color 150ms ease; }
 .ai-compact-brokers:active { transform: scale(0.97); }
@@ -1044,6 +1074,7 @@ html[data-theme] [data-chatter-panel] [data-score-table] tbody tr { border-color
   .ai-compact-row:has(.ai-compact-brokers:hover, .ai-compact-dismiss:hover, .ai-compact-reports:hover) .ai-compact-name { color: rgb(var(--text-slate-900, 26 24 48)); }
   .ai-compact-report:hover { background: rgb(var(--surface-white, 255 255 255)); }
   .ai-compact-report:hover .ai-compact-report-when { color: rgb(var(--text-indigo-700, 125 95 22)); }
+  .ai-new-pill:hover { background: rgb(var(--surface-indigo-700, 125 95 22)); }
   .ai-compact-brokers:hover { box-shadow: 0 0 0 1px rgb(var(--edge-indigo-200, 236 220 174)), 0 1px 3px rgb(15 23 42 / 0.08); }
   .ai-compact-brokers:hover .ai-compact-brokers-action { background: rgb(var(--surface-indigo-100, 246 237 210)); }
   .ai-compact-row[data-open="true"] .ai-compact-brokers:hover .ai-compact-brokers-action { background: rgb(var(--surface-indigo-700, 112 86 22)); }
@@ -1063,6 +1094,7 @@ html[data-theme] [data-chatter-panel] [data-score-table] tbody tr { border-color
   .ai-layout-thumb, .ai-layout-toggle button, .ai-compact-row, .ai-compact-go, .ai-compact-go svg, .ai-compact-name, .ai-compact-brokers, .ai-compact-brokers-action, .ai-compact-brokers-action svg, .ai-compact-report, .ai-compact-dismiss { transition: none; }
   .ai-compact-reports:not([hidden]) { animation: none; }
   .ai-compact-row[data-ai-new] { animation: ai-arrive-fade 160ms ease; }
+  .ai-new-pill { animation: ai-arrive-fade 160ms ease; }
   @keyframes ai-arrive-fade { from { opacity: 0; } to { opacity: 1; } }
 }
 .ai-compact-foot { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 14px 20px; border-top: 1px solid rgb(var(--edge-slate-100, 239 234 221)); color: rgb(var(--text-slate-500, 107 104 128)); font-size: 12px; }
