@@ -202,11 +202,12 @@ export function alertScopeContext(scope, holdings = coverage.holdings()) {
 // Capture membership as well as the scope label. A watchlist edit, Family handoff or Universe
 // exclusion can change the answer without changing the route or any source timestamp.
 export function alertContextKey(scope, holdings = coverage.holdings(), day = today()) {
-  // The header's Holding choice is part of the context while it narrows anything; the key is
-  // unchanged on All, so windows saved before the filter existed still restore.
+  // The header's Holding choice is part of the context while it narrows anything — as the companies
+  // it covers (its membership signature), so moving a tickerless holding in or out of the category
+  // changes the key too. The key is unchanged on All, so windows saved before the filter still restore.
   const held = holdingMembership();
   return JSON.stringify([scope, day, portfolioNewsEntities(holdings),
-    [...(scopeTickers(scope, holdings) || [])].sort(), scopeLists.removed('universe'), ...(held ? [held.category] : [])]);
+    [...(scopeTickers(scope, holdings) || [])].sort(), scopeLists.removed('universe'), ...(held ? [held.signature] : [])]);
 }
 
 export async function readCachedAllAlerts({ scope, holdings = coverage.holdings(), day = today(), queryWindow = null }) {

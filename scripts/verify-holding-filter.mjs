@@ -90,8 +90,13 @@ assert.equal(matchesAlertScope({ ticker: 'DIRECT', entityId: directEntity }, ctx
 assert.equal(matchesAlertScope({ entityId: directEntity }, ctx('portfolio')), true, 'the exclusion is Universe\'s, not the book\'s');
 assert.deepEqual(scope.scopeHoldings(book, 'universe').map(h => h.isin), ['INE000000003', 'INE000000004'], 'identity-built Universe lists drop the excluded company');
 assert.deepEqual(scope.scopeHoldings(book, 'portfolio').map(h => h.isin), ['INE000000001', 'INE000000003', 'INE000000004']);
+// A row that names its company only by entity id (name-searched news) is kept under Universe while
+// the company is held that way, and dropped once the reader excludes it from Universe.
+assert.equal(scope.filterByScope([{ ticker: null, entityId: directEntity }], 'universe').length, 0, 'excluded entity-only rows stay out');
 scopeLists.reset('universe');
 assert.equal(matchesAlertScope({ entityId: directEntity }, ctx('universe')), true);
+assert.equal(scope.filterByScope([{ ticker: null, entityId: directEntity }], 'universe').length, 1, 'entity-only rows of a held company stay in Universe');
+assert.equal(scope.filterByScope([{ ticker: null, entityId: 'isin:INE999999999' }], 'universe').length, 0, 'an entity outside the category does not');
 
 // A remembered category no company carries reads as All — it is not offered, so it cannot narrow
 // the view behind a control that does not list it.

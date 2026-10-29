@@ -102,7 +102,7 @@ export function makeFilingsTab(cfg) {
    * company. The other two feeds are per-ticker upstreams and ignore it.
    */
   function tickersFor(ctx) {
-    const holdings = scopeHoldings(coverage.holdings());
+    const holdings = scopeHoldings(coverage.holdings(), ctx.scope);
     const book = cfg.id === 'news'
       ? portfolioNewsEntities(holdings).map((entity) => ({
           key: entity.key,

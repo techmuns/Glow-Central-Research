@@ -241,13 +241,20 @@ function baseScopeMatcher(scope, holdings = null) {
 export function filterByScope(rows, scope, holdings = null, tickerOf = (r) => r.ticker) {
   const wanted = scopeMatcher(scope, holdings);
   const held = holdingMembership();
+  // A row that names its company only by entity id (name-searched news) has nothing the base
+  // Universe matcher can read, so it is answered by the category's Universe entities instead —
+  // which already leave out any company the reader excluded from Universe.
+  const heldEntities = held && scope === UNIVERSE ? holdingEntityIds(UNIVERSE, holdings) : null;
   return rows.filter((r) => {
     const t = tickerOf(r);
     // A tickerless row cannot match a narrowed list, but it remains part of Universe: there is no
     // symbol by which the editor could exclude it, and dropping it would turn an edit feature into
     // a silent data-loss rule for unresolved fund holdings and chatter rows. A holding category
     // keeps one only when its own ISIN or entity id says it is a company held that way.
-    return t ? wanted.has(t, r) : scope === UNIVERSE && (!held || wanted.has(null, r));
+    if (t) return wanted.has(t, r);
+    if (scope !== UNIVERSE) return false;
+    if (!held) return true;
+    return (!!r.entityId && heldEntities.has(r.entityId)) || wanted.has(null, r);
   });
 }
 
