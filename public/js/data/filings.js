@@ -196,8 +196,8 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
       names: new Map(),
       identities: new Map(),
       // Stable entity id -> the capture key its identity is filed under now; see `newsIdentity`.
-      // `identityRevision` moves with every identity change, because a row read through another
-      // key's identity is not described by its own bucket's entry in the rows() snapshot.
+      // `identityRevision` moves when an identity other keys' rows are read through changes: such
+      // a row is not described by its own bucket's entry in the rows() snapshot.
       entityKeys: new Map(),
       identityRevision: 0,
       // Companies the committed snapshot covers. They are not re-walked: the snapshot is the bulk
@@ -419,6 +419,11 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
     const owner = row.entityId ? current.entityKeys.get(row.entityId) : null;
     return owner && current.identities.get(owner) || current.identities.get(key);
   }
+  // A key's identity changed. Its own bucket's rows() part already says so; rows read through it
+  // from another key only do through the revision, so move it only when some entity names this key.
+  function readThrough(key) {
+    for (const owner of state.entityKeys.values()) if (owner === key) { state.identityRevision++; return; }
+  }
 
   // WARM THE ATTRIBUTION OF EVERY HELD ROW IN TIME-SLICED CHUNKS. `rows()` attributes each row
   // under its identity synchronously, and after an invalidation every row is a new object, so the
@@ -547,8 +552,12 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
           }
           // Reopening News must not invalidate every article's attribution cache just because
           // the picker constructed equivalent identity objects. Real enrichment changes still do.
-          if (JSON.stringify(previous) !== JSON.stringify(merged)) { state.identities.set(t, merged); state.identityRevision++; }
-        } else { state.identities.set(t, item); state.identityRevision++; }
+          if (JSON.stringify(previous) !== JSON.stringify(merged)) { state.identities.set(t, merged); readThrough(t); }
+        } else {
+          state.identities.set(t, item);
+          // A filing feed reads no identity, so a scope label leaves its projection untouched.
+          if (kind === 'news') readThrough(t);
+        }
       }
     }
     state.wanted = wanted;
@@ -860,7 +869,7 @@ export function createFeed(kind, { read = conditionalJson, allowColdStart = true
         // then re-attributed every head row of all 116 portfolio identities — 80,762 rows on the
         // 2 October capture — and every cache keyed on those rows downstream missed at once.
         const held = state.identities.get(key);
-        if (held !== entity && JSON.stringify(held) !== JSON.stringify(entity)) { state.identities.set(key, entity); state.identityRevision++; }
+        if (held !== entity && JSON.stringify(held) !== JSON.stringify(entity)) { state.identities.set(key, entity); readThrough(key); }
         if (entity.entityId && state.entityKeys.get(entity.entityId) !== key) { state.entityKeys.set(entity.entityId, key); state.identityRevision++; }
         if (entity.name) state.names.set(key, entity.name);
       }
