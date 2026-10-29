@@ -9,4 +9,10 @@ const owner=fixture([{id:12,head_branch:'main',head_repository:{full_name:repo}}
 const unknown=fixture([],{incomplete:true});await assert.rejects(ensureBreakoutRunner({env,now,fetcher:unknown.fetcher}),/Incomplete/);assert.equal(unknown.calls.length,1);
 const ambiguous=fixture([],{postStatus:503});await assert.rejects(ensureBreakoutRunner({env,now,fetcher:ambiguous.fetcher}),/not acknowledged/);assert.equal(ambiguous.calls.length,6);
 await assert.rejects(ensureBreakoutRunner({env:{...env,GITHUB_REPOSITORY:'wrong/repo'},now,fetcher:absent.fetcher}),/context/);
+for (const time of ['2026-10-29T05:59:00+05:30','2026-10-29T16:16:00+05:30','2026-10-20T08:00:00+05:30','2026-10-25T08:00:00+05:30']) {
+ const idle=fixture();assert.equal((await ensureBreakoutRunner({env,now:Date.parse(time),fetcher:idle.fetcher})).reason,'closed');assert.equal(idle.calls.length,0);
+}
+for (const time of ['2026-10-29T06:00:00+05:30','2026-10-29T08:24:00+05:30','2026-10-29T09:14:59+05:30','2026-10-29T09:15:00+05:30']) {
+ const warm=fixture();assert.equal((await ensureBreakoutRunner({env,now:Date.parse(time),fetcher:warm.fetcher})).requested,true,'Pre-open ownership survives a delayed cron');
+}
 console.log('PASS fixed-repository quote recovery: no duplicate owners, closed-market dispatch or ambiguous retry');

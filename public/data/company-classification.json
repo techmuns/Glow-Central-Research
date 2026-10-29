@@ -2,14 +2,14 @@
  "_provenance": "NSE four-level industry classification as printed by Screener: the NSE-500 export for index members, each company's public page for the rest. Read by scripts/build-sector-kpis.mjs; see docs/DATA-CONTRACTS.md → Sector KPIs.",
  "source": "Screener (NSE industry classification)",
  "generator": "scripts/classify-companies.mjs",
- "capturedAt": "2026-10-22T06:48:13.331Z",
+ "capturedAt": "2026-10-29T04:59:28.980Z",
  "scope": "book",
  "counts": {
-  "companies": 629,
+  "companies": 633,
   "fromExport": 534,
-  "fromPages": 95,
+  "fromPages": 99,
   "failed": 0,
-  "pagesReadThisRun": 0
+  "pagesReadThisRun": 4
  },
  "companies": {
   "504375": {
@@ -360,6 +360,15 @@
    "broadIndustry": "Healthcare Services",
    "industry": "Hospital",
    "source": "export"
+  },
+  "APOLLOPIPE": {
+   "broadSector": "Industrials",
+   "sector": "Capital Goods",
+   "broadIndustry": "Industrial Products",
+   "industry": "Plastic Products - Industrial",
+   "code": "IN070205009",
+   "source": "page",
+   "checkedAt": "2026-10-29T04:59:23.887Z"
   },
   "APOLLOTYRE": {
    "broadSector": "Consumer Discretionary",
@@ -1182,6 +1191,15 @@
    "industry": "Personal Care",
    "source": "export"
   },
+  "CYIENT": {
+   "broadSector": "Information Technology",
+   "sector": "Information Technology",
+   "broadIndustry": "IT - Services",
+   "industry": "IT Enabled Services",
+   "code": "IN080102001",
+   "source": "page",
+   "checkedAt": "2026-10-29T04:59:25.579Z"
+  },
   "DABUR": {
    "broadSector": "Fast Moving Consumer Goods",
    "sector": "Fast Moving Consumer Goods",
@@ -1878,6 +1896,15 @@
    "broadIndustry": "Industrial Products",
    "industry": "Electrodes & Refractories",
    "source": "export"
+  },
+  "HEGAM": {
+   "broadSector": "Industrials",
+   "sector": "Capital Goods",
+   "broadIndustry": "Industrial Products",
+   "industry": "Electrodes & Refractories",
+   "code": "IN070205018",
+   "source": "page",
+   "checkedAt": "2026-10-29T04:59:27.275Z"
   },
   "HEROMOTOCO": {
    "broadSector": "Consumer Discretionary",
@@ -4463,6 +4490,15 @@
    "code": "IN020201011",
    "source": "page",
    "checkedAt": "2026-09-23T06:27:08.082Z"
+  },
+  "VISHNU": {
+   "broadSector": "Commodities",
+   "sector": "Chemicals",
+   "broadIndustry": "Chemicals & Petrochemicals",
+   "industry": "Specialty Chemicals",
+   "code": "IN010101002",
+   "source": "page",
+   "checkedAt": "2026-10-29T04:59:28.961Z"
   },
   "VISL": {
    "broadSector": "Commodities",
