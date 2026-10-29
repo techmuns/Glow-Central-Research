@@ -186,7 +186,11 @@ assert.equal(scope.filterByScope(manyRows, 'portfolio', book).length, manyRows.l
 assert(membershipReads <= book.length * 2, 'one holdings lookup per pass, independent of the number of records');
 const emptyWatchlist = await alerts.collect({ ...options, scope: 'watchlist', load: false });
 assert.equal(emptyWatchlist.events.length, 0, 'empty Watchlist never becomes Universe');
-const poolSubset = universe.events.filter((e) => ['STLTECH', 'RELIANCE'].includes(e.ticker));
+// The family's private companies are read from the committed book's `privateCompanies`, not from
+// the two listed holdings primed above, and every one of their events belongs to Portfolio by design
+// (daily-alerts' scope rule). The book refresh of 28 October 2026 filled that list (0 -> 51), so the
+// exact view is the held tickers plus those private-company events.
+const poolSubset = universe.events.filter((e) => ['STLTECH', 'RELIANCE'].includes(e.ticker) || e.familyPrivate === true);
 assert.deepEqual(portfolio.events.filter((e) => !e.portfolioOnly).map((e) => e.id).sort(), poolSubset.map((e) => e.id).sort(), 'Portfolio is an exact view of every market-wide source');
 assert.equal(portfolio.events.filter((e) => e.feed === 'screener-portfolio-upcoming').length, 2, 'the exact S Screen calendar includes tickered and BSE-only portfolio companies');
 assert.equal(portfolio.feeds.find((f) => f.id === 'screener-portfolio-upcoming').scopable, true);
