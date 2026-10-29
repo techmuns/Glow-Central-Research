@@ -269,6 +269,7 @@ try {
   await search.fill('award of order');
   await page.waitForTimeout(150);
   assert((await keysNow()).length >= 1);
+  assert.equal((await page.locator('[data-ai-search-note]').textContent()).trim(), 'Alerts that mention “award of order”', 'and says these alerts mention the words, not that they are a company');
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   assert.equal(await search.inputValue(), '', 'Escape closes the list, then clears the search');

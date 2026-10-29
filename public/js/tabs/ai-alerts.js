@@ -804,6 +804,9 @@ function onSearchKey(event) {
 
 // When a query names companies, the alerts that only mention it are counted here, a click away.
 function searchNote(search) {
+  // No company in this view is named by the words (a topic, or a company outside this view): say
+  // that what follows mentions them, so a reader never takes a mention for the company itself.
+  if (search && !search.named && search.cards.length) return `<p class="ai-search-note">Alerts that mention “${escapeHtml(query.trim())}”</p>`;
   if (!search?.named || !search.mentions.length) return '';
   const n = search.mentions.length;
   const alerts = n === 1 ? '1 alert that only mentions it' : `${n} alerts that only mention it`;
