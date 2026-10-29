@@ -1,5 +1,6 @@
 // Insider disclosures are events: a later response may omit an event we already captured.
 // Share the same additive, duplicate-free merge between scheduled captures and the browser.
+import { currentSymbol } from './announcement-identity.js';
 
 const indianCalendar = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -154,7 +155,10 @@ function deriveIdentity(input) {
   const person = folded(field(cells, PERSON_FIELDS));
   const transaction = direction(field(cells, TRANSACTION_FIELDS));
   const shares = compactNumber(field(cells, SHARES_FIELDS));
-  const ticker = folded(row.ticker);
+  // The symbol the company trades under today: Screener still files a renamed company's trades
+  // under its old symbol while the Muns supplement asks by the new one, and the same disclosure
+  // must not read as two trades (see RENAMED_SYMBOLS in announcement-identity.js).
+  const ticker = folded(row.ticker ? currentSymbol(row.ticker) : row.ticker);
   const date = String(row.date || '').slice(0, 10);
   if (ticker && date && person && transaction && shares) {
     return `event|${category}|${ticker}|${date}|${person}|${transaction}|${shares}`;

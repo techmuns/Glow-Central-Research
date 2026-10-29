@@ -25,6 +25,7 @@
 
 import { readEntry, writeEntry } from '../core/store.js';
 import { boundedJson, validateResolvedPortfolio, assertBookChange, assertRecentCheck } from './family-book-contract.js';
+import { filingTicker } from './announcement-identity.js';
 
 let raw = null;
 let syncStatus = 'snapshot';
@@ -183,8 +184,10 @@ export const uncovered = () => holdings().filter((h) => !h.ticker);
 /** Is this ticker one of ours? */
 export function has(ticker) {
   if (!ticker) return false;
-  const t = String(ticker).toUpperCase();
-  return tracked().some((h) => h.ticker.toUpperCase() === t);
+  // The same reviewed aliases the scope filter folds: a renamed company is still held when a
+  // source files it under its old symbol.
+  const t = filingTicker(ticker);
+  return tracked().some((h) => filingTicker(h.ticker) === t);
 }
 
 export function meta() {

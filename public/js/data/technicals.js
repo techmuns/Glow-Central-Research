@@ -2,6 +2,7 @@
 import { scoreCompany } from '../scoring/tech-scoring.js';
 import { filterByScope } from './scope.js';
 import { marketTicker } from './market-identity.js';
+import { currentSymbol, renamedTo } from './announcement-identity.js';
 
 const TECHNICALS_PATH = 'data/technicals.json';
 const ATR_HISTORY_PATH = 'data/atr-history.json';
@@ -66,14 +67,28 @@ async function buildCache() {
     cache.meta.deliveryFailed = true;
     return cache;
   }
-  const rows = Array.isArray(payload?.companies) ? payload.companies : [];
+  const captured = Array.isArray(payload?.companies) ? payload.companies : [];
+  for (const row of captured) row.ticker = marketTicker(row) || row.ticker;
+
+  // ONE ROW PER COMPANY, UNDER THE SYMBOL IT TRADES UNDER TODAY. Screener's export still lists a
+  // renamed company under its old symbol while the book carries the new one, so the scrape fetched
+  // the same series twice (HEG and HEGAM, identical closes) — and the company appeared twice in
+  // Breakouts and raised every technical alert twice. The current symbol's own row wins; an old
+  // symbol with no current row is filed under the current symbol and keeps its own as `filedTicker`.
+  const current = new Set(captured.filter((row) => row.ticker && !renamedTo(row.ticker)).map((row) => String(row.ticker).toUpperCase()));
+  const rows = [];
+  for (const row of captured) {
+    const to = row.ticker && renamedTo(row.ticker);
+    if (to && current.has(to)) continue;
+    if (to) { row.filedTicker = row.ticker; row.ticker = to; current.add(to); }
+    rows.push(row);
+  }
 
   // ATR trend accumulator — the ATR Stability rule reads `c.atr_history`. Optional: without
   // it the rule still scores on the absolute level and says the trend is pending.
   for (const row of rows) {
-    row.ticker = marketTicker(row) || row.ticker;
     row.price_date ??= row.bar_date || null;
-    const hist = row.ticker && atrHistory[row.ticker];
+    const hist = row.ticker && (atrHistory[row.ticker] || (row.filedTicker && atrHistory[row.filedTicker]));
     if (Array.isArray(hist)) row.atr_history = hist;
   }
 
@@ -187,7 +202,8 @@ export function coverage() {
 
 export function byTicker(ticker) {
   if (!cache || !ticker) return null;
-  return cache.byTicker.get(String(ticker).toUpperCase()) || null;
+  // Either symbol of a renamed company finds its one row.
+  return cache.byTicker.get(currentSymbol(ticker)) || null;
 }
 
 export function isLoaded() {

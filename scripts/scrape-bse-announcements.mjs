@@ -33,6 +33,7 @@ import { CATEGORIES, HEADERS } from '../worker/bse-ann.mjs';
 import { collectBseAnnouncements, bseLastCompleteTo, bseCaptureCoverage, bseIndiaDay } from './lib/bse-collection.mjs';
 import { archiveFilings } from './lib/filing-archive.mjs';
 import { readAnnouncementIdentityDirectory, retainedBseScripIndex } from './lib/announcement-identities.mjs';
+import { currentSymbol } from '../public/js/data/announcement-identity.js';
 import { failedBseCapture } from './lib/bse-capture-state.mjs';
 import { writeJson } from './lib/company-capture.mjs';
 
@@ -91,7 +92,8 @@ async function buildScripIndex() {
     const mc = JSON.parse(readFileSync(mcPath, 'utf8'));
     for (const entry of Object.values(mc.map || {})) {
       if (entry?.bseId && entry?.ticker) {
-        byCode.set(String(entry.bseId), { ticker: String(entry.ticker).toUpperCase(), name: entry.fullName || null, source: 'confirmed' });
+        // Moneycontrol keeps a renamed company's old NSE symbol; file it under the current one.
+        byCode.set(String(entry.bseId), { ticker: currentSymbol(entry.ticker), name: entry.fullName || null, source: 'confirmed' });
       }
     }
   }

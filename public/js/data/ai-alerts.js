@@ -29,6 +29,7 @@ import * as coverage from './coverage.js';
 import * as screenerInsights from './screener-insights.js';
 import { enrichCardFromAllAlerts, indexAlertContextSteps } from './intelligence-graph.js';
 import { canonicalArticleUrl } from './filings-shared.js';
+import { currentSymbol } from './announcement-identity.js';
 import { getHostContext } from '../core/host-context.js';
 import { AI_ALERT_WINDOW_DAYS as WINDOW_DAYS } from '../core/alert-window.js';
 import { runSteps, runStepsInSlices } from '../core/slices.js';
@@ -820,10 +821,12 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
   const weights = positionSizes?.sizes.complete
     ? positionSnapshotIndex({ ...positionSizes, holdings: positionSizes.holdings || holdings }) : new Map();
   const feedById = new Map(rankFeeds.map((feed) => [feed.id, feed]));
+  // Keyed by the current symbol, as the events are (daily-alerts.js reads a renamed company's
+  // evidence under it), so a card finds its holding even while the book lags an exchange rename.
   const holdingByTicker = new Map(
     (holdings || [])
       .filter((holding) => holding.ticker)
-      .map((holding) => [String(holding.ticker).toUpperCase(), holding])
+      .map((holding) => [currentSymbol(holding.ticker), holding])
   );
   const holdingByEntity = new Map(portfolioNewsEntities(holdings).map(entity => [entity.entityId,
     holdings.find(h => entity.portfolioIsins.includes(String(h.isin || '').toUpperCase())) || entity]));
@@ -848,7 +851,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     windowEvidence.push(event);
     if (!(supported && event.aiEligible !== false || isRelatedNewsContext(event) ||
       isThemeExposureContext(event) && event.importance === 'high')) continue;
-    const ticker = event.ticker ? String(event.ticker).toUpperCase() : event.entityId;
+    const ticker = event.ticker ? currentSymbol(event.ticker) : event.entityId;
     const list = grouped.get(ticker);
     if (list) list.push(event);
     else grouped.set(ticker, [event]);
@@ -858,7 +861,8 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
 
   let cards = [];
   for (const [key, rawEvents] of grouped) {
-    const ticker = rawEvents.find(e => e.ticker)?.ticker || null;
+    const filed = rawEvents.find(e => e.ticker)?.ticker;
+    const ticker = filed ? currentSymbol(filed) : null;
     const entityId = rawEvents.find(e => e.entityId)?.entityId || null;
     const events = (yield* dedupeSteps(rawEvents)).filter(event => event.day >= firstDay && event.day <= day);
     if (!events.length) { yield; continue; }
@@ -872,7 +876,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     const feedLabels = [...new Set(events.map((event) => event.feedLabel || event.feed))];
     const highCount = events.filter((event) => event.importance === 'high').length;
     const hasMaterialNegative = events.some((event) => event.importance === 'high' && event.direction === 'negative');
-    const holding = holdingByTicker.get(ticker) || holdingByEntity.get(entityId) || rawEvents.find(e => e.familyPrivate)?.privateHolding || null;
+    const holding = (ticker && holdingByTicker.get(currentSymbol(ticker))) || holdingByEntity.get(entityId) || rawEvents.find(e => e.familyPrivate)?.privateHolding || null;
     const familyPrivate = !ticker && rawEvents.some(e => e.familyPrivate === true);
     const materialPortfolioEvent = !!holding && events.some((event) => event.importance === 'high' &&
       !!event.url && (event.feed === 'price-levels' || event.feed === 'private-companies' || materialFiling(event) || (feedFamily(event) === 'news' && event.namesCompany === true) || isRelatedNewsContext(event)));

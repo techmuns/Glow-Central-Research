@@ -181,10 +181,12 @@ try {
   for (const [ticker, country, sourceTicker] of [
     ['ALPEXSOLAR-SM', 'india', 'ALPEXSOLAR'], ['JAYBEE-SM', 'india', 'JAYBEE'],
     ['SAHANA-SM', 'india', 'SAHANA'], ['UNKNOWN-SM', 'india', 'UNKNOWN-SM'],
+    // A reviewed exchange rename: the source resolves HEGAM and answers HTTP 500 for HEG.
+    ['HEG', 'india', 'HEGAM'],
     ['JAYBEE-SM', 'USA', 'JAYBEE-SM'],
   ]) {
     const response = await fetchInsiderTrades({ ticker, country, fromDate: window.from, toDate: window.to }, { MUNS_TOKEN: 'fixture-session-token' });
-    assert.deepEqual(requests.at(-1).body, { ticker: sourceTicker, country, fromDate: window.from, toDate: window.to }, 'only reviewed Indian SME aliases change the source request');
+    assert.deepEqual(requests.at(-1).body, { ticker: sourceTicker, country, fromDate: window.from, toDate: window.to }, 'only reviewed Indian aliases change the source request');
     assert.equal(response.ticker, ticker, 'the response retains Sattva portfolio identity');
     assert.equal(response.trades[0].ticker, ticker, 'disclosures remain attached to the requested portfolio company');
   }

@@ -5837,6 +5837,42 @@ Scope matching recognises those same reviewed aliases in both directions, includ
 membership and Universe exclusions. Raw exchange rows and holdings keep their original tickers;
 older Jay Bee bulk deals therefore remain visible under its `JAYBEE-SM` portfolio holding.
 
+### A renamed company keeps its history — `RENAMED_SYMBOLS`
+
+NSE renamed HEG Ltd to HEG Advanced Materials (`INE545A01024`, symbol `HEGAM`) in September 2026.
+The family book followed NSE on 26 October. Moneycontrol, Screener, StockScans and the BSE capture
+(whose NSE symbol came from Moneycontrol's map) went on filing the company as `HEG`. So a
+Portfolio view asking for `HEGAM` dropped 20 Screener insider trades, its results, con-calls and
+earnings calendar. It also dropped that day's BSE filings: the Q2 FY27 earnings-call intimation of
+29 October reached the capture as `HEG`. Meanwhile Universe listed the company twice on Breakouts,
+because Screener's export and the book were fetched as two companies with identical closes.
+
+`RENAMED_SYMBOLS` in `announcement-identity.js` is a reviewed table, old symbol → current symbol.
+Every entry must agree with NSE's own equity directory, which lists the old symbol among the
+ISIN's `aliases`; `scripts/verify-renamed-symbols.mjs` fails the moment one does not. The rule is
+applied where tickers are compared, never by rewriting a capture:
+
+- `filingTicker()` folds it, so every scope filter, identity lookup, the alert-pool projection and
+  `coverage.has()` treat both symbols as the holding. A Worker insider request for `HEG` reaches the
+  source as `HEGAM`, which it resolves (it answers HTTP 500 for `HEG`).
+- Alert assembly reads a renamed company's events under `currentSymbol()`, keeping the source's own
+  symbol as `filedTicker`. Both the live and the pooled feeds pass through it, so AI Alerts shows
+  one card recognised as the holding, and All Alerts folds one company.
+- The technicals loader keeps one row per company. The current symbol's own row wins, and an old
+  symbol alone is filed under the current one. `byTicker()` and `rowFor()` accept either symbol.
+- The insider trade identity uses the current symbol, so a disclosure Screener files as `HEG` and
+  the Muns supplement files as `HEGAM` is one trade.
+- **The team brief is not covered yet.** `worker/newsletter-brief.mjs` is hash-locked with Sattva
+  (`docs/NEWSLETTER-SHARED-SOURCE.json`), so applying the rule there is one change made in both
+  repositories. Until then the brief compares exact symbols. It misses the trades and calendar rows
+  that sources file under `HEG`, and it reaches the company's BSE filings only once the capture
+  files them as `HEGAM`.
+- The BSE scraper and the technicals scrape file the company under its current symbol from their
+  next run; history already captured keeps the symbol it was filed under.
+
+Adding a rename means one entry plus its comment, checked against `filing-capture/nse-identities.json`.
+A source that carries an ISIN (company news, Upstox quotes) already follows it by ISIN and needs none.
+
 The schedule runs every 30 minutes during weekday day/evening hours plus a weekend check.
 The browser reads every minute while the feed is visible, and on focus/reconnection; it can
 request the same throttled workflow when an exchange check is overdue. Collection runs
