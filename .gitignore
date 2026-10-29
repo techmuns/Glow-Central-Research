@@ -32,3 +32,9 @@ tmp/exchange-capture/
 .cache/
 
 public/generated-views/
+
+# Rebuilt from exact deployment inputs on GitHub; never retained source records.
+/public/data/capture-status.json
+/public/data/filings-health-plan.json
+/public/data/capture-status.json.tmp
+/public/data/filings-health-plan.json.tmp
