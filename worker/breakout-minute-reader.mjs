@@ -1,10 +1,10 @@
 import {boundedJson} from '../public/js/data/family-book-contract.js';
 import {BREAKOUT_ORIGIN} from '../public/js/data/breakout-live-shared.js';
 import {mfRepo} from './mutual-funds-github.mjs';
-import {hash} from './mutual-funds-seal.mjs';
+import {hash,openForReader} from './mutual-funds-seal.mjs';
 import {backgroundContract} from './github-background-contract.mjs';
-import {readBackgroundView,readBackgroundViewBytes} from './github-background-views.mjs';
-import {packedBreakoutResponse} from './breakout-packed-response.mjs';
+import {readBackgroundView} from './github-background-views.mjs';
+import {packedBreakoutResponse,unchangedPackedBreakouts} from './breakout-packed-response.mjs';
 import {readPrivateRecord} from './github-private-records.mjs';
 import {selectPreparedBreakouts} from './breakouts-github.mjs';
 const FEATURE='breakouts-live',MAX=8*1024*1024;
@@ -57,15 +57,25 @@ export async function preparedMinuteBreakouts(request,env,{fetcher=fetch,edgeCac
  const url=new URL(request.url),signal=AbortSignal.timeout(12000);
  if(env.BREAKOUT_LIVE_RUNTIME!=='github'||url.origin!==BREAKOUT_ORIGIN)return null;
  const repo=mfRepo(env);if(repo!=='techmuns/Glow-Central-Research'||!env.GH_DISPATCH_TOKEN)return null;
- const day=new Date(now).toISOString().slice(0,10),tag=`breakout-live-${day}`,key=new Request(new URL(`/_prepared-minute/${day}`,url.origin));
- let files;
- try{const cached=await edgeCache?.match(key);if(cached)files=await boundedJson(cached,MAX);}catch{/* Read the fixed GitHub source. */}
- if(!files){
+ const day=new Date(now).toISOString().slice(0,10),tag=`breakout-live-${day}`;
+ const headKey=new Request(new URL(`/_prepared-minute/head-${day}`,url.origin));
+ let asset,loaded=false;
+ try{const cached=await edgeCache?.match(headKey);if(cached)asset=await boundedJson(cached,16384);}catch{/* Read the fixed GitHub source. */}
+ if(!asset){
   const response=await fetcher(`https://api.github.com/repos/${repo}/releases/tags/${tag}`,{headers:{authorization:`Bearer ${env.GH_DISPATCH_TOKEN}`,accept:'application/vnd.github+json','user-agent':'ResearchPreparedQuotes'},redirect:'manual',signal});
   if(response.status===404){await response.body?.cancel();return null;}
   if(!response.ok){await response.body?.cancel();throw Error('Minute publication metadata unavailable');}
-  const release=await boundedJson(response,4*1024*1024),pointer=JSON.parse(release.body||'null'),asset=pointer?.asset;
-  if(release.tag_name!==tag||pointer?.format!=='breakout-minute-head-v1'||!/^bq-\d+-\d+-\d+-\d{13}-bundle\.bin$/.test(asset?.name||'')||asset.state!=='uploaded'||!Number.isSafeInteger(asset.size)||asset.size<33||asset.size>MAX||asset.browser_download_url!==`https://github.com/${repo}/releases/download/${tag}/${asset.name}`)throw Error('Invalid minute publication pointer');
+  const release=await boundedJson(response,4*1024*1024),pointer=JSON.parse(release.body||'null');
+  if(release.tag_name!==tag||pointer?.format!=='breakout-minute-head-v1')throw Error('Invalid minute publication pointer');
+  asset=pointer.asset;loaded=true;
+ }
+ if(!Number.isSafeInteger(asset?.id)||asset.id<1||!/^bq-\d+-\d+-\d+-\d{13}-bundle\.bin$/.test(asset?.name||'')||asset.state!=='uploaded'||!Number.isSafeInteger(asset.size)||asset.size<33||asset.size>MAX||asset.browser_download_url!==`https://github.com/${repo}/releases/download/${tag}/${asset.name}`)throw Error('Invalid minute publication pointer');
+ if(loaded&&edgeCache)await edgeCache.put(headKey,Response.json(asset,{headers:{'cache-control':'public, max-age=20'}})).catch(()=>{});
+ if(packed){const unchanged=unchangedPackedBreakouts(request,asset.id);if(unchanged)return unchanged;}
+ const key=new Request(new URL(`/_prepared-minute/generation-${asset.id}`,url.origin));
+ let files;
+ try{const cached=await edgeCache?.match(key);if(cached)files=await boundedJson(cached,MAX);}catch{/* Reload this immutable generation. */}
+ if(!files){
   // Public immutable asset request: no repository credential follows the CDN redirect.
   const context={repo,signature:await backgroundContract(FEATURE)};
   const header=await minuteRange(asset,0,Math.min(asset.size-1,16392),fetcher,signal);
@@ -74,10 +84,12 @@ export async function preparedMinuteBreakouts(request,env,{fetcher=fetch,edgeCac
   if(await hash(viewBytes)!==views.hash)throw Error('Minute view integrity failed');
   files=await minuteFiles(viewBytes,context);
   // Cache only ciphertext, on demand. No alarm, SQL state or collection runs here.
-  if(edgeCache)await edgeCache.put(key,Response.json(files,{headers:{'cache-control':'public, max-age=20'}})).catch(()=>{});
+  if(edgeCache)await edgeCache.put(key,Response.json(files,{headers:{'cache-control':'public, max-age=86400'}})).catch(()=>{});
  }
+ // The package is already parsed. Re-serializing its ciphertext through an
+ // emulated ASSETS response spent the request CPU budget before decrypting it.
+ if(packed){const bytes=await openForReader(files['head.json'],env.GH_DISPATCH_TOKEN,`${repo}:github-prepared:${FEATURE}:head.json:v1`);return packedBreakoutResponse(bytes,request,asset.id);}
  const preparedEnv={...env,ASSETS:{fetch:async request=>{const name=new URL(request.url).pathname.split('/').at(-1);return Object.hasOwn(files,name)?Response.json(files[name]):new Response(null,{status:404});}}};
- if(packed){const bytes=await readBackgroundViewBytes(preparedEnv,request.url,FEATURE,'head.json');return bytes?packedBreakoutResponse(bytes,request):null;}
  const head=await readBackgroundView(preparedEnv,request.url,FEATURE,'head.json');
  if(head?.version!==1||head.repo!==repo||head.feature!==FEATURE)throw Error('Invalid prepared minute snapshot');
  // New generations use one compressed envelope. Older paged publications stay readable.

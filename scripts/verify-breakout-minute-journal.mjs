@@ -63,7 +63,10 @@ try{
  try {globalThis.DecompressionStream=class {constructor(){throw Error('The server must not inflate the current quote snapshot');}};
   const packed=await handleBreakouts(new Request(BREAKOUT_ORIGIN+'/api/breakouts/snapshot'),worker,{fetcher,edgeCache,now:()=>at});
   assert.equal(packed.status,200);packetTag=packed.headers.get('etag');packet=await packed.json();assert.equal(packet.format,'gzip-json');
-  const unchanged=await handleBreakouts(new Request(BREAKOUT_ORIGIN+'/api/breakouts/snapshot',{headers:{'if-none-match':packetTag}}),worker,{fetcher,edgeCache,now:()=>at});assert.equal(unchanged.status,304);assert.equal(await unchanged.text(),'');
+  const decrypt=crypto.subtle.decrypt;
+  try{crypto.subtle.decrypt=()=>{throw Error('An unchanged quote must not repeat payload decryption');};
+   const unchanged=await handleBreakouts(new Request(BREAKOUT_ORIGIN+'/api/breakouts/snapshot',{headers:{'if-none-match':packetTag}}),worker,{fetcher,edgeCache,now:()=>at});assert.equal(unchanged.status,304);assert.equal(await unchanged.text(),'');
+  }finally{crypto.subtle.decrypt=decrypt;}
  } finally {globalThis.DecompressionStream=NativeInflation;}
  assert.deepEqual((await snapshotCapture(packet,at)).rows,data.rows,'The authenticated compressed view preserves every selected quote');
  assert.equal((await snapshotCapture(packet,at+3*60000)).primarySchedule.overdue,true,'An unchanged transport still ages in the reader');
@@ -99,6 +102,7 @@ try{
  companies=Array.from({length:501},(_,i)=>({ticker:i?`TEST${i}`:'TEST',isin:`INE${String(i+1).padStart(9,'0')}`}));
  at+=60000;await source.client({action:'inventory',targets:companies});await source.primary.wake();await journal.publish();cache.clear();response=await read();data=await response.json();
  assert.equal(response.status,200);assert.equal(data.rows.length,501);assert(data.rows.some(row=>row.ticker==='TEST500'),'Current quote pages retain companies beyond the first 500');
+ const changed=await handleBreakouts(new Request(BREAKOUT_ORIGIN+'/api/breakouts/snapshot',{headers:{'if-none-match':packetTag}}),worker,{fetcher,edgeCache,now:()=>at});assert.equal(changed.status,200);assert.notEqual(changed.headers.get('etag'),packetTag);assert.equal((await snapshotCapture(await changed.json(),at)).rows.length,501,'An earlier generation validator cannot hide newly covered companies');
  assert.equal(await recovered.restore(),1);assert.deepEqual(restored.store.history('TEST500'),source.store.history('TEST500'));
  source.beginCycle(2);await source.client({action:'begin',targets:['TEST']});await source.client({action:'checkpoint',rows:[{...row(),price:999}]});await source.client({action:'finish'});await journal.publish();cache.clear();
  response=await handleBreakouts(new Request(BREAKOUT_ORIGIN+'/api/breakouts/fallback'),worker,{fetcher,edgeCache,now:()=>at});data=await response.json();assert.equal(data.rows[0].price,110,'A fallback wave cannot become visible before its full restart checkpoint is acknowledged');
