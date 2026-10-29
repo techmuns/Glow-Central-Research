@@ -74,7 +74,10 @@ export function createAnnouncementIdentity(entries = []) {
   const row = value => {
     const hit = find(value);
     const observedCode = String(value.scripCode || value.bseCode || '');
-    return { ...value, ticker: hit?.ticker || hit?.bseSymbol || filingTicker(value.ticker) || null,
+    const ticker = hit?.ticker || hit?.bseSymbol || filingTicker(value.ticker) || null;
+    // A row the source filed under a renamed company's old symbol keeps that symbol as provenance.
+    const filed = renamedTo(value.ticker) && upper(value.ticker) !== ticker ? { filedTicker: upper(value.ticker) } : {};
+    return { ...value, ticker, ...filed,
       ...(hit ? { isin: hit.isin, scripCode: /^\d{6}$/.test(observedCode) ? observedCode : hit.bseCode } : {}) };
   };
   return { find, key, row };

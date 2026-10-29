@@ -1983,6 +1983,8 @@ export function announcementEvent(r) {
     time: r.time ? String(r.time).slice(0, 5) : null,
     at: r.date,
     ticker: r.ticker || null,
+    // The identity projection may already have moved a renamed company to its current symbol.
+    ...(r.filedTicker ? { filedTicker: r.filedTicker } : {}),
     company: r.company || r.ticker || '—',
     headline: r.title || r.headline || 'Filing',
     detail: [...(r.sources || [r.source]), r.category, r.subCategory].filter(Boolean).join(' · ') || 'Category not carried',

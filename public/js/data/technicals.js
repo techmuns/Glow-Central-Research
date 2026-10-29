@@ -7,6 +7,9 @@ import { currentSymbol, renamedTo } from './announcement-identity.js';
 const TECHNICALS_PATH = 'data/technicals.json';
 const ATR_HISTORY_PATH = 'data/atr-history.json';
 const SOURCE_OVERLAY_PATH = 'data/technicals-source.json';
+// The fields a row takes from the screener export itself (scripts/scrape-technicals.mjs); a
+// book-only row synthesises none of them.
+const SCREENER_EXPORT_FIELDS = ['screenerUrl', 'listSource', 'marketCap', 'sector', 'broadSector', 'industry', 'chg_fii_hold', 'chg_dii_hold'];
 
 let loadPromise = null;
 let cache = null; // { meta, scored, byTicker }
@@ -72,15 +75,22 @@ async function buildCache() {
 
   // ONE ROW PER COMPANY, UNDER THE SYMBOL IT TRADES UNDER TODAY. Screener's export still lists a
   // renamed company under its old symbol while the book carries the new one, so the scrape fetched
-  // the same series twice (HEG and HEGAM, identical closes) — and the company appeared twice in
-  // Breakouts and raised every technical alert twice. The current symbol's own row wins; an old
-  // symbol with no current row is filed under the current symbol and keeps its own as `filedTicker`.
-  const current = new Set(captured.filter((row) => row.ticker && !renamedTo(row.ticker)).map((row) => String(row.ticker).toUpperCase()));
+  // the company twice — and it appeared twice in Breakouts and raised every technical alert twice.
+  // The current symbol's own row keeps its measurements: the old symbol's Yahoo series is cut short
+  // (HEG: 70 bars and no delivery record, against HEGAM's 268). But only the export's row carries
+  // the export's own fields, so a book-only current row takes them from it, rather than reading as
+  // a company with no market cap, sector or FII/DII change. An old symbol with no current row is
+  // filed under the current symbol and keeps its own as `filedTicker`.
+  const current = new Map(captured.filter((row) => row.ticker && !renamedTo(row.ticker)).map((row) => [String(row.ticker).toUpperCase(), row]));
   const rows = [];
   for (const row of captured) {
     const to = row.ticker && renamedTo(row.ticker);
-    if (to && current.has(to)) continue;
-    if (to) { row.filedTicker = row.ticker; row.ticker = to; current.add(to); }
+    const own = to && current.get(to);
+    if (own) {
+      if (own.listSource === 'book' && row.listSource !== 'book') for (const field of SCREENER_EXPORT_FIELDS) own[field] = row[field] ?? own[field];
+      continue;
+    }
+    if (to) { row.filedTicker = row.ticker; row.ticker = to; current.set(to, row); }
     rows.push(row);
   }
 

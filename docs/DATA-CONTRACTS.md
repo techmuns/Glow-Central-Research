@@ -5857,9 +5857,16 @@ applied where tickers are compared, never by rewriting a capture:
   source as `HEGAM`, which it resolves (it answers HTTP 500 for `HEG`).
 - Alert assembly reads a renamed company's events under `currentSymbol()`, keeping the source's own
   symbol as `filedTicker`. Both the live and the pooled feeds pass through it, so AI Alerts shows
-  one card recognised as the holding, and All Alerts folds one company.
-- The technicals loader keeps one row per company. The current symbol's own row wins, and an old
-  symbol alone is filed under the current one. `byTicker()` and `rowFor()` accept either symbol.
+  one card recognised as the holding, and All Alerts folds one company. Corporate announcements
+  pass through the identity directory's `row()` first. Once the directory names the current symbol,
+  `row()` makes the move itself and records `filedTicker` there.
+- AI Alerts groups cards, finds the holding and reads position sizes by the current symbol. So a
+  book or positions snapshot still on `HEG` sizes the `HEGAM` card rather than reading it as an exit.
+- The technicals loader keeps one row per company. The current symbol's own row keeps its
+  measurements; the old symbol's Yahoo series was cut to 70 bars against 268. Where that row is
+  book-only, it takes the screener export's own fields from the old symbol's export row: market cap,
+  sector, industry, FII/DII change and Screener link. An old symbol alone is filed under the current
+  one. `byTicker()` and `rowFor()` accept either symbol.
 - The insider trade identity uses the current symbol, so a disclosure Screener files as `HEG` and
   the Muns supplement files as `HEGAM` is one trade.
 - **The team brief is not covered yet.** `worker/newsletter-brief.mjs` is hash-locked with Sattva

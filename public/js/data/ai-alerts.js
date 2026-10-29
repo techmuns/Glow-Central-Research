@@ -759,7 +759,10 @@ function positionSnapshotIndex({ holdings, sizes }) {
       defaultCompanyNewsEntityId(holding) === entity.entityId);
     const weight = sizes.complete && rows.every(row => Number.isFinite(row.weightPct))
       ? rows.reduce((sum, row) => sum + row.weightPct, 0) : null;
-    const keys = new Set([entity.ticker, entity.entityId, ...rows.flatMap(row => [row.ticker?.toUpperCase(), defaultCompanyNewsEntityId(row)])].filter(Boolean));
+    // A position still filed under a renamed company's old symbol also answers to the current one,
+    // which is the symbol its card is grouped under.
+    const tickers = [entity.ticker, ...rows.map(row => row.ticker)].filter(Boolean).map(currentSymbol);
+    const keys = new Set([entity.ticker, entity.entityId, ...rows.flatMap(row => [row.ticker?.toUpperCase(), defaultCompanyNewsEntityId(row)]), ...tickers].filter(Boolean));
     for (const key of keys) index.set(key, weight === null ? null : (index.get(key) || 0) + weight);
   }
   lastPositionIndex = { signature, index };

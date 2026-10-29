@@ -68,11 +68,24 @@ globalThis.fetch = async (input) => {
   return Response.json({});
 };
 const technicals = await import('../public/js/data/technicals.js');
-served = technicalsPayload([{ ...base, ticker: 'HEG', name: 'HEG' }, { ...base, ticker: 'HEGAM', name: 'HEG Advanced Materials Limited' }, { ...base, ticker: 'TCS', name: 'TCS' }], '2026-10-29T08:00:00.000Z');
+// As shipped on 29 October 2026: HEG is the screener export's row (its metadata, but a Yahoo series
+// cut to 70 bars), HEGAM the book's (the full series, none of the export's fields).
+const exportRow = { ...base, ticker: 'HEG', name: 'HEG', listSource: 'nse500', screenerUrl: 'https://www.screener.in/company/HEG/consolidated/',
+  marketCap: '13,007 Cr.', sector: 'Capital Goods', broadSector: 'Industrials', industry: 'Industrial Products', chg_fii_hold: -1.76, chg_dii_hold: 0.64, bars_count: 70 };
+const bookRow = { ...base, ticker: 'HEGAM', name: 'HEG Advanced Materials Limited', listSource: 'book', screenerUrl: 'https://www.screener.in/company/HEGAM/',
+  marketCap: null, sector: 'Unclassified', broadSector: 'Unclassified', industry: null, chg_fii_hold: null, chg_dii_hold: null, bars_count: 268 };
+served = technicalsPayload([exportRow, bookRow, { ...base, ticker: 'TCS', name: 'TCS' }], '2026-10-29T08:00:00.000Z');
 await technicals.load();
 assert.deepEqual(technicals.all().map((s) => s.company.ticker).sort(), ['HEGAM', 'TCS'], 'the company is one Breakouts row, not two');
-assert.equal(technicals.rowFor('HEGAM').name, 'HEG Advanced Materials Limited', "the current symbol's own row wins");
+const merged = technicals.rowFor('HEGAM');
+assert.equal(merged.name, 'HEG Advanced Materials Limited', "the current symbol's own row wins");
+assert.equal(merged.bars_count, 268, "its measurements are the current symbol's full series");
+assert.deepEqual([merged.listSource, merged.screenerUrl, merged.marketCap, merged.sector, merged.broadSector, merged.industry, merged.chg_fii_hold, merged.chg_dii_hold],
+  ['nse500', exportRow.screenerUrl, '13,007 Cr.', 'Capital Goods', 'Industrials', 'Industrial Products', -1.76, 0.64], "and the export's own fields come from the export's row");
 assert.equal(technicals.byTicker('HEG'), technicals.byTicker('HEGAM'), 'either symbol finds the one row');
+served = technicalsPayload([{ ...exportRow, ticker: 'HEGAM', name: 'HEG Advanced Materials Ltd' }, { ...bookRow, ticker: 'HEG', listSource: 'book', marketCap: null }], '2026-10-29T08:30:00.000Z');
+await technicals.refresh();
+assert.deepEqual([technicals.rowFor('HEGAM').marketCap, technicals.rowFor('HEGAM').listSource], ['13,007 Cr.', 'nse500'], 'an export row under the current symbol is never overwritten');
 served = technicalsPayload([{ ...base, ticker: 'HEG', name: 'HEG' }], '2026-10-29T09:00:00.000Z');
 await technicals.refresh();
 assert.deepEqual(technicals.all().map((s) => [s.company.ticker, s.company.filedTicker]), [['HEGAM', 'HEG']], 'an old symbol alone is filed under the current one and keeps its own');
@@ -97,6 +110,13 @@ assert.equal(cards[0].ticker, 'HEGAM');
 assert.equal(cards[0].holding, true, 'the card is recognised as the holding');
 const laggingCards = companyCards('HEG');
 assert.deepEqual(laggingCards.map((card) => [card.ticker, card.holding]), [['HEGAM', true]], 'a book still on HEG recognises the same card');
+// A checked positions snapshot still filed under HEG sizes the HEGAM card, and is not read as an exit.
+const { withPositionSnapshot } = await import('../public/js/data/ai-alerts.js');
+const positions = { sizes: { complete: true, basis: 'listed-market-value' }, holdings: [{ ticker: 'HEG', name: 'HEG Advanced Materials Limited', weightPct: 2.5 }, { ticker: 'TCS', name: 'TCS', weightPct: 97.5 }] };
+const sized = rankReport(report, { holdings: positions.holdings, positionSizes: positions });
+assert.equal(sized.allCards.find((card) => card.ticker === 'HEGAM')?.holdingWeightPct, 2.5, 'the completed rank keeps the holding weight');
+const snapshotted = withPositionSnapshot(rankReport(report, { holdings: positions.holdings }), positions);
+assert.equal(snapshotted.allCards.find((card) => card.ticker === 'HEGAM')?.holdingWeightPct, 2.5, 'a snapshot arriving later keeps the card and sizes it');
 
 // ---- The alert assembly reads a renamed company's evidence under its current symbol ----------------------------
 const { assembleInSlices } = await import('../public/js/data/daily-alerts.js');
@@ -115,10 +135,25 @@ const original = settledFeeds.get('announcements').events.find((e) => e.id === '
 assert.equal(original.ticker, 'HEG', 'the source record is never rewritten');
 assert.equal(again.events.find((e) => e.id === 'a2').ticker, 'TCS');
 
+// ---- The announcement projection keeps the symbol BSE filed a row under -------------------------------------------
+// Corporate announcements reach the assembly through the identity directory's row(), which already
+// moves a renamed company to the directory's symbol once the directory is rebuilt.
+const { createAnnouncementIdentity } = await import('../public/js/data/announcement-identity.js');
+const { announcementEvent } = await import('../public/js/data/daily-alerts.js');
+const bseRow = { newsId: 'heg-q2-call', scripCode: '509631', ticker: 'HEG', company: 'HEG Advanced Materials Ltd', headline: 'Intimation of Q2 FY 27 Earnings Conference Call', date: '2026-10-29' };
+const directory = (ticker) => createAnnouncementIdentity([{ isin: 'INE545A01024', bseCode: '509631', bseSymbol: 'HEGAM', ticker, name: 'HEG Advanced Materials Ltd' }]);
+const projectedRow = directory('HEGAM').row(bseRow);
+assert.deepEqual([projectedRow.ticker, projectedRow.filedTicker], ['HEGAM', 'HEG'], 'a rebuilt directory files the row under HEGAM and keeps the symbol BSE used');
+const filedEvent = announcementEvent(projectedRow);
+assert.deepEqual([filedEvent.ticker, filedEvent.filedTicker], ['HEGAM', 'HEG'], "the alert keeps the source's own symbol");
+assert.equal(bseRow.ticker, 'HEG', 'the capture row itself is untouched');
+assert.equal(directory('HEG').row(bseRow).filedTicker, undefined, 'a directory still on HEG leaves the row as filed, for the assembly to read');
+assert.equal(directory('HEGAM').row({ ...bseRow, ticker: 'TCS', scripCode: '532540' }).filedTicker, undefined, 'no other company carries a filed symbol');
+
 // ---- The BSE identity directory files the company under its current symbol ---------------------------------------
 const { buildAnnouncementIdentities } = await import('./lib/announcement-identities.mjs');
 const master = [{ SCRIP_CD: '509631', ISIN_NUMBER: 'INE545A01024', scrip_id: 'HEGAM', Scrip_Name: 'HEG Advanced Materials Ltd', Status: 'Active' }];
 const identity = buildAnnouncementIdentities(master, { HEG: { ticker: 'HEG', bseId: '509631' } }).entries.find((e) => e.isin === 'INE545A01024');
 assert.equal(identity.ticker, 'HEGAM', "Moneycontrol's old symbol no longer names the company's BSE filings");
 
-console.log('PASS renamed symbols: reviewed against NSE, scope, coverage, insider identity, technicals, AI Alerts, alert assembly and BSE identity');
+console.log('PASS renamed symbols: reviewed against NSE, scope, coverage, insider identity, technicals (one row, export fields kept), AI Alerts (holding and position sizes), alert assembly, announcement provenance and BSE identity');

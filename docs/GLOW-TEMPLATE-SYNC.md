@@ -697,9 +697,10 @@ related coverage, collection, retention, scope and refresh behavior remain uncha
 
 `RENAMED_SYMBOLS` (HEG -> HEGAM, reviewed against NSE's directory) lives in the shared
 `announcement-identity.js`. The current-symbol reads that use it live in other shared files:
-alert assembly in `daily-alerts.js`, the AI Alerts grouping, the technicals loader, the insider
-trade identity, `coverage.has()`, and the BSE and technicals scrapers. A template sync must keep
-them. The hash-locked team brief is unchanged; extending the rule to it is a change for both
+alert assembly and the announcement event in `daily-alerts.js`, the AI Alerts grouping and
+position index, the technicals loader and its export-field merge, the insider trade identity,
+`coverage.has()`, the identity directory's `row()`, and the BSE and technicals scrapers. A template
+sync must keep them. The hash-locked team brief is unchanged; extending the rule to it is a change for both
 repositories. The mechanism is general and costs Sattva nothing until it holds a renamed company.
 See *A renamed company keeps its history* in DATA-CONTRACTS.md.
 
