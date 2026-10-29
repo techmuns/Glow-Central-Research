@@ -1,5 +1,5 @@
 import { editorialEvents, editorialText } from './newsletter-editorial.mjs';
-import { istLabel, istDateLong, EDITIONS } from '../public/js/data/newsletter-shared.js';
+import { istLabel, istParts, istDateLong, EDITIONS } from '../public/js/data/newsletter-shared.js';
 import { formatLast, formatPct, asOfLabel, NEWSLETTER_STYLE, TAGLINES, MOODS } from './newsletter-brief.mjs';
 import { priceReasonText } from './newsletter-price-reasons.mjs';
 import { newsletterSourceUrl } from './newsletter-source-links.mjs';
@@ -13,6 +13,15 @@ const link = (url,label,color=NEWSLETTER_STYLE.GOLD,className=null) => {
   catch { return esc(label); }
   return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" ${className?`class="${className}"`:`style="color:${color};text-decoration:none"`}>${esc(label)}</a>`;
 };
+// "28 Oct 20:30": the masthead states the IST window once, so a digest line drops the weekday.
+const digestTime = ms => { const p=istParts(ms); return `${istLabel(ms,{time:false}).replace(/^\S+ /,'')} ${String(p.hh).padStart(2,'0')}:${String(p.mm).padStart(2,'0')}`; };
+// The digest tier's link: still a new tab, with noreferrer (which implies noopener in the HTML
+// standard) and the constant tokens unquoted. Only the URL is variable, and it stays quoted.
+const digestLink = (url,label) => {
+  try { if (!['https:','http:'].includes(new URL(url).protocol)) return esc(label); }
+  catch { return esc(label); }
+  return `<a href="${esc(url)}" target=_blank rel=noreferrer class=gvl>${esc(label)}</a>`;
+};
 export const investorSubject = (brief, brand, stats, reading=editorialEvents(brief,stats.companies)) => {
   return `${brand} · ${reading.events.length} development${reading.events.length===1?'':'s'} · ${brief.day} · ${brief.edition === 'morning'?'Morning':'Evening'}`;
 };
@@ -22,11 +31,16 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
   const reading=suppliedReading||editorialEvents(brief,stats.companies);
   const chosen=new Set(part.eventIds), events=reading.byId?part.eventIds.map(id=>reading.byId.get(id)).filter(Boolean):reading.events.filter(e=>chosen.has(e.id));
   const compact=!!part.compact;
+  // The last tier before refusal: one row per company, one line per update. Every update,
+  // its source state and every exact source link stay in the inbox; only the markup shrinks.
+  // If even that cannot fit, the final tier links each update's leading source and counts the
+  // rest, which every part's Download PDF carries in full.
+  const digest=compact&&part.digest===true, inlineExtras=!digest||part.extraSources!==false;
   const summaryChars=compact&&[100,140].includes(part.summaryChars)?part.summaryChars:compact?220:340;
   // Standard email CSS classes avoid repeating identical styles hundreds of times.
   // Preserve the original appearance while reserving body bytes for exact source URLs.
   const numericStyle='text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums';
-  const compactStyles=compact?`<style type="text/css">td.gve{padding:8px 0;border-bottom:1px solid ${RULE}}td.gvt{padding:7px 5px;border-bottom:1px solid ${RULE};vertical-align:top}td.gvr{${numericStyle}}strong.gvc{font-family:${SERIF};color:${INK}}span.gvm{font-size:10px;color:${META}}a.gvl{color:${GOLD};text-decoration:none}</style>`:'';
+  const compactStyles=compact?`<style type="text/css">td.gve{padding:8px 0;border-bottom:1px solid ${RULE}}td.gvt{padding:7px 5px;border-bottom:1px solid ${RULE};vertical-align:top}td.gvr{${numericStyle}}strong.gvc{font-family:${SERIF};color:${INK}}span.gvm{font-size:10px;color:${META}}a.gvl{color:${GOLD};text-decoration:none}${digest?'div.gvd{padding:5px 0 0}span.gvn{white-space:nowrap}':''}</style>`:'';
   const cell=(value,extra='',numeric=false)=>compact?`<td class="gvt${numeric?' gvr':''}"${extra?` style="${extra}"`:''}>${value}</td>`:
     `<td style="padding:7px 5px;border-bottom:1px solid ${RULE};vertical-align:top;${extra}${numeric?numericStyle:''}">${value}</td>`;
   const reportUrl=pdfUrl || `${dashboardUrl}/api/newsletter/preview?edition=${brief.edition}&format=pdf`;
@@ -37,7 +51,7 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
     const sourceLabel=s.kind==='filing'?'Announcement →':s.kind==='news'?'News report →':'Source →';
     const sameCompany=index>0&&events[index-1].ticker===event.ticker;
     const continued=index===0&&part.continuedCompany===event.ticker?' (continued)':'';
-    const additional=(event.additionalReadings||[]).map(r=>`<div style="margin-top:5px"><strong>${link(emailSourceUrl(r.source,sourceLinks,dashboardUrl),'Additional source →',GOLD,compact?'gvl':null)}</strong>${r.at?` · ${esc(r.dayOnly?istDateLong(r.at):istLabel(r.at))}`:''} ${esc(short(r.text,summaryChars))}</div>`).join('');
+    const additional=(event.additionalReadings||[]).map(r=>`<div style="margin-top:5px"><strong>${digest?digestLink(emailSourceUrl(r.source,sourceLinks,dashboardUrl),'Additional source →'):link(emailSourceUrl(r.source,sourceLinks,dashboardUrl),'Additional source →',GOLD,compact?'gvl':null)}</strong>${r.at?` · ${esc(r.dayOnly?istDateLong(r.at):istLabel(r.at))}`:''} ${esc(short(r.text,summaryChars))}</div>`).join('');
     const type=s.kind==='filing'?'Corporate announcement':s.kind==='trade'?'Ownership disclosure':s.kind==='move'?'Price context':'Reported development';
     // One description per event. Never repeat its headline above an equivalent AI summary.
     // Keep the bounded structured meeting note intact, including a later agenda
@@ -49,6 +63,13 @@ export function renderInvestorEmail(brief, {dashboardUrl,recipient,productName,b
       ' · '+link(emailSourceUrl(url,sourceLinks,dashboardUrl),`[${i+2}]`,GOLD,compact?'gvl':null)).join('');
     // Optional quotes can be omitted for these constant class tokens; variable
     // attributes (issuer IDs, URLs and text) remain quoted and escaped.
+    if(digest){
+      const related=event.relatedSources?' · Related source; exposure unconfirmed':'';
+      const others=event.sources.filter(url=>url!==newsletterSourceUrl(s));
+      const extras=!others.length?'':inlineExtras?others.map((url,i)=>' '+digestLink(emailSourceUrl(url,sourceLinks,dashboardUrl),`[${i+2}]`)).join(''):` · +${others.length} source${others.length===1?'':'s'} in PDF`;
+      const closes=index===events.length-1||events[index+1].ticker!==event.ticker;
+      return `${sameCompany?'':`<tr><td class=gve data-company="${esc(event.ticker)}"><strong class=gvc>${esc(event.company)}${continued}</strong>`}<div class=gvd>${description}${additional} <span class=gvm>${esc(evidence)}${incomplete}${related} · ${esc(digestTime(s.at))} · ${source?digestLink(source,sourceLabel):'Source link unavailable'}${extras}</span></div>${closes?'</td></tr>':''}`;
+    }
     if(compact)return `<tr><td class=gve data-company="${esc(event.ticker)}">${sameCompany?'':`<strong class=gvc>${esc(event.company)}${continued}</strong><br>`}${description}${additional}<br><span class=gvm>${esc(evidence)}${incomplete}${event.relatedSources?' · Related source; exposure unconfirmed':''} · ${esc(istLabel(s.at))} · ${source?link(source,sourceLabel,GOLD,'gvl'):'Source link unavailable'}${extraSources}</span></td></tr>`;
     return `<tr><td data-company="${esc(event.ticker)}" style="padding:${sameCompany?'10px':'22px'} 0 12px;border-bottom:1px solid ${RULE}">
 ${sameCompany?'':`<div style="padding-bottom:7px;margin-bottom:8px;border-bottom:2px solid ${INK};font-family:${SERIF};font-size:${compact?18:22}px;line-height:1.2;font-weight:bold;color:${INK}">${esc(event.company)}${continued} <span style="font-family:${SANS};font-size:10px;font-weight:normal;color:${META}">${esc(event.ticker)}</span></div>`}
@@ -62,12 +83,15 @@ ${event.relatedSources?`<div style="margin-top:4px;color:${META};font-size:11px"
   // Edition-wide coverage diagnostics stay in the complete report. Per-event
   // source states and exact original links remain beside each inbox reading.
   const last=part.index===part.total;
+  // The digest keeps every closing row and link, styled by the same classes instead of inline.
+  const company=name=>digest?cell(`<strong class=gvc>${esc(name)}</strong>`):cell(esc(name),'font-family:'+SERIF+';font-weight:bold');
+  const rowLink=(url,label)=>digest?digestLink(url,label):link(url,label);
   const calendar=last?(brief.calendar?.rows || []).map(r=>
-    `<tr>${cell(`<span style="white-space:nowrap">${esc(r.date)}</span>`+(r.time?`<br>${esc(r.time)} IST`:''))}${cell(esc(r.company),'font-family:'+SERIF+';font-weight:bold')}${cell(link(r.url,r.label))}</tr>`).join(''):'';
-  const actionRows=last?(brief.actions?.rows || []).map(r=>`<tr>${cell(esc(r.dates.map(d=>`${d.label} ${d.date}`).join(' · ')))}${cell(esc(r.company),'font-family:'+SERIF+';font-weight:bold')}${cell(link(r.url,r.purpose))}</tr>`).join(''):'';
+    `<tr>${cell((digest?`<span class=gvn>${esc(r.date)}</span>`:`<span style="white-space:nowrap">${esc(r.date)}</span>`)+(r.time?`<br>${esc(r.time)} IST`:''))}${company(r.company)}${cell(rowLink(r.url,r.label))}</tr>`).join(''):'';
+  const actionRows=last?(brief.actions?.rows || []).map(r=>`<tr>${cell(esc(r.dates.map(d=>`${d.label} ${d.date}`).join(' · ')))}${company(r.company)}${cell(rowLink(r.url,r.purpose))}</tr>`).join(''):'';
   const markets=last?brief.markets.rows.map(r=>{
     const tone=r.changePct==null?META:r.changePct>0?MOODS.good.color:r.changePct<0?MOODS.watch.color:MOODS.neutral.color;
-    return `<tr>${cell(`${esc(r.label)}<br><span style="font-size:10px;color:${META}">${esc(asOfLabel(r))}</span>`)}${cell(`${esc(formatLast(r)||'Unavailable')}<br><span style="color:${tone};font-weight:bold">${esc(formatPct(r)||'Change unavailable')}</span>`,'',true)}</tr>`;
+    return `<tr>${cell(`${esc(r.label)}<br>${digest?'<span class=gvm>':`<span style="font-size:10px;color:${META}">`}${esc(asOfLabel(r))}</span>`)}${cell(`${esc(formatLast(r)||'Unavailable')}<br><span style="color:${tone};font-weight:bold">${esc(formatPct(r)||'Change unavailable')}</span>`,'',true)}</tr>`;
   }).join(''):'';
   const heading=title=>`<div style="margin:22px 0 7px;padding-bottom:5px;border-bottom:3px solid ${GOLD_LIGHT};font-size:11px;font-weight:bold;letter-spacing:2px;color:${INK}">${title}</div>`;
   const table=rows=>`<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12px;overflow-wrap:anywhere">${rows}</table>`;

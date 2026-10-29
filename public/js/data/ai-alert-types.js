@@ -12,6 +12,7 @@ export const AI_EVENT_TYPES = [
   ...ANNOUNCEMENT_TYPES.filter(type => type.id !== 'routine'),
   { id: 'routine', label: 'Routine notices', hint: 'Lost or duplicate share certificates, demat notices, newspaper copies and routine compliance.' },
   { id: 'news', label: 'News', hint: 'Publisher news reports.' },
+  { id: 'indirect', label: 'Indirect exposure', hint: 'Stories about other companies in a market a company is mapped to sell into (reviewed theme map).' },
   { id: 'concalls', label: 'Con-calls', hint: 'Earnings call readings.' },
   { id: 'insider', label: 'Insider trades & deals', hint: 'Insider, SAST, bulk and block disclosures.' },
   { id: 'investors', label: 'Investor holdings', hint: 'Changes in tracked investors’ holdings.' },
@@ -40,7 +41,8 @@ export function aiEventTypes(event) {
     const specific = base === 'routine' ? [] : SPECIAL_TYPES.filter(type => type.re.test(text) &&
       (type.id !== 'warrants' || !/(?:arrest|search|bailable)\s+warrants?/i.test(text))).map(type => type.id);
     types = [...new Set([...specific, base])];
-  } else types = [feedTypes[event.feed] || 'other'];
+  } else if (event.themeExposure) types = ['indirect'];
+  else types = [feedTypes[event.feed] || 'other'];
   memo.set(event, types);
   return types;
 }

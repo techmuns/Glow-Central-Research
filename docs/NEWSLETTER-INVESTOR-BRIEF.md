@@ -88,6 +88,13 @@ company, exact source destination and original record within the same three-part
 Structured meeting notes retain every agenda, including later dividend proposals, without
 character truncation. Nothing is
 removed from the complete report to achieve this packing.
+If even 100-character cards cannot fit (28 October: a morning preview prepared at 23:21 IST
+spans 31 hours, 574 updates and 811 source links), a company digest follows: one row per company
+and one line per update with its description, source state, date and time (the masthead
+states the IST window) and exact links, closing tables styled by the same classes. Only if
+that still cannot fit does its last step link each update's leading source and count the rest
+("+2 sources in PDF"); every part's Download PDF carries them. Every update, company, leading
+source and the closing tables stay inline. Editions that fit an earlier tier are unchanged.
 Compact rows share standard email CSS classes rather than repeating identical inline
 styles; the colours, serif company names, rules and spacing remain unchanged. This leaves
 room for source links and investor readings within the existing byte limits. See Gmail's
@@ -133,6 +140,14 @@ cannot establish a copy. Semantic review or matching read document bytes can est
 copies across exchange timestamps. Generic subjects and time proximity alone cannot.
 Changed amount, counterparty, date, status, conditions or ownership prevent unsafe merging.
 Distinct CEAT loan-conversion/investment fixtures remain separate.
+
+Since 29 October the semantic check covers each company's filings and news in one partition
+(ids only, no generated text), so one results disclosure and its press release, presentation,
+board outcome and news reports print as one update with every link retained. An unsafe proposed
+group is split on its own (money amounts beyond 5% after unit normalisation, opposite headline
+stages, other company/relation, over 24 hours) instead of voiding the reply; a failed batch no
+longer stops later batches. City Union Bank's 28 October evening results (nine items) are the
+regression fixture.
 
 Semantic news checking runs after source attachment, packing whole companies into bounded
 batches rather than admitting only the first 80 reports of an edition or wasting a request
@@ -205,6 +220,9 @@ Retained-data verification checks both scheduled morning eligibility and the den
 morning/evening preview windows. A 500-disclosure fixture exercises the shortest excerpts
 with all source identities and full URLs retained. Backend preview failures log a bounded
 error code so an inbox-budget failure can be distinguished from a source build failure.
+Text and PDF previews are the complete edition, so an email preview that cannot be planned
+no longer takes them with it. Results-day flood fixtures (many updates per company) reach
+both digest steps with every update once and every leading source exact.
 It checks that 180 distinct material disclosures fit a few bounded emails with every event
 and every report source identity retained. The existing content, event, market, price-reason,
 PDF, source-link, delivery, encrypted GitHub and runtime checks remain required.
