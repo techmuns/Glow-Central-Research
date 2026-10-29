@@ -44,7 +44,7 @@ export async function runBreakoutRunner(local,{discover,now=Date.now,sleep=ms=>n
  try{await handover();}catch{console.warn('The successor could not be confirmed; deployment completion and the schedule will recheck runner ownership.');}
  await Promise.all([
   guard(fallback()),
-  guard((async()=>{while(!stopped&&now()<deadline && quoteRunnerActive(now())){const at=now();if(marketWindow(at).collect)await levels();version++;await wait(Math.max(1,minuteInterval-(now()-at)));}})()),
+  guard((async()=>{while(!stopped&&now()<deadline && quoteRunnerActive(now())){const at=now();if(marketWindow(at).collect){await levels();version++;}await wait(Math.max(1,minuteInterval-(now()-at)));}})()),
   guard((async()=>{while(!stopped&&now()<deadline && quoteRunnerActive(now())){const at=now();if(!marketWindow(at).collect){await wait(minuteInterval);continue;}await local.primary.wake();await local.publishLive?.();version++;await wait(Math.max(1,minuteInterval-(now()-at)));}})()),
   guard((async()=>{while(!stopped&&now()<deadline){await wait(publishInterval);if(!stopped&&now()<deadline && marketWindow(now()).collect){await publish();}}})()),
  ]);
