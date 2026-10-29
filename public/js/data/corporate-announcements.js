@@ -4,7 +4,7 @@ import * as nseFilings from './nse-filings.js';
 import { mergeAnnouncementSteps, nseAnnouncement } from './announcements-shared.js';
 import { createAnnouncementIdentity, filingTicker, mergeExchangeIdentities } from './announcement-identity.js';
 import { capturedJson } from './company-captures.js';
-import { filterByScope } from './scope.js';
+import { filterByScope, scopeHoldings, holdingMembership } from './scope.js';
 import * as watchlist from '../core/watchlist.js';
 import { runSteps, runStepsInSlices, yieldToInput } from '../core/slices.js';
 
@@ -158,6 +158,11 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
     })().finally(() => { pending = null; emit(); });
     return pending;
   }
+  // Rows of exactly these companies, matched by exchange identity (the index query's company list).
+  const filterByCompanies = (list, companies) => {
+    const wanted = new Set(companies.map(identity.key).filter(Boolean));
+    return list.filter(row => wanted.has(identity.key(row)));
+  };
   return {
     ...base, rows, prepareRows,
     companyKey: company => identity.key(company),
@@ -167,11 +172,14 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
       return wanted ? rows().filter(row => identity.key(row) === wanted) : [];
     },
     filterByScope(list, scope, holdings) {
-      if (scope === 'universe') return filterByScope(list, scope, holdings);
-      const companies = scope === 'portfolio' ? holdings : watchlist.all();
-      const wanted = new Set(companies.map(identity.key).filter(Boolean));
-      return list.filter(row => wanted.has(identity.key(row)));
+      // A holding category (header) narrows Universe to the book lines held that way, matched by
+      // the same exchange identity as Portfolio rather than by a symbol a filing may not carry.
+      const held = holdingMembership();
+      if (scope === 'universe' && !held) return filterByScope(list, scope, holdings);
+      const companies = scope === 'watchlist' ? watchlist.all().filter((w) => !held || held.has(w.ticker)) : scopeHoldings(holdings, scope);
+      return filterByCompanies(list, companies);
     },
+    filterByCompanies,
     meta() {
       const m = base.meta(), list = rows();
       return { ...m, rowCount: list.length, covered: new Set(list.map((row) => row.ticker).filter(Boolean)).size,

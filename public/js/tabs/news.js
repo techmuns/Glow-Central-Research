@@ -36,7 +36,7 @@ import { recentNews as feed } from '../data/filings.js';
 import { newsPeriodFilter, newsPublicationDay, newsPublicationKey, newsPeriodBounds } from '../data/news-window.js';
 import * as marketNews from './market-news-view.js';
 import { KEYWORDS, GROUPS, classifyStory, topicFilterOptions, matchesTopic, groupLabel } from '../data/news-keywords.js';
-import { filterByScope as filterTickerRows } from '../data/scope.js';
+import { filterByScope as filterTickerRows, scopeHoldings, holdingMembership } from '../data/scope.js';
 import { attributionFor, attributionLabel, newsSearchText } from '../data/company-news-attribution.js';
 import { filterCompanyNewsByScope } from '../data/company-news-identity.js';
 import { surfaceReading, feedbackItemFor, relevanceRevision, onRelevanceChange, primeRelevance, warmReadings } from '../data/surface-relevance.js';
@@ -166,7 +166,7 @@ const tab = makeFilingsTab({
   // News is name-searched and can therefore scope private/BSE-only companies by stable entity id.
   // Watchlist remains symbol-based because a saved watch item is a ticker by construction.
   filterByScope: (rows, scope, holdings) =>
-    filterCompanyNewsByScope(rows, scope, holdings) ?? filterTickerRows(rows, scope, holdings),
+    filterCompanyNewsByScope(rows, scope, scopeHoldings(holdings)) ?? filterTickerRows(rows, scope, holdings),
   columns: () => [
     {
       label: 'Date',
@@ -428,8 +428,10 @@ export function render(ctx) {
   // MARKET-WIDE NEWS CARRIES NO COMPANY, so it cannot be narrowed to a book or a watchlist — see
   // the chatter rule in CLAUDE.md: filtering rows that have no ticker BY ticker would report "your
   // companies are not in the news" when the truth is that nothing on those rows says whose they
-  // are. Universe gets the market-wide capture; both narrowed scopes get the per-company search.
-  const wanted = ctx.scope === 'universe' ? 'universe' : 'companies';
+  // are. Universe gets the market-wide capture; both narrowed scopes get the per-company search —
+  // and so does Universe under a Holding category (header), which narrows it to the companies the
+  // family holds that way: a market-wide list cannot honour that choice, so it is not shown for it.
+  const wanted = ctx.scope === 'universe' && !holdingMembership() ? 'universe' : 'companies';
   if (mounted && mounted !== wanted) {
     if (mounted === 'universe') marketNews.destroy();
     else tab.destroy();

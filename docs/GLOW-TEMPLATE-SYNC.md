@@ -65,16 +65,29 @@ history rather than replaying years of changes.
 
 ## What belongs to Glow
 
-AI Alerts' **Holding** dropdown uses names-only `holdingCategories` from this same statement
+The header's **Holding** filter (28 October 2026) sits beside Scope on every tab, including tabs
+built with Add tab. It began as an AI Alerts dropdown and is now chrome: `core/holding-filter.js`
+keeps the one choice on this device, and `data/scope.js` applies it inside `scopeTickers`,
+`scopeMatcher`, `filterByScope` and `scopeHoldings`, so every scoped feed, count, pill and export
+narrows to the companies held that way, intersected with the selected scope. All changes nothing.
+Paths that resolve membership without those helpers (the announcement index query, Corporate
+Actions, Mutual Funds, investor name matching, the alert collector's entity/portfolio-only rules)
+apply it explicitly. Like the scope, it follows the header rather than any saved tab definition;
+legacy saved AI views' `aiHoldingCategory` is ignored. The Portfolio and Watchlist sheets keep
+their own membership. It offers only categories some company carries — the book's lines and the
+family's private companies (`coverage.privateCompanies()`, whose alerts and Private Market rounds it
+also narrows) — and a remembered category no company carries reads as All (`effectiveHoldingCategory`).
+A category leaving no company in scope (by company membership, so tickerless holdings count) gets one
+shell panel with Show all holdings. Ask Research's one-row header shows the select as an icon.
+`verify-holding-filter.mjs` is the offline test.
+Categories use names-only `holdingCategories` from this same statement
 book. `holding-categories.js` follows GlowVentures' account routing: PMS accounts are PMS;
 Direct and Execution equity accounts are Direct Equity; unstated engagements are not guessed.
 A company held through both routes matches both choices. The producer, `/api/family-portfolio`
 and the position-size reply preserve these memberships; category changes invalidate the reader.
-The dropdown intersects the selected research scope, priority, search and event types, and is
-retained in saved views and on repeat visits. All preserves the existing scope and thresholds.
-Fund units, bonds, unlisted and private-investment positions are not added to the equity-company
-research list by this filter. Their empty selections name this coverage limit instead of
-claiming there are no family holdings or no source events. Statement dates remain unchanged.
+Fund units, bonds and pooled AIF positions are not added to the equity-company research list by
+this filter, and a category only they carry is not offered rather than offered empty. Statement
+dates remain unchanged.
 
 - Worker: `glow-central-research`; repository: `techmuns/Glow-Central-Research`.
 - Research dispatch and authenticated Actions artifacts use Glow's repository and immutable
