@@ -1,7 +1,7 @@
 import { captureCoverageHtml } from '../ui/capture-coverage.js';
 import { escapeHtml } from '../core/dom.js';
 import * as coverage from '../data/coverage.js';
-import { filterByScope } from '../data/scope.js';
+import { filterByScope, holdingMembership } from '../data/scope.js';
 import { announcementRange } from '../data/announcements-shared.js';
 import { companyCaptureHoldings } from '../data/company-captures.js';
 
@@ -45,7 +45,9 @@ export function announcementLookupControls(feed) {
       const company = companies(ctx).find((c) => c.ticker.toUpperCase() === ticker);
       try {
         if (!/^[A-Z0-9&._-]{1,80}$/.test(ticker)) throw new Error('Choose a valid company ticker.');
-        if (ctx.scope !== 'universe' && !company) throw new Error('Choose a company in this scope, or switch to Universe.');
+        // Under a Holding category even Universe is a finite list, so a typed or linked ticker must be on it.
+        const held = holdingMembership();
+        if ((ctx.scope !== 'universe' || held) && !company) throw new Error(held ? `Choose a company held as ${held.label} in this scope, or set Holding to All.` : 'Choose a company in this scope, or switch to Universe.');
         announcementRange(draft.fromDate, draft.toDate);
         draft.ticker = ticker;
         ctx.setParams?.({ ...ctx.params, company: ticker });

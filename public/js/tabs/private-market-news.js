@@ -8,6 +8,7 @@ import * as refreshRegistry from '../core/refresh.js';
 import { revalidatedJson } from '../core/store.js';
 import * as watchlist from '../core/watchlist.js';
 import { nameKey, privateCompanyMatcher, readPrivateCompanies } from '../data/private-companies.js';
+import { holdingMembership } from '../data/scope.js';
 
 export const meta = TAB_META['private-market-news'];
 let ctxRef = null, table = null, view = null, offTable = null, disposers = [], viewScope = null;
@@ -23,17 +24,26 @@ function loadPrivateCompanies() {
     .then(() => paint());
   return privateRead;
 }
+// The header's Holding choice narrows the family's private companies to those held that way, and
+// under Universe turns the view into those companies' rounds (a listed category holds none of them).
+const heldCategory = () => holdingMembership();
+const companiesInView = () => {
+  const held = heldCategory();
+  return privateCompanies && held ? privateCompanies.filter(c => (c.categories || []).includes(held.category)) : privateCompanies;
+};
 function scopeRows(rows, scope) {
   if (scope === 'portfolio') {
-    if (!privateCompanies) return { rows: [], holdingOf: () => null, matched: 0 };
-    const match = privateCompanyMatcher(privateCompanies), holdings = new Map();
+    const companies = companiesInView();
+    if (!companies) return { rows: [], holdingOf: () => null, matched: 0 };
+    const match = privateCompanyMatcher(companies), holdings = new Map();
     for (const row of rows) { const company = match(row.company); if (company) holdings.set(row.id, company); }
     return { rows: rows.filter(row => holdings.has(row.id)), holdingOf: row => holdings.get(row.id) || null,
       matched: new Set([...holdings.values()].map(c => c.id)).size };
   }
   if (scope === 'watchlist') {
     const match = privateCompanyMatcher(watchlist.all().filter(w => w.name).map(w => ({ name: w.name, aliases: [] })));
-    return { rows: rows.filter(row => match(row.company)), holdingOf: () => null, matched: 0 };
+    const held = heldCategory() && privateCompanyMatcher(companiesInView() || []);
+    return { rows: rows.filter(row => match(row.company) && (!held || held(row.company))), holdingOf: () => null, matched: 0 };
   }
   return { rows, holdingOf: () => null, matched: 0 };
 }
@@ -41,7 +51,8 @@ function scopeText(scope, matched) {
   if (scope === 'portfolio') {
     if (privateError) return 'The family’s private-company list could not be read, so no funding is matched to it. Universe still lists every record.';
     if (!privateCompanies) return 'Reading the family’s private companies from the Glow Ventures book…';
-    return `Funding reported by Inc42 for the family’s own private companies · ${matched} of ${privateCompanies.length} have a captured round · matched by exact company name.`;
+    const held = heldCategory();
+    return `Funding reported by Inc42 for the family’s own private companies${held ? ` held as ${held.label}` : ''} · ${matched} of ${companiesInView().length} have a captured round · matched by exact company name.`;
   }
   if (scope === 'watchlist') return 'Funding reported by Inc42 for your watchlist companies · matched by exact company name.';
   return 'Weekly Indian startup funding reported by Inc42 · every captured record, across the source universe.';
@@ -52,7 +63,9 @@ function emptyText(scope, all) {
     if (privateError) return 'The family’s private-company list could not be read. This is a failed read, not an absence of funding.';
     if (!privateCompanies) return 'Reading the family’s private companies…';
     if (!privateCompanies.length) return 'The Glow Ventures book carries no private companies yet; it refreshes daily.';
-    return `No funding for the family’s ${privateCompanies.length} private companies matches these filters. Try All captured history.`;
+    const held = heldCategory();
+    if (held && !companiesInView().length) return `None of the family’s private companies is held as ${held.label}. Choose another holding type to see their funding.`;
+    return `No funding for the family’s ${companiesInView().length} private companies${held ? ` held as ${held.label}` : ''} matches these filters. Try All captured history.`;
   }
   if (scope === 'watchlist') return 'None of your watchlist companies appears in the captured funding records.';
   return 'No funding deals match these filters.';
@@ -88,7 +101,9 @@ function coverage() {
 function paint() {
   if (!ctxRef) return;
   const root = ctxRef.root, m = feed.meta(), all = feed.rows(), h = feed.health();
-  const scope = ['portfolio', 'watchlist'].includes(ctxRef.scope) ? ctxRef.scope : 'universe';
+  // A holding category narrows Universe to the family's private companies held that way, so it reads
+  // as Portfolio here; the period default and the text follow it.
+  const scope = ['portfolio', 'watchlist'].includes(ctxRef.scope) ? ctxRef.scope : heldCategory() ? 'portfolio' : 'universe';
   const { rows, holdingOf, matched } = scopeRows(all, scope);
   const searchText = root.querySelector('input')?.value;
   const focused = root.contains(document.activeElement) ? document.activeElement : null;
@@ -132,6 +147,6 @@ export function render(ctx) {
   ctxRef = ctx;
   if (!disposers.length) disposers = [feed.onChange(paint), feed.bindLifecycle(), refreshRegistry.register('private-market-news', { label:'Private Market', refresh:feed.refresh })];
   paint(); void feed.load();
-  if (ctx.scope === 'portfolio' && !privateCompanies) void loadPrivateCompanies();
+  if ((ctx.scope === 'portfolio' || heldCategory()) && !privateCompanies) void loadPrivateCompanies();
 }
 export function destroy() { ctxRef = null; view = table?.view || view; offTable?.(); offTable = null; table = null; disposers.forEach(fn => fn()); disposers = []; }

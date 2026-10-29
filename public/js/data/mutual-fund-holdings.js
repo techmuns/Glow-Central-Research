@@ -5,7 +5,7 @@ import { conditionalJson, readEntry, writeEntry } from '../core/store.js';
 import { readableOwnership } from './mutual-funds-ownership.js';
 import * as coverage from './coverage.js';
 import * as watchlist from '../core/watchlist.js';
-import { filterByScope } from './scope.js';
+import { filterByScope, scopeHoldings, holdingMembership } from './scope.js';
 import { filingTicker } from './announcement-identity.js';
 
 export const SOURCE = 'https://sattva-central-research.tech-441.workers.dev';
@@ -23,12 +23,13 @@ export function scopedRows(scope = 'portfolio', holdings = coverage.holdings()) 
   const rows = all();
   if (scope === 'portfolio') {
     const byIsin = new Map(rows.map(r => [r.isin, r]));
-    return holdings.map(h => ({ ...byIsin.get(h.isin), ...h, missing: !byIsin.has(h.isin) }));
+    return scopeHoldings(holdings).map(h => ({ ...byIsin.get(h.isin), ...h, missing: !byIsin.has(h.isin) }));
   }
   const scoped = filterByScope(rows, scope, holdings);
   if (scope !== 'watchlist') return scoped;
   const byTicker = new Map(scoped.map(r => [filingTicker(r.ticker), r]));
-  return watchlist.all().map(h => byTicker.get(filingTicker(h.ticker)) || { ...h, name: h.name || h.ticker, missing: true });
+  return watchlist.all().filter(h => !holdingMembership() || holdingMembership().has(h.ticker))
+    .map(h => byTicker.get(filingTicker(h.ticker)) || { ...h, name: h.name || h.ticker, missing: true });
 }
 
 function validatePage(value, wanted) {

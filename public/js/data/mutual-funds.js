@@ -3,7 +3,7 @@ import {sourceFreshness} from './mutual-funds-freshness.js';
 import { conditionalJson,revalidatedJson,readEntry,readEntries,writeEntry } from '../core/store.js';
 import * as coverage from './coverage.js';
 import * as watchlist from '../core/watchlist.js';
-import { filterByScope } from './scope.js';
+import { filterByScope, scopeHoldings, holdingMembership } from './scope.js';
 import {authHeaders,hostToken,onHostContext} from '../core/host-context.js';
 import {boundedJson} from './family-book-contract.js';
 const snapshots=new Map(), pending=new Map(), rowsByIsin=new Map();
@@ -62,9 +62,9 @@ function adopt(payload, {fallback=false}={}) {
 const local=()=>['localhost','127.0.0.1'].includes(location.hostname);
 export function scopedRows(scope='portfolio',holdings=coverage.holdings()) {
   const rows=all();
-  if(scope==='portfolio') { const map=new Map(rows.map(r=>[r.isin,r]));return holdings.map(h=>({...map.get(h.isin),isin:h.isin,ticker:h.ticker,name:h.name,sector:h.sector,missing:!map.has(h.isin),checking:!map.has(h.isin)&&(pending.size>0||privatePending.size>0)})); }
+  if(scope==='portfolio') { const map=new Map(rows.map(r=>[r.isin,r]));return scopeHoldings(holdings).map(h=>({...map.get(h.isin),isin:h.isin,ticker:h.ticker,name:h.name,sector:h.sector,missing:!map.has(h.isin),checking:!map.has(h.isin)&&(pending.size>0||privatePending.size>0)})); }
   const scoped=filterByScope(rows,scope,holdings);
-  if(scope==='watchlist'){const byTicker=new Map(scoped.map(r=>[r.ticker,r]));return watchlist.all().map(h=>byTicker.get(h.ticker)||{ticker:h.ticker,name:h.name||h.ticker,missing:true,checking:pending.size>0||privatePending.size>0});}
+  if(scope==='watchlist'){const byTicker=new Map(scoped.map(r=>[r.ticker,r]));return watchlist.all().filter(h=>!holdingMembership()||holdingMembership().has(h.ticker)).map(h=>byTicker.get(h.ticker)||{ticker:h.ticker,name:h.name||h.ticker,missing:true,checking:pending.size>0||privatePending.size>0});}
   return scoped;
 }
 async function restorePublic(key,ids) {

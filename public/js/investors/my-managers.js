@@ -1,6 +1,7 @@
 import * as managers from '../data/managers.js';
 import { newsDay } from '../data/news-window.js';
 import * as watchlist from '../core/watchlist.js';
+import { holdingMembership } from '../data/scope.js';
 import { escapeHtml as esc, syncListDOM } from '../core/dom.js';
 import { formatNumber, formatDate, formatCroreCompact } from '../core/format.js';
 import { scoreTable, openWorkspace, closeWorkspace } from '../ui/screener.js';
@@ -96,14 +97,15 @@ export function renderManagers(ctx, { view = {}, onView = () => {} } = {}) {
 export function openManager(id, ctx = { scope: 'portfolio' }) {
   const manager = entries().find(m => m.id === id), snapshot = managers.meta();
   if (!manager || !snapshot) return;
-  const include = r => ctx.scope !== 'watchlist' || r.ticker && watchlist.has(r.ticker);
+  const held = holdingMembership();
+  const include = r => (ctx.scope !== 'watchlist' || r.ticker && watchlist.has(r.ticker)) && (!held || held.has(r.ticker, r));
   const positions = manager.positions.filter(include), transactions = manager.transactions.filter(include);
   let panelStop = null, off = null, observer = null, period = 'quarter';
   const views = {};
   const dispose = () => { panelStop?.(); panelStop = null; off?.(); off = null; observer?.disconnect(); };
   const scopeNote = manager.kind === 'fund' ? 'This fund investment; cumulative capital amounts.' : manager.kind === 'listed-fund'
     ? 'These fund units, combined across custodians; also included in custodian holdings.' : 'This custodian’s holdings, combined across its Family accounts.';
-  const note = () => `<p class="mb-4 text-xs leading-relaxed text-slate-500">${esc(sourcePeriod(manager))}. ${esc(scopeNote)} ${ctx.scope === 'watchlist' && manager.kind !== 'fund' ? `Watchlist securities only.${manager.kind === 'custodian' ? ' Weights use the complete custodian book.' : ''}` : ''}</p>`;
+  const note = () => `<p class="mb-4 text-xs leading-relaxed text-slate-500">${esc(sourcePeriod(manager))}. ${esc(scopeNote)} ${(ctx.scope === 'watchlist' || held) && manager.kind !== 'fund' ? `${[ctx.scope === 'watchlist' ? 'Watchlist' : '', held ? `${held.label}-held` : ''].filter(Boolean).join(', ')} securities only.${manager.kind === 'custodian' ? ' Weights use the complete custodian book.' : ''}` : ''}</p>`;
   const tableTab = (id, title, rows, columns, sub) => ({ id, label: title,
     render() { panelStop?.(); panelStop = null; const table = scoreTable({ companyMarket: true, rows, key: r => r.id || r.isin, name: r => r.security,
       sub: sub || (r => r.isin), watchKey: r => r.ticker || null, watchName: r => r.security,

@@ -8,6 +8,13 @@ Glow's own holdings, watchlist and stored edits. The global research scope selec
 visible on the sheets without changing their membership. The current parity contract in
 `docs/GLOW-TEMPLATE-SYNC.md` supersedes older tab-retention and scope-hiding notes below.
 
+**Holding filter (28 October 2026, GLOW-OWNED):** the header's Holding select beside Scope
+applies to every scoped tab and every Add-tab view. `core/holding-filter.js` holds the choice;
+`data/scope.js` applies it, so new scope code inherits it. Never add a per-tab Holding control.
+It offers only categories some company carries (book lines and the family's private companies);
+a remembered category none carries reads as All. All changes nothing; sheets keep their own
+membership. See `docs/GLOW-TEMPLATE-SYNC.md`.
+
 Glow’s All Schemes view opens by default. Its search bar offers the feed’s category labels;
 multiple categories combine by OR, while typed words narrow the selected schemes. Keep chips
 removable and preserve selections across repaints. `js/ui/fund-search.js` owns the control;
@@ -5853,6 +5860,7 @@ company's Unlisted / Private Investment categories. Headlines are matched once p
 (`private-company-news.yml`, after each news capture and the book sync), so the browser never reads
 the news archive; rounds are matched in the browser against the Private Market capture. A name
 must appear as a proper noun in the HEADLINE, by reviewed name only. These cards show in Portfolio
-and Universe (not Watchlist), keep their place when listed position sizes arrive, and the Holding
-dropdown offers Unlisted / Private Investment only while such a card exists. The card reads
+and Universe (not Watchlist), keep their place when listed position sizes arrive, and the header's
+Holding filter offers Unlisted / Private Investment while the book lists a private company held that
+way (`coverage.privateCompanies()`); choosing one narrows these cards and Private Market to it. The card reads
 *Private company* and carries no price box. `verify-private-companies.mjs` covers it.

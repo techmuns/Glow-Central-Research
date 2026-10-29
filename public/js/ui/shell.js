@@ -12,8 +12,10 @@ import * as watch from '../core/watch.js';
 import * as refreshRegistry from '../core/refresh.js';
 import { tabBar, segmentedToggle, statusControl, emptyState } from './components.js';
 import { coverTableResults } from './loading.js';
-import { closeDrill, closeModal, closeWorkspace, openModal, watchlistEmptyPanel } from './screener.js';
-import { SCOPES, scopeLabel } from '../data/scope.js';
+import { closeDrill, closeModal, closeWorkspace, openModal, watchlistEmptyPanel, holdingEmptyPanel } from './screener.js';
+import { SCOPES, scopeLabel, holdingMembership, holdingScopeEmpty, offeredHoldingOptions, effectiveHoldingCategory, holdingSignature } from '../data/scope.js';
+import { holdingCategoryLabel } from '../data/holding-categories.js';
+import { setHoldingCategory, onHoldingChange } from '../core/holding-filter.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import * as coverage from '../data/coverage.js';
@@ -69,6 +71,9 @@ const customModules = new Map();
 let workspaceDisposer = null;
 let workspaceFrame = 0;
 let viewDraft = null;
+// The Holding membership the mounted view was painted under, so a book sync that moves companies in
+// or out of the chosen category — or removes its last company, so it reads as All — repaints it.
+let paintedHoldingSignature = 'all';
 const savedTabsUI = () => import('./saved-tabs.js');
 
 function workspaceTabs(ws) {
@@ -124,7 +129,7 @@ function beginViewDraft(view, original = null) {
 
 async function publishViewDraft() {
   const draft = viewDraft, module = currentTabModule;
-  const emptyScope = !module && !!contentHost.querySelector('[data-watchlist-add]');
+  const emptyScope = !module && !!contentHost.querySelector('[data-watchlist-add], [data-holding-reset]');
   if (!draft || router.parseHash().tab !== draft.view.id || (!emptyScope && module?.meta.id !== draft.view.id)) return;
   const button = document.querySelector('[data-builder-save]'), status = document.querySelector('[data-builder-status]');
   // Source controls must be mounted before capturing. No partial empty definition
@@ -175,7 +180,7 @@ function renderSavedControls(root, tabModule, resolved) {
   if (mount.hidden) { mount.innerHTML = ''; return; }
   if (viewDraft?.view.id === saved.id) {
     const sourceTitle = WORKSPACES[0].tabs.find(tab => tab.meta.id === saved.source)?.meta.title || '';
-    mount.innerHTML = `<div class="saved-view-head" data-view-builder><div><div class="tab-builder-label">Building a tab <span>Unsaved</span></div><h2>${escapeHtml(saved.title)}</h2><p>Select filters in the live view below. Click <strong>Save tab</strong> when ready to share it with everyone.</p><p class="tab-builder-source">${escapeHtml(sourceTitle)} · Scope follows the filter above</p><p data-builder-status role="status"></p></div><div class="saved-tab-actions"><button type="button" data-builder-choose>Change view</button><button type="button" data-builder-cancel>Cancel</button><button type="button" class="tab-save-primary" data-builder-save>Save tab</button></div></div>`;
+    mount.innerHTML = `<div class="saved-view-head" data-view-builder><div><div class="tab-builder-label">Building a tab <span>Unsaved</span></div><h2>${escapeHtml(saved.title)}</h2><p>Select filters in the live view below. Click <strong>Save tab</strong> when ready to share it with everyone.</p><p class="tab-builder-source">${escapeHtml(sourceTitle)} · Scope and Holding follow the filters above</p><p data-builder-status role="status"></p></div><div class="saved-tab-actions"><button type="button" data-builder-choose>Change view</button><button type="button" data-builder-cancel>Cancel</button><button type="button" class="tab-save-primary" data-builder-save>Save tab</button></div></div>`;
     mount.querySelector('[data-builder-save]').addEventListener('click', () => void publishViewDraft());
     mount.querySelector('[data-builder-choose]').addEventListener('click', async () => {
       const ui = await savedTabsUI(), draft = viewDraft;
@@ -217,7 +222,8 @@ export function mount(root) {
   scopeLists.migratePortfolioToWatchlist();
   wireStaticHeader(root);
   coverage.onChange(({ changed }) => {
-    if (changed && state.scope === 'portfolio' && !currentTabModule?.meta.scopeIndependent && !['ask-research', 'ai-alerts'].includes(state.tab) && !document.querySelector('[data-scope-editor]')) {
+    syncHoldingControl(root);
+    if (changed && (state.scope === 'portfolio' || holdingSignature() !== paintedHoldingSignature) && !currentTabModule?.meta.scopeIndependent && !['ask-research', 'ai-alerts'].includes(state.tab) && !document.querySelector('[data-scope-editor]')) {
       setTimeout(() => { if (!currentTabModule?.meta.scopeIndependent) handleRoute(root, router.parseHash()); }, 0);
     }
   });
@@ -323,11 +329,15 @@ function shellTemplate() {
         </div>
 
         <div class="flex flex-shrink-0 flex-wrap items-center gap-2 text-xs text-slate-500">
-          <div data-scope-controls class="flex items-center gap-1.5"
+          <div data-scope-controls class="flex flex-wrap items-center gap-1.5"
                title="Data scope: which companies the tab you are on reports. Portfolio is the family's book, Watchlist is the companies you have starred, Universe is every listed company the feed carries.">
             <span data-scope-label class="hidden text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:inline">Scope</span>
             <div id="scope-toggle-mount"></div>
             <div id="scope-edit-mount"></div>
+            <label data-holding-controls class="holding-filter-control">
+              <span data-scope-label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Holding</span>
+              <select data-holding-filter class="holding-filter" aria-label="Holding type"></select>
+            </label>
           </div>
           <!-- The company the Munshot host has selected, when it has selected one. Hidden and
                zero-cost otherwise, including on a static origin with no host at all. The hidden
@@ -384,6 +394,21 @@ function wireStaticHeader(root) {
   const addTab = root.querySelector('[data-add-saved-tab]');
   addTab?.addEventListener('click', () => void addSavedTab());
   headerDisposer?.();
+  // THE HOLDING FILTER IS CHROME, LIKE THE SCOPE (GLOW-OWNED). One choice in the header narrows every
+  // scoped tab and every shared tab built with Add tab; data/scope.js applies it. A change repaints
+  // the current view in place — no history entry, so Back never revisits a narrowing since undone.
+  const holdingSelect = root.querySelector('[data-holding-filter]');
+  syncHoldingControl(root);
+  const onHoldingSelect = () => setHoldingCategory(holdingSelect.value);
+  holdingSelect.addEventListener('change', onHoldingSelect);
+  const offHolding = onHoldingChange(() => {
+    syncHoldingControl(root);
+    // The Portfolio and Watchlist sheets keep their own lists; repainting them would only close a
+    // cell editor the reader may be typing in.
+    if (currentTabModule?.meta.scopeIndependent) return;
+    keepDraftReading();
+    handleRoute(root, { ...router.parseHash(), scope: state.scope });
+  });
   const offTheme = mountThemeToggle(root.querySelector('[data-theme-toggle]'));
   const offNotifications = notifications.mountBell(root.querySelector('[data-notification-bell]'));
   const offNewsletter = newsletter.mountButton(root.querySelector('[data-brief-button]'));
@@ -391,7 +416,7 @@ function wireStaticHeader(root) {
     getTimestamp: () => live.getLastDataTick(),
     subscribeTick: live.onGlobalTick,
     onRefresh: () => watch.refreshNow({ tab: currentTabModule?.meta.savedView?.source || state.tab, scope: state.scope, subview: state.subview, params: router.parseHash().params }),
-    getRefreshKey: () => JSON.stringify([state.tab, state.scope, state.subview, router.parseHash().params, refreshRegistry.registered().map((r) => r.id)]),
+    getRefreshKey: () => JSON.stringify([state.tab, state.scope, effectiveHoldingCategory(), state.subview, router.parseHash().params, refreshRegistry.registered().map((r) => r.id)]),
     subscribeContext: (fn) => { const off = subscribe(fn); const offRegistry = refreshRegistry.onChange(fn); return () => { off(); offRegistry(); }; },
   });
   $('#status-mount', root).innerHTML = status.html;
@@ -407,6 +432,8 @@ function wireStaticHeader(root) {
 
 
   headerDisposer = () => {
+    holdingSelect.removeEventListener('change', onHoldingSelect);
+    offHolding();
     offTheme();
     offNotifications();
     offNewsletter();
@@ -495,6 +522,9 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   scopeControls.title = sheet
     ? 'Research scope for the research feeds. Portfolio and Watchlist sheets keep their own company lists.'
     : 'Data scope: Portfolio, Watchlist or the complete Universe.';
+  root.querySelector('[data-holding-controls]').title = sheet
+    ? 'Holding type for the research feeds. Portfolio and Watchlist sheets keep their own company lists.'
+    : 'Holding type: narrows this tab to the companies the family holds that way (Direct Equity, PMS…), inside the scope. All shows every company.';
   toggleMount.innerHTML = toggle.html;
   chromeDisposers.push(toggle.wire(toggleMount));
 
@@ -617,6 +647,7 @@ function disposeChrome() {
 
 function mountTab(root, tabModule, resolved) {
   shellRenderRequest++;
+  paintedHoldingSignature = holdingSignature();
   const reqId = shellRenderRequest;
   releaseRouteLoading?.(); releaseRouteLoading = null;
   // A drill panel, modal or workspace opened on the previous view must never survive a route
@@ -637,7 +668,11 @@ function mountTab(root, tabModule, resolved) {
   // The shell stays generic: it is not interpreting the tab, it is answering a question the header
   // control it owns has just been used to ask.
   const mountable = tabModule.meta.allowEmptyScope === true || !(resolved.scope === 'watchlist' && watchlist.size() === 0);
-  const nextModule = mountable ? tabModule : null;
+  // A holding category that leaves no company in this scope is answered here too, once — not by
+  // fifteen tables each saying "no results match your filters" about a filter in the header.
+  const held = mountable && tabModule.meta.allowEmptyScope !== true && !tabModule.meta.scopeIndependent ? holdingMembership() : null;
+  const holdingEmpty = !!held && holdingScopeEmpty(resolved.scope);
+  const nextModule = mountable && !holdingEmpty ? tabModule : null;
 
   // THE TEARDOWN IS DECIDED AGAINST WHAT WILL ACTUALLY BE MOUNTED, not against the tab the route
   // names — and the first version of this got that wrong in a way that was invisible until two
@@ -658,6 +693,12 @@ function mountTab(root, tabModule, resolved) {
     }
   }
   currentTabModule = nextModule;
+
+  if (holdingEmpty) {
+    contentHost.innerHTML = holdingEmptyPanel({ tabTitle: tabModule.meta.title, label: held.label, scope: resolved.scope, covered: held.holdings.length > 0 });
+    contentHost.querySelector('[data-holding-reset]')?.addEventListener('click', () => setHoldingCategory('all'));
+    return;
+  }
 
   if (!nextModule) {
     contentHost.innerHTML = watchlistEmptyPanel({
@@ -760,12 +801,35 @@ function goSubview(subviewId) {
 }
 
 function goScope(scope) {
+  keepDraftReading();
+  router.navigate({ workspace: state.workspace, tab: state.tab, subview: state.subview, scope, params: router.parseHash().params });
+}
+
+// A tab being built keeps the filters chosen so far when the scope or holding repaints it.
+function keepDraftReading() {
   if (viewDraft && currentTabModule?.meta.id === viewDraft.view.id && (hasTableReading(contentHost) || contentHost.querySelector('[data-ai-search], [data-news-search]'))) {
     const reading = captureTableReading(contentHost);
     reading.extras = currentTabModule.getSavedView();
     viewDraft.view = { ...viewDraft.view, reading, subview: state.subview, params: router.parseHash().params };
   }
-  router.navigate({ workspace: state.workspace, tab: state.tab, subview: state.subview, scope, params: router.parseHash().params });
+}
+
+function syncHoldingControl(root) {
+  const select = root.querySelector('[data-holding-filter]');
+  if (!select) return;
+  // Only the categories some company carries are offered (the book's lines and the family's private
+  // companies), so the list follows the book as it syncs; a category no company carries reads as All.
+  const options = offeredHoldingOptions(), key = options.map(([id]) => id).join(',');
+  if (select.dataset.options !== key) {
+    select.innerHTML = options.map(([id, label]) => `<option value="${id}">${escapeHtml(label)}</option>`).join('');
+    select.dataset.options = key;
+  }
+  const category = effectiveHoldingCategory();
+  select.value = category;
+  // Narrowed is a state the reader must be able to see at a glance, on every tab — and the value is
+  // in the title too, for the icon-sized form Ask Research's one-row header uses.
+  select.toggleAttribute('data-active', category !== 'all');
+  select.title = `Holding: ${holdingCategoryLabel(category)}`;
 }
 
 // ---- Small local dropdown, used by the sub-view picker -------------------------------------

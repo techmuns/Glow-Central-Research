@@ -81,7 +81,7 @@ export function refresh() {
   controller = new AbortController();
   const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]);
   const operation = (async () => {
-    const before = identitySignature(holdings());
+    const before = changeSignature();
     try {
       const response = await fetch('/api/family-portfolio', { cache: 'no-store', signal });
       const payload = await boundedJson(response, 2 * 1024 * 1024);
@@ -97,7 +97,7 @@ export function refresh() {
       syncStatus = 'unavailable';
       syncError = 'Family Office sync unavailable — showing the last saved portfolio, which may be out of date.';
     }
-    const changed = before !== identitySignature(holdings());
+    const changed = before !== changeSignature();
     notify(changed);
     return { added: changed ? 1 : 0, checked: raw?.holdings?.length || 0, ...(syncError ? { error: syncError } : {}) };
   })().finally(() => { if (startedGeneration === generation) { pending = null; controller = null; } });
@@ -123,6 +123,10 @@ export function syncLabel() {
 let family = null;
 
 const identitySignature = entries => JSON.stringify(entries.map(h => [h.isin, h.ticker, h.name, h.sector, h.holdingCategories]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+// What a refresh can change that readers act on: the book lines, and the family's private companies
+// with their categories (the header's Holding choices and what they cover read both).
+const changeSignature = () => identitySignature(holdings()) +
+  JSON.stringify(privateCompanies().map(c => [c.id, c.categories]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
 
 /** One in-memory Family book for every view. Only membership/identity changes
  * require re-filtering feeds; a quote refresh must not tear down an answer. */
@@ -163,6 +167,9 @@ export const isLoaded = () => !!raw;
  * shown rather than lost.
  */
 export const baseHoldings = () => (raw ? raw.holdings : []);
+
+/** The family's private companies the published list carries (GLOW-OWNED; Unlisted / Private Investment). */
+export const privateCompanies = () => (raw && Array.isArray(raw.privateCompanies) ? raw.privateCompanies : []);
 
 /** Family Office alone controls ownership. Watchlist holds personal selections. */
 export const holdings = () => family ? family.holdings : baseHoldings();
