@@ -24,6 +24,7 @@
 // fault in. Advancing a revision here is the whole mechanism; editing the CSS is not enough.
 const CACHE_PREFIX = 'sattva-dashboard-';
 const CACHE_NAME = `${CACHE_PREFIX}2026-10-28-glow-private-companies-v1`;
+const CMP_RELEASE = '2026-10-29-cmp-opening-v2';
 const APP_ENTRY = '/js/app.js';
 const CORE = ['/', '/index.html', '/css/tailwind.css', '/css/theme.css', '/css/glow.css', '/glow-bridge.html', '/js/core/json-worker.js', '/data/portfolio-companies.json',
   '/assets/brand/glow-ventures-wordmark.svg', '/assets/brand/favicon.svg', '/assets/brand/favicon.svg'];
@@ -45,12 +46,12 @@ function moduleSpecifiers(source) {
 
 // Compose with every other module revision without editing their shared version lines.
 function releaseCacheKey() {
-  return `${RELEASE_CACHE_KEY}-2026-10-09-full-exchange-universe-v1-directory-recovery-v1-responsive-directory-v1-super-investor-clean-heading-v1-news-coverage-detail-v1-all-alerts-history-only-v1-super-investor-managers-v1-json-worker-v1-scoped-alert-pool-v4-glow-watchlist-parity-v1`;
+  return `${RELEASE_CACHE_KEY}-${CMP_RELEASE}-2026-10-09-full-exchange-universe-v1-directory-recovery-v1-responsive-directory-v1-super-investor-clean-heading-v1-news-coverage-detail-v1-all-alerts-history-only-v1-super-investor-managers-v1-json-worker-v1-scoped-alert-pool-v4-glow-watchlist-parity-v1`;
 }
 
 // Compose this UI revision without editing another release's version marker.
 function appReleaseCacheKey() {
-  return `${releaseCacheKey()}-compact-ai-status-v2-compact-ai-toolbar-v2-insider-capture-recovery-v2-hide-screener-source-buttons-v1-universe-saved-first-v1-source-cache-recovery-v2-reorder-research-tabs-v2-lift-manager-images-v2-all-investors-clean-layout-v1-investors-audience-first-v1-my-managers-clean-heading-v1-all-investors-clean-heading-v1-screens-label-v1-glow-ai-holding-category-v1-company-market-columns-v8-ai-alerts-instant-scope-v1-compact-archive-v1-compact-reports-toggle-v1`;
+  return `${releaseCacheKey()}-compact-ai-status-v2-compact-ai-toolbar-v2-insider-capture-recovery-v2-hide-screener-source-buttons-v1-universe-saved-first-v1-source-cache-recovery-v2-reorder-research-tabs-v2-lift-manager-images-v2-all-investors-clean-layout-v1-investors-audience-first-v1-my-managers-clean-heading-v1-all-investors-clean-heading-v1-screens-label-v1-glow-ai-holding-category-v1-company-market-columns-v8-ai-alerts-instant-scope-v1-compact-archive-v1-compact-reports-toggle-v1-ai-alerts-steady-list-v1-ai-alerts-search-v1-ai-alerts-new-pill-v1`;
 }
 
 // Keep the News presentation release independent of other UI version markers.

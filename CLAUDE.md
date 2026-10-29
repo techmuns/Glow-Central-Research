@@ -81,6 +81,30 @@ open from a pill button — report icon, count, the calls in short and an explic
 segment (filled when open) — on broker-led rows too, into one attached panel; pointing at the pill,
 the ✕ or the panel does not light the row's "open source" cues.
 
+**The list holds still while it updates (29 October 2026, shared; the user: "update silently in the
+back and things stack on top").** Background re-checks used to re-sort every repaint (recorded live: one
+update moved 57 of 67 rows, visible rows jumped 77–240px). The order follows the ranking only until the
+first completed read (with holding sizes) or the reader's first scroll/touch/key/click; then a background
+update never moves a listed row: content updates in place, a new company — or one whose latest material
+signal is newer — stacks on top marked NEW (announced politely); a reader scrolled into the list is not
+interrupted at all — arrivals WAIT behind a sticky "↑ N new alerts" pill (in Detailed's two-column grid one
+card on top re-flows every card below into the other column) until it is pressed or the reader scrolls back
+to the top; and only the reader's own sort,
+filter, search, layout or scope change re-sorts. A row a read in flight has not re-reported is kept until
+the read completes. During a re-check the ranking scores each `pending` source as its last completed read
+left it (`lastSettledFeeds`), so badges and context do not flip; the status pill still shows the real
+states. A private-bridge RECONNECT (`fn(-1, { reconnect: true })`, same session) keeps the public list and
+re-reads sizes quietly; only a sign-out (auth-required) blanks it.
+
+**Search is company-first (29 October 2026, shared; "icici bank" returned seven companies).**
+`ui/ai-alert-search.js` is the one matcher (`matchesSearch` delegates to it): words that name a company —
+name without Ltd/Limited, ticker, common exchange abbreviations (Natl, Insu, …), plurals — show those
+companies, best first; a named company plus a topic needs the topic in one line of its own evidence; a
+plain topic needs every word together in ONE field (two-letter words and up), never words scattered
+across different reports. Weaker matches are counted as "mentions", one click away. The box is an ARIA
+combobox with a keyboard typeahead (↑/↓/Enter/Esc) and marked matches; the browser's own × is hidden.
+`verify-ai-alert-search.mjs` and the Compact UI suite are the tests.
+
 **Scope switches paint at once (29 October 2026, shared).** The tab keeps each scope's last view in
 memory (same IST day, membership and session; cleared on any private-book invalidation) and, the first
 time, narrows the ranked Universe view (`narrowReport`, provisional: replaced, never merged). Feed rows
@@ -1767,6 +1791,19 @@ only that group is split when it fails; an omitted or repeated id stays separate
 no longer stops the next. Deterministic copy paths keep the strict `compatibleReports`. Nothing
 is written by the model and no row, key or link is dropped. `city-union-results-2026-10-28.json`
 in `verify-newsletter-events.mjs` is the regression; fixtures prove contracts, not live accuracy.
+The 29 October morning brief still repeated results (Capri, Sasken, Vedanta): between two reports
+of results, `compatibleEventMembers` compares amounts only per measure (metric + standalone/
+consolidated + period from each amount's clause), so different metrics no longer split a group
+while two different profits for one quarter still do; and `unifyEvents` in `clusterStories` joins
+checked groups through verified copies and a same-period results filing (`resultsPeriod`: results,
+release, presentation, standalone/consolidated, either exchange — never a notice, call, transcript,
+subsidiary's or revised/resubmitted results, nor an outcome naming a transaction).
+`morning-results-2026-10-29.json` is that regression.
+**The inbox keeps the broadsheet's emphasis (29 October 2026):** every tier leads each update in bold
+beside a 3px rule — green for a positive direction, red for a negative one or a TROUBLE risk topic —
+with topic/direction tags and "to watch / positive" counts on the edition line and company headings
+(`updateTone` in `newsletter-company-reading.mjs`). Publisher headlines never get a direction; board
+notices to consider a dividend get none; titles naming no event are muted. Market colours unchanged.
 
 **AND THE DESK'S NUMBERS COME BEFORE THE WORLD'S.** The customer's second ask: full tables and a
 summary of the portfolio's performance on the session and of the major Indian indices, above the

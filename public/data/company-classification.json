@@ -2,7 +2,7 @@
  "_provenance": "NSE four-level industry classification as printed by Screener: the NSE-500 export for index members, each company's public page for the rest. Read by scripts/build-sector-kpis.mjs; see docs/DATA-CONTRACTS.md → Sector KPIs.",
  "source": "Screener (NSE industry classification)",
  "generator": "scripts/classify-companies.mjs",
- "capturedAt": "2026-10-29T05:45:30.428Z",
+ "capturedAt": "2026-10-29T04:59:28.980Z",
  "scope": "book",
  "counts": {
   "companies": 633,
@@ -368,7 +368,7 @@
    "industry": "Plastic Products - Industrial",
    "code": "IN070205009",
    "source": "page",
-   "checkedAt": "2026-10-29T05:45:25.364Z"
+   "checkedAt": "2026-10-29T04:59:23.887Z"
   },
   "APOLLOTYRE": {
    "broadSector": "Consumer Discretionary",
@@ -1198,7 +1198,7 @@
    "industry": "IT Enabled Services",
    "code": "IN080102001",
    "source": "page",
-   "checkedAt": "2026-10-29T05:45:27.061Z"
+   "checkedAt": "2026-10-29T04:59:25.579Z"
   },
   "DABUR": {
    "broadSector": "Fast Moving Consumer Goods",
@@ -1904,7 +1904,7 @@
    "industry": "Electrodes & Refractories",
    "code": "IN070205018",
    "source": "page",
-   "checkedAt": "2026-10-29T05:45:28.747Z"
+   "checkedAt": "2026-10-29T04:59:27.275Z"
   },
   "HEROMOTOCO": {
    "broadSector": "Consumer Discretionary",
@@ -4498,7 +4498,7 @@
    "industry": "Specialty Chemicals",
    "code": "IN010101002",
    "source": "page",
-   "checkedAt": "2026-10-29T05:45:30.410Z"
+   "checkedAt": "2026-10-29T04:59:28.961Z"
   },
   "VISL": {
    "broadSector": "Commodities",
