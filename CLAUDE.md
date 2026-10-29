@@ -1767,6 +1767,19 @@ only that group is split when it fails; an omitted or repeated id stays separate
 no longer stops the next. Deterministic copy paths keep the strict `compatibleReports`. Nothing
 is written by the model and no row, key or link is dropped. `city-union-results-2026-10-28.json`
 in `verify-newsletter-events.mjs` is the regression; fixtures prove contracts, not live accuracy.
+The 29 October morning brief still repeated results (Capri, Sasken, Vedanta): between two reports
+of results, `compatibleEventMembers` compares amounts only per measure (metric + standalone/
+consolidated + period from each amount's clause), so different metrics no longer split a group
+while two different profits for one quarter still do; and `unifyEvents` in `clusterStories` joins
+checked groups through verified copies and a same-period results filing (`resultsPeriod`: results,
+release, presentation, standalone/consolidated, either exchange — never a notice, call, transcript,
+subsidiary's or revised/resubmitted results, nor an outcome naming a transaction).
+`morning-results-2026-10-29.json` is that regression.
+**The inbox keeps the broadsheet's emphasis (29 October 2026):** every tier leads each update in bold
+beside a 3px rule — green for a positive direction, red for a negative one or a TROUBLE risk topic —
+with topic/direction tags and "to watch / positive" counts on the edition line and company headings
+(`updateTone` in `newsletter-company-reading.mjs`). Publisher headlines never get a direction; board
+notices to consider a dividend get none; titles naming no event are muted. Market colours unchanged.
 
 **AND THE DESK'S NUMBERS COME BEFORE THE WORLD'S.** The customer's second ask: full tables and a
 summary of the portfolio's performance on the session and of the major Indian indices, above the

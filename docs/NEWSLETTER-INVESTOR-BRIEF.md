@@ -149,6 +149,36 @@ stages, other company/relation, over 24 hours) instead of voiding the reply; a f
 longer stops later batches. City Union Bank's 28 October evening results (nine items) are the
 regression fixture.
 
+The 29 October morning brief still printed results several times, for two reasons now closed.
+Between two reports of results, amounts are compared only when they measure the same thing
+(metric, standalone/consolidated basis and period read from each amount's own clause), so
+Capri's standalone ₹353 Cr profit, its PAT ₹418 Cr and a FY28 growth target no longer split one
+results group, while two different net profits for one quarter still do; outside results the
+any-common-amount rule is unchanged, and a plan word is not a new stage between results reports.
+And a company's results for one stated period carry one identity whatever the filing is called
+(results, press or media release, investor presentation or update, standalone and consolidated
+versions, each exchange's copy): `clusterStories` joins every checked group holding such a filing,
+or a verified copy of one document, so each report placed with any of them shares one update.
+A notice to consider results, an earnings call, a transcript, a subsidiary's results, a revised or
+resubmitted version and another period never take that identity, and neither does an outcome
+that also names a transaction (Sona's results outcome carried the Escorts Kubota acquisition and
+the DENSO joint ventures). Capri and Sasken from that edition are the regression fixture
+(`morning-results-2026-10-29.json`).
+
+The inbox reads like the broadsheet it replaced (restored 29 October, after the 26 October
+investor format dropped it). Every tier, detailed, compact and digest, leads each update with its
+first sentence in bold and puts a 3px rule beside it: green for a positive direction, red for a
+negative direction or a tracked risk topic (TROUBLE), paper-white otherwise. `updateDirection` /
+`updateTone` in `newsletter-company-reading.mjs` are the one definition. A publisher's headline is
+never given a direction of ours; a notice that a board will consider results or a dividend carries
+none; Approvals & IP is tagged only where a regulator is named. The edition line and each company
+heading count updates "to watch" and "positive"; at the same materiality a company with a risk item
+leads (a positive tone, mostly dividend filings, orders updates only within a company). Under its company heading a filing reads in its own words (the
+exchange's "has informed the Exchange regarding" lead-in removed, as on AI Alerts); a title that
+names no event ("Updates", a bare Regulation 30 citation) is shown muted as exactly that. Quote
+pages, live-call stubs, open-interest alerts, stock-screen teasers and market-commentary roundups
+are reference material: in the complete report, not the inbox list.
+
 Semantic news checking runs after source attachment, packing whole companies into bounded
 batches rather than admitting only the first 80 reports of an edition or wasting a request
 on each small company. Each request retains its existing

@@ -8,8 +8,9 @@ import {
 } from '../worker/newsletter-events.mjs';
 import { buildBrief, briefStats, briefStories, renderBriefHtml, renderBriefText } from '../worker/newsletter-brief.mjs';
 import { DEFAULT_SETTINGS, istInstant } from '../public/js/data/newsletter-shared.js';
-import { editorialEvents } from '../worker/newsletter-editorial.mjs';
+import { editorialEvents, referenceReason } from '../worker/newsletter-editorial.mjs';
 import { renderInvestorEmails } from '../worker/newsletter-email.mjs';
+import { NEWSLETTER_STYLE } from '../worker/newsletter-style.mjs';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/newsletter/repeated-news.json', import.meta.url)));
 const news = () => ({ groups: [{ ticker: fixture.ticker, company: fixture.company, items: fixture.reports.map((r, i) => ({
@@ -228,4 +229,127 @@ assert.ok(twoBatches.groups[0].items.every(r => !r.eventId) && twoBatches.groups
 let stopped = 0;
 assert.equal((await reviewNewsEvents({ news: structuredClone(twoBatches), env: {}, fetcher: async () => { stopped++; } })).reason, 'not-configured');
 assert.equal(stopped, 0);
+// 29 October morning: one company's results still printed several times after the grouping fix.
+const morning = JSON.parse(readFileSync(new URL('./fixtures/newsletter/morning-results-2026-10-29.json', import.meta.url)));
+const filingRow = (c, f, i) => ({ headline: f.headline, subject: f.subject, exchanges: f.exchanges, url: `https://fixture.test/${c.ticker}/f${i}`,
+  sourceUrls: [`https://fixture.test/${c.ticker}/f${i}`], at: Date.parse(f.publishedAt), type: null, keys: [`${c.ticker}:f${i}`],
+  keywords: [], keywordIds: [], keywordGroups: [], direction: 'neutral', importance: 'low',
+  ...(f.facts ? { content: { state: 'ready', hash: `${c.ticker}:${f.id}`, facts: f.facts } } : {}) });
+const newsRow = (c, r, i) => ({ headline: r.headline, publisher: r.publisher, url: `https://fixture.test/${c.ticker}/n${i}`, at: Date.parse(r.publishedAt),
+  summary: '', attribution: 'confirmed', keywords: [], keys: [`${c.ticker}:n${i}`] });
+const capri = morning.capri, sasken = morning.sasken;
+const capriSections = () => ({
+  announcements: { groups: [{ ticker: capri.ticker, company: capri.company, items: capri.filings.map((f, i) => filingRow(capri, f, i)) }] },
+  news: { groups: [{ ticker: capri.ticker, company: capri.company, items: capri.reports.map((r, i) => newsRow(capri, r, i)) }] },
+});
+const capriCandidates = eventCandidates(capriSections().news, capriSections().announcements);
+const capriIds = capriCandidates.reports.map(r => r.id), capriId = id => {
+  const f = capri.filings.findIndex(x => x.id === id), n = capri.reports.findIndex(x => x.id === id);
+  return capriCandidates.reports.find(r => r.headline === (f >= 0 ? capri.filings[f] : capri.reports[n]).headline).id;
+};
+assert.ok(capriCandidates.reports.find(r => r.id === capriId('press-bse')).summary.includes('Rs 418 crores'), 'the read filing is checked on its own facts');
+assert.deepEqual(parseEventGroups(JSON.stringify([capriIds]), capriCandidates.reports), [capriIds],
+  'standalone Rs 353 crore, consolidated PAT Rs 418 crore and a growth target are one results development');
+const pair = (a, b, at = Date.parse('2026-10-28T10:00:00Z')) => compatibleEventMembers(
+  { ticker: 'X', related: false, at, headline: a, summary: '' }, { ticker: 'X', related: false, at, headline: b, summary: '' });
+assert.equal(pair('X wins ₹500 crore order from NHAI', 'X wins ₹1,200 crore order from NTPC'), false, 'different order amounts still never merge');
+assert.equal(pair('X Q2 net profit rises 20% to ₹353 crore', 'X wins ₹1,200 crore order from NTPC'), false, 'a results report never absorbs a differently sized order');
+assert.equal(pair('X Q2 net profit at ₹353 crore', 'X denies report of Q2 profit at ₹418 crore'), false, 'a denial still splits results coverage');
+assert.equal(pair('X Q2 results: net profit ₹353 crore', 'X revised Q2 results: net profit ₹418 crore'), false, 'a revision keeps every check');
+assert.match(EVENT_INSTRUCTIONS, /standalone or consolidated/);
+assert.match(EVENT_INSTRUCTIONS, /has informed the Exchange regarding/);
+// The pass places Capri's results in three groups; the results filings join them into one update.
+const capriChecked = capriSections();
+const capriReview = await reviewNewsEvents({ ...capriChecked, env, fetcher: async () => answer([
+  [capriId('press-bse'), capriId('standalone')], [capriId('press-nse'), capriId('presentation-bse'), capriId('growth')], [capriId('presentation-nse')]]) });
+assert.deepEqual([capriReview.ok, capriReview.reviewed, capriReview.combined], [true, 6, 3], 'the safety net keeps every proposed results group whole');
+// Sasken: five subjects of one results filing, which the pass left as singletons.
+const saskenRows = [...sasken.results, ...sasken.separate, ...sasken.controls];
+const saskenChecked = { announcements: { groups: [{ ticker: sasken.ticker, company: sasken.company, items: saskenRows.map((f, i) => filingRow(sasken, f, i)) }] }, news: { groups: [] } };
+const saskenReview = await reviewNewsEvents({ ...saskenChecked, env, fetcher: async (_url, init) =>
+  answer(JSON.parse(JSON.parse(init.body).messages[0].content).REPORTS.map(r => [r.id])) });
+assert.equal(saskenReview.combined, 0, 'the pass itself combined nothing');
+const morningBrief = structuredClone(brief);
+morningBrief.announcements = { ...morningBrief.announcements, groups: [...capriChecked.announcements.groups, ...saskenChecked.announcements.groups], count: 4 + saskenRows.length, more: 0 };
+morningBrief.news = { ...morningBrief.news, groups: capriChecked.news.groups, dedup: capriReview, count: 2, more: 0 };
+const morningStats = briefStats(morningBrief), company = t => morningStats.companies.find(c => c.ticker === t);
+const holding = (t, headline) => company(t).clusters.find(k => [k.main, ...k.others].some(s => s.headline === headline));
+const capriResults = holding(capri.ticker, capri.filings[0].headline);
+assert.equal(company(capri.ticker).clusters.length, 2, 'Capri: one results update; only the NSE presentation notice, which names no period, stays apart');
+assert.equal(capriResults.items, 5);
+assert.equal(capriResults.main.kind, 'filing', 'the read results filing leads');
+assert.ok(capri.reports.every(r => [capriResults.main, ...capriResults.others].some(s => s.headline === r.headline)), 'both reports sit under the filing');
+const saskenResults = holding(sasken.ticker, sasken.results[0].headline);
+assert.deepEqual(new Set([saskenResults.main, ...saskenResults.others].map(s => s.headline)), new Set(sasken.results.map(r => r.headline)),
+  'Sasken: every subject of one results filing is one update, and nothing else joins it');
+for (const row of [...sasken.separate, ...sasken.controls]) assert.notEqual(holding(sasken.ticker, row.headline), saskenResults, `${row.control || 'dividend'} stays apart`);
+assert.ok(company(sasken.ticker).clusters.length >= 1 + sasken.separate.length, 'a notice, a resubmission, another period and an earnings call are never folded into the results');
+assert.deepEqual(briefStats(JSON.parse(JSON.stringify(morningBrief))).companies.map(c => c.clusters.length), morningStats.companies.map(c => c.clusters.length), 'a stored edition folds identically');
+assert.equal(new Set(briefStories(morningBrief).filter(r => [capri.ticker, sasken.ticker].includes(r.ticker)).flatMap(r => r.keys)).size, 6 + saskenRows.length, 'every source identity stays in the ledger');
+const morningReading = editorialEvents(morningBrief, morningStats.companies).events.filter(e => e.ticker === capri.ticker && e.sources.length >= 5);
+assert.equal(morningReading.length, 1, 'the investor briefing prints Capri\'s results once, with every source linked');
+// Without a checked partition the results filings still fold; publishers' reports do not.
+const morningPreview = structuredClone(morningBrief);
+for (const g of [...morningPreview.announcements.groups, ...morningPreview.news.groups]) for (const r of g.items) delete r.eventId;
+const previewStats = briefStats(morningPreview), previewCapri = previewStats.companies.find(c => c.ticker === capri.ticker);
+assert.equal(previewCapri.clusters.find(k => [k.main, ...k.others].some(s => s.headline === capri.filings[0].headline)).items, 3, 'press release, its NSE copy and the dated presentation fold without the pass');
+assert.ok(capri.reports.every(r => previewCapri.clusters.some(k => k.items === 1 && k.main.headline === r.headline)), 'unchecked reports stay separate');
+assert.equal(previewStats.companies.find(c => c.ticker === sasken.ticker).clusters.find(k => k.items === sasken.results.length).items, sasken.results.length);
+for (const title of morning.quotePages) assert.match(referenceReason({ kind: 'news', headline: title }) || '', /Quote\/reference page/, title);
+for (const title of morning.notQuotePages) assert.equal(referenceReason({ kind: 'news', headline: title }), null, title);
+// The inbox reads like the broadsheet it replaced: a bold lede per update, red and green only for a
+// stated direction or a tracked risk topic, and titles that name no event shown as exactly that.
+{
+  let order = 0;
+  const at = Date.parse('2026-10-28T12:00:00Z'), row = (headline, extra = {}) => ({ headline, subject: extra.subject || '', exchanges: ['NSE'],
+    url: `https://fixture.test/tone/${encodeURIComponent(headline).slice(0, 40)}`, at: at - 60000 * ++order, keys: [`tone:${headline}`],
+    keywords: [], keywordIds: [], keywordGroups: [], direction: 'neutral', importance: 'low', ...extra });
+  const toned = structuredClone(brief);
+  toned.announcements = { ...toned.announcements, count: 6, more: 0, groups: [{ ticker: 'TONE', company: 'Tone Industries Ltd', items: [
+    row('Tone Industries Limited has informed the Exchange regarding Receipt of order worth Rs 450 crore from NTPC', { direction: 'positive', importance: 'high', keywords: ['Order'], keywordIds: ['order'], keywordGroups: ['growth'] }),
+    row('Credit rating downgraded to BBB by CRISIL', { direction: 'negative', importance: 'high' }),
+    row('Board meeting 4 Nov 2026: to consider quarterly results and interim dividend', { direction: 'positive' }),
+    row('Updates', { subject: 'Updates' }),
+    row('Intimation under Regulation 30 and 51 of SEBI (LODR) Regulations, 2015'),
+    row('Board Approves 2nd Interim Dividend for FY 2026-27', { direction: 'positive', keywords: ['Approval'], keywordIds: ['approval'], keywordGroups: ['regulatory'] }),
+  ] }] };
+  toned.news = { ...toned.news, count: 3, more: 0, groups: [{ ticker: 'TONE', company: 'Tone Industries Ltd', items: [
+    { headline: 'Tone Industries customers allege Rs 35 crore fraud, employees suspended', publisher: 'Publisher A', url: 'https://fixture.test/tone/fraud', at,
+      summary: '', attribution: 'confirmed', keywords: ['Fraud'], keywordIds: ['fraud'], keywordGroups: ['risk'], keys: ['tone:fraud'] },
+    { headline: 'Tone Industries Limited (TONE) share price — eduinvesting', publisher: 'Publisher B', url: 'https://fixture.test/tone/quote', at,
+      summary: '', attribution: 'confirmed', keywords: [], keywordIds: [], keywordGroups: [], keys: ['tone:quote'] },
+    { headline: 'Tone Industries Buys Approx. 2% Equity In Step Down Subsidiary For $1.6 Million', publisher: 'Publisher C', url: 'https://fixture.test/tone/stepdown', at,
+      summary: '', attribution: 'confirmed', keywords: [], keywordIds: [], keywordGroups: [], keys: ['tone:stepdown'] },
+  ] }] };
+  const tonedStats = briefStats(toned), reading = editorialEvents(toned, tonedStats.companies);
+  assert.ok(!reading.events.some(e => /share price — eduinvesting/.test(e.lead.headline)), 'a quote page is reference material, not an update');
+  const render = part => renderBriefHtml(toned, { stats: tonedStats, reading, dashboardUrl: 'https://example.test', brand: 'Glow Ventures',
+    pdfUrl: 'https://example.test/api/newsletter/pdf/00000000-0000-0000-0000-000000000001',
+    part: { investor: true, reportLink: true, eventIds: reading.events.map(e => e.id), supplements: false, index: 1, total: 1, ...part } });
+  // Each tier draws the rule on the element that holds one update: a wrapper in the rich and digest
+  // tiers, the row's own cell in the lean flood tiers (which cost no extra element per update).
+  const item = (html, text, lean) => html.slice(html.lastIndexOf(lean ? '<td class=' : '<div class=', html.indexOf(text)), html.indexOf(lean ? '</td>' : '</div>', html.indexOf(text)) + 300)
+    .replace(/^<td class=(gv[a-z]) data-company="[^"]+">/, '<div class=$1>').replace(/^<div class=gve>/, '<div class=gvu>');
+  for (const part of [{ compact: true, summaryChars: 220 }, { compact: true, summaryChars: 140 }, { compact: true, digest: true, summaryChars: 100 }]) {
+    const html = render(part), label = part.digest ? 'digest' : `compact ${part.summaryChars}`, rich = part.summaryChars >= 220;
+    const lean = !rich && !part.digest, at = text => item(html, text, lean);
+    assert.match(at('Receipt of order worth'), /^<div class=gvg>/, `${label}: a positive filing carries the green rule`);
+    assert.match(at('Receipt of order worth'), rich ? /▲ POSITIVE/ : /<b>▲ Receipt of order worth/, `${label}: and says which way, in words or in its lede`);
+    assert.ok(!html.includes('has informed the Exchange regarding Receipt'), `${label}: the exchange lead-in is dropped under the company heading`);
+    assert.match(at('Credit rating downgraded'), rich ? /^<div class=gvw>[\s\S]*▼ NEGATIVE/ : /^<div class=gvw>[\s\S]*?<b>▼ Credit rating downgraded/, `${label}: a negative filing carries the red rule and its label`);
+    assert.match(at('allege Rs 35 crore fraud'), /^<div class=gvw>[\s\S]*>TROUBLE</, `${label}: a tracked risk topic turns a report red`);
+    assert.ok(!/▼/.test(at('allege Rs 35 crore fraud')), `${label}: a publisher's headline is never given a direction`);
+    assert.match(at('Step Down Subsidiary'), /^<div class=gvu>/, `${label}: a step-down subsidiary is not a resignation`);
+    assert.match(at('to consider quarterly results'), /^<div class=gvu>/, `${label}: a notice to consider a dividend carries no direction`);
+    assert.ok(!/POSITIVE/.test(at('to consider quarterly results')));
+    assert.ok(!/APPROVALS/.test(at('Board Approves 2nd Interim')), `${label}: a board's own approval is not a regulatory approval`);
+    for (const title of ['Updates', 'Intimation under Regulation 30 and 51 of SEBI (LODR) Regulations, 2015'])
+      assert.ok(html.includes(`Filing titled “${title}”; the title states no event`), `${label}: a title that names no event is shown as one`);
+    assert.match(html, /<b>Tone Industries customers allege Rs 35 crore fraud, employees suspended<\/b>/, `${label}: each update leads in bold`);
+    assert.ok(html.includes('▼ 2 to watch') && html.includes('▲ 2 positive'), `${label}: the edition line counts each direction`);
+  }
+  const detailed = render({ compact: false, summaryChars: 340 });
+  assert.ok(detailed.includes(`border-left:3px solid ${NEWSLETTER_STYLE.POSITIVE}`) && detailed.includes(`border-left:3px solid ${NEWSLETTER_STYLE.NEGATIVE}`), 'detailed tier: the same rules inline');
+  assert.match(detailed, /<b style="color:#0f172a">Tone Industries customers allege/);
+}
 console.log('PASS repeated-news partition, source retention, safety guards, failure/preview/budget handling, rendered email and saved edition');
