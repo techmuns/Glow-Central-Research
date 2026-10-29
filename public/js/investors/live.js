@@ -36,7 +36,7 @@ import * as feed from '../data/super-investors.js';
 import * as coverage from '../data/coverage.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
-import { scopePossessive, scopeLabel } from '../data/scope.js';
+import { scopePossessive, scopeLabel, holdingMembership } from '../data/scope.js';
 // The ONE classifier — this view used to carry a second copy of it. See `classifyHolding` there.
 import { classifyHolding, companyKey, filedPair, isMove, quarterOrder } from '../data/finology-shared.js';
 import { deriveMoves, comparisonPeriods, disclosureStatus, periodEnd } from '../data/finology-shared.js';
@@ -973,15 +973,20 @@ function profilePanel() {
  */
 function scopeFilter(ctx) {
   const normalName = (name) => String(name || '').toLowerCase().replace(/\b(limited|ltd)\b/g, '').replace(/[^a-z0-9]/g, '');
+  const matcher = (entries) => {
+    const tickers = new Set(entries.map((e) => String(e.ticker || '').toUpperCase()).filter(Boolean));
+    const names = new Set(entries.map((e) => normalName(e.name)).filter(Boolean));
+    return (company, holding = {}) => tickers.has(String(holding.companySlug || '').toUpperCase()) || names.has(normalName(company));
+  };
   const entries = ctx.scope === 'universe' ? scopeLists.removed('universe')
     : ctx.scope === 'watchlist' ? watchlist.all() : coverage.holdings();
-  if (ctx.scope === 'universe' && !entries.length) return null;
-  const tickers = new Set(entries.map((e) => String(e.ticker || '').toUpperCase()).filter(Boolean));
-  const names = new Set(entries.map((e) => normalName(e.name)).filter(Boolean));
-  return (company, holding = {}) => {
-    const match = tickers.has(String(holding.companySlug || '').toUpperCase()) || names.has(normalName(company));
-    return ctx.scope === 'universe' ? !match : match;
-  };
+  const inScope = ctx.scope === 'universe' && !entries.length ? null : matcher(entries);
+  const base = inScope && ((company, holding) => (ctx.scope === 'universe' ? !inScope(company, holding) : inScope(company, holding)));
+  // The header's Holding choice narrows by the same name comparison, over the book lines held that way.
+  const held = holdingMembership();
+  if (!held) return base;
+  const inCategory = matcher(held.holdings);
+  return (company, holding = {}) => inCategory(company, holding) && (!base || base(company, holding));
 }
 
 function scopedHoldings(ctx) {

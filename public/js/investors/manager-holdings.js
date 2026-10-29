@@ -1,5 +1,6 @@
 import * as managers from '../data/managers.js';
 import * as watchlist from '../core/watchlist.js';
+import { holdingMembership } from '../data/scope.js';
 import { scoreTable } from '../ui/screener.js';
 import { exportRows } from '../ui/export.js';
 import { formatNumber, formatCroreCompact } from '../core/format.js';
@@ -22,8 +23,10 @@ export function renderManagerHoldings(ctx, { view = {}, onView = () => {}, toolb
     // Fund-unit cards are a projection of the same custodian positions. Read the original
     // custodian book once, so the combined holdings table never counts those units twice.
     const custodians = managers.all().filter(m => m.kind === 'custodian');
+    // The header's Holding choice narrows these securities as it narrows every company feed.
+    const held = holdingMembership();
     const rows = custodians.flatMap(manager => manager.positions.map((position, i) => ({ ...position, id: `${manager.id}|${position.id || position.isin || i}`, manager })))
-      .filter(row => ctx.scope !== 'watchlist' || row.ticker && watchlist.has(row.ticker));
+      .filter(row => (ctx.scope !== 'watchlist' || row.ticker && watchlist.has(row.ticker)) && (!held || held.has(row.ticker, row)));
     const columns = [
       { label: 'Quantity', get: row => number(row.quantity), sortValue: row => row.quantity },
       { label: 'Value (INR)', get: row => money(row.marketValue), sortValue: row => row.marketValue },

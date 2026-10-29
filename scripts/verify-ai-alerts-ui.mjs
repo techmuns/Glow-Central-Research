@@ -888,8 +888,10 @@ try {
     tab.render({ root: document.querySelector('#root'), scope: 'universe', params: {}, savedView: { reading: { extras } } });
   }, savedFilters);
   await waitFor(savedReader, () => document.querySelector('[data-ai-feed-status]')?.dataset.state === 'complete');
-  assert.deepEqual(await savedReader.evaluate(async () => (await import('/js/tabs/ai-alerts.js')).getSavedView()), { ...savedFilters, aiHoldingCategory: 'all', aiLayout: 'detailed' }, 'legacy saved readings default to all holding categories and keep the reader\'s own layout');
-  assert.equal(await savedReader.locator('[data-ai-holding-category]').inputValue(), 'all');
+  // The holding category is the header's Holding filter now, so a saved reading carries none; the
+  // reader's own layout is kept.
+  assert.deepEqual(await savedReader.evaluate(async () => (await import('/js/tabs/ai-alerts.js')).getSavedView()), { ...savedFilters, aiLayout: 'detailed' }, 'saved readings follow the header Holding filter and keep the reader\'s own layout');
+  assert.equal(await savedReader.locator('[data-ai-holding-category]').count(), 0, 'AI Alerts draws no Holding control of its own');
   assert.equal(await savedReader.locator('[data-ai-search]').inputValue(), 'Zenith');
   assert.equal(await savedReader.locator('[data-ai-type="results"]').isChecked(), true);
   await savedReader.locator('[data-ai-sort]').selectOption('newest');

@@ -5,7 +5,7 @@ import { exportRows } from '../ui/export.js';
 import { escapeHtml } from '../core/dom.js';
 import { whenDeferredData } from '../core/state.js';
 import * as coverage from '../data/coverage.js';
-import { filterByScope } from '../data/scope.js';
+import { filterByScope, holdingMembership } from '../data/scope.js';
 import { loadCompanyCaptureIndex, companyCaptureHoldings } from '../data/company-captures.js';
 import { captureCoverageHtml } from '../ui/capture-coverage.js';
 import { loadDomesticFilings, loadCapturedDomesticFilings } from '../data/domestic-filings.js';
@@ -60,8 +60,10 @@ export function renderCompanyFilings(ctx, { controls = '', wireControls = () => 
     const ticker = form.elements.ticker.value.trim().toUpperCase();
     const type = form.elements.form.value;
     if (shownKey !== `${ticker}|${type}`) { tableDispose?.(); tableView = null; target.innerHTML = ''; }
-    if (ctx.scope !== 'universe' && !companies.some((c) => c.ticker === ticker)) {
-      status.textContent = 'Choose a company in this scope, or switch to Universe.';
+    // Under a Holding category even Universe is a finite list, so a typed or linked ticker must be on it.
+    const held = holdingMembership();
+    if ((ctx.scope !== 'universe' || held) && !companies.some((c) => c.ticker === ticker)) {
+      status.textContent = held ? `Choose a company held as ${held.label} in this scope, or set Holding to All.` : 'Choose a company in this scope, or switch to Universe.';
       return;
     }
     ctx.setParamsQuiet?.({ ...ctx.params, view: 'filings', company: ticker, form: type });

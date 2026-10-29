@@ -2,7 +2,7 @@
 // adding a portfolio company needs no new upstream request because filtering happens at paint time.
 
 import { conditionalJson, readEntry, KEYS } from '../core/store.js';
-import { filterByScope as filterRowsByScope } from './scope.js';
+import { filterByScope as filterRowsByScope, scopeHoldings } from './scope.js';
 import { corporateActionKey } from './corporate-actions-shared.js';
 
 export const LIVE_ID = 'corporate-actions';
@@ -10,6 +10,7 @@ export const POLL_MS = 90_000;
 
 export function filterCorporateActionsByScope(rows, scope, holdings = []) {
   if (scope !== 'portfolio') return filterRowsByScope(rows, scope, holdings);
+  holdings = scopeHoldings(holdings);
   const tickers = new Set(holdings.map((holding) => String(holding?.ticker || '').toUpperCase()).filter(Boolean));
   const isins = new Set(holdings.map((holding) => String(holding?.isin || '').toUpperCase()).filter(Boolean));
   return rows.filter((row) => tickers.has(String(row?.ticker || '').toUpperCase()) || isins.has(String(row?.isin || '').toUpperCase()));
