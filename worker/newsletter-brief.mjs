@@ -93,7 +93,7 @@ import { sameBoardDisclosure, summaryReadings } from './newsletter-company-readi
 import { sameScheduledBoardMeeting } from './newsletter-filing-events.mjs';
 import { sameScheduledEarningsCall } from './newsletter-notice-events.mjs';
 import { investmentProfiles, sameInvestmentEvent } from './newsletter-investment-events.mjs';
-import { sameExplicitEvent, explicitEvent } from './newsletter-event-identity.mjs';
+import { sameExplicitEvent, explicitEvent, resultsPeriod, sameResultsFiling } from './newsletter-event-identity.mjs';
 import { renderInvestorEmail } from './newsletter-investor-email.mjs';
 import { attachPriceReasons, priceEvidenceItems, priceReasonWindow, priceReasonText, priceReasonSourcesNote } from './newsletter-price-reasons.mjs';
 import { boundedJson } from '../public/js/data/family-book-contract.js';
@@ -1161,6 +1161,33 @@ function contentConflicts(a, b) {
   return false;
 }
 
+/** One event identity across checked groups. The grouping pass partitions reports, but it can
+ * leave verified copies of one document, or one company's results filed under several subjects
+ * for one stated period, in different groups (29 October: Sasken's results under five subjects).
+ * Join every group holding such a copy or filing, so each report placed with any of them shares
+ * one update. Rows are never removed; a group with no such link keeps its checked identity. */
+function unifyEvents(documents) {
+  const items = documents.flatMap(d => d.items), parent = items.map((_, i) => i);
+  const find = i => { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
+  const union = (i, j) => { const a = find(i), b = find(j); if (a !== b) parent[Math.max(a, b)] = Math.min(a, b); };
+  const index = new Map(items.map((s, i) => [s, i])), byEvent = new Map(), linked = new Set(), period = new Map();
+  items.forEach((s, i) => { if (!s.eventId) return; if (byEvent.has(s.eventId)) union(i, byEvent.get(s.eventId)); else byEvent.set(s.eventId, i); });
+  for (const d of documents) for (const s of d.items.slice(1)) if (s.eventId !== d.items[0].eventId) { union(index.get(s), index.get(d.items[0])); linked.add(index.get(s)); }
+  const results = documents.map(d => d.main).filter(s => resultsPeriod(s));
+  for (const [n, a] of results.entries()) for (const b of results.slice(n + 1)) {
+    if (!sameResultsFiling(a, b) || changedDocumentVersion(a, b)) continue;
+    union(index.get(a), index.get(b)); linked.add(index.get(a)); period.set(index.get(a), `${a.ticker}:${resultsPeriod(a)}`);
+  }
+  const sets = new Map();
+  items.forEach((s, i) => { const root = find(i); if (!sets.has(root)) sets.set(root, []); sets.get(root).push(i); });
+  for (const members of sets.values()) {
+    if (members.length < 2 || !members.some(i => linked.has(i))) continue;
+    const key = members.map(i => period.get(i)).find(Boolean);
+    const id = key ? `results:${key}` : [...new Set(members.map(i => items[i].eventId).filter(Boolean))].sort()[0];
+    if (id) for (const i of members) items[i].eventId = id;
+  }
+}
+
 /** A company's stories folded into updates, strongest first: `main` leads, `others` are its copies and accounts. */
 export function clusterStories(stories, { company = '' } = {}) {
   // Phase 1: verified document copies, before generated fact wording can veto
@@ -1180,6 +1207,7 @@ export function clusterStories(stories, { company = '' } = {}) {
     if(home)home.items.push(s);else documents.push({items:[s]});
   }
   for(const document of documents)document.main=leadOf(document.items);
+  unifyEvents(documents);
   // Phase 2: issuer + explicit event/date/period, then the existing conservative
   // fallback. A summary is not an event identifier.
   const investments=investmentProfiles(documents.flatMap(d=>d.items));
