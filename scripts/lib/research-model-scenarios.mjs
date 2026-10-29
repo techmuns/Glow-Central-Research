@@ -2,7 +2,24 @@
 // deliberately SYNTHETIC facts/weights. Never publish these as company research.
 import { readFileSync } from 'node:fs';
 const book = JSON.parse(readFileSync(new URL('../../public/data/portfolio-companies.json', import.meta.url)));
-const targets = ['JAYNECOIND', 'ABCAPITAL', 'AARTIDRUGS'].map(t => book.holdings.find(h => h.ticker === t));
+// The book is re-synced from the family office every day, so no identity here may be a single
+// hard-coded line it can drop: a preferred ticker that left the book is replaced by the next
+// resolved holding, and the unresolved probe takes whichever line currently has no NSE symbol.
+const resolved = book.holdings.filter(h => h.ticker && h.listed !== false);
+const targets = ['JAYNECOIND', 'ABCAPITAL', 'AARTIDRUGS'].reduce((picked, ticker) => {
+  const holding = resolved.find(h => h.ticker === ticker && !picked.includes(h)) || resolved.find(h => !picked.includes(h));
+  if (!holding) throw new Error('research scenarios need three resolved holdings in portfolio-companies.json');
+  return [...picked, holding];
+}, []);
+// A listed line with no symbol is the case under test; a warrant or preference line, then a line
+// still awaiting its ISIN, stand in only when every listed line has resolved.
+const unresolvedHolding = book.holdings.find(h => !h.ticker && h.listed !== false)
+  || book.holdings.find(h => !h.ticker)
+  || (book.awaitingIdentity || []).map(h => ({ isin: null, ticker: null, ...h }))[0];
+if (!unresolvedHolding) throw new Error('research scenarios need a book line with no NSE symbol in portfolio-companies.json');
+const plainName = h => h.name.replace(/\s+(Ltd|Limited)\.?$/i, '');
+const nameWords = h => plainName(h).split(/\s+/).slice(0, 2).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+const [first, second] = targets.map(plainName);
 const probes = [
   ['latest', 'What is the latest info on COMPANY for me?', ['2026-09-05|5 September|September 5', 'order', '73'], ['guaranteed']],
   ['earnings', 'What do the latest earnings show for COMPANY?', ['2026-06|June 2026|Jun.? 2026|Q1', '120', '8', 'crore|cr\\b'], []],
@@ -26,20 +43,20 @@ export function modelScenarios() {
     question: question.replaceAll('COMPANY', holding.name), must, forbidden,
     review: 'Check every factual claim, citation, date, unit, exposure, conflict and missing-data statement against this exact synthetic packet. Reject invented facts and unsupported advice.',
   }))).concat([
-    { id: 'follow-up', category: 'follow-up', index: 0, question: 'And what are its risks?', history: [{ role: 'user', text: 'Latest information on Jayaswal Neco Industries?' }], must: ['Jayaswal|Neco', '70|73'], forbidden: [] },
-    { id: 'issuer-switch', category: 'issuer-switch', index: 1, question: 'What changed at Aditya Birla Capital?', history: [{ role: 'user', text: 'Latest information on Jayaswal Neco Industries?' }], must: ['Aditya|Birla'], forbidden: [] },
-    { id: 'stale-only', category: 'stale-only', index: 0, question: 'What happened at Jayaswal Neco today?', must: ['old|stale|no .*today|not .*today|not .*current|August|2026-08'], forbidden: ['today.{0,30}(won|announced)'] },
-    { id: 'feed-failure', category: 'feed-failure', index: 0, question: 'Is there no recent news on Jayaswal Neco?', must: ['unavailable|failed|cannot|not .*confirm'], forbidden: ['there (is|was) no recent news'] },
-    { id: 'unknown-weight', category: 'unknown-weight', index: 0, question: 'What is the weight of Jayaswal Neco in my portfolio?', must: ['unavailable|unknown|incomplete|cannot'], forbidden: ['45%|45 percent'] },
-    { id: 'zero-profit', category: 'zero-profit', index: 0, question: 'What is the latest net profit of Jayaswal Neco?', must: ['zero|0', 'crore|cr\\b'], forbidden: ['profit.{0,25}(unavailable|unknown)'] },
-    { id: 'sample-absence', category: 'sample-absence', index: 0, question: 'Are these all the announcements for Jayaswal Neco?', must: ['sample|bounded|omitted|not all|not exhaustive|partial'], forbidden: ['these are all'] },
-    { id: 'unresolved', category: 'unresolved', index: 3, question: 'What do you know about Everest Fleet in my portfolio?', must: ['Everest', 'missing|unavailable|no .*ticker|unresolved|not .*available'], forbidden: ['not (held|in your portfolio)'] },
+    { id: 'follow-up', category: 'follow-up', index: 0, question: 'And what are its risks?', history: [{ role: 'user', text: `Latest information on ${first}?` }], must: [nameWords(targets[0]), '70|73'], forbidden: [] },
+    { id: 'issuer-switch', category: 'issuer-switch', index: 1, question: `What changed at ${second}?`, history: [{ role: 'user', text: `Latest information on ${first}?` }], must: [nameWords(targets[1])], forbidden: [] },
+    { id: 'stale-only', category: 'stale-only', index: 0, question: `What happened at ${first} today?`, must: ['old|stale|no .*today|not .*today|not .*current|August|2026-08'], forbidden: ['today.{0,30}(won|announced)'] },
+    { id: 'feed-failure', category: 'feed-failure', index: 0, question: `Is there no recent news on ${first}?`, must: ['unavailable|failed|cannot|not .*confirm'], forbidden: ['there (is|was) no recent news'] },
+    { id: 'unknown-weight', category: 'unknown-weight', index: 0, question: `What is the weight of ${first} in my portfolio?`, must: ['unavailable|unknown|incomplete|cannot'], forbidden: ['45%|45 percent'] },
+    { id: 'zero-profit', category: 'zero-profit', index: 0, question: `What is the latest net profit of ${first}?`, must: ['zero|0', 'crore|cr\\b'], forbidden: ['profit.{0,25}(unavailable|unknown)'] },
+    { id: 'sample-absence', category: 'sample-absence', index: 0, question: `Are these all the announcements for ${first}?`, must: ['sample|bounded|omitted|not all|not exhaustive|partial'], forbidden: ['these are all'] },
+    { id: 'unresolved', category: 'unresolved', index: 3, question: `What do you know about ${plainName(unresolvedHolding)} in my portfolio?`, must: [nameWords(unresolvedHolding), 'missing|unavailable|no .*ticker|unresolved|not .*available'], forbidden: ['not (held|in your portfolio)'] },
   ]);
 }
 
 export function scenarioBody(test, now = new Date()) {
   const checkedAt = now.toISOString();
-  const entries = [...targets, book.holdings.find(h => h.name === 'Everest Fleet')];
+  const entries = [...targets, unresolvedHolding];
   const holdings = entries.map((h, i) => ({ isin: h.isin, ticker: h.ticker, name: h.name, sector: h.sector, weightPct: [45, 35, 19, 1][i] }));
   const target = holdings[test.index];
   const sizes = { complete: true, basis: 'listed-market-value', checkedAt, archiveVersion: 1, bookAsOf: '2026-08-31', quotes: { asOf: '2026-09-04', status: 'ready', priced: 4, notLive: 0 } };

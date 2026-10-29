@@ -70,11 +70,14 @@ try {
   await page.locator('[data-sheet-table="portfolio"] tbody tr[data-row-key]').first().waitFor();
   assert.equal(await page.locator('[data-scope-controls]').isVisible(), false, 'reproduce the cached hidden scope selector');
   assert.equal(await page.locator('[data-sheet-upload]').count(), 0, 'warm the interface without Upload latest');
-  await page.locator('[data-sheet-key="FRACTAL"][data-sheet-field="buyPrice"]').click();
+  // The cell's own button, not its fill handle (which shares the key and field), on whichever
+  // public-direct row the synced book lists first rather than a company a later sync can drop.
+  const buyPriceCell = page.locator('[data-sheet-table="portfolio"] [data-sheet-edit][data-sheet-field="buyPrice"]').first();
+  await buyPriceCell.click();
   assert.equal(await page.locator('.sheet-editor-note').count(), 1, 'warm the preceding verbose editor');
   await page.locator('[data-sheet-input]').press('Escape');
   const before = await page.locator('[data-sheet-table="portfolio"] tbody tr[data-row-key]').evaluateAll(rows => rows.map(row => row.dataset.rowKey));
-  const dateCell = page.locator('[data-sheet-table="portfolio"] [data-sheet-field="dateBought"]').first();
+  const dateCell = page.locator('[data-sheet-table="portfolio"] [data-sheet-edit][data-sheet-field="dateBought"]').first();
   await dateCell.click();
   assert.equal(await page.locator('[data-sheet-input]').getAttribute('type'), 'date', 'warm the preceding calendar editor');
   await page.locator('[data-sheet-input]').fill('2024-02-28');
@@ -85,7 +88,7 @@ try {
   await page.locator('[data-scope-controls]').waitFor({ timeout: 30000 });
   await page.locator('[data-sheet-table="portfolio"] tbody tr[data-row-key]').first().waitFor();
   assert(await page.locator('[data-sheet-upload]').isVisible(), 'returning session receives Upload latest');
-  await page.locator('[data-sheet-key="FRACTAL"][data-sheet-field="buyPrice"]').click();
+  await buyPriceCell.click();
   assert.equal(await page.locator('.sheet-editor-note, .sheet-editor-hint').count(), 0, 'returning session receives the compact editor');
   await page.locator('[data-sheet-input]').press('Escape');
   assert(!(await page.evaluate(() => caches.keys())).some(key => key.includes('previous-glow-hidden-scope')));
