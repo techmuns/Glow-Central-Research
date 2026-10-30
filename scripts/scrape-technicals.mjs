@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { loadActivePortfolio } from './lib/active-portfolio.mjs';
-import { tickerFromScreenerUrl as extractTicker } from '../public/js/data/market-identity.js';
+import { tickerFromScreenerUrl } from '../public/js/data/market-identity.js';
+import { currentSymbol } from '../public/js/data/announcement-identity.js';
 import { yahooSymbol } from '../worker/upstox-market.mjs';
 // Technicals scraper: pulls daily OHLC for every company we cover (and the Nifty
 // 500 index) from Yahoo Finance, computes the technical indicators the client's
@@ -47,6 +48,10 @@ import { abdiRanaldoSpreadPct, amihudImpactPct, liquidityTier } from "./lib/liqu
 const IMPACT_COST_ORDER_SIZE_RUPEES = 5e7;   // ₹5 crore — standardized institutional position
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+// Screener keeps a renamed company's old URL slug (HEG for HEG Advanced Materials, NSE symbol HEGAM)
+// while the book carries the new symbol, so the same series was fetched and filed twice. The export's
+// ticker is read as the symbol NSE lists the company under today (RENAMED_SYMBOLS).
+const extractTicker = (url) => { const t = tickerFromScreenerUrl(url); return t ? currentSymbol(t) : t; };
 const COMPANIES_PATH = resolve(__dirname, "../public/data/universe.json");
 const BOOK_PATH = resolve(__dirname, "../public/data/portfolio-companies.json");
 const ATR_HISTORY_PATH = resolve(__dirname, "../public/data/atr-history.json");
@@ -407,7 +412,7 @@ async function bookCompaniesNotInScreener(screenerRows) {
   const rows = [];
   for (const h of book.holdings || []) {
     if (!h.ticker) continue;                       // unlisted, warrants, BSE-only — no NSE series to fetch
-    const t = String(h.ticker).toUpperCase();
+    const t = currentSymbol(h.ticker);
     if (covered.has(t) || seen.has(t)) continue;
     seen.add(t);
     rows.push({

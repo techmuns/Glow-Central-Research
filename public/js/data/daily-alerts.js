@@ -62,6 +62,7 @@ import { classifyStory } from './news-keywords.js';
 import { announcementSignal } from './filing-signals.js';
 export { announcementSignal, BSE_CRITICAL_IS_MATERIAL } from './filing-signals.js';
 import { scopeMatcher, holdingMembership, holdingEntityIds } from './scope.js';
+import { renamedTo } from './announcement-identity.js';
 import * as coverage from './coverage.js';
 import { ADDITIONAL_SOURCES, additionalSourceDependencies } from './alert-sources.js';
 import * as records from './alert-records.js';
@@ -1120,6 +1121,19 @@ export function* toFeedRowSteps(feed, out, day) {
  */
 const discoveryMappings = new WeakMap();
 const scopeProjections = new WeakMap();
+// A RENAMED SYMBOL IS THE SAME COMPANY. A source that lags an exchange rename (RENAMED_SYMBOLS in
+// announcement-identity.js) still files the company under its old symbol; every alert is read under
+// the current one, so its evidence scopes with the holding, groups into one AI card and folds into
+// one development. Both the live and the pooled feeds meet here. The copy is memoised on the event,
+// keeps the source's own symbol as `filedTicker`, and every other event is returned as itself.
+const currentSymbolEvents = new WeakMap();
+function currentSymbolEvent(event) {
+  const to = event.ticker ? renamedTo(event.ticker) : null;
+  if (!to) return event;
+  let copy = currentSymbolEvents.get(event);
+  if (!copy) currentSymbolEvents.set(event, copy = { ...event, ticker: to, filedTicker: event.ticker });
+  return copy;
+}
 let lastPublisherProjection = null;
 let lastNewsSourceQuery = null;
 function querySourceFeeds(feeds, queryWindow) {
@@ -1383,7 +1397,7 @@ function* assembleSteps({ day, scope, holdings, includeHistory, settledFeeds, re
       let todayCount = 0, unresolved = 0;
       for (let i = 0; i < all.length; i++) {
         if ((i & 2047) === 2047) yield;
-        const event = all[i];
+        const event = currentSymbolEvent(all[i]);
         if (!event.ticker && !event.entityId) unresolved++;
         if (!matchesAlertScope(event, scopeContext)) continue;
         events.push(event);
@@ -1969,6 +1983,8 @@ export function announcementEvent(r) {
     time: r.time ? String(r.time).slice(0, 5) : null,
     at: r.date,
     ticker: r.ticker || null,
+    // The identity projection may already have moved a renamed company to its current symbol.
+    ...(r.filedTicker ? { filedTicker: r.filedTicker } : {}),
     company: r.company || r.ticker || '—',
     headline: r.title || r.headline || 'Filing',
     detail: [...(r.sources || [r.source]), r.category, r.subCategory].filter(Boolean).join(' · ') || 'Category not carried',

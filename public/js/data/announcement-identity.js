@@ -10,7 +10,19 @@ const SME = { 'ALPEXSOLAR-SM': 'ALPEXSOLAR', 'JAYBEE-SM': 'JAYBEE', 'SAHANA-SM':
 const ISSUER_EQUITY = { INE24OJ01011: 'INE24OJ01029', INE564S13022: 'INE564S01019', INE0R4713012: 'INE0R4701017', INE666D13019: 'INE666D01022' };
 export const announcementIssuerIsin = value => ISSUER_EQUITY[upper(value)] || upper(value);
 const upper = value => String(value || '').trim().toUpperCase();
-export const filingTicker = value => SME[upper(value)] || upper(value);
+// RENAMED SYMBOLS, REVIEWED ONE BY ONE: old NSE symbol -> the symbol NSE lists the same ISIN under
+// today. The book follows the exchange, but Moneycontrol, Screener, StockScans and the BSE capture
+// (which takes its NSE symbol from Moneycontrol) went on filing these companies under the old one,
+// so a Portfolio view asking for the new symbol dropped the history and even that day's filings.
+// Every entry must agree with NSE's own equity directory, which lists the old symbol among the
+// ISIN's aliases; scripts/verify-renamed-symbols.mjs fails the moment one does not.
+//   HEG -> HEGAM  HEG Ltd became HEG Advanced Materials Ltd (INE545A01024), September 2026.
+export const RENAMED_SYMBOLS = Object.freeze({ HEG: 'HEGAM' });
+/** The current symbol when `value` is a reviewed old symbol, else null. */
+export const renamedTo = value => RENAMED_SYMBOLS[upper(value)] || null;
+/** The symbol a company trades under today: a reviewed old symbol becomes its current one. */
+export const currentSymbol = value => renamedTo(value) || upper(value);
+export const filingTicker = value => SME[upper(value)] || renamedTo(value) || upper(value);
 // Exchange ISINs join the directories. Keep old exchange/provider symbols as exact aliases.
 export function mergeExchangeIdentities(...lists) {
   return runSteps(mergeExchangeIdentitySteps(...lists));
@@ -62,7 +74,10 @@ export function createAnnouncementIdentity(entries = []) {
   const row = value => {
     const hit = find(value);
     const observedCode = String(value.scripCode || value.bseCode || '');
-    return { ...value, ticker: hit?.ticker || hit?.bseSymbol || filingTicker(value.ticker) || null,
+    const ticker = hit?.ticker || hit?.bseSymbol || filingTicker(value.ticker) || null;
+    // A row the source filed under a renamed company's old symbol keeps that symbol as provenance.
+    const filed = renamedTo(value.ticker) && upper(value.ticker) !== ticker ? { filedTicker: upper(value.ticker) } : {};
+    return { ...value, ticker, ...filed,
       ...(hit ? { isin: hit.isin, scripCode: /^\d{6}$/.test(observedCode) ? observedCode : hit.bseCode } : {}) };
   };
   return { find, key, row };
