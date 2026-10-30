@@ -135,6 +135,62 @@ const original = settledFeeds.get('announcements').events.find((e) => e.id === '
 assert.equal(original.ticker, 'HEG', 'the source record is never rewritten');
 assert.equal(again.events.find((e) => e.id === 'a2').ticker, 'TCS');
 
+// ---- The team brief: filings, quotes and trades reach the holding ---------------------------------------------------
+// worker/newsletter-brief.mjs is hash-locked with Sattva (docs/NEWSLETTER-SHARED-SOURCE.json); Sattva
+// carries the same reads over an empty table.
+const { readAnnouncements, readSessionQuotes, readTrades, readCalendar, readActions } = await import('../worker/newsletter-brief.mjs');
+const { istInstant } = await import('../public/js/data/newsletter-shared.js');
+const { expectedSession } = await import('../public/js/data/breakout-live-shared.js');
+const holdings = [{ ticker: 'HEGAM', name: 'HEG Advanced Materials Limited', isin: 'INE545A01024', sector: 'Unclassified' }];
+const assetsOf = (files) => ({ ASSETS: { fetch: async (request) => {
+  const path = new URL(request.url).pathname;
+  return path in files ? Response.json(files[path]) : new Response('missing', { status: 404 });
+} } });
+const blocked = async () => new Response('blocked', { status: 403 });
+const window = { from: istInstant('2026-10-28', '16:00'), to: istInstant('2026-10-29', '16:00') };
+const filing = { newsId: 'heg-q2-call', scripCode: '509631', company: 'HEG Advanced Materials Ltd', headline: 'Intimation of Q2 FY 27 Earnings Conference Call',
+  category: 'Company Update', subCategory: 'Earnings Call', date: '2026-10-29', time: '11:05:00', url: 'https://www.bseindia.com/xml-data/corpfiling/heg-q2-call.pdf' };
+const nseFiling = { ticker: 'HEG', company: 'HEG Advanced Materials Limited', subject: 'Board meeting outcome on dividend', publishedAt: '2026-10-29T06:00:00.000Z',
+  url: 'https://nsearchives.nseindia.com/corporate/heg-board-outcome.pdf' };
+const announcementsFor = (book) => readAnnouncements({ env: assetsOf({
+  '/data/corp-announcements.json': { capturedAt: '2026-10-29T17:14:20.699Z', from: '2026-10-27', to: '2026-10-29', byTicker: { HEG: [filing] } },
+  '/data/nse-filings/index.json': { capturedAt: '2026-10-29T10:00:00.000Z', days: [{ day: '2026-10-29' }] },
+  '/data/nse-filings/2026-10-29.json': { rows: [nseFiling] },
+}), fetcher: blocked, now: window.to, window, holdings: book });
+const found = JSON.stringify(await announcementsFor(holdings));
+assert(found.includes('Q2 FY 27 Earnings Conference Call'), "a BSE filing the capture filed under HEG reaches the holding's brief");
+assert(found.includes('Board meeting outcome on dividend'), 'so does an NSE history row filed under HEG');
+assert(!/"ticker":"HEG"/.test(found), 'both are filed under HEGAM there');
+const lagging = JSON.stringify(await announcementsFor([{ ...holdings[0], ticker: 'HEG' }]));
+assert(lagging.includes('Q2 FY 27 Earnings Conference Call') && !/"ticker":"HEG"/.test(lagging), 'a book still on HEG reaches it too, under HEGAM');
+
+const session = expectedSession(istInstant('2026-10-29'));
+const daily = (rows) => ({ price_date: session, generated_at: `${session}T12:00:00.000Z`, source: 'Yahoo Finance', companies: rows });
+const quoteRow = (ticker) => ({ ticker, cmp: 215.27, pct_change_today: 6.1, bar_date: session });
+const quotesFor = (rows, book = holdings) => readSessionQuotes({ env: assetsOf({ '/data/technicals.json': daily(rows) }), now: istInstant('2026-10-29', '08:00'), edition: 'morning', day: '2026-10-29', holdings: book });
+assert.deepEqual((await quotesFor([quoteRow('HEG'), quoteRow('HEGAM'), quoteRow('TCS')])).rows.map((r) => r.ticker), ['HEGAM'], 'Portfolio today lists the holding once');
+assert.deepEqual((await quotesFor([quoteRow('HEG')])).rows.map((r) => r.ticker), ['HEGAM'], 'a quote filed under the old symbol alone still prices the holding');
+assert.deepEqual((await quotesFor([quoteRow('HEGAM')], [{ ...holdings[0], ticker: 'HEG' }])).rows.map((r) => r.ticker), ['HEGAM'], 'a book that still says HEG is priced by the HEGAM quote');
+
+const tradesFor = async (rows) => JSON.stringify(await readTrades({ env: assetsOf({
+  '/data/insider-archive/index.json': { version: 1, months: { '2026-10': rows.length }, rowCount: rows.length, updatedAt: '2026-10-29T10:00:00.000Z' },
+  '/data/insider-archive/2026-10.json': { kind: 'insider', rows },
+}), window, holdings }));
+assert((await tradesFor([{ ...trade, ticker: 'HEG', date: '2026-10-29' }])).includes('Promoter Group Trust'), 'a trade filed only under HEG reaches the holding');
+const bothTrades = await tradesFor([{ ...trade, ticker: 'HEG', date: '2026-10-29' }, { ...trade, ticker: 'HEGAM', date: '2026-10-29' }]);
+assert.equal(new Set(bothTrades.match(/"trade:[^"]+"/g) || []).size, 1, 'and the same trade under both symbols is reported once');
+
+// The week ahead: a calendar row and a corporate action filed under HEG. The rows carry no name the
+// book resolves, so only the symbol can place them.
+const calendar = await readCalendar({ env: assetsOf({ '/data/earnings-calendar.json': { capturedAt: '2026-10-29T06:00:00.000Z', from: '2026-10-29', to: '2026-11-05',
+  byDate: { '2026-10-31': { rows: [{ ticker: 'HEG', name: '', time: '15:00' }] } } } }), day: '2026-10-29', holdings,
+  screener: async () => ({ capture: { portfolioUpcoming: [{ ticker: 'HEG', name: '', date: '2026-10-31', eventType: 'Results', time: '15:00' }] }, source: { checkedAt: '2026-10-29T06:00:00.000Z' } }) });
+assert.deepEqual(calendar.rows.map((r) => [r.ticker, r.date, r.sources.join('+')]), [['HEGAM', '2026-10-31', 'Screener+Moneycontrol']], 'a scheduled result filed under HEG reaches the holding, once');
+const actionsFor = (book) => readActions({ env: assetsOf({ '/data/corporate-actions.json': { capturedAt: '2026-10-29T06:00:00.000Z',
+  rows: [{ id: 'heg-dividend', ticker: 'HEG', actionType: 'Dividend', purpose: 'Interim Dividend - Rs 5 Per Share', exDate: '2026-11-03', source: 'BSE' }] } }), day: '2026-10-29', holdings: book });
+assert.deepEqual((await actionsFor(holdings)).rows.map((r) => r.ticker), ['HEGAM'], 'a corporate action filed under HEG reaches the holding');
+assert.deepEqual((await actionsFor([{ ...holdings[0], ticker: 'HEG' }])).rows.map((r) => r.ticker), ['HEGAM'], 'and is filed under HEGAM for a book still on HEG');
+
 // ---- The announcement projection keeps the symbol BSE filed a row under -------------------------------------------
 // Corporate announcements reach the assembly through the identity directory's row(), which already
 // moves a renamed company to the directory's symbol once the directory is rebuilt.
@@ -156,4 +212,4 @@ const master = [{ SCRIP_CD: '509631', ISIN_NUMBER: 'INE545A01024', scrip_id: 'HE
 const identity = buildAnnouncementIdentities(master, { HEG: { ticker: 'HEG', bseId: '509631' } }).entries.find((e) => e.isin === 'INE545A01024');
 assert.equal(identity.ticker, 'HEGAM', "Moneycontrol's old symbol no longer names the company's BSE filings");
 
-console.log('PASS renamed symbols: reviewed against NSE, scope, coverage, insider identity, technicals (one row, export fields kept), AI Alerts (holding and position sizes), alert assembly, announcement provenance and BSE identity');
+console.log('PASS renamed symbols: reviewed against NSE, scope, coverage, insider identity, technicals (one row, export fields kept), AI Alerts (holding and position sizes), alert assembly, the team brief, announcement provenance and BSE identity');

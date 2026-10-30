@@ -5869,11 +5869,12 @@ applied where tickers are compared, never by rewriting a capture:
   one. `byTicker()` and `rowFor()` accept either symbol.
 - The insider trade identity uses the current symbol, so a disclosure Screener files as `HEG` and
   the Muns supplement files as `HEGAM` is one trade.
-- **The team brief is not covered yet.** `worker/newsletter-brief.mjs` is hash-locked with Sattva
-  (`docs/NEWSLETTER-SHARED-SOURCE.json`), so applying the rule there is one change made in both
-  repositories. Until then the brief compares exact symbols. It misses the trades and calendar rows
-  that sources file under `HEG`, and it reaches the company's BSE filings only once the capture
-  files them as `HEGAM`.
+- The team brief indexes the book, and matches every captured row, by the current symbol. So
+  filings, trades, calendar rows and corporate actions filed under `HEG` reach the `HEGAM` holding.
+  *Portfolio today* lists a holding once even when a quote exists under both symbols.
+  `worker/newsletter-brief.mjs` is hash-locked with Sattva (`docs/NEWSLETTER-SHARED-SOURCE.json`),
+  so Sattva's copy carries the same reads. Sattva's own `RENAMED_SYMBOLS` is empty: it holds no
+  renamed company, and its behaviour is unchanged.
 - The BSE scraper and the technicals scrape file the company under its current symbol from their
   next run; history already captured keeps the symbol it was filed under.
 
