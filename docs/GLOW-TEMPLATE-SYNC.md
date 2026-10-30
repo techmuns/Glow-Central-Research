@@ -693,6 +693,19 @@ investment implications remain stored and must not be relabelled as summaries. S
 related coverage, collection, retention, scope and refresh behavior remain unchanged.
 
 
+## A renamed company keeps its history (30 October 2026)
+
+`RENAMED_SYMBOLS` (HEG -> HEGAM, reviewed against NSE's directory) lives in the shared
+`announcement-identity.js`. The current-symbol reads that use it live in other shared files:
+alert assembly and the announcement event in `daily-alerts.js`, the AI Alerts grouping and
+position index, the technicals loader and its export-field merge, the insider trade identity,
+`coverage.has()`, the identity directory's `row()`, and the BSE and technicals scrapers. A template
+sync must keep them. The hash-locked team brief (`worker/newsletter-brief.mjs`) reads it in both
+repositories. Sattva exports the same helpers over an empty table, so a sync of that file must keep
+Glow's HEG -> HEGAM entry. The mechanism is general and costs Sattva nothing until it holds a
+renamed company.
+See *A renamed company keeps its history* in DATA-CONTRACTS.md.
+
 ## AI card scrolling history (28 September 2026)
 
 Glow's Newest first card section now uses `data/alert-timeline.js` and `ui/alert-timeline.js` with

@@ -2,10 +2,14 @@
 import { scoreCompany } from '../scoring/tech-scoring.js';
 import { filterByScope } from './scope.js';
 import { marketTicker } from './market-identity.js';
+import { currentSymbol, renamedTo } from './announcement-identity.js';
 
 const TECHNICALS_PATH = 'data/technicals.json';
 const ATR_HISTORY_PATH = 'data/atr-history.json';
 const SOURCE_OVERLAY_PATH = 'data/technicals-source.json';
+// The fields a row takes from the screener export itself (scripts/scrape-technicals.mjs); a
+// book-only row synthesises none of them.
+const SCREENER_EXPORT_FIELDS = ['screenerUrl', 'listSource', 'marketCap', 'sector', 'broadSector', 'industry', 'chg_fii_hold', 'chg_dii_hold'];
 
 let loadPromise = null;
 let cache = null; // { meta, scored, byTicker }
@@ -66,14 +70,35 @@ async function buildCache() {
     cache.meta.deliveryFailed = true;
     return cache;
   }
-  const rows = Array.isArray(payload?.companies) ? payload.companies : [];
+  const captured = Array.isArray(payload?.companies) ? payload.companies : [];
+  for (const row of captured) row.ticker = marketTicker(row) || row.ticker;
+
+  // ONE ROW PER COMPANY, UNDER THE SYMBOL IT TRADES UNDER TODAY. Screener's export still lists a
+  // renamed company under its old symbol while the book carries the new one, so the scrape fetched
+  // the company twice — and it appeared twice in Breakouts and raised every technical alert twice.
+  // The current symbol's own row keeps its measurements: the old symbol's Yahoo series is cut short
+  // (HEG: 70 bars and no delivery record, against HEGAM's 268). But only the export's row carries
+  // the export's own fields, so a book-only current row takes them from it, rather than reading as
+  // a company with no market cap, sector or FII/DII change. An old symbol with no current row is
+  // filed under the current symbol and keeps its own as `filedTicker`.
+  const current = new Map(captured.filter((row) => row.ticker && !renamedTo(row.ticker)).map((row) => [String(row.ticker).toUpperCase(), row]));
+  const rows = [];
+  for (const row of captured) {
+    const to = row.ticker && renamedTo(row.ticker);
+    const own = to && current.get(to);
+    if (own) {
+      if (own.listSource === 'book' && row.listSource !== 'book') for (const field of SCREENER_EXPORT_FIELDS) own[field] = row[field] ?? own[field];
+      continue;
+    }
+    if (to) { row.filedTicker = row.ticker; row.ticker = to; current.set(to, row); }
+    rows.push(row);
+  }
 
   // ATR trend accumulator — the ATR Stability rule reads `c.atr_history`. Optional: without
   // it the rule still scores on the absolute level and says the trend is pending.
   for (const row of rows) {
-    row.ticker = marketTicker(row) || row.ticker;
     row.price_date ??= row.bar_date || null;
-    const hist = row.ticker && atrHistory[row.ticker];
+    const hist = row.ticker && (atrHistory[row.ticker] || (row.filedTicker && atrHistory[row.filedTicker]));
     if (Array.isArray(hist)) row.atr_history = hist;
   }
 
@@ -187,7 +212,8 @@ export function coverage() {
 
 export function byTicker(ticker) {
   if (!cache || !ticker) return null;
-  return cache.byTicker.get(String(ticker).toUpperCase()) || null;
+  // Either symbol of a renamed company finds its one row.
+  return cache.byTicker.get(currentSymbol(ticker)) || null;
 }
 
 export function isLoaded() {
