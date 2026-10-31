@@ -3,8 +3,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-10-31T05:59:47.292Z",
-  "oldestDataAt": "2026-10-31T05:59:47.292Z",
+  "capturedAt": "2026-10-31T06:23:02.311Z",
+  "oldestDataAt": "2026-10-31T06:23:02.311Z",
   "from": "2025-10-31",
   "to": "2026-10-31",
   "windowDays": 365,
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-31T05:59:47.292Z",
+      "capturedAt": "2026-10-31T06:23:02.311Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-31T05:59:47.292Z",
+      "capturedAt": "2026-10-31T06:23:02.311Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-31T05:59:47.292Z",
+      "capturedAt": "2026-10-31T06:23:02.311Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-10-31T05:59:47.292Z",
+      "capturedAt": "2026-10-31T06:23:02.311Z",
       "coverageFrom": "2026-08-18"
     }
   ],
