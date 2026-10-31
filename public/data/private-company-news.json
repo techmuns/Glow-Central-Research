@@ -1,7 +1,7 @@
 {
  "_provenance": "Headlines from the committed market-news capture that name one of the family’s private companies (portfolio-companies.json → privateCompanies, from the GlowVentures book), matched by reviewed name as a proper noun in the headline. A name in a headline, not a verified event. Built by scripts/build-private-company-news.mjs; read by AI Alerts.",
  "version": 1,
- "newsCapturedAt": "2026-10-31T07:05:52.226Z",
+ "newsCapturedAt": "2026-10-31T09:12:02.322Z",
  "bookAsOf": "2026-10-26",
  "companies": 51,
  "windowDays": 120,
@@ -175,5 +175,5 @@
    "publisher": "Business Standard"
   }
  ],
- "generatedAt": "2026-10-31T07:06:45.664Z"
+ "generatedAt": "2026-10-31T09:13:00.405Z"
 }
