@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-11-01T16:25:58.557Z",
-  "oldestDataAt": "2026-11-01T16:25:58.557Z",
-  "from": "2025-11-01",
-  "to": "2026-11-01",
+  "capturedAt": "2026-11-01T19:00:38.996Z",
+  "oldestDataAt": "2026-11-01T19:00:38.996Z",
+  "from": "2025-11-02",
+  "to": "2026-11-02",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-01T16:25:58.557Z",
+      "capturedAt": "2026-11-01T19:00:38.996Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-01T16:25:58.557Z",
+      "capturedAt": "2026-11-01T19:00:38.996Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-01T16:25:58.557Z",
+      "capturedAt": "2026-11-01T19:00:38.996Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-01T16:25:58.557Z",
+      "capturedAt": "2026-11-01T19:00:38.996Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 2142,
   "emptyCount": 0,
-  "rowCount": 23847,
+  "rowCount": 23844,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -252304,50 +252304,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "SALSTEEL",
-        "date": "2025-11-01",
-        "cells": {
-          "Company": "S.A.L. Steel Ltd",
-          "Insider": "Sree Metaliks Limited",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "19250000",
-          "Trade %": "13.3",
-          "Trade Value": "346500000",
-          "Post Holding Shares": "19250000",
-          "Post Holding %": "13.3",
-          "Mode": "Allotment",
-          "From Date": "2025-10-30",
-          "To Date": "2025-10-30",
-          "Broadcast Date": "2025-11-01",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SALSTEEL",
-        "date": "2025-11-01",
-        "cells": {
-          "Company": "S.A.L. Steel Ltd",
-          "Insider": "Sree Metaliks Limited",
-          "Category": "Other",
-          "Security Type": "Warrants",
-          "Transaction": "Acquisition",
-          "Trade Shares": "35750000",
-          "Trade %": "24.69",
-          "Trade Value": "643500000",
-          "Post Holding Shares": "35750000",
-          "Post Holding %": "24.69",
-          "Mode": "Allotment",
-          "From Date": "2025-10-30",
-          "To Date": "2025-10-30",
-          "Broadcast Date": "2025-11-01",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "DWARKESH": [
@@ -268119,28 +268075,6 @@
           "From Date": "2025-12-09",
           "To Date": "2025-12-09",
           "Broadcast Date": "2025-12-11",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "KANPRPLA",
-        "date": "2025-11-01",
-        "cells": {
-          "Company": "Kanpur Plastipack Ltd",
-          "Insider": "Manoj Agarwal",
-          "Category": "Promoter & Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "333700",
-          "Trade %": "1.27",
-          "Trade Value": "67610957",
-          "Post Holding Shares": "2753484",
-          "Post Holding %": "11.69",
-          "Mode": "Allotment",
-          "From Date": "2025-11-01",
-          "To Date": "2025-11-01",
-          "Broadcast Date": "2025-11-01",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
