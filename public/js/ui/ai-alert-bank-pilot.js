@@ -1,4 +1,4 @@
-import { buildBankPilot, BANK_PILOT, BANK_PILOT_BRIEF, bankPilotMarkdown } from '../data/ai-alert-bank-pilot.js';
+import { buildBankPilot, BANK_PILOT, BANK_PILOT_BRIEF, BANK_PILOT_EXISTING_PROMPTS, bankPilotMarkdown } from '../data/ai-alert-bank-pilot.js';
 import { escapeHtml } from '../core/dom.js';
 
 const cached = new WeakMap();
@@ -40,7 +40,8 @@ export function bankPilotMarkup(report, universe = []) {
       <p>Dates above are source publication dates. Checks below are the feeds’ source as-of times. Undated records are excluded. Collection and source gaps can leave relevant news uncaptured; no exhaustive archive is claimed.</p>
       <ul>${pilot.feeds.map(feed => `<li><strong>${escapeHtml(feed.label || feed.id)}</strong> · ${escapeHtml(feed.status || 'unread')}${feed.reachesToday === false ? ' · does not reach today' : ''} · Source as of: ${escapeHtml(feed.asOf || 'unavailable')}${feed.note ? `<br>${escapeHtml(feed.note)}` : ''}</li>`).join('')}</ul>
     </details>
-    <details data-ai-bank-brief><summary>Reading brief / prompt</summary><p>Current AI Alerts use deterministic rules. This pilot reads the existing evidence without a model call.</p><pre>${escapeHtml(BANK_PILOT_BRIEF)}</pre></details>
+    <details data-ai-bank-brief><summary>Reading brief & current AI prompts</summary><p>Company ranking is deterministic. Existing optional AI summaries and story grouping use the separate prompts below. This pilot groups the evidence without an additional model call.</p><h3>Pilot reading brief</h3><pre>${escapeHtml(BANK_PILOT_BRIEF)}</pre>
+      ${BANK_PILOT_EXISTING_PROMPTS.map(prompt => `<h3>${escapeHtml(prompt.name)}</h3><pre>${escapeHtml(prompt.text)}</pre>`).join('')}</details>
   </section>`;
 }
 export function downloadBankPilot(report, universe = []) {

@@ -18,10 +18,11 @@ coverage disclosure and full download. Missing Universe classifications are disc
 
 ## Evidence and reading brief
 
-Current AI Alerts rank structured evidence deterministically; there is no company-alert LLM
-prompt to extend. The pilot's complete reading brief is exported from
-`public/js/data/ai-alert-bank-pilot.js`, shown in the UI and included in the Markdown download.
-It does not call a model, paid search, an enrichment provider or a collector.
+Current AI Alerts rank structured evidence deterministically, while optional factual AI summaries
+and story grouping use model prompts. The UI and Markdown download include those exact existing
+prompts from `alert-notes-shared.js` (the OpenAI variant) and `alert-stories-shared.js`, alongside the
+pilot's complete reading brief from `public/js/data/ai-alert-bank-pilot.js`. The pilot does not add
+a model, paid-search, enrichment-provider or collector call.
 
 The pilot reuses the same normalized Universe report as AI Alerts. Unlike company ranking, it
 also retains companyless market news in the seven-date interval. Named peer records retain the

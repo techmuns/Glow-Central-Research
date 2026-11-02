@@ -1,6 +1,13 @@
 // One explicitly selected bank; public Universe evidence only. No provider calls or scoring.
 import { canonicalArticleUrl } from './filings-shared.js';
 import { companyNewsAttribution, newsCanSupportAI, normalizeNewsText } from './company-news-attribution.js';
+import { NOTE_OPENAI_INSTRUCTIONS } from './alert-notes-shared.js';
+import { STORY_INSTRUCTIONS } from './alert-stories-shared.js';
+
+export const BANK_PILOT_EXISTING_PROMPTS = Object.freeze([
+  { name: 'Current factual AI summary prompt (OpenAI variant)', text: NOTE_OPENAI_INSTRUCTIONS },
+  { name: 'Current story grouping prompt', text: STORY_INSTRUCTIONS },
+]);
 
 export const BANK_PILOT = Object.freeze({
   ticker: 'J&KBANK', name: 'Jammu & Kashmir Bank', industry: 'Banks',
@@ -99,7 +106,7 @@ export function buildBankPilot(report, universe = []) {
   const groups = { company: [], peers: [], industry: [] };
   let undated = 0;
   for (const event of report.pilotEvents || report.events || []) {
-    if (event.familyPrivate) continue;
+    if (event.familyPrivate || event.private || event.portfolioOnly) continue;
     if (!isDay(event.day)) { undated++; continue; }
     if (event.day < firstDay || event.day > report.day) continue;
     const ticker = String(event.ticker || '').toUpperCase();
@@ -155,6 +162,7 @@ export function bankPilotMarkdown(pilot) {
   lines.push('## Source coverage', '', `Pending feeds: ${pilot.pending}. Undated loaded records excluded: ${pilot.undated}.`,
     'Source check times below are capture checks, not this report generation time. Publication times stay on individual records. A successful feed check does not certify exhaustive Universe/company/category coverage.', '');
   for (const feed of pilot.feeds) lines.push(`- ${md(feed.label || feed.id)}: ${md(feed.status || 'unread')}${feed.reachesToday === false ? ', does not reach today' : ''}; source as of ${md(feed.asOf) || 'unavailable'}.${feed.note ? ` ${md(feed.note)}` : ''}`);
-  lines.push('', '## Reading brief', '', 'Current AI Alerts use deterministic rules, not an LLM prompt. The pilot applies this brief to the same retained evidence without a model call.', '', BANK_PILOT_BRIEF, '');
+  lines.push('', '## Pilot reading brief', '', 'Company ranking is deterministic. Existing optional AI summaries and story grouping use the separate prompts below. This pilot groups retained evidence without an additional model call.', '', BANK_PILOT_BRIEF, '');
+  for (const prompt of BANK_PILOT_EXISTING_PROMPTS) lines.push(`## ${prompt.name}`, '', '```text', prompt.text, '```', '');
   return lines.join('\n');
 }

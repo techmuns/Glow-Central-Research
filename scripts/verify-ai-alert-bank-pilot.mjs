@@ -19,6 +19,7 @@ const feeds = [{ id:'news', label:'Company news', status:'failed', reachesToday:
 const report = { scope:'universe', day:'2026-11-02', pending:0, feeds, events:[company,peer,sector,
   event('boundary', {day:'2026-10-27'}), event('old', {day:'2026-10-26'}), event('future', {day:'2026-11-03'}),
   event('undated',{day:null}), event('bad-date',{day:'2026-02-30'}), event('private',{familyPrivate:true}),
+  event('private-flag',{private:true}), event('portfolio-only',{portfolioOnly:true}),
   event('wrong-industry',{ticker:'FINANCE',feed:'announcements',headline:'Capital raising'}),
   event('unsafe',{headline:'Bank lending rules',url:'javascript:alert(1)'}),
   event('alias',{headline:'Kotak Bank reports growth'}), event('unassigned-anchor',{headline:'Jammu and Kashmir Bank signs MoU'}),
@@ -57,7 +58,9 @@ const many = buildBankPilot({...report,events:Array.from({length:70},(_,i)=>even
 const markdown=bankPilotMarkdown(many);
 assert.equal(many.groups.industry.length,70);
 for(let i=0;i<70;i++)assert(markdown.includes(`https://example.test/sector-${i})`),'every offscreen record exports');
-assert(markdown.includes('not an LLM prompt'));
+assert(markdown.includes('Current factual AI summary prompt'));
+assert(markdown.includes('Current story grouping prompt'));
+assert(markdown.includes('without an additional model call'));
 const html=bankPilotMarkup({...report,events:[event('xss',{headline:'RBI <script>alert(1)</script>'})]},universe);
 assert(!html.includes('<script>'));assert(html.includes('&lt;script&gt;'));assert(html.includes('Partial or stale'));
 assert.equal(bankPilotMarkup({...report,scope:'portfolio'},universe),'');

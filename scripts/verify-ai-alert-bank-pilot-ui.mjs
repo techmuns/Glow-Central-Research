@@ -2,7 +2,7 @@
 // Real tab and ranking, local source fixtures, no production or paid-provider calls.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
 import { resolve, extname, sep } from 'node:path';
 const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 const root=resolve(import.meta.dirname,'../public');
@@ -53,7 +53,7 @@ try{
   assert.equal(await pilot.locator('[data-ai-bank-group="industry"] li').count(),8);
   const download=page.waitForEvent('download');await pilot.locator('[data-ai-bank-export]').click();
   const saved=await download;assert.match(saved.suggestedFilename(),/glow-jkbank-universe-pilot/);
-  const content=readFileSync(await saved.path(),'utf8');assert(content.includes('banking liquidity rule 7'));assert(content.includes('Reading brief'));
+  const content=readFileSync(await saved.path(),'utf8');assert(content.includes('banking liquidity rule 7'));assert.match(content,/reading brief/i);
   await page.evaluate(()=>window.arrive());
   await page.waitForFunction(()=>document.querySelector('[data-ai-bank-pilot-card]')?.textContent.includes('new bank deposit rule'));
   assert.equal(await pilot.locator('[data-ai-bank-more="industry"]').getAttribute('open'),'','expanded evidence survives arrivals');
@@ -61,9 +61,15 @@ try{
   await page.evaluate(()=>window.show('portfolio'));await pilot.waitFor({state:'detached'});
   await page.evaluate(()=>window.show('watchlist'));assert.equal(await pilot.count(),0);
   await page.evaluate(()=>window.show('universe'));await pilot.waitFor();
+  const output=resolve(root,'../.cache/bank-alert-pilot');mkdirSync(output,{recursive:true});
+  await page.evaluate(()=>document.documentElement.dataset.theme='light');
+  const light=await pilot.evaluate(node=>getComputedStyle(node).backgroundColor);
+  await page.screenshot({path:resolve(output,'fixture-light.png')});
   await page.setViewportSize({width:390,height:844});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'pilot fits a narrow viewport');
-  await page.evaluate(()=>document.documentElement.classList.add('dark'));
+  await page.evaluate(()=>document.documentElement.dataset.theme='dark');
+  assert.notEqual(await pilot.evaluate(node=>getComputedStyle(node).backgroundColor),light,'pilot follows the actual shared dark-theme tokens');
+  await page.screenshot({path:resolve(output,'fixture-dark-mobile.png')});
   assert.equal(await pilot.locator('h2').count(),1);
   assert.deepEqual(errors,[]);
   console.log('PASS: real AI Alerts tab, three linked groups, complete download, failed-source notice, automatic arrivals with expanded-state preservation, Universe-only scopes, narrow viewport and no JavaScript errors.');
