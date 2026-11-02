@@ -42,7 +42,8 @@ const isNews = event => ['news', 'market-news', 'twitter'].includes(event.feed);
 export function bankingTopic(event) {
   const text = textOf(event), headline = event.headline || '';
   if (/\b(?:banks? on|vote banks?|robs? bank|bank heist|bank robbery)\b/i.test(headline)) return null;
-  if (/\b(?:RBI|Reserve Bank of India|cash reserve ratio|statutory liquidity ratio)\b/i.test(text)) return 'RBI, rates & regulation';
+  if (/\b(?:RBI|Reserve Bank of India|repo rate|cash reserve ratio|statutory liquidity ratio)\b/i.test(text)) return 'RBI, rates & regulation';
+  if (/\b(?:deposit growth|credit.deposit ratio|net interest margins?|CASA ratio|bank credit)\b/i.test(text)) return 'Deposits, credit & margins';
   // This is an Indian bank's industry reading. A foreign market wrap or a bank analyst's
   // commodity forecast is not a banking development merely because its summary says “bank”.
   const indian = /\b(?:India|Indian|RBI)\b/i.test(text);

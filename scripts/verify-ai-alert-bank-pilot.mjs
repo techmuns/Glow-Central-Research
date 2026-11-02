@@ -45,7 +45,7 @@ assert(pilot.feeds.some(feed=>feed.status==='failed'&&feed.asOf==='2026-11-02T04
 assert.equal(buildBankPilot(report,[]).metadataUnavailable,true);
 for(const headline of ['Trump banks on a rally','Goldman Sachs raises oil price forecasts','China stocks rise as banks rally','World Bank approves a climate project','River bank collapses'])
   assert.equal(bankingTopic({headline}),null,headline);
-for(const headline of ['RBI updates liquidity rules','Banks report strong deposit growth','Indian banking sector faces higher credit costs'])
+for(const headline of ['RBI updates liquidity rules','Banks report strong deposit growth','Indian banking sector faces higher credit costs','Repo rate cut expected as inflation eases','Deposit growth slows across the system'])
   assert(bankingTopic({headline}),headline);
 const central=buildBankPilot({...report,events:[event('central',{headline:'Central bank considers changes to banking policy'})]},
   [...universe,{ticker:'CENTRALBK',name:'Central Bank',industry:'Banks'}]);
