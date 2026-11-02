@@ -24,10 +24,17 @@ const events=[{...base,id:'company',ticker:'J&KBANK',company:'Jammu & Kashmir Ba
 if(window.extra)events.push({...base,id:'late',ticker:null,company:'Market-wide',feed:'market-news',headline:'RBI announces a new bank deposit rule',url:'https://example.test/late'});
 const report={scope,day,pending:0,events:scope==='universe'?events:events.filter(e=>e.ticker==='J&KBANK'),feeds:[{id:'announcements',status:'ok',reachesToday:true,asOf:day},{id:'market-news',status:'failed',reachesToday:false,asOf:day,note:'One publisher failed'}]};
 onPartial?.({...report,pending:1});return report;}`;
+let legacy=false;
 const server=createServer((req,res)=>{
   const path=new URL(req.url,'http://localhost').pathname;
   res.setHeader('cache-control','no-store');
-  if(path==='/'){res.setHeader('content-type','text/html');res.end(html);return;}
+  if(path==='/'||path==='/index.html'){res.setHeader('content-type','text/html');res.end(html);return;}
+  if(path==='/js/ui/ai-alert-bank-pilot.js'&&legacy){res.setHeader('content-type','text/javascript');res.end('export const bankPilotMarkup=()=>"";export const downloadBankPilot=()=>{};');return;}
+  if(path==='/sw.js'){
+    let body=readFileSync(resolve(root,'sw.js'),'utf8');
+    if(legacy)body=body.replace('bank-alert-pilot-v4','legacy-bank-pilot-fixture');
+    res.setHeader('content-type','text/javascript');res.end(body);return;
+  }
   if(path==='/js/data/daily-alerts.js'){res.setHeader('content-type','text/javascript');res.end(source);return;}
   if(path.startsWith('/api/')){res.writeHead(503);res.end('{}');return;}
   const file=resolve(root,'.'+path);
@@ -72,6 +79,27 @@ try{
   assert.notEqual(await pilot.evaluate(node=>getComputedStyle(node).backgroundColor),light,'pilot follows the actual shared dark-theme tokens');
   await page.screenshot({path:resolve(output,'fixture-dark-mobile.png')});
   assert.equal(await pilot.locator('h2').count(),1);
+  // An already controlled reader must discard its immutable pre-pilot module graph. A fresh
+  // asset response alone cannot establish that a returning dashboard received the feature.
+  legacy=true;
+  const returningContext=await browser.newContext();
+  await returningContext.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.fulfill({status:503,body:'{}'}));
+  const returning=await returningContext.newPage();returning.on('pageerror',error=>errors.push(error.message));
+  await returning.goto(origin);
+  await returning.evaluate(async()=>{await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready;});
+  await returning.waitForFunction(()=>!!navigator.serviceWorker.controller);
+  await returning.reload();await returning.locator('[data-ai-layout]').waitFor();
+  assert.equal(await returning.locator('[data-ai-bank-pilot-card]').count(),0,'old cached graph has no pilot');
+  await returning.evaluate(async()=>{
+    const{watchWorkerChanges}=await import('/js/core/app-updates.js');
+    watchWorkerChanges(navigator.serviceWorker,()=>{sessionStorage.setItem('bank-pilot-upgraded','1');location.reload();});
+    await(await navigator.serviceWorker.getRegistration()).update();
+  });
+  await returning.waitForLoadState('networkidle');legacy=false;
+  await returning.evaluate(async()=>{await(await navigator.serviceWorker.getRegistration()).update();});
+  await returning.waitForFunction(()=>sessionStorage.getItem('bank-pilot-upgraded')==='1'&&!!document.querySelector('[data-ai-bank-pilot-card]'),{},{timeout:60000});
+  assert.match(await returning.locator('[data-ai-bank-group="industry"]').textContent(),/RBI changes banking/);
+  await returningContext.close();
   assert.deepEqual(errors,[]);
-  console.log('PASS: real AI Alerts tab, three linked groups, complete download, failed-source notice, automatic arrivals with expanded-state preservation, Universe-only scopes, narrow viewport and no JavaScript errors.');
+  console.log('PASS: real AI Alerts tab, three linked groups, complete download, failed-source notice, automatic arrivals with expanded-state preservation, Universe-only scopes, light/dark mobile layout, returning-session upgrade and no JavaScript errors.');
 }finally{await browser.close();await new Promise(done=>server.close(done));}
