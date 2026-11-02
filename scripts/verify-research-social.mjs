@@ -132,14 +132,16 @@ try {
   }
   const book = JSON.parse(readFileSync(new URL('../public/data/portfolio-companies.json', import.meta.url), 'utf8'));
   const actions = JSON.parse(readFileSync(new URL('../public/data/corporate-actions.json', import.meta.url), 'utf8')).rows;
-  const heldTickers = new Set(book.holdings.map(row => row.ticker).filter(Boolean));
+  const heldByTicker = new Map(book.holdings.filter(row => row.ticker).map(row => [row.ticker, row]));
   // The capture advances with real time, while this social fixture deliberately stays in
   // September. Its first held action can therefore be months in the fixture's future. Select
   // actual retained evidence inside the pinned research window rather than assuming row order.
+  // Historical share ISINs can also differ from today's holding: the adapter deliberately
+  // refuses that security mismatch even under the same ticker, so the fixture must match both.
   const actionThrough = at.slice(0, 10);
   const actionFrom = new Date(Date.parse(at) - 59 * 86400000).toISOString().slice(0, 10);
-  const actionSubject = actions.find(row => heldTickers.has(row.ticker) && row.exDate >= actionFrom && row.exDate <= actionThrough);
-  assert(actionSubject, 'the local saved estate contains a held corporate action inside the pinned research window');
+  const actionSubject = actions.find(row => heldByTicker.has(row.ticker) && row.isin === heldByTicker.get(row.ticker).isin && row.exDate >= actionFrom && row.exDate <= actionThrough);
+  assert(actionSubject, 'the local saved estate contains a matching held security action inside the pinned research window');
   const actionPacket = await build(`Show corporate actions for ${actionSubject.ticker}.`);
   const actionRows = actionPacket.sources.find(source => source.id === 'corporate-actions').rows;
   if (!actionRows.length) console.error('Corporate actions evidence diagnostics', JSON.stringify({
