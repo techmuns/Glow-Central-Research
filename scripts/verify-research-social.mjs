@@ -133,8 +133,13 @@ try {
   const book = JSON.parse(readFileSync(new URL('../public/data/portfolio-companies.json', import.meta.url), 'utf8'));
   const actions = JSON.parse(readFileSync(new URL('../public/data/corporate-actions.json', import.meta.url), 'utf8')).rows;
   const heldTickers = new Set(book.holdings.map(row => row.ticker).filter(Boolean));
-  const actionSubject = actions.find(row => heldTickers.has(row.ticker));
-  assert(actionSubject, 'the local saved estate contains a corporate-action fixture for a held issuer');
+  // The capture advances with real time, while this social fixture deliberately stays in
+  // September. Its first held action can therefore be months in the fixture's future. Select
+  // actual retained evidence inside the pinned research window rather than assuming row order.
+  const actionThrough = at.slice(0, 10);
+  const actionFrom = new Date(Date.parse(at) - 59 * 86400000).toISOString().slice(0, 10);
+  const actionSubject = actions.find(row => heldTickers.has(row.ticker) && row.exDate >= actionFrom && row.exDate <= actionThrough);
+  assert(actionSubject, 'the local saved estate contains a held corporate action inside the pinned research window');
   const actionPacket = await build(`Show corporate actions for ${actionSubject.ticker}.`);
   const actionRows = actionPacket.sources.find(source => source.id === 'corporate-actions').rows;
   assert(actionRows.length, 'the Corporate Actions tab has an independent evidence adapter with actual retained rows');
