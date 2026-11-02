@@ -27,6 +27,7 @@ import { normalizeBookmark, snapshotForRow } from '../core/bookmark-record.js';
 import * as alertPool from '../data/alert-pool.js';
 import { bookmarkButton, wireBookmarks } from '../ui/bookmark-button.js';
 import { reconcileMarkup } from '../ui/reconcile-markup.js';
+import { bankPilotMarkup, downloadBankPilot } from '../ui/ai-alert-bank-pilot.js';
 import { getHostContext } from '../core/host-context.js';
 import { formatNumber } from '../core/format.js';
 import * as refresh from '../core/refresh.js';
@@ -621,12 +622,15 @@ function paint(ctx) {
   // Keep the input node mounted while typing and while independent feeds deliver partials.
   // Replacing the whole root loses the caret, keyboard focus and IME composition.
   if (!ctx.root.querySelector('[data-ai-layout]')) {
-    ctx.root.innerHTML = `<div data-ai-layout><div data-ai-heading></div><div data-ai-position-status></div>
+    ctx.root.innerHTML = `<div data-ai-layout><div data-ai-heading></div><div data-ai-position-status></div><div data-ai-bank-pilot></div>
       <div data-ai-toolbar><div data-ai-controls class="ai-alert-toolbar">
         <div data-ai-priorities class="ai-alert-priorities" role="group" aria-label="Filter AI Alerts by priority"></div>
         <div class="ai-alert-tools">${searchMarkup()}<div data-ai-view-controls class="ai-alert-view-controls text-xs text-slate-500"></div></div>
       </div><div data-ai-filter-summary></div></div><div data-ai-search-note></div><div data-ai-new-pill class="ai-new-pill-slot"></div><span class="sr-only" data-ai-arrivals role="status" aria-live="polite" aria-atomic="true"></span><div data-ai-results></div></div>`;
     const input = ctx.root.querySelector('[data-ai-search]');
+    ctx.root.querySelector('[data-ai-bank-pilot]').addEventListener('click', event => {
+      if (event.target.closest('[data-ai-bank-export]')) downloadBankPilot(report, ctxRef?.data?.universe || []);
+    });
     input.value = query;
     input.addEventListener('input', () => {
       query = input.value;
@@ -652,6 +656,7 @@ function paint(ctx) {
   ctx.root.querySelector('[data-ai-layout]').setAttribute('data-ai-collecting', String(collecting));
   reconcileMarkup(ctx.root.querySelector('[data-ai-heading]'), head(ctx));
   reconcileMarkup(ctx.root.querySelector('[data-ai-position-status]'), positionStatus() + kpiStatusMarkup());
+  reconcileMarkup(ctx.root.querySelector('[data-ai-bank-pilot]'), bankPilotMarkup(report, ctx.data?.universe || []));
   ctx.root.querySelector('[data-ai-clear]').hidden = !query.length;
   const toolbar = report ? controls(pool, cards.length) : { priorities: '', view: '' };
   // Identical results keep their DOM, expanded evidence and keyboard focus.

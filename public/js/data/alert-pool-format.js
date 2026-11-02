@@ -10,7 +10,9 @@
 //
 // An AI SHARD carries one calendar month of the events the ranking can read at all: events the
 // attribution rules allow to support or contextualise a card (`newsCanSupportAI`,
-// `isRelatedNewsContext`), inside the context lookback; the tickerless events of the ranking
+// `isRelatedNewsContext`), inside the context lookback; every company-news record in the
+// seven-date bank pilot (including search rows whose actual headline names another bank);
+// the tickerless events of the ranking
 // window, which only ever contribute to the market-wide count; and again every URL companion, so
 // the publisher dedupe sees whole groups and picks the same winner it would from the full history.
 // Those events are COMPACT: the ranking never reads `sourceRecord`, so it is dropped — except that
@@ -80,6 +82,10 @@ export function buildDayShards(sourceFeeds, day) {
 /** Whether the ranking can read an event at all, for a pool built for `day`. */
 export function aiPoolKeep(event, day, oldest = aiPoolOldestDay(day), firstDay = shiftDay(day, -(AI_POOL_WINDOW_DAYS - 1))) {
   if (!isDay(event.day) || event.day > day) return false;
+  // The Universe bank pilot re-attributes literal peer mentions without letting an uncertain
+  // search-query identity support a ranked card. The browser needs the retained source text
+  // to make that distinction; the company ranking still applies its existing attribution gate.
+  if (event.feed === 'news' && event.day >= shiftDay(day, -6)) return true;
   // Market-wide source events acquire their company attribution during assembly,
   // after the pool is read. Older stories can still become card context for the
   // reader's book; judging their raw attribution here silently drops that context.

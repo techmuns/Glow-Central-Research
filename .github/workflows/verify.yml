@@ -182,7 +182,7 @@ jobs:
       - name: Verify the precomputed alert pool is exact and stands aside honestly
         run: node scripts/verify-announcement-delivery.mjs && node scripts/verify-alert-pool-cache.mjs && node scripts/verify-alert-pool-delivery.mjs && node --max-old-space-size=4096 scripts/verify-alert-pool.mjs
       - name: Verify AI alert search, calendar dates and the KPIs in play
-        run: node scripts/verify-ai-alerts.mjs && node scripts/verify-ai-alert-search.mjs && node scripts/verify-ai-alerts-compact.mjs && node scripts/verify-ai-alert-types.mjs && node scripts/verify-alert-timeline.mjs && node scripts/verify-alert-capacity.mjs && node scripts/verify-kpi-impact.mjs
+        run: node scripts/verify-ai-alerts.mjs && node scripts/verify-ai-alert-bank-pilot.mjs && node scripts/verify-ai-alert-search.mjs && node scripts/verify-ai-alerts-compact.mjs && node scripts/verify-ai-alert-types.mjs && node scripts/verify-alert-timeline.mjs && node scripts/verify-alert-capacity.mjs && node scripts/verify-kpi-impact.mjs
       - name: Verify indirect theme exposure on AI Alerts
         run: node scripts/verify-theme-exposures.mjs
       - name: Verify material alert lifecycle and optional social coverage
@@ -216,6 +216,11 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/family-browser" --no-save --package-lock=false playwright@1.62.1 exceljs@4.4.0
           node "$RUNNER_TEMP/family-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Verify Telegram and public chatter portfolio evidence
+        if: ${{ matrix.part == 1 }}
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-research-social.mjs
       # Check the native cache handoff before the rest of the independent shard,
       # so a release-boundary failure supplies diagnostics without a long wait.
       - name: Verify clean corporate stream, automatic history and live scope updates
@@ -344,11 +349,6 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-chatter-reliability-ui.mjs && node scripts/verify-chatter-highlights-ui.mjs && node scripts/verify-chatter-upgrade-ui.mjs
-      - name: Verify Telegram and public chatter portfolio evidence
-        if: ${{ matrix.part == 1 }}
-        env:
-          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-research-social.mjs
       - name: Verify Sterlite peer questions against the whole saved dashboard
         if: ${{ matrix.part == 2 }}
         env:
@@ -358,7 +358,7 @@ jobs:
         if: ${{ matrix.part == 3 }}
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-alert-card-grid-ui.mjs && node scripts/verify-ai-alerts-ui.mjs && node scripts/verify-ai-alerts-compact-ui.mjs && node scripts/verify-ai-alert-types-ui.mjs && node scripts/verify-ai-alert-timeline-ui.mjs && node scripts/verify-alert-capacity-ui.mjs && node scripts/verify-kpi-impact-ui.mjs && node scripts/verify-alert-prices-ui.mjs && node scripts/verify-cmp-opening-ui.mjs
+        run: node scripts/verify-alert-card-grid-ui.mjs && node scripts/verify-ai-alerts-ui.mjs && node scripts/verify-ai-alert-bank-pilot-ui.mjs && node scripts/verify-ai-alerts-compact-ui.mjs && node scripts/verify-ai-alert-types-ui.mjs && node scripts/verify-ai-alert-timeline-ui.mjs && node scripts/verify-alert-capacity-ui.mjs && node scripts/verify-kpi-impact-ui.mjs && node scripts/verify-alert-prices-ui.mjs && node scripts/verify-cmp-opening-ui.mjs
       - name: Verify explicit refresh through the service worker
         if: ${{ matrix.part == 1 }}
         env:
