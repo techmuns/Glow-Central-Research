@@ -32,7 +32,7 @@ const server=createServer((req,res)=>{
   if(path==='/js/ui/ai-alert-bank-pilot.js'&&legacy){res.setHeader('content-type','text/javascript');res.end('export const bankPilotMarkup=()=>"";export const downloadBankPilot=()=>{};');return;}
   if(path==='/sw.js'){
     let body=readFileSync(resolve(root,'sw.js'),'utf8');
-    if(legacy)body=body.replace('bank-alert-pilot-v4','legacy-bank-pilot-fixture');
+    if(legacy)body=body.replace(/bank-alert-pilot-v\d+/,'legacy-bank-pilot-fixture');
     res.setHeader('content-type','text/javascript');res.end(body);return;
   }
   if(path==='/js/data/daily-alerts.js'){res.setHeader('content-type','text/javascript');res.end(source);return;}
@@ -95,7 +95,11 @@ try{
     watchWorkerChanges(navigator.serviceWorker,()=>{sessionStorage.setItem('bank-pilot-upgraded','1');location.reload();});
     await(await navigator.serviceWorker.getRegistration()).update();
   });
-  await returning.waitForLoadState('networkidle');legacy=false;
+  await returning.waitForFunction(async()=>{
+    const registration=await navigator.serviceWorker.getRegistration();
+    return registration&&!registration.installing&&!registration.waiting;
+  });
+  legacy=false;
   await returning.evaluate(async()=>{await(await navigator.serviceWorker.getRegistration()).update();});
   await returning.waitForFunction(()=>sessionStorage.getItem('bank-pilot-upgraded')==='1'&&!!document.querySelector('[data-ai-bank-pilot-card]'),{},{timeout:60000});
   assert.match(await returning.locator('[data-ai-bank-group="industry"]').textContent(),/RBI changes banking/);
