@@ -843,11 +843,16 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
   // confluence pattern or keep a card for the review window. Only a DECISIVE copy joins: the
   // card's timeline shows every record it holds, and theme commentary on it outnumbered the
   // company's own filings (measured on OneSource's card, 6 rows of 14). All Alerts keeps them all.
-  const supportedEvents = [], windowEvidence = [], grouped = new Map();
+  const supportedEvents = [], windowEvidence = [], grouped = new Map(), pilotEvents = [];
+  const pilotFirstDay = shiftDay(day, -6);
   const allEvents = report?.events || [];
   for (let i = 0; i < allEvents.length; i++) {
     if ((i & 1023) === 1023) yield;
     const event = allEvents[i];
+    // The Universe pilot also reads unassigned sector news. Keep it outside the company
+    // ranking and private caches; context never acquires the anchor company's identity.
+    if (report?.scope === 'universe' && !event.familyPrivate && validDay(event.day) &&
+        event.day >= pilotFirstDay && event.day <= day) pilotEvents.push(event);
     const supported = newsCanSupportAI(event);
     if (supported) supportedEvents.push(event);
     if (!((event.ticker || event.entityId) && validDay(event.day) && event.day >= firstDay && event.day <= day)) continue;
@@ -996,6 +1001,7 @@ function* rankSteps(report, { holdings = coverage.holdings(), positionSizes = nu
     feeds: report?.feeds || [],
     cards: surfaced,
     allCards: cards,
+    pilotEvents,
     meta: {
       positionSizes: positionSizes?.sizes || null,
       sortedByHolding: report?.scope === 'portfolio' && weights.size > 0,
@@ -1096,6 +1102,18 @@ function mergePlan(previous, next) {
 }
 
 function finishMerge(previous, next, merged) {
+  // Failed/pending sources must not erase the pilot's companyless sector records. Current
+  // publications win corrections; a successful source may retract its superseded records.
+  if (next.scope === 'universe') {
+    const unfinished = new Set(next.feeds.filter(feed => feed.status !== 'ok').map(feed => feed.id));
+    const key = event => `${event.feed}:${event.id}`;
+    const pilot = new Map((previous.pilotEvents || []).filter(event => unfinished.has(event.feed)).map(event => [key(event), event]));
+    for (const event of next.pilotEvents || []) pilot.set(key(event), event);
+    const base = merged;
+    merged = { ...base, pilotEvents: [...pilot.values()] };
+    rankingOptions.set(merged, rankingOptions.get(base));
+    rankingEvidence.set(merged, rankingEvidence.get(base));
+  }
   const key = cardKey;
   const existingVisible = new Set(previous.cards.map(key));
   const arrivingVisible = new Set(next.cards.map(key));
@@ -1130,7 +1148,7 @@ export function narrowReport(source, scope, { holdings = coverage.holdings() } =
   const allCards = source.allCards.filter(inScope);
   const kept = new Set(allCards);
   const cards = source.cards.filter(card => kept.has(card));
-  const result = { ...source, scope, cards, allCards, provisional: true, meta: { ...source.meta,
+  const result = { ...source, scope, cards, allCards, pilotEvents: [], provisional: true, meta: { ...source.meta,
     sortedByHolding: false, activeCompanies: allCards.length, surfacedCompanies: cards.length,
     suppressedCompanies: allCards.length - cards.length,
     mustSee: cards.filter(card => card.priority === 'must-see').length,
