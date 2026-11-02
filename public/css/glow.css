@@ -117,19 +117,19 @@ tr:hover .sheet-row-action, .sheet-row-action:focus-visible { opacity: 1; }
 .sheet-upload-status.is-error { color: rgb(var(--text-rose-600, 225 29 72)); }
 
 /* One-bank Universe pilot: ordinary theme tokens, with all evidence available in each group. */
-.bank-pilot { margin: 16px 0 24px; padding: 20px; border: 1px solid rgb(var(--edge-slate-200)); border-radius: 16px; background: rgb(var(--surface-white)); color: rgb(var(--text-slate-700)); font-size: 12px; line-height: 1.6; }
+.bank-pilot { margin: 16px 0 24px; padding: 20px; border: 1px solid rgb(var(--edge-slate-200, 226 232 240)); border-radius: 16px; background: rgb(var(--surface-white, 255 255 255)); color: rgb(var(--text-slate-700, 51 65 85)); font-size: 12px; line-height: 1.6; }
 .bank-pilot-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
 .bank-pilot-kicker { color: var(--accent-600); font-size: 11px; font-weight: 700; }
-.bank-pilot h2 { margin: 2px 0 0; color: rgb(var(--text-slate-900)); font-size: 17px; font-weight: 700; }
+.bank-pilot h2 { margin: 2px 0 0; color: rgb(var(--text-slate-900, 15 23 42)); font-size: 17px; font-weight: 700; }
 .bank-pilot p { margin: 10px 0; }
-.bank-pilot-status { color: rgb(var(--text-amber-700)); }
-.bank-pilot button { padding: 8px 12px; border: 1px solid rgb(var(--edge-slate-200)); border-radius: 9px; color: var(--accent-600); background: rgb(var(--surface-white)); font-weight: 600; }
+.bank-pilot-status { color: rgb(var(--text-amber-700, 180 83 9)); }
+.bank-pilot button { padding: 8px 12px; border: 1px solid rgb(var(--edge-slate-200, 226 232 240)); border-radius: 9px; color: var(--accent-600); background: rgb(var(--surface-white, 255 255 255)); font-weight: 600; }
 .bank-pilot-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin: 18px 0; }
-.bank-pilot-group h3 { margin: 0; font-size: 13px; font-weight: 700; color: rgb(var(--text-slate-900)); }
-.bank-pilot-group h3 span { margin-left: 5px; color: rgb(var(--text-slate-500)); font-weight: 400; }
+.bank-pilot-group h3 { margin: 0; font-size: 13px; font-weight: 700; color: rgb(var(--text-slate-900, 15 23 42)); }
+.bank-pilot-group h3 span { margin-left: 5px; color: rgb(var(--text-slate-500, 100 116 139)); font-weight: 400; }
 .bank-pilot-rows { padding: 0; margin: 0; list-style: none; }
-.bank-pilot-rows li { padding: 12px 0; border-bottom: 1px solid rgb(var(--edge-slate-100)); overflow-wrap: anywhere; }
-.bank-pilot-meta { font-size: 10px; color: rgb(var(--text-slate-500)); }
+.bank-pilot-rows li { padding: 12px 0; border-bottom: 1px solid rgb(var(--edge-slate-100, 241 245 249)); overflow-wrap: anywhere; }
+.bank-pilot-meta { font-size: 10px; color: rgb(var(--text-slate-500, 100 116 139)); }
 .bank-pilot-relation { margin: 2px 0; font-size: 11px; font-weight: 600; }
 .bank-pilot a { color: var(--accent-600); text-decoration: underline; text-underline-offset: 2px; }
 .bank-pilot details { margin-top: 10px; }

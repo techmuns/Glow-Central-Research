@@ -64,6 +64,7 @@ try{
   const output=resolve(root,'../.cache/bank-alert-pilot');mkdirSync(output,{recursive:true});
   await page.evaluate(()=>document.documentElement.dataset.theme='light');
   const light=await pilot.evaluate(node=>getComputedStyle(node).backgroundColor);
+  assert.equal(light,'rgb(255, 255, 255)','light mode has an opaque shared white surface');
   await page.screenshot({path:resolve(output,'fixture-light.png')});
   await page.setViewportSize({width:390,height:844});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'pilot fits a narrow viewport');
