@@ -142,6 +142,14 @@ try {
   assert(actionSubject, 'the local saved estate contains a held corporate action inside the pinned research window');
   const actionPacket = await build(`Show corporate actions for ${actionSubject.ticker}.`);
   const actionRows = actionPacket.sources.find(source => source.id === 'corporate-actions').rows;
+  if (!actionRows.length) console.error('Corporate actions evidence diagnostics', JSON.stringify({
+    subject: actionSubject.ticker, selection: actionPacket.selection,
+    source: actionPacket.sources.find(source => source.id === 'corporate-actions'),
+    reader: await page.evaluate(async ticker => {
+      const actions = await import('/js/data/corporate-actions.js');
+      return { meta: actions.meta(), matching: actions.rows().filter(row => row.ticker === ticker).slice(0, 2) };
+    }, actionSubject.ticker),
+  }));
   assert(actionRows.length, 'the Corporate Actions tab has an independent evidence adapter with actual retained rows');
   for (const row of actionRows) {
     const original = actions.find(action => action.ticker === row.ticker && action.exDate === row.exDate && action.purpose === row.title);

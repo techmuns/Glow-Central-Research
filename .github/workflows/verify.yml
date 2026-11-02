@@ -216,6 +216,11 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/family-browser" --no-save --package-lock=false playwright@1.62.1 exceljs@4.4.0
           node "$RUNNER_TEMP/family-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Verify Telegram and public chatter portfolio evidence
+        if: ${{ matrix.part == 1 }}
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-research-social.mjs
       # Check the native cache handoff before the rest of the independent shard,
       # so a release-boundary failure supplies diagnostics without a long wait.
       - name: Verify clean corporate stream, automatic history and live scope updates
@@ -344,11 +349,6 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-chatter-reliability-ui.mjs && node scripts/verify-chatter-highlights-ui.mjs && node scripts/verify-chatter-upgrade-ui.mjs
-      - name: Verify Telegram and public chatter portfolio evidence
-        if: ${{ matrix.part == 1 }}
-        env:
-          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-research-social.mjs
       - name: Verify Sterlite peer questions against the whole saved dashboard
         if: ${{ matrix.part == 2 }}
         env:
