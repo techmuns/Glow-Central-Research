@@ -1,18 +1,18 @@
 {
  "_provenance": "THE FAMILY OFFICE BOOK, as the wealth platforms’ statements print it. Built by scripts/build-book.mjs from src/data/glowData.ts in techmuns/GlowVentures, itself generated from the PDF statements in that repository’s archive. Every figure traces to one document; a null is a figure the statements do not carry, never a zero. Market values are the statements’ own marks on each account’s report date (summary.asOf is the newest); the dashboard adds a live mark only for listed symbols and labels it.",
  "source": "techmuns/GlowVentures src/data/glowData.ts",
- "builtFrom": "4958ece",
- "sourcePublishedAt": "2026-11-02T16:57:49+05:30",
- "asOf": "2026-10-29",
+ "builtFrom": "a800154",
+ "sourcePublishedAt": "2026-11-03T16:31:07+05:30",
+ "asOf": "2026-11-03",
  "summary": {
-  "asOf": "2026-10-29",
-  "listedValue": 6874910837.12,
+  "asOf": "2026-11-03",
+  "listedValue": 7010469411.58,
   "privateValue": 2765890203.68,
-  "totalValue": 9640801040.8,
-  "positionsCount": 469,
+  "totalValue": 9776359615.26,
+  "positionsCount": 471,
   "entitiesCount": 11,
   "startupsCount": 0,
-  "accountsCount": 86
+  "accountsCount": 88
  },
  "owners": [
   {
@@ -589,7 +589,37 @@
    "strategy": null,
    "engagement": "Direct",
    "providerEngagement": "mutual-fund folio, Direct plan as the statement states",
-   "asOf": "2026-10-26",
+   "asOf": "2026-11-03",
+   "inceptionDate": null,
+   "custodian": "Helios Mutual Fund",
+   "members": [],
+   "noPositionsReason": null
+  },
+  {
+   "accountId": "helios-mutual-fund-10056154",
+   "provider": "Helios Mutual Fund",
+   "accountNo": "10056154",
+   "ownerId": "ankita-jaisinghani",
+   "owner": "Ankita Jaisinghani",
+   "strategy": null,
+   "engagement": "Direct",
+   "providerEngagement": "mutual-fund folio, Direct plan as the statement states",
+   "asOf": "2026-11-03",
+   "inceptionDate": null,
+   "custodian": "Helios Mutual Fund",
+   "members": [],
+   "noPositionsReason": null
+  },
+  {
+   "accountId": "helios-mutual-fund-10063876",
+   "provider": "Helios Mutual Fund",
+   "accountNo": "10063876",
+   "ownerId": "bharat-jaisinghani",
+   "owner": "Bharat Jaisinghani",
+   "strategy": null,
+   "engagement": "Direct",
+   "providerEngagement": "mutual-fund folio, Direct plan as the statement states",
+   "asOf": "2026-11-03",
    "inceptionDate": null,
    "custodian": "Helios Mutual Fund",
    "members": [],
@@ -604,7 +634,7 @@
    "strategy": null,
    "engagement": "Direct",
    "providerEngagement": "mutual-fund folio, Direct plan as the statement states",
-   "asOf": "2026-10-26",
+   "asOf": "2026-11-03",
    "inceptionDate": null,
    "custodian": "Helios Mutual Fund",
    "members": [],
@@ -8139,12 +8169,12 @@
    "providerSector": null,
    "assetClass": "Mutual Fund",
    "quantity": 3245281.682,
-   "marketValue": 48127527.34,
+   "marketValue": 50756205.51,
    "costBasis": 46000000,
-   "unrealizedPnL": 2127527.34,
-   "returnPct": 4.63,
+   "unrealizedPnL": 4756205.51,
+   "returnPct": 10.34,
    "avgCost": 14.1744,
-   "currentPrice": 14.83,
+   "currentPrice": 15.64,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -8162,7 +8192,79 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
    "engagement": "Direct",
-   "accountAsOf": "2026-10-26"
+   "accountAsOf": "2026-11-03"
+  },
+  {
+   "securityKey": "helios-flexi-cap-fund-direct-growth",
+   "security": "Helios Flexi Cap Fund - Direct Growth",
+   "symbol": null,
+   "isin": "INF0R8701046",
+   "accountId": "helios-mutual-fund-10056154",
+   "memberId": null,
+   "sector": "Unclassified",
+   "providerSector": null,
+   "assetClass": "Mutual Fund",
+   "quantity": 5100984.835,
+   "marketValue": 79779402.82,
+   "costBasis": 72400000,
+   "unrealizedPnL": 7379402.82,
+   "returnPct": 10.19,
+   "avgCost": 14.1933,
+   "currentPrice": 15.64,
+   "costBasisSource": null,
+   "costUnavailable": null,
+   "stCostBasis": null,
+   "ltCostBasis": null,
+   "daysToLT": null,
+   "heldSince": null,
+   "accruedIncome": null,
+   "dividendReceived": null,
+   "positionIrrPct": null,
+   "dedupeGroup": null,
+   "alsoReportedUnder": null,
+   "marketSide": "listed",
+   "provider": "Helios Mutual Fund",
+   "owner": "Ankita Jaisinghani",
+   "ownerId": "ankita-jaisinghani",
+   "strategy": null,
+   "engagement": "Direct",
+   "accountAsOf": "2026-11-03"
+  },
+  {
+   "securityKey": "helios-flexi-cap-fund-direct-growth",
+   "security": "Helios Flexi Cap Fund - Direct Growth",
+   "symbol": null,
+   "isin": "INF0R8701046",
+   "accountId": "helios-mutual-fund-10063876",
+   "memberId": null,
+   "sector": "Unclassified",
+   "providerSector": null,
+   "assetClass": "Mutual Fund",
+   "quantity": 2407981.455,
+   "marketValue": 37660829.96,
+   "costBasis": 34790000,
+   "unrealizedPnL": 2870829.96,
+   "returnPct": 8.25,
+   "avgCost": 14.4478,
+   "currentPrice": 15.64,
+   "costBasisSource": null,
+   "costUnavailable": null,
+   "stCostBasis": null,
+   "ltCostBasis": null,
+   "daysToLT": null,
+   "heldSince": null,
+   "accruedIncome": null,
+   "dividendReceived": null,
+   "positionIrrPct": null,
+   "dedupeGroup": null,
+   "alsoReportedUnder": null,
+   "marketSide": "listed",
+   "provider": "Helios Mutual Fund",
+   "owner": "Bharat Jaisinghani",
+   "ownerId": "bharat-jaisinghani",
+   "strategy": null,
+   "engagement": "Direct",
+   "accountAsOf": "2026-11-03"
   },
   {
    "securityKey": "helios-flexi-cap-fund-direct-growth",
@@ -8175,12 +8277,12 @@
    "providerSector": null,
    "assetClass": "Mutual Fund",
    "quantity": 19123041.38,
-   "marketValue": 283594703.67,
+   "marketValue": 299084367.18,
    "costBasis": 310000000,
-   "unrealizedPnL": -26405296.33,
-   "returnPct": -8.52,
+   "unrealizedPnL": -10915632.82,
+   "returnPct": -3.52,
    "avgCost": 16.2108,
-   "currentPrice": 14.83,
+   "currentPrice": 15.64,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -8198,7 +8300,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
    "engagement": "Direct",
-   "accountAsOf": "2026-10-26"
+   "accountAsOf": "2026-11-03"
   },
   {
    "securityKey": "clean-max-enviro-energy-solutions",
@@ -18606,8 +18708,17 @@
   {
    "period": "2026-10-26",
    "date": "2026-10-26",
-   "nav": 2754088618.44,
-   "accountsOnDate": 1,
+   "nav": 2802216145.78,
+   "accountsOnDate": 2,
+   "accountsCarried": 21,
+   "flowIn": 0,
+   "unreportedFlowValue": 0
+  },
+  {
+   "period": "2026-11-03",
+   "date": "2026-11-03",
+   "nav": 2820334487.46,
+   "accountsOnDate": 2,
    "accountsCarried": 21,
    "flowIn": 0,
    "unreportedFlowValue": 0
@@ -18853,6 +18964,18 @@
     "nav": 0
    }
   ],
+  "helios-mutual-fund-10056128": [
+   {
+    "period": "2026-10-26",
+    "date": "2026-10-26",
+    "nav": 48127527.34
+   },
+   {
+    "period": "2026-11-03",
+    "date": "2026-11-03",
+    "nav": 50756205.51
+   }
+  ],
   "helios-mutual-fund-10355977": [
    {
     "period": "2026-08-07",
@@ -18863,6 +18986,11 @@
     "period": "2026-10-26",
     "date": "2026-10-26",
     "nav": 283594703.67
+   },
+   {
+    "period": "2026-11-03",
+    "date": "2026-11-03",
+    "nav": 299084367.18
    }
   ],
   "kotak-mahindra-mutual-fund-4295974": [
@@ -20177,7 +20305,7 @@
    "observedTo": "2026-10-07",
    "statementsWithoutDeclaredPeriod": 6
   },
-  "archiveDocuments": 432,
+  "archiveDocuments": 436,
   "accountsWithStatement": [
    "ask-investment-managers-limited-10032723",
    "ask-investment-managers-limited-10034025",
@@ -20222,6 +20350,8 @@
    "hdfc-mutual-fund-16002141",
    "hdfc-mutual-fund-16180583",
    "helios-mutual-fund-10056128",
+   "helios-mutual-fund-10056154",
+   "helios-mutual-fund-10063876",
    "helios-mutual-fund-10355977",
    "icici-bank-nsdl-demat-49794950",
    "icici-prudential-mutual-fund-14320536",
