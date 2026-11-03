@@ -1,11 +1,25 @@
 {
  "_provenance": "Headlines from the committed market-news capture that name one of the family’s private companies (portfolio-companies.json → privateCompanies, from the GlowVentures book), matched by reviewed name as a proper noun in the headline. A name in a headline, not a verified event. Built by scripts/build-private-company-news.mjs; read by AI Alerts.",
  "version": 1,
- "newsCapturedAt": "2026-11-03T13:34:30.566Z",
+ "newsCapturedAt": "2026-11-03T13:37:38.964Z",
  "bookAsOf": "2026-11-03",
  "companies": 52,
  "windowDays": 120,
  "events": [
+  {
+   "id": "pcn:mint:www.livemint.com/money/personal-finance/dhanteras-2026-buying-gold-and-silver-coins-on-blinkit-zepto-or-instamart-5-things-to-check-before-placing-an-order-11793705064434.html:private:zepto",
+   "entityId": "private:zepto",
+   "company": "Zepto",
+   "categories": [
+    "unlisted"
+   ],
+   "at": "2026-11-03T11:30:24.000Z",
+   "firstSeenAt": "2026-11-03T13:37:38.964Z",
+   "title": "Dhanteras 2026: Buying gold and silver coins on Blinkit, Zepto or Instamart? 5 things to check before placing an order",
+   "summary": "Buying gold and silver coins on Blinkit, Zepto and Instamart can be convenient this Dhanteras. But before ordering, check the seller, purity, weight, certification, final price and refund policy. Here's how to buy precious metals safely online.",
+   "url": "https://www.livemint.com/money/personal-finance/dhanteras-2026-buying-gold-and-silver-coins-on-blinkit-zepto-or-instamart-5-things-to-check-before-placing-an-order-11793705064434.html",
+   "publisher": "Mint"
+  },
   {
    "id": "pcn:economic-times:economictimes.indiatimes.com/world/people/before-perplexity-aravind-srinivas-built-a-twitter-search-tool-that-changed-his-startups-direction/articleshow/135212233.cms:private:perplexity",
    "entityId": "private:perplexity",
@@ -175,5 +189,5 @@
    "publisher": "Business Standard"
   }
  ],
- "generatedAt": "2026-11-03T13:35:41.520Z"
+ "generatedAt": "2026-11-03T14:56:47.906Z"
 }
