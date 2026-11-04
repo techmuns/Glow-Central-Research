@@ -11,14 +11,14 @@
   "name": "Yahoo Finance",
   "symbol": "CT=F",
   "url": "https://finance.yahoo.com/quote/CT%3DF",
-  "exchange": "NY Mercantile",
+  "exchange": "ICE Futures",
   "upstreamCurrency": "USX"
  },
  "note": null,
  "accumulating": false,
  "first": "2000-01-03",
- "last": "2026-11-02",
- "count": 6730,
- "retrievedAt": "2026-11-03T09:03:18.417Z",
+ "last": "2026-11-03",
+ "count": 6731,
+ "retrievedAt": "2026-11-04T08:40:20.754Z",
  "staleSince": null
 }

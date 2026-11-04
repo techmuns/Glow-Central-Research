@@ -3,19 +3,19 @@
   "asOf": "2026-11-03",
   "source": "techmuns/GlowVentures · src/data/glowData.ts",
   "sourceCommit": {
-    "sha": "a800154",
-    "date": "2026-11-03T16:31:07+05:30"
+    "sha": "48d10f4",
+    "date": "2026-11-04T15:20:08+05:30"
   },
-  "count": 157,
-  "resolved": 155,
+  "count": 171,
+  "resolved": 168,
   "unlisted": 0,
   "bseOnly": 0,
-  "unresolved": 2,
+  "unresolved": 3,
   "excluded": {
-    "AIF": 43,
-    "Mutual Fund": 49,
+    "AIF": 44,
+    "Mutual Fund": 67,
     "Cash": 20,
-    "Unlisted": 67,
+    "Unlisted": 66,
     "Bond": 1,
     "Ring-fenced": 2
   },
@@ -30,7 +30,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -59,7 +59,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -76,7 +76,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -93,7 +93,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -110,7 +110,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -127,7 +127,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -180,7 +180,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -221,7 +221,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -238,7 +238,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -255,7 +255,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -272,7 +272,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -289,7 +289,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -306,7 +306,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -342,7 +342,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -359,7 +359,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -376,7 +376,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -405,7 +405,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -434,7 +434,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -451,7 +451,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -468,7 +468,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -489,6 +489,18 @@
       ]
     },
     {
+      "isin": "INE491A01021",
+      "name": "City Union Bank Limited",
+      "bookName": "CITY UNION BANK LIMITED - EQ NEW RS. 1/",
+      "ticker": "CUB",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
+    },
+    {
       "isin": "INE136B01020",
       "name": "Cyient Ltd",
       "bookName": "Cyient Ltd",
@@ -498,7 +510,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -515,7 +527,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -532,7 +544,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -549,7 +561,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -566,7 +578,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -583,7 +595,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -600,7 +612,41 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
+        "matchedBy": "exact NSE symbol"
+      },
+      "holdingCategories": [
+        "pms"
+      ]
+    },
+    {
+      "isin": "INE158B01016",
+      "name": "Eimco Elecon India Limited",
+      "bookName": "Eimco Elecon India Limited",
+      "ticker": "EIMCOELECO",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
+        "matchedBy": "exact NSE symbol"
+      },
+      "holdingCategories": [
+        "pms"
+      ]
+    },
+    {
+      "isin": "INE205B01031",
+      "name": "Elecon Engineering Company Limited",
+      "bookName": "Elecon Engineering Company Limited",
+      "ticker": "ELECON",
+      "sector": "Industrials",
+      "listed": true,
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -641,11 +687,23 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
         "pms"
+      ]
+    },
+    {
+      "isin": "INE0DRI01029",
+      "name": "Esds Software Solution Limited",
+      "bookName": "ESDS SOFTWARE SOLUTION LIMITED - EQ NEW FV RS .1/",
+      "ticker": "ESDS",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
       ]
     },
     {
@@ -658,7 +716,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -675,7 +733,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -692,11 +750,23 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
         "pms"
+      ]
+    },
+    {
+      "isin": "INE171A01029",
+      "name": "The Federal Bank Limited",
+      "bookName": "THE FEDERAL BANK LIMITED - EQ NEW FV RS.2/",
+      "ticker": "FEDERALBNK",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
       ]
     },
     {
@@ -721,7 +791,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -750,7 +820,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -779,7 +849,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -796,7 +866,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -813,7 +883,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -830,7 +900,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -847,7 +917,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -864,7 +934,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -881,7 +951,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -898,7 +968,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -915,7 +985,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -932,7 +1002,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -949,7 +1019,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -978,7 +1048,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -995,7 +1065,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1012,7 +1082,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1029,7 +1099,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1037,10 +1107,10 @@
       ]
     },
     {
-      "isin": "INE0LGX01024",
-      "name": "Insolation Energy Limited",
-      "bookName": "INSOLATION ENERGY LIMITED - EQ NEW FV RE.1/",
-      "ticker": "INA",
+      "isin": "INE562A01011",
+      "name": "Indian Bank",
+      "bookName": "INDIAN BANK - EQ",
+      "ticker": "INDIANB",
       "sector": "Unclassified",
       "listed": true,
       "matchedBy": "glowventures:symbol",
@@ -1058,11 +1128,23 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
         "pms"
+      ]
+    },
+    {
+      "isin": "INE095A01012",
+      "name": "Indusind Bank Ltd",
+      "bookName": "INDUSIND BANK LTD. - EQ",
+      "ticker": "INDUSINDBK",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
       ]
     },
     {
@@ -1075,7 +1157,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1092,7 +1174,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1109,7 +1191,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1126,7 +1208,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1167,7 +1249,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1184,7 +1266,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1201,7 +1283,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1230,7 +1312,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1247,7 +1329,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1263,7 +1345,25 @@
       "listed": true,
       "matchedBy": "glowventures:symbol",
       "holdingCategories": [
+        "direct-equity",
         "pms"
+      ]
+    },
+    {
+      "isin": "INE473D01015",
+      "name": "Kingfa Science&Technology (India) Limited Eq",
+      "bookName": "KINGFA SCIENCE&TECHNOLOGY (INDIA) LIMITED EQ",
+      "ticker": "KINGFA",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
+        "matchedBy": "exact NSE symbol"
+      },
+      "holdingCategories": [
+        "direct-equity"
       ]
     },
     {
@@ -1276,7 +1376,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1293,7 +1393,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1310,7 +1410,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1327,7 +1427,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1356,7 +1456,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1373,7 +1473,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1390,7 +1490,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1407,11 +1507,45 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
         "pms"
+      ]
+    },
+    {
+      "isin": "INE993A01026",
+      "name": "Man Industries (India) Limited Eq New Rs. 5/",
+      "bookName": "MAN INDUSTRIES (INDIA) LIMITED EQ NEW RS. 5/",
+      "ticker": "MANINDS",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
+        "matchedBy": "exact NSE symbol"
+      },
+      "holdingCategories": [
+        "direct-equity"
+      ]
+    },
+    {
+      "isin": "INE00VM01036",
+      "name": "Manorama Industries Limited Eq New Fv Rs 2/",
+      "bookName": "MANORAMA INDUSTRIES LIMITED EQ NEW FV RS 2/",
+      "ticker": "MANORAMA",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
+        "matchedBy": "exact NSE symbol"
+      },
+      "holdingCategories": [
+        "direct-equity"
       ]
     },
     {
@@ -1424,7 +1558,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1441,7 +1575,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1458,7 +1592,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1475,7 +1609,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1492,7 +1626,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1509,7 +1643,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1526,7 +1660,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1543,7 +1677,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1560,7 +1694,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1577,7 +1711,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1594,7 +1728,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1623,7 +1757,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1640,7 +1774,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1657,7 +1791,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1674,7 +1808,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1691,7 +1825,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1720,7 +1854,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1749,11 +1883,23 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
         "pms"
+      ]
+    },
+    {
+      "isin": "INE976G01028",
+      "name": "Rbl Bank Limited",
+      "bookName": "RBL BANK LIMITED - EQ",
+      "ticker": "RBLBANK",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
       ]
     },
     {
@@ -1766,7 +1912,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1783,7 +1929,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1800,7 +1946,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1817,7 +1963,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1858,7 +2004,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1875,7 +2021,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1892,7 +2038,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1909,7 +2055,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1926,23 +2072,11 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
         "pms"
-      ]
-    },
-    {
-      "isin": "INE0NAZ01010",
-      "name": "Smartworks Coworking Spaces Limited",
-      "bookName": "SMARTWORKS COWORKING SPACES LIMITED - EQ",
-      "ticker": "SMARTWORKS",
-      "sector": "Unclassified",
-      "listed": true,
-      "matchedBy": "glowventures:symbol",
-      "holdingCategories": [
-        "direct-equity"
       ]
     },
     {
@@ -1955,7 +2089,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -1972,11 +2106,35 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
         "pms"
+      ]
+    },
+    {
+      "isin": "INE1VXE01018",
+      "name": "Stl Networks Limited Eq",
+      "bookName": "STL NETWORKS LIMITED EQ",
+      "ticker": "STLNETWORK",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
+      ]
+    },
+    {
+      "isin": "INE089C01029",
+      "name": "Sterlite Technologies Limited Eq New Fv Rs.2/",
+      "bookName": "STERLITE TECHNOLOGIES LIMITED EQ NEW FV RS.2/",
+      "ticker": "STLTECH",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedBy": "glowventures:symbol",
+      "holdingCategories": [
+        "direct-equity"
       ]
     },
     {
@@ -1989,7 +2147,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2006,7 +2164,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2023,7 +2181,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2040,7 +2198,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2057,7 +2215,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2074,7 +2232,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2091,7 +2249,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2108,7 +2266,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2125,7 +2283,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2142,7 +2300,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2171,7 +2329,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2188,7 +2346,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2205,7 +2363,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2222,10 +2380,11 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
+        "direct-equity",
         "pms"
       ]
     },
@@ -2239,7 +2398,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2268,10 +2427,11 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
+        "direct-equity",
         "pms"
       ]
     },
@@ -2285,7 +2445,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2302,7 +2462,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2319,7 +2479,24 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
+        "matchedBy": "exact NSE symbol"
+      },
+      "holdingCategories": [
+        "pms"
+      ]
+    },
+    {
+      "isin": "INE665J01013",
+      "name": "V Mart Retail Limited",
+      "bookName": "V MART RETAIL LIMITED",
+      "ticker": "VMART",
+      "sector": "Unclassified",
+      "listed": true,
+      "matchedBy": "glowventures:symbol",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2336,7 +2513,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2353,7 +2530,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2370,7 +2547,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2387,7 +2564,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2404,7 +2581,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2421,7 +2598,7 @@
       "matchedBy": "glowventures:symbol",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2439,11 +2616,29 @@
       "matchedBy": "company-index:checked by hand",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
         "pms"
+      ]
+    },
+    {
+      "isin": "INE501A01019",
+      "name": "Deepak Fertilisers And Petrochemicals Corporation Ltd Eq",
+      "bookName": "DEEPAK FERTILISERS AND PETROCHEMICALS CORPORATION LTD EQ",
+      "sector": "Unclassified",
+      "ticker": "DEEPAKFERT",
+      "listed": true,
+      "matchedName": null,
+      "matchedBy": "company-index:technicals",
+      "isinSource": {
+        "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
+        "matchedBy": "exact NSE symbol"
+      },
+      "holdingCategories": [
+        "direct-equity"
       ]
     },
     {
@@ -2457,7 +2652,7 @@
       "matchedBy": "company-index:technicals",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/emerge/corporates/content/SME_EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:49.711Z",
+        "checkedAt": "2026-11-04T07:58:15.329Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2475,7 +2670,7 @@
       "matchedBy": "company-index:technicals",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2505,7 +2700,7 @@
       "matchedBy": "company-index:checked by hand",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
@@ -2523,11 +2718,23 @@
       "matchedBy": "company-index:checked by hand",
       "isinSource": {
         "url": "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-        "checkedAt": "2026-11-03T10:28:48.086Z",
+        "checkedAt": "2026-11-04T07:58:14.851Z",
         "matchedBy": "exact NSE symbol"
       },
       "holdingCategories": [
         "pms"
+      ]
+    },
+    {
+      "isin": "INE12Z301012",
+      "name": "Sotefin Bharat Limited",
+      "bookName": "SOTEFIN BHARAT LIMITED - EQ",
+      "sector": "Unclassified",
+      "ticker": null,
+      "listed": true,
+      "reason": "unresolved — no NSE symbol for this name in the feeds this dashboard carries",
+      "holdingCategories": [
+        "direct-equity"
       ]
     },
     {
@@ -2647,6 +2854,22 @@
       ],
       "bookNames": [
         "BIG BANG BOOM"
+      ],
+      "categories": [
+        "private-investment"
+      ]
+    },
+    {
+      "id": "private:borosilrenewables",
+      "name": "Borosil Renewables",
+      "legalName": null,
+      "aliases": [],
+      "isins": [],
+      "securityKeys": [
+        "borosil-renewables-limited-eq-new-fv-re-1-listing-trdg-aprvl-awaited"
+      ],
+      "bookNames": [
+        "Borosil Renewables - Preferential Equity (listing awaited)"
       ],
       "categories": [
         "private-investment"
@@ -3258,24 +3481,6 @@
       ],
       "bookNames": [
         "Sky Vision Cure LLP"
-      ],
-      "categories": [
-        "private-investment"
-      ]
-    },
-    {
-      "id": "private:sotefinbharat",
-      "name": "Sotefin Bharat",
-      "legalName": null,
-      "aliases": [],
-      "isins": [
-        "INE12Z301012"
-      ],
-      "securityKeys": [
-        "sotefin-bharat"
-      ],
-      "bookNames": [
-        "SOTEFIN"
       ],
       "categories": [
         "private-investment"
