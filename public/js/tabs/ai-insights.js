@@ -25,39 +25,57 @@ let offTech = null;
 const STYLE_ID = 'gi-insights-style';
 const CSS = `
 .gi-tab{max-width:1180px;margin:0 auto;}
-.gi-note{font-size:.84rem;line-height:1.55;color:rgb(var(--text-slate-600,71 85 105));
-  background:rgb(var(--surface-indigo-50,238 242 255));border:1px solid rgb(var(--edge-indigo-100,224 231 255));
-  border-radius:12px;padding:11px 14px;margin:0 0 14px;}
-.gi-note b{color:rgb(var(--text-slate-800,30 41 59));}
-.gi-card{background:rgb(var(--surface-white,255 255 255));border:1px solid rgb(var(--edge-slate-200,226 232 240));
-  border-radius:16px;overflow:hidden;box-shadow:0 1px 2px rgb(15 23 42 / .05);}
+.gi-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 16px;flex-wrap:wrap;}
+.gi-head h2{font-family:"Plus Jakarta Sans","Inter",sans-serif;font-size:1.55rem;font-weight:800;letter-spacing:-.02em;margin:0;color:rgb(var(--text-slate-900,15 23 42));}
+.gi-info{appearance:none;border:1px solid rgb(var(--edge-slate-200,226 232 240));background:rgb(var(--surface-white,255 255 255));color:rgb(var(--text-slate-500,100 116 139));border-radius:999px;padding:6px 13px;font-size:.74rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;}
+.gi-info:hover{color:var(--brand-600);border-color:var(--brand-600);}
+.gi-info .d{width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#a855f7 55%,#ec4899);}
+.gi-card{background:rgb(var(--surface-white,255 255 255));border:1px solid rgb(var(--edge-slate-200,226 232 240));border-radius:18px;overflow:hidden;box-shadow:0 1px 3px rgb(15 23 42 / .05),0 18px 40px -28px rgb(79 70 229 / .35);}
 .gi-table{width:100%;border-collapse:collapse;font-size:.9rem;}
-.gi-table thead th{text-align:left;font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;font-weight:800;
-  color:rgb(var(--text-slate-500,100 116 139));padding:12px 14px;border-bottom:1px solid rgb(var(--edge-slate-200,226 232 240));}
+.gi-table th.c-co{width:32%;} .gi-table th.c-tk{width:38%;} .gi-table th.c-sc{width:162px;}
+.gi-table th.c-px,.gi-table th.c-mo{width:1%;white-space:nowrap;}
+.gi-table thead th{text-align:left;font-size:.63rem;letter-spacing:.08em;text-transform:uppercase;font-weight:800;
+  color:rgb(var(--text-slate-500,100 116 139));padding:13px 16px;
+  background:linear-gradient(180deg,rgb(var(--surface-indigo-50,238 242 255)) 0%,rgb(var(--surface-white,255 255 255)) 100%);
+  border-bottom:1px solid rgb(var(--edge-slate-200,226 232 240));}
 .gi-table thead th.num{text-align:right;}
-.gi-table tbody td{padding:13px 14px;border-bottom:1px solid rgb(var(--edge-slate-100,241 245 249));vertical-align:middle;}
+.gi-table tbody td{padding:15px 16px;border-bottom:1px solid rgb(var(--edge-slate-100,241 245 249));vertical-align:top;}
 .gi-table tbody tr:last-child td{border-bottom:0;}
-.gi-table tbody tr:hover{background:rgb(var(--surface-slate-50,248 250 252));}
-.gi-co{font-weight:700;color:rgb(var(--text-slate-900,15 23 42));}
-.gi-co small{display:block;font-weight:500;color:rgb(var(--text-slate-500,100 116 139));font-size:.72rem;margin-top:2px;}
-.gi-cmp{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:rgb(var(--text-slate-800,30 41 59));font-weight:600;}
-.gi-cmp small{display:block;font-weight:600;font-size:.72rem;margin-top:2px;}
+.gi-row{cursor:pointer;transition:background .14s ease;}
+.gi-row:hover{background:rgb(var(--surface-indigo-50,238 242 255));}
+.gi-row:focus-visible{outline:2px solid var(--brand-600);outline-offset:-2px;}
+.gi-cco{display:flex;align-items:center;gap:12px;min-width:0;}
+.gi-av{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:#fff;font-weight:800;
+  font-size:.84rem;font-family:"Plus Jakarta Sans",sans-serif;box-shadow:0 4px 10px -3px rgb(15 23 42 / .35);}
+.gi-cometa{min-width:0;}
+.gi-co{font-weight:700;color:rgb(var(--text-slate-900,15 23 42));display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gi-cometa small{display:block;font-weight:500;color:rgb(var(--text-slate-500,100 116 139));font-size:.72rem;margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gi-cmp{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:rgb(var(--text-slate-900,15 23 42));font-weight:700;}
+.gi-cmp small{display:block;font-weight:700;font-size:.72rem;margin-top:3px;}
 .gi-up{color:var(--positive);} .gi-dn{color:var(--negative);} .gi-flat{color:rgb(var(--text-slate-400,148 163 184));}
-.gi-view .gi-pill{display:inline-block;font-weight:800;font-size:.66rem;letter-spacing:.04em;text-transform:uppercase;
-  padding:3px 9px;border-radius:999px;margin-right:8px;vertical-align:middle;}
-.gi-pill.watchlist{background:#fef3e2;color:#b45309;} .gi-pill.buy{background:#ecfdf5;color:#047857;}
-.gi-pill.avoid{background:#fff1f2;color:#be123c;} .gi-pill.soon{background:rgb(var(--surface-slate-100,241 245 249));color:rgb(var(--text-slate-500,100 116 139));}
+.gi-pill{display:inline-block;font-weight:800;font-size:.64rem;letter-spacing:.05em;text-transform:uppercase;
+  padding:4px 11px;border-radius:999px;margin-bottom:8px;}
+.gi-pill.watchlist{background:#fff3e0;color:#b45309;box-shadow:inset 0 0 0 1px #f7d49c;}
+.gi-pill.buy{background:#e8fbf1;color:#047857;box-shadow:inset 0 0 0 1px #a3e6c4;}
+.gi-pill.avoid{background:#fff0f2;color:#be123c;box-shadow:inset 0 0 0 1px #f5bcc5;}
+.gi-pill.soon{background:rgb(var(--surface-slate-100,241 245 249));color:rgb(var(--text-slate-500,100 116 139));}
+.gi-keys{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px;}
+.gi-keys li{font-size:.82rem;color:rgb(var(--text-slate-700,51 65 85));padding-left:16px;position:relative;line-height:1.45;}
+.gi-keys li::before{content:"";position:absolute;left:0;top:.5em;width:6px;height:6px;border-radius:2px;background:linear-gradient(135deg,#6366f1,#a855f7);}
 .gi-take{font-size:.82rem;color:rgb(var(--text-slate-600,71 85 105));}
-.gi-scores{font-size:.72rem;color:rgb(var(--text-slate-500,100 116 139));margin-top:5px;font-variant-numeric:tabular-nums;}
-.gi-keys{margin:8px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px;}
-.gi-keys li{font-size:.8rem;color:rgb(var(--text-slate-700,51 65 85));padding-left:14px;position:relative;line-height:1.4;}
-.gi-keys li::before{content:"";position:absolute;left:0;top:.52em;width:5px;height:5px;border-radius:50%;background:var(--brand-600);}
-.gi-more{appearance:none;border:1px solid var(--brand-600);color:var(--brand-600);background:transparent;
-  border-radius:999px;padding:6px 14px;font-weight:700;font-size:.78rem;cursor:pointer;white-space:nowrap;}
-.gi-more:hover{background:var(--brand-600);color:#fff;}
-.gi-more.ghost{border-color:rgb(var(--edge-slate-300,203 213 225));color:rgb(var(--text-slate-500,100 116 139));}
-.gi-more.ghost:hover{background:rgb(var(--surface-slate-100,241 245 249));color:rgb(var(--text-slate-700,51 65 85));}
-.gi-actcell{text-align:right;}
+.gi-meters{display:flex;flex-direction:column;gap:11px;}
+.gi-meter{display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:baseline;}
+.gi-meter .ml{font-size:.6rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:rgb(var(--text-slate-500,100 116 139));}
+.gi-meter .mv{font-size:.82rem;font-weight:800;font-variant-numeric:tabular-nums;color:rgb(var(--text-slate-800,30 41 59));}
+.gi-meter .mbar{grid-column:1/-1;height:6px;border-radius:999px;background:rgb(var(--surface-slate-100,241 245 249));overflow:hidden;}
+.gi-meter .mbar i{display:block;height:100%;border-radius:999px;}
+.gi-meter .mbar i.q{background:linear-gradient(90deg,#6366f1,#a855f7);}
+.gi-meter .mbar i.p{background:linear-gradient(90deg,#f59e0b,#ec4899);}
+.gi-mo{display:flex;justify-content:flex-end;padding-top:2px;}
+.gi-chev{display:inline-flex;align-items:center;gap:5px;font-weight:800;font-size:.76rem;color:var(--brand-600);white-space:nowrap;transition:gap .14s ease;}
+.gi-row:hover .gi-chev{gap:9px;}
+.gi-chev.ghost{color:rgb(var(--text-slate-400,148 163 184));}
 
 /* ---- the one-pager (self-contained light surface) ---- */
 .gi-pager{background:#fff;color:#111827;font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -172,6 +190,26 @@ function market(ticker) {
 }
 const rupee = (n) => (Number.isFinite(n) ? '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : null);
 const signed = (n) => (n > 0 ? '+' : '') + n.toFixed(2) + '%';
+const clampPct = (n) => Math.max(0, Math.min(100, Number(n) || 0));
+
+// A deterministic, colourful gradient mark per company — adds a visual anchor to each row.
+const GI_AV = [['#6366f1', '#4338ca'], ['#8b5cf6', '#6d28d9'], ['#ec4899', '#be185d'], ['#0ea5e9', '#1d4ed8'],
+  ['#14b8a6', '#0f766e'], ['#f59e0b', '#c2410c'], ['#f43f5e', '#be123c'], ['#a855f7', '#7c3aed']];
+function avatar(name) {
+  const s = String(name || '').replace(/\b(ltd|limited|inc|corporation|co|the)\b/gi, ' ').trim();
+  const w = s.split(/\s+/).filter(Boolean);
+  const ini = ((w[0]?.[0] || '') + (w[1]?.[0] || w[0]?.[1] || '')).toUpperCase() || '•';
+  let h = 0;
+  for (const ch of String(name || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const [a, b] = GI_AV[h % GI_AV.length];
+  return { ini, bg: `linear-gradient(135deg,${a},${b})` };
+}
+function meters(q, p) {
+  return `<div class="gi-meters">
+    <div class="gi-meter"><span class="ml">Quality</span><span class="mv">${esc(String(q))}</span><span class="mbar"><i class="q" style="width:${clampPct(q)}%"></i></span></div>
+    <div class="gi-meter"><span class="ml">Value</span><span class="mv">${esc(String(p))}</span><span class="mbar"><i class="p" style="width:${clampPct(p)}%"></i></span></div>
+  </div>`;
+}
 
 function tableRows() {
   const held = new Map((coverage.holdings() || []).map((h) => [h.ticker, h]));
@@ -199,28 +237,34 @@ export function render(ctx) {
 
   ctx.root.innerHTML = `
     <div class="gi-tab">
-      <div class="mb-5" data-section-head>
-        <h2 class="text-2xl font-bold tracking-tight" style="color:rgb(var(--text-slate-900,15 23 42))">AI Insights</h2>
-        <p class="text-sm mt-1" style="color:rgb(var(--text-slate-500,100 116 139))">A one-page read on each holding — what we like, what we don't, a verdict and the numbers. Click <b>More</b> to open the full one-pager.</p>
+      <div class="gi-head">
+        <h2>AI Insights</h2>
+        <button class="gi-info" type="button" data-gi-info><span class="d"></span> How this is built · illustrative</button>
       </div>
-      <div class="gi-note">Written from Glow's sector rulebook + the company's own data (Screener financials, con-calls, web &amp; news). Live price is from the dashboard; order book and financials are from Glow research until the fundamentals feed is wired. <b>${ready} compan${ready === 1 ? 'y is' : 'ies are'} fully written so far</b> — the rest show their sector is researched and the page is rolling out. Illustrative, not investment advice.</div>
       <div class="gi-card">
         <table class="gi-table">
           <thead><tr>
-            <th>Company</th>
-            <th class="num">Price</th>
-            <th>Key takeaways</th>
-            <th class="num"></th>
+            <th class="c-co">Company</th>
+            <th class="c-px num hide-sm">Price</th>
+            <th class="c-tk">Key takeaways</th>
+            <th class="c-sc hide-sm">Scores</th>
+            <th class="c-mo"></th>
           </tr></thead>
           <tbody data-gi-body>${rows.map(rowHtml).join('')}</tbody>
         </table>
       </div>
     </div>`;
 
-  ctx.root.querySelector('[data-gi-body]').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-open]');
-    if (btn) openCompany(btn.dataset.open);
-  });
+  const body = ctx.root.querySelector('[data-gi-body]');
+  const openFromEvent = (e) => {
+    const row = e.target.closest('[data-open]');
+    if (!row) return;
+    e.preventDefault();
+    openCompany(row.dataset.open);
+  };
+  body.addEventListener('click', openFromEvent);
+  body.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') openFromEvent(e); });
+  ctx.root.querySelector('[data-gi-info]').addEventListener('click', () => openModal(provenanceHtml(ready), { size: 'default' }));
 
   // The technicals capture may still be loading at mount; repaint prices once it lands.
   if (!technicals.isLoaded?.()) {
@@ -246,25 +290,29 @@ function rowHtml(r) {
     ? `${price}<small class="${chgCls}">${m.chg == null ? '' : signed(m.chg)}</small>`
     : '<span class="gi-flat">—</span>';
 
-  let view, action;
+  const av = avatar(r.name);
+
+  let view, scores, chev;
   if (r.insight) {
     const d = r.insight;
     const cls = d.verdict.toLowerCase();
-    const keys = (d.takeaways || []).map((k) => `<li>${esc(k)}</li>`).join('');
+    const keys = (d.takeaways || []).slice(0, 3).map((k) => `<li>${esc(k)}</li>`).join('');
     view = `<span class="gi-pill ${cls}">${esc(d.verdict)}</span>`
-      + (keys ? `<ul class="gi-keys">${keys}</ul>` : `<span class="gi-take">${esc(d.verdictSub)}</span>`)
-      + `<div class="gi-scores">Business quality ${d.quality} · Price/value ${d.price}</div>`;
-    action = `<button class="gi-more" data-open="${esc(r.ticker)}">More →</button>`;
+      + (keys ? `<ul class="gi-keys">${keys}</ul>` : `<span class="gi-take">${esc(d.verdictSub)}</span>`);
+    scores = meters(d.quality, d.price);
+    chev = '<span class="gi-chev">More →</span>';
   } else {
-    view = `<span class="gi-pill soon">Researching</span><span class="gi-take">Sector rulebook ready — one-pager rolling out</span>`;
-    action = `<button class="gi-more ghost" data-open="${esc(r.ticker)}">More →</button>`;
+    view = '<span class="gi-pill soon">Researching</span><span class="gi-take">Sector rulebook ready — one-pager rolling out</span>';
+    scores = '<span class="gi-flat" style="font-size:.78rem">—</span>';
+    chev = '<span class="gi-chev ghost">More →</span>';
   }
 
-  return `<tr>
-    <td><span class="gi-co">${esc(r.name)}</span><small>${esc(r.ticker)} · ${esc(r.sector)}</small></td>
+  return `<tr class="gi-row" data-open="${esc(r.ticker)}" role="button" tabindex="0" aria-label="Open ${esc(r.name)} one-pager">
+    <td><div class="gi-cco"><span class="gi-av" style="background:${av.bg}">${av.ini}</span><span class="gi-cometa"><span class="gi-co">${esc(r.name)}</span><small>${esc(r.ticker)} · ${esc(r.sector)}</small></span></div></td>
     <td class="gi-cmp hide-sm">${priceCell}</td>
-    <td class="gi-view">${view}</td>
-    <td class="gi-actcell">${action}</td>
+    <td>${view}</td>
+    <td class="hide-sm">${scores}</td>
+    <td><div class="gi-mo">${chev}</div></td>
   </tr>`;
 }
 
@@ -325,8 +373,6 @@ function pagerHtml(d) {
       </div>
 
       <div class="gi-close"><span class="q"></span><span>${d.close}</span></div>
-
-      <div class="gi-foot"><b>How this is built:</b> written from Glow's ${esc(d.ourSector)} rulebook applied to the company's own data — order book, results, con-call commentary, filings and live market data. Business-quality and price scores come from weighing every signal that fired; the page shows only the few that matter here. ${d.sources || 'Market price is live from the dashboard.'} <b>Illustrative</b> — figures are indicative; not investment advice.</div>
     </div>
   </div>`;
 }
@@ -361,6 +407,18 @@ function comingHtml(ticker) {
     <h3>${esc(name)}</h3>
     <p>This company sits in a sector Glow has already researched${sector ? ` — <b>${esc(sector)}</b>` : ''}, so its signal rulebook is ready. Its full one-pager (What We Like / What We Don't Like, verdict and numbers) is being written from Screener, con-calls and web research, the same way as the live examples.</p>
     <p style="margin-top:12px;font-size:.84rem;color:#8b94a7">Illustrative feature preview — not investment advice.</p>
+  </div>`;
+}
+
+// The small "ⓘ How this is built" modal — keeps the provenance/disclaimer reachable without a
+// text wall on the table itself.
+function provenanceHtml(ready) {
+  return `<div class="gi-coming">
+    <span class="gi-pill soon" style="font-size:.7rem">How this is built</span>
+    <h3>AI Insights</h3>
+    <p>Each one-pager is written from Glow's sector rulebook applied to the company's own data — Screener financials, earnings-call commentary, filings and web/news. The live price and day move come from the dashboard feed. The Business-quality and Price/value scores weigh the signals that fired; the page shows the few that matter.</p>
+    <p style="margin-top:10px"><b>${ready} compan${ready === 1 ? 'y is' : 'ies are'} fully written</b> so far — the rest show their sector is researched while the page rolls out.</p>
+    <p style="margin-top:12px;font-size:.84rem;color:#8b94a7">Illustrative feature — figures are indicative, not investment advice.</p>
   </div>`;
 }
 
