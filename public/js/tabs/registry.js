@@ -6,6 +6,7 @@ import { lazyTab } from '../core/lazy-tab.js';
 export const bookmarks = lazyTab(TAB_META.bookmarks, () => import('./bookmarks.js'));
 export const researchTabs = [
   lazyTab(TAB_META['ai-alerts'], () => import('./ai-alerts.js')),
+  lazyTab(TAB_META['ai-insights'], () => import('./ai-insights.js')),
   lazyTab(TAB_META.portfolio, () => import('./portfolio.js')),
   lazyTab(TAB_META.watchlist, () => import('./watchlist.js')),
   lazyTab(TAB_META['daily-alerts'], () => import('./daily-alerts.js')),
