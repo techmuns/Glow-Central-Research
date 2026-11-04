@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-11-04T18:06:50.697Z",
-  "oldestDataAt": "2026-11-04T18:06:50.697Z",
-  "from": "2025-11-04",
-  "to": "2026-11-04",
+  "capturedAt": "2026-11-04T19:22:38.577Z",
+  "oldestDataAt": "2026-11-04T19:22:38.577Z",
+  "from": "2025-11-05",
+  "to": "2026-11-05",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-04T18:06:50.697Z",
+      "capturedAt": "2026-11-04T19:22:38.577Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-04T18:06:50.697Z",
+      "capturedAt": "2026-11-04T19:22:38.577Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-04T18:06:50.697Z",
+      "capturedAt": "2026-11-04T19:22:38.577Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,15 +67,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-04T18:06:50.697Z",
+      "capturedAt": "2026-11-04T19:22:38.577Z",
       "coverageFrom": "2026-08-18"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 2178,
+  "withRows": 2176,
   "emptyCount": 0,
-  "rowCount": 24456,
+  "rowCount": 24446,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -90145,28 +90145,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "JARO",
-        "date": "2025-11-04",
-        "cells": {
-          "Company": "JARO",
-          "Insider": "Ranjita Raman",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "26822",
-          "Trade %": "0.12",
-          "Trade Value": "16705918",
-          "Post Holding Shares": "193490",
-          "Post Holding %": "0.87",
-          "Mode": "Market Purchase",
-          "From Date": "2025-10-31",
-          "To Date": "2025-11-03",
-          "Broadcast Date": "2025-11-04",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "JSL": [
@@ -96060,28 +96038,6 @@
           "From Date": "2026-05-07",
           "To Date": "2026-05-07",
           "Broadcast Date": "2026-05-25",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SGMART",
-        "date": "2025-11-04",
-        "cells": {
-          "Company": "SGMART",
-          "Insider": "Sameer Gupta",
-          "Category": "Other",
-          "Security Type": null,
-          "Transaction": "Acquisition",
-          "Trade Shares": "44200000",
-          "Trade %": "35.08",
-          "Trade Value": null,
-          "Post Holding Shares": null,
-          "Post Holding %": null,
-          "Mode": "None",
-          "From Date": "2025-11-11",
-          "To Date": "2025-11-11",
-          "Broadcast Date": "2025-11-04",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -139626,50 +139582,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "JSWENERGY",
-        "date": "2025-11-04",
-        "cells": {
-          "Company": "JSWENERGY",
-          "Insider": "JSW Energy Employees Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1064",
-          "Trade %": "0",
-          "Trade Value": "567443",
-          "Post Holding Shares": "1175750",
-          "Post Holding %": "0.07",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-03",
-          "To Date": "2025-11-03",
-          "Broadcast Date": "2025-11-04",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWENERGY",
-        "date": "2025-11-04",
-        "cells": {
-          "Company": "JSWENERGY",
-          "Insider": "JSW Energy Employees Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "2687",
-          "Trade %": "0",
-          "Trade Value": "1453469",
-          "Post Holding Shares": "1176814",
-          "Post Holding %": "0.07",
-          "Mode": "Market Sale",
-          "From Date": "2025-10-29",
-          "To Date": "2025-10-29",
-          "Broadcast Date": "2025-11-04",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "MCX": [
@@ -172124,28 +172036,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "INDIACEM",
-        "date": "2025-11-04",
-        "cells": {
-          "Company": "India Cements Ltd",
-          "Insider": "UltraTech Cement Limited",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "256907",
-          "Trade %": "0.08",
-          "Trade Value": "103828400",
-          "Post Holding Shares": "234025105",
-          "Post Holding %": "75.52",
-          "Mode": "Market Sale",
-          "From Date": "2025-10-30",
-          "To Date": "2025-10-31",
-          "Broadcast Date": "2025-11-04",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "JUBLINGREA": [
@@ -180486,52 +180376,6 @@
           "From Date": "2026-03-30",
           "To Date": "2026-03-30",
           "Broadcast Date": "2026-03-31",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      }
-    ],
-    "MAHLIFE": [
-      {
-        "ticker": "MAHLIFE",
-        "date": "2025-11-04",
-        "cells": {
-          "Company": "Mahindra Lifespace Developers Ltd",
-          "Insider": "Amit Kumar Sinha",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "26948",
-          "Trade %": "0.01",
-          "Trade Value": "10396538",
-          "Post Holding Shares": "40147",
-          "Post Holding %": "0.02",
-          "Mode": "ESOP",
-          "From Date": "2025-10-31",
-          "To Date": "2025-10-31",
-          "Broadcast Date": "2025-11-04",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "MAHLIFE",
-        "date": "2025-11-04",
-        "cells": {
-          "Company": "Mahindra Lifespace Developers Ltd",
-          "Insider": "KR Sudharshan",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "4607",
-          "Trade %": "0",
-          "Trade Value": "1777381",
-          "Post Holding Shares": "18913",
-          "Post Holding %": "0.01",
-          "Mode": "ESOP",
-          "From Date": "2025-10-31",
-          "To Date": "2025-10-31",
-          "Broadcast Date": "2025-11-04",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -253833,50 +253677,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "SEPC",
-        "date": "2025-11-04",
-        "cells": {
-          "Company": "SEPC Ltd",
-          "Insider": "Mark AB Capital Investment LLC",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "210000000",
-          "Trade %": "10.82",
-          "Trade Value": "11",
-          "Post Holding Shares": "140000000",
-          "Post Holding %": "7.22",
-          "Mode": "Off Market",
-          "From Date": "2025-10-31",
-          "To Date": "2025-10-31",
-          "Broadcast Date": "2025-11-04",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SEPC",
-        "date": "2025-11-04",
-        "cells": {
-          "Company": "SEPC Ltd",
-          "Insider": "Mark AB Welfare Trust",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "210000000",
-          "Trade %": "10.82",
-          "Trade Value": "11",
-          "Post Holding Shares": "390688255",
-          "Post Holding %": "20.13",
-          "Mode": "Off Market",
-          "From Date": "2025-10-31",
-          "To Date": "2025-10-31",
-          "Broadcast Date": "2025-11-04",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "ACGL": [
@@ -274754,30 +274554,6 @@
           "From Date": "2025-11-25",
           "To Date": "2025-11-25",
           "Broadcast Date": "2025-11-27",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      }
-    ],
-    "KHAICHEM": [
-      {
-        "ticker": "KHAICHEM",
-        "date": "2025-11-04",
-        "cells": {
-          "Company": "Khaitan Chemicals & Fertilizers Ltd",
-          "Insider": "The Majestic Packaging Co Pvt. Ltd.",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "60000",
-          "Trade %": "0.06",
-          "Trade Value": "6243262",
-          "Post Holding Shares": "22139510",
-          "Post Holding %": "22.82",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-04",
-          "To Date": "2025-11-04",
-          "Broadcast Date": "2025-11-04",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
