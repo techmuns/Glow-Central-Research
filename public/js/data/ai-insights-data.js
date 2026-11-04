@@ -2,100 +2,139 @@
 //
 // This is the "brain" output in a readable shape: for each company, the handful of
 // What-We-Like / What-We-Don't-Like points that matter, a Business-Quality and a
-// Price/Value score, a verdict and the numbers — written from Glow's sector signal
-// rulebook (docs: the scratchpad signal research) applied to the company's own data.
+// Price/Value score, a verdict, a "Guidance vs Delivery" read of the last few
+// earnings calls, and the numbers — written from Glow's sector signal rulebook
+// applied to the company's own data.
 //
-// PHASE 1: company pages are authored from Glow's research as each sector is wired.
-// HAL (Defence) is the first live example. Market price is read live from the
-// technicals feed at render time; order book and financials are from Glow research
-// until the fundamentals feed is connected. Nothing here is a recommendation.
+// SOURCES PER COMPANY (full-depth standard):
+//   • Live price / day move  → the dashboard's technicals feed (read at render time)
+//   • Financials             → Screener (exact figures, dated)
+//   • Management commentary  → the company's last 2–3 earnings calls (concalls),
+//                              organised the way dakshamconcall does it — Guidance
+//                              vs Delivery — reporting management's own words, not
+//                              opinions put in their mouth
+//   • Context / events       → web & news research
+// The verdict and scores are Glow's analysis of the above. Nothing is invented;
+// figures are marked and dated. This is not investment advice.
 //
-// Each point's `tag` is the exact signal from the sector rulebook that fired it, so a
-// reader can see the page is signal-driven, not hand-waved.
+// Each point's `tag` is the exact signal from the sector rulebook that fired it.
 
 export const INSIGHTS = {
   HAL: {
     ticker: 'HAL',
     name: 'Hindustan Aeronautics',
     ourSector: 'Defence & Aerospace',
-    asOf: 'Q2 FY27',
+    asOf: 'Q1 FY27 · Q2 due 12 Nov',
     lead:
       "India's monopoly maker of military aircraft — it designs and builds the fighters, " +
       'helicopters and engines the armed forces fly, and maintains them for life.',
     what:
-      'HAL is a government-owned company that <b>designs, builds and maintains India\'s military ' +
-      'aircraft</b> — the Tejas fighter, the Dhruv/Prachand helicopters, aero-engines, and the ' +
-      'decades-long servicing that follows each one. It is effectively the <b>only domestic maker</b> ' +
-      'of fighters and military choppers, so most of its work is handed to it directly by the Ministry ' +
-      'of Defence. Its real signature is the <b>order book</b> — signed work not yet delivered — which ' +
-      'now stretches well past a decade of sales, funded largely by government advances.',
+      "Think of HAL as the maker of India's military aircraft — the Tejas fighter, the Dhruv and " +
+      'Prachand helicopters, aero-engines — and, just as importantly, the company that <b>repairs and ' +
+      'overhauls that fleet for decades</b> afterwards (a steady, captive income). It is effectively the ' +
+      '<b>only domestic maker</b> of fighters and military helicopters, so most of its work is handed to it ' +
+      'directly by the Ministry of Defence. Its signature is the <b>order book</b> — signed work not yet ' +
+      'delivered — which now stretches to around 2032, funded largely by government advances.',
     facts: [
       { k: 'Government-owned', v: 'Maharatna PSU' },
-      { k: 'Order book', v: '≈ ₹2.55 lakh cr' },
-      { k: 'Order-book cover', v: '≈ 7.5× sales' },
-      { k: 'EBITDA margin', v: '≈ 30%' },
-      { k: 'Balance sheet', v: 'Net cash' },
+      { k: 'Order book', v: '≈ ₹2.54 lakh cr' },
+      { k: 'Order-book cover', v: '≈ 7.7× sales' },
+      { k: 'Operating margin', v: '≈ 30%' },
+      { k: 'P/E', v: '≈ 36×' },
+      { k: 'Balance sheet', v: 'Net cash ₹46k cr' },
     ],
-    quality: 84,
-    price: 44,
+    quality: 83,
+    price: 40,
     verdict: 'Watchlist',
-    verdictSub: 'Great franchise · rich price',
+    verdictSub: 'Elite franchise · still pricey',
     takeaways: [
-      'Order book ~7.5× sales — but converting slowly (sales +7%)',
-      'Fat ~30% margins, net cash, owns its technology',
-      'Premium price already assumes flawless delivery',
+      'Record ₹2.54 lakh cr order book — but the jets aren’t shipping yet',
+      'It all hinges on GE engine supply; the 12 Nov call is the test',
+      'Elite ~30% margins and net cash — but priced at ~36×',
     ],
     why:
-      'We score the <b>business</b> and the <b>price</b> as two separate questions. HAL is a near-monopoly ' +
-      'with an enormous order book and fat margins — excellent on the first. But the price already assumes ' +
-      'that backlog converts smoothly into sales, and conversion has been the weak spot.',
+      'We score the <b>business</b> and the <b>price</b> as two separate questions. HAL is an elite ' +
+      'franchise — a decade of orders, ~30% margins, net cash. But the one thing that matters most, <b>turning ' +
+      'that record order book into delivered jets</b>, keeps slipping on engine supply, and the price (~36× ' +
+      'earnings) still assumes it all converts smoothly.',
     trigger:
-      'It becomes a <b>Buy</b> if the price cools, <b>or</b> once revenue clearly starts converting the ' +
-      '₹2.55 lakh cr backlog — Tejas Mk1A deliveries ramping and the engine-supply bottleneck easing — ' +
-      'rather than the order book simply growing.',
+      'It becomes a <b>Buy</b> if the price cools, <b>or</b> once the GE F404 engines actually ramp and Tejas ' +
+      'Mk1A deliveries start flowing — the <b>12 November Q2 call</b> is the first real test of management’s ' +
+      '"deliveries from Aug–Sep 2026" promise.',
+    // Guidance vs Delivery — organised from HAL's last three earnings calls.
+    concalls: {
+      rows: [
+        { theme: 'Order book & inflow', guided: 'Keep winning big orders', status: 'kept',
+          note: 'Backlog grew ₹1.89 → ₹2.54 lakh cr in FY26 on ₹97,000 cr of fresh orders (incl. the ₹62,370 cr / 97-jet Tejas deal); ~₹90,000 cr more guided over the next two years.' },
+        { theme: 'Revenue growth', guided: '10–12% in FY27, H2-weighted', status: 'watch',
+          note: 'Guided the same in Feb, May and Aug 2026 — but FY26 actually grew only ~7%, below HAL’s own norm, because of the Tejas delays.' },
+        { theme: 'Tejas Mk1A deliveries', guided: 'Start Aug–Sep 2026; ~20 in FY27', status: 'missed',
+          note: 'Zero delivered in FY26 despite 20–30 jets built and parked. The "delivering soon" promise has slipped across several quarters.' },
+        { theme: 'GE F404 engines', guided: 'GE to supply 15–22 a year', status: 'watch',
+          note: 'The bottleneck: only 5 → 6 → 7 engines received across the three calls (~2 in six months). The FY27 plan needs a big, still-unproven jump.' },
+        { theme: 'Margins', guided: '30–31% held', status: 'kept',
+          note: 'FY26 landed ~30% (quarterly figures are lumpy — judge the full year, not one quarter).' },
+        { theme: 'Cash tied up', guided: '—', status: 'watch',
+          note: 'Inventory jumped ₹21,700 → ₹30,900 cr as undelivered airframes pile up waiting for engines.' },
+      ],
+      trend:
+        'The order book is the promise HAL keeps; turning it into delivered jets is the one it keeps pushing ' +
+        'out. Everything now hinges on the GE engine ramp — the 12 November Q2 call is the first real test of ' +
+        'the "deliveries from Aug–Sep 2026" promise.',
+      note:
+        'Read from HAL’s last three earnings calls — Q3 FY26, Q4 FY26 (official transcript) and Q1 FY27 ' +
+        '(broker notes). We organise management’s own words; we don’t put words in their mouth.',
+    },
     like: [
-      { t: 'A decade-plus of work already locked in', tag: 'Years of work in hand',
-        d: 'The ~₹2.55 lakh crore backlog is about 7.5× a full year\'s sales — one of the longest revenue runways on the market, visible years ahead.' },
+      { t: 'A decade of orders already locked in', tag: 'Years of work in hand',
+        d: 'The ~₹2.54 lakh crore order book is about 7.7× a full year’s sales — management says it gives revenue visibility out to 2032.' },
       { t: 'Funded by the customer, not by debt', tag: 'Advances · net cash',
-        d: 'It runs largely on government advances and sits on net cash, so it funds a huge build programme with almost no borrowing.' },
-      { t: 'Owns the design — not screwdriver assembly', tag: 'Owns the design',
-        d: 'It designs its own aircraft, helicopters and engines and does the lifetime maintenance — deep IP and a captive after-market a rival cannot displace.' },
-      { t: 'Fat, rising margins', tag: 'Margin & mix',
-        d: 'EBITDA margin around 30% and guided to 30–31% — unusually high, helped by the high-value design-and-maintenance mix.' },
-      { t: 'Near-monopoly on Indian military aircraft', tag: 'Dominant franchise',
-        d: 'Effectively the only domestic maker of fighters and military helicopters, riding India\'s long push to build its defence kit at home.' },
-      { t: 'Still winning work faster than it books it', tag: 'Book-to-bill > 1',
-        d: 'The order book has jumped from ~₹1.9 lakh cr to ~₹2.55 lakh cr in a year, so the runway is still lengthening, not shrinking.' },
+        d: 'Runs on government advances and sits on ~₹46,000 cr of net cash with zero debt — it funds a huge build programme without borrowing.' },
+      { t: 'Owns the design — and the after-market', tag: 'Design · ROH moat',
+        d: 'It designs its own jets, helicopters and engines, and earns a steady repair-and-overhaul income servicing the fleet for life — a captive annuity a rival cannot touch.' },
+      { t: 'Among the best margins in defence', tag: 'Margin & mix',
+        d: 'Operating margin ~30% (easing gently from 32% two years ago) and guided at 30–31% — elite for a manufacturer, helped by the design-and-servicing mix.' },
+      { t: 'Near-monopoly riding a national tailwind', tag: 'Dominant franchise',
+        d: 'Effectively the only domestic maker of fighters and military helicopters, as India pushes hard to build its defence kit at home.' },
+      { t: 'Orders still growing faster than sales', tag: 'Book-to-bill > 1',
+        d: 'The backlog jumped on ₹97,000 cr of FY26 wins, with ~₹90,000 cr more guided over two years — the runway keeps lengthening.' },
     ],
     dislike: [
-      { t: 'The order book isn\'t turning into sales fast enough', tag: 'Order book → sales',
-        d: 'The one that matters most here: the backlog is at a record while revenue grew only ~2% (FY25) and ~7% (FY26). A huge book means little until it converts.' },
-      { t: 'Deliveries keep slipping', tag: 'Delivering on time',
-        d: 'Tejas Mk1A hand-overs have run late, largely on engine supply from GE. Sales only count when the forces accept delivery — and acceptances have lagged.' },
-      { t: 'Almost a single customer', tag: 'One-customer risk',
-        d: 'Overwhelmingly dependent on the Ministry of Defence and weighted to a few big programmes, so a budget or priority shift hits a lot at once.' },
-      { t: 'Cash can get stuck', tag: 'Cash stuck',
-        d: 'The government pays and accepts slowly, so unpaid bills and work-in-progress inventory can swell — worth checking that profit becomes cash.' },
-      { t: 'Priced for flawless delivery', tag: 'Price assumes perfect delivery',
-        d: 'At a premium multiple (~30×+ earnings) the price already assumes the backlog converts smoothly — if execution keeps slipping, there is little under the valuation.' },
+      { t: 'The order book isn’t turning into sales', tag: 'Order book → sales',
+        d: 'The one that matters most: a record book, yet FY26 revenue grew only ~7%. Management itself blamed delays on the Tejas and trainer programmes.' },
+      { t: 'Tejas deliveries keep slipping', tag: 'Delivering on time',
+        d: 'Zero Mk1A were delivered in FY26 despite 20–30 jets built and parked — delivery has been promised "soon" through several quarters running.' },
+      { t: 'One engine supplier is the choke point', tag: 'Engine supply',
+        d: 'It all waits on GE’s F404 engines, and just 5 → 6 → 7 arrived across three quarters. FY27’s plan needs a steep, unproven ramp in that supply.' },
+      { t: 'Cash is piling up as unsold stock', tag: 'Working capital',
+        d: 'Inventory ballooned ₹21,700 → ₹30,900 cr as finished jets sit waiting for engines — so reported profit isn’t fully turning into cash.' },
+      { t: 'A chunk of profit is "other income"', tag: 'Earnings quality',
+        d: 'In the June quarter about ₹900 cr of profit was interest and other income rather than the core business — one broker flagged the earnings quality.' },
+      { t: 'Priced for perfection', tag: 'Valuation',
+        d: 'At ~36× earnings the price already assumes smooth conversion; big investors have trimmed (foreign holding 12% → 9.3%) and one broker cut it to Hold.' },
     ],
     financials: {
       cols: ['FY24', 'FY25', 'FY26'],
       rows: [
-        { k: 'Revenue', v: ['≈ 30,380', '≈ 30,980', '≈ 33,050'] },
+        { k: 'Revenue', v: ['30,381', '30,981', '33,089'] },
         { k: '— growth', v: ['—', '+2%', '+7%'], pos: [false, true, true] },
-        { k: 'Net profit', v: ['≈ 7,600', '≈ 8,360', '≈ 8,400'] },
-        { k: 'Operating (EBITDA) margin', v: ['≈ 27%', '≈ 29%', '≈ 30%'] },
+        { k: 'Net profit', v: ['7,621', '8,364', '9,116'] },
+        { k: '— growth', v: ['—', '+10%', '+9%'], pos: [false, true, true] },
+        { k: 'Operating (EBITDA) margin', v: ['32%', '31%', '30%'] },
       ],
     },
     fnote:
-      'Order book ≈ ₹2.55 lakh cr (up from ~₹1.9 lakh cr a year earlier). FY27 guidance: 10–12% revenue ' +
-      'growth, 30–31% margin, weighted to the second half. Notice how the backlog has raced ahead while ' +
-      'revenue growth stayed single-digit — that gap is the conversion watch above. Figures approximate/indicative.',
+      'Order book ≈ ₹2.54 lakh cr (Mar 2026). Latest quarter — Q1 FY27: revenue ₹5,515 cr (+14% YoY), net profit ' +
+      '₹1,590 cr (+15%); Q2 FY27 is due 12 Nov 2026. Net cash ≈ ₹46,000 cr, zero debt · P/E ≈ 36× · ROE ≈ 24% · ' +
+      'dividend yield ≈ 0.9%. Figures from Screener (4 Nov 2026); growth is on revenue from operations.',
     close:
-      'A near-monopoly with a decade-plus of orders and fat margins — the quality is not in doubt. The ' +
-      'debate is whether that record backlog finally converts into sales, and whether today\'s premium ' +
-      'price leaves any room if it doesn\'t. We\'d rather own it on better conversion, or a better price.',
+      'A genuinely elite franchise — a decade of orders, ~30% margins, net cash and a captive after-market. The ' +
+      'whole debate is execution: can HAL finally turn that record ₹2.54 lakh cr book into delivered jets as the GE ' +
+      'engines arrive? Until deliveries actually flow, a ~36× price leaves little room for error. We’d rather buy ' +
+      'on proof of conversion, or a cheaper price.',
+    sources:
+      'Numbers: Screener (4 Nov 2026). Management commentary: HAL’s Q3 FY26, Q4 FY26 (official transcript) and ' +
+      'Q1 FY27 earnings calls. Live price: the dashboard feed.',
   },
 };
 

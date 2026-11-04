@@ -128,6 +128,16 @@ const CSS = `
 .gi-ftable tbody tr:nth-child(even){background:#f7f8fc;} .gi-ftable tbody tr:last-child td{border-bottom:0;}
 .gi-ftable td.pos{color:#047857;font-weight:700;}
 .gi-fnote{font-size:.77rem;color:#8b94a7;margin-top:11px;line-height:1.5;}
+.gi-gd{width:100%;border-collapse:collapse;font-size:.87rem;}
+.gi-gd thead th{text-align:left;font-weight:800;color:#8b94a7;font-size:.63rem;letter-spacing:.05em;text-transform:uppercase;padding:9px 12px;border-bottom:2px solid #e5e8f1;}
+.gi-gd tbody td{padding:11px 12px;border-bottom:1px solid #eef0f5;vertical-align:top;}
+.gi-gd tbody tr:last-child td{border-bottom:0;}
+.gi-gd .gd-th{font-weight:700;color:#111827;}
+.gi-gd .gd-gd{color:#56617a;font-size:.82rem;margin-top:2px;}
+.gi-gd .gd-note{color:#56617a;}
+.gi-st{display:inline-block;font-weight:800;font-size:.6rem;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;margin-right:7px;white-space:nowrap;}
+.gi-st.kept{background:#ecfdf5;color:#047857;} .gi-st.watch{background:#fffbeb;color:#b45309;} .gi-st.missed{background:#fff1f2;color:#be123c;}
+.gi-trend{margin-top:13px;font-size:.9rem;color:#111827;font-weight:600;line-height:1.5;border-left:3px solid #4f46e5;padding-left:12px;}
 .gi-wrapcard{border:1px solid #e5e8f1;border-radius:14px;padding:16px 18px;}
 .gi-close{margin-top:22px;display:flex;gap:13px;align-items:flex-start;font-family:"Plus Jakarta Sans",sans-serif;
   font-size:1.02rem;font-weight:700;line-height:1.5;color:#111827;letter-spacing:-.01em;}
@@ -306,6 +316,8 @@ function pagerHtml(d) {
         <div class="gi-col dislike"><div class="gi-colhd"><span class="gi-mk">✕</span> What we don't like</div><div class="gi-colbody">${dislike}</div></div>
       </div>
 
+      ${d.concalls ? concallHtml(d) : ''}
+
       <h2 class="gi-sh">Financials at a glance</h2>
       <div class="gi-wrapcard">
         <table class="gi-ftable"><thead><tr><th>₹ crore</th>${fcols}</tr></thead><tbody>${frows}</tbody></table>
@@ -314,7 +326,7 @@ function pagerHtml(d) {
 
       <div class="gi-close"><span class="q"></span><span>${d.close}</span></div>
 
-      <div class="gi-foot"><b>How this is built:</b> written from Glow's ${esc(d.ourSector)} rulebook applied to the company's own data — order book, results, con-call commentary, filings and live market data. Business-quality and price scores come from weighing every signal that fired; the page shows only the few that matter here. Market price is live from the dashboard; order book and financials are from Glow research (the fundamentals feed is being wired). <b>Illustrative demo</b> — figures approximate; not investment advice.</div>
+      <div class="gi-foot"><b>How this is built:</b> written from Glow's ${esc(d.ourSector)} rulebook applied to the company's own data — order book, results, con-call commentary, filings and live market data. Business-quality and price scores come from weighing every signal that fired; the page shows only the few that matter here. ${d.sources || 'Market price is live from the dashboard.'} <b>Illustrative</b> — figures are indicative; not investment advice.</div>
     </div>
   </div>`;
 }
@@ -322,6 +334,21 @@ function pagerHtml(d) {
 function ptHtml(p, i) {
   const n = String(i + 1).padStart(2, '0');
   return `<div class="gi-pt"><div class="t"><span class="b">${n}</span><span>${esc(p.t)}</span></div><div class="d">${esc(p.d)}</div><span class="tag">${esc(p.tag)}</span></div>`;
+}
+
+function concallHtml(d) {
+  const c = d.concalls;
+  const LABEL = { kept: 'Kept', watch: 'Watch', missed: 'Slipping' };
+  const rows = c.rows.map((r) => `<tr>
+    <td><div class="gd-th">${esc(r.theme)}</div><div class="gd-gd">${esc(r.guided)}</div></td>
+    <td><span class="gi-st ${r.status}">${LABEL[r.status] || ''}</span><span class="gd-note">${esc(r.note)}</span></td>
+  </tr>`).join('');
+  return `<h2 class="gi-sh">Guidance vs delivery — the last 3 earnings calls</h2>
+    <div class="gi-wrapcard">
+      <table class="gi-gd"><thead><tr><th>What management said</th><th>How it’s tracking</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="gi-trend">${c.trend}</div>
+      <div class="gi-fnote">${esc(c.note)}</div>
+    </div>`;
 }
 
 function comingHtml(ticker) {
