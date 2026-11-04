@@ -1,7 +1,7 @@
 {
  "_provenance": "Headlines from the committed market-news capture that name one of the family’s private companies (portfolio-companies.json → privateCompanies, from the GlowVentures book), matched by reviewed name as a proper noun in the headline. A name in a headline, not a verified event. Built by scripts/build-private-company-news.mjs; read by AI Alerts.",
  "version": 1,
- "newsCapturedAt": "2026-11-04T10:19:44.837Z",
+ "newsCapturedAt": "2026-11-04T10:45:27.238Z",
  "bookAsOf": "2026-11-03",
  "companies": 52,
  "windowDays": 120,
@@ -105,6 +105,20 @@
    "publisher": "Economic Times"
   },
   {
+   "id": "pcn:mint:www.livemint.com/market/stock-market-news/himadri-speciality-borosil-renewables-among-5-fundamental-stock-picks-ambareesh-baliga-recommends-buying-for-short-term-11790333179461.htm:private:borosilrenewables",
+   "entityId": "private:borosilrenewables",
+   "company": "Borosil Renewables",
+   "categories": [
+    "private-investment"
+   ],
+   "at": "2026-09-25T11:40:52.000Z",
+   "firstSeenAt": "2026-09-25T11:59:11.118Z",
+   "title": "Himadri Speciality, Borosil Renewables among 5 fundamental stock picks Ambareesh Baliga recommends buying for short term",
+   "summary": "SEBI-registered independent market expert Ambareesh Baliga identifies five promising stocks, including Himadri and Borosil Renewables, poised for growth. Do you own any?",
+   "url": "https://www.livemint.com/market/stock-market-news/himadri-speciality-borosil-renewables-among-5-fundamental-stock-picks-ambareesh-baliga-recommends-buying-for-short-term-11790333179461.html",
+   "publisher": "Mint"
+  },
+  {
    "id": "pcn:mint:www.livemint.com/companies/news/amazon-plans-to-invest-25-000-crore-in-indias-quick-commerce-sector-but-can-it-catch-up-to-blinkit-zepto-and-swiggy-11790254959528.html:private:zepto",
    "entityId": "private:zepto",
    "company": "Zepto",
@@ -147,6 +161,20 @@
    "publisher": "Business Standard"
   },
   {
+   "id": "pcn:business-standard:www.business-standard.com/companies/news/borosil-renewables-to-expand-production-capacity-by-60-126092101178_1.html:private:borosilrenewables",
+   "entityId": "private:borosilrenewables",
+   "company": "Borosil Renewables",
+   "categories": [
+    "private-investment"
+   ],
+   "at": "2026-09-21T18:00:21.000Z",
+   "firstSeenAt": "2026-09-21T18:51:44.335Z",
+   "title": "Borosil Renewables to expand production capacity by 60%",
+   "summary": "Borosil Renewables will add 600 tonnes per day of solar glass capacity through two new furnaces at its Bharuch plant, taking total capacity to 1,600 TPD by FY28",
+   "url": "https://www.business-standard.com/companies/news/borosil-renewables-to-expand-production-capacity-by-60-126092101178_1.html",
+   "publisher": "Business Standard"
+  },
+  {
    "id": "pcn:business-standard:www.business-standard.com/companies/news/zepto-cafe-cuts-footprint-across-cities-scales-back-menu-after-expansion-126092101192_1.html:private:zepto",
    "entityId": "private:zepto",
    "company": "Zepto",
@@ -159,6 +187,20 @@
    "summary": "Zepto Cafe's footprint has fallen to an estimated 250-350 locations from a peak of 850-900 as the quick-commerce firm focuses on select high-performing markets",
    "url": "https://www.business-standard.com/companies/news/zepto-cafe-cuts-footprint-across-cities-scales-back-menu-after-expansion-126092101192_1.html",
    "publisher": "Business Standard"
+  },
+  {
+   "id": "pcn:mint:www.livemint.com/market/stock-market-news/borosil-renewables-entry-into-the-solar-rooftop-sector-a-significant-positive-shares-may-see-an-upswing-say-experts-11789552595550.html:private:borosilrenewables",
+   "entityId": "private:borosilrenewables",
+   "company": "Borosil Renewables",
+   "categories": [
+    "private-investment"
+   ],
+   "at": "2026-09-16T10:23:17.000Z",
+   "firstSeenAt": "2026-09-17T00:05:41.961Z",
+   "title": "Borosil Renewables' entry into the solar rooftop sector a significant positive, shares may see an upswing, say experts",
+   "summary": "Borosil Renewables, facing recent stock pressure, is pivoting to the rooftop solar market, which, according to experts, could significantly boost profitability. Analysts foresee a positive shift in its financial trajectory amidst growing solar demand.",
+   "url": "https://www.livemint.com/market/stock-market-news/borosil-renewables-entry-into-the-solar-rooftop-sector-a-significant-positive-shares-may-see-an-upswing-say-experts-11789552595550.html",
+   "publisher": "Mint"
   },
   {
    "id": "pcn:business-standard:www.business-standard.com/finance/personal-finance/new-credit-card-offers-7-5-cashback-on-dmart-blinkit-zepto-bigbasket-126091001302_1.html:private:zepto",
@@ -189,5 +231,5 @@
    "publisher": "Business Standard"
   }
  ],
- "generatedAt": "2026-11-04T10:24:10.842Z"
+ "generatedAt": "2026-11-04T11:37:18.965Z"
 }
