@@ -122,10 +122,10 @@ try {
     await page.locator('[data-active-tab="ai-alerts"]').waitFor();
     assert.deepEqual(await page.locator('#subview-mount [data-tab-id]').evaluateAll(tabs =>
       tabs.map(tab => [tab.dataset.tabId, tab.textContent.trim()])),
-      [['ai-alerts', 'AI Alerts'], ['daily-alerts', 'All Alerts']]);
+      [['ai-alerts', 'AI Alerts'], ['ai-insights', 'AI Insights'], ['daily-alerts', 'All Alerts']]);
     assert.equal(await page.locator('#tabbar-mount [data-tab-id="alerts"]').getAttribute('aria-selected'), 'true');
     assert.equal(await page.locator('#subview-mount').getAttribute('data-navigation'), 'group');
-    assert(await page.locator('#subview-mount [data-tab-scroll-controls]').isHidden(), 'both alert subtabs fit without overflow controls');
+    assert(await page.locator('#subview-mount [data-tab-scroll-controls]').isHidden(), 'all three alert subtabs fit without overflow controls');
     await page.evaluate(() => { window.alertSubtabs = document.querySelector('#subview-mount [data-tab-list]'); });
     await page.locator('#subview-mount [data-tab-id="ai-alerts"]').focus();
     await page.keyboard.press('ArrowRight');
