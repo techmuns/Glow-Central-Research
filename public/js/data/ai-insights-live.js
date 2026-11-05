@@ -18,6 +18,7 @@
 
 import * as alerts from './ai-alerts.js';
 import * as kpi from './kpi-impact.js';
+import * as coverage from './coverage.js';
 import { currentSymbol } from './announcement-identity.js';
 
 const TONE = { positive: 'good', negative: 'bad', neutral: 'watch' };
@@ -58,10 +59,10 @@ function reportFor(scope) {
 }
 
 /**
- * The company's ranked card, from the Portfolio report. Every AI Insights company is a family
- * holding, so the Portfolio window is both the authoritative one (a holding with no card there has
- * no alerts in 14 days) and the warm one (Portfolio is the default landing scope). Returns
- * `{ card, status }`:
+ * The company's ranked card. A family holding is read from the Portfolio window — authoritative (a
+ * holding with no card there has no alerts in 14 days) and warm (Portfolio is the default landing
+ * scope). Any other company (a watchlist or universe pick) is read from the Universe window, which
+ * covers every company. Returns `{ card, status }`:
  *   'ok'   — a card was found for this company,
  *   'none' — the alerts were read but nothing moved this company in the last 14 days,
  *   'cold' — the alerts could not be read at all right now.
@@ -69,7 +70,8 @@ function reportFor(scope) {
  */
 export async function cardFor(ticker, isCurrent = () => true) {
   const want = currentSymbol(ticker) || String(ticker || '').toUpperCase();
-  const report = await reportFor('portfolio');
+  const scope = coverage.has(want) ? 'portfolio' : 'universe';
+  const report = await reportFor(scope);
   if (!isCurrent() || !report) return { card: null, status: 'cold' };
   const card = (report.allCards || []).find((c) => c.ticker === want);
   return card ? { card, status: 'ok' } : { card: null, status: 'none' };

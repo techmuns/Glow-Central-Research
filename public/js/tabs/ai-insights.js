@@ -16,6 +16,7 @@ import { openModal } from '../ui/screener.js';
 import { push as pushNote } from '../ui/notifications.js';
 import * as coverage from '../data/coverage.js';
 import * as technicals from '../data/technicals.js';
+import * as watchlist from '../core/watchlist.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
 
 export const meta = TAB_META['ai-insights'];
@@ -27,6 +28,8 @@ let offProg = null;   // the open progress screen's subscription
 // for one company can't paint into another company's open one-pager. Zero credits — ai-insights-live.js.
 const liveData = new Map();
 let liveToken = null;
+// Which pool the Run picker offers: the family's holdings, the shared watchlist, or the wider universe.
+let runScope = 'portfolio';
 
 /* ---------------- styles (scoped, injected once) ---------------- */
 const STYLE_ID = 'gi-insights-style';
@@ -214,6 +217,13 @@ const CSS = `
 .gi-livedelta.up{color:#059669;background:#e7f7f0;} .gi-livedelta.down{color:#e11d48;background:#fdeaef;}
 /* Run-any-company live auto-read: the honest note at the top of the generated page. */
 .gi-autonote{font-size:.8rem;color:#4b4257;background:#f6f4ff;border:1px solid #ece7ff;border-radius:10px;padding:10px 13px;margin:2px 0 11px;} .gi-autonote b{color:#6d28d9;}
+/* Run picker scope toggle: Portfolio | Watchlist | Universe. */
+.gi-rp-scope{display:flex;gap:6px;margin:0 0 10px;}
+.gi-rp-scope button{flex:1;appearance:none;cursor:pointer;border:1px solid #e6e9f2;background:#fff;color:#56617a;font-weight:700;font-size:.8rem;border-radius:9px;padding:7px 8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+.gi-rp-scope button b{font-weight:800;font-size:.7rem;color:#94a3b8;}
+.gi-rp-scope button.on{background:linear-gradient(135deg,#6366f1,#a855f7);border-color:transparent;color:#fff;}
+.gi-rp-scope button.on b{color:rgba(255,255,255,.85);}
+.gi-rp-empty{padding:20px 6px;color:#8b94a7;font-size:.85rem;text-align:center;}
 /* Compact one-pager — smaller type, tighter spacing, shorter scroll (desk request). */
 .gi-pager{line-height:1.48;}
 .gi-pager .in{padding:0 20px 18px;}
@@ -389,41 +399,84 @@ function startRun(ticker, name, sector) {
   openRunProgress(ticker);
 }
 
-function openRunPicker() {
-  const held = coverage.holdings() || [];
+const RUN_SCOPES = [['portfolio', 'Portfolio'], ['watchlist', 'Watchlist'], ['universe', 'Universe']];
+
+// The companies the Run picker offers, for one scope. Portfolio = the family's holdings; Watchlist =
+// the shared watchlist; Universe = the wider screener universe. Sector is filled from the researched
+// map, then the matching holding/universe row, so every row shows one. De-duped by ticker, by name.
+function runScopeCompanies(scope) {
   const sectorOf = new Map();
   for (const g of RESEARCHED_SECTORS) for (const t of g.tickers) sectorOf.set(t, g.sector);
-  // Every family holding can be run — the live auto-read (recent alerts + the sector scorecard from
-  // the KPI rulebook) works for any classified company, not only the hand-researched sectors.
-  const list = held
-    .map((h) => ({ ticker: h.ticker, name: h.name, sector: sectorOf.get(h.ticker) || h.sector || '' }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const rowsHtml = list.map((c) => {
+  const uni = ctxRef?.data?.universe || [];
+  const uniMap = new Map(uni.map((u) => [u.ticker, u]));
+  const holdMap = new Map((coverage.holdings() || []).map((h) => [h.ticker, h]));
+  const sec = (t, fallback) => sectorOf.get(t) || fallback || '';
+  let rows = [];
+  if (scope === 'watchlist') {
+    rows = (watchlist.all() || []).map((w) => ({
+      ticker: w.ticker,
+      name: w.name || holdMap.get(w.ticker)?.name || uniMap.get(w.ticker)?.name || w.ticker,
+      sector: sec(w.ticker, holdMap.get(w.ticker)?.sector || uniMap.get(w.ticker)?.sector),
+    }));
+  } else if (scope === 'universe') {
+    rows = uni.map((u) => ({ ticker: u.ticker, name: u.name || u.ticker, sector: sec(u.ticker, u.sector) }));
+  } else {
+    rows = (coverage.holdings() || []).map((h) => ({ ticker: h.ticker, name: h.name, sector: sec(h.ticker, h.sector) }));
+  }
+  const seen = new Set();
+  return rows.filter((r) => r.ticker && !seen.has(r.ticker) && seen.add(r.ticker))
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+}
+
+function pickerRowsHtml(scope) {
+  const list = runScopeCompanies(scope);
+  if (!list.length) {
+    const msg = scope === 'watchlist' ? 'No companies on the watchlist yet — star some from any table.'
+      : scope === 'universe' ? 'The universe list is still loading — try again in a moment.'
+        : 'No holdings found.';
+    return `<div class="gi-rp-empty">${msg}</div>`;
+  }
+  return list.map((c) => {
     const av = avatar(c.name);
     const st = isRunning(c.ticker) ? '<span class="gi-rp-st run">Running…</span>'
       : isRun(c.ticker) ? '<span class="gi-rp-st done">Ready ↗</span>'
         : '<span class="gi-rp-st go">Run ▶</span>';
     return `<button type="button" class="gi-rp-row" data-run="${esc(c.ticker)}" data-name="${esc(c.name)}" data-sector="${esc(c.sector)}">
       <span class="gi-av sm" style="background:${av.bg}">${av.ini}</span>
-      <span class="gi-rp-meta"><span class="gi-rp-name">${esc(c.name)}</span><small>${esc(c.ticker)} · ${esc(c.sector)}</small></span>
+      <span class="gi-rp-meta"><span class="gi-rp-name">${esc(c.name)}</span><small>${esc(c.ticker)}${c.sector ? ` · ${esc(c.sector)}` : ''}</small></span>
       ${st}
     </button>`;
   }).join('');
+}
+
+function openRunPicker() {
+  const scopeTabs = RUN_SCOPES.map(([s, label]) =>
+    `<button type="button" data-scope="${s}" class="${s === runScope ? 'on' : ''}">${label} <b>${runScopeCompanies(s).length}</b></button>`).join('');
   openModal(`<div class="gi-picker">
-    <div class="gi-picker-h"><h3>Run a company</h3><p>Pick a company to build its one-pager. It runs in the background — you can keep working on other tabs while it does.</p></div>
+    <div class="gi-picker-h"><h3>Run a company</h3><p>Pick a company to build its one-pager — from your portfolio, your watchlist, or the wider universe. It runs in the background while you keep working.</p></div>
+    <div class="gi-rp-scope" data-run-scope>${scopeTabs}</div>
     <input type="search" class="gi-picker-search" placeholder="Search companies…" data-run-search aria-label="Search companies">
-    <div class="gi-picker-list" data-run-list>${rowsHtml}</div>
+    <div class="gi-picker-list" data-run-list>${pickerRowsHtml(runScope)}</div>
   </div>`, { size: 'default' });
   const root = document.getElementById('modal-content');
   const search = root?.querySelector('[data-run-search]');
   const listEl = root?.querySelector('[data-run-list]');
-  search?.addEventListener('input', () => {
-    const q = search.value.trim().toLowerCase();
+  const applyFilter = () => {
+    const q = (search?.value || '').trim().toLowerCase();
     for (const row of listEl.querySelectorAll('.gi-rp-row')) {
       const hay = `${row.dataset.name} ${row.dataset.run} ${row.dataset.sector}`.toLowerCase();
       row.style.display = hay.includes(q) ? '' : 'none';
     }
+  };
+  root?.querySelector('[data-run-scope]')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-scope]');
+    if (!btn || btn.dataset.scope === runScope) return;
+    runScope = btn.dataset.scope;
+    for (const b of root.querySelectorAll('[data-run-scope] [data-scope]')) b.classList.toggle('on', b.dataset.scope === runScope);
+    listEl.innerHTML = pickerRowsHtml(runScope);
+    applyFilter();
   });
+  search?.addEventListener('input', applyFilter);
   listEl?.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-run]');
     if (!btn) return;
