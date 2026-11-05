@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-11-05T18:02:52.224Z",
-  "oldestDataAt": "2026-11-05T18:02:52.224Z",
-  "from": "2025-11-05",
-  "to": "2026-11-05",
+  "capturedAt": "2026-11-05T20:59:23.717Z",
+  "oldestDataAt": "2026-11-05T20:59:23.717Z",
+  "from": "2025-11-06",
+  "to": "2026-11-06",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-05T18:02:52.224Z",
+      "capturedAt": "2026-11-05T20:59:23.717Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-05T18:02:52.224Z",
+      "capturedAt": "2026-11-05T20:59:23.717Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-05T18:02:52.224Z",
+      "capturedAt": "2026-11-05T20:59:23.717Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-05T18:02:52.224Z",
+      "capturedAt": "2026-11-05T20:59:23.717Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 2192,
   "emptyCount": 0,
-  "rowCount": 24628,
+  "rowCount": 24617,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -83866,50 +83866,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "ECLERX",
-        "date": "2025-11-05",
-        "cells": {
-          "Company": "ECLERX",
-          "Insider": "Eclerx Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "4968",
-          "Trade %": "0.01",
-          "Trade Value": "23597764",
-          "Post Holding Shares": "736714",
-          "Post Holding %": "1.54",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-03",
-          "To Date": "2025-11-03",
-          "Broadcast Date": "2025-11-05",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ECLERX",
-        "date": "2025-11-05",
-        "cells": {
-          "Company": "ECLERX",
-          "Insider": "Eclerx Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "5045",
-          "Trade %": "0.01",
-          "Trade Value": "23585024",
-          "Post Holding Shares": "731746",
-          "Post Holding %": "1.53",
-          "Mode": "Market Purchase",
-          "From Date": "2025-10-31",
-          "To Date": "2025-10-31",
-          "Broadcast Date": "2025-11-05",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "ESTER": [
@@ -133306,138 +133262,6 @@
           "From Date": "2025-11-07",
           "To Date": "2025-11-07",
           "Broadcast Date": "2025-11-10",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-11-05",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - JSWSL OPJ Samruddhi Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1040",
-          "Trade %": "0",
-          "Trade Value": "1245920",
-          "Post Holding Shares": "2819865",
-          "Post Holding %": "0.12",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-03",
-          "To Date": "2025-11-03",
-          "Broadcast Date": "2025-11-05",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-11-05",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - JSWSL OPJ Samruddhi Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1137",
-          "Trade %": "0",
-          "Trade Value": "1375770",
-          "Post Holding Shares": "2845922",
-          "Post Holding %": "0.12",
-          "Mode": "Market Sale",
-          "From Date": "2025-10-31",
-          "To Date": "2025-10-31",
-          "Broadcast Date": "2025-11-05",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-11-05",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - JSWSL OPJ Samruddhi Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "13773",
-          "Trade %": "0",
-          "Trade Value": "13773",
-          "Post Holding Shares": "2823045",
-          "Post Holding %": "0.12",
-          "Mode": "Off Market",
-          "From Date": "2025-10-31",
-          "To Date": "2025-10-31",
-          "Broadcast Date": "2025-11-05",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-11-05",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - OPJ ESOP Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1360",
-          "Trade %": "0",
-          "Trade Value": "1645600",
-          "Post Holding Shares": "2847059",
-          "Post Holding %": "0.12",
-          "Mode": "Market Sale",
-          "From Date": "2025-10-31",
-          "To Date": "2025-10-31",
-          "Broadcast Date": "2025-11-05",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-11-05",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - OPJ ESOP Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "2140",
-          "Trade %": "0",
-          "Trade Value": "2563085",
-          "Post Holding Shares": "2820905",
-          "Post Holding %": "0.12",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-03",
-          "To Date": "2025-11-03",
-          "Broadcast Date": "2025-11-05",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWSTEEL",
-        "date": "2025-11-05",
-        "cells": {
-          "Company": "JSWSTEEL",
-          "Insider": "JSW Steel Employees Welfare Trust - OPJ ESOP Plan 2021 A/c",
-          "Category": "Other",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "9104",
-          "Trade %": "0",
-          "Trade Value": "9104",
-          "Post Holding Shares": "2836818",
-          "Post Holding %": "0.12",
-          "Mode": "Off Market",
-          "From Date": "2025-10-31",
-          "To Date": "2025-10-31",
-          "Broadcast Date": "2025-11-05",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -197676,28 +197500,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "ICRA",
-        "date": "2025-11-05",
-        "cells": {
-          "Company": "ICRA Ltd",
-          "Insider": "Ramnath Krishnan",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "713",
-          "Trade %": "0.01",
-          "Trade Value": "4600336",
-          "Post Holding Shares": null,
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-04",
-          "To Date": "2025-11-04",
-          "Broadcast Date": "2025-11-05",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "SWSOLAR": [
@@ -210455,28 +210257,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "SMSPHARMA",
-        "date": "2025-11-05",
-        "cells": {
-          "Company": "SMS Pharmaceuticals Ltd",
-          "Insider": "HIMA BINDU POTLURI",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Pledge",
-          "Trade Shares": "10620000",
-          "Trade %": "0",
-          "Trade Value": "1255815000",
-          "Post Holding Shares": "15008840",
-          "Post Holding %": "16.03",
-          "Mode": "Pledge Released",
-          "From Date": "2025-11-03",
-          "To Date": "2025-11-03",
-          "Broadcast Date": "2025-11-05",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "ADVENZYMES": [
@@ -222832,28 +222612,6 @@
           "From Date": "2026-07-07",
           "To Date": "2026-07-07",
           "Broadcast Date": "2026-07-09",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "VINCOFE",
-        "date": "2025-11-05",
-        "cells": {
-          "Company": "Vintage Coffee And Beverages Ltd",
-          "Insider": "Tati Sai Teja (Revised)",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "1250000",
-          "Trade %": "0.86",
-          "Trade Value": "57500000",
-          "Post Holding Shares": "1627025",
-          "Post Holding %": "1.12",
-          "Mode": "Allotment",
-          "From Date": "2025-11-04",
-          "To Date": "2025-11-04",
-          "Broadcast Date": "2025-11-05",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
