@@ -18,6 +18,7 @@ import * as coverage from '../data/coverage.js';
 import * as technicals from '../data/technicals.js';
 import * as watchlist from '../core/watchlist.js';
 import { watchScopeCompanies, isPreviousScope } from '../data/scope.js';
+import { themeCatalog, themesForCompany } from '../data/theme-exposures.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
 
 export const meta = TAB_META['ai-insights'];
@@ -29,6 +30,9 @@ let offProg = null;   // the open progress screen's subscription
 // for one company can't paint into another company's open one-pager. Zero credits — ai-insights-live.js.
 const liveData = new Map();
 let liveToken = null;
+// The AI-written "Our view" per ticker, cached for the session so re-opening a run company never
+// re-spends the metered AI step. Kept across tab mounts (not cleared in destroy) for the same reason.
+const aiIdeaData = new Map();
 // Which pool the Run picker offers: the family's holdings, the shared watchlist, or the wider universe.
 let runScope = 'portfolio';
 
@@ -225,6 +229,36 @@ const CSS = `
 .gi-rp-scope button.on{background:linear-gradient(135deg,#6366f1,#a855f7);border-color:transparent;color:#fff;}
 .gi-rp-scope button.on b{color:rgba(255,255,255,.85);}
 .gi-rp-empty{padding:20px 6px;color:#8b94a7;font-size:.85rem;text-align:center;}
+/* AI-written "Our view" on the live auto-read. */
+.gi-ai-tag{font-size:.6rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#6d28d9;background:#f0ebff;border:1px solid #e3d9ff;border-radius:999px;padding:3px 8px;margin-left:8px;vertical-align:middle;}
+.gi-ai-note{font-size:.72rem;color:#8b94a7;margin:-3px 0 9px;}
+.gi-ai-wait{font-size:.82rem;color:#8b94a7;padding:2px 0 6px;}
+.gi-ai-body{font-size:.86rem;color:#1f2937;line-height:1.55;}
+.gi-ai-body h1,.gi-ai-body h2,.gi-ai-body h3,.gi-ai-body h4{font-size:.9rem;font-weight:800;margin:12px 0 5px;color:#111827;}
+.gi-ai-body p{margin:7px 0;}
+.gi-ai-body ul,.gi-ai-body ol{margin:6px 0;padding-left:20px;}
+.gi-ai-body li{margin:3px 0;}
+.gi-ai-body strong{color:#111827;}
+.gi-ai-body blockquote{margin:8px 0;padding:6px 12px;border-left:3px solid #c7bdf0;color:#4b4257;background:#faf9ff;border-radius:0 8px 8px 0;}
+.gi-ai-body table{border-collapse:collapse;margin:8px 0;font-size:.8rem;}
+.gi-ai-body th,.gi-ai-body td{border:1px solid #eceff5;padding:5px 9px;text-align:left;}
+/* Themes — who benefits (event → beneficiary lookup) + per-company exposure chip. */
+.gi-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.gi-themes-btn{appearance:none;cursor:pointer;font-weight:700;font-size:.82rem;border-radius:10px;padding:8px 13px;border:1px solid rgb(var(--border-indigo-200,199 210 254));background:var(--surface,#fff);color:var(--brand-600,#4f46e5);}
+.gi-themes-btn:hover{background:rgb(var(--surface-indigo-50,238 242 255));}
+.gi-themes{display:flex;flex-direction:column;}
+.gi-theme{margin-top:14px;}
+.gi-theme-h{font-size:.98rem;font-weight:800;color:#111827;display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.gi-theme-n{font-size:.62rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#6d28d9;background:#f0ebff;border:1px solid #e3d9ff;border-radius:999px;padding:2px 8px;}
+.gi-theme-sub{font-size:.78rem;color:#56617a;margin:4px 0 9px;}
+.gi-theme-rows{display:flex;flex-direction:column;gap:7px;}
+.gi-theme-row{display:flex;align-items:center;gap:10px;border:1px solid #eceff5;border-radius:11px;padding:8px 11px;}
+.gi-theme-co{flex:1;min-width:0;display:flex;flex-direction:column;}
+.gi-theme-co b{font-size:.86rem;color:#111827;font-weight:700;}
+.gi-theme-co small{font-size:.72rem;color:#8b94a7;overflow:hidden;text-overflow:ellipsis;}
+.gi-theme-src{font-size:.72rem;font-weight:700;color:var(--brand-600,#4f46e5);text-decoration:none;white-space:nowrap;flex-shrink:0;}
+.gi-theme-src:hover{text-decoration:underline;}
+.gi-theme-chip{font-size:.8rem;color:#4b4257;background:#faf6ff;border:1px solid #efe6ff;border-radius:10px;padding:8px 12px;margin:0 0 4px;} .gi-theme-chip b{color:#6d28d9;}
 /* Compact one-pager — smaller type, tighter spacing, shorter scroll (desk request). */
 .gi-pager{line-height:1.48;}
 .gi-pager .in{padding:0 20px 18px;}
@@ -489,6 +523,43 @@ function openRunPicker() {
   setTimeout(() => search?.focus(), 40);
 }
 
+// EVENT → WHO BENEFITS. The reviewed theme-exposure map, as a reader-facing lookup: for each theme,
+// the companies an event in that market bears on, each with the source that states the link. Every
+// row is reviewed, cited data (never inferred) — the same map that drives the indirect alerts.
+function openThemes() {
+  const cat = themeCatalog();
+  const themesHtml = cat.map((t) => {
+    const rows = t.companies.map((c) => {
+      const av = avatar(c.name);
+      const src = c.source
+        ? `<a class="gi-theme-src" href="${esc(c.source.url)}" target="_blank" rel="noopener noreferrer">${esc(c.source.publisher)} ↗</a>`
+        : '';
+      return `<div class="gi-theme-row">
+        <span class="gi-av sm" style="background:${av.bg}">${av.ini}</span>
+        <span class="gi-theme-co"><b>${esc(c.name)}</b><small>${esc(c.ticker)} · ${esc(c.role)}</small></span>
+        ${src}
+      </div>`;
+    }).join('');
+    return `<div class="gi-theme">
+      <div class="gi-theme-h">${esc(t.label)} <span class="gi-theme-n">${t.companies.length} companies</span></div>
+      <p class="gi-theme-sub">When there's news in this market, these are the companies it bears on — each with the source that states the link.</p>
+      <div class="gi-theme-rows">${rows}</div>
+    </div>`;
+  }).join('');
+  openModal(`<div class="gi-themes">
+    <div class="gi-picker-h"><h3>Themes — who benefits</h3><p>When an event hits a market, these are the companies it touches. Every mapping carries a source; nothing is guessed. Not investment advice.</p></div>
+    ${themesHtml || '<div class="gi-rp-empty">No themes mapped yet.</div>'}
+  </div>`, { size: 'default' });
+}
+
+// A small "exposed to <theme>" line for a company's one-pager, when it is mapped to a reviewed theme.
+function themeChipHtml(ticker) {
+  const themes = themesForCompany(ticker);
+  if (!themes.length) return '';
+  const names = themes.map((t) => esc(t.short || t.label)).join(', ');
+  return `<div class="gi-theme-chip">💡 Exposed to <b>${names}</b> — ${esc(themes[0].role)}</div>`;
+}
+
 function openRunProgress(ticker) {
   const rec = runs.get(ticker);
   if (!rec) return;
@@ -578,7 +649,10 @@ export function render(ctx) {
     <div class="gi-tab">
       <div class="gi-head">
         <h2>AI Insights</h2>
-        <button class="gi-run-btn" type="button" data-gi-run>▶ Run a company</button>
+        <div class="gi-head-actions">
+          <button class="gi-themes-btn" type="button" data-gi-themes>💡 Themes · who benefits</button>
+          <button class="gi-run-btn" type="button" data-gi-run>▶ Run a company</button>
+        </div>
       </div>
       <div class="gi-runchips" data-gi-runs></div>
       <div class="gi-card">
@@ -606,6 +680,7 @@ export function render(ctx) {
   body.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') openFromEvent(e); });
 
   ctx.root.querySelector('[data-gi-run]').addEventListener('click', openRunPicker);
+  ctx.root.querySelector('[data-gi-themes]')?.addEventListener('click', openThemes);
   ctx.root.querySelector('[data-gi-runs]').addEventListener('click', (e) => {
     const b = e.target.closest('[data-run-open]');
     if (b) openRunProgress(b.dataset.runOpen);
@@ -735,6 +810,7 @@ function pagerHtml(d) {
         <div class="gi-why">${d.why}<span class="gi-trig">↗ ${d.trigger}</span></div>
       </div>
 
+      ${themeChipHtml(d.ticker)}
       ${liveSectionHtml(d, live)}
 
       ${d.intrinsic ? ivHtml(d) : ''}
@@ -861,8 +937,10 @@ function autoPagerHtml(d) {
       <div class="gi-co2"><h1>${esc(d.name)}</h1><span class="gi-tk">${esc(d.ticker)} · NSE</span></div>
     </div>
     <div class="in">
-      <div class="gi-autonote">⚡ Built live from Glow's own data — this company's recent developments and the numbers that matter for its sector. <b>0 credits.</b> The full written view — verdict, what we like / don't like — is added by the team.</div>
+      <div class="gi-autonote">⚡ Built live from Glow's own data — a quick view, this company's recent developments and the numbers that matter for its sector.</div>
       <div class="gi-facts"><span>Sector <b>${esc(d.ourSector || '—')}</b></span><span class="live">CMP ${esc(price)} · live</span></div>
+      ${themeChipHtml(d.ticker)}
+      <div id="gi-auto-ai" class="gi-ai"><h2 class="gi-sh">Our view <span class="gi-ai-tag">✨ AI-written</span></h2><div class="gi-ai-wait">Writing a quick view from Glow's data…</div></div>
       <div id="gi-auto-live">${liveSectionHtml(d, liveData.get(d.ticker))}</div>
       <div id="gi-auto-kpis">${autoKpisHtml(d, null)}</div>
     </div>
@@ -909,6 +987,40 @@ async function fillAuto(d) {
     const slot = document.getElementById('gi-auto-live');
     if (slot) slot.innerHTML = liveSectionHtml(d, liveData.get(d.ticker));
   });
+
+  // AI-written "Our view" — the one metered step, cached per ticker so a re-open never re-spends.
+  fillAiView(d, live, () => token === liveToken, stillOpen);
+}
+
+async function fillAiView(d, live, isCurrent, stillOpen) {
+  const slot = () => document.getElementById('gi-auto-ai');
+  const cached = aiIdeaData.get(d.ticker);
+  if (cached) {                                        // already written this session — no re-spend
+    if (stillOpen() && slot()) await renderAiInto(slot(), cached);
+    return;
+  }
+  let res;
+  try { res = await live.writeIdea({ ticker: d.ticker, name: d.name, isCurrent }); }
+  catch { res = { status: 'error' }; }
+  if (res?.status === 'ok') aiIdeaData.set(d.ticker, res);
+  if (!stillOpen()) return;
+  const el = slot();
+  if (!el) return;
+  if (res?.status === 'ok') await renderAiInto(el, res);
+  else el.remove();                                    // unconfigured / error / stale → free live view
+}
+
+async function renderAiInto(el, res) {
+  let renderer = null;
+  try { renderer = await import('../research/renderer.js'); } catch { /* fall back to plain text */ }
+  el.innerHTML = `<h2 class="gi-sh">Our view <span class="gi-ai-tag">✨ AI-written</span></h2>
+    <div class="gi-ai-note">Written from Glow's own dashboard data — recent developments, filings and sector signals. Not investment advice.</div>
+    <div class="gi-ai-body"></div>`;
+  const mount = el.querySelector('.gi-ai-body');
+  try {
+    if (renderer?.renderResearchAnswer) renderer.renderResearchAnswer(mount, res.text, { cite: null });
+    else mount.textContent = res.text;
+  } catch { mount.textContent = res.text; }
 }
 
 function ptHtml(p, i) {

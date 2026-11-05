@@ -176,8 +176,117 @@ const GLP1 = {
   ],
 };
 
+// 155MM ARTILLERY SHELLS — the defence-ammunition demand chain (Yamini's "155mm shells → who makes
+// them" example). A story about an artillery-ammunition order, an export deal or new industry
+// capacity bears on the listed companies that make the shells and their forgings/casings, even when
+// the headline names none of them. Every exposure below carries a dated, captured source — a company
+// with no such source is not mapped (Bharat Forge's gun platform and Reliance Infra's projectiles are
+// both plausible; add each by adding its evidence).
+const ARTILLERY = {
+  id: 'artillery-155',
+  label: '155mm artillery shells',
+  short: '155mm shells',
+  // The theme is named in the headline by the calibre, the round, or the ammunition itself.
+  terms: /\b(?:155\s?-?\s?mm|artillery shells?|artillery ammunition|artillery (?:round|projectile)s?|erfb|bb\/bt|terminally[- ]guided munitions?)\b/i,
+  // A war film, a game or a museum piece is not the ammunition market.
+  exclude: /\b(?:video\s?game|movie|film|trailer|museum|memorial|anniversary)\b/i,
+  // The buyers and agencies whose orders and clearances move this market.
+  actors: [
+    ['Munitions India', /\bmunitions india\b/i],
+    ['Ministry of Defence', /\b(?:ministry of defence|defence ministry|\bmod\b|defence acquisition council|\bdac\b)\b/i],
+    ['Indian Army', /\bindian army\b/i],
+    ['DRDO / ARDE', /\b(?:drdo|arde)\b/i],
+  ],
+  stages: [
+    ['order', 'order / contract', /\b(?:orders?|contracts?|deals?|procure\w*|tenders?|loa|purchase orders?|awarded?)\b/i],
+    ['export', 'export demand', /\b(?:exports?|overseas|foreign (?:order|buyer|demand)|saudi|armenia|nato|estonia|ukraine)\b/i],
+    ['capacity', 'new capacity', /\b(?:facilit\w*|plants?|capacit\w*|lines?|commission\w*|licen[cs]e|production)\b/i],
+    ['policy', 'policy / budget', /\b(?:budget|allocation|indigeni[sz]\w*|aatmanirbhar|self[- ]relian\w*)\b/i],
+  ],
+  segments: [
+    ['shell', 'shells', /\b(?:shells?|projectiles?|rounds?|munitions?|erfb|bb\/bt)\b/i],
+    ['forging', 'forgings / casings', /\b(?:forging|forged|casings?|empty shells?|machin\w*)\b/i],
+    ['propellant', 'propellant / filling', /\b(?:propellant|filling|energetic|explosive|fuze|fuse)\b/i],
+  ],
+  // Segment → segment, as the match reads it: a story's segment bears on a company's segment.
+  // Reviewed statements of a mechanism ("bears on"), never a measured or predicted effect.
+  readAcross: [
+    ['shell', 'shell', 'A development in the 155mm shell market bears on every shell maker.'],
+    ['shell', 'forging', 'A 155mm shell order bears on the forging and empty-casing suppliers behind it.'],
+    ['forging', 'shell', 'Empty-casing and forging activity bears on the finished-shell makers.'],
+    ['forging', 'forging', 'A change in empty-shell and forging supply bears on the casing makers.'],
+    ['propellant', 'shell', 'A propellant or filling development bears on finished-shell supply.'],
+  ],
+  exposures: [
+    {
+      ticker: 'GOODLUCK', isin: null, name: 'Goodluck India', names: /\bgoodluck\b/i,
+      segments: ['shell', 'forging'],
+      role: 'Makes 155mm artillery shells (M107 / ERFB) — commercial production started Oct 2025',
+      evidence: [
+        { publisher: 'NSE', day: '2025-10-03', headline: 'Goodluck Defence & Aerospace — industrial licence for 155mm artillery shells',
+          url: 'https://nsearchives.nseindia.com/corporate/GOODLUCK_03102025094300_GDA_Press_Release.pdf' },
+        { publisher: 'Raksha Anirveda', day: '2025-10-08', headline: 'Goodluck India commences commercial production of artillery shells',
+          url: 'https://raksha-anirveda.com/boost-to-aatmanirbharta-in-defence-goodluck-india-commences-commercial-production-of-artillery-shells/' },
+      ],
+    },
+    {
+      ticker: 'BALUFORGE', isin: null, name: 'Balu Forge Industries', names: /\bbalu\s?forge\b/i,
+      segments: ['forging', 'shell'],
+      role: 'Won a 155mm ERFB shell order (10,000 units, then monthly) and a 5-year empty-shell MoU',
+      evidence: [
+        { publisher: 'NSE', day: '2026-08-17', headline: 'Balu Forge — intimation of a 155mm ERFB shell order',
+          url: 'https://nsearchives.nseindia.com/corporate/BALUFORGE_17082026085955_Intimation.pdf' },
+        { publisher: 'Choice', day: '2026-08-17', headline: 'Balu Forge wins multi-month defence contract for 155mm ERFB shells',
+          url: 'https://choiceindia.com/news/balu-forge-first-order-155mm-erfb-shells' },
+      ],
+    },
+    {
+      ticker: 'TIRUPATIFL', isin: null, name: 'Tirupati Forge', names: /\btirupati\s?forge\b/i,
+      segments: ['forging', 'shell'],
+      role: 'Holds an Arms Act licence to make empty artillery shells (105–155mm)',
+      evidence: [
+        { publisher: 'Raksha Anirveda', day: '2026-02-10', headline: 'Tirupati Forge gets licence to manufacture artillery shells',
+          url: 'https://raksha-anirveda.com/tirupati-forge-gets-licence-to-manufacture-artillery-shells/' },
+      ],
+    },
+  ],
+};
+
 /** The reviewed themes. A theme is added by adding an entry, every exposure with its evidence. */
-export const THEMES = Object.freeze([GLP1]);
+export const THEMES = Object.freeze([GLP1, ARTILLERY]);
+
+/**
+ * The reviewed themes as a reader-facing catalogue — each theme and the companies it bears on, with
+ * the one cited source that states each exposure. Backs the "Themes — who benefits" view. Every row
+ * is reviewed, cited data; nothing is inferred.
+ */
+export function themeCatalog() {
+  return THEMES.map((theme) => ({
+    id: theme.id,
+    label: theme.label,
+    short: theme.short,
+    companies: theme.exposures.map((e) => ({
+      ticker: e.ticker,
+      name: e.name,
+      role: e.role,
+      source: e.evidence && e.evidence[0]
+        ? { publisher: e.evidence[0].publisher, day: e.evidence[0].day, url: e.evidence[0].url }
+        : null,
+    })),
+  }));
+}
+
+/** The reviewed themes a single company is mapped to (reverse lookup), each with its role. */
+export function themesForCompany(ticker) {
+  const sym = String(ticker || '').toUpperCase();
+  if (!sym) return [];
+  const out = [];
+  for (const theme of THEMES) {
+    const e = theme.exposures.find((x) => x.ticker === sym);
+    if (e) out.push({ id: theme.id, label: theme.label, short: theme.short, role: e.role });
+  }
+  return out;
+}
 
 /**
  * Everything the theme match reads, as plain data. The portfolio slice of the precomputed alert pool
