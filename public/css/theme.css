@@ -312,6 +312,21 @@ html[data-theme="dark"] body {
 @media (hover: hover) and (pointer: fine) {
   .holding-filter:hover { background: rgb(var(--surface-indigo-50, 238 242 255)); color: var(--accent-600); }
 }
+/* The scope toggle's compact labels (GLOW-OWNED). "Current portfolio" and "Previously owned" are wider
+   than the 5rem every segment used to share; Ask Research's header is one row by design, so at phone
+   width there the segments show their short labels ("Current", "Prev. owned") and return to the old
+   15.5rem footprint. Each button keeps its full name as its accessible name. Thumb placed per value. */
+[data-segment-short] { display: none; }
+@media (max-width: 560px) {
+  #app:has(.research-workspace) #scope-toggle-mount [data-segment-label] { display: none; }
+  #app:has(.research-workspace) #scope-toggle-mount [data-segment-short] { display: inline; }
+  #app:has(.research-workspace) #scope-toggle-mount [data-value="portfolio"],
+  #app:has(.research-workspace) #scope-toggle-mount [data-value="universe"] { width: 4.5rem !important; }
+  #app:has(.research-workspace) #scope-toggle-mount [data-value="watchlist"] { width: 6.5rem !important; }
+  #app:has(.research-workspace) #scope-toggle-mount [data-segmented-thumb] { width: 4.5rem !important; transform: translateX(0) !important; }
+  #app:has(.research-workspace) #scope-toggle-mount [data-active="watchlist"] [data-segmented-thumb] { width: 6.5rem !important; transform: translateX(4.5rem) !important; }
+  #app:has(.research-workspace) #scope-toggle-mount [data-active="universe"] [data-segmented-thumb] { transform: translateX(11rem) !important; }
+}
 /* The Watchlist segment's list menu (GLOW-OWNED): Bookmarked | Previously owned. Appended to <body>
    and positioned fixed from the segment's rectangle, so neither the header nor an animating
    #dashboard-main can clip it. Only opacity and transform animate. */

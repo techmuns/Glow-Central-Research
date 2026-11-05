@@ -842,8 +842,9 @@ function renderScopeToggle(root, scope) {
   const toggle = segmentedToggle({
     options: SCOPES.map((value) => value === 'watchlist'
       ? { value, label: scope === 'watchlist' ? listName : scopeToggleLabel(value), width: 8.5, menu: true,
+        short: scope === 'watchlist' ? (isPreviouslyOwned() ? 'Prev. owned' : 'Bookmarked') : scopeToggleLabel(value),
         title: `Watchlist — ${listName}. Press to choose Bookmarked or Previously owned.` }
-      : { value, label: scopeToggleLabel(value), width: value === 'portfolio' ? 7.75 : 5 }),
+      : { value, label: scopeToggleLabel(value), width: value === 'portfolio' ? 7.75 : 5, short: value === 'portfolio' ? 'Current' : scopeToggleLabel(value) }),
     activeValue: scope,
     onChange: goScope,
     onMenu: (value, button) => {

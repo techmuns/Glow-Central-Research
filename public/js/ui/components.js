@@ -292,13 +292,14 @@ export function tabBar({ tabs, activeId, onSelect, label = 'Sections', orderKey 
 // offsetWidth/offsetLeft after a tab has inserted a large table: that read used to force layout of
 // the newly-painted panel and cost 114ms in a transition trace. An option with `menu: true` carries
 // a caret and `aria-haspopup`, and its click is handed to `onMenu` with the button (GLOW-OWNED: the
-// Watchlist segment opens its Bookmarked / Previously owned picker).
+// Watchlist segment opens its Bookmarked / Previously owned picker). An option's `short` label is the
+// one a compact header may show instead (theme.css decides where); `label` stays its accessible name.
 export function segmentedToggle({ options, activeValue, onChange, onMenu = null }) {
   const widthOf = (o) => (Number.isFinite(o.width) && o.width > 0 ? o.width : 5);
   const activeIndex = Math.max(0, options.findIndex((option) => option.value === activeValue));
   const offset = options.slice(0, activeIndex).reduce((sum, o) => sum + widthOf(o), 0);
   const html = `
-    <div class="relative inline-flex items-center rounded-full bg-white/70 p-0.5 ring-1 ring-slate-200" data-segmented>
+    <div class="relative inline-flex items-center rounded-full bg-white/70 p-0.5 ring-1 ring-slate-200" data-segmented data-active="${escapeHtml(activeValue)}">
       <span data-segmented-thumb class="absolute inset-y-0.5 left-0.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-sm transition-transform duration-200 ease-out"
         style="width:${widthOf(options[activeIndex] || {})}rem;transform:translateX(${offset}rem);"></span>
       ${options
@@ -307,9 +308,10 @@ export function segmentedToggle({ options, activeValue, onChange, onMenu = null 
         <button type="button" data-value="${escapeHtml(o.value)}" aria-pressed="${o.value === activeValue}"
           ${o.menu ? `aria-haspopup="menu" aria-expanded="false" data-segment-menu` : ''}
           ${o.title ? `title="${escapeHtml(o.title)}"` : ''}
+          ${o.short ? `aria-label="${escapeHtml(o.label)}"` : ''}
           style="width:${widthOf(o)}rem"
           class="relative z-10 inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-full px-2 py-1.5 text-xs font-semibold transition-colors ${o.value === activeValue ? 'text-white' : 'text-slate-600 hover:text-slate-800'}">
-          <span data-segment-label>${escapeHtml(o.label)}</span>${o.menu ? '<svg aria-hidden="true" class="h-3 w-3 flex-none opacity-80" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 4.5 3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
+          <span data-segment-label>${escapeHtml(o.label)}</span>${o.short ? `<span data-segment-short>${escapeHtml(o.short)}</span>` : ''}${o.menu ? '<svg aria-hidden="true" class="h-3 w-3 flex-none opacity-80" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 4.5 3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
         </button>`
         )
         .join('')}
