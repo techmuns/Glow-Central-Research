@@ -594,10 +594,12 @@ function downloadPdf(d) {
   win.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>${esc(d.name)} — Glow AI Insights</title>
 <style>${CSS}
-  body{margin:0;background:#fff;}
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+  html,body{margin:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .gi-pager{max-height:none;overflow:visible;}
   .gi-pdf{display:none;}
-  @page{margin:12mm;}
+  .gi-hero,.gi-col.like,.gi-col.dislike,.gi-colhd{break-inside:avoid;}
+  @page{margin:11mm;}
 </style></head><body>${pagerHtml(d)}</body></html>`);
   win.document.close();
   win.focus();
