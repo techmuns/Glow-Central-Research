@@ -572,11 +572,6 @@ function openCompany(ticker) {
 }
 
 function pagerHtml(d) {
-  const m = market(d.ticker);
-  const liveFact = m.cmp != null
-    ? `<span class="live">CMP ${rupee(m.cmp)}${m.chg == null ? '' : ' · ' + signed(m.chg) + ' today'} · live</span>`
-    : '';
-  const facts = d.facts.map((f) => `<span>${esc(f.k)} <b>${esc(f.v)}</b></span>`).join('');
   const like = d.like.map((p, i) => ptHtml(p, i)).join('');
   const dislike = d.dislike.map((p, i) => ptHtml(p, i)).join('');
   const fcols = d.financials.cols.map((c) => `<th>${esc(c)}</th>`).join('');
@@ -588,14 +583,9 @@ function pagerHtml(d) {
     <div class="gi-hero">
       <div class="gi-kick"><span class="gi-dot"></span> Glow AI Insights <span class="thin">The 5-minute stock read</span></div>
       <div class="gi-co2"><h1>${esc(d.name)}</h1><span class="gi-tk">${esc(d.ticker)} · NSE</span></div>
-      <div class="gi-lead">${d.lead}</div>
     </div>
-    <div class="gi-facts">${facts}${liveFact}</div>
     <div class="in">
-      <h2 class="gi-sh">What the company does</h2>
-      <p class="gi-prose">${d.what}</p>
-
-      <h2 class="gi-sh">Our view</h2>
+      <h2 class="gi-sh" style="margin-top:4px">Our view</h2>
       <div class="gi-verdict">
         <div class="gi-call"><span class="gi-badge ${vcls}">${esc(d.verdict)}</span><small>${esc(d.verdictSub)}</small></div>
         <div class="gi-scorebox">
