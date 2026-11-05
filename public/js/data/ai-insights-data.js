@@ -61,6 +61,26 @@ export const INSIGHTS = {
       'It becomes a <b>Buy</b> if the price cools, <b>or</b> once the GE F404 engines actually ramp and Tejas ' +
       'Mk1A deliveries start flowing — the <b>12 November Q2 call</b> is the first real test of management’s ' +
       '"deliveries from Aug–Sep 2026" promise.',
+    intrinsic: {
+      low: '₹3,900', high: '₹4,400',
+      basis: '~28–32× FY27E EPS — elite, but below today’s ~36×',
+      read: 'Trading above our range — priced for flawless execution, with little margin of safety.',
+      tone: 'rich',
+    },
+    valuation: {
+      metric: 'P/E · order-book cover — the defence lens',
+      now: '~36×', fair: '~30×',
+      extra: 'order book ~7.7× sales · net cash ₹46k cr',
+    },
+    kpis: [
+      { k: 'Order book', v: '₹2.54 lakh cr', tone: 'good' },
+      { k: 'Order-book cover', v: '~7.7× sales', tone: 'good' },
+      { k: 'Revenue growth (FY26)', v: '+7%', tone: 'watch' },
+      { k: 'Tejas Mk1A delivered', v: '0 in FY26', tone: 'rich' },
+      { k: 'EBITDA margin', v: '~30%', tone: 'good' },
+      { k: 'ROE', v: '~24%', tone: 'good' },
+      { k: 'Net cash', v: '₹46,000 cr', tone: 'good' },
+    ],
     // Guidance vs Delivery — organised from HAL's last three earnings calls.
     concalls: {
       rows: [
@@ -156,6 +176,26 @@ export const INSIGHTS = {
     ],
     why: `Bajaj is a high-return, cash-rich franchise where <b>exports and premium bikes are firing and EV is finally profitable</b>. The watch is the domestic mass-market (nearly flat) and a margin that leans on a weak rupee — and at ~25× earnings the good news is largely in the price.`,
     trigger: `It becomes a <b>Buy</b> if the price cools, <b>or</b> domestic two-wheeler volumes re-accelerate (the 125cc revamp working) while the export run-rate holds — turning a two-engine story into a three-engine one.`,
+    intrinsic: {
+      low: '₹9,000', high: '₹10,500',
+      basis: '~20–23× FY27E EPS — its own through-cycle multiple',
+      read: 'At / just above our range — fairly-to-fully valued, with little margin of safety today.',
+      tone: 'watch',
+    },
+    valuation: {
+      metric: 'P/E — the auto-OEM lens',
+      now: '~25×', fair: '~22×',
+      extra: '~9× book · ~1.4% dividend yield · ~100% payout',
+    },
+    kpis: [
+      { k: 'Domestic 2W volume growth', v: '+1.8%', tone: 'watch' },
+      { k: 'Exports · share of sales', v: '~40%', tone: 'good' },
+      { k: 'EBITDA margin', v: '~21%', tone: 'good' },
+      { k: 'Premium mix (KTM/Triumph)', v: '+45% YoY', tone: 'good' },
+      { k: 'ROCE', v: '~38%', tone: 'good' },
+      { k: 'Net cash', v: '₹15,500 cr', tone: 'good' },
+      { k: 'Dividend payout', v: '~100%', tone: 'good' },
+    ],
     concalls: {
       rows: [
         { theme: 'Exports', guided: 'Cross 2.5 lakh/month', status: 'kept', note: 'Q2 exports 7,78,528 (+40%) ≈ 2.6 lakh/month — crossed it; Nigeria ~60% share, Mexico now a top-5 market.' },
@@ -218,6 +258,26 @@ export const INSIGHTS = {
     ],
     why: `Cyient has <b>strong order intake and recovering margins</b>, but the core services business has barely grown organically and profit has fallen hard — and the stock (~30× earnings) already prices a recovery that hasn’t yet shown up in the base business.`,
     trigger: `It becomes a <b>Buy</b> once organic (ex-acquisition) services growth turns clearly positive and the delayed 15% services-margin target lands — proof the turnaround is real, not just order-book optimism.`,
+    intrinsic: {
+      low: '₹830', high: '₹1,020',
+      basis: '~20–24× once margins recover — today’s ~30× pays ahead of it',
+      read: 'Trading above our range — a recovery is already in the price.',
+      tone: 'rich',
+    },
+    valuation: {
+      metric: 'P/E — the IT-services lens',
+      now: '~30×', fair: '~22×',
+      extra: 'on a depressed ~9% ROE · net cash',
+    },
+    kpis: [
+      { k: 'Organic services growth', v: '~+0.4% YoY', tone: 'rich' },
+      { k: 'Order intake', v: 'US$158m (+21%)', tone: 'good' },
+      { k: 'Services EBIT margin', v: '14.2% (rising)', tone: 'good' },
+      { k: 'Net profit (FY26)', v: '−28%', tone: 'rich' },
+      { k: 'Attrition', v: '14.6%', tone: 'good' },
+      { k: 'DLM revenue', v: '+26.5% YoY', tone: 'good' },
+      { k: 'ROE', v: '~9%', tone: 'watch' },
+    ],
     concalls: {
       rows: [
         { theme: 'Organic growth', guided: 'Mid-to-high single digit in FY27', status: 'missed', note: 'Services (DET) organic growth was roughly flat (Q2 organic ~+0.4% YoY); the reported rise leans on the TAO acquisition.' },
@@ -280,6 +340,26 @@ export const INSIGHTS = {
     ],
     why: `HDFC AMC is one of the highest-quality businesses on the market — tiny capital, ~80% margins, ~33% ROE, and fees that compound as assets grow. The watch is that its <b>market share is slipping</b> and its SIP flows lag a booming industry — and at ~36× earnings the price assumes the premium holds.`,
     trigger: `It becomes a <b>Buy</b> if the price cools, <b>or</b> its flow and market-share momentum turn back up (SIP book growing with the industry again) — proof the share erosion was a pause, not a trend.`,
+    intrinsic: {
+      low: '₹1,950', high: '₹2,250',
+      basis: '~28–32× FY27E EPS — a premium, below today’s ~36×',
+      read: 'Trading above our range — priced for sustained premium growth.',
+      tone: 'rich',
+    },
+    valuation: {
+      metric: 'P/E — the AMC lens',
+      now: '~36×', fair: '~30×',
+      extra: '~12× book · fees ~47bps of AUM · ~2.2% yield',
+    },
+    kpis: [
+      { k: 'AUM growth', v: '+10% YoY', tone: 'good' },
+      { k: 'Equity mix', v: '~63%', tone: 'good' },
+      { k: 'Fee yield', v: '~47 bps', tone: 'good' },
+      { k: 'Market share', v: '11.1% (slipping)', tone: 'watch' },
+      { k: 'SIP momentum', v: 'flat QoQ', tone: 'watch' },
+      { k: 'Operating margin', v: '~80%', tone: 'good' },
+      { k: 'ROE', v: '~33%', tone: 'good' },
+    ],
     concalls: {
       rows: [
         { theme: 'AUM growth', guided: 'Grow above industry', status: 'kept', note: 'Average AUM ₹9.69 lakh cr (+10% YoY); equity assets +14% YoY.' },
@@ -342,6 +422,26 @@ export const INSIGHTS = {
     ],
     why: `LIC is unmatched in scale and genuinely improving where it matters most — the <b>profit on new business</b> (margin up sharply). It is also strikingly cheap (~0.66× embedded value). The offsets: weakening long-term persistency, slipping market share, near-total reliance on agents, and heavy government ownership.`,
     trigger: `A clear re-rating catalyst — new-business margin and persistency improving together while market share stabilises — would turn the deep discount into a <b>Buy</b>; today the overhangs (government stake, regulation) cap it.`,
+    intrinsic: {
+      low: '₹520', high: '₹600',
+      basis: '~0.85–1.0× embedded value — still a discount to private peers',
+      read: 'Trading below our range — a real discount to embedded value, with the slow turnaround the catch.',
+      tone: 'good',
+    },
+    valuation: {
+      metric: 'Price / embedded value — the insurer lens',
+      now: '~0.66×', fair: '~0.9–1.0×',
+      extra: '~8.6× earnings · ~2.4% yield',
+    },
+    kpis: [
+      { k: 'New-business margin (VNB)', v: '~22.9%', tone: 'good' },
+      { k: 'VNB growth', v: '+41.6%', tone: 'good' },
+      { k: 'Non-par mix', v: '35.1%', tone: 'good' },
+      { k: '61-month persistency', v: '59.3% (down)', tone: 'rich' },
+      { k: 'New-premium share', v: '56.7% (slipping)', tone: 'watch' },
+      { k: 'Embedded value growth', v: '+1.6%', tone: 'watch' },
+      { k: 'Solvency', v: '2.35', tone: 'good' },
+    ],
     concalls: {
       rows: [
         { theme: 'New-business margin (VNB)', guided: 'Expand via non-par mix', status: 'kept', note: 'Net VNB margin rose 17.6% → 21.2% in FY26 (+360bps), and 22.9% in Q1 FY27 — the clearest win.' },
@@ -403,6 +503,26 @@ export const INSIGHTS = {
     ],
     why: `Can Fin is a conservative, high-return lender with <b>pristine asset quality</b> and a cheap valuation. The catch is <b>growth</b>: its loan book keeps growing below its own ~14% target, and a recent IT-system migration dented disbursements — so it is a safe, cheap compounder that needs growth to re-accelerate to re-rate.`,
     trigger: `It becomes a <b>Buy</b> once loan growth re-accelerates toward the ~14% target (disbursements recovering after the IT migration) while asset quality stays pristine — the catalyst to close the valuation discount.`,
+    intrinsic: {
+      low: '₹880', high: '₹980',
+      basis: '~1.8–2.0× book / ~10–11× earnings for a ~20% ROE',
+      read: 'Trading below our range — cheap for the quality, if growth comes back.',
+      tone: 'good',
+    },
+    valuation: {
+      metric: 'Price / book — the lender lens',
+      now: '~1.5×', fair: '~1.8–2.0×',
+      extra: '~8× earnings · ROE ~20% · GNPA 0.90%',
+    },
+    kpis: [
+      { k: 'Loan-book growth', v: '~9.8% (vs ~14% goal)', tone: 'watch' },
+      { k: 'Net interest margin', v: '~3.9%', tone: 'good' },
+      { k: 'Bad loans (GNPA)', v: '0.90%', tone: 'good' },
+      { k: 'ROE', v: '~19.7%', tone: 'good' },
+      { k: 'Credit cost', v: '~7–9 bps', tone: 'good' },
+      { k: 'Disbursements (Q2)', v: '−7%', tone: 'watch' },
+      { k: 'Capital ratio', v: '~21–23%', tone: 'good' },
+    ],
     concalls: {
       rows: [
         { theme: 'Loan-book growth', guided: '~14% in FY27', status: 'missed', note: 'AUM grew only ~9.8% YoY (₹43,539 cr) — persistently below the ~14% target as prepayments stay high.' },
