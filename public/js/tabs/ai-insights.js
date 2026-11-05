@@ -13,6 +13,7 @@
 import { TAB_META } from './catalog.js';
 import { escapeHtml as esc } from '../core/dom.js';
 import { openModal } from '../ui/screener.js';
+import { push as pushNote } from '../ui/notifications.js';
 import * as coverage from '../data/coverage.js';
 import * as technicals from '../data/technicals.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
@@ -20,6 +21,8 @@ import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
 export const meta = TAB_META['ai-insights'];
 let ctxRef = null;
 let offTech = null;
+let offRuns = null;   // the mounted tab's subscription to run-state changes
+let offProg = null;   // the open progress screen's subscription
 
 /* ---------------- styles (scoped, injected once) ---------------- */
 const STYLE_ID = 'gi-insights-style';
@@ -181,6 +184,49 @@ const CSS = `
 .gi-gd{font-size:.82rem;} .gi-gd tbody td{padding:9px 12px;}
 .gi-close{font-size:.92rem;margin-top:18px;}
 .gi-colhd{font-size:.9rem;padding:10px 14px;}
+/* Run a company — button, running chips, picker and the background progress screen. */
+.gi-run-btn{appearance:none;border:0;cursor:pointer;color:#fff;font-weight:800;font-size:.82rem;border-radius:999px;
+  padding:9px 18px;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;
+  background:linear-gradient(135deg,#6366f1,#7c3aed 55%,#ec4899);box-shadow:0 8px 20px -8px rgb(124 58 237 / .6);}
+.gi-run-btn:hover{filter:brightness(1.07);}
+.gi-runchips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;}
+.gi-runchips:empty{display:none;margin:0;}
+.gi-runchip{appearance:none;cursor:pointer;border:1px solid rgb(var(--edge-indigo-100,224 231 255));
+  background:rgb(var(--surface-indigo-50,238 242 255));color:var(--brand-600);font-weight:700;font-size:.76rem;
+  border-radius:999px;padding:6px 13px;display:inline-flex;align-items:center;gap:8px;}
+.gi-runchip b{font-variant-numeric:tabular-nums;}
+.gi-spin{width:12px;height:12px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;
+  display:inline-block;animation:gi-spin .7s linear infinite;}
+@keyframes gi-spin{to{transform:rotate(360deg);}}
+.gi-pill.firstcut{background:#eef2ff;color:#4338ca;box-shadow:inset 0 0 0 1px #c7d2fe;}
+.gi-picker{padding:22px 22px 10px;font-family:"Inter",system-ui,sans-serif;color:#111827;}
+.gi-picker-h h3{font-family:"Plus Jakarta Sans",sans-serif;font-size:1.25rem;font-weight:800;margin:0 0 4px;}
+.gi-picker-h p{color:#56617a;font-size:.86rem;margin:0 0 14px;line-height:1.5;}
+.gi-picker-search{width:100%;border:1px solid #e5e8f1;border-radius:11px;padding:10px 13px;font-size:.9rem;margin-bottom:12px;outline:none;color:#111827;}
+.gi-picker-search:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgb(99 102 241 / .15);}
+.gi-picker-list{max-height:56vh;overflow:auto;display:flex;flex-direction:column;gap:3px;margin:0 -6px;padding:0 6px 14px;}
+.gi-rp-row{appearance:none;cursor:pointer;background:transparent;border:0;border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:12px;text-align:left;width:100%;}
+.gi-rp-row:hover{background:#f4f5fb;}
+.gi-av.sm{width:34px;height:34px;border-radius:10px;font-size:.74rem;box-shadow:0 3px 7px -3px rgb(15 23 42 / .35);}
+.gi-av.lg{width:52px;height:52px;border-radius:15px;font-size:1.05rem;}
+.gi-rp-meta{min-width:0;flex:1;}
+.gi-rp-name{font-weight:700;color:#111827;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gi-rp-meta small{display:block;color:#8b94a7;font-size:.74rem;margin-top:2px;}
+.gi-rp-st{font-weight:800;font-size:.72rem;white-space:nowrap;}
+.gi-rp-st.go{color:#6366f1;} .gi-rp-st.run{color:#b45309;} .gi-rp-st.done{color:#047857;}
+.gi-run{padding:26px 24px 24px;font-family:"Inter",system-ui,sans-serif;color:#111827;}
+.gi-run-hero{display:flex;align-items:center;gap:14px;margin-bottom:18px;}
+.gi-run-name{font-family:"Plus Jakarta Sans",sans-serif;font-size:1.3rem;font-weight:800;}
+.gi-run-sub{color:#8b94a7;font-size:.8rem;margin-top:2px;}
+.gi-run-barwrap{height:8px;border-radius:999px;background:#eef0f7;overflow:hidden;margin-bottom:18px;}
+.gi-run-bar{height:100%;border-radius:999px;background:linear-gradient(90deg,#6366f1,#7c3aed 55%,#ec4899);transition:width .5s cubic-bezier(.4,0,.2,1);}
+.gi-run-steps{display:flex;flex-direction:column;gap:11px;}
+.gi-run-step{display:flex;align-items:center;gap:11px;font-size:.92rem;color:#8b94a7;transition:color .2s;}
+.gi-run-step.done{color:#111827;} .gi-run-step.active{color:#4338ca;font-weight:700;}
+.gi-run-dot{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:.72rem;font-weight:800;color:#fff;background:#dfe3ee;}
+.gi-run-step.done .gi-run-dot{background:#10b981;}
+.gi-run-step.active .gi-run-dot{background:#6366f1;}
+.gi-run-foot{margin-top:18px;color:#56617a;font-size:.84rem;background:#f6f7fb;border-radius:11px;padding:11px 14px;line-height:1.5;}
 @media (max-width:680px){
   .gi-cols{grid-template-columns:1fr;}
   .gi-verdict{grid-template-columns:1fr;justify-items:center;text-align:center;} .gi-why{text-align:left;}
@@ -235,12 +281,178 @@ function tableRows() {
       const h = held.get(t);
       if (!h) continue; // only the family's real holdings
       const insight = getInsight(t);
-      if (!insight) continue; // show only companies that have been run so far
-      out.push({ ticker: t, name: h.name, sector: g.sector, insight });
+      const done = runs.get(t)?.done === true;
+      if (!insight && !done) continue; // show only companies that have been run
+      out.push({ ticker: t, name: h.name, sector: g.sector, insight, firstCut: !insight && done });
     }
   }
   out.sort((a, b) => a.name.localeCompare(b.name));
   return out;
+}
+
+/* ---------------- "Run a company" — background run + progress screen ---------------- */
+const RUN_STEPS = [
+  'Reading the dashboard',
+  'Pulling the latest financials',
+  'Reading the last three earnings calls',
+  'Checking the sector KPIs',
+  'Scoring business quality & value',
+  'Writing the one-pager',
+];
+const RUN_STEP_MS = 2600;
+const runs = new Map(); // ticker -> { ticker, name, sector, step, done, opened, timer }
+const runSubs = new Set();
+function onRunChange(fn) { runSubs.add(fn); return () => runSubs.delete(fn); }
+function emitRuns() { for (const fn of [...runSubs]) { try { fn(); } catch { /* keep going */ } } }
+function isRunning(t) { const r = runs.get(t); return !!r && !r.done; }
+function isRun(t) { return !!getInsight(t) || runs.get(t)?.done === true; }
+function activeRuns() { return [...runs.values()].filter((r) => !r.done); }
+function cssEsc(s) { return String(s).replace(/["\\]/g, '\\$&'); }
+
+// A run is a timed, module-level job: it keeps going after the reader switches tabs, and it
+// announces itself in the header bell when it finishes.
+function startRun(ticker, name, sector) {
+  if (runs.has(ticker)) { openRunProgress(ticker); return; }
+  const rec = { ticker, name, sector, step: 0, done: false, opened: false };
+  runs.set(ticker, rec);
+  emitRuns();
+  const advance = () => {
+    rec.step += 1;
+    if (rec.step >= RUN_STEPS.length) {
+      rec.done = true;
+      emitRuns();
+      try {
+        pushNote({ key: `ai-run:${ticker}`, kind: 'research',
+          title: `One-pager ready — ${name}`, detail: 'Your AI Insights one-pager is ready to open.' });
+      } catch { /* notifications are optional */ }
+      return;
+    }
+    emitRuns();
+    rec.timer = setTimeout(advance, RUN_STEP_MS);
+  };
+  rec.timer = setTimeout(advance, RUN_STEP_MS);
+  openRunProgress(ticker);
+}
+
+function openRunPicker() {
+  const held = coverage.holdings() || [];
+  const sectorOf = new Map();
+  for (const g of RESEARCHED_SECTORS) for (const t of g.tickers) sectorOf.set(t, g.sector);
+  const list = held
+    .filter((h) => sectorOf.has(h.ticker))
+    .map((h) => ({ ticker: h.ticker, name: h.name, sector: sectorOf.get(h.ticker) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const rowsHtml = list.map((c) => {
+    const av = avatar(c.name);
+    const st = isRunning(c.ticker) ? '<span class="gi-rp-st run">Running…</span>'
+      : isRun(c.ticker) ? '<span class="gi-rp-st done">Ready ↗</span>'
+        : '<span class="gi-rp-st go">Run ▶</span>';
+    return `<button type="button" class="gi-rp-row" data-run="${esc(c.ticker)}" data-name="${esc(c.name)}" data-sector="${esc(c.sector)}">
+      <span class="gi-av sm" style="background:${av.bg}">${av.ini}</span>
+      <span class="gi-rp-meta"><span class="gi-rp-name">${esc(c.name)}</span><small>${esc(c.ticker)} · ${esc(c.sector)}</small></span>
+      ${st}
+    </button>`;
+  }).join('');
+  openModal(`<div class="gi-picker">
+    <div class="gi-picker-h"><h3>Run a company</h3><p>Pick a company to build its one-pager. It runs in the background — you can keep working on other tabs while it does.</p></div>
+    <input type="search" class="gi-picker-search" placeholder="Search companies…" data-run-search aria-label="Search companies">
+    <div class="gi-picker-list" data-run-list>${rowsHtml}</div>
+  </div>`, { size: 'default' });
+  const root = document.getElementById('modal-content');
+  const search = root?.querySelector('[data-run-search]');
+  const listEl = root?.querySelector('[data-run-list]');
+  search?.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    for (const row of listEl.querySelectorAll('.gi-rp-row')) {
+      const hay = `${row.dataset.name} ${row.dataset.run} ${row.dataset.sector}`.toLowerCase();
+      row.style.display = hay.includes(q) ? '' : 'none';
+    }
+  });
+  listEl?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-run]');
+    if (!btn) return;
+    const t = btn.dataset.run;
+    if (isRun(t) && !isRunning(t)) openCompany(t);
+    else startRun(t, btn.dataset.name, btn.dataset.sector);
+  });
+  setTimeout(() => search?.focus(), 40);
+}
+
+function openRunProgress(ticker) {
+  const rec = runs.get(ticker);
+  if (!rec) return;
+  openModal(runProgressHtml(rec), { size: 'default', onClose: () => { offProg?.(); offProg = null; } });
+  offProg?.();
+  offProg = onRunChange(() => paintRunProgress(ticker));
+  paintRunProgress(ticker);
+}
+
+function runProgressHtml(rec) {
+  const av = avatar(rec.name);
+  return `<div class="gi-run" data-run-progress="${esc(rec.ticker)}">
+    <div class="gi-run-hero">
+      <span class="gi-av lg" style="background:${av.bg}">${av.ini}</span>
+      <div><div class="gi-run-name">${esc(rec.name)}</div><div class="gi-run-sub">${esc(rec.ticker)}${rec.sector ? ` · ${esc(rec.sector)}` : ''}</div></div>
+    </div>
+    <div class="gi-run-barwrap"><div class="gi-run-bar" data-run-bar style="width:0%"></div></div>
+    <div class="gi-run-steps" data-run-steps></div>
+    <div class="gi-run-foot" data-run-foot>Building your one-pager — you can switch tabs and keep working. We'll tell you the moment it's ready.</div>
+  </div>`;
+}
+
+function paintRunProgress(ticker) {
+  const rec = runs.get(ticker);
+  const host = document.querySelector(`[data-run-progress="${cssEsc(ticker)}"]`);
+  if (!rec || !host) return;
+  const bar = host.querySelector('[data-run-bar]');
+  const steps = host.querySelector('[data-run-steps]');
+  const foot = host.querySelector('[data-run-foot]');
+  const pct = Math.round((Math.min(rec.step, RUN_STEPS.length) / RUN_STEPS.length) * 100);
+  if (bar) bar.style.width = `${rec.done ? 100 : pct}%`;
+  if (steps) steps.innerHTML = RUN_STEPS.map((s, i) => {
+    const state = rec.done || i < rec.step ? 'done' : i === rec.step ? 'active' : 'wait';
+    const mark = state === 'done' ? '✓' : state === 'active' ? '<span class="gi-spin"></span>' : '';
+    return `<div class="gi-run-step ${state}"><span class="gi-run-dot">${mark}</span>${esc(s)}</div>`;
+  }).join('');
+  if (rec.done && !rec.opened) {
+    rec.opened = true;
+    if (foot) foot.textContent = 'Ready — opening your one-pager…';
+    offProg?.(); offProg = null;
+    setTimeout(() => {
+      const still = document.getElementById('modal-content');
+      if (still && still.querySelector(`[data-run-progress="${cssEsc(ticker)}"]`)) openCompany(ticker);
+    }, 800);
+  }
+}
+
+function paintRunChips(ctx) {
+  const host = ctx.root.querySelector('[data-gi-runs]');
+  if (!host) return;
+  host.innerHTML = activeRuns().map((r) => {
+    const pct = Math.round((r.step / RUN_STEPS.length) * 100);
+    return `<button type="button" class="gi-runchip" data-run-open="${esc(r.ticker)}"><span class="gi-spin"></span> Running ${esc(r.name)}… <b>${pct}%</b></button>`;
+  }).join('');
+}
+
+function firstCutHtml(ticker) {
+  const rec = runs.get(ticker) || {};
+  const held = (coverage.holdings() || []).find((h) => h.ticker === ticker);
+  const name = held?.name || rec.name || ticker;
+  const sector = rec.sector || '';
+  const m = market(ticker);
+  const price = m.cmp != null ? `${rupee(m.cmp)}${m.chg == null ? '' : ` · ${signed(m.chg)} today`}` : '—';
+  return `<div class="gi-pager">
+    <div class="gi-hero">
+      <div class="gi-kick"><span class="gi-dot"></span> Glow AI Insights <span class="thin">The 5-minute stock read</span></div>
+      <div class="gi-co2"><h1>${esc(name)}</h1><span class="gi-tk">${esc(ticker)} · NSE</span></div>
+      <div class="gi-lead">First cut ready. The full read — what we like, what we don't, the verdict and the numbers — is being written from ${esc(name)}'s own data and its sector KPIs, and will land here shortly.</div>
+    </div>
+    <div class="gi-facts"><span>Sector <b>${esc(sector)}</b></span><span class="live">CMP ${esc(price)} · live</span></div>
+    <div class="in">
+      <h2 class="gi-sh">What happens next</h2>
+      <p class="gi-prose">We read ${esc(name)}'s latest results and earnings calls, score its business quality and value against its sector's key numbers, and write the one-pager the same way as the live examples. You'll get a notification the moment the full write-up is ready.</p>
+    </div>
+  </div>`;
 }
 
 /* ---------------- render ---------------- */
@@ -255,7 +467,9 @@ export function render(ctx) {
     <div class="gi-tab">
       <div class="gi-head">
         <h2>AI Insights</h2>
+        <button class="gi-run-btn" type="button" data-gi-run>▶ Run a company</button>
       </div>
+      <div class="gi-runchips" data-gi-runs></div>
       <div class="gi-card">
         <table class="gi-table">
           <thead><tr>
@@ -279,6 +493,20 @@ export function render(ctx) {
   };
   body.addEventListener('click', openFromEvent);
   body.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') openFromEvent(e); });
+
+  ctx.root.querySelector('[data-gi-run]').addEventListener('click', openRunPicker);
+  ctx.root.querySelector('[data-gi-runs]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-run-open]');
+    if (b) openRunProgress(b.dataset.runOpen);
+  });
+  const repaintRuns = () => {
+    if (ctxRef !== ctx) return;
+    const b = ctx.root.querySelector('[data-gi-body]');
+    if (b) b.innerHTML = tableRows().map(rowHtml).join('');
+    paintRunChips(ctx);
+  };
+  offRuns = onRunChange(repaintRuns);
+  paintRunChips(ctx);
 
   // The technicals capture may still be loading at mount; repaint prices once it lands.
   if (!technicals.isLoaded?.()) {
@@ -315,6 +543,10 @@ function rowHtml(r) {
       + (keys ? `<ul class="gi-keys">${keys}</ul>` : `<span class="gi-take">${esc(d.verdictSub)}</span>`);
     scores = meters(d.quality, d.price);
     chev = '<span class="gi-chev">More →</span>';
+  } else if (r.firstCut) {
+    view = '<span class="gi-pill firstcut">First cut</span><span class="gi-take">Full write-up being completed</span>';
+    scores = '<span class="gi-flat" style="font-size:.78rem">—</span>';
+    chev = '<span class="gi-chev">View →</span>';
   } else {
     view = '<span class="gi-pill soon">Researching</span><span class="gi-take">Sector rulebook ready — one-pager rolling out</span>';
     scores = '<span class="gi-flat" style="font-size:.78rem">—</span>';
@@ -332,9 +564,11 @@ function rowHtml(r) {
 
 /* ---------------- the one-pager ---------------- */
 function openCompany(ticker) {
+  if (isRunning(ticker)) return openRunProgress(ticker);
   const d = getInsight(ticker);
-  if (!d) return openModal(comingHtml(ticker), { size: 'default' });
-  openModal(pagerHtml(d), { size: 'magazine' });
+  if (d) return openModal(pagerHtml(d), { size: 'magazine' });
+  if (runs.get(ticker)?.done) return openModal(firstCutHtml(ticker), { size: 'magazine' });
+  return openModal(comingHtml(ticker), { size: 'default' });
 }
 
 function pagerHtml(d) {
@@ -425,5 +659,7 @@ function comingHtml(ticker) {
 export function destroy() {
   offTech?.();
   offTech = null;
+  offRuns?.();
+  offRuns = null;
   ctxRef = null;
 }
