@@ -241,6 +241,20 @@ const CSS = `
 .gi-ai-body blockquote{margin:8px 0;padding:6px 12px;border-left:3px solid #c7bdf0;color:#4b4257;background:#faf9ff;border-radius:0 8px 8px 0;}
 .gi-ai-body table{border-collapse:collapse;margin:8px 0;font-size:.8rem;}
 .gi-ai-body th,.gi-ai-body td{border:1px solid #eceff5;padding:5px 9px;text-align:left;}
+.gi-ai-tail{margin:6px 0 2px;}
+.gi-ai-tail h1,.gi-ai-tail h2,.gi-ai-tail h3,.gi-ai-tail h4{font-size:1rem;font-weight:800;margin:16px 0 7px;color:#111827;letter-spacing:-.01em;}
+.gi-ai-tail p{font-size:.86rem;color:#1f2937;line-height:1.55;margin:7px 0;}
+.gi-ai-tail ul,.gi-ai-tail ol{margin:6px 0;padding-left:20px;font-size:.86rem;color:#1f2937;}
+.gi-ai-tail li{margin:3px 0;}
+.gi-ai-tail strong{color:#111827;}
+.gi-ai-tail table{border-collapse:collapse;margin:8px 0;font-size:.82rem;width:100%;}
+.gi-ai-tail th,.gi-ai-tail td{border:1px solid #eceff5;padding:6px 10px;text-align:left;}
+.gi-ai-tail th{background:#f7f8fc;font-weight:700;color:#374151;}
+.gi-emptycol{font-size:.82rem;color:#8b94a7;padding:4px 2px;}
+.gi-ai-unavail{font-size:.84rem;color:#4b4257;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px 14px;margin:6px 0 12px;line-height:1.5;}
+.gi-rerun{appearance:none;cursor:pointer;margin-left:6px;font-weight:700;font-size:.8rem;border-radius:9px;padding:5px 12px;border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;}
+.gi-rerun:hover{background:#e0e7ff;}
+.gi-pill.done2{background:#ecfdf5;color:#047857;box-shadow:inset 0 0 0 1px #a7f3d0;}
 /* Themes — who benefits (event → beneficiary lookup) + per-company exposure chip. */
 .gi-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .gi-themes-btn{appearance:none;cursor:pointer;font-weight:700;font-size:.82rem;border-radius:10px;padding:8px 13px;border:1px solid rgb(var(--border-indigo-200,199 210 254));background:var(--surface,#fff);color:var(--brand-600,#4f46e5);}
@@ -377,15 +391,35 @@ function meters(q, p) {
 function tableRows() {
   const held = new Map((coverage.holdings() || []).map((h) => [h.ticker, h]));
   const out = [];
+  const seen = new Set();
   for (const g of RESEARCHED_SECTORS) {
     for (const t of g.tickers) {
       const h = held.get(t);
       if (!h) continue; // only the family's real holdings
       const insight = getInsight(t);
-      const done = runs.get(t)?.done === true;
-      if (!insight && !done) continue; // show only companies that have been run
-      out.push({ ticker: t, name: h.name, sector: g.sector, insight, firstCut: !insight && done });
+      const rec = runs.get(t);
+      const done = rec?.done === true;
+      const running = !!rec && !rec.done;
+      if (!insight && !done && !running) continue; // show authored + anything that's been run
+      out.push({ ticker: t, name: h.name, sector: g.sector, insight, firstCut: !insight && done, running });
+      seen.add(t);
     }
+  }
+  // Any company a reader has RUN that isn't in the researched map above — it must still appear in
+  // the table, or a run would vanish the moment its one-pager is closed. Name/sector come from the
+  // run record, then the holdings book.
+  for (const rec of runs.values()) {
+    if (seen.has(rec.ticker) || getInsight(rec.ticker)) continue;
+    const h = held.get(rec.ticker);
+    out.push({
+      ticker: rec.ticker,
+      name: rec.name || h?.name || rec.ticker,
+      sector: rec.sector || h?.sector || '',
+      insight: null,
+      firstCut: rec.done === true,
+      running: !rec.done,
+    });
+    seen.add(rec.ticker);
   }
   out.sort((a, b) => a.name.localeCompare(b.name));
   return out;
@@ -395,11 +429,14 @@ function tableRows() {
 const RUN_STEPS = [
   'Reading the dashboard',
   'Checking recent alerts',
-  'Checking the sector KPIs',
-  'Building your live read',
+  'Reading the sector KPIs',
+  'Writing the one-pager',
 ];
 const RUN_STEP_MS = 1600;
-const runs = new Map(); // ticker -> { ticker, name, sector, step, done, opened, timer }
+// ticker -> { ticker, name, sector, step, done, failed, opened, timer, built }
+// `built` is the FULLY assembled one-pager content (AI view + live alerts + sector KPIs). A run is
+// only marked `done` once `built` is ready, so opening it never shows a half-written page.
+const runs = new Map();
 const runSubs = new Set();
 function onRunChange(fn) { runSubs.add(fn); return () => runSubs.delete(fn); }
 function emitRuns() { for (const fn of [...runSubs]) { try { fn(); } catch { /* keep going */ } } }
@@ -408,29 +445,72 @@ function isRun(t) { return !!getInsight(t) || runs.get(t)?.done === true; }
 function activeRuns() { return [...runs.values()].filter((r) => !r.done); }
 function cssEsc(s) { return String(s).replace(/["\\]/g, '\\$&'); }
 
-// A run is a timed, module-level job: it keeps going after the reader switches tabs, and it
-// announces itself in the header bell when it finishes.
-function startRun(ticker, name, sector) {
-  if (runs.has(ticker)) { openRunProgress(ticker); return; }
-  const rec = { ticker, name, sector, step: 0, done: false, opened: false };
+// Resolve `promise`, or `fallback` if it rejects or doesn't settle within `ms` — so a slow or failed
+// build step degrades to a safe value instead of hanging the run.
+function withTimeout(promise, ms, fallback) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (v) => { if (!settled) { settled = true; clearTimeout(timer); resolve(v); } };
+    const timer = setTimeout(() => done(fallback), ms);
+    Promise.resolve(promise).then(done, () => done(fallback));
+  });
+}
+
+// A run is a module-level job: it keeps going after the reader switches tabs, and announces itself
+// in the header bell when it finishes. It does the REAL build in the background — the live alert
+// read, the sector KPIs and the one AI write — and is only marked `done` once all of that is
+// assembled into `rec.built`. So the page a reader opens is always complete, never half-written.
+// The step bar is visual pacing that holds on the last step until the real work lands.
+async function startRun(ticker, name, sector) {
+  if (runs.has(ticker)) { openRunProgress(ticker); return; } // already running or done — just show it
+  const rec = { ticker, name, sector, step: 0, done: false, failed: false, opened: false, built: null };
   runs.set(ticker, rec);
   emitRuns();
-  const advance = () => {
-    rec.step += 1;
-    if (rec.step >= RUN_STEPS.length) {
-      rec.done = true;
-      emitRuns();
-      try {
-        pushNote({ key: `ai-run:${ticker}`, kind: 'research',
-          title: `One-pager ready — ${name}`, detail: 'Your AI Insights one-pager is ready to open.' });
-      } catch { /* notifications are optional */ }
-      return;
-    }
-    emitRuns();
-    rec.timer = setTimeout(advance, RUN_STEP_MS);
-  };
-  rec.timer = setTimeout(advance, RUN_STEP_MS);
   openRunProgress(ticker);
+
+  // Visual pacing: advance through the steps but HOLD on the last one (spinner) until the real
+  // work below settles — the last step genuinely is "writing", and it is honest to wait on it.
+  const tick = () => {
+    if (rec.done) return;
+    if (rec.step < RUN_STEPS.length - 1) { rec.step += 1; emitRuns(); rec.timer = setTimeout(tick, RUN_STEP_MS); }
+  };
+  rec.timer = setTimeout(tick, RUN_STEP_MS);
+
+  // The real build. Every piece runs in parallel and is bounded by a timeout + a safe fallback, so
+  // one slow or failed step can never hang the run or leave a half page. The AI "Our view" is the one
+  // metered step (cached per ticker, so a re-run in the same session never re-spends); the sector
+  // scorecard and the recent-alerts read are free. A step that doesn't land in time degrades to an
+  // honest "couldn't read just now" state — never a spinner the reader is left staring at.
+  try {
+    const live = await import('../data/ai-insights-live.js');
+    const cached = aiIdeaData.get(ticker) || null;
+    const [prof, cardRes, ideaRes] = await Promise.all([
+      withTimeout(live.sectorProfileFor(ticker), 10000, null),
+      withTimeout(live.cardFor(ticker, () => true), 14000, { status: 'cold', card: null }),
+      cached ? Promise.resolve(cached)
+        : withTimeout(live.writeIdea({ ticker, name, isCurrent: () => true }), 75000, { status: 'error' }),
+    ]);
+    if (ideaRes?.status === 'ok' && !cached) aiIdeaData.set(ticker, ideaRes);
+    rec.built = {
+      aiStatus: ideaRes?.status || 'error',
+      idea: ideaRes?.status === 'ok' ? parseIdea(ideaRes.text) : null,
+      rawText: ideaRes?.status === 'ok' ? ideaRes.text : null,
+      live: { status: cardRes?.status || 'cold', data: cardRes?.card ? live.updatesFromCard(cardRes.card) : null },
+      sectorProfile: prof,
+    };
+    if (!rec.sector && prof?.groupLabel) rec.sector = prof.groupLabel;
+  } catch {
+    rec.built = { aiStatus: 'error', idea: null, rawText: null, live: { status: 'cold', data: null }, sectorProfile: null };
+  }
+
+  if (rec.timer) clearTimeout(rec.timer);
+  rec.step = RUN_STEPS.length;
+  rec.done = true;
+  emitRuns();
+  try {
+    pushNote({ key: `ai-run:${ticker}`, kind: 'research',
+      title: `One-pager ready — ${name}`, detail: 'Your AI Insights one-pager is ready to open.' });
+  } catch { /* notifications are optional */ }
 }
 
 const RUN_SCOPES = [['portfolio', 'Portfolio'], ['watchlist', 'Watchlist'], ['universe', 'Universe']];
@@ -728,10 +808,14 @@ function rowHtml(r) {
       + (keys ? `<ul class="gi-keys">${keys}</ul>` : `<span class="gi-take">${esc(d.verdictSub)}</span>`);
     scores = meters(d.quality, d.price);
     chev = '<span class="gi-chev">More →</span>';
-  } else if (r.firstCut) {
-    view = '<span class="gi-pill firstcut">First cut</span><span class="gi-take">Full write-up being completed</span>';
+  } else if (r.running) {
+    view = '<span class="gi-pill firstcut"><span class="gi-spin"></span> Writing…</span><span class="gi-take">Building the one-pager — tap to watch</span>';
     scores = '<span class="gi-flat" style="font-size:.78rem">—</span>';
     chev = '<span class="gi-chev">View →</span>';
+  } else if (r.firstCut) {
+    view = '<span class="gi-pill done2">Ready</span><span class="gi-take">AI one-pager built — tap to open</span>';
+    scores = '<span class="gi-flat" style="font-size:.78rem">—</span>';
+    chev = '<span class="gi-chev">Open →</span>';
   } else {
     view = '<span class="gi-pill soon">Researching</span><span class="gi-take">Sector rulebook ready — one-pager rolling out</span>';
     scores = '<span class="gi-flat" style="font-size:.78rem">—</span>';
@@ -921,27 +1005,87 @@ function liveSectionHtml(d, live) {
 // says so plainly rather than inventing one. The full written report for any company is the next
 // layer (the GitHub + AI step, which needs the one-time token).
 function openAuto(ticker) {
-  const held = (coverage.holdings() || []).find((h) => h.ticker === ticker) || {};
-  const d = { ticker, name: held.name || runs.get(ticker)?.name || ticker, ourSector: runs.get(ticker)?.sector || held.sector || '' };
-  openModal(autoPagerHtml(d), { size: 'magazine' });
-  fillAuto(d);
+  const rec = runs.get(ticker);
+  if (!rec || !rec.built) { openModal(comingHtml(ticker), { size: 'default' }); return; }
+  // Pre-render the Markdown parts (the financials table, what-to-watch, or a prose fallback) to HTML
+  // up front, so the page opens FULLY FORMED in one paint — a reader (or a client) never sees an
+  // empty slot, a spinner, or a half-written report.
+  Promise.all([
+    mdToHtml(rec.built.idea?.tail || ''),
+    rec.built.idea ? Promise.resolve('') : mdToHtml(rec.built.rawText || ''),
+  ]).then(([tailHtml, proseHtml]) => {
+    openModal(autoPagerHtml(rec, { tailHtml, proseHtml }), { size: 'magazine' });
+    wireAutoPdf();
+    wireRerun();
+  });
 }
 
-function autoPagerHtml(d) {
-  const m = market(d.ticker);
+// Render a KNOWN Markdown string to safe HTML up front (no streaming, no network — the AI text was
+// already written during the run) using the shared research renderer, so the one-pager opens whole.
+async function mdToHtml(md) {
+  if (!md) return '';
+  const div = document.createElement('div');
+  try {
+    const renderer = await import('../research/renderer.js');
+    if (renderer?.renderResearchAnswer) renderer.renderResearchAnswer(div, md, { cite: null });
+    else div.textContent = md;
+  } catch { div.textContent = md; }
+  return div.innerHTML;
+}
+
+function autoPagerHtml(rec, pre = {}) {
+  const b = rec.built || {};
+  const ticker = rec.ticker;
+  const name = rec.name || ticker;
+  const sectorLabel = b.sectorProfile?.groupLabel || rec.sector || '';
+  const m = market(ticker);
   const price = m.cmp != null ? `${rupee(m.cmp)}${m.chg == null ? '' : ` · ${signed(m.chg)} today`}` : '—';
-  return `<div class="gi-pager" data-ticker="${esc(d.ticker)}" data-auto="1">
+
+  // "Our view" — the AI verdict and the for/against columns, when the structured idea parsed cleanly.
+  let viewBlock;
+  if (b.idea) {
+    const idea = b.idea;
+    const vcls = (idea.verdict || 'watch').toLowerCase();
+    const like = idea.like.length ? idea.like.map((p, i) => ptHtml(p, i)).join('') : '<div class="gi-emptycol">No clear positives in the data read.</div>';
+    const dislike = idea.dislike.length ? idea.dislike.map((p, i) => ptHtml(p, i)).join('') : '<div class="gi-emptycol">No clear concerns in the data read.</div>';
+    viewBlock = `
+      <h2 class="gi-sh">Our view <span class="gi-ai-tag">✨ AI-written</span></h2>
+      <div class="gi-ai-note">Written from Glow's own dashboard data — recent developments, filings and sector signals. Not investment advice.</div>
+      ${idea.verdict ? `<div class="gi-verdict"><div class="gi-call"><span class="gi-badge ${vcls}">${esc(idea.verdict)}</span><small>${esc(idea.verdictWhy)}</small></div></div>` : ''}
+      <h2 class="gi-sh">The case — for and against</h2>
+      <div class="gi-cols">
+        <div class="gi-col like"><div class="gi-colhd"><span class="gi-mk">✓</span> What we like</div><div class="gi-colbody">${like}</div></div>
+        <div class="gi-col dislike"><div class="gi-colhd"><span class="gi-mk">✕</span> What we don't like</div><div class="gi-colbody">${dislike}</div></div>
+      </div>`;
+  } else if (b.aiStatus === 'ok' && b.rawText) {
+    // The AI wrote a view but not in the expected shape — render the whole answer as prose. Complete,
+    // just not split into columns; never half.
+    viewBlock = `
+      <h2 class="gi-sh">Our view <span class="gi-ai-tag">✨ AI-written</span></h2>
+      <div class="gi-ai-note">Written from Glow's own dashboard data. Not investment advice.</div>
+      <div class="gi-ai-body">${pre.proseHtml || ''}</div>`;
+  } else {
+    // The AI step was unavailable — say so plainly and offer a re-run. The live read and the sector
+    // KPIs below still make this a complete page, not a broken one.
+    viewBlock = `<div class="gi-ai-unavail">The written view couldn't be generated just now. Below is Glow's live read for ${esc(name)} — its recent developments and the numbers that matter for its sector. <button type="button" class="gi-rerun" data-rerun="${esc(ticker)}">Try again</button></div>`;
+  }
+
+  const tailBlock = pre.tailHtml ? `<div class="gi-ai-tail">${pre.tailHtml}</div>` : '';
+
+  return `<div class="gi-pager" data-ticker="${esc(ticker)}" data-auto="1">
     <div class="gi-hero">
-      <div class="gi-kick"><span class="gi-dot"></span> Glow AI Insights <span class="thin">Live auto-read</span></div>
-      <div class="gi-co2"><h1>${esc(d.name)}</h1><span class="gi-tk">${esc(d.ticker)} · NSE</span></div>
+      <div class="gi-kick"><span class="gi-dot"></span> Glow AI Insights <span class="thin">The 5-minute stock read</span>
+        <button class="gi-pdf" type="button" data-pdf-auto>⬇ Download PDF</button></div>
+      <div class="gi-co2"><h1>${esc(name)}</h1><span class="gi-tk">${esc(ticker)} · NSE</span></div>
     </div>
     <div class="in">
-      <div class="gi-autonote">⚡ Built live from Glow's own data — a quick view, this company's recent developments and the numbers that matter for its sector.</div>
-      <div class="gi-facts"><span>Sector <b>${esc(d.ourSector || '—')}</b></span><span class="live">CMP ${esc(price)} · live</span></div>
-      ${themeChipHtml(d.ticker)}
-      <div id="gi-auto-ai" class="gi-ai"><h2 class="gi-sh">Our view <span class="gi-ai-tag">✨ AI-written</span></h2><div class="gi-ai-wait">Writing a quick view from Glow's data…</div></div>
-      <div id="gi-auto-live">${liveSectionHtml(d, liveData.get(d.ticker))}</div>
-      <div id="gi-auto-kpis">${autoKpisHtml(d, null)}</div>
+      <div class="gi-facts"><span>Sector <b>${esc(sectorLabel || '—')}</b></span><span class="live">CMP ${esc(price)} · live</span></div>
+      ${themeChipHtml(ticker)}
+      ${viewBlock}
+      ${tailBlock}
+      <div id="gi-auto-live">${liveSectionHtml({ ticker, name }, b.live)}</div>
+      <div id="gi-auto-kpis">${autoKpisHtml({ ticker, name, ourSector: sectorLabel }, b.sectorProfile || { names: [] })}</div>
+      <div class="gi-close"><span class="q"></span><span>A quick, data-grounded read built from Glow's own dashboard — not investment advice.</span></div>
     </div>
   </div>`;
 }
@@ -960,71 +1104,103 @@ function autoKpisHtml(d, sector) {
     <div class="gi-kpis">${chips}</div>`;
 }
 
-async function fillAuto(d) {
-  const token = (liveToken = {});
-  const live = await import('../data/ai-insights-live.js').catch(() => null);
-  if (!live || token !== liveToken) return;
-  // Is this company's auto-page still the one on screen? (Checked before every patch.)
-  const stillOpen = () => token === liveToken
-    && document.querySelector('.gi-pager[data-auto="1"]')?.dataset.ticker === d.ticker;
-  // Two independent fills: the sector scorecard is fast (committed rulebook); the recent
-  // developments may need a one-off alert read, so neither waits on the other.
-  live.sectorProfileFor(d.ticker).then((prof) => {
-    if (!stillOpen()) return;
-    if (!d.ourSector && prof?.groupLabel) d.ourSector = prof.groupLabel;
-    const slot = document.getElementById('gi-auto-kpis');
-    if (slot) slot.innerHTML = autoKpisHtml(d, prof || { names: [] });
-  }).catch(() => {});
-  live.cardFor(d.ticker, () => token === liveToken).then((res) => {
-    liveData.set(d.ticker, { status: res.status, data: res.card ? live.updatesFromCard(res.card) : null });
-    if (!stillOpen()) return;
-    const slot = document.getElementById('gi-auto-live');
-    if (slot) slot.innerHTML = liveSectionHtml(d, liveData.get(d.ticker));
-  }).catch(() => {
-    liveData.set(d.ticker, { status: 'cold', data: null });
-    if (!stillOpen()) return;
-    const slot = document.getElementById('gi-auto-live');
-    if (slot) slot.innerHTML = liveSectionHtml(d, liveData.get(d.ticker));
+// Download the auto one-pager as a PDF — print the pager exactly as rendered (the AI view is already
+// in the DOM), so nothing is regenerated and the file matches the screen.
+function wireAutoPdf() {
+  const host = document.getElementById('modal-content');
+  host?.querySelector('[data-pdf-auto]')?.addEventListener('click', () => {
+    const pager = host.querySelector('.gi-pager');
+    if (!pager) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Glow AI Insights</title>
+<style>${CSS}
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+  html,body{margin:0;background:#fff;}
+  .gi-pager{max-height:none;overflow:visible;}
+  .gi-pdf,.gi-rerun{display:none;}
+  .gi-hero,.gi-col.like,.gi-col.dislike,.gi-colhd{break-inside:avoid;}
+  @page{margin:11mm;}
+</style></head><body>${pager.outerHTML}</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { try { win.print(); } catch { /* reader can print manually */ } }, 400);
   });
-
-  // AI-written "Our view" — the one metered step, cached per ticker so a re-open never re-spends.
-  fillAiView(d, live, () => token === liveToken, stillOpen);
 }
 
-async function fillAiView(d, live, isCurrent, stillOpen) {
-  const slot = () => document.getElementById('gi-auto-ai');
-  const cached = aiIdeaData.get(d.ticker);
-  if (cached) {                                        // already written this session — no re-spend
-    if (stillOpen() && slot()) await renderAiInto(slot(), cached);
-    return;
-  }
-  let res;
-  try { res = await live.writeIdea({ ticker: d.ticker, name: d.name, isCurrent }); }
-  catch { res = { status: 'error' }; }
-  if (res?.status === 'ok') aiIdeaData.set(d.ticker, res);
-  if (!stillOpen()) return;
-  const el = slot();
-  if (!el) return;
-  if (res?.status === 'ok') await renderAiInto(el, res);
-  else el.remove();                                    // unconfigured / error / stale → free live view
+// "Try again" on an auto page whose AI step failed — clears the run and re-runs it clean.
+function wireRerun() {
+  const btn = document.getElementById('modal-content')?.querySelector('[data-rerun]');
+  btn?.addEventListener('click', () => {
+    const t = btn.dataset.rerun;
+    const rec = runs.get(t);
+    const name = rec?.name;
+    const sector = rec?.sector;
+    runs.delete(t);
+    aiIdeaData.delete(t);
+    emitRuns();
+    startRun(t, name || t, sector || '');
+  });
 }
 
-async function renderAiInto(el, res) {
-  let renderer = null;
-  try { renderer = await import('../research/renderer.js'); } catch { /* fall back to plain text */ }
-  el.innerHTML = `<h2 class="gi-sh">Our view <span class="gi-ai-tag">✨ AI-written</span></h2>
-    <div class="gi-ai-note">Written from Glow's own dashboard data — recent developments, filings and sector signals. Not investment advice.</div>
-    <div class="gi-ai-body"></div>`;
-  const mount = el.querySelector('.gi-ai-body');
-  try {
-    if (renderer?.renderResearchAnswer) renderer.renderResearchAnswer(mount, res.text, { cite: null });
-    else mount.textContent = res.text;
-  } catch { mount.textContent = res.text; }
+// Parse the AI's structured idea Markdown into a verdict + for/against + a Markdown tail (financials
+// and what-to-watch). Lenient: if the expected shape isn't found, returns null and the caller renders
+// the whole answer as prose instead — so a differently-shaped answer is still shown in full.
+function parseIdea(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+  let verdict = '';
+  let verdictWhy = '';
+  const vm = text.match(/(?:^|\n)\s*(?:\*\*)?\s*verdict\s*(?:\*\*)?\s*[:\-–—]\s*(?:\*\*)?\s*(buy|watch|avoid|hold|add|accumulate|reduce|sell|neutral)\b(?:\*\*)?\s*[-–—:]*\s*(.*)/i);
+  if (vm) { verdict = vm[1].charAt(0).toUpperCase() + vm[1].slice(1).toLowerCase(); verdictWhy = cleanInline(vm[2]); }
+  const secs = sectionSpans(text);
+  const find = (re) => secs.find((s) => re.test(s.key));
+  const likeSec = find(/what we like|the case for|in (its )?favou?r|positives/);
+  const dislikeSec = find(/do ?n'?t like|do not like|concern|risk|the case against|negatives/);
+  const like = likeSec ? bullets(likeSec.body) : [];
+  const dislike = dislikeSec ? bullets(dislikeSec.body) : [];
+  const tail = secs.filter((s) => s !== likeSec && s !== dislikeSec)
+    .map((s) => `## ${s.title}\n\n${s.body}`).join('\n\n').trim();
+  if (!like.length && !dislike.length && !verdict) return null; // not the expected shape → prose
+  return { verdict, verdictWhy, like, dislike, tail };
 }
+
+// Split a Markdown answer into its `## ` sections, each with a normalised key for matching.
+function sectionSpans(text) {
+  const re = /^##\s+(.+)$/gm;
+  const heads = [];
+  let m;
+  while ((m = re.exec(text))) heads.push({ title: m[1].trim(), start: m.index, bodyStart: re.lastIndex });
+  return heads.map((h, i) => ({
+    title: h.title,
+    key: h.title.toLowerCase().replace(/[^a-z' ]/g, '').trim(),
+    body: text.slice(h.bodyStart, i + 1 < heads.length ? heads[i + 1].start : text.length).trim(),
+  }));
+}
+
+// A section's bullet lines, parsed into { t: point, d: detail } for the for/against columns.
+function bullets(body) {
+  return String(body || '').split('\n').map((l) => l.trim())
+    .filter((l) => /^[-*]\s+/.test(l))
+    .map((l) => {
+      const s = l.replace(/^[-*]\s+/, '');
+      let mm = s.match(/^\*\*(.+?)\*\*\s*[—–\-:]\s*(.+)$/);
+      if (!mm) mm = s.match(/^(.+?)\s+[—–]\s+(.+)$/);
+      if (mm) return { t: cleanInline(mm[1]), d: cleanInline(mm[2]), tag: '' };
+      return { t: cleanInline(s), d: '', tag: '' };
+    })
+    .filter((p) => p.t)
+    .slice(0, 6);
+}
+
+function cleanInline(s) { return String(s || '').replace(/\*\*/g, '').replace(/\s+/g, ' ').trim(); }
 
 function ptHtml(p, i) {
   const n = String(i + 1).padStart(2, '0');
-  return `<div class="gi-pt"><div class="t"><span class="b">${n}</span><span>${esc(p.t)}</span></div><div class="d">${esc(p.d)}</div><span class="tag">${esc(p.tag)}</span></div>`;
+  const detail = p.d ? `<div class="d">${esc(p.d)}</div>` : '';
+  const tag = p.tag ? `<span class="tag">${esc(p.tag)}</span>` : '';
+  return `<div class="gi-pt"><div class="t"><span class="b">${n}</span><span>${esc(p.t)}</span></div>${detail}${tag}</div>`;
 }
 
 function concallHtml(d) {
