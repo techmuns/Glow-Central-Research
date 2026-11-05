@@ -17,6 +17,7 @@ import { push as pushNote } from '../ui/notifications.js';
 import * as coverage from '../data/coverage.js';
 import * as technicals from '../data/technicals.js';
 import * as watchlist from '../core/watchlist.js';
+import { themeCatalog, themesForCompany } from '../data/theme-exposures.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
 
 export const meta = TAB_META['ai-insights'];
@@ -240,6 +241,23 @@ const CSS = `
 .gi-ai-body blockquote{margin:8px 0;padding:6px 12px;border-left:3px solid #c7bdf0;color:#4b4257;background:#faf9ff;border-radius:0 8px 8px 0;}
 .gi-ai-body table{border-collapse:collapse;margin:8px 0;font-size:.8rem;}
 .gi-ai-body th,.gi-ai-body td{border:1px solid #eceff5;padding:5px 9px;text-align:left;}
+/* Themes — who benefits (event → beneficiary lookup) + per-company exposure chip. */
+.gi-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.gi-themes-btn{appearance:none;cursor:pointer;font-weight:700;font-size:.82rem;border-radius:10px;padding:8px 13px;border:1px solid rgb(var(--border-indigo-200,199 210 254));background:var(--surface,#fff);color:var(--brand-600,#4f46e5);}
+.gi-themes-btn:hover{background:rgb(var(--surface-indigo-50,238 242 255));}
+.gi-themes{display:flex;flex-direction:column;}
+.gi-theme{margin-top:14px;}
+.gi-theme-h{font-size:.98rem;font-weight:800;color:#111827;display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.gi-theme-n{font-size:.62rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#6d28d9;background:#f0ebff;border:1px solid #e3d9ff;border-radius:999px;padding:2px 8px;}
+.gi-theme-sub{font-size:.78rem;color:#56617a;margin:4px 0 9px;}
+.gi-theme-rows{display:flex;flex-direction:column;gap:7px;}
+.gi-theme-row{display:flex;align-items:center;gap:10px;border:1px solid #eceff5;border-radius:11px;padding:8px 11px;}
+.gi-theme-co{flex:1;min-width:0;display:flex;flex-direction:column;}
+.gi-theme-co b{font-size:.86rem;color:#111827;font-weight:700;}
+.gi-theme-co small{font-size:.72rem;color:#8b94a7;overflow:hidden;text-overflow:ellipsis;}
+.gi-theme-src{font-size:.72rem;font-weight:700;color:var(--brand-600,#4f46e5);text-decoration:none;white-space:nowrap;flex-shrink:0;}
+.gi-theme-src:hover{text-decoration:underline;}
+.gi-theme-chip{font-size:.8rem;color:#4b4257;background:#faf6ff;border:1px solid #efe6ff;border-radius:10px;padding:8px 12px;margin:0 0 4px;} .gi-theme-chip b{color:#6d28d9;}
 /* Compact one-pager — smaller type, tighter spacing, shorter scroll (desk request). */
 .gi-pager{line-height:1.48;}
 .gi-pager .in{padding:0 20px 18px;}
@@ -503,6 +521,43 @@ function openRunPicker() {
   setTimeout(() => search?.focus(), 40);
 }
 
+// EVENT → WHO BENEFITS. The reviewed theme-exposure map, as a reader-facing lookup: for each theme,
+// the companies an event in that market bears on, each with the source that states the link. Every
+// row is reviewed, cited data (never inferred) — the same map that drives the indirect alerts.
+function openThemes() {
+  const cat = themeCatalog();
+  const themesHtml = cat.map((t) => {
+    const rows = t.companies.map((c) => {
+      const av = avatar(c.name);
+      const src = c.source
+        ? `<a class="gi-theme-src" href="${esc(c.source.url)}" target="_blank" rel="noopener noreferrer">${esc(c.source.publisher)} ↗</a>`
+        : '';
+      return `<div class="gi-theme-row">
+        <span class="gi-av sm" style="background:${av.bg}">${av.ini}</span>
+        <span class="gi-theme-co"><b>${esc(c.name)}</b><small>${esc(c.ticker)} · ${esc(c.role)}</small></span>
+        ${src}
+      </div>`;
+    }).join('');
+    return `<div class="gi-theme">
+      <div class="gi-theme-h">${esc(t.label)} <span class="gi-theme-n">${t.companies.length} companies</span></div>
+      <p class="gi-theme-sub">When there's news in this market, these are the companies it bears on — each with the source that states the link.</p>
+      <div class="gi-theme-rows">${rows}</div>
+    </div>`;
+  }).join('');
+  openModal(`<div class="gi-themes">
+    <div class="gi-picker-h"><h3>Themes — who benefits</h3><p>When an event hits a market, these are the companies it touches. Every mapping carries a source; nothing is guessed. Not investment advice.</p></div>
+    ${themesHtml || '<div class="gi-rp-empty">No themes mapped yet.</div>'}
+  </div>`, { size: 'default' });
+}
+
+// A small "exposed to <theme>" line for a company's one-pager, when it is mapped to a reviewed theme.
+function themeChipHtml(ticker) {
+  const themes = themesForCompany(ticker);
+  if (!themes.length) return '';
+  const names = themes.map((t) => esc(t.short || t.label)).join(', ');
+  return `<div class="gi-theme-chip">💡 Exposed to <b>${names}</b> — ${esc(themes[0].role)}</div>`;
+}
+
 function openRunProgress(ticker) {
   const rec = runs.get(ticker);
   if (!rec) return;
@@ -592,7 +647,10 @@ export function render(ctx) {
     <div class="gi-tab">
       <div class="gi-head">
         <h2>AI Insights</h2>
-        <button class="gi-run-btn" type="button" data-gi-run>▶ Run a company</button>
+        <div class="gi-head-actions">
+          <button class="gi-themes-btn" type="button" data-gi-themes>💡 Themes · who benefits</button>
+          <button class="gi-run-btn" type="button" data-gi-run>▶ Run a company</button>
+        </div>
       </div>
       <div class="gi-runchips" data-gi-runs></div>
       <div class="gi-card">
@@ -620,6 +678,7 @@ export function render(ctx) {
   body.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') openFromEvent(e); });
 
   ctx.root.querySelector('[data-gi-run]').addEventListener('click', openRunPicker);
+  ctx.root.querySelector('[data-gi-themes]')?.addEventListener('click', openThemes);
   ctx.root.querySelector('[data-gi-runs]').addEventListener('click', (e) => {
     const b = e.target.closest('[data-run-open]');
     if (b) openRunProgress(b.dataset.runOpen);
@@ -749,6 +808,7 @@ function pagerHtml(d) {
         <div class="gi-why">${d.why}<span class="gi-trig">↗ ${d.trigger}</span></div>
       </div>
 
+      ${themeChipHtml(d.ticker)}
       ${liveSectionHtml(d, live)}
 
       ${d.intrinsic ? ivHtml(d) : ''}
@@ -877,6 +937,7 @@ function autoPagerHtml(d) {
     <div class="in">
       <div class="gi-autonote">⚡ Built live from Glow's own data — a quick view, this company's recent developments and the numbers that matter for its sector.</div>
       <div class="gi-facts"><span>Sector <b>${esc(d.ourSector || '—')}</b></span><span class="live">CMP ${esc(price)} · live</span></div>
+      ${themeChipHtml(d.ticker)}
       <div id="gi-auto-ai" class="gi-ai"><h2 class="gi-sh">Our view <span class="gi-ai-tag">✨ AI-written</span></h2><div class="gi-ai-wait">Writing a quick view from Glow's data…</div></div>
       <div id="gi-auto-live">${liveSectionHtml(d, liveData.get(d.ticker))}</div>
       <div id="gi-auto-kpis">${autoKpisHtml(d, null)}</div>

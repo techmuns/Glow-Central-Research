@@ -180,6 +180,39 @@ const GLP1 = {
 export const THEMES = Object.freeze([GLP1]);
 
 /**
+ * The reviewed themes as a reader-facing catalogue — each theme and the companies it bears on, with
+ * the one cited source that states each exposure. Backs the "Themes — who benefits" view. Every row
+ * is reviewed, cited data; nothing is inferred.
+ */
+export function themeCatalog() {
+  return THEMES.map((theme) => ({
+    id: theme.id,
+    label: theme.label,
+    short: theme.short,
+    companies: theme.exposures.map((e) => ({
+      ticker: e.ticker,
+      name: e.name,
+      role: e.role,
+      source: e.evidence && e.evidence[0]
+        ? { publisher: e.evidence[0].publisher, day: e.evidence[0].day, url: e.evidence[0].url }
+        : null,
+    })),
+  }));
+}
+
+/** The reviewed themes a single company is mapped to (reverse lookup), each with its role. */
+export function themesForCompany(ticker) {
+  const sym = String(ticker || '').toUpperCase();
+  if (!sym) return [];
+  const out = [];
+  for (const theme of THEMES) {
+    const e = theme.exposures.find((x) => x.ticker === sym);
+    if (e) out.push({ id: theme.id, label: theme.label, short: theme.short, role: e.role });
+  }
+  return out;
+}
+
+/**
  * Everything the theme match reads, as plain data. The portfolio slice of the precomputed alert pool
  * keeps a market-wide story only when it can matter to the book, so it carries this in its
  * signature: an edited theme makes every slice built before the edit ineligible rather than
