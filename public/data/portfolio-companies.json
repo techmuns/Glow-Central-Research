@@ -1351,7 +1351,7 @@
     },
     {
       "isin": "INE473D01015",
-      "name": "Kingfa Science&Technology (India) Limited Eq",
+      "name": "Kingfa Science&Technology (India) Limited",
       "bookName": "KINGFA SCIENCE&TECHNOLOGY (INDIA) LIMITED EQ",
       "ticker": "KINGFA",
       "sector": "Unclassified",
@@ -1516,7 +1516,7 @@
     },
     {
       "isin": "INE993A01026",
-      "name": "Man Industries (India) Limited Eq New Rs. 5/",
+      "name": "Man Industries (India) Limited",
       "bookName": "MAN INDUSTRIES (INDIA) LIMITED EQ NEW RS. 5/",
       "ticker": "MANINDS",
       "sector": "Unclassified",
@@ -1533,7 +1533,7 @@
     },
     {
       "isin": "INE00VM01036",
-      "name": "Manorama Industries Limited Eq New Fv Rs 2/",
+      "name": "Manorama Industries Limited",
       "bookName": "MANORAMA INDUSTRIES LIMITED EQ NEW FV RS 2/",
       "ticker": "MANORAMA",
       "sector": "Unclassified",
@@ -2115,7 +2115,7 @@
     },
     {
       "isin": "INE1VXE01018",
-      "name": "Stl Networks Limited Eq",
+      "name": "Stl Networks Limited",
       "bookName": "STL NETWORKS LIMITED EQ",
       "ticker": "STLNETWORK",
       "sector": "Unclassified",
@@ -2127,7 +2127,7 @@
     },
     {
       "isin": "INE089C01029",
-      "name": "Sterlite Technologies Limited Eq New Fv Rs.2/",
+      "name": "Sterlite Technologies Limited",
       "bookName": "STERLITE TECHNOLOGIES LIMITED EQ NEW FV RS.2/",
       "ticker": "STLTECH",
       "sector": "Unclassified",
@@ -2625,7 +2625,7 @@
     },
     {
       "isin": "INE501A01019",
-      "name": "Deepak Fertilisers And Petrochemicals Corporation Ltd Eq",
+      "name": "Deepak Fertilisers And Petrochemicals Corporation Ltd",
       "bookName": "DEEPAK FERTILISERS AND PETROCHEMICALS CORPORATION LTD EQ",
       "sector": "Unclassified",
       "ticker": "DEEPAKFERT",

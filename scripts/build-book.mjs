@@ -366,10 +366,15 @@ const titleCase = (name) =>
     .replace(/\bLimited\b/g, 'Limited');
 
 /** The custodian's wording, minus the suffixes brokers append: "ICICI BANK-EQ", "SBI - EQ", "…-EQ NEW FV RS. 5/". */
+// Some custodians print the share-class suffix with no hyphen — "… LIMITED EQ NEW RS. 5/",
+// "… LTD EQ" — which used to survive into the display name (and kept Deepak Fertilisers'
+// line from resolving its name the way the other statements' wording does).
 const bareName = (security) =>
   String(security || '')
     .replace(/\s*-\s*EQ\b.*$/i, '')
     .replace(/\s*-\s*EQ1\/?$/i, '')
+    .replace(/\s+EQ\s+NEW\b.*$/i, '')
+    .replace(/\s+EQ\d*\/?$/i, '')
     .replace(/\s+/g, ' ')
     .trim();
 

@@ -71,14 +71,21 @@ export function bookHoldings() {
   // by verify-research-sheet-ui.mjs, 37 rows against 35. Names prefer the session's, which is newer.
   const committed = new Map(coverage.baseHoldings().map((h) => [h.isin, h]));
   const current = new Map(coverage.holdings().map((h) => [h.isin, h]));
-  const rows = book.counted().filter((p) => p.assetClass === 'Equity' && p.engagement !== 'PMS' && committed.get(p.isin)?.listed !== false);
+  // A statement line with neither a symbol nor an ISIN ("DEEPAK FERTILISERS … LTD EQ") is the
+  // committed company whose `bookName` is that exact wording — the identity rule
+  // withHoldingCategories() applies. Without it the line had no key and left the sheet silently.
+  const byBookName = new Map(coverage.baseHoldings().filter((h) => h.bookName).map((h) => [h.bookName, h]));
+  const committedFor = (p) => committed.get(p.isin) || (!p.symbol && !p.isin ? byBookName.get(p.security) : null) || null;
+  const rows = book.counted().filter((p) => p.assetClass === 'Equity' && p.engagement !== 'PMS' && committedFor(p)?.listed !== false);
   return book.directEquity(rows).map((company) => {
-    const listed = current.get(company.isin) || committed.get(company.isin) || null;
+    const named = company.isin ? null : company.rows.map(committedFor).find(Boolean) || null;
+    const isin = company.isin || named?.isin || null;
+    const listed = current.get(isin) || committed.get(isin) || named || null;
     const ticker = (company.symbol || listed?.ticker || '').toUpperCase() || null;
     return {
-      key: ticker || isinKey(company.isin),
+      key: ticker || isinKey(isin),
       ticker,
-      isin: company.isin,
+      isin,
       kind: 'book',
       name: listed?.name || company.name,
       bookSector: company.sector || listed?.sector || null,

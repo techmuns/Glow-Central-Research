@@ -42,8 +42,11 @@ const book = readData('book.json');
 const companies = readData('portfolio-companies.json');
 const history = readData('sheet-history.json');
 const listedByIsin = new Map(companies.holdings.map((h) => [h.isin, h]));
-const direct = book.positions.filter((p) => p.assetClass === 'Equity' && p.engagement !== 'PMS' && listedByIsin.get(p.isin)?.listed !== false);
-const expectedKeys = new Set(direct.map((p) => p.symbol || listedByIsin.get(p.isin)?.ticker || `ISIN:${p.isin}`));
+// A line with neither symbol nor ISIN is the committed company printed under its exact wording.
+const listedByBookName = new Map(companies.holdings.filter((h) => h.bookName).map((h) => [h.bookName, h]));
+const listedFor = (p) => listedByIsin.get(p.isin) || (!p.symbol && !p.isin ? listedByBookName.get(p.security) : null);
+const direct = book.positions.filter((p) => p.assetClass === 'Equity' && p.engagement !== 'PMS' && listedFor(p)?.listed !== false);
+const expectedKeys = new Set(direct.map((p) => p.symbol || listedFor(p)?.ticker || `ISIN:${p.isin || listedFor(p)?.isin}`));
 const pmsOnly = [...new Set(book.positions.filter((p) => p.engagement === 'PMS' && p.symbol).map((p) => p.symbol))].filter((t) => !expectedKeys.has(t));
 // The book is re-synced every day, so the rows this suite edits are chosen from it by what the
 // checks need, never by a name a later sync can drop. PRIMARY is a public-direct ticker with a
