@@ -212,6 +212,8 @@ const CSS = `
 .gi-live-net{margin-top:11px;font-size:.8rem;color:#1f2937;background:#f6f4ff;border:1px solid #ece7ff;border-radius:10px;padding:9px 12px;} .gi-live-net b{color:#6d28d9;}
 .gi-livedelta{font-size:.6rem;font-weight:800;letter-spacing:.03em;border-radius:999px;padding:2px 7px;margin-left:6px;vertical-align:middle;white-space:nowrap;}
 .gi-livedelta.up{color:#059669;background:#e7f7f0;} .gi-livedelta.down{color:#e11d48;background:#fdeaef;}
+/* Run-any-company live auto-read: the honest note at the top of the generated page. */
+.gi-autonote{font-size:.8rem;color:#4b4257;background:#f6f4ff;border:1px solid #ece7ff;border-radius:10px;padding:10px 13px;margin:2px 0 11px;} .gi-autonote b{color:#6d28d9;}
 /* Compact one-pager — smaller type, tighter spacing, shorter scroll (desk request). */
 .gi-pager{line-height:1.48;}
 .gi-pager .in{padding:0 20px 18px;}
@@ -348,13 +350,11 @@ function tableRows() {
 /* ---------------- "Run a company" — background run + progress screen ---------------- */
 const RUN_STEPS = [
   'Reading the dashboard',
-  'Pulling the latest financials',
-  'Reading the last three earnings calls',
+  'Checking recent alerts',
   'Checking the sector KPIs',
-  'Scoring business quality & value',
-  'Writing the one-pager',
+  'Building your live read',
 ];
-const RUN_STEP_MS = 2600;
+const RUN_STEP_MS = 1600;
 const runs = new Map(); // ticker -> { ticker, name, sector, step, done, opened, timer }
 const runSubs = new Set();
 function onRunChange(fn) { runSubs.add(fn); return () => runSubs.delete(fn); }
@@ -393,9 +393,10 @@ function openRunPicker() {
   const held = coverage.holdings() || [];
   const sectorOf = new Map();
   for (const g of RESEARCHED_SECTORS) for (const t of g.tickers) sectorOf.set(t, g.sector);
+  // Every family holding can be run — the live auto-read (recent alerts + the sector scorecard from
+  // the KPI rulebook) works for any classified company, not only the hand-researched sectors.
   const list = held
-    .filter((h) => sectorOf.has(h.ticker))
-    .map((h) => ({ ticker: h.ticker, name: h.name, sector: sectorOf.get(h.ticker) }))
+    .map((h) => ({ ticker: h.ticker, name: h.name, sector: sectorOf.get(h.ticker) || h.sector || '' }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const rowsHtml = list.map((c) => {
     const av = avatar(c.name);
@@ -622,7 +623,7 @@ function openCompany(ticker) {
   if (isRunning(ticker)) return openRunProgress(ticker);
   const d = getInsight(ticker);
   if (d) { openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); fillLive(d); return; }
-  if (runs.get(ticker)?.done) return openModal(firstCutHtml(ticker), { size: 'magazine' });
+  if (runs.get(ticker)?.done) return openAuto(ticker);
   return openModal(comingHtml(ticker), { size: 'default' });
 }
 
@@ -782,6 +783,77 @@ function liveSectionHtml(d, live) {
     ? `<div class="gi-live-net">Net read: <b>${qd > 0 ? 'slightly stronger' : 'slightly softer'}</b> — Business quality auto-nudged ${qd > 0 ? '+' : ''}${qd} (written ${d.quality} → now ${Math.max(0, Math.min(100, d.quality + qd))}). The written view and every number above stay visible.</div>`
     : '';
   return `<div class="gi-live">${head}<div class="gi-upds">${rows}</div>${more}${net}</div>`;
+}
+
+// RUN ANY COMPANY — a real LIVE page, built free (0 credits) from the dashboard's own data: the
+// company's recent developments (the auto-update box) and the numbers that matter for its sector
+// (the KPI rulebook). It writes no analyst verdict — that is the team's hand-written layer — so it
+// says so plainly rather than inventing one. The full written report for any company is the next
+// layer (the GitHub + AI step, which needs the one-time token).
+function openAuto(ticker) {
+  const held = (coverage.holdings() || []).find((h) => h.ticker === ticker) || {};
+  const d = { ticker, name: held.name || runs.get(ticker)?.name || ticker, ourSector: runs.get(ticker)?.sector || held.sector || '' };
+  openModal(autoPagerHtml(d), { size: 'magazine' });
+  fillAuto(d);
+}
+
+function autoPagerHtml(d) {
+  const m = market(d.ticker);
+  const price = m.cmp != null ? `${rupee(m.cmp)}${m.chg == null ? '' : ` · ${signed(m.chg)} today`}` : '—';
+  return `<div class="gi-pager" data-ticker="${esc(d.ticker)}" data-auto="1">
+    <div class="gi-hero">
+      <div class="gi-kick"><span class="gi-dot"></span> Glow AI Insights <span class="thin">Live auto-read</span></div>
+      <div class="gi-co2"><h1>${esc(d.name)}</h1><span class="gi-tk">${esc(d.ticker)} · NSE</span></div>
+    </div>
+    <div class="in">
+      <div class="gi-autonote">⚡ Built live from Glow's own data — this company's recent developments and the numbers that matter for its sector. <b>0 credits.</b> The full written view — verdict, what we like / don't like — is added by the team.</div>
+      <div class="gi-facts"><span>Sector <b>${esc(d.ourSector || '—')}</b></span><span class="live">CMP ${esc(price)} · live</span></div>
+      <div id="gi-auto-live">${liveSectionHtml(d, liveData.get(d.ticker))}</div>
+      <div id="gi-auto-kpis">${autoKpisHtml(d, null)}</div>
+    </div>
+  </div>`;
+}
+
+function autoKpisHtml(d, sector) {
+  const label = d.ourSector || sector?.groupLabel || 'this sector';
+  if (sector === null) {
+    return `<h2 class="gi-sh">The numbers that matter in ${esc(label)}</h2><div class="gi-live-wait">Loading the sector scorecard…</div>`;
+  }
+  if (!sector.names?.length) {
+    return `<h2 class="gi-sh">The numbers that matter in ${esc(label)}</h2><div class="gi-live-empty">A sector scorecard isn't available for this company yet.</div>`;
+  }
+  const chips = sector.names.map((n) => `<div class="gi-kpi"><span>Key metric</span><b>${esc(n)}</b></div>`).join('');
+  return `<h2 class="gi-sh">The numbers that matter in ${esc(label)}</h2>
+    <p class="gi-prose" style="margin:-2px 0 9px;color:#56617a">These are the metrics ${esc(label)} companies are judged on — live values fill in from results and filings as they land.</p>
+    <div class="gi-kpis">${chips}</div>`;
+}
+
+async function fillAuto(d) {
+  const token = (liveToken = {});
+  const live = await import('../data/ai-insights-live.js').catch(() => null);
+  if (!live || token !== liveToken) return;
+  // Is this company's auto-page still the one on screen? (Checked before every patch.)
+  const stillOpen = () => token === liveToken
+    && document.querySelector('.gi-pager[data-auto="1"]')?.dataset.ticker === d.ticker;
+  // Two independent fills: the sector scorecard is fast (committed rulebook); the recent
+  // developments may need a one-off alert read, so neither waits on the other.
+  live.sectorProfileFor(d.ticker).then((prof) => {
+    if (!stillOpen()) return;
+    if (!d.ourSector && prof?.groupLabel) d.ourSector = prof.groupLabel;
+    const slot = document.getElementById('gi-auto-kpis');
+    if (slot) slot.innerHTML = autoKpisHtml(d, prof || { names: [] });
+  }).catch(() => {});
+  live.cardFor(d.ticker, () => token === liveToken).then((res) => {
+    liveData.set(d.ticker, { status: res.status, data: res.card ? live.updatesFromCard(res.card) : null });
+    if (!stillOpen()) return;
+    const slot = document.getElementById('gi-auto-live');
+    if (slot) slot.innerHTML = liveSectionHtml(d, liveData.get(d.ticker));
+  }).catch(() => {
+    liveData.set(d.ticker, { status: 'cold', data: null });
+    if (!stillOpen()) return;
+    const slot = document.getElementById('gi-auto-live');
+    if (slot) slot.innerHTML = liveSectionHtml(d, liveData.get(d.ticker));
+  });
 }
 
 function ptHtml(p, i) {
