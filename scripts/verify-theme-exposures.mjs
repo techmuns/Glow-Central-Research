@@ -29,9 +29,9 @@ const tickersOf = readings => readings.flatMap(r => r.exposures.map(e => e.ticke
 const book = JSON.parse(readFileSync(join(ROOT, 'public/data/portfolio-companies.json'), 'utf8'));
 const bookRows = book.holdings;
 const tracked = new Set(JSON.parse(readFileSync(join(ROOT, 'public/data/tracked-universe.json'), 'utf8')).companies.map(c => c.ticker));
-const segmentIds = new Set(GLP1.segments.map(([id]) => id));
 for (const theme of THEMES) {
   assert.match(theme.id, /^[a-z0-9-]+$/);
+  const segmentIds = new Set(theme.segments.map(([id]) => id));
   for (const [from, to, text] of theme.readAcross) {
     assert(theme.segments.some(([id]) => id === from) && theme.segments.some(([id]) => id === to), `read-across ${from}→${to} names real segments`);
     assert(/\b(?:potential|could|bears? on)\b/.test(text), `read-across "${text}" states a mechanism, never a verdict`);
