@@ -2,14 +2,14 @@
  "_provenance": "NSE four-level industry classification as printed by Screener: the NSE-500 export for index members, each company's public page for the rest. Read by scripts/build-sector-kpis.mjs; see docs/DATA-CONTRACTS.md → Sector KPIs.",
  "source": "Screener (NSE industry classification)",
  "generator": "scripts/classify-companies.mjs",
- "capturedAt": "2026-10-29T04:59:28.980Z",
+ "capturedAt": "2026-11-05T08:27:50.199Z",
  "scope": "book",
  "counts": {
-  "companies": 633,
+  "companies": 641,
   "fromExport": 534,
-  "fromPages": 99,
+  "fromPages": 107,
   "failed": 0,
-  "pagesReadThisRun": 4
+  "pagesReadThisRun": 8
  },
  "companies": {
   "504375": {
@@ -1369,6 +1369,24 @@
    "industry": "Hotels & Resorts",
    "source": "export"
   },
+  "EIMCOELECO": {
+   "broadSector": "Industrials",
+   "sector": "Capital Goods",
+   "broadIndustry": "Industrial Manufacturing",
+   "industry": "Industrial Products",
+   "code": "IN070204008",
+   "source": "page",
+   "checkedAt": "2026-11-05T08:27:33.425Z"
+  },
+  "ELECON": {
+   "broadSector": "Industrials",
+   "sector": "Capital Goods",
+   "broadIndustry": "Electrical Equipment",
+   "industry": "Heavy Electrical Equipment",
+   "code": "IN070203001",
+   "source": "page",
+   "checkedAt": "2026-11-05T08:27:35.787Z"
+  },
   "ELGIEQUIP": {
    "broadSector": "Industrials",
    "sector": "Capital Goods",
@@ -1456,6 +1474,15 @@
    "broadIndustry": "Agricultural, Commercial & Construction Vehicles",
    "industry": "Tractors",
    "source": "export"
+  },
+  "ESDS": {
+   "broadSector": "Information Technology",
+   "sector": "Information Technology",
+   "broadIndustry": "IT - Services",
+   "industry": "IT Enabled Services",
+   "code": "IN080102001",
+   "source": "page",
+   "checkedAt": "2026-11-05T08:27:38.279Z"
   },
   "ESTER": {
    "broadSector": "Industrials",
@@ -2550,6 +2577,15 @@
    "industry": "Hospital",
    "source": "export"
   },
+  "KINGFA": {
+   "broadSector": "Industrials",
+   "sector": "Capital Goods",
+   "broadIndustry": "Industrial Products",
+   "industry": "Plastic Products - Industrial",
+   "code": "IN070205009",
+   "source": "page",
+   "checkedAt": "2026-11-05T08:27:40.619Z"
+  },
   "KIOCL": {
    "broadSector": "Commodities",
    "sector": "Metals & Mining",
@@ -2828,6 +2864,15 @@
    "industry": "Non Banking Financial Company (NBFC)",
    "source": "export"
   },
+  "MANINDS": {
+   "broadSector": "Industrials",
+   "sector": "Capital Goods",
+   "broadIndustry": "Industrial Products",
+   "industry": "Iron & Steel Products",
+   "code": "IN070205015",
+   "source": "page",
+   "checkedAt": "2026-11-05T08:27:42.975Z"
+  },
   "MANIPALHOS": {
    "broadSector": "Healthcare",
    "sector": "Healthcare",
@@ -2841,6 +2886,15 @@
    "broadIndustry": "Pharmaceuticals & Biotechnology",
    "industry": "Pharmaceuticals",
    "source": "export"
+  },
+  "MANORAMA": {
+   "broadSector": "Fast Moving Consumer Goods",
+   "sector": "Fast Moving Consumer Goods",
+   "broadIndustry": "Food Products",
+   "industry": "Other Food Products",
+   "code": "IN040104003",
+   "source": "page",
+   "checkedAt": "2026-11-05T08:27:45.327Z"
   },
   "MANYAVAR": {
    "broadSector": "Consumer Discretionary",
@@ -3958,6 +4012,15 @@
    "industry": "General Insurance",
    "source": "export"
   },
+  "STLNETWORK": {
+   "broadSector": "Telecommunication",
+   "sector": "Telecommunication",
+   "broadIndustry": "Telecom - Services",
+   "industry": "Other Telecom Services",
+   "code": "IN100101003",
+   "source": "page",
+   "checkedAt": "2026-11-05T08:27:47.821Z"
+  },
   "STLTECH": {
    "broadSector": "Telecommunication",
    "sector": "Telecommunication",
@@ -4515,6 +4578,15 @@
    "code": "IN060101001",
    "source": "page",
    "checkedAt": "2026-09-23T06:27:10.815Z"
+  },
+  "VMART": {
+   "broadSector": "Consumer Discretionary",
+   "sector": "Consumer Services",
+   "broadIndustry": "Retailing",
+   "industry": "Diversified Retail",
+   "code": "IN020603003",
+   "source": "page",
+   "checkedAt": "2026-11-05T08:27:50.181Z"
   },
   "VMM": {
    "broadSector": "Consumer Discretionary",
