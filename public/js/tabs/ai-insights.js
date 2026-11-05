@@ -168,6 +168,25 @@ const CSS = `
 .gi-coming{padding:26px 26px 30px;color:#111827;font-family:"Inter",system-ui,sans-serif;}
 .gi-coming h3{font-family:"Plus Jakarta Sans",sans-serif;font-size:1.2rem;margin:6px 0 10px;}
 .gi-coming p{color:#56617a;font-size:.94rem;line-height:1.6;}
+/* Intrinsic value vs price + sector KPIs */
+.gi-iv{border:1px solid #e5e8f1;border-radius:14px;padding:15px 16px;}
+.gi-iv-nums{display:flex;gap:12px;flex-wrap:wrap;}
+.gi-iv-box{flex:1;min-width:150px;border-radius:12px;padding:12px 14px;background:#f7f8fc;border:1px solid #eceff5;}
+.gi-iv-box span{display:block;font-size:.62rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#8b94a7;}
+.gi-iv-box b{display:block;font-size:1.3rem;font-weight:800;color:#111827;margin-top:4px;letter-spacing:-.01em;}
+.gi-iv-box small{color:#8b94a7;font-size:.72rem;}
+.gi-iv-box.live{background:linear-gradient(135deg,#eef2ff,#faf0fb);border-color:#e3d9fb;}
+.gi-iv-box.live b{color:#4f46e5;}
+.gi-iv-read{margin-top:11px;font-size:.84rem;font-weight:600;border-radius:10px;padding:9px 12px;}
+.gi-iv-read.good{background:#f0fdf6;color:#047857;border:1px solid #bdecd1;}
+.gi-iv-read.watch{background:#fffbeb;color:#b45309;border:1px solid #fde8b0;}
+.gi-iv-read.rich{background:#fff1f2;color:#be123c;border:1px solid #f8ccd4;}
+.gi-iv-metric{margin-top:9px;font-size:.8rem;color:#56617a;} .gi-iv-metric b{color:#111827;}
+.gi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;}
+.gi-kpi{border-radius:11px;border:1px solid #eceff5;background:#fff;padding:10px 12px 10px 26px;position:relative;}
+.gi-kpi::before{content:"";position:absolute;left:12px;top:14px;width:7px;height:7px;border-radius:50%;background:#94a3b8;}
+.gi-kpi.good::before{background:#10b981;} .gi-kpi.watch::before{background:#f59e0b;} .gi-kpi.rich::before{background:#f43f5e;}
+.gi-kpi span{display:block;font-size:.7rem;color:#56617a;line-height:1.3;} .gi-kpi b{display:block;font-size:.95rem;color:#111827;font-weight:800;margin-top:3px;}
 /* Compact one-pager — smaller type, tighter spacing, shorter scroll (desk request). */
 .gi-pager{line-height:1.48;}
 .gi-pager .in{padding:0 20px 18px;}
@@ -631,6 +650,9 @@ function pagerHtml(d) {
         <div class="gi-why">${d.why}<span class="gi-trig">↗ ${d.trigger}</span></div>
       </div>
 
+      ${d.intrinsic ? ivHtml(d) : ''}
+      ${d.kpis ? kpisHtml(d) : ''}
+
       <h2 class="gi-sh">The case — for and against</h2>
       <div class="gi-cols">
         <div class="gi-col like"><div class="gi-colhd"><span class="gi-mk">✓</span> What we like</div><div class="gi-colbody">${like}</div></div>
@@ -647,6 +669,30 @@ function pagerHtml(d) {
       <div class="gi-close"><span class="q"></span><span>${d.close}</span></div>
     </div>
   </div>`;
+}
+
+// Intrinsic value vs the live price — the one thing the desk said was missing.
+function ivHtml(d) {
+  const iv = d.intrinsic;
+  const m = market(d.ticker);
+  const now = m.cmp != null ? rupee(m.cmp) : (iv.price || '—');
+  const v = d.valuation;
+  return `<h2 class="gi-sh">What it's worth vs where it trades</h2>
+    <div class="gi-iv">
+      <div class="gi-iv-nums">
+        <div class="gi-iv-box"><span>Our fair value</span><b>${esc(iv.low)} – ${esc(iv.high)}</b><small>${esc(iv.basis)}</small></div>
+        <div class="gi-iv-box live"><span>Trading now</span><b>${esc(now)}</b><small>live price</small></div>
+      </div>
+      <div class="gi-iv-read ${esc(iv.tone || 'watch')}">${esc(iv.read)}</div>
+      ${v ? `<div class="gi-iv-metric">${esc(v.metric)}: <b>${esc(v.now)}</b> vs ${esc(v.fair)} fair${v.extra ? ` · ${esc(v.extra)}` : ''}</div>` : ''}
+    </div>`;
+}
+
+// The sector's own KPIs, shown on the page (the back-end ontology, surfaced).
+function kpisHtml(d) {
+  const items = d.kpis.map((x) => `<div class="gi-kpi ${esc(x.tone || '')}"><span>${esc(x.k)}</span><b>${esc(x.v)}</b></div>`).join('');
+  return `<h2 class="gi-sh">The numbers that matter in ${esc(d.ourSector)}</h2>
+    <div class="gi-kpis">${items}</div>`;
 }
 
 function ptHtml(p, i) {

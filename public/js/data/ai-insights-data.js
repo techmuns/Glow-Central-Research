@@ -156,6 +156,26 @@ export const INSIGHTS = {
     ],
     why: `Bajaj is a high-return, cash-rich franchise where <b>exports and premium bikes are firing and EV is finally profitable</b>. The watch is the domestic mass-market (nearly flat) and a margin that leans on a weak rupee — and at ~25× earnings the good news is largely in the price.`,
     trigger: `It becomes a <b>Buy</b> if the price cools, <b>or</b> domestic two-wheeler volumes re-accelerate (the 125cc revamp working) while the export run-rate holds — turning a two-engine story into a three-engine one.`,
+    intrinsic: {
+      low: '₹9,000', high: '₹10,500',
+      basis: '~20–23× FY27E EPS — its own through-cycle multiple',
+      read: 'At / just above our range — fairly-to-fully valued, with little margin of safety today.',
+      tone: 'watch',
+    },
+    valuation: {
+      metric: 'P/E — the auto-OEM lens',
+      now: '~25×', fair: '~22×',
+      extra: '~9× book · ~1.4% dividend yield · ~100% payout',
+    },
+    kpis: [
+      { k: 'Domestic 2W volume growth', v: '+1.8%', tone: 'watch' },
+      { k: 'Exports · share of sales', v: '~40%', tone: 'good' },
+      { k: 'EBITDA margin', v: '~21%', tone: 'good' },
+      { k: 'Premium mix (KTM/Triumph)', v: '+45% YoY', tone: 'good' },
+      { k: 'ROCE', v: '~38%', tone: 'good' },
+      { k: 'Net cash', v: '₹15,500 cr', tone: 'good' },
+      { k: 'Dividend payout', v: '~100%', tone: 'good' },
+    ],
     concalls: {
       rows: [
         { theme: 'Exports', guided: 'Cross 2.5 lakh/month', status: 'kept', note: 'Q2 exports 7,78,528 (+40%) ≈ 2.6 lakh/month — crossed it; Nigeria ~60% share, Mexico now a top-5 market.' },
