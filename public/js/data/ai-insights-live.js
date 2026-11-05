@@ -17,6 +17,7 @@
 // "not checked yet" are kept apart — a cold cache is never reported as a calm fortnight.
 
 import * as alerts from './ai-alerts.js';
+import * as kpi from './kpi-impact.js';
 import { currentSymbol } from './announcement-identity.js';
 
 const TONE = { positive: 'good', negative: 'bad', neutral: 'watch' };
@@ -112,4 +113,25 @@ export function updatesFromCard(card) {
   updates.sort((a, b) => String(b.when || '').localeCompare(String(a.when || '')));
   const qualityDelta = Math.max(-4, Math.min(4, Math.round(delta)));
   return { updates, qualityDelta, group: card?.kpis?.groupLabel || null };
+}
+
+/**
+ * The company's sector scorecard — the metrics ITS sector is judged on — read straight from the
+ * sector-KPI ontology already in the dashboard (kpi-impact.js). Names only (the sector's own list,
+ * not generic globals); live values fill in from results/filings via the updates above. Free, no
+ * model. Returns `{ group, groupLabel, sector, names }` or null where the company has no sector.
+ */
+export async function sectorProfileFor(ticker) {
+  let onto = kpi.snapshot();
+  if (!onto) { try { onto = await kpi.load({ wait: true }); } catch { onto = null; } }
+  if (!onto) return null;
+  const ctx = kpi.companyContext(onto, currentSymbol(ticker) || String(ticker || '').toUpperCase());
+  if (!ctx) return null;
+  const names = [];
+  for (const key of onto.groups?.[ctx.group]?.kpis || []) {
+    const name = onto.kpis?.[key]?.name;
+    if (name) names.push(name);
+    if (names.length >= 12) break;
+  }
+  return { group: ctx.group, groupLabel: ctx.groupLabel, sector: ctx.sector, names };
 }
