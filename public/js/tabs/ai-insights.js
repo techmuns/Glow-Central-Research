@@ -245,16 +245,16 @@ const CSS = `
 .gi-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .gi-themes-btn{appearance:none;cursor:pointer;font-weight:700;font-size:.82rem;border-radius:10px;padding:8px 13px;border:1px solid rgb(var(--border-indigo-200,199 210 254));background:var(--surface,#fff);color:var(--brand-600,#4f46e5);}
 .gi-themes-btn:hover{background:rgb(var(--surface-indigo-50,238 242 255));}
-.gi-themes{display:flex;flex-direction:column;}
-.gi-theme{margin-top:14px;}
-.gi-theme-h{font-size:.98rem;font-weight:800;color:#111827;display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
-.gi-theme-n{font-size:.62rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#6d28d9;background:#f0ebff;border:1px solid #e3d9ff;border-radius:999px;padding:2px 8px;}
-.gi-theme-sub{font-size:.78rem;color:#56617a;margin:4px 0 9px;}
-.gi-theme-rows{display:flex;flex-direction:column;gap:7px;}
-.gi-theme-row{display:flex;align-items:center;gap:10px;border:1px solid #eceff5;border-radius:11px;padding:8px 11px;}
+.gi-themes{display:flex;flex-direction:column;gap:14px;}
+.gi-theme{border:1px solid #eceff5;border-left:4px solid var(--accent,#6d28d9);border-radius:14px;padding:13px 15px;background:var(--surface,#fff);}
+.gi-theme-h{font-size:1rem;font-weight:800;color:#111827;display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.gi-theme-ic{width:10px;height:10px;border-radius:999px;background:var(--accent,#6d28d9);flex-shrink:0;}
+.gi-theme-n{font-size:.68rem;font-weight:800;letter-spacing:.02em;color:var(--accent,#6d28d9);background:#f4f4f7;border:1px solid #e8e8ef;border-radius:999px;min-width:20px;text-align:center;padding:1px 8px;}
+.gi-theme-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:8px;margin-top:11px;}
+.gi-theme-row{display:flex;align-items:center;gap:10px;border:1px solid #eceff5;border-radius:11px;padding:8px 11px;background:var(--surface,#fff);min-width:0;}
 .gi-theme-co{flex:1;min-width:0;display:flex;flex-direction:column;}
-.gi-theme-co b{font-size:.86rem;color:#111827;font-weight:700;}
-.gi-theme-co small{font-size:.72rem;color:#8b94a7;overflow:hidden;text-overflow:ellipsis;}
+.gi-theme-nm{font-size:.86rem;color:#111827;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gi-theme-co small{font-size:.72rem;color:#8b94a7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .gi-theme-src{font-size:.72rem;font-weight:700;color:var(--brand-600,#4f46e5);text-decoration:none;white-space:nowrap;flex-shrink:0;}
 .gi-theme-src:hover{text-decoration:underline;}
 .gi-theme-chip{font-size:.8rem;color:#4b4257;background:#faf6ff;border:1px solid #efe6ff;border-radius:10px;padding:8px 12px;margin:0 0 4px;} .gi-theme-chip b{color:#6d28d9;}
@@ -524,9 +524,11 @@ function openRunPicker() {
 // EVENT → WHO BENEFITS. The reviewed theme-exposure map, as a reader-facing lookup: for each theme,
 // the companies an event in that market bears on, each with the source that states the link. Every
 // row is reviewed, cited data (never inferred) — the same map that drives the indirect alerts.
+const THEME_ACCENTS = ['#6d28d9', '#b45309', '#0e7490', '#be123c', '#047857', '#4f46e5'];
 function openThemes() {
   const cat = themeCatalog();
-  const themesHtml = cat.map((t) => {
+  const themesHtml = cat.map((t, ti) => {
+    const accent = THEME_ACCENTS[ti % THEME_ACCENTS.length];
     const rows = t.companies.map((c) => {
       const av = avatar(c.name);
       const src = c.source
@@ -534,20 +536,19 @@ function openThemes() {
         : '';
       return `<div class="gi-theme-row">
         <span class="gi-av sm" style="background:${av.bg}">${av.ini}</span>
-        <span class="gi-theme-co"><b>${esc(c.name)}</b><small>${esc(c.ticker)} · ${esc(c.role)}</small></span>
+        <span class="gi-theme-co"><span class="gi-theme-nm" title="${esc(c.name)}">${esc(c.name)}</span><small title="${esc(c.role)}">${esc(c.ticker)} · ${esc(c.role)}</small></span>
         ${src}
       </div>`;
     }).join('');
-    return `<div class="gi-theme">
-      <div class="gi-theme-h">${esc(t.label)} <span class="gi-theme-n">${t.companies.length} companies</span></div>
-      <p class="gi-theme-sub">When there's news in this market, these are the companies it bears on — each with the source that states the link.</p>
+    return `<section class="gi-theme" style="--accent:${accent}">
+      <div class="gi-theme-h"><span class="gi-theme-ic"></span>${esc(t.label)} <span class="gi-theme-n">${t.companies.length}</span></div>
       <div class="gi-theme-rows">${rows}</div>
-    </div>`;
+    </section>`;
   }).join('');
   openModal(`<div class="gi-themes">
-    <div class="gi-picker-h"><h3>Themes — who benefits</h3><p>When an event hits a market, these are the companies it touches. Every mapping carries a source; nothing is guessed. Not investment advice.</p></div>
+    <div class="gi-picker-h"><h3>Themes — who benefits</h3><p>When an event hits a market, these are the companies it touches — each with the source that states the link. Reviewed and cited, never guessed. Not investment advice.</p></div>
     ${themesHtml || '<div class="gi-rp-empty">No themes mapped yet.</div>'}
-  </div>`, { size: 'default' });
+  </div>`, { size: 'wide' });
 }
 
 // A small "exposed to <theme>" line for a company's one-pager, when it is mapped to a reviewed theme.
