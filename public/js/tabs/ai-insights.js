@@ -169,21 +169,32 @@ const CSS = `
 .gi-coming h3{font-family:"Plus Jakarta Sans",sans-serif;font-size:1.2rem;margin:6px 0 10px;}
 .gi-coming p{color:#56617a;font-size:.94rem;line-height:1.6;}
 /* Compact one-pager — smaller type, tighter spacing, shorter scroll (desk request). */
-.gi-pager .in{padding:0 22px 20px;}
-.gi-co2 h1{font-size:1.55rem;}
-.gi-lead{font-size:.9rem;margin-top:7px;}
-.gi-hero{padding:18px 22px;}
-.gi-facts{padding:10px 22px;font-size:.8rem;}
-.gi-sh{margin:17px 0 9px;font-size:.95rem;}
-.gi-prose{font-size:.875rem;}
-.gi-verdict{padding:15px 16px;gap:13px 18px;}
-.gi-badge{font-size:.92rem;padding:8px 16px;}
-.gi-pt{padding:10px 0;}
-.gi-pt .t{font-size:.88rem;} .gi-pt .d{font-size:.82rem;}
-.gi-ftable{font-size:.83rem;} .gi-ftable tbody td{padding:8px 12px;}
-.gi-gd{font-size:.82rem;} .gi-gd tbody td{padding:9px 12px;}
-.gi-close{font-size:.92rem;margin-top:18px;}
-.gi-colhd{font-size:.9rem;padding:10px 14px;}
+.gi-pager{line-height:1.48;}
+.gi-pager .in{padding:0 20px 18px;}
+.gi-co2 h1{font-size:1.32rem;}
+.gi-lead{font-size:.86rem;margin-top:6px;}
+.gi-hero{padding:15px 20px;}
+.gi-facts{padding:9px 20px;font-size:.77rem;}
+.gi-sh{margin:15px 0 8px;font-size:.86rem;}
+.gi-prose{font-size:.83rem;}
+.gi-verdict{padding:13px 15px;gap:11px 16px;}
+.gi-badge{font-size:.8rem;padding:7px 14px;}
+.gi-call small{font-size:.58rem;}
+.gi-score .row{font-size:.77rem;margin-bottom:5px;} .gi-score .num{font-size:.85rem;} .gi-score .lab span{font-size:.7rem;}
+.gi-track{height:8px;}
+.gi-why{font-size:.82rem;padding-top:10px;} .gi-trig{font-size:.79rem;padding:8px 11px;margin-top:9px;}
+.gi-cols{gap:12px;} .gi-colhd{font-size:.85rem;padding:9px 13px;}
+.gi-pt{padding:9px 0;} .gi-pt .t{font-size:.83rem;} .gi-pt .d{font-size:.79rem;} .gi-pt .tag{font-size:.57rem;}
+.gi-ftable{font-size:.79rem;} .gi-ftable tbody td{padding:7px 11px;}
+.gi-gd{font-size:.78rem;} .gi-gd tbody td{padding:8px 11px;} .gi-gd .gd-gd{font-size:.75rem;}
+.gi-trend{font-size:.83rem;} .gi-wrapcard{padding:13px 15px;}
+.gi-close{font-size:.85rem;margin-top:16px;}
+/* Download-PDF button in the one-pager hero. */
+.gi-pdf{margin-left:auto;appearance:none;cursor:pointer;color:#fff;font-weight:800;font-size:.6rem;letter-spacing:.06em;
+  text-transform:uppercase;background:rgb(255 255 255 / .18);border:1px solid rgb(255 255 255 / .36);border-radius:999px;
+  padding:5px 11px;display:inline-flex;align-items:center;gap:6px;}
+.gi-pdf:hover{background:rgb(255 255 255 / .28);}
+@media print{.gi-pdf{display:none;}}
 /* Run a company — button, running chips, picker and the background progress screen. */
 .gi-run-btn{appearance:none;border:0;cursor:pointer;color:#fff;font-weight:800;font-size:.82rem;border-radius:999px;
   padding:9px 18px;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;
@@ -566,9 +577,31 @@ function rowHtml(r) {
 function openCompany(ticker) {
   if (isRunning(ticker)) return openRunProgress(ticker);
   const d = getInsight(ticker);
-  if (d) return openModal(pagerHtml(d), { size: 'magazine' });
+  if (d) { openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); return; }
   if (runs.get(ticker)?.done) return openModal(firstCutHtml(ticker), { size: 'magazine' });
   return openModal(comingHtml(ticker), { size: 'default' });
+}
+
+// Download the one-pager as a PDF: open a clean, print-ready page of just the one-pager and
+// trigger the browser's print dialog (the reader picks "Save as PDF"). No library, no network.
+function wirePdf(d) {
+  const btn = document.getElementById('modal-content')?.querySelector('[data-pdf]');
+  btn?.addEventListener('click', () => downloadPdf(d));
+}
+function downloadPdf(d) {
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>${esc(d.name)} — Glow AI Insights</title>
+<style>${CSS}
+  body{margin:0;background:#fff;}
+  .gi-pager{max-height:none;overflow:visible;}
+  .gi-pdf{display:none;}
+  @page{margin:12mm;}
+</style></head><body>${pagerHtml(d)}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { try { win.print(); } catch { /* reader can print manually */ } }, 400);
 }
 
 function pagerHtml(d) {
@@ -581,7 +614,8 @@ function pagerHtml(d) {
 
   return `<div class="gi-pager">
     <div class="gi-hero">
-      <div class="gi-kick"><span class="gi-dot"></span> Glow AI Insights <span class="thin">The 5-minute stock read</span></div>
+      <div class="gi-kick"><span class="gi-dot"></span> Glow AI Insights <span class="thin">The 5-minute stock read</span>
+        <button class="gi-pdf" type="button" data-pdf>⬇ Download PDF</button></div>
       <div class="gi-co2"><h1>${esc(d.name)}</h1><span class="gi-tk">${esc(d.ticker)} · NSE</span></div>
     </div>
     <div class="in">
