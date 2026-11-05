@@ -173,6 +173,29 @@ try {
   if ((c.resolved || 0) + (c.unlisted || 0) + (c.bseOnly || 0) + (c.unresolved || 0) !== c.count) problems.push('portfolio-companies.json: resolved + unlisted + bseOnly + unresolved ≠ count');
   if (!/GlowVentures/.test(c.source || '')) problems.push(`portfolio-companies.json: source is "${c.source}", not GlowVentures — was scripts/sync-family-book.mjs run here? It reads the SATTVA family's book`);
   if (c.asOf !== book.asOf) problems.push(`portfolio-companies.json: asOf ${c.asOf} ≠ book.json asOf ${book.asOf}`);
+  // THE PREVIOUSLY OWNED LIST: nothing on it may be held now (a re-bought company moves back to the
+  // current book), every company line has a symbol or a reason, a date is a date, and it counts.
+  const po = c.previouslyOwned;
+  if (po) {
+    const entries = Array.isArray(po.entries) ? po.entries : (problems.push('portfolio-companies.json: previouslyOwned.entries is not an array'), []);
+    const heldTickers = new Set(tickers);
+    const heldIsins = new Set([...hs.map((h) => h.isin), ...positions.filter((p) => p.quantity !== 0 && p.isin).map((p) => p.isin)].filter(Boolean));
+    for (const p of positions) if (p.quantity !== 0 && p.symbol) heldTickers.add(String(p.symbol).toUpperCase());
+    const seenTickers = new Set();
+    for (const e of entries) {
+      if (!e.name) problems.push(`previouslyOwned: an entry has no name (${e.id})`);
+      if (e.ticker && heldTickers.has(e.ticker)) problems.push(`previouslyOwned: ${e.ticker} is held now and cannot be previously owned`);
+      if (e.isin && heldIsins.has(e.isin)) problems.push(`previouslyOwned: ${e.name} (${e.isin}) is held now and cannot be previously owned`);
+      if (e.ticker && seenTickers.has(e.ticker)) problems.push(`previouslyOwned: ${e.ticker} is listed twice`);
+      if (e.ticker) seenTickers.add(e.ticker);
+      if (!e.ticker && !e.reason) problems.push(`previouslyOwned: ${e.name} has no symbol and no reason`);
+      if (e.lastHeld != null && !/^\d{4}-\d{2}-\d{2}$/.test(e.lastHeld)) problems.push(`previouslyOwned: ${e.name} has an invalid last-held date ${e.lastHeld}`);
+      if (!Array.isArray(e.zeroConfirmedBy) || !e.zeroConfirmedBy.length) problems.push(`previouslyOwned: ${e.name} carries no confirmation that its balance is nil`);
+      for (const k of ['quantity', 'marketValue', 'costBasis', 'value', 'cost']) if (k in e) problems.push(`previouslyOwned: ${e.name} carries ${k} — the list is names, routes and dates only`);
+    }
+    if (po.count !== entries.length) problems.push(`previouslyOwned: count ${po.count} ≠ ${entries.length} entries`);
+    if ((po.companies || 0) + (po.funds || 0) !== po.count) problems.push('previouslyOwned: companies + funds ≠ count');
+  }
 } catch (err) {
   problems.push(`portfolio-companies.json could not be read: ${err.message}`);
 }

@@ -112,7 +112,7 @@ try {
   const labels = await page.locator('#tabbar-mount [data-tab-id]').evaluateAll(tabs => tabs.map(tab => tab.textContent.trim()));
   assert.deepEqual(labels, ['Alerts', 'Portfolio', 'Watchlist', 'Announcements', 'Earnings', 'Screens', 'Mutual Funds', 'News', 'Super Investors']);
   const scope = page.locator('[data-scope-controls]');
-  for (const name of ['Portfolio', 'Watchlist', 'Universe']) assert(await scope.getByRole('button', { name, exact: true }).isVisible());
+  for (const name of ['Current portfolio', 'Watchlist', 'Universe']) assert(await scope.getByRole('button', { name, exact: true }).isVisible());
   await scope.getByRole('button', { name: 'Universe', exact: true }).click();
   await page.waitForURL(/scope=universe/);
   await page.waitForFunction(() => !document.querySelector('#content-host').inert);
@@ -121,7 +121,7 @@ try {
   await page.locator('#tabbar-mount [data-tab-id="watchlist"]').click();
   await page.locator('[data-sheet-table="watchlist"] tbody tr[data-row-key="SBIN"]').waitFor();
   assert(await scope.isVisible());
-  await scope.getByRole('button', { name: 'Portfolio', exact: true }).click();
+  await scope.getByRole('button', { name: 'Current portfolio', exact: true }).click();
   await page.waitForFunction(() => !document.querySelector('#content-host').inert);
   assert.equal(await page.locator('[data-sheet-table="watchlist"] tbody tr[data-row-key]').count(), 1);
   const data = await page.evaluate(async () => {

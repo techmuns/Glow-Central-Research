@@ -33,7 +33,7 @@ assert.equal(scope.scopeTickers('universe'), null, 'Universe stays "not narrowed
 assert.deepEqual(sorted(scope.scopeTickers('portfolio')), ['BOTH', 'DIRECT', 'MANAGED']);
 assert.deepEqual(tickers(scope.filterByScope(rows, 'universe')), ['DIRECT', 'MANAGED', 'BOTH', 'OUTSIDE', 'INE000000004', 'INE999999999']);
 assert.equal(scope.scopeHoldings(book), book, 'All returns the book itself, not a copy');
-assert.equal(scope.scopeDisplayLabel('portfolio'), 'Portfolio');
+assert.equal(scope.scopeDisplayLabel('portfolio'), 'Current portfolio');
 assert.equal(scope.holdingSignature(), 'all');
 assert.equal(scope.holdingScopeEmpty('portfolio'), false);
 assert.equal(scope.holdingEntityIds('universe'), null, 'no entity narrowing on All');
@@ -56,8 +56,8 @@ assert.deepEqual(tickers(scope.filterByScope(rows, 'universe')), ['DIRECT', 'BOT
   'a tickerless row stays in Universe only when its own ISIN is held that way');
 assert.equal(scope.scopeAllowsTicker('universe', 'OUTSIDE'), false);
 assert.deepEqual(scope.scopeHoldings(book).map(h => h.isin), ['INE000000001', 'INE000000003', 'INE000000004']);
-assert.equal(scope.scopeDisplayLabel('portfolio'), 'Portfolio · Direct Equity');
-assert.deepEqual(scope.scopeBook('portfolio'), { count: 3, uncovered: 1, noun: 'Direct Equity companies', label: 'Portfolio · Direct Equity' });
+assert.equal(scope.scopeDisplayLabel('portfolio'), 'Current portfolio · Direct Equity');
+assert.deepEqual(scope.scopeBook('portfolio'), { count: 3, uncovered: 1, noun: 'Direct Equity companies', label: 'Current portfolio · Direct Equity' });
 assert.equal(scope.scopePossessive('universe'), 'your Direct Equity holdings');
 assert.notEqual(alertContextKey('portfolio', book, '2026-10-28'), allKey, 'saved alert windows are keyed by the choice');
 assert.deepEqual(tickers(filterCorporateActionsByScope(rows, 'portfolio', book)), ['DIRECT', 'BOTH', 'INE000000004']);

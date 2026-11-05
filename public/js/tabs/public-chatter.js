@@ -34,6 +34,7 @@ import * as chatter from '../data/chatter-live.js';
 import { mentionSentiment } from '../data/chatter-sentiment.js';
 import { newestMentions } from '../data/chatter-mentions.js';
 import * as coverage from '../data/coverage.js';
+import { isPreviousScope } from '../data/scope.js';
 import * as telegram from '../data/telegram-posts.js';
 import { telegramReadHealth } from '../data/telegram-health.js';
 import { fitTableViewport } from '../ui/table-viewport.js';
@@ -804,7 +805,7 @@ function buildCoveredTable(rows) {
  * your holdings" is a finding, and dressing it as a missing feature would hide a real answer.
  */
 const emptyCovered = (scope) => `<div class="chatter-empty">${
-  scope === 'portfolio' ? 'No captured mentions match the current portfolio.' : scope === 'watchlist' ? 'No captured mentions match the watchlist.' : 'No captured mentions match covered companies.'
+  scope === 'portfolio' ? 'No captured mentions match the current portfolio.' : scope === 'watchlist' ? isPreviousScope(scope) ? 'No captured mentions match the previously owned companies.' : 'No captured mentions match the watchlist.' : 'No captured mentions match covered companies.'
 }</div>`;
 
 // ---------------------------------------------------------------------------------------

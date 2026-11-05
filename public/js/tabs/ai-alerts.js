@@ -20,7 +20,7 @@ import { loadShareCounts } from '../data/sheet-market.js';
 
 import { sectionHead } from '../ui/screener.js';
 import { pill } from '../ui/components.js';
-import { scopeBook, scopeLabel, holdingSignature, effectiveHoldingCategory } from '../data/scope.js';
+import { scopeBook, scopeLabel, holdingSignature, effectiveHoldingCategory, watchScopeList } from '../data/scope.js';
 import { canonicalPublisherName } from '../core/news-publishers.js';
 import { escapeHtml } from '../core/dom.js';
 import { normalizeBookmark, snapshotForRow } from '../core/bookmark-record.js';
@@ -165,7 +165,7 @@ const signalOf = card => { const signal = latestAlertSignal(card); return signal
 // The reader's CHOSEN sort, not the effective one: sizes dropping out (a reconnect, a failed read)
 // and coming back switch "Largest holdings" to newest-first and back, and that is not the reader's
 // doing. Before the list is established the ranking still follows whichever sort is in effect.
-const viewSignature = ctx => JSON.stringify([ctx.scope, layout, filter, query.trim(), sortOrder, effectiveHoldingCategory(),
+const viewSignature = ctx => JSON.stringify([ctx.scope, watchScopeList(), layout, filter, query.trim(), sortOrder, effectiveHoldingCategory(),
   [...eventFilters.selected].sort(), eventFilters.hideRoutine]);
 function steadyCandidates(candidates, signature) {
   if (!collecting || !steady || steady.signature !== signature || steady.day !== report?.day) return candidates;

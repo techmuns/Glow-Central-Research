@@ -178,8 +178,8 @@ try {
   }), true, 'tickerless company news stays linked by ISIN without a synthetic ticker');
   assert.deepEqual(await page.evaluate(async () => (await import('/js/data/coverage.js')).holdings().map(h => h.isin).sort()), initial.map(h => h.isin).sort());
   assert.deepEqual(await page.evaluate(async () => (await import('/js/core/watchlist.js')).all().map(h => h.ticker)), ['MANUAL']);
-  await page.getByRole('button', { name:'View Portfolio',exact:true }).click();
-  await page.getByRole('heading', { name:'View Portfolio',exact:true }).waitFor();
+  await page.getByRole('button', { name:'View current portfolio',exact:true }).click();
+  await page.getByRole('heading', { name:'View Current portfolio',exact:true }).waitFor();
   assert.equal(await page.locator('[data-scope-count]').innerText(), '3');
   assert.equal(await page.locator('[data-scope-remove], [data-scope-reset], [data-scope-result]').count(), 0);
   const search = page.locator('[data-scope-search]');
@@ -205,7 +205,7 @@ try {
   for (const tab of ['daily-alerts','earnings-hub','concall','public-chatter','breakouts','super-investors','ipos','corp-announcements','nse-filings','insider-trades','ai-alerts','ask-research']) {
     await page.evaluate(tab => { location.hash = `#/research/${tab}?scope=portfolio${tab === 'ask-research' ? '&test_stream=1' : ''}`; }, tab);
     await page.waitForFunction(async tab => (await import('/js/core/state.js')).state.tab === tab, tab);
-    await page.getByRole('button', { name:'View Portfolio',exact:true }).click();
+    await page.getByRole('button', { name:'View current portfolio',exact:true }).click();
     assert.equal(await page.locator('[data-scope-count]').innerText(), '3', tab);
     await page.getByRole('button', { name:'Done',exact:true }).click();
     if (tab === 'daily-alerts') {
@@ -218,7 +218,7 @@ try {
       await page.getByText('KISSHT announces dividend', { exact:true }).waitFor();
       assert.equal(await page.getByText('NEWCO announces dividend', { exact:true }).count(), 0, 'global Watchlist scope limits All Alerts to starred companies');
       assert.equal(await page.locator('[data-watch="KISSHT"]').first().innerText(), '★', 'company stars keep editing the shared Watchlist');
-      await page.locator('#scope-toggle-mount').getByRole('button', { name:'Portfolio',exact:true }).click();
+      await page.locator('#scope-toggle-mount').getByRole('button', { name:'Current portfolio',exact:true }).click();
       await page.getByText('NEWCO announces dividend', { exact:true }).waitFor();
     }
     if (tab === 'concall') {

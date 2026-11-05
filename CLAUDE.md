@@ -15,6 +15,24 @@ It offers only categories some company carries (book lines and the family's priv
 a remembered category none carries reads as All. All changes nothing; sheets keep their own
 membership. See `docs/GLOW-TEMPLATE-SYNC.md`.
 
+**Current portfolio and the Watchlist's two lists (5 November 2026, GLOW-OWNED):** the Portfolio
+scope reads **Current portfolio** (the Portfolio TAB keeps its name). Pressing **Watchlist** switches
+to it and opens a menu: **Bookmarked** (the shared watchlist, the default) or **Previously owned** —
+every company the family held directly, through PMS or through an AIF and now holds none of, with
+its last-held date. While Watchlist is active the segment names the chosen list (fixed width; read
+the active scope by `data-value`, never its label). `core/watch-list-choice.js` holds the choice (device-remembered, like Holding);
+`data/scope.js` applies it under the scope id `watchlist`, so `scopeTickers`/`scopeMatcher`/
+`filterByScope`/`watchScopeCompanies()` answer the chosen list and every scoped tab inherits it. Never
+read `watchlist.all()/size()/tickers()/has()` for scope membership — that is Bookmarked only. The list
+is built by `scripts/lib/previously-owned.mjs` (from `build-book.mjs`) into
+`portfolio-companies.json → previouslyOwned` from the book's dated trades and capital-gain lots plus
+nil-balance AIF funds. A company is listed only where EVERY account that traded it confirms the
+zero (a holdings statement dated after its last trade, a liquidated mandate's tape, or a nil
+balance); the rest are named under `unconfirmed`. `coverage.previouslyOwned()` drops anything the
+current book holds again, so a re-bought company moves back to Current portfolio automatically.
+The Holding choice reads each entry's former `holdingCategories`. The eye beside the toggle opens a
+read-only view. `verify-previously-owned.mjs` and `verify-previously-owned-ui.mjs` are the tests.
+
 Glow’s All Schemes view opens by default. Its search bar offers the feed’s category labels;
 multiple categories combine by OR, while typed words narrow the selected schemes. Keep chips
 removable and preserve selections across repaints. `js/ui/fund-search.js` owns the control;

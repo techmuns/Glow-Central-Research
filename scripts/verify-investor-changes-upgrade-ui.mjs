@@ -66,15 +66,15 @@ try {
   assert.equal(await page.locator('[data-investor-audience]').count(), 1);
   assert.equal(await page.locator('[data-changes-audience], [data-live-section-tabs]').count(), 0, 'returning readers receive one audience selection and shared tasks');
   assert.deepEqual((await page.locator('[data-investor-view-tabs] [role="tab"]').allTextContents()).map(v => v.trim()), ['Overview', 'Changes', 'Holdings']);
-  assert.match(await page.locator('[data-changes-context]').textContent(), /Company scope: Portfolio/);
+  assert.match(await page.locator('[data-changes-context]').textContent(), /Company scope: Current portfolio/);
   assert.equal(await page.locator('[data-changes-panel] > [data-changes-summary], [data-changes-panel] > p').count(), 0, 'returning readers adopt the All Investors layout without a heading or activity counts');
   assert.equal(await page.locator('[data-changes-summary]').isVisible(), false);
   assert.equal(await page.locator('[data-changes-context]').isVisible(), false);
   await page.locator('[data-changes-sources] summary').click();
   assert.match(await page.locator('[data-changes-summary]').innerText(), /Tracked investors · reported trades/);
-  assert.match(await page.locator('[data-changes-context]').innerText(), /Company scope: Portfolio/);
+  assert.match(await page.locator('[data-changes-context]').innerText(), /Company scope: Current portfolio/);
   assert.match(await page.locator('[data-changes-universe]').innerText(), /1 trade in Universe/);
-  assert.match(await page.locator('[data-changes-history]').innerText(), /1 retained trade in Portfolio/);
+  assert.match(await page.locator('[data-changes-history]').innerText(), /1 retained trade in Current portfolio/);
   assert(!(await page.evaluate(() => caches.keys())).some(k => k.includes('previous-investor-changes')));
   await page.locator('[data-changes-history]').click();
   await page.locator('[data-changes-activity] [data-table-search]').fill('owned');

@@ -4,12 +4,11 @@ import { tabBar } from '../ui/components.js';
 import { escapeHtml as esc } from '../core/dom.js';
 import { formatDate, formatNumber, formatCroreCompact } from '../core/format.js';
 import * as managers from '../data/managers.js';
-import * as watchlist from '../core/watchlist.js';
 import { openManager, managerUnavailable, wireManagerUnlock } from './my-managers.js';
 import * as investors from '../data/super-investors.js';
 import { insider } from '../data/filings.js';
 import { insiderTradeSourceUrl } from '../data/filings-shared.js';
-import { scopeMatcher, scopeLabel, holdingMembership } from '../data/scope.js';
+import { scopeMatcher, scopeLabel, ownLedgerMatcher } from '../data/scope.js';
 import { buildHash } from '../core/router.js';
 import { exportRows } from '../ui/export.js';
 import { withVerifiedEntities } from '../data/holdings-integrity.js';
@@ -49,9 +48,10 @@ export function renderChanges(ctx, { view = {}, onView = () => {}, openInvestor,
     const trackedIds = new Set(list.map(i => i.slug));
     const unverifiedRelations = mine ? [] : evidence().relations.filter(r => r.investorSlugs?.some(id => trackedIds.has(id)) && !currentRelation(r, new Date().toISOString()));
     const people = withVerifiedEntities(mine ? managers.all().map(m => ({ id: m.id, name: m.name })) : list.map((i) => ({ id: i.slug, name: i.name })), evidence(), mine ? 'manager' : 'investor');
-    const companyScope = scopeMatcher(ctx.scope), universe = scopeMatcher('universe'), held = holdingMembership();
+    const companyScope = scopeMatcher(ctx.scope), universe = scopeMatcher('universe');
     // The family's own ledger follows the header's Holding choice as every company feed does.
-    const allows = (r) => mine ? (ctx.scope !== 'watchlist' || r.ticker && watchlist.has(r.ticker)) && (!held || held.has(r.ticker, r)) : r.ticker ? companyScope.has(r.ticker, r.raw || r) : !includeHolding || includeHolding(r.company, r);
+    const ownAllows = ownLedgerMatcher(ctx.scope);
+    const allows = (r) => mine ? ownAllows(r.ticker, r) : r.ticker ? companyScope.has(r.ticker, r.raw || r) : !includeHolding || includeHolding(r.company, r);
     const allActivity = [...(mine ? managerTrades(managers.all()) : []), ...matchedDeals(insider.rows(), people)];
     const activity = allActivity.filter(allows);
     const range = periodRange(state.period);

@@ -26,7 +26,7 @@ import { formatNumber, formatRelativeTime } from '../core/format.js';
 import { deliveryNote } from '../ui/sources.js';
 import { setCollectionDetails, notifyCollectionDetails, clearCollectionDetails } from '../ui/source-details.js';
 import * as coverage from '../data/coverage.js';
-import { filterByScope, scopePossessive, scopeHoldings, holdingMembership, scopeTickers } from '../data/scope.js';
+import { filterByScope, scopePossessive, scopeHoldings, holdingMembership, scopeTickers, scopeBook, watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import * as refreshRegistry from '../core/refresh.js';
@@ -114,7 +114,7 @@ export function makeFilingsTab(cfg) {
     if (ctx.scope === 'portfolio' || (ctx.scope === 'universe' && holdingMembership())) return book;
     // The watchlist carries the name the row was starred under, which is exactly what the news
     // search needs — and it is the only name we have for a watched company outside the book.
-    if (ctx.scope === 'watchlist') return watchlist.all().filter((w) => !holdingMembership() || holdingMembership().has(w.ticker))
+    if (ctx.scope === 'watchlist') return watchScopeCompanies().filter((w) => w.ticker)
       .map((w) => ({ ticker: w.ticker, name: w.name || w.ticker }));
     // Universe is the book plus every company the committed snapshot already covers. Deliberately
     // not the 1,300-company Moneycontrol map: a live walk is bounded anyway, and asking about
@@ -397,7 +397,7 @@ export function makeFilingsTab(cfg) {
           ctx.scope === 'portfolio'
             ? `portfolio ${companies === 1 ? 'company' : 'companies'}`
             : ctx.scope === 'watchlist'
-              ? `watchlist ${companies === 1 ? 'company' : 'companies'}`
+              ? `${isPreviousScope(ctx.scope) ? 'previously owned' : 'watchlist'} ${companies === 1 ? 'company' : 'companies'}`
               : companies === 1
                 ? 'company'
                 : 'companies';
@@ -610,7 +610,7 @@ function scopeTitle(scope, rows, m) {
   const held = holdingMembership();
   if (held && scope !== 'universe') {
     const inScope = scope === 'watchlist' ? scopeTickers('watchlist').size : held.holdings.length;
-    return `${formatNumber(n)} of the ${formatNumber(inScope)} ${scope === 'watchlist' ? 'watched companies held as' : 'companies held as'} ${held.label} appear on this feed.`;
+    return `${formatNumber(n)} of the ${formatNumber(inScope)} ${scope === 'watchlist' ? isPreviousScope(scope) ? 'previously owned companies held as' : 'watched companies held as' : 'companies held as'} ${held.label} appear on this feed.`;
   }
   if (scope === 'portfolio' && book?.count) {
     if (m.kind === 'news' && m.portfolioEntities) {
@@ -623,6 +623,13 @@ function scopeTitle(scope, rows, m) {
     return `${formatNumber(n)} of the book's ${formatNumber(book.count)} companies appear on this feed.` +
       (book.uncovered ? ` ${formatNumber(book.uncovered)} carry no NSE symbol, so no feed here can ever show them.` : '') +
       '';
+  }
+  if (isPreviousScope(scope)) {
+    const list = scopeBook(scope);
+    return list?.count
+      ? `${formatNumber(n)} of the ${formatNumber(list.count)} previously owned companies appear on this feed.` +
+        (list.uncovered ? ` ${formatNumber(list.uncovered)} carry no NSE symbol, so no feed here can ever show them.` : '')
+      : 'No previously owned company yet.';
   }
   if (scope === 'watchlist') {
     const tracked = watchlist.size();

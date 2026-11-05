@@ -23,7 +23,7 @@ import { runStepsInSlices } from '../core/slices.js';
 import { revalidatedJson } from '../core/store.js';
 import * as coverage from './coverage.js';
 import * as watchlist from '../core/watchlist.js';
-import { scopeHoldings, holdingMembership } from './scope.js';
+import { scopeHoldings, holdingMembership, watchScopeCompanies } from './scope.js';
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 let profiles = null, profilesPending = null;
@@ -105,7 +105,7 @@ async function buildFor(q, now, keepGoing) {
   // With a Holding category the tab names the exact companies (Universe exclusions applied, and a
   // Universe question sent in the index's company-list form), so they are the set, as on the server.
   const asked = held && q.scope !== 'universe' && Array.isArray(q.companies) ? q.companies : null;
-  const scopeCompanies = asked || (q.scope === 'watchlist' ? watchlist.all()
+  const scopeCompanies = asked || (q.scope === 'watchlist' ? watchScopeCompanies().filter((w) => w.ticker || w.isin)
     : q.scope === 'portfolio' ? scopeHoldings(coverage.holdings()) : null);
   const all = feed.rows();
   // The stream's status is read right after its rows, while that read is free — read later, a

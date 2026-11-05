@@ -2,13 +2,14 @@
 //
 //   SCOPES              the ordered vocabulary: portfolio, watchlist, universe
 //   isScope(v)          is this a scope id?
-//   scopeLabel(v)       'Portfolio' | 'Watchlist' | 'Universe'
+//   scopeLabel(v)       'Current portfolio' | 'Watchlist' (or 'Previously owned') | 'Universe'
 //   scopeTickers(scope, holdings)   the Set a feed filters by, or null for "everything"
 //   scopeBook(scope)    { count, uncovered, noun } — the denominator a scoped view must print
 //
-// THE ORDER IS THE PRIORITY THE READER ASKED FOR: what you own, then what you are watching, then
-// everything. Portfolio is the default because the first question on opening a dashboard about
-// your own money is what your own money did.
+// THE ORDER IS THE PRIORITY THE READER ASKED FOR: what you own, then what you are watching (the
+// bookmarked companies, or the ones the family used to own — see watchScopeList), then everything.
+// Portfolio is the default because the first question on opening a dashboard about your own money
+// is what your own money did.
 //
 // WHY THE FILTER IS A SET OF TICKERS AND NOT A PREDICATE
 //   Every `forScope()` in `js/data/` was written as "if not portfolio, return everything", which
@@ -26,6 +27,7 @@ import { filingTicker } from './announcement-identity.js';
 import { holdingCategory } from '../core/holding-filter.js';
 import { holdingCategoryLabel, offeredHoldingCategories } from './holding-categories.js';
 import { portfolioNewsEntities } from './company-news-identity.js';
+import { isPreviouslyOwned, watchList, watchListLabel } from '../core/watch-list-choice.js';
 
 export const PORTFOLIO = 'portfolio';
 export const WATCHLIST = 'watchlist';
@@ -35,8 +37,71 @@ export const SCOPES = [PORTFOLIO, WATCHLIST, UNIVERSE];
 
 export const isScope = (v) => SCOPES.includes(v);
 
-const LABELS = { [PORTFOLIO]: 'Portfolio', [WATCHLIST]: 'Watchlist', [UNIVERSE]: 'Universe' };
-export const scopeLabel = (scope) => LABELS[scope] || LABELS[UNIVERSE];
+// "Current portfolio" (GLOW-OWNED, 5 November 2026): the family's book as it stands now, named so it
+// cannot be confused with the companies it held before — those are the Watchlist scope's
+// "Previously owned" list. The Portfolio TAB keeps its own name; this is the scope's.
+const LABELS = { [PORTFOLIO]: 'Current portfolio', [WATCHLIST]: 'Watchlist', [UNIVERSE]: 'Universe' };
+/** The toggle's own word for a scope: Current portfolio | Watchlist | Universe. */
+export const scopeToggleLabel = (scope) => LABELS[scope] || LABELS[UNIVERSE];
+/**
+ * The scope's name in a sentence or a pill. Under Watchlist it names the chosen list when that is
+ * Previously owned — a message about "the watchlist" over the family's sold holdings would be a
+ * sentence quietly about a different list.
+ */
+export const scopeLabel = (scope) => (scope === WATCHLIST && isPreviouslyOwned() ? 'Previously owned' : scopeToggleLabel(scope));
+
+// ---- THE WATCHLIST SCOPE'S TWO LISTS (GLOW-OWNED) -------------------------------------------
+//
+// Bookmarked is the shared watchlist; Previously owned is the family's sold-to-zero holdings
+// (coverage.previouslyOwned()). core/watch-list-choice.js holds which one the reader picked and
+// everything below reads it here, once — a tab that asks `scopeTickers('watchlist')`,
+// `scopeMatcher('watchlist')`, `filterByScope(..., 'watchlist')` or `watchScopeCompanies()` gets
+// the chosen list without knowing there are two.
+
+/** Which list the Watchlist scope means now: 'bookmarked' or 'previous'. */
+export const watchScopeList = () => watchList();
+export const watchScopeListLabel = () => watchListLabel(watchList());
+
+/**
+ * The companies the Watchlist scope narrows to, as `{ ticker, name, … }` entries — the chosen
+ * list, with the header's Holding choice applied (a previously owned company is kept when it was
+ * held that way). Previously owned entries without a symbol (funds, unresolved names) are
+ * included; callers that need a symbol filter on `ticker`.
+ */
+export function watchScopeCompanies(holdings = null) {
+  const held = holdingMembership();
+  if (isPreviouslyOwned()) {
+    const entries = coverage.previouslyOwned();
+    return held ? entries.filter((e) => (e.holdingCategories || []).includes(held.category)) : entries;
+  }
+  const entries = watchlist.all();
+  return held ? entries.filter((w) => held.has(w.ticker)) : entries;
+}
+
+/** Is this scope the Watchlist's Previously owned list? */
+export const isPreviousScope = (scope) => scope === WATCHLIST && isPreviouslyOwned();
+
+/**
+ * For rows that are already the family's OWN (a manager's statement, the family ledger): narrow by
+ * the Watchlist's chosen list and the header's Holding choice, and by nothing else. One matcher per
+ * pass, so a ledger of thousands of rows builds its sets once.
+ */
+export function ownLedgerMatcher(scope) {
+  if (scope === WATCHLIST) {
+    const wanted = scopeMatcher(WATCHLIST);
+    return (ticker, row = null) => !!ticker && wanted.has(ticker, row);
+  }
+  const held = holdingMembership();
+  return (ticker, row = null) => !held || held.has(ticker, row);
+}
+
+/** How many companies the Watchlist scope's chosen list holds, before any feed narrows it. */
+export const watchScopeSize = () => (isPreviouslyOwned() ? coverage.previouslyOwned().length : watchlist.size());
+
+/** Previously owned entries matched by symbol — the base set the scope filters feeds by. */
+function previousTickers() {
+  return new Set(coverage.previouslyOwned().filter((e) => e.ticker).map((e) => String(e.ticker).toUpperCase()));
+}
 
 /**
  * THE HOLDING FILTER NARROWS EVERY SCOPE, HERE, ONCE (GLOW-OWNED).
@@ -106,8 +171,16 @@ export function holdingMembership() {
 export const effectiveHoldingCategory = () => holdingMembership()?.category || 'all';
 const upperIsin = (value) => String(value || '').trim().toUpperCase();
 
-/** "all", or the active category with the companies it covers now (see holdingMembership). */
-export const holdingSignature = () => holdingMembership()?.signature || 'all';
+/**
+ * "all", or the active category with the companies it covers now (see holdingMembership) — and,
+ * while the Watchlist's Previously owned list is chosen, that list with it. A tab that drops a
+ * report collected under another Holding choice drops one collected under the other Watchlist list
+ * for the same reason: it was narrowed to different companies. Unchanged on the defaults.
+ */
+export const holdingSignature = () => {
+  const base = holdingMembership()?.signature || 'all';
+  return isPreviouslyOwned() ? `${base}|previous:${[...previousTickers()].sort().join(',')}` : base;
+};
 
 /**
  * Whether the chosen category leaves no company in this scope. Decided on company membership —
@@ -152,7 +225,7 @@ export function scopeHoldings(holdings = coverage.holdings(), scope = PORTFOLIO)
   return (holdings || []).filter((h) => held.has(h.ticker, h) && (!universe || universe.has(h.ticker, h)));
 }
 
-/** "Portfolio" or, with a holding category chosen, "Portfolio · PMS". */
+/** "Current portfolio" or, with a holding category chosen, "Current portfolio · PMS". */
 export function scopeDisplayLabel(scope) {
   const held = holdingMembership();
   return held ? `${scopeLabel(scope)} · ${held.label}` : scopeLabel(scope);
@@ -169,6 +242,11 @@ export function scopeTickers(scope, holdings = null) {
   const base = baseScopeTickers(scope, holdings);
   const held = holdingMembership();
   if (!held) return base;
+  // Previously owned is the one narrowed list whose companies the family does NOT hold now, so the
+  // Holding choice reads the way each was held then (its own `holdingCategories`).
+  if (scope === WATCHLIST && isPreviouslyOwned()) {
+    return new Set(watchScopeCompanies(holdings).filter((e) => e.ticker).map((e) => String(e.ticker).toUpperCase()));
+  }
   if (base) return new Set([...base].filter((t) => held.tickers.has(filingTicker(t))));
   // Universe narrowed by a holding category: the category's listed companies, less any company
   // the reader has excluded from Universe.
@@ -181,7 +259,7 @@ function baseScopeTickers(scope, holdings = null) {
     const book = holdings || coverage.holdings();
     return new Set(book.filter((h) => h.ticker).map((h) => String(h.ticker).toUpperCase()));
   }
-  if (scope === WATCHLIST) return watchlist.tickers();
+  if (scope === WATCHLIST) return isPreviouslyOwned() ? previousTickers() : watchlist.tickers();
   return null;
 }
 
@@ -198,6 +276,10 @@ export function scopeMatcher(scope, holdings = null) {
   const base = baseScopeMatcher(scope, holdings);
   const held = holdingMembership();
   if (!held) return base;
+  if (scope === WATCHLIST && isPreviouslyOwned()) {
+    const wanted = new Set([...scopeTickers(WATCHLIST, holdings)].map(filingTicker));
+    return { has: (ticker) => { const t = filingTicker(ticker); return !!t && wanted.has(t); } };
+  }
   return { has: (ticker, company = null) => held.has(ticker, company) && base.has(ticker, company) };
 }
 
@@ -268,8 +350,11 @@ export function filterByScope(rows, scope, holdings = null, tickerOf = (r) => r.
  */
 export function scopePossessive(scope) {
   const held = holdingMembership();
+  const previous = scope === WATCHLIST && isPreviouslyOwned();
+  if (held && previous) return `your previously owned companies held as ${held.label}`;
   if (held) return scope === WATCHLIST ? `your watchlist companies held as ${held.label}` : `your ${held.label} holdings`;
   if (scope === PORTFOLIO) return 'your holdings';
+  if (previous) return 'your previously owned companies';
   if (scope === WATCHLIST) return 'your watchlist companies';
   return null;
 }
@@ -286,12 +371,18 @@ export function scopeBook(scope) {
     return { count: held.holdings.length, uncovered: held.holdings.filter((h) => !h.ticker).length,
       noun: `${held.label} companies`, label: scopeDisplayLabel(scope) };
   }
+  if (scope === WATCHLIST && isPreviouslyOwned()) {
+    // A previously owned line with no NSE symbol (a nil-balance AIF, an unresolved name) is like a
+    // book line with none: still on the list, and no feed here can ever show it.
+    const entries = watchScopeCompanies();
+    return { count: entries.length, uncovered: entries.filter((e) => !e.ticker).length, noun: 'previously owned companies', label: scopeDisplayLabel(scope), previous: true };
+  }
   if (held && scope === WATCHLIST) {
     return { count: scopeTickers(WATCHLIST).size, uncovered: 0, noun: 'watched companies', label: scopeDisplayLabel(scope) };
   }
   if (scope === PORTFOLIO) {
     const m = coverage.meta();
-    return { count: m.count, uncovered: m.uncovered, noun: 'book companies', label: 'Portfolio' };
+    return { count: m.count, uncovered: m.uncovered, noun: 'book companies', label: 'Current portfolio' };
   }
   if (scope === WATCHLIST) {
     // A watchlist entry is a ticker the reader starred, so none of them is "uncovered" the way a

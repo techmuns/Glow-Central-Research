@@ -23,7 +23,35 @@ const upper = (v) => clean(v).toUpperCase();
 const companyText = entry => [entry.ticker, entry.name, entry.isin, entry.bseCode,
     ...(entry.aliases || []), entry.industry, entry.sector].join(' ').toLowerCase();
 
+const ROUTE_WORDS = { 'direct-equity': 'Direct', pms: 'PMS', aif: 'AIF' };
+const BASIS_WORDS = { sale: 'last sold', trade: 'last traded', redemption: 'last redeemed', statement: 'last on a statement' };
+const dayLabel = (iso) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return null;
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+};
+
+/** One previously owned line: the company, the route it was held through and the date it was last held. */
+function previousMemberHtml(entry) {
+  const ticker = upper(entry.ticker);
+  const routes = (entry.holdingCategories || []).map((id) => ROUTE_WORDS[id] || id).join(' + ');
+  const when = dayLabel(entry.lastHeld);
+  const sub = [ticker || (entry.kind === 'fund' ? 'Fund — no NSE symbol' : 'No NSE research symbol'), routes ? `via ${routes}` : null, entry.isin, entry.sector !== 'Unclassified' ? entry.sector : null].filter(Boolean).join(' · ');
+  return `
+    <div class="flex items-center gap-3 py-2.5" data-row-key="${escapeHtml(entry.id)}" data-scope-member="${escapeHtml(entry.id)}" data-previous-member>
+      <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-extrabold text-slate-500">${escapeHtml((ticker || entry.name || '?').slice(0, 2))}</div>
+      <div class="min-w-0 flex-1">
+        <div class="truncate text-sm font-semibold text-slate-800">${escapeHtml(entry.name)}</div>
+        <div class="truncate text-[11px] text-slate-400" title="${escapeHtml(entry.reason || '')}">${escapeHtml(sub)}</div>
+      </div>
+      <div class="shrink-0 text-right" data-last-held="${escapeHtml(entry.lastHeld || '')}">
+        <span class="text-xs font-semibold text-slate-500">Now at zero</span>
+        <div class="mt-1 text-[11px] tabular-nums text-slate-500" title="${escapeHtml(when ? `${BASIS_WORDS[entry.lastHeldBasis] || 'last held'} ${when}; nil confirmed ${dayLabel(entry.zeroAsOf) || 'by the statements'}` : 'The statements do not date the last holding; the balance is nil on them')}">${when ? `Last held ${escapeHtml(when)}` : 'Last held: not dated'}</div>
+      </div>
+    </div>`;
+}
+
 function editorHtml(scope) {
+  if (scope === 'previous') return previousEditorHtml();
   return `
     <div data-scope-editor="${escapeHtml(scope)}">
       <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
@@ -94,6 +122,46 @@ function editorHtml(scope) {
     </div>`;
 }
 
+function previousEditorHtml() {
+  return `
+    <div data-scope-editor="previous">
+      <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+        <div>
+          <div class="text-[11px] font-bold uppercase tracking-wider text-indigo-500">Family Office · Watchlist</div>
+          <h2 class="font-display mt-1 text-xl font-extrabold text-slate-900">View Previously owned</h2>
+          <p class="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
+            Every company the family held directly, through a PMS mandate or through an AIF and now holds none of, with the date it last held it — read from the GlowVentures statements' dated trades and nil-balance funds. A company bought again moves back to Current portfolio by itself.
+          </p>
+        </div>
+        <button type="button" data-modal-close aria-label="Close" class="text-2xl leading-none text-slate-400 hover:text-slate-700">×</button>
+      </div>
+      <div class="px-6 py-5">
+        <label for="scope-company-search" class="sr-only">Search company name, ticker or ISIN</label>
+        <div class="flex items-center gap-2 rounded-xl bg-white px-3 ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-300">
+          <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <circle cx="8.5" cy="8.5" r="5.5"></circle><path d="m13 13 4 4"></path>
+          </svg>
+          <input id="scope-company-search" data-scope-search type="search" autocomplete="off"
+            placeholder="Search company name, ticker or ISIN…"
+            class="min-w-0 flex-1 bg-transparent py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400" />
+        </div>
+        <div data-scope-list-panel class="mt-5">
+          <div class="mb-2 flex items-center justify-between gap-3">
+            <div class="text-xs font-bold uppercase tracking-wider text-slate-400"><span data-scope-count>0</span> previously owned</div>
+          </div>
+          <p data-previous-status role="status" class="mb-3 text-xs leading-relaxed text-slate-500"></p>
+          <div data-scope-members class="scrollbar-thin max-h-[44vh] divide-y divide-slate-100 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50/60 px-3"></div>
+          <p data-scope-empty-filter class="hidden py-8 text-center text-sm text-slate-400">No previously owned company matches this search.</p>
+          <p data-previous-unconfirmed class="mt-3 hidden text-xs leading-relaxed text-slate-500"></p>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-4">
+        <p class="max-w-xl text-xs leading-relaxed text-slate-500">Derived from the Family Office statements, not edited here. Keep companies you choose to follow under Bookmarked.</p>
+        <button type="button" data-modal-close class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Done</button>
+      </div>
+    </div>`;
+}
+
 function memberHtml(entry, readOnly = false, { showAttribution = false } = {}) {
   const ticker = upper(entry.ticker);
   const key = readOnly ? entry.isin || scopeLists.keyFor(entry) : scopeLists.keyFor(entry);
@@ -141,6 +209,7 @@ function searchResultsHtml(results, current, loading, error) {
 
 export function openScopeEditor({ scope, onChanged = null } = {}) {
   if (scope === 'portfolio') return openPortfolioView({ onChanged });
+  if (scope === 'previous') return openPreviouslyOwnedView({ onChanged });
   let base = [];
   let changed = false;
   let searchResults = [];
@@ -418,4 +487,43 @@ function openPortfolioView({ onChanged }) {
   input.addEventListener('input', paint);
   paint(); input.focus();
   void refreshFamilySession();
+}
+
+/** Previously owned, read-only: the family's sold-to-zero holdings, from the same book as the scope. */
+function openPreviouslyOwnedView({ onChanged }) {
+  let offBook;
+  let changed = false;
+  openModal(previousEditorHtml(), {
+    size: 'wide',
+    onClose: () => { offBook?.(); if (changed) onChanged?.(); },
+  });
+  const root = document.querySelector('[data-scope-editor="previous"]');
+  if (!root) return;
+  const input = root.querySelector('[data-scope-search]');
+  const paint = () => {
+    const entries = coverage.previouslyOwned();
+    const m = coverage.previouslyOwnedMeta();
+    const words = clean(input.value).toLowerCase().split(/\s+/).filter(Boolean);
+    const matches = entries.filter((e) => {
+      const text = [e.name, e.ticker, e.isin, e.sector, ...(e.bookNames || [])].join(' ').toLowerCase();
+      return words.every((w) => text.includes(w));
+    });
+    root.querySelector('[data-scope-count]').textContent = formatNumber(entries.length);
+    root.querySelector('[data-scope-members]').innerHTML = matches.map(previousMemberHtml).join('');
+    const empty = root.querySelector('[data-scope-empty-filter]');
+    empty.classList.toggle('hidden', matches.length > 0);
+    empty.textContent = words.length ? 'No previously owned company matches this search.' : 'No previously owned company on the Family Office statements.';
+    const windowNote = m.window?.from ? ` The dated trades run from ${dayLabel(m.window.from)}, so a company sold before then is not on this list.` : '';
+    root.querySelector('[data-previous-status]').textContent = m.available
+      ? `From the GlowVentures statements${m.asOf ? ` · Book ${m.asOf}` : ''}. ${formatNumber(m.tracked)} with an NSE symbol${m.funds ? `, ${formatNumber(m.funds)} nil-balance fund${m.funds === 1 ? '' : 's'} no company feed can carry` : ''}.${m.rebought ? ` ${formatNumber(m.rebought)} bought again since and back in Current portfolio.` : ''}${windowNote}`
+      : 'The published book carries no Previously owned list yet; it appears with the next Family Office sync.';
+    const unconfirmed = root.querySelector('[data-previous-unconfirmed]');
+    unconfirmed.classList.toggle('hidden', !m.unconfirmed.length);
+    unconfirmed.textContent = m.unconfirmed.length
+      ? `Not listed, because no statement yet confirms the balance is nil: ${m.unconfirmed.map((u) => u.name).join(', ')}. Each was traded after its account's newest holdings statement; it joins this list once a statement shows it at zero.`
+      : '';
+  };
+  offBook = coverage.onChange((event) => { changed ||= event.changed; paint(); });
+  input.addEventListener('input', paint);
+  paint(); input.focus();
 }

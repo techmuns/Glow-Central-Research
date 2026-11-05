@@ -6,6 +6,9 @@
 //   tracked()          only the lines that carry an NSE ticker — what a feed can match
 //   uncovered()        the lines no NSE-keyed feed can ever carry, each with its reason
 //   meta()             counts, as-of date and provenance for the "N of 142" notes
+//   previouslyOwned()  the Watchlist scope's "Previously owned" list — companies once held directly,
+//                      through PMS or through an AIF and held at zero now — less anything the
+//                      current book holds again (GLOW-OWNED; scripts/lib/previously-owned.mjs)
 //
 // THE PUBLIC SNAPSHOT HOLDS names and sectors, synced from the family's own repository. No
 // quantity, cost, valuation or P&L. The authenticated Family bridge may also supply ephemeral
@@ -28,6 +31,8 @@ import { boundedJson, validateResolvedPortfolio, assertBookChange, assertRecentC
 import { filingTicker } from './announcement-identity.js';
 
 let raw = null;
+let previousRaw = null; // the published Previously owned list — see previouslyOwned() below
+let previousMemo = null;
 let syncStatus = 'snapshot';
 let syncError = null;
 let pending = null;
@@ -90,6 +95,7 @@ export function refresh() {
       assertBookChange(payload, raw);
       if (startedGeneration !== generation) return { cancelled: true };
       raw = payload;
+      if (Array.isArray(payload.previouslyOwned?.entries)) previousRaw = payload.previouslyOwned;
       syncStatus = 'live';
       syncError = null;
       void writeEntry(CACHE_KEY, { value: payload, tag: payload.sourceRevision });
@@ -156,7 +162,45 @@ export function failFamilyBook() {
 export function prime(payload) {
   invalidate();
   if (payload && Array.isArray(payload.holdings)) raw = payload;
+  if (Array.isArray(payload?.previouslyOwned?.entries)) previousRaw = payload.previouslyOwned;
   return isLoaded();
+}
+
+// THE PREVIOUSLY OWNED LIST (GLOW-OWNED). Published with the book in portfolio-companies.json by
+// scripts/build-book.mjs. Held apart from `raw` so a payload that does not carry it (the Family
+// bridge's names-only book) cannot erase it, and re-read against the CURRENT book on every call:
+// a company the family has bought back — on a statement that arrived after the list was built, or
+// in the authenticated Family book — leaves Previously owned and is in the current portfolio the
+// moment the book shows it, with nothing to rebuild.
+export function previouslyOwned() {
+  const entries = Array.isArray(previousRaw?.entries) ? previousRaw.entries : [];
+  const book = holdings(), privates = privateCompanies();
+  if (previousMemo?.entries === entries && previousMemo.book === book && previousMemo.privates === privates) return previousMemo.value;
+  const tickers = new Set(book.map((h) => h.ticker).filter(Boolean).map(filingTicker));
+  const isins = new Set(book.map((h) => h.isin).filter(Boolean));
+  for (const c of privates) for (const isin of c.isins || []) isins.add(isin);
+  const value = entries.filter((e) => e && e.name &&
+    !(e.ticker && tickers.has(filingTicker(e.ticker))) && !(e.isin && isins.has(e.isin)))
+    .map((e) => ({ ...e, ticker: e.ticker || null }));
+  previousMemo = { entries, book, privates, value };
+  return value;
+}
+
+/** The previously owned list's own provenance and counts, read without the entries. */
+export function previouslyOwnedMeta() {
+  const all = previouslyOwned();
+  return {
+    asOf: raw?.asOf || null,
+    source: raw?.source || null,
+    window: previousRaw?.window || null,
+    count: all.length,
+    tracked: all.filter((e) => e.ticker).length,
+    uncovered: all.filter((e) => !e.ticker).length,
+    funds: all.filter((e) => e.kind === 'fund').length,
+    rebought: (previousRaw?.entries?.length || 0) - all.length,
+    unconfirmed: Array.isArray(previousRaw?.unconfirmed) ? previousRaw.unconfirmed : [],
+    available: !!previousRaw,
+  };
 }
 
 export const isLoaded = () => !!raw;

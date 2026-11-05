@@ -34,9 +34,8 @@ import { formatNumber, formatCroreCompact, formatRelativeTime, formatDate } from
 import { exportSheets, todayStamp } from '../ui/export.js';
 import * as feed from '../data/super-investors.js';
 import * as coverage from '../data/coverage.js';
-import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
-import { scopePossessive, scopeLabel, holdingMembership } from '../data/scope.js';
+import { scopePossessive, scopeLabel, holdingMembership, watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 // The ONE classifier — this view used to carry a second copy of it. See `classifyHolding` there.
 import { classifyHolding, companyKey, filedPair, isMove, quarterOrder } from '../data/finology-shared.js';
 import { deriveMoves, comparisonPeriods, disclosureStatus, periodEnd } from '../data/finology-shared.js';
@@ -979,12 +978,14 @@ function scopeFilter(ctx) {
     return (company, holding = {}) => tickers.has(String(holding.companySlug || '').toUpperCase()) || names.has(normalName(company));
   };
   const entries = ctx.scope === 'universe' ? scopeLists.removed('universe')
-    : ctx.scope === 'watchlist' ? watchlist.all() : coverage.holdings();
+    : ctx.scope === 'watchlist' ? watchScopeCompanies() : coverage.holdings();
   const inScope = ctx.scope === 'universe' && !entries.length ? null : matcher(entries);
   const base = inScope && ((company, holding) => (ctx.scope === 'universe' ? !inScope(company, holding) : inScope(company, holding)));
   // The header's Holding choice narrows by the same name comparison, over the book lines held that way.
   const held = holdingMembership();
-  if (!held) return base;
+  // Previously owned companies are held by nobody now; watchScopeCompanies() already kept the ones
+  // held that way then, so the current book's category lines would only empty the list.
+  if (!held || isPreviousScope(ctx.scope)) return base;
   const inCategory = matcher(held.holdings);
   return (company, holding = {}) => inCategory(company, holding) && (!base || base(company, holding));
 }

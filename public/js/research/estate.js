@@ -29,7 +29,7 @@ import { whenDeferredData } from '../core/state.js';
 import * as watchlist from '../core/watchlist.js';
 import * as scopeLists from '../core/scope-lists.js';
 import * as coverage from '../data/coverage.js';
-import { filterByScope, scopeAllowsTicker } from '../data/scope.js';
+import { filterByScope, scopeAllowsTicker, watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 import * as alerts from '../data/daily-alerts.js';
 import * as aiAlerts from '../data/ai-alerts.js';
 import * as screenerInsights from '../data/screener-insights.js';
@@ -194,6 +194,8 @@ function companyIndex(deferred) {
   };
   for (const h of coverage.holdings()) add(h.ticker, h.name, h.isin);
   for (const w of watchlist.all()) add(w.ticker, w.name);
+  // The family's previously owned companies are names a question may ask about too ("why did we sell…").
+  for (const e of coverage.previouslyOwned()) if (e.ticker) add(e.ticker, e.name, e.isin);
   for (const row of Array.isArray(deferred?.universe) ? deferred.universe : []) {
     add(String(row?.['Screener URL'] || '').match(/\/company\/([^/]+)/)?.[1], row?.Company);
   }
@@ -622,7 +624,7 @@ export function withResearchDeadline(promise, title, { timeoutMs = LOADER_TIMEOU
 }
 
 function scopeHoldings(scope) {
-  if (scope === 'watchlist') return watchlist.all();
+  if (scope === 'watchlist') return watchScopeCompanies();
   return coverage.holdings();
 }
 
@@ -632,7 +634,11 @@ function scopeDefinition(scope) {
     const listed = book.filter((h) => h.ticker).length;
     return `Portfolio scope: the configured book of ${book.length} companies, ${listed} with an NSE symbol; the other ${book.length - listed} lines cannot appear in any symbol-keyed feed.`;
   }
-  if (scope === 'watchlist') return `Watchlist scope: the ${watchlist.size()} companies starred on this device.`;
+  if (isPreviousScope(scope)) {
+    const list = watchScopeCompanies();
+    return `Previously owned scope: the ${list.length} companies and funds the family held directly, through PMS or through an AIF and now holds none of, from the Family Office statements' dated trades and nil-balance funds; ${list.filter((e) => e.ticker).length} carry an NSE symbol. None is held now.`;
+  }
+  if (scope === 'watchlist') return `Watchlist scope: the ${watchlist.size()} companies bookmarked on the shared watchlist.`;
   return 'Universe scope: the broadest company set each source currently carries.';
 }
 
@@ -645,7 +651,7 @@ function investorScopeFilter(scope) {
     if (!removed.length) return null;
     return (company) => !removed.some((name) => String(company || '').toLowerCase().includes(name.slice(0, 12)));
   }
-  const names = (scope === 'watchlist' ? watchlist.all() : coverage.holdings())
+  const names = (scope === 'watchlist' ? watchScopeCompanies() : coverage.holdings())
     .map((entry) => String(entry.name || '').toLowerCase())
     .filter(Boolean);
   return (company) => names.some((name) => String(company || '').toLowerCase().includes(name.slice(0, 12)));
@@ -1479,7 +1485,7 @@ export async function resolveQuestionCompanies(question, scope = 'portfolio') {
 }
 
 export function researchSuggestions(scope = 'portfolio') {
-  const possessive = scope === 'universe' ? 'the listed universe' : scope === 'watchlist' ? 'my watchlist' : 'my portfolio';
+  const possessive = scope === 'universe' ? 'the listed universe' : isPreviousScope(scope) ? 'the companies we previously owned' : scope === 'watchlist' ? 'my watchlist' : 'my portfolio';
   return [
     `What needs my attention across ${possessive} today?`,
     `Where do earnings, technicals and public chatter agree or conflict in ${possessive}?`,
