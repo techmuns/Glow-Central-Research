@@ -24,7 +24,7 @@ let offTech = null;
 /* ---------------- styles (scoped, injected once) ---------------- */
 const STYLE_ID = 'gi-insights-style';
 const CSS = `
-.gi-tab{max-width:1180px;margin:0 auto;}
+.gi-tab{max-width:1400px;margin:0 auto;}
 .gi-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 16px;flex-wrap:wrap;}
 .gi-head h2{font-family:"Plus Jakarta Sans","Inter",sans-serif;font-size:1.55rem;font-weight:800;letter-spacing:-.02em;margin:0;color:rgb(var(--text-slate-900,15 23 42));}
 .gi-info{appearance:none;border:1px solid rgb(var(--edge-slate-200,226 232 240));background:rgb(var(--surface-white,255 255 255));color:rgb(var(--text-slate-500,100 116 139));border-radius:999px;padding:6px 13px;font-size:.74rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;}
@@ -165,6 +165,22 @@ const CSS = `
 .gi-coming{padding:26px 26px 30px;color:#111827;font-family:"Inter",system-ui,sans-serif;}
 .gi-coming h3{font-family:"Plus Jakarta Sans",sans-serif;font-size:1.2rem;margin:6px 0 10px;}
 .gi-coming p{color:#56617a;font-size:.94rem;line-height:1.6;}
+/* Compact one-pager — smaller type, tighter spacing, shorter scroll (desk request). */
+.gi-pager .in{padding:0 22px 20px;}
+.gi-co2 h1{font-size:1.55rem;}
+.gi-lead{font-size:.9rem;margin-top:7px;}
+.gi-hero{padding:18px 22px;}
+.gi-facts{padding:10px 22px;font-size:.8rem;}
+.gi-sh{margin:17px 0 9px;font-size:.95rem;}
+.gi-prose{font-size:.875rem;}
+.gi-verdict{padding:15px 16px;gap:13px 18px;}
+.gi-badge{font-size:.92rem;padding:8px 16px;}
+.gi-pt{padding:10px 0;}
+.gi-pt .t{font-size:.88rem;} .gi-pt .d{font-size:.82rem;}
+.gi-ftable{font-size:.83rem;} .gi-ftable tbody td{padding:8px 12px;}
+.gi-gd{font-size:.82rem;} .gi-gd tbody td{padding:9px 12px;}
+.gi-close{font-size:.92rem;margin-top:18px;}
+.gi-colhd{font-size:.9rem;padding:10px 14px;}
 @media (max-width:680px){
   .gi-cols{grid-template-columns:1fr;}
   .gi-verdict{grid-template-columns:1fr;justify-items:center;text-align:center;} .gi-why{text-align:left;}
@@ -218,11 +234,12 @@ function tableRows() {
     for (const t of g.tickers) {
       const h = held.get(t);
       if (!h) continue; // only the family's real holdings
-      out.push({ ticker: t, name: h.name, sector: g.sector, insight: getInsight(t) });
+      const insight = getInsight(t);
+      if (!insight) continue; // show only companies that have been run so far
+      out.push({ ticker: t, name: h.name, sector: g.sector, insight });
     }
   }
-  // Companies with a finished one-pager first, then alphabetical.
-  out.sort((a, b) => (b.insight ? 1 : 0) - (a.insight ? 1 : 0) || a.name.localeCompare(b.name));
+  out.sort((a, b) => a.name.localeCompare(b.name));
   return out;
 }
 
@@ -233,13 +250,11 @@ export function render(ctx) {
   ensureStyles();
 
   const rows = tableRows();
-  const ready = rows.filter((r) => r.insight).length;
 
   ctx.root.innerHTML = `
     <div class="gi-tab">
       <div class="gi-head">
         <h2>AI Insights</h2>
-        <button class="gi-info" type="button" data-gi-info><span class="d"></span> How this is built · illustrative</button>
       </div>
       <div class="gi-card">
         <table class="gi-table">
@@ -264,7 +279,6 @@ export function render(ctx) {
   };
   body.addEventListener('click', openFromEvent);
   body.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') openFromEvent(e); });
-  ctx.root.querySelector('[data-gi-info]').addEventListener('click', () => openModal(provenanceHtml(ready), { size: 'default' }));
 
   // The technicals capture may still be loading at mount; repaint prices once it lands.
   if (!technicals.isLoaded?.()) {
@@ -338,12 +352,11 @@ function pagerHtml(d) {
 
   return `<div class="gi-pager">
     <div class="gi-hero">
-      <div class="gi-kick"><span class="gi-dot"></span> Glow AI Insights <span class="thin">The 5-minute stock read</span>
-        <span class="gi-demo">Illustrative · not advice</span></div>
+      <div class="gi-kick"><span class="gi-dot"></span> Glow AI Insights <span class="thin">The 5-minute stock read</span></div>
       <div class="gi-co2"><h1>${esc(d.name)}</h1><span class="gi-tk">${esc(d.ticker)} · NSE</span></div>
       <div class="gi-lead">${d.lead}</div>
     </div>
-    <div class="gi-facts">${facts}${liveFact}<span class="asof">as of ${esc(d.asOf)} · indicative</span></div>
+    <div class="gi-facts">${facts}${liveFact}</div>
     <div class="in">
       <h2 class="gi-sh">What the company does</h2>
       <p class="gi-prose">${d.what}</p>
@@ -369,7 +382,6 @@ function pagerHtml(d) {
       <h2 class="gi-sh">Financials at a glance</h2>
       <div class="gi-wrapcard">
         <table class="gi-ftable"><thead><tr><th>₹ crore</th>${fcols}</tr></thead><tbody>${frows}</tbody></table>
-        <div class="gi-fnote">${d.fnote}</div>
       </div>
 
       <div class="gi-close"><span class="q"></span><span>${d.close}</span></div>
@@ -407,18 +419,6 @@ function comingHtml(ticker) {
     <h3>${esc(name)}</h3>
     <p>This company sits in a sector Glow has already researched${sector ? ` — <b>${esc(sector)}</b>` : ''}, so its signal rulebook is ready. Its full one-pager (What We Like / What We Don't Like, verdict and numbers) is being written from Screener, con-calls and web research, the same way as the live examples.</p>
     <p style="margin-top:12px;font-size:.84rem;color:#8b94a7">Illustrative feature preview — not investment advice.</p>
-  </div>`;
-}
-
-// The small "ⓘ How this is built" modal — keeps the provenance/disclaimer reachable without a
-// text wall on the table itself.
-function provenanceHtml(ready) {
-  return `<div class="gi-coming">
-    <span class="gi-pill soon" style="font-size:.7rem">How this is built</span>
-    <h3>AI Insights</h3>
-    <p>Each one-pager is written from Glow's sector rulebook applied to the company's own data — Screener financials, earnings-call commentary, filings and web/news. The live price and day move come from the dashboard feed. The Business-quality and Price/value scores weigh the signals that fired; the page shows the few that matter.</p>
-    <p style="margin-top:10px"><b>${ready} compan${ready === 1 ? 'y is' : 'ies are'} fully written</b> so far — the rest show their sector is researched while the page rolls out.</p>
-    <p style="margin-top:12px;font-size:.84rem;color:#8b94a7">Illustrative feature — figures are indicative, not investment advice.</p>
   </div>`;
 }
 
