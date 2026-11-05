@@ -23,6 +23,10 @@ let ctxRef = null;
 let offTech = null;
 let offRuns = null;   // the mounted tab's subscription to run-state changes
 let offProg = null;   // the open progress screen's subscription
+// Auto-update (AI Alerts → sector KPIs): the live result per ticker, and a token so a slow lookup
+// for one company can't paint into another company's open one-pager. Zero credits — ai-insights-live.js.
+const liveData = new Map();
+let liveToken = null;
 
 /* ---------------- styles (scoped, injected once) ---------------- */
 const STYLE_ID = 'gi-insights-style';
@@ -187,6 +191,27 @@ const CSS = `
 .gi-kpi::before{content:"";position:absolute;left:12px;top:14px;width:7px;height:7px;border-radius:50%;background:#94a3b8;}
 .gi-kpi.good::before{background:#10b981;} .gi-kpi.watch::before{background:#f59e0b;} .gi-kpi.rich::before{background:#f43f5e;}
 .gi-kpi span{display:block;font-size:.7rem;color:#56617a;line-height:1.3;} .gi-kpi b{display:block;font-size:.95rem;color:#111827;font-weight:800;margin-top:3px;}
+/* Auto-update: "What's changed" (AI Alerts → sector KPIs). Free, 0 credits. Light surface like the rest of the pager. */
+.gi-live{margin:14px 0 2px;border:1px solid #e6e9f2;border-radius:14px;background:linear-gradient(180deg,#faf9ff,#fff);padding:13px 15px;}
+.gi-live-meta{font-size:.72rem;color:#56617a;margin:-2px 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.gi-live-meta b{color:#059669;}
+.gi-live-badge{display:inline-flex;align-items:center;gap:5px;font-weight:800;font-size:.62rem;letter-spacing:.04em;text-transform:uppercase;color:#6d28d9;background:#f0ebff;border:1px solid #e3d9ff;border-radius:999px;padding:3px 9px;}
+.gi-live-wait{font-size:.82rem;color:#8b94a7;}
+.gi-live-empty{font-size:.82rem;color:#56617a;}
+.gi-upds{display:flex;flex-direction:column;gap:9px;}
+.gi-upd{background:#fff;border:1px solid #eceff5;border-left:3px solid #cbd5e1;border-radius:10px;padding:9px 12px;}
+.gi-upd.good{border-left-color:#10b981;} .gi-upd.watch{border-left-color:#f59e0b;} .gi-upd.bad{border-left-color:#f43f5e;}
+.gi-upd-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.gi-upd-top b{font-size:.86rem;color:#111827;font-weight:800;}
+.gi-upd-tag{font-size:.58rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#56617a;background:#f1f3f9;border-radius:999px;padding:2px 8px;}
+.gi-upd-when{margin-left:auto;font-size:.72rem;color:#8b94a7;font-weight:700;}
+.gi-upd-what{font-size:.82rem;color:#1f2937;margin-top:4px;}
+.gi-upd-why{font-size:.76rem;color:#56617a;margin-top:4px;}
+.gi-upd-side{margin-left:7px;font-weight:700;color:#475569;}
+.gi-live-more{font-size:.74rem;color:#8b94a7;margin-top:8px;}
+.gi-live-net{margin-top:11px;font-size:.8rem;color:#1f2937;background:#f6f4ff;border:1px solid #ece7ff;border-radius:10px;padding:9px 12px;} .gi-live-net b{color:#6d28d9;}
+.gi-livedelta{font-size:.6rem;font-weight:800;letter-spacing:.03em;border-radius:999px;padding:2px 7px;margin-left:6px;vertical-align:middle;white-space:nowrap;}
+.gi-livedelta.up{color:#059669;background:#e7f7f0;} .gi-livedelta.down{color:#e11d48;background:#fdeaef;}
 /* Compact one-pager — smaller type, tighter spacing, shorter scroll (desk request). */
 .gi-pager{line-height:1.48;}
 .gi-pager .in{padding:0 20px 18px;}
@@ -596,7 +621,7 @@ function rowHtml(r) {
 function openCompany(ticker) {
   if (isRunning(ticker)) return openRunProgress(ticker);
   const d = getInsight(ticker);
-  if (d) { openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); return; }
+  if (d) { openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); fillLive(d); return; }
   if (runs.get(ticker)?.done) return openModal(firstCutHtml(ticker), { size: 'magazine' });
   return openModal(comingHtml(ticker), { size: 'default' });
 }
@@ -632,8 +657,12 @@ function pagerHtml(d) {
   const frows = d.financials.rows.map((row) => `<tr><td>${esc(row.k)}</td>${row.v
     .map((v, i) => `<td class="${row.pos && row.pos[i] ? 'pos' : ''}">${esc(v)}</td>`).join('')}</tr>`).join('');
   const vcls = d.verdict.toLowerCase();
+  const live = liveData.get(d.ticker);
+  const qd = live?.data?.qualityDelta || 0;
+  const qAdj = Math.max(0, Math.min(100, d.quality + qd));
+  const qChip = qd ? ` <span class="gi-livedelta ${qd > 0 ? 'up' : 'down'}" title="Auto-adjusted from recent AI Alerts; the written score is ${d.quality}.">${qd > 0 ? '▲ +' : '▼ '}${qd} live</span>` : '';
 
-  return `<div class="gi-pager">
+  return `<div class="gi-pager" data-ticker="${esc(d.ticker)}">
     <div class="gi-hero">
       <div class="gi-kick"><span class="gi-dot"></span> Glow AI Insights <span class="thin">The 5-minute stock read</span>
         <button class="gi-pdf" type="button" data-pdf>⬇ Download PDF</button></div>
@@ -644,11 +673,13 @@ function pagerHtml(d) {
       <div class="gi-verdict">
         <div class="gi-call"><span class="gi-badge ${vcls}">${esc(d.verdict)}</span><small>${esc(d.verdictSub)}</small></div>
         <div class="gi-scorebox">
-          <div class="gi-score"><div class="row"><span class="lab">Business quality <span>— how good is the company?</span></span><span class="num">${d.quality} / 100</span></div><div class="gi-track"><div class="gi-fill q" style="width:${d.quality}%"></div></div></div>
+          <div class="gi-score"><div class="row"><span class="lab">Business quality <span>— how good is the company?</span></span><span class="num">${d.quality} / 100${qChip}</span></div><div class="gi-track"><div class="gi-fill q" style="width:${qAdj}%"></div></div></div>
           <div class="gi-score"><div class="row"><span class="lab">Price / value <span>— cheap or expensive today?</span></span><span class="num">${d.price} / 100</span></div><div class="gi-track"><div class="gi-fill p" style="width:${d.price}%"></div></div></div>
         </div>
         <div class="gi-why">${d.why}<span class="gi-trig">↗ ${d.trigger}</span></div>
       </div>
+
+      ${liveSectionHtml(d, live)}
 
       ${d.intrinsic ? ivHtml(d) : ''}
       ${d.kpis ? kpisHtml(d) : ''}
@@ -695,6 +726,64 @@ function kpisHtml(d) {
     <div class="gi-kpis">${items}</div>`;
 }
 
+// AUTO-UPDATE — fill the one-pager's "What's changed" box from the AI Alerts the dashboard already
+// holds. The alerts engine is imported lazily, only when a one-pager opens (never on the tab), so it
+// stays on-click and the tab stays lean. Zero credits. A slow lookup for one company can't paint
+// into another's: `liveToken` is renewed per open, and the result is stored by ticker so the PDF
+// (which re-renders pagerHtml) carries the same resolved box the screen shows.
+async function fillLive(d) {
+  const token = (liveToken = {});
+  try {
+    const live = await import('../data/ai-insights-live.js');
+    const res = await live.cardFor(d.ticker, () => token === liveToken);
+    liveData.set(d.ticker, { status: res.status, data: res.card ? live.updatesFromCard(res.card) : null });
+  } catch {
+    liveData.set(d.ticker, { status: 'cold', data: null });
+  }
+  if (token !== liveToken) return;                          // a different company was opened meanwhile
+  const host = document.getElementById('modal-content');
+  const pager = host?.querySelector('.gi-pager');
+  if (!pager || pager.dataset.ticker !== d.ticker) return;  // modal closed, or switched away
+  host.innerHTML = pagerHtml(d);                            // one re-render, so screen and PDF match
+  wirePdf(d);
+}
+
+const GI_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function fmtDay(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return esc(iso || '');
+  const [, m, dd] = iso.slice(0, 10).split('-');
+  return `${Number(dd)} ${GI_MONTHS[Number(m) - 1] || ''}`.trim();
+}
+
+// The "What's changed since we wrote this" box — AI Alerts that moved this company's sector KPIs,
+// newest first, each with WHAT / WHY / HOW (good/watch/bad) / WHEN, and the 0-credits badge. Honest
+// about the three states: checking, cold cache (not checked), and genuinely nothing in 14 days.
+function liveSectionHtml(d, live) {
+  const head = `<h2 class="gi-sh">What's changed since we wrote this</h2>
+    <div class="gi-live-meta"><span class="gi-live-badge">⚡ Auto-updated from AI Alerts</span> last 14 days · <b>0 credits</b></div>`;
+  if (!live) return `<div class="gi-live">${head}<div class="gi-live-wait">Checking recent alerts…</div></div>`;
+  if (live.status === 'cold') {
+    return `<div class="gi-live">${head}<div class="gi-live-empty">Couldn't read recent alerts just now — this box will fill in automatically next time it can.</div></div>`;
+  }
+  const ups = live.data?.updates || [];
+  if (!ups.length) {
+    return `<div class="gi-live">${head}<div class="gi-live-empty">No alerts moved ${esc(d.name)}'s key numbers in the last 14 days — the view above stands.</div></div>`;
+  }
+  const SIDE = { positive: '👍 adds to What we like', negative: '👎 to What we don\'t like', neutral: '• one to watch' };
+  const rows = ups.slice(0, 10).map((u) => `<div class="gi-upd ${esc(u.tone)}">
+      <div class="gi-upd-top"><b>${esc(u.kpi)}${u.value ? ` ${esc(u.value)}` : ''}</b><span class="gi-upd-tag">${esc(u.trigger)}</span><span class="gi-upd-when">${fmtDay(u.when)}</span></div>
+      <div class="gi-upd-what">${esc(u.what)}</div>
+      <div class="gi-upd-why">${esc(u.why)}<span class="gi-upd-side">${SIDE[u.direction] || SIDE.neutral}</span></div>
+    </div>`).join('');
+  const extra = ups.length - 10;
+  const more = extra > 0 ? `<div class="gi-live-more">+${extra} more recent alert${extra > 1 ? 's' : ''}</div>` : '';
+  const qd = live.data?.qualityDelta || 0;
+  const net = qd
+    ? `<div class="gi-live-net">Net read: <b>${qd > 0 ? 'slightly stronger' : 'slightly softer'}</b> — Business quality auto-nudged ${qd > 0 ? '+' : ''}${qd} (written ${d.quality} → now ${Math.max(0, Math.min(100, d.quality + qd))}). The written view and every number above stay visible.</div>`
+    : '';
+  return `<div class="gi-live">${head}<div class="gi-upds">${rows}</div>${more}${net}</div>`;
+}
+
 function ptHtml(p, i) {
   const n = String(i + 1).padStart(2, '0');
   return `<div class="gi-pt"><div class="t"><span class="b">${n}</span><span>${esc(p.t)}</span></div><div class="d">${esc(p.d)}</div><span class="tag">${esc(p.tag)}</span></div>`;
@@ -733,5 +822,7 @@ export function destroy() {
   offTech = null;
   offRuns?.();
   offRuns = null;
+  liveData.clear();
+  liveToken = null;
   ctxRef = null;
 }
