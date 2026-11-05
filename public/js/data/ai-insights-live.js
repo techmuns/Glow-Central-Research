@@ -178,7 +178,7 @@ export async function writeIdea({ ticker, name, isCurrent = () => true } = {}) {
   const sym = currentSymbol(ticker) || String(ticker || '').toUpperCase();
   const scope = coverage.has(sym) ? 'portfolio' : 'universe';
   const label = name || sym;
-  const question = `Give a concise 5-minute stock idea on ${label} (${sym}): the overall take (buy, watch or avoid) and why, the main points in its favour, the main concerns and risks, and what to watch next — using the dashboard's own data and sources.`;
+  const question = `Give a concise 5-minute stock idea on ${label} (${sym}), using ONLY the dashboard's own data and sources. Begin with a short "Key financials" markdown table of the most important reported figures the data supports (for example revenue, net profit, a growth rate, a margin or key ratio, market cap) — include only rows the data actually gives, and never invent, estimate or guess a number. Then give: the overall take (buy, watch or avoid) and why; the main points in its favour; the main concerns and risks; and what to watch next.`;
 
   let evidence;
   try {
