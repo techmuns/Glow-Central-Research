@@ -20,6 +20,7 @@ import * as alerts from './ai-alerts.js';
 import * as kpi from './kpi-impact.js';
 import * as coverage from './coverage.js';
 import { currentSymbol } from './announcement-identity.js';
+import { authHeaders } from '../core/host-context.js';
 
 const TONE = { positive: 'good', negative: 'bad', neutral: 'watch' };
 
@@ -136,4 +137,87 @@ export async function sectorProfileFor(ticker) {
     if (names.length >= 12) break;
   }
   return { group: ctx.group, groupLabel: ctx.groupLabel, sector: ctx.sector, names };
+}
+
+// ---------------------------------------------------------------------------------------
+// THE AI WRITER — a short, grounded "Our view" for any company, on Run.
+//
+// This is the ONE metered step in AI Insights, and it reuses the dashboard's existing Ask Research
+// pipeline: the SAME Claude-on-Bedrock credential (CLAUDE_KEY), the SAME same-origin `/api/research`
+// route, and the SAME grounded-evidence assembly — so there is no new token to configure. It fires
+// only on an explicit Run, and the one-pager caches the result, so a re-open never re-spends. If the
+// provider is not configured, or anything fails, it returns a status the caller falls back on — the
+// page then shows the free live-facts view and nothing breaks.
+
+let researchConfig = null; // cached per session: is the AI provider configured on this deployment?
+async function researchConfigured() {
+  if (researchConfig !== null) return researchConfig;
+  try {
+    const r = await fetch('api/research', { headers: { accept: 'application/json', ...authHeaders('api/research') }, cache: 'no-store' });
+    const b = await r.json();
+    researchConfig = b?.configured === true;
+  } catch { researchConfig = false; }
+  return researchConfig;
+}
+
+/**
+ * An AI-written short view for one company, grounded in the dashboard's own evidence. Returns
+ * `{ status, text?, message? }`:
+ *   'ok'           — `text` is the model's grounded answer (prose, with [Dashboard: X] citations),
+ *   'unconfigured' — the AI provider is not set up on this deployment (fall back, no spend),
+ *   'error'        — the step failed (fall back),
+ *   'stale'        — the reader moved on before it finished.
+ * Grounding: the evidence is assembled by Ask Research's own `buildResearchEvidence`, which resolves
+ * the company FROM THE PROMPT TEXT — so the prompt names the symbol (upper-case) and the full name.
+ * The prompt deliberately avoids "my/our portfolio/holdings" wording, so it never trips the private
+ * portfolio-connection gate.
+ */
+export async function writeIdea({ ticker, name, isCurrent = () => true } = {}) {
+  if (!(await researchConfigured())) return { status: 'unconfigured' };
+  if (!isCurrent()) return { status: 'stale' };
+  const sym = currentSymbol(ticker) || String(ticker || '').toUpperCase();
+  const scope = coverage.has(sym) ? 'portfolio' : 'universe';
+  const label = name || sym;
+  const question = `Give a concise 5-minute stock idea on ${label} (${sym}): the overall take (buy, watch or avoid) and why, the main points in its favour, the main concerns and risks, and what to watch next — using the dashboard's own data and sources.`;
+
+  let evidence;
+  try {
+    const estate = await import('../research/estate.js');
+    evidence = await estate.buildResearchEvidence({ question, scope });
+  } catch { return { status: 'error', message: 'Could not gather the data to write from.' }; }
+  if (!isCurrent()) return { status: 'stale' };
+
+  try {
+    const res = await fetch('api/research', {
+      method: 'POST',
+      headers: { accept: 'application/x-ndjson', 'content-type': 'application/json', ...authHeaders('api/research') },
+      body: JSON.stringify({ question, scope: evidence.scope || scope, webResearch: false, history: [], evidence }),
+    });
+    if (!res.ok || !res.body) {
+      const e = await res.json().catch(() => ({}));
+      return { status: 'error', message: e.message || `The AI step is unavailable (HTTP ${res.status}).` };
+    }
+    let text = '';
+    let buf = '';
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!isCurrent()) { try { await reader.cancel(); } catch { /* already closed */ } return { status: 'stale' }; }
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+      for (const ln of lines) {
+        const s = ln.trim();
+        if (!s) continue;
+        let ev;
+        try { ev = JSON.parse(s); } catch { continue; }
+        if (ev.type === 'text') text += ev.text;
+        else if (ev.type === 'error') return { status: 'error', message: ev.message || 'The AI step failed.' };
+      }
+    }
+    text = text.trim();
+    return text ? { status: 'ok', text } : { status: 'error', message: 'The AI step returned nothing.' };
+  } catch { return { status: 'error', message: 'The AI step could not be reached.' }; }
 }

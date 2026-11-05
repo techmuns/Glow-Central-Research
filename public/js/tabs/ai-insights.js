@@ -28,6 +28,9 @@ let offProg = null;   // the open progress screen's subscription
 // for one company can't paint into another company's open one-pager. Zero credits — ai-insights-live.js.
 const liveData = new Map();
 let liveToken = null;
+// The AI-written "Our view" per ticker, cached for the session so re-opening a run company never
+// re-spends the metered AI step. Kept across tab mounts (not cleared in destroy) for the same reason.
+const aiIdeaData = new Map();
 // Which pool the Run picker offers: the family's holdings, the shared watchlist, or the wider universe.
 let runScope = 'portfolio';
 
@@ -224,6 +227,19 @@ const CSS = `
 .gi-rp-scope button.on{background:linear-gradient(135deg,#6366f1,#a855f7);border-color:transparent;color:#fff;}
 .gi-rp-scope button.on b{color:rgba(255,255,255,.85);}
 .gi-rp-empty{padding:20px 6px;color:#8b94a7;font-size:.85rem;text-align:center;}
+/* AI-written "Our view" on the live auto-read. */
+.gi-ai-tag{font-size:.6rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#6d28d9;background:#f0ebff;border:1px solid #e3d9ff;border-radius:999px;padding:3px 8px;margin-left:8px;vertical-align:middle;}
+.gi-ai-note{font-size:.72rem;color:#8b94a7;margin:-3px 0 9px;}
+.gi-ai-wait{font-size:.82rem;color:#8b94a7;padding:2px 0 6px;}
+.gi-ai-body{font-size:.86rem;color:#1f2937;line-height:1.55;}
+.gi-ai-body h1,.gi-ai-body h2,.gi-ai-body h3,.gi-ai-body h4{font-size:.9rem;font-weight:800;margin:12px 0 5px;color:#111827;}
+.gi-ai-body p{margin:7px 0;}
+.gi-ai-body ul,.gi-ai-body ol{margin:6px 0;padding-left:20px;}
+.gi-ai-body li{margin:3px 0;}
+.gi-ai-body strong{color:#111827;}
+.gi-ai-body blockquote{margin:8px 0;padding:6px 12px;border-left:3px solid #c7bdf0;color:#4b4257;background:#faf9ff;border-radius:0 8px 8px 0;}
+.gi-ai-body table{border-collapse:collapse;margin:8px 0;font-size:.8rem;}
+.gi-ai-body th,.gi-ai-body td{border:1px solid #eceff5;padding:5px 9px;text-align:left;}
 /* Compact one-pager — smaller type, tighter spacing, shorter scroll (desk request). */
 .gi-pager{line-height:1.48;}
 .gi-pager .in{padding:0 20px 18px;}
@@ -859,8 +875,9 @@ function autoPagerHtml(d) {
       <div class="gi-co2"><h1>${esc(d.name)}</h1><span class="gi-tk">${esc(d.ticker)} · NSE</span></div>
     </div>
     <div class="in">
-      <div class="gi-autonote">⚡ Built live from Glow's own data — this company's recent developments and the numbers that matter for its sector. <b>0 credits.</b> The full written view — verdict, what we like / don't like — is added by the team.</div>
+      <div class="gi-autonote">⚡ Built live from Glow's own data — a quick view, this company's recent developments and the numbers that matter for its sector.</div>
       <div class="gi-facts"><span>Sector <b>${esc(d.ourSector || '—')}</b></span><span class="live">CMP ${esc(price)} · live</span></div>
+      <div id="gi-auto-ai" class="gi-ai"><h2 class="gi-sh">Our view <span class="gi-ai-tag">✨ AI-written</span></h2><div class="gi-ai-wait">Writing a quick view from Glow's data…</div></div>
       <div id="gi-auto-live">${liveSectionHtml(d, liveData.get(d.ticker))}</div>
       <div id="gi-auto-kpis">${autoKpisHtml(d, null)}</div>
     </div>
@@ -907,6 +924,40 @@ async function fillAuto(d) {
     const slot = document.getElementById('gi-auto-live');
     if (slot) slot.innerHTML = liveSectionHtml(d, liveData.get(d.ticker));
   });
+
+  // AI-written "Our view" — the one metered step, cached per ticker so a re-open never re-spends.
+  fillAiView(d, live, () => token === liveToken, stillOpen);
+}
+
+async function fillAiView(d, live, isCurrent, stillOpen) {
+  const slot = () => document.getElementById('gi-auto-ai');
+  const cached = aiIdeaData.get(d.ticker);
+  if (cached) {                                        // already written this session — no re-spend
+    if (stillOpen() && slot()) await renderAiInto(slot(), cached);
+    return;
+  }
+  let res;
+  try { res = await live.writeIdea({ ticker: d.ticker, name: d.name, isCurrent }); }
+  catch { res = { status: 'error' }; }
+  if (res?.status === 'ok') aiIdeaData.set(d.ticker, res);
+  if (!stillOpen()) return;
+  const el = slot();
+  if (!el) return;
+  if (res?.status === 'ok') await renderAiInto(el, res);
+  else el.remove();                                    // unconfigured / error / stale → free live view
+}
+
+async function renderAiInto(el, res) {
+  let renderer = null;
+  try { renderer = await import('../research/renderer.js'); } catch { /* fall back to plain text */ }
+  el.innerHTML = `<h2 class="gi-sh">Our view <span class="gi-ai-tag">✨ AI-written</span></h2>
+    <div class="gi-ai-note">Written from Glow's own dashboard data — recent developments, filings and sector signals. Not investment advice.</div>
+    <div class="gi-ai-body"></div>`;
+  const mount = el.querySelector('.gi-ai-body');
+  try {
+    if (renderer?.renderResearchAnswer) renderer.renderResearchAnswer(mount, res.text, { cite: null });
+    else mount.textContent = res.text;
+  } catch { mount.textContent = res.text; }
 }
 
 function ptHtml(p, i) {
