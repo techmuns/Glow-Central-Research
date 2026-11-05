@@ -128,8 +128,12 @@ try {
     assert(await page.locator('#subview-mount [data-tab-scroll-controls]').isHidden(), 'all three alert subtabs fit without overflow controls');
     await page.evaluate(() => { window.alertSubtabs = document.querySelector('#subview-mount [data-tab-list]'); });
     await page.locator('#subview-mount [data-tab-id="ai-alerts"]').focus();
-    await page.keyboard.press('ArrowRight');
-    assert.equal(await page.locator('#content-host').getAttribute('data-active-tab'), 'ai-alerts', 'arrows only move focus');
+    // AI Insights sits between AI Alerts and All Alerts, so All Alerts is two arrows away.
+    for (let press = 0; press < 2; press++) {
+      await page.keyboard.press('ArrowRight');
+      assert.equal(await page.locator('#content-host').getAttribute('data-active-tab'), 'ai-alerts', 'arrows only move focus');
+    }
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset.tabId), 'daily-alerts', 'arrows reach All Alerts');
     const aiFrame = await alertFrame(page);
     alignedAlerts(aiFrame);
     // Hold the first All Alerts renderer download: framing must already be correct
@@ -141,7 +145,12 @@ try {
       alertsRequested(); await alertsHeld; await route.continue();
     });
     await page.keyboard.press('Enter');
-    await alertsArrived;
+    // Bounded: a press that opens another reader fails here instead of hanging the job.
+    let stalled;
+    const alertsLoaded = await Promise.race([alertsArrived.then(() => true),
+      new Promise(done => { stalled = setTimeout(() => done(false), 20000); })]);
+    clearTimeout(stalled);
+    assert(alertsLoaded, `Enter did not request the All Alerts reader (now at ${await page.evaluate(() => location.hash)})`);
     assert.deepEqual(await alertFrame(page), aiFrame, 'switching to a loading All Alerts reader keeps the entire shell still');
     releaseAlerts();
     await page.locator('[data-active-tab="daily-alerts"]').waitFor();
