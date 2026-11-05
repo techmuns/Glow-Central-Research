@@ -1,13 +1,13 @@
 {
  "_provenance": "THE FAMILY OFFICE BOOK, as the wealth platforms’ statements print it. Built by scripts/build-book.mjs from src/data/glowData.ts in techmuns/GlowVentures, itself generated from the PDF statements in that repository’s archive. Every figure traces to one document; a null is a figure the statements do not carry, never a zero. Market values are the statements’ own marks on each account’s report date (summary.asOf is the newest); the dashboard adds a live mark only for listed symbols and labels it.",
  "source": "techmuns/GlowVentures src/data/glowData.ts",
- "builtFrom": "48d10f4",
- "sourcePublishedAt": "2026-11-04T15:20:08+05:30",
+ "builtFrom": "8c0f59b",
+ "sourcePublishedAt": "2026-11-05T15:49:42+05:30",
  "asOf": "2026-11-03",
  "summary": {
   "asOf": "2026-11-03",
   "listedValue": 7968401917.36,
-  "privateValue": 2745889803.68,
+  "privateValue": 2786869378.68,
   "totalValue": 10755271296.04,
   "positionsCount": 506,
   "entitiesCount": 11,
@@ -8374,7 +8374,7 @@
   {
    "securityKey": "deepak-fertilisers-and-petrochemicals",
    "security": "DEEPAK FERTILISERS AND PETROCHEMICALS CORPORATION LTD EQ",
-   "symbol": null,
+   "symbol": "DEEPAKFERT",
    "isin": null,
    "accountId": "hdfc-securities-3110320",
    "memberId": null,
@@ -9335,7 +9335,7 @@
    "positionIrrPct": null,
    "dedupeGroup": null,
    "alsoReportedUnder": null,
-   "marketSide": null,
+   "marketSide": "private",
    "provider": "ICICI Bank (NSDL demat)",
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
@@ -19865,8 +19865,8 @@
   {
    "period": "2026-03-31",
    "date": "2026-03-31",
-   "nav": 1980896771.08,
-   "accountsOnDate": 8,
+   "nav": 788267717.39,
+   "accountsOnDate": 7,
    "accountsCarried": 0,
    "flowIn": 0,
    "unreportedFlowValue": 0
@@ -19874,243 +19874,234 @@
   {
    "period": "2026-04-30",
    "date": "2026-04-30",
-   "nav": 2218457692.43,
+   "nav": 1025828638.74,
    "accountsOnDate": 2,
-   "accountsCarried": 8,
+   "accountsCarried": 7,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-05-31",
    "date": "2026-05-31",
-   "nav": 2253822674.61,
+   "nav": 1061193620.92,
    "accountsOnDate": 4,
-   "accountsCarried": 8,
+   "accountsCarried": 7,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-06-25",
    "date": "2026-06-25",
-   "nav": 2281525888.39,
+   "nav": 1088896834.7,
    "accountsOnDate": 2,
-   "accountsCarried": 10,
+   "accountsCarried": 9,
    "flowIn": -40738,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-06-30",
    "date": "2026-06-30",
-   "nav": 2312506106.94,
+   "nav": 1119877053.25,
    "accountsOnDate": 6,
-   "accountsCarried": 7,
+   "accountsCarried": 6,
    "flowIn": -986,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-07-01",
    "date": "2026-07-01",
-   "nav": 2314840551.58,
+   "nav": 1122211497.89,
    "accountsOnDate": 4,
-   "accountsCarried": 13,
+   "accountsCarried": 12,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-07-02",
    "date": "2026-07-02",
-   "nav": 2315776938.4,
+   "nav": 1123147884.71,
    "accountsOnDate": 1,
-   "accountsCarried": 17,
+   "accountsCarried": 16,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-07-06",
    "date": "2026-07-06",
-   "nav": 2368911395.45,
+   "nav": 1176282341.76,
    "accountsOnDate": 2,
-   "accountsCarried": 16,
+   "accountsCarried": 15,
    "flowIn": -7494,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-07-10",
    "date": "2026-07-10",
-   "nav": 2492835306.84,
+   "nav": 1300206253.15,
    "accountsOnDate": 3,
-   "accountsCarried": 15,
+   "accountsCarried": 14,
    "flowIn": -142601,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-07-27",
    "date": "2026-07-27",
-   "nav": 2489162805.56,
+   "nav": 1296533751.87,
    "accountsOnDate": 2,
-   "accountsCarried": 16,
+   "accountsCarried": 15,
    "flowIn": -9559,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-07-31",
    "date": "2026-07-31",
-   "nav": 3595541933.77,
+   "nav": 2402912880.08,
    "accountsOnDate": 8,
-   "accountsCarried": 14,
+   "accountsCarried": 13,
    "flowIn": -22945,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-03",
    "date": "2026-08-03",
-   "nav": 3595553287.02,
+   "nav": 2402924233.33,
    "accountsOnDate": 3,
-   "accountsCarried": 19,
+   "accountsCarried": 18,
    "flowIn": 0,
    "unreportedFlowValue": 7201.78
   },
   {
    "period": "2026-08-06",
    "date": "2026-08-06",
-   "nav": 3595558006.91,
+   "nav": 2402928953.22,
    "accountsOnDate": 2,
-   "accountsCarried": 20,
+   "accountsCarried": 19,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-07",
    "date": "2026-08-07",
-   "nav": 3905542507.68,
+   "nav": 2712913453.99,
    "accountsOnDate": 1,
-   "accountsCarried": 22,
+   "accountsCarried": 21,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-10",
    "date": "2026-08-10",
-   "nav": 3900774096.6,
+   "nav": 2708145042.91,
    "accountsOnDate": 1,
-   "accountsCarried": 22,
+   "accountsCarried": 21,
    "flowIn": -30690,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-11",
    "date": "2026-08-11",
-   "nav": 3910272984.36,
+   "nav": 2717643930.67,
    "accountsOnDate": 2,
-   "accountsCarried": 21,
+   "accountsCarried": 20,
    "flowIn": -65735,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-13",
    "date": "2026-08-13",
-   "nav": 4020197494.54,
+   "nav": 2827568440.85,
    "accountsOnDate": 2,
-   "accountsCarried": 21,
+   "accountsCarried": 20,
    "flowIn": 112393342,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-31",
    "date": "2026-08-31",
-   "nav": 4040414158.79,
+   "nav": 2847785105.1,
    "accountsOnDate": 3,
-   "accountsCarried": 20,
+   "accountsCarried": 19,
    "flowIn": -14984.6,
    "unreportedFlowValue": 5781806.04
   },
   {
    "period": "2026-09-29",
    "date": "2026-09-29",
-   "nav": 4004969163.89,
+   "nav": 2812340110.2,
    "accountsOnDate": 2,
-   "accountsCarried": 21,
+   "accountsCarried": 20,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-09-30",
    "date": "2026-09-30",
-   "nav": 3984595012.57,
+   "nav": 2791965958.88,
    "accountsOnDate": 9,
-   "accountsCarried": 14,
+   "accountsCarried": 13,
    "flowIn": -81004.8,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-10-05",
    "date": "2026-10-05",
-   "nav": 3984602794.53,
+   "nav": 2791973740.84,
    "accountsOnDate": 2,
-   "accountsCarried": 21,
+   "accountsCarried": 20,
    "flowIn": 0,
    "unreportedFlowValue": 7781.96
   },
   {
    "period": "2026-10-06",
    "date": "2026-10-06",
-   "nav": 3973478164.58,
+   "nav": 2780849110.89,
    "accountsOnDate": 4,
-   "accountsCarried": 19,
+   "accountsCarried": 18,
    "flowIn": -70005,
    "unreportedFlowValue": 7138.6
   },
   {
    "period": "2026-10-07",
    "date": "2026-10-07",
-   "nav": 3973107469.23,
+   "nav": 2780478415.54,
    "accountsOnDate": 2,
-   "accountsCarried": 21,
+   "accountsCarried": 20,
    "flowIn": -18689,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-10-14",
    "date": "2026-10-14",
-   "nav": 4404411845.84,
+   "nav": 3211782792.15,
    "accountsOnDate": 1,
-   "accountsCarried": 23,
+   "accountsCarried": 22,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-10-26",
    "date": "2026-10-26",
-   "nav": 4409909193.85,
+   "nav": 3217280140.16,
    "accountsOnDate": 3,
-   "accountsCarried": 22,
+   "accountsCarried": 21,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
-   "period": "2026-10-31",
-   "date": "2026-10-31",
-   "nav": 5329591524.69,
-   "accountsOnDate": 1,
-   "accountsCarried": 24,
-   "flowIn": 0,
-   "unreportedFlowValue": 919682330.84
-  },
-  {
    "period": "2026-11-02",
    "date": "2026-11-02",
-   "nav": 5329401497.7,
+   "nav": 3217090113.17,
    "accountsOnDate": 1,
-   "accountsCarried": 24,
+   "accountsCarried": 23,
    "flowIn": -1765,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-11-03",
    "date": "2026-11-03",
-   "nav": 5347519839.38,
+   "nav": 3235208454.85,
    "accountsOnDate": 2,
-   "accountsCarried": 23,
+   "accountsCarried": 22,
    "flowIn": 0,
    "unreportedFlowValue": 0
   }
@@ -20394,18 +20385,6 @@
     "period": "2026-11-03",
     "date": "2026-11-03",
     "nav": 299084367.18
-   }
-  ],
-  "icici-bank-nsdl-demat-49794950": [
-   {
-    "period": "2026-03-31",
-    "date": "2026-03-31",
-    "nav": 1192629053.69
-   },
-   {
-    "period": "2026-10-31",
-    "date": "2026-10-31",
-    "nav": 2112311384.53
    }
   ],
   "kotak-mahindra-mutual-fund-4295974": [
@@ -21737,7 +21716,7 @@
    "observedTo": "2026-11-02",
    "statementsWithoutDeclaredPeriod": 7
   },
-  "archiveDocuments": 453,
+  "archiveDocuments": 454,
   "accountsWithStatement": [
    "ask-investment-managers-limited-10032723",
    "ask-investment-managers-limited-10034025",
@@ -21747,6 +21726,7 @@
    "goldstandard-wealth-private-limited-100023",
    "green-lantern-capital-llp-510854",
    "green-lantern-capital-llp-510861",
+   "hdfc-securities-3110320",
    "icici-bank-nsdl-demat-49794950",
    "lkp-securities-98245",
    "marathon-trends-advisory-pvt-ltd-5110758",
@@ -21784,7 +21764,6 @@
    "hdfc-mutual-fund-15725046",
    "hdfc-mutual-fund-16002141",
    "hdfc-mutual-fund-16180583",
-   "hdfc-securities-3110320",
    "helios-mutual-fund-10056128",
    "helios-mutual-fund-10056154",
    "helios-mutual-fund-10063876",
@@ -21837,14 +21816,14 @@
    "transition-venture-capital-TVC262",
    "transition-venture-capital-TVC263"
   ],
-  "transactionCount": 3731,
+  "transactionCount": 4197,
   "lotCount": 2656,
   "incomeCount": 1077,
   "realised": {
    "inLots": 161733698.40000015,
    "onTape": 149013502.46000022,
    "salesAttributed": 1062,
-   "sellsWithoutLot": 373
+   "sellsWithoutLot": 839
   },
   "securitiesTraded": [
    "8-britannia-industries-ltd-ncd",
@@ -21972,6 +21951,7 @@
    "lupin",
    "m-r-f",
    "mahindra-and-mahindra",
+   "man-industries-india",
    "manali-petrochemical",
    "manorama-industries",
    "mazagon-dock-shipbuilders",

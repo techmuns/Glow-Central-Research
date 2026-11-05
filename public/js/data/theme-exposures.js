@@ -252,8 +252,66 @@ const ARTILLERY = {
   ],
 };
 
+// DATA CENTRES / AI CAPEX — the build-out demand chain. A story about a hyperscaler's or developer's
+// data-centre investment or capacity bears on the listed companies that supply the power, cooling and
+// cabling inside, even when the headline names none of them. Each exposure carries a dated, captured
+// source. More names (cables, UPS, construction) can be added as each gets its own source.
+const DATACENTRE = {
+  id: 'data-centres',
+  label: 'Data centres / AI capex',
+  short: 'Data centres',
+  terms: /\b(?:data\s?cent(?:re|er)s?|hyperscalers?)\b/i,
+  exclude: /\b(?:video\s?game|movie|film|gaming pc)\b/i,
+  actors: [
+    ['Google', /\bgoogle\b/i],
+    ['Microsoft', /\bmicrosoft\b/i],
+    ['Amazon / AWS', /\b(?:amazon|aws)\b/i],
+    ['Meta', /\bmeta\b/i],
+    ['Nvidia', /\bnvidia\b/i],
+    ['OpenAI', /\bopenai\b/i],
+    ['Adani', /\badani\b/i],
+    ['Reliance', /\breliance\b/i],
+    ['CtrlS / Yotta / Nxtra / Sify', /\b(?:ctrls|yotta|nxtra|sify)\b/i],
+  ],
+  stages: [
+    ['investment', 'investment / capex', /\b(?:invest\w*|capex|\$\s?\d|billion|lakh crore|outlay|commit\w*|spend\w*)\b/i],
+    ['capacity', 'new capacity', /\b(?:capacit\w*|\bgw\b|\bmw\b|facilit\w*|campus|build\w*|expansion)\b/i],
+    ['order', 'order', /\b(?:orders?|contracts?|deals?|tenders?)\b/i],
+  ],
+  segments: [
+    ['power', 'power equipment', /\b(?:transformers?|switchgear|power\s+(?:equipment|systems?)|electrical|\bups\b|substations?|\bgis\b)\b/i],
+    ['cooling', 'cooling / MEP', /\b(?:cooling|hvac|\bmep\b|thermal|chillers?|air[- ]?condition\w*|liquid cooling)\b/i],
+    ['cabling', 'cabling', /\b(?:cables?|cabling|fibre|fiber|wiring)\b/i],
+  ],
+  readAcross: [
+    ['power', 'power', 'A data-centre power-equipment development bears on transformer and switchgear makers.'],
+    ['cooling', 'cooling', 'A data-centre cooling development bears on the cooling and MEP suppliers.'],
+    ['cabling', 'cabling', 'A data-centre cabling development bears on the cable makers.'],
+  ],
+  exposures: [
+    {
+      ticker: 'CGPOWER', isin: null, name: 'CG Power & Industrial Solutions', names: /\bcg\s?power\b/i,
+      segments: ['power'],
+      role: 'Supplies power transformers for data centres (₹900 cr US order, Jan 2026)',
+      evidence: [
+        { publisher: 'NSE', day: '2026-01-17', headline: 'CG Power — ₹900 cr power-transformer order for a US data-centre project',
+          url: 'https://nsearchives.nseindia.com/corporate/CGPOWER_17012026204054_Disclosure_Press_Release_17012026.pdf' },
+      ],
+    },
+    {
+      ticker: 'BLUESTARCO', isin: null, name: 'Blue Star', names: /\bblue\s?star\b/i,
+      segments: ['cooling'],
+      role: 'Builds data-centre cooling and MEP (~₹1,500 cr data-centre order inflow, Q1 FY27)',
+      evidence: [
+        { publisher: 'Vittarthi', day: '2026-06-30', headline: 'Blue Star Q1 FY27 — record order book driven by commercial AC and data-centre MEP',
+          url: 'https://vittarthi.com/resources/news/blue-star-q1-fy27-results-revenue-order-book-hsbc-upgrade' },
+      ],
+    },
+  ],
+};
+
 /** The reviewed themes. A theme is added by adding an entry, every exposure with its evidence. */
-export const THEMES = Object.freeze([GLP1, ARTILLERY]);
+export const THEMES = Object.freeze([GLP1, ARTILLERY, DATACENTRE]);
 
 /**
  * The reviewed themes as a reader-facing catalogue — each theme and the companies it bears on, with
