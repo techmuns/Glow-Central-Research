@@ -469,6 +469,66 @@ function emitRuns() { for (const fn of [...runSubs]) { try { fn(); } catch { /* 
 function isRunning(t) { const r = runs.get(t); return !!r && !r.done; }
 function isRun(t) { return !!getInsight(t) || runs.get(t)?.done === true; }
 function activeRuns() { return [...runs.values()].filter((r) => !r.done); }
+
+// A run's AI "Our view" is the one metered step, so a completed run is kept on the DEVICE and survives
+// a reload — otherwise a company a reader ran would vanish from the table the moment the page reloaded
+// (the Aarti Drugs case), and re-opening it would re-spend an AI credit. Only the written view (the
+// costly part) is stored; the live alerts and sector scorecard are free, so a restored run re-reads
+// them when opened. Same rule as the Deep Dive reports: keep what cost money, re-check the cheap parts.
+const RUNS_KEY = 'glow:ai-insights:runs:v1';
+const RUNS_MAX = 60;
+function loadStoredRuns() {
+  try { const a = JSON.parse(localStorage.getItem(RUNS_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+  catch { return []; }
+}
+function saveStoredRuns(list) {
+  try { localStorage.setItem(RUNS_KEY, JSON.stringify(list.slice(0, RUNS_MAX))); }
+  catch { /* private window or storage full — the run still works for this session */ }
+}
+function persistRun(rec) {
+  if (!rec?.ticker || rec.built?.aiStatus !== 'ok') return;   // keep only a run whose AI view actually wrote
+  const list = loadStoredRuns().filter((r) => r.ticker !== rec.ticker);
+  list.unshift({ ticker: rec.ticker, name: rec.name || rec.ticker, sector: rec.sector || '',
+    idea: rec.built.idea || null, rawText: rec.built.rawText || null, savedAt: Date.now() });
+  saveStoredRuns(list);
+}
+let runsHydrated = false;
+function hydrateRuns() {
+  if (runsHydrated) return;
+  runsHydrated = true;
+  for (const r of loadStoredRuns()) {
+    if (!r?.ticker || runs.has(r.ticker)) continue;
+    runs.set(r.ticker, { ticker: r.ticker, name: r.name || r.ticker, sector: r.sector || '',
+      step: RUN_STEPS.length, done: true, failed: false, opened: false, restored: true,
+      built: { aiStatus: 'ok', idea: r.idea || null, rawText: r.rawText || null, live: null, sectorProfile: null } });
+    if (r.rawText && !aiIdeaData.has(r.ticker)) aiIdeaData.set(r.ticker, { status: 'ok', text: r.rawText });
+  }
+}
+// Re-read the FREE parts (recent alerts + sector scorecard) for a run restored from the device, then
+// patch those two sections in place. The costly written view is already on screen from the saved copy.
+async function fillAutoRestored(rec) {
+  if (!rec?.restored) return;
+  rec.restored = false;                                       // fill once
+  try {
+    const live = await import('../data/ai-insights-live.js');
+    const [prof, cardRes] = await Promise.all([
+      withTimeout(live.sectorProfileFor(rec.ticker), 12000, null),
+      withTimeout(live.cardFor(rec.ticker, () => true), 150000, { status: 'cold', card: null }),
+    ]);
+    rec.built.sectorProfile = prof;
+    rec.built.live = { status: cardRes?.status || 'cold', data: cardRes?.card ? live.updatesFromCard(cardRes.card) : null };
+  } catch {
+    rec.built.live = { status: 'cold', data: null };
+  }
+  const host = document.getElementById('modal-content');
+  const pager = host?.querySelector(`.gi-pager[data-ticker="${cssEsc(rec.ticker)}"]`);
+  if (!pager) return;                                         // reader closed it or switched company
+  const liveEl = pager.querySelector('#gi-auto-live');
+  if (liveEl) liveEl.innerHTML = liveSectionHtml({ ticker: rec.ticker, name: rec.name }, rec.built.live);
+  const kpiEl = pager.querySelector('#gi-auto-kpis');
+  const label = rec.built.sectorProfile?.groupLabel || rec.sector || '';
+  if (kpiEl) kpiEl.innerHTML = autoKpisHtml({ ticker: rec.ticker, name: rec.name, ourSector: label }, rec.built.sectorProfile || { names: [] });
+}
 function cssEsc(s) { return String(s).replace(/["\\]/g, '\\$&'); }
 
 // Resolve `promise`, or `fallback` if it rejects or doesn't settle within `ms` — so a slow or failed
@@ -533,6 +593,7 @@ async function startRun(ticker, name, sector) {
   rec.step = RUN_STEPS.length;
   rec.done = true;
   emitRuns();
+  persistRun(rec);   // keep this completed run on the device so it survives a reload (and never re-spends)
   try {
     pushNote({ key: `ai-run:${ticker}`, kind: 'research',
       title: `One-pager ready — ${name}`, detail: 'Your AI Insights one-pager is ready to open.' });
@@ -748,6 +809,7 @@ export function render(ctx) {
   destroy();
   ctxRef = ctx;
   ensureStyles();
+  hydrateRuns();
 
   const rows = tableRows();
 
@@ -1175,6 +1237,7 @@ function openAuto(ticker) {
     openModal(autoPagerHtml(rec, { tailHtml, proseHtml }), { size: 'magazine' });
     wireAutoPdf();
     wireRerun();
+    fillAutoRestored(rec);   // a device-restored run re-reads its free alerts + sector parts; a no-op otherwise
   });
 }
 
