@@ -23,7 +23,12 @@ const MAX_BODY_BYTES = 180_000;
 // budget — 18,000 there, with slack here so a packet the browser fitted is never refused. The raw
 // body is bounded separately by MAX_BODY_BYTES.
 const MAX_EVIDENCE_CHARS = 19_000;
-const MAX_QUESTION_CHARS = 1_500;
+// A reader's typed question is short, but AI Insights' one-pager sends a programmatic prompt here:
+// structured writing instructions plus a figure-rich fundamentals brief (ratios, multi-year growth,
+// an annual table, the fair-value band) so the model cites real numbers instead of writing generic
+// lines. That runs ~2k chars of instructions + ~2k of brief, so the cap is sized for it while still
+// far under LOCAL_PROMPT_CHAR_LIMIT and MAX_BODY_BYTES.
+const MAX_QUESTION_CHARS = 6_000;
 const MAX_UPSTREAM_ERROR_BYTES = 8_000;
 const REQUEST_TIMEOUT_MS = 45_000;
 
