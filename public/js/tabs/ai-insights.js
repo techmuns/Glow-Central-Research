@@ -299,7 +299,14 @@ const CSS = `
   text-transform:uppercase;background:rgb(255 255 255 / .18);border:1px solid rgb(255 255 255 / .36);border-radius:999px;
   padding:5px 11px;display:inline-flex;align-items:center;gap:6px;}
 .gi-pdf:hover{background:rgb(255 255 255 / .28);}
-@media print{.gi-pdf{display:none;}}
+.gi-refresh{margin-left:auto;appearance:none;cursor:pointer;color:#fff;font-weight:800;font-size:.6rem;letter-spacing:.06em;
+  text-transform:uppercase;background:rgb(255 255 255 / .18);border:1px solid rgb(255 255 255 / .36);border-radius:999px;
+  padding:5px 11px;display:inline-flex;align-items:center;gap:6px;}
+.gi-refresh:hover{background:rgb(255 255 255 / .28);}
+.gi-refresh:disabled{opacity:.6;cursor:default;}
+.gi-refresh + .gi-pdf{margin-left:8px;}
+.gi-live-hint{color:#9aa3b2;font-weight:400;font-size:.75rem;}
+@media print{.gi-pdf,.gi-refresh{display:none;}}
 /* Run a company — button, running chips, picker and the background progress screen. */
 .gi-run-btn{appearance:none;border:0;cursor:pointer;color:#fff;font-weight:800;font-size:.82rem;border-radius:999px;
   padding:9px 18px;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;
@@ -775,6 +782,11 @@ export function render(ctx) {
   offRuns = onRunChange(repaintRuns);
   paintRunChips(ctx);
 
+  // Start the recent-alerts read NOW, in the background, so the "What's changed" box on a one-pager
+  // is warm (often instant) by the time the reader opens one — the first read is a full collection
+  // and is slow cold, and it used to run only when a page was opened, so it looked stuck on "reading".
+  import('../data/ai-insights-live.js').then((l) => l.prewarm?.('portfolio')).catch(() => {});
+
   // The technicals capture may still be loading at mount; repaint prices once it lands.
   if (!technicals.isLoaded?.()) {
     technicals.load?.().then(() => {
@@ -842,11 +854,28 @@ function openCompany(ticker) {
   return openModal(comingHtml(ticker), { size: 'default' });
 }
 
-// Download the one-pager as a PDF: open a clean, print-ready page of just the one-pager and
-// trigger the browser's print dialog (the reader picks "Save as PDF"). No library, no network.
+// Wire the one-pager's header buttons: Download PDF, and Refresh report (re-pull the live read and
+// re-paint with the latest price and alerts). Called on first open and after every re-render.
 function wirePdf(d) {
-  const btn = document.getElementById('modal-content')?.querySelector('[data-pdf]');
-  btn?.addEventListener('click', () => downloadPdf(d));
+  const host = document.getElementById('modal-content');
+  host?.querySelector('[data-pdf]')?.addEventListener('click', () => downloadPdf(d));
+  host?.querySelector('[data-refresh]')?.addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = '↻ Refreshing…';
+    refreshAuthored(d);
+  });
+}
+
+// Refresh an authored one-pager: the written verdict / case / financials are Glow's own research and
+// stand, so what updates is the live layer — the latest price and the "What's changed" alerts. Force
+// a fresh alert read (drop the memo), re-paint to the reading state, then fill it in.
+async function refreshAuthored(d) {
+  try { const live = await import('../data/ai-insights-live.js'); live.invalidateReports?.(); } catch { /* fall through */ }
+  liveData.delete(d.ticker);
+  const host = document.getElementById('modal-content');
+  if (host?.querySelector('.gi-pager')?.dataset.ticker === d.ticker) { host.innerHTML = pagerHtml(d); wirePdf(d); }
+  fillLive(d);
 }
 function downloadPdf(d) {
   const win = window.open('', '_blank');
@@ -857,7 +886,7 @@ function downloadPdf(d) {
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
   html,body{margin:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .gi-pager{max-height:none;overflow:visible;}
-  .gi-pdf{display:none;}
+  .gi-pdf,.gi-refresh{display:none;}
   .gi-hero,.gi-col.like,.gi-col.dislike,.gi-colhd{break-inside:avoid;}
   @page{margin:11mm;}
 </style></head><body>${pagerHtml(d)}</body></html>`);
@@ -881,6 +910,7 @@ function pagerHtml(d) {
   return `<div class="gi-pager" data-ticker="${esc(d.ticker)}">
     <div class="gi-hero">
       <div class="gi-kick"><span class="gi-dot"></span> Glow AI Insights <span class="thin">The 5-minute stock read</span>
+        <button class="gi-refresh" type="button" data-refresh="${esc(d.ticker)}">↻ Refresh report</button>
         <button class="gi-pdf" type="button" data-pdf>⬇ Download PDF</button></div>
       <div class="gi-co2"><h1>${esc(d.name)}</h1><span class="gi-tk">${esc(d.ticker)} · NSE</span></div>
     </div>
@@ -952,7 +982,9 @@ async function fillLive(d) {
   const token = (liveToken = {});
   try {
     const live = await import('../data/ai-insights-live.js');
-    const res = await live.cardFor(d.ticker, () => token === liveToken);
+    // Bounded: if the alert read can't land in time, show the honest "couldn't read" state rather
+    // than leaving the box stuck on "Reading…" forever.
+    const res = await withTimeout(live.cardFor(d.ticker, () => token === liveToken), 35000, { status: 'cold', card: null });
     liveData.set(d.ticker, { status: res.status, data: res.card ? live.updatesFromCard(res.card) : null });
   } catch {
     liveData.set(d.ticker, { status: 'cold', data: null });
@@ -978,7 +1010,7 @@ function fmtDay(iso) {
 function liveSectionHtml(d, live) {
   const head = `<h2 class="gi-sh">What's changed since we wrote this</h2>
     <div class="gi-live-meta"><span class="gi-live-badge">⚡ Auto-updated from AI Alerts</span> last 14 days · <b>0 credits</b></div>`;
-  if (!live) return `<div class="gi-live">${head}<div class="gi-live-wait">Checking recent alerts…</div></div>`;
+  if (!live) return `<div class="gi-live">${head}<div class="gi-live-wait"><span class="gi-spin"></span> Reading recent alerts… <span class="gi-live-hint">the first read can take a few seconds</span></div></div>`;
   if (live.status === 'cold') {
     return `<div class="gi-live">${head}<div class="gi-live-empty">Couldn't read recent alerts just now — this box will fill in automatically next time it can.</div></div>`;
   }
@@ -1077,6 +1109,7 @@ function autoPagerHtml(rec, pre = {}) {
   return `<div class="gi-pager" data-ticker="${esc(ticker)}" data-auto="1">
     <div class="gi-hero">
       <div class="gi-kick"><span class="gi-dot"></span> Glow AI Insights <span class="thin">The 5-minute stock read</span>
+        <button class="gi-refresh" type="button" data-refresh-auto="${esc(ticker)}">↻ Refresh report</button>
         <button class="gi-pdf" type="button" data-pdf-auto>⬇ Download PDF</button></div>
       <div class="gi-co2"><h1>${esc(name)}</h1><span class="gi-tk">${esc(ticker)} · NSE</span></div>
     </div>
@@ -1121,7 +1154,7 @@ function wireAutoPdf() {
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
   html,body{margin:0;background:#fff;}
   .gi-pager{max-height:none;overflow:visible;}
-  .gi-pdf,.gi-rerun{display:none;}
+  .gi-pdf,.gi-rerun,.gi-refresh{display:none;}
   .gi-hero,.gi-col.like,.gi-col.dislike,.gi-colhd{break-inside:avoid;}
   @page{margin:11mm;}
 </style></head><body>${pager.outerHTML}</body></html>`);
@@ -1131,19 +1164,22 @@ function wireAutoPdf() {
   });
 }
 
-// "Try again" on an auto page whose AI step failed — clears the run and re-runs it clean.
+// "Refresh report" and "Try again" on an auto page — both re-run the whole build from scratch
+// (fresh alerts + a fresh AI write), showing the progress screen and reopening the complete page.
 function wireRerun() {
-  const btn = document.getElementById('modal-content')?.querySelector('[data-rerun]');
-  btn?.addEventListener('click', () => {
-    const t = btn.dataset.rerun;
+  const host = document.getElementById('modal-content');
+  const rerun = (t) => {
     const rec = runs.get(t);
     const name = rec?.name;
     const sector = rec?.sector;
+    import('../data/ai-insights-live.js').then((l) => l.invalidateReports?.()).catch(() => {});
     runs.delete(t);
-    aiIdeaData.delete(t);
+    aiIdeaData.delete(t);     // drop the cached AI view so the refresh writes a fresh one
     emitRuns();
     startRun(t, name || t, sector || '');
-  });
+  };
+  host?.querySelector('[data-rerun]')?.addEventListener('click', (e) => rerun(e.currentTarget.dataset.rerun));
+  host?.querySelector('[data-refresh-auto]')?.addEventListener('click', (e) => rerun(e.currentTarget.dataset.refreshAuto));
 }
 
 // Parse the AI's structured idea Markdown into a verdict + for/against + a Markdown tail (financials
