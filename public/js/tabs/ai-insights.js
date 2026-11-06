@@ -508,7 +508,7 @@ async function startRun(ticker, name, sector) {
     const cached = aiIdeaData.get(ticker) || null;
     const [prof, cardRes, ideaRes] = await Promise.all([
       withTimeout(live.sectorProfileFor(ticker), 10000, null),
-      withTimeout(live.cardFor(ticker, () => true), 14000, { status: 'cold', card: null }),
+      withTimeout(live.cardFor(ticker, () => true), 75000, { status: 'cold', card: null }),
       cached ? Promise.resolve(cached)
         : withTimeout(live.writeIdea({ ticker, name, isCurrent: () => true }), 75000, { status: 'error' }),
     ]);
@@ -1103,7 +1103,7 @@ async function fillLive(d) {
     const live = await import('../data/ai-insights-live.js');
     // Bounded: if the alert read can't land in time, show the honest "couldn't read" state rather
     // than leaving the box stuck on "Reading…" forever.
-    const res = await withTimeout(live.cardFor(d.ticker, () => token === liveToken), 35000, { status: 'cold', card: null });
+    const res = await withTimeout(live.cardFor(d.ticker, () => token === liveToken), 150000, { status: 'cold', card: null });
     liveData.set(d.ticker, { status: res.status, data: res.card ? live.updatesFromCard(res.card) : null });
   } catch {
     liveData.set(d.ticker, { status: 'cold', data: null });
@@ -1129,7 +1129,7 @@ function fmtDay(iso) {
 function liveSectionHtml(d, live) {
   const head = `<h2 class="gi-sh">What's changed since we wrote this</h2>
     <div class="gi-live-meta"><span class="gi-live-badge">⚡ Auto-updated from AI Alerts</span> last 14 days · <b>0 credits</b></div>`;
-  if (!live) return `<div class="gi-live">${head}<div class="gi-live-wait"><span class="gi-spin"></span> Reading recent alerts… <span class="gi-live-hint">the first read can take a few seconds</span></div></div>`;
+  if (!live) return `<div class="gi-live">${head}<div class="gi-live-wait"><span class="gi-spin"></span> Reading recent alerts… <span class="gi-live-hint">the first read can take up to a minute — the rest of the page is ready to use</span></div></div>`;
   if (live.status === 'cold') {
     return `<div class="gi-live">${head}<div class="gi-live-empty">Couldn't read recent alerts just now — this box will fill in automatically next time it can.</div></div>`;
   }
