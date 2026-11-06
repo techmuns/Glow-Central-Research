@@ -19,6 +19,7 @@
 import * as alerts from './ai-alerts.js';
 import * as kpi from './kpi-impact.js';
 import * as coverage from './coverage.js';
+import * as fundamentals from './fundamentals.js';
 import { currentSymbol } from './announcement-identity.js';
 import { authHeaders } from '../core/host-context.js';
 
@@ -175,6 +176,48 @@ async function researchConfigured() {
   return researchConfig;
 }
 
+// A compact, figure-rich text block of the company's Screener fundamentals + our fair-value band,
+// handed to the AI writer so its "what we like / don't like" can be specific and explain WHY — rather
+// than generic ("revenue rose"). Every number here is Screener's own (reproduced) or our labelled
+// fair-value rule. Returns '' when we have no fundamentals captured for the company.
+function fundamentalsBrief(sym, name) {
+  const f = fundamentals.byTicker(sym);
+  if (!f) return '';
+  const r = f.ratios || {}; const g = f.growth || {}; const a = f.annual || {};
+  const L = [`FUNDAMENTALS (Screener, reproduced; ${f.basis}) — use these exact figures:`];
+  const rat = [];
+  if (Number.isFinite(r.marketCap)) rat.push(`Market cap ₹${r.marketCap} cr`);
+  if (Number.isFinite(r.pe)) rat.push(`P/E ${r.pe}`);
+  if (Number.isFinite(r.roe)) rat.push(`ROE ${r.roe}%`);
+  if (Number.isFinite(r.roce)) rat.push(`ROCE ${r.roce}%`);
+  if (Number.isFinite(r.debtToEquity)) rat.push(`Debt/Equity ${r.debtToEquity}`);
+  if (Number.isFinite(r.divYield)) rat.push(`Dividend yield ${r.divYield}%`);
+  if (Number.isFinite(r.bookValue)) rat.push(`Book value ₹${r.bookValue}`);
+  if (rat.length) L.push('Ratios: ' + rat.join(', '));
+  if (g.sales) L.push(`Compounded SALES growth — 3y ${g.sales.y3 ?? '—'}%, 5y ${g.sales.y5 ?? '—'}%, 10y ${g.sales.y10 ?? '—'}%`);
+  if (g.profit) L.push(`Compounded PROFIT growth — 3y ${g.profit.y3 ?? '—'}%, 5y ${g.profit.y5 ?? '—'}%, 10y ${g.profit.y10 ?? '—'}%`);
+  const yrs = a.years || [];
+  if (yrs.length) {
+    const take = Math.max(0, yrs.length - 6);
+    const cols = yrs.slice(take);
+    const row = (lbl, arr) => (arr && arr.length)
+      ? `${lbl}: ${cols.map((_, i) => { const v = arr[take + i]; return Number.isFinite(v) ? v : '—'; }).join(' / ')}` : null;
+    L.push(`Annual by year (${cols.join(' / ')}):`);
+    for (const [lbl, arr] of [['  Sales ₹cr', a.sales], ['  Net profit ₹cr', a.netProfit], ['  OPM %', a.opm], ['  EPS ₹', a.eps]]) {
+      const line = row(lbl, arr); if (line) L.push(line);
+    }
+  }
+  if (f.pros?.length) L.push('Screener pros: ' + f.pros.slice(0, 5).join('; '));
+  if (f.cons?.length) L.push('Screener cons: ' + f.cons.slice(0, 5).join('; '));
+  const fv = fundamentals.fairValueFor(sym, {});
+  if (fv?.meaningful) {
+    const gTxt = Number.isFinite(fv.inputs?.growth) ? `~${Math.round(fv.inputs.growth)}% growth` : 'a thin growth record';
+    L.push(`Glow fair-value band (OUR rule of thumb, a guide not a target): ₹${Math.round(fv.fairLow)}–₹${Math.round(fv.fairHigh)} `
+      + `(a fair P/E of ~${fv.fairPe.toFixed(0)}x on ${gTxt}); it currently trades at ${Number.isFinite(fv.currentPe) ? `${fv.currentPe}x` : 'an unknown multiple'}.`);
+  }
+  return L.join('\n');
+}
+
 /**
  * An AI-written short view for one company, grounded in the dashboard's own evidence. Returns
  * `{ status, text?, message? }`:
@@ -193,30 +236,40 @@ export async function writeIdea({ ticker, name, isCurrent = () => true } = {}) {
   const sym = currentSymbol(ticker) || String(ticker || '').toUpperCase();
   const scope = coverage.has(sym) ? 'portfolio' : 'universe';
   const label = name || sym;
-  const question = `Write a concise 5-minute stock idea on ${label} (${sym}), using ONLY the dashboard's own data and sources. Never invent, estimate or guess a number — include a figure only where the data gives it.
+  try { await fundamentals.load(); } catch { /* the brief is optional; the alert/earnings evidence still stands */ }
+  const brief = fundamentalsBrief(sym, label);
 
-Format your answer EXACTLY like this, with these exact headings and nothing before the first line:
+  const question = `You are an experienced equity analyst writing a sharp, specific "5-minute stock idea" on ${label} (${sym}) for a professional investor. Use ONLY the dashboard's own data, the sources, and the FUNDAMENTALS block below. Never invent, estimate or guess a number — but DO cite the specific figures you are given.
 
-VERDICT: <Buy or Watch or Avoid> — <one short sentence saying why>
+Make it genuinely insightful, not generic. Rules for every point:
+- Lead with the SPECIFIC figure or trend, then say WHY it matters for earnings, returns or risk. "OPM slipped from 16% to 14% over two years, squeezing operating profit growth below sales growth" — not "margins are under pressure". "Trades at 17x earnings versus ~22x a year ago despite 20% three-year profit growth, so the de-rating looks overdone" — not "valuation is reasonable".
+- Prefer a trend across years, or a comparison (this year vs last, growth vs valuation, profit growth vs sales growth, ROE vs cost of capital) over a lone number.
+- Each bullet must be a DIFFERENT idea. No filler, no restating the headline, and never a bare "revenue grew ~50%" without the figure AND the reason it matters.
+- Two short sentences per bullet is good; a single generic clause is not.
+
+Format EXACTLY like this, with these exact headings and nothing before the first line:
+
+VERDICT: <Buy or Watch or Avoid> — <one sentence giving the single most important reason>
 
 ## What we like
-- **<short point>** — <one plain line>
-- (3 to 5 bullets)
+- **<specific strength>** — <1-2 sentences with the figure/trend and why it matters>
+(3 to 5 bullets, each a different idea)
 
 ## What we don't like
-- **<short point>** — <one plain line>
-- (3 to 5 bullets)
+- **<specific concern>** — <1-2 sentences with the figure/trend and why it matters>
+(3 to 5 bullets, each a different idea)
 
 ## Key financials
 | Metric | Value |
 | --- | --- |
-| <only rows the data supports: e.g. Revenue, Net profit, a growth rate, a margin or key ratio, Market cap> | <value> |
+| <only rows the data supports: revenue, net profit, a growth rate, OPM or another margin, ROE/ROCE, P/E, market cap> | <value> |
 
 ## What to watch
-- <one plain line>
-- (2 to 4 bullets)
+- <a specific, forward-looking item tied to a figure, a trend or a dated event>
+(2 to 4 bullets)
 
-Keep every line short and plain. If the data does not support a verdict or a section, still use the headings and say briefly what is missing — but never leave a section blank or invent content.`;
+If a section genuinely lacks data, say specifically what is missing rather than padding — but never leave a section blank or invent content.
+${brief ? `\n${brief}\n` : ''}`;
 
   let evidence;
   try {

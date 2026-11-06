@@ -131,6 +131,10 @@ const CSS = `
 .gi-badge.buy{background:linear-gradient(135deg,#10b981,#047857);box-shadow:0 7px 18px rgb(5 150 105 / .28);}
 .gi-badge.avoid{background:linear-gradient(135deg,#fb7185,#be123c);box-shadow:0 7px 18px rgb(190 18 60 / .28);}
 .gi-call small{color:#8b94a7;font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;font-weight:700;}
+/* The AI "Our view" verdict: a badge beside a full, readable sentence (never the all-caps label style). */
+.gi-aiverdict{display:flex;align-items:flex-start;gap:12px;margin:8px 0 4px;}
+.gi-aiverdict .gi-badge{flex-shrink:0;}
+.gi-aiverdict-why{font-size:.9rem;color:#374151;line-height:1.55;}
 .gi-scorebox{display:flex;flex-direction:column;gap:13px;min-width:0;}
 .gi-score .row{display:flex;justify-content:space-between;align-items:baseline;font-size:.84rem;margin-bottom:6px;}
 .gi-score .lab{color:#111827;font-weight:700;} .gi-score .lab span{color:#8b94a7;font-weight:500;font-size:.75rem;}
@@ -1205,7 +1209,7 @@ function autoPagerHtml(rec, pre = {}) {
     viewBlock = `
       <h2 class="gi-sh">Our view <span class="gi-ai-tag">✨ AI-written</span></h2>
       <div class="gi-ai-note">Written from Glow's own dashboard data — recent developments, filings and sector signals. Not investment advice.</div>
-      ${idea.verdict ? `<div class="gi-verdict"><div class="gi-call"><span class="gi-badge ${vcls}">${esc(idea.verdict)}</span><small>${esc(idea.verdictWhy)}</small></div></div>` : ''}
+      ${idea.verdict ? `<div class="gi-aiverdict"><span class="gi-badge ${vcls}">${esc(idea.verdict)}</span><span class="gi-aiverdict-why">${esc(idea.verdictWhy)}</span></div>` : ''}
       <h2 class="gi-sh">The case — for and against</h2>
       <div class="gi-cols">
         <div class="gi-col like"><div class="gi-colhd"><span class="gi-mk">✓</span> What we like</div><div class="gi-colbody">${like}</div></div>
