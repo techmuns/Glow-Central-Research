@@ -429,6 +429,15 @@ export function sourceGroups() {
           file: 'worker/muns.mjs → POST /filings/domestic · /api/domestic-filings/{ticker} · public/js/tabs/company-filings.js',
         },
         {
+          name: 'Screener.in — multi-year fundamentals',
+          url: 'https://www.screener.in/',
+          feeds:
+            'The authoritative multi-year fundamentals behind AI Insights, for the family\'s book: the headline ratios (market cap, P/E, ROE, ROCE, debt, dividend yield, book value), compounded sales and profit growth, and the annual Sales / Net profit / OPM / EPS history, plus Screener\'s own pros and cons. These are Screener\'s figures, reproduced from the public company page — never recomputed. The <strong>fair-value band</strong> on the one-pager is the one derived figure: a simple, labelled rule of thumb (a growth-and-quality-justified P/E on trailing EPS) computed by <code class="rounded bg-slate-100 px-1">js/data/fair-value.js</code>, shown as a guide and never as a price target. A loss-making company is refused a fair value, not given a made-up one.',
+          cadence: 'Weekly capture of the book, committed (fundamentals move with quarterly results).',
+          status: 'live',
+          file: 'public/data/fundamentals.json · scripts/scrape-screener-fundamentals.mjs · js/data/fundamentals.js · js/data/fair-value.js',
+        },
+        {
           name: 'Analyst consensus estimates',
           planned: true,
           url: null,

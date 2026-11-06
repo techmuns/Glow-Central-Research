@@ -5763,6 +5763,44 @@ Operational detection and alert-delivery requirements are documented in
 [`FILINGS-OPERATIONS.md`](FILINGS-OPERATIONS.md). Source failures fail a post-publication health
 gate, and `/api/filings-health` exposes a read-only HTTP 503 signal for external monitoring.
 
+## Fundamentals and fair value — `public/data/fundamentals.json` (GLOW-OWNED)
+
+The authoritative multi-year fundamentals behind AI Insights, captured from **Screener.in's public
+company pages** (no login) for the family's book by `scripts/scrape-screener-fundamentals.mjs`
+(`.github/workflows/fundamentals-refresh.yml`, weekly, committed to main). The pure parser is
+`scripts/lib/screener-fundamentals.mjs`; the browser reads the file through `js/data/fundamentals.js`.
+
+Shape: `{ _provenance, source, fetchedAt, count, okThisRun, companies: { <SYMBOL>: record }, failed: [{ticker,name,reason}] }`.
+Each `record`:
+- `symbol`, `name`, `basis` (`consolidated` | `standalone` — consolidated preferred, falling back to
+  standalone when a company files only standalone and its consolidated page is a sparse shell),
+  `sourceUrl`, `fetchedAt`.
+- `ratios`: `marketCap` (₹ cr), `price`, `pe`, `bookValue`, `divYield` (%), `roce` (%), `roe` (%),
+  `faceValue`, `debtToEquity` (usually `null` — not on the public page), `high`, `low`. Any absent
+  field is `null`, never a guess.
+- `growth`: `sales` / `profit` / `priceCagr` / `roe`, each `{ y10, y5, y3, ttm?, y1? }` in %, or `null`.
+- `annual`: `{ years:[…], sales:[…], operatingProfit:[…], opm:[…], netProfit:[…], eps:[…] }`, oldest → newest incl. a TTM column.
+- `epsTtm` — the last EPS column. `pros` / `cons` — Screener's own, reproduced verbatim.
+
+**These are Screener's figures, reproduced — never recomputed** (the StockScans / Finology / Trendlyne
+rule). The one derived figure is the **fair-value band**, computed in the browser by
+`js/data/fair-value.js` and labelled *Glow estimate* wherever it shows:
+
+- `fairValue(record, { cmp })` → `{ meaningful, fairLow, fairHigh, fairMid, fairPe, currentPe, upside,
+  tone: 'cheap'|'fair'|'rich', basis, limited, inputs }`, or `{ meaningful:false, reason }`.
+- Rule: fair P/E ≈ the company's own profit growth (the lower of 3-yr and 5-yr, Lynch-style), bounded
+  to `[10, 28]`, nudged for quality (ROE ≥18 → ×1.10, <12 → ×0.88) and debt (D/E >1 → ×0.90),
+  re-clamped to `[8, 32]`; fair value = fair P/E × trailing EPS, as a ±15% band. **A guide, not a
+  price target** — said on every surface.
+- Honesty: a company with no positive trailing profit is **refused** a fair value with a stated
+  reason, never given a made-up one. Where TTM EPS is distorted by a one-off but Screener still shows
+  a positive P/E, the model values on Screener's normalised earnings (its price ÷ P/E) and says so.
+
+Consumers: the AI Insights one-pager — "What it's worth vs where it trades" (computed band on AI-run
+pages; authored pages keep their hand-written intrinsic value) and "The fundamentals" (the multi-year
+table + ratios + growth + pros/cons, on both). A company with no capture simply shows neither section.
+Tests: `scripts/verify-fair-value.mjs` (parser + model, offline).
+
 ## Adding a new data file
 
 1. Drop the JSON in `public/data/` (or `public/data/mock/` if it's placeholder data).
