@@ -60,6 +60,21 @@ function reportFor(scope) {
 }
 
 /**
+ * Start reading the ranked report for a scope NOW, in the background, so the "What's changed" box on
+ * a one-pager is warm by the time a reader opens one. The first read is a full alert collection and
+ * can take 20–30s cold; kicking it off when the tab mounts means the reader waits far less (often not
+ * at all) when they open a company. Fire-and-forget, memoised, safe to call repeatedly.
+ */
+export function prewarm(scope = 'portfolio') {
+  try { reportFor(scope); } catch { /* best effort — the open will read it anyway */ }
+}
+
+/** Drop the memoised reports so the next read is fresh — used by an explicit "Refresh report". */
+export function invalidateReports() {
+  reportCache = { at: 0, byScope: new Map() };
+}
+
+/**
  * The company's ranked card. A family holding is read from the Portfolio window — authoritative (a
  * holding with no card there has no alerts in 14 days) and warm (Portfolio is the default landing
  * scope). Any other company (a watchlist or universe pick) is read from the Universe window, which
