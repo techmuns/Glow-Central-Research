@@ -504,18 +504,21 @@ function hydrateRuns() {
     if (r.rawText && !aiIdeaData.has(r.ticker)) aiIdeaData.set(r.ticker, { status: 'ok', text: r.rawText });
   }
 }
-// Re-read the FREE parts (recent alerts + sector scorecard) for a run restored from the device, then
-// patch those two sections in place. The costly written view is already on screen from the saved copy.
-async function fillAutoRestored(rec) {
-  if (!rec?.restored) return;
-  rec.restored = false;                                       // fill once
+// Fetch the FREE parts of an auto one-pager — the recent-alerts box, and the sector scorecard if it
+// wasn't built yet — and patch those two sections in place, after the page is already open. Used for a
+// fresh run (which opens on the AI view and fills the alerts box after) and for a run restored from the
+// device. Runs once per run: guarded by `built.live` becoming set, so re-opening never refetches.
+async function fillAutoFree(rec) {
+  if (!rec?.built || rec.built.live || rec._liveFilling) return;   // never read, and not already in flight
+  rec._liveFilling = true;
   try {
     const live = await import('../data/ai-insights-live.js');
+    const needSector = !rec.built.sectorProfile;
     const [prof, cardRes] = await Promise.all([
-      withTimeout(live.sectorProfileFor(rec.ticker), 12000, null),
+      needSector ? withTimeout(live.sectorProfileFor(rec.ticker), 12000, null) : Promise.resolve(rec.built.sectorProfile),
       withTimeout(live.cardFor(rec.ticker, () => true), 150000, { status: 'cold', card: null }),
     ]);
-    rec.built.sectorProfile = prof;
+    if (needSector) rec.built.sectorProfile = prof;
     rec.built.live = { status: cardRes?.status || 'cold', data: cardRes?.card ? live.updatesFromCard(cardRes.card) : null };
   } catch {
     rec.built.live = { status: 'cold', data: null };
@@ -570,9 +573,11 @@ async function startRun(ticker, name, sector) {
   try {
     const live = await import('../data/ai-insights-live.js');
     const cached = aiIdeaData.get(ticker) || null;
-    const [prof, cardRes, ideaRes] = await Promise.all([
-      withTimeout(live.sectorProfileFor(ticker), 10000, null),
-      withTimeout(live.cardFor(ticker, () => true), 75000, { status: 'cold', card: null }),
+    // Open on the AI view + sector scorecard; the "What's changed" alerts read is FREE but can take
+    // ~90s on a cold load, so it must not hold the page shut. It fills in after open (fillAutoFree),
+    // leaving `live: null` here, which renders the "Reading recent alerts…" state until it lands.
+    const [prof, ideaRes] = await Promise.all([
+      withTimeout(live.sectorProfileFor(ticker), 12000, null),
       cached ? Promise.resolve(cached)
         : withTimeout(live.writeIdea({ ticker, name, isCurrent: () => true }), 75000, { status: 'error' }),
     ]);
@@ -581,7 +586,7 @@ async function startRun(ticker, name, sector) {
       aiStatus: ideaRes?.status || 'error',
       idea: ideaRes?.status === 'ok' ? parseIdea(ideaRes.text) : null,
       rawText: ideaRes?.status === 'ok' ? ideaRes.text : null,
-      live: { status: cardRes?.status || 'cold', data: cardRes?.card ? live.updatesFromCard(cardRes.card) : null },
+      live: null,
       sectorProfile: prof,
     };
     if (!rec.sector && prof?.groupLabel) rec.sector = prof.groupLabel;
@@ -1237,7 +1242,7 @@ function openAuto(ticker) {
     openModal(autoPagerHtml(rec, { tailHtml, proseHtml }), { size: 'magazine' });
     wireAutoPdf();
     wireRerun();
-    fillAutoRestored(rec);   // a device-restored run re-reads its free alerts + sector parts; a no-op otherwise
+    fillAutoFree(rec);   // fill the free alerts box (and sector if missing) after open; runs once per run
   });
 }
 
